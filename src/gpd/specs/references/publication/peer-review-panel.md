@@ -38,8 +38,8 @@ Goal:
 - Flag narrative jumps, overclaims, and any places where the conclusions outrun the evidence.
 
 Output:
-- `.gpd/review/CLAIMS{round_suffix}.json`
-- `.gpd/review/STAGE-reader{round_suffix}.json`
+- `GPD/review/CLAIMS{round_suffix}.json`
+- `GPD/review/STAGE-reader{round_suffix}.json`
 
 ### Stage 2. Literature Context
 
@@ -50,7 +50,7 @@ Goal:
 - Identify missing foundational work, unacknowledged overlap, and inflated novelty claims.
 
 Output:
-- `.gpd/review/STAGE-literature{round_suffix}.json`
+- `GPD/review/STAGE-literature{round_suffix}.json`
 
 ### Stage 3. Mathematical Soundness
 
@@ -60,7 +60,7 @@ Goal:
 - Check key equations, derivation integrity, self-consistency, limits, sign conventions, and verification coverage.
 
 Output:
-- `.gpd/review/STAGE-math{round_suffix}.json`
+- `GPD/review/STAGE-math{round_suffix}.json`
 
 ### Stage 4. Physical Soundness
 
@@ -70,7 +70,7 @@ Goal:
 - Check regime of validity, physical assumptions, interpretation, connection between math and physics, and whether the claimed physical conclusions are actually supported.
 
 Output:
-- `.gpd/review/STAGE-physics{round_suffix}.json`
+- `GPD/review/STAGE-physics{round_suffix}.json`
 
 ### Stage 5. Significance And Venue Fit
 
@@ -81,7 +81,7 @@ Goal:
 - Be willing to conclude that the paper is mathematically respectable but scientifically weak.
 
 Output:
-- `.gpd/review/STAGE-interestingness{round_suffix}.json`
+- `GPD/review/STAGE-interestingness{round_suffix}.json`
 
 ### Stage 6. Final Adjudication
 
@@ -93,11 +93,11 @@ Goal:
 - Issue the final recommendation.
 
 Output:
-- `.gpd/review/REVIEW-LEDGER{round_suffix}.json`
-- `.gpd/review/REFEREE-DECISION{round_suffix}.json`
-- `.gpd/REFEREE-REPORT{round_suffix}.md`
-- `.gpd/REFEREE-REPORT{round_suffix}.tex`
-- `.gpd/CONSISTENCY-REPORT.md` when applicable
+- `GPD/review/REVIEW-LEDGER{round_suffix}.json`
+- `GPD/review/REFEREE-DECISION{round_suffix}.json`
+- `GPD/REFEREE-REPORT{round_suffix}.md`
+- `GPD/REFEREE-REPORT{round_suffix}.tex`
+- `GPD/CONSISTENCY-REPORT.md` when applicable
 
 ## Fresh-Context Rule
 
@@ -224,11 +224,11 @@ Minimal final artifact shapes:
   "final_recommendation": "major_revision",
   "final_confidence": "medium",
   "stage_artifacts": [
-    ".gpd/review/STAGE-reader{round_suffix}.json",
-    ".gpd/review/STAGE-literature{round_suffix}.json",
-    ".gpd/review/STAGE-math{round_suffix}.json",
-    ".gpd/review/STAGE-physics{round_suffix}.json",
-    ".gpd/review/STAGE-interestingness{round_suffix}.json"
+    "GPD/review/STAGE-reader{round_suffix}.json",
+    "GPD/review/STAGE-literature{round_suffix}.json",
+    "GPD/review/STAGE-math{round_suffix}.json",
+    "GPD/review/STAGE-physics{round_suffix}.json",
+    "GPD/review/STAGE-interestingness{round_suffix}.json"
   ],
   "blocking_issue_ids": ["REF-001"]
 }
@@ -237,8 +237,8 @@ Minimal final artifact shapes:
 Validate both files before trusting the final recommendation:
 
 ```bash
-gpd validate review-ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json
-gpd validate referee-decision .gpd/review/REFEREE-DECISION{round_suffix}.json --strict --ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json
+gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json
+gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger GPD/review/REVIEW-LEDGER{round_suffix}.json
 ```
 
 ## Recommendation Guardrails For The Final Referee

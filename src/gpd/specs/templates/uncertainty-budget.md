@@ -5,7 +5,7 @@ purpose: Project-wide uncertainty ledger tracking all numerical quantities and t
 
 # Uncertainty Budget Template
 
-Template for `.gpd/analysis/UNCERTAINTY-BUDGET.md` -- tracks all numerical quantities, their uncertainties, and how uncertainties propagate through multi-step calculations.
+Template for `GPD/analysis/UNCERTAINTY-BUDGET.md` -- tracks all numerical quantities, their uncertainties, and how uncertainties propagate through multi-step calculations.
 
 **Purpose:** Central registry of uncertainties across the research project. Prevents silent accumulation of untracked errors, documents which uncertainty dominates the final result, and provides propagation rules for combining quantities across phases.
 

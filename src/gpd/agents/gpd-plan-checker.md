@@ -104,7 +104,7 @@ Same methodology (goal-backward), different timing, different subject matter.
 
 ## Profile-Aware Checking Rigor
 
-The active model profile (from `.gpd/config.json`) controls not just which model tier is used, but how many dimensions are checked and at what depth.
+The active model profile (from `GPD/config.json`) controls not just which model tier is used, but how many dimensions are checked and at what depth.
 
 **Invariant across all profiles:** Profile changes depth and breadth, never minimum contract completeness. Every profile must still run the contract gate, require decisive outputs, require anchor coverage, require acceptance tests, reject forbidden proxies as sole success conditions, and require a disconfirming path for risky work.
 

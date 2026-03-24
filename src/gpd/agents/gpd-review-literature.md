@@ -33,7 +33,7 @@ You are not the final referee. Your artifact should be decisive on novelty and c
    - missing citations
    - overstated novelty
    - genuine overlap that collapses the contribution
-5. Write `.gpd/review/STAGE-literature.json` or the round-specific variant as a compact `StageReviewReport`.
+5. Write `GPD/review/STAGE-literature.json` or the round-specific variant as a compact `StageReviewReport`.
 </process>
 
 <artifact_format>

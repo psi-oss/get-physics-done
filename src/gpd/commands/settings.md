@@ -53,5 +53,5 @@ The workflow handles all logic including:
 6. File writing
 7. Confirmation display with current settings summary and quick command references
 
-Project conventions are managed separately in `.gpd/CONVENTIONS.md` and `.gpd/state.json` (`convention_lock`). The settings workflow must not invent a `physics` block in `.gpd/config.json`; use `gpd convention set` or `/gpd:validate-conventions` for convention work.
+Project conventions are managed separately in `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`). The settings workflow must not invent a `physics` block in `GPD/config.json`; use `gpd convention set` or `/gpd:validate-conventions` for convention work.
    </process>

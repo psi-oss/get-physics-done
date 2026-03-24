@@ -17,10 +17,10 @@ comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other
 comparison_sources:
   - label: theory
     kind: derivation|simulation|summary|verification|artifact|other
-    path: .gpd/phases/01-example/01-SUMMARY.md
+    path: GPD/phases/01-example/01-SUMMARY.md
   - label: benchmark
     kind: summary|verification|artifact|reference|other
-    path: .gpd/phases/02-example/02-VERIFICATION.md
+    path: GPD/phases/02-example/02-VERIFICATION.md
 protocol_bundle_ids (optional):
   - bundle-id
 bundle_expectations (optional):

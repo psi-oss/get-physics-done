@@ -36,7 +36,7 @@ FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
 def _setup_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project structure and return project root."""
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
     (planning / "phases").mkdir()
     return tmp_path
@@ -44,14 +44,14 @@ def _setup_project(tmp_path: Path) -> Path:
 
 def _create_phase_dir(tmp_path: Path, name: str) -> Path:
     """Create a phase directory and return its path."""
-    phase_dir = tmp_path / ".gpd" / "phases" / name
+    phase_dir = tmp_path / "GPD" / "phases" / name
     phase_dir.mkdir(parents=True, exist_ok=True)
     return phase_dir
 
 
 def _create_config(tmp_path: Path, config: dict) -> Path:
     """Write config.json and return its path."""
-    config_path = tmp_path / ".gpd" / "config.json"
+    config_path = tmp_path / "GPD" / "config.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(json.dumps(config))
     return config_path
@@ -59,7 +59,7 @@ def _create_config(tmp_path: Path, config: dict) -> Path:
 
 def _create_roadmap(tmp_path: Path, content: str) -> Path:
     """Write ROADMAP.md and return its path."""
-    roadmap = tmp_path / ".gpd" / "ROADMAP.md"
+    roadmap = tmp_path / "GPD" / "ROADMAP.md"
     roadmap.parent.mkdir(parents=True, exist_ok=True)
     roadmap.write_text(content)
     return roadmap
@@ -71,7 +71,7 @@ def _write_project_contract_state(tmp_path: Path) -> None:
 
     state = default_state_dict()
     state["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
-    (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
 def _write_coercive_project_contract_state(tmp_path: Path) -> None:
@@ -82,7 +82,7 @@ def _write_coercive_project_contract_state(tmp_path: Path) -> None:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["references"][0]["must_surface"] = "yes"
     state["project_contract"] = contract
-    (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
 def _write_recoverable_project_contract_state(tmp_path: Path) -> None:
@@ -93,11 +93,11 @@ def _write_recoverable_project_contract_state(tmp_path: Path) -> None:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["notes"] = "harmless"
     state["project_contract"] = contract
-    (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
 def _write_stat_mech_project(tmp_path: Path) -> None:
-    project = tmp_path / ".gpd" / "PROJECT.md"
+    project = tmp_path / "GPD" / "PROJECT.md"
     project.write_text(
         """# Test Project
 
@@ -185,11 +185,11 @@ def _write_bundle_ready_contract_state(tmp_path: Path) -> None:
             "disconfirming_observations": ["Finite-size crossings drift away from the benchmark window"],
         },
     }
-    (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
 def _write_numerical_relativity_project(tmp_path: Path) -> None:
-    project = tmp_path / ".gpd" / "PROJECT.md"
+    project = tmp_path / "GPD" / "PROJECT.md"
     project.write_text(
         """# Test Project
 
@@ -277,17 +277,17 @@ def _write_numerical_relativity_contract_state(tmp_path: Path) -> None:
             "disconfirming_observations": ["Constraint growth or waveform phase drift relative to the benchmark"],
         },
     }
-    (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
 def _write_current_execution(tmp_path: Path, payload: dict[str, object]) -> None:
-    observability = tmp_path / ".gpd" / "observability"
+    observability = tmp_path / "GPD" / "observability"
     observability.mkdir(parents=True, exist_ok=True)
     (observability / "current-execution.json").write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _write_literature_review_anchor_file(tmp_path: Path) -> None:
-    literature_dir = tmp_path / ".gpd" / "literature"
+    literature_dir = tmp_path / "GPD" / "literature"
     literature_dir.mkdir(parents=True, exist_ok=True)
     (literature_dir / "benchmark-REVIEW.md").write_text(
         """# Literature Review: Benchmark Survey
@@ -324,7 +324,7 @@ review_summary:
 
 
 def _write_research_map_anchor_files(tmp_path: Path) -> None:
-    map_dir = tmp_path / ".gpd" / "research-map"
+    map_dir = tmp_path / "GPD" / "research-map"
     map_dir.mkdir(parents=True, exist_ok=True)
     (map_dir / "REFERENCES.md").write_text(
         """# Reference and Anchor Map
@@ -333,19 +333,19 @@ def _write_research_map_anchor_files(tmp_path: Path) -> None:
 
 | Anchor | Type | Source / Locator | What It Constrains | Required Action | Carry Forward To |
 | ------ | ---- | ---------------- | ------------------ | --------------- | ---------------- |
-| prior-baseline | prior artifact | `.gpd/phases/01-test-phase/01-SUMMARY.md` | Baseline summary for calibration and later comparisons | use | planning/execution |
+| prior-baseline | prior artifact | `GPD/phases/01-test-phase/01-SUMMARY.md` | Baseline summary for calibration and later comparisons | use | planning/execution |
 | benchmark-paper | benchmark | Author et al., Journal, 2024 | Published comparison target for the decisive observable | read/compare/cite | verification/writing |
 
 ## Benchmarks and Comparison Targets
 
 - Universal crossing window
   - Source: Author et al., Journal, 2024
-  - Compared in: `.gpd/phases/01-test-phase/01-SUMMARY.md`
+  - Compared in: `GPD/phases/01-test-phase/01-SUMMARY.md`
   - Status: pending
 
 ## Prior Artifacts and Baselines
 
-- `.gpd/phases/01-test-phase/01-SUMMARY.md`: Prior baseline summary that later phases must keep visible
+- `GPD/phases/01-test-phase/01-SUMMARY.md`: Prior baseline summary that later phases must keep visible
 
 ## Open Reference Questions
 
@@ -359,7 +359,7 @@ def _write_research_map_anchor_files(tmp_path: Path) -> None:
 ## Comparison with Literature
 
 - Result from Author et al., Journal, 2024: agreement still needs confirmation
-  - Comparison in: `.gpd/phases/01-test-phase/01-SUMMARY.md`
+  - Comparison in: `GPD/phases/01-test-phase/01-SUMMARY.md`
 """,
         encoding="utf-8",
     )
@@ -427,7 +427,7 @@ class TestLoadConfig:
 
     def test_malformed_config_raises(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        config_path = tmp_path / ".gpd" / "config.json"
+        config_path = tmp_path / "GPD" / "config.json"
         config_path.write_text("not valid json {{{")
         with pytest.raises(ConfigError, match="Malformed config.json"):
             load_config(tmp_path)
@@ -459,7 +459,7 @@ class TestInitExecutePhase:
     def test_includes_state(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "01-setup")
-        (tmp_path / ".gpd" / "STATE.md").write_text("# State\nstuff")
+        (tmp_path / "GPD" / "STATE.md").write_text("# State\nstuff")
 
         ctx = init_execute_phase(tmp_path, "1", includes={"state"})
         assert ctx["state_content"] == "# State\nstuff"
@@ -470,7 +470,7 @@ class TestInitExecutePhase:
         _setup_project(tmp_path)
         phase_dir = _create_phase_dir(tmp_path, "01-setup")
         (phase_dir / "a-PLAN.md").write_text("plan")
-        (tmp_path / ".gpd" / "state.json").write_text(json.dumps(default_state_dict()), encoding="utf-8")
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(default_state_dict()), encoding="utf-8")
 
         ctx = init_execute_phase(tmp_path, "1")
 
@@ -484,7 +484,7 @@ class TestInitExecutePhase:
         from gpd.core.state import default_state_dict
 
         _setup_project(tmp_path)
-        (tmp_path / ".gpd" / "state.json.bak").write_text(
+        (tmp_path / "GPD" / "state.json.bak").write_text(
             json.dumps(default_state_dict()),
             encoding="utf-8",
         )
@@ -495,7 +495,7 @@ class TestInitExecutePhase:
         monkeypatch.setattr("gpd.core.context._peek_state_json", _unexpected_load)
 
         assert _state_exists(tmp_path) is True
-        assert not (tmp_path / ".gpd" / "state.json").exists()
+        assert not (tmp_path / "GPD" / "state.json").exists()
 
     def test_surfaces_active_reference_context(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -521,10 +521,10 @@ class TestInitExecutePhase:
         assert ctx["derived_active_reference_count"] >= 2
         assert ctx["active_reference_count"] >= 2
         assert "Benchmark Ref 2024" in ctx["active_reference_context"]
-        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in ctx["active_reference_context"]
-        assert ".gpd/research-map/REFERENCES.md" in ctx["active_reference_context"]
+        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["active_reference_context"]
+        assert "GPD/research-map/REFERENCES.md" in ctx["active_reference_context"]
         assert "critical slope" in "\n".join(ctx["effective_reference_intake"]["known_good_baselines"])
-        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
 
     def test_surfaces_live_execution_context(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -651,10 +651,10 @@ class TestInitPlanPhase:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "02-analysis")
         _write_project_contract_state(tmp_path)
-        literature_dir = tmp_path / ".gpd" / "literature"
+        literature_dir = tmp_path / "GPD" / "literature"
         literature_dir.mkdir()
         (literature_dir / "benchmark-REVIEW.md").write_text("# Literature Review\nbenchmark details")
-        map_dir = tmp_path / ".gpd" / "research-map"
+        map_dir = tmp_path / "GPD" / "research-map"
         map_dir.mkdir()
         (map_dir / "REFERENCES.md").write_text("# References Map\nanchor registry")
         (map_dir / "VALIDATION.md").write_text("# Validation Map\nbenchmark checks")
@@ -665,9 +665,9 @@ class TestInitPlanPhase:
         assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
         assert ctx["active_reference_count"] == 1
         assert "[ref-benchmark]" in ctx["active_reference_context"]
-        assert ".gpd/literature/benchmark-REVIEW.md" in ctx["literature_review_files"]
-        assert ".gpd/research-map/REFERENCES.md" in ctx["research_map_reference_files"]
-        assert ".gpd/research-map/VALIDATION.md" in ctx["reference_artifact_files"]
+        assert "GPD/literature/benchmark-REVIEW.md" in ctx["literature_review_files"]
+        assert "GPD/research-map/REFERENCES.md" in ctx["research_map_reference_files"]
+        assert "GPD/research-map/VALIDATION.md" in ctx["reference_artifact_files"]
         assert "benchmark details" in ctx["reference_artifacts_content"]
         assert "anchor registry" in ctx["reference_artifacts_content"]
 
@@ -685,9 +685,9 @@ class TestInitPlanPhase:
         assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
         assert "lit-anchor-benchmark-ref-2024" in ctx["effective_reference_intake"]["must_read_refs"]
         assert "benchmark-paper" not in ctx["effective_reference_intake"]["must_read_refs"]
-        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
         assert ctx["active_reference_count"] >= ctx["derived_active_reference_count"]
-        assert ".gpd/research-map/REFERENCES.md" in ctx["active_reference_context"]
+        assert "GPD/research-map/REFERENCES.md" in ctx["active_reference_context"]
         assert "unresolved reference token" not in ctx["active_reference_context"]
 
     def test_contract_intake_comes_from_canonicalized_project_contract(self, tmp_path: Path) -> None:
@@ -697,7 +697,7 @@ class TestInitPlanPhase:
         _write_literature_review_anchor_file(tmp_path)
         _write_research_map_anchor_files(tmp_path)
 
-        state_path = tmp_path / ".gpd" / "state.json"
+        state_path = tmp_path / "GPD" / "state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
         state["project_contract"]["context_intake"]["must_read_refs"] = ["benchmark-paper"]
         state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
@@ -763,7 +763,7 @@ class TestInitPlanPhase:
         _write_literature_review_anchor_file(tmp_path)
         _write_research_map_anchor_files(tmp_path)
 
-        state_path = tmp_path / ".gpd" / "state.json"
+        state_path = tmp_path / "GPD" / "state.json"
         before = state_path.read_text(encoding="utf-8")
 
         ctx = init_plan_phase(tmp_path, "2")
@@ -777,7 +777,7 @@ class TestInitPlanPhase:
         assert "lit-anchor-benchmark-ref-2024" in ctx["effective_reference_intake"]["must_read_refs"]
         assert stored["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
         assert before == after
-        assert not (tmp_path / ".gpd" / "STATE.md").exists()
+        assert not (tmp_path / "GPD" / "STATE.md").exists()
 
     def test_reports_canonical_project_contract_merge_validation_failures(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         _setup_project(tmp_path)
@@ -895,9 +895,9 @@ class TestInitNewMilestone:
         assert ctx["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
         assert "ref-benchmark" in ctx["effective_reference_intake"]["must_read_refs"]
         assert "lit-anchor-benchmark-ref-2024" in ctx["effective_reference_intake"]["must_read_refs"]
-        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
         assert "Benchmark Ref 2024" in ctx["active_reference_context"]
-        assert ".gpd/research-map/REFERENCES.md" in ctx["reference_artifact_files"]
+        assert "GPD/research-map/REFERENCES.md" in ctx["reference_artifact_files"]
 
     def test_surfaces_project_contract_load_and_validation_gates_when_contract_is_not_authoritative(
         self, tmp_path: Path
@@ -920,7 +920,7 @@ class TestInitNewMilestone:
         contract["references"][0]["role"] = "background"
         contract["references"][0]["must_surface"] = False
         state["project_contract"] = contract
-        (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         ctx = init_new_milestone(tmp_path)
 
@@ -947,7 +947,7 @@ class TestInitQuick:
 
     def test_increments_number(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        quick_dir = tmp_path / ".gpd" / "quick"
+        quick_dir = tmp_path / "GPD" / "quick"
         quick_dir.mkdir()
         (quick_dir / "1-first-task").mkdir()
         (quick_dir / "2-second-task").mkdir()
@@ -957,7 +957,7 @@ class TestInitQuick:
 
     def test_permission_error_on_quick_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         _setup_project(tmp_path)
-        quick_dir = tmp_path / ".gpd" / "quick"
+        quick_dir = tmp_path / "GPD" / "quick"
         quick_dir.mkdir()
 
         original_iterdir = Path.iterdir
@@ -992,7 +992,7 @@ class TestInitResume:
 
     def test_with_interrupted_agent(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        (tmp_path / ".gpd" / "current-agent-id.txt").write_text("agent-123\n")
+        (tmp_path / "GPD" / "current-agent-id.txt").write_text("agent-123\n")
 
         ctx = init_resume(tmp_path)
         assert ctx["has_interrupted_agent"] is True
@@ -1002,7 +1002,7 @@ class TestInitResume:
         from gpd.core.state import default_state_dict
 
         _setup_project(tmp_path)
-        (tmp_path / ".gpd" / "state.json").write_text(json.dumps(default_state_dict()), encoding="utf-8")
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(default_state_dict()), encoding="utf-8")
 
         ctx = init_resume(tmp_path)
 
@@ -1018,7 +1018,7 @@ class TestInitResume:
                 "plan": "02",
                 "segment_id": "seg-4",
                 "segment_status": "paused",
-                "resume_file": ".gpd/phases/03-analysis/.continue-here.md",
+                "resume_file": "GPD/phases/03-analysis/.continue-here.md",
                 "updated_at": "2026-03-10T12:00:00+00:00",
             },
         )
@@ -1146,7 +1146,7 @@ class TestInitVerifyWork:
     def test_basic(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         phase_dir = _create_phase_dir(tmp_path, "01-setup")
-        (phase_dir / "VERIFICATION.md").write_text("verified")
+        (phase_dir / "01-VERIFICATION.md").write_text("verified")
 
         ctx = init_verify_work(tmp_path, "1")
         assert ctx["phase_found"] is True
@@ -1190,7 +1190,7 @@ class TestInitTodos:
 
     def test_finds_todos(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        pending = tmp_path / ".gpd" / "todos" / "pending"
+        pending = tmp_path / "GPD" / "todos" / "pending"
         pending.mkdir(parents=True)
         (pending / "check-convergence.md").write_text(
             'title: "Check convergence"\narea: numerical\ncreated: 2026-03-01'
@@ -1203,7 +1203,7 @@ class TestInitTodos:
 
     def test_area_filter(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        pending = tmp_path / ".gpd" / "todos" / "pending"
+        pending = tmp_path / "GPD" / "todos" / "pending"
         pending.mkdir(parents=True)
         (pending / "a.md").write_text("title: A\narea: theory")
         (pending / "b.md").write_text("title: B\narea: numerical")
@@ -1252,7 +1252,7 @@ class TestInitMapResearch:
 
     def test_existing_maps(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        map_dir = tmp_path / ".gpd" / "research-map"
+        map_dir = tmp_path / "GPD" / "research-map"
         map_dir.mkdir()
         (map_dir / "theory.md").write_text("# Theory Map")
 
@@ -1279,7 +1279,7 @@ class TestInitMapResearch:
         assert ctx["project_contract"] is None
         assert ctx["derived_active_reference_count"] >= 2
         assert "Benchmark Ref 2024" in ctx["active_reference_context"]
-        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
 
 
 # ─── init_progress ────────────────────────────────────────────────────────────
@@ -1322,7 +1322,7 @@ class TestInitProgress:
 
         state = default_state_dict()
         state["position"]["current_phase"] = "03"
-        (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         ctx = init_progress(tmp_path)
 
@@ -1331,7 +1331,7 @@ class TestInitProgress:
 
     def test_detects_paused_state(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        (tmp_path / ".gpd" / "STATE.md").write_text(
+        (tmp_path / "GPD" / "STATE.md").write_text(
             "# State\n**Status:** Paused\n**Stopped at:** 2026-03-01T12:00:00Z"
         )
 
@@ -1353,7 +1353,7 @@ class TestInitProgress:
                 "session_id": "sess-2",
                 "phase": "02",
                 "segment_status": "paused",
-                "resume_file": ".gpd/phases/02-analysis/.continue-here.md",
+                "resume_file": "GPD/phases/02-analysis/.continue-here.md",
                 "updated_at": "2026-03-11T08:00:00+00:00",
             },
         )
@@ -1374,7 +1374,7 @@ class TestInitProgress:
                 "plan": "1",
                 "segment_status": "paused",
                 "checkpoint_reason": "pre-fanout",
-                "resume_file": ".gpd/phases/02-analysis/.continue-here.md",
+                "resume_file": "GPD/phases/02-analysis/.continue-here.md",
                 "updated_at": "2026-03-11T08:00:00+00:00",
             },
         )
@@ -1388,7 +1388,7 @@ class TestInitProgress:
 
     def test_includes_project(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        (tmp_path / ".gpd" / "PROJECT.md").write_text("# My Project")
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# My Project")
 
         ctx = init_progress(tmp_path, includes={"project"})
         assert ctx["project_content"] == "# My Project"
@@ -1445,33 +1445,38 @@ class TestInitProgress:
         assert loaded.state["project_contract"]["claims"][0]["id"] == "claim-benchmark"
         assert "notes" not in loaded.state["project_contract"]["claims"][0]
 
-    def test_load_project_contract_uses_backup_when_primary_root_is_schema_corrupt(
+    def test_load_project_contract_keeps_primary_contract_when_unrelated_root_section_is_schema_corrupt(
         self, tmp_path: Path
     ) -> None:
         _setup_project(tmp_path)
         _write_project_contract_state(tmp_path)
-
         from gpd.core.state import default_state_dict
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         primary_state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
-        primary_state["position"] = []
+        primary_state["blockers"] = "bad-root-shape"
         (planning / "state.json").write_text(json.dumps(primary_state, indent=2) + "\n", encoding="utf-8")
 
+        backup_question = "Recovered from schema-corrupt backup state"
         backup_state = default_state_dict()
         backup_contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
-        backup_contract["scope"]["question"] = "Recovered from schema-corrupt backup state"
+        backup_contract["scope"]["question"] = backup_question
         backup_state["project_contract"] = backup_contract
         (planning / "state.json.bak").write_text(json.dumps(backup_state, indent=2) + "\n", encoding="utf-8")
 
         loaded, load_info = _load_project_contract(tmp_path)
         ctx = init_progress(tmp_path)
+        primary_question = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))["scope"][
+            "question"
+        ]
 
         assert loaded is not None
-        assert load_info["source_path"].endswith("state.json.bak")
+        assert load_info["source_path"].endswith("state.json")
+        assert loaded.scope.question == primary_question
+        assert loaded.scope.question != backup_question
         assert ctx["project_contract"] is not None
-        assert ctx["project_contract"]["scope"]["question"] == "Recovered from schema-corrupt backup state"
-        assert ctx["project_contract_load_info"]["source_path"].endswith("state.json.bak")
+        assert ctx["project_contract"]["scope"]["question"] == primary_question
+        assert ctx["project_contract_load_info"]["source_path"].endswith("state.json")
 
     def test_load_project_contract_surfaces_blocked_status_for_invalid_state_backed_contract(
         self, tmp_path: Path
@@ -1484,7 +1489,7 @@ class TestInitProgress:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["references"] = ["bad"]
         state["project_contract"] = contract
-        (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         loaded, load_info = _load_project_contract(tmp_path)
         ctx = init_progress(tmp_path)
@@ -1504,7 +1509,7 @@ class TestInitProgress:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["references"][0]["aliases"] = "not-a-list"
         state["project_contract"] = contract
-        (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         loaded, load_info = _load_project_contract(tmp_path)
 
@@ -1544,7 +1549,7 @@ class TestInitProgress:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["claims"].append(dict(contract["claims"][0]))
         state["project_contract"] = contract
-        (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         loaded, load_info = _load_project_contract(tmp_path)
 
@@ -1560,7 +1565,7 @@ class TestInitProgress:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["context_intake"] = "not-a-dict"
         state["project_contract"] = contract
-        (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         loaded, load_info = _load_project_contract(tmp_path)
 
@@ -1612,7 +1617,7 @@ class TestInitPhaseOp:
     def test_no_phase_returns_phase_found_false(self, tmp_path):
         """init_phase_op with no phase should set phase_found=False."""
         from gpd.core.context import init_phase_op
-        gpd_dir = tmp_path / ".gpd"
+        gpd_dir = tmp_path / "GPD"
         gpd_dir.mkdir()
         (gpd_dir / "config.json").write_text("{}", encoding="utf-8")
 
@@ -1623,7 +1628,7 @@ class TestInitPhaseOp:
     def test_with_phase_directory(self, tmp_path):
         """init_phase_op with existing phase should set phase_found=True."""
         from gpd.core.context import init_phase_op
-        gpd_dir = tmp_path / ".gpd"
+        gpd_dir = tmp_path / "GPD"
         phases_dir = gpd_dir / "phases" / "01-test"
         phases_dir.mkdir(parents=True)
         (gpd_dir / "config.json").write_text("{}", encoding="utf-8")

@@ -96,11 +96,11 @@ _GEMINI_POLICY_DIR_NAME = "policies"
 _GEMINI_POLICY_FILE_NAME = "gpd-auto-edit.toml"
 _GEMINI_RUNTIME_BIN_DIR_NAME = "bin"
 _GEMINI_YOLO_WRAPPER_NAME = "gemini-gpd-yolo"
-_GEMINI_APPROVED_CONTRACT_PATH = ".gpd/.approved-project-contract.json"
+_GEMINI_APPROVED_CONTRACT_PATH = "GPD/.approved-project-contract.json"
 _GEMINI_STATIC_POLICY_COMMAND_PREFIXES: tuple[str, ...] = (
     "git init",
-    "mkdir -p .gpd",
-    "mkdir -p .gpd/research",
+    "mkdir -p GPD",
+    "mkdir -p GPD/research",
     "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"",
 )
 _GPD_CLI_INVOCATION_RE = re.compile(r'(?<![A-Za-z0-9_./:-])gpd(?=(?:\s|["\'`]|$))')
@@ -110,7 +110,7 @@ _GEMINI_COMMAND_RUNTIME_NOTE = (
     "- When shell steps call the GPD CLI, use {launcher} instead of the ambient `gpd` on PATH.\n"
     "- Gemini policy checks are syntactic in headless auto-edit mode. Prefer direct commands and reason over stdout instead of wrapping approved commands in shell variables, `$(...)`, heredocs, or extra chained blocks.\n"
     "- Any remaining `VAR=$(...)` examples in rendered workflow guidance are non-runnable shorthand; do not copy them into Gemini auto-edit mode.\n"
-    "- Keep contract JSON in-memory or under `.gpd/`. Do not write approved contracts to `/tmp`.\n"
+    "- Keep contract JSON in-memory or under `GPD/`. Do not write approved contracts to `/tmp`.\n"
     "</gemini_runtime_notes>\n\n"
 )
 _GEMINI_NEW_PROJECT_INIT_BLOCK = """```bash
@@ -149,33 +149,33 @@ gpd init progress --include state,config
 
 If the init command fails, stop, surface the error, and do not proceed."""
 _GEMINI_MINIMAL_COMMIT_BLOCK = """```bash
-mkdir -p .gpd
+mkdir -p GPD
 
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/PROJECT.md GPD/REQUIREMENTS.md GPD/ROADMAP.md GPD/STATE.md GPD/state.json GPD/config.json 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: initialize research project (minimal)" --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json
+gpd commit "docs: initialize research project (minimal)" --files GPD/PROJECT.md GPD/REQUIREMENTS.md GPD/ROADMAP.md GPD/STATE.md GPD/state.json GPD/config.json
 ```"""
 _GEMINI_MINIMAL_COMMIT_REPLACEMENT = """Create the directory structure, run the pre-check, then commit everything. In Gemini auto-edit mode, execute each shell command separately rather than pasting the whole block as one command.
 
 ```bash
-mkdir -p .gpd
+mkdir -p GPD
 ```
 
 Then run:
 
 ```bash
-gpd pre-commit-check --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json
+gpd pre-commit-check --files GPD/PROJECT.md GPD/REQUIREMENTS.md GPD/ROADMAP.md GPD/STATE.md GPD/state.json GPD/config.json
 ```
 
 If the pre-check reports issues or exits non-zero, surface the output and continue to the commit.
 
 ```bash
-gpd commit "docs: initialize research project (minimal)" --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json
+gpd commit "docs: initialize research project (minimal)" --files GPD/PROJECT.md GPD/REQUIREMENTS.md GPD/ROADMAP.md GPD/STATE.md GPD/state.json GPD/config.json
 ```"""
 _GEMINI_CONTRACT_PERSIST_SENTENCE = (
     "Write the exact approved contract JSON to "
-    f"`{_GEMINI_APPROVED_CONTRACT_PATH}` using file tools, then persist it into `.gpd/state.json`:"
+    f"`{_GEMINI_APPROVED_CONTRACT_PATH}` using file tools, then persist it into `GPD/state.json`:"
 )
 _GEMINI_CONTRACT_FILE_NOTE = (
     "Do not write `/tmp` intermediates for the approved contract. In Gemini headless auto-edit mode, keep the exact approved JSON in "
@@ -251,11 +251,11 @@ def _rewrite_gemini_shell_workflow_guidance(content: str) -> str:
         f"gpd state set-project-contract {_GEMINI_APPROVED_CONTRACT_PATH}",
     )
     content = content.replace(
-        "Persist the approved contract into `.gpd/state.json` from the same stdin payload:",
+        "Persist the approved contract into `GPD/state.json` from the same stdin payload:",
         _GEMINI_CONTRACT_PERSIST_SENTENCE,
     )
     content = content.replace(
-        "After validation passes, persist the approved contract into `.gpd/state.json` from the same stdin payload:",
+        "After validation passes, persist the approved contract into `GPD/state.json` from the same stdin payload:",
         _GEMINI_CONTRACT_PERSIST_SENTENCE,
     )
     content = content.replace(
@@ -362,16 +362,16 @@ gpd commit \
     )
     content = content.replace(
         """```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/DEPENDENCY-GRAPH.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/DEPENDENCY-GRAPH.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: generate dependency graph" --files .gpd/DEPENDENCY-GRAPH.md
+gpd commit "docs: generate dependency graph" --files GPD/DEPENDENCY-GRAPH.md
 ```""",
         """```bash
 # Gemini auto-edit: run the pre-check directly; if it fails, inspect the output before committing.
-gpd pre-commit-check --files .gpd/DEPENDENCY-GRAPH.md 2>&1 || true
+gpd pre-commit-check --files GPD/DEPENDENCY-GRAPH.md 2>&1 || true
 
-gpd commit "docs: generate dependency graph" --files .gpd/DEPENDENCY-GRAPH.md
+gpd commit "docs: generate dependency graph" --files GPD/DEPENDENCY-GRAPH.md
 ```""",
     )
     content = content.replace(

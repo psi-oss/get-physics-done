@@ -30,7 +30,7 @@ Your output must give later reviewers a concise statement of what is mathematica
 2. Choose the 3-5 equations or derivation steps most central to the paper's claims.
 3. Check self-consistency, limits, signs, and approximation validity as far as the artifact set permits.
 4. Record what you actually checked and what remained unchecked.
-5. Write `.gpd/review/STAGE-math.json` or the round-specific variant as a compact `StageReviewReport`.
+5. Write `GPD/review/STAGE-math.json` or the round-specific variant as a compact `StageReviewReport`.
 </process>
 
 <artifact_format>

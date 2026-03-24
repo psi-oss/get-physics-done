@@ -209,14 +209,14 @@ class TestExecutionBadge:
         assert badge == "BLOCKED"
 
     def test_resume_badge_surfaces_resume_state(self) -> None:
-        badge = _execution_badge({"segment_status": "paused", "resume_file": ".gpd/phases/02/.continue-here.md"})
+        badge = _execution_badge({"segment_status": "paused", "resume_file": "GPD/phases/02/.continue-here.md"})
         assert badge == "RESUME"
 
     def test_review_badge_wins_over_resume_for_bounded_gate_state(self) -> None:
         badge = _execution_badge(
             {
                 "segment_status": "paused",
-                "resume_file": ".gpd/phases/02/.continue-here.md",
+                "resume_file": "GPD/phases/02/.continue-here.md",
                 "checkpoint_reason": "pre_fanout",
                 "pre_fanout_review_pending": True,
                 "downstream_locked": True,
@@ -271,48 +271,48 @@ class TestReadPosition:
         assert _read_position(str(tmp_path)) == ""
 
     def test_valid_state_with_phase_only(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         state = {"position": {"current_phase": 3, "total_phases": 10}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == "P3/10"
 
     def test_valid_state_with_phase_and_plan(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         state = {"position": {"current_phase": 2, "total_phases": 5, "current_plan": 1, "total_plans_in_phase": 3}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == "P2/5 plan 1/3"
 
     def test_empty_position_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         state = {"position": {}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == ""
 
     def test_missing_phase_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         state = {"position": {"total_phases": 5}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == ""
 
     def test_missing_total_phases_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         state = {"position": {"current_phase": 3}}
         (planning / "state.json").write_text(json.dumps(state))
         assert _read_position(str(tmp_path)) == ""
 
     def test_corrupt_json_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text("not valid json{{{")
         assert _read_position(str(tmp_path)) == ""
 
     def test_nested_workspace_walks_up_to_project_root(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         nested = tmp_path / "src" / "notes"
         nested.mkdir(parents=True)
@@ -323,7 +323,7 @@ class TestReadPosition:
     def test_tilde_workspace_expands_before_project_root_lookup(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
         project = home / "project"
-        planning = project / ".gpd"
+        planning = project / "GPD"
         planning.mkdir(parents=True)
         nested = project / "src"
         nested.mkdir(parents=True)
@@ -334,7 +334,7 @@ class TestReadPosition:
             assert _read_position("~/project/src") == "P7/8"
 
     def test_no_position_key_returns_empty(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({"other": "data"}))
         assert _read_position(str(tmp_path)) == ""
@@ -548,7 +548,7 @@ class TestCheckUpdateHook:
             assert _check_update() == ""
 
     def test_cache_with_update_available(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / ".gpd" / "cache"
+        gpd_cache = tmp_path / "GPD" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}))
         with (
@@ -561,7 +561,7 @@ class TestCheckUpdateHook:
             assert expected in result
 
     def test_cache_with_no_update(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / ".gpd" / "cache"
+        gpd_cache = tmp_path / "GPD" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": False}))
         with (
@@ -571,7 +571,7 @@ class TestCheckUpdateHook:
             assert _check_update() == ""
 
     def test_corrupt_cache_returns_empty(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / ".gpd" / "cache"
+        gpd_cache = tmp_path / "GPD" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text("broken{json")
         with (
@@ -581,7 +581,7 @@ class TestCheckUpdateHook:
             assert _check_update() == ""
 
     def test_non_mapping_cache_is_ignored_instead_of_crashing(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / ".gpd" / "cache"
+        gpd_cache = tmp_path / "GPD" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps(["not", "a", "mapping"]), encoding="utf-8")
 
@@ -593,7 +593,7 @@ class TestCheckUpdateHook:
 
     def test_local_runtime_cache_can_override_stale_home_cache(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
-        home_cache = home / ".gpd" / "cache"
+        home_cache = home / "GPD" / "cache"
         home_cache.mkdir(parents=True)
         (home_cache / "gpd-update-check.json").write_text(
             json.dumps({"update_available": False, "checked": 10}),
@@ -619,7 +619,7 @@ class TestCheckUpdateHook:
 
     def test_local_runtime_cache_uses_cache_runtime_when_install_exists(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
-        home_cache = home / ".gpd" / "cache"
+        home_cache = home / "GPD" / "cache"
         home_cache.mkdir(parents=True)
         (home_cache / "gpd-update-check.json").write_text(
             json.dumps({"update_available": False, "checked": 10}),
@@ -886,7 +886,7 @@ class TestCheckUpdateHook:
             assert _check_update() == ""
 
     def test_unknown_runtime_falls_back_to_runtime_neutral_update_command(self, tmp_path: Path) -> None:
-        gpd_cache = tmp_path / ".gpd" / "cache"
+        gpd_cache = tmp_path / "GPD" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}), encoding="utf-8")
 
@@ -914,7 +914,7 @@ class TestCheckUpdateHook:
 
     def test_known_runtime_resolves_scope_for_bootstrap_update_command(self, tmp_path: Path) -> None:
         """Known runtimes should still resolve scope before rendering the bootstrap command."""
-        gpd_cache = tmp_path / ".gpd" / "cache"
+        gpd_cache = tmp_path / "GPD" / "cache"
         gpd_cache.mkdir(parents=True)
         (gpd_cache / "gpd-update-check.json").write_text(json.dumps({"update_available": True}))
 

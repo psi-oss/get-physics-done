@@ -61,7 +61,7 @@ Parse JSON for all locked convention fields and their values. The convention loc
 **Load CONVENTIONS.md if it exists:**
 
 ```bash
-cat .gpd/CONVENTIONS.md 2>/dev/null
+cat GPD/CONVENTIONS.md 2>/dev/null
 ```
 
 CONVENTIONS.md is the human-readable convention reference. Convention lock (in state.json) is the machine-readable enforced version.
@@ -107,7 +107,7 @@ For each phase with `disk_status: "complete"` or `disk_status: "partial"`:
 
 ```bash
 # Extract conventions from SUMMARY.md frontmatter
-for SUMMARY in .gpd/phases/${PHASE_DIR}/*-SUMMARY.md; do
+for SUMMARY in GPD/phases/${PHASE_DIR}/*-SUMMARY.md; do
   gpd summary-extract "$SUMMARY" --field conventions --field affects
 done
 ```
@@ -194,7 +194,7 @@ task(
     Validate convention consistency across the entire project.
     Read conventions from state.json via: gpd convention list
     Read all SUMMARY.md files from all completed phases.
-    file_read: .gpd/STATE.md, .gpd/state.json, .gpd/CONVENTIONS.md
+    file_read: GPD/STATE.md, GPD/state.json, GPD/CONVENTIONS.md
 
     Focus on:
     1. Sign conventions propagating correctly across phase boundaries
@@ -288,7 +288,7 @@ Resolve convention conflicts detected by validation.
 </conflicts>
 
 <project_context>
-file_read: .gpd/CONVENTIONS.md, .gpd/STATE.md, .gpd/state.json
+file_read: GPD/CONVENTIONS.md, GPD/STATE.md, GPD/state.json
 file_read affected phase SUMMARY.md files.
 </project_context>
 

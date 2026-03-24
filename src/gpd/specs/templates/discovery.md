@@ -4,7 +4,7 @@ template_version: 1
 
 # Discovery Template
 
-Template for `.gpd/phases/XX-name/DISCOVERY.md` - pre-planning discovery of physics landscape, methods, and known results.
+Template for `GPD/phases/XX-name/DISCOVERY.md` - pre-planning discovery of physics landscape, methods, and known results.
 
 **Purpose:** Document what was discovered about a physics problem before planning begins. Answers: what methods exist, what is known, what tools are available, what approximations are valid, and what the recommended approach is.
 
@@ -185,7 +185,7 @@ All sections with full analysis:
 
 ## Integration with Planning
 
-- DISCOVERY.md lives in phase directory: `.gpd/phases/XX-name/DISCOVERY.md`
+- DISCOVERY.md lives in phase directory: `GPD/phases/XX-name/DISCOVERY.md`
 - Loaded by plan-phase as context when creating PLAN.md
 - Recommendation informs approach selection
 - Known results provide verification benchmarks for the plan

@@ -1,5 +1,5 @@
 <purpose>
-Validate research results through conversational research validation with persistent state. Creates VERIFICATION.md that tracks verification progress, survives /clear, and feeds gaps into /gpd:plan-phase --gaps.
+Validate research results through conversational research validation with persistent state. Creates the canonical `XX-VERIFICATION.md` artifact that tracks verification progress, survives /clear, and feeds gaps into /gpd:plan-phase --gaps.
 
 Researcher validates, the AI records. One check at a time. Plain text responses.
 
@@ -16,7 +16,7 @@ The AI does not just present what the research SHOULD show — it COMPUTES what 
 
 Walk through derivation logic, perform numerical spot-checks, re-derive limiting cases, probe edge cases with actual computations. No formal review forms. Just: "Here is what I independently computed. Does your result match?"
 
-**Verification independence:** Derive validation checks from the phase goal, the PLAN `contract`, and the actual research artifacts — not from SUMMARY.md claims about what was accomplished. SUMMARY.md `contract_results` and `comparison_verdicts` tell you WHERE evidence lives, but expected physics outcomes come from the phase goal, contract IDs, and domain knowledge. See @{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md.
+**Verification independence:** Derive validation checks from the phase goal, the PLAN `contract`, and the actual research artifacts — not from phase-summary claims about what was accomplished. `*-SUMMARY.md` `contract_results` and `comparison_verdicts` tell you WHERE evidence lives, but expected physics outcomes come from the phase goal, contract IDs, and domain knowledge. See @{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md.
 </philosophy>
 
 <template>
@@ -41,7 +41,7 @@ Parse `$ARGUMENTS` for specific check flags:
 - `--dimensional` — Run only dimensional analysis checks
 - `--limits` — Run only limiting case checks
 - `--convergence` — Run only numerical convergence checks
-- `--regression` — Run regression scan (check `SUMMARY.md`/`VERIFICATION.md` frontmatter for convention conflicts and verification-state issues)
+- `--regression` — Run regression scan (check `*-SUMMARY.md`/`*-VERIFICATION.md` frontmatter for convention conflicts and verification-state issues)
 - `--all` or no flags — Run full verification suite
 
 This allows targeted verification without running the full suite.
@@ -61,7 +61,7 @@ fi
 Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`, `active_reference_context`, `reference_artifacts_content`.
 
 **Mode-aware behavior:**
-- `autonomy=supervised`: Pause after each verification round for user review. Present findings and wait for confirmation before writing `VERIFICATION.md`.
+- `autonomy=supervised`: Pause after each verification round for user review. Present findings and wait for confirmation before writing the canonical `XX-VERIFICATION.md` artifact.
 - `autonomy=balanced` (default): Run the full verification pipeline. Pause only if verification reveals critical issues that require user judgment or claim-level decisions.
 - `autonomy=yolo`: Run verification but skip optional cross-checks and literature comparison. Do NOT skip contract-critical anchors, decisive benchmarks, or user-mandated references.
 - `research_mode=explore`: Thorough verification — run all check types, compare against literature, verify intermediate steps. More spawned verifier agents.
@@ -125,7 +125,7 @@ Use `protocol_bundle_context` from init JSON as additive specialized guidance.
 **First: Check for active verification sessions**
 
 ```bash
-rg -l '^session_status: (validating|diagnosed)$' .gpd/phases/*/VERIFICATION.md .gpd/phases/*/*-VERIFICATION.md 2>/dev/null | sort | head -5
+rg -l '^session_status: (validating|diagnosed)$' GPD/phases/*/*-VERIFICATION.md 2>/dev/null | sort | head -5
 ```
 
 **If active sessions exist AND no $ARGUMENTS provided:**
@@ -175,10 +175,10 @@ Continue to `create_verification_file`.
 Use `phase_dir` from init (or run init if not already done).
 
 ```bash
-ls "$phase_dir"/SUMMARY.md "$phase_dir"/*-SUMMARY.md 2>/dev/null
+ls "$phase_dir"/*-SUMMARY.md 2>/dev/null
 ```
 
-Read each SUMMARY.md to extract **deliverable names, file paths, and evidence locations only**. Do NOT trust SUMMARY.md claims about correctness, convergence, or agreement with literature — those are exactly what you are validating. Use SUMMARY.md as a map to find artifacts and comparison evidence, not as evidence that they are correct.
+Read each phase-summary artifact to extract **deliverable names, file paths, and evidence locations only**. Do NOT trust phase-summary claims about correctness, convergence, or agreement with literature — those are exactly what you are validating. Use the phase summary as a map to find artifacts and comparison evidence, not as evidence that they are correct.
 
 If a SUMMARY has `contract_results` or `comparison_verdicts`, use them only as evidence maps keyed to contract IDs. The PLAN `contract` remains the source of truth for what must be verified.
 
@@ -191,7 +191,7 @@ gpd roadmap get-phase "${phase_number}"
 </step>
 
 <step name="extract_checks">
-**Extract validatable contract-backed checks from PLAN `contract` first, then use SUMMARY.md as an evidence map:**
+**Extract validatable contract-backed checks from PLAN `contract` first, then use phase-summary artifacts as an evidence map:**
 
 Parse for:
 
@@ -255,7 +255,7 @@ Skip internal/non-observable items (code refactors, file reorganization, checkli
 2. **Limiting case**: At least one limiting case independently re-derived (not just discussed qualitatively)
 3. **Numerical spot-check with code execution**: At least one Python/SymPy script actually executed via shell, with the output captured and presented to the researcher
 
-**Code output requirement:** The final VERIFICATION.md must contain at least one fenced code block showing actual execution output. A verification report with only text analysis and zero computational evidence is INCOMPLETE. If the pre-computation step produces no code outputs, flag the verification as incomplete before presenting to the researcher.
+**Code output requirement:** The final verification artifact must contain at least one fenced code block showing actual execution output. A verification report with only text analysis and zero computational evidence is INCOMPLETE. If the pre-computation step produces no code outputs, flag the verification as incomplete before presenting to the researcher.
 
 These 3 minimum checks must be among the checks presented to the researcher, even when the exploratory profile reduces the total check count.
 </step>
@@ -296,20 +296,20 @@ import numpy as np
 mkdir -p "$phase_dir"
 ```
 
-**Check for existing VERIFICATION.md** (e.g., from a prior `/gpd:execute-phase` → `verify-phase` run):
+**Check for existing verification artifact** (e.g., from a prior `/gpd:execute-phase` → `verify-phase` run):
 
 ```bash
-EXISTING_VERIFICATION=$(ls "$phase_dir"/VERIFICATION.md "$phase_dir"/*-VERIFICATION.md 2>/dev/null | head -1)
+EXISTING_VERIFICATION=$(ls "$phase_dir"/*-VERIFICATION.md 2>/dev/null | head -1)
 ```
 
-If an existing VERIFICATION.md is found (e.g., from a prior `/gpd:execute-phase` → `verify-phase` automated run):
+If an existing verification artifact is found (e.g., from a prior `/gpd:execute-phase` → `verify-phase` automated run):
 1. Read it to preserve any prior automated verification results
 2. Do NOT overwrite — instead, append a `## Researcher Validation` section after the existing content
 3. The new researcher checks go under this section, keeping the automated checks intact
 4. **Status merge rule:** The combined verification `status` uses the MORE RESTRICTIVE verification-report vocabulary (`passed | gaps_found | expert_needed | human_needed`). If automated verification passed but the researcher finds issues, the combined status becomes `gaps_found`. If automated found gaps but the researcher confirms they are acceptable, the combined status stays `gaps_found` unless the researcher explicitly upgrades each gap to `pass`. Keep `session_status` for conversational progress only.
 5. The `independently_confirmed` count in the report should aggregate both automated and researcher-confirmed checks
 
-If no existing VERIFICATION.md exists, create a new one from scratch.
+If no existing verification artifact exists, create a new one from scratch.
 
 Build check list from extracted contract-backed checks, including computational test specifications.
 Checks with non-empty `comparison_kind` are decisive and must end with either a recorded `comparison_verdict` or a recorded gap before the file can finish. Exploratory or partial verification is allowed to end at `inconclusive` or `tension`; it is not allowed to imply a pass from suggestive but non-decisive evidence.
@@ -326,7 +326,7 @@ phase: {phase_number}-{phase_name}
 verified: [ISO timestamp]
 status: passed | gaps_found | expert_needed | human_needed
 score: 0/{total contract targets} contract targets verified
-plan_contract_ref: .gpd/phases/{phase_number}-{phase_name}/{phase_number}-{plan}-PLAN.md#/contract
+plan_contract_ref: GPD/phases/{phase_number}-{phase_name}/{phase_number}-{plan}-PLAN.md#/contract
 contract_results:
   claims:
     claim-id:
@@ -377,7 +377,7 @@ suggested_contract_checks:
     suggested_subject_kind: reference
     suggested_subject_id: reference-id
     evidence_path: "artifact path or expected evidence path"
-source: ["list of SUMMARY.md files"]
+source: ["list of phase-summary files"]
 started: "ISO timestamp"
 updated: "ISO timestamp"
 session_status: validating
@@ -636,9 +636,9 @@ Update frontmatter.updated timestamp.
 
 **REQUIREMENTS.md traceability update (on pass only):**
 
-If the check passed AND the check name or expected outcome corresponds to a requirement ID (REQ-*) from `.gpd/REQUIREMENTS.md`, update the requirement's status:
+If the check passed AND the check name or expected outcome corresponds to a requirement ID (REQ-*) from `GPD/REQUIREMENTS.md`, update the requirement's status:
 
-1. Read `.gpd/REQUIREMENTS.md` (skip if file doesn't exist)
+1. Read `GPD/REQUIREMENTS.md` (skip if file doesn't exist)
 2. Search for the matching REQ-ID in the requirements table
 3. Update the requirement row's validation status:
    - Change status cell to `Validated`
@@ -649,7 +649,7 @@ If the check passed AND the check name or expected outcome corresponds to a requ
 
 - Check name contains `REQ-NNN` literally -> direct match
 - Check expected outcome references a requirement by ID -> direct match
-- Check validates a deliverable that maps to a known requirement -> fuzzy match (note the match in VERIFICATION.md but don't auto-update REQUIREMENTS.md for fuzzy matches)
+- Check validates a deliverable that maps to a known requirement -> fuzzy match (note the match in the verification artifact but don't auto-update REQUIREMENTS.md for fuzzy matches)
 
 Skip this sub-step silently if no REQUIREMENTS.md exists or no REQ-IDs match.
 
@@ -696,7 +696,7 @@ For each custom check:
 2. Attempt to pre-compute the check (read relevant artifacts, run test if possible)
 3. Present the result using the same checkpoint box format as automated checks
 4. Process the response identically to automated checks (pass/issue/skip)
-5. Append to the Checks section in VERIFICATION.md with `source: researcher`
+5. Append to the Checks section in the verification artifact with `source: researcher`
 
 Custom checks are numbered continuing from the last automated check (e.g., if 6 automated checks, first custom check is 7).
 
@@ -710,11 +710,11 @@ This step checks that uncertainties from prior phases propagate correctly into t
 
 **1. Identify inherited quantities:**
 
-Read phase SUMMARY.md files (current and prior phases). Find quantities consumed by the current phase that were produced by earlier phases.
+Read phase summary files (current and prior phases). Find quantities consumed by the current phase that were produced by earlier phases.
 
 ```bash
 # Check if prior phases declared uncertainty budgets
-for PRIOR_SUMMARY in $(ls .gpd/phases/*/SUMMARY.md .gpd/phases/*/*-SUMMARY.md 2>/dev/null | sort); do
+for PRIOR_SUMMARY in $(ls GPD/phases/*/*-SUMMARY.md 2>/dev/null | sort); do
   grep -l "Uncertainty Budget\|uncertainty\|±\|\\\\pm" "$PRIOR_SUMMARY" 2>/dev/null
 done
 ```
@@ -728,7 +728,7 @@ For each inherited quantity used in the current phase:
 |  UNCERTAINTY CHECK: {quantity_name}            |
 +================================================+
 
-Source: Phase {N} SUMMARY.md
+Source: Phase {N} summary artifact
 Value: {central_value} ± {uncertainty}
 Used in: {current phase equation/computation}
 
@@ -758,7 +758,7 @@ else:
 "
 ```
 
-**4. Record findings in VERIFICATION.md:**
+**4. Record findings in the verification artifact:**
 
 Add an "Uncertainty Propagation Audit" section with:
 - List of inherited quantities and their declared uncertainties
@@ -861,7 +861,7 @@ If `report_directly` is non-empty:
 | {N} | {name} | {severity} | {verbatim response} |
 ```
 
-These are noted in VERIFICATION.md but do not trigger investigation agents.
+These are noted in the verification artifact but do not trigger investigation agents.
 
 **3. Investigate major+ issues:**
 
@@ -881,7 +881,7 @@ Spawning parallel investigation agents for each major+ issue.
 - Spawn parallel investigation agents for each issue in `investigate_issues`
 - **Include computation evidence from pre-checks and researcher reports in the diagnosis context** — the investigator should know what specific test failed and what values were obtained
 - Collect root causes
-- Update VERIFICATION.md with root causes
+- Update the verification artifact with root causes
 - Proceed to `diagnosis_review`
 
 **4. If only minor/cosmetic issues exist (no major+ issues):**
@@ -961,8 +961,8 @@ Use `templates/plan-contract-schema.md` as the canonical contract schema referen
 <files_to_read>
 Read these files using the file_read tool:
 - Validation with diagnoses: ${phase_dir}/${phase_number}-VERIFICATION.md
-- State: .gpd/STATE.md
-- Roadmap: .gpd/ROADMAP.md
+- State: GPD/STATE.md
+- Roadmap: GPD/ROADMAP.md
 </files_to_read>
 
 </planning_context>
@@ -1181,10 +1181,10 @@ Default to **major** if unclear. Researcher can correct if needed.
 
 <success_criteria>
 
-- [ ] Verification file created with checks sourced from the PLAN `contract` first, then SUMMARY evidence maps, including computational test specifications
+- [ ] Verification file created with checks sourced from the PLAN `contract` first, then phase-summary evidence maps, including computational test specifications
 - [ ] Checks stay grounded in user-visible contract targets rather than internal process markers
 - [ ] **Minimum verification floor met**: dimensional analysis + limiting case + numerical spot-check with code execution
-- [ ] **VERIFICATION.md contains at least one code output block** (actual execution result, not just text analysis)
+- [ ] **Verification artifact contains at least one code output block** (actual execution result, not just text analysis)
 - [ ] **Pre-computation performed** on each check before presenting to researcher
 - [ ] Checks presented one at a time with expected physics outcome AND computation evidence
 - [ ] **Numerical spot-checks** presented with concrete values for researcher to compare

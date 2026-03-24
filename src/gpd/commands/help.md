@@ -102,7 +102,7 @@ One command takes you from research idea to ready-for-investigation:
 - Research objectives definition with scoping
 - Roadmap creation with phase breakdown and success criteria
 
-Creates all `.gpd/` artifacts:
+Creates all `GPD/` artifacts:
 
 - `PROJECT.md` — research question, theoretical framework, key parameters
 - `config.json` — workflow settings (`autonomy`, `research_mode`, `execution.review_cadence`, `planning.commit_docs`, agent toggles)
@@ -113,7 +113,7 @@ Creates all `.gpd/` artifacts:
 
 **Flags:**
 
-- `--minimal` — Skip deep questioning and literature survey. Creates project from a single description. Asks one question ("Describe your research project and phases"), then generates all `.gpd/` artifacts with sensible defaults. Same file set as full mode, so all downstream commands work identically.
+- `--minimal` — Skip deep questioning and literature survey. Creates project from a single description. Asks one question ("Describe your research project and phases"), then generates all `GPD/` artifacts with sensible defaults. Same file set as full mode, so all downstream commands work identically.
 - `--minimal @file.md` — Create project directly from a markdown file describing your research and phases. Parses research question, phase list, and key parameters from the file. No interactive questions asked.
 - `--auto` — Automatic mode with full depth. Expects research proposal via @ reference. Runs literature survey, requirements, and roadmap without interaction.
 
@@ -125,7 +125,7 @@ Usage: `/gpd:new-project --minimal @plan.md`
 Map an existing research project — theoretical framework, computations, conventions, and open questions.
 
 - Spawns 4 parallel research-mapper agents to analyze project artifacts
-- Creates `.gpd/research-map/` with 7 structured documents
+- Creates `GPD/research-map/` with 7 structured documents
 - Covers formalism, references, computational architecture, structure, conventions, validation, concerns
 - Use before `/gpd:new-project` on existing research projects
 
@@ -185,7 +185,7 @@ Usage: `/gpd:show-phase 3`
 **`/gpd:plan-phase <number>`**
 Create detailed execution plan for a specific phase.
 
-- Generates `.gpd/phases/XX-phase-name/XX-YY-PLAN.md`
+- Generates `GPD/phases/XX-phase-name/XX-YY-PLAN.md`
 - Breaks phase into concrete, actionable steps
 - Includes verification criteria (limiting cases, consistency checks)
 - Multiple plans per phase supported (XX-01, XX-02, etc.)
@@ -202,7 +202,7 @@ Create detailed execution plan for a specific phase.
 Usage: `/gpd:plan-phase 1`
 Usage: `/gpd:plan-phase 3 --research`
 Usage: `/gpd:plan-phase 5 --light --skip-verify`
-Result: Creates `.gpd/phases/01-framework-setup/01-01-PLAN.md`
+Result: Creates `GPD/phases/01-framework-setup/01-01-PLAN.md`
 
 ### Execution
 
@@ -237,13 +237,13 @@ Execute small, ad-hoc calculations with GPD guarantees but skip optional agents.
 Quick mode uses the same system with a shorter path:
 
 - Spawns planner + executor (skips literature scout, checker, validator)
-- Quick tasks live in `.gpd/quick/` separate from planned phases
+- Quick tasks live in `GPD/quick/` separate from planned phases
 - Updates STATE.md tracking (not ROADMAP.md)
 
 Use when you know exactly what to calculate and the task is small enough to not need literature survey or validation.
 
 Usage: `/gpd:quick`
-Result: Creates `.gpd/quick/NNN-slug/PLAN.md`, `.gpd/quick/NNN-slug/SUMMARY.md`
+Result: Creates `GPD/quick/NNN-slug/PLAN.md`, `GPD/quick/NNN-slug/SUMMARY.md`
 
 ### Roadmap Management
 
@@ -378,7 +378,7 @@ Usage: `/gpd:pause-work`
 Capture idea or task as todo from current conversation.
 
 - Extracts context from conversation (or uses provided description)
-- Creates structured todo file in `.gpd/todos/pending/`
+- Creates structured todo file in `GPD/todos/pending/`
 - Infers area from context for grouping
 - Checks for duplicates before creating
 - Updates STATE.md todo count
@@ -417,9 +417,9 @@ Usage: `/gpd:verify-work 3`
 Systematic debugging of physics calculations with persistent state across context resets.
 
 - Spawns gpd-debugger agent with scientific method approach
-- Maintains debug session state in `.gpd/debug/`
+- Maintains debug session state in `GPD/debug/`
 - Survives context window resets — resumes from last checkpoint
-- Archives resolved issues to `.gpd/debug/resolved/`
+- Archives resolved issues to `GPD/debug/resolved/`
 
 Usage: `/gpd:debug Sign error in self-energy diagram`
 
@@ -545,9 +545,9 @@ Run skeptical peer review on an existing manuscript within the current GPD proje
 - Runs strict review preflight checks against project state, manuscript, artifacts, and reproducibility support
 - Loads manuscript files, phase summaries, verification reports, bibliography audit, and artifact manifest
 - Spawns a six-agent review panel: reader, literature, math, physics, significance, and final gpd-referee adjudicator
-- Produces stage artifacts under `.gpd/review/` plus `.gpd/REFEREE-REPORT{round_suffix}.md` and `.gpd/REFEREE-REPORT{round_suffix}.tex`
+- Produces stage artifacts under `GPD/review/` plus `GPD/REFEREE-REPORT{round_suffix}.md` and `GPD/REFEREE-REPORT{round_suffix}.tex`
 - Routes the result to `/gpd:respond-to-referees` or `/gpd:arxiv-submission`
-- Requires an initialized `.gpd/PROJECT.md` workspace; manuscript paths do not bypass project preflight
+- Requires an initialized `GPD/PROJECT.md` workspace; manuscript paths do not bypass project preflight
 
 Usage: `/gpd:peer-review`
 Usage: `/gpd:peer-review paper/`
@@ -556,8 +556,8 @@ Usage: `/gpd:peer-review paper/`
 Structure point-by-point response to referee reports and revise the manuscript.
 
 - Parses referee comments into structured items with severity levels
-- Creates `.gpd/AUTHOR-RESPONSE{round_suffix}.md` for structured issue tracking plus `.gpd/paper/REFEREE_RESPONSE{round_suffix}.md` for the journal-facing response letter
-- Consumes `.gpd/review/REVIEW-LEDGER*.json` and `.gpd/review/REFEREE-DECISION*.json` when present to preserve blocking-issue context
+- Creates `GPD/AUTHOR-RESPONSE{round_suffix}.md` for structured issue tracking plus `GPD/paper/REFEREE_RESPONSE{round_suffix}.md` for the journal-facing response letter
+- Consumes `GPD/review/REVIEW-LEDGER*.json` and `GPD/review/REFEREE-DECISION*.json` when present to preserve blocking-issue context
 - Spawns paper-writer agents for targeted section revisions
 - Tracks new calculations required by referees as revision tasks
 - Produces response letter from `templates/paper/referee-response.md`
@@ -593,7 +593,7 @@ Usage: `/gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`
 Explain a concept, method, notation, result, or paper in project context or from a standalone question.
 
 - Spawns a `gpd-explainer` agent and grounds the explanation in the active phase, manuscript, or local workflow when available
-- Produces a structured explanation under `.gpd/explanations/`
+- Produces a structured explanation under `GPD/explanations/`
 - Audits cited papers with `gpd-bibliographer` and includes a reading path with openable links
 
 Usage: `/gpd:explain "Ward identity"`
@@ -603,7 +603,7 @@ Usage: `/gpd:explain "Ward identity"`
 **`/gpd:branch-hypothesis <description>`**
 Create a hypothesis branch for parallel investigation of an alternative approach.
 
-- Creates git branch with isolated `.gpd/` state
+- Creates git branch with isolated `GPD/` state
 - Allows exploring alternative methods without disrupting main line
 - Use when two valid approaches exist and you want to compare
 
@@ -636,7 +636,7 @@ Display and search the cumulative decision log.
 - Shows all recorded decisions across phases
 - Filter by phase number or keyword
 - Tracks sign conventions, approximation choices, gauge choices
-- Reads from `.gpd/DECISIONS.md`
+- Reads from `GPD/DECISIONS.md`
 
 Usage: `/gpd:decisions`
 Usage: `/gpd:decisions 3`
@@ -692,7 +692,7 @@ Record a project-specific learning or pattern to the insights ledger.
 - Records error patterns, convention pitfalls, verification lessons
 - Checks for duplicates before adding
 - Categorizes into appropriate section (Debugging Patterns, Verification Lessons, etc.)
-- Updates `.gpd/INSIGHTS.md`
+- Updates `GPD/INSIGHTS.md`
 
 Usage: `/gpd:record-insight`
 Usage: `/gpd:record-insight Sign error in Wick contractions with mostly-minus metric`
@@ -731,7 +731,7 @@ Configure workflow toggles, model profile, `execution.review_cadence`, and runti
 - Optionally pin concrete runtime model strings for `tier-1`, `tier-2`, and `tier-3`
 - Configure whether planning artifacts are committed (`planning.commit_docs`)
 - Configure git branching strategy (`git.branching_strategy`: `none`, `per-phase`, or `per-milestone`)
-- Updates `.gpd/config.json`
+- Updates `GPD/config.json`
 
 Usage: `/gpd:settings`
 
@@ -809,7 +809,7 @@ Show this command reference.
 ## Files & Structure
 
 ```
-.gpd/
+GPD/
 |-- PROJECT.md            # Research question, framework, parameters
 |-- REQUIREMENTS.md       # Scoped research requirements with REQ-IDs
 |-- ROADMAP.md            # Current phase breakdown
@@ -873,7 +873,7 @@ Change anytime with `/gpd:settings`
 
 ## Planning Configuration
 
-Configure how planning artifacts are managed in `.gpd/config.json`:
+Configure how planning artifacts are managed in `GPD/config.json`:
 
 **`planning.commit_docs`** (default: `true`)
 
@@ -882,7 +882,7 @@ Configure how planning artifacts are managed in `.gpd/config.json`:
 
 When `planning.commit_docs: false`:
 
-- Add `.gpd/` to your `.gitignore`
+- Add `GPD/` to your `.gitignore`
 - Useful for collaborative projects, shared repos, or keeping planning private
 - All planning files still work normally, just not tracked in git
 
@@ -953,8 +953,8 @@ Example config:
 
 ## Getting Help
 
-- Read `.gpd/PROJECT.md` for research question and framework
-- Read `.gpd/STATE.md` for current context and key results
-- Check `.gpd/ROADMAP.md` for phase status
+- Read `GPD/PROJECT.md` for research question and framework
+- Read `GPD/STATE.md` for current context and key results
+- Check `GPD/ROADMAP.md` for phase status
 - Run `/gpd:progress` to check where you are
   </process>

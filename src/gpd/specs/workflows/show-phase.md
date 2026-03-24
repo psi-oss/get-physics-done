@@ -78,7 +78,7 @@ Find this phase in the phases array to get `disk_status` (complete/partial/plann
 For each PLAN.md file found:
 
 1. Extract the plan number and name from filename and frontmatter
-2. Check if a matching SUMMARY.md exists
+2. Check if a matching `*-SUMMARY.md` exists
 3. Mark as: completed (has SUMMARY), pending (no SUMMARY)
 
 Present as table:
@@ -98,7 +98,7 @@ Present as table:
 <step name="key_results">
 **Extract key results from completed plans:**
 
-For each SUMMARY.md:
+For each `*-SUMMARY.md`:
 
 ```bash
 gpd summary-extract <path> --field one_liner --field key_results --field equations
@@ -134,7 +134,6 @@ If no SUMMARYs exist: "No results yet (no plans executed)."
 
 Look for:
 
-- `VERIFICATION.md` — legacy phase-level automated physics checks
 - `*-VERIFICATION.md` — automated physics checks
 - `*-VALIDATION.md` — researcher-reviewed validation
 
@@ -157,7 +156,7 @@ If no verification files: "No verification performed yet. Run /gpd:verify-work {
 <step name="convention_changes">
 **Check for convention changes introduced in this phase:**
 
-For each SUMMARY.md, check frontmatter for `affects` field.
+For each `*-SUMMARY.md`, check frontmatter for `affects` field.
 
 The `affects` field lists conventions or definitions that were established or changed:
 

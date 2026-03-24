@@ -51,7 +51,7 @@ Phases:
 What to commit:
 
 ```bash
-gpd commit "docs: initialize [project-name] ([N] phases)" --files .gpd/
+gpd commit "docs: initialize [project-name] ([N] phases)" --files GPD/
 ```
 
 </format>
@@ -131,7 +131,7 @@ SUMMARY: ${phase_dir}/{phase}-{plan}-SUMMARY.md
 What to commit:
 
 ```bash
-gpd commit "docs({phase}-{plan}): complete [plan-name] plan" --files ${phase_dir}/{phase}-{plan}-PLAN.md ${phase_dir}/{phase}-{plan}-SUMMARY.md .gpd/STATE.md .gpd/ROADMAP.md
+gpd commit "docs({phase}-{plan}): complete [plan-name] plan" --files ${phase_dir}/{phase}-{plan}-PLAN.md ${phase_dir}/{phase}-{plan}-SUMMARY.md GPD/STATE.md GPD/ROADMAP.md
 ```
 
 **Note:** Calculation files NOT included - already committed per-task.
@@ -152,7 +152,7 @@ Current: [task name]
 What to commit:
 
 ```bash
-gpd commit "wip: [phase-name] paused at task [X]/[Y]" --files .gpd/
+gpd commit "wip: [phase-name] paused at task [X]/[Y]" --files GPD/
 ```
 
 </format>

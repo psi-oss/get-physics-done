@@ -132,7 +132,7 @@ def test_state_server_has_expected_tool_count():
 def test_get_progress_does_not_mutate_checkpoint_shelf_artifacts(tmp_path: Path) -> None:
     """Progress reads should not create, update, or delete checkpoint shelf files."""
     cwd = tmp_path
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
     planning.mkdir()
     (planning / "phases").mkdir()
 
@@ -145,18 +145,18 @@ def test_get_progress_does_not_mutate_checkpoint_shelf_artifacts(tmp_path: Path)
     phase_one = planning / "phases" / "01-foundations"
     phase_one.mkdir()
     (phase_one / "PLAN.md").write_text("# plan\n", encoding="utf-8")
-    (phase_one / "SUMMARY.md").write_text("# summary\n", encoding="utf-8")
+    (phase_one / "01-SUMMARY.md").write_text("# summary\n", encoding="utf-8")
 
     phase_two = planning / "phases" / "02-analysis"
     phase_two.mkdir()
     (phase_two / "PLAN.md").write_text("# plan\n", encoding="utf-8")
-    (phase_two / "SUMMARY.md").write_text("# summary\n", encoding="utf-8")
+    (phase_two / "02-SUMMARY.md").write_text("# summary\n", encoding="utf-8")
 
-    checkpoint_dir = cwd / ".gpd" / "phase-checkpoints"
+    checkpoint_dir = cwd / "GPD" / "phase-checkpoints"
     checkpoint_dir.mkdir()
     stale_checkpoint = checkpoint_dir / "99-old-phase.md"
     stale_checkpoint.write_text("stale checkpoint\n", encoding="utf-8")
-    checkpoints_index = cwd / ".gpd" / "CHECKPOINTS.md"
+    checkpoints_index = cwd / "GPD" / "CHECKPOINTS.md"
     checkpoints_index.write_text("stale index\n", encoding="utf-8")
 
     result = get_progress(str(cwd))

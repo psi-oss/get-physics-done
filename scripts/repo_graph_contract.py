@@ -70,7 +70,7 @@ EXCLUDED_GRAPH_DIRS = (
     ".pytest_cache",
     ".mypy_cache",
     ".ruff_cache",
-    ".gpd",
+    "GPD",
     *_LOCAL_RUNTIME_MIRROR_EXCLUDES,
     "dist",
 )

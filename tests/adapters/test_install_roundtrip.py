@@ -287,7 +287,7 @@ class TestGeminiRoundtrip:
             'argument-hint: "[--brief] [--full] [--reconcile]"\n'
             "context_mode: project-required\n"
             "requires:\n"
-            '  files: [".gpd/ROADMAP.md"]\n'
+            '  files: ["GPD/ROADMAP.md"]\n'
             "allowed-tools:\n"
             "  - file_read\n"
             "  - shell\n"
@@ -306,7 +306,7 @@ class TestGeminiRoundtrip:
         assert '# name: gpd:progress' in content
         assert '# argument-hint: "[--brief] [--full] [--reconcile]"' in content
         assert "# requires:" in content
-        assert '#   files: [".gpd/ROADMAP.md"]' in content
+        assert '#   files: ["GPD/ROADMAP.md"]' in content
         assert "# allowed-tools:" not in content
         assert parsed["context_mode"] == "project-required"
 

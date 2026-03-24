@@ -40,7 +40,7 @@ goal: {find_root_cause_only | find_and_fix}
 </mode>
 
 <debug_file>
-Create: .gpd/debug/{slug}.md
+Create: GPD/debug/{slug}.md
 </debug_file>
 ```
 
@@ -115,7 +115,7 @@ Continue debugging {slug}. Evidence is in the debug file.
 </objective>
 
 <prior_state>
-Read the file at .gpd/debug/{slug}.md
+Read the file at GPD/debug/{slug}.md
 </prior_state>
 
 <checkpoint_response>

@@ -64,7 +64,7 @@ def _reset_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _write_current_execution(workspace: Path, payload: dict[str, object]) -> None:
-    observability = workspace / ".gpd" / "observability"
+    observability = workspace / "GPD" / "observability"
     observability.mkdir(parents=True, exist_ok=True)
     (observability / "current-execution.json").write_text(json.dumps(payload), encoding="utf-8")
 
@@ -96,7 +96,7 @@ def _mark_complete_install(config_dir: Path, *, runtime: str | None = None, inst
 
 def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_path: Path) -> None:
     home = tmp_path / "home"
-    home_cache = home / ".gpd" / "cache"
+    home_cache = home / "GPD" / "cache"
     home_cache.mkdir(parents=True)
     (home_cache / "gpd-update-check.json").write_text(
         json.dumps({"update_available": False, "checked": 10}),
@@ -765,7 +765,7 @@ def test_emit_execution_notification_prefers_review_over_resume_for_bounded_gate
             "plan": "03",
             "segment_id": "seg-9",
             "segment_status": "paused",
-            "resume_file": ".gpd/phases/05/.continue-here.md",
+            "resume_file": "GPD/phases/05/.continue-here.md",
             "checkpoint_reason": "pre_fanout",
             "pre_fanout_review_pending": True,
             "downstream_locked": True,
@@ -840,7 +840,7 @@ def test_emit_execution_notification_dedupes_repeated_resume_state(tmp_path: Pat
             "plan": "02",
             "segment_id": "seg-2",
             "segment_status": "paused",
-            "resume_file": ".gpd/phases/04/.continue-here.md",
+            "resume_file": "GPD/phases/04/.continue-here.md",
         },
     )
 
@@ -876,7 +876,7 @@ def test_emit_execution_notification_dedupes_concurrent_resume_state(tmp_path: P
     def _message(_cwd: str) -> tuple[str, str]:
         barrier.wait(timeout=1)
         return (
-            "[GPD] Resume ready for 04-02: .gpd/phases/04/.continue-here.md\n",
+            "[GPD] Resume ready for 04-02: GPD/phases/04/.continue-here.md\n",
             "resume:seg-2",
         )
 
@@ -901,5 +901,5 @@ def test_emit_execution_notification_dedupes_concurrent_resume_state(tmp_path: P
 
     assert errors == []
     assert stderr.getvalue().count("Resume ready for 04-02") == 1
-    state = json.loads((workspace / ".gpd" / "observability" / "last-notify.json").read_text(encoding="utf-8"))
+    state = json.loads((workspace / "GPD" / "observability" / "last-notify.json").read_text(encoding="utf-8"))
     assert state["fingerprint"] == "resume:seg-2"

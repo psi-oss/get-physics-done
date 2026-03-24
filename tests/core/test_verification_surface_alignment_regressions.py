@@ -64,7 +64,7 @@ def test_verify_work_scaffold_uses_yaml_strings_for_scalar_placeholders() -> Non
     assert 'notes: "verification not started yet"' in verify_workflow
     assert 'recommended_action: "close the decisive benchmark once the evidence is written"' in verify_workflow
     assert 'evidence_path: "artifact path or expected evidence path"' in verify_workflow
-    assert 'source: ["list of SUMMARY.md files"]' in verify_workflow
+    assert 'source: ["list of phase-summary files"]' in verify_workflow
     assert 'started: "ISO timestamp"' in verify_workflow
     assert 'updated: "ISO timestamp"' in verify_workflow
     assert 'subject_id: "contract id or \\"\\""' in verify_workflow
@@ -118,10 +118,12 @@ def test_research_verification_template_keeps_contract_results_and_scalar_placeh
     assert "linked_ids: [claim-main, acceptance-test-main]" in research_verification
     assert "linked_ids: [claim-main, deliverable-main, reference-main]" in research_verification
     assert "evidence:\n        - verifier: gpd-verifier" in research_verification
+    assert 'evidence_path: "GPD/phases/XX-name/{phase}-VERIFICATION.md"' in research_verification
     assert 'evidence_path: "[artifact path or expected evidence path]"' in research_verification
     assert 'started: "ISO timestamp"' in research_verification
     assert 'updated: "ISO timestamp"' in research_verification
     assert 'subject_id: "contract id or \\"\\""' in research_verification
+    assert ".gpd/phases/" not in research_verification
     assert 'evidence_path: [artifact path or expected evidence path]' not in research_verification
     assert 'started: [ISO timestamp]' not in research_verification
     assert 'updated: [ISO timestamp]' not in research_verification

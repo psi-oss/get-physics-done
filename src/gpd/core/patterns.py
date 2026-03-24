@@ -34,10 +34,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from gpd.core.constants import (
     ENV_DATA_DIR,
     ENV_PATTERNS_ROOT,
+    HOME_DATA_DIR_NAME,
     PATTERNS_BY_DOMAIN_DIR,
     PATTERNS_DIR_NAME,
     PATTERNS_INDEX_FILENAME,
-    PLANNING_DIR_NAME,
     SEED_PATTERN_INITIAL_OCCURRENCES,
 )
 from gpd.core.errors import PatternError
@@ -232,7 +232,7 @@ def patterns_root(specs_root: Path | None = None) -> Path:
     if data_dir:
         return Path(data_dir) / PATTERNS_DIR_NAME
 
-    return Path.home() / PLANNING_DIR_NAME / PATTERNS_DIR_NAME
+    return Path.home() / HOME_DATA_DIR_NAME / PATTERNS_DIR_NAME
 
 
 # ─── Index I/O ───────────────────────────────────────────────────────────────

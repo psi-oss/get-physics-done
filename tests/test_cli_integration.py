@@ -79,7 +79,7 @@ def _reset_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture()
 def gpd_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project with all files commands might touch."""
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
 
     state = default_state_dict()
@@ -254,11 +254,11 @@ class TestSlug:
 
 class TestVerifyPath:
     def test_verify_existing_file(self, gpd_project: Path) -> None:
-        result = _invoke("verify-path", ".gpd/state.json")
+        result = _invoke("verify-path", "GPD/state.json")
         assert "file" in result.output.lower() or "True" in result.output or "true" in result.output
 
     def test_verify_existing_directory(self) -> None:
-        result = _invoke("verify-path", ".gpd")
+        result = _invoke("verify-path", "GPD")
         assert "directory" in result.output.lower() or "True" in result.output or "true" in result.output
 
     def test_verify_nonexistent_path(self) -> None:
@@ -267,7 +267,7 @@ class TestVerifyPath:
         assert "False" in result.output or "false" in result.output
 
     def test_verify_path_raw(self, gpd_project: Path) -> None:
-        result = _invoke("--raw", "verify-path", ".gpd/state.json")
+        result = _invoke("--raw", "verify-path", "GPD/state.json")
         parsed = json.loads(result.output)
         assert parsed["exists"] is True
         assert parsed["type"] == "file"
@@ -504,7 +504,7 @@ class TestRegressionCheck:
         assert result.exit_code == 0
 
     def test_regression_check_phase_scope(self, gpd_project: Path) -> None:
-        p2 = gpd_project / ".gpd" / "phases" / "02-phase-two"
+        p2 = gpd_project / "GPD" / "phases" / "02-phase-two"
         (p2 / "01-PLAN.md").write_text("---\nphase: '02'\n---\n# Plan\n")
         (p2 / "01-SUMMARY.md").write_text(
             '---\nphase: "02"\nplan: "01"\n'
@@ -520,7 +520,7 @@ class TestRegressionCheck:
 
     def test_regression_check_detects_conflict(self, gpd_project: Path) -> None:
         """Inject a convention conflict across two completed phases."""
-        p2 = gpd_project / ".gpd" / "phases" / "02-phase-two"
+        p2 = gpd_project / "GPD" / "phases" / "02-phase-two"
 
         # Make phase 2 look completed with a conflicting convention
         (p2 / "01-PLAN.md").write_text("---\nphase: '02'\n---\n# Plan\n")
@@ -644,7 +644,7 @@ class TestConfigCommands:
 
     def test_config_get_alias_key_reads_effective_value(self, gpd_project: Path) -> None:
         """Alias keys should resolve through the canonical config surface."""
-        config_path = gpd_project / ".gpd" / "config.json"
+        config_path = gpd_project / "GPD" / "config.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))
         config["commit_docs"] = False
         config_path.write_text(json.dumps(config), encoding="utf-8")
@@ -655,7 +655,7 @@ class TestConfigCommands:
         assert parsed["value"] is False
 
     def test_config_get_returns_defaults_when_config_is_missing(self, gpd_project: Path) -> None:
-        (gpd_project / ".gpd" / "config.json").unlink()
+        (gpd_project / "GPD" / "config.json").unlink()
 
         result = _invoke("--raw", "config", "get", "autonomy")
         parsed = json.loads(result.output)
@@ -668,12 +668,12 @@ class TestConfigCommands:
         parsed = json.loads(result.output)
         assert "Unsupported config key" in parsed["error"]
 
-        config = json.loads((gpd_project / ".gpd" / "config.json").read_text(encoding="utf-8"))
+        config = json.loads((gpd_project / "GPD" / "config.json").read_text(encoding="utf-8"))
         assert "new_key" not in config
 
     def test_config_set_nested_alias_updates_canonical_value(self, gpd_project: Path) -> None:
         _invoke("--raw", "config", "set", "planning.commit_docs", "false")
-        config = json.loads((gpd_project / ".gpd" / "config.json").read_text(encoding="utf-8"))
+        config = json.loads((gpd_project / "GPD" / "config.json").read_text(encoding="utf-8"))
         assert config["commit_docs"] is False
         assert "planning" not in config
 
@@ -685,7 +685,7 @@ class TestConfigCommands:
     def test_config_set_json_value(self, gpd_project: Path) -> None:
         """Setting a JSON value (e.g. integer, boolean) should parse it."""
         _invoke("config", "set", "parallelization", "false")
-        config = json.loads((gpd_project / ".gpd" / "config.json").read_text(encoding="utf-8"))
+        config = json.loads((gpd_project / "GPD" / "config.json").read_text(encoding="utf-8"))
         assert config["parallelization"] is False
 
     def test_config_set_rejects_legacy_autonomy_value(self, gpd_project: Path) -> None:
@@ -694,7 +694,7 @@ class TestConfigCommands:
         parsed = json.loads(result.output)
         assert "Invalid config.json values" in parsed["error"]
 
-        config = json.loads((gpd_project / ".gpd" / "config.json").read_text(encoding="utf-8"))
+        config = json.loads((gpd_project / "GPD" / "config.json").read_text(encoding="utf-8"))
         assert config["autonomy"] == "yolo"
 
     def test_config_ensure_section_exists(self) -> None:
@@ -705,11 +705,11 @@ class TestConfigCommands:
 
     def test_config_ensure_section_creates(self, gpd_project: Path) -> None:
         """ensure-section without config.json should create defaults."""
-        (gpd_project / ".gpd" / "config.json").unlink()
+        (gpd_project / "GPD" / "config.json").unlink()
         result = _invoke("--raw", "config", "ensure-section")
         parsed = json.loads(result.output)
         assert parsed["created"] is True
-        config_path = gpd_project / ".gpd" / "config.json"
+        config_path = gpd_project / "GPD" / "config.json"
         assert config_path.exists()
         config = json.loads(config_path.read_text())
         assert config["autonomy"] == "balanced"
@@ -1020,7 +1020,7 @@ class TestSummaryExtractCommand:
         result = _invoke(
             "--raw",
             "summary-extract",
-            ".gpd/phases/01-test-phase/01-SUMMARY.md",
+            "GPD/phases/01-test-phase/01-SUMMARY.md",
         )
         parsed = json.loads(result.output)
         assert parsed["one_liner"] == "Set up project"
@@ -1030,7 +1030,7 @@ class TestSummaryExtractCommand:
         result = _invoke(
             "--raw",
             "summary-extract",
-            ".gpd/phases/01-test-phase/01-SUMMARY.md",
+            "GPD/phases/01-test-phase/01-SUMMARY.md",
             "--field",
             "one_liner",
         )
@@ -1041,15 +1041,15 @@ class TestSummaryExtractCommand:
 
 class TestSyncPhaseCheckpointsCommand:
     def test_sync_phase_checkpoints(self, gpd_project: Path) -> None:
-        phase_dir = gpd_project / ".gpd" / "phases" / "01-test-phase"
+        phase_dir = gpd_project / "GPD" / "phases" / "01-test-phase"
         (phase_dir / "01-VERIFICATION.md").write_text("# Verification\n\nPassed.\n", encoding="utf-8")
 
         result = _invoke("--raw", "sync-phase-checkpoints")
 
         parsed = json.loads(result.output)
         assert parsed["phase_count"] == 1
-        assert (gpd_project / ".gpd" / "phase-checkpoints" / "01-test-phase.md").exists()
-        assert (gpd_project / ".gpd" / "CHECKPOINTS.md").exists()
+        assert (gpd_project / "GPD" / "phase-checkpoints" / "01-test-phase.md").exists()
+        assert (gpd_project / "GPD" / "CHECKPOINTS.md").exists()
 
 
 class TestResolveModelCommand:
@@ -1064,7 +1064,7 @@ class TestResolveModelCommand:
 
     @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
     def test_resolve_model_prefers_installed_runtime_override(self, gpd_project: Path, descriptor) -> None:
-        config_path = gpd_project / ".gpd" / "config.json"
+        config_path = gpd_project / "GPD" / "config.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))
         config["model_overrides"] = {
             descriptor.runtime_name: {
@@ -1089,7 +1089,7 @@ class TestResolveModelCommand:
         gpd_project: Path,
         descriptor,
     ) -> None:
-        config_path = gpd_project / ".gpd" / "config.json"
+        config_path = gpd_project / "GPD" / "config.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))
         config["model_overrides"] = {
             descriptor.runtime_name: {

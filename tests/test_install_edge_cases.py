@@ -444,7 +444,7 @@ class TestGpdModelEnvVar:
 
 
 class TestUninstallCorruptedManifest:
-    """Corrupted manifest should not prevent uninstall."""
+    """Corrupted or missing manifests should block managed uninstall."""
 
     def test_uninstall_with_corrupted_manifest(self, tmp_path: Path) -> None:
         gpd_root = _make_gpd_root(tmp_path)
@@ -458,11 +458,8 @@ class TestUninstallCorruptedManifest:
         # Corrupt the manifest
         (target / MANIFEST_NAME).write_text("{{{invalid json!!!", encoding="utf-8")
 
-        # Uninstall should still succeed
-        result = adapter.uninstall(target)
-        assert not (target / "commands" / "gpd").exists()
-        assert not (target / "get-physics-done").exists()
-        assert MANIFEST_NAME not in str(result.get("error", ""))
+        with pytest.raises(RuntimeError, match="manifest cannot be trusted"):
+            adapter.uninstall(target)
 
     def test_uninstall_with_missing_manifest(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")
@@ -474,12 +471,11 @@ class TestUninstallCorruptedManifest:
         (target / "get-physics-done").mkdir(parents=True)
         (target / "get-physics-done" / "VERSION").write_text("1.0\n", encoding="utf-8")
 
-        adapter.uninstall(target)
-        assert not (target / "commands" / "gpd").exists()
-        assert not (target / "get-physics-done").exists()
+        with pytest.raises(RuntimeError, match="contains GPD artifacts but no manifest"):
+            adapter.uninstall(target)
 
     def test_reinstall_after_corrupted_manifest(self, tmp_path: Path) -> None:
-        """Re-install over corrupted manifest should work (pre_install_cleanup handles it)."""
+        """Re-install over a corrupted manifest should refuse unsafe ownership guesses."""
         gpd_root = _make_gpd_root(tmp_path)
         adapter = get_adapter("claude-code")
         target = tmp_path / ".claude"
@@ -488,14 +484,8 @@ class TestUninstallCorruptedManifest:
         adapter.install(gpd_root, target, is_global=True)
         (target / MANIFEST_NAME).write_text("NOT JSON", encoding="utf-8")
 
-        # Reinstall should succeed (save_local_patches handles corrupted manifest)
-        result = adapter.install(gpd_root, target, is_global=True)
-        assert result["commands"] > 0
-
-        # Fresh manifest should be valid
-        manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
-        assert "version" in manifest
-        assert len(manifest["files"]) > 0
+        with pytest.raises(RuntimeError, match="manifest cannot be trusted"):
+            adapter.install(gpd_root, target, is_global=True)
 
 
 # =========================================================================

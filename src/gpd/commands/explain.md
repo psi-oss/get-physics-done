@@ -36,7 +36,7 @@ Concept or topic: $ARGUMENTS
 Check for prior explanation artifacts:
 
 ```bash
-ls .gpd/explanations/*.md 2>/dev/null | head -10
+ls GPD/explanations/*.md 2>/dev/null | head -10
 ```
 
 </context>

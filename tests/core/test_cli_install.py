@@ -307,8 +307,8 @@ def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(t
 # ─── 4. Uninstall without manifest ──────────────────────────────────────────
 
 
-def test_uninstall_no_manifest_graceful(tmp_path: Path):
-    """Uninstall when no manifest exists — should not crash."""
+def test_uninstall_rejects_manifestless_managed_surface(tmp_path: Path):
+    """Uninstall refuses managed surfaces when ownership cannot be proven."""
     target = tmp_path / ".claude"
     target.mkdir()
     # Create some GPD files but no manifest
@@ -319,11 +319,8 @@ def test_uninstall_no_manifest_graceful(tmp_path: Path):
     from gpd.adapters.claude_code import ClaudeCodeAdapter
 
     adapter = ClaudeCodeAdapter()
-    result = adapter.uninstall(target)
-
-    # Should succeed and report what was removed
-    assert result["runtime"] == "claude-code"
-    assert "get-physics-done/" in result["removed"]
+    with pytest.raises(RuntimeError, match="contains GPD artifacts but no manifest"):
+        adapter.uninstall(target)
 
 
 def test_uninstall_empty_target_nothing_to_remove(tmp_path: Path):

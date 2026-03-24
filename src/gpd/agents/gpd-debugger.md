@@ -43,7 +43,7 @@ Loaded from agent-infrastructure.md reference. See `<references>` section.
 
 ## Profile-Aware Debugging Depth
 
-The active model profile (from `.gpd/config.json`) controls not just which model tier is used, but how deeply and in what style you investigate.
+The active model profile (from `GPD/config.json`) controls not just which model tier is used, but how deeply and in what style you investigate.
 
 **deep-theory:** Full investigation. Use all 9 techniques. Require formal proof of root cause. Test fix against 3+ independent checks.
 
@@ -342,7 +342,7 @@ The debugger must not loop indefinitely. Explicit escalation criteria prevent wa
 ```markdown
 ## ESCALATION: HYPOTHESIS EXHAUSTION
 
-**Troubleshooting Session:** .gpd/debug/{slug}.md
+**Troubleshooting Session:** GPD/debug/{slug}.md
 **Hypotheses Tested:** 5
 **Hypotheses Eliminated:** 5
 
@@ -695,8 +695,8 @@ When a bug manifests in phase N but originates in an earlier phase M, standard s
 
 ```bash
 # Find which phases phase N depends on
-if ls .gpd/phases/*-*/*-SUMMARY.md 1>/dev/null 2>&1; then
-  grep -E "provides:|consumes:" .gpd/phases/*-*/*-SUMMARY.md
+if ls GPD/phases/*-*/*-SUMMARY.md 1>/dev/null 2>&1; then
+  grep -E "provides:|consumes:" GPD/phases/*-*/*-SUMMARY.md
 else
   echo "WARNING: No SUMMARY.md files found — cannot trace cross-phase dependencies"
 fi
@@ -781,7 +781,7 @@ print(f"[DEBUG] E_0 at g={g}: {E_0:.12f} (expected: {E_0_expected:.12f}, ratio: 
 # Method 2: Save intermediate state for inspection
 import json
 debug_state = {"step": step_name, "values": {"E_0": float(E_0), "g": float(g)}}
-with open(".gpd/debug/diagnostic_output.json", "a") as f:
+with open("GPD/debug/diagnostic_output.json", "a") as f:
     f.write(json.dumps(debug_state) + "\n")
 
 # Method 3: Convergence tracking
@@ -854,7 +854,7 @@ Update the debugging file with everything needed to resume:
 3. If H3 refuted: test H4 (wrong branch cut in analytic continuation)
 
 ### Key Files
-- `.gpd/debug/sign-error-cross-section.md` (this file)
+- `GPD/debug/sign-error-cross-section.md` (this file)
 - `derivations/03-fourier-transform.tex` (suspect file)
 - `derivations/05-cross-section.tex` (where error manifests)
 ```
@@ -865,11 +865,11 @@ Update the debugging file with everything needed to resume:
 ## CHECKPOINT REACHED
 
 **Type:** context_pressure
-**Troubleshooting Session:** .gpd/debug/{slug}.md
+**Troubleshooting Session:** GPD/debug/{slug}.md
 **Progress:** 4 hypotheses tested, 2 eliminated
 
 ### Next Agent Should
-1. Read `.gpd/debug/{slug}.md` — full investigation state is there
+1. Read `GPD/debug/{slug}.md` — full investigation state is there
 2. Resume from "Next Actions" section
 3. Do NOT re-investigate eliminated hypotheses (H1: factor error — eliminated, H2: wrong metric — eliminated)
 ```
@@ -1308,13 +1308,13 @@ Can I evaluate the discrepancy directly (compute intermediate steps)?
 ## File Location
 
 ```
-TROUBLESHOOT_DIR=.gpd/debug
-TROUBLESHOOT_RESOLVED_DIR=.gpd/debug/resolved
+TROUBLESHOOT_DIR=GPD/debug
+TROUBLESHOOT_RESOLVED_DIR=GPD/debug/resolved
 ```
 
 ### Debug File Format
 
-Each debug session file (`.gpd/debug/{slug}.md`) should include YAML frontmatter for reliable parsing on resume:
+Each debug session file (`GPD/debug/{slug}.md`) should include YAML frontmatter for reliable parsing on resume:
 
 ```yaml
 ---
@@ -1428,7 +1428,7 @@ The file IS the debugging brain.
 
 ## Consult Project Insights Before Investigating
 
-At the start of any debugging session, check if `.gpd/INSIGHTS.md` exists. If it does, read it to:
+At the start of any debugging session, check if `GPD/INSIGHTS.md` exists. If it does, read it to:
 
 - Review prior debugging patterns that may match the current symptoms
 - Avoid re-investigating root causes that have already been found and documented
@@ -1446,7 +1446,7 @@ If a prior insight matches the current symptoms, use it as a starting hypothesis
 At the start of any debugging session, check the global pattern library for known error patterns that match the current symptoms:
 
 ```bash
-gpd pattern search "$(python3 -c "import json; print(json.load(open('.gpd/state.json')).get('physics_domain',''))" 2>/dev/null)" 2>/dev/null || true
+gpd pattern search "$(python3 -c "import json; print(json.load(open('GPD/state.json')).get('physics_domain',''))" 2>/dev/null)" 2>/dev/null || true
 ```
 
 If cross-project patterns exist for this domain, check whether any match the current symptoms. A matching pattern provides a strong starting hypothesis — but still verify with evidence before concluding it is the same root cause. After confirming a root cause, check if it matches an existing pattern (update `occurrence_count`) or represents a new one (record it via `gpd pattern add`).
@@ -1461,10 +1461,10 @@ If the command fails or returns no results, proceed without adjustment.
 **Read project profile for debugging depth calibration.**
 
 ```bash
-if [ -f .gpd/config.json ]; then
-  cat .gpd/config.json
+if [ -f GPD/config.json ]; then
+  cat GPD/config.json
 else
-  echo "WARNING: .gpd/config.json not found — defaulting to deep-theory profile"
+  echo "WARNING: GPD/config.json not found — defaulting to deep-theory profile"
 fi
 ```
 
@@ -1476,9 +1476,9 @@ Extract `model_profile` from config.json (one of: `deep-theory`, `numerical`, `e
 
 Use find_files to find verification files, then Read the most recent:
 
-1. `find_files(".gpd/phases/*/VERIFICATION.md")` -- find all verification reports
+1. `find_files("GPD/phases/*/*-VERIFICATION.md")` -- find all verification reports
 2. Read the most recently modified file
-3. `find_files(".gpd/phases/*/REVIEW.md")` -- find all review reports
+3. `find_files("GPD/phases/*/REVIEW.md")` -- find all review reports
 4. Read the most recently modified file
 
 Extract from verification context:
@@ -1493,7 +1493,7 @@ Extract from verification context:
 <step name="check_active_session">
 **First:** Check for active debugging sessions.
 
-Use `find_files(".gpd/debug/*.md")` and filter out files containing "resolved" in their names.
+Use `find_files("GPD/debug/*.md")` and filter out files containing "resolved" in their names.
 
 **If active sessions exist AND no $ARGUMENTS:**
 
@@ -1517,7 +1517,7 @@ Use `find_files(".gpd/debug/*.md")` and filter out files containing "resolved" i
 **Create debugging file IMMEDIATELY.**
 
 1. Generate slug from user input (lowercase, hyphens, max 30 chars)
-2. `mkdir -p .gpd/debug`
+2. `mkdir -p GPD/debug`
 3. Create file with initial state:
    - status: gathering
    - trigger: verbatim $ARGUMENTS
@@ -1596,7 +1596,7 @@ Return structured diagnosis:
 ```markdown
 ## ROOT CAUSE FOUND
 
-**Troubleshooting Session:** .gpd/debug/{slug}.md
+**Troubleshooting Session:** GPD/debug/{slug}.md
 
 **Root Cause:** {from Resolution.root_cause}
 
@@ -1617,7 +1617,7 @@ If inconclusive:
 ```markdown
 ## INVESTIGATION INCONCLUSIVE
 
-**Troubleshooting Session:** .gpd/debug/{slug}.md
+**Troubleshooting Session:** GPD/debug/{slug}.md
 
 **What Was Checked:**
 
@@ -1660,8 +1660,8 @@ Update status to "correcting".
 Update status to "resolved".
 
 ```bash
-mkdir -p .gpd/debug/resolved
-mv .gpd/debug/{slug}.md .gpd/debug/resolved/
+mkdir -p GPD/debug/resolved
+mv GPD/debug/{slug}.md GPD/debug/resolved/
 ```
 
 **Commit the correction:**
@@ -1675,7 +1675,7 @@ gpd commit "fix: {brief description} -- root cause: {root_cause}" --files path/t
 Then commit the resolved debugging session docs:
 
 ```bash
-gpd commit "docs: resolve debugging session {slug}" --files .gpd/debug/resolved/{slug}.md
+gpd commit "docs: resolve debugging session {slug}" --files GPD/debug/resolved/{slug}.md
 ```
 
 Report completion and offer next steps.
@@ -1715,7 +1715,7 @@ Return a checkpoint when:
 ## CHECKPOINT REACHED
 
 **Type:** [human-verify | human-action | decision]
-**Troubleshooting Session:** .gpd/debug/{slug}.md
+**Troubleshooting Session:** GPD/debug/{slug}.md
 **Progress:** {evidence_count} evidence entries, {eliminated_count} hypotheses eliminated
 
 ### Investigation State
@@ -1793,7 +1793,7 @@ Orchestrator presents checkpoint to user, gets response, spawns fresh continuati
 ```markdown
 ## ROOT CAUSE FOUND
 
-**Troubleshooting Session:** .gpd/debug/{slug}.md
+**Troubleshooting Session:** GPD/debug/{slug}.md
 
 **Root Cause:** {specific cause with evidence}
 
@@ -1816,7 +1816,7 @@ Orchestrator presents checkpoint to user, gets response, spawns fresh continuati
 ```markdown
 ## TROUBLESHOOTING COMPLETE
 
-**Troubleshooting Session:** .gpd/debug/resolved/{slug}.md
+**Troubleshooting Session:** GPD/debug/resolved/{slug}.md
 
 **Root Cause:** {what was wrong}
 **Correction Applied:** {what was changed}
@@ -1835,7 +1835,7 @@ Orchestrator presents checkpoint to user, gets response, spawns fresh continuati
 ```markdown
 ## INVESTIGATION INCONCLUSIVE
 
-**Troubleshooting Session:** .gpd/debug/{slug}.md
+**Troubleshooting Session:** GPD/debug/{slug}.md
 
 **What Was Checked:**
 
@@ -1869,10 +1869,10 @@ gpd_return:
   # Use canonical status values directly.
   # Capture detailed investigation outcomes in issues and next_actions.
   #   CHECKPOINT_REACHED → checkpoint
-  files_written: [.gpd/debug/{slug}.md, ...]
+  files_written: [GPD/debug/{slug}.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  session_file: .gpd/debug/{slug}.md
+  session_file: GPD/debug/{slug}.md
 ```
 
 The four base fields (`status`, `files_written`, `issues`, `next_actions`) are required per agent-infrastructure.md. `session_file` is an extended field specific to this agent.
@@ -1917,7 +1917,7 @@ Check for mode flags in prompt context:
 
 <insight_recording>
 
-After confirming a root cause, record the pattern in `.gpd/INSIGHTS.md` if it represents a project-specific lesson:
+After confirming a root cause, record the pattern in `GPD/INSIGHTS.md` if it represents a project-specific lesson:
 
 **When to record:**
 
@@ -1949,14 +1949,14 @@ Loaded from agent-infrastructure.md reference. See `<references>` section.
 
 ## Recording Error Patterns
 
-After "ROOT CAUSE FOUND" and verification complete, record the confirmed root cause to `.gpd/ERROR-PATTERNS.md` so that verifiers and planners can proactively check for recurrence.
+After "ROOT CAUSE FOUND" and verification complete, record the confirmed root cause to `GPD/ERROR-PATTERNS.md` so that verifiers and planners can proactively check for recurrence.
 
 **When to record:** Every confirmed root cause that represents a physics or computational error pattern (not environment issues, not one-off typos).
 
 **Step 1: Check if ERROR-PATTERNS.md exists**
 
 ```bash
-test -f .gpd/ERROR-PATTERNS.md && echo "EXISTS" || echo "MISSING"
+test -f GPD/ERROR-PATTERNS.md && echo "EXISTS" || echo "MISSING"
 ```
 
 If MISSING, create it:
@@ -1981,7 +1981,7 @@ Confirmed root causes from debugging sessions. Consulted by verifier and planner
 **Step 3: Commit**
 
 ```bash
-gpd commit "docs: record error pattern - {brief description}" --files .gpd/ERROR-PATTERNS.md
+gpd commit "docs: record error pattern - {brief description}" --files GPD/ERROR-PATTERNS.md
 ```
 
 </error_pattern_recording>

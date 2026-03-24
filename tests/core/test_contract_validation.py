@@ -166,7 +166,7 @@ def test_validate_project_contract_approved_mode_accepts_prior_output_grounding(
     contract = _load_contract_fixture()
     contract["references"] = []
     _remove_incidental_grounding(contract)
-    contract["context_intake"]["must_include_prior_outputs"] = [".gpd/phases/00-baseline/00-01-SUMMARY.md"]
+    contract["context_intake"]["must_include_prior_outputs"] = ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
     contract["scope"]["unresolved_questions"] = []
 
     result = validate_project_contract(contract, mode="approved")
@@ -352,7 +352,7 @@ def test_validate_project_contract_approved_mode_rejects_placeholder_reference_l
 def test_validate_project_contract_approved_mode_accepts_non_reference_grounding_when_must_surface_is_missing() -> None:
     contract = _load_contract_fixture()
     contract["references"][0]["must_surface"] = False
-    contract["context_intake"]["must_include_prior_outputs"] = [".gpd/phases/00-baseline/00-01-SUMMARY.md"]
+    contract["context_intake"]["must_include_prior_outputs"] = ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
     contract["scope"]["unresolved_questions"] = []
 
     result = validate_project_contract(contract, mode="approved")
@@ -557,14 +557,14 @@ def test_validate_project_contract_normalizes_reference_required_actions_whitesp
 
 def test_validate_project_contract_accepts_singleton_list_string_drift_at_validation_boundary() -> None:
     contract = _load_contract_fixture()
-    contract["context_intake"]["must_include_prior_outputs"] = ".gpd/phases/00-baseline/00-01-SUMMARY.md"
+    contract["context_intake"]["must_include_prior_outputs"] = "GPD/phases/00-baseline/00-01-SUMMARY.md"
     contract["references"][0]["role"] = "Benchmark"
     contract["references"][0]["required_actions"] = ["Read", "Compare", "Cite"]
 
     parsed = ResearchContract.model_validate(contract)
     result = validate_project_contract(contract, mode="approved")
 
-    assert parsed.context_intake.must_include_prior_outputs == [".gpd/phases/00-baseline/00-01-SUMMARY.md"]
+    assert parsed.context_intake.must_include_prior_outputs == ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
     assert parsed.references[0].role == "benchmark"
     assert parsed.references[0].required_actions == ["read", "compare", "cite"]
     assert result.valid is True
@@ -802,7 +802,7 @@ def test_validate_project_contract_warns_when_optional_sections_are_missing_but_
     contract["links"] = []
     contract["context_intake"] = {
         "must_read_refs": [],
-        "must_include_prior_outputs": [".gpd/phases/00-baseline/00-01-SUMMARY.md"],
+        "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
         "user_asserted_anchors": [],
         "known_good_baselines": [],
         "context_gaps": [],

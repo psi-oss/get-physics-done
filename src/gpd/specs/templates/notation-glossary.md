@@ -4,7 +4,7 @@ template_version: 1
 
 # Notation Glossary Template
 
-Template for `.gpd/NOTATION_GLOSSARY.md` - comprehensive notation reference for the research project.
+Template for `GPD/NOTATION_GLOSSARY.md` - comprehensive notation reference for the research project.
 
 **Purpose:** Single source of truth for all symbols, indices, and conventions used across phases. Prevents notation drift and sign-convention errors when multiple phases build on each other.
 

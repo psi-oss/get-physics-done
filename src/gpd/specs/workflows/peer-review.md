@@ -86,7 +86,7 @@ fi
 Use `protocol_bundle_context` from init JSON as additive review guidance.
 
 - If `selected_protocol_bundle_ids` is non-empty, treat the bundle summary as a quick map of which decisive artifacts, benchmark anchors, estimator caveats, or specialized comparisons the manuscript should make visible.
-- Use bundle guidance to sharpen skepticism about missing evidence; do **not** use it to invent claims, waive missing comparisons, or overrule the manuscript, `project_contract`, `.gpd/comparisons/*-COMPARISON.md`, `.gpd/paper/FIGURE_TRACKER.md`, or phase summary / verification evidence (`.gpd/phases/*/SUMMARY.md`, `.gpd/phases/*/*-SUMMARY.md`, `.gpd/phases/*/*VERIFICATION.md`).
+- Use bundle guidance to sharpen skepticism about missing evidence; do **not** use it to invent claims, waive missing comparisons, or overrule the manuscript, `project_contract`, `GPD/comparisons/*-COMPARISON.md`, `GPD/paper/FIGURE_TRACKER.md`, or phase summary / verification evidence (`GPD/phases/*/*-SUMMARY.md`, `GPD/phases/*/*-VERIFICATION.md`).
 - Judge the paper by reader-visible claims and surfaced evidence first. Review-support artifacts are scaffolding, not substitutes for contract-backed evidence.
 - If no bundle is selected, run the same review pipeline against the manuscript and contract-backed artifacts without any specialized overlay.
 </step>
@@ -110,12 +110,12 @@ Passing preflight still does not establish scientific support. Complete manifest
 Load the following files:
 
 - The resolved manuscript main file and all nearby `*.tex` section files
-- `.gpd/STATE.md`
-- `.gpd/ROADMAP.md`
-- All summary artifacts matching `.gpd/phases/*/SUMMARY.md` or `.gpd/phases/*/*-SUMMARY.md`
-- All `.gpd/phases/*/*VERIFICATION.md` files
-- `.gpd/comparisons/*-COMPARISON.md` if present
-- `.gpd/paper/FIGURE_TRACKER.md` if present
+- `GPD/STATE.md`
+- `GPD/ROADMAP.md`
+- All summary artifacts matching `GPD/phases/*/*-SUMMARY.md`
+- All `GPD/phases/*/*-VERIFICATION.md` files
+- `GPD/comparisons/*-COMPARISON.md` if present
+- `GPD/paper/FIGURE_TRACKER.md` if present
 - `${ARTIFACT_MANIFEST_PATH}` if present
 - `${BIBLIOGRAPHY_AUDIT_PATH}` if present
 - `${REPRODUCIBILITY_MANIFEST_PATH}` if present
@@ -129,7 +129,7 @@ If bundle context is present, compare its decisive-artifact and reference expect
 Create the review artifact directory if needed:
 
 ```bash
-mkdir -p .gpd/review
+mkdir -p GPD/review
 ```
 </step>
 
@@ -139,31 +139,31 @@ mkdir -p .gpd/review
 Check for prior reports and author responses:
 
 ```bash
-ls .gpd/REFEREE-REPORT*.md 2>/dev/null
-ls .gpd/AUTHOR-RESPONSE*.md 2>/dev/null
+ls GPD/REFEREE-REPORT*.md 2>/dev/null
+ls GPD/AUTHOR-RESPONSE*.md 2>/dev/null
 ```
 
 Set:
 
 - `ROUND=1`, `ROUND_SUFFIX=""` for the first review
-- `ROUND=2`, `ROUND_SUFFIX="-R2"` if `.gpd/REFEREE-REPORT.md` and `.gpd/AUTHOR-RESPONSE.md` exist
-- `ROUND=3`, `ROUND_SUFFIX="-R3"` if `.gpd/REFEREE-REPORT-R2.md` and `.gpd/AUTHOR-RESPONSE-R2.md` exist
+- `ROUND=2`, `ROUND_SUFFIX="-R2"` if `GPD/REFEREE-REPORT.md` and `GPD/AUTHOR-RESPONSE.md` exist
+- `ROUND=3`, `ROUND_SUFFIX="-R3"` if `GPD/REFEREE-REPORT-R2.md` and `GPD/AUTHOR-RESPONSE-R2.md` exist
 
 Stage artifacts for revision rounds should use the same suffix:
 
-- `.gpd/review/CLAIMS{ROUND_SUFFIX}.json`
-- `.gpd/review/STAGE-reader{ROUND_SUFFIX}.json`
-- `.gpd/review/STAGE-literature{ROUND_SUFFIX}.json`
-- `.gpd/review/STAGE-math{ROUND_SUFFIX}.json`
-- `.gpd/review/STAGE-physics{ROUND_SUFFIX}.json`
-- `.gpd/review/STAGE-interestingness{ROUND_SUFFIX}.json`
-- `.gpd/review/REVIEW-LEDGER{ROUND_SUFFIX}.json`
-- `.gpd/review/REFEREE-DECISION{ROUND_SUFFIX}.json`
+- `GPD/review/CLAIMS{ROUND_SUFFIX}.json`
+- `GPD/review/STAGE-reader{ROUND_SUFFIX}.json`
+- `GPD/review/STAGE-literature{ROUND_SUFFIX}.json`
+- `GPD/review/STAGE-math{ROUND_SUFFIX}.json`
+- `GPD/review/STAGE-physics{ROUND_SUFFIX}.json`
+- `GPD/review/STAGE-interestingness{ROUND_SUFFIX}.json`
+- `GPD/review/REVIEW-LEDGER{ROUND_SUFFIX}.json`
+- `GPD/review/REFEREE-DECISION{ROUND_SUFFIX}.json`
 
 Use the same `-R2` / `-R3` suffix convention for downstream response artifacts:
 
-- `.gpd/AUTHOR-RESPONSE{ROUND_SUFFIX}.md`
-- `.gpd/paper/REFEREE_RESPONSE{ROUND_SUFFIX}.md`
+- `GPD/AUTHOR-RESPONSE{ROUND_SUFFIX}.md`
+- `GPD/paper/REFEREE_RESPONSE{ROUND_SUFFIX}.md`
 
 </step>
 
@@ -199,8 +199,8 @@ Operate in manuscript-reader stage mode. This stage must start nearly fresh and 
 Target journal: {target_journal}
 Round: {round}
 Output paths:
-- `.gpd/review/CLAIMS{round_suffix}.json`
-- `.gpd/review/STAGE-reader{round_suffix}.json`
+- `GPD/review/CLAIMS{round_suffix}.json`
+- `GPD/review/STAGE-reader{round_suffix}.json`
 
 Files to read:
 - Resolved manuscript main file and all nearby section .tex files
@@ -246,14 +246,14 @@ Round: {round}
 Selected protocol bundles: {selected_protocol_bundle_ids}
 Additive specialized guidance:
 {protocol_bundle_context}
-Output path: `.gpd/review/STAGE-literature{round_suffix}.json`
+Output path: `GPD/review/STAGE-literature{round_suffix}.json`
 
 Files to read:
 - Resolved manuscript main file and all nearby section .tex files
-- `.gpd/review/CLAIMS{round_suffix}.json`
-- `.gpd/review/STAGE-reader{round_suffix}.json`
-- `.gpd/comparisons/*-COMPARISON.md` if present
-- `.gpd/paper/FIGURE_TRACKER.md` if present
+- `GPD/review/CLAIMS{round_suffix}.json`
+- `GPD/review/STAGE-reader{round_suffix}.json`
+- `GPD/comparisons/*-COMPARISON.md` if present
+- `GPD/paper/FIGURE_TRACKER.md` if present
 - `${BIBLIOGRAPHY_AUDIT_PATH}` if present
 - All `*.bib` files under `${MANUSCRIPT_ROOT}`, plus `references/references.bib` if present
 
@@ -277,14 +277,14 @@ Operate in mathematical-soundness stage mode with a fresh context.
 
 Target journal: {target_journal}
 Round: {round}
-Output path: `.gpd/review/STAGE-math{round_suffix}.json`
+Output path: `GPD/review/STAGE-math{round_suffix}.json`
 
 Files to read:
 - Resolved manuscript main file and all nearby section .tex files
-- `.gpd/review/CLAIMS{round_suffix}.json`
-- `.gpd/review/STAGE-reader{round_suffix}.json`
-- Summary artifacts matching `.gpd/phases/*/SUMMARY.md` or `.gpd/phases/*/*-SUMMARY.md`
-- `.gpd/phases/*/*VERIFICATION.md`
+- `GPD/review/CLAIMS{round_suffix}.json`
+- `GPD/review/STAGE-reader{round_suffix}.json`
+- Summary artifacts matching `GPD/phases/*/*-SUMMARY.md`
+- `GPD/phases/*/*-VERIFICATION.md`
 - `${ARTIFACT_MANIFEST_PATH}` if present
 - `${REPRODUCIBILITY_MANIFEST_PATH}` if present
 
@@ -323,18 +323,18 @@ Round: {round}
 Selected protocol bundles: {selected_protocol_bundle_ids}
 Additive specialized guidance:
 {protocol_bundle_context}
-Output path: `.gpd/review/STAGE-physics{round_suffix}.json`
+Output path: `GPD/review/STAGE-physics{round_suffix}.json`
 
 Files to read:
 - Resolved manuscript main file and all nearby section .tex files
-- `.gpd/review/CLAIMS{round_suffix}.json`
-- `.gpd/review/STAGE-reader{round_suffix}.json`
-- `.gpd/review/STAGE-math{round_suffix}.json`
-- `.gpd/review/STAGE-literature{round_suffix}.json`
-- Summary artifacts matching `.gpd/phases/*/SUMMARY.md` or `.gpd/phases/*/*-SUMMARY.md`
-- `.gpd/phases/*/*VERIFICATION.md`
-- `.gpd/comparisons/*-COMPARISON.md` if present
-- `.gpd/paper/FIGURE_TRACKER.md` if present
+- `GPD/review/CLAIMS{round_suffix}.json`
+- `GPD/review/STAGE-reader{round_suffix}.json`
+- `GPD/review/STAGE-math{round_suffix}.json`
+- `GPD/review/STAGE-literature{round_suffix}.json`
+- Summary artifacts matching `GPD/phases/*/*-SUMMARY.md`
+- `GPD/phases/*/*-VERIFICATION.md`
+- `GPD/comparisons/*-COMPARISON.md` if present
+- `GPD/paper/FIGURE_TRACKER.md` if present
 
 Focus on:
 1. Regime of validity
@@ -373,14 +373,14 @@ Operate in interestingness-and-venue-fit stage mode with a fresh context.
 
 Target journal: {target_journal}
 Round: {round}
-Output path: `.gpd/review/STAGE-interestingness{round_suffix}.json`
+Output path: `GPD/review/STAGE-interestingness{round_suffix}.json`
 
 Files to read:
 - Resolved manuscript main file and all nearby section .tex files
-- `.gpd/review/CLAIMS{round_suffix}.json`
-- `.gpd/review/STAGE-reader{round_suffix}.json`
-- `.gpd/review/STAGE-literature{round_suffix}.json`
-- `.gpd/review/STAGE-physics{round_suffix}.json`
+- `GPD/review/CLAIMS{round_suffix}.json`
+- `GPD/review/STAGE-reader{round_suffix}.json`
+- `GPD/review/STAGE-literature{round_suffix}.json`
+- `GPD/review/STAGE-physics{round_suffix}.json`
 - `${PAPER_CONFIG_PATH}` if present
 
 You must explicitly decide whether the paper is:
@@ -431,21 +431,21 @@ Active References:
 
 Files to read:
 - Resolved manuscript main file and all nearby section .tex files
-- `.gpd/review/CLAIMS{round_suffix}.json`
-- `.gpd/review/STAGE-reader{round_suffix}.json`
-- `.gpd/review/STAGE-literature{round_suffix}.json`
-- `.gpd/review/STAGE-math{round_suffix}.json`
-- `.gpd/review/STAGE-physics{round_suffix}.json`
-- `.gpd/review/STAGE-interestingness{round_suffix}.json`
-- `.gpd/comparisons/*-COMPARISON.md` if present
-- `.gpd/paper/FIGURE_TRACKER.md` if present
+- `GPD/review/CLAIMS{round_suffix}.json`
+- `GPD/review/STAGE-reader{round_suffix}.json`
+- `GPD/review/STAGE-literature{round_suffix}.json`
+- `GPD/review/STAGE-math{round_suffix}.json`
+- `GPD/review/STAGE-physics{round_suffix}.json`
+- `GPD/review/STAGE-interestingness{round_suffix}.json`
+- `GPD/comparisons/*-COMPARISON.md` if present
+- `GPD/paper/FIGURE_TRACKER.md` if present
 - `${ARTIFACT_MANIFEST_PATH}` if present
 - `${BIBLIOGRAPHY_AUDIT_PATH}` if present
 - `${REPRODUCIBILITY_MANIFEST_PATH}` if present
-- `.gpd/STATE.md`
-- `.gpd/ROADMAP.md`
-- Summary artifacts matching `.gpd/phases/*/SUMMARY.md` or `.gpd/phases/*/*-SUMMARY.md`
-- `.gpd/phases/*/*VERIFICATION.md`
+- `GPD/STATE.md`
+- `GPD/ROADMAP.md`
+- Summary artifacts matching `GPD/phases/*/*-SUMMARY.md`
+- `GPD/phases/*/*-VERIFICATION.md`
 
 If this is a revision round, also read the latest `REFEREE-REPORT*.md` and matching `AUTHOR-RESPONSE*.md`.
 
@@ -454,12 +454,12 @@ Recommendation guardrails:
 2. A mathematically coherent but physically weak or scientifically mediocre paper can require major revision or rejection.
 3. Evaluate venue fit explicitly using the panel artifacts and spot-check the manuscript where the artifacts are under-evidenced.
 4. Treat protocol bundle guidance as additive context only. It can increase concern when decisive comparisons or benchmark anchors are missing, but it cannot rescue missing evidence or override the manuscript's actual artifact trail.
-5. Write `.gpd/review/REVIEW-LEDGER{round_suffix}.json` and `.gpd/review/REFEREE-DECISION{round_suffix}.json`.
-6. Run `gpd validate review-ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json`.
-7. Run `gpd validate referee-decision .gpd/review/REFEREE-DECISION{round_suffix}.json --strict --ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json` before trusting a recommendation better than `major_revision`.
+5. Write `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json`.
+6. Run `gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json`.
+7. Run `gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger GPD/review/REVIEW-LEDGER{round_suffix}.json` before trusting a recommendation better than `major_revision`.
 
-Write `.gpd/REFEREE-REPORT{round_suffix}.md` and the matching `.gpd/REFEREE-REPORT{round_suffix}.tex`.
-Also write `.gpd/CONSISTENCY-REPORT.md` when applicable.
+Write `GPD/REFEREE-REPORT{round_suffix}.md` and the matching `GPD/REFEREE-REPORT{round_suffix}.tex`.
+Also write `GPD/CONSISTENCY-REPORT.md` when applicable.
 
 Return REVIEW COMPLETE with recommendation, confidence, issue counts, and whether prior major concerns are resolved.",
   description="Peer review stage 6: final adjudication"
@@ -478,7 +478,7 @@ If TeX is missing, do not block the review:
 
 ```
 Referee review artifacts were written, but a TeX toolchain is not available.
-Continue now with `.gpd/REFEREE-REPORT.md` + `.gpd/REFEREE-REPORT.tex` only.
+Continue now with `GPD/REFEREE-REPORT.md` + `GPD/REFEREE-REPORT.tex` only.
 If you want the polished PDF artifact as well, Authorize the agent to install TeX now or compile the `.tex` later in an environment that already has TeX.
 ```
 </step>
@@ -487,9 +487,9 @@ If you want the polished PDF artifact as well, Authorize the agent to install Te
 **Read the latest referee report and summarize the decision:**
 
 1. Identify the most recent referee report among:
-   - `.gpd/REFEREE-REPORT.md`
-   - `.gpd/REFEREE-REPORT-R2.md`
-   - `.gpd/REFEREE-REPORT-R3.md`
+   - `GPD/REFEREE-REPORT.md`
+   - `GPD/REFEREE-REPORT-R2.md`
+   - `GPD/REFEREE-REPORT-R3.md`
 2. Extract:
    - recommendation
    - confidence
@@ -506,7 +506,7 @@ Present:
 **Confidence:** {confidence}
 **Major issues:** {N}
 **Minor issues:** {M}
-**Stage artifacts:** `.gpd/review/`
+**Stage artifacts:** `GPD/review/`
 **Report:** {path}
 **LaTeX report:** {path or "not written"}
 **Consistency report:** {path or "not written"}

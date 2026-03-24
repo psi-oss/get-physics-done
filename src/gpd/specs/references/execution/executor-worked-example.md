@@ -240,7 +240,7 @@ affects:
   - "02-02: vertex correction (needs δZ₂ for Ward identity check)"
   - "02-03: renormalized propagator"
 completed: 2026-03-15
-plan_contract_ref: ".gpd/phases/02-self-energy/02-01-PLAN.md#/contract"
+plan_contract_ref: "GPD/phases/02-self-energy/02-01-PLAN.md#/contract"
 contract_results:
   claims:
     claim-mass-counterterm:
@@ -256,7 +256,7 @@ contract_results:
           acceptance_test_id: acceptance-test-pole
           reference_id: reference-qed-benchmark
           forbidden_proxy_id: fp-summary-only
-          evidence_path: ".gpd/phases/02-self-energy/02-VERIFICATION.md"
+          evidence_path: "GPD/phases/02-self-energy/02-VERIFICATION.md"
     claim-massless-limit:
       status: passed
       summary: "The m→0 limit preserved the expected chiral behavior."

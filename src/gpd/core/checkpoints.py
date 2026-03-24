@@ -3,10 +3,10 @@
 Builds a project-internal reading layer from the canonical per-phase SUMMARY and
 VERIFICATION artifacts. The generated outputs are deterministic:
 
-- one ``.gpd/phase-checkpoints/<phase-dir>.md`` file per phase that has summaries
-- one ``.gpd/CHECKPOINTS.md`` index covering the whole project
+- one ``GPD/phase-checkpoints/<phase-dir>.md`` file per phase that has summaries
+- one ``GPD/CHECKPOINTS.md`` index covering the whole project
 
-The canonical source of truth remains ``.gpd/phases/.../*-SUMMARY.md`` and
+The canonical source of truth remains ``GPD/phases/.../*-SUMMARY.md`` and
 ``*-VERIFICATION.md``. This module only derives readable checkpoint notes from
 those artifacts.
 """
@@ -22,11 +22,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.commands import SummaryExtractResult, _normalize_string_list, cmd_summary_extract
-from gpd.core.constants import (
-    STANDALONE_SUMMARY,
-    STANDALONE_VERIFICATION,
-    ProjectLayout,
-)
+from gpd.core.constants import ProjectLayout
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.utils import atomic_write, compare_phase_numbers, safe_read_file
@@ -152,14 +148,10 @@ def _strip_top_heading(body: str) -> str:
 
 
 def _summary_sort_key(path: Path) -> tuple[int, str]:
-    if path.name == STANDALONE_SUMMARY:
-        return (1, path.name)
     return (0, path.name)
 
 
 def _verification_sort_key(path: Path) -> tuple[int, str]:
-    if path.name == STANDALONE_VERIFICATION:
-        return (1, path.name)
     return (0, path.name)
 
 
@@ -367,7 +359,7 @@ def _render_root_index(cwd: Path, entries: list[_CheckpointIndexEntry]) -> str:
         "# Phase Checkpoints",
         "",
         "This is the human-facing checkpoint shelf for the project.",
-        "Each phase note is generated from the canonical SUMMARY and VERIFICATION artifacts under `.gpd/phases/`.",
+        "Each phase note is generated from the canonical SUMMARY and VERIFICATION artifacts under `GPD/phases/`.",
         "",
         "Read one checkpoint file when you want the end-of-phase story in plain English.",
         "Use the linked summary and verification artifacts when you want the full underlying record.",
@@ -405,7 +397,7 @@ def _remove_generated_if_present(path: Path) -> bool:
 
 @instrument_gpd_function("checkpoints.sync_phase_checkpoints")
 def sync_phase_checkpoints(cwd: Path) -> SyncPhaseCheckpointsResult:
-    """Generate the `.gpd` checkpoint shelf from phase summaries."""
+    """Generate the `GPD` checkpoint shelf from phase summaries."""
     layout = ProjectLayout(cwd)
 
     grouped: list[tuple[Path, list[_PhaseSummaryDoc]]] = []

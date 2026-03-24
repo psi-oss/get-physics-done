@@ -35,8 +35,8 @@ Interpretation:
 Load known framework:
 
 ```bash
-cat .gpd/research-map/FORMALISM.md 2>/dev/null | grep -A 20 "Known Limiting Cases"
-cat .gpd/research-map/VALIDATION.md 2>/dev/null | grep -A 30 "Limiting Cases"
+cat GPD/research-map/FORMALISM.md 2>/dev/null | grep -A 20 "Known Limiting Cases"
+cat GPD/research-map/VALIDATION.md 2>/dev/null | grep -A 30 "Limiting Cases"
 ```
 
 </context>

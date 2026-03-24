@@ -2888,7 +2888,7 @@ def _reject_legacy_paper_config_location(config_file: Path) -> None:
     except ValueError:
         return
     raise GPDError(
-        "Paper configs under `.gpd/paper/` are no longer supported. "
+        "Paper configs under `GPD/paper/` are no longer supported. "
         "Move the config to `paper/`, `manuscript/`, or `draft/`."
     )
 
@@ -3357,16 +3357,16 @@ def _build_review_preflight(
         if strict and manuscript is not None:
             artifact_manifest = _first_existing_path(
                 manuscript.parent / "ARTIFACT-MANIFEST.json",
-                cwd / ".gpd" / "paper" / "ARTIFACT-MANIFEST.json",
+                cwd / "GPD" / "paper" / "ARTIFACT-MANIFEST.json",
             )
             bibliography_audit = _first_existing_path(
                 manuscript.parent / "BIBLIOGRAPHY-AUDIT.json",
-                cwd / ".gpd" / "paper" / "BIBLIOGRAPHY-AUDIT.json",
+                cwd / "GPD" / "paper" / "BIBLIOGRAPHY-AUDIT.json",
             )
             reproducibility_manifest = _first_existing_path(
                 manuscript.parent / "reproducibility-manifest.json",
                 manuscript.parent / "REPRODUCIBILITY-MANIFEST.json",
-                cwd / ".gpd" / "paper" / "reproducibility-manifest.json",
+                cwd / "GPD" / "paper" / "reproducibility-manifest.json",
             )
             add_check(
                 "artifact_manifest",
@@ -3801,7 +3801,7 @@ def history_digest() -> None:
 
 @app.command("sync-phase-checkpoints")
 def sync_phase_checkpoints() -> None:
-    """Generate checkpoint notes under .gpd/ from phase summaries."""
+    """Generate checkpoint notes under GPD/ from phase summaries."""
     from gpd.core.checkpoints import sync_phase_checkpoints
 
     _output(sync_phase_checkpoints(_get_cwd()))
@@ -4202,13 +4202,13 @@ def commit(
 ) -> None:
     """Stage planning files and create a git commit.
 
-    If --files is not specified, stages all .gpd/ changes.
+    If --files is not specified, stages all GPD/ changes.
     Skips cleanly when commit_docs is disabled for the project.
 
     Examples::
 
-        gpd commit "docs: update roadmap" --files .gpd/ROADMAP.md
-        gpd commit "docs: initialize research project" --files .gpd/PROJECT.md .gpd/state.json
+        gpd commit "docs: update roadmap" --files GPD/ROADMAP.md
+        gpd commit "docs: initialize research project" --files GPD/PROJECT.md GPD/state.json
         gpd commit "wip: phase 3 progress"
     """
     from gpd.core.git_ops import cmd_commit
@@ -4231,7 +4231,7 @@ def pre_commit_check(
 
     Examples::
 
-        gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md
+        gpd pre-commit-check --files GPD/ROADMAP.md GPD/STATE.md
     """
     from gpd.core.git_ops import cmd_pre_commit_check
 

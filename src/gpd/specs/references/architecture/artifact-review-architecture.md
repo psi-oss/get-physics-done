@@ -9,7 +9,7 @@ This file is intentionally evergreen. Dated forward-looking design notes belong 
 - typed paper and compiler surfaces under `src/gpd/mcp/paper/`
 - verification registry and verification MCP surfaces for machine-facing check metadata
 - review and referee workflows in `src/gpd/specs/workflows/`
-- durable local observability under `.gpd/observability/` and `.gpd/traces/`
+- durable local observability under `GPD/observability/` and `GPD/traces/`
 - result/state management under `src/gpd/core/`
 
 ## What This Architecture Already Does Well

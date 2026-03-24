@@ -9,8 +9,8 @@ review-contract:
   review_mode: publication
   schema_version: 1
   required_outputs:
-    - ".gpd/paper/REFEREE_RESPONSE{round_suffix}.md"
-    - ".gpd/AUTHOR-RESPONSE{round_suffix}.md"
+    - "GPD/paper/REFEREE_RESPONSE{round_suffix}.md"
+    - "GPD/AUTHOR-RESPONSE{round_suffix}.md"
   required_evidence:
     - existing manuscript
     - structured referee issues
@@ -59,33 +59,33 @@ Responding to referees is collaborative improvement: every comment, even an inco
 <context>
 Referee report source: $ARGUMENTS (file path or "paste" for inline input)
 
-@.gpd/STATE.md
-@.gpd/AUTHOR-RESPONSE{round_suffix}.md
-@.gpd/paper/REFEREE_RESPONSE{round_suffix}.md
-@.gpd/review/REVIEW-LEDGER{round_suffix}.json
-@.gpd/review/REFEREE-DECISION{round_suffix}.json
+@GPD/STATE.md
+@GPD/AUTHOR-RESPONSE{round_suffix}.md
+@GPD/paper/REFEREE_RESPONSE{round_suffix}.md
+@GPD/review/REVIEW-LEDGER{round_suffix}.json
+@GPD/review/REFEREE-DECISION{round_suffix}.json
 
 Check for existing paper and prior response files:
 
 ```bash
 ls paper/main.tex manuscript/main.tex draft/main.tex 2>/dev/null
-ls .gpd/AUTHOR-RESPONSE*.md 2>/dev/null
-ls .gpd/paper/REFEREE_RESPONSE*.md 2>/dev/null
-ls .gpd/review/REVIEW-LEDGER*.json .gpd/review/REFEREE-DECISION*.json 2>/dev/null
+ls GPD/AUTHOR-RESPONSE*.md 2>/dev/null
+ls GPD/paper/REFEREE_RESPONSE*.md 2>/dev/null
+ls GPD/review/REVIEW-LEDGER*.json GPD/review/REFEREE-DECISION*.json 2>/dev/null
 ```
 
 </context>
 
 <process>
 Execute the respond-to-referees workflow from @{GPD_INSTALL_DIR}/workflows/respond-to-referees.md end-to-end.
-If staged peer-review artifacts exist under `.gpd/review/`, absorb them as structured decision context while keeping `REFEREE-REPORT*.md` as the canonical issue-ID source.
+If staged peer-review artifacts exist under `GPD/review/`, absorb them as structured decision context while keeping `REFEREE-REPORT*.md` as the canonical issue-ID source.
 Preserve all validation gates (report parsing, triage confirmation, compilation check, consistency verification, bounded revision loop).
 </process>
 
 <success_criteria>
 - [ ] Referee reports parsed and all comments categorized and prioritized
-- [ ] `.gpd/review/REVIEW-LEDGER*.json` and `.gpd/review/REFEREE-DECISION*.json` consumed when available
-- [ ] `.gpd/AUTHOR-RESPONSE{round_suffix}.md` and `.gpd/paper/REFEREE_RESPONSE{round_suffix}.md` created with complete point-by-point structure
+- [ ] `GPD/review/REVIEW-LEDGER*.json` and `GPD/review/REFEREE-DECISION*.json` consumed when available
+- [ ] `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/paper/REFEREE_RESPONSE{round_suffix}.md` created with complete point-by-point structure
 - [ ] Comments triaged into response-only, revision, and new calculation groups
 - [ ] All responses drafted and revisions applied via paper-writer agents
 - [ ] Revised manuscript compiles without errors

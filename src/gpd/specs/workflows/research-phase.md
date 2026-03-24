@@ -56,7 +56,7 @@ If exists: Offer update/view/skip options.
 ```bash
 # Phase section from roadmap (already loaded in PHASE_INFO)
 echo "$PHASE_INFO" | gpd json get .section --default ""
-cat .gpd/REQUIREMENTS.md 2>/dev/null
+cat GPD/REQUIREMENTS.md 2>/dev/null
 cat "${phase_dir}/"*-CONTEXT.md 2>/dev/null
 # Decisions from gpd state snapshot (structured JSON)
 gpd state snapshot | gpd json get .decisions --default "[]"
@@ -120,7 +120,7 @@ Structure your research around these areas:
 </physics_research_directives>
 
 <output>
-Write to: .gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
+Write to: GPD/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
 </output>",
   subagent_type="gpd-phase-researcher",
   model="{researcher_model}",
@@ -135,9 +135,9 @@ Add this contract inside the spawned prompt when adapting it:
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - .gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
+    - GPD/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
 expected_artifacts:
-  - .gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
+  - GPD/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
 shared_state_policy: return_only
 </spawn_contract>
 ```

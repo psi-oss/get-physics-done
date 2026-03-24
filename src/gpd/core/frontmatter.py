@@ -642,19 +642,19 @@ def _plan_contract_ref_path_error(plan_contract_ref: str) -> str | None:
 
     path_text = plan_contract_ref.strip().partition("#")[0].strip()
     if not path_text:
-        return "plan_contract_ref: must reference a canonical project-root-relative .gpd PLAN path"
+        return "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"
     if _PLAN_CONTRACT_REF_EXTERNAL_RE.match(path_text):
-        return "plan_contract_ref: must reference a canonical project-root-relative .gpd PLAN path"
+        return "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"
     if re.match(r"^[A-Za-z]:[\\/]", path_text) or re.match(r"^[A-Za-z]:$", path_text):
-        return "plan_contract_ref: must reference a canonical project-root-relative .gpd PLAN path"
+        return "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"
 
     relative_plan_path = Path(path_text[2:] if path_text.startswith("./") else path_text)
     if relative_plan_path.is_absolute():
-        return "plan_contract_ref: must reference a canonical project-root-relative .gpd PLAN path"
+        return "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"
     if any(part == ".." for part in relative_plan_path.parts):
         return "plan_contract_ref: must not traverse parent directories"
-    if not relative_plan_path.parts or relative_plan_path.parts[0] != ".gpd":
-        return "plan_contract_ref: must reference a canonical project-root-relative .gpd PLAN path"
+    if not relative_plan_path.parts or relative_plan_path.parts[0] != "GPD":
+        return "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"
     return None
 
 

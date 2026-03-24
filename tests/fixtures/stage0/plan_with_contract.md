@@ -16,7 +16,7 @@ contract:
     question: What benchmark must this plan recover?
   context_intake:
     must_read_refs: [ref-benchmark]
-    must_include_prior_outputs: [.gpd/phases/00-baseline/00-01-SUMMARY.md]
+    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]
   claims:
     - id: claim-benchmark
       statement: Recover the benchmark value within tolerance

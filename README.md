@@ -90,8 +90,8 @@ Typical new-project workflow:
 | `--local`, `-l` | Use the current project only. |
 | `--global`, `-g` | Use the global runtime config dir. |
 | `--uninstall` | Uninstall from the selected runtime config instead of installing. |
-| `--reinstall` | Reinstall the matching tagged GitHub source into `~/.gpd/venv`. |
-| `--upgrade` | Upgrade `~/.gpd/venv` from the latest GitHub `main` source. |
+| `--reinstall` | Reinstall the matching tagged GitHub source into `~/GPD/venv`. |
+| `--upgrade` | Upgrade `~/GPD/venv` from the latest GitHub `main` source. |
 | `--target-dir <path>` | Override the runtime config directory; defaults to local scope unless the path resolves to that runtime's canonical global config dir. |
 | `--force-statusline` | Replace an existing runtime statusline during install. |
 | `--help`, `-h` | Show bootstrap help. |
@@ -576,7 +576,7 @@ Low-level function and span calls are not recorded automatically. Observability 
 
 Run `npx -y get-physics-done --uninstall` for interactive uninstall. The equivalent subcommand form `npx -y get-physics-done uninstall` also works, and you can add the runtime and scope flags above for a non-interactive uninstall.
 
-Uninstall removes GPD from the selected runtime config only. It does not delete project `GPD/` artifacts or shared files under `~/.gpd`; remove `~/.gpd/` manually, or `GPD_HOME` if you used it, for a full wipe after uninstalling from all runtimes.
+Uninstall removes GPD from the selected runtime config only. It does not delete project `GPD/` artifacts or shared files under `~/GPD`; remove `~/GPD/` manually, or `GPD_HOME` if you used it, for a full wipe after uninstalling from all runtimes.
 
 ## Inspiration
 

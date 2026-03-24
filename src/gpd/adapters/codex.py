@@ -1121,7 +1121,7 @@ def _copy_commands_as_skills(
     skills_parent = skills_dir.parent
     skills_parent.mkdir(parents=True, exist_ok=True)
 
-    staging_root = Path(tempfile.mkdtemp(prefix=f".{skills_dir.name}.gpd-", dir=str(skills_parent)))
+    staging_root = Path(tempfile.mkdtemp(prefix=f".{skills_dir.name}GPD-", dir=str(skills_parent)))
     staged_skills_dir = staging_root / skills_dir.name
     staged_skills_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1589,7 +1589,7 @@ def _remove_gpd_mcp_toml_sections(content: str) -> str:
     """Remove GPD MCP server sections from TOML content."""
     from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
 
-    # Remove the header comment and all [mcp_servers.gpd-*] sections.
+    # Remove the header comment and all [mcp_serversGPD-*] sections.
     content = re.sub(r"^# GPD MCP servers\n", "", content, flags=re.MULTILINE)
     for key in GPD_MCP_SERVER_KEYS:
         escaped = re.escape(key)

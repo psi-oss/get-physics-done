@@ -33,8 +33,8 @@ Routes to the sync-state workflow which handles conflict detection and resolutio
 </execution_context>
 
 <context>
-@.gpd/STATE.md
-@.gpd/state.json
+@GPD/STATE.md
+@GPD/state.json
 </context>
 
 <process>

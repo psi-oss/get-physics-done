@@ -4,7 +4,7 @@ template_version: 1
 
 # Research Template
 
-Template for `.gpd/phases/XX-name/{phase}-RESEARCH.md` - comprehensive literature and methods research before planning a physics research phase.
+Template for `GPD/phases/XX-name/{phase}-RESEARCH.md` - comprehensive literature and methods research before planning a physics research phase.
 
 **Purpose:** Document what the agent needs to know to execute a research phase well - not just "which method" but "how do experts approach this problem, what's known, what's open, and what notation conventions exist."
 
@@ -109,7 +109,7 @@ Key papers and results organized by relevance:
 ## Methods and Approaches
 
 > This is the **primary methods template** for phase-level research. For analyzing an existing project's
-> methods, use the split `map-research` outputs in `.gpd/research-map/` (`FORMALISM.md`,
+> methods, use the split `map-research` outputs in `GPD/research-map/` (`FORMALISM.md`,
 > `ARCHITECTURE.md`, `CONVENTIONS.md`, `VALIDATION.md`, `STRUCTURE.md`). For the raw new-project survey
 > template consumed by workflows, see `research-project/METHODS.md` — do NOT use it directly; its content
 > is incorporated here.
@@ -525,6 +525,6 @@ Key finding: The ramp region is where physics lives - it emerges from the connec
 
 **After creation:**
 
-- File lives in phase directory: `.gpd/phases/XX-name/{phase}-RESEARCH.md`
+- File lives in phase directory: `GPD/phases/XX-name/{phase}-RESEARCH.md`
 - Referenced during planning workflow
 - plan-phase loads it automatically when present

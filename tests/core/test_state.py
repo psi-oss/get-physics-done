@@ -118,7 +118,7 @@ MINIMAL_STATE_MD = """\
 
 ## Project Reference
 
-See: .gpd/PROJECT.md (updated 2026-03-01)
+See: GPD/PROJECT.md (updated 2026-03-01)
 
 **Core research question:** How does X work?
 **Current focus:** Testing the parser
@@ -641,7 +641,7 @@ def test_state_set_project_contract_accepts_research_contract_instance_singleton
     object.__setattr__(
         contract.context_intake,
         "must_include_prior_outputs",
-        ".gpd/phases/00-baseline/00-01-SUMMARY.md",
+        "GPD/phases/00-baseline/00-01-SUMMARY.md",
     )
     save_state_json(tmp_path, default_state_dict())
 
@@ -653,7 +653,7 @@ def test_state_set_project_contract_accepts_research_contract_instance_singleton
     assert saved is not None
     assert saved["project_contract"] is not None
     assert saved["project_contract"]["context_intake"]["must_include_prior_outputs"] == [
-        ".gpd/phases/00-baseline/00-01-SUMMARY.md"
+        "GPD/phases/00-baseline/00-01-SUMMARY.md"
     ]
 
 
@@ -978,7 +978,7 @@ def test_load_state_json_preserves_recoverable_warning_only_project_contract_dri
 def test_state_load_matches_context_progress_for_recoverably_normalized_project_contract(
     tmp_path: Path,
 ):
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
     (planning / "phases").mkdir()
     (planning / "PROJECT.md").write_text("# Project\nTest.\n", encoding="utf-8")
@@ -1096,11 +1096,11 @@ def test_state_validate_rejects_state_markdown_missing_canonical_section(tmp_pat
     assert any('STATE.md missing "## Current Position" section' in issue for issue in result.issues)
 
 
-def test_peek_state_json_uses_backup_when_primary_dict_is_schema_corrupt(tmp_path: Path) -> None:
+def test_peek_state_json_keeps_normalized_primary_when_unrelated_section_is_schema_corrupt(tmp_path: Path) -> None:
     save_state_json(tmp_path, default_state_dict())
     layout = ProjectLayout(tmp_path)
     primary_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
-    primary_state["position"] = []
+    primary_state["blockers"] = "not-a-list"
     layout.state_json.write_text(json.dumps(primary_state, indent=2) + "\n", encoding="utf-8")
 
     backup_state = default_state_dict()
@@ -1111,30 +1111,31 @@ def test_peek_state_json_uses_backup_when_primary_dict_is_schema_corrupt(tmp_pat
     loaded, issues, state_source = peek_state_json(tmp_path)
 
     assert loaded is not None
-    assert loaded["position"]["current_phase"] == "09"
-    assert loaded["position"]["status"] == "Executing"
-    assert state_source == "state.json.bak"
-    assert any("recovered from state.json.bak" in issue for issue in issues)
+    assert loaded["position"]["current_phase"] is None
+    assert loaded["position"]["status"] is None
+    assert loaded["blockers"] == []
+    assert state_source == "state.json"
+    assert any('schema normalization: dropped "blockers" because expected list, got str' in issue for issue in issues)
 
 
-def test_state_validate_uses_backup_when_primary_dict_is_schema_corrupt(tmp_path: Path) -> None:
+def test_state_validate_keeps_normalized_primary_when_unrelated_section_is_schema_corrupt(tmp_path: Path) -> None:
     save_state_json(tmp_path, default_state_dict())
     layout = ProjectLayout(tmp_path)
     primary_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
-    primary_state["position"] = []
+    primary_state["blockers"] = "not-a-list"
     layout.state_json.write_text(json.dumps(primary_state, indent=2) + "\n", encoding="utf-8")
 
     backup_state = default_state_dict()
     backup_state["position"]["status"] = "Executing"
     layout.state_json_backup.write_text(json.dumps(backup_state, indent=2) + "\n", encoding="utf-8")
-    layout.state_md.write_text(generate_state_markdown(backup_state), encoding="utf-8")
 
     result = state_validate(tmp_path)
 
     assert result.valid is True
     assert result.integrity_status == "warning"
-    assert result.state_source == "state.json.bak"
-    assert any("state.json root was recovered from state.json.bak" in warning for warning in result.warnings)
+    assert result.state_source == "state.json"
+    assert any('schema normalization: dropped "blockers" because expected list, got str' in warning for warning in result.warnings)
+    assert not any("state.json root was recovered from state.json.bak" in warning for warning in result.warnings)
 
 
 def test_state_snapshot_does_not_consume_intent_marker(tmp_path: Path) -> None:
@@ -1163,6 +1164,30 @@ def test_load_state_json_review_blocks_on_schema_normalization(tmp_path):
     layout.state_json.write_text(json.dumps({"position": {"status": 42}}), encoding="utf-8")
 
     assert load_state_json(tmp_path, integrity_mode="review") is None
+
+
+def test_state_validate_review_surfaces_parse_errors_instead_of_not_found(tmp_path: Path) -> None:
+    save_state_json(tmp_path, default_state_dict())
+    layout = ProjectLayout(tmp_path)
+    layout.state_json_backup.unlink()
+    layout.state_json.write_text("{bad json\n", encoding="utf-8")
+
+    result = state_validate(tmp_path, integrity_mode="review")
+
+    assert any("state.json parse error:" in issue for issue in result.issues)
+    assert not any("state.json not found" in issue for issue in result.issues)
+
+
+def test_state_validate_review_surfaces_structural_errors_instead_of_not_found(tmp_path: Path) -> None:
+    save_state_json(tmp_path, default_state_dict())
+    layout = ProjectLayout(tmp_path)
+    layout.state_json_backup.unlink()
+    layout.state_json.write_text("[]\n", encoding="utf-8")
+
+    result = state_validate(tmp_path, integrity_mode="review")
+
+    assert any("state.json structural error: state root must be an object, got list" in issue for issue in result.issues)
+    assert not any("state.json not found" in issue for issue in result.issues)
 
     standard = load_state_json(tmp_path, integrity_mode="standard")
     assert standard is not None
@@ -1751,10 +1776,10 @@ def _bootstrap_project_with_state(
     status: str = "Executing",
     extra_lines: int = 0,
 ) -> Path:
-    """Create a minimal .gpd/ project with STATE.md + state.json."""
+    """Create a minimal GPD/ project with STATE.md + state.json."""
     from gpd.core.state import default_state_dict, generate_state_markdown
 
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     (planning / "PROJECT.md").write_text("# Project\nTest.\n")
@@ -1815,7 +1840,7 @@ def test_state_compact_recovers_intent_before_reading(tmp_path):
     md = generate_state_markdown(state)
     md += "\n" + "\n".join(f"<!-- padding {i} -->" for i in range(100))
 
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     (planning / "PROJECT.md").write_text("# Project\nTest.\n")
@@ -1884,7 +1909,7 @@ def test_advance_plan_returns_error_when_fields_missing(tmp_path):
     """
     from gpd.core.state import state_advance_plan
 
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     (planning / "PROJECT.md").write_text("# Project\nTest.\n")
@@ -1917,7 +1942,7 @@ def test_advance_plan_marks_phase_complete_on_last_plan(tmp_path):
     pos["status"] = "Executing"
     pos["progress_percent"] = 90
 
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     (planning / "PROJECT.md").write_text("# Project\nTest.\n")

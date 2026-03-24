@@ -349,4 +349,4 @@ def test_bibliography_template_tracks_live_references_bib_path() -> None:
     template = _read("src/gpd/specs/templates/bibliography.md")
 
     assert "references/references.bib" in template
-    assert ".gpd/references.bib" not in template
+    assert "GPD/references.bib" not in template

@@ -15,8 +15,8 @@ Uncertainties propagate. Every intermediate result in a derivation chain carries
 <required_reading>
 Read these reference and template files using the file_read tool:
 - {GPD_INSTALL_DIR}/references/protocols/error-propagation-protocol.md -- Cross-phase uncertainty propagation protocol (verification checks, phase handoff format, catastrophic cancellation detection)
-- {GPD_INSTALL_DIR}/templates/uncertainty-budget.md -- Template for project-wide uncertainty ledger (.gpd/analysis/UNCERTAINTY-BUDGET.md)
-- {GPD_INSTALL_DIR}/templates/parameter-table.md -- Template for parameter registry (.gpd/analysis/PARAMETERS.md)
+- {GPD_INSTALL_DIR}/templates/uncertainty-budget.md -- Template for project-wide uncertainty ledger (GPD/analysis/UNCERTAINTY-BUDGET.md)
+- {GPD_INSTALL_DIR}/templates/parameter-table.md -- Template for parameter registry (GPD/analysis/PARAMETERS.md)
 </required_reading>
 
 <process>
@@ -101,8 +101,8 @@ target_quantity
 Read each phase's SUMMARY.md `provides` and `requires` sections to map the phase-level flow:
 
 ```bash
-for phase_dir in .gpd/phases/*/; do
-  grep -A 10 "provides\|requires" "$phase_dir/SUMMARY.md" 2>/dev/null
+for phase_dir in GPD/phases/*/; do
+  grep -A 10 "provides\|requires" "$phase_dir"/*-SUMMARY.md 2>/dev/null
 done
 ```
 
@@ -324,10 +324,10 @@ Record the error budget as a research artifact in STATE.md.
 ## 7. Commit
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files ${target_phase_dir}/ERROR-BUDGET.md .gpd/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files ${target_phase_dir}/ERROR-BUDGET.md GPD/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: error propagation analysis for {quantity}" --files ${target_phase_dir}/ERROR-BUDGET.md .gpd/STATE.md
+gpd commit "docs: error propagation analysis for {quantity}" --files ${target_phase_dir}/ERROR-BUDGET.md GPD/STATE.md
 ```
 
 Present results:

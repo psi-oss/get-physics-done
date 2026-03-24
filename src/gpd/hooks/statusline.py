@@ -166,7 +166,7 @@ def _read_workspace_label(data: dict[str, object], workspace_dir: str, hook_payl
 
 
 def _read_position(workspace_dir: str) -> str:
-    """Read research position from .gpd/state.json."""
+    """Read research position from GPD/state.json."""
     workspace_root = resolve_project_root(workspace_dir) or Path(workspace_dir).expanduser().resolve(strict=False)
     state_file = workspace_root / PLANNING_DIR_NAME / STATE_JSON_FILENAME
     if not state_file.exists():

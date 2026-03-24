@@ -78,7 +78,7 @@ _STATE_MD = """\
 
 ## Project Reference
 
-See: .gpd/PROJECT.md
+See: GPD/PROJECT.md
 
 **Core research question:** One-loop vacuum polarization in QED
 **Current focus:** Compute photon self-energy at NLO
@@ -133,7 +133,7 @@ def gpd_project(tmp_path: Path) -> Path:
 
     Layout::
         <tmp>/
-          .gpd/
+          GPD/
             STATE.md
             state.json
             phases/
@@ -143,7 +143,7 @@ def gpd_project(tmp_path: Path) -> Path:
                 plan-03.md
                 summary-01.md
     """
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
 
     # Write state files
@@ -179,7 +179,7 @@ class TestConventionsServerIntegration:
         assert result["type"] == "standard"
 
         # Verify the value persisted in state.json
-        state = json.loads((gpd_project / ".gpd" / "state.json").read_text())
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text())
         assert state["convention_lock"]["regularization_scheme"] == "dim-reg"
 
     def test_convention_set_already_set_rejects_overwrite(self, gpd_project: Path):
@@ -235,7 +235,7 @@ class TestStateServerIntegration:
         assert result.get("new_plan") == 2 or result.get("current_plan") == 2
 
         # Verify STATE.md was updated
-        md = (gpd_project / ".gpd" / "STATE.md").read_text()
+        md = (gpd_project / "GPD" / "STATE.md").read_text()
         assert "**Current Plan:** 2" in md
 
     def test_validate_state_on_realistic_project(self, gpd_project: Path):

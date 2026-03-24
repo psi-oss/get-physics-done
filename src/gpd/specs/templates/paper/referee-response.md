@@ -6,7 +6,7 @@ template_version: 1
 
 # Referee Response Template
 
-Template for `.gpd/paper/REFEREE_RESPONSE.md` — tracks referee comments, responses, and manuscript changes for peer review.
+Template for `GPD/paper/REFEREE_RESPONSE.md` — tracks referee comments, responses, and manuscript changes for peer review.
 
 ---
 
@@ -127,7 +127,7 @@ Template for `.gpd/paper/REFEREE_RESPONSE.md` — tracks referee comments, respo
 
 ## Blocking Items From Decision Artifacts
 
-[If `.gpd/review/REVIEW-LEDGER*.json` or `.gpd/review/REFEREE-DECISION*.json` exists, list every blocking issue here. Keep the `REF-*` IDs identical to the referee report.]
+[If `GPD/review/REVIEW-LEDGER*.json` or `GPD/review/REFEREE-DECISION*.json` exists, list every blocking issue here. Keep the `REF-*` IDs identical to the referee report.]
 
 | Issue ID | Source Artifact | Blocking Reason | Resolution Plan | Status |
 | -------- | --------------- | --------------- | --------------- | ------ |
@@ -194,7 +194,7 @@ Sincerely,
 **When to create this file:**
 
 - Immediately upon receiving referee reports
-- One file per round of review (create `.gpd/paper/REFEREE_RESPONSE-R2.md` for second round)
+- One file per round of review (create `GPD/paper/REFEREE_RESPONSE-R2.md` for second round)
 - Keep every `REF-*` issue ID exactly aligned with `REFEREE-REPORT*.md`
 
 **Comment categories:**
@@ -227,6 +227,6 @@ Sincerely,
 - Use /gpd:add-phase or /gpd:insert-phase to add referee-requested work
 - Verification of new calculations follows standard GPD verification workflow
 - Track new calculations in the "New Calculations Summary" table
-- Use `.gpd/review/REVIEW-LEDGER*.json` and `.gpd/review/REFEREE-DECISION*.json` to identify recommendation floors and blocking items, but do not invent new `REF-*` IDs from those JSON files
+- Use `GPD/review/REVIEW-LEDGER*.json` and `GPD/review/REFEREE-DECISION*.json` to identify recommendation floors and blocking items, but do not invent new `REF-*` IDs from those JSON files
 
 </guidelines>

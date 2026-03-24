@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from gpd.core.constants import STANDALONE_SUMMARY, SUMMARY_SUFFIX, ProjectLayout
+from gpd.core.constants import SUMMARY_SUFFIX, ProjectLayout
 from gpd.core.errors import QueryError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.observability import instrument_gpd_function
@@ -339,7 +339,7 @@ def collect_summaries(cwd: Path) -> list[SummaryEntry]:
         except OSError:
             continue
 
-        summaries = [f for f in files if f.name.endswith(SUMMARY_SUFFIX) or f.name == STANDALONE_SUMMARY]
+        summaries = [f for f in files if f.name.endswith(SUMMARY_SUFFIX)]
 
         for summary_file in summaries:
             try:
@@ -361,8 +361,6 @@ def collect_summaries(cwd: Path) -> list[SummaryEntry]:
             plan_id = summary_file.name
             if plan_id.upper().endswith(SUMMARY_SUFFIX.upper()):
                 plan_id = plan_id[: -len(SUMMARY_SUFFIX)]
-            elif plan_id.upper() == STANDALONE_SUMMARY.upper():
-                plan_id = ""
             plan_id = plan_id or None
 
             results.append(
@@ -392,7 +390,7 @@ def query(
 ) -> QueryResult:
     """Search across all phase results.
 
-    Scans all .gpd/phases/SUMMARY.md files, matching frontmatter fields
+    Scans all GPD/phases/*-SUMMARY.md files, matching frontmatter fields
     and body text against the provided search terms.
     """
     summaries = collect_summaries(cwd)

@@ -243,13 +243,13 @@ status: consistent | anomalies_found
 Ensure output directory exists:
 
 ```bash
-mkdir -p .gpd/analysis
+mkdir -p GPD/analysis
 ```
 
 Save to appropriate location:
 
 - Phase target: `${phase_dir}/DIMENSIONAL-ANALYSIS.md`
-- File target: `.gpd/analysis/dimensional-{slug}.md`
+- File target: `GPD/analysis/dimensional-{slug}.md`
 
 ## 7. Present Results
 

@@ -28,7 +28,7 @@ fi
 ```
 
 - Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `current_phase`, `project_contract`, `project_contract_load_info`, `project_contract_validation`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`
-- **If `state_exists` is true:** Read `.gpd/state.json` to extract `convention_lock` for unit system, metric signature, and Fourier conventions. Extract active approximations and their validity ranges from state. Load `intermediate_results` from state for any previously computed quantities.
+- **If `state_exists` is true:** Read `GPD/state.json` to extract `convention_lock` for unit system, metric signature, and Fourier conventions. Extract active approximations and their validity ranges from state. Load `intermediate_results` from state for any previously computed quantities.
 - **If `state_exists` is false** (standalone usage): Proceed with explicit convention declarations required from user via ask_user (unit system, sign conventions, normalization)
 - **If `selected_protocol_bundle_ids` is non-empty:** Treat `protocol_bundle_context` as additive provenance guidance only. Keep any decisive-artifact, estimator, or benchmark expectations visible while choosing theory/data anchors, and record the bundle IDs / expectations in the output frontmatter when they materially informed the comparison.
 - **If `active_reference_context` is non-empty:** Keep those contract-backed anchors visible when selecting `reference_id`, interpreting tolerances, and deciding whether the comparison closes a decisive requirement.
@@ -306,10 +306,10 @@ If selected protocol bundles informed the comparison design, record them in `pro
 
 The `comparison_verdicts` block is the authoritative machine-readable ledger. The tables and prose explain it; they do not replace it.
 
-Set `COMPARISON_OUTPUT_PATH=".gpd/comparisons/[slug]-COMPARISON.md"` and write the report there.
+Set `COMPARISON_OUTPUT_PATH="GPD/comparisons/[slug]-COMPARISON.md"` and write the report there.
 
 ```bash
-mkdir -p .gpd/comparisons
+mkdir -p GPD/comparisons
 ```
 
 ## 6. Generate Comparison Figures
@@ -321,7 +321,7 @@ Create scripts for standard comparison plots:
 3. **Residual plot** -- (theory-exp) vs parameter, looking for systematic trends
 4. **Ratio plot** -- theory/experiment vs parameter (for normalizations)
 
-Write final comparison figures, tables, and helper scripts to stable workspace roots. Default to `artifacts/comparisons/{slug}/` unless the project already has a clearer durable home such as `figures/`, `data/`, or `scripts/`. Do not place final comparison figures, tables, or scripts under `.gpd/`.
+Write final comparison figures, tables, and helper scripts to stable workspace roots. Default to `artifacts/comparisons/{slug}/` unless the project already has a clearer durable home such as `figures/`, `data/`, or `scripts/`. Do not place final comparison figures, tables, or scripts under `GPD/`.
 
 ## 7. Present Results and Route
 
@@ -365,7 +365,7 @@ gpd commit \
   --files "${COMPARISON_OUTPUT_PATH}"
 ```
 
-Where `${COMPARISON_OUTPUT_PATH}` is `.gpd/comparisons/[slug]-COMPARISON.md`.
+Where `${COMPARISON_OUTPUT_PATH}` is `GPD/comparisons/[slug]-COMPARISON.md`.
 
 </process>
 

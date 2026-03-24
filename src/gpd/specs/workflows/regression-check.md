@@ -3,9 +3,9 @@ Run the lightweight regression audit implemented by `gpd regression-check`.
 
 This workflow does **not** re-run physics, numerical, dimensional, or contract verification. It scans already-recorded phase artifacts for frontmatter-level regressions:
 
-- conflicting `conventions` definitions across completed `SUMMARY.md` artifacts
-- missing, invalid, or non-canonical `VERIFICATION.md` statuses
-- completed phases whose `VERIFICATION.md` still reports unresolved gaps
+- conflicting `conventions` definitions across completed `*-SUMMARY.md` artifacts
+- missing, invalid, or non-canonical `*-VERIFICATION.md` statuses
+- completed phases whose `*-VERIFICATION.md` still reports unresolved gaps
 
 Use `/gpd:verify-work <phase>` when a flagged phase needs actual re-verification.
 </purpose>
@@ -31,14 +31,12 @@ Determine scope:
 </step>
 
 <step name="discover_completed_phases">
-Identify completed phase directories under `.gpd/phases`.
+Identify completed phase directories under `GPD/phases`.
 
-A phase counts as completed when it contains at least one plan artifact (`PLAN.md` or `*-PLAN.md`) and at least one summary artifact (`SUMMARY.md` or `*-SUMMARY.md`).
-
-Use both legacy and plan-scoped summary names:
+A phase counts as completed when it contains at least one plan artifact (`PLAN.md` or `*-PLAN.md`) and at least one summary artifact (`*-SUMMARY.md`).
 
 ```bash
-find .gpd/phases -type f \( -name "SUMMARY.md" -o -name "*-SUMMARY.md" \) 2>/dev/null | sort
+find GPD/phases -type f -name "*-SUMMARY.md" 2>/dev/null | sort
 ```
 
 Filter the discovered directories by the optional phase argument. If quick mode is active, keep only the two most recent completed phases after filtering.
@@ -49,7 +47,7 @@ If no completed phases remain after filtering, return a passing result with `pha
 <step name="scan_summary_frontmatter">
 Scan the selected summary artifacts for convention conflicts.
 
-Each selected completed phase may contain either `SUMMARY.md` or `*-SUMMARY.md`. Read the frontmatter and inspect the `conventions` field.
+Each selected completed phase should expose a `*-SUMMARY.md` file. Read the frontmatter and inspect the `conventions` field.
 
 Accepted frontmatter shapes:
 
@@ -69,10 +67,8 @@ This is a frontmatter consistency audit only. Do not re-run derivations, dimensi
 <step name="scan_verification_frontmatter">
 Scan the selected verification artifacts for status regressions.
 
-Use both legacy and plan-scoped verification names:
-
 ```bash
-find .gpd/phases -type f \( -name "VERIFICATION.md" -o -name "*-VERIFICATION.md" \) 2>/dev/null | sort
+find GPD/phases -type f -name "*-VERIFICATION.md" 2>/dev/null | sort
 ```
 
 For each selected completed phase:

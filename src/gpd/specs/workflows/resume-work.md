@@ -2,7 +2,7 @@
 Use this workflow when:
 - Starting a new session on an existing research project
 - User says "continue", "what's next", "where were we", "resume"
-- Any planning operation when .gpd/ already exists
+- Any planning operation when GPD/ already exists
 - User returns after time away from project
 </trigger>
 
@@ -45,8 +45,8 @@ If `active_execution_segment.first_result_gate_pending` is true, do not treat la
 Read and parse STATE.md, then PROJECT.md:
 
 ```bash
-cat .gpd/STATE.md
-cat .gpd/PROJECT.md
+cat GPD/STATE.md
+cat GPD/PROJECT.md
 ```
 
 **From STATE.md extract:**
@@ -79,16 +79,16 @@ cat .gpd/PROJECT.md
 </step>
 
 <step name="restore_persistent_state">
-**Read cumulative derivation history from `.gpd/DERIVATION-STATE.md`:**
+**Read cumulative derivation history from `GPD/DERIVATION-STATE.md`:**
 
 This step reconstructs the full derivation history that has accumulated across
 all previous sessions, preventing lossy compression across context resets.
 
 ```bash
 # Check if persistent derivation state exists
-if [ -f .gpd/DERIVATION-STATE.md ]; then
+if [ -f GPD/DERIVATION-STATE.md ]; then
   echo "=== DERIVATION-STATE.md found ==="
-  cat .gpd/DERIVATION-STATE.md
+  cat GPD/DERIVATION-STATE.md
 else
   echo "No DERIVATION-STATE.md found (first session or pre-persistence project)"
 fi
@@ -101,25 +101,25 @@ fi
 Before loading DERIVATION-STATE.md into context, enforce the hard cap to keep the file bounded:
 
 ```bash
-SESSION_COUNT=$(grep -c "^## Session:" .gpd/DERIVATION-STATE.md 2>/dev/null || echo 0)
+SESSION_COUNT=$(grep -c "^## Session:" GPD/DERIVATION-STATE.md 2>/dev/null || echo 0)
 
 if [ "$SESSION_COUNT" -gt 5 ]; then
   echo "DERIVATION-STATE.md has ${SESSION_COUNT} session blocks (cap: 5). Pruning oldest..."
 
   # Atomic read-modify-write: write to PID-unique .tmp, validate, then replace
-  TMP_FILE=".gpd/DERIVATION-STATE.md.tmp.$$"
+  TMP_FILE="GPD/DERIVATION-STATE.md.tmp.$$"
   trap "rm -f '$TMP_FILE'" EXIT
 
-  KEEP_FROM=$(grep -n "^## Session:" .gpd/DERIVATION-STATE.md | tail -5 | head -1 | cut -d: -f1)
-  HEADER_END=$(grep -n "^## Session:" .gpd/DERIVATION-STATE.md | head -1 | cut -d: -f1)
+  KEEP_FROM=$(grep -n "^## Session:" GPD/DERIVATION-STATE.md | tail -5 | head -1 | cut -d: -f1)
+  HEADER_END=$(grep -n "^## Session:" GPD/DERIVATION-STATE.md | head -1 | cut -d: -f1)
   HEADER_END=$((HEADER_END - 1))
   {
-    head -n "$HEADER_END" .gpd/DERIVATION-STATE.md
+    head -n "$HEADER_END" GPD/DERIVATION-STATE.md
     echo ""
     echo "> Older session entries archived in git history."
-    echo "> Use \`git log -p -- .gpd/DERIVATION-STATE.md\` to recover."
+    echo "> Use \`git log -p -- GPD/DERIVATION-STATE.md\` to recover."
     echo ""
-    tail -n +"$KEEP_FROM" .gpd/DERIVATION-STATE.md
+    tail -n +"$KEEP_FROM" GPD/DERIVATION-STATE.md
   } > "$TMP_FILE"
 
   TMP_LINES=$(wc -l < "$TMP_FILE")
@@ -130,7 +130,7 @@ if [ "$SESSION_COUNT" -gt 5 ]; then
     echo "WARNING: Pruned file missing required header. Keeping original."
     rm -f "$TMP_FILE"
   else
-    cp "$TMP_FILE" .gpd/DERIVATION-STATE.md && \
+    cp "$TMP_FILE" GPD/DERIVATION-STATE.md && \
       rm -f "$TMP_FILE" || \
       echo "WARNING: Failed to replace DERIVATION-STATE.md. Original preserved."
   fi
@@ -188,7 +188,7 @@ Look for incomplete work that needs attention:
 
 ```bash
 # Check for plans without summaries (incomplete execution)
-for plan in .gpd/phases/*/*-PLAN.md; do
+for plan in GPD/phases/*/*-PLAN.md; do
   summary="${plan/PLAN/SUMMARY}"
   [ ! -f "$summary" ] && echo "Incomplete: $plan"
 done 2>/dev/null
@@ -351,7 +351,7 @@ What would you like to do?
 **Note:** When offering phase planning, check for CONTEXT.md existence first:
 
 ```bash
-ls .gpd/phases/${current_phase_slug}/*-CONTEXT.md 2>/dev/null
+ls GPD/phases/${current_phase_slug}/*-CONTEXT.md 2>/dev/null
 ```
 
 If missing, suggest discuss-phase before plan. If exists, offer plan directly.
@@ -401,7 +401,7 @@ Based on user selection, route to appropriate workflow:
   ```
 
 - **Transition** -> ./transition.md
-- **Check todos** -> Read .gpd/todos/pending/, present summary
+- **Check todos** -> Read GPD/todos/pending/, present summary
 - **Review alignment** -> Read PROJECT.md, compare to current state
 - **Something else** -> Ask what they need
   </step>
@@ -429,7 +429,7 @@ If STATE.md is missing but other artifacts exist:
 1. Read PROJECT.md -> Extract "What This Is" and Core Research Question
 2. Read ROADMAP.md -> Determine phases, find current position
 3. Scan \*-SUMMARY.md files -> Extract decisions, concerns
-4. Count pending todos in .gpd/todos/pending/
+4. Count pending todos in GPD/todos/pending/
 5. Check current execution snapshot -> Session continuity
 
 Reconstruct and write STATE.md, then proceed normally.
@@ -438,7 +438,7 @@ This handles cases where:
 
 - Project predates STATE.md introduction
 - File was accidentally deleted
-- Cloning repo without full .gpd/ state
+- Cloning repo without full GPD/ state
   </reconstruction>
 
 <quick_resume>

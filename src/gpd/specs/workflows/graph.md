@@ -42,10 +42,10 @@ Exit.
 <step name="scan_frontmatter">
 **Read all SUMMARY.md frontmatter for dependency metadata:**
 
-For each phase directory, find all SUMMARY.md files:
+For each phase directory, find all `*-SUMMARY.md` files:
 
 ```bash
-ls .gpd/phases/*/SUMMARY.md .gpd/phases/*/*-SUMMARY.md 2>/dev/null
+ls GPD/phases/*/*-SUMMARY.md 2>/dev/null
 ```
 
 For each SUMMARY.md, extract YAML frontmatter fields:
@@ -198,7 +198,7 @@ Parallelizable phases: {list of phases NOT on critical path}
 
 ───────────────────────────────────────────────────────────────
 
-Write this analysis to `.gpd/DEPENDENCY-GRAPH.md`? (y/n)
+Write this analysis to `GPD/DEPENDENCY-GRAPH.md`? (y/n)
 
 ───────────────────────────────────────────────────────────────
 
@@ -206,13 +206,13 @@ Write this analysis to `.gpd/DEPENDENCY-GRAPH.md`? (y/n)
 
 **If yes:**
 
-Write the full report to `.gpd/DEPENDENCY-GRAPH.md`.
+Write the full report to `GPD/DEPENDENCY-GRAPH.md`.
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/DEPENDENCY-GRAPH.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/DEPENDENCY-GRAPH.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: generate dependency graph" --files .gpd/DEPENDENCY-GRAPH.md
+gpd commit "docs: generate dependency graph" --files GPD/DEPENDENCY-GRAPH.md
 ````
 
 **After write (or if declined):**
@@ -251,6 +251,6 @@ Dependency graph is complete when:
 - [ ] Gaps identified (unmet requires, orphaned provides, missing phases)
 - [ ] Critical path computed and displayed
 - [ ] Results presented in structured report
-- [ ] Optional write to .gpd/DEPENDENCY-GRAPH.md offered
+- [ ] Optional write to GPD/DEPENDENCY-GRAPH.md offered
 
 </success_criteria>

@@ -67,7 +67,7 @@ PHASE_INFO=$(gpd roadmap get-phase "${phase_number}")
 ## 2. Check Existing Research
 
 ```bash
-ls .gpd/phases/${PHASE}-*/RESEARCH.md 2>/dev/null
+ls GPD/phases/${PHASE}-*/RESEARCH.md 2>/dev/null
 ```
 
 **If exists:** Offer: 1) Update research, 2) View existing, 3) Skip. Wait for response.
@@ -79,9 +79,9 @@ ls .gpd/phases/${PHASE}-*/RESEARCH.md 2>/dev/null
 ```bash
 # Phase section already loaded in PHASE_INFO
 echo "$PHASE_INFO" | gpd json get .section --default ""
-cat .gpd/REQUIREMENTS.md 2>/dev/null
-cat .gpd/phases/${PHASE}-*/*-CONTEXT.md 2>/dev/null
-grep -A30 "### Decisions" .gpd/STATE.md 2>/dev/null
+cat GPD/REQUIREMENTS.md 2>/dev/null
+cat GPD/phases/${PHASE}-*/*-CONTEXT.md 2>/dev/null
+grep -A30 "### Decisions" GPD/STATE.md 2>/dev/null
 ```
 
 Present summary with phase description, requirements, prior decisions.
@@ -153,7 +153,7 @@ Before declaring complete, verify:
       </quality_gate>
 
 <output>
-Write to: .gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
+Write to: GPD/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
 </output>
 ```
 
@@ -183,7 +183,7 @@ Continue research for Phase {phase_number}: {phase_name}
 </objective>
 
 <prior_state>
-Research file path: .gpd/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
+Research file path: GPD/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md
 Read that file before continuing so you inherit the prior research state instead of relying on an inline `@...` attachment.
 </prior_state>
 

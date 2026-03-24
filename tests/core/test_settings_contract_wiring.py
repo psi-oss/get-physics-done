@@ -31,8 +31,8 @@ def test_settings_and_planning_config_keep_conventions_outside_config_json() -> 
 
     assert "physics research preferences" not in settings_command
     assert "physics-specific settings" not in settings_workflow
-    assert "Project conventions do **not** live in `.gpd/config.json`." in settings_workflow
-    assert "Project conventions still live in `.gpd/CONVENTIONS.md` and `.gpd/state.json` (`convention_lock`)" in settings_workflow
+    assert "Project conventions do **not** live in `GPD/config.json`." in settings_workflow
+    assert "Project conventions still live in `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`)" in settings_workflow
     assert '"physics": {' not in planning_config
     assert "Project conventions are not part of `config.json`." in planning_config
     assert "Do **not** introduce a `physics` block there." in planning_config

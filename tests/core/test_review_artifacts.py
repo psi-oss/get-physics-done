@@ -92,7 +92,7 @@ def test_review_artifact_round_trip(tmp_path: Path) -> None:
         target_journal="jhep",
         final_recommendation=ReviewRecommendation.major_revision,
         final_confidence=ReviewConfidence.high,
-        stage_artifacts=[".gpd/review/STAGE-interestingness.json"],
+        stage_artifacts=["GPD/review/STAGE-interestingness.json"],
         novelty="adequate",
         significance="weak",
         venue_fit="adequate",
@@ -100,15 +100,15 @@ def test_review_artifact_round_trip(tmp_path: Path) -> None:
     )
     bundle = ReviewPanelBundle(
         manuscript_path="paper/main.tex",
-        claim_index_path=".gpd/review/CLAIMS.json",
-        stage_reports=[".gpd/review/STAGE-interestingness.json"],
-        review_ledger_path=".gpd/review/REVIEW-LEDGER.json",
-        decision_path=".gpd/review/REFEREE-DECISION.json",
+        claim_index_path="GPD/review/CLAIMS.json",
+        stage_reports=["GPD/review/STAGE-interestingness.json"],
+        review_ledger_path="GPD/review/REVIEW-LEDGER.json",
+        decision_path="GPD/review/REFEREE-DECISION.json",
         final_recommendation=ReviewRecommendation.major_revision,
         final_confidence=ReviewConfidence.high,
-        final_report_path=".gpd/REFEREE-REPORT.md",
-        final_report_tex_path=".gpd/REFEREE-REPORT.tex",
-        consistency_report_path=".gpd/CONSISTENCY-REPORT.md",
+        final_report_path="GPD/REFEREE-REPORT.md",
+        final_report_tex_path="GPD/REFEREE-REPORT.tex",
+        consistency_report_path="GPD/CONSISTENCY-REPORT.md",
     )
 
     claims_path = tmp_path / "CLAIMS.json"
@@ -139,20 +139,20 @@ def test_review_panel_bundle_accepts_round_aware_reports_without_consistency_rep
                 "round": 2,
                 "manuscript_path": "submission/main.tex",
                 "target_journal": "jhep",
-                "claim_index_path": ".gpd/review/CLAIMS-R2.json",
+                "claim_index_path": "GPD/review/CLAIMS-R2.json",
                 "stage_reports": [
-                    ".gpd/review/STAGE-reader-R2.json",
-                    ".gpd/review/STAGE-literature-R2.json",
-                    ".gpd/review/STAGE-math-R2.json",
-                    ".gpd/review/STAGE-physics-R2.json",
-                    ".gpd/review/STAGE-interestingness-R2.json",
+                    "GPD/review/STAGE-reader-R2.json",
+                    "GPD/review/STAGE-literature-R2.json",
+                    "GPD/review/STAGE-math-R2.json",
+                    "GPD/review/STAGE-physics-R2.json",
+                    "GPD/review/STAGE-interestingness-R2.json",
                 ],
-                "review_ledger_path": ".gpd/review/REVIEW-LEDGER-R2.json",
-                "decision_path": ".gpd/review/REFEREE-DECISION-R2.json",
+                "review_ledger_path": "GPD/review/REVIEW-LEDGER-R2.json",
+                "decision_path": "GPD/review/REFEREE-DECISION-R2.json",
                 "final_recommendation": "major_revision",
                 "final_confidence": "medium",
-                "final_report_path": ".gpd/REFEREE-REPORT-R2.md",
-                "final_report_tex_path": ".gpd/REFEREE-REPORT-R2.tex",
+                "final_report_path": "GPD/REFEREE-REPORT-R2.md",
+                "final_report_tex_path": "GPD/REFEREE-REPORT-R2.tex",
             }
         ),
         encoding="utf-8",
@@ -161,8 +161,8 @@ def test_review_panel_bundle_accepts_round_aware_reports_without_consistency_rep
     bundle = read_review_panel_bundle(bundle_path)
 
     assert bundle.round == 2
-    assert bundle.final_report_path == ".gpd/REFEREE-REPORT-R2.md"
-    assert bundle.final_report_tex_path == ".gpd/REFEREE-REPORT-R2.tex"
+    assert bundle.final_report_path == "GPD/REFEREE-REPORT-R2.md"
+    assert bundle.final_report_tex_path == "GPD/REFEREE-REPORT-R2.tex"
     assert bundle.consistency_report_path == ""
 
 
@@ -340,12 +340,12 @@ def test_review_ledger_rejects_invalid_issue_and_claim_id_formats(tmp_path: Path
                 "version": 2,
                 "round": 1,
                 "manuscript_path": "paper/main.tex",
-                "claim_index_path": ".gpd/review/CLAIMS.json",
-                "review_ledger_path": ".gpd/review/REVIEW-LEDGER.json",
-                "decision_path": ".gpd/review/REFEREE-DECISION.json",
+                "claim_index_path": "GPD/review/CLAIMS.json",
+                "review_ledger_path": "GPD/review/REVIEW-LEDGER.json",
+                "decision_path": "GPD/review/REFEREE-DECISION.json",
                 "final_recommendation": ReviewRecommendation.major_revision,
                 "final_confidence": ReviewConfidence.medium,
-                "final_report_path": ".gpd/REFEREE-REPORT.md",
+                "final_report_path": "GPD/REFEREE-REPORT.md",
             },
         ),
     ],
@@ -390,12 +390,12 @@ def test_review_artifacts_pin_version_to_one(model_cls, kwargs) -> None:
                 "version": 1,
                 "round": 0,
                 "manuscript_path": "paper/main.tex",
-                "claim_index_path": ".gpd/review/CLAIMS.json",
-                "review_ledger_path": ".gpd/review/REVIEW-LEDGER.json",
-                "decision_path": ".gpd/review/REFEREE-DECISION.json",
+                "claim_index_path": "GPD/review/CLAIMS.json",
+                "review_ledger_path": "GPD/review/REVIEW-LEDGER.json",
+                "decision_path": "GPD/review/REFEREE-DECISION.json",
                 "final_recommendation": ReviewRecommendation.major_revision,
                 "final_confidence": ReviewConfidence.medium,
-                "final_report_path": ".gpd/REFEREE-REPORT.md",
+                "final_report_path": "GPD/REFEREE-REPORT.md",
             },
         ),
     ],

@@ -22,7 +22,7 @@ def _summary_with_reference_usage(*, status: str, completed_actions: str, missin
 
 
 def _write_matching_plan_contract(tmp_path: Path, *, required_actions: list[str] | None = None) -> None:
-    plan_path = tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-01-PLAN.md"
+    plan_path = tmp_path / "GPD" / "phases" / "01-benchmark" / "01-01-PLAN.md"
     plan_path.parent.mkdir(parents=True, exist_ok=True)
     plan_text = (PLAN_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
     if required_actions is not None:
@@ -55,7 +55,7 @@ def test_summary_extract_parses_contract_results_and_comparison_verdicts(tmp_pat
     assert result.key_files == ["figures/benchmark.png", "src/benchmark.py"]
     assert result.key_files_created == ["figures/benchmark.png"]
     assert result.key_files_modified == ["src/benchmark.py"]
-    assert result.plan_contract_ref == ".gpd/phases/01-benchmark/01-01-PLAN.md#/contract"
+    assert result.plan_contract_ref == "GPD/phases/01-benchmark/01-01-PLAN.md#/contract"
     assert result.contract_results is not None
     assert result.contract_results.claims["claim-benchmark"].status == "passed"
     assert result.contract_results.references["ref-benchmark"].completed_actions == ["read", "compare", "cite"]
@@ -93,7 +93,7 @@ def test_summary_extract_rejects_placeholder_contract_results_section_shapes(
         "          deliverable_id: deliv-figure\n"
         "          acceptance_test_id: test-benchmark\n"
         "          reference_id: ref-benchmark\n"
-        "          evidence_path: .gpd/phases/01-benchmark/01-VERIFICATION.md\n",
+        "          evidence_path: GPD/phases/01-benchmark/01-VERIFICATION.md\n",
         f"  claims: {placeholder}\n",
         1,
     )

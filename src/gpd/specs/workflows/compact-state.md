@@ -37,7 +37,7 @@ Exit.
 **Count current lines:**
 
 ```bash
-STATE_LINES=$(wc -l < .gpd/STATE.md)
+STATE_LINES=$(wc -l < GPD/STATE.md)
 ```
 
 Report: "STATE.md is {STATE_LINES} lines."
@@ -73,7 +73,7 @@ Parse result JSON for: `compacted` (bool), `reason`, `original_lines`, `new_line
 3. **Performance metrics:** Archives metrics from phases older than (current - 1). Keeps recent metrics.
 4. **Session records:** Keeps only the last 3 session records. Archives older ones.
 
-All archived content is appended to `.gpd/STATE-ARCHIVE.md` with a dated header.
+All archived content is appended to `GPD/STATE-ARCHIVE.md` with a dated header.
 
 **If `compacted` is false:**
 
@@ -89,22 +89,22 @@ Report and exit.
 
 ```bash
 # Check new line count
-NEW_LINES=$(wc -l < .gpd/STATE.md)
+NEW_LINES=$(wc -l < GPD/STATE.md)
 
 # Verify STATE.md still has required sections
 for SECTION in "Current Position" "Project Reference" "Accumulated Context" "Session"; do
-  grep -q "## ${SECTION}" .gpd/STATE.md || echo "MISSING: ${SECTION}"
+  grep -q "## ${SECTION}" GPD/STATE.md || echo "MISSING: ${SECTION}"
 done
 
 # Verify state.json was synced
-ls -la .gpd/state.json
+ls -la GPD/state.json
 ```
 
 **If required sections are missing:** The compaction was too aggressive. Attempt recovery:
 
 ```bash
 # First try: regenerate STATE.md directly from authoritative state.json
-if [ -f .gpd/state.json ]; then
+if [ -f GPD/state.json ]; then
   echo "Attempting STATE.md recovery from state.json..."
   uv run python - <<'PY'
 import json
@@ -112,14 +112,14 @@ from pathlib import Path
 from gpd.core.state import save_state_json
 
 cwd = Path(".")
-state = json.loads((cwd / ".gpd" / "state.json").read_text(encoding="utf-8"))
+state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
 save_state_json(cwd, state)
 PY
   RECOVERY_METHOD="regenerated from authoritative state.json"
 else
   # Fallback: restore from git (state.json also missing or corrupt)
   echo "state.json unavailable. Falling back to git restore..."
-  git checkout -- .gpd/STATE.md
+  git checkout -- GPD/STATE.md
   RECOVERY_METHOD="restored from git"
 fi
 echo "Recovery method: ${RECOVERY_METHOD}"
@@ -127,15 +127,15 @@ echo "Recovery method: ${RECOVERY_METHOD}"
 
 Report error and recovery method used, then exit.
 
-**If state.json sync failed:** Do not delete it blindly. Keep `.gpd/state.json` (and `.gpd/state.json.bak` if present), inspect `gpd state validate`, and use `/gpd:sync-state` or the recovery step above so JSON-only fields are preserved.
+**If state.json sync failed:** Do not delete it blindly. Keep `GPD/state.json` (and `GPD/state.json.bak` if present), inspect `gpd state validate`, and use `/gpd:sync-state` or the recovery step above so JSON-only fields are preserved.
 </step>
 
 <step name="verify_archive">
 **Verify STATE-ARCHIVE.md was created/updated:**
 
 ```bash
-ls -la .gpd/STATE-ARCHIVE.md 2>/dev/null
-ARCHIVE_LINES=$(wc -l < .gpd/STATE-ARCHIVE.md 2>/dev/null || echo 0)
+ls -la GPD/STATE-ARCHIVE.md 2>/dev/null
+ARCHIVE_LINES=$(wc -l < GPD/STATE-ARCHIVE.md 2>/dev/null || echo 0)
 ```
 
 Confirm archived content is recoverable.
@@ -145,12 +145,12 @@ Confirm archived content is recoverable.
 **Commit compaction results:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/STATE.md .gpd/STATE-ARCHIVE.md .gpd/state.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/STATE.md GPD/STATE-ARCHIVE.md GPD/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "chore: compact STATE.md (${ORIGINAL_LINES} -> ${NEW_LINES} lines)" \
-  --files .gpd/STATE.md .gpd/STATE-ARCHIVE.md .gpd/state.json
+  --files GPD/STATE.md GPD/STATE-ARCHIVE.md GPD/state.json
 ```
 </step>
 
@@ -173,7 +173,7 @@ gpd commit \
 - {N} historical session records
 
 ### Archive location:
-.gpd/STATE-ARCHIVE.md ({archive_lines} total lines)
+GPD/STATE-ARCHIVE.md ({archive_lines} total lines)
 
 All archived content is recoverable from STATE-ARCHIVE.md or git history.
 ```
@@ -194,7 +194,7 @@ Remaining entries are all current-phase content. To further reduce:
 <failure_handling>
 
 - **STATE.md not found:** Nothing to compact. Exit with message.
-- **gpd state compact fails:** Check error output. Common causes: file lock held by another process, corrupt STATE.md parsing. Suggest: `cat .gpd/STATE.md | head -5` to verify file is readable.
+- **gpd state compact fails:** Check error output. Common causes: file lock held by another process, corrupt STATE.md parsing. Suggest: `cat GPD/STATE.md | head -5` to verify file is readable.
 - **Required sections missing after compaction:** Restore from git immediately. Report the bug.
 - **STATE-ARCHIVE.md write fails:** Check disk space and permissions. STATE.md changes are preserved regardless.
 

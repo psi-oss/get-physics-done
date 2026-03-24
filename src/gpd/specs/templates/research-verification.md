@@ -37,7 +37,7 @@ contract_results:
           acceptance_test_id: acceptance-test-main
           reference_id: reference-main
           forbidden_proxy_id: forbidden-proxy-main
-          evidence_path: ".gpd/phases/XX-name/{phase}-VERIFICATION.md"
+          evidence_path: "GPD/phases/XX-name/{phase}-VERIFICATION.md"
   deliverables:
     deliverable-main:
       status: not_attempted

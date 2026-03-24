@@ -1,7 +1,7 @@
 """Edge case tests covering multi-module boundary conditions.
 
 Covers the 5 deep edge cases:
-1. Empty .gpd/phases/ directory but state references a phase
+1. Empty GPD/phases/ directory but state references a phase
 2. ROADMAP.md has phases in wrong numerical order
 3. Two plans in same wave modify same file (file overlap)
 4. SUMMARY.md with frontmatter but empty body
@@ -43,25 +43,25 @@ from gpd.core.phases import (
 
 
 def _setup_project(tmp_path: Path) -> Path:
-    (tmp_path / ".gpd" / "phases").mkdir(parents=True)
+    (tmp_path / "GPD" / "phases").mkdir(parents=True)
     return tmp_path
 
 
 def _create_phase(tmp_path: Path, name: str) -> Path:
-    d = tmp_path / ".gpd" / "phases" / name
+    d = tmp_path / "GPD" / "phases" / name
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 def _write_roadmap(tmp_path: Path, content: str) -> Path:
-    p = tmp_path / ".gpd" / "ROADMAP.md"
+    p = tmp_path / "GPD" / "ROADMAP.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(textwrap.dedent(content))
     return p
 
 
 def _write_state(tmp_path: Path, content: str) -> Path:
-    p = tmp_path / ".gpd" / "STATE.md"
+    p = tmp_path / "GPD" / "STATE.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(textwrap.dedent(content))
     return p
@@ -71,16 +71,16 @@ def _write_state(tmp_path: Path, content: str) -> Path:
 
 
 class TestEdgeMissingPhasesDir:
-    """Empty .gpd/phases/ dir or missing entirely while state references phases.
+    """Empty GPD/phases/ dir or missing entirely while state references phases.
 
-    Ported from the historical suite's "deep edge: missing .gpd/phases/" case.
+    Ported from the historical suite's "deep edge: missing GPD/phases/" case.
     """
 
     def test_progress_handles_missing_phases_dir(self, tmp_path: Path) -> None:
         """progress json returns 0% and empty phases when no phases dir exists."""
-        (tmp_path / ".gpd").mkdir(parents=True)
+        (tmp_path / "GPD").mkdir(parents=True)
         _write_roadmap(tmp_path, "## v1.0\n")
-        # No .gpd/phases/ directory at all
+        # No GPD/phases/ directory at all
 
         result = progress_render(tmp_path, "json")
         assert result.percent == 0
@@ -94,14 +94,14 @@ class TestEdgeMissingPhasesDir:
         assert result.directories == []
 
     def test_find_phase_with_no_phases_dir(self, tmp_path: Path) -> None:
-        """find_phase returns None when .gpd/phases/ doesn't exist."""
-        (tmp_path / ".gpd").mkdir(parents=True)
+        """find_phase returns None when GPD/phases/ doesn't exist."""
+        (tmp_path / "GPD").mkdir(parents=True)
         result = find_phase(tmp_path, "5")
         assert result is None
 
     def test_roadmap_analyze_no_phases_dir(self, tmp_path: Path) -> None:
         """roadmap_analyze works when phases dir is missing — reports no_directory."""
-        (tmp_path / ".gpd").mkdir(parents=True)
+        (tmp_path / "GPD").mkdir(parents=True)
         _write_roadmap(
             tmp_path,
             """\
@@ -498,14 +498,23 @@ class TestEdgePhaseNumberValidation:
 class TestEdgeFileDetection:
     """find_phase correctly detects VERIFICATION.md, CONTEXT.md, etc."""
 
-    def test_verification_file_detected(self, tmp_path: Path) -> None:
+    def test_canonical_verification_file_detected(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        d = _create_phase(tmp_path, "01-setup")
+        (d / "01-VERIFICATION.md").write_text("verified")
+
+        info = find_phase(tmp_path, "1")
+        assert info is not None
+        assert info.has_verification is True
+
+    def test_legacy_verification_file_is_ignored(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         d = _create_phase(tmp_path, "01-setup")
         (d / "VERIFICATION.md").write_text("verified")
 
         info = find_phase(tmp_path, "1")
         assert info is not None
-        assert info.has_verification is True
+        assert info.has_verification is False
 
     def test_validation_file_detected(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -566,7 +575,7 @@ class TestEdgeStandalonePlan:
         assert "PLAN.md" in info.plans
         assert len(info.plans) == 1
 
-    def test_standalone_summary_completes_standalone_plan(self, tmp_path: Path) -> None:
+    def test_standalone_summary_does_not_complete_standalone_plan(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         d = _create_phase(tmp_path, "01-setup")
         (d / "PLAN.md").write_text("plan")
@@ -574,4 +583,4 @@ class TestEdgeStandalonePlan:
 
         info = find_phase(tmp_path, "1")
         assert info is not None
-        assert info.incomplete_plans == []
+        assert info.incomplete_plans == ["PLAN.md"]

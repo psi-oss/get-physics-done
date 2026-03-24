@@ -36,6 +36,7 @@ from gpd.adapters.install_utils import (
     write_manifest,
     write_settings,
 )
+from gpd.core.constants import HOME_DATA_DIR_NAME
 
 
 def _bundled_hook_text(name: str) -> str:
@@ -187,9 +188,9 @@ class TestExpandAtIncludes:
         assert "config=/custom/foo" in result
 
     def test_planning_paths_skipped(self, tmp_path: Path) -> None:
-        """.gpd/ paths are project-specific, should not be expanded."""
+        """GPD/ paths are project-specific, should not be expanded."""
         gpd_dir = self._make_src(tmp_path, {})
-        content = "@.gpd/research/notes.md"
+        content = "@GPD/research/notes.md"
         result = expand_at_includes(content, str(gpd_dir), "~/.test/")
         assert result == content
 
@@ -499,6 +500,20 @@ class TestBuildHookCommand:
         monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/ambient/python")
 
         assert hook_python_interpreter() == "/env/override/python"
+
+    def test_defaults_to_hidden_home_venv_when_gpd_home_is_unset(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake_home = tmp_path / "home"
+        managed_python = fake_home / HOME_DATA_DIR_NAME / "venv" / "bin" / "python"
+        managed_python.parent.mkdir(parents=True)
+        managed_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+
+        monkeypatch.delenv("GPD_PYTHON", raising=False)
+        monkeypatch.delenv("GPD_HOME", raising=False)
+        monkeypatch.setattr(Path, "home", lambda: fake_home)
+        monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/ambient/python")
+        monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
+
+        assert hook_python_interpreter() == str(managed_python)
 
     def test_prefers_managed_gpd_python_outside_checkout(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         managed_home = tmp_path / "managed-home"

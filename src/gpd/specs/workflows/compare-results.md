@@ -64,7 +64,7 @@ When the comparison is decisive, always emit `comparison_verdicts`. Do not hide 
 
 ## 4. Write The Artifact
 
-Write `.gpd/comparisons/[slug]-COMPARISON.md` using the internal-comparison template.
+Write `GPD/comparisons/[slug]-COMPARISON.md` using the internal-comparison template.
 
 The frontmatter must include:
 - `comparison_verdicts`

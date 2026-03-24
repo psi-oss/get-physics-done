@@ -330,7 +330,7 @@ class TestConventionsServer:
     def test_convention_lock_status(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_lock_status
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         state = {
             "convention_lock": {
@@ -346,7 +346,7 @@ class TestConventionsServer:
     def test_convention_lock_status_empty_project(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_lock_status
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         result = convention_lock_status(str(tmp_path))
         assert result["set_count"] == 0
@@ -354,7 +354,7 @@ class TestConventionsServer:
     def test_convention_set(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_set
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({}))
 
@@ -365,7 +365,7 @@ class TestConventionsServer:
     def test_convention_set_already_set(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_set
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         state = {"convention_lock": {"metric_signature": "(+,-,-,-)"}}
         (planning / "state.json").write_text(json.dumps(state))
@@ -376,7 +376,7 @@ class TestConventionsServer:
     def test_convention_set_custom_key(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_set
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({}))
 
@@ -412,7 +412,7 @@ class TestConventionsServer:
     def test_convention_set_rejects_invalid_custom_key_shape(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_set
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({}))
 
@@ -425,7 +425,7 @@ class TestConventionsServer:
         """If state.json contains a non-dict (e.g. a list), return empty lock."""
         from gpd.mcp.servers.conventions_server import _load_lock_from_project
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps([1, 2, 3]))
         lock = _load_lock_from_project(str(tmp_path))
@@ -435,7 +435,7 @@ class TestConventionsServer:
         """If state.json contains a bare string, return empty lock."""
         from gpd.mcp.servers.conventions_server import _load_lock_from_project
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps("just a string"))
         lock = _load_lock_from_project(str(tmp_path))
@@ -445,7 +445,7 @@ class TestConventionsServer:
         """If state.json contains a non-dict, _update_lock_in_project resets raw to {}."""
         from gpd.mcp.servers.conventions_server import _update_lock_in_project
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps([1, 2, 3]))
         lock, result = _update_lock_in_project(
@@ -458,7 +458,7 @@ class TestConventionsServer:
         """convention_set returns an error dict (not raises) when state.json is malformed."""
         from gpd.mcp.servers.conventions_server import convention_set
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text("{bad json!!")
 
@@ -470,7 +470,7 @@ class TestConventionsServer:
         """convention_set returns error dict for empty custom key."""
         from gpd.mcp.servers.conventions_server import convention_set
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({}))
 
@@ -483,7 +483,7 @@ class TestConventionsServer:
         from gpd.mcp.servers.conventions_server import convention_set
 
         # Make state.json a directory so reading it triggers IsADirectoryError
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").mkdir()
 
@@ -494,7 +494,7 @@ class TestConventionsServer:
         """convention_lock_status returns error dict when state.json is malformed."""
         from gpd.mcp.servers.conventions_server import convention_lock_status
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text("{bad json!!")
 
@@ -507,7 +507,7 @@ class TestConventionsServer:
         from gpd.mcp.servers.conventions_server import convention_lock_status
 
         # Make state.json a directory so reading it triggers IsADirectoryError
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").mkdir()
 
@@ -1345,7 +1345,7 @@ class TestStateServer:
         mock_info = MagicMock()
         mock_info.phase_number = "01"
         mock_info.phase_name = "Setup"
-        mock_info.directory = ".gpd/phases/01-setup"
+        mock_info.directory = "GPD/phases/01-setup"
         mock_info.phase_slug = "01-setup"
         mock_info.plans = ["plan-01.md", "plan-02.md", "plan-03.md"]
         mock_info.summaries = ["summary-01.md", "summary-02.md"]

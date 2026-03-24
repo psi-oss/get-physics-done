@@ -13,7 +13,7 @@ FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
 
 def _setup_project(tmp_path: Path) -> None:
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir(parents=True, exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     (planning / "PROJECT.md").write_text("# Test Project\n", encoding="utf-8")

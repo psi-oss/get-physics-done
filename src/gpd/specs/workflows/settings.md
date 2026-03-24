@@ -1,5 +1,5 @@
 <purpose>
-Interactive configuration of GPD workflow agents (research, plan_checker, verifier), research profile selection, runtime-specific tier model overrides, `execution.review_cadence`, git branching, and runtime-permission sync guidance. Updates `.gpd/config.json` with user preferences including model profile, optional `model_overrides`, workflow toggles, execution cadence, and branching strategy.
+Interactive configuration of GPD workflow agents (research, plan_checker, verifier), research profile selection, runtime-specific tier model overrides, `execution.review_cadence`, git branching, and runtime-permission sync guidance. Updates `GPD/config.json` with user preferences including model profile, optional `model_overrides`, workflow toggles, execution cadence, and branching strategy.
 </purpose>
 
 <required_reading>
@@ -20,12 +20,12 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Creates `.gpd/config.json` with defaults if missing and loads current config values.
+Creates `GPD/config.json` with defaults if missing and loads current config values.
 </step>
 
 <step name="read_current">
 ```bash
-cat .gpd/config.json
+cat GPD/config.json
 ```
 
 Parse current values (default to `true` / first option if not present):
@@ -46,7 +46,7 @@ Parse current values (default to `true` / first option if not present):
 
 `execution.review_cadence` is independent of `model_profile` and `research_mode`: it controls bounded review stop density, not agent tiering or verification rigor.
 
-Project conventions do **not** live in `.gpd/config.json`. Do not invent or preserve a `physics` section here. Unit systems, metric signatures, Fourier conventions, and other notation choices belong in `.gpd/CONVENTIONS.md` and `.gpd/state.json` via `gpd convention set`.
+Project conventions do **not** live in `GPD/config.json`. Do not invent or preserve a `physics` section here. Unit systems, metric signatures, Fourier conventions, and other notation choices belong in `GPD/CONVENTIONS.md` and `GPD/state.json` via `gpd convention set`.
   </step>
 
 <step name="determine_runtime_for_model_overrides">
@@ -250,7 +250,7 @@ Merge new settings into existing config.json:
 }
 ```
 
-Write updated config to `.gpd/config.json`.
+Write updated config to `GPD/config.json`.
 
 Then immediately sync runtime-owned permissions against the selected autonomy:
 
@@ -263,7 +263,7 @@ Interpret the sync payload:
 
 - Always surface `message` in the final confirmation.
 - If `requires_relaunch` is `true`, surface `next_step` verbatim so the user knows whether the runtime must be restarted or relaunched through a generated wrapper command.
-- If runtime detection or install resolution fails, explain that `.gpd/config.json` was still updated but the runtime itself was not synchronized yet.
+- If runtime detection or install resolution fails, explain that `GPD/config.json` was still updated but the runtime itself was not synchronized yet.
 </step>
 
 <step name="confirm">
@@ -296,7 +296,7 @@ Runtime sync:
 - {permissions_sync.message}
 - {permissions_sync.next_step if present}
 
-Project conventions still live in `.gpd/CONVENTIONS.md` and `.gpd/state.json` (`convention_lock`), not in `.gpd/config.json`.
+Project conventions still live in `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`), not in `GPD/config.json`.
 
 Quick commands:
 - /gpd:set-profile <profile> -- switch research profile
@@ -313,13 +313,13 @@ Quick commands:
 </process>
 
 <downstream_consumption>
-Workflow config from `.gpd/config.json` is consumed by:
+Workflow config from `GPD/config.json` is consumed by:
 
 - **gpd-planner / orchestrators**: Model profile, workflow toggles, and runtime-specific tier overrides
 - **gpd-executor**: Review cadence, unattended budgets, and workflow verifier settings
 - **gpd hooks / runtime adapters**: Runtime-specific model overrides and related execution defaults
 
-Project conventions propagate separately through `.gpd/CONVENTIONS.md` and `.gpd/state.json` (`convention_lock`), where notation and unit choices remain the single source of truth for planning, execution, and verification.
+Project conventions propagate separately through `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`), where notation and unit choices remain the single source of truth for planning, execution, and verification.
 </downstream_consumption>
 
 <success_criteria>
@@ -329,7 +329,7 @@ Project conventions propagate separately through `.gpd/CONVENTIONS.md` and `.gpd
 - [ ] User presented with profile, runtime-specific tier-model handling, workflow toggles, review cadence, and git branching
 - [ ] Config updated with model_profile, optional model_overrides, workflow, execution, and git sections
 - [ ] Runtime permissions sync attempted after autonomy is written, with relaunch guidance surfaced when required
-- [ ] No stale `physics` section written into `.gpd/config.json`
+- [ ] No stale `physics` section written into `GPD/config.json`
 - [ ] Concrete tier model strings stored in runtime-native format when the user chooses explicit overrides
 - [ ] Changes confirmed to user
 

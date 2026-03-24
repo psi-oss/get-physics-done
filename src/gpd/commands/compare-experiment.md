@@ -4,7 +4,7 @@ description: Systematically compare theoretical predictions with experimental or
 argument-hint: "[prediction or dataset to compare]"
 context_mode: project-aware
 requires:
-  files: [".gpd/ROADMAP.md"]
+  files: ["GPD/ROADMAP.md"]
 allowed-tools:
   - file_read
   - file_write
@@ -43,13 +43,13 @@ Interpretation:
 Load theoretical predictions:
 
 ```bash
-cat .gpd/research-map/ARCHITECTURE.md 2>/dev/null | grep -A 20 "Predictions"
+cat GPD/research-map/ARCHITECTURE.md 2>/dev/null | grep -A 20 "Predictions"
 find artifacts/ results/ data/ figures/ simulations/ paper/ -maxdepth 4 \
   \( -name "*.json" -o -name "*.csv" -o -name "*.dat" -o -name "*.h5" \) 2>/dev/null | \
   grep -i "result\|predict\|spectrum\|observable" | head -20
 ```
 
-Treat `.gpd/**` as internal provenance only. Discover predictions and reusable comparison inputs from stable workspace directories such as `artifacts/`, `results/`, `data/`, `figures/`, `simulations/`, or `paper/`.
+Treat `GPD/**` as internal provenance only. Discover predictions and reusable comparison inputs from stable workspace directories such as `artifacts/`, `results/`, `data/`, `figures/`, `simulations/`, or `paper/`.
 
 </context>
 

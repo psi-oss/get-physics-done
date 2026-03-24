@@ -53,7 +53,7 @@ def _valid_plan_contract_frontmatter(
         "    question: What benchmark must this plan recover?\n"
         "  context_intake:\n"
         "    must_read_refs: [ref-main]\n"
-        "    must_include_prior_outputs: [.gpd/phases/00-baseline/00-01-SUMMARY.md]\n"
+        "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
         "  claims:\n"
         "    - id: claim-main\n"
         "      statement: Recover the benchmark value within tolerance\n"
@@ -287,7 +287,7 @@ class TestParseContractBlock:
         content = _valid_plan_contract_frontmatter().replace(
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
-            "    must_include_prior_outputs: [.gpd/phases/00-baseline/00-01-SUMMARY.md]\n",
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n",
             "",
             1,
         ) + "Body.\n"
@@ -299,7 +299,7 @@ class TestParseContractBlock:
         content = _valid_plan_contract_frontmatter().replace(
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
-            "    must_include_prior_outputs: [.gpd/phases/00-baseline/00-01-SUMMARY.md]\n",
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n",
             "  context_intake: {}\n",
             1,
         ) + "Body.\n"
@@ -455,7 +455,7 @@ class TestValidateFrontmatter:
         content = _valid_plan_contract_frontmatter().replace(
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
-            "    must_include_prior_outputs: [.gpd/phases/00-baseline/00-01-SUMMARY.md]\n",
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n",
             "",
             1,
         ) + "Body.\n"
@@ -469,7 +469,7 @@ class TestValidateFrontmatter:
         content = _valid_plan_contract_frontmatter().replace(
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
-            "    must_include_prior_outputs: [.gpd/phases/00-baseline/00-01-SUMMARY.md]\n",
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n",
             "  context_intake: {}\n",
             1,
         ) + "Body.\n"
@@ -578,7 +578,7 @@ class TestValidateFrontmatter:
             "depth: standard\n"
             "provides: []\n"
             "completed: 2025-01-01\n"
-            "plan_contract_ref: .gpd/phases/01-test/01-01-PLAN.md#/contract\n"
+            "plan_contract_ref: GPD/phases/01-test/01-01-PLAN.md#/contract\n"
             "contract_results:\n"
             f"  claims: {placeholder}\n"
             "  uncertainty_markers:\n"
@@ -765,7 +765,7 @@ class TestValidateFrontmatter:
             "    question: What setup output should be ready for later comparison?\n"
             "    unresolved_questions: [\"Which benchmark will be authoritative?\"]\n"
             "  context_intake:\n"
-            "    must_include_prior_outputs: [.gpd/phases/00-setup/00-01-SUMMARY.md]\n"
+            "    must_include_prior_outputs: [GPD/phases/00-setup/00-01-SUMMARY.md]\n"
             "    known_good_baselines: [Smoke-test CLI output]\n"
             "  claims:\n"
             "    - id: claim-setup\n"
@@ -825,7 +825,7 @@ class TestValidateFrontmatter:
             "    unresolved_questions:\n"
             "      - Which benchmark should anchor the first computation?\n"
             "  context_intake:\n"
-            "    must_include_prior_outputs: [.gpd/phases/00-scan/00-01-SUMMARY.md]\n"
+            "    must_include_prior_outputs: [GPD/phases/00-scan/00-01-SUMMARY.md]\n"
             "    context_gaps: [Need a decisive benchmark before committing to fanout]\n"
             "  uncertainty_markers:\n"
             "    weakest_anchors: [The current framing may still be proxy-heavy]\n"
@@ -1045,7 +1045,7 @@ class TestValidateFrontmatter:
         assert result.valid is True
 
     def test_verification_status_passed_rejects_blocked_contract_results(self, tmp_path: Path):
-        phase_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+        phase_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
         phase_dir.mkdir(parents=True)
         (phase_dir / "01-01-PLAN.md").write_text(
             (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"),
@@ -1427,7 +1427,7 @@ class TestVerifyPlanStructure:
             "    question: What benchmark must this plan recover?\n"
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
-            "    must_include_prior_outputs: [.gpd/phases/00-baseline/00-01-SUMMARY.md]\n"
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
             "  claims:\n"
             "    - id: claim-main\n"
             "      statement: Recover the benchmark value within tolerance\n"

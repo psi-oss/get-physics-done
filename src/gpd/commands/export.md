@@ -34,9 +34,9 @@ Use this when sharing results with collaborators, preparing for publication, or 
 <context>
 Format: $ARGUMENTS (optional -- if not provided, ask user)
 
-@.gpd/PROJECT.md
-@.gpd/ROADMAP.md
-@.gpd/STATE.md
+@GPD/PROJECT.md
+@GPD/ROADMAP.md
+@GPD/STATE.md
 </context>
 
 <process>

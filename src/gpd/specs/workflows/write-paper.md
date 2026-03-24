@@ -175,7 +175,7 @@ Use `protocol_bundle_context` from init JSON as additive specialized-publication
 - If `selected_protocol_bundle_ids` is non-empty, keep the bundle's decisive artifact guidance, estimator caveats, and reference prompts visible while choosing main-text figures, appendices, and related-work framing.
 - Use bundle guidance to check whether the manuscript surfaces the right decisive comparisons, benchmark anchors, and estimator limitations for this project.
 - Treat `project_contract` as authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes; otherwise the contract is visible but blocked, and drafting must pause for contract repair.
-- Do **not** let bundle guidance invent new claims, replace `project_contract`, or override `contract_results`, `comparison_verdicts`, `.gpd/comparisons/*-COMPARISON.md`, `.gpd/paper/FIGURE_TRACKER.md`, or `active_reference_context`. Those remain authoritative.
+- Do **not** let bundle guidance invent new claims, replace `project_contract`, or override `contract_results`, `comparison_verdicts`, `GPD/comparisons/*-COMPARISON.md`, `GPD/paper/FIGURE_TRACKER.md`, or `active_reference_context`. Those remain authoritative.
 - If no bundle is selected, rely on shared publication guidance plus the contract-backed comparison artifacts already present in the project.
 
 </step>
@@ -187,7 +187,7 @@ Check for research digests generated during milestone completion. These digests 
 **Step 1 -- Locate digest files:**
 
 ```bash
-ls .gpd/milestones/*/RESEARCH-DIGEST.md 2>/dev/null
+ls GPD/milestones/*/RESEARCH-DIGEST.md 2>/dev/null
 ```
 
 **If digest(s) found:**
@@ -195,7 +195,7 @@ ls .gpd/milestones/*/RESEARCH-DIGEST.md 2>/dev/null
 Read all available digests:
 
 ```bash
-cat .gpd/milestones/*/RESEARCH-DIGEST.md
+cat GPD/milestones/*/RESEARCH-DIGEST.md
 ```
 
 **Step 2 -- Map digest sections to paper structure:**
@@ -224,8 +224,8 @@ If the digest is incomplete or missing sections, note which paper sections will 
 
 ```bash
 # Fall back to raw sources if digest is insufficient
-cat .gpd/phases/*-*/*-SUMMARY.md
-cat .gpd/state.json
+cat GPD/phases/*-*/*-SUMMARY.md
+cat GPD/state.json
 ```
 
 **If NO digest found:**
@@ -233,7 +233,7 @@ cat .gpd/state.json
 Display a clear warning explaining why and offering alternatives:
 
 ```
-⚠ No RESEARCH-DIGEST.md found in .gpd/milestones/.
+⚠ No RESEARCH-DIGEST.md found in GPD/milestones/.
 
 Research digests are generated during /gpd:complete-milestone. Without a digest,
 the paper will be built from raw phase data (SUMMARY.md files, STATE.md, state.json).
@@ -252,7 +252,7 @@ Options:
 ```bash
 # Example: --from-phases 1,3,5
 for PHASE_NUM in $(echo "$FROM_PHASES" | tr ',' ' '); do
-  PHASE_DIR=$(ls -d .gpd/phases/*/ | grep "^.gpd/phases/0*${PHASE_NUM}-")
+  PHASE_DIR=$(ls -d GPD/phases/*/ | grep "^GPD/phases/0*${PHASE_NUM}-")
   cat "$PHASE_DIR"/*-SUMMARY.md 2>/dev/null
 done
 ```
@@ -292,7 +292,7 @@ Gather all research outputs that could contribute to the paper:
    - Which are publication quality?
    - Which need to be generated or improved?
 
-4. **Literature context** -- From `.gpd/literature/*-REVIEW.md` or phase `RESEARCH.md`
+4. **Literature context** -- From `GPD/literature/*-REVIEW.md` or phase `RESEARCH.md`
 
    - What is the relevant prior work to cite?
    - How does our result compare with published values?
@@ -301,7 +301,7 @@ Gather all research outputs that could contribute to the paper:
    - Which limiting cases were checked?
    - What is the confidence level of each result?
 
-6. **Internal comparisons and decisive evidence** -- From `.gpd/comparisons/*-COMPARISON.md`, `FIGURE_TRACKER.md`, and bundle context
+6. **Internal comparisons and decisive evidence** -- From `GPD/comparisons/*-COMPARISON.md`, `FIGURE_TRACKER.md`, and bundle context
 
    - Which comparisons carry decisive `comparison_verdicts` for the paper's core claims?
    - Which decisive comparisons are actually needed for the claims the manuscript intends to make, and which checks are merely supportive?
@@ -321,9 +321,9 @@ Run checks across all contributing phases (from digest, `--from-phases`, or all 
 ```bash
 # Identify contributing phases
 if [ -n "$FROM_PHASES" ]; then
-  PHASE_DIRS=$(for n in $(echo "$FROM_PHASES" | tr ',' ' '); do ls -d .gpd/phases/0*${n}-* 2>/dev/null; done)
+  PHASE_DIRS=$(for n in $(echo "$FROM_PHASES" | tr ',' ' '); do ls -d GPD/phases/0*${n}-* 2>/dev/null; done)
 else
-  PHASE_DIRS=$(ls -d .gpd/phases/*/ 2>/dev/null)
+  PHASE_DIRS=$(ls -d GPD/phases/*/ 2>/dev/null)
 fi
 ```
 
@@ -373,7 +373,7 @@ Check whether planned figures have source data and generation scripts:
 ```bash
 # Check durable figure roots, not internal phase scratch paths
 find artifacts/phases figures "${PAPER_DIR}/figures" -maxdepth 3 \( -type f -o -type d \) 2>/dev/null
-ls .gpd/paper/FIGURE_TRACKER.md 2>/dev/null
+ls GPD/paper/FIGURE_TRACKER.md 2>/dev/null
 ```
 
 Default bootstrap example:
@@ -399,11 +399,11 @@ Check for bibliography infrastructure:
 ```bash
 ls references/references.bib 2>/dev/null
 ls "${PAPER_DIR}/references.bib" 2>/dev/null
-ls .gpd/literature/*-REVIEW.md 2>/dev/null
+ls GPD/literature/*-REVIEW.md 2>/dev/null
 ```
 
 1. Does a project bibliography exist (`references/references.bib` or `${PAPER_DIR}/references.bib`)?
-2. Does at least one `.gpd/literature/*-REVIEW.md` or phase `RESEARCH.md` exist?
+2. Does at least one `GPD/literature/*-REVIEW.md` or phase `RESEARCH.md` exist?
 3. Are key prior works identified (the research digest's "Prior Work" or literature review)?
 4. If the bibliography changed after the last audit, refresh `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` before strict review. The JSON audit is the review contract artifact; `${PAPER_DIR}/CITATION-AUDIT.md` is only the human-readable report.
    For the default bootstrap path, this means: `If the bibliography changed after the last audit, refresh `paper/BIBLIOGRAPHY-AUDIT.json` before strict review.`
@@ -414,8 +414,8 @@ ls .gpd/literature/*-REVIEW.md 2>/dev/null
 
 Check that the manuscript can surface the decisive evidence, not just supporting narrative:
 
-1. Read `.gpd/comparisons/*-COMPARISON.md` and note every decisive `comparison_verdicts` entry
-2. Read `.gpd/paper/FIGURE_TRACKER.md` and confirm those decisive claims have a planned figure, table, or explicit textual comparison path
+1. Read `GPD/comparisons/*-COMPARISON.md` and note every decisive `comparison_verdicts` entry
+2. Read `GPD/paper/FIGURE_TRACKER.md` and confirm those decisive claims have a planned figure, table, or explicit textual comparison path
 3. If `selected_protocol_bundle_ids` is non-empty, use `protocol_bundle_context` only as an additive expectation map for which anchors, estimator caveats, or benchmark comparisons should stay visible in the paper
 4. Only require the manuscript to surface decisive comparisons for claims it actually makes. Honest narrowing is acceptable; silent omission is not.
 
@@ -516,7 +516,7 @@ The main.tex should:
 - \input each section file
 - Handle bibliography correctly for the journal
 
-If the project has a `.gpd/analysis/LATEX_PREAMBLE.md`, use its macros to ensure notation consistency with the research phases.
+If the project has a `GPD/analysis/LATEX_PREAMBLE.md`, use its macros to ensure notation consistency with the research phases.
 
 If a machine-readable paper spec is available, prefer the canonical builder:
 
@@ -550,8 +550,9 @@ mkdir -p "${PAPER_DIR}/figures"
 
 Before drafting sections, generate all planned figures:
 
-1. Read `.gpd/paper/FIGURE_TRACKER.md` for figure specifications
-2. For each figure with status != "Final":
+1. Before reading or updating `GPD/paper/FIGURE_TRACKER.md`, load `@{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md` and treat its `figure_registry` frontmatter as the schema source of truth. Keep the registry machine-readable for paper-quality scoring; do not invent ad hoc keys or collapse it into prose.
+2. Read `GPD/paper/FIGURE_TRACKER.md` for figure specifications
+3. For each figure with status != "Final":
    a. Locate source data (from phase directories)
    b. Generate matplotlib script with publication styling:
       - Use shared style: `plt.style.use('${PAPER_DIR}/paper.mplstyle')` if exists, otherwise use sensible defaults
@@ -559,7 +560,7 @@ Before drafting sections, generate all planned figures:
       - Error bars where applicable, colorblind-safe colors
    c. Execute script, save to `${PAPER_DIR}/figures/`
    d. Update FIGURE_TRACKER.md status
-3. Verify all figures referenced in outline exist as files
+4. Verify all figures referenced in outline exist as files
 
 **If figure data is missing:** Flag as blocker, suggest which phase needs re-execution.
 </step>
@@ -644,7 +645,7 @@ Default bootstrap wording: `Check if the expected .tex file was written to `pape
 - Section brief (purpose, content, equations, figures, citations)
 - Narrative continuity (how preceding section ends, what following section needs)
 - Research artifacts (file paths to read for content)
-- Active decisive-comparison artifacts (`.gpd/comparisons/*-COMPARISON.md`) and relevant `FIGURE_TRACKER.md` entries for any contract-critical figure or table
+- Active decisive-comparison artifacts (`GPD/comparisons/*-COMPARISON.md`) and relevant `FIGURE_TRACKER.md` entries for any contract-critical figure or table
 - `protocol_bundle_context` and `selected_protocol_bundle_ids` as additive specialized guidance only; they help decide which decisive anchors, estimator caveats, and benchmark comparisons must stay visible, but they do not replace the contract-backed evidence ledger
 - Writing principles (see command file)
 
@@ -786,7 +787,7 @@ After all sections are drafted, run a systematic notation check:
 **Check for notation glossary:**
 
 ```bash
-ls .gpd/NOTATION_GLOSSARY.md 2>/dev/null
+ls GPD/NOTATION_GLOSSARY.md 2>/dev/null
 ```
 
 If NOTATION_GLOSSARY.md does not exist, skip step 2 below and note in the report that no glossary was available for cross-referencing. The consistency checks (steps 1, 3, 4) still run — they compare the paper against itself.
@@ -847,7 +848,7 @@ Return BIBLIOGRAPHY UPDATED or CITATION ISSUES FOUND."
 
 **If CITATION ISSUES FOUND:**
 
-- Read the audit report and `.gpd/references-status.json`
+- Read the audit report and `GPD/references-status.json`
 - Replace resolved `MISSING:` markers: for each entry in `resolved_markers`, find-and-replace `\cite{MISSING:X}` → `\cite{resolved_key}` in all .tex files and remove the associated `% MISSING CITATION:` comment
 - Fix hallucinated entries (remove from .bib, update \cite commands)
 - Apply metadata corrections to .bib entries
@@ -882,7 +883,7 @@ Minimum required inputs:
 
 - `${PAPER_DIR}/ARTIFACT-MANIFEST.json`
 - `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`
-- `.gpd/paper/FIGURE_TRACKER.md`
+- `GPD/paper/FIGURE_TRACKER.md`
 - contract-backed `SUMMARY.md` / `VERIFICATION.md` evidence for decisive claims, figures, and comparisons
 
 If the manuscript bibliography or citation set changed after the last audit, refresh `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` before building the reproducibility manifest. Stale bibliography audits are not acceptable review inputs.
@@ -921,7 +922,7 @@ For the detailed staging, artifact naming, round handling, `CLAIMS{round_suffix}
 
 **After final adjudication:**
 
-Read `.gpd/review/REFEREE-DECISION{round_suffix}.json` and `.gpd/review/REVIEW-LEDGER{round_suffix}.json` first when they exist, then read `.gpd/REFEREE-REPORT{round_suffix}.md` and assess the findings:
+Read `GPD/review/REFEREE-DECISION{round_suffix}.json` and `GPD/review/REVIEW-LEDGER{round_suffix}.json` first when they exist, then read `GPD/REFEREE-REPORT{round_suffix}.md` and assess the findings:
 
 - **If recommendation is `accept` or `minor_revision` with 0 major issues:** Proceed to `final_review`. Note minor issues for the user.
 - **If recommendation is `major_revision` or `reject`:** Present the major issues to the user before proceeding. For each major issue, show the location, description, and suggested fix. Ask the user whether to:
@@ -951,8 +952,8 @@ QUALITY=$(gpd --raw validate paper-quality --from-project . 2>/dev/null)
 The score should be artifact-driven, not manually estimated. Use:
 - `${PAPER_DIR}/ARTIFACT-MANIFEST.json`
 - `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`
-- `.gpd/paper/FIGURE_TRACKER.md` frontmatter `figure_registry`
-- `.gpd/comparisons/*-COMPARISON.md`
+- `GPD/paper/FIGURE_TRACKER.md` frontmatter `figure_registry`
+- `GPD/comparisons/*-COMPARISON.md`
 - phase `SUMMARY.md` / `VERIFICATION.md` `contract_results` and `comparison_verdicts`
 
 Treat paper-support artifacts as scaffolding, not as proof that a claim is established. Missing decisive comparison evidence still blocks a strong submission recommendation even if manifests and audits are complete.
@@ -982,18 +983,18 @@ When revising a paper in response to referee reports:
      model="{writer_model}",
      readonly=false,
      prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\nRead your <author_response> protocol. Produce an AUTHOR-RESPONSE file.\n\n" +
-       "Referee report: .gpd/REFEREE-REPORT{-RN}.md\n" +
-       "Review ledger (if present): .gpd/review/REVIEW-LEDGER{-RN}.json\n" +
-       "Decision artifact (if present): .gpd/review/REFEREE-DECISION{-RN}.json\n" +
+       "Referee report: GPD/REFEREE-REPORT{-RN}.md\n" +
+       "Review ledger (if present): GPD/review/REVIEW-LEDGER{-RN}.json\n" +
+       "Decision artifact (if present): GPD/review/REFEREE-DECISION{-RN}.json\n" +
        "Manuscript: ${PAPER_DIR}/*.tex\n" +
        "Round: {N}\n\n" +
        "For each REF-xxx issue, classify as fixed/rebutted/acknowledged. Use the JSON artifacts to identify blocking issues and decision-floor reasons, but keep REF-xxx IDs from the report.\n" +
-       "Write to .gpd/AUTHOR-RESPONSE{-RN}.md",
+       "Write to GPD/AUTHOR-RESPONSE{-RN}.md",
      description="Author response: round {N}"
    )
    ```
 
-   **If the author-response agent fails to spawn or returns an error:** Check if `.gpd/AUTHOR-RESPONSE{-RN}.md` was written (agents write files first). If it exists, proceed to section revision. If not, offer: 1) Retry the agent, 2) Draft the author response in the main context using the referee report and manuscript, 3) Skip structured response and proceed directly to section revisions.
+   **If the author-response agent fails to spawn or returns an error:** Check if `GPD/AUTHOR-RESPONSE{-RN}.md` was written (agents write files first). If it exists, proceed to section revision. If not, offer: 1) Retry the agent, 2) Draft the author response in the main context using the referee report and manuscript, 3) Skip structured response and proceed directly to section revisions.
 
    The AUTHOR-RESPONSE.md uses REF-xxx issue IDs matching the referee report, with classifications (fixed/rebutted/acknowledged) and specific change locations. When present, `REVIEW-LEDGER{-RN}.json` and `REFEREE-DECISION{-RN}.json` provide the blocking-issue and recommendation-floor context that the response must resolve. See the gpd-paper-writer's `<author_response>` section for the full format.
 
@@ -1005,7 +1006,7 @@ When revising a paper in response to referee reports:
    - The planned response
    - Any new calculations or results needed
 
-4. **Track new calculations:** If referee requests require new derivations or simulations, create tasks in `.gpd/paper/REVISION_TASKS.md` and route to appropriate phases.
+4. **Track new calculations:** If referee requests require new derivations or simulations, create tasks in `GPD/paper/REVISION_TASKS.md` and route to appropriate phases.
 
 5. **Verify consistency:** After all revisions, re-run the consistency_check and notation_audit steps to ensure revisions don't introduce new inconsistencies.
 

@@ -1,6 +1,6 @@
 """Session-focused local observability helpers for GPD.
 
-Observability is written to the project-local ``.gpd/observability/`` tree:
+Observability is written to the project-local ``GPD/observability/`` tree:
 
 - ``sessions/<session-id>.jsonl`` stores the full event stream for one session
 - ``current-session.json`` points at the latest observed session summary

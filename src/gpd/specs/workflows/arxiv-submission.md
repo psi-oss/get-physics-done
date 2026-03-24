@@ -89,13 +89,13 @@ SUBMISSION_DIR="arxiv-submission"
 <step name="paper_quality_gate">
 **Run the paper-quality submission gate before packaging:**
 
-Use the resolved manuscript root as the scoring source of truth. If `PAPER_DIR` is not already the project's `paper/` directory, create a temporary scratch project root that mirrors `.gpd/` and exposes the resolved manuscript directory as `paper/` for scoring, then run:
+Use the resolved manuscript root as the scoring source of truth. If `PAPER_DIR` is not already the project's `paper/` directory, create a temporary scratch project root that mirrors `GPD/` and exposes the resolved manuscript directory as `paper/` for scoring, then run:
 
 ```bash
 QUALITY_ROOT="."
 if [ "${PAPER_DIR}" != "paper" ] && [ "${PAPER_DIR}" != "./paper" ]; then
   QUALITY_ROOT=$(mktemp -d)
-  ln -s "$(pwd)/.gpd" "${QUALITY_ROOT}/.gpd"
+  ln -s "$(pwd)/GPD" "${QUALITY_ROOT}/GPD"
   ln -s "$(cd "${PAPER_DIR}" && pwd)" "${QUALITY_ROOT}/paper"
 fi
 

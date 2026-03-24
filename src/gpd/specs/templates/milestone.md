@@ -6,7 +6,7 @@ template_version: 1
 
 # Milestone Entry Template
 
-Add this entry to `.gpd/MILESTONES.md` when completing a research milestone:
+Add this entry to `GPD/MILESTONES.md` when completing a research milestone:
 
 ```markdown
 ## [Milestone Name] (Completed: YYYY-MM-DD)

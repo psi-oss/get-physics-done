@@ -799,8 +799,6 @@ def test_progress_workflow_surfaces_contract_load_and_validation_state() -> None
     assert 'status: (gaps_found|diagnosed|human_needed|expert_needed)' not in command_text
     assert "`session_status: diagnosed`" in workflow_text
     assert "`session_status: diagnosed`" in command_text
-    assert "GPD/phases/[current-phase-dir]/VERIFICATION.md" in workflow_text
-    assert "GPD/phases/[current-phase-dir]/VERIFICATION.md" in command_text
     assert "GPD/phases/[current-phase-dir]/*-VERIFICATION.md" in workflow_text
     assert "GPD/phases/[current-phase-dir]/*-VERIFICATION.md" in command_text
 
@@ -1387,6 +1385,7 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     assert "Every stochastic `execution_steps[].name` must have a matching `random_seeds[].computation`" in reproducibility_template
     assert "templates/paper/reproducibility-manifest.md" in reproducibility_protocol
     assert "templates/paper/paper-config-schema.md" in write_paper
+    assert "templates/paper/figure-tracker.md" in write_paper
     assert "templates/paper/reproducibility-manifest.md" in write_paper
     assert "gpd paper-build paper/PAPER-CONFIG.json" in paper_config_schema
     assert "paper/reproducibility-manifest.json" in write_paper
@@ -1500,10 +1499,10 @@ def test_verify_work_workflow_uses_body_only_subject_kind_fields() -> None:
     assert "check_subject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]" not in verify_work
 
 
-def test_verify_work_active_sessions_use_dual_verification_paths_and_keep_status_separate() -> None:
+def test_verify_work_active_sessions_use_canonical_verification_path_and_keep_status_separate() -> None:
     verify_work = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
 
-    assert "rg -l '^session_status: (validating|diagnosed)$' GPD/phases/*/VERIFICATION.md GPD/phases/*/*-VERIFICATION.md 2>/dev/null | sort | head -5" in verify_work
+    assert "rg -l '^session_status: (validating|diagnosed)$' GPD/phases/*/*-VERIFICATION.md 2>/dev/null | sort | head -5" in verify_work
     assert "Only treat files with `session_status: validating` or `session_status: diagnosed` as active researcher sessions." in verify_work
     assert "extract canonical verification `status`, `session_status`, `phase`, and the Current Check section" in verify_work
     assert "`session_status` replace or overwrite the canonical verification `status`" in verify_work
@@ -1800,7 +1799,6 @@ def test_stage5_execution_surfaces_use_bounded_review_cadence_and_first_result_g
 def test_show_phase_workflow_distinguishes_verification_status_from_session_status() -> None:
     show_phase = (WORKFLOWS_DIR / "show-phase.md").read_text(encoding="utf-8")
 
-    assert "`VERIFICATION.md`" in show_phase
     assert "`*-VERIFICATION.md`" in show_phase
     assert "read frontmatter to extract canonical verification `status`, plus `session_status` when present" in show_phase
     assert "Automated verification uses `passed`/`gaps_found`/`expert_needed`/`human_needed`" in show_phase
@@ -1809,18 +1807,18 @@ def test_show_phase_workflow_distinguishes_verification_status_from_session_stat
     assert "interactive validation uses `validating`/`completed`/`diagnosed`" not in show_phase
 
 
-def test_execute_phase_and_related_agents_surface_legacy_and_plan_scoped_verification_artifacts() -> None:
+def test_execute_phase_and_related_agents_surface_only_plan_scoped_verification_artifacts() -> None:
     execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
     planner = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
     verifier = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
     audit_milestone = (WORKFLOWS_DIR / "audit-milestone.md").read_text(encoding="utf-8")
 
-    assert '"$phase_dir"/VERIFICATION.md "$phase_dir"/*-VERIFICATION.md' in execute_phase
-    assert '"GPD/phases/[current-phase-dir]/VERIFICATION.md GPD/phases/[current-phase-dir]/*-VERIFICATION.md' not in execute_phase
-    assert 'ls "$phase_dir"/VERIFICATION.md "$phase_dir"/*-VERIFICATION.md 2>/dev/null' in planner
-    assert 'find_files("$PHASE_DIR/VERIFICATION.md")' in verifier
+    assert '"$phase_dir"/*-VERIFICATION.md' in execute_phase
+    assert '"$phase_dir"/VERIFICATION.md "$phase_dir"/*-VERIFICATION.md' not in execute_phase
+    assert 'ls "$phase_dir"/*-VERIFICATION.md 2>/dev/null' in planner
     assert 'find_files("$PHASE_DIR/*-VERIFICATION.md")' in verifier
-    assert 'GPD/phases/01-*/VERIFICATION.md GPD/phases/01-*/*-VERIFICATION.md' in audit_milestone
+    assert 'cat GPD/phases/01-*/*-VERIFICATION.md' in audit_milestone
+    assert 'GPD/phases/01-*/VERIFICATION.md' not in audit_milestone
 
 
 def test_debug_prompts_use_session_status_for_diagnosis_progress() -> None:
@@ -1946,7 +1944,9 @@ def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profil
     assert "comparison_verdicts" in internal_template
     assert "figure_registry" in figure_tracker
     assert "role: smoking_gun|benchmark|comparison|sanity_check|publication_polish|other" in figure_tracker
+    assert "canonical schema source of truth" in figure_tracker
     assert "validate paper-quality --from-project ." in write_paper
+    assert "Before reading or updating `GPD/paper/FIGURE_TRACKER.md`, load" in write_paper
     assert '"review_cadence": "adaptive"' in new_project
     assert "Adaptive review cadence" in new_project
     assert "prior decisive `contract_results`, decisive `comparison_verdicts`, or an explicit approach lock" in execute_phase

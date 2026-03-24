@@ -158,8 +158,8 @@ def test_progress_prompt_runs_preflight_after_init_context() -> None:
 def test_progress_prompt_requires_project_not_roadmap() -> None:
     command = (REPO_ROOT / "src/gpd/commands/progress.md").read_text(encoding="utf-8")
 
-    assert 'files: [".gpd/PROJECT.md"]' in command
-    assert 'files: [".gpd/ROADMAP.md"]' not in command
+    assert 'files: ["GPD/PROJECT.md"]' in command
+    assert 'files: ["GPD/ROADMAP.md"]' not in command
 
 
 def test_new_milestone_prompt_mentions_planning_commit_docs() -> None:
@@ -235,9 +235,9 @@ def test_compare_branches_prompt_keeps_branch_summary_extraction_in_memory() -> 
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/compare-branches.md").read_text(encoding="utf-8")
 
     assert "Prefer parsing the `git show` output directly in memory." in workflow
-    assert "do not write it to `.gpd/tmp/` just to run a path-based extractor." in workflow
+    assert "do not write it to `GPD/tmp/` just to run a path-based extractor." in workflow
     assert "Keep branch-summary extraction in memory/stdout only" in workflow
-    assert "do not use `.gpd/tmp/`, `/tmp`, or another temp root for this step." in workflow
+    assert "do not use `GPD/tmp/`, `/tmp`, or another temp root for this step." in workflow
 
 
 def test_regression_check_prompt_examples_include_optional_phase_before_quick_flag() -> None:
@@ -262,7 +262,7 @@ def test_help_prompt_workflow_modes_match_current_settings_vocabulary() -> None:
     for content in (help_command, help_workflow):
         assert "Interactive Mode" not in content
         assert "YOLO Mode" not in content
-        assert "Change anytime by editing `.gpd/config.json`" not in content
+        assert "Change anytime by editing `GPD/config.json`" not in content
         assert "Supervised" in content
         assert "Balanced (Recommended)" in content
         assert "YOLO" in content

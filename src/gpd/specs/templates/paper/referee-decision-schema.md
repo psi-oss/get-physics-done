@@ -5,9 +5,9 @@ type: referee-decision-schema
 
 # Referee Decision Schema
 
-Canonical source of truth for `.gpd/review/REFEREE-DECISION.json` (or `.gpd/review/REFEREE-DECISION{round_suffix}.json` in revision rounds).
+Canonical source of truth for `GPD/review/REFEREE-DECISION.json` (or `GPD/review/REFEREE-DECISION{round_suffix}.json` in revision rounds).
 
-This JSON is the machine-readable adjudication summary consumed by `gpd validate referee-decision`. It must stay semantically aligned with `.gpd/REFEREE-REPORT.md` and `.gpd/review/REVIEW-LEDGER{round_suffix}.json`.
+This JSON is the machine-readable adjudication summary consumed by `gpd validate referee-decision`. It must stay semantically aligned with `GPD/REFEREE-REPORT.md` and `GPD/review/REVIEW-LEDGER{round_suffix}.json`.
 
 ---
 
@@ -20,11 +20,11 @@ This JSON is the machine-readable adjudication summary consumed by `gpd validate
   "final_recommendation": "major_revision",
   "final_confidence": "medium",
   "stage_artifacts": [
-    ".gpd/review/STAGE-reader{round_suffix}.json",
-    ".gpd/review/STAGE-literature{round_suffix}.json",
-    ".gpd/review/STAGE-math{round_suffix}.json",
-    ".gpd/review/STAGE-physics{round_suffix}.json",
-    ".gpd/review/STAGE-interestingness{round_suffix}.json"
+    "GPD/review/STAGE-reader{round_suffix}.json",
+    "GPD/review/STAGE-literature{round_suffix}.json",
+    "GPD/review/STAGE-math{round_suffix}.json",
+    "GPD/review/STAGE-physics{round_suffix}.json",
+    "GPD/review/STAGE-interestingness{round_suffix}.json"
   ],
   "central_claims_supported": true,
   "claim_scope_proportionate_to_evidence": false,
@@ -67,5 +67,5 @@ Only `final_recommendation` is strictly required by the runtime model. Most othe
 ## Validation Command
 
 ```bash
-gpd validate referee-decision .gpd/review/REFEREE-DECISION{round_suffix}.json --strict --ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json
+gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger GPD/review/REVIEW-LEDGER{round_suffix}.json
 ```

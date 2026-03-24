@@ -408,8 +408,8 @@ class TestParseCommandFile:
             "research_artifacts",
             "manuscript",
         ]
-        assert ".gpd/REFEREE-REPORT.md" in cmd.review_contract.required_outputs
-        assert ".gpd/REFEREE-REPORT.tex" in cmd.review_contract.required_outputs
+        assert "GPD/REFEREE-REPORT.md" in cmd.review_contract.required_outputs
+        assert "GPD/REFEREE-REPORT.tex" in cmd.review_contract.required_outputs
 
     def test_command_review_contract_parses_false_string_for_fresh_context(self, tmp_path: Path) -> None:
         f = tmp_path / "review-contract-false.md"

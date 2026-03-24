@@ -67,7 +67,7 @@ The benchmark was recovered within tolerance.
         ),
     )
     _write(
-        tmp_path / ".gpd" / "paper" / "FIGURE_TRACKER.md",
+        tmp_path / "GPD" / "paper" / "FIGURE_TRACKER.md",
         """---
 figure_registry:
   - id: fig-benchmark
@@ -83,23 +83,23 @@ figure_registry:
     caption_self_contained: true
     colorblind_safe: true
     comparison_sources:
-      - .gpd/comparisons/benchmark-COMPARISON.md
+      - GPD/comparisons/benchmark-COMPARISON.md
 ---
 
 # Figure Tracker
 """,
     )
     _write(
-        tmp_path / ".gpd" / "comparisons" / "benchmark-COMPARISON.md",
+        tmp_path / "GPD" / "comparisons" / "benchmark-COMPARISON.md",
         """---
 comparison_kind: benchmark
 comparison_sources:
   - label: theory
     kind: summary
-    path: .gpd/phases/01-benchmark/01-SUMMARY.md
+    path: GPD/phases/01-benchmark/01-SUMMARY.md
   - label: benchmark
     kind: verification
-    path: .gpd/phases/01-benchmark/01-VERIFICATION.md
+    path: GPD/phases/01-benchmark/01-VERIFICATION.md
 protocol_bundle_ids:
   - stat-mech-simulation
 bundle_expectations:
@@ -120,15 +120,15 @@ comparison_verdicts:
 """,
     )
     _write(
-        tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-01-PLAN.md",
+        tmp_path / "GPD" / "phases" / "01-benchmark" / "01-01-PLAN.md",
         (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"),
     )
     _write(
-        tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-SUMMARY.md",
+        tmp_path / "GPD" / "phases" / "01-benchmark" / "01-SUMMARY.md",
         (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8"),
     )
     _write(
-        tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-VERIFICATION.md",
+        tmp_path / "GPD" / "phases" / "01-benchmark" / "01-VERIFICATION.md",
         (FIXTURES_DIR / "verification_with_contract_results.md").read_text(encoding="utf-8"),
     )
 
@@ -178,7 +178,7 @@ def test_build_paper_quality_input_falls_back_to_supported_config_journal_when_m
 
 
 def test_build_paper_quality_input_normalizes_empty_contract_results_reference_lists(tmp_path: Path) -> None:
-    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(
         plan_dir / "01-01-PLAN.md",
         (STAGE0_FIXTURES_DIR / "plan_with_contract.md")
@@ -220,7 +220,7 @@ plan: 01
 depth: full
 provides: [benchmark comparison]
 completed: 2026-03-15
-plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract
+plan_contract_ref: GPD/phases/01-benchmark/01-01-PLAN.md#/contract
 contract_results:
   claims:
     claim-benchmark:
@@ -234,7 +234,7 @@ contract_results:
           claim_id: claim-benchmark
           deliverable_id: deliv-figure
           acceptance_test_id: test-benchmark
-          evidence_path: .gpd/phases/01-benchmark/01-VERIFICATION.md
+          evidence_path: GPD/phases/01-benchmark/01-VERIFICATION.md
   deliverables:
     deliv-figure:
       status: passed
@@ -248,7 +248,7 @@ contract_results:
           claim_id: claim-benchmark
           deliverable_id: deliv-figure
           acceptance_test_id: test-benchmark
-          evidence_path: .gpd/phases/01-benchmark/01-VERIFICATION.md
+          evidence_path: GPD/phases/01-benchmark/01-VERIFICATION.md
   acceptance_tests:
     test-benchmark:
       status: passed
@@ -261,7 +261,7 @@ contract_results:
           claim_id: claim-benchmark
           deliverable_id: deliv-figure
           acceptance_test_id: test-benchmark
-          evidence_path: .gpd/phases/01-benchmark/01-VERIFICATION.md
+          evidence_path: GPD/phases/01-benchmark/01-VERIFICATION.md
   references: []
   forbidden_proxies:
     fp-benchmark:
@@ -371,7 +371,7 @@ Done.
 
 def test_build_paper_quality_input_requires_decisive_verdicts_for_decisive_artifact_coverage(tmp_path: Path) -> None:
     _write(
-        tmp_path / ".gpd" / "paper" / "FIGURE_TRACKER.md",
+        tmp_path / "GPD" / "paper" / "FIGURE_TRACKER.md",
         """---
 figure_registry:
   - id: fig-benchmark
@@ -387,14 +387,14 @@ figure_registry:
     caption_self_contained: true
     colorblind_safe: true
     comparison_sources:
-      - .gpd/comparisons/benchmark-COMPARISON.md
+      - GPD/comparisons/benchmark-COMPARISON.md
 ---
 
 # Figure Tracker
 """,
     )
     _write(
-        tmp_path / ".gpd" / "comparisons" / "benchmark-COMPARISON.md",
+        tmp_path / "GPD" / "comparisons" / "benchmark-COMPARISON.md",
         """---
 comparison_kind: benchmark
 comparison_verdicts:
@@ -412,7 +412,7 @@ comparison_verdicts:
 """,
     )
     _write(
-        tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-01-PLAN.md",
+        tmp_path / "GPD" / "phases" / "01-benchmark" / "01-01-PLAN.md",
         (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"),
     )
 
@@ -522,7 +522,7 @@ The benchmark remains under active tension.
         + "\n",
     )
     _write(
-        tmp_path / ".gpd" / "paper" / "FIGURE_TRACKER.md",
+        tmp_path / "GPD" / "paper" / "FIGURE_TRACKER.md",
         """---
 figure_registry:
   - id: fig-benchmark
@@ -538,14 +538,14 @@ figure_registry:
     caption_self_contained: true
     colorblind_safe: true
     comparison_sources:
-      - .gpd/comparisons/benchmark-COMPARISON.md
+      - GPD/comparisons/benchmark-COMPARISON.md
 ---
 
 # Figure Tracker
 """,
     )
     _write(
-        tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-SUMMARY.md",
+        tmp_path / "GPD" / "phases" / "01-benchmark" / "01-SUMMARY.md",
         """---
 phase: 01-benchmark
 plan: 01
@@ -567,7 +567,7 @@ comparison_verdicts:
 """,
     )
     _write(
-        tmp_path / ".gpd" / "comparisons" / "benchmark-COMPARISON.md",
+        tmp_path / "GPD" / "comparisons" / "benchmark-COMPARISON.md",
         """---
 comparison_kind: benchmark
 comparison_verdicts:
@@ -594,7 +594,7 @@ comparison_verdicts:
 
 
 def test_build_paper_quality_input_ignores_partial_summary_ledger_for_verified_coverage(tmp_path: Path) -> None:
-    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
     _write(
         plan_dir / "01-01-SUMMARY.md",
@@ -604,7 +604,7 @@ plan: 01
 depth: full
 provides: [benchmark comparison]
 completed: 2026-03-13
-plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract
+plan_contract_ref: GPD/phases/01-benchmark/01-01-PLAN.md#/contract
 contract_results:
   claims:
     claim-benchmark:
@@ -626,7 +626,7 @@ contract_results:
 def test_build_paper_quality_input_ignores_mixed_contract_results_ledger_for_coverage_and_confidence(
     tmp_path: Path,
 ) -> None:
-    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
 
     summary = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8")
@@ -651,7 +651,7 @@ def test_build_paper_quality_input_ignores_mixed_contract_results_ledger_for_cov
 def test_build_paper_quality_input_ignores_invalid_contract_results_ledger_for_coverage_and_confidence(
     tmp_path: Path,
 ) -> None:
-    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
 
     summary = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8")
@@ -672,7 +672,7 @@ def test_build_paper_quality_input_ignores_invalid_contract_results_ledger_for_c
 def test_build_paper_quality_input_ignores_mixed_comparison_verdict_ledger_for_coverage_and_confidence(
     tmp_path: Path,
 ) -> None:
-    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
 
     summary = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8")
@@ -703,7 +703,7 @@ def test_build_paper_quality_input_ignores_mixed_comparison_verdict_ledger_for_c
 
 
 def test_build_paper_quality_input_ignores_invalid_verification_ledger_for_report_passed(tmp_path: Path) -> None:
-    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
     _write(
         plan_dir / "01-VERIFICATION.md",
@@ -712,7 +712,7 @@ phase: 01-benchmark
 verified: 2026-03-13
 status: passed
 score: 0.9
-plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract
+plan_contract_ref: GPD/phases/01-benchmark/01-01-PLAN.md#/contract
 contract_results:
   claims:
     claim-made-up:
@@ -732,7 +732,7 @@ contract_results:
 
 
 def test_build_paper_quality_input_ignores_unresolved_summary_contract_ledger_for_coverage(tmp_path: Path) -> None:
-    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
     _write(
         plan_dir / "01-01-SUMMARY.md",
@@ -742,7 +742,7 @@ plan: 01
 depth: full
 provides: [benchmark comparison]
 completed: 2026-03-13
-plan_contract_ref: .gpd/phases/01-benchmark/01-99-PLAN.md#/contract
+plan_contract_ref: GPD/phases/01-benchmark/01-99-PLAN.md#/contract
 contract_results:
   claims:
     claim-benchmark:
@@ -774,14 +774,14 @@ def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() ->
 
     assert "protocol_bundle_context" in write_paper
     assert "additive specialized-publication guidance" in write_paper
-    assert ".gpd/comparisons/*-COMPARISON.md" in write_paper
+    assert "GPD/comparisons/*-COMPARISON.md" in write_paper
     assert "Do **not** let bundle guidance invent new claims" in write_paper
     assert "Missing generic `verification_status` / `confidence` tags alone are not blockers." in write_paper
     assert "Treat paper-support artifacts as scaffolding, not as proof that a claim is established." in write_paper
 
     assert "protocol_bundle_context" in peer_review
-    assert ".gpd/paper/FIGURE_TRACKER.md" in peer_review
-    assert ".gpd/comparisons/*-COMPARISON.md" in peer_review
+    assert "GPD/paper/FIGURE_TRACKER.md" in peer_review
+    assert "GPD/comparisons/*-COMPARISON.md" in peer_review
     assert "Treat bundle guidance as additive skepticism only." in peer_review
     assert "Review-support artifacts are scaffolding, not substitutes for contract-backed evidence." in peer_review
 

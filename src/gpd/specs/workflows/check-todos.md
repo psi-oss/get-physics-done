@@ -99,7 +99,7 @@ If `files` field has entries, read and briefly summarize each.
 <step name="check_roadmap">
 Check for roadmap (can use init progress or directly check file existence):
 
-If `.gpd/ROADMAP.md` exists:
+If `GPD/ROADMAP.md` exists:
 
 1. Check if todo's area matches an upcoming phase
 2. Check if todo's files overlap with a phase's scope
@@ -138,7 +138,7 @@ Use ask_user:
 **Work on it now:**
 ```bash
 todo_name="$(basename "$todo_file")"
-done_file=".gpd/todos/done/${todo_name}"
+done_file="GPD/todos/done/${todo_name}"
 mv "$todo_file" "$done_file"
 ```
 Update STATE.md todo count. Present problem/solution context. Begin work or ask how to proceed.
@@ -169,10 +169,10 @@ If todo was moved to done/, commit the change:
 ```bash
 git rm --cached "$todo_file" 2>/dev/null || true
 
-PRE_CHECK=$(gpd pre-commit-check --files "$done_file" .gpd/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "$done_file" GPD/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: start work on todo - ${title}" --files "$done_file" .gpd/STATE.md
+gpd commit "docs: start work on todo - ${title}" --files "$done_file" GPD/STATE.md
 ```
 
 Tool respects `commit_docs` config and gitignore automatically.

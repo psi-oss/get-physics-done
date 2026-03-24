@@ -156,7 +156,7 @@ Use this instead of manually reading/parsing ROADMAP.md.
 - Use phase-level `has_context` and `has_research` flags from analyze
 - Note `paused_at` if work was paused (from init context)
 - Count pending items: use `init todos` or `list-todos`
-- Check for active debug sessions: `ls .gpd/debug/*.md 2>/dev/null | grep -v resolved | wc -l`
+- Check for active debug sessions: `ls GPD/debug/*.md 2>/dev/null | grep -v resolved | wc -l`
 - Check state compaction health: `gpd state compact 2>&1` — if output contains `"warn": true`, STATE.md is growing large. Note this for the report.
   </step>
 
@@ -242,25 +242,25 @@ If health reports any issues (non-empty `issues` array), append a summary:
 List files in the current phase directory:
 
 ```bash
-ls -1 .gpd/phases/[current-phase-dir]/*-PLAN.md 2>/dev/null | wc -l
-ls -1 .gpd/phases/[current-phase-dir]/*-SUMMARY.md 2>/dev/null | wc -l
-ls -1 .gpd/phases/[current-phase-dir]/VERIFICATION.md .gpd/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null | wc -l
+ls -1 GPD/phases/[current-phase-dir]/*-PLAN.md 2>/dev/null | wc -l
+ls -1 GPD/phases/[current-phase-dir]/*-SUMMARY.md 2>/dev/null | wc -l
+ls -1 GPD/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null | wc -l
 ```
 
 State: "This phase has {X} plans, {Y} summaries."
 
 **Step 1.5: Check for unaddressed validation gaps**
 
-Check for VERIFICATION.md files with gaps or review requirements. This includes canonical verification `status: gaps_found|human_needed|expert_needed`, plus researcher-session files where `session_status: diagnosed` records rooted gap analysis without changing the final verification vocabulary.
+Check for `*-VERIFICATION.md` files with gaps or review requirements. This includes canonical verification `status: gaps_found|human_needed|expert_needed`, plus researcher-session files where `session_status: diagnosed` records rooted gap analysis without changing the final verification vocabulary.
 
 ```bash
 # Check for validation with gaps or review requirements
-grep -l -E "^(status: (gaps_found|human_needed|expert_needed)|session_status: diagnosed)$" .gpd/phases/[current-phase-dir]/VERIFICATION.md .gpd/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null
+grep -l -E "^(status: (gaps_found|human_needed|expert_needed)|session_status: diagnosed)$" GPD/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null
 ```
 
 Track:
 
-- `validation_with_gaps`: VERIFICATION.md files with `status: gaps_found|human_needed|expert_needed` or `session_status: diagnosed`
+- `validation_with_gaps`: `*-VERIFICATION.md` files with `status: gaps_found|human_needed|expert_needed` or `session_status: diagnosed`
 
 **Step 1.75: Check for existing gap-closure plans**
 
@@ -269,7 +269,7 @@ If `validation_with_gaps > 0`, check whether gap-closure plans already exist but
 ```bash
 # Check for gap_closure plans without matching SUMMARYs
 GAP_PLANS_UNEXECUTED=0
-for plan in .gpd/phases/[current-phase-dir]/*-PLAN.md; do
+for plan in GPD/phases/[current-phase-dir]/*-PLAN.md; do
   if grep -q "gap_closure: true" "$plan" 2>/dev/null; then
     SUMMARY="${plan%-PLAN.md}-SUMMARY.md"
     if [ ! -f "$SUMMARY" ]; then

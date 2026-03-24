@@ -14,7 +14,7 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Record a project-specific learning, error pattern, or insight to `.gpd/INSIGHTS.md`.
+Record a project-specific learning, error pattern, or insight to `GPD/INSIGHTS.md`.
 
 Routes to the record-insight workflow which handles:
 
@@ -38,7 +38,7 @@ Typical insights include:
 </execution_context>
 
 <context>
-@.gpd/STATE.md
+@GPD/STATE.md
 </context>
 
 <process>
@@ -46,7 +46,7 @@ Typical insights include:
 
 The workflow handles all logic including:
 
-1. Checking/creating `.gpd/INSIGHTS.md`
+1. Checking/creating `GPD/INSIGHTS.md`
 2. Duplicate detection
 3. Determining the correct section (Debugging Patterns, Verification Lessons, Consistency Issues, Execution Deviations)
 4. Appending structured table row with date, phase, category, confidence, description, prevention

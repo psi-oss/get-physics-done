@@ -28,7 +28,7 @@ const RUNTIME_CATALOG = require("../src/gpd/adapters/runtime_catalog.json");
 
 const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPythonPackageVersion.trim() : "";
 const GPD_HOME_ENV = "GPD_HOME";
-const GPD_HOME_DIRNAME = ".gpd";
+const GPD_HOME_DIRNAME = "GPD";
 const GITHUB_MAIN_BRANCH = "main";
 const BOOTSTRAP_TEST_PROBES_ENV = "GPD_BOOTSTRAP_TEST_PROBES";
 const BOOTSTRAP_DISABLE_NETWORK_PROBES_ENV = "GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES";
@@ -820,8 +820,8 @@ function printHelp() {
   console.log(` ${cyan}-l, --local${reset}             Use the current project only`);
   console.log(` ${cyan}-g, --global${reset}            Use the global runtime config dir`);
   console.log(` ${cyan}--uninstall${reset}             Uninstall from selected runtime config`);
-  console.log(` ${cyan}--reinstall${reset}             Reinstall the matching tagged GitHub source in ~/.gpd/venv`);
-  console.log(` ${cyan}--upgrade${reset}               Upgrade ~/.gpd/venv from the latest GitHub main source`);
+  console.log(` ${cyan}--reinstall${reset}             Reinstall the matching tagged GitHub source in ~/GPD/venv`);
+  console.log(` ${cyan}--upgrade${reset}               Upgrade ~/GPD/venv from the latest GitHub main source`);
   for (const runtime of ALL_RUNTIMES) {
     const flags = runtimeSelectionFlagList(runtime).join(", ");
     const padding = " ".repeat(Math.max(0, 24 - flags.length));

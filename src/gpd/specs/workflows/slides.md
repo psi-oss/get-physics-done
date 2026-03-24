@@ -8,9 +8,9 @@ Create presentation slides from either a GPD project or the current workspace. T
 Inspect the workspace before asking questions.
 
 1. Detect whether this is an initialized GPD project:
-   - `.gpd/PROJECT.md`
-   - `.gpd/ROADMAP.md`
-   - `.gpd/STATE.md`
+   - `GPD/PROJECT.md`
+   - `GPD/ROADMAP.md`
+   - `GPD/STATE.md`
 
 2. Scan for likely presentation inputs:
    - papers or drafts (`paper/`, `manuscript/`, `draft/`, `*.tex`, `*.pdf`)
@@ -108,7 +108,7 @@ Create the output structure and lock the persistence policy.
 
 Create `slides/` explicitly before writing files.
 
-Do not modify `.gpd/STATE.md`, `.gpd/ROADMAP.md`, `.gpd/PROJECT.md`, or any project state files as part of this workflow.
+Do not modify `GPD/STATE.md`, `GPD/ROADMAP.md`, `GPD/PROJECT.md`, or any project state files as part of this workflow.
 
 Do not commit slide artifacts automatically. Leave the generated files in the workspace and report them clearly.
 

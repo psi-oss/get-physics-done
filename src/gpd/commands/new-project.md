@@ -17,7 +17,7 @@ allowed-tools:
 <context>
 **Flags:**
 - `--auto` — Automatic mode. Synthesizes a scoping contract from the supplied document, asks for one explicit scope approval, then runs research → requirements → roadmap with minimal follow-up interaction. Expects a research proposal document via @ reference.
-- `--minimal` — Fast bootstrapping mode. Uses one structured intake plus one scoping approval gate, then creates all `.gpd/` artifacts with lean content. Scope, anchors, and decisive outputs are still required.
+- `--minimal` — Fast bootstrapping mode. Uses one structured intake plus one scoping approval gate, then creates all `GPD/` artifacts with lean content. Scope, anchors, and decisive outputs are still required.
 - `--minimal @file.md` — Create project directly from a markdown file describing your research and phases. Parses research question, phases, and key parameters from the file.
 </context>
 
@@ -28,13 +28,13 @@ If no project config exists yet, the workflow opens with the physics-questioning
 
 **Creates:**
 
-- `.gpd/PROJECT.md` — research project context
-- `.gpd/config.json` — workflow preferences
-- `.gpd/research/` — domain and literature research (optional)
-- `.gpd/REQUIREMENTS.md` — scoped research requirements
-- `.gpd/ROADMAP.md` — phase structure
-- `.gpd/STATE.md` — project memory
-- `.gpd/state.json` `project_contract` — authoritative machine-readable scoping contract
+- `GPD/PROJECT.md` — research project context
+- `GPD/config.json` — workflow preferences
+- `GPD/research/` — domain and literature research (optional)
+- `GPD/REQUIREMENTS.md` — scoped research requirements
+- `GPD/ROADMAP.md` — phase structure
+- `GPD/STATE.md` — project memory
+- `GPD/state.json` `project_contract` — authoritative machine-readable scoping contract
 
 **After this command:** Run `/gpd:discuss-phase 1` to clarify the first phase before planning.
 </objective>
@@ -77,25 +77,25 @@ Check `$ARGUMENTS` for flags:
 
 <output>
 
-- `.gpd/PROJECT.md`
-- `.gpd/config.json`
-- `.gpd/research/` (if research selected)
+- `GPD/PROJECT.md`
+- `GPD/config.json`
+- `GPD/research/` (if research selected)
   - `PRIOR-WORK.md`
   - `METHODS.md`
   - `COMPUTATIONAL.md`
   - `PITFALLS.md`
   - `SUMMARY.md`
-- `.gpd/REQUIREMENTS.md`
-- `.gpd/ROADMAP.md`
-- `.gpd/STATE.md`
-- `.gpd/CONVENTIONS.md` (established by gpd-notation-coordinator)
+- `GPD/REQUIREMENTS.md`
+- `GPD/ROADMAP.md`
+- `GPD/STATE.md`
+- `GPD/CONVENTIONS.md` (established by gpd-notation-coordinator)
 
 </output>
 
 <success_criteria>
 
 **Full mode success criteria:**
-- [ ] .gpd/ directory created and git repo initialized
+- [ ] GPD/ directory created and git repo initialized
 - [ ] Deep questioning completed (research context fully captured)
 - [ ] Scoping contract captures decisive outputs, anchors, weakest assumptions, and unresolved gaps
 - [ ] Scoping contract explicitly approved before requirements or roadmap generation
@@ -111,7 +111,7 @@ Check `$ARGUMENTS` for flags:
 
 **Minimal mode success criteria (if `--minimal`):**
 
-- [ ] .gpd/ directory created
+- [ ] GPD/ directory created
 - [ ] Git repo initialized
 - [ ] Structured intake captured core question, decisive outputs, anchors, and known gaps
 - [ ] Scoping contract approved before requirements or roadmap generation

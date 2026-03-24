@@ -62,7 +62,7 @@ def _isolate_runtime_detection(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 
 def _setup_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project structure and return project root."""
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
     (planning / "phases").mkdir()
     (planning / "PROJECT.md").write_text("# My Project\n")
@@ -71,12 +71,12 @@ def _setup_project(tmp_path: Path) -> Path:
 
 def _create_roadmap(tmp_path: Path, content: str = "# Roadmap\n## Phase 1\n") -> None:
     """Write ROADMAP.md."""
-    (tmp_path / ".gpd" / "ROADMAP.md").write_text(content)
+    (tmp_path / "GPD" / "ROADMAP.md").write_text(content)
 
 
 def _create_state(tmp_path: Path, state: dict[str, object]) -> None:
     """Write state.json."""
-    (tmp_path / ".gpd" / "state.json").write_text(json.dumps(state))
+    (tmp_path / "GPD" / "state.json").write_text(json.dumps(state))
 
 
 def _create_phase(
@@ -89,7 +89,7 @@ def _create_phase(
     verification: bool = False,
 ) -> Path:
     """Create a phase directory with specified artifacts."""
-    phase_dir = tmp_path / ".gpd" / "phases" / name
+    phase_dir = tmp_path / "GPD" / "phases" / name
     phase_dir.mkdir(parents=True, exist_ok=True)
     for i in range(1, plans + 1):
         (phase_dir / f"{i:02d}-PLAN.md").write_text(f"Plan {i}\n")
@@ -98,13 +98,13 @@ def _create_phase(
     if research:
         (phase_dir / "RESEARCH.md").write_text("Research\n")
     if verification:
-        (phase_dir / "VERIFICATION.md").write_text("Verification\n")
+        (phase_dir / "01-VERIFICATION.md").write_text("Verification\n")
     return phase_dir
 
 
 def _create_todos(tmp_path: Path, count: int) -> None:
     """Create pending todo files."""
-    pending = tmp_path / ".gpd" / "todos" / "pending"
+    pending = tmp_path / "GPD" / "todos" / "pending"
     pending.mkdir(parents=True, exist_ok=True)
     for i in range(count):
         (pending / f"todo-{i}.md").write_text(f"Todo {i}\n")
@@ -452,12 +452,12 @@ def test_paper_exists_suggests_peer_review_before_submission(tmp_path: Path) -> 
 
 
 def test_referee_report_in_planning_root_suggests_response(tmp_path: Path) -> None:
-    """Referee report in .gpd suggests responding to referees."""
+    """Referee report in GPD suggests responding to referees."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
     (root / "paper").mkdir()
     (root / "paper" / "main.tex").write_text("\\documentclass{article}\n")
-    (root / ".gpd" / "REFEREE-REPORT.md").write_text("Major revision needed.\n")
+    (root / "GPD" / "REFEREE-REPORT.md").write_text("Major revision needed.\n")
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
     assert "respond-to-referees" in actions
@@ -513,7 +513,7 @@ def test_explore_mode_boosts_discussion(tmp_path: Path) -> None:
     """Explore mode should lower priority (boost) discuss-phase."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".gpd" / "config.json").write_text(json.dumps({"research_mode": "explore"}))
+    (root / "GPD" / "config.json").write_text(json.dumps({"research_mode": "explore"}))
     _create_phase(root, "01-setup", plans=2, summaries=0)
     _create_phase(root, "02-core")  # pending
     result = suggest_next(root)
@@ -526,7 +526,7 @@ def test_exploit_mode_boosts_execution(tmp_path: Path) -> None:
     """Exploit mode should lower priority (boost) execute-phase."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".gpd" / "config.json").write_text(json.dumps({"research_mode": "exploit"}))
+    (root / "GPD" / "config.json").write_text(json.dumps({"research_mode": "exploit"}))
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
@@ -538,7 +538,7 @@ def test_supervised_mode_penalizes_execution(tmp_path: Path) -> None:
     """Supervised autonomy mode should increase execution priority (penalize)."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".gpd" / "config.json").write_text(json.dumps({"autonomy": "supervised"}))
+    (root / "GPD" / "config.json").write_text(json.dumps({"autonomy": "supervised"}))
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
@@ -550,7 +550,7 @@ def test_yolo_mode_boosts_execution(tmp_path: Path) -> None:
     """YOLO mode should lower execution priority (boost)."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".gpd" / "config.json").write_text(json.dumps({"autonomy": "yolo"}))
+    (root / "GPD" / "config.json").write_text(json.dumps({"autonomy": "yolo"}))
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
@@ -612,7 +612,7 @@ def test_adaptive_mode_without_lock_signal_boosts_discussion(tmp_path: Path) -> 
     """Adaptive mode should stay discussion-heavy until the method is locked by evidence."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".gpd" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}))
+    (root / "GPD" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}))
     _create_phase(root, "01-setup", plans=2, summaries=0)
     _create_phase(root, "02-core")
     result = suggest_next(root)
@@ -626,7 +626,7 @@ def test_adaptive_mode_with_decisive_evidence_boosts_execution_and_verification(
     """Adaptive mode should narrow only once decisive evidence or an explicit lock exists."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / ".gpd" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}))
+    (root / "GPD" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}))
     locked_phase = _create_phase(root, "00-scan", summaries=1)
     (locked_phase / "01-SUMMARY.md").write_text(
         """---

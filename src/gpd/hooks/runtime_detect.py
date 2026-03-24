@@ -98,6 +98,29 @@ def _paths_equal(left: Path, right: Path) -> bool:
         return left.expanduser() == right.expanduser()
 
 
+def _is_workspace_local_runtime_dir(
+    config_dir: Path,
+    *,
+    runtime: str,
+    cwd: Path | None = None,
+) -> bool:
+    """Return whether *config_dir* is the canonical local runtime dir for one workspace root.
+
+    Manifestless explicit targets must not claim ownership merely because their
+    basename matches a runtime's local config dir. Only directories anchored to
+    the current workspace ancestry qualify for local-path ownership fallback.
+    """
+    adapter = _adapter(runtime)
+    if adapter is None or config_dir.name != adapter.local_config_dir_name:
+        return False
+
+    resolved_cwd = cwd or Path.cwd()
+    for base in (resolved_cwd, *resolved_cwd.parents):
+        if _paths_equal(config_dir, adapter.resolve_local_config_dir(base)):
+            return True
+    return False
+
+
 def _explicit_runtime_override() -> str | None:
     """Return an explicit runtime override supplied by GPD-owned shell surfaces."""
     return normalize_runtime_name(os.environ.get(ENV_GPD_ACTIVE_RUNTIME))
@@ -185,19 +208,26 @@ def _has_trusted_manifest_mapping(config_dir: Path) -> bool:
     return isinstance(manifest, dict)
 
 
-def _runtime_from_manifest_or_path(config_dir: Path, *, home: Path | None = None) -> str | None:
+def _runtime_from_manifest_or_path(
+    config_dir: Path,
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+    allow_local_path_fallback: bool = True,
+) -> str | None:
     """Infer the owning runtime for *config_dir* from its manifest or path."""
     manifest_runtime, manifest_has_runtime = _manifest_runtime_status(config_dir)
     if manifest_has_runtime:
         return manifest_runtime or RUNTIME_UNKNOWN
 
+    resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
     trusted_manifest = _has_trusted_manifest_mapping(config_dir)
     for runtime in ALL_RUNTIMES:
         adapter = _adapter(runtime)
         if adapter is None:
             continue
-        if config_dir.name == adapter.local_config_dir_name:
+        if allow_local_path_fallback and _is_workspace_local_runtime_dir(config_dir, runtime=runtime, cwd=resolved_cwd):
             return runtime
         # Explicit config-dir ownership should remain stable even when the
         # current process carries unrelated runtime/XDG override env vars.
@@ -209,9 +239,14 @@ def _runtime_from_manifest_or_path(config_dir: Path, *, home: Path | None = None
     return None
 
 
-def _has_gpd_install(config_dir: Path, *, home: Path | None = None) -> bool:
+def _has_gpd_install(
+    config_dir: Path,
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+) -> bool:
     """Return True when *config_dir* has stable markers of a GPD install."""
-    runtime = _runtime_from_manifest_or_path(config_dir, home=home)
+    runtime = _runtime_from_manifest_or_path(config_dir, cwd=cwd, home=home)
     if runtime in (None, RUNTIME_UNKNOWN):
         return False
     adapter = _adapter(runtime)
@@ -241,9 +276,9 @@ def _runtime_dir_has_gpd_install(
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
 
-    if include_local and _has_gpd_install(_local_runtime_dir(runtime, resolved_cwd), home=resolved_home):
+    if include_local and _has_gpd_install(_local_runtime_dir(runtime, resolved_cwd), cwd=resolved_cwd, home=resolved_home):
         return True
-    if include_global and _has_gpd_install(_global_runtime_dir(runtime, home=resolved_home), home=resolved_home):
+    if include_global and _has_gpd_install(_global_runtime_dir(runtime, home=resolved_home), cwd=resolved_cwd, home=resolved_home):
         return True
     return False
 
@@ -258,14 +293,14 @@ def _detect_runtime_install_target(
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
     local_dir = _local_runtime_dir(runtime, resolved_cwd)
-    if _has_gpd_install(local_dir, home=resolved_home):
+    if _has_gpd_install(local_dir, cwd=resolved_cwd, home=resolved_home):
         return RuntimeInstallTarget(
             config_dir=local_dir,
             install_scope=_manifest_install_scope(local_dir) or SCOPE_LOCAL,
         )
 
     global_dir = _global_runtime_dir(runtime, home=resolved_home)
-    if _has_gpd_install(global_dir, home=resolved_home):
+    if _has_gpd_install(global_dir, cwd=resolved_cwd, home=resolved_home):
         return RuntimeInstallTarget(
             config_dir=global_dir,
             install_scope=_manifest_install_scope(global_dir) or SCOPE_GLOBAL,
@@ -325,7 +360,7 @@ def resolve_effective_runtime(
 
     for runtime in ordered_runtimes:
         local_dir = _local_runtime_dir(runtime, resolved_cwd)
-        if _has_gpd_install(local_dir, home=resolved_home):
+        if _has_gpd_install(local_dir, cwd=resolved_cwd, home=resolved_home):
             return EffectiveRuntimeResolution(
                 runtime=runtime,
                 source=SOURCE_LOCAL,
@@ -334,7 +369,7 @@ def resolve_effective_runtime(
             )
 
         global_dir = _global_runtime_dir(runtime, home=resolved_home)
-        if _has_gpd_install(global_dir, home=resolved_home):
+        if _has_gpd_install(global_dir, cwd=resolved_cwd, home=resolved_home):
             return EffectiveRuntimeResolution(
                 runtime=runtime,
                 source=SOURCE_GLOBAL,

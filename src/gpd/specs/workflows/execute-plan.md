@@ -40,7 +40,7 @@ STATE_CONTENT=$(echo "$INIT" | gpd json get .state_content --default "")
 CONFIG_CONTENT=$(echo "$INIT" | gpd json get .config_content --default "")
 ```
 
-If `.gpd/` missing: error.
+If `GPD/` missing: error.
 </step>
 
 <step name="load_contract_anchor_context">
@@ -231,11 +231,11 @@ Fresh context per subagent preserves peak quality. Main context stays lean.
 
 <step name="init_agent_tracking">
 ```bash
-if [ ! -f .gpd/agent-history.json ]; then
-  echo '{"version":"1.0","max_entries":50,"entries":[]}' > .gpd/agent-history.json
+if [ ! -f GPD/agent-history.json ]; then
+  echo '{"version":"1.0","max_entries":50,"entries":[]}' > GPD/agent-history.json
 fi
-if [ -f .gpd/current-agent-id.txt ]; then
-  INTERRUPTED_ID=$(cat .gpd/current-agent-id.txt)
+if [ -f GPD/current-agent-id.txt ]; then
+  INTERRUPTED_ID=$(cat GPD/current-agent-id.txt)
   echo "Found interrupted agent: $INTERRUPTED_ID"
 fi
 ```
@@ -274,7 +274,7 @@ This IS the execution instructions. Follow exactly. If plan references CONTEXT.m
 
 <step name="previous_phase_check">
 ```bash
-ls .gpd/phases/*/*-SUMMARY.md 2>/dev/null | sort -r | head -2 | tail -1
+ls GPD/phases/*/*-SUMMARY.md 2>/dev/null | sort -r | head -2 | tail -1
 ```
 > **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
@@ -573,7 +573,7 @@ gpd_return:
       tasks: "${TASK_COUNT}"
       files: "${FILE_COUNT}"
   contract_updates:
-    plan_contract_ref: ".gpd/phases/${phase_dir_name}/${phase}-${plan}-PLAN.md#/contract"
+    plan_contract_ref: "GPD/phases/${phase_dir_name}/${phase}-${plan}-PLAN.md#/contract"
     contract_results: { ... keyed by claim/deliverable/test/reference/proxy ids ... }
     comparison_verdicts: [ ... ]  # Include inconclusive/tension entries when a decisive comparison is still open
     contract_completion_status: complete | partial | blocked
@@ -653,14 +653,14 @@ Task work already committed per-task. By this step the main context has already 
 
 ```bash
 # Validate staged files before final commit (physics checks, format checks)
-PRE_CHECK=$(gpd pre-commit-check --files "${phase_dir}/${phase}-${plan}-SUMMARY.md" .gpd/STATE.md .gpd/ROADMAP.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "${phase_dir}/${phase}-${plan}-SUMMARY.md" GPD/STATE.md GPD/ROADMAP.md 2>&1) || true
 echo "$PRE_CHECK"
 ```
 
 If the explicit `PRE_CHECK` command reports issues, treat it as early visibility only. `gpd commit` re-runs the same validation on the commit paths and remains the blocking gate, so fix any reported issues before retrying when the commit is rejected.
 
 ```bash
-gpd commit "docs(${phase}-${plan}): complete ${PLAN_NAME} plan" --files "${phase_dir}/${phase}-${plan}-SUMMARY.md" .gpd/STATE.md .gpd/ROADMAP.md
+gpd commit "docs(${phase}-${plan}): complete ${PLAN_NAME} plan" --files "${phase_dir}/${phase}-${plan}-SUMMARY.md" GPD/STATE.md GPD/ROADMAP.md
 ```
 
 </step>

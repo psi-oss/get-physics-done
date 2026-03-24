@@ -18,6 +18,7 @@ from pathlib import Path, PurePosixPath
 
 from gpd.adapters.runtime_catalog import get_runtime_descriptor, resolve_global_config_dir
 from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES
+from gpd.core.constants import HOME_DATA_DIR_NAME
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -779,8 +780,8 @@ def expand_at_includes(
 
         >>> expand_at_includes("no includes here", "/src", "/runtime/")
         'no includes here'
-        >>> expand_at_includes("@.gpd/notes.md", "/src", "/runtime/")
-        '@.gpd/notes.md'
+        >>> expand_at_includes("@GPD/notes.md", "/src", "/runtime/")
+        '@GPD/notes.md'
     """
     if depth > MAX_INCLUDE_EXPANSION_DEPTH:
         return content
@@ -829,8 +830,8 @@ def expand_at_includes(
             result.append(line)
             continue
 
-        # .gpd/ relative paths — project-specific, skip
-        if include_path.startswith(".gpd/"):
+        # GPD/ relative paths — project-specific, skip
+        if include_path.startswith("GPD/"):
             result.append(line)
             continue
 
@@ -1808,7 +1809,7 @@ def _gpd_home_dir() -> Path:
         expanded = expand_tilde(raw_home)
         if expanded:
             return Path(expanded).expanduser()
-    return Path.home() / ".gpd"
+    return Path.home() / HOME_DATA_DIR_NAME
 
 
 def _managed_gpd_python() -> str | None:

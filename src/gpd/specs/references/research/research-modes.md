@@ -182,7 +182,7 @@ Research mode and model profile are ORTHOGONAL:
 
 ## Config Schema
 
-`research_mode` is the only persisted adaptive-mode knob in `.gpd/config.json`. There is no separate `adaptive_transition` block; transition readiness is inferred from project state, anchors, and verification outcomes.
+`research_mode` is the only persisted adaptive-mode knob in `GPD/config.json`. There is no separate `adaptive_transition` block; transition readiness is inferred from project state, anchors, and verification outcomes.
 
 ## Command Interface
 

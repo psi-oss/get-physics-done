@@ -46,7 +46,7 @@ def claude_code_command_prefix(monkeypatch: pytest.MonkeyPatch) -> str:
 @pytest.fixture()
 def gpd_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project with all files commands might touch."""
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
 
     state = default_state_dict()
@@ -189,7 +189,7 @@ def _invoke(*args: str, expect_ok: bool = True) -> None:
 
 
 def _write_review_stage_artifacts(project_root: Path, artifact_names: tuple[str, ...] | None = None) -> None:
-    review_dir = project_root / ".gpd" / "review"
+    review_dir = project_root / "GPD" / "review"
     review_dir.mkdir(parents=True, exist_ok=True)
     for artifact_name in artifact_names or (
         "STAGE-reader.json",
@@ -220,16 +220,16 @@ class TestConventionCommands:
         _invoke("convention", "set", "metric_signature", "(+,-,-,-)", "--force")
 
     def test_check_empty_state(self, gpd_project: Path) -> None:
-        (gpd_project / ".gpd" / "state.json").write_text("{}")
+        (gpd_project / "GPD" / "state.json").write_text("{}")
         _invoke("convention", "check")
 
     def test_check_no_state_file(self, gpd_project: Path) -> None:
-        (gpd_project / ".gpd" / "state.json").unlink()
+        (gpd_project / "GPD" / "state.json").unlink()
         _invoke("convention", "check")
 
     def test_set_persists(self, gpd_project: Path) -> None:
         _invoke("convention", "set", "fourier_convention", "physics")
-        state = json.loads((gpd_project / ".gpd" / "state.json").read_text())
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text())
         assert state["convention_lock"]["fourier_convention"] == "physics"
 
 
@@ -273,7 +273,7 @@ class TestStateCommands:
         )
 
         _invoke("state", "set-project-contract", str(contract_path))
-        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
         assert state["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
 
     def test_set_project_contract_resolves_relative_path_against_cwd(self, gpd_project: Path) -> None:
@@ -290,7 +290,7 @@ class TestStateCommands:
         )
 
         assert result.exit_code == 0, result.output
-        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
         assert state["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
 
     def test_set_project_contract_accepts_stdin(self, gpd_project: Path) -> None:
@@ -304,7 +304,7 @@ class TestStateCommands:
         )
 
         assert result.exit_code == 0, result.output
-        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
         assert state["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
 
     def test_set_project_contract_raw_surfaces_warnings_on_success(self, gpd_project: Path) -> None:
@@ -358,7 +358,7 @@ class TestStateCommands:
         payload = json.loads(result.output)
         assert payload["updated"] is True
         assert any("must_read_refs" in warning for warning in payload["warnings"])
-        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
         assert state["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
 
     def test_set_project_contract_raw_accepts_schema_valid_contract_with_approval_blockers(
@@ -389,7 +389,7 @@ class TestStateCommands:
         payload = json.loads(result.output)
         assert payload["updated"] is True
         assert any("references must include at least one must_surface=true anchor" in warning for warning in payload["warnings"])
-        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
         assert state["project_contract"]["references"][0]["role"] == "background"
 
 
@@ -439,7 +439,7 @@ class TestInitCommands:
         )
 
     def test_plan_phase_surfaces_artifact_derived_reference_context(self, gpd_project: Path) -> None:
-        literature_dir = gpd_project / ".gpd" / "literature"
+        literature_dir = gpd_project / "GPD" / "literature"
         literature_dir.mkdir(parents=True)
         (literature_dir / "benchmark-REVIEW.md").write_text(
             """# Literature Review: Benchmark Survey
@@ -468,7 +468,7 @@ review_summary:
 """,
             encoding="utf-8",
         )
-        map_dir = gpd_project / ".gpd" / "research-map"
+        map_dir = gpd_project / "GPD" / "research-map"
         map_dir.mkdir(parents=True)
         (map_dir / "REFERENCES.md").write_text(
             """# Reference and Anchor Map
@@ -477,7 +477,7 @@ review_summary:
 
 | Anchor | Type | Source / Locator | What It Constrains | Required Action | Carry Forward To |
 | ------ | ---- | ---------------- | ------------------ | --------------- | ---------------- |
-| prior-baseline | prior artifact | `.gpd/phases/01-test-phase/01-SUMMARY.md` | Baseline summary for later comparisons | use | planning/execution |
+| prior-baseline | prior artifact | `GPD/phases/01-test-phase/01-SUMMARY.md` | Baseline summary for later comparisons | use | planning/execution |
 """,
             encoding="utf-8",
         )
@@ -489,19 +489,19 @@ review_summary:
         assert payload["project_contract"] is None
         assert payload["derived_active_reference_count"] >= 2
         assert "Benchmark Ref 2024" in payload["active_reference_context"]
-        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in payload["active_reference_context"]
-        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in payload["effective_reference_intake"]["must_include_prior_outputs"]
+        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in payload["active_reference_context"]
+        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in payload["effective_reference_intake"]["must_include_prior_outputs"]
 
     def test_new_milestone_surfaces_contract_and_effective_reference_context(self, gpd_project: Path) -> None:
-        (gpd_project / ".gpd" / "ROADMAP.md").write_text(
+        (gpd_project / "GPD" / "ROADMAP.md").write_text(
             "# Roadmap\n\n## Milestone v1.1: Scaling Study\n",
             encoding="utf-8",
         )
-        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
         state["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
-        (gpd_project / ".gpd" / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+        (gpd_project / "GPD" / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
 
-        literature_dir = gpd_project / ".gpd" / "literature"
+        literature_dir = gpd_project / "GPD" / "literature"
         literature_dir.mkdir(parents=True)
         (literature_dir / "benchmark-REVIEW.md").write_text(
             "## Active Anchor Registry\n\n"
@@ -510,11 +510,11 @@ review_summary:
             "| Benchmark Ref 2024 | benchmark | Published benchmark curve for the decisive observable | read/compare/cite | planning/execution |\n",
             encoding="utf-8",
         )
-        map_dir = gpd_project / ".gpd" / "research-map"
+        map_dir = gpd_project / "GPD" / "research-map"
         map_dir.mkdir(parents=True)
         (map_dir / "CONCERNS.md").write_text(
             "## Prior Outputs\n\n"
-            "- `.gpd/phases/01-test-phase/01-SUMMARY.md`\n",
+            "- `GPD/phases/01-test-phase/01-SUMMARY.md`\n",
             encoding="utf-8",
         )
 
@@ -525,15 +525,15 @@ review_summary:
         assert payload["current_milestone"] == "v1.1"
         assert payload["project_contract"]["references"][0]["id"] == "ref-benchmark"
         assert "Benchmark Ref 2024" in payload["active_reference_context"]
-        assert ".gpd/phases/01-test-phase/01-SUMMARY.md" in payload["effective_reference_intake"]["must_include_prior_outputs"]
-        assert ".gpd/research-map/CONCERNS.md" in payload["research_map_reference_files"]
+        assert "GPD/phases/01-test-phase/01-SUMMARY.md" in payload["effective_reference_intake"]["must_include_prior_outputs"]
+        assert "GPD/research-map/CONCERNS.md" in payload["research_map_reference_files"]
 
     def test_new_milestone_surfaces_contract_load_and_validation_gates(self, gpd_project: Path) -> None:
-        (gpd_project / ".gpd" / "ROADMAP.md").write_text(
+        (gpd_project / "GPD" / "ROADMAP.md").write_text(
             "# Roadmap\n\n## Milestone v1.1: Scaling Study\n",
             encoding="utf-8",
         )
-        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["context_intake"] = {
             "must_read_refs": [],
@@ -546,7 +546,7 @@ review_summary:
         contract["references"][0]["role"] = "background"
         contract["references"][0]["must_surface"] = False
         state["project_contract"] = contract
-        (gpd_project / ".gpd" / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+        (gpd_project / "GPD" / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
 
         result = runner.invoke(app, ["--raw", "init", "new-milestone"], catch_exceptions=False)
         assert result.exit_code == 0, result.output
@@ -561,7 +561,7 @@ review_summary:
         assert "project_contract_validation" in payload
 
     def test_phase_op_surfaces_contract_load_and_validation_gates(self, gpd_project: Path) -> None:
-        state = json.loads((gpd_project / ".gpd" / "state.json").read_text(encoding="utf-8"))
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["context_intake"] = {
             "must_read_refs": [],
@@ -574,7 +574,7 @@ review_summary:
         contract["references"][0]["role"] = "background"
         contract["references"][0]["must_surface"] = False
         state["project_contract"] = contract
-        (gpd_project / ".gpd" / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+        (gpd_project / "GPD" / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
 
         result = runner.invoke(app, ["--raw", "init", "phase-op"], catch_exceptions=False)
         assert result.exit_code == 0, result.output
@@ -740,7 +740,7 @@ class TestReviewValidationCommands:
         assert payload["command"] == "gpd:write-paper"
         assert payload["context_mode"] == "project-required"
         assert payload["review_contract"]["review_mode"] == "publication"
-        assert ".gpd/REFEREE-REPORT.tex" in payload["review_contract"]["required_outputs"]
+        assert "GPD/REFEREE-REPORT.tex" in payload["review_contract"]["required_outputs"]
         assert payload["review_contract"]["preflight_checks"] == [
             "project_state",
             "roadmap",
@@ -767,12 +767,12 @@ class TestReviewValidationCommands:
         assert payload["command"] == "gpd:peer-review"
         assert payload["context_mode"] == "project-required"
         assert payload["review_contract"]["review_mode"] == "publication"
-        assert ".gpd/REFEREE-REPORT{round_suffix}.md" in payload["review_contract"]["required_outputs"]
-        assert ".gpd/REFEREE-REPORT{round_suffix}.tex" in payload["review_contract"]["required_outputs"]
-        assert ".gpd/review/CLAIMS{round_suffix}.json" in payload["review_contract"]["required_outputs"]
-        assert ".gpd/review/STAGE-interestingness{round_suffix}.json" in payload["review_contract"]["required_outputs"]
-        assert ".gpd/review/REFEREE-DECISION{round_suffix}.json" in payload["review_contract"]["required_outputs"]
-        assert ".gpd/CONSISTENCY-REPORT.md" not in payload["review_contract"]["required_outputs"]
+        assert "GPD/REFEREE-REPORT{round_suffix}.md" in payload["review_contract"]["required_outputs"]
+        assert "GPD/REFEREE-REPORT{round_suffix}.tex" in payload["review_contract"]["required_outputs"]
+        assert "GPD/review/CLAIMS{round_suffix}.json" in payload["review_contract"]["required_outputs"]
+        assert "GPD/review/STAGE-interestingness{round_suffix}.json" in payload["review_contract"]["required_outputs"]
+        assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in payload["review_contract"]["required_outputs"]
+        assert "GPD/CONSISTENCY-REPORT.md" not in payload["review_contract"]["required_outputs"]
         assert payload["review_contract"]["preflight_checks"] == [
             "project_state",
             "roadmap",
@@ -796,16 +796,16 @@ class TestReviewValidationCommands:
             "meta",
         ]
         assert payload["review_contract"]["stage_artifacts"] == [
-            ".gpd/review/CLAIMS{round_suffix}.json",
-            ".gpd/review/STAGE-reader{round_suffix}.json",
-            ".gpd/review/STAGE-literature{round_suffix}.json",
-            ".gpd/review/STAGE-math{round_suffix}.json",
-            ".gpd/review/STAGE-physics{round_suffix}.json",
-            ".gpd/review/STAGE-interestingness{round_suffix}.json",
-            ".gpd/review/REVIEW-LEDGER{round_suffix}.json",
-            ".gpd/review/REFEREE-DECISION{round_suffix}.json",
+            "GPD/review/CLAIMS{round_suffix}.json",
+            "GPD/review/STAGE-reader{round_suffix}.json",
+            "GPD/review/STAGE-literature{round_suffix}.json",
+            "GPD/review/STAGE-math{round_suffix}.json",
+            "GPD/review/STAGE-physics{round_suffix}.json",
+            "GPD/review/STAGE-interestingness{round_suffix}.json",
+            "GPD/review/REVIEW-LEDGER{round_suffix}.json",
+            "GPD/review/REFEREE-DECISION{round_suffix}.json",
         ]
-        assert payload["review_contract"]["final_decision_output"] == ".gpd/review/REFEREE-DECISION{round_suffix}.json"
+        assert payload["review_contract"]["final_decision_output"] == "GPD/review/REFEREE-DECISION{round_suffix}.json"
         assert payload["review_contract"]["requires_fresh_context_per_stage"] is True
 
     def test_review_contract_accepts_public_command_label(self) -> None:
@@ -832,8 +832,8 @@ class TestReviewValidationCommands:
         assert payload["command"] == "gpd:respond-to-referees"
         assert payload["context_mode"] == "project-required"
         assert payload["review_contract"]["review_mode"] == "publication"
-        assert ".gpd/paper/REFEREE_RESPONSE{round_suffix}.md" in payload["review_contract"]["required_outputs"]
-        assert ".gpd/AUTHOR-RESPONSE{round_suffix}.md" in payload["review_contract"]["required_outputs"]
+        assert "GPD/paper/REFEREE_RESPONSE{round_suffix}.md" in payload["review_contract"]["required_outputs"]
+        assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in payload["review_contract"]["required_outputs"]
         assert "existing manuscript" in payload["review_contract"]["required_evidence"]
         assert "structured referee issues" in payload["review_contract"]["required_evidence"]
         assert "peer-review review ledger when available" in payload["review_contract"]["required_evidence"]
@@ -1291,7 +1291,7 @@ class TestReviewValidationCommands:
         assert checks["reproducibility_ready"]["passed"] is True
 
     def test_review_preflight_strict_blocks_review_integrity_failures(self, gpd_project: Path) -> None:
-        planning = gpd_project / ".gpd"
+        planning = gpd_project / "GPD"
         state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
         state["intermediate_results"] = [
             {"id": "R-01", "description": "Unbacked claim", "depends_on": [], "verified": True, "verification_records": []}
@@ -1310,7 +1310,7 @@ class TestReviewValidationCommands:
         assert checks["state_integrity"]["passed"] is False
 
     def test_review_preflight_strict_blocks_semantically_invalid_project_contract(self, gpd_project: Path) -> None:
-        planning = gpd_project / ".gpd"
+        planning = gpd_project / "GPD"
         state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["uncertainty_markers"]["weakest_anchors"] = []
@@ -1331,7 +1331,7 @@ class TestReviewValidationCommands:
         assert "project_contract:" in checks["state_integrity"]["detail"]
 
     def test_review_preflight_strict_blocks_invalid_phase_artifact_frontmatter(self, gpd_project: Path) -> None:
-        planning = gpd_project / ".gpd"
+        planning = gpd_project / "GPD"
         phase_dir = planning / "phases" / "01-test-phase"
         (phase_dir / "01-SUMMARY.md").write_text("# Summary\n\nMissing frontmatter.\n", encoding="utf-8")
         (phase_dir / "01-VERIFICATION.md").write_text("# Verification\n\nMissing frontmatter.\n", encoding="utf-8")
@@ -1349,7 +1349,7 @@ class TestReviewValidationCommands:
         assert checks["verification_frontmatter"]["passed"] is False
 
     def test_review_preflight_verify_work_for_phase(self, gpd_project: Path) -> None:
-        planning = gpd_project / ".gpd"
+        planning = gpd_project / "GPD"
         state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
         state["position"]["status"] = "Phase complete — ready for verification"
         (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
@@ -1389,7 +1389,7 @@ class TestReviewValidationCommands:
         assert 'found "Planning"' in checks["required_state"]["detail"]
 
     def test_review_preflight_verify_work_without_subject_uses_current_phase_artifacts(self, gpd_project: Path) -> None:
-        planning = gpd_project / ".gpd"
+        planning = gpd_project / "GPD"
         state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
         state["position"]["current_phase"] = "02"
         state["position"]["status"] = "Phase complete — ready for verification"
@@ -1602,7 +1602,7 @@ class TestReviewValidationCommands:
         assert checks["compiled_manuscript"]["passed"] is True
 
     def test_review_preflight_arxiv_submission_strict_blocks_publication_blockers(self, gpd_project: Path) -> None:
-        planning = gpd_project / ".gpd"
+        planning = gpd_project / "GPD"
         state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
         state["blockers"] = ["Publication blocker: unresolved venue fit"]
         (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
@@ -1622,7 +1622,7 @@ class TestReviewValidationCommands:
         assert checks["publication_blockers"]["blocking"] is True
 
     def test_review_preflight_arxiv_submission_ignores_generic_non_publication_blockers(self, gpd_project: Path) -> None:
-        planning = gpd_project / ".gpd"
+        planning = gpd_project / "GPD"
         state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
         state["blockers"] = ["IR divergence in loop integral"]
         (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
@@ -1960,7 +1960,7 @@ class TestReviewValidationCommands:
             ),
             encoding="utf-8",
         )
-        tracker_dir = gpd_project / ".gpd" / "paper"
+        tracker_dir = gpd_project / "GPD" / "paper"
         tracker_dir.mkdir(parents=True, exist_ok=True)
         (tracker_dir / "FIGURE_TRACKER.md").write_text(
             "---\n"
@@ -1978,12 +1978,12 @@ class TestReviewValidationCommands:
             "    caption_self_contained: true\n"
             "    colorblind_safe: true\n"
             "    comparison_sources:\n"
-            "      - .gpd/comparisons/benchmark-COMPARISON.md\n"
+            "      - GPD/comparisons/benchmark-COMPARISON.md\n"
             "---\n\n"
             "# Figure Tracker\n",
             encoding="utf-8",
         )
-        comparison_dir = gpd_project / ".gpd" / "comparisons"
+        comparison_dir = gpd_project / "GPD" / "comparisons"
         comparison_dir.mkdir(parents=True, exist_ok=True)
         (comparison_dir / "benchmark-COMPARISON.md").write_text(
             "---\n"
@@ -1991,10 +1991,10 @@ class TestReviewValidationCommands:
             "comparison_sources:\n"
             "  - label: theory\n"
             "    kind: summary\n"
-            "    path: .gpd/phases/01-benchmark/01-SUMMARY.md\n"
+            "    path: GPD/phases/01-benchmark/01-SUMMARY.md\n"
             "  - label: benchmark\n"
             "    kind: verification\n"
-            "    path: .gpd/phases/01-benchmark/01-VERIFICATION.md\n"
+            "    path: GPD/phases/01-benchmark/01-VERIFICATION.md\n"
             "comparison_verdicts:\n"
             "  - subject_id: claim-benchmark\n"
             "    subject_kind: claim\n"
@@ -2009,7 +2009,7 @@ class TestReviewValidationCommands:
             "# Internal Comparison\n",
             encoding="utf-8",
         )
-        phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
+        phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"
         phase_dir.mkdir(parents=True, exist_ok=True)
         (phase_dir / "01-SUMMARY.md").write_text(
             (stage4_dir / "summary_with_contract_results.md").read_text(encoding="utf-8"),
@@ -2042,11 +2042,11 @@ class TestReviewValidationCommands:
                     "target_journal": "jhep",
                     "final_recommendation": "major_revision",
                     "stage_artifacts": [
-                        ".gpd/review/STAGE-reader.json",
-                        ".gpd/review/STAGE-literature.json",
-                        ".gpd/review/STAGE-math.json",
-                        ".gpd/review/STAGE-physics.json",
-                        ".gpd/review/STAGE-interestingness.json",
+                        "GPD/review/STAGE-reader.json",
+                        "GPD/review/STAGE-literature.json",
+                        "GPD/review/STAGE-math.json",
+                        "GPD/review/STAGE-physics.json",
+                        "GPD/review/STAGE-interestingness.json",
                     ],
                     "claim_scope_proportionate_to_evidence": False,
                     "reframing_possible_without_new_results": True,
@@ -2100,11 +2100,11 @@ class TestReviewValidationCommands:
                     "target_journal": "jhep",
                     "final_recommendation": "major_revision",
                     "stage_artifacts": [
-                        ".gpd/review/STAGE-reader-R2.json",
-                        ".gpd/review/STAGE-literature-R2.json",
-                        ".gpd/review/STAGE-math-R2.json",
-                        ".gpd/review/STAGE-physics-R2.json",
-                        ".gpd/review/STAGE-interestingness-R2.json",
+                        "GPD/review/STAGE-reader-R2.json",
+                        "GPD/review/STAGE-literature-R2.json",
+                        "GPD/review/STAGE-math-R2.json",
+                        "GPD/review/STAGE-physics-R2.json",
+                        "GPD/review/STAGE-interestingness-R2.json",
                     ],
                 }
             ),
@@ -2140,11 +2140,11 @@ class TestReviewValidationCommands:
                     "target_journal": "jhep",
                     "final_recommendation": "major_revision",
                     "stage_artifacts": [
-                        ".gpd/review/CLAIMS.json",
-                        ".gpd/review/REVIEW-LEDGER.json",
-                        ".gpd/review/REFEREE-DECISION.json",
-                        ".gpd/review/STAGE-meta.json",
-                        ".gpd/review/STAGE-summary.json",
+                        "GPD/review/CLAIMS.json",
+                        "GPD/review/REVIEW-LEDGER.json",
+                        "GPD/review/REFEREE-DECISION.json",
+                        "GPD/review/STAGE-meta.json",
+                        "GPD/review/STAGE-summary.json",
                     ],
                 }
             ),
@@ -2172,12 +2172,12 @@ class TestReviewValidationCommands:
                     "target_journal": "jhep",
                     "final_recommendation": "major_revision",
                     "stage_artifacts": [
-                        ".gpd/review/STAGE-reader.json",
-                        ".gpd/review/STAGE-literature.json",
-                        ".gpd/review/STAGE-math.json",
-                        ".gpd/review/STAGE-physics.json",
-                        ".gpd/review/STAGE-interestingness.json",
-                        ".gpd/review/STAGE-meta.json",
+                        "GPD/review/STAGE-reader.json",
+                        "GPD/review/STAGE-literature.json",
+                        "GPD/review/STAGE-math.json",
+                        "GPD/review/STAGE-physics.json",
+                        "GPD/review/STAGE-interestingness.json",
+                        "GPD/review/STAGE-meta.json",
                     ],
                 }
             ),
@@ -2206,11 +2206,11 @@ class TestReviewValidationCommands:
                     "target_journal": "prl",
                     "final_recommendation": "minor_revision",
                     "stage_artifacts": [
-                        ".gpd/review/STAGE-reader.json",
-                        ".gpd/review/STAGE-literature.json",
-                        ".gpd/review/STAGE-math.json",
-                        ".gpd/review/STAGE-physics.json",
-                        ".gpd/review/STAGE-interestingness.json",
+                        "GPD/review/STAGE-reader.json",
+                        "GPD/review/STAGE-literature.json",
+                        "GPD/review/STAGE-math.json",
+                        "GPD/review/STAGE-physics.json",
+                        "GPD/review/STAGE-interestingness.json",
                     ],
                     "novelty": "adequate",
                     "significance": "weak",
@@ -2240,11 +2240,11 @@ class TestReviewValidationCommands:
                     "target_journal": "jhep",
                     "final_recommendation": "major_revision",
                     "stage_artifacts": [
-                        ".gpd/review/STAGE-reader.json",
-                        ".gpd/review/STAGE-literature.json",
-                        ".gpd/review/STAGE-math.json",
-                        ".gpd/review/STAGE-physics.json",
-                        ".gpd/review/STAGE-interestingness.json",
+                        "GPD/review/STAGE-reader.json",
+                        "GPD/review/STAGE-literature.json",
+                        "GPD/review/STAGE-math.json",
+                        "GPD/review/STAGE-physics.json",
+                        "GPD/review/STAGE-interestingness.json",
                     ],
                 }
             ),
@@ -2274,11 +2274,11 @@ class TestReviewValidationCommands:
                     "target_journal": "jhep",
                     "final_recommendation": "major_revision",
                     "stage_artifacts": [
-                        ".gpd/review/STAGE-reader.json",
-                        ".gpd/review/STAGE-literature.json",
-                        ".gpd/review/STAGE-math.json",
-                        ".gpd/review/STAGE-physics.json",
-                        ".gpd/review/STAGE-interestingness.json",
+                        "GPD/review/STAGE-reader.json",
+                        "GPD/review/STAGE-literature.json",
+                        "GPD/review/STAGE-math.json",
+                        "GPD/review/STAGE-physics.json",
+                        "GPD/review/STAGE-interestingness.json",
                     ],
                     "blocking_issue_ids": ["REF-999"],
                 }
@@ -2351,11 +2351,11 @@ class TestReviewValidationCommands:
                     "target_journal": "jhep",
                     "final_recommendation": "major_revision",
                     "stage_artifacts": [
-                        ".gpd/review/STAGE-reader.json",
-                        ".gpd/review/STAGE-literature.json",
-                        ".gpd/review/STAGE-math.json",
-                        ".gpd/review/STAGE-physics.json",
-                        ".gpd/review/STAGE-interestingness.json",
+                        "GPD/review/STAGE-reader.json",
+                        "GPD/review/STAGE-literature.json",
+                        "GPD/review/STAGE-math.json",
+                        "GPD/review/STAGE-physics.json",
+                        "GPD/review/STAGE-interestingness.json",
                     ],
                 }
             ),
@@ -2549,7 +2549,7 @@ class TestReviewValidationCommands:
         assert "review-ledger.issues must be an array, not str" in payload["error"]
 
     def test_validate_plan_contract_command_accepts_valid_plan(self, gpd_project: Path) -> None:
-        phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
+        phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"
         phase_dir.mkdir(parents=True, exist_ok=True)
         plan_path = phase_dir / "01-01-PLAN.md"
         plan_path.write_text(
@@ -2568,7 +2568,7 @@ class TestReviewValidationCommands:
         assert payload["valid"] is True
 
     def test_validate_plan_contract_command_rejects_ambiguous_contract_target_ids(self, gpd_project: Path) -> None:
-        phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
+        phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"
         phase_dir.mkdir(parents=True, exist_ok=True)
         plan_path = phase_dir / "01-01-PLAN.md"
         plan_path.write_text(
@@ -2600,7 +2600,7 @@ class TestReviewValidationCommands:
         )
 
     def test_validate_summary_contract_command_rejects_unknown_contract_ids(self, gpd_project: Path) -> None:
-        phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
+        phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"
         phase_dir.mkdir(parents=True, exist_ok=True)
         (phase_dir / "01-01-PLAN.md").write_text(
             (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"),
@@ -2625,7 +2625,7 @@ class TestReviewValidationCommands:
         assert any("Unknown claim contract_results entry: claim-unknown" in error for error in payload["errors"])
 
     def test_validate_summary_contract_command_reports_unresolved_plan_contract_ref(self, gpd_project: Path) -> None:
-        phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
+        phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"
         phase_dir.mkdir(parents=True, exist_ok=True)
         summary_path = phase_dir / "01-SUMMARY.md"
         summary_path.write_text(
@@ -2644,7 +2644,7 @@ class TestReviewValidationCommands:
         assert "plan_contract_ref: could not resolve matching plan contract" in payload["errors"]
 
     def test_validate_verification_contract_command_requires_contract_results(self, gpd_project: Path) -> None:
-        phase_dir = gpd_project / ".gpd" / "phases" / "01-benchmark"
+        phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"
         phase_dir.mkdir(parents=True, exist_ok=True)
         (phase_dir / "01-01-PLAN.md").write_text(
             (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"),
@@ -2657,7 +2657,7 @@ class TestReviewValidationCommands:
             "verified: 2026-03-13T00:00:00Z\n"
             "status: passed\n"
             "score: 1/1 contract targets verified\n"
-            "plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract\n"
+            "plan_contract_ref: GPD/phases/01-benchmark/01-01-PLAN.md#/contract\n"
             "---\n\n"
             "# Verification\n",
             encoding="utf-8",

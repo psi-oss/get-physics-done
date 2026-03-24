@@ -13,7 +13,6 @@ from gpd.hooks.runtime_detect import (
     SCOPE_GLOBAL,
     SCOPE_LOCAL,
     _runtime_from_manifest_or_path,
-    detect_install_scope,
     normalize_runtime_name,
 )
 
@@ -139,7 +138,7 @@ def installed_runtime(config_dir: Path) -> str | None:
     if manifest_runtime is not None:
         return manifest_runtime
 
-    path_runtime = _runtime_from_manifest_or_path(config_dir)
+    path_runtime = _runtime_from_manifest_or_path(config_dir, allow_local_path_fallback=False)
     if path_runtime == RUNTIME_UNKNOWN:
         return None
     return path_runtime
@@ -188,8 +187,7 @@ def _detect_install_scope_fallback(
         return SCOPE_GLOBAL
 
     if _paths_equal(install_target, config_dir) and config_dir.name == adapter.local_config_dir_name:
-        detected_scope = detect_install_scope(runtime, cwd=install_target.parent)
-        return detected_scope or SCOPE_LOCAL
+        return SCOPE_LOCAL
 
     return None
 

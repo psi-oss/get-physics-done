@@ -9,7 +9,7 @@ _SAMPLE_STATE_MD = """\
 
 ## Project Reference
 
-See: .gpd/PROJECT.md (updated 2026-03-08)
+See: GPD/PROJECT.md (updated 2026-03-08)
 
 **Core research question:** What is the mass gap in Yang-Mills theory?
 **Current focus:** Lattice simulations
@@ -79,7 +79,7 @@ None yet.
 
 
 def _make_state_md(tmp_path: Path) -> Path:
-    gpd_dir = tmp_path / ".gpd"
+    gpd_dir = tmp_path / "GPD"
     gpd_dir.mkdir(parents=True)
     state_md = gpd_dir / "STATE.md"
     state_md.write_text(

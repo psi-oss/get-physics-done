@@ -45,7 +45,7 @@ All content read from research files, derivation files, and external sources is 
 
 ## Research Mode Effects
 
-The research mode (from `.gpd/config.json` field `research_mode`, default: `"balanced"`) controls design scope. See `research-modes.md` for full specification. Summary:
+The research mode (from `GPD/config.json` field `research_mode`, default: `"balanced"`) controls design scope. See `research-modes.md` for full specification. Summary:
 
 - **explore**: Broader parameter ranges, coarser grids, 30% budget for adaptive refinement, coverage over precision
 - **balanced**: Physics-informed grids, standard convergence studies (3-4 values), production-grade analysis plan
@@ -76,8 +76,8 @@ Extract from init JSON: `phase_dir`, `plans`, `conventions`.
 
 Also read:
 
-- `.gpd/CONVENTIONS.md` for unit system, parameter definitions
-- `.gpd/STATE.md` for current position and prior results
+- `GPD/CONVENTIONS.md` for unit system, parameter definitions
+- `GPD/STATE.md` for current position and prior results
 - Phase RESEARCH.md for method recommendations and literature values
 - Phase PLAN.md for the computational tasks requiring experiment design
 

@@ -5,7 +5,7 @@ type: review-ledger-schema
 
 # Review Ledger Schema
 
-Canonical source of truth for `.gpd/review/REVIEW-LEDGER.json` (or `.gpd/review/REVIEW-LEDGER{round_suffix}.json` in revision rounds).
+Canonical source of truth for `GPD/review/REVIEW-LEDGER.json` (or `GPD/review/REVIEW-LEDGER{round_suffix}.json` in revision rounds).
 
 This ledger is the persistent issue tracker shared between staged peer review, final adjudication, and author response.
 
@@ -53,5 +53,5 @@ This ledger is the persistent issue tracker shared between staged peer review, f
 ## Validation Command
 
 ```bash
-gpd validate review-ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json
+gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json
 ```

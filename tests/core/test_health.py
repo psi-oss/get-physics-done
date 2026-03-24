@@ -92,7 +92,7 @@ class TestCheckProjectStructure:
     def test_ok_with_full_structure(self, tmp_path: Path):
         from gpd.core.constants import REQUIRED_PLANNING_DIRS, REQUIRED_PLANNING_FILES
 
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         for f in REQUIRED_PLANNING_FILES:
             (planning / f).write_text("stub")
@@ -127,18 +127,18 @@ class TestCheckStoragePaths:
 
     def test_hidden_results_and_scratch_outputs_warn(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
-        hidden_results = cwd / ".gpd" / "phases" / "01-setup" / "results"
+        hidden_results = cwd / "GPD" / "phases" / "01-setup" / "results"
         hidden_results.mkdir(parents=True)
         (hidden_results / "out.json").write_text("{}", encoding="utf-8")
-        scratch_file = cwd / ".gpd" / "tmp" / "final.csv"
+        scratch_file = cwd / "GPD" / "tmp" / "final.csv"
         scratch_file.parent.mkdir(parents=True)
         scratch_file.write_text("x,y\n", encoding="utf-8")
 
         result = check_storage_paths(cwd)
 
         assert result.status == CheckStatus.WARN
-        assert any(".gpd/phases/01-setup/results/out.json" in warning for warning in result.warnings)
-        assert any(".gpd/tmp/final.csv" in warning for warning in result.warnings)
+        assert any("GPD/phases/01-setup/results/out.json" in warning for warning in result.warnings)
+        assert any("GPD/tmp/final.csv" in warning for warning in result.warnings)
 
     def test_repo_gitignore_keeps_checkpoint_outputs_under_gpd_only(self, tmp_path: Path) -> None:
         repo = _init_git_repo(tmp_path)
@@ -149,8 +149,8 @@ class TestCheckStoragePaths:
                 "check-ignore",
                 "-v",
                 "--",
-                ".gpd/CHECKPOINTS.md",
-                ".gpd/phase-checkpoints/01-test-phase.md",
+                "GPD/CHECKPOINTS.md",
+                "GPD/phase-checkpoints/01-test-phase.md",
             ],
             cwd=repo,
             capture_output=True,
@@ -158,19 +158,19 @@ class TestCheckStoragePaths:
             check=True,
         )
 
-        assert ".gpd/CHECKPOINTS.md" in result.stdout
-        assert ".gpd/phase-checkpoints/01-test-phase.md" in result.stdout
+        assert "GPD/CHECKPOINTS.md" in result.stdout
+        assert "GPD/phase-checkpoints/01-test-phase.md" in result.stdout
 
     def test_git_status_reports_dirty_tracked_checkpoint_artifacts(self, tmp_path: Path) -> None:
         repo = _init_git_repo(tmp_path)
-        checkpoint_dir = repo / ".gpd" / "phase-checkpoints"
+        checkpoint_dir = repo / "GPD" / "phase-checkpoints"
         checkpoint_dir.mkdir(parents=True)
-        root_index = repo / ".gpd" / "CHECKPOINTS.md"
+        root_index = repo / "GPD" / "CHECKPOINTS.md"
         phase_checkpoint = checkpoint_dir / "01-test-phase.md"
         root_index.write_text("initial index\n", encoding="utf-8")
         phase_checkpoint.write_text("initial phase checkpoint\n", encoding="utf-8")
 
-        subprocess.run(["git", "add", "-f", ".gpd/CHECKPOINTS.md", ".gpd/phase-checkpoints/01-test-phase.md"], cwd=repo, check=True, capture_output=True, text=True)
+        subprocess.run(["git", "add", "-f", "GPD/CHECKPOINTS.md", "GPD/phase-checkpoints/01-test-phase.md"], cwd=repo, check=True, capture_output=True, text=True)
 
         root_index.write_text("dirty index\n", encoding="utf-8")
         phase_checkpoint.write_text("dirty phase checkpoint\n", encoding="utf-8")
@@ -190,7 +190,7 @@ class TestCheckCompaction:
         assert result.details.get("reason") == "no_state_file"
 
     def test_small_state_ok(self, tmp_path: Path):
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "STATE.md").write_text("# State\nShort content\n")
         result = check_compaction_needed(tmp_path)
@@ -203,7 +203,7 @@ class TestCheckOrphans:
         assert result.status == CheckStatus.OK
 
     def test_empty_phase_dir_warns(self, tmp_path: Path):
-        phases = tmp_path / ".gpd" / "phases"
+        phases = tmp_path / "GPD" / "phases"
         (phases / "01-intro").mkdir(parents=True)
         result = check_orphans(tmp_path)
         assert result.status == CheckStatus.WARN
@@ -217,7 +217,7 @@ class TestCheckConventionLock:
         assert any("state.json" in w for w in result.warnings)
 
     def test_no_convention_lock_key(self, tmp_path: Path):
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps({"position": {}}))
         result = check_convention_lock(tmp_path)
@@ -252,7 +252,7 @@ class TestCheckConfig:
 class TestCheckGitStatus:
     def test_non_git_dir(self, tmp_path: Path):
         completed = subprocess.CompletedProcess(
-            args=["git", "status", "--porcelain", ".gpd/"],
+            args=["git", "status", "--porcelain", "GPD/"],
             returncode=128,
             stdout="",
             stderr="fatal: not a git repository (or any of the parent directories): .git",
@@ -305,7 +305,7 @@ class TestCheckRoadmapConsistency:
         assert any("not found" in i for i in result.issues)
 
     def test_roadmap_with_matching_phases(self, tmp_path: Path):
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "ROADMAP.md").write_text("## Phase 1: Intro\n## Phase 2: Method\n")
         phases = planning / "phases"
@@ -323,7 +323,7 @@ class TestCheckPlanFrontmatter:
 
     def test_detects_plan_numbering_gap(self, tmp_path: Path):
         """Standard plan filenames like 01-PLAN.md must be parsed by the regex."""
-        phases = tmp_path / ".gpd" / "phases"
+        phases = tmp_path / "GPD" / "phases"
         phase_dir = phases / "01-intro"
         phase_dir.mkdir(parents=True)
         # Create plans with a gap: 01, 03 (missing 02)
@@ -337,7 +337,7 @@ class TestCheckPlanFrontmatter:
 
     def test_no_gap_with_consecutive_plans(self, tmp_path: Path):
         """Consecutive plan numbers should not produce warnings."""
-        phases = tmp_path / ".gpd" / "phases"
+        phases = tmp_path / "GPD" / "phases"
         phase_dir = phases / "01-intro"
         phase_dir.mkdir(parents=True)
         plan_content = _canonical_plan_frontmatter()
@@ -349,7 +349,7 @@ class TestCheckPlanFrontmatter:
         assert not any("Plan numbering gap" in w for w in result.warnings)
 
     def test_missing_contract_block_fails(self, tmp_path: Path):
-        phases = tmp_path / ".gpd" / "phases"
+        phases = tmp_path / "GPD" / "phases"
         phase_dir = phases / "01-intro"
         phase_dir.mkdir(parents=True)
         plan_content = (
@@ -376,7 +376,7 @@ class TestCheckPlanFrontmatter:
         assert any("missing required frontmatter fields: contract" in issue for issue in result.issues)
 
     def test_invalid_contract_schema_fails(self, tmp_path: Path):
-        phases = tmp_path / ".gpd" / "phases"
+        phases = tmp_path / "GPD" / "phases"
         phase_dir = phases / "01-intro"
         phase_dir.mkdir(parents=True)
         plan_content = (
@@ -422,7 +422,7 @@ class TestCheckStateValidityProjectContract:
         contract["references"][0]["required_actions"] = []
 
         state = {"project_contract": contract}
-        (cwd / ".gpd" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        (cwd / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         approval_validation = validate_project_contract(contract, mode="approved")
         fake_state_validation = SimpleNamespace(
@@ -498,7 +498,7 @@ class TestRunHealth:
 
         assert before == after
         assert report.fixes_applied == []
-        assert state_check.details["state_source"] == "state.json.bak"
+        assert state_check.details["state_source"] == "state.json"
 
     def test_read_only_health_does_not_consume_intent_marker(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
@@ -869,7 +869,7 @@ trigger:
 
 
 def _bootstrap_health_project(tmp_path: Path) -> Path:
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
     (planning / "phases").mkdir()
     (planning / "state.json").write_text("{}", encoding="utf-8")
@@ -915,7 +915,7 @@ class TestCheckLatestReturn:
 
     def test_summary_with_valid_return_is_ok(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
-        phase_dir = cwd / ".gpd" / "phases" / "01-setup"
+        phase_dir = cwd / "GPD" / "phases" / "01-setup"
         phase_dir.mkdir(parents=True)
         summary_content = (
             "# Summary\n\n"
@@ -936,7 +936,7 @@ class TestCheckLatestReturn:
 
     def test_summary_without_return_block_warns(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
-        phase_dir = cwd / ".gpd" / "phases" / "01-setup"
+        phase_dir = cwd / "GPD" / "phases" / "01-setup"
         phase_dir.mkdir(parents=True)
         (phase_dir / "01-setup-01-SUMMARY.md").write_text(
             "# Summary\nJust text, no return block.\n",

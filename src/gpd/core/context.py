@@ -38,9 +38,7 @@ from gpd.core.constants import (
     STANDALONE_CONTEXT,
     STANDALONE_PLAN,
     STANDALONE_RESEARCH,
-    STANDALONE_SUMMARY,
     STANDALONE_VALIDATION,
-    STANDALONE_VERIFICATION,
     STATE_MD_FILENAME,
     SUMMARY_SUFFIX,
     TODOS_DIR_NAME,
@@ -57,7 +55,7 @@ from gpd.core.contract_validation import (
 from gpd.core.errors import ValidationError
 from gpd.core.protocol_bundles import render_protocol_bundle_context, select_protocol_bundles
 from gpd.core.reference_ingestion import ingest_reference_artifacts
-from gpd.core.state import _load_state_json_with_integrity_issues, _normalize_state_schema_with_backup_project_contract
+from gpd.core.state import _load_state_json_with_integrity_issues
 from gpd.core.state import peek_state_json as _peek_state_json
 from gpd.core.utils import (
     generate_slug as _generate_slug_impl,
@@ -171,12 +169,12 @@ def _normalize_phase_name(phase: str) -> str:
 
 
 
-def _find_phase_artifact(phase_dir: Path, suffix: str, standalone: str) -> str | None:
+def _find_phase_artifact(phase_dir: Path, suffix: str, standalone: str | None = None) -> str | None:
     """Find file content matching a suffix pattern in a phase directory (truncated)."""
     if not phase_dir.is_dir():
         return None
     for f in sorted(phase_dir.iterdir()):
-        if f.is_file() and (f.name.endswith(suffix) or f.name == standalone):
+        if f.is_file() and (f.name.endswith(suffix) or (standalone is not None and f.name == standalone)):
             return _safe_read_file_truncated(f)
     return None
 
@@ -239,7 +237,6 @@ def _load_raw_project_contract_payload(cwd: Path) -> tuple[Path, object] | None:
         _load_state_json_with_integrity_issues(cwd, persist_recovery=True)
 
     raw_state = _read_state_payload(layout.state_json)
-    raw_backup = _read_state_payload(layout.state_json_backup)
     source_path = layout.state_json
 
     if raw_state is None:
@@ -257,19 +254,6 @@ def _load_raw_project_contract_payload(cwd: Path) -> tuple[Path, object] | None:
         if backup_payload is not None:
             return backup_payload
         return None
-
-    _normalized_state, _integrity_issues, recovered_root_from_backup, _recovered_contract = (
-        _normalize_state_schema_with_backup_project_contract(
-            raw_state,
-            raw_backup if isinstance(raw_backup, dict) else None,
-            allow_project_contract_salvage=False,
-            retain_blocking_project_contract_errors=False,
-        )
-    )
-    if recovered_root_from_backup:
-        backup_payload = _backup_project_contract("the primary state.json required root-level normalization")
-        if backup_payload is not None and backup_payload[1] is not None:
-            return backup_payload
 
     raw_contract = raw_state.get("project_contract")
     if raw_contract is None:
@@ -1133,7 +1117,7 @@ def _config_to_dict(cfg: GPDProjectConfig) -> dict:
 
 
 def load_config(cwd: Path) -> dict:
-    """Load .gpd/config.json with defaults.
+    """Load GPD/config.json with defaults.
 
     Delegates to :func:`gpd.core.config.load_config` (the canonical
     implementation) and converts the result to a plain dict for context
@@ -1393,7 +1377,7 @@ def init_plan_phase(cwd: Path, phase: str | None, includes: set[str] | None = No
         result["research_content"] = _find_phase_artifact(phase_dir, RESEARCH_SUFFIX, STANDALONE_RESEARCH)
     if "verification" in includes and phase_info and phase_info.get("directory"):
         phase_dir = cwd / phase_info["directory"]
-        result["verification_content"] = _find_phase_artifact(phase_dir, VERIFICATION_SUFFIX, STANDALONE_VERIFICATION)
+        result["verification_content"] = _find_phase_artifact(phase_dir, VERIFICATION_SUFFIX)
     if "validation" in includes and phase_info and phase_info.get("directory"):
         phase_dir = cwd / phase_info["directory"]
         result["validation_content"] = _find_phase_artifact(phase_dir, VALIDATION_SUFFIX, STANDALONE_VALIDATION)
@@ -1790,7 +1774,7 @@ def init_milestone_op(cwd: Path) -> dict:
             phase_count += 1
             phase_files = [f.name for f in d.iterdir() if f.is_file()]
             plans = [f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
-            summaries = [f for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY]
+            summaries = [f for f in phase_files if f.endswith(SUMMARY_SUFFIX)]
             if _is_phase_complete(len(plans), len(summaries)):
                 completed_phases += 1
     except FileNotFoundError:
@@ -1900,7 +1884,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
             phase_files = [f.name for f in phase_path.iterdir() if f.is_file()]
 
             plans = [f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
-            summaries = [f for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY]
+            summaries = [f for f in phase_files if f.endswith(SUMMARY_SUFFIX)]
             has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
 
             if _is_phase_complete(len(plans), len(summaries)):

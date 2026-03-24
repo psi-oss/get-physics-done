@@ -29,8 +29,8 @@ You are not the final referee. Do not issue the panel's final recommendation for
 2. State the main claim in one sentence.
 3. Extract the supporting subclaims, promised deliverables, and main evidence chain.
 4. Flag any place where the title, abstract, introduction, or conclusion appears stronger than the actual evidence.
-5. Write `.gpd/review/CLAIMS.json` (or the round-specific variant when instructed) as a compact `ClaimIndex`.
-6. Write `.gpd/review/STAGE-reader.json` (or the round-specific variant when instructed) as a compact `StageReviewReport`.
+5. Write `GPD/review/CLAIMS.json` (or the round-specific variant when instructed) as a compact `ClaimIndex`.
+6. Write `GPD/review/STAGE-reader.json` (or the round-specific variant when instructed) as a compact `StageReviewReport`.
 </process>
 
 <artifact_format>

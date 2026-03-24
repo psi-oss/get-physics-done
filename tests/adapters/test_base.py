@@ -13,6 +13,14 @@ from gpd.adapters.runtime_catalog import list_runtime_names
 RUNTIME_NAMES = list_runtime_names()
 
 
+def _write_owned_manifest(target: Path, *, runtime: str = "claude-code") -> None:
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "gpd-file-manifest.json").write_text(
+        json.dumps({"runtime": runtime, "install_scope": "local"}),
+        encoding="utf-8",
+    )
+
+
 class TestResolveTargetDir:
     """Test resolve_target_dir for all adapters."""
 
@@ -35,6 +43,7 @@ class TestUninstallBase:
     def test_removes_commands_gpd(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")
         target = tmp_path / ".claude"
+        _write_owned_manifest(target)
         (target / "commands" / "gpd").mkdir(parents=True)
         (target / "commands" / "gpd" / "help.md").write_text("help", encoding="utf-8")
 
@@ -45,6 +54,7 @@ class TestUninstallBase:
     def test_removes_get_physics_done(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")
         target = tmp_path / ".claude"
+        _write_owned_manifest(target)
         (target / "get-physics-done").mkdir(parents=True)
         (target / "get-physics-done" / "file.md").write_text("x", encoding="utf-8")
 

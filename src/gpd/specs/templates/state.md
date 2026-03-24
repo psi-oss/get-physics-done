@@ -4,7 +4,7 @@ template_version: 1
 
 # State Template
 
-Template for `.gpd/STATE.md` — the research project's living memory.
+Template for `GPD/STATE.md` — the research project's living memory.
 
 ---
 
@@ -15,9 +15,9 @@ Template for `.gpd/STATE.md` — the research project's living memory.
 
 ## Project Reference
 
-See: .gpd/PROJECT.md (updated [date])
+See: GPD/PROJECT.md (updated [date])
 
-**Machine-readable scoping contract:** `.gpd/state.json` field `project_contract`
+**Machine-readable scoping contract:** `GPD/state.json` field `project_contract`
 
 **Core research question:** [One-liner from PROJECT.md Core Research Question section]
 **Current focus:** [Current phase name]
@@ -83,7 +83,7 @@ JSON sidecar schema per result:
 
 ### Decisions
 
-Full log: `.gpd/DECISIONS.md`
+Full log: `GPD/DECISIONS.md`
 
 **Recent high-impact:**
 - [Phase X]: [Decision summary: e.g., Chose dim-reg over cutoff to preserve gauge invariance]
@@ -126,7 +126,7 @@ Full log: `.gpd/DECISIONS.md`
 
 ### Pending Todos
 
-[From .gpd/todos/pending/ — ideas captured during sessions]
+[From GPD/todos/pending/ — ideas captured during sessions]
 
 None yet.
 
@@ -253,14 +253,14 @@ Updated after each plan completion.
 
 ### Accumulated Context
 
-**Decisions:** Full log: `.gpd/DECISIONS.md` (single source of truth). Recent high-impact decisions shown in Accumulated Context for quick access.
+**Decisions:** Full log: `GPD/DECISIONS.md` (single source of truth). Recent high-impact decisions shown in Accumulated Context for quick access.
 
-**Active Approximations:** Tracks all approximations currently in use, their validity ranges, and the controlling parameters. Convention lock is an 18-field snapshot of active conventions — full convention catalog lives in `.gpd/CONVENTIONS.md`.
+**Active Approximations:** Tracks all approximations currently in use, their validity ranges, and the controlling parameters. Convention lock is an 18-field snapshot of active conventions — full convention catalog lives in `GPD/CONVENTIONS.md`.
 
 **Pending Todos:** Ideas captured via /gpd:add-todo
 
 - Count of pending todos
-- Reference to .gpd/todos/pending/
+- Reference to GPD/todos/pending/
 - Brief list if few, count if many (e.g., "5 pending todos — see /gpd:check-todos")
 
 **Blockers/Concerns:** From "Next Phase Readiness" sections

@@ -273,6 +273,6 @@ Rules:
 Use one of these before approving or committing a plan:
 
 ```bash
-gpd frontmatter validate .gpd/phases/XX-name/XX-YY-PLAN.md --schema plan
-gpd validate plan-contract .gpd/phases/XX-name/XX-YY-PLAN.md
+gpd frontmatter validate GPD/phases/XX-name/XX-YY-PLAN.md --schema plan
+gpd validate plan-contract GPD/phases/XX-name/XX-YY-PLAN.md
 ```

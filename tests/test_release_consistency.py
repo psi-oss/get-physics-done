@@ -332,13 +332,13 @@ def test_public_bootstrap_installer_documents_reinstall_and_upgrade_paths() -> N
 
     assert "`--reinstall`" in readme
     assert "`--upgrade`" in readme
-    assert "~/.gpd/venv" in readme
+    assert "~/GPD/venv" in readme
     assert "latest GitHub `main` source" in readme
     assert "github:psi-oss/get-physics-done --upgrade" in readme
     assert "--reinstall" in content
     assert "--upgrade" in content
-    assert "Reinstall the matching tagged GitHub source in ~/.gpd/venv" in content
-    assert "Upgrade ~/.gpd/venv from the latest GitHub main source" in content
+    assert "Reinstall the matching tagged GitHub source in ~/GPD/venv" in content
+    assert "Upgrade ~/GPD/venv from the latest GitHub main source" in content
 
 
 def test_public_bootstrap_installer_documents_uninstall_path() -> None:
@@ -352,7 +352,7 @@ def test_public_bootstrap_installer_documents_uninstall_path() -> None:
     assert "non-interactive uninstall" in readme
     assert "`--global`" in readme
     assert "`--local`" in readme
-    assert "~/.gpd/venv/bin/gpd uninstall" not in readme
+    assert "~/GPD/venv/bin/gpd uninstall" not in readme
     assert "--uninstall" in content
     assert "Uninstall from selected runtime config" in content
     assert '--uninstall ${primaryFlag} --global' in content
@@ -393,10 +393,10 @@ def test_export_surfaces_use_visible_exports_directory() -> None:
     assert "exports/results.tex" in workflow
     assert "exports/results.bib" in workflow
     assert "exports/results.zip" in workflow
-    assert ".gpd/exports" not in workflow
+    assert "GPD/exports" not in workflow
     assert "Write files to `exports/`." in command
     assert "Files written to exports/" in command
-    assert ".gpd/exports" not in command
+    assert "GPD/exports" not in command
 
 
 def test_public_cli_surface_is_unified() -> None:
@@ -433,7 +433,7 @@ def test_public_install_docs_list_bootstrap_prerequisites_and_current_layout() -
         assert "Node.js with `npm`/`npx`" in content
         assert "Python 3.11+ with the standard `venv` module" in content
         assert "npm and GitHub" in content
-        assert "~/.gpd/venv" in content
+        assert "~/GPD/venv" in content
 
     assert not (repo_root / "docs" / "USER-GUIDE.md").exists()
     assert not (repo_root / "MANUAL-TEST-PLAN.md").exists()
@@ -521,8 +521,8 @@ def test_public_docs_keep_runtime_surface_first() -> None:
     assert "## Known Limitations" in readme
     assert "After installing GPD, open your chosen runtime normally" in readme
     assert "Observability and trace inspection" in readme
-    assert ".gpd/observability/" in readme
-    assert "`.gpd/STATE.md` | Concise human-readable continuity state" in readme
+    assert "GPD/observability/" in readme
+    assert "`GPD/STATE.md` | Concise human-readable continuity state" in readme
     assert "does not fabricate opaque provider internals" in readme
 
 
@@ -848,7 +848,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         assert "gpdPythonVersion" in install_content
         assert 'const GITHUB_MAIN_BRANCH = "main"' in install_content
         assert '"-m", "venv"' in install_content
-        assert '".gpd"' in install_content
+        assert '"GPD"' in install_content
         assert "archive/refs/tags/v${version}.tar.gz" in install_content
         assert "archive/refs/heads/${GITHUB_MAIN_BRANCH}.tar.gz" in install_content
         assert "git+${repoGitUrl}@v${version}" in install_content

@@ -1098,8 +1098,8 @@ grep -nE "(version|v[0-9]|numpy|scipy|qutip|tensorflow|pytorch)" "$file" 2>/dev/
 **First:** Determine if this is an initial review or a revision review.
 
 ```bash
-ls .gpd/REFEREE-REPORT*.md 2>/dev/null
-ls .gpd/AUTHOR-RESPONSE*.md 2>/dev/null
+ls GPD/REFEREE-REPORT*.md 2>/dev/null
+ls GPD/AUTHOR-RESPONSE*.md 2>/dev/null
 ```
 
 **If both a previous REFEREE-REPORT and an AUTHOR-RESPONSE exist:** Enter Revision Review Mode (see `<revision_review_mode>` section). Skip the standard evaluation flow below — use the revision-specific protocol instead.
@@ -1118,7 +1118,7 @@ ls .gpd/AUTHOR-RESPONSE*.md 2>/dev/null
 
 ```bash
 # Find all relevant files
-find .gpd -name "*.md" -not -path "./.git/*" 2>/dev/null | sort
+find GPD -name "*.md" -not -path "./.git/*" 2>/dev/null | sort
 find . -name "*.py" -path "*/derivations/*" -o -name "*.py" -path "*/numerics/*" 2>/dev/null | sort
 find . -name "*.tex" 2>/dev/null | sort
 ```
@@ -1219,9 +1219,9 @@ Organize findings:
 
 ## Referee Report Structure
 
-Create `.gpd/REFEREE-REPORT.md` as the canonical machine-readable artifact.
-Also create `.gpd/REFEREE-REPORT.tex` as the default polished presentation artifact using `@{GPD_INSTALL_DIR}/templates/paper/referee-report.tex`.
-When operating as the final panel adjudicator, also write `.gpd/review/REVIEW-LEDGER.json` and `.gpd/review/REFEREE-DECISION.json`.
+Create `GPD/REFEREE-REPORT.md` as the canonical machine-readable artifact.
+Also create `GPD/REFEREE-REPORT.tex` as the default polished presentation artifact using `@{GPD_INSTALL_DIR}/templates/paper/referee-report.tex`.
+When operating as the final panel adjudicator, also write `GPD/review/REVIEW-LEDGER.json` and `GPD/review/REFEREE-DECISION.json`.
 Use `@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md` and `@{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md` as the schema sources of truth for those JSON artifacts. Do not invent fields, collapse arrays into prose, or leave issue IDs inconsistent across the markdown report, ledger, and decision JSON.
 @{GPD_INSTALL_DIR}/templates/paper/referee-report.tex
 @{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md
@@ -1439,7 +1439,7 @@ _Disclaimer: This is an AI-generated mock referee report. It supplements but doe
 
 ## CONSISTENCY-REPORT.md Template
 
-Write `.gpd/CONSISTENCY-REPORT.md` with the following structure:
+Write `GPD/CONSISTENCY-REPORT.md` with the following structure:
 
 ### Cross-Phase Convention Consistency
 - For each convention (metric, Fourier, units, gauge): verify all phases use the same choice
@@ -1605,14 +1605,14 @@ Real peer review involves revision and re-review. When author responses to a pre
 
 Revision Review Mode activates when:
 
-1. A previous `REFEREE-REPORT.md` (or `REFEREE-REPORT-R{N}.md`) exists in `.gpd/`
-2. An author response file exists: `.gpd/AUTHOR-RESPONSE.md` or `.gpd/AUTHOR-RESPONSE-R{N}.md`
+1. A previous `REFEREE-REPORT.md` (or `REFEREE-REPORT-R{N}.md`) exists in `GPD/`
+2. An author response file exists: `GPD/AUTHOR-RESPONSE.md` or `GPD/AUTHOR-RESPONSE-R{N}.md`
 
 Detection:
 
 ```bash
-ls .gpd/REFEREE-REPORT*.md 2>/dev/null
-ls .gpd/AUTHOR-RESPONSE*.md 2>/dev/null
+ls GPD/REFEREE-REPORT*.md 2>/dev/null
+ls GPD/AUTHOR-RESPONSE*.md 2>/dev/null
 ```
 
 If both exist, determine the current round number:
@@ -1677,8 +1677,8 @@ The round 3 report must explicitly state: "This is the final review round. My re
 
 ### Revision Report Format
 
-Create `.gpd/REFEREE-REPORT-R{N}.md` as the canonical revision-round artifact.
-Also create `.gpd/REFEREE-REPORT-R{N}.tex` using the same LaTeX template adapted for revision-round headings and resolution-tracker sections.
+Create `GPD/REFEREE-REPORT-R{N}.md` as the canonical revision-round artifact.
+Also create `GPD/REFEREE-REPORT-R{N}.tex` using the same LaTeX template adapted for revision-round headings and resolution-tracker sections.
 
 Keep the Markdown and LaTeX revision reports aligned on recommendation, round number, issue IDs, and remaining actionable items.
 
@@ -1814,7 +1814,7 @@ Return a checkpoint when:
 
 **Recommendation:** {accept | minor_revision | major_revision | reject}
 **Confidence:** {high | medium | low}
-**Report:** .gpd/REFEREE-REPORT.md
+**Report:** GPD/REFEREE-REPORT.md
 
 **Summary:**
 {2-3 sentence summary of assessment}
@@ -1836,7 +1836,7 @@ Return a checkpoint when:
 
 **Reason:** {insufficient research outputs | missing files | domain mismatch}
 **Dimensions Evaluated:** {N}/10
-**Report:** .gpd/REFEREE-REPORT.md (partial)
+**Report:** GPD/REFEREE-REPORT.md (partial)
 
 **What Was Reviewed:**
 {List of what could be evaluated}

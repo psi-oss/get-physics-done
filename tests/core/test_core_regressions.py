@@ -21,7 +21,7 @@ def _setup_project_with_summary(tmp_path: Path, yaml_block: str) -> Path:
 
 
 def _write_state_md(tmp_path: Path, decisions_body: str) -> Path:
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir(exist_ok=True)
     (planning / "STATE.md").write_text(
         "# State\n\n"
@@ -159,7 +159,7 @@ def test_check_latest_return_tolerates_non_dict_gpd_return(tmp_path: Path, yaml_
 def test_apply_fixes_resets_config_on_parse_error(tmp_path: Path) -> None:
     from gpd.core.health import CheckStatus, HealthCheck, _apply_fixes
 
-    gpd_dir = tmp_path / ".gpd"
+    gpd_dir = tmp_path / "GPD"
     gpd_dir.mkdir()
 
     fixes = _apply_fixes(
@@ -373,7 +373,7 @@ def test_body_one_liner_regex_ignores_mid_document_frontmatter() -> None:
 def test_show_events_returns_empty_when_session_logs_have_no_matches(tmp_path: Path) -> None:
     from gpd.core.observability import show_events
 
-    sessions_dir = tmp_path / ".gpd" / "observability" / "sessions"
+    sessions_dir = tmp_path / "GPD" / "observability" / "sessions"
     sessions_dir.mkdir(parents=True)
     (sessions_dir / "session-a.jsonl").write_text(
         '{"event_id": "e1", "timestamp": "2026-03-10T00:00:00+00:00", "session_id": "session-a", "action": "log", "category": "test", "name": "demo", "status": "ok"}\n',
@@ -396,22 +396,21 @@ def test_coverage_metric_rejects_nonzero_satisfied_with_zero_total() -> None:
 def test_suggest_next_handles_non_utf8_state_json(tmp_path: Path) -> None:
     from gpd.core.suggest import suggest_next
 
-    gpd_dir = tmp_path / ".gpd"
+    gpd_dir = tmp_path / "GPD"
     gpd_dir.mkdir()
     (gpd_dir / "state.json").write_bytes(b'{"position": "\x80\x81\x82"}')
 
     assert suggest_next(tmp_path) is not None
 
 
-def test_regression_check_detects_standalone_verification_files(tmp_path: Path) -> None:
+def test_regression_check_detects_numbered_verification_files(tmp_path: Path) -> None:
     from gpd.core.commands import cmd_regression_check
-    from gpd.core.constants import STANDALONE_VERIFICATION
 
-    phase_dir = tmp_path / ".gpd" / "phases" / "01-setup"
+    phase_dir = tmp_path / "GPD" / "phases" / "01-setup"
     phase_dir.mkdir(parents=True)
     (phase_dir / "task-1-PLAN.md").write_text("plan", encoding="utf-8")
     (phase_dir / "task-1-SUMMARY.md").write_text("---\nphase: 1\n---\n# Summary\n", encoding="utf-8")
-    (phase_dir / STANDALONE_VERIFICATION).write_text(
+    (phase_dir / "01-VERIFICATION.md").write_text(
         "---\nstatus: gaps_found\nscore: 3/5\n---\n# Verification\nSome gaps here.\n",
         encoding="utf-8",
     )

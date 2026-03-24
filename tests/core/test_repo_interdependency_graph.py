@@ -147,10 +147,10 @@ def test_graph_captures_checkpoint_feature_edges() -> None:
     expected_edges = [
         "`src/gpd/cli.py::sync_phase_checkpoints -> src/gpd/core/checkpoints.py::sync_phase_checkpoints`",
         "`src/gpd/core/phases.py -> src/gpd/core/checkpoints.py::sync_phase_checkpoints`",
-        "`src/gpd/core/state.py -> <cwd>/.gpd/.state-write-intent`",
-        "`src/gpd/core/checkpoints.py -> generated outputs {.gpd/CHECKPOINTS.md, .gpd/phase-checkpoints/*.md}`",
-        "`src/gpd/core/checkpoints.py -> <cwd>/.gpd/CHECKPOINTS.md`",
-        "`src/gpd/core/checkpoints.py -> <cwd>/.gpd/phase-checkpoints/*.md`",
+        "`src/gpd/core/state.py -> <cwd>/GPD/.state-write-intent`",
+        "`src/gpd/core/checkpoints.py -> generated outputs {GPD/CHECKPOINTS.md, GPD/phase-checkpoints/*.md}`",
+        "`src/gpd/core/checkpoints.py -> <cwd>/GPD/CHECKPOINTS.md`",
+        "`src/gpd/core/checkpoints.py -> <cwd>/GPD/phase-checkpoints/*.md`",
     ]
     unexpected_edges = [
         "`src/gpd/core/state.py -> src/gpd/core/checkpoints.py::sync_phase_checkpoints`",

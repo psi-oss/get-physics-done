@@ -32,9 +32,7 @@ from gpd.core.constants import (
     STANDALONE_CONTEXT,
     STANDALONE_PLAN,
     STANDALONE_RESEARCH,
-    STANDALONE_SUMMARY,
     STANDALONE_VALIDATION,
-    STANDALONE_VERIFICATION,
     SUMMARY_SUFFIX,
     VALIDATION_SUFFIX,
     VERIFICATION_SUFFIX,
@@ -220,7 +218,7 @@ class PhaseInfo(BaseModel):
     """Information about a discovered phase directory."""
 
     found: bool
-    directory: str  # Relative internal phase-record path: .gpd/phases/XX-name
+    directory: str  # Relative internal phase-record path: GPD/phases/XX-name
     phase_number: str
     phase_name: str | None
     phase_slug: str | None
@@ -584,14 +582,14 @@ def find_phase(cwd: Path, phase: str) -> PhaseInfo | None:
         phase_files = sorted(f.name for f in phase_dir.iterdir() if f.is_file())
 
         plans = sorted(f for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN)
-        summaries = sorted(f for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY)
+        summaries = sorted(f for f in phase_files if f.endswith(SUMMARY_SUFFIX))
         has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
         has_context = any(f.endswith(CONTEXT_SUFFIX) or f == STANDALONE_CONTEXT for f in phase_files)
-        has_verification = any(f.endswith(VERIFICATION_SUFFIX) or f == STANDALONE_VERIFICATION for f in phase_files)
+        has_verification = any(f.endswith(VERIFICATION_SUFFIX) for f in phase_files)
         has_validation = any(f.endswith(VALIDATION_SUFFIX) or f == STANDALONE_VALIDATION for f in phase_files)
 
         # Determine incomplete plans (plans without matching summaries)
-        completed_plan_ids = {_strip_suffix(_strip_suffix(s, SUMMARY_SUFFIX), STANDALONE_SUMMARY) for s in summaries}
+        completed_plan_ids = {_strip_suffix(s, SUMMARY_SUFFIX) for s in summaries}
         incomplete_plans = [
             p for p in plans if _strip_suffix(_strip_suffix(p, PLAN_SUFFIX), STANDALONE_PLAN) not in completed_plan_ids
         ]
@@ -673,7 +671,7 @@ def list_phase_files(cwd: Path, file_type: str, phase: str | None = None) -> Pha
             if file_type == "plans":
                 filtered = [f for f in dir_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
             elif file_type == "summaries":
-                filtered = [f for f in dir_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY]
+                filtered = [f for f in dir_files if f.endswith(SUMMARY_SUFFIX)]
             else:
                 filtered = dir_files
 
@@ -941,7 +939,7 @@ def phase_plan_index(cwd: Path, phase: str) -> PhasePlanIndex:
         phase_dir = cwd / phase_info.directory
 
         completed_plan_ids = {
-            _strip_suffix(_strip_suffix(s, SUMMARY_SUFFIX), STANDALONE_SUMMARY) for s in phase_info.summaries
+            _strip_suffix(s, SUMMARY_SUFFIX) for s in phase_info.summaries
         }
 
         plans: list[PlanEntry] = []
@@ -1079,7 +1077,7 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
             if dir_match_name:
                 phase_files = [f.name for f in (phases_dir / dir_match_name).iterdir() if f.is_file()]
                 plan_count = sum(1 for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN)
-                summary_count = sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY)
+                summary_count = sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX))
                 has_context = any(f.endswith(CONTEXT_SUFFIX) or f == STANDALONE_CONTEXT for f in phase_files)
                 has_research = any(f.endswith(RESEARCH_SUFFIX) or f == STANDALONE_RESEARCH for f in phase_files)
 
@@ -1490,7 +1488,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
             if target_dir and not force:
                 target_path = phases_dir / target_dir
                 summaries = [
-                    f.name for f in target_path.iterdir() if f.name.endswith(SUMMARY_SUFFIX) or f.name == STANDALONE_SUMMARY
+                    f.name for f in target_path.iterdir() if f.name.endswith(SUMMARY_SUFFIX)
                 ]
                 if summaries:
                     raise PhaseValidationError(
@@ -2120,7 +2118,7 @@ def progress_render(cwd: Path, fmt: str = "json") -> ProgressJsonResult | Progre
 
                 phase_files = [f.name for f in (phases_dir / d).iterdir() if f.is_file()]
                 plan_count = sum(1 for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN)
-                summary_count = sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY)
+                summary_count = sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX))
 
                 total_plans += plan_count
                 total_summaries += summary_count

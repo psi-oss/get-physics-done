@@ -6,7 +6,7 @@ template_version: 1
 
 # Decisions Template
 
-Template for `.gpd/DECISIONS.md` — append-only log of research decisions across all phases.
+Template for `GPD/DECISIONS.md` — append-only log of research decisions across all phases.
 
 ---
 
@@ -31,7 +31,7 @@ DECISIONS.md is the project's decision memory — a cumulative, append-only log 
 
 - Records every significant decision with context (rationale, alternatives, impact)
 - Is searchable by phase, keyword, or impact level
-- Survives context resets (lives in .gpd/, committed to git)
+- Survives context resets (lives in GPD/, committed to git)
 - Feeds into paper writing (Methods section, reviewer responses)
 
 </purpose>
@@ -103,7 +103,7 @@ Cumulative record of research decisions. Append-only — never edit or remove pa
 To assign the next ID, count existing entries:
 
 ```bash
-LAST_ID=$(grep -c '^| DEC-' .gpd/DECISIONS.md 2>/dev/null || echo 0)
+LAST_ID=$(grep -c '^| DEC-' GPD/DECISIONS.md 2>/dev/null || echo 0)
 NEXT_ID=$((LAST_ID + 1))
 # Format: DEC-001, DEC-002, etc.
 printf "DEC-%03d" "$NEXT_ID"

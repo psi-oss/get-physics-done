@@ -35,7 +35,6 @@ from gpd.core.constants import (
     PLANNING_DIR_NAME,
     PROJECT_FILENAME,
     STANDALONE_PLAN,
-    STANDALONE_SUMMARY,
     STATE_ARCHIVE_FILENAME,
     STATE_JSON_BACKUP_FILENAME,
     STATE_LINES_BUDGET,
@@ -1023,23 +1022,12 @@ def _normalize_state_schema_with_backup_project_contract(
             allow_project_contract_salvage=allow_project_contract_salvage,
             retain_blocking_project_contract_errors=retain_blocking_project_contract_errors,
         )
-    primary_has_non_contract_issues = any("project_contract" not in issue for issue in integrity_issues)
-
     if not isinstance(raw, dict) and backup_normalized is not None and not backup_issues:
         normalized = backup_normalized
         integrity_issues = []
         recovered_root_from_backup = True
         recovered_project_contract_from_backup = backup_normalized.get("project_contract") is not None
         logger.warning("Recovered state.json from state.json.bak after primary state.json required normalization")
-    elif isinstance(raw, dict) and primary_has_non_contract_issues and backup_normalized is not None and not backup_issues:
-        normalized = backup_normalized
-        integrity_issues = []
-        recovered_root_from_backup = True
-        recovered_project_contract_from_backup = backup_normalized.get("project_contract") is not None
-        logger.warning("Recovered state.json from state.json.bak after primary state.json required normalization")
-        integrity_issues.append(
-            "state.json root was recovered from state.json.bak after primary state.json required normalization"
-        )
     elif (
         isinstance(raw, dict)
         and raw.get("project_contract") is not None
@@ -2049,6 +2037,7 @@ def _load_state_json_with_integrity_issues(
         except TypeError as e:
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("state.json structural error: %s", e)
+            structural_issue = f"state.json structural error: {e}"
             restored, integrity_issues = _load_state_json_from_backup(
                 bak_path,
                 integrity_mode=integrity_mode,
@@ -2065,7 +2054,7 @@ def _load_state_json_with_integrity_issues(
                 logger.debug("state.json.bak restore failed after structural error")
             if integrity_mode == "review":
                 logger.warning("state.json structural error blocks review-mode loading: %s", e)
-                return None, [], None
+                return None, [structural_issue], None
         except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("state.json parse error: %s", e)
@@ -2088,7 +2077,7 @@ def _load_state_json_with_integrity_issues(
                 logger.debug("state.json.bak restore failed")
             if integrity_mode == "review":
                 logger.warning("state.json parse error blocks review-mode loading: %s", e)
-                return None, [], None
+                return None, [parse_issue], None
 
         # Fall back to STATE.md
         md_path = _state_md_path(cwd)
@@ -2603,7 +2592,7 @@ def state_update_progress(cwd: Path) -> UpdateProgressResult:
                     continue
                 phase_files = [f.name for f in phase_dir.iterdir() if f.is_file()]
                 phase_plans = sum(1 for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN)
-                phase_summaries = sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY)
+                phase_summaries = sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX))
                 total_plans += phase_plans
                 total_completed += min(phase_plans, phase_summaries)
 

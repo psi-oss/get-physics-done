@@ -4,7 +4,7 @@ description: Run discovery phase to investigate methods, literature, and approac
 argument-hint: "[phase or topic] [--depth quick|medium|deep]"
 context_mode: project-aware
 requires:
-  files: [".gpd/ROADMAP.md"]
+  files: ["GPD/ROADMAP.md"]
 allowed-tools:
   - file_read
   - shell
@@ -43,8 +43,8 @@ Produces RESEARCH.md (with `depth: quick`) that informs subsequent planning via 
 <context>
 Phase or topic: $ARGUMENTS
 
-@.gpd/STATE.md
-@.gpd/ROADMAP.md
+@GPD/STATE.md
+@GPD/ROADMAP.md
 </context>
 
 <process>
@@ -75,7 +75,7 @@ Follow the discover workflow for the determined depth level.
 ## Step 3: Commit (if Level 2-3 produced RESEARCH.md)
 
 ```bash
-gpd commit "discover(${phase_number}): ${depth} discovery for ${phase_name}" --files ".gpd/phases/${padded_phase}-${phase_slug}/RESEARCH.md"
+gpd commit "discover(${phase_number}): ${depth} discovery for ${phase_name}" --files "GPD/phases/${padded_phase}-${phase_slug}/RESEARCH.md"
 ```
 
 ## Step 4: Present Results and Next Steps

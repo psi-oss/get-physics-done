@@ -1,11 +1,11 @@
 ---
 template_version: 1
-purpose: Canonical schema for .gpd/state.json — the machine-readable research state sidecar
+purpose: Canonical schema for GPD/state.json — the machine-readable research state sidecar
 ---
 
 # state.json Schema
 
-Canonical schema for `.gpd/state.json`. This file is the authoritative machine-readable state. STATE.md is a human-readable view generated from it.
+Canonical schema for `GPD/state.json`. This file is the authoritative machine-readable state. STATE.md is a human-readable view generated from it.
 
 Source of truth: `default_state_dict()` in `gpd.core.state`.
 
@@ -69,7 +69,7 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
   },
   "context_intake": {
     "must_read_refs": ["Ref-01"],
-    "must_include_prior_outputs": [".gpd/phases/01-setup/01-01-SUMMARY.md"],
+    "must_include_prior_outputs": ["GPD/phases/01-setup/01-01-SUMMARY.md"],
     "user_asserted_anchors": ["Recover known asymptotic limit from the accepted benchmark curve"],
     "known_good_baselines": ["Baseline derivation in notebook X"],
     "context_gaps": ["Need grounding; decisive target not yet chosen before planning"],
@@ -205,7 +205,7 @@ If a project-contract reference sets `must_surface: true`, `applies_to[]` must n
 
 Approved-mode grounding is field-specific:
 
-- `must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames, such as `.gpd/phases/.../SUMMARY.md` or `paper/main.tex`.
+- `must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames, such as `GPD/phases/.../*-SUMMARY.md` or `paper/main.tex`.
 - `user_asserted_anchors[]` and `known_good_baselines[]` should name a concrete benchmark, baseline, reference, notebook, figure, dataset, or comparable anchor phrase. Single-token filler does not count.
 - `Placeholder`, `TBD`, `TODO`, `unknown`, `unclear`, `none`, `n/a`, and `placeholder` remain non-grounding unless they are part of a genuinely missing-anchor blocker phrase.
 
@@ -454,7 +454,7 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 {
   "last_date": "2026-03-15T14:30:00.000Z",
   "stopped_at": "Phase 3, Plan 2, Task 4: MC thermalization",
-  "resume_file": ".gpd/phases/03/.continue-here"
+  "resume_file": "GPD/phases/03/.continue-here"
 }
 ```
 

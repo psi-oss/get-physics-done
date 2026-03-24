@@ -100,7 +100,7 @@ Next steps:
 1. **Create recovery document:**
 
 ```bash
-RECOVERY_FILE=".gpd/phases/${PHASE_DIR}/RECOVERY-${PLAN}.md"
+RECOVERY_FILE="GPD/phases/${PHASE_DIR}/RECOVERY-${PLAN}.md"
 ```
 
 Write `RECOVERY-{PLAN}.md` with:
@@ -159,7 +159,7 @@ gpd state record-session \
 ```bash
 gpd commit \
   "docs(${PHASE}-${PLAN}): document plan failure and recovery options" \
-  --files "${RECOVERY_FILE}" .gpd/STATE.md
+  --files "${RECOVERY_FILE}" GPD/STATE.md
 ```
 
 **Keep the checkpoint tag** -- needed if user later decides to rollback.

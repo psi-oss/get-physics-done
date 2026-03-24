@@ -10,7 +10,7 @@ key-files:
     - figures/benchmark.png
   modified:
     - src/benchmark.py
-plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract
+plan_contract_ref: GPD/phases/01-benchmark/01-01-PLAN.md#/contract
 contract_results:
   claims:
     claim-benchmark:
@@ -25,7 +25,7 @@ contract_results:
           deliverable_id: deliv-figure
           acceptance_test_id: test-benchmark
           reference_id: ref-benchmark
-          evidence_path: .gpd/phases/01-benchmark/01-VERIFICATION.md
+          evidence_path: GPD/phases/01-benchmark/01-VERIFICATION.md
   deliverables:
     deliv-figure:
       status: passed

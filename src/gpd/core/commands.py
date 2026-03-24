@@ -22,8 +22,6 @@ from gpd.core.constants import (
     PLANNING_DIR_NAME,
     REQUIRED_RETURN_FIELDS,
     STANDALONE_PLAN,
-    STANDALONE_SUMMARY,
-    STANDALONE_VERIFICATION,
     SUMMARY_SUFFIX,
     VALID_RETURN_STATUSES,
     VERIFICATION_SUFFIX,
@@ -423,7 +421,7 @@ def _merge_list_or_string(target_set: set[str], value: object) -> None:
 def cmd_history_digest(cwd: Path) -> HistoryDigestResult:
     """Build a digest of project history from phase SUMMARY files.
 
-    Scans .gpd/phases/*/SUMMARY.md for frontmatter fields:
+    Scans GPD/phases/*/*-SUMMARY.md for frontmatter fields:
     dependency-graph.provides, dependency-graph.affects, patterns-established,
     key-decisions, and methods.added.
     """
@@ -443,7 +441,7 @@ def cmd_history_digest(cwd: Path) -> HistoryDigestResult:
     for dir_path in phase_dirs:
         dir_name = dir_path.name
         summaries = [
-            f for f in dir_path.iterdir() if f.is_file() and (f.name.endswith(SUMMARY_SUFFIX) or f.name == STANDALONE_SUMMARY)
+            f for f in dir_path.iterdir() if f.is_file() and f.name.endswith(SUMMARY_SUFFIX)
         ]
 
         for summary_file in summaries:
@@ -530,7 +528,7 @@ def cmd_regression_check(cwd: Path, *, phase: str | None = None, quick: bool = F
 
     Scans completed phase directories for:
     1. Convention redefinitions — same symbol defined with different values across SUMMARYs.
-    2. Unresolved verification issues — VERIFICATION.md files with non-passing status.
+    2. Unresolved verification issues — *-VERIFICATION.md files with non-passing status.
 
     In quick mode, only checks the most recent 2 completed phases.
 
@@ -552,7 +550,7 @@ def cmd_regression_check(cwd: Path, *, phase: str | None = None, quick: bool = F
     for d in all_dirs:
         files = [f.name for f in d.iterdir() if f.is_file()]
         plans = [f for f in files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN]
-        summaries = [f for f in files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY]
+        summaries = [f for f in files if f.endswith(SUMMARY_SUFFIX)]
         if is_phase_complete(len(plans), len(summaries)):
             completed_dirs.append(d)
 
@@ -569,9 +567,7 @@ def cmd_regression_check(cwd: Path, *, phase: str | None = None, quick: bool = F
     # 1. Convention redefinitions across SUMMARYs
     conventions_by_symbol: dict[str, list[dict[str, str]]] = {}
     for d in completed_dirs:
-        summaries = [
-            f for f in d.iterdir() if f.is_file() and (f.name.endswith(SUMMARY_SUFFIX) or f.name == STANDALONE_SUMMARY)
-        ]
+        summaries = [f for f in d.iterdir() if f.is_file() and f.name.endswith(SUMMARY_SUFFIX)]
         for summary_file in summaries:
             content = safe_read_file(summary_file)
             if content is None:
@@ -609,13 +605,9 @@ def cmd_regression_check(cwd: Path, *, phase: str | None = None, quick: bool = F
                 )
             )
 
-    # 2. Unresolved VERIFICATION.md issues
+    # 2. Unresolved *-VERIFICATION.md issues
     for d in completed_dirs:
-        verifications = [
-            f
-            for f in d.iterdir()
-            if f.is_file() and (f.name.endswith(VERIFICATION_SUFFIX) or f.name == STANDALONE_VERIFICATION)
-        ]
+        verifications = [f for f in d.iterdir() if f.is_file() and f.name.endswith(VERIFICATION_SUFFIX)]
         for v_file in verifications:
             content = safe_read_file(v_file)
             if content is None:

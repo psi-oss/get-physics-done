@@ -1,6 +1,6 @@
 # Executor Completion Protocols
 
-Load this reference after all tasks complete, before creating SUMMARY.md.
+Load this reference after all tasks complete, before creating the canonical `{phase}-{plan}-SUMMARY.md`.
 
 ## Summary Creation
 
@@ -21,7 +21,7 @@ Every `comparison_verdicts` entry must declare `subject_role` explicitly. If the
 Treat decisive comparisons as required whenever the PLAN contract includes `benchmark` or `cross_method` acceptance tests, whenever a benchmark/compare-driven reference anchors the subject, or whenever execution actually performed a decisive comparison.
 
 ```yaml
-plan_contract_ref: ".gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract"
+plan_contract_ref: "GPD/phases/XX-name/{phase}-{plan}-PLAN.md#/contract"
 contract_results:
   claims:
     claim-main:
@@ -36,7 +36,7 @@ contract_results:
           deliverable_id: deliv-main
           acceptance_test_id: test-main
           reference_id: ref-main
-          evidence_path: ".gpd/phases/XX-name/{phase}-VERIFICATION.md"
+          evidence_path: "GPD/phases/XX-name/{phase}-VERIFICATION.md"
   deliverables:
     deliv-main:
       status: passed
@@ -212,7 +212,7 @@ gpd CLI commands can fail. Handle errors explicitly:
 if ! gpd state advance; then
   echo "ERROR: state advance failed. Check STATE.md format."
   # Read STATE.md to diagnose
-  cat .gpd/STATE.md
+  cat GPD/STATE.md
   # Retry once after diagnosis, or flag for human review
 fi
 
@@ -224,7 +224,7 @@ gpd state advance  # might silently fail
 
 | Failure | Cause | Fix |
 |---------|-------|-----|
-| `ENOENT` | STATE.md or target file missing | Verify `.gpd/STATE.md` exists before calling |
+| `ENOENT` | STATE.md or target file missing | Verify `GPD/STATE.md` exists before calling |
 | `Parse error` | Malformed frontmatter or markdown | Read file, fix formatting, retry |
 | `No phase/plan found` | STATE.md has unexpected structure | Check Current Phase/Plan fields in STATE.md |
 | Non-zero exit with no output | Python crash or missing dependency | Check `python --version`, verify gpd CLI path |
@@ -291,7 +291,7 @@ gpd_return:
   files_written:
     - "derivations/hamiltonian.tex"
     - "scripts/compute_spectrum.py"
-    - ".gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md"
+    - "GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md"
   issues:
     - "Lanczos solver required increased basis size (auto-fixed: Rule 2)"
   next_actions:
@@ -319,7 +319,7 @@ Include ALL checkpoints (previous + new if continuation agent).
 ## Final Commit
 
 ```bash
-gpd commit "docs({phase}-{plan}): complete [plan-name] research plan" --files ${phase_dir}/{phase}-{plan}-SUMMARY.md ${phase_dir}/{phase}-{plan}-LOG.md ${phase_dir}/{phase}-{plan}-STATE-TRACKING.md .gpd/STATE.md
+gpd commit "docs({phase}-{plan}): complete [plan-name] research plan" --files ${phase_dir}/{phase}-{plan}-SUMMARY.md ${phase_dir}/{phase}-{plan}-LOG.md ${phase_dir}/{phase}-{plan}-STATE-TRACKING.md GPD/STATE.md
 ```
 
 Separate from per-task checkpoints --- captures execution metadata only.

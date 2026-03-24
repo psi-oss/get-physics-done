@@ -17,7 +17,7 @@
       "ref-benchmark"
     ],
     "must_include_prior_outputs": [
-      ".gpd/phases/01-setup/01-01-SUMMARY.md"
+      "GPD/phases/01-setup/01-01-SUMMARY.md"
     ],
     "user_asserted_anchors": [
       "Recover known limiting behavior"

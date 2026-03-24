@@ -1080,8 +1080,8 @@ class TestRewriteWindowsPathEscape:
     @pytest.mark.parametrize(
         "bridge_command",
         [
-            r"'C:\Users\OuterSpaceOrg\.gpd\venv\Scripts\python.exe' -m gpd.runtime_cli",
-            r"'C:\Users\me\.gpd\venv\Scripts\python.exe' -m gpd.runtime_cli",
+            r"'C:\Users\OuterSpaceOrg\GPD\venv\Scripts\python.exe' -m gpd.runtime_cli",
+            r"'C:\Users\me\GPD\venv\Scripts\python.exe' -m gpd.runtime_cli",
         ],
     )
     def test_rewrite_gpd_cli_invocations_windows_path(self, bridge_command: str) -> None:
@@ -1098,7 +1098,7 @@ class TestPolicyTomlWindowsPath:
     def test_render_policy_toml_with_windows_path(self) -> None:
         import tomllib
 
-        bridge = r"'C:\Users\OuterSpaceOrg\.gpd\venv\Scripts\python.exe' -m gpd.runtime_cli --runtime gemini"
+        bridge = r"'C:\Users\OuterSpaceOrg\GPD\venv\Scripts\python.exe' -m gpd.runtime_cli --runtime gemini"
         toml_text = _render_gemini_policy_toml(bridge)
         parsed = tomllib.loads(toml_text)
         prefixes = parsed["rule"][0]["commandPrefix"]

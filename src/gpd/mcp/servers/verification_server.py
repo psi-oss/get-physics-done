@@ -809,15 +809,18 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
             )
             if forbidden_proxy is not None:
                 _apply_subject_binding(binding, contract, forbidden_proxy.subject)
+            proxy_tests = _matching_acceptance_tests(
+                contract,
+                kinds=("proxy",),
+                keywords=("proxy", "surrogate"),
+            )
+            _apply_single_acceptance_test_binding_if_consistent(
+                binding,
+                contract,
+                proxy_tests,
+            )
         else:
-            binding.setdefault("forbidden_proxy_ids", None)
             enriched_hint["required_request_fields"] = ["binding.forbidden_proxy_ids"]
-        proxy_tests = _matching_acceptance_tests(
-            contract,
-            kinds=("proxy",),
-            keywords=("proxy", "surrogate"),
-        )
-        _apply_single_acceptance_test_binding(binding, contract, proxy_tests)
 
     elif check_key == "contract.fit_family_mismatch":
         allowed_families = list(contract.approach_policy.allowed_fit_families)
@@ -1503,6 +1506,7 @@ def _binding_claim_contexts(
     claims_by_id = {claim.id: claim for claim in contract.claims}
     claims_by_deliverable = _claim_ids_by_deliverable(contract)
     tests_by_id = {test.id: test for test in contract.acceptance_tests}
+    forbidden_proxies_by_id = {proxy.id: proxy for proxy in contract.forbidden_proxies}
 
     contexts: dict[str, list[str]] = {}
 
@@ -1530,6 +1534,21 @@ def _binding_claim_contexts(
         )
     if binding_ids.get("acceptance_test"):
         contexts["acceptance_test"] = _unique_strings(acceptance_test_claim_ids)
+
+    forbidden_proxy_claim_ids: list[str] = []
+    for forbidden_proxy_id in _unique_strings(binding_ids.get("forbidden_proxy", [])):
+        forbidden_proxy = forbidden_proxies_by_id.get(forbidden_proxy_id)
+        if forbidden_proxy is None:
+            continue
+        forbidden_proxy_claim_ids.extend(
+            _claim_ids_for_subject(
+                forbidden_proxy.subject,
+                claims_by_id=claims_by_id,
+                claims_by_deliverable=claims_by_deliverable,
+            )
+        )
+    if binding_ids.get("forbidden_proxy"):
+        contexts["forbidden_proxy"] = _unique_strings(forbidden_proxy_claim_ids)
 
     return contexts
 
@@ -2583,6 +2602,32 @@ def _apply_single_acceptance_test_binding(
         test.subject,
         include_observable_binding=include_observable_binding,
     )
+    return test
+
+
+def _apply_single_acceptance_test_binding_if_consistent(
+    binding: dict[str, object],
+    contract: ResearchContract,
+    tests: list[object],
+    *,
+    include_observable_binding: bool = False,
+) -> object | None:
+    candidate_binding = copy.deepcopy(binding)
+    test = _apply_single_acceptance_test_binding(
+        candidate_binding,
+        contract,
+        tests,
+        include_observable_binding=include_observable_binding,
+    )
+    if test is None:
+        return None
+
+    binding_ids = {target: _binding_values_for_target(candidate_binding, target) for target in _BINDING_TARGETS}
+    if _binding_claim_context_issue(binding_ids=binding_ids, contract=contract) is not None:
+        return None
+
+    binding.clear()
+    binding.update(candidate_binding)
     return test
 
 

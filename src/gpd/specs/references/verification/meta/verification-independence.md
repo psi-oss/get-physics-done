@@ -32,10 +32,10 @@ Structural separation eliminates these failure modes by ensuring the verifier ca
 | Plan contract           | PLAN.md frontmatter `contract` block  | Decisive claims, deliverables, anchors, acceptance tests, links    |
 | Artifact files          | Disk (paths from contract deliverables) | The actual research outputs to inspect                           |
 | Active reference context | init/verification context             | Approved anchors, baselines, must-read references, prior outputs   |
-| STATE.md                | .gpd/STATE.md                         | Project conventions, active approximations, unit system            |
-| config.json             | .gpd/config.json                      | Project configuration                                              |
-| INSIGHTS.md             | .gpd/INSIGHTS.md (if exists)          | Known problem patterns for extra scrutiny                          |
-| ERROR-PATTERNS.md       | .gpd/ERROR-PATTERNS.md (if exists)    | Previous error patterns to check against                           |
+| STATE.md                | GPD/STATE.md                         | Project conventions, active approximations, unit system            |
+| config.json             | GPD/config.json                      | Project configuration                                              |
+| INSIGHTS.md             | GPD/INSIGHTS.md (if exists)          | Known problem patterns for extra scrutiny                          |
+| ERROR-PATTERNS.md       | GPD/ERROR-PATTERNS.md (if exists)    | Previous error patterns to check against                           |
 
 ### DOES NOT RECEIVE (process information)
 

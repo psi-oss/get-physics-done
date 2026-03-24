@@ -16,7 +16,7 @@ FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
 
 def _setup_project(tmp_path: Path) -> None:
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir(parents=True, exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     (planning / "PROJECT.md").write_text("# Test Project\n", encoding="utf-8")
@@ -42,7 +42,7 @@ def test_load_state_json_uses_backup_when_primary_root_is_not_an_object(tmp_path
     assert json.loads(layout.state_json.read_text(encoding="utf-8"))["position"]["current_phase"] == "09"
 
 
-def test_state_and_context_use_backup_when_primary_root_is_dict_but_schema_corrupt(
+def test_state_and_context_keep_primary_state_when_primary_root_is_dict_but_schema_corrupt(
     tmp_path: Path,
 ) -> None:
     _setup_project(tmp_path)
@@ -64,11 +64,14 @@ def test_state_and_context_use_backup_when_primary_root_is_dict_but_schema_corru
     ctx = init_progress(tmp_path)
     loaded = state_load(tmp_path)
 
-    assert loaded.state["position"]["current_phase"] == "09"
-    assert loaded.state["position"]["status"] == "Executing"
-    assert loaded.state["project_contract"]["scope"]["question"] == "Recovered from schema-corrupt backup state"
-    assert ctx["project_contract"]["scope"]["question"] == "Recovered from schema-corrupt backup state"
-    assert ctx["project_contract_load_info"]["source_path"].endswith(STATE_JSON_BACKUP_FILENAME)
+    assert loaded.state["position"]["current_phase"] is None
+    assert loaded.state["position"]["status"] is None
+    assert loaded.integrity_status == "warning"
+    assert any("position" in issue for issue in loaded.integrity_issues)
+    assert loaded.state.get("project_contract") is None
+    assert ctx["project_contract"] is None
+    assert ctx["project_contract_load_info"]["status"] == "missing"
+    assert ctx["project_contract_load_info"]["source_path"].endswith("GPD/state.json")
 
 
 def test_state_and_context_restore_backup_project_contract_when_primary_needs_blocking_normalization(

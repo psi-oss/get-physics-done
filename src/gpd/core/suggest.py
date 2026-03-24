@@ -23,8 +23,6 @@ from gpd.core.constants import (
     ROADMAP_FILENAME,
     STANDALONE_PLAN,
     STANDALONE_RESEARCH,
-    STANDALONE_SUMMARY,
-    STANDALONE_VERIFICATION,
     STATE_JSON_FILENAME,
     SUMMARY_SUFFIX,
     TODOS_DIR_NAME,
@@ -156,7 +154,7 @@ def _is_plan_file(name: str) -> bool:
 
 
 def _is_summary_file(name: str) -> bool:
-    return name.endswith(SUMMARY_SUFFIX) or name == STANDALONE_SUMMARY
+    return name.endswith(SUMMARY_SUFFIX)
 
 
 def _is_research_file(name: str) -> bool:
@@ -164,7 +162,7 @@ def _is_research_file(name: str) -> bool:
 
 
 def _is_verification_file(name: str) -> bool:
-    return name.endswith(VERIFICATION_SUFFIX) or name == STANDALONE_VERIFICATION
+    return name.endswith(VERIFICATION_SUFFIX)
 
 
 
@@ -345,7 +343,7 @@ def _resolve_unverified_result_phase(
 
 
 def _count_pending_todos(cwd: Path) -> int:
-    """Count .md files in .gpd/todos/pending/."""
+    """Count .md files in GPD/todos/pending/."""
     pending_dir = _planning_dir(cwd) / TODOS_DIR_NAME / "pending"
     if not pending_dir.is_dir():
         return 0

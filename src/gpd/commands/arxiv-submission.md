@@ -54,7 +54,7 @@ The workflow's preflight gate checks the explicit paper target, the compiled man
 <context>
 Paper directory: $ARGUMENTS (optional, defaults to `paper/` or `manuscript/`)
 
-@.gpd/STATE.md
+@GPD/STATE.md
 </context>
 
 <process>

@@ -4,7 +4,7 @@ template_version: 1
 
 # Summary Template
 
-Template for `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md` - phase completion documentation.
+Template for `GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md` - phase completion documentation.
 
 ---
 
@@ -32,7 +32,7 @@ Keep this ledger user-visible: record what claim was established, what artifact 
 Use `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` as the schema source of truth for these fields. If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is also required. If a decisive comparison is required, omitting its `comparison_verdicts` entry is a validation failure, not a stylistic omission.
 Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the source PLAN contract must appear in the matching `contract_results` section. Use explicit statuses like `not_attempted`, `missing`, `not_applicable`, or `unresolved` instead of silently omitting contract IDs.
 Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing the YAML and apply it literally rather than paraphrasing from memory.
-`plan_contract_ref` must be the canonical project-root-relative `.gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract` path. It must not be absolute, parent-traversing, or collapse to a bare sibling reference. For reference-backed decisive comparisons, `comparison_kind: benchmark|prior_work|experiment|baseline|cross_method` can satisfy the requirement; `comparison_kind: other` cannot.
+`plan_contract_ref` must be the canonical project-root-relative `GPD/phases/XX-name/{phase}-{plan}-PLAN.md#/contract` path. It must not be absolute, parent-traversing, or collapse to a bare sibling reference. For reference-backed decisive comparisons, `comparison_kind: benchmark|prior_work|experiment|baseline|cross_method` can satisfy the requirement; `comparison_kind: other` cannot.
 Keep `uncertainty_markers` explicit and user-visible in contract-backed outputs; do not let it be synthesized by hidden defaults. In strict contract-backed outputs, `weakest_anchors` and `disconfirming_observations` must be non-empty.
 For `contract_results.references`, keep the action ledger consistent: `completed` needs non-empty `completed_actions`, `missing` needs non-empty `missing_actions`, `not_applicable` keeps both lists empty, and the two lists must not overlap.
 `required_actions`, `completed_actions`, and `missing_actions` all use the same validator-enforced action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`.
@@ -107,7 +107,7 @@ conventions:
   - "Fourier = e^{-ikx} forward"
 
 # Canonical contract outcome ledger (required when source PLAN has a contract)
-plan_contract_ref (required when `contract_results` or `comparison_verdicts` are present): ".gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract"
+plan_contract_ref (required when `contract_results` or `comparison_verdicts` are present): "GPD/phases/XX-name/{phase}-{plan}-PLAN.md#/contract"
 contract_results (required for contract-backed plans):
   # Every ID declared in the PLAN contract must appear in its matching section below.
   claims:
@@ -124,7 +124,7 @@ contract_results (required for contract-backed plans):
           acceptance_test_id: acceptance-test-id
           reference_id: reference-id
           forbidden_proxy_id: forbidden-proxy-id
-          evidence_path: ".gpd/phases/XX-name/{phase}-VERIFICATION.md"
+          evidence_path: "GPD/phases/XX-name/{phase}-VERIFICATION.md"
   deliverables:
     deliverable-id:
       status: passed|partial|failed|blocked|not_attempted

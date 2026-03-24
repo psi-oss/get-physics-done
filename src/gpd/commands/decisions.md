@@ -4,7 +4,7 @@ description: Display and search the cumulative decision log
 argument-hint: "[phase number or keyword]"
 context_mode: project-required
 requires:
-  files: [".gpd/STATE.md"]
+  files: ["GPD/STATE.md"]
 allowed-tools:
   - file_read
   - shell
@@ -16,7 +16,7 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Display the cumulative decision log from .gpd/DECISIONS.md with optional filtering by phase number or keyword search.
+Display the cumulative decision log from GPD/DECISIONS.md with optional filtering by phase number or keyword search.
 
 Routes to the decisions workflow which handles:
 
@@ -27,7 +27,7 @@ Routes to the decisions workflow which handles:
   </objective>
 
 <execution_context>
-@.gpd/STATE.md
+@GPD/STATE.md
 @{GPD_INSTALL_DIR}/workflows/decisions.md
 </execution_context>
 

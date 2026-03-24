@@ -10,7 +10,7 @@
     ".pytest_cache",
     ".mypy_cache",
     ".ruff_cache",
-    ".gpd",
+    "GPD",
     ".claude",
     ".gemini",
     ".codex",

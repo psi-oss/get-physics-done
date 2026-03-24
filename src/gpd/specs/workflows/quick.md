@@ -1,5 +1,5 @@
 <purpose>
-Execute small, ad-hoc physics tasks with GPD guarantees (atomic commits and durable state updates) while skipping optional agents (literature search, plan-checker, verifier). Quick mode spawns gpd-planner (quick mode) + gpd-executor(s), tracks artifacts in `.gpd/quick/`, and records completion through the structured state commands plus the quick-task summary files. Typical quick tasks include: quick derivation, dimensional check, order-of-magnitude estimate, limiting case verification, and bibliography lookup.
+Execute small, ad-hoc physics tasks with GPD guarantees (atomic commits and durable state updates) while skipping optional agents (literature search, plan-checker, verifier). Quick mode spawns gpd-planner (quick mode) + gpd-executor(s), tracks artifacts in `GPD/quick/`, and records completion through the structured state commands plus the quick-task summary files. Typical quick tasks include: quick derivation, dimensional check, order-of-magnitude estimate, limiting case verification, and bibliography lookup.
 </purpose>
 
 <required_reading>
@@ -49,9 +49,9 @@ Parse JSON for: `planner_model`, `executor_model`, `commit_docs`, `autonomy`, `n
 - `autonomy=balanced` (default): Execute without pausing unless the quick task reveals a real decision point.
 - `autonomy=yolo`: Execute and commit without pausing.
 
-**If `planning_exists` is false:** Error -- Quick mode requires an initialized project with `.gpd/`. Run `/gpd:new-project` first.
+**If `planning_exists` is false:** Error -- Quick mode requires an initialized project with `GPD/`. Run `/gpd:new-project` first.
 
-Quick tasks can run mid-phase and do NOT require ROADMAP.md. They only need `.gpd/` to exist for directory structure.
+Quick tasks can run mid-phase and do NOT require ROADMAP.md. They only need `GPD/` to exist for directory structure.
 Quick mode still inherits the approved `project_contract` only when `project_contract_load_info` is clean and `project_contract_validation` passes, and it still inherits the active reference ledger. Do not bypass required anchors, baselines, or forbidden-proxy constraints just because the task is small.
 Before planning, also load `{GPD_INSTALL_DIR}/templates/planner-subagent-prompt.md`, `{GPD_INSTALL_DIR}/templates/phase-prompt.md`, and `{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` so the canonical PLAN structure and contract rules are visible to the planner before it writes anything.
 
@@ -59,7 +59,7 @@ Before planning, also load `{GPD_INSTALL_DIR}/templates/planner-subagent-prompt.
 
 **Step 3: Create task directory**
 
-Use `task_dir` from init JSON (for example, `.gpd/quick/NNN-slug/`):
+Use `task_dir` from init JSON (for example, `GPD/quick/NNN-slug/`):
 
 ```bash
 QUICK_DIR="${task_dir}"
@@ -94,7 +94,7 @@ Then read {GPD_INSTALL_DIR}/templates/planner-subagent-prompt.md, {GPD_INSTALL_D
 **Description:** ${DESCRIPTION}
 
 **Project State:**
-Read the file at .gpd/STATE.md
+Read the file at GPD/STATE.md
 
 **Project Contract:** {project_contract}
 **Project Contract Load Info:** {project_contract_load_info}
@@ -149,7 +149,7 @@ task(
 Execute quick task ${next_num}.
 
 Plan: Read the file at ${QUICK_DIR}/${next_num}-PLAN.md
-Project state: Read the file at .gpd/STATE.md
+Project state: Read the file at GPD/STATE.md
 Project contract: {project_contract}
 Project contract load info: {project_contract_load_info}
 Project contract validation: {project_contract_validation}
@@ -211,7 +211,7 @@ The current state schema does not round-trip arbitrary markdown-only sections wh
 - the updated `Last Activity` field
 - the artifacts in `${QUICK_DIR}` (`${next_num}-PLAN.md`, `${next_num}-SUMMARY.md`, and any committed outputs)
 
-If you want a human-facing index, put it in `.gpd/quick/README.md` or in the quick-task summary, not in `STATE.md`.
+If you want a human-facing index, put it in `GPD/quick/README.md` or in the quick-task summary, not in `STATE.md`.
 
 ---
 
@@ -220,10 +220,10 @@ If you want a human-facing index, put it in `.gpd/quick/README.md` or in the qui
 Stage and commit quick task artifacts:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files ${QUICK_DIR}/${next_num}-PLAN.md ${QUICK_DIR}/${next_num}-SUMMARY.md .gpd/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files ${QUICK_DIR}/${next_num}-PLAN.md ${QUICK_DIR}/${next_num}-SUMMARY.md GPD/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs(quick-${next_num}): ${DESCRIPTION}" --files ${QUICK_DIR}/${next_num}-PLAN.md ${QUICK_DIR}/${next_num}-SUMMARY.md .gpd/STATE.md
+gpd commit "docs(quick-${next_num}): ${DESCRIPTION}" --files ${QUICK_DIR}/${next_num}-PLAN.md ${QUICK_DIR}/${next_num}-SUMMARY.md GPD/STATE.md
 ```
 
 Get final commit hash:
@@ -253,11 +253,11 @@ Ready for next task: /gpd:quick
 
 <success_criteria>
 
-- [ ] `.gpd/` directory exists
+- [ ] `GPD/` directory exists
 - [ ] User provides task description
 - [ ] Slug generated (lowercase, hyphens, max 40 chars)
 - [ ] Next number calculated (001, 002, 003...)
-- [ ] Directory created at `.gpd/quick/NNN-slug/`
+- [ ] Directory created at `GPD/quick/NNN-slug/`
 - [ ] `${next_num}-PLAN.md` created by planner
 - [ ] `${next_num}-SUMMARY.md` created by executor
 - [ ] Structured state updated via `gpd state` commands

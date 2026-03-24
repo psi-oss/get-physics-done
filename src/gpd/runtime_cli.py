@@ -23,7 +23,7 @@ from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_install_repa
 from gpd.adapters.runtime_catalog import resolve_global_config_dir
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
 from gpd.hooks.install_metadata import installed_runtime
-from gpd.hooks.runtime_detect import normalize_runtime_name
+from gpd.hooks.runtime_detect import _runtime_from_manifest_or_path, normalize_runtime_name
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -179,7 +179,7 @@ def _paths_equal(left: Path, right: Path) -> bool:
         return left.expanduser() == right.expanduser()
 
 
-def _is_matching_local_install_candidate(candidate: Path, *, runtime: str) -> bool:
+def _is_matching_local_install_candidate(candidate: Path, *, runtime: str, cli_cwd: Path) -> bool:
     """Return whether *candidate* should satisfy a local bridge config-dir lookup."""
     if not candidate.is_dir():
         return False
@@ -201,7 +201,17 @@ def _is_matching_local_install_candidate(candidate: Path, *, runtime: str) -> bo
     if _paths_equal(candidate, canonical_global_dir) and manifest_scope != "local":
         return False
 
-    return installed_runtime(candidate) == runtime
+    if installed_runtime(candidate) == runtime:
+        return True
+
+    return (
+        _runtime_from_manifest_or_path(
+            candidate,
+            cwd=cli_cwd,
+            allow_local_path_fallback=True,
+        )
+        == runtime
+    )
 
 
 def _resolve_local_config_dir(raw_value: str, *, runtime: str, cli_cwd: Path) -> Path:
@@ -212,7 +222,7 @@ def _resolve_local_config_dir(raw_value: str, *, runtime: str, cli_cwd: Path) ->
     adapter = get_adapter(runtime)
     for base in (resolved_cwd, *resolved_cwd.parents):
         candidate = (base / relative).resolve(strict=False)
-        if not _is_matching_local_install_candidate(candidate, runtime=runtime):
+        if not _is_matching_local_install_candidate(candidate, runtime=runtime, cli_cwd=resolved_cwd):
             continue
         if adapter.has_complete_install(candidate):
             return candidate

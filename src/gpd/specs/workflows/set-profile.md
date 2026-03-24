@@ -32,7 +32,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-This creates `.gpd/config.json` with defaults if missing and loads current config.
+This creates `GPD/config.json` with defaults if missing and loads current config.
 </step>
 
 <step name="update_config">
@@ -46,7 +46,7 @@ Update `model_profile` field:
 }
 ```
 
-Write updated config back to `.gpd/config.json`.
+Write updated config back to `GPD/config.json`.
 </step>
 
 <step name="confirm">
@@ -166,7 +166,7 @@ Behavioral highlights: Plans organized by paper sections with tasks mapped to fi
 - `adaptive` (default): inject first-result and risky-fanout gates while letting clean segments continue
 - `sparse`: fewest bounded review stops beyond the required correctness gates
 
-Change cadence with `/gpd:settings` or by editing `.gpd/config.json` (`execution.review_cadence`: `"dense"` / `"adaptive"` / `"sparse"`).
+Change cadence with `/gpd:settings` or by editing `GPD/config.json` (`execution.review_cadence`: `"dense"` / `"adaptive"` / `"sparse"`).
 
 If you also want to pin concrete runtime model strings for `tier-1`, `tier-2`, or `tier-3`, use `/gpd:settings`. `set-profile` changes the abstract tier assignments, not the runtime-native model IDs.
 

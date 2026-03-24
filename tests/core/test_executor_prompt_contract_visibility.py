@@ -56,7 +56,7 @@ def test_executor_completion_reference_exposes_required_summary_depth_and_comple
 
     assert "**Frontmatter:** phase, plan, depth, physics-area" in completion
     assert "metrics (duration, completed date)" in completion
-    assert "plan_contract_ref: \".gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract\"" in completion
+    assert "plan_contract_ref: \"GPD/phases/XX-name/{phase}-{plan}-PLAN.md#/contract\"" in completion
 
 
 def test_expanded_executor_prompt_keeps_contract_results_schema_visible_for_summary_creation() -> None:

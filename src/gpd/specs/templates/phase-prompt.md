@@ -110,9 +110,9 @@ Output: [Derivations, code, data, figures, or notes created by this plan]
 </execution_context>
 
 <context>
-@.gpd/PROJECT.md
-@.gpd/ROADMAP.md
-@.gpd/STATE.md
+@GPD/PROJECT.md
+@GPD/ROADMAP.md
+@GPD/STATE.md
 @path/to/reference-or-benchmark-anchor.md
 @path/to/prior-summary-or-input.md
 </context>
@@ -146,7 +146,7 @@ Output: [Derivations, code, data, figures, or notes created by this plan]
 </success_criteria>
 
 <output>
-After completion, create `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md`.
+After completion, create `GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md`.
 </output>
 ```
 

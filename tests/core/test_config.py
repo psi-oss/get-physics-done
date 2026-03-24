@@ -120,14 +120,14 @@ class TestLoadConfig:
         assert cfg == GPDProjectConfig()
 
     def test_empty_object(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text("{}")
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text("{}")
         cfg = load_config(tmp_path)
         assert cfg.model_profile == ModelProfile.REVIEW
 
     def test_custom_values(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
             json.dumps(
                 {
                     "model_profile": "deep-theory",
@@ -154,15 +154,15 @@ class TestLoadConfig:
         tmp_path: Path,
         invalid_value: str,
     ) -> None:
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"autonomy": invalid_value}))
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(json.dumps({"autonomy": invalid_value}))
 
         with pytest.raises(ConfigError, match="Invalid config.json values"):
             load_config(tmp_path)
 
     def test_nested_section_fallback(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
             json.dumps(
                 {
                     "planning": {"commit_docs": False},
@@ -190,8 +190,8 @@ class TestLoadConfig:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(json.dumps({"commit_docs": True}))
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(json.dumps({"commit_docs": True}))
         monkeypatch.setattr("gpd.core.config._planning_dir_is_gitignored", lambda _: True)
 
         cfg = load_config(tmp_path)
@@ -199,14 +199,14 @@ class TestLoadConfig:
         assert cfg.commit_docs is False
 
     def test_malformed_json_raises(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text("{bad json")
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text("{bad json")
         with pytest.raises(ConfigError, match="Malformed config.json"):
             load_config(tmp_path)
 
     def test_physics_section_is_rejected_by_current_config_schema(self, tmp_path: Path) -> None:
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
             json.dumps({"physics": {"unit_system": "natural"}}),
             encoding="utf-8",
         )
@@ -215,20 +215,20 @@ class TestLoadConfig:
             load_config(tmp_path)
 
     def test_model_overrides(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
+        (tmp_path / "GPD").mkdir()
         overrides = {
             descriptor.runtime_name: {"tier-1": f"{descriptor.runtime_name}-tier-1"}
             for descriptor in _RUNTIME_DESCRIPTORS
         }
-        (tmp_path / ".gpd" / "config.json").write_text(
+        (tmp_path / "GPD" / "config.json").write_text(
             json.dumps({"model_overrides": overrides})
         )
         cfg = load_config(tmp_path)
         assert cfg.model_overrides == overrides
 
     def test_invalid_model_overrides_runtime_raises(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
             json.dumps({"model_overrides": {"unknown-runtime": {"tier-1": "foo"}}})
         )
         with pytest.raises(ConfigError, match="model_overrides contains unknown runtime"):
@@ -236,8 +236,8 @@ class TestLoadConfig:
 
     def test_invalid_model_overrides_tier_raises(self, tmp_path: Path):
         runtime_name = _RUNTIME_DESCRIPTORS[0].runtime_name
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
             json.dumps({"model_overrides": {runtime_name: {"tier-x": "foo"}}})
         )
         expected_match = re.escape(f"model_overrides['{runtime_name}'] contains unknown tier")
@@ -250,8 +250,8 @@ class TestLoadConfig:
         monkeypatch: pytest.MonkeyPatch,
     ):
         runtime_name = _RUNTIME_DESCRIPTORS[0].runtime_name
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
             json.dumps({"model_overrides": {runtime_name: {"tier-1": "gpt-5.4"}}})
         )
 
@@ -307,8 +307,8 @@ class TestResolveModel:
 
     @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
     def test_with_runtime_specific_override(self, tmp_path: Path, descriptor) -> None:
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
             json.dumps(
                 {
                     "model_overrides": {
@@ -328,8 +328,8 @@ class TestResolveModel:
         foreign_descriptor = next(
             candidate for candidate in _RUNTIME_DESCRIPTORS if candidate.runtime_name != descriptor.runtime_name
         )
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
             json.dumps(
                 {
                     "model_overrides": {
@@ -344,8 +344,8 @@ class TestResolveModel:
 
 class TestResolveTier:
     def test_project_resolve_tier_uses_profile(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
-        (tmp_path / ".gpd" / "config.json").write_text(
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
             json.dumps({"model_profile": "paper-writing"})
         )
         tier = resolve_tier(tmp_path, "gpd-project-researcher")

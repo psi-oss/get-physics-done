@@ -17,7 +17,7 @@ Reference document specifying all valid entity lifecycles, state ownership, and 
 Created → Active → Paused → Active → Complete → Archived
 ```
 
-- **Owner file**: `.gpd/PROJECT.md` (status), `.gpd/STATE.md` (position)
+- **Owner file**: `GPD/PROJECT.md` (status), `GPD/STATE.md` (position)
 - **Created → Active**: `/gpd:new-project` completes (ROADMAP.md exists, STATE.md initialized)
 - **Active → Paused**: `/gpd:pause-work` (explicit user action, writes `.continue-here` file)
 - **Paused → Active**: `/gpd:resume-work` (restores context from `.continue-here`)

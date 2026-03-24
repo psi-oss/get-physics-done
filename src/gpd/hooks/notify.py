@@ -220,7 +220,7 @@ def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) 
 
 
 def _notification_state_path(cwd: str) -> Path:
-    return Path(cwd) / ".gpd" / "observability" / "last-notify.json"
+    return Path(cwd) / "GPD" / "observability" / "last-notify.json"
 
 
 def _load_last_notification(cwd: str) -> dict[str, object]:

@@ -259,13 +259,13 @@ def _run_bootstrap_with_fake_python(
         _write_fake_python(fake_bin / name, log_path, version_text)
 
     if precreate_managed_version is not None:
-        managed_bin = home / ".gpd" / "venv" / "bin"
+        managed_bin = home / "GPD" / "venv" / "bin"
         for name in ("python", "python3"):
             _write_fake_python(managed_bin / name, log_path, precreate_managed_version)
 
     env = os.environ.copy()
     env["HOME"] = str(home)
-    env["GPD_HOME"] = str(home / ".gpd")
+    env["GPD_HOME"] = str(home / "GPD")
     env["GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES"] = "1"
     env["PATH"] = os.pathsep.join([str(local_bin), str(fake_bin), env.get("PATH", "")])
     if extra_env:
@@ -294,7 +294,7 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
 
     assert any(entry["argv"] == ["-m", "venv", "--help"] for entry in entries)
     assert any(
-        entry["argv"][:2] == ["-m", "venv"] and entry["argv"][-1].replace("\\", "/").endswith("/.gpd/venv")
+        entry["argv"][:2] == ["-m", "venv"] and entry["argv"][-1].replace("\\", "/").endswith("/GPD/venv")
         for entry in entries
     )
 
@@ -313,7 +313,7 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     ]
     assert len(managed_runtime_installs) == 1
 
-    assert (home / ".gpd" / "venv" / "bin" / "python").exists()
+    assert (home / "GPD" / "venv" / "bin" / "python").exists()
     assert f"GPD v{PACKAGE_VERSION} - Get Physics Done" in result.stdout
     assert "© 2026 Physical Superintelligence PBC (PSI)" in result.stdout
     assert f"Installing GPD (local) for: {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}" in result.stdout
@@ -344,7 +344,7 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
 
     assert any(entry["argv"] == ["-m", "venv", "--help"] for entry in entries)
     assert any(
-        entry["argv"][:2] == ["-m", "venv"] and entry["argv"][-1].replace("\\", "/").endswith("/.gpd/venv")
+        entry["argv"][:2] == ["-m", "venv"] and entry["argv"][-1].replace("\\", "/").endswith("/GPD/venv")
         for entry in entries
     )
 
@@ -359,7 +359,7 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
     ]
     assert len(managed_runtime_uninstalls) == 1
 
-    assert (home / ".gpd" / "venv" / "bin" / "python").exists()
+    assert (home / "GPD" / "venv" / "bin" / "python").exists()
     assert f"Preparing managed GPD CLI from PyPI (get-physics-done=={PYTHON_PACKAGE_VERSION}) into the managed environment..." in result.stdout
     assert f"Uninstalling GPD from {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)..." in result.stdout
     assert "runtime uninstall ok" in result.stdout
@@ -996,4 +996,4 @@ def test_bootstrap_recreates_managed_env_when_selected_minor_changes(tmp_path: P
     assert len(venv_creations) == 1
     assert venv_creations[0]["exe"].endswith("python3.13")
     assert "switching to Python 3.13.2" in result.stdout
-    assert (home / ".gpd" / "venv" / "bin" / "python").exists()
+    assert (home / "GPD" / "venv" / "bin" / "python").exists()

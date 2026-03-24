@@ -3,7 +3,7 @@ phase: 01-benchmark
 verified: 2026-03-15T12:00:00Z
 status: passed
 score: 3/3 contract targets verified
-plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract
+plan_contract_ref: GPD/phases/01-benchmark/01-01-PLAN.md#/contract
 contract_results:
   claims:
     claim-benchmark:

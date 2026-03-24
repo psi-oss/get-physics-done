@@ -177,7 +177,7 @@ def _available_citation_keys(manuscript_dir: Path, bibliography_audit: Bibliogra
 
 
 def _load_figure_registry(project_root: Path) -> list[_FigureTrackerEntry]:
-    tracker_path = project_root / ".gpd" / "paper" / "FIGURE_TRACKER.md"
+    tracker_path = project_root / "GPD" / "paper" / "FIGURE_TRACKER.md"
     meta = _extract_meta(tracker_path)
     raw = meta.get("figure_registry")
     if not isinstance(raw, list):
@@ -246,8 +246,8 @@ def _collect_comparison_verdicts(project_root: Path) -> tuple[list[ComparisonVer
     parse_errors: list[str] = []
 
     candidate_roots = [
-        project_root / ".gpd" / "phases",
-        project_root / ".gpd" / "comparisons",
+        project_root / "GPD" / "phases",
+        project_root / "GPD" / "comparisons",
         project_root / "paper",
     ]
     for root in candidate_roots:
@@ -293,7 +293,7 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
     requires_decisive_comparison = False
     comparison_verdicts_valid = True
 
-    phases_root = project_root / ".gpd" / "phases"
+    phases_root = project_root / "GPD" / "phases"
     if not phases_root.exists():
         return _ContractCoverage()
 

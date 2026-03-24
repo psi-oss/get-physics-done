@@ -15,7 +15,7 @@ from gpd.core.state import (
 
 
 def _bootstrap_project(tmp_path: Path) -> Path:
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
     (planning / "phases").mkdir()
     return tmp_path
@@ -23,7 +23,7 @@ def _bootstrap_project(tmp_path: Path) -> Path:
 
 def test_sync_state_json_core_uses_markdown_bullet_sections_as_authority(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     existing = default_state_dict()
     existing["position"]["current_phase"] = "03"
@@ -54,7 +54,7 @@ def test_sync_state_json_core_uses_markdown_bullet_sections_as_authority(tmp_pat
 
 def test_state_validate_flags_mirrored_markdown_drift_beyond_position(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     state_json = default_state_dict()
     state_json["position"]["current_phase"] = "03"
@@ -82,7 +82,7 @@ def test_state_validate_flags_mirrored_markdown_drift_beyond_position(tmp_path: 
 
 def test_sync_state_json_core_preserves_user_edits_to_structured_result_bullets(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     state = default_state_dict()
     state["position"]["current_phase"] = "03"
@@ -121,7 +121,7 @@ def test_sync_state_json_core_preserves_user_edits_to_structured_result_bullets(
 
 def test_sync_state_json_core_bootstrap_preserves_progress_and_metrics(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     state = default_state_dict()
     state["position"]["current_phase"] = "03"
@@ -202,7 +202,7 @@ def test_sync_state_json_core_preserves_structured_json_sections_when_markdown_l
     tmp_path: Path,
 ) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     existing = default_state_dict()
     existing["position"]["current_phase"] = "03"
@@ -234,7 +234,7 @@ def test_sync_state_json_core_preserves_structured_json_sections_when_markdown_l
 
 ## Project Reference
 
-See: .gpd/PROJECT.md (updated 2026-03-08)
+See: GPD/PROJECT.md (updated 2026-03-08)
 
 **Core research question:** What is the mass gap?
 **Current focus:** Lattice study
@@ -290,7 +290,7 @@ None yet.
 
 def test_sync_state_json_core_placeholder_fields_clear_stale_json_values(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     existing = default_state_dict()
     existing["position"]["current_phase"] = "03"
@@ -321,7 +321,7 @@ def test_sync_state_json_core_placeholder_fields_clear_stale_json_values(tmp_pat
 
 def test_save_state_markdown_updates_markdown_and_json_together(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     existing = default_state_dict()
     existing["position"]["current_phase"] = "01"
@@ -345,7 +345,7 @@ def test_save_state_markdown_updates_markdown_and_json_together(tmp_path: Path) 
 
 def test_state_update_progress_ignores_orphan_summaries_and_caps_percent(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
     state = default_state_dict()
     state["position"]["current_phase"] = "01"
     state["position"]["total_phases"] = 2
@@ -355,11 +355,11 @@ def test_state_update_progress_ignores_orphan_summaries_and_caps_percent(tmp_pat
     phase_one = planning / "phases" / "01-foundations"
     phase_one.mkdir(parents=True)
     (phase_one / "PLAN.md").write_text("# plan\n", encoding="utf-8")
-    (phase_one / "SUMMARY.md").write_text("# summary\n", encoding="utf-8")
+    (phase_one / "01-SUMMARY.md").write_text("# summary\n", encoding="utf-8")
 
     phase_two = planning / "phases" / "02-orphan-summary"
     phase_two.mkdir(parents=True)
-    (phase_two / "SUMMARY.md").write_text("# orphan summary\n", encoding="utf-8")
+    (phase_two / "02-SUMMARY.md").write_text("# orphan summary\n", encoding="utf-8")
 
     result = state_update_progress(cwd)
 
@@ -368,13 +368,13 @@ def test_state_update_progress_ignores_orphan_summaries_and_caps_percent(tmp_pat
     assert result.total == 1
     assert result.percent == 100
     assert result.checkpoint_files == []
-    assert not (cwd / ".gpd" / "phase-checkpoints" / "01-foundations.md").exists()
-    assert not (cwd / ".gpd" / "CHECKPOINTS.md").exists()
+    assert not (cwd / "GPD" / "phase-checkpoints" / "01-foundations.md").exists()
+    assert not (cwd / "GPD" / "CHECKPOINTS.md").exists()
 
 
 def test_state_update_progress_leaves_checkpoint_shelf_artifacts_unchanged(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
     state = default_state_dict()
     state["position"]["current_phase"] = "01"
     state["position"]["total_phases"] = 2
@@ -384,18 +384,18 @@ def test_state_update_progress_leaves_checkpoint_shelf_artifacts_unchanged(tmp_p
     phase_one = planning / "phases" / "01-foundations"
     phase_one.mkdir(parents=True)
     (phase_one / "PLAN.md").write_text("# plan\n", encoding="utf-8")
-    (phase_one / "SUMMARY.md").write_text("# summary\n", encoding="utf-8")
+    (phase_one / "01-SUMMARY.md").write_text("# summary\n", encoding="utf-8")
 
     phase_two = planning / "phases" / "02-analysis"
     phase_two.mkdir(parents=True)
     (phase_two / "PLAN.md").write_text("# plan\n", encoding="utf-8")
-    (phase_two / "SUMMARY.md").write_text("# summary\n", encoding="utf-8")
+    (phase_two / "02-SUMMARY.md").write_text("# summary\n", encoding="utf-8")
 
-    checkpoint_dir = cwd / ".gpd" / "phase-checkpoints"
+    checkpoint_dir = cwd / "GPD" / "phase-checkpoints"
     checkpoint_dir.mkdir()
     stale_checkpoint = checkpoint_dir / "99-old-phase.md"
     stale_checkpoint.write_text("stale checkpoint\n", encoding="utf-8")
-    checkpoints_index = cwd / ".gpd" / "CHECKPOINTS.md"
+    checkpoints_index = cwd / "GPD" / "CHECKPOINTS.md"
     checkpoints_index.write_text("stale index\n", encoding="utf-8")
 
     result = state_update_progress(cwd)
@@ -412,9 +412,31 @@ def test_state_update_progress_leaves_checkpoint_shelf_artifacts_unchanged(tmp_p
     assert checkpoints_index.read_text(encoding="utf-8") == "stale index\n"
 
 
+def test_state_update_progress_ignores_legacy_standalone_summary_files(tmp_path: Path) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / "GPD"
+    state = default_state_dict()
+    state["position"]["current_phase"] = "01"
+    state["position"]["total_phases"] = 1
+    state["position"]["status"] = "Executing"
+    (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
+
+    phase_one = planning / "phases" / "01-foundations"
+    phase_one.mkdir(parents=True)
+    (phase_one / "PLAN.md").write_text("# plan\n", encoding="utf-8")
+    (phase_one / "SUMMARY.md").write_text("# legacy summary\n", encoding="utf-8")
+
+    result = state_update_progress(cwd)
+
+    assert result.updated is True
+    assert result.total == 1
+    assert result.completed == 0
+    assert result.percent == 0
+
+
 def test_state_validate_allows_pristine_default_convention_lock(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
     state = default_state_dict()
     (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
     (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
@@ -428,7 +450,7 @@ def test_state_validate_allows_pristine_default_convention_lock(tmp_path: Path) 
 
 def test_state_load_reports_json_backed_state_as_existing_without_state_md(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
     state = default_state_dict()
     (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
 

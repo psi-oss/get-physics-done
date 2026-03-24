@@ -4,7 +4,7 @@ description: Create a hypothesis branch for parallel investigation of an alterna
 argument-hint: "<description>"
 context_mode: project-required
 requires:
-  files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
+  files: ["GPD/ROADMAP.md", "GPD/STATE.md"]
 allowed-tools:
   - file_read
   - file_write
@@ -37,8 +37,8 @@ Common triggers:
 <context>
 Arguments: $ARGUMENTS (format: <description of hypothesis>)
 
-@.gpd/STATE.md
-@.gpd/ROADMAP.md
+@GPD/STATE.md
+@GPD/ROADMAP.md
 </context>
 
 <process>

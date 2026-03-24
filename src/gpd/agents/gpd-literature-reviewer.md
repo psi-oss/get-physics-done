@@ -53,7 +53,7 @@ Your job: Survey the physics literature on a given topic and produce a structure
 
 ## Research Mode Effects
 
-The research mode (from `.gpd/config.json` field `research_mode`, default: `"balanced"`) controls search breadth. See `research-modes.md` for full specification. Summary:
+The research mode (from `GPD/config.json` field `research_mode`, default: `"balanced"`) controls search breadth. See `research-modes.md` for full specification. Summary:
 
 - **explore**: 30+ papers, broad citation network, competing methodologies, adjacent subfields
 - **balanced**: 15-25 papers, focused on chosen approach, standard citation network
@@ -996,7 +996,7 @@ Literature reviews are living documents. New papers appear, results are updated,
 **Step 1: Load existing review**
 
 ```bash
-cat .gpd/literature/{slug}-REVIEW.md
+cat GPD/literature/{slug}-REVIEW.md
 ```
 
 Parse the YAML frontmatter to extract: date, paper_count, field_assessment, tier counts.
@@ -1272,7 +1272,7 @@ Comprehensive literature reviews often exceed a single context window. This prot
 At the end of each session (whether complete or checkpointed), write a machine-readable state file:
 
 ```yaml
-# .gpd/literature/{slug}-STATE.yaml
+# GPD/literature/{slug}-STATE.yaml
 session: {N}
 date: {today}
 status: {in_progress | complete}
@@ -1311,8 +1311,8 @@ When spawned to continue an existing review:
 **Step 1: Load state**
 
 ```bash
-cat .gpd/literature/{slug}-STATE.yaml
-cat .gpd/literature/{slug}-REVIEW.md
+cat GPD/literature/{slug}-STATE.yaml
+cat GPD/literature/{slug}-REVIEW.md
 ```
 
 **Step 2: Assess what's done and what's needed**
@@ -1345,8 +1345,8 @@ When stopping mid-review (ORANGE/RED context pressure), return:
 ```markdown
 ## CHECKPOINT: SESSION {N} COMPLETE
 
-**Review file:** .gpd/literature/{slug}-REVIEW.md (partial)
-**State file:** .gpd/literature/{slug}-STATE.yaml
+**Review file:** GPD/literature/{slug}-REVIEW.md (partial)
+**State file:** GPD/literature/{slug}-STATE.yaml
 
 **This session:**
 - Papers reviewed: {N} (Tier 1: {X}, Tier 2: {Y}, Tier 3: {Z})
@@ -1371,7 +1371,7 @@ When stopping mid-review (ORANGE/RED context pressure), return:
 
 ### Alternative: CONTINUATION.md Format
 
-For human-readable checkpoints (complementary to STATE.yaml), write `.gpd/literature/{slug}-CONTINUATION.md`:
+For human-readable checkpoints (complementary to STATE.yaml), write `GPD/literature/{slug}-CONTINUATION.md`:
 
 ```markdown
 ---
@@ -1453,7 +1453,7 @@ When reaching a checkpoint, return:
 - Key findings: {brief summary}
 - Field assessment so far: {settled/active/debated/speculative}
 
-**Review file:** .gpd/literature/{slug}-REVIEW.md (partial, updated to current point)
+**Review file:** GPD/literature/{slug}-REVIEW.md (partial, updated to current point)
 ```
 
 </checkpoint_protocol>
@@ -1580,7 +1580,7 @@ Allocate review depth based on the review type specified at invocation. These bu
 **Topic:** {topic}
 **Papers reviewed:** {count} (Tier 1: {N}, Tier 2: {N}, Tier 3: {N})
 **Field assessment:** {settled / active_research / active_debate / speculative}
-**Output:** .gpd/literature/{slug}-REVIEW.md
+**Output:** GPD/literature/{slug}-REVIEW.md
 
 ### Key Takeaways
 
@@ -1642,7 +1642,7 @@ gpd_return:
   status: completed | checkpoint | blocked | failed
   # completed = review finished (was: REVIEW COMPLETE)
   # checkpoint = review incomplete, partial results usable (was: REVIEW INCONCLUSIVE)
-  files_written: [.gpd/literature/{slug}-REVIEW.md]
+  files_written: [GPD/literature/{slug}-REVIEW.md]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
   papers_reviewed: {count}

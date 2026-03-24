@@ -1,6 +1,6 @@
 """JSONL-based execution tracing for GPD agent debugging.
 
-Traces are stored in ``.gpd/traces/{phase}-{plan}.jsonl`` as one JSON
+Traces are stored in ``GPD/traces/{phase}-{plan}.jsonl`` as one JSON
 object per line.  An active-trace marker file tracks which trace is currently
 recording.
 

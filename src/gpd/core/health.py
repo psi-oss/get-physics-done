@@ -147,7 +147,7 @@ def check_environment() -> HealthCheck:
 
 
 def check_project_structure(cwd: Path) -> HealthCheck:
-    """Check that required .gpd/ files and directories exist."""
+    """Check that required GPD/ files and directories exist."""
     layout = ProjectLayout(cwd)
     issues: list[str] = []
     details: dict[str, object] = {}
@@ -576,7 +576,7 @@ def check_latest_return(cwd: Path) -> HealthCheck:
 
 
 def check_git_status(cwd: Path) -> HealthCheck:
-    """Check for uncommitted files in .gpd/."""
+    """Check for uncommitted files in GPD/."""
     warnings: list[str] = []
     details: dict[str, object] = {}
 

@@ -71,7 +71,7 @@ Then load phase details:
 
 ```bash
 gpd roadmap get-phase "${phase_number}"
-grep -E "^| ${phase_number}" .gpd/REQUIREMENTS.md 2>/dev/null
+grep -E "^| ${phase_number}" GPD/REQUIREMENTS.md 2>/dev/null
 ```
 
 Extract **phase goal** from ROADMAP.md (the research outcome to verify, not tasks) and **requirements** from REQUIREMENTS.md if it exists.
@@ -83,8 +83,8 @@ Extract **phase goal** from ROADMAP.md (the research outcome to verify, not task
 - Phase goal from ROADMAP.md
 - `contract` from PLAN.md frontmatter (primary verification target definition)
 - Artifact file paths (the actual research outputs to inspect)
-- .gpd/STATE.md (project conventions, active approximations, unit system)
-- .gpd/config.json (project configuration)
+- GPD/STATE.md (project conventions, active approximations, unit system)
+- GPD/config.json (project configuration)
 
 **EXCLUDE from verification context:**
 
@@ -407,14 +407,14 @@ REQUIREMENTS.md uses a traceability table mapping REQ-IDs to phases. The table f
 
 ```bash
 # Match traceability table rows referencing this phase (handles "Phase 3", "Phase 3," and "Phase 3 |")
-grep -E "\|.*Phase\s*${PHASE_NUM}(\s*[,|]|\s*$)" .gpd/REQUIREMENTS.md 2>/dev/null
+grep -E "\|.*Phase\s*${PHASE_NUM}(\s*[,|]|\s*$)" GPD/REQUIREMENTS.md 2>/dev/null
 ```
 
 If the traceability table is not found, fall back to a broader search:
 
 ```bash
 # Fallback: match any row containing the phase number in a table context
-grep -E "^\|.*\b${PHASE_NUM}\b" .gpd/REQUIREMENTS.md 2>/dev/null
+grep -E "^\|.*\b${PHASE_NUM}\b" GPD/REQUIREMENTS.md 2>/dev/null
 ```
 
 For each requirement: parse description -> identify supporting contract targets / artifacts -> status: SATISFIED / BLOCKED / NEEDS EXPERT.
@@ -464,7 +464,7 @@ Otherwise, locate the previous phase's SUMMARY.md and read the current phase's S
 
 ```bash
 # Find previous phase summary (phase N-1)
-PREV_PHASE_DIR=$(ls -d .gpd/phases/*/ | sort | grep -B1 "$phase_dir" | head -1)
+PREV_PHASE_DIR=$(ls -d GPD/phases/*/ | sort | grep -B1 "$phase_dir" | head -1)
 PREV_SUMMARY=$(ls "$PREV_PHASE_DIR"/*-SUMMARY.md 2>/dev/null | tail -1)
 CURR_SUMMARY=$(ls "$phase_dir"/*-SUMMARY.md 2>/dev/null | tail -1)
 ```

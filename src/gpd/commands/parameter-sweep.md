@@ -32,8 +32,8 @@ Execute a systematic parameter sweep: vary one or more parameters across a range
 <context>
 Phase: $ARGUMENTS
 
-@.gpd/ROADMAP.md
-@.gpd/STATE.md
+@GPD/ROADMAP.md
+@GPD/STATE.md
 </context>
 
 <process>
@@ -192,10 +192,10 @@ Fixed: {param} = {value}, {param} = {value}
 ```
 
 Save to:
-- Internal sweep docs: `.gpd/phases/{phase-dir}/sweep-{PADDED_INDEX}-PLAN.md`, `.gpd/phases/{phase-dir}/sweep-{PADDED_INDEX}-SUMMARY.md`, and `.gpd/phases/{phase-dir}/SWEEP-SUMMARY.md`
+- Internal sweep docs: `GPD/phases/{phase-dir}/sweep-{PADDED_INDEX}-PLAN.md`, `GPD/phases/{phase-dir}/sweep-{PADDED_INDEX}-SUMMARY.md`, and `GPD/phases/{phase-dir}/SWEEP-SUMMARY.md`
 - Durable sweep artifacts: `artifacts/phases/{phase-dir}/sweeps/{sweep-slug}/`
 
-Do not put machine-readable sweep datasets under `.gpd/phases/**` or `.gpd/analysis/**`. Keep the `.gpd` documents as internal execution records and write the durable JSON/CSV outputs to `artifacts/`.
+Do not put machine-readable sweep datasets under `GPD/phases/**` or `GPD/analysis/**`. Keep the `GPD` documents as internal execution records and write the durable JSON/CSV outputs to `artifacts/`.
 
 ## 6. Common Pitfalls
 

@@ -52,7 +52,7 @@ RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 
 **If `project_contract_load_info.status` starts with `blocked`:** STOP and checkpoint with the user. Show the specific `project_contract_load_info.errors` / `warnings`; do not silently continue from `ROADMAP.md`, `REQUIREMENTS.md`, or `active_reference_context` alone when the stored contract could not even be loaded cleanly.
 
-**If `project_contract` is empty or null:** STOP and checkpoint with the user. Planning requires an approved scoping contract in `.gpd/state.json`; do not infer phase scope from `ROADMAP.md` or `REQUIREMENTS.md` alone.
+**If `project_contract` is empty or null:** STOP and checkpoint with the user. Planning requires an approved scoping contract in `GPD/state.json`; do not infer phase scope from `ROADMAP.md` or `REQUIREMENTS.md` alone.
 
 **If `project_contract_validation.valid` is false:** STOP and checkpoint with the user. Quote the `project_contract_validation.errors` explicitly and repair the contract before planning; a visible-but-blocked contract is not an approved planning contract.
 
@@ -93,7 +93,7 @@ PHASE_NAME=$(echo "$PHASE_INFO" | gpd json get .phase_name --default "")
 PHASE_SLUG=$(gpd slug "$PHASE_NAME")
 PADDED_PHASE=$(printf '%s' "${PHASE}" | python3 -c "import sys; parts=sys.stdin.read().strip().split('.'); head=str(int(parts[0])).zfill(2); tail=[str(int(part)) for part in parts[1:] if part]; print('.'.join([head, *tail]))")
 PHASE="${PADDED_PHASE}"
-PHASE_DIR=".gpd/phases/${PADDED_PHASE}-${PHASE_SLUG}"
+PHASE_DIR="GPD/phases/${PADDED_PHASE}-${PHASE_SLUG}"
 mkdir -p "${PHASE_DIR}"
 ```
 
@@ -132,7 +132,7 @@ HYPOTHESIS_SECTION=$(echo "$STATE_CONTENT" | grep -A5 "## Active Hypothesis")
 
 ```bash
 HYPOTHESIS_SLUG=$(echo "$HYPOTHESIS_SECTION" | grep "Branch:" | sed 's/.*hypothesis\///')
-HYPOTHESIS_FILE=".gpd/hypotheses/${HYPOTHESIS_SLUG}/HYPOTHESIS.md"
+HYPOTHESIS_FILE="GPD/hypotheses/${HYPOTHESIS_SLUG}/HYPOTHESIS.md"
 HYPOTHESIS_CONTENT=$(cat "$HYPOTHESIS_FILE" 2>/dev/null)
 ```
 
@@ -211,7 +211,7 @@ elif [ "$RESEARCH_MODE" = "exploit" ]; then
   fi
 elif [ "$RESEARCH_MODE" = "adaptive" ]; then
   # Adaptive: narrow only after prior decisive evidence or an explicit approach lock
-  VALIDATED=$(ls .gpd/phases/*/*-SUMMARY.md 2>/dev/null | xargs grep -El "approach_validated: true|comparison_verdicts:|contract_results:" 2>/dev/null | head -1)
+  VALIDATED=$(ls GPD/phases/*/*-SUMMARY.md 2>/dev/null | xargs grep -El "approach_validated: true|comparison_verdicts:|contract_results:" 2>/dev/null | head -1)
   if [ -n "$VALIDATED" ]; then
     echo "Research mode: adaptive — prior decisive evidence found, using existing research as the starting point"
     # Skip to step 6
@@ -222,7 +222,7 @@ elif [ "$RESEARCH_MODE" = "adaptive" ]; then
 else
   # Balanced (default): check staleness before skipping
   RESEARCH_MOD=$(stat -f %m "${PHASE_DIR}"/*-RESEARCH.md 2>/dev/null || stat -c %Y "${PHASE_DIR}"/*-RESEARCH.md 2>/dev/null || echo 0)
-  STATE_MOD=$(stat -f %m .gpd/STATE.md 2>/dev/null || stat -c %Y .gpd/STATE.md 2>/dev/null || echo 0)
+  STATE_MOD=$(stat -f %m GPD/STATE.md 2>/dev/null || stat -c %Y GPD/STATE.md 2>/dev/null || echo 0)
   DIFF_DAYS=$(( (STATE_MOD - RESEARCH_MOD) / 86400 ))
 
   if [ "$DIFF_DAYS" -gt 1 ]; then
@@ -859,7 +859,7 @@ Verification: {Passed | Partial (N approved, M revised) | Passed with override |
 
 **Also available:**
 
-- cat .gpd/phases/{phase-dir}/\*-PLAN.md -- review plans
+- cat GPD/phases/{phase-dir}/\*-PLAN.md -- review plans
 - /gpd:plan-phase {X} --research -- re-research first
 
 ---
@@ -868,7 +868,7 @@ Verification: {Passed | Partial (N approved, M revised) | Passed with override |
 
 <success_criteria>
 
-- [ ] .gpd/ directory validated
+- [ ] GPD/ directory validated
 - [ ] Phase validated against roadmap
 - [ ] Phase directory created if needed
 - [ ] CONTEXT.md loaded early (step 4) and passed to ALL agents

@@ -461,7 +461,7 @@ class TestConventionDiffPhases:
     def test_missing_phase_ids_returns_empty(self, tmp_path):
         """convention_diff_phases with missing phase IDs returns empty result."""
         from gpd.core.conventions import convention_diff_phases
-        gpd_dir = tmp_path / ".gpd"
+        gpd_dir = tmp_path / "GPD"
         gpd_dir.mkdir()
 
         result = convention_diff_phases(tmp_path, phase1=None, phase2="1")
@@ -472,7 +472,7 @@ class TestConventionDiffPhases:
     def test_nonexistent_phases_returns_empty(self, tmp_path):
         """convention_diff_phases with nonexistent phases returns empty result."""
         from gpd.core.conventions import convention_diff_phases
-        gpd_dir = tmp_path / ".gpd" / "phases"
+        gpd_dir = tmp_path / "GPD" / "phases"
         gpd_dir.mkdir(parents=True)
 
         result = convention_diff_phases(tmp_path, phase1="99", phase2="98")

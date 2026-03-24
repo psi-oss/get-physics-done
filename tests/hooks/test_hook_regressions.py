@@ -62,7 +62,7 @@ def test_short_form_prerelease_is_older_than_final_release() -> None:
 def test_statusline_read_position_returns_empty_for_non_dict_state(tmp_path: Path) -> None:
     from gpd.hooks.statusline import _read_position
 
-    gpd_dir = tmp_path / ".gpd"
+    gpd_dir = tmp_path / "GPD"
     gpd_dir.mkdir()
     state_file = gpd_dir / "state.json"
 
@@ -251,6 +251,31 @@ def test_installed_update_command_preserves_explicit_target_named_like_runtime_d
     command = installed_update_command(explicit_target)
 
     assert command is not None
+    assert "--target-dir" in command
+    assert str(explicit_target) in command
+
+
+def test_installed_update_command_treats_scope_less_explicit_local_named_target_as_local(tmp_path: Path) -> None:
+    from gpd.hooks.install_metadata import installed_update_command
+
+    explicit_target = tmp_path / "custom-runtime" / ".codex"
+    explicit_target.mkdir(parents=True)
+    (explicit_target / "gpd-file-manifest.json").write_text(
+        json.dumps(
+            {
+                "runtime": "codex",
+                "explicit_target": True,
+                "install_target_dir": str(explicit_target),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    command = installed_update_command(explicit_target)
+
+    assert command is not None
+    assert "--local" in command
+    assert "--global" not in command
     assert "--target-dir" in command
     assert str(explicit_target) in command
 

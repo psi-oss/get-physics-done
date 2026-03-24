@@ -54,7 +54,7 @@ Parse JSON for: `commit_docs`, `phase_found`, `phase_dir`, `phase_number`, `phas
 - If no project context exists (standalone usage), proceed with user-specified topic
 
 **If `phase_found` is false and a phase was specified:** Error — phase not found.
-**If no phase specified:** Discovery is standalone; output goes to `.gpd/analysis/`. Ensure the directory exists: `mkdir -p .gpd/analysis`.
+**If no phase specified:** Discovery is standalone; output goes to `GPD/analysis/`. Ensure the directory exists: `mkdir -p GPD/analysis`.
 </step>
 
 <step name="determine_depth">
@@ -249,10 +249,10 @@ Ensure output directory exists and write RESEARCH.md:
 **Standalone (no phase):**
 
 ```bash
-mkdir -p .gpd/analysis
+mkdir -p GPD/analysis
 ```
 
-Write to `.gpd/analysis/discovery-{slug}.md` (where `{slug}` is derived from the discovery topic).
+Write to `GPD/analysis/discovery-{slug}.md` (where `{slug}` is derived from the discovery topic).
 
 Contents of RESEARCH.md:
 - Summary with recommendation

@@ -214,7 +214,7 @@ Then clear update caches so indicators disappear immediately:
 rm -f \
   "{GPD_CONFIG_DIR}/cache/gpd-update-check.json" \
   "{GPD_GLOBAL_CONFIG_DIR}/cache/gpd-update-check.json" \
-  "$HOME/.gpd/cache/gpd-update-check.json"
+  "$HOME/GPD/cache/gpd-update-check.json"
 ```
 </step>
 

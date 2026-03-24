@@ -503,6 +503,39 @@ class TestDetectActiveRuntimeWithInstall:
         ):
             assert installed_runtime(custom_dir) is None
 
+    def test_installed_runtime_ignores_manifestless_explicit_target_named_like_local_runtime_dir(
+        self, tmp_path: Path
+    ) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        custom_dir = tmp_path / "custom" / ".codex"
+        custom_dir.mkdir(parents=True)
+
+        env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=workspace),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+        ):
+            assert installed_runtime(custom_dir) is None
+
+    def test_installed_runtime_ignores_manifestless_workspace_local_dir_named_like_runtime_default(
+        self, tmp_path: Path
+    ) -> None:
+        workspace = tmp_path / "workspace"
+        nested_workspace = workspace / "research" / "notes"
+        nested_workspace.mkdir(parents=True)
+        canonical_local_dir = workspace / ".codex"
+        canonical_local_dir.mkdir()
+
+        env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=nested_workspace),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+        ):
+            assert installed_runtime(canonical_local_dir) is None
+
     def test_installed_runtime_accepts_env_resolved_global_dir_with_parseable_legacy_manifest(
         self, tmp_path: Path
     ) -> None:
@@ -548,6 +581,25 @@ class TestDetectActiveRuntimeWithInstall:
 
         with pytest.raises(RuntimeError, match="contains GPD artifacts but no manifest"):
             adapter._validate_target_runtime(target_dir, action="install")
+
+    def test_validate_target_runtime_rejects_manifestless_explicit_target_named_like_local_runtime_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        adapter = get_adapter(RUNTIME_CODEX)
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        target_dir = tmp_path / "custom" / ".codex"
+        (target_dir / "get-physics-done").mkdir(parents=True)
+
+        monkeypatch.setattr(adapter, "_install_explicit_target", True, raising=False)
+
+        with (
+            patch.dict(os.environ, _clean_runtime_env(), clear=True),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=workspace),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path / "home"),
+        ):
+            with pytest.raises(RuntimeError, match="contains GPD artifacts but no manifest"):
+                adapter._validate_target_runtime(target_dir, action="install")
 
 
 class TestDetectRuntimeForGpdUse:

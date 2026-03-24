@@ -1,6 +1,6 @@
 <planning_config>
 
-Configuration options for `.gpd/` directory behavior in physics research projects.
+Configuration options for `GPD/` directory behavior in physics research projects.
 
 <config_schema>
 
@@ -65,8 +65,8 @@ Configuration options for `.gpd/` directory behavior in physics research project
 
 **When `planning.commit_docs: false`:**
 
-- Skip all `git add`/`git commit` for `.gpd/` files
-- User must add `.gpd/` to `.gitignore`
+- Skip all `git add`/`git commit` for `GPD/` files
+- User must add `GPD/` to `.gitignore`
 - Useful for: private research notes, draft calculations, preliminary explorations
 - The settings workflow exposes this as the explicit `planning.commit_docs` toggle
 
@@ -74,7 +74,7 @@ Configuration options for `.gpd/` directory behavior in physics research project
 
 ```bash
 # Commit with automatic planning.commit_docs + gitignore checks:
-gpd commit "docs: update state" --files .gpd/STATE.md
+gpd commit "docs: update state" --files GPD/STATE.md
 
 # Load config via init progress (returns JSON):
 INIT=$(gpd init progress --include state,config)
@@ -85,12 +85,12 @@ INIT=$(gpd init execute-phase "1")
 # planning.commit_docs is included in all init command outputs
 ```
 
-**Auto-detection:** If `.gpd/` is gitignored, `planning.commit_docs` is automatically `false` regardless of config.json. This prevents git errors when users have `.gpd/` in `.gitignore`.
+**Auto-detection:** If `GPD/` is gitignored, `planning.commit_docs` is automatically `false` regardless of config.json. This prevents git errors when users have `GPD/` in `.gitignore`.
 
 **Commit via CLI (handles checks automatically):**
 
 ```bash
-gpd commit "docs: update state" --files .gpd/STATE.md
+gpd commit "docs: update state" --files GPD/STATE.md
 ```
 
 The CLI checks `planning.commit_docs` config and gitignore status internally -- no manual conditionals needed.
@@ -136,8 +136,8 @@ When cadence logic injects a gate, the orchestrator still runs lightweight conve
 
 Notation, unit systems, metric signatures, Fourier conventions, and similar physics choices live in:
 
-- `.gpd/CONVENTIONS.md` — human-readable convention reference
-- `.gpd/state.json` (`convention_lock`) — machine-readable convention state
+- `GPD/CONVENTIONS.md` — human-readable convention reference
+- `GPD/state.json` (`convention_lock`) — machine-readable convention state
 
 Manage those values with:
 
@@ -164,12 +164,12 @@ To use uncommitted mode:
 2. **Add to .gitignore:**
 
    ```
-   .gpd/
+   GPD/
    ```
 
-3. **Existing tracked files:** If `.gpd/` was previously tracked:
+3. **Existing tracked files:** If `GPD/` was previously tracked:
    ```bash
-   git rm -r --cached .gpd/
+   git rm -r --cached GPD/
    git commit -m "chore: stop tracking planning docs"
    ```
 

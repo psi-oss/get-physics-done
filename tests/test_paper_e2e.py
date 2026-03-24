@@ -473,14 +473,14 @@ class TestPublicAPI:
         )
         bundle = ReviewPanelBundle(
             manuscript_path="paper/main.tex",
-            claim_index_path=".gpd/review/CLAIMS.json",
-            stage_reports=[".gpd/review/STAGE-physics.json"],
-            review_ledger_path=".gpd/review/REVIEW-LEDGER.json",
-            decision_path=".gpd/review/REFEREE-DECISION.json",
+            claim_index_path="GPD/review/CLAIMS.json",
+            stage_reports=["GPD/review/STAGE-physics.json"],
+            review_ledger_path="GPD/review/REVIEW-LEDGER.json",
+            decision_path="GPD/review/REFEREE-DECISION.json",
             final_recommendation=ReviewRecommendation.minor_revision,
             final_confidence=ReviewConfidence.medium,
-            final_report_path=".gpd/REFEREE-REPORT.md",
-            final_report_tex_path=".gpd/REFEREE-REPORT.tex",
+            final_report_path="GPD/REFEREE-REPORT.md",
+            final_report_tex_path="GPD/REFEREE-REPORT.tex",
         )
 
         claims_path = tmp_path / "CLAIMS.json"

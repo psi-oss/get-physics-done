@@ -32,8 +32,8 @@ Determine which input parameters most strongly affect output quantities. Compute
 <context>
 Target: $ARGUMENTS
 
-@.gpd/ROADMAP.md
-@.gpd/STATE.md
+@GPD/ROADMAP.md
+@GPD/STATE.md
 </context>
 
 <process>
@@ -246,8 +246,8 @@ least_sensitive: {parameter name}
 ```
 
 Save to:
-- Phase target: `.gpd/phases/XX-name/SENSITIVITY.md`
-- Project-wide: `.gpd/analysis/sensitivity-{target}.md`
+- Phase target: `GPD/phases/XX-name/SENSITIVITY.md`
+- Project-wide: `GPD/analysis/sensitivity-{target}.md`
 
 </process>
 

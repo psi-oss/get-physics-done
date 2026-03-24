@@ -33,8 +33,8 @@ Purpose: Handle urgent research tasks discovered during execution without renumb
 <context>
 Arguments: $ARGUMENTS (format: <after-phase-number> <description>)
 
-@.gpd/ROADMAP.md
-@.gpd/STATE.md
+@GPD/ROADMAP.md
+@GPD/STATE.md
 </context>
 
 <process>

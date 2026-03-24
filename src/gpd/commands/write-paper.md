@@ -8,8 +8,8 @@ review-contract:
   schema_version: 1
   required_outputs:
     - paper/main.tex
-    - ".gpd/REFEREE-REPORT.md"
-    - ".gpd/REFEREE-REPORT.tex"
+    - "GPD/REFEREE-REPORT.md"
+    - "GPD/REFEREE-REPORT.tex"
   required_evidence:
     - manuscript scaffold target (existing draft or bootstrap target)
     - phase summaries or milestone digest
@@ -70,6 +70,7 @@ Routes to the write-paper workflow which handles all logic including:
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/write-paper.md
 @{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md
+@{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md
 @{GPD_INSTALL_DIR}/templates/paper/reproducibility-manifest.md
 </execution_context>
 
@@ -80,16 +81,16 @@ Check for existing drafts:
 
 ```bash
 ls paper/ manuscript/ draft/ 2>/dev/null
-ls .gpd/paper/*.md 2>/dev/null
+ls GPD/paper/*.md 2>/dev/null
 find . -name "*.tex" -maxdepth 2 2>/dev/null | head -10
 ```
 
 Load research context:
 
 ```bash
-cat .gpd/ROADMAP.md 2>/dev/null
-ls .gpd/phases/*/SUMMARY.md .gpd/phases/*/*-SUMMARY.md 2>/dev/null
-cat .gpd/research-map/FORMALISM.md 2>/dev/null
+cat GPD/ROADMAP.md 2>/dev/null
+ls GPD/phases/*/*-SUMMARY.md 2>/dev/null
+cat GPD/research-map/FORMALISM.md 2>/dev/null
 ```
 
 </context>
@@ -97,7 +98,7 @@ cat .gpd/research-map/FORMALISM.md 2>/dev/null
 <process>
 **Follow the write-paper workflow** from `@{GPD_INSTALL_DIR}/workflows/write-paper.md`.
 
-When the workflow asks for constrained JSON artifacts such as `${PAPER_DIR}/reproducibility-manifest.json`, use the inline schema body it surfaces there rather than inventing keys from memory.
+When the workflow asks for constrained artifacts such as `${PAPER_DIR}/PAPER-CONFIG.json`, `GPD/paper/FIGURE_TRACKER.md`, or `${PAPER_DIR}/reproducibility-manifest.json`, use the canonical schema/template surfaces it loads there rather than inventing keys from memory.
 
 The workflow handles all logic including:
 

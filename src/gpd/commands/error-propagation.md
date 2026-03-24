@@ -32,8 +32,8 @@ Systematic uncertainty propagation through a derivation chain. Traces how input 
 <context>
 Target: $ARGUMENTS
 
-@.gpd/ROADMAP.md
-@.gpd/STATE.md
+@GPD/ROADMAP.md
+@GPD/STATE.md
 </context>
 
 <process>
@@ -208,8 +208,8 @@ total_fractional_error: {value}
 ```
 
 Save to:
-- Phase target: `.gpd/phases/XX-name/ERROR-BUDGET.md`
-- Project-wide: `.gpd/analysis/error-budget-{target}.md`
+- Phase target: `GPD/phases/XX-name/ERROR-BUDGET.md`
+- Project-wide: `GPD/analysis/error-budget-{target}.md`
 
 </process>
 

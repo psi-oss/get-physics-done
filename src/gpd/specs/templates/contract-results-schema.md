@@ -26,13 +26,13 @@ If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` 
 ## `plan_contract_ref`
 
 ```yaml
-plan_contract_ref: .gpd/phases/XX-name/XX-YY-PLAN.md#/contract
+plan_contract_ref: GPD/phases/XX-name/XX-YY-PLAN.md#/contract
 ```
 
 Rules:
 
 - Must be a string.
-- Must be the canonical project-root-relative `.gpd/phases/XX-name/XX-YY-PLAN.md#/contract` path, not an absolute path, URL, or parent-traversing path.
+- Must be the canonical project-root-relative `GPD/phases/XX-name/XX-YY-PLAN.md#/contract` path, not an absolute path, URL, or parent-traversing path.
 - Must end with the exact `#/contract` fragment; pointing at the PLAN file alone or at another fragment is invalid.
 - Must resolve to the matching PLAN contract when validated from disk.
 
@@ -56,7 +56,7 @@ contract_results:
           acceptance_test_id: test-main
           reference_id: ref-main
           forbidden_proxy_id: fp-main
-          evidence_path: .gpd/phases/XX-name/XX-VERIFICATION.md
+          evidence_path: GPD/phases/XX-name/XX-VERIFICATION.md
   deliverables:
     deliv-main:
       status: passed|partial|failed|blocked|not_attempted
@@ -158,10 +158,10 @@ Each `suggested_contract_checks` entry may only use these keys: `check`, `reason
 Prefer the contract-specific commands below for contract-backed summaries and verification reports because they resolve the referenced PLAN from disk and enforce ID alignment, not just bare YAML shape.
 
 ```bash
-gpd frontmatter validate .gpd/phases/XX-name/XX-YY-SUMMARY.md --schema summary
-gpd validate summary-contract .gpd/phases/XX-name/XX-YY-SUMMARY.md
-gpd frontmatter validate .gpd/phases/XX-name/XX-VERIFICATION.md --schema verification
-gpd validate verification-contract .gpd/phases/XX-name/XX-VERIFICATION.md
+gpd frontmatter validate GPD/phases/XX-name/XX-YY-SUMMARY.md --schema summary
+gpd validate summary-contract GPD/phases/XX-name/XX-YY-SUMMARY.md
+gpd frontmatter validate GPD/phases/XX-name/XX-VERIFICATION.md --schema verification
+gpd validate verification-contract GPD/phases/XX-name/XX-VERIFICATION.md
 ```
 
 `PLAN` and `SUMMARY` artifacts are plan-scoped (`XX-YY-*`). `VERIFICATION.md` is phase-scoped (`XX-VERIFICATION.md`).

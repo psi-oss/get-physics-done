@@ -198,7 +198,7 @@ class ProjectStorageLayout:
         suffix = path.suffix.lower()
 
         if any(segment in _SUSPICIOUS_INTERNAL_SEGMENTS for segment in rel.parts):
-            return f"Suspicious durable-artifact path under internal storage: {rel}"
+            return f"Suspicious durable-artifact path under {self.gpd}: {rel}"
 
         if (
             (_is_relative_to(path, self.gpd / "phases") or _is_relative_to(path, self.gpd / "paper"))
@@ -267,7 +267,7 @@ class ProjectStorageLayout:
         display_path = self._display_path(resolved)
 
         if classification == StorageClass.INTERNAL_DURABLE:
-            raise StoragePathError(f"Final durable outputs must not be written under internal storage: {display_path}")
+            raise StoragePathError(f"Final durable outputs must not be written under {self.gpd}: {display_path}")
         if classification == StorageClass.SCRATCH or self._is_project_local_scratch_path(resolved):
             raise StoragePathError(f"Final durable outputs must not be written under scratch directories: {display_path}")
         if classification == StorageClass.TEMP_ROOT:

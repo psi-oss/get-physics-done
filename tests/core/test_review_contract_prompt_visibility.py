@@ -42,8 +42,8 @@ def test_verify_work_review_contract_uses_phase_scoped_output_path() -> None:
     contract = registry.get_command("verify-work").review_contract
 
     assert contract is not None
-    assert contract.required_outputs == [".gpd/phases/XX-name/XX-VERIFICATION.md"]
-    assert ".gpd/phases/XX-name/XX-VERIFICATION.md" in _read_command("verify-work")
+    assert contract.required_outputs == ["GPD/phases/XX-name/XX-VERIFICATION.md"]
+    assert "GPD/phases/XX-name/XX-VERIFICATION.md" in _read_command("verify-work")
 
 
 def test_respond_to_referees_review_contract_uses_round_suffixed_output_paths() -> None:
@@ -51,11 +51,11 @@ def test_respond_to_referees_review_contract_uses_round_suffixed_output_paths() 
 
     assert contract is not None
     assert contract.required_outputs == [
-        ".gpd/paper/REFEREE_RESPONSE{round_suffix}.md",
-        ".gpd/AUTHOR-RESPONSE{round_suffix}.md",
+        "GPD/paper/REFEREE_RESPONSE{round_suffix}.md",
+        "GPD/AUTHOR-RESPONSE{round_suffix}.md",
     ]
-    assert ".gpd/paper/REFEREE_RESPONSE{round_suffix}.md" in _read_command("respond-to-referees")
-    assert ".gpd/AUTHOR-RESPONSE{round_suffix}.md" in _read_command("respond-to-referees")
+    assert "GPD/paper/REFEREE_RESPONSE{round_suffix}.md" in _read_command("respond-to-referees")
+    assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in _read_command("respond-to-referees")
 
 
 def test_summary_template_surfaces_plan_contract_ref_rule_for_contract_ledgers() -> None:
@@ -64,7 +64,7 @@ def test_summary_template_surfaces_plan_contract_ref_rule_for_contract_ledgers()
     assert "If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is also required." in summary_template
     assert "plan_contract_ref (required when `contract_results` or `comparison_verdicts` are present)" in summary_template
     assert "Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing the YAML" in summary_template
-    assert "canonical project-root-relative `.gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract` path" in summary_template
+    assert "canonical project-root-relative `GPD/phases/XX-name/{phase}-{plan}-PLAN.md#/contract` path" in summary_template
     assert "Choose the depth explicitly" in summary_template
     assert "default: full" not in summary_template
     assert "Keep `uncertainty_markers` explicit and user-visible" in summary_template
@@ -109,10 +109,18 @@ def test_research_verification_template_surfaces_non_empty_uncertainty_markers()
     assert "disconfirming_observations: [observation-1]" in research_verification
 
 
-def test_write_paper_prompt_discovers_plan_scoped_and_legacy_phase_summaries() -> None:
+def test_write_paper_prompt_discovers_plan_scoped_phase_summaries() -> None:
     source = _read_command("write-paper")
 
-    assert "ls .gpd/phases/*/SUMMARY.md .gpd/phases/*/*-SUMMARY.md 2>/dev/null" in source
+    assert "ls GPD/phases/*/*-SUMMARY.md 2>/dev/null" in source
+
+
+def test_write_paper_prompt_loads_figure_tracker_schema_before_updating_tracker() -> None:
+    source = _read_command("write-paper")
+
+    assert "@{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md" in source
+    assert "GPD/paper/FIGURE_TRACKER.md" in source
+    assert "canonical schema/template surfaces it loads there" in source
 
 
 def test_comparison_templates_match_full_comparison_verdict_subject_kind_enum() -> None:
@@ -132,7 +140,7 @@ def test_comparison_templates_match_full_comparison_verdict_subject_kind_enum() 
     assert "disconfirming_observations: [observation-1]" in contract_results
     assert "Only `subject_role: decisive` closes a decisive requirement" in internal
     assert "Only `subject_role: decisive` closes a decisive requirement" in experimental
-    assert "Must be the canonical project-root-relative `.gpd/phases/XX-name/XX-YY-PLAN.md#/contract` path" in contract_results
+    assert "Must be the canonical project-root-relative `GPD/phases/XX-name/XX-YY-PLAN.md#/contract` path" in contract_results
 
 
 def test_contract_ledgers_surface_decisive_only_verdict_rules_and_strict_suggested_check_keys() -> None:
@@ -142,7 +150,7 @@ def test_contract_ledgers_surface_decisive_only_verdict_rules_and_strict_suggest
     assert "Do not invent `artifact` or `other` subject kinds" in contract_results
     assert "Only `subject_role: decisive` satisfies a required decisive comparison" in contract_results
     assert "`subject_role` must be explicit on every verdict" in contract_results
-    assert "canonical project-root-relative `.gpd/phases/XX-name/XX-YY-PLAN.md#/contract` path" in contract_results
+    assert "canonical project-root-relative `GPD/phases/XX-name/XX-YY-PLAN.md#/contract` path" in contract_results
     assert "If a decisive external anchor was used, include `reference_id`" in contract_results
     assert "reference-backed decisive comparison is required" in contract_results
     assert "acceptance test with `kind: benchmark` or `kind: cross_method`" in contract_results
@@ -169,6 +177,8 @@ def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary
     assert "disconfirming_observations: [observation-1]" in summary_template
     assert "uncertainty_markers.weakest_anchors" in state_schema
     assert "uncertainty_markers.disconfirming_observations" in state_schema
+    assert "`GPD/phases/.../*-SUMMARY.md` or `paper/main.tex`" in state_schema
+    assert "`GPD/phases/.../SUMMARY.md`" not in state_schema
 
 
 def test_referee_schema_and_panel_surface_strict_stage_artifact_naming_and_round_suffix_rules() -> None:
@@ -178,8 +188,8 @@ def test_referee_schema_and_panel_surface_strict_stage_artifact_naming_and_round
     assert "STAGE-(reader|literature|math|physics|interestingness)(-R<round>)?.json" in referee_schema
     assert "same optional `-R<round>` suffix" in referee_schema
     assert "`{round_suffix}` in path examples means empty for initial review and `-R<round>`" in referee_schema
-    assert ".gpd/review/CLAIMS{round_suffix}.json" in panel
-    assert ".gpd/review/STAGE-reader{round_suffix}.json" in panel
+    assert "GPD/review/CLAIMS{round_suffix}.json" in panel
+    assert "GPD/review/STAGE-reader{round_suffix}.json" in panel
     assert "Strict-stage specialist artifacts must use canonical names `STAGE-reader`, `STAGE-literature`, `STAGE-math`, `STAGE-physics`, `STAGE-interestingness`." in panel
     assert "all five must share the same optional `-R<round>` suffix." in panel
 

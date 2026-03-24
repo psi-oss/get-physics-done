@@ -223,6 +223,41 @@ def _ambiguous_direct_proxy_contract() -> dict[str, object]:
     return contract
 
 
+def _mismatched_direct_proxy_template_contract() -> dict[str, object]:
+    contract = copy.deepcopy(_load_project_contract_fixture())
+    contract["deliverables"].append(
+        {
+            "id": "deliv-small-k",
+            "kind": "figure",
+            "path": "figures/small-k.png",
+            "description": "Small-k proxy comparison figure",
+            "must_contain": ["small-k proxy branch"],
+        }
+    )
+    contract["claims"].append(
+        {
+            "id": "claim-small-k",
+            "statement": "Track the small-k proxy branch",
+            "observables": [],
+            "deliverables": ["deliv-small-k"],
+            "acceptance_tests": ["test-proxy-small-k"],
+            "references": [],
+        }
+    )
+    contract["acceptance_tests"].append(
+        {
+            "id": "test-proxy-small-k",
+            "subject": "claim-small-k",
+            "kind": "proxy",
+            "procedure": "Compare the small-k proxy against the direct observable.",
+            "pass_condition": "Proxy agrees with direct evidence in the small-k branch",
+            "evidence_required": ["deliv-small-k"],
+            "automation": "automated",
+        }
+    )
+    return contract
+
+
 def _assert_contract_tools_reject(contract: dict[str, object], expected_error: str) -> None:
     from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 
@@ -519,7 +554,39 @@ def test_suggest_contract_checks_requires_forbidden_proxy_binding_when_contract_
     direct_proxy = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency")
 
     assert direct_proxy["required_request_fields"] == ["binding.forbidden_proxy_ids"]
-    assert direct_proxy["request_template"]["binding"]["forbidden_proxy_ids"] is None
+    assert direct_proxy["request_template"]["binding"] == {}
+
+
+def test_suggest_contract_checks_ambiguous_direct_proxy_template_round_trips_to_insufficient_evidence() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _ambiguous_direct_proxy_contract()
+    result = suggest_contract_checks(contract)
+    direct_proxy = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency")
+
+    run_result = run_contract_check(
+        {
+            "check_key": direct_proxy["check_key"],
+            "contract": contract,
+            **copy.deepcopy(direct_proxy["request_template"]),
+        }
+    )
+
+    assert "error" not in run_result
+    assert run_result["status"] == "insufficient_evidence"
+    assert "binding.forbidden_proxy_ids" in run_result["missing_inputs"]
+
+
+def test_suggest_contract_checks_direct_proxy_template_does_not_mix_subject_bindings() -> None:
+    from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+    result = suggest_contract_checks(_mismatched_direct_proxy_template_contract())
+    direct_proxy = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.direct_proxy_consistency")
+    binding = direct_proxy["request_template"]["binding"]
+
+    assert binding["forbidden_proxy_ids"] == ["fp-01"]
+    assert binding["claim_ids"] == ["claim-benchmark"]
+    assert "acceptance_test_ids" not in binding
 
 
 def test_suggest_contract_checks_templates_do_not_pass_when_reused_unchanged() -> None:
@@ -881,6 +948,26 @@ def test_run_contract_check_direct_proxy_consistency_bound_proxy_can_resolve_amb
     assert result["missing_inputs"] == []
     assert result["automated_issues"] == []
     assert result["contract_impacts"] == ["fp-01"]
+
+
+def test_run_contract_check_direct_proxy_consistency_rejects_mixed_forbidden_proxy_and_acceptance_test_subjects() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    result = run_contract_check(
+        {
+            "check_key": "contract.direct_proxy_consistency",
+            "contract": _mismatched_direct_proxy_template_contract(),
+            "binding": {
+                "forbidden_proxy_ids": ["fp-01"],
+                "acceptance_test_ids": ["test-proxy-small-k"],
+            },
+            "observed": {"direct_available": True},
+        }
+    )
+
+    assert "error" not in result
+    assert result["status"] == "insufficient_evidence"
+    assert any("binding contexts disagree on claim targets" in issue for issue in result["automated_issues"])
 
 
 def test_run_contract_check_limit_recovery_derives_expected_behavior_from_regime_metadata() -> None:

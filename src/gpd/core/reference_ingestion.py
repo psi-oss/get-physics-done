@@ -60,7 +60,7 @@ _KIND_MAP = {
     "user_anchor": "user_anchor",
 }
 _PATH_HINT_RE = re.compile(
-    r"(?P<path>(?:\.gpd/|\.?/)?[\w./-]+\.(?:md|txt|pdf|png|jpg|jpeg|csv|json|ya?ml|tex|ipynb|py|bib))",
+    r"(?P<path>(?:GPD/|\.?/)?[\w./-]+\.(?:md|txt|pdf|png|jpg|jpeg|csv|json|ya?ml|tex|ipynb|py|bib))",
 )
 _ACTIVE_REFERENCE_REGISTRY_HEADINGS = (
     "Active Anchor Registry",

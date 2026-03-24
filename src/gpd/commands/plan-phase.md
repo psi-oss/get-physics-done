@@ -5,7 +5,7 @@ argument-hint: "[phase] [--research] [--skip-research] [--gaps] [--skip-verify] 
 context_mode: project-required
 agent: gpd-planner
 requires:
-  files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
+  files: ["GPD/ROADMAP.md", "GPD/STATE.md"]
 allowed-tools:
   - file_read
   - file_write

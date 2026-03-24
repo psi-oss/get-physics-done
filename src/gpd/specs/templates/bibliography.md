@@ -6,7 +6,7 @@ total_references: 0
 
 # Bibliography Template
 
-Template for `.gpd/BIBLIOGRAPHY.md` -- optional reference and anchor ledger for projects that want a
+Template for `GPD/BIBLIOGRAPHY.md` -- optional reference and anchor ledger for projects that want a
 human-readable registry alongside the live BibTeX files and the structured project contract.
 
 **Status:** Not wired into the current GPD bibliography flow. The live bibliographer/paper pipeline

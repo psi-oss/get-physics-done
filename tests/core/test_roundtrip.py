@@ -34,25 +34,25 @@ from gpd.core.phases import (
 
 def _setup_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project structure."""
-    (tmp_path / ".gpd" / "phases").mkdir(parents=True)
+    (tmp_path / "GPD" / "phases").mkdir(parents=True)
     return tmp_path
 
 
 def _create_phase(tmp_path: Path, name: str) -> Path:
-    d = tmp_path / ".gpd" / "phases" / name
+    d = tmp_path / "GPD" / "phases" / name
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 def _write_roadmap(tmp_path: Path, content: str) -> Path:
-    p = tmp_path / ".gpd" / "ROADMAP.md"
+    p = tmp_path / "GPD" / "ROADMAP.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(textwrap.dedent(content))
     return p
 
 
 def _write_state(tmp_path: Path, content: str) -> Path:
-    p = tmp_path / ".gpd" / "STATE.md"
+    p = tmp_path / "GPD" / "STATE.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(textwrap.dedent(content))
     return p
@@ -132,14 +132,14 @@ class TestPhaseLifecycle:
         assert result.is_last_phase is False
 
         # Roadmap should have a checked checkbox
-        roadmap = (tmp_path / ".gpd" / "ROADMAP.md").read_text()
+        roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text()
         assert "[x]" in roadmap
 
         # STATE.md should reflect transition
-        state = (tmp_path / ".gpd" / "STATE.md").read_text()
+        state = (tmp_path / "GPD" / "STATE.md").read_text()
         assert "Ready to plan" in state
-        assert (tmp_path / ".gpd" / "phase-checkpoints" / "01-setup.md").exists()
-        assert (tmp_path / ".gpd" / "CHECKPOINTS.md").exists()
+        assert (tmp_path / "GPD" / "phase-checkpoints" / "01-setup.md").exists()
+        assert (tmp_path / "GPD" / "CHECKPOINTS.md").exists()
 
     def test_completing_last_phase_marks_milestone_complete(self, tmp_path: Path) -> None:
         self._create_fixture(tmp_path)
@@ -150,7 +150,7 @@ class TestPhaseLifecycle:
         assert result.is_last_phase is True
         assert result.next_phase is None
 
-        state = (tmp_path / ".gpd" / "STATE.md").read_text()
+        state = (tmp_path / "GPD" / "STATE.md").read_text()
         assert "Milestone complete" in state
 
     def test_sequential_phase_completion_preserves_history(self, tmp_path: Path) -> None:
@@ -160,7 +160,7 @@ class TestPhaseLifecycle:
         phase_complete(tmp_path, "2")
         phase_complete(tmp_path, "3")
 
-        roadmap = (tmp_path / ".gpd" / "ROADMAP.md").read_text()
+        roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text()
         # All 3 checkboxes should be checked
         assert roadmap.count("[x]") == 3
 
@@ -222,16 +222,16 @@ class TestPhaseRemoveRenumber:
 
         # Files inside renamed directory should also be renumbered
         renamed_dir = next(d for d in dirs if d.startswith("02-validation"))
-        files = list((tmp_path / ".gpd" / "phases" / renamed_dir).iterdir())
+        files = list((tmp_path / "GPD" / "phases" / renamed_dir).iterdir())
         assert any(f.name.startswith("02-") for f in files)
 
         # ROADMAP.md should no longer mention Phase 2: Derivation
-        roadmap = (tmp_path / ".gpd" / "ROADMAP.md").read_text()
+        roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text()
         assert "Phase 2: Derivation" not in roadmap
 
     def test_refuses_remove_with_summaries_without_force(self, tmp_path: Path) -> None:
         self._create_fixture(tmp_path)
-        d = tmp_path / ".gpd" / "phases" / "02-derivation"
+        d = tmp_path / "GPD" / "phases" / "02-derivation"
         (d / "02-01-SUMMARY.md").write_text("# Summary")
 
         with pytest.raises(Exception, match="force"):
@@ -243,27 +243,27 @@ class TestPhaseRemoveRenumber:
 
     def test_phase_remove_resyncs_checkpoint_shelf(self, tmp_path: Path) -> None:
         self._create_fixture(tmp_path)
-        derivation_dir = tmp_path / ".gpd" / "phases" / "02-derivation"
+        derivation_dir = tmp_path / "GPD" / "phases" / "02-derivation"
         (derivation_dir / "02-01-SUMMARY.md").write_text(
             '---\nphase: "02"\nplan: "01"\ndepth: full\nprovides: []\ncompleted: "2026-02-23"\none-liner: "Derivation summary"\n---\n\n# Summary\n',
             encoding="utf-8",
         )
-        validation_dir = tmp_path / ".gpd" / "phases" / "03-validation"
+        validation_dir = tmp_path / "GPD" / "phases" / "03-validation"
         (validation_dir / "03-01-SUMMARY.md").write_text(
             '---\nphase: "03"\nplan: "01"\ndepth: full\nprovides: []\ncompleted: "2026-02-23"\none-liner: "Validation summary"\n---\n\n# Summary\n',
             encoding="utf-8",
         )
 
         sync_phase_checkpoints(tmp_path)
-        assert (tmp_path / ".gpd" / "phase-checkpoints" / "02-derivation.md").exists()
-        assert (tmp_path / ".gpd" / "phase-checkpoints" / "03-validation.md").exists()
+        assert (tmp_path / "GPD" / "phase-checkpoints" / "02-derivation.md").exists()
+        assert (tmp_path / "GPD" / "phase-checkpoints" / "03-validation.md").exists()
 
         result = phase_remove(tmp_path, "2", force=True)
 
         assert result.removed == "2"
-        assert not (tmp_path / ".gpd" / "phase-checkpoints" / "02-derivation.md").exists()
-        assert (tmp_path / ".gpd" / "phase-checkpoints" / "02-validation.md").exists()
-        checkpoints_index = (tmp_path / ".gpd" / "CHECKPOINTS.md").read_text(encoding="utf-8")
+        assert not (tmp_path / "GPD" / "phase-checkpoints" / "02-derivation.md").exists()
+        assert (tmp_path / "GPD" / "phase-checkpoints" / "02-validation.md").exists()
+        checkpoints_index = (tmp_path / "GPD" / "CHECKPOINTS.md").read_text(encoding="utf-8")
         assert "[Phase 02: Validation](phase-checkpoints/02-validation.md)" in checkpoints_index
 
 
@@ -458,11 +458,11 @@ class TestMilestoneLifecycle:
         assert result.archived.roadmap is True
 
         # Milestones file should exist
-        milestones = (tmp_path / ".gpd" / "MILESTONES.md").read_text()
+        milestones = (tmp_path / "GPD" / "MILESTONES.md").read_text()
         assert "v1.0 Core Framework" in milestones
 
         # Archive should have ROADMAP copy
-        archive = tmp_path / ".gpd" / "milestones" / "v1.0-ROADMAP.md"
+        archive = tmp_path / "GPD" / "milestones" / "v1.0-ROADMAP.md"
         assert archive.exists()
 
     def test_milestone_incomplete_raises(self, tmp_path: Path) -> None:

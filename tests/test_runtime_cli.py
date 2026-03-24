@@ -124,7 +124,7 @@ def test_runtime_cli_returns_stable_error_for_unknown_runtime(monkeypatch, tmp_p
             "--runtime",
             "nonexistent-runtime",
             "--config-dir",
-            str(tmp_path / ".gpd"),
+            str(tmp_path / "GPD"),
             "--install-scope",
             "global",
             "state",

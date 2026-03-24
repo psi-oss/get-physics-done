@@ -4,7 +4,7 @@ template_version: 1
 
 # Learned Pattern Template
 
-Template for `~/.gpd/learned-patterns/patterns-by-domain/{domain}/{category}-{slug}.md` -- a reusable error pattern captured from debugging or verification across GPD projects.
+Template for `~/GPD/learned-patterns/patterns-by-domain/{domain}/{category}-{slug}.md` -- a reusable error pattern captured from debugging or verification across GPD projects.
 
 **Purpose:** Record a physics error pattern, convention pitfall, or recurring computational issue so that future projects can detect and prevent it before it causes problems.
 
