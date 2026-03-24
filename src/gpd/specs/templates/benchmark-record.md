@@ -13,7 +13,7 @@ Template for `.gpd/benchmarks/BM-001.md` -- a durable benchmark record for one d
 
 - `REQUIREMENTS.md` names decisive outputs, anchors, benchmarks, and false-progress traps; a benchmark record carries the reusable fixed comparison surface behind those rows
 - `paper/internal-comparison.md` records the later verdict of a specific comparison run; a benchmark record defines the benchmark surface that comparison is supposed to respect
-- `evidence-note.md` is for what one source supports or does not support; a benchmark record is for the fixed baseline or comparison target itself
+- Per-source evidence review notes are for what one source supports or does not support; a benchmark record is for the fixed baseline or comparison target itself
 - `BIBLIOGRAPHY.md` may track benchmark citations or prior artifacts; a benchmark record tracks the project-local baseline expectations and blocker state attached to that benchmark
 - Phase `SUMMARY.md` and `VERIFICATION.md` files may cite benchmark record IDs when a result depends on a preserved baseline or known failure condition
 
