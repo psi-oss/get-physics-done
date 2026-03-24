@@ -569,8 +569,10 @@ def test_respond_to_referees_references_staged_review_artifacts() -> None:
     workflow_text = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     writer_text = (AGENTS_DIR / "gpd-paper-writer.md").read_text(encoding="utf-8")
 
+    assert "argument-hint: \"[path to referee report or 'paste']\"" in command_text
     assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in command_text
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in command_text
+    assert "Use the literal `paste` sentinel" in workflow_text
     assert "REVIEW-LEDGER*.json" in workflow_text
     assert "REFEREE-DECISION*.json" in workflow_text
     assert "REVIEW-LEDGER{-RN}.json" in writer_text
@@ -614,6 +616,20 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
 
     for content in (peer_review, respond, arxiv):
         assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]' in content
+
+    assert "peer-review review ledger when available" in arxiv
+    assert "peer-review referee decision when available" in arxiv
+    assert "latest `REVIEW-LEDGER{round_suffix}.json` / `REFEREE-DECISION{round_suffix}.json` outcome" in arxiv
+    assert "resolve only from `paper/`, `manuscript/`, or `draft/`" in arxiv
+    assert 'find . -name "main.tex"' not in arxiv
+
+
+def test_remove_phase_workflow_stages_checkpoint_shelf_updates() -> None:
+    workflow = (WORKFLOWS_DIR / "remove-phase.md").read_text(encoding="utf-8")
+
+    assert "checkpoint shelf artifacts" in workflow
+    assert "GPD/CHECKPOINTS.md" in workflow
+    assert "GPD/phase-checkpoints" in workflow
 
 
 def test_new_project_recommended_autonomy_matches_balanced_default() -> None:
@@ -1549,6 +1565,14 @@ def test_peer_review_prompt_includes_concise_stage_map_for_users() -> None:
     ):
         assert token in peer_review_command
         assert token in peer_review_workflow
+
+
+def test_peer_review_command_limits_default_manuscript_targets_to_canonical_roots() -> None:
+    peer_review_command = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
+
+    assert "ls paper/main.tex manuscript/main.tex draft/main.tex 2>/dev/null" in peer_review_command
+    assert "find . -maxdepth 3" not in peer_review_command
+    assert "pass an explicit manuscript path or paper directory" in peer_review_command
 
 
 def test_peer_review_referee_surface_fail_closed_stage6_contract() -> None:

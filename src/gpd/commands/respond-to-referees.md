@@ -1,7 +1,7 @@
 ---
 name: gpd:respond-to-referees
 description: Structure a point-by-point response to referee reports and update the manuscript
-argument-hint: "[path to referee report or paste inline]"
+argument-hint: "[path to referee report or 'paste']"
 context_mode: project-required
 requires:
   files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]
@@ -14,17 +14,20 @@ review-contract:
   required_evidence:
     - existing manuscript
     - structured referee issues
+    - referee report source when provided as a path
     - peer-review review ledger when available
     - peer-review decision artifacts when available
     - revision verification evidence
   blocking_conditions:
     - missing project state
     - missing manuscript
+    - missing referee report source when provided as a path
     - missing conventions
     - degraded review integrity
   preflight_checks:
     - project_state
     - manuscript
+    - referee_report_source
     - conventions
 allowed-tools:
   - file_read

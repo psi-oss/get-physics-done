@@ -66,7 +66,9 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-If review preflight exits nonzero because of missing project state, missing manuscript or referee-report source, degraded review integrity, or missing required conventions, STOP and show the blocking issues before drafting responses. Treat `project_contract` as authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes; otherwise the contract is visible but blocked, and the response should surface the blocker instead of relying on it.
+Use the literal `paste` sentinel when collecting inline report text. Do not pass the raw pasted referee report body as `$ARGUMENTS` to the strict preflight command.
+
+If review preflight exits nonzero because of missing project state, missing manuscript, missing referee report source when provided as a path, degraded review integrity, or missing required conventions, STOP and show the blocking issues before drafting responses. Treat `project_contract` as authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes; otherwise the contract is visible but blocked, and the response should surface the blocker instead of relying on it.
 
 **Locate paper directory:**
 

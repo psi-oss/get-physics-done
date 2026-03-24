@@ -295,6 +295,87 @@ def _write_legacy_publication_artifacts(project_root: Path, artifact_names: tupl
         (legacy_dir / artifact_name).write_bytes(source.read_bytes())
 
 
+def _write_publication_review_outcome(
+    project_root: Path,
+    *,
+    final_recommendation: str = "accept",
+    round_number: int = 1,
+    blocking_issue_ids: list[str] | None = None,
+    manuscript_path: str = "paper/main.tex",
+) -> None:
+    review_dir = project_root / "GPD" / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    round_suffix = "" if round_number <= 1 else f"-R{round_number}"
+    _write_review_stage_artifacts(
+        project_root,
+        artifact_names=(
+            f"STAGE-reader{round_suffix}.json",
+            f"STAGE-literature{round_suffix}.json",
+            f"STAGE-math{round_suffix}.json",
+            f"STAGE-physics{round_suffix}.json",
+            f"STAGE-interestingness{round_suffix}.json",
+        ),
+        manuscript_path=manuscript_path,
+    )
+    unresolved_blocking_issue_ids = blocking_issue_ids or []
+    (review_dir / f"REVIEW-LEDGER{round_suffix}.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "round": round_number,
+                "manuscript_path": manuscript_path,
+                "issues": [
+                    {
+                        "issue_id": issue_id,
+                        "opened_by_stage": "reader",
+                        "severity": "major",
+                        "blocking": True,
+                        "claim_ids": ["CLM-001"],
+                        "summary": "Blocking review issue.",
+                        "rationale": "",
+                        "evidence_refs": [],
+                        "required_action": "Revise the manuscript.",
+                        "status": "open",
+                    }
+                    for issue_id in unresolved_blocking_issue_ids
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (review_dir / f"REFEREE-DECISION{round_suffix}.json").write_text(
+        json.dumps(
+            {
+                "manuscript_path": manuscript_path,
+                "target_journal": "jhep",
+                "final_recommendation": final_recommendation,
+                "final_confidence": "medium",
+                "stage_artifacts": [
+                    f"GPD/review/STAGE-reader{round_suffix}.json",
+                    f"GPD/review/STAGE-literature{round_suffix}.json",
+                    f"GPD/review/STAGE-math{round_suffix}.json",
+                    f"GPD/review/STAGE-physics{round_suffix}.json",
+                    f"GPD/review/STAGE-interestingness{round_suffix}.json",
+                ],
+                "central_claims_supported": True,
+                "claim_scope_proportionate_to_evidence": True,
+                "physical_assumptions_justified": True,
+                "unsupported_claims_are_central": False,
+                "reframing_possible_without_new_results": True,
+                "mathematical_correctness": "adequate",
+                "novelty": "adequate",
+                "significance": "adequate",
+                "venue_fit": "adequate",
+                "literature_positioning": "adequate",
+                "unresolved_major_issues": len(unresolved_blocking_issue_ids),
+                "unresolved_minor_issues": 0,
+                "blocking_issue_ids": unresolved_blocking_issue_ids,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Convention commands — the original bug class
 # ═══════════════════════════════════════════════════════════════════════════
@@ -930,9 +1011,31 @@ class TestReviewValidationCommands:
         assert "GPD/AUTHOR-RESPONSE{round_suffix}.md" in payload["review_contract"]["required_outputs"]
         assert "existing manuscript" in payload["review_contract"]["required_evidence"]
         assert "structured referee issues" in payload["review_contract"]["required_evidence"]
+        assert "referee report source when provided as a path" in payload["review_contract"]["required_evidence"]
         assert "peer-review review ledger when available" in payload["review_contract"]["required_evidence"]
         assert "peer-review decision artifacts when available" in payload["review_contract"]["required_evidence"]
         assert "revision verification evidence" in payload["review_contract"]["required_evidence"]
+        assert "missing referee report source when provided as a path" in payload["review_contract"]["blocking_conditions"]
+        assert "referee_report_source" in payload["review_contract"]["preflight_checks"]
+
+    def test_review_contract_arxiv_submission_surfaces_latest_review_outcome_gate(self) -> None:
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-contract", "arxiv-submission"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:arxiv-submission"
+        assert "peer-review review ledger when available" in payload["review_contract"]["required_evidence"]
+        assert "peer-review referee decision when available" in payload["review_contract"]["required_evidence"]
+        assert "missing compiled manuscript" in payload["review_contract"]["blocking_conditions"]
+        assert (
+            "peer-review recommendation blocks submission when staged review artifacts are present"
+            in payload["review_contract"]["blocking_conditions"]
+        )
+        assert "compiled_manuscript" in payload["review_contract"]["preflight_checks"]
 
     def test_command_context_project_required_fails_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, codex_command_prefix: str
@@ -1551,6 +1654,8 @@ class TestReviewValidationCommands:
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is True
         assert checks["referee_report_source"]["passed"] is True
+        assert "artifact_manifest" not in checks
+        assert "bibliography_audit" not in checks
 
     def test_review_preflight_peer_review_fails_without_manuscript(self, gpd_project: Path) -> None:
         (gpd_project / "paper" / "main.tex").unlink()
@@ -1816,6 +1921,113 @@ class TestReviewValidationCommands:
         assert checks["compiled_manuscript"]["passed"] is True
         assert checks["publication_blockers"]["passed"] is False
         assert checks["publication_blockers"]["blocking"] is True
+
+    def test_review_preflight_arxiv_submission_strict_blocks_latest_major_revision_decision(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        _write_publication_review_outcome(gpd_project, final_recommendation="major_revision")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "arxiv-submission", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["review_ledger"]["passed"] is True
+        assert checks["referee_decision"]["passed"] is True
+        assert checks["review_ledger_valid"]["passed"] is True
+        assert checks["referee_decision_valid"]["passed"] is True
+        assert checks["publication_review_outcome"]["passed"] is False
+        assert checks["publication_review_outcome"]["blocking"] is True
+
+    def test_review_preflight_arxiv_submission_strict_blocks_latest_open_blocking_review_issues(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="minor_revision",
+            blocking_issue_ids=["REF-001"],
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "arxiv-submission", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["review_ledger_valid"]["passed"] is True
+        assert checks["referee_decision_valid"]["passed"] is False
+        assert "publication_review_outcome" not in checks
+
+    def test_review_preflight_arxiv_submission_strict_uses_latest_review_round_when_review_artifacts_exist(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        _write_publication_review_outcome(gpd_project, final_recommendation="accept", round_number=1)
+        _write_publication_review_outcome(gpd_project, final_recommendation="major_revision", round_number=2)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "arxiv-submission", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert "round 2" in checks["review_ledger"]["detail"]
+        assert "round 2" in checks["referee_decision"]["detail"]
+        assert checks["publication_review_outcome"]["passed"] is False
+
+    def test_review_preflight_arxiv_submission_strict_requires_matching_latest_review_pair(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        _write_publication_review_outcome(gpd_project, final_recommendation="accept", round_number=1)
+        _write_publication_review_outcome(gpd_project, final_recommendation="accept", round_number=2)
+        (gpd_project / "GPD" / "review" / "REVIEW-LEDGER-R2.json").unlink()
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "arxiv-submission", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["review_ledger"]["passed"] is False
+        assert "round 2" in checks["review_ledger"]["detail"]
+
+    def test_review_preflight_arxiv_submission_strict_rejects_stale_review_artifact_manuscript_paths(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        _write_publication_review_outcome(
+            gpd_project,
+            final_recommendation="accept",
+            manuscript_path="submission/main.tex",
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "arxiv-submission", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["review_ledger_valid"]["passed"] is False
+        assert checks["referee_decision_valid"]["passed"] is False
 
     def test_review_preflight_arxiv_submission_ignores_generic_non_publication_blockers(self, gpd_project: Path) -> None:
         planning = gpd_project / "GPD"

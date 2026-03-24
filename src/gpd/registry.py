@@ -306,6 +306,8 @@ VALID_REVIEW_PREFLIGHT_CHECKS: tuple[str, ...] = (
     "conventions",
     "research_artifacts",
     "manuscript",
+    "compiled_manuscript",
+    "referee_report_source",
     "phase_artifacts",
 )
 VALID_REVIEW_REQUIRED_STATES: tuple[str, ...] = ("phase_executed",)
@@ -417,120 +419,7 @@ def _parse_review_contract_required_state(raw: object, *, command_name: str) -> 
     return value
 
 
-_DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
-    "gpd:write-paper": {
-        "review_mode": "publication",
-        "required_outputs": ["paper/main.tex", "GPD/REFEREE-REPORT.md", "GPD/REFEREE-REPORT.tex"],
-        "required_evidence": [
-            "existing manuscript",
-            "phase summaries or milestone digest",
-            "verification reports",
-            "bibliography audit",
-            "artifact manifest",
-            "reproducibility manifest",
-        ],
-        "blocking_conditions": [
-            "missing project state",
-            "missing roadmap",
-            "missing conventions",
-            "missing manuscript",
-            "no research artifacts",
-            "degraded review integrity",
-        ],
-        "preflight_checks": ["project_state", "roadmap", "conventions", "research_artifacts", "manuscript"],
-    },
-    "gpd:respond-to-referees": {
-        "review_mode": "publication",
-        "required_outputs": ["GPD/paper/REFEREE_RESPONSE.md", "GPD/AUTHOR-RESPONSE.md"],
-        "required_evidence": [
-            "existing manuscript",
-            "structured referee issues",
-            "peer-review review ledger when available",
-            "peer-review decision artifacts when available",
-            "revision verification evidence",
-        ],
-        "blocking_conditions": [
-            "missing project state",
-            "missing manuscript",
-            "degraded review integrity",
-        ],
-        "preflight_checks": ["project_state", "manuscript", "conventions"],
-    },
-    "gpd:peer-review": {
-        "review_mode": "publication",
-        "required_outputs": [
-            "GPD/review/CLAIMS{round_suffix}.json",
-            "GPD/review/STAGE-reader{round_suffix}.json",
-            "GPD/review/STAGE-literature{round_suffix}.json",
-            "GPD/review/STAGE-math{round_suffix}.json",
-            "GPD/review/STAGE-physics{round_suffix}.json",
-            "GPD/review/STAGE-interestingness{round_suffix}.json",
-            "GPD/review/REVIEW-LEDGER{round_suffix}.json",
-            "GPD/review/REFEREE-DECISION{round_suffix}.json",
-            "GPD/REFEREE-REPORT{round_suffix}.md",
-            "GPD/REFEREE-REPORT{round_suffix}.tex",
-            "GPD/CONSISTENCY-REPORT.md",
-        ],
-        "required_evidence": [
-            "existing manuscript",
-            "phase summaries or milestone digest",
-            "verification reports",
-            "bibliography audit",
-            "artifact manifest",
-            "reproducibility manifest",
-            "stage review artifacts",
-        ],
-        "blocking_conditions": [
-            "missing project state",
-            "missing roadmap",
-            "missing conventions",
-            "missing manuscript",
-            "no research artifacts",
-            "degraded review integrity",
-            "unsupported physical significance claims",
-            "collapsed novelty or venue fit",
-        ],
-        "preflight_checks": ["project_state", "roadmap", "conventions", "research_artifacts", "manuscript"],
-        "stage_ids": ["reader", "literature", "math", "physics", "interestingness", "meta"],
-        "stage_artifacts": [
-            "GPD/review/CLAIMS{round_suffix}.json",
-            "GPD/review/STAGE-reader{round_suffix}.json",
-            "GPD/review/STAGE-literature{round_suffix}.json",
-            "GPD/review/STAGE-math{round_suffix}.json",
-            "GPD/review/STAGE-physics{round_suffix}.json",
-            "GPD/review/STAGE-interestingness{round_suffix}.json",
-            "GPD/review/REVIEW-LEDGER{round_suffix}.json",
-            "GPD/review/REFEREE-DECISION{round_suffix}.json",
-        ],
-        "final_decision_output": "GPD/review/REFEREE-DECISION{round_suffix}.json",
-        "requires_fresh_context_per_stage": True,
-        "max_review_rounds": 3,
-    },
-    "gpd:verify-work": {
-        "review_mode": "review",
-        "required_outputs": ["GPD/phases/XX-name/{phase}-VERIFICATION.md"],
-        "required_evidence": ["roadmap", "phase summaries", "artifact files"],
-        "blocking_conditions": [
-            "missing project state",
-            "missing roadmap",
-            "missing phase artifacts",
-            "degraded review integrity",
-        ],
-        "preflight_checks": ["project_state", "roadmap", "phase_artifacts"],
-        "required_state": "phase_executed",
-    },
-    "gpd:arxiv-submission": {
-        "review_mode": "publication",
-        "required_outputs": ["arxiv-submission.tar.gz"],
-        "required_evidence": ["compiled manuscript", "bibliography audit", "artifact manifest"],
-        "blocking_conditions": [
-            "missing manuscript",
-            "unresolved publication blockers",
-            "degraded review integrity",
-        ],
-        "preflight_checks": ["project_state", "manuscript", "conventions"],
-    },
-}
+_DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {}
 
 _VALID_REVIEW_CONTRACT_KEYS: frozenset[str] = frozenset(
     {
@@ -551,9 +440,9 @@ _VALID_REVIEW_CONTRACT_KEYS: frozenset[str] = frozenset(
 
 
 def _parse_review_contract_schema_version(raw: object, *, command_name: str) -> int:
-    """Validate review-contract schema_version without coercing unsupported values."""
+    """Validate explicit review-contract schema_version without coercing unsupported values."""
     if raw is None:
-        return 1
+        raise ValueError(f"review-contract for {command_name} must set schema_version")
     if isinstance(raw, bool) or not isinstance(raw, int):
         raise ValueError(f"schema_version for {command_name} must be the integer 1")
     if raw != 1:
@@ -562,7 +451,7 @@ def _parse_review_contract_schema_version(raw: object, *, command_name: str) -> 
 
 
 def _parse_review_contract(raw: object, command_name: str, requires: dict[str, object]) -> ReviewCommandContract | None:
-    """Parse review contract frontmatter or provide a typed default for review workflows."""
+    """Parse review-contract frontmatter into a typed contract with no hidden defaults."""
     merged = dict(_DEFAULT_REVIEW_CONTRACTS.get(command_name, {}))
     if raw is not None and not isinstance(raw, dict):
         raise ValueError(f"review-contract for {command_name} must be a mapping")
@@ -576,11 +465,6 @@ def _parse_review_contract(raw: object, command_name: str, requires: dict[str, o
     if not merged:
         return None
 
-    required_state = _parse_review_contract_required_state(merged.get("required_state"), command_name=command_name)
-    if not required_state:
-        raw_requires_state = requires.get("state")
-        required_state = _parse_review_contract_required_state(raw_requires_state, command_name=command_name)
-
     raw_review_mode = merged.get("review_mode")
     if raw_review_mode is None:
         if raw is None:
@@ -593,6 +477,7 @@ def _parse_review_contract(raw: object, command_name: str, requires: dict[str, o
         valid_values=VALID_REVIEW_MODES,
     )
     schema_version = _parse_review_contract_schema_version(merged.get("schema_version"), command_name=command_name)
+    required_state = _parse_review_contract_required_state(merged.get("required_state"), command_name=command_name)
 
     return ReviewCommandContract(
         review_mode=review_mode,

@@ -69,7 +69,7 @@ If `GPD/state.json` says the project is in Phase 3 but the `phases/` directory t
 | `state.json` references a phase directory that does not exist | Phase directory deleted outside GPD | Re-create the directory or roll back `state.json` to match |
 | Plan files exist beyond what `state.json` tracks | State was not updated after manual plan creation | Run `/gpd:sync-state` to reconcile |
 | `STATE.md` and `state.json` disagree on position | Interrupted dual-write | Run `/gpd:sync-state` - the intent-marker protocol detects and recovers |
-| `state.json.bak` is newer than `state.json` | Write was interrupted mid-save | `load_state_json()` automatically falls back to the backup |
+| `state.json.bak` is newer than `state.json` | Write may have been interrupted mid-save | Inspect `.state-write-intent` or run `/gpd:sync-state`; `load_state_json()` does not choose a newer backup by timestamp alone |
 | `DERIVATION-STATE.md` has results not in `state.json` | Session paused without full sync | Resume workflow flags the gap and offers to reconcile |
 
 For most disagreements, `/gpd:sync-state` or `gpd state validate` will detect and report the issue. The dual-write engine's intent-marker protocol (`.state-write-intent`) handles crash recovery automatically.
@@ -99,10 +99,10 @@ This is deterministic: given the same `GPD/` directory, resume produces the same
 The state engine maintains a recovery chain:
 
 ```
-state.json  >  state.json.bak  >  STATE.md  >  STATE.md (regenerated from defaults)
+state.json  >  state.json.bak  >  STATE.md
 ```
 
-`state.json.bak` is written after every successful state save. If `state.json` is corrupt or missing, `load_state_json()` automatically tries the backup. If both are lost, the system falls back to parsing `STATE.md` and reconstructing the JSON state.
+`state.json.bak` is written after every successful state save. State writes fail closed if the backup cannot be refreshed. If `state.json` is corrupt or missing, `load_state_json()` automatically tries the backup. If both are lost, the system falls back to parsing `STATE.md` and reconstructing the JSON state.
 
 This means the last-known-good checkpoint is always available as long as at least one of `state.json`, `state.json.bak`, or `STATE.md` survives. The intent-marker protocol (`.state-write-intent`) further protects against partial writes by detecting interrupted save operations on the next load.
 

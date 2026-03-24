@@ -95,12 +95,13 @@ Review target: $ARGUMENTS (optional paper directory or manuscript path)
 @GPD/STATE.md
 @GPD/ROADMAP.md
 
-Check for candidate manuscripts:
+Check canonical candidate manuscript roots in order:
 
 ```bash
 ls paper/main.tex manuscript/main.tex draft/main.tex 2>/dev/null
-find . -maxdepth 3 \( -name "main.tex" -o -name "*.tex" \) 2>/dev/null | head -20
 ```
+
+If none of those roots exist, pass an explicit manuscript path or paper directory and let centralized preflight reject anything outside the supported target family.
 
 </context>
 

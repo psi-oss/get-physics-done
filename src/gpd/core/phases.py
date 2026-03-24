@@ -203,14 +203,6 @@ def _extract_state_field(state_content: str, field_name: str) -> str | None:
 _CHECKPOINT_TASK_RE = re.compile(r'<task\s+[^>]*?type=["\']?checkpoint', re.IGNORECASE)
 
 
-def _sync_phase_checkpoints_safely(cwd: Path) -> None:
-    """Best-effort checkpoint sync for cleanup-style lifecycle operations."""
-    try:
-        sync_phase_checkpoints(cwd)
-    except Exception:
-        logger.warning("Failed to generate phase checkpoint documents", exc_info=True)
-
-
 def _upsert_milestone_entry(existing: str, version: str, milestone_entry: str) -> str:
     """Replace or append a milestone entry keyed by version."""
     pattern = re.compile(
@@ -1644,7 +1636,7 @@ def phase_remove(cwd: Path, target_phase: str, *, force: bool = False) -> PhaseR
             state_updated=state_path.exists(),
         )
 
-    _sync_phase_checkpoints_safely(cwd)
+    sync_phase_checkpoints(cwd)
     return result
 
 

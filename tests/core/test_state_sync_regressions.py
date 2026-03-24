@@ -3,9 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+import gpd.core.state as state_module
 from gpd.core.state import (
     default_state_dict,
     generate_state_markdown,
+    save_state_json,
     save_state_markdown,
     state_load,
     state_update_progress,
@@ -368,6 +372,70 @@ def test_save_state_markdown_updates_markdown_and_json_together(tmp_path: Path) 
     assert result["position"]["current_phase"] == "02"
     assert stored["position"]["current_phase"] == "02"
     assert stored["position"]["status"] == "Executing"
+
+
+def test_sync_state_json_core_raises_and_restores_prior_files_when_backup_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / "GPD"
+
+    existing = default_state_dict()
+    existing["position"]["status"] = "Executing"
+    (planning / "state.json").write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+    (planning / "state.json.bak").write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+
+    updated = default_state_dict()
+    updated["position"]["status"] = "Paused"
+    md_content = generate_state_markdown(updated)
+    real_atomic_write = state_module.atomic_write
+
+    def failing_atomic_write(path: Path, content: str) -> None:
+        if Path(path).name == "state.json.bak":
+            raise OSError("backup write failed")
+        real_atomic_write(path, content)
+
+    monkeypatch.setattr(state_module, "atomic_write", failing_atomic_write)
+
+    with pytest.raises(OSError, match="backup write failed"):
+        sync_state_json_core(cwd, md_content)
+
+    stored = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+    backup = json.loads((planning / "state.json.bak").read_text(encoding="utf-8"))
+
+    assert stored["position"]["status"] == "Executing"
+    assert backup["position"]["status"] == "Executing"
+
+
+def test_save_state_markdown_raises_and_restores_prior_pair_when_backup_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    existing = default_state_dict()
+    existing["position"]["status"] = "Executing"
+    save_state_json(cwd, existing)
+
+    planning = cwd / "GPD"
+    original_md = (planning / "STATE.md").read_text(encoding="utf-8")
+    updated_md = original_md.replace("**Status:** Executing", "**Status:** Paused", 1)
+    real_atomic_write = state_module.atomic_write
+
+    def failing_atomic_write(path: Path, content: str) -> None:
+        if Path(path).name == "state.json.bak":
+            raise OSError("backup write failed")
+        real_atomic_write(path, content)
+
+    monkeypatch.setattr(state_module, "atomic_write", failing_atomic_write)
+
+    with pytest.raises(OSError, match="backup write failed"):
+        save_state_markdown(cwd, updated_md)
+
+    stored = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+    backup = json.loads((planning / "state.json.bak").read_text(encoding="utf-8"))
+
+    assert stored["position"]["status"] == "Executing"
+    assert backup["position"]["status"] == "Executing"
+    assert (planning / "STATE.md").read_text(encoding="utf-8") == original_md
 
 
 def test_state_update_progress_ignores_orphan_summaries_and_caps_percent(tmp_path: Path) -> None:

@@ -1846,7 +1846,6 @@ def _write_state_pair_locked(cwd: Path, *, state_obj: dict, md_content: str) -> 
     md_tmp = md_path.with_suffix(f".md.tmp.{temp_suffix}")
 
     json_backup = safe_read_file(json_path)
-    prior_json_backup = safe_read_file(backup_path)
     md_backup = safe_read_file(md_path)
 
     normalized = _normalize_state_for_persistence(state_obj)
@@ -1867,8 +1866,6 @@ def _write_state_pair_locked(cwd: Path, *, state_obj: dict, md_content: str) -> 
 
     if normalized.get("project_contract") is None:
         preserved_contract = _valid_project_contract_from_state_text(json_backup)
-        if preserved_contract is None:
-            preserved_contract = _valid_project_contract_from_state_text(prior_json_backup)
         if preserved_contract is not None:
             normalized = copy.deepcopy(normalized)
             normalized["project_contract"] = preserved_contract
@@ -1888,11 +1885,7 @@ def _write_state_pair_locked(cwd: Path, *, state_obj: dict, md_content: str) -> 
         except OSError:
             pass
 
-        try:
-            atomic_write(backup_path, backup_rendered)
-        except OSError:
-            if os.environ.get(ENV_GPD_DEBUG):
-                logger.debug("Failed to write state.json backup")
+        atomic_write(backup_path, backup_rendered)
     except Exception:
         for f in (intent_file, json_tmp, md_tmp):
             try:
@@ -1925,16 +1918,37 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
     Caller MUST hold the state.json lock.
     """
     json_path = _state_json_path(cwd)
+    backup_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
     merged = _build_state_from_markdown(cwd, md_content)
 
     json_content = json.dumps(merged, indent=2) + "\n"
-    atomic_write(json_path, json_content)
-    # Create backup
+    prior_json = safe_read_file(json_path)
+    prior_backup = safe_read_file(backup_path)
     try:
-        atomic_write(json_path.parent / STATE_JSON_BACKUP_FILENAME, json_content)
-    except OSError:
-        if os.environ.get(ENV_GPD_DEBUG):
-            logger.debug("sync_state_json backup write failed")
+        atomic_write(json_path, json_content)
+        atomic_write(backup_path, json_content)
+    except Exception:
+        if prior_json is None:
+            try:
+                json_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        else:
+            try:
+                atomic_write(json_path, prior_json)
+            except OSError:
+                pass
+        if prior_backup is None:
+            try:
+                backup_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        else:
+            try:
+                atomic_write(backup_path, prior_backup)
+            except OSError:
+                pass
+        raise
 
     return merged
 

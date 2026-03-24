@@ -11,6 +11,7 @@ from gpd.registry import (
     AgentDef,
     CommandDef,
     SkillDef,
+    _DEFAULT_REVIEW_CONTRACTS,
     _parse_agent_file,
     _parse_command_file,
     _parse_frontmatter,
@@ -28,6 +29,7 @@ def _write_review_contract_command(tmp_path: Path, file_name: str, review_contra
         "name: gpd:test-review-contract\n"
         "review-contract:\n"
         "  review_mode: publication\n"
+        "  schema_version: 1\n"
         f"{review_contract_body}"
         "---\n"
         "Body.",
@@ -107,6 +109,10 @@ class TestParseFrontmatter:
 
         assert meta == {"description": "first\n---\nsecond\n"}
         assert body == "Body."
+
+
+def test_review_contract_registry_defaults_are_empty() -> None:
+    assert _DEFAULT_REVIEW_CONTRACTS == {}
 
 
 class TestParseTools:
@@ -389,7 +395,7 @@ class TestParseCommandFile:
         with pytest.raises(ValueError, match=expected_error):
             _parse_command_file(f, source="commands")
 
-    def test_command_uses_default_peer_review_contract(self, tmp_path: Path) -> None:
+    def test_command_without_review_contract_has_no_hidden_default_contract(self, tmp_path: Path) -> None:
         f = tmp_path / "peer-review.md"
         f.write_text(
             "---\nname: gpd:peer-review\ndescription: Peer review\nrequires:\n  files: [\"paper/*.tex\"]\n---\nBody.",
@@ -397,34 +403,8 @@ class TestParseCommandFile:
         )
         cmd = _parse_command_file(f, source="commands")
 
-        assert cmd.review_contract is not None
+        assert cmd.review_contract is None
         assert cmd.context_mode == "project-required"
-        assert cmd.review_contract.review_mode == "publication"
-        assert "existing manuscript" in cmd.review_contract.required_evidence
-        assert cmd.review_contract.preflight_checks == [
-            "project_state",
-            "roadmap",
-            "conventions",
-            "research_artifacts",
-            "manuscript",
-        ]
-        assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in cmd.review_contract.required_outputs
-        assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in cmd.review_contract.required_outputs
-        assert "GPD/REFEREE-REPORT{round_suffix}.md" in cmd.review_contract.required_outputs
-        assert "GPD/REFEREE-REPORT{round_suffix}.tex" in cmd.review_contract.required_outputs
-        assert "GPD/REFEREE-REPORT.md" not in cmd.review_contract.required_outputs
-        assert "GPD/REFEREE-REPORT.tex" not in cmd.review_contract.required_outputs
-        assert cmd.review_contract.stage_artifacts == [
-            "GPD/review/CLAIMS{round_suffix}.json",
-            "GPD/review/STAGE-reader{round_suffix}.json",
-            "GPD/review/STAGE-literature{round_suffix}.json",
-            "GPD/review/STAGE-math{round_suffix}.json",
-            "GPD/review/STAGE-physics{round_suffix}.json",
-            "GPD/review/STAGE-interestingness{round_suffix}.json",
-            "GPD/review/REVIEW-LEDGER{round_suffix}.json",
-            "GPD/review/REFEREE-DECISION{round_suffix}.json",
-        ]
-        assert cmd.review_contract.final_decision_output == "GPD/review/REFEREE-DECISION{round_suffix}.json"
 
     def test_command_review_contract_parses_false_string_for_fresh_context(self, tmp_path: Path) -> None:
         f = tmp_path / "review-contract-false.md"
@@ -433,6 +413,7 @@ class TestParseCommandFile:
             "name: gpd:review-contract-false\n"
             "review-contract:\n"
             "  review_mode: publication\n"
+            "  schema_version: 1\n"
             '  requires_fresh_context_per_stage: "false"\n'
             "---\n"
             "Body.",
@@ -451,6 +432,7 @@ class TestParseCommandFile:
             "name: gpd:review-rounds\n"
             "review-contract:\n"
             "  review_mode: publication\n"
+            "  schema_version: 1\n"
             "  max_review_rounds: many\n"
             "---\n"
             "Body.",
@@ -622,17 +604,35 @@ class TestParseCommandFile:
         ):
             _parse_command_file(f, source="commands")
 
-    def test_command_review_contract_required_state_from_requires_rejects_unsupported_value(
+    def test_command_review_contract_does_not_infer_required_state_from_requires_state(
         self, tmp_path: Path
     ) -> None:
-        f = tmp_path / "required-state-from-requires-unsupported.md"
+        f = tmp_path / "required-state-from-requires.md"
         f.write_text(
             "---\n"
-            "name: gpd:required-state-from-requires-unsupported\n"
+            "name: gpd:required-state-from-requires\n"
             "requires:\n"
-            "  state: milestone_complete\n"
+            "  state: phase_executed\n"
             "review-contract:\n"
             "  review_mode: review\n"
+            "  schema_version: 1\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        cmd = _parse_command_file(f, source="commands")
+
+        assert cmd.review_contract is not None
+        assert cmd.review_contract.required_state == ""
+
+    def test_command_review_contract_requires_explicit_schema_version(self, tmp_path: Path) -> None:
+        f = tmp_path / "missing-schema-version.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:missing-schema-version\n"
+            "review-contract:\n"
+            "  review_mode: publication\n"
             "---\n"
             "Body.",
             encoding="utf-8",
@@ -640,7 +640,7 @@ class TestParseCommandFile:
 
         with pytest.raises(
             ValueError,
-            match=r"Invalid review-contract in .*required-state-from-requires-unsupported\.md.*required_state.*milestone_complete",
+            match=r"Invalid review-contract in .*missing-schema-version\.md.*must set schema_version",
         ):
             _parse_command_file(f, source="commands")
 
@@ -653,6 +653,7 @@ class TestParseCommandFile:
             "---\n"
             "name: gpd:peer-review\n"
             "review-contract:\n"
+            "  review_mode: publication\n"
             f"  schema_version: {schema_version}\n"
             "---\n"
             "Body.",
@@ -1030,7 +1031,14 @@ class TestPublicAPI:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
         (commands_dir / "peer-review.md").write_text(
-            "---\nname: gpd:peer-review\ndescription: Peer review\n---\nReview body.",
+            "---\n"
+            "name: gpd:peer-review\n"
+            "description: Peer review\n"
+            "review-contract:\n"
+            "  review_mode: publication\n"
+            "  schema_version: 1\n"
+            "---\n"
+            "Review body.",
             encoding="utf-8",
         )
         (commands_dir / "debug.md").write_text(

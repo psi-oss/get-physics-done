@@ -61,8 +61,10 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "lone unreadable file path does not count as portable recoverable state" in portability_doc
     assert "current readable `state.json` carries a malformed `project_contract`" in resume_doc
     assert "silently promoting `state.json.bak` as the current authoritative contract" in portability_doc
+    assert "does not choose a newer backup by timestamp alone" in portability_doc
     assert "state.json  >  state.json.bak  >  STATE.md" in portability_doc
-    assert "state.json > state.json.bak > STATE.md > defaults (then regenerate STATE.md)" in schema_doc
+    assert "state.json > state.json.bak > STATE.md" in schema_doc
+    assert "state saves fail closed if the backup cannot be refreshed" in schema_doc
     assert "/gpd:sync-state" in portability_doc
     assert "gpd state sync" not in portability_doc
     assert "hostname" in schema_doc

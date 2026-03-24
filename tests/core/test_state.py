@@ -876,6 +876,38 @@ def test_save_state_markdown_preserves_last_valid_backup_project_contract_when_p
     assert backup["project_contract"]["references"][0]["id"] == "ref-benchmark"
 
 
+def test_save_state_markdown_does_not_promote_backup_project_contract_when_primary_contract_is_blocked(
+    tmp_path: Path,
+):
+    baseline = default_state_dict()
+    baseline["position"]["status"] = "Executing"
+    save_state_json(tmp_path, baseline)
+    save_state_markdown(tmp_path, generate_state_markdown(baseline))
+    layout = ProjectLayout(tmp_path)
+
+    broken_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["context_intake"] = "not-an-object"
+    broken_state["project_contract"] = contract
+    layout.state_json.write_text(json.dumps(broken_state, indent=2) + "\n", encoding="utf-8")
+
+    backup_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    backup_state["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    layout.state_json_backup.write_text(json.dumps(backup_state, indent=2) + "\n", encoding="utf-8")
+
+    md_content = layout.state_md.read_text(encoding="utf-8").replace("**Status:** Executing", "**Status:** Paused", 1)
+    result = save_state_markdown(tmp_path, md_content)
+
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    backup = json.loads(layout.state_json_backup.read_text(encoding="utf-8"))
+
+    assert result["project_contract"] is None
+    assert persisted["project_contract"] is None
+    assert persisted["position"]["status"] == "Paused"
+    assert backup["project_contract"] is None
+    assert backup["position"]["status"] == "Paused"
+
+
 def test_load_state_json_backup_restore_preserves_project_contract_when_backup_requires_salvage(
     tmp_path: Path,
 ):

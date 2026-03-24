@@ -68,6 +68,7 @@ The review phase is complete when:
 4. **Findings are dispositioned.** Every blocking finding has either been addressed in a revision or explicitly acknowledged in an author response.
 
 If the recommendation is `accept` or `minor_revision` with no unresolved blockers, the manuscript may proceed to submission packaging. If the recommendation is `major_revision` or `reject`, the manuscript must return to revision before re-entering peer review.
+When strict submission preflight sees `GPD/review/REVIEW-LEDGER*.json` and `GPD/review/REFEREE-DECISION*.json`, it treats the latest round-specific pair as authoritative and blocks packaging unless that condition is satisfied for the active manuscript.
 
 ## Stage Failure Modes and Recovery
 

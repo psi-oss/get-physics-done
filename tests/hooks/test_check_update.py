@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import inspect
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -21,6 +22,7 @@ from gpd.hooks.check_update import (
     _do_check,
     _is_older_than,
     _read_installed_version,
+    _version_files,
     main,
 )
 from gpd.hooks.runtime_detect import UpdateCacheCandidate
@@ -222,6 +224,14 @@ class TestReadInstalledVersion:
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):
             assert _read_installed_version() == "7.7.7"
+
+    def test_version_files_use_public_runtime_detect_surface(self) -> None:
+        source = inspect.getsource(_version_files)
+
+        assert "_detect_runtime_install_target" not in source
+        assert "_local_runtime_dir" not in source
+        assert "_global_runtime_dir" not in source
+        assert "get_gpd_install_dirs" in source
 
 
 # ─── _do_check — npm registry unreachable ────────────────────────────────

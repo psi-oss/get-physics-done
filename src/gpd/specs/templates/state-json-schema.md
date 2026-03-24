@@ -490,14 +490,14 @@ STATE.md and state.json are kept in sync:
 
 1. **STATE.md → state.json**: `sync_state_json()` parses markdown, merges into existing JSON (preserving JSON-only fields)
 2. **state.json → STATE.md**: `save_state_json()` calls `generate_state_markdown()` to regenerate markdown
-3. **Crash recovery**: `state.json.bak` created after every successful write; `load_state_json()` tries the backup before falling back to STATE.md when primary JSON is missing or blocked
+3. **Crash recovery**: `state.json.bak` created after every successful write; state saves fail closed if the backup cannot be refreshed, and `load_state_json()` tries the backup before falling back to STATE.md when primary JSON is missing or blocked
 4. **Atomic writes**: Uses intent-marker protocol (`.state-write-intent`) to detect and recover from interrupted writes
 5. **Locking**: `file_lock()` context manager prevents concurrent writes (TOCTOU races)
 
 ### Authority hierarchy
 
 ```
-state.json > state.json.bak > STATE.md > defaults (then regenerate STATE.md)
+state.json > state.json.bak > STATE.md
 ```
 
 For JSON-only fields (convention_lock, approximations, propagated_uncertainties, structured intermediate_results): state.json is sole authority. STATE.md renders a lossy view (structured objects become flat bullet strings).

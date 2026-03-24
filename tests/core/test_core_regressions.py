@@ -656,3 +656,41 @@ def test_milestone_complete_retry_after_checkpoint_sync_failure_does_not_duplica
     milestones = milestones_path.read_text(encoding="utf-8")
     assert result.version == "v1.0"
     assert milestones.count("## v1.0 Core") == 1
+
+
+def test_phase_remove_surfaces_unexpected_checkpoint_sync_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gpd.core.phases import phase_remove
+
+    _setup_phase_project(tmp_path)
+    _write_phase_roadmap(
+        tmp_path,
+        "## Milestone v1.0: Core\n\n"
+        "### Phase 1: Setup\n\n"
+        "**Goal:** Establish the framework\n"
+        "**Plans:** 1 plans\n\n"
+        "### Phase 2: Derivation\n\n"
+        "**Goal:** Derive the result\n"
+        "**Plans:** 1 plans\n",
+    )
+    _write_phase_state(
+        tmp_path,
+        "# Research State\n\n"
+        "## Current Position\n\n"
+        "**Current Phase:** 1\n"
+        "**Status:** Planning\n"
+        "**Last Activity:** 2026-02-23\n"
+        "**Last Activity Description:** Started\n",
+    )
+    _write_phase_file(tmp_path, "01-setup", "01-01-PLAN.md", "# Plan 1\n")
+    _write_phase_file(tmp_path, "02-derivation", "02-01-PLAN.md", "# Plan 1\n")
+
+    def fail_sync(_cwd: Path) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr("gpd.core.phases.sync_phase_checkpoints", fail_sync)
+
+    with pytest.raises(OSError, match="disk full"):
+        phase_remove(tmp_path, "2")
