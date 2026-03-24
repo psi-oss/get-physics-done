@@ -223,11 +223,18 @@ If Stage 1 fails, STOP. Later stages depend on its claim map.
 <step name="stage_recovery_1">
 **Stage 1 recovery -- Validate the reader output before proceeding.**
 
-Check that both `GPD/review/CLAIMS{round_suffix}.json` and `GPD/review/STAGE-reader{round_suffix}.json` exist, parse as valid JSON, and contain the required top-level keys (`version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling` for the stage report; `claims` for the claim index).
+Check that both `GPD/review/CLAIMS{round_suffix}.json` and `GPD/review/STAGE-reader{round_suffix}.json` exist.
+
+Run the built-in validators:
+
+```bash
+gpd validate review-claim-index GPD/review/CLAIMS{round_suffix}.json
+gpd validate review-stage-report GPD/review/STAGE-reader{round_suffix}.json
+```
 
 If validation fails:
 
-1. **Retry once.** Re-run the Stage 1 subagent with the same inputs and an explicit reminder to match the `StageReviewReport` and `ClaimIndex` JSON schemas from `peer-review-panel.md`.
+1. **Retry once.** Re-run the Stage 1 subagent with the same inputs and an explicit reminder to match the `StageReviewReport` and `ClaimIndex` JSON schemas from `peer-review-panel.md`, then rerun `gpd validate review-claim-index` and `gpd validate review-stage-report`.
 2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, missing or malformed fields, and any partial output. Do not proceed to Stages 2-6.
 
 Max retries per stage: **1**.
@@ -316,11 +323,16 @@ If either stage fails, STOP and report the failure.
 <step name="stage_recovery_2_3">
 **Stages 2-3 recovery -- Validate literature and math outputs before proceeding.**
 
-For each of `GPD/review/STAGE-literature{round_suffix}.json` and `GPD/review/STAGE-math{round_suffix}.json`, check that the file exists, parses as valid JSON, and contains the required top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`.
+For each of `GPD/review/STAGE-literature{round_suffix}.json` and `GPD/review/STAGE-math{round_suffix}.json`, check that the file exists and run:
+
+```bash
+gpd validate review-stage-report GPD/review/STAGE-literature{round_suffix}.json
+gpd validate review-stage-report GPD/review/STAGE-math{round_suffix}.json
+```
 
 If validation fails for either stage:
 
-1. **Retry once.** Re-run only the failed stage subagent with the same inputs and an explicit reminder to match the `StageReviewReport` JSON schema from `peer-review-panel.md`.
+1. **Retry once.** Re-run only the failed stage subagent with the same inputs and an explicit reminder to match the `StageReviewReport` JSON schema from `peer-review-panel.md`, then rerun `gpd validate review-stage-report`.
 2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, missing or malformed fields, and any partial output. Do not proceed to Stage 4.
 
 Max retries per stage: **1**.
@@ -382,11 +394,15 @@ If Stage 4 fails, STOP and report the failure.
 <step name="stage_recovery_4">
 **Stage 4 recovery -- Validate the physics output before proceeding.**
 
-Check that `GPD/review/STAGE-physics{round_suffix}.json` exists, parses as valid JSON, and contains the required top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`.
+Check that `GPD/review/STAGE-physics{round_suffix}.json` exists and run:
+
+```bash
+gpd validate review-stage-report GPD/review/STAGE-physics{round_suffix}.json
+```
 
 If validation fails:
 
-1. **Retry once.** Re-run the Stage 4 subagent with the same inputs and an explicit reminder to match the `StageReviewReport` JSON schema from `peer-review-panel.md`.
+1. **Retry once.** Re-run the Stage 4 subagent with the same inputs and an explicit reminder to match the `StageReviewReport` JSON schema from `peer-review-panel.md`, then rerun `gpd validate review-stage-report`.
 2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, missing or malformed fields, and any partial output. Do not proceed to Stage 5.
 
 Max retries per stage: **1**.
@@ -439,11 +455,15 @@ If Stage 5 fails, STOP and report the failure.
 <step name="stage_recovery_5">
 **Stage 5 recovery -- Validate the significance output before proceeding.**
 
-Check that `GPD/review/STAGE-interestingness{round_suffix}.json` exists, parses as valid JSON, and contains the required top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`.
+Check that `GPD/review/STAGE-interestingness{round_suffix}.json` exists and run:
+
+```bash
+gpd validate review-stage-report GPD/review/STAGE-interestingness{round_suffix}.json
+```
 
 If validation fails:
 
-1. **Retry once.** Re-run the Stage 5 subagent with the same inputs and an explicit reminder to match the `StageReviewReport` JSON schema from `peer-review-panel.md`.
+1. **Retry once.** Re-run the Stage 5 subagent with the same inputs and an explicit reminder to match the `StageReviewReport` JSON schema from `peer-review-panel.md`, then rerun `gpd validate review-stage-report`.
 2. **If the retry also fails,** STOP the pipeline and report the failure: stage name, missing or malformed fields, and any partial output. Do not proceed to Stage 6 adjudication.
 
 Max retries per stage: **1**.

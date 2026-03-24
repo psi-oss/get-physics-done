@@ -244,7 +244,7 @@ def evaluate_referee_decision(
     consistency_errors: list[str] = []
 
     if strict:
-        if require_explicit_inputs and high_impact:
+        if require_explicit_inputs:
             strict_field_errors = _strict_referee_decision_field_errors(data)
             if strict_field_errors:
                 consistency_errors.extend(strict_field_errors)

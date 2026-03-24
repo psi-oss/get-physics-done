@@ -221,10 +221,87 @@ def test_validate_referee_decision_strict_requires_explicit_policy_fields(tmp_pa
     assert any("final_confidence" in reason for reason in payload["reasons"])
 
 
+def test_validate_referee_decision_strict_requires_explicit_policy_fields_for_standard_venue(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _write_canonical_stage_artifacts(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    decision = RefereeDecisionInput(
+        manuscript_path="paper/main.tex",
+        target_journal="jhep",
+        final_recommendation=ReviewRecommendation.major_revision,
+        final_confidence=ReviewConfidence.high,
+        stage_artifacts=list(CANONICAL_STAGE_ARTIFACTS),
+        central_claims_supported=True,
+        claim_scope_proportionate_to_evidence=True,
+        physical_assumptions_justified=True,
+        unsupported_claims_are_central=False,
+        reframing_possible_without_new_results=True,
+        mathematical_correctness=ReviewAdequacy.adequate,
+        novelty=ReviewAdequacy.adequate,
+        significance=ReviewAdequacy.adequate,
+        venue_fit=ReviewAdequacy.adequate,
+        literature_positioning=ReviewAdequacy.adequate,
+        unresolved_major_issues=0,
+        unresolved_minor_issues=0,
+        blocking_issue_ids=[],
+    )
+    payload = decision.model_dump(mode="json")
+    payload.pop("final_confidence")
+    decision_path = tmp_path / "referee-decision-jhep.json"
+    _write_json(decision_path, payload)
+
+    result = runner.invoke(
+        app,
+        ["--raw", "validate", "referee-decision", str(decision_path), "--strict"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["valid"] is False
+    assert payload["most_positive_allowed_recommendation"] == "major_revision"
+    assert any("final_confidence" in reason for reason in payload["reasons"])
+
+
 def test_evaluate_referee_decision_strict_rejects_omitted_defaults_in_model_construct() -> None:
     explicit_values = {
         "manuscript_path": "paper/main.tex",
         "target_journal": "prl",
+        "final_recommendation": ReviewRecommendation.major_revision,
+        "final_confidence": ReviewConfidence.high,
+        "stage_artifacts": list(CANONICAL_STAGE_ARTIFACTS),
+        "central_claims_supported": True,
+        "claim_scope_proportionate_to_evidence": True,
+        "physical_assumptions_justified": True,
+        "unsupported_claims_are_central": False,
+        "reframing_possible_without_new_results": True,
+        "mathematical_correctness": ReviewAdequacy.adequate,
+        "novelty": ReviewAdequacy.adequate,
+        "significance": ReviewAdequacy.adequate,
+        "venue_fit": ReviewAdequacy.adequate,
+        "literature_positioning": ReviewAdequacy.adequate,
+        "unresolved_major_issues": 0,
+        "unresolved_minor_issues": 0,
+        "blocking_issue_ids": [],
+    }
+    decision = RefereeDecisionInput.model_construct(
+        _fields_set=set(explicit_values) - {"final_confidence"},
+        **explicit_values,
+    )
+
+    report = evaluate_referee_decision(decision, strict=True, require_explicit_inputs=True)
+
+    assert report.valid is False
+    assert report.most_positive_allowed_recommendation == ReviewRecommendation.major_revision
+    assert any("final_confidence" in reason for reason in report.reasons)
+
+
+def test_evaluate_referee_decision_strict_rejects_omitted_defaults_for_standard_venue() -> None:
+    explicit_values = {
+        "manuscript_path": "paper/main.tex",
+        "target_journal": "jhep",
         "final_recommendation": ReviewRecommendation.major_revision,
         "final_confidence": ReviewConfidence.high,
         "stage_artifacts": list(CANONICAL_STAGE_ARTIFACTS),

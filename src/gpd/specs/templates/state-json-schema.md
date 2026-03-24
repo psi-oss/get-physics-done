@@ -453,12 +453,16 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 ```json
 {
   "last_date": "2026-03-15T14:30:00.000Z",
+  "hostname": "builder-01",
+  "platform": "Linux 6.1 x86_64",
   "stopped_at": "Phase 3, Plan 2, Task 4: MC thermalization",
-  "resume_file": "GPD/phases/03/.continue-here"
+  "resume_file": "GPD/phases/03-analysis/.continue-here.md"
 }
 ```
 
 **Written by:** `gpd state record-session`, `/gpd:pause-work`
+
+`session` stores the last session timestamp, advisory machine identity, stop location, and handoff resume file. `gpd init resume` surfaces `session.resume_file` as `execution_resume_file`, may rank it as a non-resumable `session_resume_file` candidate, and compares `hostname`/`platform` with the current machine to emit a non-blocking `machine_change_notice`.
 
 ---
 

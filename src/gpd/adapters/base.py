@@ -312,6 +312,35 @@ class RuntimeAdapter(abc.ABC):
                 "Ownership cannot be determined safely."
             )
 
+        has_gpd_markers = any(
+            (
+                (target_dir / COMMANDS_DIR_NAME / "gpd").exists(),
+                (target_dir / FLAT_COMMANDS_DIR_NAME).exists(),
+                (target_dir / GPD_INSTALL_DIR_NAME).exists(),
+            )
+        )
+        if manifest_state == "ok" and isinstance(manifest, dict):
+            if "runtime" not in manifest or _normalize_manifest_runtime(manifest.get("runtime")) is None:
+                if has_gpd_markers:
+                    raise RuntimeError(
+                        f"Refusing to {action} `{target_dir}` because its GPD manifest cannot be trusted.\n"
+                        "Ownership cannot be determined safely."
+                    )
+            else:
+                normalized_manifest_runtime = _normalize_manifest_runtime(manifest.get("runtime"))
+                if normalized_manifest_runtime == self.runtime_name:
+                    return
+                other_runtime = normalized_manifest_runtime or "unknown"
+                try:
+                    other_runtime_label = get_runtime_descriptor(other_runtime).display_name
+                except KeyError:
+                    other_runtime_label = other_runtime
+                raise RuntimeError(
+                    f"Refusing to {action} `{target_dir}`.\n"
+                    f"Its GPD manifest belongs to {other_runtime_label} (`{other_runtime}`), "
+                    f"not {self.display_name} (`{self.runtime_name}`)."
+                )
+
         inferred_runtime = installed_runtime(target_dir)
         if inferred_runtime is not None:
             env_global_target = self.resolve_global_config_dir()
@@ -341,32 +370,9 @@ class RuntimeAdapter(abc.ABC):
                 "Ownership cannot be determined safely."
             )
 
-        has_gpd_markers = any(
-            (
-                (target_dir / COMMANDS_DIR_NAME / "gpd").exists(),
-                (target_dir / FLAT_COMMANDS_DIR_NAME).exists(),
-                (target_dir / GPD_INSTALL_DIR_NAME).exists(),
-            )
-        )
         if manifest_state == "missing" and has_gpd_markers:
             raise RuntimeError(
                 f"Refusing to {action} `{target_dir}` because it already contains GPD artifacts but no manifest to establish ownership."
-            )
-
-        if isinstance(manifest, dict) and "runtime" in manifest:
-            raw_manifest_runtime = str(manifest.get("runtime") or "").strip()
-            normalized_manifest_runtime = _normalize_manifest_runtime(raw_manifest_runtime)
-            if normalized_manifest_runtime == self.runtime_name:
-                return
-            other_runtime = normalized_manifest_runtime or (raw_manifest_runtime or "unknown")
-            try:
-                other_runtime_label = get_runtime_descriptor(other_runtime).display_name
-            except KeyError:
-                other_runtime_label = other_runtime
-            raise RuntimeError(
-                f"Refusing to {action} `{target_dir}`.\n"
-                f"Its GPD manifest belongs to {other_runtime_label} (`{other_runtime}`), "
-                f"not {self.display_name} (`{self.runtime_name}`)."
             )
 
         if config_dir_has_complete_install(target_dir):

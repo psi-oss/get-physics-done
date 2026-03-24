@@ -587,9 +587,10 @@ def test_runtime_cli_resolves_local_config_dir_from_ancestor_workspace(
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
-def test_runtime_cli_resolves_local_config_dir_from_ancestor_workspace_without_manifest_runtime(
+def test_runtime_cli_rejects_local_config_dir_from_ancestor_workspace_without_manifest_runtime(
     monkeypatch,
     tmp_path: Path,
+    capsys,
     descriptor,
 ) -> None:
     config_dir = tmp_path / descriptor.config_dir_name
@@ -602,15 +603,10 @@ def test_runtime_cli_resolves_local_config_dir_from_ancestor_workspace_without_m
     nested_cwd.mkdir(parents=True)
     monkeypatch.chdir(nested_cwd)
     monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
-
-    observed: dict[str, object] = {}
-
-    def fake_entrypoint() -> int:
-        observed["argv"] = list(sys.argv)
-        observed["runtime"] = os.environ.get(ENV_GPD_ACTIVE_RUNTIME)
-        return 0
-
-    monkeypatch.setattr("gpd.cli.entrypoint", fake_entrypoint)
+    monkeypatch.setattr(
+        "gpd.cli.entrypoint",
+        lambda: (_ for _ in ()).throw(AssertionError("entrypoint should not run for runtime-less manifests")),
+    )
 
     exit_code = main(
         [
@@ -625,9 +621,46 @@ def test_runtime_cli_resolves_local_config_dir_from_ancestor_workspace_without_m
         ]
     )
 
-    assert exit_code == 0
-    assert observed["argv"] == ["gpd", "state", "load"]
-    assert observed["runtime"] == descriptor.runtime_name
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge rejected incomplete install manifest" in captured.err
+    assert "must declare a non-empty `runtime` field" in captured.err
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_rejects_corrupt_manifest_before_dispatch(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+    descriptor,
+) -> None:
+    config_dir = tmp_path / descriptor.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    (config_dir / "gpd-file-manifest.json").write_text("not-json", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
+    monkeypatch.setattr(
+        "gpd.cli.entrypoint",
+        lambda: (_ for _ in ()).throw(AssertionError("entrypoint should not run for corrupt manifests")),
+    )
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            f"./{descriptor.config_dir_name}",
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge rejected unreadable install manifest" in captured.err
+    assert "must be a JSON object with a non-empty `runtime` field" in captured.err
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

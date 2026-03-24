@@ -1351,6 +1351,8 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     assert "templates/contract-results-schema.md" in verification_template
     assert "templates/paper/review-ledger-schema.md" in referee
     assert "templates/paper/referee-decision-schema.md" in referee
+    assert "gpd validate review-claim-index" in peer_review
+    assert "gpd validate review-stage-report" in peer_review
     assert "gpd validate review-ledger" in peer_review
     assert "--ledger GPD/review/REVIEW-LEDGER{round_suffix}.json" in peer_review
     assert "templates/paper/review-ledger-schema.md" in panel
@@ -1837,8 +1839,17 @@ def test_debug_prompts_use_session_status_for_diagnosis_progress() -> None:
 def test_resume_workflow_surfaces_contract_load_and_validation_state() -> None:
     resume_work = (WORKFLOWS_DIR / "resume-work.md").read_text(encoding="utf-8")
 
+    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" in resume_work
     assert "project_contract_validation" in resume_work
     assert "project_contract_load_info" in resume_work
+    assert "execution_resume_file_source" in resume_work
+    assert "session_resume_file" in resume_work
+    assert "machine_change_detected" in resume_work
+    assert "machine_change_notice" in resume_work
+    assert "current_hostname" in resume_work
+    assert "current_platform" in resume_work
+    assert "session_hostname" in resume_work
+    assert "session_platform" in resume_work
     assert "only when `project_contract_load_info` is clean and `project_contract_validation` passes" in resume_work
     assert "records whether that contract loaded cleanly and what blocked it if not." in resume_work
     assert "approval gate for treating the structured contract as authoritative" in resume_work

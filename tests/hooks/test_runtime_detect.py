@@ -601,6 +601,22 @@ class TestDetectActiveRuntimeWithInstall:
             with pytest.raises(RuntimeError, match="contains GPD artifacts but no manifest"):
                 adapter._validate_target_runtime(target_dir, action="install")
 
+    def test_validate_target_runtime_rejects_runtime_less_manifest_with_gpd_markers(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        adapter = get_adapter(RUNTIME_CODEX)
+        target_dir = tmp_path / ".codex"
+        _mark_gpd_install(target_dir, runtime=RUNTIME_CODEX)
+        manifest_path = target_dir / "gpd-file-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.pop("runtime", None)
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        monkeypatch.setattr(adapter, "_install_explicit_target", True, raising=False)
+
+        with pytest.raises(RuntimeError, match="manifest cannot be trusted"):
+            adapter._validate_target_runtime(target_dir, action="install")
+
 
 class TestDetectRuntimeForGpdUse:
     """Tests for the install-aware runtime selection used by GPD-owned surfaces."""

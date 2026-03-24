@@ -13,7 +13,6 @@ entrypoint can:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 from pathlib import Path
@@ -22,7 +21,7 @@ from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_install_repair_command
 from gpd.adapters.runtime_catalog import resolve_global_config_dir
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
-from gpd.hooks.install_metadata import installed_runtime
+from gpd.hooks.install_metadata import installed_runtime, load_install_manifest_state
 from gpd.hooks.runtime_detect import _runtime_from_manifest_or_path, normalize_runtime_name
 
 
@@ -123,29 +122,29 @@ def _resolve_cli_cwd_from_argv(argv: list[str]) -> Path:
 
 
 def _load_install_manifest(config_dir: Path) -> dict[str, object]:
-    """Return install metadata for *config_dir* when present."""
-    manifest_path = config_dir / MANIFEST_NAME
-    try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, json.JSONDecodeError):
+    """Return install metadata for *config_dir* when the manifest is valid JSON."""
+    manifest_state, payload = load_install_manifest_state(config_dir)
+    if manifest_state != "ok":
         return {}
-    return payload if isinstance(payload, dict) else {}
+    return payload
 
 
-def _manifest_runtime_status(config_dir: Path) -> tuple[str | None, bool]:
-    """Return the persisted runtime and whether the manifest declares one."""
-    manifest = _load_install_manifest(config_dir)
+def _manifest_runtime_status(config_dir: Path) -> tuple[str | None, str]:
+    """Return the persisted runtime plus the manifest contract status."""
+    manifest_state, manifest = load_install_manifest_state(config_dir)
+    if manifest_state != "ok":
+        return None, manifest_state
     if "runtime" not in manifest:
-        return None, False
+        return None, "missing_runtime"
 
     runtime = manifest.get("runtime")
     if not isinstance(runtime, str):
-        return None, True
+        return None, "malformed_runtime"
 
     normalized = runtime.strip()
     if not normalized:
-        return None, True
-    return normalize_runtime_name(normalized) or normalized, True
+        return None, "malformed_runtime"
+    return normalize_runtime_name(normalized) or normalized, "ok"
 
 
 def _runtime_display_name(runtime: str) -> str:
@@ -387,6 +386,66 @@ def _malformed_manifest_runtime_error_message(
     )
 
 
+def _missing_manifest_runtime_error_message(
+    *,
+    runtime: str,
+    raw_config_dir: str,
+    config_dir: Path,
+    install_scope: str,
+    explicit_target: bool,
+    cli_cwd: Path,
+) -> str:
+    """Return repair guidance when the install manifest omits ``runtime``."""
+    repair_command = build_runtime_install_repair_command(
+        runtime,
+        install_scope=install_scope,
+        target_dir=config_dir,
+        explicit_target=_uses_effective_explicit_target(
+            runtime=runtime,
+            raw_config_dir=raw_config_dir,
+            config_dir=config_dir,
+            install_scope=install_scope,
+            explicit_target=explicit_target,
+            cli_cwd=cli_cwd,
+        ),
+    )
+    return (
+        f"GPD runtime bridge rejected incomplete install manifest at `{config_dir}`.\n"
+        "The manifest must declare a non-empty `runtime` field.\n"
+        f"Repair or reinstall with: `{repair_command}`\n"
+    )
+
+
+def _untrusted_manifest_error_message(
+    *,
+    runtime: str,
+    raw_config_dir: str,
+    config_dir: Path,
+    install_scope: str,
+    explicit_target: bool,
+    cli_cwd: Path,
+) -> str:
+    """Return repair guidance when the install manifest cannot be trusted."""
+    repair_command = build_runtime_install_repair_command(
+        runtime,
+        install_scope=install_scope,
+        target_dir=config_dir,
+        explicit_target=_uses_effective_explicit_target(
+            runtime=runtime,
+            raw_config_dir=raw_config_dir,
+            config_dir=config_dir,
+            install_scope=install_scope,
+            explicit_target=explicit_target,
+            cli_cwd=cli_cwd,
+        ),
+    )
+    return (
+        f"GPD runtime bridge rejected unreadable install manifest at `{config_dir}`.\n"
+        "The manifest must be a JSON object with a non-empty `runtime` field.\n"
+        f"Repair or reinstall with: `{repair_command}`\n"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     """Validate the install contract, then dispatch into ``gpd.cli``."""
     raw_argv = list(sys.argv[1:] if argv is None else argv)
@@ -406,8 +465,32 @@ def main(argv: list[str] | None = None) -> int:
         explicit_target=bool(options.explicit_target),
         cli_cwd=cli_cwd,
     )
-    manifest_runtime, manifest_has_runtime = _manifest_runtime_status(config_dir)
-    if manifest_has_runtime and manifest_runtime is None:
+    manifest_runtime, manifest_status = _manifest_runtime_status(config_dir)
+    if manifest_status in {"corrupt", "invalid"}:
+        sys.stderr.write(
+            _untrusted_manifest_error_message(
+                runtime=runtime,
+                raw_config_dir=options.config_dir,
+                config_dir=config_dir,
+                install_scope=options.install_scope,
+                explicit_target=bool(options.explicit_target),
+                cli_cwd=cli_cwd,
+            )
+        )
+        return 127
+    if manifest_status == "missing_runtime":
+        sys.stderr.write(
+            _missing_manifest_runtime_error_message(
+                runtime=runtime,
+                raw_config_dir=options.config_dir,
+                config_dir=config_dir,
+                install_scope=options.install_scope,
+                explicit_target=bool(options.explicit_target),
+                cli_cwd=cli_cwd,
+            )
+        )
+        return 127
+    if manifest_status == "malformed_runtime":
         sys.stderr.write(
             _malformed_manifest_runtime_error_message(
                 runtime=runtime,

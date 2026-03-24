@@ -13,6 +13,7 @@ Instantly restore full research project context so "Where were we?" has an immed
 <required_reading>
 @{GPD_INSTALL_DIR}/references/orchestration/continuation-format.md
 @{GPD_INSTALL_DIR}/references/orchestration/state-portability.md
+@{GPD_INSTALL_DIR}/templates/state-json-schema.md
 </required_reading>
 
 <process>
@@ -28,7 +29,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_exists`, `has_interrupted_agent`, `interrupted_agent_id`, `commit_docs`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `active_execution_segment`, `segment_candidates`, `resume_mode`, `execution_resumable`, `execution_resume_file`, `execution_paused_at`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`.
+Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_exists`, `has_interrupted_agent`, `interrupted_agent_id`, `commit_docs`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `active_execution_segment`, `segment_candidates`, `resume_mode`, `execution_resumable`, `execution_resume_file`, `execution_resume_file_source`, `current_execution_resume_file`, `session_resume_file`, `execution_paused_at`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`, `machine_change_detected`, `machine_change_notice`, `current_hostname`, `current_platform`, `session_hostname`, `session_platform`.
 
 **If `state_exists` is true:** Proceed to load_state
 **If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md
@@ -43,7 +44,9 @@ If `active_execution_segment.first_result_gate_pending` is true, do not treat la
 
 <step name="load_state">
 
-**machine_change_detection:** Before restoring context, compare the current hostname and platform with the session info stored in state.json. If they differ, display a notice that the project was last active on a different machine and recommend running the installer to ensure runtime-specific config is current. This is advisory, not blocking — the .gpd/ state itself is portable.
+**machine_change_detection:** Compare the current hostname/platform with `session.hostname` and `session.platform` from `state.json`. If they differ, display the non-blocking machine-change notice from INIT and recommend rerunning the installer so runtime-local config stays current. The project state itself remains portable and does not require repair.
+
+**session_resume_file:** `execution_resume_file` is surfaced from the live execution snapshot or `session.resume_file` for display and logging. The runtime also ranks `session.resume_file` as a `session_resume_file` handoff candidate in `segment_candidates` when it is distinct from the live execution resume file. Treat it as informational continuity metadata, not as proof that a resumable bounded segment still exists.
 
 Read and parse STATE.md, then PROJECT.md:
 
@@ -202,13 +205,11 @@ if [ "$has_interrupted_agent" = "true" ]; then
 fi
 ```
 
-**Bounded execution segment detection:** If `active_execution_segment` is present, treat pause, checkpoint waiting, interrupted scaleout, first-result review, pre-fanout review, and skeptical re-questioning as the same family of resumable state. Do NOT treat git rollback tags, interrupted agents, and paused review gates as separate resume systems; normalize them into one ranked `segment_candidates` list.
+**Bounded execution segment detection:** If `active_execution_segment` is present and `execution_resumable` is true, treat that live snapshot as the primary resume target. The runtime currently ranks only the live execution snapshot, a non-resumable `session_resume_file` handoff candidate, and an interrupted-agent marker as resume candidates. Do NOT invent additional candidates from plan files without summaries, auto-checkpoints, or other ad hoc checkpoints.
 
 Reason-scoped clears still matter on resume: a `first_result` clear does not retire `pre_fanout` or skeptical fields, and a `fanout unlock` does not clear the review gate by itself.
 
 When resuming from `first_result` or skeptical state, ask one concrete question first: "What decisive evidence is still owed before downstream work is trustworthy?" Do not resume fanout based only on proxy-looking success or "seems on track" prose.
-
-**Auto-checkpoint detection:** Check `state.json` for `auto_checkpoint` field. If present and newer than the current execution snapshot, warn: "Auto-checkpoint detected -- work may have continued after the last recorded gate. Review state.json auto_checkpoint for details."
 
 **Context budget note:** Context restoration (loading STATE.md, DERIVATION-STATE.md, PROJECT.md, the active execution snapshot, and roadmap) consumes approximately 15-20% of a fresh context window. Budget the remaining ~80% for actual research work. If the project has extensive derivation history or many prior decisions, restoration may consume up to 25%.
 
@@ -255,6 +256,17 @@ Present complete research project status to user:
     - Parameters in scope: [key parameter values]
     - Last result obtained: [most recent intermediate result]
     - Next planned step: [what was planned before pausing]
+
+[If execution_resume_file exists but there is no active execution segment:]
+>> Session resume file recorded:
+    - Resume artifact: [execution_resume_file]
+    - Status: informational only; no resumable live execution snapshot is currently active
+
+[If machine_change_detected is true:]
+>> Machine change detected:
+    - Last active on: [session_hostname] ([session_platform])
+    - Current machine: [current_hostname] ([current_platform])
+    - Action: rerun the installer if runtime-local config may be stale
 
 [If active_execution_segment is waiting on review:]
 >> Live execution gate detected:

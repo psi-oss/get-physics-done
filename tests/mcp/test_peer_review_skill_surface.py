@@ -13,4 +13,4 @@ def test_peer_review_skill_surfaces_reliability_reference_as_contract_document()
     assert "peer-review-panel.md" in contract_documents
     assert "peer-review-reliability.md" in contract_documents
     assert "Peer Review Phase Reliability" in contract_documents["peer-review-reliability.md"]["body"]
-    assert "peer-review-reliability.md" in result["contract_references"]
+    assert any(path.endswith("peer-review-reliability.md") for path in result["contract_references"])

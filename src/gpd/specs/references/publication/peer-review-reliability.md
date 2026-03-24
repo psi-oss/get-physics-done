@@ -63,8 +63,8 @@ All of the following must hold before the review phase begins:
 The review phase is complete when:
 
 1. **All six stages have run.** Stage artifacts exist for reader, literature, math, physics, interestingness, and the final referee decision.
-2. **Referee decision is valid.** `REFEREE-DECISION.json` passes schema validation.
-3. **Review ledger is valid.** `REVIEW-LEDGER.json` passes schema validation.
+2. **Referee decision is valid.** `GPD/review/REFEREE-DECISION{round_suffix}.json` passes schema validation.
+3. **Review ledger is valid.** `GPD/review/REVIEW-LEDGER{round_suffix}.json` passes schema validation.
 4. **Findings are dispositioned.** Every blocking finding has either been addressed in a revision or explicitly acknowledged in an author response.
 
 If the recommendation is `accept` or `minor_revision` with no unresolved blockers, the manuscript may proceed to submission packaging. If the recommendation is `major_revision` or `reject`, the manuscript must return to revision before re-entering peer review.
