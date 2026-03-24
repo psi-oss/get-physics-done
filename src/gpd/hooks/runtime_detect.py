@@ -167,45 +167,34 @@ def _manifest_install_scope(config_dir: Path) -> str | None:
     return scope if scope in (SCOPE_LOCAL, SCOPE_GLOBAL) else None
 
 
-def _manifest_runtime_status(config_dir: Path) -> tuple[str | None, bool]:
-    """Return the normalized manifest runtime and whether a runtime key exists."""
+def _manifest_runtime_status(config_dir: Path) -> tuple[str, str | None]:
+    """Return the manifest parse state and normalized runtime when available."""
     manifest_path = config_dir / MANIFEST_NAME
     if not manifest_path.exists():
-        return None, False
+        return "missing", None
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return None, False
+        return "corrupt", None
 
     if not isinstance(manifest, dict):
-        return None, False
+        return "invalid", None
 
     if "runtime" not in manifest:
-        return None, False
+        return "invalid", None
 
     runtime = manifest.get("runtime")
     if not isinstance(runtime, str):
-        return None, True
+        return "invalid", None
 
     normalized = runtime.strip()
     if not normalized:
-        return None, True
-    return normalize_runtime_name(normalized), True
-
-
-def _has_trusted_manifest_mapping(config_dir: Path) -> bool:
-    """Return whether *config_dir* has a parseable manifest mapping."""
-    manifest_path = config_dir / MANIFEST_NAME
-    if not manifest_path.exists():
-        return False
-
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return False
-
-    return isinstance(manifest, dict)
+        return "invalid", None
+    normalized_runtime = normalize_runtime_name(normalized)
+    if normalized_runtime is None:
+        return "invalid", None
+    return "ok", normalized_runtime
 
 
 def _runtime_from_manifest_or_path(
@@ -216,13 +205,14 @@ def _runtime_from_manifest_or_path(
     allow_local_path_fallback: bool = True,
 ) -> str | None:
     """Infer the owning runtime for *config_dir* from its manifest or path."""
-    manifest_runtime, manifest_has_runtime = _manifest_runtime_status(config_dir)
-    if manifest_has_runtime:
+    manifest_state, manifest_runtime = _manifest_runtime_status(config_dir)
+    if manifest_state == "ok":
         return manifest_runtime or RUNTIME_UNKNOWN
+    if manifest_state != "missing":
+        return None
 
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
-    trusted_manifest = _has_trusted_manifest_mapping(config_dir)
     for runtime in ALL_RUNTIMES:
         adapter = _adapter(runtime)
         if adapter is None:
@@ -233,8 +223,6 @@ def _runtime_from_manifest_or_path(
         # current process carries unrelated runtime/XDG override env vars.
         canonical_global_dir = _resolve_global_config_dir(adapter.runtime_descriptor, home=resolved_home, environ={})
         if _paths_equal(config_dir, canonical_global_dir):
-            return runtime
-        if trusted_manifest and _paths_equal(config_dir, adapter.resolve_global_config_dir(home=home)):
             return runtime
     return None
 
@@ -685,8 +673,11 @@ def should_consider_update_cache_candidate(
         return True
 
     candidate_config_dir = candidate.path.parent.parent
-    manifest_runtime, manifest_has_runtime = _manifest_runtime_status(candidate_config_dir)
-    if manifest_has_runtime and manifest_runtime is None:
+    manifest_state, manifest_runtime = _manifest_runtime_status(candidate_config_dir)
+    if manifest_state == "ok":
+        if manifest_runtime != runtime:
+            return False
+    elif manifest_state != "missing":
         return False
 
     install_target = _detect_runtime_install_target(runtime, cwd=cwd, home=home)
@@ -720,8 +711,11 @@ def should_consider_todo_candidate(
         return True
 
     candidate_config_dir = candidate.path.parent
-    manifest_runtime, manifest_has_runtime = _manifest_runtime_status(candidate_config_dir)
-    if manifest_has_runtime and manifest_runtime is None:
+    manifest_state, manifest_runtime = _manifest_runtime_status(candidate_config_dir)
+    if manifest_state == "ok":
+        if manifest_runtime != runtime:
+            return False
+    elif manifest_state != "missing":
         return False
 
     install_target = _detect_runtime_install_target(runtime, cwd=cwd, home=home)

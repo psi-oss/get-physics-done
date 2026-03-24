@@ -304,7 +304,7 @@ def test_installed_runtime_infers_runtime_from_catalog_owned_manifest_prefixes(
     assert installed_runtime(explicit_target) == expected_runtime
 
 
-def test_installed_runtime_recovers_opencode_from_global_path_when_manifest_is_corrupt(tmp_path: Path) -> None:
+def test_installed_runtime_fails_closed_when_manifest_is_corrupt(tmp_path: Path) -> None:
     from gpd.hooks.install_metadata import installed_runtime
 
     home = tmp_path / "home"
@@ -324,4 +324,4 @@ def test_installed_runtime_recovers_opencode_from_global_path_when_manifest_is_c
         ),
         patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
     ):
-        assert installed_runtime(opencode_dir) == "opencode"
+        assert installed_runtime(opencode_dir) is None
