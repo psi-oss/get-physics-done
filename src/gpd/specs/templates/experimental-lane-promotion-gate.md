@@ -14,7 +14,7 @@ Template for `.gpd/experimental-lanes/XL-001.md` -- a bounded pilot record for o
 - `settings.md` configures the current runtime and workflow toggles; a promotion gate records whether an optional lane should keep existing at all
 - `record-insight.md` captures lessons discovered during work; a promotion gate captures the bounded pilot and resulting scope decision
 - `learned-pattern.md` is for reusable recurring patterns; a promotion gate is for deciding whether one optional lane should graduate into standard project use
-- `benchmark-record.md` may define the fixed comparison surface used to judge the pilot; a promotion gate points to that benchmark rather than replacing it
+- A benchmark artifact or other fixed comparison surface may define the decisive test for the pilot; a promotion gate points to that benchmark surface rather than replacing it
 - `SUMMARY.md` and `VERIFICATION.md` may cite promotion-gate IDs when a result or recommendation depends on the lane decision
 
 ---
