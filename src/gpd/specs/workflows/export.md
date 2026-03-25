@@ -13,9 +13,9 @@ Read all files referenced by the invoking prompt's execution_context before star
 
 file_read:
 
-- `.gpd/PROJECT.md` -- project title, description, conventions
-- `.gpd/ROADMAP.md` -- phase structure and status
-- `.gpd/STATE.md` -- current position
+- `GPD/PROJECT.md` -- project title, description, conventions
+- `GPD/ROADMAP.md` -- phase structure and status
+- `GPD/STATE.md` -- current position
 
 ```bash
 ROADMAP=$(gpd roadmap analyze)
@@ -319,8 +319,8 @@ Copy collected files into the exports directory structure:
 ```bash
 mkdir -p exports/scripts exports/data exports/summaries
 # Copy scripts, data, SUMMARYs from phase directories into exports/
-cp .gpd/PROJECT.md exports/PROJECT.md 2>/dev/null
-cp .gpd/ROADMAP.md exports/ROADMAP.md 2>/dev/null
+cp GPD/PROJECT.md exports/PROJECT.md 2>/dev/null
+cp GPD/ROADMAP.md exports/ROADMAP.md 2>/dev/null
 # Copy phase scripts/data/summaries into their respective subdirectories
 ```
 

@@ -19,6 +19,14 @@ GPD_CONFIG_DIR="{GPD_CONFIG_DIR}"
 GPD_GLOBAL_CONFIG_DIR="{GPD_GLOBAL_CONFIG_DIR}"
 GPD_RUNTIME_FLAG="{GPD_RUNTIME_FLAG}"
 INSTALL_SCOPE="{GPD_INSTALL_SCOPE_FLAG}"
+PYTHON_BIN="${GPD_PYTHON:-}"
+
+if [ -z "$PYTHON_BIN" ]; then
+  PYTHON_BIN=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)
+fi
+if [ -z "$PYTHON_BIN" ]; then
+  PYTHON_BIN="python3"
+fi
 
 if [ -f "$GPD_INSTALL_DIR/VERSION" ]; then
   INSTALLED_VERSION=$(tr -d '\n' < "$GPD_INSTALL_DIR/VERSION")
@@ -27,20 +35,48 @@ else
 fi
 
 TARGET_DIR_ARG=""
-if [ "$INSTALL_SCOPE" = "--local" ]; then
-  case "$GPD_CONFIG_DIR" in
-    ./*) ;;
-    *)
-      TARGET_DIR_ARG=$(python3 - "$GPD_CONFIG_DIR" <<'PY'
+case "$INSTALL_SCOPE" in
+  --local)
+    case "$GPD_CONFIG_DIR" in
+      ./*) ;;
+      *)
+        TARGET_DIR_ARG=$("$PYTHON_BIN" - "$INSTALL_SCOPE" "$GPD_CONFIG_DIR" "$GPD_GLOBAL_CONFIG_DIR" <<'PY'
 import shlex
 import sys
 
-print(f" --target-dir {shlex.quote(sys.argv[1])}")
+install_scope, config_dir, global_config_dir = sys.argv[1:4]
+if install_scope == "--local" and config_dir.startswith("./"):
+    print("")
+elif install_scope == "--global" and config_dir == global_config_dir:
+    print("")
+else:
+    print(f" --target-dir {shlex.quote(config_dir)}")
 PY
 )
-      ;;
-  esac
-fi
+        ;;
+    esac
+    ;;
+  --global)
+    case "$GPD_CONFIG_DIR" in
+      "$GPD_GLOBAL_CONFIG_DIR") ;;
+      *)
+        TARGET_DIR_ARG=$("$PYTHON_BIN" - "$INSTALL_SCOPE" "$GPD_CONFIG_DIR" "$GPD_GLOBAL_CONFIG_DIR" <<'PY'
+import shlex
+import sys
+
+install_scope, config_dir, global_config_dir = sys.argv[1:4]
+if install_scope == "--local" and config_dir.startswith("./"):
+    print("")
+elif install_scope == "--global" and config_dir == global_config_dir:
+    print("")
+else:
+    print(f" --target-dir {shlex.quote(config_dir)}")
+PY
+)
+        ;;
+    esac
+    ;;
+esac
 
 UPDATE_COMMAND="npx -y get-physics-done $GPD_RUNTIME_FLAG $INSTALL_SCOPE$TARGET_DIR_ARG"
 PATCH_META="$GPD_CONFIG_DIR/gpd-local-patches/backup-meta.json"
@@ -68,7 +104,7 @@ If the version file is missing, treat the install as version `0.0.0` and continu
 Check the npm registry for the latest released `get-physics-done` version:
 
 ```bash
-python3 - <<'PY'
+"$PYTHON_BIN" - <<'PY'
 import json
 import urllib.request
 
@@ -178,7 +214,7 @@ Then clear update caches so indicators disappear immediately:
 rm -f \
   "{GPD_CONFIG_DIR}/cache/gpd-update-check.json" \
   "{GPD_GLOBAL_CONFIG_DIR}/cache/gpd-update-check.json" \
-  "$HOME/.gpd/cache/gpd-update-check.json"
+  "$HOME/GPD/cache/gpd-update-check.json"
 ```
 </step>
 

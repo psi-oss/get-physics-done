@@ -41,8 +41,8 @@ FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
 
 def _bootstrap_project(tmp_path: Path, state_dict: dict | None = None) -> Path:
-    """Create a minimal .gpd/ project with STATE.md + state.json."""
-    planning = tmp_path / ".gpd"
+    """Create a minimal GPD/ project with STATE.md + state.json."""
+    planning = tmp_path / "GPD"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     (planning / "PROJECT.md").write_text("# Project\nTest.\n")
@@ -86,7 +86,7 @@ class TestEmptyStateMd:
 
     def test_snapshot_with_empty_state_md(self, tmp_path: Path) -> None:
         """state_snapshot falls back gracefully when STATE.md is minimal."""
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "phases").mkdir()
         (planning / "STATE.md").write_text("# State\n")
@@ -151,7 +151,7 @@ class TestAllNullFields:
 
     def test_load_all_null_state_json(self, tmp_path: Path) -> None:
         """load_state_json recovers from state.json where all values are null."""
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "phases").mkdir()
         null_state = dict.fromkeys(default_state_dict())
@@ -172,7 +172,7 @@ class TestAllNullFields:
         assert result["project_contract"] is not None
         assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
         assert result["project_contract"]["approach_policy"] == {
-            "formulations": [],
+            "formulations": ["not-a-list"],
             "allowed_estimator_families": [],
             "forbidden_estimator_families": [],
             "allowed_fit_families": [],
@@ -218,7 +218,7 @@ class TestUnknownExtraFields:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["context_intake"] = {
             "must_read_refs": "not-a-list",
-            "must_include_prior_outputs": [".gpd/phases/00-baseline/00-01-SUMMARY.md"],
+            "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
         }
 
         result = ensure_state_schema({"project_contract": contract})
@@ -226,13 +226,26 @@ class TestUnknownExtraFields:
         assert result["project_contract"] is not None
         assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
         assert result["project_contract"]["context_intake"] == {
-            "must_read_refs": [],
-            "must_include_prior_outputs": [".gpd/phases/00-baseline/00-01-SUMMARY.md"],
+            "must_read_refs": ["not-a-list"],
+            "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
             "user_asserted_anchors": [],
             "known_good_baselines": [],
             "context_gaps": [],
             "crucial_inputs": [],
         }
+
+    def test_project_contract_context_intake_integrity_issue_mentions_nested_field(self) -> None:
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract["context_intake"] = {
+            "must_read_refs": "not-a-list",
+            "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
+        }
+
+        normalized, integrity_issues = _normalize_state_schema({"project_contract": contract})
+
+        assert normalized["project_contract"] is not None
+        assert normalized["project_contract"]["context_intake"]["must_read_refs"] == ["not-a-list"]
+        assert any("project_contract.context_intake.must_read_refs" in issue for issue in integrity_issues)
 
     def test_project_contract_self_heals_malformed_uncertainty_markers(self) -> None:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
@@ -246,7 +259,7 @@ class TestUnknownExtraFields:
         assert result["project_contract"] is not None
         assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
         assert result["project_contract"]["uncertainty_markers"] == {
-            "weakest_anchors": [],
+            "weakest_anchors": ["not-a-list"],
             "unvalidated_assumptions": [],
             "competing_explanations": [],
             "disconfirming_observations": ["Benchmark mismatch survives normalization fix"],
@@ -264,7 +277,7 @@ class TestUnknownExtraFields:
         assert result["project_contract"] is not None
         assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
         assert result["project_contract"]["approach_policy"] == {
-            "formulations": [],
+            "formulations": ["hamiltonian"],
             "allowed_estimator_families": [],
             "forbidden_estimator_families": [],
             "allowed_fit_families": [],
@@ -313,7 +326,7 @@ class TestConcurrentAccess:
         assert not errors, f"Concurrent writes produced errors: {errors}"
 
         # Verify the file is still valid JSON after all writes
-        json_path = cwd / ".gpd" / "state.json"
+        json_path = cwd / "GPD" / "state.json"
         loaded = json.loads(json_path.read_text(encoding="utf-8"))
         assert "position" in loaded
 
@@ -530,7 +543,7 @@ class TestMissingSections:
 
     def test_load_state_json_missing_both_sections(self, tmp_path: Path) -> None:
         """load_state_json handles state.json with no position and no session."""
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "phases").mkdir()
         raw = {"decisions": [], "blockers": ["Something"]}
@@ -545,7 +558,7 @@ class TestMissingSections:
 
     def test_snapshot_missing_position_in_json(self, tmp_path: Path) -> None:
         """state_snapshot tolerates state.json that has no 'position' key."""
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "phases").mkdir()
         raw = {"decisions": [], "blockers": []}

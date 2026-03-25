@@ -4,7 +4,7 @@ template_version: 1
 
 > **Context:** This template is for the `new-project` literature survey — researching a topic BEFORE
 > starting a new project. For analyzing an existing project's methods, use the split `map-research`
-> outputs in `.gpd/research-map/` (`FORMALISM.md`, `ARCHITECTURE.md`, `CONVENTIONS.md`,
+> outputs in `GPD/research-map/` (`FORMALISM.md`, `ARCHITECTURE.md`, `CONVENTIONS.md`,
 > `VALIDATION.md`, `STRUCTURE.md`) rather than a standalone methods template.
 
 > **Used by:** `workflows/new-project.md` (as template for researcher subagents). Its content is
@@ -13,7 +13,7 @@ template_version: 1
 
 # Methods Research Template
 
-Template for `.gpd/research/METHODS.md` - recommended methods and computational tools for the research domain.
+Template for `GPD/research/METHODS.md` - recommended methods and computational tools for the research domain.
 
 <template>
 

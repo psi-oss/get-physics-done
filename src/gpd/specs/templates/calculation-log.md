@@ -6,7 +6,7 @@ template_version: 1
 
 # Calculation Log Template
 
-Template for `.gpd/phases/XX-name/CALCULATION_LOG.md` - detailed record of derivations and computations within a phase.
+Template for `GPD/phases/XX-name/CALCULATION_LOG.md` - detailed record of derivations and computations within a phase.
 
 **Purpose:** Tracks the step-by-step reasoning of each calculation, including intermediate results, checks performed, and errors caught. Serves as a lab notebook for theoretical and computational work.
 

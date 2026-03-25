@@ -78,7 +78,7 @@ _STATE_MD = """\
 
 ## Project Reference
 
-See: .gpd/PROJECT.md
+See: GPD/PROJECT.md
 
 **Core research question:** One-loop vacuum polarization in QED
 **Current focus:** Compute photon self-energy at NLO
@@ -133,7 +133,7 @@ def gpd_project(tmp_path: Path) -> Path:
 
     Layout::
         <tmp>/
-          .gpd/
+          GPD/
             STATE.md
             state.json
             phases/
@@ -143,7 +143,7 @@ def gpd_project(tmp_path: Path) -> Path:
                 plan-03.md
                 summary-01.md
     """
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
 
     # Write state files
@@ -179,7 +179,7 @@ class TestConventionsServerIntegration:
         assert result["type"] == "standard"
 
         # Verify the value persisted in state.json
-        state = json.loads((gpd_project / ".gpd" / "state.json").read_text())
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text())
         assert state["convention_lock"]["regularization_scheme"] == "dim-reg"
 
     def test_convention_set_already_set_rejects_overwrite(self, gpd_project: Path):
@@ -235,7 +235,7 @@ class TestStateServerIntegration:
         assert result.get("new_plan") == 2 or result.get("current_plan") == 2
 
         # Verify STATE.md was updated
-        md = (gpd_project / ".gpd" / "STATE.md").read_text()
+        md = (gpd_project / "GPD" / "STATE.md").read_text()
         assert "**Current Plan:** 2" in md
 
     def test_validate_state_on_realistic_project(self, gpd_project: Path):
@@ -305,6 +305,22 @@ class TestVerificationServerIntegration:
         assert "L" in mismatches
         assert "T" in mismatches
 
+    def test_dimensional_check_invalid_element_returns_error_envelope(self):
+        from gpd.mcp.servers.verification_server import dimensional_check
+
+        result = dimensional_check(["[M] = [M]", 4])
+
+        assert result["schema_version"] == 1
+        assert result["error"] == "expressions[1] must be a string"
+
+    def test_limiting_case_check_invalid_limit_key_returns_error_envelope(self):
+        from gpd.mcp.servers.verification_server import limiting_case_check
+
+        result = limiting_case_check("E = m * c^2", {0: "classical"})
+
+        assert result["schema_version"] == 1
+        assert result["error"] == "limits keys must be strings"
+
     def test_symmetry_check_with_real_symmetries(self):
         from gpd.mcp.servers.verification_server import symmetry_check
 
@@ -317,6 +333,22 @@ class TestVerificationServerIntegration:
         for entry in result["results"]:
             assert entry["matched_type"] is not None
             assert entry["strategy"] is not None
+
+    def test_symmetry_check_invalid_element_returns_error_envelope(self):
+        from gpd.mcp.servers.verification_server import symmetry_check
+
+        result = symmetry_check("M(s,t)", ["Lorentz invariance", None])
+
+        assert result["schema_version"] == 1
+        assert result["error"] == "symmetries[1] must be a string"
+
+    def test_verification_coverage_invalid_element_returns_error_envelope(self):
+        from gpd.mcp.servers.verification_server import get_verification_coverage
+
+        result = get_verification_coverage([15, {"id": 37}], ["5.1"])
+
+        assert result["schema_version"] == 1
+        assert result["error"] == "error_class_ids[1] must be an integer"
 
     def test_run_contract_check_fit_family_with_partial_metadata(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -625,17 +657,31 @@ class TestSkillsServerIntegration:
         assert "error" not in result
         assert result["name"] == "gpd-help"
         assert "gpd command reference" in result["content"].lower()
+        assert "`/gpd:*`" in result["content"]
+        assert "gpd validate command-context gpd:<name>" in result["content"]
+        assert "gpd-new-project" in result["content"]
         assert result["file_count"] == 1
+        assert result["allowed_tools_surface"] == "command.allowed-tools"
 
     def test_get_skill_resolves_package_spec_paths(self):
         from gpd.mcp.servers.skills_server import get_skill
-        from gpd.registry import SPECS_DIR
 
         result = get_skill("gpd-plan-phase")
 
         assert "error" not in result
-        assert "{GPD_INSTALL_DIR}" not in result["content"]
-        assert f"@{SPECS_DIR.resolve().as_posix()}/workflows/plan-phase.md" in result["content"]
+        assert "@{GPD_INSTALL_DIR}/workflows/plan-phase.md" in result["content"]
+        assert all(not entry["path"].startswith("/") for entry in result["referenced_files"])
+        assert all(not entry["path"].startswith("/") for entry in result["schema_documents"])
+        assert all(not entry["path"].startswith("/") for entry in result["contract_documents"])
+
+    def test_get_skill_surfaces_project_context_references(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-discover")
+        references = {entry["path"]: entry["kind"] for entry in result["referenced_files"]}
+
+        assert references["@GPD/STATE.md"] == "project"
+        assert references["@GPD/ROADMAP.md"] == "project"
 
     def test_get_skill_peer_review_surfaces_transitive_schema_refs_and_typed_contract(self):
         from gpd.mcp.servers.skills_server import get_skill
@@ -648,6 +694,74 @@ class TestSkillsServerIntegration:
         assert result["review_contract"] is not None
         assert result["review_contract"]["review_mode"] == "publication"
         assert result["context_mode"] == "project-required"
+
+    @pytest.mark.parametrize(
+        ("skill_name", "expected_schema_docs", "expected_contract_docs", "expected_review_mode"),
+        [
+            (
+                "gpd-write-paper",
+                {"paper-config-schema.md": "Paper Config Schema"},
+                {"reproducibility-manifest.md": "Reproducibility Manifest Template"},
+                "publication",
+            ),
+            (
+                "gpd-verify-work",
+                {
+                    "verification-report.md": "Verification Report Template",
+                    "contract-results-schema.md": "Contract Results Schema",
+                },
+                {"contract-results-schema.md": "Contract Results Schema"},
+                "review",
+            ),
+            (
+                "gpd-peer-review",
+                {
+                    "review-ledger-schema.md": "Review Ledger Schema",
+                    "referee-decision-schema.md": "Referee Decision Schema",
+                },
+                {"peer-review-panel.md": "Peer Review Panel Protocol"},
+                "publication",
+            ),
+            (
+                "gpd-sync-state",
+                {"state-json-schema.md": "state.json Schema"},
+                {"state-json-schema.md": "state.json Schema"},
+                None,
+            ),
+        ],
+    )
+    def test_get_skill_surfaces_embedded_schema_and_contract_documents(
+        self,
+        skill_name: str,
+        expected_schema_docs: dict[str, str],
+        expected_contract_docs: dict[str, str],
+        expected_review_mode: str | None,
+    ) -> None:
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill(skill_name)
+        schema_documents = {Path(entry["path"]).name: entry for entry in result["schema_documents"]}
+        contract_documents = {Path(entry["path"]).name: entry for entry in result["contract_documents"]}
+
+        assert "error" not in result
+        assert result["schema_documents"]
+        assert result["contract_documents"]
+        assert all(not entry["path"].startswith("/") for entry in result["schema_documents"])
+        assert all(not entry["path"].startswith("/") for entry in result["contract_documents"])
+        for name, marker in expected_schema_docs.items():
+            assert name in schema_documents
+            assert marker in schema_documents[name]["body"]
+            assert schema_documents[name]["content"]
+        for name, marker in expected_contract_docs.items():
+            assert name in contract_documents
+            assert marker in contract_documents[name]["body"]
+            assert contract_documents[name]["content"]
+
+        if expected_review_mode is None:
+            assert result["review_contract"] is None
+        else:
+            assert result["review_contract"] is not None
+            assert result["review_contract"]["review_mode"] == expected_review_mode
 
     def test_get_skill_not_found(self):
         from gpd.mcp.servers.skills_server import get_skill
@@ -684,8 +798,8 @@ class TestSkillsServerIntegration:
         assert isinstance(result, dict)
         assert result["total_skills"] > 10
         assert "index_text" in result
-        assert "/gpd:" in result["index_text"]
-        assert "/gpd:peer-review" in result["index_text"]
+        assert "gpd-execute-phase" in result["index_text"]
+        assert "gpd-peer-review" in result["index_text"]
         assert "gpd-debugger" in result["index_text"]
         assert "/gpd:debugger" not in result["index_text"]
         assert len(result["categories"]) > 3

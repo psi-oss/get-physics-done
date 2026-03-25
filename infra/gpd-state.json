@@ -18,7 +18,7 @@
   ],
   "registry_prefix": "gpd_state",
   "prerequisites": [
-    "Install GPD first: npx -y get-physics-done"
+    "Install GPD before enabling built-in MCP servers."
   ],
   "health_check": {
     "tool": "get_config",
@@ -29,12 +29,12 @@
   },
   "alternatives": {
     "python_module": {
-      "command": "python",
+      "command": "python3",
       "args": [
         "-m",
         "gpd.mcp.servers.state_server"
       ],
-      "notes": "Requires gpd package installed"
+      "notes": "Requires gpd package installed and Python >=3.11"
     }
   }
 }

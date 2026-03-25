@@ -153,7 +153,7 @@ fi
 phase_name=$(echo "$ROADMAP_INFO" | gpd json get .phase_name --default "")
 phase_slug=$(gpd slug "$phase_name")
 padded_phase=$(printf '%s' "${PHASE}" | python3 -c "import sys; parts=sys.stdin.read().strip().split('.'); head=str(int(parts[0])).zfill(2); tail=[str(int(part)) for part in parts[1:] if part]; print('.'.join([head, *tail]))")
-phase_dir=".gpd/phases/${padded_phase}-${phase_slug}"
+phase_dir="GPD/phases/${padded_phase}-${phase_slug}"
 ```
 
 Continue to check_existing using the roadmap-derived phase metadata.
@@ -475,7 +475,7 @@ When writing, preserve the user's own wording where it was explicit and load-bea
 Present summary and next steps:
 
 ```
-Created: .gpd/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
+Created: GPD/phases/${PADDED_PHASE}-${SLUG}/${PADDED_PHASE}-CONTEXT.md
 
 ## Decisions Captured
 

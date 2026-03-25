@@ -226,10 +226,12 @@ Two plausible unchecked failure modes identified → **confidence cannot be HIGH
 ---
 phase: "02"
 plan: "01"
+depth: full
 physics-area: QED, renormalization
 tags: [self-energy, one-loop, dimensional-regularization, MS-bar]
 requires:
-  - "01-01: QED Feynman rules and conventions"
+  - provides: "QED Feynman rules and conventions"
+    phase: "01-01"
 provides:
   - "δZ₂ = -(α/4π)(1/ε̄) — electron wave function renormalization"
   - "δm = -(3α/4π)(m/ε̄) — electron mass counterterm"
@@ -237,43 +239,70 @@ provides:
 affects:
   - "02-02: vertex correction (needs δZ₂ for Ward identity check)"
   - "02-03: renormalized propagator"
-plan_contract_ref: ".gpd/phases/02-self-energy/02-01-PLAN.md#/contract"
+completed: 2026-03-15
+plan_contract_ref: "GPD/phases/02-self-energy/02-01-PLAN.md#/contract"
 contract_results:
   claims:
     claim-mass-counterterm:
       status: passed
+      summary: "Pole extraction reproduced the expected electron mass counterterm coefficient."
+      linked_ids: [deliverable-self-energy-derivation, acceptance-test-pole, reference-qed-benchmark]
       evidence:
-        - verifier: "gpd-executor"
-          method: "pole extraction"
+        - verifier: gpd-verifier
+          method: benchmark reproduction
           confidence: high
-          evidence_path: "derivations/self_energy.tex"
-          notes: "Pole extraction gives the expected coefficient."
+          claim_id: claim-mass-counterterm
+          deliverable_id: deliverable-self-energy-derivation
+          acceptance_test_id: acceptance-test-pole
+          reference_id: reference-qed-benchmark
+          forbidden_proxy_id: fp-summary-only
+          evidence_path: "GPD/phases/02-self-energy/02-VERIFICATION.md"
     claim-massless-limit:
       status: passed
-      evidence:
-        - verifier: "gpd-executor"
-          method: "massless-limit spot-check"
-          confidence: high
-          evidence_path: "checks/massless_limit.py"
-          notes: "Spot-check confirms no additive mass term at m=0."
-  acceptance_tests:
-    test-pole:
+      summary: "The m→0 limit preserved the expected chiral behavior."
+      linked_ids: [deliverable-massless-limit-check, reference-qed-benchmark]
+  deliverables:
+    deliverable-self-energy-derivation:
       status: passed
-      evidence:
-        - verifier: "gpd-executor"
-          method: "benchmark comparison"
-          confidence: high
-          evidence_path: "checks/pole_limit.py"
-          notes: "Pole limit matches the published coefficient."
+      path: "derivations/self_energy.tex"
+      summary: "One-loop self-energy derivation with explicit form-factor decomposition."
+      linked_ids: [claim-mass-counterterm, claim-massless-limit, acceptance-test-pole]
+    deliverable-massless-limit-check:
+      status: passed
+      path: "checks/massless_limit.py"
+      summary: "Spot-check used to confirm the m→0 limit in the worked example."
+      linked_ids: [claim-massless-limit, acceptance-test-pole]
+  acceptance_tests:
+    acceptance-test-pole:
+      status: passed
+      summary: "Pole extraction matched the published coefficient."
+      linked_ids: [claim-mass-counterterm, deliverable-self-energy-derivation, reference-qed-benchmark]
+  references:
+    reference-qed-benchmark:
+      status: completed
+      completed_actions: [read, compare, cite]
+      missing_actions: []
+      summary: "Benchmark anchor for the one-loop self-energy coefficient and limit discussion."
+  forbidden_proxies:
+    fp-summary-only:
+      status: rejected
+      notes: "A file existing without benchmark comparison was not accepted as success."
+  uncertainty_markers:
+    weakest_anchors: ["finite-term mass matching"]
+    unvalidated_assumptions: ["general-gauge-independence"]
+    competing_explanations: ["on-shell vs MS-bar finite-part conventions"]
+    disconfirming_observations: ["no independent gauge-parameter scan"]
 comparison_verdicts:
   - subject_id: "claim-mass-counterterm"
     subject_kind: "claim"
     subject_role: "decisive"
-    reference_id: "ref-qed-benchmark"
+    reference_id: "reference-qed-benchmark"
     comparison_kind: "benchmark"
     metric: "coefficient_match"
     threshold: "exact"
     verdict: "pass"
+    recommended_action: "Keep the benchmark coefficient comparison explicit in the verification report."
+    notes: "Exact pole agreement closes the decisive benchmark requirement for this claim."
 ---
 
 # Phase 02 Plan 01: One-Loop Electron Self-Energy Summary

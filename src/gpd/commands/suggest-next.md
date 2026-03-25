@@ -15,12 +15,14 @@ allowed-tools:
 <objective>
 Analyze current project state and suggest the most impactful next action. Uses `gpd --raw suggest` to scan phases, plans, verification status, blockers, and todos to produce a prioritized action list.
 
+Local CLI fallback: `gpd --raw suggest` when the installed runtime surface is unavailable.
+
 This is the fastest way to answer "what should I do next?" without reading through progress reports.
 </objective>
 
 <context>
-@.gpd/STATE.md
-@.gpd/ROADMAP.md
+@GPD/STATE.md
+@GPD/ROADMAP.md
 </context>
 
 <process>
@@ -40,9 +42,11 @@ fi
 ## Step 2: Parse and present
 
 Parse the JSON output. It contains:
-- `suggestions`: Array of `{priority, action, command, reason}` sorted by priority (1=highest)
-- `context`: Object with `current_phase`, `status`, `progress_percent`, `paused_at`, `active_blockers`
-- `suggestion_count`: Total number of suggestions
+- `suggestions`: Array of `{priority, action, command, reason, phase?}` sorted by priority (1=highest)
+- `total_suggestions`: Total number of recommendations before limiting
+- `suggestion_count`: Number of recommendations returned after applying `limit`
+- `top_action`: The first recommendation or `null`
+- `context`: Object with `current_phase`, `status`, `progress_percent`, `paused_at`, `phase_count`, `completed_phases`, `active_blockers`, `unverified_results`, `open_questions`, `active_calculations`, `pending_todos`, `missing_conventions`, `has_paper`, `has_literature_review`, `has_referee_report`, `autonomy`, `research_mode`, and `adaptive_approach_locked`
 
 ## Step 3: Display
 

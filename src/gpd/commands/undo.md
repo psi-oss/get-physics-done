@@ -23,7 +23,7 @@ Use this when a plan, execution, or verification produced incorrect results and 
 </execution_context>
 
 <context>
-@.gpd/STATE.md
+@GPD/STATE.md
 </context>
 
 <process>

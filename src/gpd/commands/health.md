@@ -23,9 +23,9 @@ Use `--fix` to automatically repair detected issues.
 </objective>
 
 <context>
-@.gpd/STATE.md
-@.gpd/state.json
-@.gpd/config.json
+@GPD/STATE.md
+@GPD/state.json
+@GPD/config.json
 </context>
 
 <process>

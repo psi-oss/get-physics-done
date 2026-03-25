@@ -13,12 +13,16 @@ Template for systematic comparison of theoretical predictions with experimental 
 
 ```markdown
 ---
+protocol_bundle_ids (optional):
+  - bundle-id
+bundle_expectations (optional):
+  - "[additive decisive-artifact, estimator, or benchmark expectation recorded for provenance]"
 comparison_verdicts:
   - subject_id: claim-id
-    subject_kind: claim|deliverable|acceptance_test|reference|artifact|other
-    subject_role: decisive|supporting|supplemental
+    subject_kind: claim|deliverable|acceptance_test|reference
+    subject_role: decisive|supporting|supplemental|other
     reference_id: ref-id
-    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline
+    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other
     metric: relative_error | chi2_ndof | pull
     threshold: "<= 2 sigma"
     verdict: pass | tension | fail | inconclusive
@@ -165,4 +169,6 @@ _Data: [sources with years]_
 - Forgetting radiative corrections when comparing with precision data
 - Comparing lattice results at finite spacing/volume with continuum experimental values
 
-When the comparison is decisive for a contract-backed claim or deliverable, the `comparison_verdicts` block is required. It is the machine-readable answer to "did the decisive output pass its benchmark?".
+When the comparison is decisive for a contract-backed claim or deliverable, the `comparison_verdicts` block is required. It is the machine-readable answer to "did the decisive output pass its benchmark?". Use contract IDs only: if the comparison is about a figure, dataset, or table, point the verdict at the owning deliverable or reference ID rather than inventing an `artifact` subject kind. Only `subject_role: decisive` closes a decisive requirement; `supporting` and `supplemental` verdicts are context, not standalone blockers. If selected protocol bundles informed the comparison design, record them in `protocol_bundle_ids` / `bundle_expectations` as additive provenance only; they do not replace contract IDs, benchmark anchors, or pass/fail thresholds.
+
+`comparison_verdicts` is a closed schema. Use only the documented keys above, do not invent extra fields, and keep every verdict row schema-tight before writing the ledger.

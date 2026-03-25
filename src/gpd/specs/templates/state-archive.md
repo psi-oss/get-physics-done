@@ -6,7 +6,7 @@ template_version: 1
 
 # State Archive Template
 
-Template for `.gpd/STATE-ARCHIVE.md` - historical state entries archived from STATE.md during compaction.
+Template for `GPD/STATE-ARCHIVE.md` - historical state entries archived from STATE.md during compaction.
 
 **Purpose:** When STATE.md exceeds the line budget (1500 lines), `gpd state compact` moves older entries here. This preserves the full decision and metric history while keeping STATE.md focused on the current and recent phases.
 

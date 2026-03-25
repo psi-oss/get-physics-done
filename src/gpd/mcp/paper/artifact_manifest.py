@@ -26,6 +26,13 @@ def _display_path(path: Path, output_dir: Path) -> str:
         return str(path)
 
 
+def _portable_source_path(path: Path, output_dir: Path) -> str:
+    """Return the original source path exactly as supplied by the caller."""
+
+    del output_dir
+    return str(path)
+
+
 def _resolve_output_path(path: Path, output_dir: Path) -> Path:
     return path if path.is_absolute() else output_dir / path
 
@@ -110,7 +117,7 @@ def build_artifact_manifest(
                 path=_display_path(prepared_path, output_dir),
                 sha256=_sha256(prepared_path),
                 produced_by="build_paper:prepare_figures",
-                sources=[ArtifactSourceRef(path=str(original.path), role="source-figure")],
+                sources=[ArtifactSourceRef(path=_portable_source_path(original.path, output_dir), role="source-figure")],
                 metadata={
                     "label": prepared.label,
                     "caption_length": len(prepared.caption),

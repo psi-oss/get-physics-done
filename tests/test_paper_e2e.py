@@ -336,7 +336,6 @@ class TestPublicAPI:
             ReviewIssueSeverity,
             ReviewIssueStatus,
             ReviewLedger,
-            ReviewPanelBundle,
             ReviewRecommendation,
             ReviewStageKind,
             ReviewSupportStatus,
@@ -351,12 +350,10 @@ class TestPublicAPI:
             list_journals,
             read_claim_index,
             read_review_ledger,
-            read_review_panel_bundle,
             read_stage_review_report,
             write_bibliography_audit,
             write_claim_index,
             write_review_ledger,
-            write_review_panel_bundle,
             write_stage_review_report,
         )
 
@@ -384,7 +381,6 @@ class TestPublicAPI:
         assert ReviewIssueSeverity is not None
         assert ReviewIssueStatus is not None
         assert ReviewLedger is not None
-        assert ReviewPanelBundle is not None
         assert ReviewRecommendation is not None
         assert ReviewStageKind is not None
         assert ReviewSupportStatus is not None
@@ -393,11 +389,9 @@ class TestPublicAPI:
         assert CitationSource is not None
         assert callable(read_claim_index)
         assert callable(read_review_ledger)
-        assert callable(read_review_panel_bundle)
         assert callable(read_stage_review_report)
         assert callable(write_claim_index)
         assert callable(write_review_ledger)
-        assert callable(write_review_panel_bundle)
         assert callable(write_stage_review_report)
 
     def test_public_api_review_artifact_helpers_round_trip(self, tmp_path):
@@ -410,18 +404,15 @@ class TestPublicAPI:
             ReviewIssue,
             ReviewIssueSeverity,
             ReviewLedger,
-            ReviewPanelBundle,
             ReviewRecommendation,
             ReviewStageKind,
             ReviewSupportStatus,
             StageReviewReport,
             read_claim_index,
             read_review_ledger,
-            read_review_panel_bundle,
             read_stage_review_report,
             write_claim_index,
             write_review_ledger,
-            write_review_panel_bundle,
             write_stage_review_report,
         )
 
@@ -471,32 +462,18 @@ class TestPublicAPI:
                 )
             ],
         )
-        bundle = ReviewPanelBundle(
-            manuscript_path="paper/main.tex",
-            claim_index_path=".gpd/review/CLAIMS.json",
-            stage_reports=[".gpd/review/STAGE-physics.json"],
-            review_ledger_path=".gpd/review/REVIEW-LEDGER.json",
-            decision_path=".gpd/review/REFEREE-DECISION.json",
-            final_recommendation=ReviewRecommendation.minor_revision,
-            final_confidence=ReviewConfidence.medium,
-            final_report_path=".gpd/REFEREE-REPORT.md",
-            final_report_tex_path=".gpd/REFEREE-REPORT.tex",
-        )
 
         claims_path = tmp_path / "CLAIMS.json"
         stage_path = tmp_path / "STAGE-physics.json"
         ledger_path = tmp_path / "REVIEW-LEDGER.json"
-        bundle_path = tmp_path / "PANEL-BUNDLE.json"
 
         write_claim_index(claim_index, claims_path)
         write_stage_review_report(stage_report, stage_path)
         write_review_ledger(ledger, ledger_path)
-        write_review_panel_bundle(bundle, bundle_path)
 
         assert read_claim_index(claims_path) == claim_index
         assert read_stage_review_report(stage_path) == stage_report
         assert read_review_ledger(ledger_path) == ledger
-        assert read_review_panel_bundle(bundle_path) == bundle
 
 
 # ---- Class file check fallback ----

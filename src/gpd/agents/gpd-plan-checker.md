@@ -104,7 +104,7 @@ Same methodology (goal-backward), different timing, different subject matter.
 
 ## Profile-Aware Checking Rigor
 
-The active model profile (from `.gpd/config.json`) controls not just which model tier is used, but how many dimensions are checked and at what depth.
+The active model profile (from `GPD/config.json`) controls not just which model tier is used, but how many dimensions are checked and at what depth.
 
 **Invariant across all profiles:** Profile changes depth and breadth, never minimum contract completeness. Every profile must still run the contract gate, require decisive outputs, require anchor coverage, require acceptance tests, reject forbidden proxies as sole success conditions, and require a disconfirming path for risky work.
 
@@ -852,12 +852,12 @@ ls "$phase_dir"/../PROJECT.md 2>/dev/null
 
 ## Step 2: Load All Plans
 
-Use gpd to validate plan structure:
+Use `gpd verify plan` to validate plan structure:
 
 ```bash
 for plan in "$PHASE_DIR"/*-PLAN.md; do
   echo "=== $plan ==="
-  PLAN_STRUCTURE=$(gpd verify plan-structure "$plan")
+  PLAN_STRUCTURE=$(gpd verify plan "$plan")
   echo "$PLAN_STRUCTURE"
 done
 ```
@@ -887,30 +887,43 @@ If present, treat it as the canonical planning surface.
 contract:
   scope:
     question: "What decisive question does this plan advance?"
+  context_intake:
+    must_read_refs: [ref-main]
+    must_include_prior_outputs: ["Phase 00 baseline table"]
+    user_asserted_anchors: ["Use the approved gauge, unit, and notation conventions"]
   claims:
     - id: claim-main
       statement: "Recover the benchmark value within tolerance"
-      deliverables: [deliv-figure]
-      acceptance_tests: [test-benchmark]
-      references: [ref-benchmark]
+      deliverables: [deliv-main]
+      acceptance_tests: [test-main]
+      references: [ref-main]
   deliverables:
-    - id: deliv-figure
+    - id: deliv-main
       kind: figure
       path: "figures/benchmark.png"
       description: "Benchmark comparison figure"
+      must_contain: ["benchmark value", "tolerance"]
   references:
-    - id: ref-benchmark
+    - id: ref-main
+      kind: paper
       locator: "Author et al., Journal, 2024"
       role: benchmark
+      why_it_matters: "Provides the benchmark value and comparison convention."
+      applies_to: [claim-main]
       must_surface: true
+      required_actions: [read, compare, cite]
   acceptance_tests:
-    - id: test-benchmark
+    - id: test-main
       subject: claim-main
+      kind: benchmark
+      procedure: "Compare the computed value against the benchmark anchor within tolerance."
       pass_condition: "Matches benchmark within tolerance"
+      evidence_required: [deliv-main, ref-main]
   forbidden_proxies:
-    - id: fp-benchmark
+    - id: fp-main
       subject: claim-main
       proxy: "Qualitative trend match without numerical comparison"
+      reason: "Would not establish the decisive benchmark result."
   uncertainty_markers:
     weakest_anchors: ["Reference tolerance interpretation"]
     disconfirming_observations: ["Benchmark agreement disappears after normalization fix"]
@@ -938,10 +951,10 @@ For each requirement: find covering task(s), verify method is specific, flag gap
 
 ## Step 5: Validate Task Structure
 
-Use gpd plan-structure verification (already run in Step 2):
+Use `gpd verify plan` (already run in Step 2):
 
 ```bash
-PLAN_STRUCTURE=$(gpd verify plan-structure "$PLAN_PATH")
+PLAN_STRUCTURE=$(gpd verify plan "$PLAN_PATH")
 ```
 
 The `tasks` array in the result shows each task's completeness:

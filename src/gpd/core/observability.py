@@ -1,6 +1,6 @@
 """Session-focused local observability helpers for GPD.
 
-Observability is written to the project-local ``.gpd/observability/`` tree:
+Observability is written to the project-local ``GPD/observability/`` tree:
 
 - ``sessions/<session-id>.jsonl`` stores the full event stream for one session
 - ``current-session.json`` points at the latest observed session summary
@@ -48,6 +48,7 @@ __all__ = [
     "log_event",
     "observe_event",
     "record_event",
+    "resolve_project_root",
     "show_events",
 ]
 
@@ -231,15 +232,53 @@ def _extract_cwd(value: object | None) -> Path | None:
     return None
 
 
+def _normalize_workspace_path(value: object | None) -> Path | None:
+    path = _extract_cwd(value)
+    if path is None:
+        return None
+    expanded = path.expanduser()
+    try:
+        return expanded.resolve(strict=False)
+    except OSError:
+        return expanded
+
+
+def _walk_project_root(candidate: Path | None) -> Path | None:
+    if candidate is None:
+        return None
+    for path in (candidate, *candidate.parents):
+        if ProjectLayout(path).gpd.exists():
+            return path
+    return None
+
+
+def resolve_project_root(
+    cwd: Path | str | None = None,
+    *,
+    project_dir: Path | str | None = None,
+) -> Path | None:
+    """Return the best project-root candidate for one workspace hint."""
+    explicit_project = _normalize_workspace_path(project_dir)
+    if explicit_project is not None:
+        return _walk_project_root(explicit_project) or explicit_project
+
+    candidate = _normalize_workspace_path(cwd)
+    if candidate is None:
+        return None
+    return _walk_project_root(candidate) or candidate
+
+
 def _project_root(cwd: Path | None = None) -> Path | None:
     if cwd is not None:
-        candidate = cwd
+        candidate = resolve_project_root(cwd)
     else:
-        pwd = Path.cwd()
+        pwd = _normalize_workspace_path(Path.cwd()) or Path.cwd()
         if ProjectLayout(pwd).gpd.exists():
             candidate = pwd
         else:
-            candidate = _session_cwd_var.get() or pwd
+            candidate = resolve_project_root(_session_cwd_var.get()) or pwd
+    if candidate is None:
+        return None
     layout = ProjectLayout(candidate)
     if not layout.gpd.exists():
         return None

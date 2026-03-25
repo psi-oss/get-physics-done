@@ -13,6 +13,8 @@ context_cost: low
 
 Guidance for reliable execution of the staged peer-review pipeline, covering when the phase triggers, how stages recover from failure, how to distinguish internal from external review, and how review findings feed back into manuscript revisions.
 
+This is the canonical reliability reference for the peer-review skill surface. Follow the path and round-suffix conventions here when the workflow, report, and response artifacts need a stable source of truth.
+
 ## When Peer Review Triggers
 
 The peer review phase activates **after a complete manuscript draft exists** and **before final PDF packaging and submission**. Specifically:
@@ -24,8 +26,8 @@ The peer review phase activates **after a complete manuscript draft exists** and
 ### Precondition Checklist
 
 - Manuscript main file exists under `paper/`, `manuscript/`, or `draft/`
-- `.gpd/STATE.md` and `.gpd/ROADMAP.md` are present
-- Phase summaries and verification reports are available under `.gpd/phases/`
+- `GPD/STATE.md` and `GPD/ROADMAP.md` are present
+- Phase summaries and verification reports are available under `GPD/phases/`
 - `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and reproducibility manifest are present (strict mode)
 
 If any precondition fails, the review preflight blocks entry and reports the missing items.
@@ -40,7 +42,7 @@ The staged peer-review panel is an **automated internal review**. It is not a su
 | Agents | Six staged subagents with fresh context | Human domain experts |
 | Scope | Claim extraction, math, physics, literature, significance, adjudication | Full scientific judgment including community context |
 | Authority | Advisory; author decides how to respond | Binding; editor decides publication |
-| Artifacts | `.gpd/review/` JSON stage reports, referee report | Journal referee reports |
+| Artifacts | `GPD/review/` JSON stage reports, `GPD/REFEREE-REPORT{round_suffix}.md` / `.tex` | Journal referee reports |
 | Rounds | Up to 3 automated rounds | Journal-determined |
 
 Use internal review to catch overclaiming, missing evidence, mathematical errors, and weak physical interpretation **before** submitting to external review. Internal review findings should be treated as a quality gate, not as a publication decision.
@@ -53,7 +55,7 @@ All of the following must hold before the review phase begins:
 
 1. **Manuscript completeness.** All sections referenced in the paper structure are drafted. No placeholder or stub sections remain.
 2. **Artifact readiness.** `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` exist and pass validation.
-3. **Verification coverage.** At least one verification report exists under `.gpd/phases/`.
+3. **Verification coverage.** At least one verification report exists under `GPD/phases/`.
 4. **Preflight pass.** `gpd validate review-preflight peer-review --strict` exits zero.
 
 ### Exit Criteria
@@ -61,11 +63,12 @@ All of the following must hold before the review phase begins:
 The review phase is complete when:
 
 1. **All six stages have run.** Stage artifacts exist for reader, literature, math, physics, interestingness, and the final referee decision.
-2. **Referee decision is valid.** `REFEREE-DECISION.json` passes schema validation.
-3. **Review ledger is valid.** `REVIEW-LEDGER.json` passes schema validation.
+2. **Referee decision is valid.** `GPD/review/REFEREE-DECISION{round_suffix}.json` passes `gpd validate referee-decision ... --strict --ledger ...`, including non-empty `manuscript_path` alignment with the review ledger and stage artifacts.
+3. **Review ledger is valid.** `GPD/review/REVIEW-LEDGER{round_suffix}.json` passes `gpd validate review-ledger ...`, including a non-empty `manuscript_path`.
 4. **Findings are dispositioned.** Every blocking finding has either been addressed in a revision or explicitly acknowledged in an author response.
 
 If the recommendation is `accept` or `minor_revision` with no unresolved blockers, the manuscript may proceed to submission packaging. If the recommendation is `major_revision` or `reject`, the manuscript must return to revision before re-entering peer review.
+When strict submission preflight sees `GPD/review/REVIEW-LEDGER*.json` and `GPD/review/REFEREE-DECISION*.json`, it treats the latest round-specific pair as authoritative and blocks packaging unless that condition is satisfied for the active manuscript.
 
 ## Stage Failure Modes and Recovery
 
@@ -80,7 +83,7 @@ Each of the six review stages can fail. The pipeline is **fail-closed**: a faile
 | Missing upstream artifact | Stages 2-6 | Stage cannot read required input | Re-run the failed upstream stage first |
 | Manuscript file not found | Stage 1 | Reader cannot locate `.tex` files | Verify manuscript path before retrying |
 | Timeout or resource limit | Any | Stage does not complete | Retry once; if persistent, reduce manuscript scope or run stages sequentially |
-| Claim index missing | Stages 2-6 | `CLAIMS.json` absent after Stage 1 | Re-run Stage 1 before proceeding |
+| Claim index missing | Stages 2-6 | `CLAIMS{round_suffix}.json` absent after Stage 1 | Re-run Stage 1 before proceeding |
 
 ### Recovery Protocol
 
@@ -95,10 +98,13 @@ After each stage writes its artifact, confirm:
 
 - The file exists at the expected path
 - The file parses as valid JSON
-- Required top-level keys are present: `version`, `round`, `stage_id`, `stage_kind`, `summary`, `findings`, `confidence`, `recommendation_ceiling`
-- The `stage_id` matches the expected stage
-- `findings` is an array (may be empty)
-- Each finding has `issue_id`, `severity`, `summary`, and `blocking` fields
+- The built-in validators accept the matching artifact type:
+  - `gpd validate review-claim-index GPD/review/CLAIMS{round_suffix}.json`
+  - `gpd validate review-stage-report GPD/review/STAGE-<stage_id>{round_suffix}.json`
+  - `gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json`
+  - `gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger GPD/review/REVIEW-LEDGER{round_suffix}.json`
+- Do not reimplement the schema checks manually in the workflow prose. The validators are the source of truth for required keys and cross-artifact consistency.
+- A blank `manuscript_path` in the review ledger or referee decision is a contract failure, not a recoverable omission.
 
 If validation fails, treat it as a stage failure and apply the retry protocol above.
 
@@ -108,9 +114,9 @@ If validation fails, treat it as a stage failure and apply the retry protocol ab
 
 The review pipeline produces these actionable artifacts:
 
-1. **Review summary** (`.gpd/REFEREE-REPORT.md` / `.gpd/REFEREE-REPORT.tex`): Human-readable narrative of the panel findings, recommendation, and rationale.
-2. **Review ledger** (`.gpd/review/REVIEW-LEDGER.json`): Machine-readable list of all issues with severity, blocking status, affected claims, and required actions.
-3. **Referee decision** (`.gpd/review/REFEREE-DECISION.json`): Final recommendation, confidence, blocking issue IDs, and stage artifact references.
+1. **Review summary** (`GPD/REFEREE-REPORT{round_suffix}.md` / `.tex`): Human-readable narrative of the panel findings, recommendation, and rationale.
+2. **Review ledger** (`GPD/review/REVIEW-LEDGER{round_suffix}.json`): Machine-readable list of all issues with severity, blocking status, affected claims, and required actions.
+3. **Referee decision** (`GPD/review/REFEREE-DECISION{round_suffix}.json`): Final recommendation, confidence, blocking issue IDs, and stage artifact references.
 
 ### Severity and Prioritization
 
@@ -127,7 +133,7 @@ Findings are classified by severity:
 
 1. **Read the review ledger.** Sort findings by severity (critical first, then major, then minor).
 2. **Address blocking issues.** Every finding with `"blocking": true` must be resolved or the claims must be narrowed to match the available evidence.
-3. **Write author response.** Document how each finding was addressed in `.gpd/AUTHOR-RESPONSE.md` (or `-R2.md` / `-R3.md` for subsequent rounds).
+3. **Write author response.** Document how each finding was addressed in `GPD/AUTHOR-RESPONSE{round_suffix}.md` (or `-R2.md` / `-R3.md` for subsequent rounds).
 4. **Re-enter review.** After revisions, re-run `/gpd:peer-review` for the next round. The pipeline detects prior reports and author responses to increment the round number automatically.
 5. **Converge.** The pipeline supports up to 3 review rounds. If the manuscript has not converged to `accept` or `minor_revision` after 3 rounds, consider restructuring the central contribution.
 

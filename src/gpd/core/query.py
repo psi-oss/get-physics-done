@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from gpd.core.constants import STANDALONE_SUMMARY, SUMMARY_SUFFIX, ProjectLayout
+from gpd.core.constants import SUMMARY_SUFFIX, ProjectLayout
 from gpd.core.errors import QueryError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.observability import instrument_gpd_function
@@ -105,6 +105,7 @@ class DepsResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     provides_by: DepsProvider | None = None
+    provider_conflicts: list[DepsProvider] = Field(default_factory=list)
     required_by: list[DepsConsumer] = Field(default_factory=list)
 
 
@@ -205,11 +206,57 @@ def extract_requires_values(requires_arr: list) -> list[str]:
     return values
 
 
+def _strip_phase_locator_prefix(value: str) -> str | None:
+    """Return the dependency identifier from ``PHASE-PLAN: identifier`` strings."""
+
+    prefix, separator, suffix = value.partition(":")
+    if not separator or not suffix.strip():
+        return None
+    phase_token, dash, plan_token = prefix.strip().partition("-")
+    if not dash:
+        return None
+    if not _is_valid_phase_str(phase_token) or not _is_valid_phase_str(plan_token):
+        return None
+    identifier = suffix.strip()
+    return identifier or None
+
+
+def extract_requires_identifiers(requires_arr: list) -> list[str]:
+    """Extract result identifiers from a requires array for dependency tracing."""
+
+    values: list[str] = []
+    for item in requires_arr:
+        if isinstance(item, str):
+            values.append(item)
+            stripped = _strip_phase_locator_prefix(item)
+            if stripped is not None:
+                values.append(stripped)
+        elif isinstance(item, dict):
+            _append_search_values(values, item.get("provides"))
+    return values
+
+
 def term_matches(term: str, value: str) -> bool:
     """Check whether a term matches (case-insensitive substring) against a value."""
     if not term or not value:
         return False
     return str(term).lower() in str(value).lower()
+
+
+def _normalize_identifier(value: object) -> str:
+    """Return a normalized identifier token for exact dependency matching."""
+    return re.sub(r"[^a-z0-9]+", " ", str(value or "").strip().casefold()).strip()
+
+
+def _normalized_identifier_matches(identifier: str, value: object, *preferred_keys: str) -> bool:
+    """Check whether any normalized token in value matches identifier exactly."""
+    normalized_identifier = _normalize_identifier(identifier)
+    if not normalized_identifier:
+        return False
+    for candidate in _search_values_from_item(value, *preferred_keys):
+        if _normalize_identifier(candidate) == normalized_identifier:
+            return True
+    return False
 
 
 def parse_phase_range(range_str: str | None) -> tuple[str, str] | None:
@@ -292,7 +339,7 @@ def collect_summaries(cwd: Path) -> list[SummaryEntry]:
         except OSError:
             continue
 
-        summaries = [f for f in files if f.name.endswith(SUMMARY_SUFFIX) or f.name == STANDALONE_SUMMARY]
+        summaries = [f for f in files if f.name.endswith(SUMMARY_SUFFIX)]
 
         for summary_file in summaries:
             try:
@@ -314,8 +361,6 @@ def collect_summaries(cwd: Path) -> list[SummaryEntry]:
             plan_id = summary_file.name
             if plan_id.upper().endswith(SUMMARY_SUFFIX.upper()):
                 plan_id = plan_id[: -len(SUMMARY_SUFFIX)]
-            elif plan_id.upper() == STANDALONE_SUMMARY.upper():
-                plan_id = ""
             plan_id = plan_id or None
 
             results.append(
@@ -345,7 +390,7 @@ def query(
 ) -> QueryResult:
     """Search across all phase results.
 
-    Scans all .gpd/phases/SUMMARY.md files, matching frontmatter fields
+    Scans all GPD/phases/*-SUMMARY.md files, matching frontmatter fields
     and body text against the provided search terms.
     """
     summaries = collect_summaries(cwd)
@@ -459,7 +504,7 @@ def query_deps(cwd: Path, identifier: str) -> DepsResult:
     """Trace what depends on a given result identifier.
 
     Finds the phase/plan that provides it, and all phases whose requires
-    field references this identifier.
+    field references this identifier using exact normalized ID matching.
 
     Raises ValueError if identifier is empty.
     """
@@ -467,7 +512,7 @@ def query_deps(cwd: Path, identifier: str) -> DepsResult:
         raise QueryError("identifier required for query-deps")
 
     summaries = collect_summaries(cwd)
-    provides_by: DepsProvider | None = None
+    provider_matches: list[DepsProvider] = []
     required_by: list[DepsConsumer] = []
 
     for entry in summaries:
@@ -480,22 +525,22 @@ def query_deps(cwd: Path, identifier: str) -> DepsResult:
 
         # Check if this summary provides the identifier
         for p in fm_provides:
-            search_vals = _search_values_from_item(p, "name", "provides")
-            for sv in search_vals:
-                if term_matches(identifier, sv):
-                    # Prefer exact match
-                    if provides_by is None or str(sv).lower() == str(identifier).lower():
-                        provides_by = DepsProvider(phase=phase, plan=plan, value=p)
-                    break
+            if _normalized_identifier_matches(identifier, p, "name", "provides"):
+                provider_matches.append(DepsProvider(phase=phase, plan=plan, value=p))
+                break
 
         # Check if this summary requires the identifier
-        requires_values = extract_requires_values(fm_requires)
+        requires_values = extract_requires_identifiers(fm_requires)
         for rv in requires_values:
-            if term_matches(identifier, rv):
+            if _normalized_identifier_matches(identifier, rv):
                 required_by.append(DepsConsumer(phase=phase, plan=plan, value=rv))
                 break
 
-    return DepsResult(provides_by=provides_by, required_by=required_by)
+    return DepsResult(
+        provides_by=provider_matches[-1] if provider_matches else None,
+        provider_conflicts=provider_matches[:-1],
+        required_by=required_by,
+    )
 
 
 @instrument_gpd_function("query.assumptions")

@@ -6,7 +6,7 @@ template_version: 1
 
 # Recovery Plan Template
 
-Template for `.gpd/phases/XX-name/{phase}-{plan}-RECOVERY.md` - structured recovery after a plan execution failure.
+Template for `GPD/phases/XX-name/{phase}-{plan}-RECOVERY.md` - structured recovery after a plan execution failure.
 
 ---
 

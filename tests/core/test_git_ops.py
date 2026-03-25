@@ -144,11 +144,11 @@ class TestPreCommitCheck:
         assert result.details[0].file == "docs/ok.md"
 
     def test_scratch_commit_target_fails_storage_validation(self, tmp_path: Path) -> None:
-        target = tmp_path / ".gpd" / "tmp" / "final.csv"
+        target = tmp_path / "GPD" / "tmp" / "final.csv"
         target.parent.mkdir(parents=True)
         target.write_text("x,y\n", encoding="utf-8")
 
-        result = cmd_pre_commit_check(tmp_path, [".gpd/tmp/final.csv"])
+        result = cmd_pre_commit_check(tmp_path, ["GPD/tmp/final.csv"])
 
         assert result.passed is False
         assert result.details[0].storage_valid is False
@@ -168,11 +168,11 @@ class TestPreCommitCheck:
         assert any("scratch directories" in warning for warning in result.warnings)
 
     def test_internal_artifact_commit_target_fails_storage_validation(self, tmp_path: Path) -> None:
-        target = tmp_path / ".gpd" / "paper" / "main.tex"
+        target = tmp_path / "GPD" / "paper" / "main.tex"
         target.parent.mkdir(parents=True)
         target.write_text("\\documentclass{article}\n", encoding="utf-8")
 
-        result = cmd_pre_commit_check(tmp_path, [".gpd/paper/main.tex"])
+        result = cmd_pre_commit_check(tmp_path, ["GPD/paper/main.tex"])
 
         assert result.passed is False
         assert result.details[0].storage_valid is False
@@ -216,12 +216,12 @@ class TestCommit:
                 (0, "", ""),       # git commit
                 (0, "abc1234", ""),  # git rev-parse
             ]
-            result = cmd_commit(tmp_path, "test: commit message", files=[".gpd/STATE.md"])
+            result = cmd_commit(tmp_path, "test: commit message", files=["GPD/STATE.md"])
 
         assert result.committed is True
         assert result.sha == "abc1234"
         assert result.message == "test: commit message"
-        mock_precheck.assert_called_once_with(tmp_path, [".gpd/STATE.md"])
+        mock_precheck.assert_called_once_with(tmp_path, ["GPD/STATE.md"])
 
     def test_nothing_to_commit(self, tmp_path: Path) -> None:
         with (
@@ -293,10 +293,10 @@ class TestCommit:
                 (0, "def5678", ""),  # rev-parse
             ]
             cmd_commit(tmp_path, "test: default staging")
-            # Verify the git add was called with .gpd/
+            # Verify the git add was called with GPD/
             add_call = mock_git.call_args_list[0]
-            assert ".gpd/" in add_call[0][1]
-            mock_precheck.assert_called_once_with(tmp_path, [".gpd/"])
+            assert "GPD/" in add_call[0][1]
+            mock_precheck.assert_called_once_with(tmp_path, ["GPD/"])
 
     def test_empty_files_defaults_to_planning_dir(self, tmp_path: Path) -> None:
         with (
@@ -315,8 +315,8 @@ class TestCommit:
             ]
             cmd_commit(tmp_path, "test: default staging", files=[])
             add_call = mock_git.call_args_list[0]
-            assert ".gpd/" in add_call[0][1]
-            mock_precheck.assert_called_once_with(tmp_path, [".gpd/"])
+            assert "GPD/" in add_call[0][1]
+            mock_precheck.assert_called_once_with(tmp_path, ["GPD/"])
 
     def test_commit_blocks_when_pre_commit_check_fails(self, tmp_path: Path) -> None:
         pre_commit = PreCommitCheckResult(
@@ -342,7 +342,7 @@ class TestCommit:
             patch("gpd.core.git_ops.cmd_pre_commit_check") as mock_precheck,
             patch("gpd.core.git_ops._exec_git") as mock_git,
         ):
-            result = cmd_commit(tmp_path, "test: skipped", files=[".gpd/STATE.md"])
+            result = cmd_commit(tmp_path, "test: skipped", files=["GPD/STATE.md"])
 
         assert result.committed is False
         assert result.skipped is True
@@ -364,10 +364,10 @@ class TestCommitCLI:
         mock_commit.return_value = CommitResult(
             committed=True,
             message="test: message",
-            files=[".gpd/STATE.md"],
+            files=["GPD/STATE.md"],
             sha="abc1234",
         )
-        result = runner.invoke(app, ["commit", "test: message", "--files", ".gpd/STATE.md"])
+        result = runner.invoke(app, ["commit", "test: message", "--files", "GPD/STATE.md"])
         assert result.exit_code == 0
         mock_commit.assert_called_once()
 
@@ -398,7 +398,7 @@ class TestCommitCLI:
             passed=True,
             files_checked=1,
         )
-        result = runner.invoke(app, ["pre-commit-check", "--files", ".gpd/STATE.md"])
+        result = runner.invoke(app, ["pre-commit-check", "--files", "GPD/STATE.md"])
         assert result.exit_code == 0
         mock_check.assert_called_once()
 
@@ -407,18 +407,18 @@ class TestCommitCLI:
         mock_commit.return_value = CommitResult(
             committed=True,
             message="test: message",
-            files=[".gpd/PROJECT.md", ".gpd/state.json"],
+            files=["GPD/PROJECT.md", "GPD/state.json"],
             sha="abc1234",
         )
         result = runner.invoke(
             app,
-            ["commit", "test: message", "--files", ".gpd/PROJECT.md", ".gpd/state.json"],
+            ["commit", "test: message", "--files", "GPD/PROJECT.md", "GPD/state.json"],
         )
         assert result.exit_code == 0
         mock_commit.assert_called_once_with(
             ANY,
             "test: message",
-            files=[".gpd/PROJECT.md", ".gpd/state.json"],
+            files=["GPD/PROJECT.md", "GPD/state.json"],
         )
 
     @patch("gpd.core.git_ops.cmd_pre_commit_check")
@@ -429,12 +429,12 @@ class TestCommitCLI:
         )
         result = runner.invoke(
             app,
-            ["pre-commit-check", "--files", ".gpd/PROJECT.md", ".gpd/state.json"],
+            ["pre-commit-check", "--files", "GPD/PROJECT.md", "GPD/state.json"],
         )
         assert result.exit_code == 0
         mock_check.assert_called_once_with(
             ANY,
-            [".gpd/PROJECT.md", ".gpd/state.json"],
+            ["GPD/PROJECT.md", "GPD/state.json"],
         )
 
     @patch("gpd.core.git_ops.cmd_pre_commit_check")

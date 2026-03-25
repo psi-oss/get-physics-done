@@ -33,8 +33,8 @@ Output: Phase deleted, all subsequent phases renumbered, gpd commit as historica
 <context>
 Phase: $ARGUMENTS
 
-@.gpd/ROADMAP.md
-@.gpd/STATE.md
+@GPD/ROADMAP.md
+@GPD/STATE.md
 </context>
 
 <process>

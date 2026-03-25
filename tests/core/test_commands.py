@@ -111,6 +111,11 @@ class TestSummaryExtract:
             tmp_path,
             (
                 "---\n"
+                'phase: "01"\n'
+                'plan: "01"\n'
+                "depth: standard\n"
+                "provides: []\n"
+                'completed: "2026-03-22"\n'
                 "one-liner: Phase completed successfully\n"
                 "key-files:\n  - src/main.py\n"
                 "methods:\n  added:\n    - finite-difference\n"
@@ -132,7 +137,18 @@ class TestSummaryExtract:
 
     def test_field_filter(self, tmp_path: Path):
         path = self._write_summary(
-            tmp_path, ("---\none-liner: filtered test\naffects:\n  - phase-2\n---\n\n# Summary\n")
+            tmp_path,
+            (
+                "---\n"
+                'phase: "01"\n'
+                'plan: "01"\n'
+                "depth: standard\n"
+                "provides: []\n"
+                'completed: "2026-03-22"\n'
+                "one-liner: filtered test\n"
+                "affects:\n  - phase-2\n"
+                "---\n\n# Summary\n"
+            ),
         )
         result = cmd_summary_extract(tmp_path, path, fields=["one_liner"])
         assert isinstance(result, dict)
@@ -141,14 +157,32 @@ class TestSummaryExtract:
 
     def test_body_one_liner_fallback(self, tmp_path: Path):
         path = self._write_summary(
-            tmp_path, ("---\nphase: 01\n---\n\n# Phase 1 Summary\n\n**Derived the Lagrangian**\n")
+            tmp_path,
+            (
+                "---\n"
+                "phase: 01\n"
+                "plan: 01\n"
+                "depth: standard\n"
+                "provides: []\n"
+                "completed: 2026-03-22\n"
+                "---\n\n# Phase 1 Summary\n\n**Derived the Lagrangian**\n"
+            ),
         )
         result = cmd_summary_extract(tmp_path, path)
         assert result.one_liner == "Derived the Lagrangian"
 
     def test_key_results_section(self, tmp_path: Path):
         path = self._write_summary(
-            tmp_path, ("---\nphase: 01\n---\n\n## Key Results\n\nSome results here.\n\n## Next Steps\n\nDo more.\n")
+            tmp_path,
+            (
+                "---\n"
+                "phase: 01\n"
+                "plan: 01\n"
+                "depth: standard\n"
+                "provides: []\n"
+                "completed: 2026-03-22\n"
+                "---\n\n## Key Results\n\nSome results here.\n\n## Next Steps\n\nDo more.\n"
+            ),
         )
         result = cmd_summary_extract(tmp_path, path)
         assert result.key_results == "Some results here."
@@ -167,7 +201,7 @@ class TestSummaryExtract:
 
 class TestHistoryDigest:
     def _setup_phases(self, tmp_path: Path) -> None:
-        phases_dir = tmp_path / ".gpd" / "phases"
+        phases_dir = tmp_path / "GPD" / "phases"
         for name in ("01-setup", "02-core"):
             d = phases_dir / name
             d.mkdir(parents=True)
@@ -210,7 +244,7 @@ class TestHistoryDigest:
         assert result.methods == []
 
     def test_no_phases_dir(self, tmp_path: Path):
-        (tmp_path / ".gpd").mkdir()
+        (tmp_path / "GPD").mkdir()
         result = cmd_history_digest(tmp_path)
         assert result.phases == {}
 
@@ -220,7 +254,7 @@ class TestHistoryDigest:
 
 class TestRegressionCheck:
     def _setup_complete_phases(self, tmp_path: Path) -> None:
-        phases = tmp_path / ".gpd" / "phases"
+        phases = tmp_path / "GPD" / "phases"
         for name in ("01-setup", "02-core"):
             d = phases / name
             d.mkdir(parents=True)
@@ -238,7 +272,7 @@ class TestRegressionCheck:
     def test_convention_conflict(self, tmp_path: Path):
         self._setup_complete_phases(tmp_path)
         # Add a conflicting convention in phase 2
-        phase2_dir = tmp_path / ".gpd" / "phases" / "02-core"
+        phase2_dir = tmp_path / "GPD" / "phases" / "02-core"
         (phase2_dir / "02-core-01-SUMMARY.md").write_text(
             "---\nconventions:\n  - metric = mostly-plus\n---\n\n# Summary\n"
         )
@@ -250,7 +284,7 @@ class TestRegressionCheck:
 
     def test_verification_gap(self, tmp_path: Path):
         self._setup_complete_phases(tmp_path)
-        phase1_dir = tmp_path / ".gpd" / "phases" / "01-setup"
+        phase1_dir = tmp_path / "GPD" / "phases" / "01-setup"
         (phase1_dir / "01-setup-VERIFICATION.md").write_text(
             "---\nstatus: gaps_found\nscore: 2/5 checks verified\n---\n\n# Verification\n"
         )
@@ -260,8 +294,31 @@ class TestRegressionCheck:
         assert len(issues) == 1
         assert issues[0].gap_count == 3
 
+    def test_phase_scope_limits_checks_to_requested_phase(self, tmp_path: Path):
+        self._setup_complete_phases(tmp_path)
+        phase2_dir = tmp_path / "GPD" / "phases" / "02-core"
+        (phase2_dir / "02-core-01-SUMMARY.md").write_text(
+            "---\nconventions:\n  - metric = mostly-plus\n---\n\n# Summary\n"
+        )
+        result = cmd_regression_check(tmp_path, phase="1")
+        assert result.passed is True
+        assert result.phases_checked == 1
+
+    def test_invalid_verification_status_is_flagged(self, tmp_path: Path):
+        self._setup_complete_phases(tmp_path)
+        phase1_dir = tmp_path / "GPD" / "phases" / "01-setup"
+        (phase1_dir / "01-setup-VERIFICATION.md").write_text(
+            "---\nstatus: validating\nscore: 2/5 checks verified\n---\n\n# Verification\n"
+        )
+        result = cmd_regression_check(tmp_path)
+        assert result.passed is False
+        issues = [i for i in result.issues if i.type == "invalid_verification_status"]
+        assert len(issues) == 1
+        assert issues[0].status == "validating"
+        assert "must be one of" in (issues[0].error or "")
+
     def test_quick_mode_limits_phases(self, tmp_path: Path):
-        phases = tmp_path / ".gpd" / "phases"
+        phases = tmp_path / "GPD" / "phases"
         for i in range(1, 6):
             name = f"{str(i).zfill(2)}-phase{i}"
             d = phases / name

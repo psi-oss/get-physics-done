@@ -82,9 +82,9 @@ Present removal summary and confirm:
 Removing Phase {target}: {Name}
 
 This will:
-- Delete: .gpd/phases/{target}-{slug}/
+- Delete: GPD/phases/{target}-{slug}/
 - Renumber all subsequent phases
-- Update: ROADMAP.md, STATE.md
+- Update: ROADMAP.md, STATE.md, checkpoint shelf artifacts
 
 Proceed? (y/n)
 ```
@@ -115,6 +115,7 @@ The CLI handles:
 - Renaming all files inside renumbered directories (PLAN.md, SUMMARY.md, etc.)
 - Updating ROADMAP.md (removing section, renumbering all phase references, updating dependencies)
 - Updating STATE.md (decrementing phase count)
+- Regenerating `GPD/CHECKPOINTS.md` and `GPD/phase-checkpoints/*.md`
 
 Extract from result: `removed`, `directory_deleted`, `renamed_directories`, `renamed_files`, `roadmap_updated`, `state_updated`.
 </step>
@@ -123,11 +124,11 @@ Extract from result: `removed`, `directory_deleted`, `renamed_directories`, `ren
 Stage and commit the removal:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/ROADMAP.md GPD/STATE.md GPD/state.json GPD/CHECKPOINTS.md GPD/phase-checkpoints 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit "chore: remove phase {target} ({original-phase-name})" \
-  --files .gpd/phases/ .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json
+  --files GPD/phases/ GPD/ROADMAP.md GPD/STATE.md GPD/state.json GPD/CHECKPOINTS.md GPD/phase-checkpoints
 ```
 
 The commit message preserves the historical record of what was removed.
@@ -140,9 +141,9 @@ Present completion summary:
 Phase {target} ({original-name}) removed.
 
 Changes:
-- Deleted: .gpd/phases/{target}-{slug}/
+- Deleted: GPD/phases/{target}-{slug}/
 - Renumbered: {N} directories and {M} files
-- Updated: ROADMAP.md, STATE.md
+- Updated: ROADMAP.md, STATE.md, checkpoint shelf artifacts
 - Committed: chore: remove phase {target} ({original-name})
 
 ---
@@ -176,6 +177,7 @@ Phase removal is complete when:
 
 - [ ] Target phase validated as future/unstarted
 - [ ] `gpd phase remove` executed successfully
+- [ ] `GPD/CHECKPOINTS.md` and `GPD/phase-checkpoints/*.md` resynced
 - [ ] Changes committed with descriptive message
 - [ ] User informed of changes
 

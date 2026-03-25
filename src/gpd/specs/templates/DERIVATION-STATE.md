@@ -4,7 +4,7 @@ template_version: 1
 
 # Derivation State Template
 
-Template for `.gpd/DERIVATION-STATE.md` — cumulative record of equations, conventions, and intermediate results across all sessions.
+Template for `GPD/DERIVATION-STATE.md` — cumulative record of equations, conventions, and intermediate results across all sessions.
 
 **Purpose:** Survive context resets. Each session appends its key equations, conventions, and results here via the pause-work workflow. This file is append-only (except pruning) and is read by resume-work to restore derivation context.
 
@@ -78,7 +78,7 @@ This file is append-only. Pruning rules apply (see bottom).
 2. **Remove completed-phase entries.** When a phase is fully verified and archived (milestone complete), its session entries can be pruned. Key equations should already be in the phase SUMMARY.md.
 3. **Never prune the most recent session** even if its phase is complete — it may contain context needed for the next phase.
 4. **Preserve cross-phase equations.** If an equation from an old session is referenced by `depends_on` in a current intermediate result, do not prune that session.
-5. **Git preserves history.** Pruned content is recoverable via `git log -p -- .gpd/DERIVATION-STATE.md`.
+5. **Git preserves history.** Pruned content is recoverable via `git log -p -- GPD/DERIVATION-STATE.md`.
 ```
 
 <guidelines>

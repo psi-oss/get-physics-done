@@ -305,7 +305,7 @@ AGENT_DEFAULT_TIERS: dict[str, ModelTier] = {
 
 
 class GPDProjectConfig(BaseModel):
-    """Configuration for a GPD project, loaded from .gpd/config.json.
+    """Configuration for a GPD project, loaded from GPD/config.json.
 
     Named GPDProjectConfig to distinguish it from other shared project
     contracts. This model controls project-level workflow settings
@@ -814,7 +814,7 @@ def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
 
 @instrument_gpd_function("config.load")
 def load_config(project_dir: Path) -> GPDProjectConfig:
-    """Load GPD config from .gpd/config.json with defaults.
+    """Load GPD config from GPD/config.json with defaults.
 
     Raises on malformed JSON. Returns defaults if file doesn't exist.
     """

@@ -34,8 +34,8 @@ Typical research phases include:
   </objective>
 
 <execution_context>
-@.gpd/ROADMAP.md
-@.gpd/STATE.md
+@GPD/ROADMAP.md
+@GPD/STATE.md
 @{GPD_INSTALL_DIR}/workflows/add-phase.md
 </execution_context>
 

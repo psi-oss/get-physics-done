@@ -2,7 +2,7 @@
 Use this workflow when:
 - Starting a new session on an existing research project
 - User says "continue", "what's next", "where were we", "resume"
-- Any planning operation when .gpd/ already exists
+- Any planning operation when GPD/ already exists
 - User returns after time away from project
 </trigger>
 
@@ -13,6 +13,7 @@ Instantly restore full research project context so "Where were we?" has an immed
 <required_reading>
 @{GPD_INSTALL_DIR}/references/orchestration/continuation-format.md
 @{GPD_INSTALL_DIR}/references/orchestration/state-portability.md
+@{GPD_INSTALL_DIR}/templates/state-json-schema.md
 </required_reading>
 
 <process>
@@ -28,13 +29,17 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_exists`, `has_interrupted_agent`, `interrupted_agent_id`, `commit_docs`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `active_execution_segment`, `segment_candidates`, `resume_mode`, `execution_resumable`, `execution_resume_file`, `execution_paused_at`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`.
+Parse JSON for: `state_exists`, `roadmap_exists`, `project_exists`, `planning_exists`, `has_interrupted_agent`, `interrupted_agent_id`, `commit_docs`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `active_execution_segment`, `segment_candidates`, `resume_mode`, `execution_resumable`, `execution_resume_file`, `execution_resume_file_source`, `current_execution_resume_file`, `session_resume_file`, `execution_paused_at`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`, `machine_change_detected`, `machine_change_notice`, `current_hostname`, `current_platform`, `session_hostname`, `session_platform`.
+
+`state_exists` means INIT could recover usable state from `GPD/state.json`, `GPD/state.json.bak`, or `GPD/STATE.md`. A stray unreadable file path by itself does not count as recoverable state.
 
 **If `state_exists` is true:** Proceed to load_state
 **If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md
 **If `planning_exists` is false:** This is a new project - route to /gpd:new-project
 
 If `resume_mode="bounded_segment"` and `active_execution_segment` exists, treat that as the primary resume target. Do not infer a second resume system from ad hoc handoff files.
+
+If `active_execution_segment` exists but `current_execution_resume_file` is empty, non-project, or missing on disk, treat that live snapshot as advisory context only. It can explain the last gate or paused work, but it is not a ranked bounded-segment resume candidate and does not justify `resume_mode="bounded_segment"`.
 
 If `active_execution_segment.pre_fanout_review_pending` is true, the gate is still live even when a resume file exists. If `active_execution_segment.pre_fanout_review_cleared` is true, the review outcome was recorded but the separate fanout unlock is still missing.
 
@@ -43,13 +48,15 @@ If `active_execution_segment.first_result_gate_pending` is true, do not treat la
 
 <step name="load_state">
 
-**machine_change_detection:** Before restoring context, compare the current hostname and platform with the session info stored in state.json. If they differ, display a notice that the project was last active on a different machine and recommend running the installer to ensure runtime-specific config is current. This is advisory, not blocking — the .gpd/ state itself is portable.
+**machine_change_detection:** Compare the current hostname/platform with `session.hostname` and `session.platform` from `state.json`. If they differ, display the non-blocking machine-change notice from INIT and recommend rerunning the installer so runtime-local config stays current. The project state itself remains portable and does not require repair.
+
+**session_resume_file:** `execution_resume_file` is surfaced from the live execution snapshot or `session.resume_file` for display and logging. The runtime also ranks `session.resume_file` as a `session_resume_file` handoff candidate in `segment_candidates` when it is distinct from the live execution resume file. Treat it as informational continuity metadata, not as proof that a resumable bounded segment still exists.
 
 Read and parse STATE.md, then PROJECT.md:
 
 ```bash
-cat .gpd/STATE.md
-cat .gpd/PROJECT.md
+cat GPD/STATE.md
+cat GPD/PROJECT.md
 ```
 
 **From STATE.md extract:**
@@ -60,7 +67,7 @@ cat .gpd/PROJECT.md
 - **Recent Decisions**: Key decisions affecting current work (method choices, convention selections, approximation schemes)
 - **Pending Todos**: Ideas captured during sessions
 - **Blockers/Concerns**: Issues carried forward (divergences, instabilities, missing data)
-- **Session Continuity**: Where we left off, any resume files
+- **Session Continuity**: Last session timestamp, stopped-at handoff, resume file pointer, previous hostname/platform, and any machine-change notice
 
 **From PROJECT.md extract:**
 
@@ -72,24 +79,28 @@ cat .gpd/PROJECT.md
 
 **Machine-readable carry-forward context from INIT JSON:**
 
-- `project_contract` is the authoritative structured scoping and anchor contract when present.
+- `project_contract` is the authoritative structured scoping and anchor contract only when `project_contract_load_info` is clean and `project_contract_validation` passes.
+- `project_contract_load_info` records whether that contract loaded cleanly and what blocked it if not.
+- `project_contract_validation` is the approval gate for treating the structured contract as authoritative.
 - `effective_reference_intake` is the authoritative carry-forward ledger for must-read refs, prior outputs, baselines, user anchors, and context gaps.
 - `active_reference_context` and `reference_artifacts_content` are readability aids for that ledger, not substitutes for it.
 - Do not reconstruct contract-critical anchors only from `STATE.md` / `PROJECT.md` prose when INIT already provided the structured ledger.
+- If the current readable `state.json` carries a malformed `project_contract`, surface that primary-state block. Do not silently promote `state.json.bak` as the current authoritative contract while the live state file is still readable.
+- If `project_contract_load_info.status` starts with `blocked` or `project_contract_validation.valid` is false, present that contract as visible-but-blocked and route the next action to contract repair before planning or execution.
 
 </step>
 
 <step name="restore_persistent_state">
-**Read cumulative derivation history from `.gpd/DERIVATION-STATE.md`:**
+**Read cumulative derivation history from `GPD/DERIVATION-STATE.md`:**
 
 This step reconstructs the full derivation history that has accumulated across
 all previous sessions, preventing lossy compression across context resets.
 
 ```bash
 # Check if persistent derivation state exists
-if [ -f .gpd/DERIVATION-STATE.md ]; then
+if [ -f GPD/DERIVATION-STATE.md ]; then
   echo "=== DERIVATION-STATE.md found ==="
-  cat .gpd/DERIVATION-STATE.md
+  cat GPD/DERIVATION-STATE.md
 else
   echo "No DERIVATION-STATE.md found (first session or pre-persistence project)"
 fi
@@ -102,25 +113,25 @@ fi
 Before loading DERIVATION-STATE.md into context, enforce the hard cap to keep the file bounded:
 
 ```bash
-SESSION_COUNT=$(grep -c "^## Session:" .gpd/DERIVATION-STATE.md 2>/dev/null || echo 0)
+SESSION_COUNT=$(grep -c "^## Session:" GPD/DERIVATION-STATE.md 2>/dev/null || echo 0)
 
 if [ "$SESSION_COUNT" -gt 5 ]; then
   echo "DERIVATION-STATE.md has ${SESSION_COUNT} session blocks (cap: 5). Pruning oldest..."
 
   # Atomic read-modify-write: write to PID-unique .tmp, validate, then replace
-  TMP_FILE=".gpd/DERIVATION-STATE.md.tmp.$$"
+  TMP_FILE="GPD/DERIVATION-STATE.md.tmp.$$"
   trap "rm -f '$TMP_FILE'" EXIT
 
-  KEEP_FROM=$(grep -n "^## Session:" .gpd/DERIVATION-STATE.md | tail -5 | head -1 | cut -d: -f1)
-  HEADER_END=$(grep -n "^## Session:" .gpd/DERIVATION-STATE.md | head -1 | cut -d: -f1)
+  KEEP_FROM=$(grep -n "^## Session:" GPD/DERIVATION-STATE.md | tail -5 | head -1 | cut -d: -f1)
+  HEADER_END=$(grep -n "^## Session:" GPD/DERIVATION-STATE.md | head -1 | cut -d: -f1)
   HEADER_END=$((HEADER_END - 1))
   {
-    head -n "$HEADER_END" .gpd/DERIVATION-STATE.md
+    head -n "$HEADER_END" GPD/DERIVATION-STATE.md
     echo ""
     echo "> Older session entries archived in git history."
-    echo "> Use \`git log -p -- .gpd/DERIVATION-STATE.md\` to recover."
+    echo "> Use \`git log -p -- GPD/DERIVATION-STATE.md\` to recover."
     echo ""
-    tail -n +"$KEEP_FROM" .gpd/DERIVATION-STATE.md
+    tail -n +"$KEEP_FROM" GPD/DERIVATION-STATE.md
   } > "$TMP_FILE"
 
   TMP_LINES=$(wc -l < "$TMP_FILE")
@@ -131,7 +142,7 @@ if [ "$SESSION_COUNT" -gt 5 ]; then
     echo "WARNING: Pruned file missing required header. Keeping original."
     rm -f "$TMP_FILE"
   else
-    cp "$TMP_FILE" .gpd/DERIVATION-STATE.md && \
+    cp "$TMP_FILE" GPD/DERIVATION-STATE.md && \
       rm -f "$TMP_FILE" || \
       echo "WARNING: Failed to replace DERIVATION-STATE.md. Original preserved."
   fi
@@ -189,7 +200,7 @@ Look for incomplete work that needs attention:
 
 ```bash
 # Check for plans without summaries (incomplete execution)
-for plan in .gpd/phases/*/*-PLAN.md; do
+for plan in GPD/phases/*/*-PLAN.md; do
   summary="${plan/PLAN/SUMMARY}"
   [ ! -f "$summary" ] && echo "Incomplete: $plan"
 done 2>/dev/null
@@ -200,13 +211,11 @@ if [ "$has_interrupted_agent" = "true" ]; then
 fi
 ```
 
-**Bounded execution segment detection:** If `active_execution_segment` is present, treat pause, checkpoint waiting, interrupted scaleout, first-result review, pre-fanout review, and skeptical re-questioning as the same family of resumable state. Do NOT treat git rollback tags, interrupted agents, and paused review gates as separate resume systems; normalize them into one ranked `segment_candidates` list.
+**Bounded execution segment detection:** If `active_execution_segment` is present, `execution_resumable` is true, and `current_execution_resume_file` is present, treat that live snapshot as the primary resume target. The runtime currently ranks only a resumable live execution snapshot with a portable repo-local resume pointer, a non-resumable `session_resume_file` handoff candidate, and an interrupted-agent marker as resume candidates. If the live snapshot lacks a portable usable resume file, keep it visible only as advisory context. Do NOT invent additional candidates from plan files without summaries, auto-checkpoints, or other ad hoc checkpoints.
 
 Reason-scoped clears still matter on resume: a `first_result` clear does not retire `pre_fanout` or skeptical fields, and a `fanout unlock` does not clear the review gate by itself.
 
 When resuming from `first_result` or skeptical state, ask one concrete question first: "What decisive evidence is still owed before downstream work is trustworthy?" Do not resume fanout based only on proxy-looking success or "seems on track" prose.
-
-**Auto-checkpoint detection:** Check `state.json` for `auto_checkpoint` field. If present and newer than the current execution snapshot, warn: "Auto-checkpoint detected -- work may have continued after the last recorded gate. Review state.json auto_checkpoint for details."
 
 **Context budget note:** Context restoration (loading STATE.md, DERIVATION-STATE.md, PROJECT.md, the active execution snapshot, and roadmap) consumes approximately 15-20% of a fresh context window. Budget the remaining ~80% for actual research work. If the project has extensive derivation history or many prior decisions, restoration may consume up to 25%.
 
@@ -254,6 +263,29 @@ Present complete research project status to user:
     - Last result obtained: [most recent intermediate result]
     - Next planned step: [what was planned before pausing]
 
+[If execution_resume_file exists but there is no active execution segment:]
+>> Session resume file recorded:
+    - Resume artifact: [execution_resume_file]
+    - Status: informational only; no resumable live execution snapshot is currently active
+
+[If active_execution_segment exists but `current_execution_resume_file` is empty:]
+>> Live execution snapshot detected:
+    - Status: advisory only; the stored resume pointer is not portable or no longer resolves
+    - Use: recover context about the last gate or paused task, but do not treat it as a resumable bounded segment
+
+[If machine_change_detected is true:]
+>> Machine change detected:
+    - Last active on: [session_hostname] ([session_platform])
+    - Current machine: [current_hostname] ([current_platform])
+    - Action: rerun the installer if runtime-local config may be stale
+
+[If `project_contract_load_info.status` starts with `blocked` or `project_contract_validation.valid` is false:]
+>> Contract repair required:
+    - Load status: [project_contract_load_info.status]
+    - Blocking detail: [first blocker or validation error]
+    - Action: repair the contract/state integrity issue before planning or execution
+    - Note: the structured contract stays visible for context, but it is not approved execution scope
+
 [If active_execution_segment is waiting on review:]
 >> Live execution gate detected:
     - Gate: [checkpoint_reason]
@@ -299,6 +331,14 @@ Based on project state, determine the most logical next action:
 -> If `checkpoint_reason=first_result`, `checkpoint_reason=pre_fanout`, or skeptical re-questioning is required: treat the next action as a review/replan decision whenever decisive evidence is still missing, not a routine execution resume
 -> Do not resume downstream fanout until the gate has an explicit clear/override outcome and, for `pre_fanout`, the matching fanout-unlock transition
 -> Option: Review another ranked resume candidate from `segment_candidates`
+
+**If `active_execution_segment` exists but `current_execution_resume_file` is empty:**
+-> Primary: Treat the live snapshot as advisory continuity context only and prefer a valid `session_resume_file` handoff or repair action
+-> Option: Inspect the live gate state without claiming the bounded segment is directly resumable
+
+**If `project_contract_load_info.status` starts with `blocked` or `project_contract_validation.valid` is false:**
+-> Primary: Repair the blocked contract or state-integrity issue before planning or execution
+-> Option: Inspect the blocked contract context and supporting diagnostics without resuming downstream work
 
 **If interrupted agent exists:**
 -> Primary: Resume interrupted agent (Task tool with resume parameter)
@@ -352,7 +392,7 @@ What would you like to do?
 **Note:** When offering phase planning, check for CONTEXT.md existence first:
 
 ```bash
-ls .gpd/phases/${current_phase_slug}/*-CONTEXT.md 2>/dev/null
+ls GPD/phases/${current_phase_slug}/*-CONTEXT.md 2>/dev/null
 ```
 
 If missing, suggest discuss-phase before plan. If exists, offer plan directly.
@@ -402,7 +442,7 @@ Based on user selection, route to appropriate workflow:
   ```
 
 - **Transition** -> ./transition.md
-- **Check todos** -> Read .gpd/todos/pending/, present summary
+- **Check todos** -> Read GPD/todos/pending/, present summary
 - **Review alignment** -> Read PROJECT.md, compare to current state
 - **Something else** -> Ask what they need
   </step>
@@ -414,7 +454,7 @@ Before proceeding to routed workflow, update session continuity via CLI
 ```bash
 gpd state record-session \
   --stopped-at "Session resumed, proceeding to [action]" \
-  --resume-file "[updated if applicable, or omit flag]"
+  --resume-file "[updated if applicable; omit to keep the current pointer, or pass `—` to clear it]"
 ```
 
 This ensures if session ends unexpectedly, next resume knows the state.
@@ -430,7 +470,7 @@ If STATE.md is missing but other artifacts exist:
 1. Read PROJECT.md -> Extract "What This Is" and Core Research Question
 2. Read ROADMAP.md -> Determine phases, find current position
 3. Scan \*-SUMMARY.md files -> Extract decisions, concerns
-4. Count pending todos in .gpd/todos/pending/
+4. Count pending todos in GPD/todos/pending/
 5. Check current execution snapshot -> Session continuity
 
 Reconstruct and write STATE.md, then proceed normally.
@@ -439,7 +479,7 @@ This handles cases where:
 
 - Project predates STATE.md introduction
 - File was accidentally deleted
-- Cloning repo without full .gpd/ state
+- Cloning repo without full GPD/ state
   </reconstruction>
 
 <quick_resume>

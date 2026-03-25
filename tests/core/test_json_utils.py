@@ -172,6 +172,18 @@ def test_json_set_json_value(tmp_path):
     assert data["count"] == 42  # parsed as int
 
 
+def test_json_set_malformed_existing_json_does_not_overwrite_file(tmp_path):
+    fp = tmp_path / "broken.json"
+    original = "{not-json"
+    fp.write_text(original, encoding="utf-8")
+
+    result = json_set(str(fp), "task_1", "abc123")
+
+    assert result["updated"] is False
+    assert result["error"] == "existing file contains invalid JSON"
+    assert fp.read_text(encoding="utf-8") == original
+
+
 
 
 def test_json_set_out_of_range_index_no_write(tmp_path):

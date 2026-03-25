@@ -38,7 +38,7 @@ The benchmark was recovered within tolerance.
             {
                 "version": 1,
                 "paper_title": "Benchmark Paper",
-                "journal": "prd",
+                "journal": "jhep",
                 "created_at": "2026-03-13T00:00:00+00:00",
                 "artifacts": [],
             }
@@ -67,7 +67,7 @@ The benchmark was recovered within tolerance.
         ),
     )
     _write(
-        tmp_path / ".gpd" / "paper" / "FIGURE_TRACKER.md",
+        tmp_path / "GPD" / "paper" / "FIGURE_TRACKER.md",
         """---
 figure_registry:
   - id: fig-benchmark
@@ -83,23 +83,23 @@ figure_registry:
     caption_self_contained: true
     colorblind_safe: true
     comparison_sources:
-      - .gpd/comparisons/benchmark-COMPARISON.md
+      - GPD/comparisons/benchmark-COMPARISON.md
 ---
 
 # Figure Tracker
 """,
     )
     _write(
-        tmp_path / ".gpd" / "comparisons" / "benchmark-COMPARISON.md",
+        tmp_path / "GPD" / "comparisons" / "benchmark-COMPARISON.md",
         """---
 comparison_kind: benchmark
 comparison_sources:
   - label: theory
     kind: summary
-    path: .gpd/phases/01-benchmark/01-SUMMARY.md
+    path: GPD/phases/01-benchmark/01-SUMMARY.md
   - label: benchmark
     kind: verification
-    path: .gpd/phases/01-benchmark/01-VERIFICATION.md
+    path: GPD/phases/01-benchmark/01-VERIFICATION.md
 protocol_bundle_ids:
   - stat-mech-simulation
 bundle_expectations:
@@ -120,22 +120,22 @@ comparison_verdicts:
 """,
     )
     _write(
-        tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-01-PLAN.md",
+        tmp_path / "GPD" / "phases" / "01-benchmark" / "01-01-PLAN.md",
         (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"),
     )
     _write(
-        tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-SUMMARY.md",
+        tmp_path / "GPD" / "phases" / "01-benchmark" / "01-SUMMARY.md",
         (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8"),
     )
     _write(
-        tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-VERIFICATION.md",
+        tmp_path / "GPD" / "phases" / "01-benchmark" / "01-VERIFICATION.md",
         (FIXTURES_DIR / "verification_with_contract_results.md").read_text(encoding="utf-8"),
     )
 
     result = build_paper_quality_input(tmp_path)
 
     assert result.title == "Benchmark Paper"
-    assert result.journal == "prd"
+    assert result.journal == "jhep"
     assert result.completeness.required_sections_present.satisfied == 3
     assert result.citations.missing_placeholders.passed is True
     assert result.citations.citation_keys_resolve.satisfied == 1
@@ -145,6 +145,142 @@ comparison_verdicts:
     assert result.figures.decisive_artifact_roles_clear.satisfied == 1
     assert result.results.decisive_artifacts_with_explicit_verdicts.satisfied == 1
     assert result.results.decisive_artifacts_benchmark_anchored.satisfied == 1
+
+
+def test_build_paper_quality_input_falls_back_to_supported_config_journal_when_manifest_is_unsupported(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        "\\documentclass{article}\\begin{document}\\begin{abstract}Fallback test.\\end{abstract}\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps({"title": "Config Fallback Title", "journal": "jhep"}),
+    )
+    _write(
+        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Manifest Title",
+                "journal": "prd",
+                "created_at": "2026-03-13T00:00:00+00:00",
+                "artifacts": [],
+            }
+        ),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.title == "Manifest Title"
+    assert result.journal == "jhep"
+
+
+def test_build_paper_quality_input_normalizes_empty_contract_results_reference_lists(tmp_path: Path) -> None:
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
+    _write(
+        plan_dir / "01-01-PLAN.md",
+        (STAGE0_FIXTURES_DIR / "plan_with_contract.md")
+        .read_text(encoding="utf-8")
+        .replace("    must_read_refs: [ref-benchmark]\n", "    must_read_refs: []\n", 1)
+        .replace("      references: [ref-benchmark]\n", "      references: []\n", 1)
+        .replace(
+            """  references:
+    - id: ref-benchmark
+      kind: paper
+      locator: Author et al., Journal, 2024
+      role: benchmark
+      why_it_matters: Published comparison target
+      applies_to: [claim-benchmark]
+      must_surface: true
+      required_actions: [read, compare, cite]
+""",
+            "  references: []\n",
+            1,
+        )
+        .replace("      kind: benchmark\n", "      kind: consistency\n", 1)
+        .replace(
+            "      procedure: Compare against the benchmark reference\n",
+            "      procedure: Compare against the internal baseline calculation\n",
+            1,
+        )
+        .replace(
+            "      pass_condition: Matches reference within tolerance\n",
+            "      pass_condition: Matches internal baseline within tolerance\n",
+            1,
+        )
+        .replace("      evidence_required: [deliv-figure, ref-benchmark]\n", "      evidence_required: [deliv-figure]\n", 1),
+    )
+    _write(
+        plan_dir / "01-SUMMARY.md",
+        """---
+phase: 01-benchmark
+plan: 01
+depth: full
+provides: [benchmark comparison]
+completed: 2026-03-15
+plan_contract_ref: GPD/phases/01-benchmark/01-01-PLAN.md#/contract
+contract_results:
+  claims:
+    claim-benchmark:
+      status: passed
+      summary: Benchmark reproduced within tolerance.
+      linked_ids: [deliv-figure, test-benchmark]
+      evidence:
+        - verifier: gpd-verifier
+          method: internal baseline comparison
+          confidence: high
+          claim_id: claim-benchmark
+          deliverable_id: deliv-figure
+          acceptance_test_id: test-benchmark
+          evidence_path: GPD/phases/01-benchmark/01-VERIFICATION.md
+  deliverables:
+    deliv-figure:
+      status: passed
+      path: figures/benchmark.png
+      summary: Figure produced with uncertainty band and benchmark overlay.
+      linked_ids: [claim-benchmark, test-benchmark]
+      evidence:
+        - verifier: gpd-verifier
+          method: internal baseline comparison
+          confidence: high
+          claim_id: claim-benchmark
+          deliverable_id: deliv-figure
+          acceptance_test_id: test-benchmark
+          evidence_path: GPD/phases/01-benchmark/01-VERIFICATION.md
+  acceptance_tests:
+    test-benchmark:
+      status: passed
+      summary: Internal baseline reproduced within the contracted tolerance.
+      linked_ids: [claim-benchmark, deliv-figure]
+      evidence:
+        - verifier: gpd-verifier
+          method: internal baseline comparison
+          confidence: high
+          claim_id: claim-benchmark
+          deliverable_id: deliv-figure
+          acceptance_test_id: test-benchmark
+          evidence_path: GPD/phases/01-benchmark/01-VERIFICATION.md
+  references: []
+  forbidden_proxies:
+    fp-benchmark:
+      status: rejected
+      notes: Qualitative trend agreement was not accepted without the numerical benchmark check.
+  uncertainty_markers:
+    weakest_anchors: [Reference tolerance interpretation]
+    disconfirming_observations: [Benchmark agreement disappears once normalization is fixed]
+---
+
+# Summary
+""",
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.verification.contract_targets_verified.satisfied == 0
+    assert result.verification.contract_targets_verified.total == 3
+    assert result.verification.key_result_confidences == []
 
 
 def test_build_paper_quality_input_is_conservative_when_artifacts_are_missing(tmp_path: Path) -> None:
@@ -163,6 +299,129 @@ def test_build_paper_quality_input_is_conservative_when_artifacts_are_missing(tm
 
     report = score_paper_quality(result)
     assert report.categories["verification"].checks["contract_targets_verified"] == 5.0
+
+
+def test_build_paper_quality_input_ignores_invalid_artifact_manifest_and_falls_back_to_config(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        "\\documentclass{article}\\begin{document}\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps({"title": "Config Fallback Title", "journal": "jhep"}),
+    )
+    _write(
+        tmp_path / "paper" / "ARTIFACT-MANIFEST.json",
+        json.dumps(
+            {
+                "version": 2,
+                "paper_title": "Broken Manifest Title",
+                "journal": "prd",
+                "created_at": "2026-03-13T00:00:00+00:00",
+                "artifacts": [],
+            }
+        ),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.title == "Config Fallback Title"
+    assert result.journal == "jhep"
+
+
+def test_build_paper_quality_input_ignores_invalid_bibliography_audit(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        r"""
+\documentclass{article}
+\begin{document}
+\section{Introduction}
+See \cite{bench2026}.
+\section{Conclusion}
+Done.
+\end{document}
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "paper" / "refs.bib",
+        "@article{bench2026,\n  title={Benchmark},\n  author={Doe, Jane},\n  year={2026}\n}\n",
+    )
+    _write(
+        tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json",
+        json.dumps(
+            {
+                "generated_at": "2026-03-13T00:00:00+00:00",
+                "total_sources": "one",
+                "resolved_sources": 1,
+                "partial_sources": 0,
+                "unverified_sources": 0,
+                "failed_sources": 0,
+                "entries": "not-a-list",
+            }
+        ),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.citations.citation_keys_resolve.satisfied == 1
+    assert result.citations.citation_keys_resolve.total == 1
+    assert result.citations.hallucination_free.not_applicable is True
+
+
+def test_build_paper_quality_input_requires_decisive_verdicts_for_decisive_artifact_coverage(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "GPD" / "paper" / "FIGURE_TRACKER.md",
+        """---
+figure_registry:
+  - id: fig-benchmark
+    label: "Fig. 1"
+    kind: figure
+    role: benchmark
+    path: paper/figures/benchmark.pdf
+    contract_ids: [claim-benchmark, deliv-figure]
+    decisive: true
+    has_units: true
+    has_uncertainty: true
+    referenced_in_text: true
+    caption_self_contained: true
+    colorblind_safe: true
+    comparison_sources:
+      - GPD/comparisons/benchmark-COMPARISON.md
+---
+
+# Figure Tracker
+""",
+    )
+    _write(
+        tmp_path / "GPD" / "comparisons" / "benchmark-COMPARISON.md",
+        """---
+comparison_kind: benchmark
+comparison_verdicts:
+  - subject_id: claim-benchmark
+    subject_kind: claim
+    subject_role: supporting
+    reference_id: ref-benchmark
+    comparison_kind: benchmark
+    metric: relative_error
+    threshold: "<= 0.01"
+    verdict: pass
+---
+
+# Internal Comparison
+""",
+    )
+    _write(
+        tmp_path / "GPD" / "phases" / "01-benchmark" / "01-01-PLAN.md",
+        (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.results.decisive_artifacts_with_explicit_verdicts.satisfied == 0
+    assert result.results.decisive_artifacts_with_explicit_verdicts.total == 1
+    assert result.results.decisive_artifacts_benchmark_anchored.satisfied == 0
+    assert result.results.decisive_artifacts_benchmark_anchored.total == 1
 
 
 def test_build_paper_quality_input_reads_manuscript_dir_and_config_title(tmp_path: Path) -> None:
@@ -263,7 +522,7 @@ The benchmark remains under active tension.
         + "\n",
     )
     _write(
-        tmp_path / ".gpd" / "paper" / "FIGURE_TRACKER.md",
+        tmp_path / "GPD" / "paper" / "FIGURE_TRACKER.md",
         """---
 figure_registry:
   - id: fig-benchmark
@@ -279,14 +538,14 @@ figure_registry:
     caption_self_contained: true
     colorblind_safe: true
     comparison_sources:
-      - .gpd/comparisons/benchmark-COMPARISON.md
+      - GPD/comparisons/benchmark-COMPARISON.md
 ---
 
 # Figure Tracker
 """,
     )
     _write(
-        tmp_path / ".gpd" / "phases" / "01-benchmark" / "01-SUMMARY.md",
+        tmp_path / "GPD" / "phases" / "01-benchmark" / "01-SUMMARY.md",
         """---
 phase: 01-benchmark
 plan: 01
@@ -308,7 +567,7 @@ comparison_verdicts:
 """,
     )
     _write(
-        tmp_path / ".gpd" / "comparisons" / "benchmark-COMPARISON.md",
+        tmp_path / "GPD" / "comparisons" / "benchmark-COMPARISON.md",
         """---
 comparison_kind: benchmark
 comparison_verdicts:
@@ -334,8 +593,8 @@ comparison_verdicts:
     assert result.results.decisive_comparison_failures_scoped.passed is True
 
 
-def test_build_paper_quality_input_uses_plan_contract_targets_when_summary_ledger_is_partial(tmp_path: Path) -> None:
-    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+def test_build_paper_quality_input_ignores_partial_summary_ledger_for_verified_coverage(tmp_path: Path) -> None:
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
     _write(
         plan_dir / "01-01-SUMMARY.md",
@@ -345,7 +604,7 @@ plan: 01
 depth: full
 provides: [benchmark comparison]
 completed: 2026-03-13
-plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract
+plan_contract_ref: GPD/phases/01-benchmark/01-01-PLAN.md#/contract
 contract_results:
   claims:
     claim-benchmark:
@@ -359,12 +618,92 @@ contract_results:
 
     result = build_paper_quality_input(tmp_path)
 
-    assert result.verification.contract_targets_verified.satisfied == 1
+    assert result.verification.contract_targets_verified.satisfied == 0
     assert result.verification.contract_targets_verified.total == 3
+    assert result.verification.key_result_confidences == []
+
+
+def test_build_paper_quality_input_ignores_mixed_contract_results_ledger_for_coverage_and_confidence(
+    tmp_path: Path,
+) -> None:
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
+    _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
+
+    summary = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8")
+    summary = summary.replace(
+        "  deliverables:\n",
+        """    claim-made-up:
+      status: passed
+      summary: Invalid claim id
+  deliverables:
+""",
+        1,
+    )
+    _write(plan_dir / "01-SUMMARY.md", summary)
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.verification.contract_targets_verified.satisfied == 0
+    assert result.verification.contract_targets_verified.total == 3
+    assert result.verification.key_result_confidences == []
+
+
+def test_build_paper_quality_input_ignores_invalid_contract_results_ledger_for_coverage_and_confidence(
+    tmp_path: Path,
+) -> None:
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
+    _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
+
+    summary = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8")
+    summary = summary.replace(
+        "  uncertainty_markers:\n    weakest_anchors: [Reference tolerance interpretation]\n    disconfirming_observations: [Benchmark agreement disappears once normalization is fixed]\n",
+        "",
+        1,
+    )
+    _write(plan_dir / "01-SUMMARY.md", summary)
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.verification.contract_targets_verified.satisfied == 0
+    assert result.verification.contract_targets_verified.total == 3
+    assert result.verification.key_result_confidences == []
+
+
+def test_build_paper_quality_input_ignores_mixed_comparison_verdict_ledger_for_coverage_and_confidence(
+    tmp_path: Path,
+) -> None:
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
+    _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
+
+    summary = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8")
+    summary = summary.replace(
+        "---\n\n# Summary\n",
+        """  - subject_id: claim-made-up
+    subject_kind: claim
+    subject_role: decisive
+    reference_id: ref-benchmark
+    comparison_kind: benchmark
+    metric: relative_error
+    threshold: "<= 0.02"
+    verdict: pass
+---
+
+# Summary
+""",
+        1,
+    )
+    _write(plan_dir / "01-SUMMARY.md", summary)
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.verification.contract_targets_verified.satisfied == 0
+    assert result.verification.contract_targets_verified.total == 3
+    assert result.verification.key_result_confidences == []
+    assert result.journal_extra_checks["comparison_verdicts_valid"] is False
 
 
 def test_build_paper_quality_input_ignores_invalid_verification_ledger_for_report_passed(tmp_path: Path) -> None:
-    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
     _write(
         plan_dir / "01-VERIFICATION.md",
@@ -373,7 +712,7 @@ phase: 01-benchmark
 verified: 2026-03-13
 status: passed
 score: 0.9
-plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract
+plan_contract_ref: GPD/phases/01-benchmark/01-01-PLAN.md#/contract
 contract_results:
   claims:
     claim-made-up:
@@ -393,7 +732,7 @@ contract_results:
 
 
 def test_build_paper_quality_input_ignores_unresolved_summary_contract_ledger_for_coverage(tmp_path: Path) -> None:
-    plan_dir = tmp_path / ".gpd" / "phases" / "01-benchmark"
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
     _write(
         plan_dir / "01-01-SUMMARY.md",
@@ -403,7 +742,7 @@ plan: 01
 depth: full
 provides: [benchmark comparison]
 completed: 2026-03-13
-plan_contract_ref: .gpd/phases/01-benchmark/01-99-PLAN.md#/contract
+plan_contract_ref: GPD/phases/01-benchmark/01-99-PLAN.md#/contract
 contract_results:
   claims:
     claim-benchmark:
@@ -429,17 +768,20 @@ def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() ->
     internal_template = (repo_root / "src/gpd/specs/templates/paper/internal-comparison.md").read_text(
         encoding="utf-8"
     )
+    experimental_template = (repo_root / "src/gpd/specs/templates/paper/experimental-comparison.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "protocol_bundle_context" in write_paper
     assert "additive specialized-publication guidance" in write_paper
-    assert ".gpd/comparisons/*-COMPARISON.md" in write_paper
+    assert "GPD/comparisons/*-COMPARISON.md" in write_paper
     assert "Do **not** let bundle guidance invent new claims" in write_paper
     assert "Missing generic `verification_status` / `confidence` tags alone are not blockers." in write_paper
     assert "Treat paper-support artifacts as scaffolding, not as proof that a claim is established." in write_paper
 
     assert "protocol_bundle_context" in peer_review
-    assert ".gpd/paper/FIGURE_TRACKER.md" in peer_review
-    assert ".gpd/comparisons/*-COMPARISON.md" in peer_review
+    assert "GPD/paper/FIGURE_TRACKER.md" in peer_review
+    assert "GPD/comparisons/*-COMPARISON.md" in peer_review
     assert "Treat bundle guidance as additive skepticism only." in peer_review
     assert "Review-support artifacts are scaffolding, not substitutes for contract-backed evidence." in peer_review
 
@@ -451,3 +793,6 @@ def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() ->
     assert "protocol_bundle_ids (optional):" in internal_template
     assert "bundle_expectations (optional):" in internal_template
     assert "additive provenance" in internal_template
+    assert "protocol_bundle_ids (optional):" in experimental_template
+    assert "bundle_expectations (optional):" in experimental_template
+    assert "additive provenance" in experimental_template

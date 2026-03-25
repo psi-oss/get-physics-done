@@ -14,6 +14,8 @@ from pathlib import Path
 
 import yaml
 
+from gpd.command_labels import canonical_command_label, canonical_skill_label, command_slug_from_label
+
 # ─── Package layout ──────────────────────────────────────────────────────────
 
 _PKG_ROOT = Path(__file__).resolve().parent  # gpd/
@@ -136,22 +138,120 @@ def _is_frontmatter_delimiter(line: str) -> bool:
     return _FRONTMATTER_DELIMITER_RE.fullmatch(line) is not None
 
 
-def _parse_tools(raw: object) -> list[str]:
-    """Normalize tools field from frontmatter to a list of strings."""
+def _format_frontmatter_field_subject(field_name: str, owner_name: str | None = None) -> str:
+    """Return a field label suitable for targeted validation errors."""
+    if owner_name:
+        return f"{field_name} for {owner_name}"
+    return field_name
+
+
+def _parse_frontmatter_string_field(
+    raw: object,
+    *,
+    field_name: str,
+    owner_name: str,
+    default: str = "",
+    required: bool = False,
+) -> str:
+    """Validate frontmatter scalar fields that must stay strings."""
+    if raw is None:
+        if default:
+            return default
+        if required:
+            subject = _format_frontmatter_field_subject(field_name, owner_name)
+            raise ValueError(f"{subject} must be a non-empty string")
+        return default
+    if not isinstance(raw, str):
+        subject = _format_frontmatter_field_subject(field_name, owner_name)
+        raise ValueError(f"{subject} must be a string")
+    value = raw.strip()
+    if required and not value:
+        subject = _format_frontmatter_field_subject(field_name, owner_name)
+        raise ValueError(f"{subject} must be a non-empty string")
+    return value
+
+
+def _parse_tools(raw: object, *, field_name: str = "tools", owner_name: str | None = None) -> list[str]:
+    """Normalize tools-like frontmatter fields with explicit validation."""
+    if raw is None:
+        return []
     if isinstance(raw, str):
         return [t.strip() for t in raw.split(",") if t.strip()]
-    if isinstance(raw, list):
-        return [str(t) for t in raw]
-    return []
+    if not isinstance(raw, list):
+        subject = _format_frontmatter_field_subject(field_name, owner_name)
+        raise ValueError(f"{subject} must be a string or list of strings")
+
+    values: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            subject = _format_frontmatter_field_subject(field_name, owner_name)
+            raise ValueError(f"{subject} must contain only strings")
+        value = item.strip()
+        if value:
+            values.append(value)
+    return values
 
 
-def _parse_str_list(raw: object) -> list[str]:
-    """Normalize a raw scalar/list field into a list of strings."""
+def _parse_requires(raw: object, *, command_name: str) -> dict[str, object]:
+    """Normalize command requires frontmatter without accepting malformed mappings."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"requires for {command_name} must be a mapping")
+    return raw
+
+
+def _parse_allowed_tools(raw: object, *, command_name: str) -> list[str]:
+    """Normalize command allowed-tools frontmatter without coercing invalid entries."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"allowed-tools for {command_name} must be a list of strings")
+
+    values: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            raise ValueError(f"allowed-tools for {command_name} must contain only strings")
+        value = item.strip()
+        if value:
+            values.append(value)
+    return values
+
+
+def _parse_str_list(raw: object, *, field_name: str, command_name: str) -> list[str]:
+    """Normalize review-contract string list fields with explicit validation."""
+    if raw is None:
+        return []
     if isinstance(raw, str):
-        return [raw]
-    if isinstance(raw, list):
-        return [str(item) for item in raw]
-    return []
+        return [_parse_required_str_field(raw, field_name=field_name, command_name=command_name)]
+    if not isinstance(raw, list):
+        raise ValueError(f"{field_name} for {command_name} must be a string or list of strings")
+
+    values: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            raise ValueError(f"{field_name} for {command_name} must contain only strings")
+        values.append(_parse_required_str_field(item, field_name=field_name, command_name=command_name))
+    return values
+
+
+def _parse_required_str_field(raw: object, *, field_name: str, command_name: str) -> str:
+    """Normalize required review-contract string fields with explicit validation."""
+    if not isinstance(raw, str):
+        raise ValueError(f"{field_name} for {command_name} must be a string")
+    value = raw.strip()
+    if not value:
+        raise ValueError(f"{field_name} for {command_name} must be a non-empty string")
+    return value
+
+
+def _parse_optional_str_field(raw: object, *, field_name: str, command_name: str) -> str:
+    """Normalize optional review-contract string fields without coercing other types."""
+    if raw is None:
+        return ""
+    if not isinstance(raw, str):
+        raise ValueError(f"{field_name} for {command_name} must be a string")
+    return raw.strip()
 
 
 def _parse_bool_field(raw: object, *, field_name: str, command_name: str, default: bool = False) -> bool:
@@ -177,6 +277,8 @@ def _parse_non_negative_int_field(raw: object, *, field_name: str, command_name:
     """Normalize integer-like review-contract fields with explicit validation."""
     if raw is None:
         return default
+    if isinstance(raw, bool):
+        raise ValueError(f"{field_name} for {command_name} must be an integer")
     if isinstance(raw, str):
         stripped = raw.strip()
         if not stripped:
@@ -197,6 +299,18 @@ VALID_AGENT_SURFACES: tuple[str, ...] = ("public", "internal")
 VALID_AGENT_ROLE_FAMILIES: tuple[str, ...] = ("worker", "analysis", "verification", "review", "coordination")
 VALID_AGENT_ARTIFACT_WRITE_AUTHORITIES: tuple[str, ...] = ("scoped_write", "read_only")
 VALID_AGENT_SHARED_STATE_AUTHORITIES: tuple[str, ...] = ("return_only", "direct")
+VALID_REVIEW_MODES: tuple[str, ...] = ("publication", "review")
+VALID_REVIEW_PREFLIGHT_CHECKS: tuple[str, ...] = (
+    "project_state",
+    "roadmap",
+    "conventions",
+    "research_artifacts",
+    "manuscript",
+    "compiled_manuscript",
+    "referee_report_source",
+    "phase_artifacts",
+)
+VALID_REVIEW_REQUIRED_STATES: tuple[str, ...] = ("phase_executed",)
 
 
 def _parse_context_mode(raw: object, *, command_name: str) -> str:
@@ -204,7 +318,9 @@ def _parse_context_mode(raw: object, *, command_name: str) -> str:
     if raw is None:
         return "project-required"
 
-    mode = str(raw).strip().lower()
+    if not isinstance(raw, str):
+        raise ValueError(f"context_mode for {command_name} must be a string")
+    mode = raw.strip().lower()
     if not mode:
         return "project-required"
     if mode not in VALID_CONTEXT_MODES:
@@ -218,7 +334,9 @@ def _parse_commit_authority(raw: object, *, agent_name: str) -> str:
     if raw is None:
         return "orchestrator"
 
-    authority = str(raw).strip().lower()
+    if not isinstance(raw, str):
+        raise ValueError(f"commit_authority for {agent_name} must be a string")
+    authority = raw.strip().lower()
     if not authority:
         return "orchestrator"
     if authority not in VALID_AGENT_COMMIT_AUTHORITIES:
@@ -239,7 +357,9 @@ def _parse_agent_metadata_enum(
     if raw is None:
         return default
 
-    value = str(raw).strip().lower()
+    if not isinstance(raw, str):
+        raise ValueError(f"{field_name} for {agent_name} must be a string")
+    value = raw.strip().lower()
     if not value:
         return default
     if value not in valid_values:
@@ -248,155 +368,155 @@ def _parse_agent_metadata_enum(
     return value
 
 
-_DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {
-    "gpd:write-paper": {
-        "review_mode": "publication",
-        "required_outputs": ["paper/main.tex", ".gpd/REFEREE-REPORT.md", ".gpd/REFEREE-REPORT.tex"],
-        "required_evidence": [
-            "existing manuscript",
-            "phase summaries or milestone digest",
-            "verification reports",
-            "bibliography audit",
-            "artifact manifest",
-            "reproducibility manifest",
-        ],
-        "blocking_conditions": [
-            "missing project state",
-            "missing roadmap",
-            "missing conventions",
-            "missing manuscript",
-            "no research artifacts",
-            "degraded review integrity",
-        ],
-        "preflight_checks": ["project_state", "roadmap", "conventions", "research_artifacts", "manuscript"],
-    },
-    "gpd:respond-to-referees": {
-        "review_mode": "publication",
-        "required_outputs": [".gpd/paper/REFEREE_RESPONSE.md", ".gpd/AUTHOR-RESPONSE.md"],
-        "required_evidence": [
-            "existing manuscript",
-            "structured referee issues",
-            "peer-review review ledger when available",
-            "peer-review decision artifacts when available",
-            "revision verification evidence",
-        ],
-        "blocking_conditions": [
-            "missing project state",
-            "missing manuscript",
-            "degraded review integrity",
-        ],
-        "preflight_checks": ["project_state", "manuscript", "conventions"],
-    },
-    "gpd:peer-review": {
-        "review_mode": "publication",
-        "required_outputs": [
-            ".gpd/review/CLAIMS.json",
-            ".gpd/review/STAGE-reader.json",
-            ".gpd/review/STAGE-literature.json",
-            ".gpd/review/STAGE-math.json",
-            ".gpd/review/STAGE-physics.json",
-            ".gpd/review/STAGE-interestingness.json",
-            ".gpd/review/REVIEW-LEDGER.json",
-            ".gpd/review/REFEREE-DECISION.json",
-            ".gpd/REFEREE-REPORT.md",
-            ".gpd/REFEREE-REPORT.tex",
-            ".gpd/CONSISTENCY-REPORT.md",
-        ],
-        "required_evidence": [
-            "existing manuscript",
-            "phase summaries or milestone digest",
-            "verification reports",
-            "bibliography audit",
-            "artifact manifest",
-            "reproducibility manifest",
-            "stage review artifacts",
-        ],
-        "blocking_conditions": [
-            "missing project state",
-            "missing roadmap",
-            "missing conventions",
-            "missing manuscript",
-            "no research artifacts",
-            "degraded review integrity",
-            "unsupported physical significance claims",
-            "collapsed novelty or venue fit",
-        ],
-        "preflight_checks": ["project_state", "roadmap", "conventions", "research_artifacts", "manuscript"],
-        "stage_ids": ["reader", "literature", "math", "physics", "interestingness", "meta"],
-        "stage_artifacts": [
-            ".gpd/review/CLAIMS.json",
-            ".gpd/review/STAGE-reader.json",
-            ".gpd/review/STAGE-literature.json",
-            ".gpd/review/STAGE-math.json",
-            ".gpd/review/STAGE-physics.json",
-            ".gpd/review/STAGE-interestingness.json",
-            ".gpd/review/REVIEW-LEDGER.json",
-            ".gpd/review/REFEREE-DECISION.json",
-        ],
-        "final_decision_output": ".gpd/review/REFEREE-DECISION.json",
-        "requires_fresh_context_per_stage": True,
-        "max_review_rounds": 3,
-    },
-    "gpd:verify-work": {
-        "review_mode": "review",
-        "required_outputs": [".gpd/phases/XX-name/{phase}-VERIFICATION.md"],
-        "required_evidence": ["roadmap", "phase summaries", "artifact files"],
-        "blocking_conditions": [
-            "missing project state",
-            "missing roadmap",
-            "missing phase artifacts",
-            "degraded review integrity",
-        ],
-        "preflight_checks": ["project_state", "roadmap", "phase_artifacts"],
-        "required_state": "phase_executed",
-    },
-    "gpd:arxiv-submission": {
-        "review_mode": "publication",
-        "required_outputs": ["arxiv-submission.tar.gz"],
-        "required_evidence": ["compiled manuscript", "bibliography audit", "artifact manifest"],
-        "blocking_conditions": [
-            "missing manuscript",
-            "unresolved publication blockers",
-            "degraded review integrity",
-        ],
-        "preflight_checks": ["project_state", "manuscript", "conventions"],
-    },
-}
+def _parse_review_contract_enum_field(
+    raw: object,
+    *,
+    field_name: str,
+    command_name: str,
+    valid_values: tuple[str, ...],
+) -> str:
+    """Normalize review-contract enum fields without coercing unsupported values."""
+    value = _parse_required_str_field(raw, field_name=field_name, command_name=command_name)
+    if value not in valid_values:
+        valid = ", ".join(valid_values)
+        raise ValueError(f"{field_name} for {command_name} must be one of: {valid}; got {value!r}")
+    return value
+
+
+def _parse_review_contract_enum_list(
+    raw: object,
+    *,
+    field_name: str,
+    command_name: str,
+    valid_values: tuple[str, ...],
+) -> list[str]:
+    """Normalize review-contract enum lists without accepting unknown runtime checks."""
+    values = [
+        _parse_required_str_field(value, field_name=field_name, command_name=command_name)
+        for value in _parse_str_list(raw, field_name=field_name, command_name=command_name)
+    ]
+    invalid_values = [value for value in values if value not in valid_values]
+    if invalid_values:
+        valid = ", ".join(valid_values)
+        formatted = ", ".join(repr(value) for value in invalid_values)
+        raise ValueError(f"{field_name} for {command_name} must contain only: {valid}; got {formatted}")
+    return values
+
+
+def _parse_review_contract_required_state(raw: object, *, command_name: str) -> str:
+    """Normalize optional required_state values to the states the CLI evaluates."""
+    if raw is None:
+        return ""
+    if not isinstance(raw, str):
+        raise ValueError(f"required_state for {command_name} must be a string")
+
+    value = raw.strip()
+    if not value:
+        return ""
+    if value not in VALID_REVIEW_REQUIRED_STATES:
+        valid = ", ".join(VALID_REVIEW_REQUIRED_STATES)
+        raise ValueError(f"required_state for {command_name} must be one of: {valid}; got {value!r}")
+    return value
+
+
+_DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {}
+
+_VALID_REVIEW_CONTRACT_KEYS: frozenset[str] = frozenset(
+    {
+        "review_mode",
+        "required_outputs",
+        "required_evidence",
+        "blocking_conditions",
+        "preflight_checks",
+        "stage_ids",
+        "stage_artifacts",
+        "final_decision_output",
+        "requires_fresh_context_per_stage",
+        "max_review_rounds",
+        "required_state",
+        "schema_version",
+    }
+)
+
+
+def _parse_review_contract_schema_version(raw: object, *, command_name: str) -> int:
+    """Validate explicit review-contract schema_version without coercing unsupported values."""
+    if raw is None:
+        raise ValueError(f"review-contract for {command_name} must set schema_version")
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise ValueError(f"schema_version for {command_name} must be the integer 1")
+    if raw != 1:
+        raise ValueError(f"schema_version for {command_name} must be 1")
+    return raw
 
 
 def _parse_review_contract(raw: object, command_name: str, requires: dict[str, object]) -> ReviewCommandContract | None:
-    """Parse review contract frontmatter or provide a typed default for review workflows."""
+    """Parse review-contract frontmatter into a typed contract with no hidden defaults."""
     merged = dict(_DEFAULT_REVIEW_CONTRACTS.get(command_name, {}))
+    if raw is not None and not isinstance(raw, dict):
+        raise ValueError(f"review-contract for {command_name} must be a mapping")
     if isinstance(raw, dict):
+        unknown_keys = sorted(str(key) for key in raw if str(key) not in _VALID_REVIEW_CONTRACT_KEYS)
+        if unknown_keys:
+            formatted = ", ".join(unknown_keys)
+            raise ValueError(f"Unknown review-contract field(s) for {command_name}: {formatted}")
         merged.update(raw)
 
     if not merged:
         return None
 
-    required_state = str(merged.get("required_state", "")).strip()
-    if not required_state:
-        raw_requires_state = requires.get("state")
-        required_state = str(raw_requires_state).strip() if raw_requires_state is not None else ""
-
-    review_mode = str(merged.get("review_mode", "")).strip()
-    if not review_mode:
-        return None
-
-    schema_version_raw = merged.get("schema_version", 1)
-    try:
-        schema_version = int(schema_version_raw)
-    except (TypeError, ValueError):
-        schema_version = 1
+    raw_review_mode = merged.get("review_mode")
+    if raw_review_mode is None:
+        if raw is None:
+            return None
+        raise ValueError(f"review-contract for {command_name} must set review_mode")
+    review_mode = _parse_review_contract_enum_field(
+        raw_review_mode,
+        field_name="review_mode",
+        command_name=command_name,
+        valid_values=VALID_REVIEW_MODES,
+    )
+    schema_version = _parse_review_contract_schema_version(merged.get("schema_version"), command_name=command_name)
+    required_state = _parse_review_contract_required_state(merged.get("required_state"), command_name=command_name)
 
     return ReviewCommandContract(
         review_mode=review_mode,
-        required_outputs=_parse_str_list(merged.get("required_outputs")),
-        required_evidence=_parse_str_list(merged.get("required_evidence")),
-        blocking_conditions=_parse_str_list(merged.get("blocking_conditions")),
-        preflight_checks=_parse_str_list(merged.get("preflight_checks")),
-        stage_ids=_parse_str_list(merged.get("stage_ids")),
-        stage_artifacts=_parse_str_list(merged.get("stage_artifacts")),
-        final_decision_output=str(merged.get("final_decision_output", "")).strip(),
+        required_outputs=_parse_str_list(
+            merged.get("required_outputs"),
+            field_name="required_outputs",
+            command_name=command_name,
+        ),
+        required_evidence=_parse_str_list(
+            merged.get("required_evidence"),
+            field_name="required_evidence",
+            command_name=command_name,
+        ),
+        blocking_conditions=_parse_str_list(
+            merged.get("blocking_conditions"),
+            field_name="blocking_conditions",
+            command_name=command_name,
+        ),
+        preflight_checks=_parse_review_contract_enum_list(
+            merged.get("preflight_checks"),
+            field_name="preflight_checks",
+            command_name=command_name,
+            valid_values=VALID_REVIEW_PREFLIGHT_CHECKS,
+        ),
+        stage_ids=_parse_str_list(
+            merged.get("stage_ids"),
+            field_name="stage_ids",
+            command_name=command_name,
+        ),
+        stage_artifacts=_parse_str_list(
+            merged.get("stage_artifacts"),
+            field_name="stage_artifacts",
+            command_name=command_name,
+        ),
+        final_decision_output=_parse_optional_str_field(
+            merged.get("final_decision_output"),
+            field_name="final_decision_output",
+            command_name=command_name,
+        ),
         requires_fresh_context_per_stage=_parse_bool_field(
             merged.get("requires_fresh_context_per_stage"),
             field_name="requires_fresh_context_per_stage",
@@ -419,12 +539,22 @@ def _parse_agent_file(path: Path, source: str) -> AgentDef:
         meta, body = _parse_frontmatter(text)
     except ValueError as exc:
         raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
-    agent_name = str(meta.get("name", path.stem))
+    agent_name = _parse_frontmatter_string_field(
+        meta.get("name"),
+        field_name="name",
+        owner_name=path.stem,
+        default=path.stem,
+        required=True,
+    )
     return AgentDef(
         name=agent_name,
-        description=str(meta.get("description", "")),
+        description=_parse_frontmatter_string_field(
+            meta.get("description"),
+            field_name="description",
+            owner_name=agent_name,
+        ),
         system_prompt=body.strip(),
-        tools=_parse_tools(meta.get("tools", "")),
+        tools=_parse_tools(meta.get("tools"), owner_name=agent_name),
         commit_authority=_parse_commit_authority(meta.get("commit_authority"), agent_name=agent_name),
         surface=_parse_agent_metadata_enum(
             meta.get("surface"),
@@ -454,7 +584,11 @@ def _parse_agent_file(path: Path, source: str) -> AgentDef:
             valid_values=VALID_AGENT_SHARED_STATE_AUTHORITIES,
             default="return_only",
         ),
-        color=str(meta.get("color", "")),
+        color=_parse_frontmatter_string_field(
+            meta.get("color"),
+            field_name="color",
+            owner_name=agent_name,
+        ),
         path=str(path),
         source=source,
     )
@@ -468,26 +602,36 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
     except ValueError as exc:
         raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
 
-    requires = meta.get("requires", {})
-    if not isinstance(requires, dict):
-        requires = {}
-
-    allowed_tools_raw = meta.get("allowed-tools", [])
-    if not isinstance(allowed_tools_raw, list):
-        allowed_tools_raw = []
+    command_name = _parse_frontmatter_string_field(
+        meta.get("name"),
+        field_name="name",
+        owner_name=path.stem,
+        default=path.stem,
+        required=True,
+    )
+    requires = _parse_requires(meta.get("requires"), command_name=command_name)
+    allowed_tools = _parse_allowed_tools(meta.get("allowed-tools"), command_name=command_name)
 
     try:
-        review_contract = _parse_review_contract(meta.get("review-contract"), str(meta.get("name", path.stem)), requires)
+        review_contract = _parse_review_contract(meta.get("review-contract"), command_name, requires)
     except ValueError as exc:
         raise ValueError(f"Invalid review-contract in {path}: {exc}") from exc
 
     return CommandDef(
-        name=meta.get("name", path.stem),
-        description=str(meta.get("description", "")),
-        argument_hint=str(meta.get("argument-hint", "")),
-        context_mode=_parse_context_mode(meta.get("context_mode"), command_name=str(meta.get("name", path.stem))),
+        name=command_name,
+        description=_parse_frontmatter_string_field(
+            meta.get("description"),
+            field_name="description",
+            owner_name=command_name,
+        ),
+        argument_hint=_parse_frontmatter_string_field(
+            meta.get("argument-hint"),
+            field_name="argument-hint",
+            owner_name=command_name,
+        ),
+        context_mode=_parse_context_mode(meta.get("context_mode"), command_name=command_name),
         requires=requires,
-        allowed_tools=[str(t) for t in allowed_tools_raw],
+        allowed_tools=allowed_tools,
         review_contract=review_contract,
         content=body.strip(),
         path=str(path),
@@ -744,13 +888,14 @@ def get_command(name: str) -> CommandDef:
     Raises KeyError if not found.
     """
     commands = _cache.commands()
-    normalized = name.strip()
-    if normalized.startswith("/"):
-        normalized = normalized[1:]
-
-    candidates = [normalized]
-    if normalized.startswith("gpd:"):
-        candidates.append(normalized.replace("gpd:", "", 1))
+    slug = command_slug_from_label(name)
+    candidates = []
+    for candidate in (
+        canonical_command_label(name),
+        slug,
+    ):
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
 
     for candidate in candidates:
         command = commands.get(candidate)
@@ -773,16 +918,15 @@ def list_skills() -> list[str]:
 def get_skill(name: str) -> SkillDef:
     """Get a canonical skill definition by canonical name or registry key."""
     skills = _cache.skills()
-    normalized = name.strip()
-    if normalized.startswith("/"):
-        normalized = normalized[1:]
+    slug = command_slug_from_label(name)
 
     candidates: list[str] = []
     for candidate in (
-        normalized,
-        normalized.replace("gpd:", "gpd-", 1) if normalized.startswith("gpd:") else None,
-        normalized.replace("gpd-", "gpd:", 1) if normalized.startswith("gpd-") else None,
-        f"gpd-{normalized}" if normalized and not normalized.startswith(("gpd-", "gpd:")) else None,
+        name.strip(),
+        canonical_skill_label(name),
+        canonical_command_label(name),
+        slug,
+        f"gpd-{slug}" if slug else None,
     ):
         if candidate and candidate not in candidates:
             candidates.append(candidate)

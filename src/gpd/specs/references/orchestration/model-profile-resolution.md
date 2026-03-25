@@ -2,7 +2,7 @@
 
 Resolve model profile once at the start of orchestration, then resolve each agent's tier and optional runtime-specific model override before spawning Task calls.
 
-Do not scrape `.gpd/config.json` directly in workflows. Runtime selection, defaults, and runtime-specific model overrides are owned by the canonical CLI helpers:
+Do not scrape `GPD/config.json` directly in workflows. Runtime selection, defaults, and runtime-specific model overrides are owned by the canonical CLI helpers:
 
 - `gpd resolve-tier`
 - `gpd resolve-model`

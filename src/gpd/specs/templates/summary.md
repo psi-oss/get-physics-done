@@ -4,22 +4,22 @@ template_version: 1
 
 # Summary Template
 
-Template for `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md` - phase completion documentation.
+Template for `GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md` - phase completion documentation.
 
 ---
 
 ## Summary Depth Selection
 
-This single template covers all summary depths. The `depth` field in frontmatter controls which sections are required:
+This single template covers all summary depths. The `depth` field in frontmatter must be set explicitly and controls which sections are required:
 
 | Depth | When to Use | Sections Required |
 |-------|------------|-------------------|
 | **minimal** | Convention setup, tool configuration, single clear result | Performance, Key Results, Task Commits, Next Phase Readiness |
 | **standard** | Simple calculations, setup phases, straightforward results | + Equations Derived, Approximations, Validations, Decisions, Deviations |
-| **full** (default) | Most plans: derivations, code, and verification | + Key Quantities table, Files, Figures, Issues, Open Questions |
+| **full** | Most plans: derivations, code, and verification | + Key Quantities table, Files, Figures, Issues, Open Questions |
 | **complex** | Multi-step derivations, parameter sweeps, extensive validation | + Cross-Phase Dependencies, Convention Changes, full deviation detail |
 
-**Default to full** unless the plan is clearly simple enough for a lighter variant.
+Choose the depth explicitly. Use `full` for the common detailed case unless the plan is clearly simple enough for a lighter variant.
 
 ---
 
@@ -31,12 +31,26 @@ Not all frontmatter fields are required. Minimum required: `phase`, `plan`, `dep
 Keep this ledger user-visible: record what claim was established, what artifact exists, and what decisive comparison passed or failed. Do not use it to log administrative progress such as "ran verifier" or "completed task."
 Use `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` as the schema source of truth for these fields. If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is also required. If a decisive comparison is required, omitting its `comparison_verdicts` entry is a validation failure, not a stylistic omission.
 Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the source PLAN contract must appear in the matching `contract_results` section. Use explicit statuses like `not_attempted`, `missing`, `not_applicable`, or `unresolved` instead of silently omitting contract IDs.
+Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing the YAML and apply it literally rather than paraphrasing from memory.
+`plan_contract_ref` must be the canonical project-root-relative `GPD/phases/XX-name/{phase}-{plan}-PLAN.md#/contract` path. It must not be absolute, parent-traversing, or collapse to a bare sibling reference. For reference-backed decisive comparisons, `comparison_kind: benchmark|prior_work|experiment|baseline|cross_method` can satisfy the requirement; `comparison_kind: other` cannot.
+Keep `uncertainty_markers` explicit and user-visible in contract-backed outputs; do not let it be synthesized by hidden defaults. In strict contract-backed outputs, `weakest_anchors` and `disconfirming_observations` must be non-empty.
+For `contract_results.references`, keep the action ledger consistent: `completed` needs non-empty `completed_actions`, `missing` needs non-empty `missing_actions`, `not_applicable` keeps both lists empty, and the two lists must not overlap.
+`required_actions`, `completed_actions`, and `missing_actions` all use the same validator-enforced action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`.
+Even singleton values must stay YAML lists in strict contract-backed ledgers: use `linked_ids: [claim-id]` and `completed_actions: [read]`, never scalar strings.
+When evidence is about an explicit proxy guardrail, bind it through `forbidden_proxy_id` instead of inventing a new subject kind.
+Every `comparison_verdicts` entry must declare `subject_role` explicitly. If a decisive external anchor was used, include `reference_id`; if the decisive anchor is itself the compared subject, use `subject_kind: reference`.
+Emit decisive `comparison_verdicts` whenever the PLAN contract includes `benchmark` or `cross_method` acceptance tests, whenever a benchmark/compare-driven reference anchors the subject, or whenever you performed a decisive comparison in practice.
+Do not invent extra keys in `contract_results`, `comparison_verdicts`, or `suggested_contract_checks`; those ledgers are closed schemas.
+
+Canonical ledger schema and validator-enforced rules to load before writing frontmatter:
+
+@{GPD_INSTALL_DIR}/templates/contract-results-schema.md
 
 ```markdown
 ---
 phase: XX-name
 plan: YY
-depth: minimal|standard|full|complex  # Controls which sections to include (default: full)
+depth: minimal|standard|full|complex  # Controls which sections to include; set explicitly
 one-liner: "[Substantive one-liner describing outcome — NOT 'phase complete' or 'derivation finished']"
 subsystem (optional):
   [
@@ -93,7 +107,7 @@ conventions:
   - "Fourier = e^{-ikx} forward"
 
 # Canonical contract outcome ledger (required when source PLAN has a contract)
-plan_contract_ref (required when `contract_results` or `comparison_verdicts` are present): ".gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract"
+plan_contract_ref (required when `contract_results` or `comparison_verdicts` are present): "GPD/phases/XX-name/{phase}-{plan}-PLAN.md#/contract"
 contract_results (required for contract-backed plans):
   # Every ID declared in the PLAN contract must appear in its matching section below.
   claims:
@@ -109,7 +123,8 @@ contract_results (required for contract-backed plans):
           deliverable_id: deliverable-id
           acceptance_test_id: acceptance-test-id
           reference_id: reference-id
-          evidence_path: ".gpd/phases/XX-name/{phase}-VERIFICATION.md"
+          forbidden_proxy_id: forbidden-proxy-id
+          evidence_path: "GPD/phases/XX-name/{phase}-VERIFICATION.md"
   deliverables:
     deliverable-id:
       status: passed|partial|failed|blocked|not_attempted
@@ -124,7 +139,7 @@ contract_results (required for contract-backed plans):
   references:
     reference-id:
       status: completed|missing|not_applicable
-      completed_actions: [read, use, compare, cite]
+      completed_actions: [read, use, compare, cite, avoid]
       missing_actions: []
       summary: "[how the anchor was surfaced for a visible claim]"
   forbidden_proxies:
@@ -132,17 +147,17 @@ contract_results (required for contract-backed plans):
       status: rejected|violated|unresolved|not_applicable
       notes: "[why this proxy was or was not allowed]"
   uncertainty_markers:
-    weakest_anchors: []
-    unvalidated_assumptions: []
-    competing_explanations: []
-    disconfirming_observations: []
+    weakest_anchors: [anchor-1]
+    unvalidated_assumptions: [assumption-1]
+    competing_explanations: [alternative-1]
+    disconfirming_observations: [observation-1]
 
 # Decisive comparison verdict ledger
 # Required whenever a contract-backed claim / deliverable / acceptance test depends on a decisive comparison.
 comparison_verdicts (required when a decisive comparison was required or attempted):
   - subject_id: claim-id
-    subject_kind: claim|deliverable|acceptance_test|reference|artifact|other
-    subject_role: decisive|supporting|supplemental|other
+    subject_kind: claim|deliverable|acceptance_test|reference
+    subject_role: decisive|supporting|supplemental|other  # Must be explicit on every verdict
     reference_id: reference-id
     comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other
     metric: relative_error
@@ -151,7 +166,7 @@ comparison_verdicts (required when a decisive comparison was required or attempt
     recommended_action: "[what to do next]"
     notes: "[optional context]"
 
-[When a decisive comparison is required by the contract, omitting the corresponding `comparison_verdicts` entry makes the summary incomplete. If the check is still open, emit `verdict: inconclusive` or `verdict: tension` instead of omitting the entry.]
+[When a decisive comparison is required by the contract, omitting the corresponding `comparison_verdicts` entry makes the summary incomplete. Only `subject_role: decisive` closes that requirement or drives pass/fail consistency against `contract_results`; `supporting` and `supplemental` verdicts are informative only. If the check is still open, emit `verdict: inconclusive` or `verdict: tension` instead of omitting the entry.]
 
 # Metrics
 duration: Xmin
@@ -504,9 +519,9 @@ _Completed: 2026-03-15_
 </example>
 
 <guidelines>
-**Depth selection:** Default to `full`. Use `minimal` only for pure setup phases (convention setup, tool config) with a single clear result. Use `complex` for multi-step derivations, parameter sweeps, or plans with cross-phase dependencies. When in doubt, use `full`.
+**Depth selection:** Set `depth` explicitly. Use `minimal` only for pure setup phases (convention setup, tool config) with a single clear result. Use `complex` for multi-step derivations, parameter sweeps, or plans with cross-phase dependencies. When in doubt, choose `full` deliberately rather than treating it as an implicit default.
 
-**Frontmatter:** Required fields: `phase`, `plan`, `depth`, `provides`, `completed`. Populate optional fields (`subsystem`, `tags`, `requires`, `affects`, `methods`, `key-files`, `key-decisions`, `patterns-established`, `duration`) as relevant. For contract-backed summaries, `contract_results` is required, `comparison_verdicts` is required whenever a decisive comparison was required or attempted, and `plan_contract_ref` is required whenever either ledger is present. Enables automatic context assembly for future planning.
+**Frontmatter:** Required fields: `phase`, `plan`, `depth`, `provides`, `completed`. Populate optional fields (`subsystem`, `tags`, `requires`, `affects`, `methods`, `key-files`, `key-decisions`, `patterns-established`, `duration`) as relevant. For contract-backed summaries, `contract_results` is required, `comparison_verdicts` is required whenever a decisive comparison was required or attempted, `plan_contract_ref` is required whenever either ledger is present, and `uncertainty_markers` must stay explicit rather than being implied by defaults. Enables automatic context assembly for future planning.
 
 **One-liner:** Must be substantive. "Derived RG flow equations for phi-4 theory to two-loop order" not "Derivation finished".
 

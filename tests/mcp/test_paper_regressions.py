@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
 
 
 def test_prl_and_apj_skip_empty_affiliations() -> None:
@@ -103,6 +107,71 @@ def test_build_artifact_manifest_captures_tex_and_optional_bib(tmp_path) -> None
     tex_artifact = next(artifact for artifact in manifest.artifacts if artifact.artifact_id == "tex-paper")
     assert len(tex_artifact.sha256) == 64
     assert any(artifact.category == "bib" for artifact in manifest.artifacts)
+
+
+def test_artifact_manifest_models_reject_extra_fields_and_invalid_sha256() -> None:
+    from gpd.mcp.paper.models import ArtifactManifest
+
+    with pytest.raises(ValidationError):
+        ArtifactManifest.model_validate(
+            {
+                "version": 1,
+                "paper_title": "Strict Manifest",
+                "journal": "prl",
+                "created_at": "2026-03-17T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "paper.tex",
+                        "sha256": "deadbeef",
+                        "produced_by": "build_paper:render_tex",
+                        "unexpected": "boom",
+                    }
+                ],
+            }
+        )
+
+
+def test_build_artifact_manifest_preserves_absolute_source_paths(tmp_path) -> None:
+    from gpd.mcp.paper.artifact_manifest import build_artifact_manifest
+    from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
+
+    source_dir = tmp_path / "sources"
+    source_dir.mkdir()
+    original_path = source_dir / "input-figure.pdf"
+    original_path.write_text("source figure", encoding="utf-8")
+
+    prepared_dir = tmp_path / "figures"
+    prepared_dir.mkdir()
+    prepared_path = prepared_dir / "prepared-figure.pdf"
+    prepared_path.write_text("prepared figure", encoding="utf-8")
+
+    tex_path = tmp_path / "paper.tex"
+    tex_path.write_text("\\documentclass{article}\\begin{document}\\end{document}", encoding="utf-8")
+
+    config = PaperConfig(
+        title="Portable Manifest",
+        authors=[Author(name="Test Author", affiliation="Test Univ")],
+        abstract="",
+        sections=[Section(title="Intro", content="Content")],
+        journal="jhep",
+    )
+
+    manifest = build_artifact_manifest(
+        config,
+        tmp_path,
+        tex_path=tex_path,
+        figure_source_pairs=[
+            (
+                FigureRef(path=original_path, caption="Source", label="fig:source"),
+                FigureRef(path=Path("figures/prepared-figure.pdf"), caption="Prepared", label="fig:prepared"),
+            )
+        ],
+    )
+
+    figure_artifact = next(artifact for artifact in manifest.artifacts if artifact.category == "figure")
+    assert figure_artifact.sources[0].path == str(original_path)
 
 
 def test_prepare_figures_returns_relative_paths(tmp_path) -> None:

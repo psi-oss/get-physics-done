@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 from pydantic import BaseModel
 
-from gpd.mcp.paper.models import ClaimIndex, ReviewLedger, ReviewPanelBundle, StageReviewReport
+from gpd.mcp.paper.models import ClaimIndex, ReviewLedger, StageReviewReport
 
 if TYPE_CHECKING:
     from gpd.core.referee_policy import RefereeDecisionInput
@@ -74,15 +74,3 @@ def read_referee_decision(input_path: Path) -> RefereeDecisionInput:
     from gpd.core.referee_policy import RefereeDecisionInput
 
     return _read_model(RefereeDecisionInput, input_path)
-
-
-def write_review_panel_bundle(bundle: ReviewPanelBundle, output_path: Path) -> None:
-    """Persist the final staged-review bundle JSON."""
-
-    _write_model(bundle, output_path)
-
-
-def read_review_panel_bundle(input_path: Path) -> ReviewPanelBundle:
-    """Load the final staged-review bundle JSON."""
-
-    return _read_model(ReviewPanelBundle, input_path)

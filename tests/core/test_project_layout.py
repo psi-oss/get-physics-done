@@ -22,7 +22,7 @@ def test_project_layout_file_properties(attribute: str, filename: str, tmp_path:
     path = getattr(layout, attribute)
 
     assert path.name == filename
-    assert path.parent == tmp_path / ".gpd"
+    assert path.parent == tmp_path / "GPD"
 
 
 @pytest.mark.parametrize(
@@ -40,7 +40,7 @@ def test_project_layout_directory_properties(attribute: str, dirname: str, tmp_p
     path = getattr(layout, attribute)
 
     assert path.name == dirname
-    assert path.parent == tmp_path / ".gpd"
+    assert path.parent == tmp_path / "GPD"
 
 
 @pytest.mark.parametrize(
@@ -60,7 +60,7 @@ def test_project_layout_is_plan_file(filename: str, expected: bool, tmp_path: Pa
     ("filename", "expected"),
     [
         ("01-SUMMARY.md", True),
-        ("SUMMARY.md", True),
+        ("SUMMARY.md", False),
         ("01-PLAN.md", False),
         ("random.txt", False),
     ],
@@ -73,6 +73,7 @@ def test_project_layout_is_summary_file(filename: str, expected: bool, tmp_path:
     ("filename", "expected"),
     [
         ("01-VERIFICATION.md", True),
+        ("VERIFICATION.md", False),
         ("01-PLAN.md", False),
     ],
 )
@@ -96,7 +97,7 @@ def test_project_layout_strip_plan_suffix(filename: str, expected: str, tmp_path
     ("filename", "expected"),
     [
         ("01-SUMMARY.md", "01"),
-        ("SUMMARY.md", ""),
+        ("SUMMARY.md", "SUMMARY.md"),
         ("random.txt", "random.txt"),
     ],
 )
@@ -119,4 +120,4 @@ def test_project_layout_phase_artifact_paths(
     path = getattr(layout, method_name)("01-setup", "01")
 
     assert path.name == expected_name
-    assert path.parent == tmp_path / ".gpd" / "phases" / "01-setup"
+    assert path.parent == tmp_path / "GPD" / "phases" / "01-setup"

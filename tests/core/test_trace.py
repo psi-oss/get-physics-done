@@ -28,8 +28,8 @@ from gpd.core.trace import (
 
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
-    """Minimal project with .gpd/ directory."""
-    (tmp_path / ".gpd").mkdir()
+    """Minimal project with GPD/ directory."""
+    (tmp_path / "GPD").mkdir()
     return tmp_path
 
 
@@ -43,11 +43,11 @@ class TestTraceStart:
         assert result.started is True
         assert result.phase == "01"
         assert result.plan == "plan-01"
-        assert (project / ".gpd" / "traces" / "01-plan-01.jsonl").exists()
+        assert (project / "GPD" / "traces" / "01-plan-01.jsonl").exists()
 
     def test_writes_trace_start_event(self, project: Path) -> None:
         trace_start(project, "01", "plan-01")
-        trace_file = project / ".gpd" / "traces" / "01-plan-01.jsonl"
+        trace_file = project / "GPD" / "traces" / "01-plan-01.jsonl"
         lines = trace_file.read_text().strip().splitlines()
         assert len(lines) == 1
         event = json.loads(lines[0])
@@ -59,7 +59,7 @@ class TestTraceStart:
 
     def test_sets_active_trace_marker(self, project: Path) -> None:
         trace_start(project, "02", "test-plan")
-        marker = project / ".gpd" / "traces" / ".active-trace"
+        marker = project / "GPD" / "traces" / ".active-trace"
         assert marker.exists()
         data = json.loads(marker.read_text())
         assert data["phase"] == "02"
@@ -93,7 +93,7 @@ class TestTraceLog:
         assert result.plan == "plan-01"
         assert result.trace_id == "01-plan-01"
 
-        trace_file = project / ".gpd" / "traces" / "01-plan-01.jsonl"
+        trace_file = project / "GPD" / "traces" / "01-plan-01.jsonl"
         lines = trace_file.read_text().strip().splitlines()
         assert len(lines) == 2  # trace_start + checkpoint
         event = json.loads(lines[1])
@@ -146,14 +146,14 @@ class TestTraceStop:
     def test_stop_removes_active_marker(self, project: Path) -> None:
         trace_start(project, "01", "plan-01")
         trace_stop(project)
-        marker = project / ".gpd" / "traces" / ".active-trace"
+        marker = project / "GPD" / "traces" / ".active-trace"
         assert not marker.exists()
 
     def test_stop_writes_summary_event(self, project: Path) -> None:
         trace_start(project, "01", "plan-01")
         trace_log(project, "info")
         trace_stop(project)
-        trace_file = project / ".gpd" / "traces" / "01-plan-01.jsonl"
+        trace_file = project / "GPD" / "traces" / "01-plan-01.jsonl"
         lines = trace_file.read_text().strip().splitlines()
         last = json.loads(lines[-1])
         assert last["type"] == "trace_stop"
@@ -225,7 +225,7 @@ class TestTraceShow:
         assert result.count == 2
 
     def test_show_nonexistent_trace_raises(self, project: Path) -> None:
-        (project / ".gpd" / "traces").mkdir(parents=True, exist_ok=True)
+        (project / "GPD" / "traces").mkdir(parents=True, exist_ok=True)
         with pytest.raises(TraceError, match="No trace found"):
             trace_show(project, phase="99", plan="nonexistent")
 
@@ -277,7 +277,7 @@ class TestTraceEdgeCases:
     def test_special_chars_in_plan_name(self, project: Path) -> None:
         result = trace_start(project, "01", "my plan/with special!chars")
         assert result.started is True
-        trace_file = project / ".gpd" / "traces" / "01-my-plan-with-special-chars.jsonl"
+        trace_file = project / "GPD" / "traces" / "01-my-plan-with-special-chars.jsonl"
         assert trace_file.exists()
 
     def test_log_with_none_data(self, project: Path) -> None:
@@ -289,14 +289,14 @@ class TestTraceEdgeCases:
         start_result = trace_start(project, "01", "plan-01")
         assert start_result.started is True
 
-        original_trace_file = project / ".gpd" / "traces" / "01-plan-01.jsonl"
+        original_trace_file = project / "GPD" / "traces" / "01-plan-01.jsonl"
         renamed_project = project.with_name(f"{project.name}-renamed")
         project.rename(renamed_project)
 
         log_result = trace_log(renamed_project, "checkpoint", {"step": "after-rename"})
         stop_result = trace_stop(renamed_project)
 
-        moved_trace_file = renamed_project / ".gpd" / "traces" / "01-plan-01.jsonl"
+        moved_trace_file = renamed_project / "GPD" / "traces" / "01-plan-01.jsonl"
         assert log_result.logged is True
         assert stop_result.stopped is True
         assert moved_trace_file.exists()
@@ -306,7 +306,7 @@ class TestTraceEdgeCases:
         assert [event["type"] for event in events] == ["trace_start", "checkpoint", "trace_stop"]
         assert events[1]["data"]["step"] == "after-rename"
 
-        active_marker = renamed_project / ".gpd" / "traces" / ".active-trace"
+        active_marker = renamed_project / "GPD" / "traces" / ".active-trace"
         assert not active_marker.exists()
 
     def test_full_lifecycle(self, project: Path) -> None:

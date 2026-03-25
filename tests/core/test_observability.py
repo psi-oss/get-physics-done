@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 def _bootstrap_project(tmp_path: Path) -> Path:
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
     return tmp_path
 
@@ -26,7 +26,7 @@ def test_ensure_session_writes_single_session_log_and_current_pointer(tmp_path: 
     session = ensure_session(project, source="cli", metadata={"argv": ["execute-phase"]}, command="execute-phase")
     assert session is not None
 
-    observability_dir = project / ".gpd" / "observability"
+    observability_dir = project / "GPD" / "observability"
     current_session_path = observability_dir / "current-session.json"
     sessions_dir = observability_dir / "sessions"
     session_logs = sorted(sessions_dir.glob("*.jsonl"))
@@ -68,7 +68,7 @@ def test_observe_event_appends_session_event_and_finish_marker(tmp_path: Path, m
     )
 
     assert result.recorded is True
-    session_log = project / ".gpd" / "observability" / "sessions" / f"{session.session_id}.jsonl"
+    session_log = project / "GPD" / "observability" / "sessions" / f"{session.session_id}.jsonl"
     events = _read_jsonl(session_log)
     assert len(events) == 3
     assert events[0]["category"] == "session"
@@ -79,7 +79,7 @@ def test_observe_event_appends_session_event_and_finish_marker(tmp_path: Path, m
     assert events[2]["status"] == "ok"
     assert events[2]["data"]["ended_by"]["name"] == "trace_stop"
 
-    current_session = json.loads((project / ".gpd" / "observability" / "current-session.json").read_text(encoding="utf-8"))
+    current_session = json.loads((project / "GPD" / "observability" / "current-session.json").read_text(encoding="utf-8"))
     assert current_session["session_id"] == session.session_id
     assert current_session["status"] == "ok"
 
@@ -149,7 +149,7 @@ def test_get_current_execution_normalizes_phase_plan_and_checkpoint_reason(tmp_p
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
 
-    observability_dir = project / ".gpd" / "observability"
+    observability_dir = project / "GPD" / "observability"
     observability_dir.mkdir(parents=True, exist_ok=True)
     (observability_dir / "current-execution.json").write_text(
         json.dumps(
@@ -647,7 +647,7 @@ def test_observe_event_reuses_persisted_active_session_when_contextvars_are_empt
     assert result.recorded is True
     assert result.session_id == session.session_id
 
-    sessions_dir = project / ".gpd" / "observability" / "sessions"
+    sessions_dir = project / "GPD" / "observability" / "sessions"
     session_logs = sorted(sessions_dir.glob("*.jsonl"))
     assert len(session_logs) == 1
 
@@ -658,7 +658,7 @@ def test_observe_event_reuses_persisted_active_session_when_contextvars_are_empt
     assert events[1]["name"] == "resume"
     assert events[1]["command"] == "resume-work"
 
-    current_session = json.loads((project / ".gpd" / "observability" / "current-session.json").read_text(encoding="utf-8"))
+    current_session = json.loads((project / "GPD" / "observability" / "current-session.json").read_text(encoding="utf-8"))
     assert current_session["session_id"] == session.session_id
     assert current_session["status"] == "active"
     assert current_session["command"] == "resume-work"
@@ -697,7 +697,7 @@ def test_late_observe_event_on_finished_session_does_not_reactivate_current_poin
 
     assert late_result.recorded is True
 
-    current_session = json.loads((project / ".gpd" / "observability" / "current-session.json").read_text(encoding="utf-8"))
+    current_session = json.loads((project / "GPD" / "observability" / "current-session.json").read_text(encoding="utf-8"))
     assert current_session["session_id"] == session.session_id
     assert current_session["status"] == "ok"
 
@@ -705,7 +705,7 @@ def test_late_observe_event_on_finished_session_does_not_reactivate_current_poin
     assert next_session is not None
     assert next_session.session_id != session.session_id
 
-    session_log = project / ".gpd" / "observability" / "sessions" / f"{session.session_id}.jsonl"
+    session_log = project / "GPD" / "observability" / "sessions" / f"{session.session_id}.jsonl"
     events = _read_jsonl(session_log)
     assert events[-1]["name"] == "late_note"
     assert events[-2]["action"] == "finish"
@@ -720,7 +720,7 @@ def test_gpd_span_does_not_write_observability_artifacts(tmp_path: Path, monkeyp
     with gpd_span("test.span", domain="physics"):
         pass
 
-    assert not (project / ".gpd" / "observability").exists()
+    assert not (project / "GPD" / "observability").exists()
 
 
 def test_instrument_gpd_function_sync_does_not_emit_local_events(tmp_path: Path, monkeypatch) -> None:
@@ -734,7 +734,7 @@ def test_instrument_gpd_function_sync_does_not_emit_local_events(tmp_path: Path,
         return x * 2
 
     assert my_func(5) == 10
-    assert not (project / ".gpd" / "observability").exists()
+    assert not (project / "GPD" / "observability").exists()
 
 
 def test_instrument_gpd_function_async_does_not_emit_local_events(tmp_path: Path, monkeypatch) -> None:
@@ -749,12 +749,12 @@ def test_instrument_gpd_function_async_does_not_emit_local_events(tmp_path: Path
 
     result = asyncio.run(my_async_func(3))
     assert result == 4
-    assert not (project / ".gpd" / "observability").exists()
+    assert not (project / "GPD" / "observability").exists()
 
 
 def test_show_events_reads_session_streams(tmp_path: Path) -> None:
     project = _bootstrap_project(tmp_path)
-    sessions_dir = project / ".gpd" / "observability" / "sessions"
+    sessions_dir = project / "GPD" / "observability" / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
     (sessions_dir / "session-a.jsonl").write_text(
         "\n".join(
@@ -817,7 +817,7 @@ def test_gpd_span_accepts_bare_cwd_without_side_effects(tmp_path: Path, monkeypa
     with gpd_span("test.cwd_resolution", cwd=str(project)):
         pass
 
-    assert not (project / ".gpd" / "observability").exists()
+    assert not (project / "GPD" / "observability").exists()
 
 
 def test_gpd_span_accepts_prefixed_cwd_without_side_effects(tmp_path: Path, monkeypatch) -> None:
@@ -829,7 +829,7 @@ def test_gpd_span_accepts_prefixed_cwd_without_side_effects(tmp_path: Path, monk
     with gpd_span("test.prefixed_cwd", **{"gpd.cwd": str(project)}):
         pass
 
-    assert not (project / ".gpd" / "observability").exists()
+    assert not (project / "GPD" / "observability").exists()
 
 
 def test_list_sessions_empty_project(tmp_path: Path) -> None:
@@ -843,7 +843,7 @@ def test_list_sessions_empty_project(tmp_path: Path) -> None:
 
 def test_list_sessions_returns_sessions_from_logs(tmp_path: Path) -> None:
     project = _bootstrap_project(tmp_path)
-    sessions_dir = project / ".gpd" / "observability" / "sessions"
+    sessions_dir = project / "GPD" / "observability" / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
     (sessions_dir / "test-session.jsonl").write_text(
         "\n".join(

@@ -9,12 +9,13 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.contracts import ComparisonVerdict, ContractResults, ResearchContract
+from gpd.contracts import ComparisonVerdict, ContractResults, ResearchContract, normalize_contract_results_input
 from gpd.core.frontmatter import (
     FrontmatterParseError,
     _find_matching_plan_contract,
     _parse_comparison_verdicts,
     _summary_contract_errors,
+    _validate_contract_mapping,
     extract_frontmatter,
 )
 from gpd.core.paper_quality import (
@@ -28,6 +29,8 @@ from gpd.core.paper_quality import (
     VerificationConfidence,
     VerificationQualityInput,
 )
+from gpd.mcp.paper.bibliography import BibliographyAudit
+from gpd.mcp.paper.models import ArtifactManifest, is_supported_paper_journal
 
 __all__ = ["build_paper_quality_input"]
 
@@ -73,6 +76,7 @@ class _ContractCoverage(BaseModel):
     confidences: list[VerificationConfidence] = Field(default_factory=list)
     latest_report_passed: bool = False
     requires_decisive_comparison: bool = False
+    comparison_verdicts_valid: bool = True
 
 
 def _coverage_metric(satisfied: int, total: int) -> CoverageMetric:
@@ -97,6 +101,26 @@ def _load_json(path: Path) -> dict[str, object]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _load_artifact_manifest(path: Path) -> ArtifactManifest | None:
+    payload = _load_json(path)
+    if not payload:
+        return None
+    try:
+        return ArtifactManifest.model_validate(payload)
+    except PydanticValidationError:
+        return None
+
+
+def _load_bibliography_audit(path: Path) -> BibliographyAudit | None:
+    payload = _load_json(path)
+    if not payload:
+        return None
+    try:
+        return BibliographyAudit.model_validate(payload)
+    except PydanticValidationError:
+        return None
+
+
 def _extract_meta(path: Path) -> dict[str, object]:
     content = _read_text(path)
     if content is None:
@@ -113,11 +137,8 @@ def _plan_contract_for_artifact(path: Path, meta: dict[str, object]) -> Research
 
     contract_data = meta.get("contract")
     if isinstance(contract_data, dict):
-        try:
-            return ResearchContract.model_validate(contract_data)
-        except PydanticValidationError:
-            return None
-    return _find_matching_plan_contract(path.parent, meta)
+        return _validate_contract_mapping(contract_data, enforce_plan_semantics=True).contract
+    return _find_matching_plan_contract(path.parent, meta).contract
 
 
 def _collect_tex_content(paper_dir: Path) -> tuple[list[Path], str]:
@@ -138,17 +159,13 @@ def _resolve_manuscript_dir(project_root: Path) -> Path:
     return project_root / "paper"
 
 
-def _available_citation_keys(manuscript_dir: Path, bibliography_audit: dict[str, object]) -> set[str]:
+def _available_citation_keys(manuscript_dir: Path, bibliography_audit: BibliographyAudit | None) -> set[str]:
     keys: set[str] = set()
 
-    entries = bibliography_audit.get("entries")
-    if isinstance(entries, list):
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            key = entry.get("key")
-            if isinstance(key, str) and key.strip():
-                keys.add(key.strip())
+    if bibliography_audit is not None:
+        for entry in bibliography_audit.entries:
+            if entry.key.strip():
+                keys.add(entry.key.strip())
 
     for bib_path in sorted(manuscript_dir.glob("*.bib")):
         content = _read_text(bib_path)
@@ -160,7 +177,7 @@ def _available_citation_keys(manuscript_dir: Path, bibliography_audit: dict[str,
 
 
 def _load_figure_registry(project_root: Path) -> list[_FigureTrackerEntry]:
-    tracker_path = project_root / ".gpd" / "paper" / "FIGURE_TRACKER.md"
+    tracker_path = project_root / "GPD" / "paper" / "FIGURE_TRACKER.md"
     meta = _extract_meta(tracker_path)
     raw = meta.get("figure_registry")
     if not isinstance(raw, list):
@@ -177,18 +194,27 @@ def _load_figure_registry(project_root: Path) -> list[_FigureTrackerEntry]:
     return entries
 
 
-def _parse_comparison_verdict_entries(value: object) -> list[ComparisonVerdict]:
+def _parse_comparison_verdict_entries(
+    value: object,
+    *,
+    errors: list[str] | None = None,
+) -> list[ComparisonVerdict]:
     if not isinstance(value, list):
+        if errors is not None and value is not None:
+            errors.append(f"comparison_verdicts must be a list, not {type(value).__name__}")
         return []
 
     verdicts: list[ComparisonVerdict] = []
-    for item in value:
+    for index, item in enumerate(value):
         if not isinstance(item, dict):
+            if errors is not None:
+                errors.append(f"comparison_verdicts[{index}] must be an object, not {type(item).__name__}")
             continue
         try:
             verdicts.append(ComparisonVerdict.model_validate(item))
-        except PydanticValidationError:
-            continue
+        except PydanticValidationError as exc:
+            if errors is not None:
+                errors.append(f"comparison_verdicts[{index}]: {exc}")
     return verdicts
 
 
@@ -215,12 +241,13 @@ def _merge_comparison_verdict(existing: ComparisonVerdict, incoming: ComparisonV
     return existing.model_copy(update=updates) if updates else existing
 
 
-def _collect_comparison_verdicts(project_root: Path) -> list[ComparisonVerdict]:
+def _collect_comparison_verdicts(project_root: Path) -> tuple[list[ComparisonVerdict], bool]:
     verdicts_by_key: dict[tuple[str, str | None, str | None, str], ComparisonVerdict] = {}
+    parse_errors: list[str] = []
 
     candidate_roots = [
-        project_root / ".gpd" / "phases",
-        project_root / ".gpd" / "comparisons",
+        project_root / "GPD" / "phases",
+        project_root / "GPD" / "comparisons",
         project_root / "paper",
     ]
     for root in candidate_roots:
@@ -228,11 +255,29 @@ def _collect_comparison_verdicts(project_root: Path) -> list[ComparisonVerdict]:
             continue
         for path in sorted(root.rglob("*.md")):
             meta = _extract_meta(path)
-            for verdict in _parse_comparison_verdict_entries(meta.get("comparison_verdicts")):
+            for verdict in _parse_comparison_verdict_entries(meta.get("comparison_verdicts"), errors=parse_errors):
                 key = _comparison_verdict_key(verdict)
                 existing = verdicts_by_key.get(key)
                 verdicts_by_key[key] = verdict if existing is None else _merge_comparison_verdict(existing, verdict)
-    return list(verdicts_by_key.values())
+    return list(verdicts_by_key.values()), not parse_errors
+
+
+def _resolve_paper_journal(artifact_manifest: ArtifactManifest | None, paper_config: dict[str, object]) -> str:
+    """Return the supported journal key to use for quality scoring.
+
+    Manifest journals are preferred when they are supported builder keys.
+    Unsupported manifest journals fall back to a supported PAPER-CONFIG journal
+    instead of overriding it.
+    """
+
+    manifest_journal = artifact_manifest.journal if artifact_manifest is not None else None
+    config_journal = paper_config.get("journal")
+
+    if is_supported_paper_journal(manifest_journal):
+        return manifest_journal
+    if is_supported_paper_journal(config_journal):
+        return str(config_journal)
+    return "generic"
 
 
 def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
@@ -246,8 +291,9 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
     latest_verified_at = ""
     latest_report_passed = False
     requires_decisive_comparison = False
+    comparison_verdicts_valid = True
 
-    phases_root = project_root / ".gpd" / "phases"
+    phases_root = project_root / "GPD" / "phases"
     if not phases_root.exists():
         return _ContractCoverage()
 
@@ -271,54 +317,62 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
         contract_results: ContractResults | None = None
         if isinstance(raw_results, dict) and plan_contract is not None:
             try:
-                contract_results = ContractResults.model_validate(raw_results)
+                contract_results = ContractResults.model_validate(
+                    normalize_contract_results_input(raw_results, strict=True)
+                )
             except PydanticValidationError:
                 contract_results = None
             if contract_results is not None:
+                comparison_verdicts: list[ComparisonVerdict] = []
                 try:
                     comparison_verdicts = _parse_comparison_verdicts(meta)
-                except (PydanticValidationError, TypeError, ValueError):
-                    comparison_verdicts = []
-                contract_alignment_errors = _summary_contract_errors(
-                    plan_contract,
-                    contract_results,
-                    comparison_verdicts,
-                )
-                expected_claim_ids = {claim.id for claim in plan_contract.claims}
-                expected_deliverable_ids = {deliverable.id for deliverable in plan_contract.deliverables}
-                expected_test_ids = {test.id for test in plan_contract.acceptance_tests}
-                passed_claims.update(
-                    claim_id
-                    for claim_id, entry in contract_results.claims.items()
-                    if claim_id in expected_claim_ids and entry.status == "passed"
-                )
-                passed_deliverables.update(
-                    deliverable_id
-                    for deliverable_id, entry in contract_results.deliverables.items()
-                    if deliverable_id in expected_deliverable_ids and entry.status == "passed"
-                )
-                passed_tests.update(
-                    test_id
-                    for test_id, entry in contract_results.acceptance_tests.items()
-                    if test_id in expected_test_ids and entry.status == "passed"
-                )
-                for expected_ids, entries in (
-                    (expected_claim_ids, contract_results.claims),
-                    (expected_deliverable_ids, contract_results.deliverables),
-                    (expected_test_ids, contract_results.acceptance_tests),
-                ):
-                    for entry_id, entry in entries.items():
-                        if entry_id not in expected_ids:
-                            continue
-                        for evidence in entry.evidence:
-                            if evidence.confidence == "high":
-                                confidences.append(VerificationConfidence.independently_confirmed)
-                            elif evidence.confidence == "medium":
-                                confidences.append(VerificationConfidence.structurally_present)
-                            elif evidence.confidence == "low":
-                                confidences.append(VerificationConfidence.unable_to_verify)
-                            else:
-                                confidences.append(VerificationConfidence.unreliable)
+                except (PydanticValidationError, TypeError, ValueError) as exc:
+                    contract_alignment_errors.append(f"comparison_verdicts: {exc}")
+                if not contract_alignment_errors:
+                    contract_alignment_errors = _summary_contract_errors(
+                        plan_contract,
+                        contract_results,
+                        comparison_verdicts,
+                    )
+                if comparison_verdicts and contract_alignment_errors:
+                    comparison_verdicts_valid = False
+
+                if not contract_alignment_errors:
+                    expected_claim_ids = {claim.id for claim in plan_contract.claims}
+                    expected_deliverable_ids = {deliverable.id for deliverable in plan_contract.deliverables}
+                    expected_test_ids = {test.id for test in plan_contract.acceptance_tests}
+                    passed_claims.update(
+                        claim_id
+                        for claim_id, entry in contract_results.claims.items()
+                        if claim_id in expected_claim_ids and entry.status == "passed"
+                    )
+                    passed_deliverables.update(
+                        deliverable_id
+                        for deliverable_id, entry in contract_results.deliverables.items()
+                        if deliverable_id in expected_deliverable_ids and entry.status == "passed"
+                    )
+                    passed_tests.update(
+                        test_id
+                        for test_id, entry in contract_results.acceptance_tests.items()
+                        if test_id in expected_test_ids and entry.status == "passed"
+                    )
+                    for expected_ids, entries in (
+                        (expected_claim_ids, contract_results.claims),
+                        (expected_deliverable_ids, contract_results.deliverables),
+                        (expected_test_ids, contract_results.acceptance_tests),
+                    ):
+                        for entry_id, entry in entries.items():
+                            if entry_id not in expected_ids:
+                                continue
+                            for evidence in entry.evidence:
+                                if evidence.confidence == "high":
+                                    confidences.append(VerificationConfidence.independently_confirmed)
+                                elif evidence.confidence == "medium":
+                                    confidences.append(VerificationConfidence.structurally_present)
+                                elif evidence.confidence == "low":
+                                    confidences.append(VerificationConfidence.unable_to_verify)
+                                else:
+                                    confidences.append(VerificationConfidence.unreliable)
 
         verified_at = str(meta.get("verified") or meta.get("completed") or "")
         status = str(meta.get("status") or "")
@@ -336,6 +390,7 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
         confidences=confidences,
         latest_report_passed=latest_report_passed,
         requires_decisive_comparison=requires_decisive_comparison,
+        comparison_verdicts_valid=comparison_verdicts_valid,
     )
 
 
@@ -392,11 +447,12 @@ def _build_figures_input(
         if entry.has_uncertainty:
             uncertainty_count += 1
         entry_verdicts = _find_verdict_for_entry(entry, verdicts, project_root)
-        if entry_verdicts:
+        decisive_entry_verdicts = [verdict for verdict in entry_verdicts if verdict.subject_role == "decisive"]
+        if decisive_entry_verdicts:
             decisive_with_verdict += 1
-        if any(verdict.reference_id for verdict in entry_verdicts):
+        if any(verdict.reference_id for verdict in decisive_entry_verdicts):
             decisive_with_anchor += 1
-        for verdict in entry_verdicts:
+        for verdict in decisive_entry_verdicts:
             if verdict.verdict in {"fail", "tension"} and not (verdict.recommended_action or verdict.notes):
                 decisive_failures_scoped = False
 
@@ -468,16 +524,20 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
 
     root = Path(project_root)
     paper_dir = _resolve_manuscript_dir(root)
-    artifact_manifest = _load_json(paper_dir / "ARTIFACT-MANIFEST.json")
+    artifact_manifest = _load_artifact_manifest(paper_dir / "ARTIFACT-MANIFEST.json")
     paper_config = _load_json(paper_dir / "PAPER-CONFIG.json")
-    bibliography_audit = _load_json(paper_dir / "BIBLIOGRAPHY-AUDIT.json")
+    bibliography_audit = _load_bibliography_audit(paper_dir / "BIBLIOGRAPHY-AUDIT.json")
 
     tex_files, tex_content = _collect_tex_content(paper_dir)
-    title = str(artifact_manifest.get("paper_title") or paper_config.get("title") or paper_config.get("paper_title") or "")
-    journal = str(artifact_manifest.get("journal") or paper_config.get("journal") or "generic")
+    title = (
+        artifact_manifest.paper_title
+        if artifact_manifest is not None
+        else str(paper_config.get("title") or paper_config.get("paper_title") or "")
+    )
+    journal = _resolve_paper_journal(artifact_manifest, paper_config)
 
     figure_registry = _load_figure_registry(root)
-    verdicts = _collect_comparison_verdicts(root)
+    verdicts, verdicts_parse_ok = _collect_comparison_verdicts(root)
     contract_coverage = _collect_contract_coverage(root)
     figures, results = _build_figures_input(
         figure_registry,
@@ -498,11 +558,11 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
     if _CONCLUSION_RE.search(tex_content):
         present_sections += 1
 
-    resolved_sources = int(bibliography_audit.get("resolved_sources") or 0)
-    total_sources = int(bibliography_audit.get("total_sources") or 0)
-    partial_sources = int(bibliography_audit.get("partial_sources") or 0)
-    unverified_sources = int(bibliography_audit.get("unverified_sources") or 0)
-    failed_sources = int(bibliography_audit.get("failed_sources") or 0)
+    resolved_sources = bibliography_audit.resolved_sources if bibliography_audit is not None else 0
+    total_sources = bibliography_audit.total_sources if bibliography_audit is not None else 0
+    partial_sources = bibliography_audit.partial_sources if bibliography_audit is not None else 0
+    unverified_sources = bibliography_audit.unverified_sources if bibliography_audit is not None else 0
+    failed_sources = bibliography_audit.failed_sources if bibliography_audit is not None else 0
     available_citation_keys = _available_citation_keys(paper_dir, bibliography_audit)
 
     if cite_keys:
@@ -513,13 +573,19 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
     else:
         citation_key_coverage = CoverageMetric()
 
+    journal_extra_checks: dict[str, bool] = {}
+    raw_journal_extra_checks = paper_config.get("journal_extra_checks")
+    if isinstance(raw_journal_extra_checks, dict):
+        journal_extra_checks.update(raw_journal_extra_checks)
+    journal_extra_checks["comparison_verdicts_valid"] = verdicts_parse_ok and contract_coverage.comparison_verdicts_valid
+
     citations = CitationsQualityInput(
         citation_keys_resolve=citation_key_coverage,
         missing_placeholders=BinaryCheck(passed=missing_cites == 0),
         key_prior_work_cited=BinaryCheck(passed=bool(verdicts) or bool(cite_keys)),
         hallucination_free=BinaryCheck(
             passed=failed_sources == 0 and partial_sources == 0 and unverified_sources == 0,
-            not_applicable=not bibliography_audit,
+            not_applicable=bibliography_audit is None,
         ),
     )
     completeness = CompletenessQualityInput(
@@ -544,4 +610,5 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
         completeness=completeness,
         verification=verification,
         results=results,
+        journal_extra_checks=journal_extra_checks,
     )

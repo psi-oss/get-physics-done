@@ -4,7 +4,7 @@ template_version: 1
 
 # Verification Report Template
 
-Template for `.gpd/phases/XX-name/{phase}-VERIFICATION.md` -- physics verification of research phase results.
+Template for `GPD/phases/XX-name/{phase}-VERIFICATION.md` -- physics verification of research phase results.
 
 ---
 
@@ -13,6 +13,8 @@ Template for `.gpd/phases/XX-name/{phase}-VERIFICATION.md` -- physics verificati
 **Quick Verification:** For simple phases (single analytical result, no numerical computation), use Quick mode: complete only sections 1 (Dimensional Analysis), 3 (Limiting Cases), and 7 (Literature Comparison). All other sections can be marked N/A with justification.
 
 **Standard Verification:** All applicable sections for your project type (default).
+
+`status: passed` is strict: use it only when every claim, deliverable, and acceptance_test entry in `contract_results` is `passed`, every reference entry is `completed`, every `must_surface` reference has all `required_actions` recorded in `completed_actions`, every forbidden_proxy is `rejected` or `not_applicable`, every required decisive comparison has a decisive verdict, and `suggested_contract_checks` is empty. If any contract target is `partial`, `failed`, `blocked`, `missing`, or `unresolved`, use `gaps_found`, `expert_needed`, or `human_needed` instead of `passed`.
 
 ---
 
@@ -43,10 +45,16 @@ Not all verification sections apply to every project. Select based on physics do
 
 ## File Template
 
-Use `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` as the schema source of truth for `plan_contract_ref`, `contract_results`, and `comparison_verdicts`.
+Use `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` as the schema source of truth for `plan_contract_ref`, `contract_results`, `comparison_verdicts`, and verification-side `suggested_contract_checks`.
 For exploratory or partial phases, keep the report honest without inventing certainty: leave affected contract targets at `partial` when decisive work remains open, and use explicit `comparison_verdicts` entries such as `inconclusive` or `tension` when a decisive comparison was attempted but not resolved.
 If a decisive benchmark / cross-method check remains `partial`, `not_attempted`, or still lacks its decisive verdict, add structured `suggested_contract_checks` entries before final validation.
+The same structured suggestion is required when a benchmark-style reference anchors the subject or a reference with `required_actions` including `compare` is still incomplete.
+Those `suggested_contract_checks` entries belong to the same canonical schema surface as the rest of the verification ledger, not freeform prose.
 Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the source PLAN contract must appear in the matching `contract_results` section. Use explicit negative or incomplete statuses instead of omitting IDs.
+Keep `uncertainty_markers` explicit in the `contract_results` ledger, and use non-empty placeholder anchors in `weakest_anchors` and `disconfirming_observations` so unresolved uncertainty is visible before final validation.
+Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing the YAML and apply it literally rather than paraphrasing from memory.
+`plan_contract_ref` must be a project-local PLAN path, not absolute or parent-traversing, and must end with the exact `#/contract` fragment. For reference-backed decisive comparisons, `comparison_kind: benchmark|prior_work|experiment|baseline|cross_method` can satisfy the requirement; `comparison_kind: other` cannot.
+Even singleton values must stay YAML lists in strict contract-backed ledgers: use `linked_ids: [claim-id]`, `completed_actions: [read]`, and `weakest_anchors: [anchor-1]`, never scalar strings.
 
 ```markdown
 ---
@@ -54,7 +62,7 @@ phase: XX-name
 verified: YYYY-MM-DDTHH:MM:SSZ
 status: passed | gaps_found | expert_needed | human_needed
 score: N/M contract targets verified
-plan_contract_ref: .gpd/phases/XX-name/{phase}-{plan}-PLAN.md#/contract
+plan_contract_ref: GPD/phases/XX-name/{phase}-{plan}-PLAN.md#/contract
 # Use `contract_results` only for user-visible contract targets. Do not encode internal tool/process milestones here.
 contract_results:
   # Every ID declared in the PLAN contract must appear in its matching section below.
@@ -62,15 +70,28 @@ contract_results:
     claim-id:
       status: passed|partial|failed|blocked|not_attempted
       summary: "[verification verdict for this claim]"
+      linked_ids: [deliverable-id, acceptance-test-id, reference-id]
+      evidence:
+        - verifier: gpd-verifier
+          method: benchmark reproduction
+          confidence: high
+          claim_id: claim-id
+          deliverable_id: deliverable-id
+          acceptance_test_id: acceptance-test-id
+          reference_id: reference-id
+          forbidden_proxy_id: forbidden-proxy-id
+          evidence_path: GPD/phases/01-benchmark/01-VERIFICATION.md
   deliverables:
     deliverable-id:
       status: passed|partial|failed|blocked|not_attempted
       path: path/to/artifact
       summary: "[artifact verification verdict]"
+      linked_ids: [claim-id, acceptance-test-id]
   acceptance_tests:
     acceptance-test-id:
       status: passed|partial|failed|blocked|not_attempted
       summary: "[test verification verdict]"
+      linked_ids: [claim-id, deliverable-id, reference-id]
   references:
     reference-id:
       status: completed|missing|not_applicable
@@ -81,12 +102,17 @@ contract_results:
     forbidden-proxy-id:
       status: rejected|violated|unresolved|not_applicable
       notes: "[proxy status]"
+  uncertainty_markers:
+    weakest_anchors: [anchor-1]
+    unvalidated_assumptions: [assumption-1]
+    competing_explanations: [alternative-1]
+    disconfirming_observations: [observation-1]
 # Required whenever a decisive comparison was required or attempted for a user-visible target.
 # If the comparison was started but not resolved, record `verdict: inconclusive` or `verdict: tension`
 # instead of omitting the entry or upgrading the parent target to `passed`.
 comparison_verdicts:
   - subject_id: claim-id
-    subject_kind: claim|deliverable|acceptance_test|reference|artifact|other
+    subject_kind: claim|deliverable|acceptance_test|reference
     subject_role: decisive|supporting|supplemental|other
     reference_id: reference-id
     comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other
@@ -98,13 +124,15 @@ comparison_verdicts:
 # Required when the verifier can name a missing decisive check on a user-visible target.
 # Also required when a decisive benchmark / cross-method check remains partial, not attempted,
 # or still lacks the decisive comparison verdict that would let the target pass honestly.
-# Keep these entries structured; do not replace them with freeform prose.
+# Keep these entries structured; do not replace them with freeform prose or invented keys.
+# If you can bind the gap to a known contract target, include `suggested_subject_kind`
+# and `suggested_subject_id` together. Otherwise omit both keys instead of leaving one blank.
 suggested_contract_checks:
-  - check: "[short description of missing decisive check]"
-    reason: "[why the verifier believes it should exist]"
-    suggested_subject_kind: claim|deliverable|acceptance_test|reference
-    suggested_subject_id: ""
-    evidence_path: ""
+  - check: "Add decisive normalization benchmark comparison"
+    reason: "The reported agreement depends on a normalization-sensitive benchmark that is not yet explicit."
+    suggested_subject_kind: acceptance_test
+    suggested_subject_id: acceptance-test-id
+    evidence_path: GPD/phases/01-benchmark/benchmark-comparison.csv
 ---
 
 # Phase {X}: {Name} Verification Report
@@ -139,20 +167,25 @@ When a decisive comparison was attempted but remains unresolved, keep the affect
 
 ## Comparison Verdict Ledger
 
-| Subject ID | Subject Kind | Comparison Kind | Anchor / Source | Metric | Threshold | Verdict | Notes |
-| ---------- | ------------ | --------------- | --------------- | ------ | --------- | ------- | ----- |
-| {claim-id} | claim | benchmark | {reference-id or prior artifact} | {relative_error} | {<= 0.01} | {pass/tension/fail/inconclusive} | {why} |
-| {deliverable-id} | deliverable | cross_method | {reference-id or artifact path} | {difference} | {threshold} | {verdict} | {notes} |
+| Subject ID | Subject Kind | Subject Role | Comparison Kind | Anchor / Source | Metric | Threshold | Verdict | Notes |
+| ---------- | ------------ | ------------ | --------------- | --------------- | ------ | --------- | ------- | ----- |
+| {claim-id} | claim | decisive | benchmark | {reference-id or prior artifact} | {relative_error} | {<= 0.01} | {pass/tension/fail/inconclusive} | {why} |
+| {deliverable-id} | deliverable | supporting | cross_method | {reference-id or artifact path} | {difference} | {threshold} | {verdict} | {notes} |
 
 Emit comparison verdicts whenever the contract or decisive anchor context requires a benchmark, prior-work, experiment, baseline, or cross-method comparison. If a comparison is decisive, absence of a verdict is itself a gap; a prose claim like "agrees with literature" is not a substitute. For partial or exploratory phases, `inconclusive` and `tension` are valid honest outcomes when the check was started but not closed.
+Only `subject_role: decisive` closes a decisive benchmark/cross-method requirement or contradicts a passed contract target. `supporting` and `supplemental` verdicts are recorded context, not decisive blockers on their own.
+- Benchmark acceptance tests require `comparison_kind: benchmark`; cross-method acceptance tests require `comparison_kind: cross_method`.
 
 ## Suggested Contract Checks
 
 Reserve this section for obvious missing decisive checks on user-visible targets. Do not populate it with style requests, paperwork wishes, or generic process polish. Each row should name one missing check, why it matters, which user-visible target it affects, and the artifact or evidence path that would close it.
+Allowed keys are exactly `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`.
+If the missing check is already tied to a known contract target, fill `Suggested Subject Kind` and `Suggested Subject ID` together; otherwise omit both keys in frontmatter instead of leaving one blank.
+Include a `suggested_contract_checks` entry whenever a decisive benchmark / cross-method comparison is still partial or unresolved, and also whenever a benchmark-style reference or a reference with `required_actions` containing `compare` is still incomplete.
 
 | Suggested Check | Why It Seems Required | Suggested Subject Kind | Suggested Subject ID | Evidence Path |
 | --------------- | --------------------- | ---------------------- | -------------------- | ------------- |
-| {missing check} | {why the verifier thinks it is decisive} | {claim|deliverable|acceptance_test|reference} | {id or blank} | {where evidence would come from} |
+| {missing check} | {why the verifier thinks it is decisive} | {claim|deliverable|acceptance_test|reference} | {matching contract id} | {where evidence would come from} |
 | {missing check} | {reason} | {kind} | {id} | {path} |
 
 ## Dimensional Analysis
@@ -467,7 +500,7 @@ Reserve this section for obvious missing decisive checks on user-visible targets
 
 | Debug File                                                                | Status                    | Root Cause                           | Lesson                              |
 | ------------------------------------------------------------------------- | ------------------------- | ------------------------------------ | ----------------------------------- |
-| {.gpd/debug/[slug].md where frontmatter `phase:` matches this phase} | {status from frontmatter} | {Resolution.root_cause or "pending"} | {Resolution.lessons_learned or "—"} |
+| {GPD/debug/[slug].md where frontmatter `phase:` matches this phase} | {status from frontmatter} | {Resolution.root_cause or "pending"} | {Resolution.lessons_learned or "—"} |
 
 {If no debug files match this phase: "No debug sessions recorded for this phase."}
 

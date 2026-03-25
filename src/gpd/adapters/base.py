@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import abc
+import json
 import logging
 import os
 from collections.abc import Mapping
@@ -10,19 +11,22 @@ from pathlib import Path
 
 from gpd.adapters.install_utils import (
     AGENTS_DIR_NAME,
+    CACHE_DIR_NAME,
     COMMANDS_DIR_NAME,
     FLAT_COMMANDS_DIR_NAME,
     GPD_INSTALL_DIR_NAME,
-    HOOK_SCRIPTS,
     HOOKS_DIR_NAME,
     MANIFEST_NAME,
+    UPDATE_CACHE_FILENAME,
     build_runtime_cli_bridge_command,
     compute_path_prefix,
     convert_tool_references_in_body,
     copy_hook_scripts,
     install_gpd_content,
+    managed_hook_paths,
     pre_install_cleanup,
     process_settings_commit_attribution,
+    prune_empty_ancestors,
     replace_placeholders,
     strip_sub_tags,
     translate_frontmatter_tool_names,
@@ -39,6 +43,27 @@ from gpd.adapters.tool_names import (
 from gpd.registry import AgentDef, load_agents_from_dir
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_manifest_runtime(runtime: object) -> str | None:
+    """Return the canonical runtime name for manifest/runtime metadata when possible."""
+    if not isinstance(runtime, str):
+        return None
+
+    normalized = runtime.strip()
+    if not normalized:
+        return None
+
+    from gpd.hooks.runtime_detect import normalize_runtime_name
+
+    return normalize_runtime_name(normalized)
+
+
+def _paths_equal(left: Path, right: Path) -> bool:
+    try:
+        return left.expanduser().resolve() == right.expanduser().resolve()
+    except OSError:
+        return left.expanduser() == right.expanduser()
 
 
 class RuntimeAdapter(abc.ABC):
@@ -199,19 +224,59 @@ class RuntimeAdapter(abc.ABC):
         base = "npx -y get-physics-done"
         return f"{base} {self.install_flag}".strip()
 
-    def install_completeness_relpaths(self) -> tuple[str, ...]:
-        """Return relative artifacts required for a usable runtime install.
+    def install_detection_relpaths(self) -> tuple[str, ...]:
+        """Return the stable GPD-owned artifacts that identify an install.
 
-        Runtime detection, install-metadata lookups, and the runtime CLI bridge
-        all use the same shared contract. Adapters may extend this when their
-        installed surface requires additional runtime-owned files.
+        Shared hook/runtime selection code should rely on this minimal contract
+        so detection remains resilient even when runtime-private surfaces are
+        partially missing or awaiting finalization.
         """
         return (MANIFEST_NAME, GPD_INSTALL_DIR_NAME)
 
+    def missing_install_detection_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+        """Return missing stable detection artifacts relative to *target_dir*."""
+        missing: list[str] = []
+        for relpath in self.install_detection_relpaths():
+            if not (target_dir / relpath).exists():
+                missing.append(relpath)
+        return tuple(missing)
+
+    def has_detectable_install(self, target_dir: Path) -> bool:
+        """Return whether *target_dir* has the stable markers of a GPD install."""
+        return not self.missing_install_detection_artifacts(target_dir)
+
+    def install_completeness_relpaths(self) -> tuple[str, ...]:
+        """Return relative artifacts required for a fully usable runtime install.
+
+        The runtime CLI bridge and repair flows use this stricter contract.
+        Adapters may extend it when their installed surface requires additional
+        runtime-owned files.
+        """
+        return self.install_detection_relpaths()
+
     def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
-        """Return missing install artifacts relative to *target_dir*."""
+        """Return missing strict install artifacts relative to *target_dir*."""
         missing: list[str] = []
         for relpath in self.install_completeness_relpaths():
+            if not (target_dir / relpath).exists():
+                missing.append(relpath)
+        return tuple(missing)
+
+    def install_verification_relpaths(self) -> tuple[str, ...]:
+        """Return artifacts that must exist before ``install()`` can return.
+
+        Most runtimes fully materialize their usable install surface during
+        ``install()`` itself, so the install-time verification defaults to the
+        same artifact contract the runtime bridge enforces later. Runtimes with
+        an explicit post-install finalization step may override this to defer
+        checks for artifacts that are only written during finalization.
+        """
+        return self.install_completeness_relpaths()
+
+    def missing_install_verification_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+        """Return missing artifacts for install-time verification."""
+        missing: list[str] = []
+        for relpath in self.install_verification_relpaths():
             if not (target_dir / relpath).exists():
                 missing.append(relpath)
         return tuple(missing)
@@ -219,6 +284,73 @@ class RuntimeAdapter(abc.ABC):
     def has_complete_install(self, target_dir: Path) -> bool:
         """Return whether *target_dir* satisfies the shared install contract."""
         return not self.missing_install_artifacts(target_dir)
+
+    def _installed_manifest_runtime(self, target_dir: Path) -> str | None:
+        """Return the manifest runtime for *target_dir* when present."""
+        manifest_path = target_dir / MANIFEST_NAME
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, OSError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        return _normalize_manifest_runtime(payload.get("runtime"))
+
+    def validate_target_runtime(self, target_dir: Path, *, action: str) -> None:
+        """Validate that an explicit target belongs to this runtime's install surface."""
+        self._validate_target_runtime(target_dir, action=action)
+
+    def _validate_target_runtime(self, target_dir: Path, *, action: str) -> None:
+        """Internal runtime-ownership validation behind the public adapter contract."""
+        from gpd.hooks.install_metadata import (
+            load_install_manifest_state,
+        )
+
+        manifest_state, manifest = load_install_manifest_state(target_dir)
+        explicit_target = getattr(self, "_install_explicit_target", False)
+        if explicit_target and manifest_state in {"corrupt", "invalid"}:
+            raise RuntimeError(
+                f"Refusing to {action} `{target_dir}` because its GPD manifest cannot be trusted.\n"
+                "Ownership cannot be determined safely."
+            )
+
+        has_gpd_markers = any(
+            (
+                (target_dir / COMMANDS_DIR_NAME / "gpd").exists(),
+                (target_dir / FLAT_COMMANDS_DIR_NAME).exists(),
+                (target_dir / GPD_INSTALL_DIR_NAME).exists(),
+            )
+        )
+        if manifest_state == "ok" and isinstance(manifest, dict):
+            normalized_manifest_runtime = _normalize_manifest_runtime(manifest.get("runtime"))
+            if normalized_manifest_runtime is None:
+                raise RuntimeError(
+                    f"Refusing to {action} `{target_dir}` because its GPD manifest cannot be trusted.\n"
+                    "Ownership cannot be determined safely."
+                )
+            if normalized_manifest_runtime == self.runtime_name:
+                return
+            other_runtime = normalized_manifest_runtime or "unknown"
+            try:
+                other_runtime_label = get_runtime_descriptor(other_runtime).display_name
+            except KeyError:
+                other_runtime_label = other_runtime
+            raise RuntimeError(
+                f"Refusing to {action} `{target_dir}`.\n"
+                f'Its GPD manifest belongs to {other_runtime_label} (`{other_runtime}`), '
+                f"not {self.display_name} (`{self.runtime_name}`)."
+            )
+
+        if manifest_state in {"corrupt", "invalid"}:
+            raise RuntimeError(
+                f"Refusing to {action} `{target_dir}` because its GPD manifest cannot be trusted.\n"
+                "Ownership cannot be determined safely."
+            )
+
+        if manifest_state == "missing" and has_gpd_markers:
+            raise RuntimeError(
+                f"Refusing to {action} `{target_dir}` because it already contains GPD artifacts but no manifest to establish ownership."
+            )
 
     def runtime_cli_bridge_command(self, target_dir: Path) -> str:
         """Return the shared runtime CLI bridge command for installed shell calls."""
@@ -229,6 +361,66 @@ class RuntimeAdapter(abc.ABC):
             is_global=getattr(self, "_install_is_global", False),
             explicit_target=getattr(self, "_install_explicit_target", False),
         )
+
+    def _read_install_manifest(self, target_dir: Path) -> dict[str, object]:
+        """Return the install manifest payload for *target_dir* when present."""
+        manifest_path = target_dir / MANIFEST_NAME
+        try:
+            parsed = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, OSError, json.JSONDecodeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    def _write_install_manifest_payload(self, target_dir: Path, manifest: dict[str, object]) -> None:
+        """Persist a normalized install manifest payload."""
+        manifest_path = target_dir / MANIFEST_NAME
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+    def _runtime_permissions_manifest_state(self, target_dir: Path) -> dict[str, object] | None:
+        """Return GPD-managed runtime-permission state from the install manifest."""
+        state = self._read_install_manifest(target_dir).get("gpd_runtime_permissions")
+        return state if isinstance(state, dict) else None
+
+    def _set_runtime_permissions_manifest_state(
+        self,
+        target_dir: Path,
+        state: dict[str, object] | None,
+    ) -> None:
+        """Update the install manifest with GPD-managed runtime-permission state."""
+        manifest = self._read_install_manifest(target_dir)
+        if not manifest:
+            return
+        if state:
+            manifest["gpd_runtime_permissions"] = state
+        else:
+            manifest.pop("gpd_runtime_permissions", None)
+        self._write_install_manifest_payload(target_dir, manifest)
+
+    def runtime_permissions_status(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
+        """Return runtime-specific status for autonomy/prompt alignment.
+
+        The default implementation reports that no runtime-owned sync surface is
+        available. Adapters with documented approval/permission controls should
+        override this method.
+        """
+        return {
+            "runtime": self.runtime_name,
+            "desired_mode": "yolo" if autonomy == "yolo" else "default",
+            "configured_mode": "unsupported",
+            "config_aligned": autonomy != "yolo",
+            "requires_relaunch": False,
+            "managed_by_gpd": False,
+            "message": f"{self.display_name} does not expose a GPD runtime-permissions sync surface.",
+        }
+
+    def sync_runtime_permissions(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
+        """Align runtime-owned approval settings with the requested autonomy mode."""
+        status = self.runtime_permissions_status(target_dir, autonomy=autonomy)
+        return {
+            **status,
+            "changed": False,
+            "sync_applied": False,
+        }
 
     # ---------------------------------------------------------------------------
     # Template method: install pipeline
@@ -266,6 +458,7 @@ class RuntimeAdapter(abc.ABC):
             self._install_is_global = is_global
             try:
                 self._validate(gpd_root)
+                self._validate_target_runtime(target_dir, action="install into")
                 path_prefix = self._compute_path_prefix(target_dir, is_global)
                 self._pre_cleanup(target_dir)
                 install_version = version_for_gpd_root(gpd_root) or __version__
@@ -396,11 +589,12 @@ class RuntimeAdapter(abc.ABC):
             version,
             runtime=self.runtime_name,
             install_scope=self._current_install_scope_flag(),
+            explicit_target=getattr(self, "_install_explicit_target", False),
         )
 
     def _verify(self, target_dir: Path) -> None:  # noqa: B027
         """Post-install verification.  Override for runtime-specific checks."""
-        missing = self.missing_install_artifacts(target_dir)
+        missing = self.missing_install_verification_artifacts(target_dir)
         if missing:
             joined = ", ".join(missing)
             raise RuntimeError(f"{self.display_name} install incomplete: missing {joined}")
@@ -428,6 +622,7 @@ class RuntimeAdapter(abc.ABC):
         from gpd.core.observability import gpd_span
 
         with gpd_span("adapter.uninstall", runtime=self.runtime_name, target=str(target_dir)) as span:
+            self._validate_target_runtime(target_dir, action="uninstall from")
             removed: list[str] = []
 
             # Remove nested commands/gpd/ directory
@@ -463,14 +658,27 @@ class RuntimeAdapter(abc.ABC):
             hooks_dir = target_dir / HOOKS_DIR_NAME
             if hooks_dir.is_dir():
                 hook_count = 0
-                for hook_path in hooks_dir.iterdir():
-                    if not hook_path.is_file():
-                        continue
-                    if hook_path.name in HOOK_SCRIPTS.values():
+                for rel_path in sorted(managed_hook_paths(target_dir)):
+                    hook_path = target_dir / rel_path
+                    if hook_path.is_file():
                         hook_path.unlink()
                         hook_count += 1
                 if hook_count:
                     removed.append(f"{hook_count} GPD hooks")
+
+            # Remove GPD update cache files.
+            cache_dir = target_dir / CACHE_DIR_NAME
+            cache_paths = (
+                cache_dir / UPDATE_CACHE_FILENAME,
+                cache_dir / f"{UPDATE_CACHE_FILENAME}.inflight",
+            )
+            removed_cache = False
+            for cache_path in cache_paths:
+                if cache_path.is_file():
+                    cache_path.unlink()
+                    removed_cache = True
+            if removed_cache:
+                removed.append(f"{CACHE_DIR_NAME}/{UPDATE_CACHE_FILENAME}")
 
             removed.extend(self._cleanup_runtime_config(target_dir))
 
@@ -485,6 +693,16 @@ class RuntimeAdapter(abc.ABC):
             if patches_dir.is_dir():
                 shutil.rmtree(patches_dir)
                 removed.append("gpd-local-patches/")
+
+            for path in (
+                target_dir / COMMANDS_DIR_NAME,
+                target_dir / FLAT_COMMANDS_DIR_NAME,
+                target_dir / AGENTS_DIR_NAME,
+                target_dir / HOOKS_DIR_NAME,
+                target_dir / CACHE_DIR_NAME,
+                target_dir,
+            ):
+                prune_empty_ancestors(path, stop_at=target_dir.parent)
 
             span.set_attribute("gpd.removed_count", len(removed))
             logger.info("Uninstalled GPD from %s: removed %d items", self.runtime_name, len(removed))

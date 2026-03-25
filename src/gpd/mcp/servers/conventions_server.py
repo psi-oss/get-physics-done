@@ -11,16 +11,19 @@ Usage:
 
 import json
 import logging
+import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypeVar
+from typing import Annotated, TypeVar
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import WithJsonSchema
 
 from gpd.contracts import ConventionLock
 from gpd.core.constants import ProjectLayout
 from gpd.core.conventions import (
+    KEY_ALIASES,
     KNOWN_CONVENTIONS,
     ConventionSetResult,
     convention_list,
@@ -39,6 +42,7 @@ from gpd.core.conventions import (
 )
 from gpd.core.errors import ConventionError
 from gpd.core.observability import gpd_span
+from gpd.mcp.servers import stable_mcp_error, stable_mcp_response
 
 T = TypeVar("T")
 
@@ -71,6 +75,39 @@ CONVENTION_OPTIONS: dict[str, list[str]] = {
     "gamma_matrix_convention": ["Dirac", "Weyl", "Majorana"],
     "creation_annihilation_order": ["normal", "anti-normal", "Weyl"],
 }
+
+_CUSTOM_CONVENTION_KEY_BODY = r"[A-Za-z0-9][A-Za-z0-9_-]*"
+_CUSTOM_CONVENTION_KEY_PATTERN = rf"^{_CUSTOM_CONVENTION_KEY_BODY}$"
+_CONVENTION_VALUE_PATTERN = r"^(?!\s*(?:null|none|undefined)\s*$)\S(?:.*\S)?$"
+
+ConventionKeyInput = Annotated[
+    str,
+    WithJsonSchema(
+        {
+            "description": "Use one canonical convention field name, one of the short aliases, or a custom key with the custom:<slug> prefix.",
+            "anyOf": [
+                {"type": "string", "enum": KNOWN_CONVENTIONS},
+                {"type": "string", "enum": list(KEY_ALIASES)},
+                {
+                    "type": "string",
+                    "pattern": rf"^custom:{_CUSTOM_CONVENTION_KEY_BODY}$",
+                    "description": "Custom keys must be non-empty slugs such as custom:<slug>.",
+                },
+            ],
+        }
+    ),
+]
+ConventionValueInput = Annotated[
+    str,
+    WithJsonSchema(
+        {
+            "type": "string",
+            "minLength": 1,
+            "pattern": _CONVENTION_VALUE_PATTERN,
+            "description": "Convention values must be non-empty and must not be blank or placeholder strings like null, none, or undefined.",
+        }
+    ),
+]
 
 # ─── Subfield Default Conventions ─────────────────────────────────────────────
 
@@ -243,24 +280,28 @@ def convention_lock_status(project_dir: str) -> dict:
             unset_fields = [k for k in KNOWN_CONVENTIONS if k not in set_fields]
             custom = {k: e.value for k, e in result.conventions.items() if not e.canonical and e.is_set}
 
-            return {
-                "lock": lock.model_dump(exclude_none=True),
-                "set_count": result.set_count,
-                "total_standard_fields": result.canonical_total,
-                "set_fields": set_fields,
-                "unset_fields": unset_fields,
-                "custom_conventions": custom,
-                "completeness_percent": round(len(set_fields) / max(result.canonical_total, 1) * 100, 1),
-            }
-        except (ConventionError, OSError, ValueError, TimeoutError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(
+                {
+                    "lock": lock.model_dump(exclude_none=True),
+                    "set_count": result.set_count,
+                    "total_standard_fields": result.canonical_total,
+                    "set_fields": set_fields,
+                    "unset_fields": unset_fields,
+                    "custom_conventions": custom,
+                    "completeness_percent": round(len(set_fields) / max(result.canonical_total, 1) * 100, 1),
+                }
+            )
+        except (ConventionError, OSError, ValueError, TimeoutError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
 def convention_set(
     project_dir: str,
-    key: str,
-    value: str,
+    key: ConventionKeyInput,
+    value: ConventionValueInput,
     force: bool = False,
 ) -> dict:
     """Set a convention in the project's convention lock.
@@ -269,7 +310,10 @@ def convention_set(
     Use force=True to override an already-set convention (dangerous
     mid-project -- can invalidate prior derivations).
 
-    Custom conventions use the 'custom:' prefix: key="custom:my_convention".
+    Key must be one of the canonical convention fields, one of the short
+    aliases, or a custom key in the form ``custom:<slug>`` (for example
+    ``custom:my_convention``).
+    Value must be non-empty and must not be a blank or placeholder string.
     """
     with gpd_span("mcp.conventions.set", convention_key=key):
         try:
@@ -278,6 +322,10 @@ def convention_set(
                 custom_key = key[len("custom:") :]
                 if not custom_key:
                     raise ConventionError("Custom convention key cannot be empty")
+                if not re.fullmatch(_CUSTOM_CONVENTION_KEY_PATTERN, custom_key):
+                    raise ConventionError(
+                        "Custom convention keys must be non-empty slugs using letters, numbers, underscores, or hyphens"
+                    )
 
             def _mutate(lock: ConventionLock) -> ConventionSetResult:
                 if key.startswith("custom:"):
@@ -286,17 +334,22 @@ def convention_set(
 
             # Atomic read-modify-write under file lock to prevent TOCTOU races.
             _lock, result = _update_lock_in_project(project_dir, _mutate)
-        except (ConventionError, OSError, ValueError, TimeoutError) as e:
-            return {"error": str(e)}
+        except (ConventionError, OSError, ValueError, TimeoutError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
         if not result.updated:
-            return {
-                "status": "already_set",
-                "key": result.key,
-                "current_value": result.previous,
-                "requested_value": result.value,
-                "message": result.hint or f"Convention '{result.key}' already set. Use force=True to override.",
-            }
+            return stable_mcp_response(
+                {
+                    "status": "already_set",
+                    "key": result.key,
+                    "current_value": result.previous,
+                    "requested_value": result.value,
+                    "message": result.hint
+                    or f"Convention '{result.key}' already set. Use force=True to override.",
+                }
+            )
 
         response: dict[str, object] = {
             "status": "set",
@@ -316,7 +369,7 @@ def convention_set(
             if result.value not in options and result.value not in normalized_options:
                 response["warning"] = f"Non-standard value '{result.value}' for '{canonical}'. Known options: {options}"
 
-        return response
+        return stable_mcp_response(response)
 
 
 @mcp.tool()
@@ -357,17 +410,21 @@ def convention_check(lock: dict) -> dict:
                     "Renormalization scheme set without regularization scheme. These are typically specified together."
                 )
 
-            return {
-                "valid": len(missing_critical) == 0,
-                "completeness_percent": round(result.set_count / max(result.total, 1) * 100, 1),
-                "set_fields": [s.key for s in result.set_conventions],
-                "unset_fields": [m.key for m in result.missing],
-                "missing_critical": missing_critical,
-                "issues": issues,
-                "total_standard_fields": result.total,
-            }
-        except (ConventionError, OSError, ValueError, TimeoutError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(
+                {
+                    "valid": len(missing_critical) == 0,
+                    "completeness_percent": round(result.set_count / max(result.total, 1) * 100, 1),
+                    "set_fields": [s.key for s in result.set_conventions],
+                    "unset_fields": [m.key for m in result.missing],
+                    "missing_critical": missing_critical,
+                    "issues": issues,
+                    "total_standard_fields": result.total,
+                }
+            )
+        except (ConventionError, OSError, ValueError, TimeoutError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -382,8 +439,10 @@ def convention_diff(lock_a: dict, lock_b: dict) -> dict:
             parsed_a = ConventionLock(**lock_a)
             parsed_b = ConventionLock(**lock_b)
             result = _convention_diff(parsed_a, parsed_b)
-        except (ConventionError, OSError, ValueError, TimeoutError) as e:
-            return {"error": str(e)}
+        except (ConventionError, OSError, ValueError, TimeoutError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
     critical_fields = {"metric_signature", "fourier_convention", "natural_units"}
     diffs: list[dict[str, object]] = []
@@ -416,12 +475,14 @@ def convention_diff(lock_a: dict, lock_b: dict) -> dict:
             }
         )
 
-    return {
-        "identical": len(diffs) == 0,
-        "diff_count": len(diffs),
-        "diffs": diffs,
-        "critical_diffs": [d for d in diffs if d["severity"] == "critical"],
-    }
+    return stable_mcp_response(
+        {
+            "identical": len(diffs) == 0,
+            "diff_count": len(diffs),
+            "diffs": diffs,
+            "critical_diffs": [d for d in diffs if d["severity"] == "critical"],
+        }
+    )
 
 
 @mcp.tool()
@@ -433,6 +494,10 @@ def assert_convention_validate(file_content: str, lock: dict) -> dict:
         # ASSERT_CONVENTION: key=value, key=value, ...
         <!-- ASSERT_CONVENTION: key=value, key=value, ... -->
 
+    Every derivation artifact must include at least one ASSERT_CONVENTION line.
+    Missing assertions are treated as invalid, not advisory, because downstream
+    verification depends on those headers matching the convention lock.
+
     Returns mismatches and missing assertions.
     """
     from gpd.core.conventions import parse_assert_conventions
@@ -442,32 +507,41 @@ def assert_convention_validate(file_content: str, lock: dict) -> dict:
             parsed_lock = ConventionLock(**lock)
             assertions = parse_assert_conventions(file_content)
             mismatches = validate_assertions(file_content, parsed_lock, filename="<mcp_input>")
-        except (ConventionError, OSError, ValueError, TimeoutError) as e:
-            return {"error": str(e)}
+        except (ConventionError, OSError, ValueError, TimeoutError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
     if not assertions:
-        return {
-            "valid": False,
-            "assertions_found": 0,
-            "message": "No ASSERT_CONVENTION lines found. Every derivation file must include at least one.",
-            "mismatches": [],
-            "assertions": [],
-        }
-
-    return {
-        "valid": len(mismatches) == 0,
-        "assertions_found": len(assertions),
-        "assertions": [{"key": k, "value": v} for k, v in assertions],
-        "mismatches": [
+        return stable_mcp_response(
             {
-                "key": m.key,
-                "file_value": m.file_value,
-                "lock_value": m.lock_value,
-                "message": f"Convention mismatch: file declares {m.key}={m.file_value} but lock has {m.key}={m.lock_value}",
+                "valid": False,
+                "assertions_found": 0,
+                "message": "No ASSERT_CONVENTION lines found. Every derivation file must include at least one.",
+                "mismatches": [],
+                "assertions": [],
             }
-            for m in mismatches
-        ],
-    }
+        )
+
+    return stable_mcp_response(
+        {
+            "valid": len(mismatches) == 0,
+            "assertions_found": len(assertions),
+            "assertions": [{"key": k, "value": v} for k, v in assertions],
+            "mismatches": [
+                {
+                    "key": m.key,
+                    "file_value": m.file_value,
+                    "lock_value": m.lock_value,
+                    "message": (
+                        f"Convention mismatch: file declares {m.key}={m.file_value} "
+                        f"but lock has {m.key}={m.lock_value}"
+                    ),
+                }
+                for m in mismatches
+            ],
+        }
+    )
 
 
 @mcp.tool()
@@ -485,23 +559,28 @@ def subfield_defaults(domain: str) -> dict:
     with gpd_span("mcp.conventions.subfield_defaults", domain=domain):
         defaults = SUBFIELD_DEFAULTS.get(domain)
     if defaults is None:
-        return {
-            "found": False,
-            "domain": domain,
-            "available_domains": sorted(SUBFIELD_DEFAULTS.keys()),
-            "message": f"No defaults for domain '{domain}'.",
-        }
+        return stable_mcp_response(
+            {
+                "found": False,
+                "domain": domain,
+                "available_domains": sorted(SUBFIELD_DEFAULTS.keys()),
+                "message": f"No defaults for domain '{domain}'.",
+            }
+        )
 
-    return {
-        "found": True,
-        "domain": domain,
-        "defaults": defaults,
-        "field_count": len(defaults),
-        "unset_fields": [f for f in KNOWN_CONVENTIONS if f not in defaults],
-        "message": (
-            f"Recommended conventions for {domain}. Sets {len(defaults)} of {len(KNOWN_CONVENTIONS)} standard fields."
-        ),
-    }
+    return stable_mcp_response(
+        {
+            "found": True,
+            "domain": domain,
+            "defaults": defaults,
+            "field_count": len(defaults),
+            "unset_fields": [f for f in KNOWN_CONVENTIONS if f not in defaults],
+            "message": (
+                f"Recommended conventions for {domain}. "
+                f"Sets {len(defaults)} of {len(KNOWN_CONVENTIONS)} standard fields."
+            ),
+        }
+    )
 
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────

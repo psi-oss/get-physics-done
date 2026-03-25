@@ -150,6 +150,52 @@ class RegistryBase:
 PredicateMap = Mapping[str, Callable[[RegistryBase], Result]]
 
 
+def _validate_predicate_result(result: object) -> dict[str, object]:
+    """Return a normalized predicate payload, failing closed on malformed data."""
+    if not isinstance(result, Result):
+        return {
+            "passed": False,
+            "reason": f"predicate returned {type(result).__name__}, expected Result",
+        }
+
+    try:
+        passed = result.passed
+    except Exception as exc:
+        return {
+            "passed": False,
+            "reason": f"predicate raised {type(exc).__name__} reading Result.passed: {exc}",
+        }
+    if not isinstance(passed, bool):
+        return {
+            "passed": False,
+            "reason": (
+                "predicate returned invalid Result.passed type "
+                f"{type(passed).__name__}, expected bool"
+            ),
+        }
+
+    try:
+        reason = result.reason
+    except Exception as exc:
+        return {
+            "passed": False,
+            "reason": f"predicate raised {type(exc).__name__} reading Result.reason: {exc}",
+        }
+    if not isinstance(reason, str):
+        return {
+            "passed": False,
+            "reason": (
+                "predicate returned invalid Result.reason type "
+                f"{type(reason).__name__}, expected str"
+            ),
+        }
+
+    return {
+        "passed": passed,
+        "reason": reason,
+    }
+
+
 def run(
     registry: RegistryBase,
     predicates: PredicateMap,
@@ -177,15 +223,14 @@ def run(
     for name, pred in predicates.items():
         try:
             result = pred(registry)
-            results[name] = {
-                "passed": result.passed,
-                "reason": result.reason,
-            }
         except Exception as exc:
             results[name] = {
                 "passed": False,
                 "reason": f"predicate raised {type(exc).__name__}: {exc}",
             }
+            continue
+
+        results[name] = _validate_predicate_result(result)
 
     overall = "PASS" if all(r["passed"] for r in results.values()) else "FAIL"
 

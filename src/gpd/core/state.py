@@ -14,7 +14,9 @@ import copy
 import json
 import logging
 import os
+import platform as py_platform
 import re
+import socket
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -26,8 +28,8 @@ from gpd.contracts import (
     ConventionLock,
     ResearchContract,
     VerificationEvidence,
+    contract_from_data,
 )
-from gpd.core.checkpoints import sync_phase_checkpoints
 from gpd.core.constants import (
     ENV_GPD_DEBUG,
     PHASES_DIR_NAME,
@@ -35,15 +37,21 @@ from gpd.core.constants import (
     PLANNING_DIR_NAME,
     PROJECT_FILENAME,
     STANDALONE_PLAN,
-    STANDALONE_SUMMARY,
     STATE_ARCHIVE_FILENAME,
     STATE_JSON_BACKUP_FILENAME,
+    STATE_JSON_FILENAME,
     STATE_LINES_BUDGET,
     STATE_LINES_TARGET,
     SUMMARY_SUFFIX,
     ProjectLayout,
 )
-from gpd.core.contract_validation import salvage_project_contract, validate_project_contract
+from gpd.core.contract_validation import (
+    _collect_list_shape_drift_errors,
+    _has_authoritative_scalar_schema_findings,
+    _split_project_contract_schema_findings,
+    salvage_project_contract,
+    validate_project_contract,
+)
 from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import StateError
 from gpd.core.extras import Approximation
@@ -185,6 +193,8 @@ class SessionInfo(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     last_date: str | None = None
+    hostname: str | None = None
+    platform: str | None = None
     stopped_at: str | None = None
     resume_file: str | None = None
 
@@ -230,6 +240,7 @@ class StateLoadResult(BaseModel):
     integrity_mode: str = "standard"
     integrity_status: str = "healthy"
     integrity_issues: list[str] = Field(default_factory=list)
+    state_source: str | None = None
 
 
 class StateGetResult(BaseModel):
@@ -253,6 +264,7 @@ class StateValidateResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     integrity_mode: str = "standard"
     integrity_status: str = "healthy"
+    state_source: str | None = None
 
 
 class StateUpdateResult(BaseModel):
@@ -262,6 +274,7 @@ class StateUpdateResult(BaseModel):
 
     updated: bool
     reason: str | None = None
+    warnings: list[str] = Field(default_factory=list)
 
 
 class StatePatchResult(BaseModel):
@@ -301,7 +314,11 @@ class RecordMetricResult(BaseModel):
 
 
 class UpdateProgressResult(BaseModel):
-    """Returned by :func:`state_update_progress`."""
+    """Returned by :func:`state_update_progress`.
+
+    Progress recomputation no longer synchronizes checkpoint shelf artifacts or
+    surfaces them through progress APIs.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -312,7 +329,6 @@ class UpdateProgressResult(BaseModel):
     completed: int = 0
     total: int = 0
     bar: str = ""
-    checkpoint_files: list[str] = Field(default_factory=list)
 
 
 class AddDecisionResult(BaseModel):
@@ -402,6 +418,18 @@ class StateCompactResult(BaseModel):
 def default_state_dict() -> dict:
     """Return a dict with every field generate_state_markdown needs, initialized to defaults."""
     return ResearchState().model_dump()
+
+
+def _current_machine_identity() -> dict[str, str | None]:
+    """Return the current machine identity used for resume advisories."""
+    hostname = socket.gethostname().strip() or None
+    platform_parts = [
+        py_platform.system().strip(),
+        py_platform.release().strip(),
+        py_platform.machine().strip(),
+    ]
+    platform_value = " ".join(part for part in platform_parts if part) or None
+    return {"hostname": hostname, "platform": platform_value}
 
 
 # ─── Status Constants ──────────────────────────────────────────────────────────
@@ -745,7 +773,7 @@ def parse_state_md(content: str) -> dict:
                 blockers.append(text)
 
     # Session
-    session = {"last_date": None, "stopped_at": None, "resume_file": None}
+    session = {"last_date": None, "hostname": None, "platform": None, "stopped_at": None, "resume_file": None}
     session_match = re.search(
         r"##\s*Session Continuity\s*\n([\s\S]*?)(?=\n##|$)",
         content,
@@ -754,10 +782,16 @@ def parse_state_md(content: str) -> dict:
     if session_match:
         sec = session_match.group(1)
         ld = re.search(r"\*\*Last session:\*\*\s*(.+)", sec)
+        hn = re.search(r"\*\*Hostname:\*\*\s*(.+)", sec)
+        pf = re.search(r"\*\*Platform:\*\*\s*(.+)", sec)
         sa = re.search(r"\*\*Stopped at:\*\*\s*(.+)", sec)
         rf = re.search(r"\*\*Resume file:\*\*\s*(.+)", sec)
         if ld:
             session["last_date"] = ld.group(1).strip()
+        if hn:
+            session["hostname"] = hn.group(1).strip()
+        if pf:
+            session["platform"] = pf.group(1).strip()
         if sa:
             session["stopped_at"] = sa.group(1).strip()
         if rf:
@@ -874,10 +908,14 @@ def parse_state_to_json(content: str) -> dict:
     parsed = parse_state_md(content)
 
     last_date = _strip_placeholder(parsed["session"]["last_date"])
+    hostname = _strip_placeholder(parsed["session"]["hostname"])
+    platform_value = _strip_placeholder(parsed["session"]["platform"])
     stopped_at = _strip_placeholder(parsed["session"]["stopped_at"])
     resume_file = _strip_placeholder(parsed["session"]["resume_file"])
     session: dict[str, str | None] = {
         "last_date": last_date,
+        "hostname": hostname,
+        "platform": platform_value,
         "stopped_at": stopped_at,
         "resume_file": resume_file,
     }
@@ -919,7 +957,12 @@ def parse_state_to_json(content: str) -> dict:
 # ─── Schema Enforcement ───────────────────────────────────────────────────────
 
 
-def _normalize_state_schema(raw: dict | None) -> tuple[dict, list[str]]:
+def _normalize_state_schema(
+    raw: dict | None,
+    *,
+    allow_project_contract_salvage: bool = True,
+    retain_blocking_project_contract_errors: bool = True,
+) -> tuple[dict, list[str]]:
     """Normalize a raw state dict and capture integrity-affecting coercions."""
     if not raw:
         return default_state_dict(), []
@@ -943,7 +986,12 @@ def _normalize_state_schema(raw: dict | None) -> tuple[dict, list[str]]:
                 )
                 del normalized[key]
 
-    normalized = _salvage_state_sections(normalized, integrity_issues)
+    normalized = _salvage_state_sections(
+        normalized,
+        integrity_issues,
+        allow_project_contract_salvage=allow_project_contract_salvage,
+        retain_blocking_project_contract_errors=retain_blocking_project_contract_errors,
+    )
 
     try:
         return ResearchState.model_validate(normalized).model_dump(), integrity_issues
@@ -975,6 +1023,39 @@ def _normalize_state_schema(raw: dict | None) -> tuple[dict, list[str]]:
         return result, integrity_issues
 
 
+def _normalize_state_schema_with_backup_project_contract(
+    raw: dict | None,
+    backup_raw: dict | None,
+    *,
+    allow_project_contract_salvage: bool = True,
+    retain_blocking_project_contract_errors: bool = True,
+) -> tuple[dict, list[str], bool]:
+    """Normalize state and recover backup state when the primary root is unreadable."""
+
+    normalized, integrity_issues = _normalize_state_schema(
+        raw,
+        allow_project_contract_salvage=allow_project_contract_salvage,
+        retain_blocking_project_contract_errors=retain_blocking_project_contract_errors,
+    )
+    recovered_root_from_backup = False
+
+    backup_normalized: dict | None = None
+    backup_issues: list[str] = []
+    if isinstance(backup_raw, dict):
+        backup_normalized, backup_issues = _normalize_state_schema(
+            backup_raw,
+            allow_project_contract_salvage=allow_project_contract_salvage,
+            retain_blocking_project_contract_errors=retain_blocking_project_contract_errors,
+        )
+    if not isinstance(raw, dict) and backup_normalized is not None and not backup_issues:
+        normalized = backup_normalized
+        integrity_issues = []
+        recovered_root_from_backup = True
+        logger.warning("Recovered state.json from state.json.bak after primary state.json required normalization")
+
+    return normalized, integrity_issues, recovered_root_from_backup
+
+
 def _format_validation_location(loc: tuple[object, ...]) -> str:
     return ".".join(str(part) for part in loc)
 
@@ -987,36 +1068,75 @@ def _first_validation_issue(exc: PydanticValidationError) -> str:
 
 
 def _integrity_issue_from_contract_error(error: str) -> str:
+    if error.startswith("project_contract."):
+        return f"schema normalization: {error}"
     if error.endswith(": Extra inputs are not permitted"):
         path = error.rsplit(":", 1)[0].strip()
         return f'schema normalization: dropped unknown "project_contract.{path}"'
     if " must be an object, not " in error:
         path, actual = error.split(" must be an object, not ", 1)
-        return f'schema normalization: reset "project_contract.{path}" because expected object, got {actual}'
+        return f'schema normalization: normalized "project_contract.{path}" because expected object, got {actual}'
     if " must be a list, not " in error:
         path, actual = error.split(" must be a list, not ", 1)
-        return f'schema normalization: reset "project_contract.{path}" because expected list, got {actual}'
+        return f'schema normalization: normalized "project_contract.{path}" because expected list, got {actual}'
     if error.endswith(" is required"):
         normalized_error = error.replace("scope.", "project_contract.scope.", 1)
         return f"schema normalization: {normalized_error}"
     if ":" in error:
         path, detail = error.split(":", 1)
         return f'schema normalization: dropped malformed "project_contract.{path.strip()}": {detail.strip()}'
+    path_match = re.match(
+        r"^(schema_version|[A-Za-z_][A-Za-z0-9_]*(?:\.\d+|\.[A-Za-z_][A-Za-z0-9_]*)*)\s+(.*)$",
+        error,
+    )
+    if path_match is not None:
+        path, detail = path_match.groups()
+        return f"schema normalization: project_contract.{path} {detail}"
     return f"schema normalization: {error}"
 
 
-def _normalize_project_contract_section(value: object, integrity_issues: list[str]) -> object:
+def _normalize_project_contract_section(
+    value: object,
+    integrity_issues: list[str],
+    *,
+    allow_project_contract_salvage: bool,
+    retain_blocking_project_contract_errors: bool = True,
+) -> object:
     if value is None or not isinstance(value, dict):
         return value
 
-    try:
-        return ResearchContract.model_validate(value).model_dump()
-    except PydanticValidationError:
-        pass
-
+    list_shape_drift_errors = _collect_list_shape_drift_errors(value)
     normalized_contract, errors = salvage_project_contract(value)
-    integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in errors)
-    return normalized_contract.model_dump() if normalized_contract is not None else None
+    combined_errors = list(dict.fromkeys(errors))
+    normalized_contract_dump = normalized_contract.model_dump() if normalized_contract is not None else None
+    if list_shape_drift_errors:
+        integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in list_shape_drift_errors)
+    if not combined_errors:
+        return normalized_contract_dump
+
+    # Run contract salvage before any direct Pydantic acceptance so coercive
+    # scalar drift is surfaced as an integrity issue instead of silently
+    # canonicalized by field validators or bool/int coercion.
+    integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in combined_errors)
+    if _has_authoritative_scalar_schema_findings(combined_errors):
+        integrity_issues.append(
+            'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization'
+        )
+        return None
+    _schema_warnings, schema_errors = _split_project_contract_schema_findings(
+        combined_errors,
+        allow_singleton_defaults=allow_project_contract_salvage,
+    )
+    if schema_errors:
+        if retain_blocking_project_contract_errors:
+            return normalized_contract_dump
+        integrity_issues.append(
+            'schema normalization: dropped "project_contract" because contract schema required normalization'
+        )
+        return None
+    if normalized_contract is None:
+        return None
+    return normalized_contract_dump
 
 
 def _normalize_intermediate_results_section(value: object, integrity_issues: list[str]) -> object:
@@ -1077,11 +1197,19 @@ def _normalize_intermediate_results_section(value: object, integrity_issues: lis
     return normalized_results if changed else value
 
 
-def _salvage_state_sections(normalized: dict[str, object], integrity_issues: list[str]) -> dict[str, object]:
+def _salvage_state_sections(
+    normalized: dict[str, object],
+    integrity_issues: list[str],
+    *,
+    allow_project_contract_salvage: bool,
+    retain_blocking_project_contract_errors: bool,
+) -> dict[str, object]:
     if normalized.get("project_contract") is not None:
         normalized["project_contract"] = _normalize_project_contract_section(
             normalized.get("project_contract"),
             integrity_issues,
+            allow_project_contract_salvage=allow_project_contract_salvage,
+            retain_blocking_project_contract_errors=retain_blocking_project_contract_errors,
         )
     if normalized.get("intermediate_results") is not None:
         normalized["intermediate_results"] = _normalize_intermediate_results_section(
@@ -1103,6 +1231,16 @@ def ensure_state_schema(raw: dict | None) -> dict:
     succeeds. This guarantees the function never raises on any input dict.
     """
     normalized, _issues = _normalize_state_schema(raw)
+    return normalized
+
+
+def _normalize_state_for_persistence(raw: dict | None) -> dict:
+    """Normalize state for writes without silently salvaging malformed contracts."""
+    normalized, _issues = _normalize_state_schema(
+        raw,
+        allow_project_contract_salvage=False,
+        retain_blocking_project_contract_errors=False,
+    )
     return normalized
 
 
@@ -1229,6 +1367,80 @@ def _integrity_status_from(issues: list[str], warnings: list[str], mode: str) ->
     return "healthy"
 
 
+_STATE_MD_MIRRORED_FIELDS: dict[str, tuple[str, ...] | None] = {
+    "project_reference": ("core_research_question", "current_focus", "project_md_updated"),
+    "position": (
+        "current_phase",
+        "current_phase_name",
+        "total_phases",
+        "current_plan",
+        "total_plans_in_phase",
+        "status",
+        "last_activity",
+        "last_activity_desc",
+        "progress_percent",
+        "paused_at",
+    ),
+    "session": ("last_date", "hostname", "platform", "stopped_at", "resume_file"),
+    "decisions": None,
+    "blockers": None,
+    "performance_metrics": ("rows",),
+    "active_calculations": None,
+    "open_questions": None,
+    "approximations": None,
+    "convention_lock": None,
+    "propagated_uncertainties": None,
+    "pending_todos": None,
+}
+
+
+def _state_md_comparison_payload(section: str, value: object) -> object:
+    """Return the STATE.md-mirrored comparison payload for one top-level section."""
+
+    if section == "convention_lock" and isinstance(value, dict):
+        normalized = {
+            key: item
+            for key, item in value.items()
+            if key == "custom_conventions"
+            or (key in KNOWN_CONVENTIONS and not is_bogus_value(item))
+        }
+        if not normalized.get("custom_conventions"):
+            normalized.pop("custom_conventions", None)
+        return normalized
+
+    mirrored_fields = _STATE_MD_MIRRORED_FIELDS.get(section)
+    if mirrored_fields is None or not isinstance(value, dict):
+        return value
+
+    payload = {field: value.get(field) for field in mirrored_fields}
+    if section == "position":
+        for field in ("current_phase", "current_phase_name"):
+            current = payload.get(field)
+            if current is not None:
+                payload[field] = phase_normalize(str(current))
+    return payload
+
+
+def _state_md_mirror_mismatches(state_json: dict[str, object], state_md: dict[str, object]) -> list[str]:
+    """Return mismatches between ``state.json`` and the editable ``STATE.md`` mirror."""
+
+    mismatches: list[str] = []
+    for section in _STATE_MD_MIRRORED_FIELDS:
+        json_value = _state_md_comparison_payload(section, state_json.get(section))
+        md_value = _state_md_comparison_payload(section, state_md.get(section))
+        if json_value is None or md_value is None:
+            continue
+
+        if json.dumps(json_value, sort_keys=True, ensure_ascii=False) != json.dumps(
+            md_value,
+            sort_keys=True,
+            ensure_ascii=False,
+        ):
+            mismatches.append(f"{section} mismatch between state.json and STATE.md")
+
+    return mismatches
+
+
 def generate_state_markdown(raw: dict) -> str:
     """Generate STATE.md content from a state dict."""
     s = ensure_state_schema(raw)
@@ -1246,6 +1458,8 @@ def generate_state_markdown(raw: dict) -> str:
         p(f"See: {PLANNING_DIR_NAME}/{PROJECT_FILENAME} (updated {pr['project_md_updated']})")
     else:
         p(f"See: {PLANNING_DIR_NAME}/{PROJECT_FILENAME}")
+    p("")
+    p(f"**Machine-readable scoping contract:** `{PLANNING_DIR_NAME}/{STATE_JSON_FILENAME}` field `project_contract`")
     p("")
     p(f"**Core research question:** {pr.get('core_research_question') or '[Not set]'}")
     p(f"**Current focus:** {pr.get('current_focus') or '[Not set]'}")
@@ -1454,6 +1668,8 @@ def generate_state_markdown(raw: dict) -> str:
     p(f"**Last session:** {sess.get('last_date') or EM_DASH}")
     p(f"**Stopped at:** {sess.get('stopped_at') or EM_DASH}")
     p(f"**Resume file:** {sess.get('resume_file') or EM_DASH}")
+    p(f"**Hostname:** {sess.get('hostname') or EM_DASH}")
+    p(f"**Platform:** {sess.get('platform') or EM_DASH}")
     p("")
 
     return "\n".join(lines)
@@ -1614,7 +1830,7 @@ def _build_state_from_markdown(cwd: Path, md_content: str) -> dict:
     else:
         merged = parsed
 
-    return ensure_state_schema(merged)
+    return _normalize_state_for_persistence(merged)
 
 
 def _write_state_pair_locked(cwd: Path, *, state_obj: dict, md_content: str) -> dict:
@@ -1623,6 +1839,7 @@ def _write_state_pair_locked(cwd: Path, *, state_obj: dict, md_content: str) -> 
     planning.mkdir(parents=True, exist_ok=True)
     json_path = _state_json_path(cwd)
     md_path = _state_md_path(cwd)
+    backup_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
     intent_file = _intent_path(cwd)
     temp_suffix = f"{os.getpid()}.{uuid4().hex}"
     json_tmp = json_path.with_suffix(f".json.tmp.{temp_suffix}")
@@ -1631,8 +1848,30 @@ def _write_state_pair_locked(cwd: Path, *, state_obj: dict, md_content: str) -> 
     json_backup = safe_read_file(json_path)
     md_backup = safe_read_file(md_path)
 
-    normalized = ensure_state_schema(state_obj)
+    normalized = _normalize_state_for_persistence(state_obj)
+
+    def _valid_project_contract_from_state_text(state_text: str | None) -> object | None:
+        if state_text is None:
+            return None
+        try:
+            parsed = json.loads(state_text)
+        except (TypeError, json.JSONDecodeError):
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        project_contract = parsed.get("project_contract")
+        if contract_from_data(project_contract) is None:
+            return None
+        return copy.deepcopy(project_contract)
+
+    if normalized.get("project_contract") is None:
+        preserved_contract = _valid_project_contract_from_state_text(json_backup)
+        if preserved_contract is not None:
+            normalized = copy.deepcopy(normalized)
+            normalized["project_contract"] = preserved_contract
+
     json_rendered = json.dumps(normalized, indent=2) + "\n"
+    backup_rendered = json_rendered
 
     try:
         atomic_write(json_tmp, json_rendered)
@@ -1646,11 +1885,7 @@ def _write_state_pair_locked(cwd: Path, *, state_obj: dict, md_content: str) -> 
         except OSError:
             pass
 
-        try:
-            atomic_write(json_path.parent / STATE_JSON_BACKUP_FILENAME, json_rendered)
-        except OSError:
-            if os.environ.get(ENV_GPD_DEBUG):
-                logger.debug("Failed to write state.json backup")
+        atomic_write(backup_path, backup_rendered)
     except Exception:
         for f in (intent_file, json_tmp, md_tmp):
             try:
@@ -1683,16 +1918,37 @@ def sync_state_json_core(cwd: Path, md_content: str) -> dict:
     Caller MUST hold the state.json lock.
     """
     json_path = _state_json_path(cwd)
+    backup_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
     merged = _build_state_from_markdown(cwd, md_content)
 
     json_content = json.dumps(merged, indent=2) + "\n"
-    atomic_write(json_path, json_content)
-    # Create backup
+    prior_json = safe_read_file(json_path)
+    prior_backup = safe_read_file(backup_path)
     try:
-        atomic_write(json_path.parent / STATE_JSON_BACKUP_FILENAME, json_content)
-    except OSError:
-        if os.environ.get(ENV_GPD_DEBUG):
-            logger.debug("sync_state_json backup write failed")
+        atomic_write(json_path, json_content)
+        atomic_write(backup_path, json_content)
+    except Exception:
+        if prior_json is None:
+            try:
+                json_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        else:
+            try:
+                atomic_write(json_path, prior_json)
+            except OSError:
+                pass
+        if prior_backup is None:
+            try:
+                backup_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        else:
+            try:
+                atomic_write(backup_path, prior_backup)
+            except OSError:
+                pass
+        raise
 
     return merged
 
@@ -1704,58 +1960,231 @@ def sync_state_json(cwd: Path, md_content: str) -> dict:
         return sync_state_json_core(cwd, md_content)
 
 
-@instrument_gpd_function("state.load_json")
-def load_state_json(cwd: Path, integrity_mode: str = "standard") -> dict | None:
-    """Load state.json with intent recovery and fallback to STATE.md.
-
-    Returns the state dict, or None if no state exists.
-    """
+def _load_state_json_with_integrity_issues(
+    cwd: Path,
+    *,
+    integrity_mode: str = "standard",
+    persist_recovery: bool = True,
+    recover_intent: bool = True,
+) -> tuple[dict | None, list[str], str | None]:
+    """Load state.json and return the normalized state, integrity issues, and source."""
     json_path = _state_json_path(cwd)
     bak_path = json_path.parent / STATE_JSON_BACKUP_FILENAME
 
     with _state_lock(cwd):
-        _recover_intent_locked(cwd)
+        if recover_intent:
+            _recover_intent_locked(cwd)
+        # Read paths must not silently default malformed singleton contract sections.
+        allow_project_contract_salvage = False
+        parse_issue: str | None = None
 
         try:
             raw = json_path.read_text(encoding="utf-8")
-            normalized, integrity_issues = _normalize_state_schema(json.loads(raw))
+            parsed = json.loads(raw)
+            if not isinstance(parsed, dict):
+                raise TypeError(f"state root must be an object, got {type(parsed).__name__}")
+            backup_parsed: dict | None = None
+            try:
+                bak_raw = bak_path.read_text(encoding="utf-8")
+                bak_parsed = json.loads(bak_raw)
+            except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
+                bak_parsed = None
+            if isinstance(bak_parsed, dict):
+                backup_parsed = bak_parsed
+            normalized, integrity_issues, recovered_root_from_backup = (
+                _normalize_state_schema_with_backup_project_contract(
+                    parsed,
+                    backup_parsed,
+                    allow_project_contract_salvage=allow_project_contract_salvage,
+                    retain_blocking_project_contract_errors=False,
+                )
+            )
+            normalized, contract_integrity_issues = _drop_invalid_project_contract(normalized)
+            integrity_issues.extend(contract_integrity_issues)
+            state_source = "state.json.bak" if recovered_root_from_backup else "state.json"
+            if recovered_root_from_backup:
+                integrity_issues.append(
+                    "state.json root was recovered from state.json.bak after primary state.json required normalization"
+                )
             if integrity_mode == "review" and integrity_issues:
                 logger.warning("state.json failed review-mode integrity checks: %s", "; ".join(integrity_issues))
-                return None
-            return normalized
+            if persist_recovery and state_source != "state.json":
+                atomic_write(json_path, json.dumps(normalized, indent=2) + "\n")
+            return normalized, integrity_issues, state_source
         except FileNotFoundError:
-            pass
+            restored, integrity_issues = _load_state_json_from_backup(
+                bak_path,
+                integrity_mode=integrity_mode,
+                allow_project_contract_salvage=allow_project_contract_salvage,
+            )
+            if restored is not None:
+                integrity_issues.append(
+                    "state.json root was recovered from state.json.bak after primary state.json was missing"
+                )
+                if persist_recovery:
+                    atomic_write(json_path, json.dumps(restored, indent=2) + "\n")
+                return restored, integrity_issues, "state.json.bak"
+        except TypeError as e:
+            if os.environ.get(ENV_GPD_DEBUG):
+                logger.debug("state.json structural error: %s", e)
+            structural_issue = f"state.json structural error: {e}"
+            restored, integrity_issues = _load_state_json_from_backup(
+                bak_path,
+                integrity_mode=integrity_mode,
+                allow_project_contract_salvage=allow_project_contract_salvage,
+            )
+            if restored is not None:
+                integrity_issues.append(
+                    "state.json root was recovered from state.json.bak after primary state.json was unavailable or unreadable"
+                )
+                if persist_recovery:
+                    atomic_write(json_path, json.dumps(restored, indent=2) + "\n")
+                return restored, integrity_issues, "state.json.bak"
+            if os.environ.get(ENV_GPD_DEBUG):
+                logger.debug("state.json.bak restore failed after structural error")
+            if integrity_mode == "review":
+                logger.warning("state.json structural error blocks review-mode loading: %s", e)
+                return None, [structural_issue], None
         except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("state.json parse error: %s", e)
+            parse_issue = f"state.json parse error: {e}"
+            # Try backup
+            restored, integrity_issues = _load_state_json_from_backup(
+                bak_path,
+                integrity_mode=integrity_mode,
+                allow_project_contract_salvage=allow_project_contract_salvage,
+            )
+            if restored is not None:
+                integrity_issues.insert(0, parse_issue)
+                integrity_issues.append(
+                    "state.json root was recovered from state.json.bak after primary state.json was unavailable or unreadable"
+                )
+                if persist_recovery:
+                    atomic_write(json_path, json.dumps(restored, indent=2) + "\n")
+                return restored, integrity_issues, "state.json.bak"
+            if os.environ.get(ENV_GPD_DEBUG):
+                logger.debug("state.json.bak restore failed")
             if integrity_mode == "review":
                 logger.warning("state.json parse error blocks review-mode loading: %s", e)
-                return None
-            # Try backup
-            try:
-                bak_raw = bak_path.read_text(encoding="utf-8")
-                restored, integrity_issues = _normalize_state_schema(json.loads(bak_raw))
-                if integrity_mode == "review" and integrity_issues:
-                    logger.warning("state.json backup failed review-mode integrity checks: %s", "; ".join(integrity_issues))
-                    return None
-                atomic_write(json_path, json.dumps(restored, indent=2) + "\n")
-                return restored
-            except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
-                if os.environ.get(ENV_GPD_DEBUG):
-                    logger.debug("state.json.bak restore failed")
+                return None, [parse_issue], None
 
         # Fall back to STATE.md
         md_path = _state_md_path(cwd)
         try:
             if integrity_mode == "review":
                 logger.warning("STATE.md fallback is disabled in review integrity mode")
-                return None
+                return None, [], None
             content = md_path.read_text(encoding="utf-8")
-            return sync_state_json_core(cwd, content)
+            state_from_md = _build_state_from_markdown(cwd, content)
+            integrity_issues = ["state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable"]
+            if parse_issue is not None:
+                integrity_issues.insert(0, parse_issue)
+            if persist_recovery:
+                atomic_write(json_path, json.dumps(state_from_md, indent=2) + "\n")
+            return state_from_md, integrity_issues, "STATE.md"
         except (FileNotFoundError, OSError, UnicodeDecodeError):
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("STATE.md fallback failed")
-            return None
+            return None, [], None
+
+
+def peek_state_json(
+    cwd: Path,
+    integrity_mode: str = "standard",
+    *,
+    recover_intent: bool = True,
+) -> tuple[dict | None, list[str], str | None]:
+    """Load state without persisting recovery writes."""
+    return _load_state_json_with_integrity_issues(
+        cwd,
+        integrity_mode=integrity_mode,
+        persist_recovery=False,
+        recover_intent=recover_intent,
+    )
+
+
+def _drop_invalid_project_contract(state_obj: dict) -> tuple[dict, list[str]]:
+    project_contract = state_obj.get("project_contract")
+    if project_contract is None or contract_from_data(project_contract) is not None:
+        return state_obj, []
+    cleaned_state = dict(state_obj)
+    cleaned_state["project_contract"] = None
+    return cleaned_state, [
+        'schema normalization: dropped "project_contract" because contract integrity checks failed'
+    ]
+
+
+def _restore_recoverable_project_contract(
+    state_obj: dict,
+    raw_project_contract: object,
+) -> tuple[dict, list[str]]:
+    """Restore recoverable project_contract drift while leaving blocking drift dropped."""
+
+    if not isinstance(raw_project_contract, dict):
+        return state_obj, []
+    if state_obj.get("project_contract") is not None:
+        return state_obj, []
+
+    list_shape_drift_errors = _collect_list_shape_drift_errors(raw_project_contract)
+    normalized_contract, schema_findings = salvage_project_contract(raw_project_contract)
+    schema_findings = list(dict.fromkeys([*schema_findings, *list_shape_drift_errors]))
+    schema_warnings, schema_errors = _split_project_contract_schema_findings(
+        schema_findings,
+        allow_singleton_defaults=False,
+    )
+    if schema_errors or normalized_contract is None:
+        return state_obj, []
+
+    restored_state = dict(state_obj)
+    restored_state["project_contract"] = normalized_contract.model_dump(mode="python")
+    integrity_issues = [_integrity_issue_from_contract_error(issue) for issue in schema_warnings]
+    return restored_state, integrity_issues
+
+
+def _load_state_json_from_backup(
+    bak_path: Path,
+    *,
+    integrity_mode: str,
+    allow_project_contract_salvage: bool,
+) -> tuple[dict | None, list[str]]:
+    try:
+        bak_raw = bak_path.read_text(encoding="utf-8")
+        bak_parsed = json.loads(bak_raw)
+        if not isinstance(bak_parsed, dict):
+            raise TypeError(f"state root must be an object, got {type(bak_parsed).__name__}")
+        restored, integrity_issues, _recovered_root_from_backup = (
+            _normalize_state_schema_with_backup_project_contract(
+                bak_parsed,
+                None,
+                allow_project_contract_salvage=allow_project_contract_salvage,
+                retain_blocking_project_contract_errors=False,
+            )
+        )
+        restored, contract_integrity_issues = _drop_invalid_project_contract(restored)
+        integrity_issues.extend(contract_integrity_issues)
+        if integrity_mode == "review" and integrity_issues:
+            logger.warning("state.json backup failed review-mode integrity checks: %s", "; ".join(integrity_issues))
+            return None, integrity_issues
+        return restored, integrity_issues
+    except (FileNotFoundError, TypeError, json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return None, []
+
+
+@instrument_gpd_function("state.load_json")
+def load_state_json(cwd: Path, integrity_mode: str = "standard") -> dict | None:
+    """Load state.json with intent recovery and fallback to STATE.md.
+
+    Returns the state dict, or None if no state exists.
+    """
+    state_obj, integrity_issues, _state_source = _load_state_json_with_integrity_issues(
+        cwd,
+        integrity_mode=integrity_mode,
+        persist_recovery=True,
+    )
+    if integrity_mode == "review" and integrity_issues:
+        return None
+    return state_obj
 
 
 def save_state_json_locked(cwd: Path, state_obj: dict) -> None:
@@ -1763,7 +2192,7 @@ def save_state_json_locked(cwd: Path, state_obj: dict) -> None:
 
     Caller MUST hold the canonical state lock.
     """
-    normalized = ensure_state_schema(state_obj)
+    normalized = _normalize_state_for_persistence(state_obj)
     _write_state_pair_locked(cwd, state_obj=normalized, md_content=generate_state_markdown(normalized))
 
 
@@ -1793,8 +2222,20 @@ def save_state_markdown(cwd: Path, md_content: str) -> dict:
 @instrument_gpd_function("state.load")
 def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
     """Load full state with config and file-existence metadata."""
-    state_obj = load_state_json(cwd, integrity_mode=integrity_mode)
+    state_obj, load_integrity_issues, state_source = _load_state_json_with_integrity_issues(
+        cwd,
+        integrity_mode=integrity_mode,
+        persist_recovery=True,
+    )
     validation = state_validate(cwd, integrity_mode=integrity_mode)
+    integrity_issues: list[str] = []
+    for issue in [*load_integrity_issues, *validation.issues]:
+        if issue not in integrity_issues:
+            integrity_issues.append(issue)
+    if integrity_mode == "standard" and validation.warnings:
+        for warning in validation.warnings:
+            if warning not in integrity_issues:
+                integrity_issues.append(warning)
 
     layout = ProjectLayout(cwd)
     state_raw = safe_read_file(layout.state_md) or ""
@@ -1802,12 +2243,13 @@ def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
     return StateLoadResult(
         state=state_obj or {},
         state_raw=state_raw,
-        state_exists=state_obj is not None or len(state_raw) > 0,
+        state_exists=state_obj is not None,
         roadmap_exists=layout.roadmap.exists(),
         config_exists=layout.config_json.exists(),
         integrity_mode=integrity_mode,
         integrity_status=validation.integrity_status,
-        integrity_issues=list(validation.issues),
+        integrity_issues=integrity_issues,
+        state_source=state_source,
     )
 
 
@@ -1933,34 +2375,76 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
     """Persist the canonical project contract to ``state.json``.
 
     This is a JSON-only state field, so it bypasses ``STATE.md`` field patching and
-    writes through the authoritative structured state path instead.
+    writes through the authoritative structured state path instead. Unlike
+    ``ensure_state_schema()``, this write path still rejects authoritative schema
+    drift, but it accepts a small class of recoverable normalization fixes
+    (for example harmless extra keys) and persists the canonicalized contract.
     """
-    from pydantic import ValidationError
-
+    warning_messages: list[str] = []
     try:
+        # Treat model instances like serialized payloads so schema drift is
+        # checked through the same strict path as JSON/dict input.
         if isinstance(contract_data, ResearchContract):
-            parsed = contract_data
+            contract_payload = contract_data.model_dump(mode="python", warnings=False)
+        elif isinstance(contract_data, dict):
+            contract_payload = contract_data
         else:
-            normalized_contract, _errors = salvage_project_contract(contract_data)
-            candidate = normalized_contract.model_dump() if normalized_contract is not None else contract_data
-            parsed = ResearchContract.model_validate(candidate)
-    except ValidationError as exc:
+            return StateUpdateResult(
+                updated=False,
+                reason="Invalid project contract schema: project contract must be a JSON object",
+            )
+        list_shape_drift_errors = _collect_list_shape_drift_errors(contract_payload)
+        normalized_contract, schema_findings = salvage_project_contract(contract_payload)
+        schema_warnings, schema_errors = _split_project_contract_schema_findings(
+            schema_findings,
+            allow_singleton_defaults=False,
+        )
+        schema_errors = list(dict.fromkeys(schema_errors))
+        if schema_errors:
+            return StateUpdateResult(
+                updated=False,
+                reason="Invalid project contract schema: " + "; ".join(schema_errors),
+            )
+        warning_messages.extend(schema_warnings)
+        warning_messages.extend(
+            _integrity_issue_from_contract_error(error) for error in list_shape_drift_errors
+        )
+        if normalized_contract is None:
+            parsed = ResearchContract.model_validate(contract_payload)
+        else:
+            parsed = normalized_contract
+    except PydanticValidationError as exc:
         first_error = exc.errors()[0] if exc.errors() else {}
         location = ".".join(str(part) for part in first_error.get("loc", ())) or "project_contract"
         message = first_error.get("msg", "validation failed")
         return StateUpdateResult(updated=False, reason=f"Invalid project contract at {location}: {message}")
 
-    validation = validate_project_contract(parsed, mode="approved")
-    if not validation.valid:
+    draft_validation = validate_project_contract(parsed, mode="draft")
+    if not draft_validation.valid:
         return StateUpdateResult(
             updated=False,
-            reason="Project contract failed scoping validation: " + "; ".join(validation.errors),
+            reason="Project contract failed scoping validation: " + "; ".join(draft_validation.errors),
         )
+    for warning in draft_validation.warnings:
+        if warning not in warning_messages:
+            warning_messages.append(warning)
+
+    approval_validation = validate_project_contract(parsed, mode="approved")
+    for warning in approval_validation.warnings:
+        if warning not in warning_messages:
+            warning_messages.append(warning)
+    for error in approval_validation.errors:
+        if error not in warning_messages:
+            warning_messages.append(error)
 
     state_obj = load_state_json(cwd) or default_state_dict()
     contract_payload = parsed.model_dump()
     if state_obj.get("project_contract") == contract_payload:
-        return StateUpdateResult(updated=False, reason="Project contract already matches requested value")
+        return StateUpdateResult(
+            updated=False,
+            reason="Project contract already matches requested value",
+            warnings=warning_messages,
+        )
 
     state_obj["project_contract"] = contract_payload
 
@@ -1977,7 +2461,7 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
                 existing_questions.add(question)
 
     save_state_json(cwd, state_obj)
-    return StateUpdateResult(updated=True)
+    return StateUpdateResult(updated=True, warnings=warning_messages)
 
 
 @instrument_gpd_function("state.advance_plan")
@@ -2098,7 +2582,7 @@ def state_update_progress(cwd: Path) -> UpdateProgressResult:
                     continue
                 phase_files = [f.name for f in phase_dir.iterdir() if f.is_file()]
                 phase_plans = sum(1 for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN)
-                phase_summaries = sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY)
+                phase_summaries = sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX))
                 total_plans += phase_plans
                 total_completed += min(phase_plans, phase_summaries)
 
@@ -2112,19 +2596,12 @@ def state_update_progress(cwd: Path) -> UpdateProgressResult:
         if progress_pattern.search(content):
             new_content = progress_pattern.sub(lambda m: m.group(1) + progress_str, content, count=1)
             _write_state_markdown_locked(cwd, new_content)
-            try:
-                checkpoints_result = sync_phase_checkpoints(cwd)
-                checkpoint_files = checkpoints_result.updated_files
-            except Exception:
-                logger.warning("Failed to generate phase checkpoint documents", exc_info=True)
-                checkpoint_files = []
             return UpdateProgressResult(
                 updated=True,
                 percent=percent,
                 completed=total_completed,
                 total=total_plans,
                 bar=progress_str,
-                checkpoint_files=checkpoint_files,
             )
 
         return UpdateProgressResult(updated=False, reason="Progress field not found in STATE.md")
@@ -2265,6 +2742,46 @@ def state_resolve_blocker(cwd: Path, text: str) -> ResolveBlockerResult:
         return ResolveBlockerResult(resolved=False, blocker=text, reason="no match found")
 
 
+def _session_continuity_section(session: dict[str, object]) -> str:
+    """Render the Session Continuity section block."""
+    return "\n".join(
+        [
+            "## Session Continuity",
+            "",
+            f"**Last session:** {session.get('last_date') or EM_DASH}",
+            f"**Stopped at:** {session.get('stopped_at') or EM_DASH}",
+            f"**Resume file:** {session.get('resume_file') or EM_DASH}",
+            f"**Hostname:** {session.get('hostname') or EM_DASH}",
+            f"**Platform:** {session.get('platform') or EM_DASH}",
+            "",
+        ]
+    )
+
+
+def _normalize_session_resume_file(cwd: Path, resume_file: str | None) -> str | None:
+    """Normalize project-local absolute resume pointers back to repo-relative form."""
+    if resume_file is None:
+        return None
+
+    normalized = resume_file.strip()
+    if (
+        not normalized
+        or normalized == EM_DASH
+        or normalized == "[Not set]"
+        or normalized.casefold() in {"none", "null"}
+    ):
+        return None
+
+    candidate = Path(normalized).expanduser()
+    if not candidate.is_absolute():
+        return normalized
+
+    try:
+        return candidate.resolve(strict=False).relative_to(cwd.resolve(strict=False)).as_posix()
+    except (OSError, ValueError):
+        return normalized
+
+
 @instrument_gpd_function("state.record_session")
 def state_record_session(
     cwd: Path,
@@ -2287,23 +2804,42 @@ def state_record_session(
     with _state_lock(cwd):
         content = md_path.read_text(encoding="utf-8")
         now = datetime.now(tz=UTC).isoformat()
+        machine = _current_machine_identity()
+        existing_stopped_at = state_extract_field(content, "Stopped at")
+        existing_hostname = state_extract_field(content, "Hostname")
+        existing_platform = state_extract_field(content, "Platform")
+        existing_resume_file = state_extract_field(content, "Resume file")
+        normalized_existing_resume_file = _normalize_session_resume_file(cwd, existing_resume_file)
+        normalized_resume_file = (
+            normalized_existing_resume_file
+            if resume_file is None
+            else _normalize_session_resume_file(cwd, resume_file)
+        )
         updated: list[str] = []
 
-        new_content = state_replace_field(content, "Last session", now)
-        if new_content != content:
-            content = new_content
-            updated.append("Last session")
+        session_values = {
+            "last_date": now,
+            "hostname": machine["hostname"],
+            "platform": machine["platform"],
+            "stopped_at": stopped_at if stopped_at is not None else existing_stopped_at,
+            "resume_file": normalized_resume_file,
+        }
+        new_content = _session_continuity_section(session_values)
 
-        if stopped_at:
-            new_content = state_replace_field(content, "Stopped at", stopped_at)
-            if new_content != content:
-                content = new_content
-                updated.append("Stopped at")
+        session_section_pattern = re.compile(r"##\s*Session Continuity\s*\n[\s\S]*?(?=\n##|$)", re.IGNORECASE)
+        if session_section_pattern.search(content):
+            content = session_section_pattern.sub(lambda _: new_content, content, count=1)
+        else:
+            content = content.rstrip() + "\n\n" + new_content
 
-        resume = resume_file or EM_DASH
-        new_content = state_replace_field(content, "Resume file", resume)
-        if new_content != content:
-            content = new_content
+        updated.append("Last session")
+        if machine["hostname"] != existing_hostname:
+            updated.append("Hostname")
+        if machine["platform"] != existing_platform:
+            updated.append("Platform")
+        if stopped_at is not None and stopped_at != existing_stopped_at:
+            updated.append("Stopped at")
+        if (normalized_resume_file or EM_DASH) != (existing_resume_file or EM_DASH):
             updated.append("Resume file")
 
         if updated:
@@ -2313,7 +2849,9 @@ def state_record_session(
                 cwd=str(cwd),
                 updated_fields=",".join(updated),
                 stopped_at=stopped_at or "",
-                resume_file=resume,
+                resume_file=normalized_resume_file or EM_DASH,
+                hostname=machine["hostname"] or EM_DASH,
+                platform=machine["platform"] or EM_DASH,
             ):
                 pass
             return RecordSessionResult(recorded=True, updated=updated)
@@ -2322,7 +2860,9 @@ def state_record_session(
             "session.continuity.noop",
             cwd=str(cwd),
             stopped_at=stopped_at or "",
-            resume_file=resume,
+            resume_file=normalized_resume_file or EM_DASH,
+            hostname=machine["hostname"] or EM_DASH,
+            platform=machine["platform"] or EM_DASH,
         ):
             pass
         return RecordSessionResult(recorded=False, reason="No session fields found in STATE.md")
@@ -2331,7 +2871,7 @@ def state_record_session(
 @instrument_gpd_function("state.snapshot")
 def state_snapshot(cwd: Path) -> StateSnapshotResult:
     """Fast snapshot of state for progress/routing commands."""
-    state_obj = load_state_json(cwd)
+    state_obj, _issues, _state_source = peek_state_json(cwd, recover_intent=False)
     if state_obj is None:
         return StateSnapshotResult(error="STATE.md not found")
 
@@ -2360,36 +2900,35 @@ def state_snapshot(cwd: Path) -> StateSnapshotResult:
 
 
 @instrument_gpd_function("state.validate")
-def state_validate(cwd: Path, integrity_mode: str = "standard") -> StateValidateResult:
+def state_validate(
+    cwd: Path,
+    integrity_mode: str = "standard",
+    *,
+    recover_intent: bool = True,
+) -> StateValidateResult:
     """Validate state consistency between state.json and STATE.md."""
     from gpd.core.contract_validation import validate_project_contract
 
-    json_path = _state_json_path(cwd)
     md_path = _state_md_path(cwd)
     issues: list[str] = []
     warnings: list[str] = []
 
-    # Load state.json
-    state_json = None
-    try:
-        raw_state_json = json.loads(json_path.read_text(encoding="utf-8"))
-        if not isinstance(raw_state_json, dict):
-            issues.append(
-                f"state.json root must be an object, got {type(raw_state_json).__name__}; validating normalized fallback"
-            )
-        state_json, normalization_issues = _normalize_state_schema(raw_state_json)
-        if normalization_issues:
+    state_json, normalization_issues, state_source = peek_state_json(
+        cwd,
+        integrity_mode=integrity_mode,
+        recover_intent=recover_intent,
+    )
+    if normalization_issues:
+        parse_issues = [issue for issue in normalization_issues if issue.startswith("state.json parse error:")]
+        other_issues = [issue for issue in normalization_issues if not issue.startswith("state.json parse error:")]
+        if parse_issues:
+            parse_target = warnings if integrity_mode == "standard" and state_source == "state.json.bak" else issues
+            parse_target.extend(parse_issues)
+        if other_issues:
             target = issues if integrity_mode == "review" else warnings
-            target.extend(normalization_issues)
-        if isinstance(raw_state_json, dict):
-            raw_version = raw_state_json.get("_version")
-            if raw_version not in (None, 1):
-                target = issues if integrity_mode == "review" else warnings
-                target.append(f"state.json version drift: expected 1, found {raw_version}")
-    except FileNotFoundError:
+            target.extend(other_issues)
+    elif state_json is None:
         issues.append("state.json not found")
-    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
-        issues.append(f"state.json parse error: {e}")
 
     # Load and parse STATE.md
     state_md = None
@@ -2409,44 +2948,32 @@ def state_validate(cwd: Path, integrity_mode: str = "standard") -> StateValidate
             warnings=warnings,
             integrity_mode=integrity_mode,
             integrity_status=_integrity_status_from(issues, warnings, integrity_mode),
+            state_source=state_source,
         )
 
     if isinstance(state_json, dict) and state_json.get("project_contract") is not None:
-        contract_validation = validate_project_contract(state_json.get("project_contract"), mode="approved")
+        contract_payload = state_json.get("project_contract")
+        contract_validation_mode = "approved" if integrity_mode == "review" else "draft"
+        contract_validation = validate_project_contract(contract_payload, mode=contract_validation_mode)
         if contract_validation.errors:
-            target = issues if integrity_mode == "review" else warnings
-            target.extend(f"project_contract: {error}" for error in contract_validation.errors)
+            issues.extend(f"project_contract: {error}" for error in contract_validation.errors)
         if contract_validation.warnings:
             warnings.extend(f"project_contract: {warning}" for warning in contract_validation.warnings)
+        if integrity_mode != "review":
+            approval_validation = validate_project_contract(contract_payload, mode="approved")
+            for error in approval_validation.errors:
+                warning = f"project_contract: {error}"
+                if warning not in warnings and warning not in issues:
+                    warnings.append(warning)
+            for warning_text in approval_validation.warnings:
+                warning = f"project_contract: {warning_text}"
+                if warning not in warnings:
+                    warnings.append(warning)
 
-    # Cross-check position fields
+    if isinstance(state_json, dict) and isinstance(state_md, dict):
+        issues.extend(_state_md_mirror_mismatches(state_json, state_md))
+
     json_pos = state_json.get("position") if isinstance(state_json, dict) else None
-    md_pos = state_md.get("position") if isinstance(state_md, dict) else None
-    if isinstance(json_pos, dict) and isinstance(md_pos, dict):
-        pos_fields = [
-            "current_phase",
-            "current_phase_name",
-            "status",
-            "current_plan",
-            "total_phases",
-            "total_plans_in_phase",
-            "last_activity",
-            "last_activity_desc",
-            "paused_at",
-        ]
-        phase_fields = {"current_phase", "current_phase_name"}
-        for field in pos_fields:
-            json_val = json_pos.get(field)
-            md_val = md_pos.get(field)
-            if json_val is not None and md_val is not None:
-                if field in phase_fields:
-                    j_str = phase_normalize(str(json_val))
-                    m_str = phase_normalize(str(md_val))
-                else:
-                    j_str = str(json_val)
-                    m_str = str(md_val)
-                if j_str != m_str:
-                    issues.append(f'position.{field} mismatch: json="{json_val}" vs md="{md_val}"')
 
     # Convention lock completeness
     if state_json and isinstance(state_json.get("convention_lock"), dict):
@@ -2569,6 +3096,7 @@ def state_validate(cwd: Path, integrity_mode: str = "standard") -> StateValidate
         warnings=warnings,
         integrity_mode=integrity_mode,
         integrity_status=integrity_status,
+        state_source=state_source,
     )
 
 

@@ -1,6 +1,6 @@
 ---
 name: gpd:settings
-description: Configure GPD workflow toggles, tier models, review cadence, and git preferences
+description: Configure GPD workflow toggles, runtime-specific tier model overrides, review cadence, and git preferences
 context_mode: projectless
 allowed-tools:
   - file_read
@@ -13,7 +13,7 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Interactive configuration of GPD workflow agents, runtime-specific tier model overrides, review cadence, and workflow/git preferences via multi-question prompt.
+Interactive configuration of GPD workflow agents, runtime-specific tier model overrides, `execution.review_cadence`, and workflow/git preferences via multi-question prompt.
 
 Routes to the settings workflow which handles:
 
@@ -41,7 +41,7 @@ The workflow handles all logic including:
    - **Plan researcher**: on / off
    - **Plan checker**: on / off
    - **Execution verifier**: on / off
-   - **Review cadence**: dense / adaptive / sparse
+   - **Review cadence** (`execution.review_cadence`): dense / adaptive / sparse
    - **Parallel execution**: on / off
    - **Git branching**: none / per-phase / per-milestone
 4. Runtime-aware model guidance when explicit tier models are requested:
@@ -53,5 +53,5 @@ The workflow handles all logic including:
 6. File writing
 7. Confirmation display with current settings summary and quick command references
 
-Project conventions are managed separately in `.gpd/CONVENTIONS.md` and `.gpd/state.json` (`convention_lock`). The settings workflow must not invent a `physics` block in `.gpd/config.json`; use `gpd convention set` or `/gpd:validate-conventions` for convention work.
+Project conventions are managed separately in `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`). The settings workflow must not invent a `physics` block in `GPD/config.json`; use `gpd convention set` or `/gpd:validate-conventions` for convention work.
    </process>

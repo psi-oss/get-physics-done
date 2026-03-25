@@ -8,18 +8,29 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters import get_adapter
+from gpd.adapters.runtime_catalog import list_runtime_names
+
+RUNTIME_NAMES = list_runtime_names()
+
+
+def _write_owned_manifest(target: Path, *, runtime: str = "claude-code") -> None:
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "gpd-file-manifest.json").write_text(
+        json.dumps({"runtime": runtime, "install_scope": "local"}),
+        encoding="utf-8",
+    )
 
 
 class TestResolveTargetDir:
     """Test resolve_target_dir for all adapters."""
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    @pytest.mark.parametrize("runtime", RUNTIME_NAMES)
     def test_local_uses_cwd(self, runtime: str, tmp_path: Path) -> None:
         adapter = get_adapter(runtime)
         result = adapter.resolve_target_dir(is_global=False, cwd=tmp_path)
         assert result == tmp_path / adapter.config_dir_name
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    @pytest.mark.parametrize("runtime", RUNTIME_NAMES)
     def test_global_uses_global_config(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         result = adapter.resolve_target_dir(is_global=True)
@@ -32,6 +43,7 @@ class TestUninstallBase:
     def test_removes_commands_gpd(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")
         target = tmp_path / ".claude"
+        _write_owned_manifest(target)
         (target / "commands" / "gpd").mkdir(parents=True)
         (target / "commands" / "gpd" / "help.md").write_text("help", encoding="utf-8")
 
@@ -42,6 +54,7 @@ class TestUninstallBase:
     def test_removes_get_physics_done(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")
         target = tmp_path / ".claude"
+        _write_owned_manifest(target)
         (target / "get-physics-done").mkdir(parents=True)
         (target / "get-physics-done" / "file.md").write_text("x", encoding="utf-8")
 
@@ -64,7 +77,7 @@ class TestUninstallBase:
         assert not (agents / "gpd-executor.md").exists()
         assert (agents / "custom-agent.md").exists()
 
-    def test_removes_gpd_hooks(self, tmp_path: Path) -> None:
+    def test_preserves_unmanaged_hooks_without_manifest(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")
         target = tmp_path / ".claude"
         hooks = target / "hooks"
@@ -75,18 +88,55 @@ class TestUninstallBase:
 
         adapter.uninstall(target)
 
+        assert (hooks / "statusline.py").exists()
+        assert (hooks / "check_update.py").exists()
+        assert (hooks / "user-hook.py").exists()
+
+    def test_removes_manifest_tracked_gpd_hooks(self, tmp_path: Path) -> None:
+        adapter = get_adapter("claude-code")
+        target = tmp_path / ".claude"
+        hooks = target / "hooks"
+        hooks.mkdir(parents=True)
+        (hooks / "statusline.py").write_text("s", encoding="utf-8")
+        (hooks / "check_update.py").write_text("u", encoding="utf-8")
+        (hooks / "user-hook.py").write_text("keep", encoding="utf-8")
+        (target / "gpd-file-manifest.json").write_text(
+            json.dumps(
+                {
+                    "runtime": "claude-code",
+                    "files": {
+                        "hooks/statusline.py": "hash-1",
+                        "hooks/check_update.py": "hash-2",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        adapter.uninstall(target)
+
         assert not (hooks / "statusline.py").exists()
         assert not (hooks / "check_update.py").exists()
         assert (hooks / "user-hook.py").exists()
 
-    def test_removes_manifest(self, tmp_path: Path) -> None:
+    def test_removes_owned_manifest(self, tmp_path: Path) -> None:
+        adapter = get_adapter("claude-code")
+        target = tmp_path / ".claude"
+        _write_owned_manifest(target)
+
+        adapter.uninstall(target)
+        assert not (target / "gpd-file-manifest.json").exists()
+
+    def test_refuses_untrusted_manifest_without_runtime(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")
         target = tmp_path / ".claude"
         target.mkdir(parents=True)
         (target / "gpd-file-manifest.json").write_text("{}", encoding="utf-8")
 
-        adapter.uninstall(target)
-        assert not (target / "gpd-file-manifest.json").exists()
+        with pytest.raises(RuntimeError, match="manifest cannot be trusted"):
+            adapter.uninstall(target)
+
+        assert (target / "gpd-file-manifest.json").exists()
 
     def test_removes_patches_dir(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")
@@ -134,7 +184,7 @@ class TestUninstallBase:
 class TestAdapterConformance:
     """Verify all adapters implement the runtime-facing interface."""
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    @pytest.mark.parametrize("runtime", RUNTIME_NAMES)
     def test_has_required_properties(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         assert isinstance(adapter.runtime_name, str)
@@ -143,7 +193,7 @@ class TestAdapterConformance:
         assert isinstance(adapter.help_command, str)
         assert isinstance(adapter.global_config_dir, Path)
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    @pytest.mark.parametrize("runtime", RUNTIME_NAMES)
     def test_has_required_methods(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         assert callable(adapter.finalize_install)
@@ -164,12 +214,12 @@ class TestAdapterConformance:
         adapter = get_adapter(runtime)
         assert adapter.help_command == expected
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    @pytest.mark.parametrize("runtime", RUNTIME_NAMES)
     def test_config_dir_name_starts_with_dot(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         assert adapter.config_dir_name.startswith(".")
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    @pytest.mark.parametrize("runtime", RUNTIME_NAMES)
     def test_runtime_name_matches_registry(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         assert adapter.runtime_name == runtime

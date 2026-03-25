@@ -4,7 +4,7 @@ template_version: 1
 
 # Conventions Ledger Template
 
-Template for `.gpd/CONVENTIONS.md` — persistent, append-only record of all physics conventions adopted across the project lifetime.
+Template for `GPD/CONVENTIONS.md` — persistent, append-only record of all physics conventions adopted across the project lifetime.
 
 **Purpose:** Single source of truth for every convention that could cause a cross-phase inconsistency. Read by the consistency checker to verify current-phase work against ALL accumulated conventions, not just adjacent phases.
 

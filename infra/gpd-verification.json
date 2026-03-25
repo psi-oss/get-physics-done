@@ -1,6 +1,6 @@
 {
   "name": "gpd-verification",
-  "description": "GPD physics verification checks. Tools for running contract-aware checks, dimensional analysis, domain and bundle-specific checklists, limiting case checks, symmetry verification, and coverage gap analysis.",
+  "description": "GPD physics verification checks. Tools for running contract-aware checks, dimensional analysis, domain and bundle-specific checklists, limiting case checks, symmetry verification, and coverage gap analysis. Contract-aware tools accept structured request objects or schema_version=1 contract payloads, expose the exact request shape through `required_request_fields`, `optional_request_fields`, and `request_template`, and surface the supported binding fields `binding.observable_id(s)`, `binding.claim_id(s)`, `binding.deliverable_id(s)`, `binding.acceptance_test_id(s)`, `binding.reference_id(s)`, and `binding.forbidden_proxy_id(s)`. These live semantic integrity rules reject target IDs reused across contract kinds when that makes target resolution ambiguous, and treat `references[].carry_forward_to` entries as workflow scope labels only, never contract IDs.",
   "transport": "stdio",
   "command": "gpd-mcp-verification",
   "args": [],
@@ -20,7 +20,7 @@
   ],
   "registry_prefix": "gpd_verification",
   "prerequisites": [
-    "Install GPD first: npx -y get-physics-done"
+    "Install GPD before enabling built-in MCP servers."
   ],
   "health_check": {
     "tool": "get_checklist",
@@ -31,12 +31,12 @@
   },
   "alternatives": {
     "python_module": {
-      "command": "python",
+      "command": "python3",
       "args": [
         "-m",
         "gpd.mcp.servers.verification_server"
       ],
-      "notes": "Requires gpd package installed"
+      "notes": "Requires gpd package installed and Python >=3.11"
     }
   }
 }

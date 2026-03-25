@@ -11,7 +11,7 @@ from gpd.core.state import default_state_dict
 
 
 def _bootstrap_project(tmp_path: Path) -> Path:
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
     (planning / "state.json").write_text(json.dumps(default_state_dict(), indent=2), encoding="utf-8")
     (planning / "PROJECT.md").write_text("# Project\n\n## Core Research Question\nWhat matters?\n", encoding="utf-8")
@@ -59,7 +59,7 @@ def _bootstrap_project(tmp_path: Path) -> Path:
 
 def test_ingest_reference_artifacts_parses_literature_and_reference_map(tmp_path: Path) -> None:
     _bootstrap_project(tmp_path)
-    literature_dir = tmp_path / ".gpd" / "literature"
+    literature_dir = tmp_path / "GPD" / "literature"
     literature_dir.mkdir(parents=True)
     (literature_dir / "REVIEW.md").write_text(
         "# Review\n\n"
@@ -89,45 +89,47 @@ def test_ingest_reference_artifacts_parses_literature_and_reference_map(tmp_path
         encoding="utf-8",
     )
 
-    research_map_dir = tmp_path / ".gpd" / "research-map"
+    research_map_dir = tmp_path / "GPD" / "research-map"
     research_map_dir.mkdir(parents=True)
     (research_map_dir / "REFERENCES.md").write_text(
         "# Reference and Anchor Map\n\n"
         "## Active Anchor Registry\n\n"
         "| Anchor ID | Anchor | Type | Source / Locator | Why It Matters | Contract Subject IDs | Required Action | Carry Forward To |\n"
         "| --------- | ------ | ---- | ---------------- | -------------- | -------------------- | --------------- | ---------------- |\n"
-        "| prior-figure | Baseline summary | prior artifact | `.gpd/phases/00-baseline/00-SUMMARY.md` | Carry forward baseline plot | deliv-note | use/compare | execution/writing |\n"
+        "| prior-figure | Baseline summary | prior artifact | `GPD/phases/00-baseline/00-SUMMARY.md` | Carry forward baseline plot | deliv-note | use/compare | execution/writing |\n"
         "\n"
         "## Benchmarks and Comparison Targets\n\n"
         "- Published threshold\n"
         "  - Source: Benchmark Table\n"
-        "  - Compared in: `.gpd/phases/00-baseline/00-SUMMARY.md`\n"
+        "  - Compared in: `GPD/phases/00-baseline/00-SUMMARY.md`\n"
         "  - Status: pending\n"
         "\n"
         "## Prior Artifacts and Baselines\n\n"
-        "- `.gpd/phases/00-baseline/00-SUMMARY.md`: Existing baseline fit that later phases must preserve\n",
+        "- `GPD/phases/00-baseline/00-SUMMARY.md`: Existing baseline fit that later phases must preserve\n",
         encoding="utf-8",
     )
 
     result = ingest_reference_artifacts(
         tmp_path,
-        literature_review_files=[".gpd/literature/REVIEW.md"],
-        research_map_reference_files=[".gpd/research-map/REFERENCES.md"],
+        literature_review_files=["GPD/literature/REVIEW.md"],
+        research_map_reference_files=["GPD/research-map/REFERENCES.md"],
     )
 
     ids = {ref.id for ref in result.references}
     assert ids
     assert "ref-benchmark" in ids
+    ref_benchmark = next(ref for ref in result.references if ref.id == "ref-benchmark")
     assert any(ref.role == "benchmark" for ref in result.references)
     assert any(ref.locator == "Benchmark Paper" for ref in result.references)
-    assert any(".gpd/phases/00-baseline/00-SUMMARY.md" in item for item in result.intake.must_include_prior_outputs)
+    assert ref_benchmark.applies_to == ["claim-anchor"]
+    assert any("GPD/phases/00-baseline/00-SUMMARY.md" in item for item in result.intake.must_include_prior_outputs)
     assert any("critical exponent" in item for item in result.intake.known_good_baselines)
     assert "ref-benchmark" in result.intake.must_read_refs
 
 
 def test_ingest_reference_artifacts_ignores_legacy_review_summary_aliases(tmp_path: Path) -> None:
     _bootstrap_project(tmp_path)
-    literature_dir = tmp_path / ".gpd" / "literature"
+    literature_dir = tmp_path / "GPD" / "literature"
     literature_dir.mkdir(parents=True)
     (literature_dir / "LEGACY-REVIEW.md").write_text(
         "# Review\n\n"
@@ -149,7 +151,7 @@ def test_ingest_reference_artifacts_ignores_legacy_review_summary_aliases(tmp_pa
 
     result = ingest_reference_artifacts(
         tmp_path,
-        literature_review_files=[".gpd/literature/LEGACY-REVIEW.md"],
+        literature_review_files=["GPD/literature/LEGACY-REVIEW.md"],
         research_map_reference_files=[],
     )
 
@@ -160,7 +162,7 @@ def test_ingest_reference_artifacts_ignores_legacy_review_summary_aliases(tmp_pa
 
 def test_context_surfaces_derived_reference_registry_without_project_contract(tmp_path: Path) -> None:
     _bootstrap_project(tmp_path)
-    literature_dir = tmp_path / ".gpd" / "literature"
+    literature_dir = tmp_path / "GPD" / "literature"
     literature_dir.mkdir(parents=True)
     (literature_dir / "REVIEW.md").write_text(
         "## Active Anchor Registry\n\n"
@@ -169,11 +171,11 @@ def test_context_surfaces_derived_reference_registry_without_project_contract(tm
         "| Benchmark note | benchmark | Must compare with benchmark note | read/compare | verification |\n",
         encoding="utf-8",
     )
-    research_map_dir = tmp_path / ".gpd" / "research-map"
+    research_map_dir = tmp_path / "GPD" / "research-map"
     research_map_dir.mkdir(parents=True)
     (research_map_dir / "REFERENCES.md").write_text(
         "## Prior Artifacts and Baselines\n\n"
-        "- `.gpd/phases/00-baseline/00-SUMMARY.md`: Baseline artifact to keep visible\n",
+        "- `GPD/phases/00-baseline/00-SUMMARY.md`: Baseline artifact to keep visible\n",
         encoding="utf-8",
     )
 
@@ -182,13 +184,13 @@ def test_context_surfaces_derived_reference_registry_without_project_contract(tm
     assert ctx["project_contract"] is None
     assert ctx["derived_active_reference_count"] >= 1
     assert any(ref["source_kind"] == "artifact" for ref in ctx["derived_active_references"])
-    assert ".gpd/phases/00-baseline/00-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+    assert "GPD/phases/00-baseline/00-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
     assert "Benchmark note" in ctx["active_reference_context"]
 
 
 def test_ingest_reference_artifacts_accepts_bullet_registries_and_direct_intake_sections(tmp_path: Path) -> None:
     _bootstrap_project(tmp_path)
-    literature_dir = tmp_path / ".gpd" / "literature"
+    literature_dir = tmp_path / "GPD" / "literature"
     literature_dir.mkdir(parents=True)
     (literature_dir / "ALT-REVIEW.md").write_text(
         "# Review\n\n"
@@ -210,12 +212,12 @@ def test_ingest_reference_artifacts_accepts_bullet_registries_and_direct_intake_
         encoding="utf-8",
     )
 
-    research_map_dir = tmp_path / ".gpd" / "research-map"
+    research_map_dir = tmp_path / "GPD" / "research-map"
     research_map_dir.mkdir(parents=True)
     (research_map_dir / "CONCERNS.md").write_text(
         "# Reference Context\n\n"
         "## Prior Outputs\n\n"
-        "- `.gpd/phases/00-baseline/00-SUMMARY.md`\n"
+        "- `GPD/phases/00-baseline/00-SUMMARY.md`\n"
         "\n"
         "## Known Good Baselines\n\n"
         "- Control window from the accepted benchmark run\n"
@@ -227,33 +229,109 @@ def test_ingest_reference_artifacts_accepts_bullet_registries_and_direct_intake_
 
     result = ingest_reference_artifacts(
         tmp_path,
-        literature_review_files=[".gpd/literature/ALT-REVIEW.md"],
-        research_map_reference_files=[".gpd/research-map/CONCERNS.md"],
+        literature_review_files=["GPD/literature/ALT-REVIEW.md"],
+        research_map_reference_files=["GPD/research-map/CONCERNS.md"],
     )
 
     ref = next(ref for ref in result.references if ref.id == "ref-benchmark-2025")
     assert ref.role == "benchmark"
     assert ref.locator == "Benchmark Ref 2025, J. Phys. 2025"
+    assert ref.applies_to == ["claim-anchor"]
     assert ref.required_actions == ["read", "compare", "cite"]
     assert "ref-benchmark-2025" in result.intake.must_read_refs
-    assert ".gpd/phases/00-baseline/00-SUMMARY.md" in result.intake.must_include_prior_outputs
+    assert "GPD/phases/00-baseline/00-SUMMARY.md" in result.intake.must_include_prior_outputs
     assert "notes/reference-intake.md" in result.intake.crucial_inputs
     assert "Need the definitive normalization note" in result.intake.context_gaps
     assert "Control window from the accepted benchmark run" in result.intake.known_good_baselines
 
 
+def test_ingest_reference_artifacts_preserves_repeated_bullet_detail_values(tmp_path: Path) -> None:
+    _bootstrap_project(tmp_path)
+    literature_dir = tmp_path / "GPD" / "literature"
+    literature_dir.mkdir(parents=True)
+    (literature_dir / "REPEATED-DETAILS.md").write_text(
+        "# Review\n\n"
+        "## Active References\n\n"
+        "- Benchmark Ref 2026\n"
+        "  - Anchor ID: ref-benchmark-2026\n"
+        "  - Source / Locator: Benchmark Ref 2026, J. Phys. 2026\n"
+        "  - Type: benchmark target\n"
+        "  - Contract Subject IDs: claim-anchor\n"
+        "  - Contract Subject IDs: deliv-note\n"
+        "  - Required Action: read/use\n"
+        "  - Required Action: compare\n"
+        "  - Carry Forward To: planning/verification\n"
+        "  - Carry Forward To: writing\n",
+        encoding="utf-8",
+    )
+
+    result = ingest_reference_artifacts(
+        tmp_path,
+        literature_review_files=["GPD/literature/REPEATED-DETAILS.md"],
+        research_map_reference_files=[],
+    )
+
+    ref = next(ref for ref in result.references if ref.id == "ref-benchmark-2026")
+    assert ref.applies_to == ["claim-anchor", "deliv-note"]
+    assert ref.required_actions == ["read", "use", "compare"]
+    assert ref.carry_forward_to == ["planning", "verification", "writing"]
+    assert "ref-benchmark-2026" in result.intake.must_read_refs
+
+
 def test_context_discovers_additional_research_map_reference_artifacts(tmp_path: Path) -> None:
     _bootstrap_project(tmp_path)
-    research_map_dir = tmp_path / ".gpd" / "research-map"
+    research_map_dir = tmp_path / "GPD" / "research-map"
     research_map_dir.mkdir(parents=True)
     (research_map_dir / "CONCERNS.md").write_text(
         "# Reference Context\n\n"
         "## Prior Outputs\n\n"
-        "- `.gpd/phases/00-baseline/00-SUMMARY.md`\n",
+        "- `GPD/phases/00-baseline/00-SUMMARY.md`\n",
         encoding="utf-8",
     )
 
     ctx = init_verify_work(tmp_path, "1")
 
-    assert ".gpd/research-map/CONCERNS.md" in ctx["research_map_reference_files"]
-    assert ".gpd/phases/00-baseline/00-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+    assert "GPD/research-map/CONCERNS.md" in ctx["research_map_reference_files"]
+    assert "GPD/phases/00-baseline/00-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
+
+
+def test_ingest_reference_artifacts_surfaces_explicit_or_derived_must_surface_flags(tmp_path: Path) -> None:
+    _bootstrap_project(tmp_path)
+    literature_dir = tmp_path / "GPD" / "literature"
+    literature_dir.mkdir(parents=True)
+    (literature_dir / "REVIEW.md").write_text(
+        "# Review\n\n"
+        "## Active Anchor Registry\n\n"
+        "| Anchor ID | Anchor | Type | Source / Locator | Why It Matters | Must Surface | Required Action |\n"
+        "| --------- | ------ | ---- | ---------------- | -------------- | ------------ | --------------- |\n"
+        "| ref-benchmark | Benchmark Ref | benchmark | Benchmark Paper | Decisive benchmark | no | cite |\n"
+        "| ref-method | Method Ref | method | Method Paper | Required method anchor |  | compare |\n",
+        encoding="utf-8",
+    )
+
+    result = ingest_reference_artifacts(
+        tmp_path,
+        literature_review_files=["GPD/literature/REVIEW.md"],
+        research_map_reference_files=[],
+    )
+
+    benchmark = next(ref for ref in result.references if ref.id == "ref-benchmark")
+    method = next(ref for ref in result.references if ref.id == "ref-method")
+
+    assert benchmark.must_surface is False
+    assert method.must_surface is True
+
+
+def test_anchor_registry_templates_document_must_surface_column_and_fallback_heuristic() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    literature_workflow = (repo_root / "src/gpd/specs/workflows/literature-review.md").read_text(encoding="utf-8")
+    reference_template = (
+        repo_root / "src/gpd/specs/references/templates/research-mapper/REFERENCES.md"
+    ).read_text(encoding="utf-8")
+
+    assert "| Must Surface |" in literature_workflow
+    assert "Set `Must Surface` to `yes`" in literature_workflow
+    assert "roles like `benchmark`, `definition`, `method`, or `must_consider`" in literature_workflow
+    assert "| Must Surface |" in reference_template
+    assert "`Must Surface` marks anchors" in reference_template
+    assert "required actions such as `use`, `compare`, or `avoid`" in reference_template

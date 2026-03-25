@@ -28,6 +28,7 @@ __all__ = [
     "ENV_GPD_DEBUG",
     "ENV_MAX_INCLUDE_CHARS",
     "ENV_PATTERNS_ROOT",
+    "HOME_DATA_DIR_NAME",
     "LITERATURE_DIR_NAME",
     "MILESTONES_DIR_NAME",
     "MILESTONES_FILENAME",
@@ -83,9 +84,9 @@ __all__ = [
 ]
 
 # ─── Planning Directory Layout ────────────────────────────────────────────────
-# These define the on-disk layout of a GPD project's .gpd/ directory.
+# These define the on-disk layout of a GPD project's GPD/ directory.
 
-PLANNING_DIR_NAME = ".gpd"
+PLANNING_DIR_NAME = "GPD"
 """Top-level GPD metadata directory inside a project root."""
 
 STATE_JSON_FILENAME = "state.json"
@@ -113,25 +114,25 @@ MILESTONES_FILENAME = "MILESTONES.md"
 """Milestone tracking document."""
 
 CHECKPOINTS_FILENAME = "CHECKPOINTS.md"
-"""Root-level human-facing checkpoint index."""
+"""Generated human-facing checkpoint index under GPD/."""
 
 AGENT_ID_FILENAME = "current-agent-id.txt"
 """File storing the current agent's identifier for resume detection."""
 
 PHASES_DIR_NAME = "phases"
-"""Subdirectory under .gpd/ containing per-phase directories."""
+"""Subdirectory under GPD/ containing per-phase directories."""
 
 PHASE_CHECKPOINTS_DIR_NAME = "phase-checkpoints"
-"""Root-level generated checkpoint shelf with one document per phase."""
+"""Generated checkpoint shelf under GPD/ with one document per phase."""
 
 ANALYSIS_DIR_NAME = "analysis"
-"""Subdirectory under .gpd/ for internal analysis/provenance reports."""
+"""Subdirectory under GPD/ for internal analysis/provenance reports."""
 
 TRACES_DIR_NAME = "traces"
-"""Subdirectory under .gpd/ for execution trace JSONL files."""
+"""Subdirectory under GPD/ for execution trace JSONL files."""
 
 OBSERVABILITY_DIR_NAME = "observability"
-"""Subdirectory under .gpd/ for local session/event observability logs."""
+"""Subdirectory under GPD/ for local session/event observability logs."""
 
 OBSERVABILITY_SESSIONS_DIR_NAME = "sessions"
 """Subdirectory under observability/ containing per-session event streams."""
@@ -143,19 +144,19 @@ OBSERVABILITY_CURRENT_EXECUTION_FILENAME = "current-execution.json"
 """Pointer to the latest active or resumable execution-state snapshot."""
 
 MILESTONES_DIR_NAME = "milestones"
-"""Subdirectory under .gpd/ for archived milestone snapshots."""
+"""Subdirectory under GPD/ for archived milestone snapshots."""
 
 TODOS_DIR_NAME = "todos"
-"""Subdirectory under .gpd/ for todo items."""
+"""Subdirectory under GPD/ for todo items."""
 
 LITERATURE_DIR_NAME = "literature"
-"""Subdirectory under .gpd/ for literature review files."""
+"""Subdirectory under GPD/ for literature review files."""
 
 RESEARCH_MAP_DIR_NAME = "research-map"
-"""Subdirectory under .gpd/ for theory/research map files."""
+"""Subdirectory under GPD/ for theory/research map files."""
 
 SCRATCH_DIR_NAME = "tmp"
-"""Subdirectory under .gpd/ for transient scratch files."""
+"""Subdirectory under GPD/ for transient scratch files."""
 
 ACTIVE_TRACE_FILENAME = ".active-trace"
 """Marker file in traces/ indicating the currently recording trace."""
@@ -235,6 +236,9 @@ PATTERNS_INDEX_FILENAME = "index.json"
 PATTERNS_BY_DOMAIN_DIR = "patterns-by-domain"
 """Subdirectory containing domain-organized pattern files."""
 
+HOME_DATA_DIR_NAME = ".gpd"
+"""Hidden home-directory data root for cross-project caches and managed runtime state."""
+
 
 # ─── Environment Variable Names ──────────────────────────────────────────────
 # All env vars that GPD reads.
@@ -267,13 +271,13 @@ REQUIRED_PLANNING_FILES: tuple[str, ...] = (
     STATE_JSON_FILENAME,
     PROJECT_FILENAME,
 )
-"""Files that must exist in .gpd/ for a valid project."""
+"""Files that must exist in GPD/ for a valid project."""
 
 REQUIRED_PLANNING_DIRS: tuple[str, ...] = (PHASES_DIR_NAME,)
-"""Directories that must exist in .gpd/ for a valid project."""
+"""Directories that must exist in GPD/ for a valid project."""
 
 OPTIONAL_PLANNING_FILES: tuple[str, ...] = (CONFIG_FILENAME, CONVENTIONS_FILENAME)
-"""Files that are checked but not required in .gpd/."""
+"""Files that are checked but not required in GPD/."""
 
 
 # ─── Specs Doctor Required Subdirs ────────────────────────────────────────────
@@ -331,16 +335,16 @@ class ProjectLayout:
     """Configurable project directory structure.
 
     Centralizes ALL path construction for a GPD project so that no module
-    needs to hardcode ``".gpd"`` or filename strings.  Every path-
+    needs to hardcode ``"GPD"`` or filename strings.  Every path-
     producing helper in state.py, phases.py, health.py, trace.py, config.py,
     and query.py should delegate to an instance of this class.
 
     Example::
 
         layout = ProjectLayout(project_root)
-        state_json = layout.state_json        # project_root / ".gpd" / "state.json"
-        traces      = layout.traces_dir              # project_root / ".gpd" / "traces"
-        sessions    = layout.observability_sessions_dir  # project_root / ".gpd" / "observability" / "sessions"
+        state_json = layout.state_json        # project_root / "GPD" / "state.json"
+        traces      = layout.traces_dir              # project_root / "GPD" / "traces"
+        sessions    = layout.observability_sessions_dir  # project_root / "GPD" / "observability" / "sessions"
         current_obs = layout.current_observability_session
         phase_dir   = layout.phase_dir("01-setup")
     """
@@ -399,7 +403,7 @@ class ProjectLayout:
 
     @property
     def checkpoints_md(self) -> Path:
-        return self.root / CHECKPOINTS_FILENAME
+        return self.gpd / CHECKPOINTS_FILENAME
 
     @property
     def agent_id_file(self) -> Path:
@@ -413,7 +417,7 @@ class ProjectLayout:
 
     @property
     def phase_checkpoints_dir(self) -> Path:
-        return self.root / PHASE_CHECKPOINTS_DIR_NAME
+        return self.gpd / PHASE_CHECKPOINTS_DIR_NAME
 
     @property
     def analysis_dir(self) -> Path:
@@ -504,11 +508,11 @@ class ProjectLayout:
 
     def is_summary_file(self, filename: str) -> bool:
         """Check if a filename matches the summary naming convention."""
-        return filename.endswith(SUMMARY_SUFFIX) or filename == STANDALONE_SUMMARY
+        return filename.endswith(SUMMARY_SUFFIX)
 
     def is_verification_file(self, filename: str) -> bool:
         """Check if a filename matches the verification naming convention."""
-        return filename.endswith(VERIFICATION_SUFFIX) or filename == STANDALONE_VERIFICATION
+        return filename.endswith(VERIFICATION_SUFFIX)
 
     def strip_plan_suffix(self, filename: str) -> str:
         """Remove plan suffix from filename to get the plan ID."""
@@ -522,6 +526,4 @@ class ProjectLayout:
         """Remove summary suffix from filename to get the plan ID."""
         if filename.endswith(SUMMARY_SUFFIX):
             return filename[: -len(SUMMARY_SUFFIX)]
-        if filename == STANDALONE_SUMMARY:
-            return ""
         return filename

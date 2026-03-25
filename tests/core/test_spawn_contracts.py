@@ -219,10 +219,10 @@ def test_new_project_parallel_researchers_write_to_disjoint_artifacts() -> None:
     outputs = {output for task in tasks for output in _extract_output_paths(task)}
 
     expected = {
-        ".gpd/research/PRIOR-WORK.md",
-        ".gpd/research/METHODS.md",
-        ".gpd/research/COMPUTATIONAL.md",
-        ".gpd/research/PITFALLS.md",
+        "GPD/research/PRIOR-WORK.md",
+        "GPD/research/METHODS.md",
+        "GPD/research/COMPUTATIONAL.md",
+        "GPD/research/PITFALLS.md",
     }
 
     assert expected <= outputs
@@ -235,9 +235,9 @@ def test_new_milestone_research_and_roadmapper_gate_success_path_artifacts() -> 
 
     assert content.count("<spawn_contract>") >= 3
     assert "Do not trust the runtime handoff status by itself." in content
-    assert "If a scout reports success but its `expected_artifacts` entry (`.gpd/research/{FILE}`) is missing" in content
-    assert "If the synthesizer reports success but `.gpd/research/SUMMARY.md` is missing" in content
-    assert "If the roadmapper reports `## ROADMAP CREATED` but `.gpd/ROADMAP.md` or `.gpd/STATE.md` is missing" in content
+    assert "If a scout reports success but its `expected_artifacts` entry (`GPD/research/{FILE}`) is missing" in content
+    assert "If the synthesizer reports success but `GPD/research/SUMMARY.md` is missing" in content
+    assert "If the roadmapper reports `## ROADMAP CREATED` but `GPD/ROADMAP.md` or `GPD/STATE.md` is missing" in content
     assert "shared_state_policy: return_only" in content
 
 
@@ -258,13 +258,29 @@ def test_peer_review_stages_use_fresh_context_and_stage_artifacts() -> None:
     assert "fresh context" in math.text
     assert "fresh context" in physics.text
     assert "fresh context" in significance.text
-    assert ".gpd/review/STAGE-literature{round_suffix}.json" in literature.text
-    assert ".gpd/review/STAGE-math{round_suffix}.json" in math.text
-    assert ".gpd/review/STAGE-physics{round_suffix}.json" in physics.text
-    assert ".gpd/review/STAGE-interestingness{round_suffix}.json" in significance.text
-    assert ".gpd/review/REVIEW-LEDGER{round_suffix}.json" in referee.text
-    assert ".gpd/review/REFEREE-DECISION{round_suffix}.json" in referee.text
-    assert ".gpd/REFEREE-REPORT{round_suffix}.md" in referee.text
+    assert "GPD/review/CLAIMS{round_suffix}.json" in referee.text
+    assert "GPD/review/STAGE-reader{round_suffix}.json" in referee.text
+    assert "GPD/review/STAGE-literature{round_suffix}.json" in literature.text
+    assert "GPD/review/STAGE-math{round_suffix}.json" in math.text
+    assert "GPD/review/STAGE-physics{round_suffix}.json" in physics.text
+    assert "GPD/review/STAGE-interestingness{round_suffix}.json" in significance.text
+    assert "GPD/review/STAGE-literature{round_suffix}.json" in referee.text
+    assert "GPD/review/STAGE-math{round_suffix}.json" in referee.text
+    assert "GPD/review/STAGE-physics{round_suffix}.json" in referee.text
+    assert "GPD/review/STAGE-interestingness{round_suffix}.json" in referee.text
+    assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in referee.text
+    assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in referee.text
+    assert "GPD/REFEREE-REPORT{round_suffix}.md" in referee.text
+    assert "GPD/REFEREE-REPORT{round_suffix}.tex" in referee.text
+
+
+def test_referee_response_template_uses_round_suffixed_decision_artifacts() -> None:
+    content = _read(TEMPLATES_DIR / "paper" / "referee-response.md")
+
+    assert "REFEREE-DECISION{round_suffix}.json" in content
+    assert "REVIEW-LEDGER{round_suffix}.json" in content
+    assert "REFEREE-REPORT{round_suffix}.md" in content
+    assert "REFEREE-REPORT.md" not in content
 
 
 def test_all_workflow_task_blocks_include_readonly_false() -> None:
@@ -296,5 +312,5 @@ def test_all_workflow_task_blocks_include_readonly_false() -> None:
 def test_debug_subagent_template_continuations_use_explicit_file_reads() -> None:
     content = _read(TEMPLATES_DIR / "debug-subagent-prompt.md")
 
-    assert "Read the file at .gpd/debug/{slug}.md" in content
-    assert "@.gpd/debug/{slug}.md" not in content
+    assert "Read the file at GPD/debug/{slug}.md" in content
+    assert "@GPD/debug/{slug}.md" not in content

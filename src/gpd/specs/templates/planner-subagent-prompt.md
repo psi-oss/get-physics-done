@@ -18,7 +18,8 @@ Template for spawning `gpd-planner`. The planner agent owns the planning logic; 
 **Research mode:** {research_mode}
 **Autonomy:** {autonomy}
 
-Planning requires an approved scoping contract. If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED` instead of inferring scope from roadmap text alone.
+Planning requires an approved scoping contract. That contract must include a non-empty `context_intake`. If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED` instead of inferring scope from roadmap text alone.
+The contract still exposes defaultable semantic fields: `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation`. They default to `other` and may be omitted only when that generic category is actually intended.
 
 **Project State:** {state_content}
 **Project Contract:** {project_contract}
@@ -53,6 +54,9 @@ Each plan MUST include:
 - **Error budget:** For numerical work, specify target precision and identify dominant error sources
 - **Consistency checks:** Cross-checks between independent methods or approaches where possible
 - **Contract completeness:** Every plan must carry decisive claims, deliverables, references, acceptance tests, forbidden proxies, and uncertainty markers in frontmatter
+- **Semantic defaults:** Omit `kind`, `role`, or `relation` only when the schema default `other` is genuinely intended; otherwise set the more specific value explicitly
+- **Defaulted semantic fields:** `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation` all exist in the contract and default to `other`
+- **Context intake:** Every plan must carry a non-empty `context_intake` object with the must-read refs, prior outputs, baselines, user anchors, context gaps, and crucial inputs the executor needs before planning
 - **Anchor discipline:** If a benchmark, paper, dataset, baseline, or prior artifact is contract-critical, surface it in the plan instead of treating it as optional background
 - **Protocol bundle coverage:** If specialized protocol bundles are selected, carry their anchor prompts, estimator policies, decisive artifact guidance, and verification extensions into the plan rather than leaving them implicit
 </physics_planning_requirements>
@@ -62,6 +66,7 @@ Planning requires `project_contract`:
 
 - If `project_contract` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED` instead of writing a weak or guessed plan.
 - Every PLAN.md must include a `contract` frontmatter block with exact IDs for claims, deliverables, references, acceptance tests, and forbidden proxies.
+- Every PLAN.md must include a non-empty `context_intake` frontmatter block with the must-read refs, prior outputs, baselines, user anchors, context gaps, and crucial inputs needed to execute the plan.
 - Every PLAN.md must carry forward required context from the contract: must-read refs, prior outputs, baselines, and user anchors when execution depends on them.
 - Treat `effective_reference_intake` as the machine-readable carry-forward ledger. Use `active_reference_context` to interpret it, not to replace it.
 - Every PLAN.md must include uncertainty markers from the contract when they constrain interpretation or verification.
@@ -70,7 +75,7 @@ Planning requires `project_contract`:
 </contract_completion_requirements>
 
 <light_mode_instructions>
-**If plan depth is `light`:** Keep the full canonical frontmatter, including `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, and `contract`.
+**If plan depth is `light`:** Keep the full canonical frontmatter, including `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, `contract`, and `context_intake`.
 
 Simplify only the body:
 
@@ -122,6 +127,12 @@ Output consumed by /gpd:execute-phase. Plans need:
 </quality_gate>
 ```
 
+## Canonical PLAN Contract Schema
+
+Load the validator-enforced PLAN contract schema before writing or revising any `contract:` block:
+
+@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md
+
 ---
 
 ## Revision Template
@@ -133,10 +144,17 @@ Output consumed by /gpd:execute-phase. Plans need:
 
 **Existing plans:** {plans_content}
 **Checker issues:** {structured_issues_from_checker}
+**Project State:** {state_content}
 **Project Contract:** {project_contract}
+**Contract Intake:** {contract_intake}
+**Effective Reference Intake:** {effective_reference_intake}
 **Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
+
+## Canonical PLAN Contract Schema
+
+@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md
 
 **Phase Context:**
 Revisions MUST still honor user decisions.
@@ -159,8 +177,8 @@ Return what changed.
 | Placeholder | Source |
 | --- | --- |
 | `{phase_number}` | `gpd init plan-phase` |
-| `{research_mode}` | `.gpd/config.json` or init JSON |
-| `{autonomy}` | `.gpd/config.json` or init JSON |
+| `{research_mode}` | `GPD/config.json` or init JSON |
+| `{autonomy}` | `GPD/config.json` or init JSON |
 | `{state_content}` | `state_content` from init JSON |
 | `{project_contract}` | `project_contract` from init JSON |
 | `{roadmap_content}` | `roadmap_content` from init JSON |

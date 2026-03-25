@@ -34,7 +34,6 @@ from gpd.mcp.paper.models import (
     ReviewIssueSeverity,
     ReviewIssueStatus,
     ReviewLedger,
-    ReviewPanelBundle,
     ReviewRecommendation,
     ReviewStageKind,
     ReviewSupportStatus,
@@ -44,11 +43,9 @@ from gpd.mcp.paper.models import (
 from gpd.mcp.paper.review_artifacts import (
     read_claim_index,
     read_review_ledger,
-    read_review_panel_bundle,
     read_stage_review_report,
     write_claim_index,
     write_review_ledger,
-    write_review_panel_bundle,
     write_stage_review_report,
 )
 
@@ -73,7 +70,6 @@ __all__ = [
     "ReviewIssueSeverity",
     "ReviewIssueStatus",
     "ReviewLedger",
-    "ReviewPanelBundle",
     "ReviewRecommendation",
     "ReviewStageKind",
     "ReviewSupportStatus",
@@ -91,11 +87,9 @@ __all__ = [
     "list_journals",
     "read_claim_index",
     "read_review_ledger",
-    "read_review_panel_bundle",
     "read_stage_review_report",
     "write_bibliography_audit",
     "write_claim_index",
     "write_review_ledger",
-    "write_review_panel_bundle",
     "write_stage_review_report",
 ]

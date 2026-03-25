@@ -41,8 +41,8 @@ CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 **For each hypothesis branch, extract research state:**
 
 ```bash
-git show {branch}:.gpd/STATE.md 2>/dev/null
-git show {branch}:.gpd/hypotheses/{slug}/HYPOTHESIS.md 2>/dev/null
+git show {branch}:GPD/STATE.md 2>/dev/null
+git show {branch}:GPD/hypotheses/{slug}/HYPOTHESIS.md 2>/dev/null
 ```
 
 **If STATE.md is missing on a branch:** Mark the branch as "no state data" in the comparison table. This branch has no completed work to compare.
@@ -57,7 +57,7 @@ For each branch, collect:
 4. **Key results** -- scan for SUMMARY.md files in the branch:
 
 ```bash
-git ls-tree -r --name-only {branch} -- .gpd/phases/ | grep SUMMARY.md
+git ls-tree -r --name-only {branch} -- GPD/phases/ | grep SUMMARY.md
 ```
 
 For each SUMMARY.md found:
@@ -71,7 +71,7 @@ Extract via `summary-extract --field one_liner --field key_results --field equat
 5. **Verification status** -- scan for VERIFICATION.md files:
 
 ```bash
-git ls-tree -r --name-only {branch} -- .gpd/phases/ | grep VERIFICATION.md
+git ls-tree -r --name-only {branch} -- GPD/phases/ | grep VERIFICATION.md
 ```
 
 Extract `status` (passed/gaps_found/human_needed) from each.
@@ -156,9 +156,9 @@ When branches produce numerical results (extracted from `key_results` in SUMMARY
 
 For each branch, scan all SUMMARY.md `key_results` entries for values with numbers (e.g., `E_0 = -1.234 +/- 0.005`, `T_c/J = 2.269`):
 
-Prefer parsing the `git show` output directly in memory. The branch SUMMARY content is already available from `git show`, so do not write it to `.gpd/tmp/` just to run a path-based extractor.
+Prefer parsing the `git show` output directly in memory. The branch SUMMARY content is already available from `git show`, so do not write it to `GPD/tmp/` just to run a path-based extractor.
 
-If the structure is ambiguous, re-run `git show {branch}:{summary_path} 2>/dev/null` and inspect the frontmatter plus the `## Key Results` and `## Equations Derived` sections directly. Keep branch-summary extraction in memory/stdout only; do not use `.gpd/tmp/`, `/tmp`, or another temp root for this step.
+If the structure is ambiguous, re-run `git show {branch}:{summary_path} 2>/dev/null` and inspect the frontmatter plus the `## Key Results` and `## Equations Derived` sections directly. Keep branch-summary extraction in memory/stdout only; do not use `GPD/tmp/`, `/tmp`, or another temp root for this step.
 
 Parse each entry for: quantity name, numerical value, uncertainty (if present), units.
 
@@ -245,7 +245,7 @@ If inconclusive, say so and suggest what additional work would distinguish them.
 1. **Merge a branch** -- merge hypothesis results back to parent
 2. **Delete a branch** -- clean up an abandoned hypothesis
 3. **Continue working** -- return to current branch
-4. **Export comparison** -- write this comparison to .gpd/BRANCH-COMPARISON.md
+4. **Export comparison** -- write this comparison to GPD/BRANCH-COMPARISON.md
 
 Which action? (1/2/3/4)
 
@@ -297,13 +297,13 @@ git branch -d hypothesis/{slug}
 
 **If export selected:**
 
-Write the comparison output to `.gpd/BRANCH-COMPARISON.md`.
+Write the comparison output to `GPD/BRANCH-COMPARISON.md`.
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/BRANCH-COMPARISON.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/BRANCH-COMPARISON.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: export branch comparison" --files .gpd/BRANCH-COMPARISON.md
+gpd commit "docs: export branch comparison" --files GPD/BRANCH-COMPARISON.md
 ```
 
 </step>

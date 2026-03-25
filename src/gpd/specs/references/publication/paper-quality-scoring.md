@@ -21,7 +21,7 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 
 | Check | Points | How to verify |
 |-------|--------|---------------|
-| Decisive figures/tables labeled with units | 3 | Read `.gpd/paper/FIGURE_TRACKER.md` `figure_registry` and verify `has_units: true` for decisive artifacts |
+| Decisive figures/tables labeled with units | 3 | Read `GPD/paper/FIGURE_TRACKER.md` `figure_registry` and verify `has_units: true` for decisive artifacts |
 | Decisive figures/tables carry uncertainty bands or error bars | 4 | Use the tracker `has_uncertainty` field for decisive artifacts |
 | Decisive figures/tables referenced in text and role is clear | 4 | Use the tracker `referenced_in_text` field and verify the `role` is not `other` |
 | Captions are self-contained (understandable without reading text) | 3 | Read each caption in isolation |
@@ -67,7 +67,7 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 | Check | Points | How to verify |
 |-------|--------|---------------|
 | Key numerical results include uncertainties | 4 | Every number in results section has ± or error bar |
-| Decisive outputs have explicit comparison verdicts and anchors | 3 | `comparison_verdicts` exist for decisive results and cite the right anchors; decisive figures should link back to `.gpd/comparisons/*-COMPARISON.md` when relevant |
+| Decisive outputs have explicit comparison verdicts and anchors | 3 | `comparison_verdicts` exist for decisive results and cite the right anchors; decisive figures should link back to `GPD/comparisons/*-COMPARISON.md` when relevant |
 | Physical interpretation provided (not just math) | 3 | Discussion section explains meaning of results |
 
 ## Total Score Interpretation

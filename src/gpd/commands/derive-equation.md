@@ -30,7 +30,7 @@ Provide the equation or topic to derive as an argument (e.g., `/gpd:derive-equat
   </objective>
 
 <context>
-@.gpd/STATE.md
+@GPD/STATE.md
 </context>
 
 <execution_context>

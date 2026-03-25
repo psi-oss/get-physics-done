@@ -348,7 +348,7 @@ def cmd_pre_commit_check(cwd: Path, files: list[str]) -> PreCommitCheckResult:
     Behavior:
     - If *files* is empty, validates the currently staged files.
     - Directory inputs are expanded recursively to regular files.
-    - Blocks scratch/internal artifact paths while allowing normal `.gpd` docs.
+    - Blocks scratch/internal artifact paths while allowing normal `GPD` docs.
     """
     resolved_files = _expand_check_inputs(cwd, files)
     if not resolved_files:
@@ -389,12 +389,12 @@ def cmd_commit(
     message: str,
     files: list[str] | None = None,
 ) -> CommitResult:
-    """Stage specified files (or all .gpd/ changes) and create a git commit.
+    """Stage specified files (or all GPD/ changes) and create a git commit.
 
     Args:
         cwd: Project root directory.
         message: Commit message.
-        files: Specific files to stage. If empty/None, stages all .gpd/ changes.
+        files: Specific files to stage. If empty/None, stages all GPD/ changes.
 
     Returns:
         CommitResult with commit status, any skip reason, and pre-commit details.

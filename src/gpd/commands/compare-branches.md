@@ -26,7 +26,7 @@ Use after two or more hypothesis branches have produced results that can be mean
 </execution_context>
 
 <context>
-@.gpd/STATE.md
+@GPD/STATE.md
 </context>
 
 <process>

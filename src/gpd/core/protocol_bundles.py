@@ -7,15 +7,17 @@ verification assets plus planning / execution / verification hints.
 
 from __future__ import annotations
 
+import logging
 import re
 import textwrap
 from functools import lru_cache
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import ResearchContract
-from gpd.core.frontmatter import extract_frontmatter
+from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.specs import SPECS_DIR
 
 __all__ = [
@@ -36,6 +38,7 @@ __all__ = [
 
 
 BUNDLES_DIR = SPECS_DIR / "bundles"
+logger = logging.getLogger(__name__)
 
 _HEADING_RE = re.compile(r"^\s{0,3}(#{2,4})\s+(.+)$", re.MULTILINE)
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -49,6 +52,23 @@ class BundleAsset(BaseModel):
     path: str
     required: bool = False
     note: str | None = None
+
+    @field_validator("path", mode="before")
+    @classmethod
+    def _validate_path(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("path must not be empty")
+        if normalized.startswith(("~", "/")):
+            raise ValueError("path must be relative to specs dir")
+        if "\\" in normalized:
+            raise ValueError("path must use forward slashes")
+        pure_path = PurePosixPath(normalized)
+        if any(part == ".." for part in pure_path.parts):
+            raise ValueError("path must stay within specs dir")
+        return pure_path.as_posix()
 
 
 class BundleAssets(BaseModel):
@@ -269,13 +289,17 @@ def _load_protocol_bundles(bundles_dir: str) -> tuple[ProtocolBundle, ...]:
 
     bundles: list[ProtocolBundle] = []
     for path in sorted(directory.glob("*.md")):
-        text = path.read_text(encoding="utf-8")
-        meta, _body = extract_frontmatter(text)
-        if not meta:
+        try:
+            text = path.read_text(encoding="utf-8")
+            meta, _body = extract_frontmatter(text)
+            if not meta:
+                continue
+            if "bundle_id" not in meta:
+                continue
+            bundles.append(ProtocolBundle.model_validate(meta))
+        except (FrontmatterParseError, OSError, PydanticValidationError, UnicodeError) as exc:
+            logger.warning("Skipping invalid protocol bundle %s: %s", path, exc)
             continue
-        if "bundle_id" not in meta:
-            continue
-        bundles.append(ProtocolBundle.model_validate(meta))
     return tuple(bundles)
 
 

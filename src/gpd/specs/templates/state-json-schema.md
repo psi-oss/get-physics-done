@@ -1,11 +1,11 @@
 ---
 template_version: 1
-purpose: Canonical schema for .gpd/state.json — the machine-readable research state sidecar
+purpose: Canonical schema for GPD/state.json — the machine-readable research state sidecar
 ---
 
 # state.json Schema
 
-Canonical schema for `.gpd/state.json`. This file is the authoritative machine-readable state. STATE.md is a human-readable view generated from it.
+Canonical schema for `GPD/state.json`. This file is the authoritative machine-readable state. STATE.md is a human-readable view generated from it.
 
 Source of truth: `default_state_dict()` in `gpd.core.state`.
 
@@ -69,10 +69,10 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
   },
   "context_intake": {
     "must_read_refs": ["Ref-01"],
-    "must_include_prior_outputs": [".gpd/phases/01-setup/01-01-SUMMARY.md"],
-    "user_asserted_anchors": ["Recover known asymptotic limit"],
+    "must_include_prior_outputs": ["GPD/phases/01-setup/01-01-SUMMARY.md"],
+    "user_asserted_anchors": ["Recover known asymptotic limit from the accepted benchmark curve"],
     "known_good_baselines": ["Baseline derivation in notebook X"],
-    "context_gaps": ["Benchmark reference not yet selected; still to identify the decisive anchor"],
+    "context_gaps": ["Need grounding; decisive target not yet chosen before planning"],
     "crucial_inputs": ["Figure 2 from prior work"]
   },
   "approach_policy": {
@@ -132,7 +132,7 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
       "applies_to": ["claim-main"],
       "carry_forward_to": ["planning", "execution", "verification", "writing"],
       "must_surface": true,
-      "required_actions": ["read", "compare", "cite"]
+      "required_actions": ["read", "compare", "cite", "avoid"]
     }
   ],
   "forbidden_proxies": [
@@ -184,6 +184,8 @@ Approved project contracts must include at least one observable, claim, or deliv
 
 Canonical IDs and other required string fields are trimmed before validation. Blank-after-trim values are invalid, and duplicates that differ only by surrounding whitespace still collide after normalization.
 
+`scope.in_scope` must name at least one project boundary or objective.
+
 The following fields always store arrays of objects, never arrays of plain strings:
 
 - `observables[]` — `{ "id", "name", "kind", "definition", "regime?", "units?" }`
@@ -195,11 +197,31 @@ The following fields always store arrays of objects, never arrays of plain strin
 - `links[]` — `{ "id", "source", "target", "relation", "verified_by[]" }`
 
 If a project-contract reference sets `must_surface: true`, `required_actions[]` must not be empty.
+`required_actions[]` uses the same closed action vocabulary enforced downstream in contract ledgers: `read`, `use`, `compare`, `cite`, `avoid`.
+
+If a project contract has any `references[]` and does not already carry concrete prior-output, user-anchor, or baseline grounding, at least one reference must set `must_surface: true`. When that other grounding exists, a missing `must_surface: true` reference is still a warning that should be repaired, not a silent ignore.
+
+If a project-contract reference sets `must_surface: true`, `applies_to[]` must not be empty.
+
+Approved-mode grounding is field-specific:
+
+- `must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames, such as `GPD/phases/.../*-SUMMARY.md` or `paper/main.tex`.
+- `user_asserted_anchors[]` and `known_good_baselines[]` should name a concrete benchmark, baseline, reference, notebook, figure, dataset, or comparable anchor phrase. Single-token filler does not count.
+- `Placeholder`, `TBD`, `TODO`, `unknown`, `unclear`, `none`, `n/a`, and `placeholder` remain non-grounding unless they are part of a genuinely missing-anchor blocker phrase.
+
+#### Approved-Mode Grounding Rule
+
+The approved-mode gate uses the exact rule:
+
+`approved project contract requires at least one concrete anchor/reference/prior-output/baseline; explicit missing-anchor notes preserve uncertainty but do not satisfy approval on their own`
+
+Placeholder or `TBD` text does not count as concrete grounding. That includes generic filler such as `TBD`, `TODO`, `unknown`, `unclear`, `none`, `n/a`, and `placeholder` when they are not attached to a real anchor.
 
 #### Project Contract ID Linkage Rules
 
 Every ID-like field must point to a declared object ID in the same contract:
 
+- Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
 - `context_intake.must_read_refs[]` must contain `references[].id` values only.
 - `references[].aliases[]` may store stable human-facing labels or citation strings that help canonicalize downstream anchor mentions.
 - `claims[].observables[]` must contain `observables[].id` values only.
@@ -216,11 +238,15 @@ Every ID-like field must point to a declared object ID in the same contract:
 
 #### Explicit Anchor-Gap Guidance
 
-If the user does not know the decisive anchor yet, keep that uncertainty explicit instead of inventing a paper, reference, benchmark, or baseline. Accepted phrasings include:
+If the user does not know the decisive anchor yet, keep that uncertainty explicit instead of inventing a paper, reference, benchmark, or baseline. Put that blocker in `scope.unresolved_questions`, `context_intake.context_gaps`, or `uncertainty_markers.weakest_anchors`. Accepted phrasings include:
 
 - `Which reference should serve as the decisive benchmark anchor?`
 - `Benchmark reference not yet selected; still to identify the decisive anchor.`
+- `Need grounding before the decisive anchor is chosen.`
+- `Decisive target not yet chosen before planning can proceed.`
 - `Baseline comparison is TBD before planning can proceed.`
+
+These phrases are valid for preserving uncertainty when they point to a genuinely missing decisive anchor, but they do not satisfy approved-mode grounding on their own. Approved mode still needs a concrete reference, prior output, user anchor, or baseline elsewhere in the contract; placeholder-only wording does not count.
 
 ### `position`
 
@@ -244,8 +270,8 @@ If the user does not know the decisive anchor yet, keep that uncertainty explici
 | `current_phase` | `string \| null` | `gpd phase complete`, `state update` | All agents (via init) |
 | `current_phase_name` | `string \| null` | `gpd phase complete`, `state update` | All agents (via init) |
 | `total_phases` | `integer \| null` | `gpd phase add/remove` | Progress display |
-| `current_plan` | `string \| integer \| null` | `gpd state advance-plan` | Executor, orchestrators |
-| `total_plans_in_phase` | `integer \| null` | Plan-phase orchestrator | Executor, advance-plan |
+| `current_plan` | `string \| integer \| null` | `gpd state advance` | Executor, orchestrators |
+| `total_plans_in_phase` | `integer \| null` | Plan-phase orchestrator | Executor, state advance |
 | `status` | `string \| null` | Multiple commands | All agents |
 | `last_activity` | `string \| null` | Most state-modifying commands | Session display |
 | `last_activity_desc` | `string \| null` | Executor, workflows | Session display |
@@ -427,12 +453,16 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 ```json
 {
   "last_date": "2026-03-15T14:30:00.000Z",
+  "hostname": "builder-01",
+  "platform": "Linux 6.1 x86_64",
   "stopped_at": "Phase 3, Plan 2, Task 4: MC thermalization",
-  "resume_file": ".gpd/phases/03/.continue-here"
+  "resume_file": "GPD/phases/03-analysis/.continue-here.md"
 }
 ```
 
 **Written by:** `gpd state record-session`, `/gpd:pause-work`
+
+`session` stores the last session timestamp, advisory machine identity, stop location, and handoff resume file. Keep `resume_file` project-relative when it points inside the repository; `gpd state record-session` normalizes project-local absolute paths back to that form before persisting them. Omitting `--resume-file` preserves the current handoff pointer, while explicit placeholders such as `—`, `None`, or `null` clear it. `gpd init resume` surfaces `session.resume_file` as `execution_resume_file`, may rank it as a non-resumable `session_resume_file` candidate, and compares `hostname`/`platform` with the current machine to emit a non-blocking `machine_change_notice`.
 
 ---
 
@@ -460,14 +490,14 @@ STATE.md and state.json are kept in sync:
 
 1. **STATE.md → state.json**: `sync_state_json()` parses markdown, merges into existing JSON (preserving JSON-only fields)
 2. **state.json → STATE.md**: `save_state_json()` calls `generate_state_markdown()` to regenerate markdown
-3. **Crash recovery**: `state.json.bak` created after every successful write; `load_state_json()` tries backup before falling back to STATE.md
+3. **Crash recovery**: `state.json.bak` created after every successful write; state saves fail closed if the backup cannot be refreshed, and `load_state_json()` tries the backup before falling back to STATE.md when primary JSON is missing or blocked
 4. **Atomic writes**: Uses intent-marker protocol (`.state-write-intent`) to detect and recover from interrupted writes
 5. **Locking**: `file_lock()` context manager prevents concurrent writes (TOCTOU races)
 
 ### Authority hierarchy
 
 ```
-state.json > STATE.md > state.json.bak > STATE.md (regenerated from defaults)
+state.json > state.json.bak > STATE.md
 ```
 
 For JSON-only fields (convention_lock, approximations, propagated_uncertainties, structured intermediate_results): state.json is sole authority. STATE.md renders a lossy view (structured objects become flat bullet strings).
@@ -480,11 +510,11 @@ For position/decisions/blockers: STATE.md is the primary edit surface; state.jso
 
 | Agent | Reads | Writes (via gpd CLI) |
 |-------|-------|----------------------|
-| **gpd-executor** | `convention_lock`, `position`, `intermediate_results` | `state advance-plan`, `state update`, `result add`, `convention set` |
+| **gpd-executor** | `convention_lock`, `position`, `intermediate_results` | `state advance`, `state update`, `result add`, `convention set` |
 | **gpd-planner** | `convention_lock`, `position`, `decisions`, `blockers` | (reads only — orchestrator writes) |
 | **gpd-verifier** | `convention_lock`, `position` | (reads only) |
 | **gpd-debugger** | full state | `state add-blocker` |
 | **gpd-consistency-checker** | `convention_lock`, `intermediate_results` | (reads only) |
 | **gpd-notation-coordinator** | `convention_lock` | `convention set` |
 | **gpd-paper-writer** | `convention_lock`, `intermediate_results`, `decisions` | (reads only) |
-| **Orchestrators** | `position`, `session` | `state update`, `state patch`, `state advance-plan`, `state record-session`, `state record-metric` |
+| **Orchestrators** | `position`, `session` | `state update`, `state patch`, `state advance`, `state record-session`, `state record-metric` |

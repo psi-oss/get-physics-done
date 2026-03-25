@@ -9,7 +9,13 @@ import pytest
 import gpd.adapters as adapters_module
 from gpd.adapters import get_adapter, list_runtimes
 from gpd.adapters.base import RuntimeAdapter
-from gpd.adapters.runtime_catalog import GlobalConfigPolicy, HookPayloadPolicy, RuntimeDescriptor, list_runtime_names
+from gpd.adapters.runtime_catalog import (
+    GlobalConfigPolicy,
+    HookPayloadPolicy,
+    RuntimeDescriptor,
+    iter_runtime_descriptors,
+    list_runtime_names,
+)
 from gpd.adapters.tool_names import (
     CANONICAL_TOOL_NAMES,
     CONTEXTUAL_TOOL_REFERENCE_NAMES,
@@ -29,21 +35,24 @@ def _canonical_alias_map() -> dict[str, str]:
     return build_canonical_alias_map(_runtime_tool_maps().values())
 
 
+RUNTIME_NAMES = list_runtime_names()
+
+
 class TestRegistry:
     """Tests for the adapter registry (get_adapter / list_runtimes)."""
 
-    def test_list_runtimes_returns_all_four(self) -> None:
+    def test_list_runtimes_returns_all_catalog_entries(self) -> None:
         runtimes = list_runtimes()
-        assert set(runtimes) == {"claude-code", "codex", "gemini", "opencode"}
+        assert set(runtimes) == set(RUNTIME_NAMES)
 
     def test_list_runtimes_matches_runtime_catalog_order(self) -> None:
         assert list_runtimes() == list_runtime_names()
 
     def test_list_runtimes_follows_priority_order(self) -> None:
         runtimes = list_runtimes()
-        assert runtimes == ["claude-code", "gemini", "codex", "opencode"]
+        assert runtimes == [descriptor.runtime_name for descriptor in iter_runtime_descriptors()]
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    @pytest.mark.parametrize("runtime", RUNTIME_NAMES)
     def test_get_adapter_returns_instance(self, runtime: str) -> None:
         adapter = get_adapter(runtime)
         assert isinstance(adapter, RuntimeAdapter)
@@ -58,17 +67,10 @@ class TestRegistry:
         b = get_adapter("claude-code")
         assert a is not b
 
-    @pytest.mark.parametrize(
-        ("runtime", "expected"),
-        [
-            ("claude-code", "npx -y get-physics-done --claude"),
-            ("codex", "npx -y get-physics-done --codex"),
-            ("gemini", "npx -y get-physics-done --gemini"),
-            ("opencode", "npx -y get-physics-done --opencode"),
-        ],
-    )
-    def test_update_command_is_adapter_owned(self, runtime: str, expected: str) -> None:
-        assert get_adapter(runtime).update_command == expected
+    @pytest.mark.parametrize("runtime", RUNTIME_NAMES)
+    def test_update_command_is_adapter_owned(self, runtime: str) -> None:
+        adapter = get_adapter(runtime)
+        assert adapter.update_command == f"npx -y get-physics-done {adapter.runtime_descriptor.install_flag}"
 
     def test_loader_uses_runtime_descriptors_to_import_modules(self, monkeypatch: pytest.MonkeyPatch) -> None:
         alpha_descriptor = RuntimeDescriptor(
@@ -129,6 +131,43 @@ class TestRegistry:
         assert imported_modules == ["gpd.adapters.beta_runtime", "gpd.adapters.alpha_runtime"]
         assert adapters_module.list_runtimes() == ["beta-runtime", "alpha-runtime"]
         assert adapters_module.get_adapter("alpha-runtime").runtime_name == "alpha-runtime"
+
+    def test_loader_rejects_duplicate_runtime_names(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        duplicate_descriptor = RuntimeDescriptor(
+            runtime_name="duplicate-runtime",
+            display_name="Duplicate Runtime",
+            priority=10,
+            config_dir_name=".duplicate",
+            install_flag="--duplicate",
+            launch_command="duplicate",
+            command_prefix="/gpd:",
+            activation_env_vars=(),
+            selection_flags=("--duplicate",),
+            selection_aliases=("duplicate-runtime",),
+            global_config=GlobalConfigPolicy(strategy="env_or_home", home_subpath=".duplicate"),
+            hook_payload=HookPayloadPolicy(),
+        )
+
+        class DuplicateAdapter(RuntimeAdapter):
+            @property
+            def runtime_name(self) -> str:
+                return "duplicate-runtime"
+
+        monkeypatch.setattr(
+            adapters_module,
+            "iter_runtime_descriptors",
+            lambda: (duplicate_descriptor, duplicate_descriptor),
+        )
+        monkeypatch.setattr(
+            adapters_module,
+            "import_module",
+            lambda name: SimpleNamespace(DuplicateAdapter=DuplicateAdapter),
+        )
+        monkeypatch.setattr(adapters_module, "_REGISTRY", {})
+        monkeypatch.setattr(adapters_module, "_LOADED", False)
+
+        with pytest.raises(RuntimeError, match="Duplicate runtime name in runtime catalog"):
+            adapters_module._ensure_loaded()
 
 
 class TestToolNames:
@@ -245,13 +284,13 @@ class TestToolNames:
         assert {"Read", "Write", "Edit", "shell", "task", "agent"} <= CONTEXTUAL_TOOL_REFERENCE_NAMES
 
     def test_canonical_tool_names_match_runtime_table_keys(self) -> None:
-        assert set(CANONICAL_TOOL_NAMES) == set(_runtime_tool_maps()["claude-code"])
+        assert set(CANONICAL_TOOL_NAMES) == set(_runtime_tool_maps()[RUNTIME_NAMES[0]])
 
     def test_all_runtime_tables_present(self) -> None:
-        assert set(_runtime_tool_maps()) == {"claude-code", "codex", "gemini", "opencode"}
+        assert set(_runtime_tool_maps()) == set(RUNTIME_NAMES)
 
     def test_all_tables_have_same_canonical_keys(self) -> None:
         runtime_maps = _runtime_tool_maps()
-        keys = set(runtime_maps["claude-code"].keys())
+        keys = set(runtime_maps[RUNTIME_NAMES[0]].keys())
         for runtime, table in runtime_maps.items():
-            assert set(table.keys()) == keys, f"{runtime} has different canonical keys than claude-code"
+            assert set(table.keys()) == keys, f"{runtime} has different canonical keys than {RUNTIME_NAMES[0]}"

@@ -49,6 +49,10 @@ def test_normalize_value_metric():
     assert normalize_value("metric_signature", "++++") == "euclidean"
 
 
+def test_normalize_value_metric_euclidean_alias():
+    assert normalize_value("metric_signature", "Euclidean (+,+,+,+)") == "euclidean"
+
+
 def test_normalize_value_passthrough():
     assert normalize_value("metric_signature", "custom-value") == "custom-value"
     assert normalize_value("unknown_field", "anything") == "anything"
@@ -108,6 +112,14 @@ def test_convention_set_alias():
     assert result.updated is True
     assert result.key == "metric_signature"
     assert lock.metric_signature == "mostly-minus"
+
+
+def test_convention_set_metric_euclidean_alias_normalizes():
+    lock = ConventionLock()
+    result = convention_set(lock, "metric_signature", "Euclidean (+,+,+,+)")
+    assert result.updated is True
+    assert result.value == "euclidean"
+    assert lock.metric_signature == "euclidean"
 
 
 def test_convention_set_immutability_gate():
@@ -449,7 +461,7 @@ class TestConventionDiffPhases:
     def test_missing_phase_ids_returns_empty(self, tmp_path):
         """convention_diff_phases with missing phase IDs returns empty result."""
         from gpd.core.conventions import convention_diff_phases
-        gpd_dir = tmp_path / ".gpd"
+        gpd_dir = tmp_path / "GPD"
         gpd_dir.mkdir()
 
         result = convention_diff_phases(tmp_path, phase1=None, phase2="1")
@@ -460,7 +472,7 @@ class TestConventionDiffPhases:
     def test_nonexistent_phases_returns_empty(self, tmp_path):
         """convention_diff_phases with nonexistent phases returns empty result."""
         from gpd.core.conventions import convention_diff_phases
-        gpd_dir = tmp_path / ".gpd" / "phases"
+        gpd_dir = tmp_path / "GPD" / "phases"
         gpd_dir.mkdir(parents=True)
 
         result = convention_diff_phases(tmp_path, phase1="99", phase2="98")

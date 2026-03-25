@@ -307,8 +307,8 @@ def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(t
 # ─── 4. Uninstall without manifest ──────────────────────────────────────────
 
 
-def test_uninstall_no_manifest_graceful(tmp_path: Path):
-    """Uninstall when no manifest exists — should not crash."""
+def test_uninstall_rejects_manifestless_managed_surface(tmp_path: Path):
+    """Uninstall refuses managed surfaces when ownership cannot be proven."""
     target = tmp_path / ".claude"
     target.mkdir()
     # Create some GPD files but no manifest
@@ -319,11 +319,8 @@ def test_uninstall_no_manifest_graceful(tmp_path: Path):
     from gpd.adapters.claude_code import ClaudeCodeAdapter
 
     adapter = ClaudeCodeAdapter()
-    result = adapter.uninstall(target)
-
-    # Should succeed and report what was removed
-    assert result["runtime"] == "claude-code"
-    assert "get-physics-done/" in result["removed"]
+    with pytest.raises(RuntimeError, match="contains GPD artifacts but no manifest"):
+        adapter.uninstall(target)
 
 
 def test_uninstall_empty_target_nothing_to_remove(tmp_path: Path):
@@ -347,6 +344,137 @@ def test_uninstall_nonexistent_target_skips(tmp_path: Path):
         ["uninstall", "claude-code", "--local", "--target-dir", str(tmp_path / "nonexistent")],
     )
     assert result.exit_code == 0
+
+
+def test_uninstall_all_continues_after_one_runtime_failure(tmp_path: Path) -> None:
+    """A failure in one runtime uninstall must not stop later runtimes."""
+
+    removed_target = tmp_path / ".claude"
+    removed_target.mkdir()
+    failed_target = tmp_path / ".codex"
+    failed_target.mkdir()
+
+    claude_adapter = MagicMock()
+    claude_adapter.display_name = "Claude Code"
+    claude_adapter.resolve_target_dir.return_value = removed_target
+    claude_adapter.uninstall.return_value = {"removed": ["commands"]}
+
+    codex_adapter = MagicMock()
+    codex_adapter.display_name = "Codex"
+    codex_adapter.resolve_target_dir.return_value = failed_target
+    codex_adapter.uninstall.side_effect = RuntimeError("boom")
+
+    with (
+        patch("gpd.adapters.list_runtimes", return_value=["claude-code", "codex"]),
+        patch("gpd.adapters.get_adapter", side_effect=lambda runtime: claude_adapter if runtime == "claude-code" else codex_adapter),
+    ):
+        result = runner.invoke(app, ["uninstall", "--all", "--local"], input="y\n")
+
+    assert result.exit_code == 1
+    claude_adapter.uninstall.assert_called_once_with(removed_target)
+    codex_adapter.uninstall.assert_called_once_with(failed_target)
+    assert "boom" in result.output
+    assert "Claude Code" in result.output
+    assert "Codex" in result.output
+
+
+def test_uninstall_raw_outputs_structured_outcomes(tmp_path: Path) -> None:
+    """--raw uninstall should report removed, skipped, and failed outcomes explicitly."""
+
+    removed_target = tmp_path / ".claude"
+    removed_target.mkdir()
+    failed_target = tmp_path / ".codex"
+    failed_target.mkdir()
+    skipped_target = tmp_path / ".gemini"
+
+    claude_adapter = MagicMock()
+    claude_adapter.display_name = "Claude Code"
+    claude_adapter.resolve_target_dir.return_value = removed_target
+    claude_adapter.uninstall.return_value = {"removed": ["commands", "agents"]}
+
+    codex_adapter = MagicMock()
+    codex_adapter.display_name = "Codex"
+    codex_adapter.resolve_target_dir.return_value = failed_target
+    codex_adapter.uninstall.side_effect = RuntimeError("boom")
+
+    gemini_adapter = MagicMock()
+    gemini_adapter.display_name = "Gemini CLI"
+    gemini_adapter.resolve_target_dir.return_value = skipped_target
+    gemini_adapter.uninstall.return_value = {"removed": []}
+
+    with (
+        patch("gpd.adapters.list_runtimes", return_value=["claude-code", "codex", "gemini"]),
+        patch(
+            "gpd.adapters.get_adapter",
+            side_effect=lambda runtime: {
+                "claude-code": claude_adapter,
+                "codex": codex_adapter,
+                "gemini": gemini_adapter,
+            }[runtime],
+        ),
+    ):
+        result = runner.invoke(app, ["--raw", "uninstall", "--all", "--local"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["uninstalled"] == [
+        {
+            "runtime": "claude-code",
+            "status": "removed",
+            "target": str(removed_target),
+            "removed": ["commands", "agents"],
+        },
+        {
+            "runtime": "codex",
+            "status": "failed",
+            "target": str(failed_target),
+            "error": "boom",
+        },
+        {
+            "runtime": "gemini",
+            "status": "skipped",
+            "target": str(skipped_target),
+            "reason": f"not installed at {skipped_target.as_posix()}",
+        },
+    ]
+
+
+def test_uninstall_raw_continues_after_adapter_lookup_failure(tmp_path: Path) -> None:
+    removed_target = tmp_path / ".claude"
+    removed_target.mkdir()
+
+    claude_adapter = MagicMock()
+    claude_adapter.display_name = "Claude Code"
+    claude_adapter.resolve_target_dir.return_value = removed_target
+    claude_adapter.uninstall.return_value = {"removed": ["commands"]}
+
+    def fake_get_adapter(runtime: str):
+        if runtime == "codex":
+            raise RuntimeError("registry offline")
+        return claude_adapter
+
+    with (
+        patch("gpd.adapters.list_runtimes", return_value=["codex", "claude-code"]),
+        patch("gpd.adapters.get_adapter", side_effect=fake_get_adapter),
+    ):
+        result = runner.invoke(app, ["--raw", "uninstall", "--all", "--local"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["uninstalled"] == [
+        {
+            "runtime": "codex",
+            "status": "failed",
+            "target": "",
+            "error": "Runtime adapter unavailable for 'codex' during uninstall: registry offline",
+        },
+        {
+            "runtime": "claude-code",
+            "status": "removed",
+            "target": str(removed_target),
+            "removed": ["commands"],
+        },
+    ]
 
 
 # ─── 5. Non-TTY interactive mode ────────────────────────────────────────────
@@ -476,7 +604,12 @@ def test_uninstall_raw_outputs_json(tmp_path: Path):
     )
 
     assert result.exit_code == 0
-    assert '"uninstalled"' in result.output
+    payload = json.loads(result.output)
+    assert payload["uninstalled"][0]["runtime"] == "claude-code"
+    assert payload["uninstalled"][0]["status"] == "skipped"
+    assert payload["uninstalled"][0]["target"] == str(target)
+    assert payload["uninstalled"][0]["reason"] == "nothing to remove"
+    assert payload["uninstalled"][0]["removed"] == []
 
 
 # ─── 7. is_global forwarding ────────────────────────────────────────────────
@@ -612,6 +745,113 @@ def test_install_single_runtime_marks_explicit_target(tmp_path: Path):
     assert captured_calls[0]["target_dir"] == target
 
 
+def test_install_target_dir_preserves_explicit_global_scope(tmp_path: Path) -> None:
+    """A global install should stay global even when a target dir is explicit."""
+    captured_calls: list[dict[str, object]] = []
+    target = tmp_path / "custom-runtime-dir"
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        captured_calls.append(
+            {
+                "runtime": runtime_name,
+                "is_global": is_global,
+                "target_dir_override": target_dir_override,
+            }
+        )
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(target)}
+
+    mock_adapter = MagicMock(
+        display_name="Claude Code",
+        help_command="/gpd:help",
+        launch_command="claude",
+        new_project_command="/gpd:new-project",
+        map_research_command="/gpd:map-research",
+    )
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter", return_value=mock_adapter),
+    ):
+        result = runner.invoke(
+            app,
+            ["install", "Claude Code", "--global", "--target-dir", str(target)],
+        )
+
+    assert result.exit_code == 0
+    assert captured_calls == [
+        {
+            "runtime": "claude-code",
+            "is_global": True,
+            "target_dir_override": str(target),
+        }
+    ]
+
+
+def test_install_target_dir_uses_canonical_global_path_when_runtime_env_overrides_global_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Canonical global targets should stay global even when runtime env overrides drift."""
+    from gpd.adapters import get_adapter
+    from gpd.adapters.runtime_catalog import resolve_global_config_dir
+
+    captured_calls: list[dict[str, object]] = []
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+    override_dir = tmp_path / "override-global"
+    override_dir.mkdir()
+
+    runtime_name = "codex"
+    adapter = get_adapter(runtime_name)
+    descriptor = adapter.runtime_descriptor
+    canonical_target = resolve_global_config_dir(descriptor, home=home, environ={})
+    canonical_target.mkdir(parents=True)
+
+    env_var = descriptor.global_config.env_var or descriptor.global_config.env_dir_var or descriptor.global_config.env_file_var
+    assert env_var is not None
+    env_value = str(override_dir / "config.json") if env_var == descriptor.global_config.env_file_var else str(override_dir)
+    monkeypatch.setenv(env_var, env_value)
+
+    mock_adapter = MagicMock(
+        runtime_descriptor=descriptor,
+        display_name=adapter.display_name,
+        help_command=adapter.help_command,
+        launch_command=adapter.launch_command,
+        new_project_command=adapter.new_project_command,
+        map_research_command=adapter.map_research_command,
+    )
+    mock_adapter.finalize_install.return_value = None
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        captured_calls.append(
+            {
+                "runtime": runtime_name,
+                "is_global": is_global,
+                "target_dir_override": target_dir_override,
+            }
+        )
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(canonical_target)}
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter", return_value=mock_adapter),
+        patch("gpd.cli._get_cwd", return_value=workspace),
+        patch("gpd.cli.Path.home", return_value=home),
+    ):
+        result = runner.invoke(app, ["install", runtime_name, "--target-dir", str(canonical_target)])
+
+    assert result.exit_code == 0, result.output
+    assert captured_calls == [
+        {
+            "runtime": runtime_name,
+            "is_global": True,
+            "target_dir_override": str(canonical_target),
+        }
+    ]
+
+
 def test_install_single_runtime_resolves_relative_target_dir_against_cli_cwd(tmp_path: Path):
     """Relative --target-dir should be anchored to --cwd, not the process cwd."""
     from gpd.cli import _install_single_runtime
@@ -645,6 +885,96 @@ def test_install_single_runtime_resolves_relative_target_dir_against_cli_cwd(tmp
     assert captured_calls == [cli_cwd / "relative-target"]
 
 
+def test_install_single_runtime_rejects_explicit_target_with_foreign_manifest(
+    gpd_root: Path,
+    tmp_path: Path,
+) -> None:
+    """Explicit target installs must not clean up a config dir owned by another runtime."""
+    from gpd.adapters.claude_code import ClaudeCodeAdapter
+    from gpd.cli import _install_single_runtime
+
+    target = tmp_path / "shared-runtime-dir"
+    target.mkdir()
+    (target / "get-physics-done").mkdir()
+    preserved = target / "get-physics-done" / "keep.md"
+    preserved.write_text("preserve", encoding="utf-8")
+    manifest_path = target / "gpd-file-manifest.json"
+    manifest_path.write_text(
+        json.dumps({"runtime": "gemini", "install_scope": "local", "explicit_target": True}),
+        encoding="utf-8",
+    )
+
+    with (
+        patch("gpd.adapters.get_adapter", return_value=ClaudeCodeAdapter()),
+        patch("gpd.version.resolve_install_gpd_root", return_value=gpd_root),
+        patch("gpd.cli._get_cwd", return_value=tmp_path),
+    ):
+        with pytest.raises(RuntimeError, match="Gemini CLI \\(`gemini`\\), not Claude Code \\(`claude-code`\\)"):
+            _install_single_runtime("claude-code", is_global=False, target_dir_override=str(target))
+
+    assert preserved.read_text(encoding="utf-8") == "preserve"
+    assert json.loads(manifest_path.read_text(encoding="utf-8"))["runtime"] == "gemini"
+
+
+def test_local_install_manifest_stays_non_explicit_outside_process_cwd(gpd_root: Path, tmp_path: Path):
+    """Default local installs should not become explicit targets just because cwd differs."""
+    from gpd.adapters.claude_code import ClaudeCodeAdapter
+    from gpd.hooks.install_metadata import installed_update_command
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    target = workspace / ".claude"
+
+    adapter = ClaudeCodeAdapter()
+    adapter.install(gpd_root, target, is_global=False, explicit_target=False)
+
+    manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+    command = installed_update_command(target)
+
+    assert manifest["install_scope"] == "local"
+    assert manifest["install_target_dir"] == str(target)
+    assert manifest["explicit_target"] is False
+    assert command is not None
+    assert "--local" in command
+    assert "--target-dir" not in command
+
+
+def test_hook_install_metadata_uses_adapter_detection_rules(tmp_path: Path):
+    """Shared hook metadata should defer install detection checks to the owning adapter."""
+    from gpd.hooks.install_metadata import config_dir_has_complete_install
+
+    config_dir = tmp_path / ".claude"
+    config_dir.mkdir()
+    (config_dir / "get-physics-done").mkdir()
+    (config_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"runtime": "claude-code", "install_scope": "local"}),
+        encoding="utf-8",
+    )
+
+    adapter = MagicMock()
+    adapter.has_complete_install.return_value = False
+
+    with patch("gpd.hooks.install_metadata.get_adapter", return_value=adapter):
+        assert config_dir_has_complete_install(config_dir) is False
+
+    adapter.has_complete_install.assert_called_once_with(config_dir)
+
+
+def test_hook_install_metadata_rejects_codex_surface_missing_config_toml(tmp_path: Path):
+    """A half-installed Codex tree should not count as complete just because markers exist."""
+    from gpd.hooks.install_metadata import config_dir_has_complete_install
+
+    config_dir = tmp_path / ".codex"
+    config_dir.mkdir()
+    (config_dir / "get-physics-done").mkdir()
+    (config_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"runtime": "codex", "install_scope": "local"}),
+        encoding="utf-8",
+    )
+
+    assert config_dir_has_complete_install(config_dir) is False
+
+
 def test_uninstall_resolves_relative_target_dir_against_cli_cwd(tmp_path: Path):
     """Relative uninstall --target-dir should be anchored to --cwd."""
     cli_cwd = tmp_path / "workspace"
@@ -671,6 +1001,47 @@ def test_uninstall_resolves_relative_target_dir_against_cli_cwd(tmp_path: Path):
 
     assert result.exit_code == 0
     assert captured_targets == [target]
+
+
+def test_uninstall_rejects_target_dir_with_foreign_manifest(tmp_path: Path) -> None:
+    """Explicit target uninstalls must not remove another runtime's install."""
+    target = tmp_path / "shared-runtime-dir"
+    target.mkdir()
+    (target / "get-physics-done").mkdir()
+    preserved = target / "get-physics-done" / "keep.md"
+    preserved.write_text("preserve", encoding="utf-8")
+    manifest_path = target / "gpd-file-manifest.json"
+    manifest_path.write_text(
+        json.dumps({"runtime": "gemini", "install_scope": "local", "explicit_target": True}),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["uninstall", "claude-code", "--target-dir", str(target)])
+
+    assert result.exit_code == 1
+    assert "Gemini CLI (`gemini`), not Claude Code (`claude-code`)" in result.output
+    assert preserved.read_text(encoding="utf-8") == "preserve"
+    assert json.loads(manifest_path.read_text(encoding="utf-8"))["runtime"] == "gemini"
+
+
+def test_uninstall_rejects_target_dir_with_foreign_manifest_without_wrapping(tmp_path: Path) -> None:
+    """Foreign-manifest ownership errors should stay stable under narrow terminals."""
+    target = tmp_path / "shared-runtime-dir"
+    target.mkdir()
+    (target / "get-physics-done").mkdir()
+    (target / "gpd-file-manifest.json").write_text(
+        json.dumps({"runtime": "gemini", "install_scope": "local", "explicit_target": True}),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["uninstall", "claude-code", "--target-dir", str(target)],
+        terminal_width=80,
+    )
+
+    assert result.exit_code == 1
+    assert "Gemini CLI (`gemini`), not Claude Code (`claude-code`)" in result.output
 
 
 def test_install_interactive_rejects_ambiguous_runtime_name(tmp_path: Path):
@@ -731,6 +1102,64 @@ def test_install_interactive_accepts_unique_fuzzy_runtime_name(tmp_path: Path):
             "target_dir_override": None,
         }
     ]
+
+
+def test_install_accepts_runtime_display_name_alias(tmp_path: Path) -> None:
+    """Non-interactive install should accept runtime display-name aliases."""
+    captured_calls: list[dict[str, object]] = []
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        captured_calls.append(
+            {
+                "runtime": runtime_name,
+                "is_global": is_global,
+                "target_dir_override": target_dir_override,
+            }
+        )
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path / runtime_name)}
+
+    mock_adapter = MagicMock(
+        display_name="Claude Code",
+        help_command="/gpd:help",
+        launch_command="claude",
+        new_project_command="/gpd:new-project",
+        map_research_command="/gpd:map-research",
+    )
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter", return_value=mock_adapter),
+    ):
+        result = runner.invoke(app, ["install", "Claude Code", "--local"])
+
+    assert result.exit_code == 0
+    assert captured_calls == [
+        {
+            "runtime": "claude-code",
+            "is_global": False,
+            "target_dir_override": None,
+        }
+    ]
+
+
+def test_uninstall_accepts_runtime_selection_alias(tmp_path: Path) -> None:
+    """Non-interactive uninstall should accept runtime selection aliases."""
+    target = tmp_path / ".opencode"
+    target.mkdir()
+    captured_targets: list[Path] = []
+
+    class SpyAdapter:
+        display_name = "OpenCode"
+
+        def uninstall(self, target_dir):
+            captured_targets.append(target_dir)
+            return {"runtime": "opencode", "removed": []}
+
+    with patch("gpd.adapters.get_adapter", return_value=SpyAdapter()):
+        result = runner.invoke(app, ["uninstall", "open code", "--target-dir", str(target)])
+
+    assert result.exit_code == 0
+    assert captured_targets == [target]
 
 
 def test_install_interactive_rejects_invalid_location_choice(tmp_path: Path):

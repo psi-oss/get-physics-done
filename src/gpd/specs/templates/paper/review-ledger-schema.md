@@ -5,7 +5,7 @@ type: review-ledger-schema
 
 # Review Ledger Schema
 
-Canonical source of truth for `.gpd/review/REVIEW-LEDGER.json` (or `.gpd/review/REVIEW-LEDGER{round_suffix}.json` in revision rounds).
+Canonical source of truth for `GPD/review/REVIEW-LEDGER{round_suffix}.json`.
 
 This ledger is the persistent issue tracker shared between staged peer review, final adjudication, and author response.
 
@@ -39,11 +39,14 @@ This ledger is the persistent issue tracker shared between staged peer review, f
 
 ## Field Rules
 
+- `manuscript_path` must be non-empty and should match the manuscript path used by the sibling stage artifacts and referee decision for the same round.
+- `issue_id` must match `REF-[A-Za-z0-9][A-Za-z0-9_-]*` (for example `REF-001` or `REF-main-claim`).
+- Every `claim_ids[]` entry must match `CLM-[A-Za-z0-9][A-Za-z0-9_-]*`.
 - `opened_by_stage` must be one of: `reader`, `literature`, `math`, `physics`, `interestingness`, `meta`.
 - `severity` must be one of: `critical`, `major`, `minor`, `suggestion`.
 - `status` must be one of: `open`, `carried_forward`, `resolved`.
 - Keep issue IDs stable across rounds whenever the concern is the same issue being carried forward.
-- Every blocking issue that remains unresolved at final adjudication should appear in `REFEREE-DECISION.json` `blocking_issue_ids`.
+- Every blocking issue that remains unresolved at final adjudication should appear in `REFEREE-DECISION{round_suffix}.json` `blocking_issue_ids`.
 - If you validate the matching referee decision with `--ledger`, duplicate `issue_id` values or missing blocker cross-links should fail that cross-artifact check.
 
 ---
@@ -51,5 +54,5 @@ This ledger is the persistent issue tracker shared between staged peer review, f
 ## Validation Command
 
 ```bash
-gpd validate review-ledger .gpd/review/REVIEW-LEDGER{round_suffix}.json
+gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json
 ```

@@ -22,7 +22,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `research_enabled`, `current_milestone`, `current_milestone_name`, `project_exists`, `roadmap_exists`, `state_exists`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifact_files`, `reference_artifacts_content`.
+Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `research_enabled`, `current_milestone`, `current_milestone_name`, `project_exists`, `roadmap_exists`, `state_exists`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifact_files`, `reference_artifacts_content`.
 
 **Mode-aware behavior:**
 - `autonomy=supervised`: Pause for user confirmation after requirements gathering and before roadmap generation.
@@ -42,7 +42,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Treat `project_contract` as the authoritative machine-readable project contract when present. Treat `active_reference_context` and `effective_reference_intake` as binding carry-forward context even when `project_contract` is empty.
+Treat `project_contract` as the authoritative machine-readable project contract only when `project_contract_load_info` is clean and `project_contract_validation.valid` is true. Treat `active_reference_context` and `effective_reference_intake` as binding carry-forward context even when `project_contract` is empty or blocked.
 
 Before defining scope, inspect these carry-forward inputs and keep them visible through milestone planning:
 - `effective_reference_intake.must_read_refs`
@@ -61,7 +61,10 @@ Load project files:
 - Read STATE.md (if `state_exists` — pending items, blockers)
 - Check for MILESTONE-CONTEXT.md (from milestone discussion)
 - If `reference_artifact_files` is non-empty, read the listed reference artifacts or use `reference_artifacts_content` as a compact fallback
+- Keep `project_contract_load_info` and `project_contract_validation` visible while gathering goals, determining milestone version, and reviewing roadmap coverage; do not assume `project_contract` is authoritative unless those gates are clean.
 - Keep `active_reference_context` available while gathering goals, defining objectives, and reviewing roadmap coverage
+- If `project_contract_load_info.status` starts with `blocked`, checkpoint with the user and repair the stored contract before using it for milestone scope.
+- If `project_contract_validation.valid` is false, checkpoint with the user and repair the stored contract before using it for milestone scope.
 
 ## 2. Gather Milestone Goals
 
@@ -128,12 +131,13 @@ Keep Accumulated Context section from previous milestone.
 ## 6. Cleanup and Commit
 
 Delete MILESTONE-CONTEXT.md if exists (consumed).
+Honor `planning.commit_docs` from init internally when deciding whether milestone artifacts are committed.
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/PROJECT.md .gpd/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/PROJECT.md GPD/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: start milestone v[X.Y] [Name]" --files .gpd/PROJECT.md .gpd/STATE.md
+gpd commit "docs: start milestone v[X.Y] [Name]" --files GPD/PROJECT.md GPD/STATE.md
 ```
 
 ## 7. Literature Survey Decision
@@ -167,7 +171,7 @@ gpd config set workflow.research false
 ```
 
 ```bash
-mkdir -p .gpd/research
+mkdir -p GPD/research
 ```
 
 Spawn 4 parallel gpd-project-researcher agents. Each uses this template with dimension-specific fields:
@@ -195,7 +199,7 @@ Focus ONLY on what's needed for the NEW research questions.
 <quality_gate>{GATES}</quality_gate>
 
 <output>
-Write to: .gpd/research/{FILE}
+Write to: GPD/research/{FILE}
 Use template: {GPD_INSTALL_DIR}/templates/research-project/{FILE}
 </output>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="{DIMENSION} survey")
@@ -208,9 +212,9 @@ Add this contract inside each spawned scout prompt when adapting it:
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - .gpd/research/{FILE}
+    - GPD/research/{FILE}
 expected_artifacts:
-  - .gpd/research/{FILE}
+  - GPD/research/{FILE}
 shared_state_policy: return_only
 </spawn_contract>
 ```
@@ -229,7 +233,7 @@ Before trusting the scout handoff, re-read the expected output files from disk a
 
 **If any research agent fails to spawn or returns an error:** Check which output files were created. For each missing file, note the gap and continue with available outputs. If 3+ agents failed, offer: 1) Retry all agents, 2) Skip literature survey entirely (user selects "Skip survey"), 3) Stop. If 1-2 agents failed, proceed with the synthesizer using available files.
 
-**Artifact gate:** If a scout reports success but its `expected_artifacts` entry (`.gpd/research/{FILE}`) is missing, treat that scout as incomplete. Offer: 1) Retry the missing scout in the same write scope, 2) Execute that scout's research in the main context, 3) Continue without that artifact only if the remaining survey still answers the milestone decision.
+**Artifact gate:** If a scout reports success but its `expected_artifacts` entry (`GPD/research/{FILE}`) is missing, treat that scout as incomplete. Offer: 1) Retry the missing scout in the same write scope, 2) Execute that scout's research in the main context, 3) Continue without that artifact only if the remaining survey still answers the milestone decision.
 
 After all 4 complete (or partial completion handled), spawn synthesizer:
 
@@ -242,14 +246,14 @@ Synthesize literature survey outputs into SUMMARY.md.
 
 <files_to_read>
 Read these files using the file_read tool:
-- .gpd/research/PRIOR-WORK.md
-- .gpd/research/METHODS.md
-- .gpd/research/COMPUTATIONAL.md
-- .gpd/research/PITFALLS.md
+- GPD/research/PRIOR-WORK.md
+- GPD/research/METHODS.md
+- GPD/research/COMPUTATIONAL.md
+- GPD/research/PITFALLS.md
 </files_to_read>
 
 <output>
-Write to: .gpd/research/SUMMARY.md
+Write to: GPD/research/SUMMARY.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md
 Do NOT commit — the orchestrator handles commits.
 </output>
@@ -263,16 +267,16 @@ Add this contract inside the spawned synthesizer prompt when adapting it:
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - .gpd/research/SUMMARY.md
+    - GPD/research/SUMMARY.md
 expected_artifacts:
-  - .gpd/research/SUMMARY.md
+  - GPD/research/SUMMARY.md
 shared_state_policy: return_only
 </spawn_contract>
 ```
 
 **If the synthesizer agent fails to spawn or returns an error:** Check if individual research files exist. If they do, create a minimal SUMMARY.md in the main context by extracting key findings from each file. Proceed with available research.
 
-**Artifact gate:** If the synthesizer reports success but `.gpd/research/SUMMARY.md` is missing, treat the handoff as incomplete. Offer: 1) Retry synthesizer, 2) Create SUMMARY.md in the main context from the scout artifacts, 3) Stop and review the missing inputs.
+**Artifact gate:** If the synthesizer reports success but `GPD/research/SUMMARY.md` is missing, treat the handoff as incomplete. Offer: 1) Retry synthesizer, 2) Create SUMMARY.md in the main context from the scout artifacts, 3) Stop and review the missing inputs.
 
 Display key findings from SUMMARY.md:
 
@@ -289,10 +293,10 @@ Display key findings from SUMMARY.md:
 **Commit literature survey:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/research/PRIOR-WORK.md .gpd/research/METHODS.md .gpd/research/COMPUTATIONAL.md .gpd/research/PITFALLS.md .gpd/research/SUMMARY.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/research/PRIOR-WORK.md GPD/research/METHODS.md GPD/research/COMPUTATIONAL.md GPD/research/PITFALLS.md GPD/research/SUMMARY.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: complete literature survey" --files .gpd/research/PRIOR-WORK.md .gpd/research/METHODS.md .gpd/research/COMPUTATIONAL.md .gpd/research/PITFALLS.md .gpd/research/SUMMARY.md
+gpd commit "docs: complete literature survey" --files GPD/research/PRIOR-WORK.md GPD/research/METHODS.md GPD/research/COMPUTATIONAL.md GPD/research/PITFALLS.md GPD/research/SUMMARY.md
 ```
 
 **If "Skip survey":** Continue to Step 8.
@@ -372,10 +376,10 @@ If "adjust": Return to scoping.
 **Commit objectives:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/REQUIREMENTS.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/REQUIREMENTS.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: define milestone v[X.Y] objectives" --files .gpd/REQUIREMENTS.md
+gpd commit "docs: define milestone v[X.Y] objectives" --files GPD/REQUIREMENTS.md
 ```
 
 ## 9. Create Roadmap
@@ -395,12 +399,12 @@ task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and in
 
 <files_to_read>
 Read these files using the file_read tool before proceeding:
-- .gpd/PROJECT.md
-- .gpd/state.json
-- .gpd/REQUIREMENTS.md
-- .gpd/research/SUMMARY.md (if exists, skip if not found)
-- .gpd/config.json
-- .gpd/MILESTONES.md (if exists, skip if not found)
+- GPD/PROJECT.md
+- GPD/state.json
+- GPD/REQUIREMENTS.md
+- GPD/research/SUMMARY.md (if exists, skip if not found)
+- GPD/config.json
+- GPD/MILESTONES.md (if exists, skip if not found)
 - Files named in `effective_reference_intake.must_include_prior_outputs` when they exist
 - Files named in `reference_artifact_files` when they exist and are relevant to anchor coverage
 </files_to_read>
@@ -422,7 +426,7 @@ Create research roadmap for milestone v[X.Y]:
 5. Treat `must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, `known_good_baselines`, and `crucial_inputs` as binding milestone context, and surface unresolved `context_gaps`
 6. Derive 2-5 success criteria per phase (concrete, verifiable results)
 7. Validate 100% objective coverage and surface all contract-critical items touched by this milestone
-8. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability) while preserving existing `.gpd/state.json` fields, especially `project_contract`
+8. Write files immediately (ROADMAP.md, STATE.md, update REQUIREMENTS.md traceability) while preserving existing `GPD/state.json` fields, especially `project_contract`
 9. Return ROADMAP CREATED with summary
 
 Write files first, then return.
@@ -437,12 +441,12 @@ Add this contract inside the spawned roadmapper prompt when adapting it:
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - .gpd/ROADMAP.md
-    - .gpd/STATE.md
-    - .gpd/REQUIREMENTS.md
+    - GPD/ROADMAP.md
+    - GPD/STATE.md
+    - GPD/REQUIREMENTS.md
 expected_artifacts:
-  - .gpd/ROADMAP.md
-  - .gpd/STATE.md
+  - GPD/ROADMAP.md
+  - GPD/STATE.md
 shared_state_policy: return_only
 </spawn_contract>
 ```
@@ -451,7 +455,7 @@ shared_state_policy: return_only
 
 **If the roadmapper agent fails to spawn or returns an error:** Check if ROADMAP.md was partially written. If it exists and has phases, offer to proceed with it. If no ROADMAP.md, offer: 1) Retry the roadmapper, 2) Create ROADMAP.md in the main context using PROJECT.md and REQUIREMENTS.md.
 
-**Artifact gate:** If the roadmapper reports `## ROADMAP CREATED` but `.gpd/ROADMAP.md` or `.gpd/STATE.md` is missing, treat the handoff as incomplete. Do not trust the runtime handoff status by itself. Offer: 1) Retry the roadmapper, 2) Create the missing artifacts in the main context, 3) Abort and inspect the partial write.
+**Artifact gate:** If the roadmapper reports `## ROADMAP CREATED` but `GPD/ROADMAP.md` or `GPD/STATE.md` is missing, treat the handoff as incomplete. Do not trust the runtime handoff status by itself. Offer: 1) Retry the roadmapper, 2) Create the missing artifacts in the main context, 3) Abort and inspect the partial write.
 
 **If `## ROADMAP BLOCKED`:** Present blocker, work with user, re-spawn.
 
@@ -489,10 +493,10 @@ Success criteria:
 **Commit roadmap** (after approval):
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/REQUIREMENTS.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/ROADMAP.md GPD/STATE.md GPD/REQUIREMENTS.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/REQUIREMENTS.md
+gpd commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files GPD/ROADMAP.md GPD/STATE.md GPD/REQUIREMENTS.md
 ```
 
 ## 10. Done
@@ -506,10 +510,10 @@ gpd commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files .gpd/ROA
 
 | Artifact       | Location                    |
 |----------------|-----------------------------|
-| Project        | `.gpd/PROJECT.md`      |
-| Literature     | `.gpd/research/`       |
-| Objectives     | `.gpd/REQUIREMENTS.md`   |
-| Roadmap        | `.gpd/ROADMAP.md`      |
+| Project        | `GPD/PROJECT.md`      |
+| Literature     | `GPD/research/`       |
+| Objectives     | `GPD/REQUIREMENTS.md`   |
+| Roadmap        | `GPD/ROADMAP.md`      |
 
 **[N] phases** | **[X] objectives** | Ready to investigate
 

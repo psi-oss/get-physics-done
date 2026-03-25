@@ -54,22 +54,22 @@ Use the init payload to extract:
 Search the local workspace for relevant mentions of the requested concept:
 
 ```bash
-rg -n -i --fixed-strings -- "{concept}" .gpd paper manuscript docs src 2>/dev/null | head -60
+rg -n -i --fixed-strings -- "{concept}" GPD paper manuscript docs src 2>/dev/null | head -60
 ```
 
 Also check for nearby high-value context when present:
 
-- `.gpd/research-map/*.md`
+- `GPD/research-map/*.md`
 - Current phase `PLAN.md`, `SUMMARY.md`, `RESEARCH.md`, `VERIFICATION.md`
-- `paper/`, `manuscript/`, or `.gpd/paper/`
-- Existing `.gpd/literature/*REVIEW.md`
+- `paper/`, `manuscript/`, or `GPD/paper/`
+- Existing `GPD/literature/*REVIEW.md`
 
 If no project context exists, gather only the user request plus any relevant local files in the current working directory.
 
 Create the output directory:
 
 ```bash
-mkdir -p .gpd/explanations
+mkdir -p GPD/explanations
 ```
 </step>
 
@@ -112,7 +112,7 @@ Explain the following concept rigorously and in context: {concept}
 </requirements>
 
 <output>
-Write to: .gpd/explanations/{slug}-EXPLAIN.md
+Write to: GPD/explanations/{slug}-EXPLAIN.md
 
 Structure:
 
@@ -161,13 +161,13 @@ task(
   readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-bibliographer.md for your role and instructions.
 
-Audit the citations in `.gpd/explanations/{slug}-EXPLAIN.md`.
+Audit the citations in `GPD/explanations/{slug}-EXPLAIN.md`.
 
 For every paper or book in the Literature Guide:
 1. Verify that the reference is real and relevant
 2. Check title, authors, year, journal/arXiv metadata, and openable URL
 3. Flag hallucinated, inaccurate, or weakly supported references
-4. Write the audit to `.gpd/explanations/{slug}-CITATION-AUDIT.md`
+4. Write the audit to `GPD/explanations/{slug}-CITATION-AUDIT.md`
 
 Return `BIBLIOGRAPHY UPDATED` if all references are verified or corrected.
 Return `CITATION ISSUES FOUND` if any references remain uncertain or invalid."
@@ -203,9 +203,9 @@ Format:
 ## EXPLANATION COMPLETE
 
 **Concept:** {concept}
-**Report:** .gpd/explanations/{slug}-EXPLAIN.md
+**Report:** GPD/explanations/{slug}-EXPLAIN.md
 **Project anchor:** {current phase / manuscript / standalone}
-**Citation verification:** {all verified | issues found in .gpd/explanations/{slug}-CITATION-AUDIT.md | unverified}
+**Citation verification:** {all verified | issues found in GPD/explanations/{slug}-CITATION-AUDIT.md | unverified}
 
 **Key takeaways:**
 

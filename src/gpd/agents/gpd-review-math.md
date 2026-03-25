@@ -30,11 +30,30 @@ Your output must give later reviewers a concise statement of what is mathematica
 2. Choose the 3-5 equations or derivation steps most central to the paper's claims.
 3. Check self-consistency, limits, signs, and approximation validity as far as the artifact set permits.
 4. Record what you actually checked and what remained unchecked.
-5. Write `.gpd/review/STAGE-math.json` or the round-specific variant as a compact `StageReviewReport`.
+5. Write `GPD/review/STAGE-math{round_suffix}.json` as a compact `StageReviewReport`.
 </process>
 
 <artifact_format>
 Use the stage artifact contract from `peer-review-panel.md`.
+
+Required schema for `STAGE-math{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):
+
+- Top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `manuscript_path`, `manuscript_sha256`, `claims_reviewed`, `summary`, `strengths`, `findings`, `confidence`, `recommendation_ceiling`
+- `stage_id` and `stage_kind` must both be `math`
+- The filename `STAGE-math{round_suffix}.json` and the JSON `round` field must agree: unsuffixed first-round artifacts use `round: 1`, and `-R<round>` filenames must use that same integer in `round`
+- `manuscript_path` must be non-empty and must exactly match the sibling `CLAIMS{round_suffix}.json`
+- `manuscript_sha256` must be the lowercase 64-hex digest for the exact manuscript snapshot under review
+- `claims_reviewed` must be an array of Stage 1 `CLM-...` claim IDs; use an empty array only when no indexed claim was actually reviewed
+- `manuscript_sha256` must exactly match the sibling `CLAIMS{round_suffix}.json`
+- Each `findings[]` entry is a `ReviewFinding` with: `issue_id`, `claim_ids`, `severity`, `summary`, `rationale`, `evidence_refs`, `manuscript_locations`, `support_status`, `blocking`, `required_action`
+- Reuse Stage 1 claim IDs like `CLM-001` in `claim_ids`; use `REF-...` issue IDs in `issue_id`
+- `claim_ids` must reuse Stage 1 `CLM-...` claim IDs; `issue_id` must use `REF-...`
+- `severity` must use exactly: `critical`, `major`, `minor`, `suggestion`
+- `support_status` must use exactly: `supported`, `partially_supported`, `unsupported`, `unclear`
+- `confidence` must use exactly: `high`, `medium`, `low`
+- `recommendation_ceiling` must use exactly: `accept`, `minor_revision`, `major_revision`, `reject`
+- `StageReviewReport` and every nested `ReviewFinding` use a closed schema; do not invent extra keys
+- Keep `claims_reviewed`, `strengths`, `findings`, `evidence_refs`, and `manuscript_locations` as arrays even when empty; do not collapse them to prose or scalars
 
 Required finding coverage:
 

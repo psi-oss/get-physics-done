@@ -41,7 +41,7 @@ Typical physics research todos include:
   </objective>
 
 <execution_context>
-@.gpd/STATE.md
+@GPD/STATE.md
 @{GPD_INSTALL_DIR}/workflows/add-todo.md
 </execution_context>
 

@@ -34,8 +34,8 @@ Area filters can target research domains such as:
   </objective>
 
 <execution_context>
-@.gpd/STATE.md
-@.gpd/ROADMAP.md
+@GPD/STATE.md
+@GPD/ROADMAP.md
 @{GPD_INSTALL_DIR}/workflows/check-todos.md
 </execution_context>
 

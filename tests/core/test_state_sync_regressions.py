@@ -3,9 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+import gpd.core.state as state_module
 from gpd.core.state import (
     default_state_dict,
     generate_state_markdown,
+    save_state_json,
     save_state_markdown,
     state_load,
     state_update_progress,
@@ -13,9 +17,11 @@ from gpd.core.state import (
     sync_state_json_core,
 )
 
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
+
 
 def _bootstrap_project(tmp_path: Path) -> Path:
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
     (planning / "phases").mkdir()
     return tmp_path
@@ -23,7 +29,7 @@ def _bootstrap_project(tmp_path: Path) -> Path:
 
 def test_sync_state_json_core_uses_markdown_bullet_sections_as_authority(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     existing = default_state_dict()
     existing["position"]["current_phase"] = "03"
@@ -52,9 +58,37 @@ def test_sync_state_json_core_uses_markdown_bullet_sections_as_authority(tmp_pat
     assert stored["open_questions"] == []
 
 
+def test_state_validate_flags_mirrored_markdown_drift_beyond_position(tmp_path: Path) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / "GPD"
+
+    state_json = default_state_dict()
+    state_json["position"]["current_phase"] = "03"
+    state_json["position"]["status"] = "Executing"
+    state_json["decisions"] = [{"phase": "03", "summary": "Keep cutoff fixed", "rationale": "baseline"}]
+    state_json["blockers"] = ["Waiting on benchmark data"]
+    state_json["open_questions"] = ["Does the fitted exponent drift?"]
+    (planning / "state.json").write_text(json.dumps(state_json, indent=2), encoding="utf-8")
+
+    state_md = default_state_dict()
+    state_md["position"]["current_phase"] = "03"
+    state_md["position"]["status"] = "Executing"
+    state_md["decisions"] = [{"phase": "03", "summary": "Relax cutoff scan", "rationale": "new evidence"}]
+    state_md["blockers"] = ["Waiting on regenerated benchmark data"]
+    state_md["open_questions"] = ["Does the fitted exponent stabilize under rebinning?"]
+    (planning / "STATE.md").write_text(generate_state_markdown(state_md), encoding="utf-8")
+
+    result = state_validate(cwd)
+
+    assert result.valid is False
+    assert "decisions mismatch between state.json and STATE.md" in result.issues
+    assert "blockers mismatch between state.json and STATE.md" in result.issues
+    assert "open_questions mismatch between state.json and STATE.md" in result.issues
+
+
 def test_sync_state_json_core_preserves_user_edits_to_structured_result_bullets(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     state = default_state_dict()
     state["position"]["current_phase"] = "03"
@@ -91,9 +125,34 @@ def test_sync_state_json_core_preserves_user_edits_to_structured_result_bullets(
     assert stored["intermediate_results"][0]["verification_records"][0]["method"] == "manual"
 
 
+def test_save_state_markdown_preserves_existing_project_contract_in_primary_state_json(tmp_path: Path) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / "GPD"
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+
+    existing_state = default_state_dict()
+    existing_state["project_contract"] = contract
+    (planning / "state.json").write_text(json.dumps(existing_state, indent=2), encoding="utf-8")
+
+    markdown_state = default_state_dict()
+    markdown_state["position"]["current_phase"] = "03"
+    markdown_state["position"]["status"] = "Executing"
+    md_content = generate_state_markdown(markdown_state)
+    (planning / "STATE.md").write_text(md_content, encoding="utf-8")
+
+    result = save_state_markdown(cwd, md_content)
+    stored = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+
+    assert result["project_contract"] is not None
+    assert stored["project_contract"] is not None
+    assert result["project_contract"]["scope"]["question"] == contract["scope"]["question"]
+    assert stored["project_contract"]["scope"]["question"] == contract["scope"]["question"]
+    assert stored["project_contract"]["references"][0]["id"] == contract["references"][0]["id"]
+
+
 def test_sync_state_json_core_bootstrap_preserves_progress_and_metrics(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     state = default_state_dict()
     state["position"]["current_phase"] = "03"
@@ -174,7 +233,7 @@ def test_sync_state_json_core_preserves_structured_json_sections_when_markdown_l
     tmp_path: Path,
 ) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     existing = default_state_dict()
     existing["position"]["current_phase"] = "03"
@@ -206,7 +265,7 @@ def test_sync_state_json_core_preserves_structured_json_sections_when_markdown_l
 
 ## Project Reference
 
-See: .gpd/PROJECT.md (updated 2026-03-08)
+See: GPD/PROJECT.md (updated 2026-03-08)
 
 **Core research question:** What is the mass gap?
 **Current focus:** Lattice study
@@ -262,7 +321,7 @@ None yet.
 
 def test_sync_state_json_core_placeholder_fields_clear_stale_json_values(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     existing = default_state_dict()
     existing["position"]["current_phase"] = "03"
@@ -293,7 +352,7 @@ def test_sync_state_json_core_placeholder_fields_clear_stale_json_values(tmp_pat
 
 def test_save_state_markdown_updates_markdown_and_json_together(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
 
     existing = default_state_dict()
     existing["position"]["current_phase"] = "01"
@@ -315,9 +374,73 @@ def test_save_state_markdown_updates_markdown_and_json_together(tmp_path: Path) 
     assert stored["position"]["status"] == "Executing"
 
 
+def test_sync_state_json_core_raises_and_restores_prior_files_when_backup_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / "GPD"
+
+    existing = default_state_dict()
+    existing["position"]["status"] = "Executing"
+    (planning / "state.json").write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+    (planning / "state.json.bak").write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+
+    updated = default_state_dict()
+    updated["position"]["status"] = "Paused"
+    md_content = generate_state_markdown(updated)
+    real_atomic_write = state_module.atomic_write
+
+    def failing_atomic_write(path: Path, content: str) -> None:
+        if Path(path).name == "state.json.bak":
+            raise OSError("backup write failed")
+        real_atomic_write(path, content)
+
+    monkeypatch.setattr(state_module, "atomic_write", failing_atomic_write)
+
+    with pytest.raises(OSError, match="backup write failed"):
+        sync_state_json_core(cwd, md_content)
+
+    stored = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+    backup = json.loads((planning / "state.json.bak").read_text(encoding="utf-8"))
+
+    assert stored["position"]["status"] == "Executing"
+    assert backup["position"]["status"] == "Executing"
+
+
+def test_save_state_markdown_raises_and_restores_prior_pair_when_backup_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    existing = default_state_dict()
+    existing["position"]["status"] = "Executing"
+    save_state_json(cwd, existing)
+
+    planning = cwd / "GPD"
+    original_md = (planning / "STATE.md").read_text(encoding="utf-8")
+    updated_md = original_md.replace("**Status:** Executing", "**Status:** Paused", 1)
+    real_atomic_write = state_module.atomic_write
+
+    def failing_atomic_write(path: Path, content: str) -> None:
+        if Path(path).name == "state.json.bak":
+            raise OSError("backup write failed")
+        real_atomic_write(path, content)
+
+    monkeypatch.setattr(state_module, "atomic_write", failing_atomic_write)
+
+    with pytest.raises(OSError, match="backup write failed"):
+        save_state_markdown(cwd, updated_md)
+
+    stored = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+    backup = json.loads((planning / "state.json.bak").read_text(encoding="utf-8"))
+
+    assert stored["position"]["status"] == "Executing"
+    assert backup["position"]["status"] == "Executing"
+    assert (planning / "STATE.md").read_text(encoding="utf-8") == original_md
+
+
 def test_state_update_progress_ignores_orphan_summaries_and_caps_percent(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
     state = default_state_dict()
     state["position"]["current_phase"] = "01"
     state["position"]["total_phases"] = 2
@@ -327,11 +450,11 @@ def test_state_update_progress_ignores_orphan_summaries_and_caps_percent(tmp_pat
     phase_one = planning / "phases" / "01-foundations"
     phase_one.mkdir(parents=True)
     (phase_one / "PLAN.md").write_text("# plan\n", encoding="utf-8")
-    (phase_one / "SUMMARY.md").write_text("# summary\n", encoding="utf-8")
+    (phase_one / "01-SUMMARY.md").write_text("# summary\n", encoding="utf-8")
 
     phase_two = planning / "phases" / "02-orphan-summary"
     phase_two.mkdir(parents=True)
-    (phase_two / "SUMMARY.md").write_text("# orphan summary\n", encoding="utf-8")
+    (phase_two / "02-SUMMARY.md").write_text("# orphan summary\n", encoding="utf-8")
 
     result = state_update_progress(cwd)
 
@@ -339,14 +462,78 @@ def test_state_update_progress_ignores_orphan_summaries_and_caps_percent(tmp_pat
     assert result.completed == 1
     assert result.total == 1
     assert result.percent == 100
-    assert (cwd / "phase-checkpoints" / "01-foundations.md").exists()
-    assert (cwd / "CHECKPOINTS.md").exists()
-    assert "CHECKPOINTS.md" in result.checkpoint_files
+    assert not hasattr(result, "checkpoint_files")
+    assert "checkpoint_files" not in result.model_dump(mode="json")
+    assert not (cwd / "GPD" / "phase-checkpoints" / "01-foundations.md").exists()
+    assert not (cwd / "GPD" / "CHECKPOINTS.md").exists()
+
+
+def test_state_update_progress_leaves_checkpoint_shelf_artifacts_unchanged(tmp_path: Path) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / "GPD"
+    state = default_state_dict()
+    state["position"]["current_phase"] = "01"
+    state["position"]["total_phases"] = 2
+    state["position"]["status"] = "Executing"
+    (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
+
+    phase_one = planning / "phases" / "01-foundations"
+    phase_one.mkdir(parents=True)
+    (phase_one / "PLAN.md").write_text("# plan\n", encoding="utf-8")
+    (phase_one / "01-SUMMARY.md").write_text("# summary\n", encoding="utf-8")
+
+    phase_two = planning / "phases" / "02-analysis"
+    phase_two.mkdir(parents=True)
+    (phase_two / "PLAN.md").write_text("# plan\n", encoding="utf-8")
+    (phase_two / "02-SUMMARY.md").write_text("# summary\n", encoding="utf-8")
+
+    checkpoint_dir = cwd / "GPD" / "phase-checkpoints"
+    checkpoint_dir.mkdir()
+    stale_checkpoint = checkpoint_dir / "99-old-phase.md"
+    stale_checkpoint.write_text("stale checkpoint\n", encoding="utf-8")
+    checkpoints_index = cwd / "GPD" / "CHECKPOINTS.md"
+    checkpoints_index.write_text("stale index\n", encoding="utf-8")
+
+    result = state_update_progress(cwd)
+
+    assert result.updated is True
+    assert result.completed == 2
+    assert result.total == 2
+    assert result.percent == 100
+    assert not hasattr(result, "checkpoint_files")
+    assert "checkpoint_files" not in result.model_dump(mode="json")
+    assert not (checkpoint_dir / "01-foundations.md").exists()
+    assert not (checkpoint_dir / "02-analysis.md").exists()
+    assert stale_checkpoint.read_text(encoding="utf-8") == "stale checkpoint\n"
+    assert stale_checkpoint.exists()
+    assert checkpoints_index.read_text(encoding="utf-8") == "stale index\n"
+
+
+def test_state_update_progress_ignores_legacy_standalone_summary_files(tmp_path: Path) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / "GPD"
+    state = default_state_dict()
+    state["position"]["current_phase"] = "01"
+    state["position"]["total_phases"] = 1
+    state["position"]["status"] = "Executing"
+    (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
+
+    phase_one = planning / "phases" / "01-foundations"
+    phase_one.mkdir(parents=True)
+    (phase_one / "PLAN.md").write_text("# plan\n", encoding="utf-8")
+    (phase_one / "SUMMARY.md").write_text("# legacy summary\n", encoding="utf-8")
+
+    result = state_update_progress(cwd)
+
+    assert result.updated is True
+    assert result.total == 1
+    assert result.completed == 0
+    assert result.percent == 0
 
 
 def test_state_validate_allows_pristine_default_convention_lock(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
     state = default_state_dict()
     (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
     (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
@@ -360,7 +547,7 @@ def test_state_validate_allows_pristine_default_convention_lock(tmp_path: Path) 
 
 def test_state_load_reports_json_backed_state_as_existing_without_state_md(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
-    planning = cwd / ".gpd"
+    planning = cwd / "GPD"
     state = default_state_dict()
     (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
 

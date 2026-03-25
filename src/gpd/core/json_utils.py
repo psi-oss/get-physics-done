@@ -148,13 +148,16 @@ def json_pluck(stdin_text: str, key: str, field: str) -> str:
 def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
     """Set a key in a JSON file (creates file if needed)."""
     fp = Path(file_path)
-    corrupted = False
     if fp.exists():
         try:
             data = json.loads(fp.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-            data = {}
-            corrupted = True
+            return {
+                "file": str(fp),
+                "path": path,
+                "updated": False,
+                "error": "existing file contains invalid JSON",
+            }
     else:
         data = {}
 
@@ -226,8 +229,6 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
         fp.parent.mkdir(parents=True, exist_ok=True)
         atomic_write(fp, json.dumps(working, indent=2) + "\n")
     result: dict[str, object] = {"file": str(fp), "path": path, "updated": updated}
-    if corrupted:
-        result["warning"] = "existing file had invalid JSON, reset to empty"
     if not updated:
         result["error"] = "type mismatch at final path element"
     return result

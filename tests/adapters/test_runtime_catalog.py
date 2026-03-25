@@ -55,6 +55,7 @@ def test_runtime_catalog_records_native_include_support() -> None:
 def test_runtime_catalog_runtime_keys_are_unique() -> None:
     descriptors = iter_runtime_descriptors()
 
+    assert len({descriptor.runtime_name for descriptor in descriptors}) == len(descriptors)
     assert len({descriptor.priority for descriptor in descriptors}) == len(descriptors)
     assert len({descriptor.config_dir_name for descriptor in descriptors}) == len(descriptors)
     assert len({descriptor.install_flag for descriptor in descriptors}) == len(descriptors)

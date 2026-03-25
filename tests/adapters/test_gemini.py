@@ -748,6 +748,20 @@ class TestInstall:
         # install() must NOT have written settings or set the settingsWritten flag
         assert result.get("settingsWritten") is not True
         assert not (target / "settings.json").exists()
+        assert adapter.missing_install_artifacts(target) == ("settings.json",)
+
+    def test_install_returns_before_finalize_but_runtime_completeness_stays_strict(
+        self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        """Install-time verification must not hide missing finalize artifacts afterwards."""
+        target = tmp_path / ".gemini"
+        target.mkdir()
+
+        adapter.install(gpd_root, target)
+
+        missing = adapter.missing_install_artifacts(target)
+        assert missing == ("settings.json",)
+        assert adapter.missing_install_verification_artifacts(target) == ()
 
     def test_force_statusline_forwarded_through_finalize(
         self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
@@ -837,6 +851,44 @@ class TestInstall:
         assert "@ include not resolved:" not in content.lower()
 
 
+class TestRuntimePermissions:
+    def test_sync_runtime_permissions_yolo_creates_launcher_wrapper(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        result = adapter.sync_runtime_permissions(target, autonomy="yolo")
+        wrapper = target / "get-physics-done" / "bin" / "gemini-gpd-yolo"
+
+        assert wrapper.exists()
+        assert '--approval-mode=yolo "$@"' in wrapper.read_text(encoding="utf-8")
+        assert result["sync_applied"] is True
+        assert result["launch_command"] == str(wrapper)
+        assert result["requires_relaunch"] is True
+
+    def test_sync_runtime_permissions_non_yolo_removes_launcher_wrapper(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+
+        result = adapter.sync_runtime_permissions(target, autonomy="balanced")
+        wrapper = target / "get-physics-done" / "bin" / "gemini-gpd-yolo"
+
+        assert not wrapper.exists()
+        assert result["sync_applied"] is True
+
+
 class TestUninstall:
     def test_uninstall_removes_gpd_dirs(self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".gemini"
@@ -863,9 +915,7 @@ class TestUninstall:
 
         adapter.uninstall(target)
 
-        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
-        assert "statusLine" not in settings
-        assert settings.get("experimental", {}).get("enableAgents") is not True
+        assert not (target / "settings.json").exists()
 
     def test_uninstall_preserves_preexisting_experimental_agents(
         self,
@@ -1030,8 +1080,8 @@ class TestRewriteWindowsPathEscape:
     @pytest.mark.parametrize(
         "bridge_command",
         [
-            r"'C:\Users\OuterSpaceOrg\.gpd\venv\Scripts\python.exe' -m gpd.runtime_cli",
-            r"'C:\Users\me\.gpd\venv\Scripts\python.exe' -m gpd.runtime_cli",
+            r"'C:\Users\OuterSpaceOrg\GPD\venv\Scripts\python.exe' -m gpd.runtime_cli",
+            r"'C:\Users\me\GPD\venv\Scripts\python.exe' -m gpd.runtime_cli",
         ],
     )
     def test_rewrite_gpd_cli_invocations_windows_path(self, bridge_command: str) -> None:
@@ -1048,7 +1098,7 @@ class TestPolicyTomlWindowsPath:
     def test_render_policy_toml_with_windows_path(self) -> None:
         import tomllib
 
-        bridge = r"'C:\Users\OuterSpaceOrg\.gpd\venv\Scripts\python.exe' -m gpd.runtime_cli --runtime gemini"
+        bridge = r"'C:\Users\OuterSpaceOrg\GPD\venv\Scripts\python.exe' -m gpd.runtime_cli --runtime gemini"
         toml_text = _render_gemini_policy_toml(bridge)
         parsed = tomllib.loads(toml_text)
         prefixes = parsed["rule"][0]["commandPrefix"]

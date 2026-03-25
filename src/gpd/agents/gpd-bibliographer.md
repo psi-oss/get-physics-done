@@ -984,7 +984,7 @@ See <checkpoint_behavior> section for full format.
 
 In addition to the markdown references files, produce a JSON sidecar:
 
-**File:** `.gpd/references-status.json`
+**File:** `GPD/references-status.json`
 
 ```json
 {

@@ -16,9 +16,11 @@ from gpd.core.frontmatter import (
     reconstruct_frontmatter,
     splice_frontmatter,
     validate_frontmatter,
+    verify_summary,
 )
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
+STAGE4_FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage4"
 
 
 def _valid_plan_contract_frontmatter(
@@ -42,9 +44,16 @@ def _valid_plan_contract_frontmatter(
         "depends_on: []\n"
         "files_modified: []\n"
         f"interactive: {interactive}\n"
+        "conventions:\n"
+        "  units: natural\n"
+        "  metric: (+,-,-,-)\n"
+        "  coordinates: Cartesian\n"
         "contract:\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
+        "  context_intake:\n"
+        "    must_read_refs: [ref-main]\n"
+        "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
         "  claims:\n"
         "    - id: claim-main\n"
         "      statement: Recover the benchmark value within tolerance\n"
@@ -83,6 +92,38 @@ def _valid_plan_contract_frontmatter(
         "    disconfirming_observations: [Benchmark agreement disappears after normalization fix]"
         "\n"
         "---\n\n"
+    )
+
+
+def _add_plan_conventions(content: str) -> str:
+    if "conventions:" in content:
+        return content
+    return content.replace(
+        "interactive: false\n",
+        "interactive: false\n"
+        "conventions:\n"
+        "  units: natural\n"
+        "  metric: (+,-,-,-)\n"
+        "  coordinates: Cartesian\n",
+        1,
+    )
+
+
+def _plan_contract_frontmatter_with_explicit_semantic_sections() -> str:
+    return _valid_plan_contract_frontmatter(
+        extra_contract_lines=(
+            "  observables:\n"
+            "    - id: obs-main\n"
+            "      name: Benchmark value\n"
+            "      kind: scalar\n"
+            "      definition: Decisive benchmark observable\n"
+            "  links:\n"
+            "    - id: link-main\n"
+            "      source: claim-main\n"
+            "      target: deliv-main\n"
+            "      relation: supports\n"
+            "      verified_by: [test-main]"
+        )
     )
 
 # ---------------------------------------------------------------------------
@@ -242,6 +283,59 @@ class TestParseContractBlock:
         with pytest.raises(FrontmatterValidationError, match="expected an object"):
             parse_contract_block(content)
 
+    def test_missing_context_intake_raises(self):
+        content = _valid_plan_contract_frontmatter().replace(
+            "  context_intake:\n"
+            "    must_read_refs: [ref-main]\n"
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n",
+            "",
+            1,
+        ) + "Body.\n"
+
+        with pytest.raises(FrontmatterValidationError, match="missing context_intake"):
+            parse_contract_block(content)
+
+    def test_empty_context_intake_raises(self):
+        content = _valid_plan_contract_frontmatter().replace(
+            "  context_intake:\n"
+            "    must_read_refs: [ref-main]\n"
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n",
+            "  context_intake: {}\n",
+            1,
+        ) + "Body.\n"
+
+        with pytest.raises(FrontmatterValidationError, match="context_intake must not be empty"):
+            parse_contract_block(content)
+
+    @pytest.mark.parametrize(
+        ("missing_line", "collection_name", "field_name", "expected_value"),
+        [
+            ("      kind: scalar\n", "observables", "kind", "other"),
+            ("      kind: figure\n", "deliverables", "kind", "other"),
+            ("      kind: benchmark\n", "acceptance_tests", "kind", "other"),
+            ("      kind: paper\n", "references", "kind", "other"),
+            ("      role: benchmark\n", "references", "role", "other"),
+            ("      relation: supports\n", "links", "relation", "other"),
+        ],
+    )
+    def test_missing_defaultable_semantic_field_uses_contract_default(
+        self,
+        missing_line: str,
+        collection_name: str,
+        field_name: str,
+        expected_value: str,
+    ):
+        content = _plan_contract_frontmatter_with_explicit_semantic_sections().replace(
+            missing_line,
+            "",
+            1,
+        ) + "Body.\n"
+
+        contract = parse_contract_block(content)
+
+        collection = getattr(contract, collection_name)
+        assert getattr(collection[0], field_name) == expected_value
+
     def test_semantically_incomplete_contract_raises(self):
         content = (
             "---\n"
@@ -257,6 +351,56 @@ class TestParseContractBlock:
         with pytest.raises(FrontmatterValidationError, match="missing acceptance_tests"):
             parse_contract_block(content)
 
+    def test_rejects_coercive_reference_must_surface_scalar(self):
+        content = _valid_plan_contract_frontmatter().replace("must_surface: true", 'must_surface: "yes"', 1) + "Body.\n"
+
+        with pytest.raises(FrontmatterValidationError, match=r"references\.0\.must_surface must be a boolean"):
+            parse_contract_block(content)
+
+    def test_rejects_coercive_schema_version_scalar(self):
+        content = _valid_plan_contract_frontmatter(
+            extra_contract_lines="  schema_version: true",
+        ) + "Body.\n"
+
+        with pytest.raises(FrontmatterValidationError, match="schema_version must be the integer 1"):
+            parse_contract_block(content)
+
+    def test_accepts_singleton_list_drift(self):
+        content = _valid_plan_contract_frontmatter(
+            extra_contract_lines=(
+                "  context_intake:\n"
+                "    must_read_refs: ref-main\n"
+                "    must_include_prior_outputs: []\n"
+                "    user_asserted_anchors: []\n"
+                "    known_good_baselines: []\n"
+                "    context_gaps: []\n"
+                "    crucial_inputs: []"
+            ),
+        ) + "Body.\n"
+
+        contract = parse_contract_block(content)
+
+        assert contract is not None
+        assert contract.context_intake.must_read_refs == ["ref-main"]
+
+    def test_accepts_recoverable_extra_key_drift(self):
+        content = _valid_plan_contract_frontmatter(
+            extra_contract_lines=(
+                "  claims:\n"
+                "    - id: claim-main\n"
+                "      statement: Recover the benchmark value within tolerance\n"
+                "      deliverables: [deliv-main]\n"
+                "      acceptance_tests: [test-main]\n"
+                "      references: [ref-main]\n"
+                "      notes: harmless"
+            ),
+        ) + "Body.\n"
+
+        contract = parse_contract_block(content)
+
+        assert contract is not None
+        assert contract.claims[0].id == "claim-main"
+
 
 # ---------------------------------------------------------------------------
 # validate_frontmatter
@@ -265,11 +409,101 @@ class TestParseContractBlock:
 
 class TestValidateFrontmatter:
     def test_valid_plan(self):
-        content = (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
+        content = _add_plan_conventions((FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
         result = validate_frontmatter(content, "plan")
         assert isinstance(result, FrontmatterValidation)
         assert result.valid is True
         assert result.missing == []
+
+    def test_plan_rejects_coercive_reference_must_surface_scalar(self):
+        content = _valid_plan_contract_frontmatter().replace("must_surface: true", 'must_surface: "yes"', 1) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert "contract: references.0.must_surface must be a boolean" in result.errors
+
+    def test_plan_rejects_coercive_schema_version_scalar(self):
+        content = _valid_plan_contract_frontmatter(
+            extra_contract_lines="  schema_version: true",
+        ) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert "contract: schema_version must be the integer 1" in result.errors
+
+    def test_plan_accepts_singleton_list_drift_in_contract(self):
+        content = _valid_plan_contract_frontmatter(
+            extra_contract_lines=(
+                "  context_intake:\n"
+                "    must_read_refs: ref-main\n"
+                "    must_include_prior_outputs: []\n"
+                "    user_asserted_anchors: []\n"
+                "    known_good_baselines: []\n"
+                "    context_gaps: []\n"
+                "    crucial_inputs: []"
+            ),
+        ) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is True
+        assert result.errors == []
+
+    def test_plan_rejects_missing_context_intake(self):
+        content = _valid_plan_contract_frontmatter().replace(
+            "  context_intake:\n"
+            "    must_read_refs: [ref-main]\n"
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n",
+            "",
+            1,
+        ) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert any("missing context_intake" in error for error in result.errors)
+
+    def test_plan_rejects_empty_context_intake(self):
+        content = _valid_plan_contract_frontmatter().replace(
+            "  context_intake:\n"
+            "    must_read_refs: [ref-main]\n"
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n",
+            "  context_intake: {}\n",
+            1,
+        ) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert any("context_intake must not be empty" in error for error in result.errors)
+
+    @pytest.mark.parametrize(
+        "missing_line",
+        [
+            "      kind: scalar\n",
+            "      kind: figure\n",
+            "      kind: benchmark\n",
+            "      kind: paper\n",
+            "      role: benchmark\n",
+            "      relation: supports\n",
+        ],
+    )
+    def test_plan_accepts_missing_defaultable_semantic_fields(
+        self,
+        missing_line: str,
+    ):
+        content = _plan_contract_frontmatter_with_explicit_semantic_sections().replace(
+            missing_line,
+            "",
+            1,
+        ) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is True
+        assert result.errors == []
 
     def test_missing_fields(self):
         content = "---\nphase: 01-test\n---\n\nBody."
@@ -278,6 +512,21 @@ class TestValidateFrontmatter:
         assert len(result.missing) > 0
         assert "phase" not in result.missing
         assert "plan" in result.missing
+
+    def test_plan_requires_conventions(self):
+        content = _valid_plan_contract_frontmatter().replace(
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n",
+            "",
+            1,
+        ) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert "conventions" in result.missing
 
     def test_hyphen_case_rejected(self):
         content = (
@@ -320,6 +569,41 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any("comparison_verdicts: expected a list" in error for error in result.errors)
 
+    @pytest.mark.parametrize("placeholder", ["[]", "null"])
+    def test_summary_rejects_placeholder_contract_results_section_shapes(self, placeholder: str):
+        content = (
+            "---\n"
+            "phase: 01\n"
+            "plan: 01\n"
+            "depth: standard\n"
+            "provides: []\n"
+            "completed: 2025-01-01\n"
+            "plan_contract_ref: GPD/phases/01-test/01-01-PLAN.md#/contract\n"
+            "contract_results:\n"
+            f"  claims: {placeholder}\n"
+            "  uncertainty_markers:\n"
+            "    weakest_anchors: [Reference tolerance interpretation]\n"
+            "    disconfirming_observations: [Benchmark agreement disappears once normalization is fixed]\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "summary")
+        assert result.valid is False
+        assert any("claims" in error for error in result.errors)
+
+    def test_summary_rejects_missing_uncertainty_markers_for_contract_backed_summary(self):
+        content = (STAGE4_FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8").replace(
+            "  uncertainty_markers:\n"
+            "    weakest_anchors: [Reference tolerance interpretation]\n"
+            "    disconfirming_observations: [Benchmark agreement disappears once normalization is fixed]\n",
+            "",
+            1,
+        )
+
+        result = validate_frontmatter(content, "summary")
+
+        assert result.valid is False
+        assert any("uncertainty_markers" in error for error in result.errors)
+
     def test_plan_rejects_unsupported_must_haves_field(self):
         content = _valid_plan_contract_frontmatter().replace(
             "---\n\n",
@@ -345,8 +629,45 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any(error.startswith("verification_inputs:") for error in result.errors)
 
+    def test_verify_summary_enforces_same_summary_schema_contract(self, tmp_path: Path):
+        summary_path = tmp_path / "01-01-SUMMARY.md"
+        content = (
+            "---\n"
+            "phase: 01\n"
+            "plan: 01\n"
+            "depth: standard\n"
+            "provides: []\n"
+            "completed: 2025-01-01\n"
+            "verification_inputs:\n"
+            "  truths: []\n"
+            "contract_results:\n"
+            "  claims: []\n"
+            "---\n\nBody.\n"
+        )
+        summary_path.write_text(content, encoding="utf-8")
+
+        validation = validate_frontmatter(content, "summary", source_path=summary_path)
+        result = verify_summary(tmp_path, summary_path)
+
+        assert result.summary_exists is True
+        assert result.passed is False
+        assert result.errors == validation.errors
+
+    def test_verify_summary_reports_missing_required_summary_fields(self, tmp_path: Path):
+        summary_path = tmp_path / "01-01-SUMMARY.md"
+        content = "---\nphase: 01\nplan: 01\n---\n\nBody.\n"
+        summary_path.write_text(content, encoding="utf-8")
+
+        result = verify_summary(tmp_path, summary_path)
+
+        assert result.summary_exists is True
+        assert result.passed is False
+        assert "depth is required" in result.errors
+        assert "provides is required" in result.errors
+        assert "completed is required" in result.errors
+
     def test_valid_plan_with_contract_only(self):
-        content = (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8")
+        content = _add_plan_conventions((FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
         result = validate_frontmatter(content, "plan")
         assert result.valid is True
         assert result.errors == []
@@ -377,6 +698,10 @@ class TestValidateFrontmatter:
             "depends_on: []\n"
             "files_modified: []\n"
             "interactive: false\n"
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n"
             "contract:\n"
             "  scope:\n"
             "    in_scope: [benchmark]\n"
@@ -396,6 +721,10 @@ class TestValidateFrontmatter:
             "depends_on: []\n"
             "files_modified: []\n"
             "interactive: false\n"
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n"
             "contract:\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
@@ -427,12 +756,16 @@ class TestValidateFrontmatter:
             "depends_on: []\n"
             "files_modified: []\n"
             "interactive: false\n"
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n"
             "contract:\n"
             "  scope:\n"
             "    question: What setup output should be ready for later comparison?\n"
             "    unresolved_questions: [\"Which benchmark will be authoritative?\"]\n"
             "  context_intake:\n"
-            "    must_include_prior_outputs: [.gpd/phases/00-setup/00-01-SUMMARY.md]\n"
+            "    must_include_prior_outputs: [GPD/phases/00-setup/00-01-SUMMARY.md]\n"
             "    known_good_baselines: [Smoke-test CLI output]\n"
             "  claims:\n"
             "    - id: claim-setup\n"
@@ -482,13 +815,17 @@ class TestValidateFrontmatter:
             "depends_on: []\n"
             "files_modified: []\n"
             "interactive: true\n"
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n"
             "contract:\n"
             "  scope:\n"
             "    question: Which formulation and anchors deserve a first serious pass?\n"
             "    unresolved_questions:\n"
             "      - Which benchmark should anchor the first computation?\n"
             "  context_intake:\n"
-            "    must_include_prior_outputs: [.gpd/phases/00-scan/00-01-SUMMARY.md]\n"
+            "    must_include_prior_outputs: [GPD/phases/00-scan/00-01-SUMMARY.md]\n"
             "    context_gaps: [Need a decisive benchmark before committing to fanout]\n"
             "  uncertainty_markers:\n"
             "    weakest_anchors: [The current framing may still be proxy-heavy]\n"
@@ -509,6 +846,10 @@ class TestValidateFrontmatter:
             "depends_on: []\n"
             "files_modified: []\n"
             "interactive: false\n"
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n"
             "contract:\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
@@ -562,6 +903,10 @@ class TestValidateFrontmatter:
             "depends_on: []\n"
             "files_modified: []\n"
             "interactive: false\n"
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n"
             "contract:\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
@@ -617,6 +962,10 @@ class TestValidateFrontmatter:
             "depends_on: []\n"
             "files_modified: []\n"
             "interactive: false\n"
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n"
             "contract:\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
@@ -663,10 +1012,73 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any("must_read_refs references unknown reference ref-missing" in error for error in result.errors)
 
+    def test_plan_rejects_cross_kind_contract_id_collision(self):
+        content = _valid_plan_contract_frontmatter().replace("    - id: deliv-main\n", "    - id: claim-main\n", 1) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert any(
+            "contract id claim-main is reused across claim, deliverable; target resolution is ambiguous" in error
+            for error in result.errors
+        )
+
+    def test_plan_rejects_reference_carry_forward_to_contract_id(self):
+        content = _valid_plan_contract_frontmatter().replace(
+            "      required_actions: [read, compare, cite]\n",
+            "      required_actions: [read, compare, cite]\n"
+            "      carry_forward_to: [claim-main]\n",
+            1,
+        ) + "Body.\n"
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert any(
+            "reference ref-main carry_forward_to must name workflow scope, not contract id claim-main" in error
+            for error in result.errors
+        )
+
     def test_valid_verification(self):
         content = "---\nphase: 01\nverified: 2025-01-01\nstatus: passed\nscore: 5/5\n---\n\nBody."
         result = validate_frontmatter(content, "verification")
         assert result.valid is True
+
+    def test_verification_status_passed_rejects_blocked_contract_results(self, tmp_path: Path):
+        phase_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
+        phase_dir.mkdir(parents=True)
+        (phase_dir / "01-01-PLAN.md").write_text(
+            (FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        verification_path = phase_dir / "01-VERIFICATION.md"
+        verification_path.write_text(
+            (STAGE4_FIXTURES_DIR / "verification_with_contract_results.md")
+            .read_text(encoding="utf-8")
+            .replace(
+                "comparison_verdicts:\n",
+                "  uncertainty_markers:\n"
+                "    weakest_anchors: [Reference tolerance interpretation]\n"
+                "    disconfirming_observations: [Benchmark agreement disappears once normalization is fixed]\n"
+                "comparison_verdicts:\n",
+                1,
+            )
+            .replace(
+                "      status: passed\n      summary: Claim independently verified.\n",
+                "      status: blocked\n      summary: Claim remains blocked on the decisive benchmark.\n",
+                1,
+            ),
+            encoding="utf-8",
+        )
+
+        result = validate_frontmatter(
+            verification_path.read_text(encoding="utf-8"),
+            "verification",
+            source_path=verification_path,
+        )
+
+        assert result.valid is False
+        assert "status: passed is inconsistent with non-passed contract_results targets: claim claim-benchmark" in result.errors
 
     def test_unknown_schema_raises(self):
         with pytest.raises(FrontmatterValidationError, match="Unknown schema"):
@@ -1006,9 +1418,16 @@ class TestVerifyPlanStructure:
             "depends_on: []\n"
             "files_modified: []\n"
             "interactive: false\n"
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n"
             "contract:\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "  context_intake:\n"
+            "    must_read_refs: [ref-main]\n"
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
             "  claims:\n"
             "    - id: claim-main\n"
             "      statement: Recover the benchmark value within tolerance\n"

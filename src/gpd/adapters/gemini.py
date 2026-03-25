@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shlex
 import shutil
 from pathlib import Path
 
@@ -26,9 +27,12 @@ from gpd.adapters.install_utils import (
     convert_tool_references_in_body,
     ensure_update_hook,
     hook_python_interpreter,
+    materialize_first_round_review_schema_headings,
     process_attribution,
     protect_runtime_agent_prompt,
+    prune_empty_ancestors,
     read_settings,
+    remove_empty_json_object_file,
     remove_stale_agents,
     render_markdown_frontmatter,
     split_markdown_frontmatter,
@@ -91,11 +95,13 @@ _TOOL_REFERENCE_MAP = reference_translation_map(
 
 _GEMINI_POLICY_DIR_NAME = "policies"
 _GEMINI_POLICY_FILE_NAME = "gpd-auto-edit.toml"
-_GEMINI_APPROVED_CONTRACT_PATH = ".gpd/.approved-project-contract.json"
+_GEMINI_RUNTIME_BIN_DIR_NAME = "bin"
+_GEMINI_YOLO_WRAPPER_NAME = "gemini-gpd-yolo"
+_GEMINI_APPROVED_CONTRACT_PATH = "GPD/.approved-project-contract.json"
 _GEMINI_STATIC_POLICY_COMMAND_PREFIXES: tuple[str, ...] = (
     "git init",
-    "mkdir -p .gpd",
-    "mkdir -p .gpd/research",
+    "mkdir -p GPD",
+    "mkdir -p GPD/research",
     "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"",
 )
 _GPD_CLI_INVOCATION_RE = re.compile(r'(?<![A-Za-z0-9_./:-])gpd(?=(?:\s|["\'`]|$))')
@@ -104,7 +110,8 @@ _GEMINI_COMMAND_RUNTIME_NOTE = (
     "Gemini shell compatibility:\n"
     "- When shell steps call the GPD CLI, use {launcher} instead of the ambient `gpd` on PATH.\n"
     "- Gemini policy checks are syntactic in headless auto-edit mode. Prefer direct commands and reason over stdout instead of wrapping approved commands in shell variables, `$(...)`, heredocs, or extra chained blocks.\n"
-    "- Keep contract JSON in-memory or under `.gpd/`. Do not write approved contracts to `/tmp`.\n"
+    "- Any remaining `VAR=$(...)` examples in rendered workflow guidance are non-runnable shorthand; do not copy them into Gemini auto-edit mode.\n"
+    "- Keep contract JSON in-memory or under `GPD/`. Do not write approved contracts to `/tmp`.\n"
     "</gemini_runtime_notes>\n\n"
 )
 _GEMINI_NEW_PROJECT_INIT_BLOCK = """```bash
@@ -143,33 +150,33 @@ gpd init progress --include state,config
 
 If the init command fails, stop, surface the error, and do not proceed."""
 _GEMINI_MINIMAL_COMMIT_BLOCK = """```bash
-mkdir -p .gpd
+mkdir -p GPD
 
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/PROJECT.md GPD/REQUIREMENTS.md GPD/ROADMAP.md GPD/STATE.md GPD/state.json GPD/config.json 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: initialize research project (minimal)" --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json
+gpd commit "docs: initialize research project (minimal)" --files GPD/PROJECT.md GPD/REQUIREMENTS.md GPD/ROADMAP.md GPD/STATE.md GPD/state.json GPD/config.json
 ```"""
 _GEMINI_MINIMAL_COMMIT_REPLACEMENT = """Create the directory structure, run the pre-check, then commit everything. In Gemini auto-edit mode, execute each shell command separately rather than pasting the whole block as one command.
 
 ```bash
-mkdir -p .gpd
+mkdir -p GPD
 ```
 
 Then run:
 
 ```bash
-gpd pre-commit-check --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json
+gpd pre-commit-check --files GPD/PROJECT.md GPD/REQUIREMENTS.md GPD/ROADMAP.md GPD/STATE.md GPD/state.json GPD/config.json
 ```
 
 If the pre-check reports issues or exits non-zero, surface the output and continue to the commit.
 
 ```bash
-gpd commit "docs: initialize research project (minimal)" --files .gpd/PROJECT.md .gpd/REQUIREMENTS.md .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json .gpd/config.json
+gpd commit "docs: initialize research project (minimal)" --files GPD/PROJECT.md GPD/REQUIREMENTS.md GPD/ROADMAP.md GPD/STATE.md GPD/state.json GPD/config.json
 ```"""
 _GEMINI_CONTRACT_PERSIST_SENTENCE = (
     "Write the exact approved contract JSON to "
-    f"`{_GEMINI_APPROVED_CONTRACT_PATH}` using file tools, then persist it into `.gpd/state.json`:"
+    f"`{_GEMINI_APPROVED_CONTRACT_PATH}` using file tools, then persist it into `GPD/state.json`:"
 )
 _GEMINI_CONTRACT_FILE_NOTE = (
     "Do not write `/tmp` intermediates for the approved contract. In Gemini headless auto-edit mode, keep the exact approved JSON in "
@@ -245,18 +252,219 @@ def _rewrite_gemini_shell_workflow_guidance(content: str) -> str:
         f"gpd state set-project-contract {_GEMINI_APPROVED_CONTRACT_PATH}",
     )
     content = content.replace(
-        "Persist the approved contract into `.gpd/state.json` from the same stdin payload:",
+        "Persist the approved contract into `GPD/state.json` from the same stdin payload:",
         _GEMINI_CONTRACT_PERSIST_SENTENCE,
     )
     content = content.replace(
-        "After validation passes, persist the approved contract into `.gpd/state.json` from the same stdin payload:",
+        "After validation passes, persist the approved contract into `GPD/state.json` from the same stdin payload:",
         _GEMINI_CONTRACT_PERSIST_SENTENCE,
     )
     content = content.replace(
         "Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.",
         _GEMINI_CONTRACT_FILE_NOTE,
     )
+    content = _rewrite_gemini_capture_and_check_blocks(content)
     return content
+
+
+def _rewrite_gemini_capture_and_check_blocks(content: str) -> str:
+    """Rewrite Gemini-hostile shell capture examples into direct command guidance."""
+    content = content.replace(
+        """```bash
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
+if [ $? -ne 0 ]; then
+  echo "WARNING: Convention verification failed — unit mismatches between theory and experiment are the #1 source of false discrepancies"
+  echo "$CONV_CHECK"
+fi
+```""",
+        """```bash
+# Gemini auto-edit: run convention verification directly instead of capturing it in CONV_CHECK.
+gpd --raw convention check 2>/dev/null
+```""",
+    )
+    content = content.replace(
+        """```bash
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
+if [ $? -ne 0 ]; then
+  echo "WARNING: Convention verification failed — unit mismatches between theory and experiment are the #1 source of false discrepancies"
+  echo "$CONV_CHECK"
+fi
+```""",
+        """```bash
+# Gemini auto-edit: run convention verification directly instead of capturing it in CONV_CHECK.
+gpd --raw convention check 2>/dev/null
+```""",
+    )
+    content = content.replace(
+        """```bash
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
+if [ $? -ne 0 ]; then
+  echo "WARNING: Convention verification failed — review before writing paper"
+  echo "$CONV_CHECK"
+fi
+```""",
+        """```bash
+# Gemini auto-edit: run convention verification directly instead of capturing it in CONV_CHECK.
+gpd --raw convention check 2>/dev/null
+```""",
+    )
+    content = content.replace(
+        """```bash
+CONTEXT=$(gpd --raw validate command-context validate-conventions "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```""",
+        """```bash
+# Gemini auto-edit: run the command-context validation directly instead of capturing it in CONTEXT.
+gpd --raw validate command-context validate-conventions "$ARGUMENTS"
+```""",
+    )
+    content = content.replace(
+        """```bash
+CONTEXT=$(gpd --raw validate command-context write-paper "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```""",
+        """```bash
+# Gemini auto-edit: run the command-context validation directly instead of capturing it in CONTEXT.
+gpd --raw validate command-context write-paper "$ARGUMENTS"
+```""",
+    )
+    content = content.replace(
+        """```bash
+QUALITY=$(gpd --raw validate paper-quality --from-project . 2>/dev/null)
+```""",
+        """```bash
+# Gemini auto-edit: run paper-quality validation directly instead of capturing it in QUALITY.
+gpd --raw validate paper-quality --from-project . 2>/dev/null
+```""",
+    )
+    content = content.replace(
+        """```bash
+PRE_CHECK=$(gpd pre-commit-check --files "${COMPARISON_OUTPUT_PATH}" 2>&1) || true
+echo "$PRE_CHECK"
+
+gpd commit \
+  "docs: theory-experiment comparison for {slug}" \
+  --files "${COMPARISON_OUTPUT_PATH}"
+```""",
+        """```bash
+# Gemini auto-edit: run the pre-check directly; if it fails, inspect the output before committing.
+gpd pre-commit-check --files "${COMPARISON_OUTPUT_PATH}" 2>&1 || true
+
+gpd commit \
+  "docs: theory-experiment comparison for {slug}" \
+  --files "${COMPARISON_OUTPUT_PATH}"
+```""",
+    )
+    content = content.replace(
+        """```bash
+PRE_CHECK=$(gpd pre-commit-check --files GPD/DEPENDENCY-GRAPH.md 2>&1) || true
+echo "$PRE_CHECK"
+
+gpd commit "docs: generate dependency graph" --files GPD/DEPENDENCY-GRAPH.md
+```""",
+        """```bash
+# Gemini auto-edit: run the pre-check directly; if it fails, inspect the output before committing.
+gpd pre-commit-check --files GPD/DEPENDENCY-GRAPH.md 2>&1 || true
+
+gpd commit "docs: generate dependency graph" --files GPD/DEPENDENCY-GRAPH.md
+```""",
+    )
+    content = content.replace(
+        """```bash
+INIT=$(gpd init phase-op)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd initialization failed: $INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```""",
+        """```bash
+# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+gpd init phase-op
+```""",
+    )
+    content = content.replace(
+        """```bash
+INIT=$(gpd init progress --include state,roadmap,config)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd initialization failed: $INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```""",
+        """```bash
+# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+gpd init progress --include state,roadmap,config
+```""",
+    )
+    content = content.replace(
+        """```bash
+INIT=$(gpd init progress --include state)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd initialization failed: $INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```""",
+        """```bash
+# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+gpd init progress --include state
+```""",
+    )
+    content = content.replace(
+        """```bash
+INIT=$(gpd init phase-op --include state,config "${PHASE_ARG:-}")
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd initialization failed: $INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```""",
+        """```bash
+# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+gpd init phase-op --include state,config "${PHASE_ARG:-}"
+```""",
+    )
+    content = content.replace(
+        """```bash
+INIT=$(gpd init progress --include state,config)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd initialization failed: $INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
+```""",
+        """```bash
+# Gemini auto-edit: run initialization directly instead of capturing it in INIT.
+gpd init progress --include state,config
+```""",
+    )
+    return _rewrite_gemini_capture_assignments(content)
+
+
+_GEMINI_CAPTURE_ASSIGNMENT_RE = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<var>[A-Z][A-Z0-9_]*)=\$\((?P<command>gpd[^\n]*)\)(?P<suffix>[ \t]*(?:\|\|\s*true)?)$",
+    re.MULTILINE,
+)
+
+
+def _rewrite_gemini_capture_assignments(content: str) -> str:
+    """Rewrite single-line Gemini shell capture examples into direct commands."""
+
+    def _replace(match: re.Match[str]) -> str:
+        indent = match.group("indent")
+        var = match.group("var")
+        command = match.group("command").strip()
+        suffix = match.group("suffix") or ""
+        suffix = suffix.strip()
+        comment = f"{indent}# Gemini auto-edit: run the command directly instead of capturing it in {var}."
+        rewritten = f"{indent}{command}"
+        if suffix:
+            rewritten = f"{rewritten} {suffix}"
+        return f"{comment}\n{rewritten}"
+
+    return _GEMINI_CAPTURE_ASSIGNMENT_RE.sub(_replace, content)
 
 
 # ---------------------------------------------------------------------------
@@ -390,6 +598,16 @@ def _remove_strings(existing: object, removals: list[str]) -> tuple[list[str], b
 def _managed_gemini_policy_path(target_dir: Path) -> Path:
     """Return the GPD-managed Gemini policy file path."""
     return target_dir / _GEMINI_POLICY_DIR_NAME / _GEMINI_POLICY_FILE_NAME
+
+
+def _managed_gemini_yolo_wrapper_path(target_dir: Path) -> Path:
+    """Return the GPD-managed Gemini launch wrapper for yolo sessions."""
+    return target_dir / "get-physics-done" / _GEMINI_RUNTIME_BIN_DIR_NAME / _GEMINI_YOLO_WRAPPER_NAME
+
+
+def _render_gemini_yolo_wrapper() -> str:
+    """Render a small launcher that starts Gemini in yolo approval mode."""
+    return "#!/bin/sh\nexec gemini --approval-mode=yolo \"$@\"\n"
 
 
 def _render_gemini_policy_toml(bridge_command: str) -> str:
@@ -556,6 +774,7 @@ def _copy_agents_gemini(
             install_scope=install_scope,
             src_root=source_root,
         )
+        content = materialize_first_round_review_schema_headings(content)
         content = process_attribution(content, attribution)
         content = protect_runtime_agent_prompt(content, "gemini")
         content = _convert_frontmatter_to_gemini(content)
@@ -668,6 +887,10 @@ class GeminiAdapter(RuntimeAdapter):
     def runtime_name(self) -> str:
         return "gemini"
 
+    def _runtime_bridge_only_relpaths(self) -> tuple[str, ...]:
+        """Return Gemini artifacts that appear only after finalize_install()."""
+        return ("settings.json",)
+
     def install(
         self,
         gpd_root: Path,
@@ -676,11 +899,13 @@ class GeminiAdapter(RuntimeAdapter):
         is_global: bool = False,
         explicit_target: bool = False,
     ) -> dict[str, object]:
-        """Install GPD and persist Gemini settings as part of the install.
+        """Install Gemini surfaces and defer settings persistence to finalization.
 
         Unlike Claude Code, Gemini requires ``settings.json`` to enable
         ``experimental.enableAgents`` for the installed agents to function.
-        A bare content copy is therefore an incomplete Gemini install.
+        ``install()`` prepares those settings in-memory; ``finalize_install()``
+        writes them to disk once the caller is ready to complete the runtime
+        configuration step.
         """
         previous_finalize_pending = getattr(self, "_gemini_finalize_pending", False)
         self._gemini_finalize_pending = True
@@ -834,6 +1059,64 @@ class GeminiAdapter(RuntimeAdapter):
             "mcpServers": len(mcp_servers),
         }
 
+    def runtime_permissions_status(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
+        """Report whether a Gemini yolo launcher is ready for the next session."""
+        wrapper_path = _managed_gemini_yolo_wrapper_path(target_dir)
+        wrapper_exists = wrapper_path.is_file()
+        desired_mode = "yolo" if autonomy == "yolo" else "default"
+        message = "Gemini is using its normal approval-mode defaults."
+        if desired_mode == "yolo":
+            if wrapper_exists:
+                message = (
+                    "Gemini only supports yolo at launch time. The GPD launcher is ready for the next session."
+                )
+            else:
+                message = (
+                    "Gemini only supports yolo at launch time. Generate and use the GPD launcher before "
+                    "expecting uninterrupted yolo execution."
+                )
+        return {
+            "runtime": self.runtime_name,
+            "desired_mode": desired_mode,
+            "configured_mode": "launch-wrapper" if wrapper_exists else "default",
+            "config_aligned": wrapper_exists if desired_mode == "yolo" else True,
+            "managed_by_gpd": wrapper_exists,
+            "launch_command": shlex.quote(str(wrapper_path)) if wrapper_exists else None,
+            "message": message,
+        }
+
+    def sync_runtime_permissions(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
+        """Create or remove the Gemini yolo launcher for the requested autonomy."""
+        wrapper_path = _managed_gemini_yolo_wrapper_path(target_dir)
+        changed = False
+        if autonomy == "yolo":
+            wrapper_path.parent.mkdir(parents=True, exist_ok=True)
+            content = _render_gemini_yolo_wrapper()
+            current = wrapper_path.read_text(encoding="utf-8") if wrapper_path.exists() else None
+            if current != content:
+                wrapper_path.write_text(content, encoding="utf-8")
+                wrapper_path.chmod(0o755)
+                changed = True
+        elif wrapper_path.exists():
+            wrapper_path.unlink()
+            changed = True
+
+        status = self.runtime_permissions_status(target_dir, autonomy=autonomy)
+        result = {
+            **status,
+            "changed": changed,
+            "sync_applied": bool(status.get("config_aligned")),
+            "requires_relaunch": autonomy == "yolo",
+        }
+        if autonomy == "yolo" and status.get("launch_command"):
+            result["next_step"] = (
+                "Exit the current Gemini session and relaunch with "
+                f"{status['launch_command']} so the runtime itself starts in yolo mode."
+            )
+        elif changed:
+            result["next_step"] = "Future Gemini sessions will use the normal approval mode unless you re-enable yolo."
+        return result
+
     def _write_manifest(self, target_dir: Path, version: str) -> None:
         """Record manifest metadata for shared config keys GPD actually introduced."""
         managed_config: dict[str, object] = {}
@@ -852,6 +1135,22 @@ class GeminiAdapter(RuntimeAdapter):
             runtime=self.runtime_name,
             metadata=metadata or None,
             install_scope=self._current_install_scope_flag(),
+            explicit_target=getattr(self, "_install_explicit_target", False),
+        )
+
+    def install_completeness_relpaths(self) -> tuple[str, ...]:
+        """Return Gemini-specific artifacts required for a usable install."""
+        return (
+            *super().install_completeness_relpaths(),
+            f"{_GEMINI_POLICY_DIR_NAME}/{_GEMINI_POLICY_FILE_NAME}",
+            *self._runtime_bridge_only_relpaths(),
+        )
+
+    def install_verification_relpaths(self) -> tuple[str, ...]:
+        """Return Gemini artifacts that must exist before ``install()`` returns."""
+        return (
+            *super().install_completeness_relpaths(),
+            f"{_GEMINI_POLICY_DIR_NAME}/{_GEMINI_POLICY_FILE_NAME}",
         )
 
     def finish_install(
@@ -1008,6 +1307,8 @@ class GeminiAdapter(RuntimeAdapter):
             if modified:
                 write_settings(settings_path, settings)
                 logger.info("Cleaned up Gemini settings.json (statusline, hooks, experimental, MCP)")
+            if remove_empty_json_object_file(settings_path):
+                result.setdefault("removed", []).append(settings_path.name)
 
         policy_files = _normalize_string_list(managed_runtime_files)
         if not policy_files:
@@ -1020,6 +1321,16 @@ class GeminiAdapter(RuntimeAdapter):
         policy_dir = _managed_gemini_policy_path(target_dir).parent
         if policy_dir.is_dir() and not any(policy_dir.iterdir()):
             policy_dir.rmdir()
+
+        for path in (
+            target_dir / "commands",
+            target_dir / "agents",
+            target_dir / "hooks",
+            target_dir / "cache",
+            policy_dir,
+            target_dir,
+        ):
+            prune_empty_ancestors(path, stop_at=target_dir.parent)
 
         return result
 

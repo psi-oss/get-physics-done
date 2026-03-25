@@ -29,7 +29,7 @@ Push frequency balances backup safety against noise. Not every commit needs an i
 
 ### Default Branch
 
-All work happens on the default branch (`main`) unless one of the conditions below applies. Single-researcher projects rarely need branches.
+All work happens on the repository's default branch (`<default-branch>`) unless one of the conditions below applies. Replace `<default-branch>` with the branch configured as the repository default before using the command examples below. Single-researcher projects rarely need branches.
 
 ### Per-Phase Branches
 
@@ -57,7 +57,8 @@ Naming: `milestone/{short-name}` (e.g. `milestone/v1-submission`).
 Delete feature, phase, and milestone branches after merge. Stale branches (no commits for 30+ days, not tagged) should be pruned:
 
 ```bash
-git branch --merged main | grep -vE '^\*|main' | xargs -r git branch -d
+DEFAULT_BRANCH="<default-branch>"
+git branch --merged "$DEFAULT_BRANCH" | grep -vE "^\*|^[[:space:]]*${DEFAULT_BRANCH}$" | xargs -r git branch -d
 ```
 
 </branch_lifecycle>
@@ -272,9 +273,10 @@ git tag gpd-checkpoint/phase-03-plan-02-$(date +%s)
 3. **Push tags explicitly.** Tags are not pushed by default:
 
 ```bash
-git push origin <tag-name>
+REMOTE_NAME="<remote-name>"
+git push "$REMOTE_NAME" <tag-name>
 # Or push all tags:
-git push origin --tags
+git push "$REMOTE_NAME" --tags
 ```
 
 4. **Never delete published tags.** If a tag points to incorrect work, create a new tag at the corrected commit rather than moving or deleting the old one.

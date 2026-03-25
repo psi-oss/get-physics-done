@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from gpd.mcp.paper.models import Author, FigureRef, JournalSpec, PaperConfig, Section
 
@@ -46,6 +47,16 @@ class TestModels:
         assert config.journal == "apj"
         assert len(config.figures) == 1
         assert len(config.appendix_sections) == 1
+
+    def test_paper_config_rejects_unknown_journal(self):
+        with pytest.raises(ValidationError):
+            PaperConfig(
+                title="Invalid Journal",
+                authors=[Author(name="A")],
+                abstract="Abstract.",
+                sections=[Section(title="Intro", content="Hello.")],
+                journal="physical-review-letters",
+            )
 
     def test_figure_ref_defaults(self):
         fig = FigureRef(path=Path("fig.pdf"), caption="Cap", label="f1")

@@ -58,7 +58,7 @@ Your job: Transform research objectives into a phase structure that advances the
 
 ## Research Mode Effects
 
-The research mode (from `.gpd/config.json` field `research_mode`, default: `"balanced"`) controls roadmap structure. See `research-modes.md` for full specification. Phase counts are heuristics, not quotas: a tightly scoped project may be a single phase, while a broad program may legitimately need many. Summary:
+The research mode (from `GPD/config.json` field `research_mode`, default: `"balanced"`) controls roadmap structure. See `research-modes.md` for full specification. Phase counts are heuristics, not quotas: a tightly scoped project may be a single phase, while a broad program may legitimately need many. Summary:
 
 - **explore**: Branching roadmap with parallel approach investigation, comparison phases, decision phases. Often 6-12 phases when the problem genuinely supports that breadth.
 - **balanced**: Linear phase sequence with verification checkpoints. Single approach. Often 3-8 phases.
@@ -782,10 +782,15 @@ When deriving success criteria for research phases, draw from this taxonomy of v
 
 Use template from `{GPD_INSTALL_DIR}/templates/roadmap.md`.
 
+Canonical template body to read before writing:
+@{GPD_INSTALL_DIR}/templates/roadmap.md
+
 Key sections:
 
 - Overview (2-3 sentences: what physics question is being answered)
+- Contract Overview
 - Phases with Goal, Dependencies, Objectives, Success Criteria
+- Phase Details
 - Backtracking triggers (conditions under which a phase must be revisited)
 - Progress table
 
@@ -793,10 +798,16 @@ Key sections:
 
 Use template from `{GPD_INSTALL_DIR}/templates/state.md`.
 
+Canonical template body to read before writing:
+@{GPD_INSTALL_DIR}/templates/state.md
+
 Key sections:
 
 - Research Reference (central physics question, current focus)
 - Current Position (phase, plan, status, progress bar)
+- Active Calculations
+- Intermediate Results
+- Open Questions
 - Performance Metrics
 - Accumulated Context (decisions, open questions, dead ends, todos, blockers)
 - Session Continuity
@@ -1007,12 +1018,12 @@ When files are written and returning to orchestrator:
 
 **Files written:**
 
-- .gpd/ROADMAP.md
-- .gpd/STATE.md
+- GPD/ROADMAP.md
+- GPD/STATE.md
 
 **Updated:**
 
-- .gpd/REQUIREMENTS.md (traceability section)
+- GPD/REQUIREMENTS.md (traceability section)
 
 ### Summary
 
@@ -1045,8 +1056,8 @@ When files are written and returning to orchestrator:
 
 User can review actual files:
 
-- `cat .gpd/ROADMAP.md`
-- `cat .gpd/STATE.md`
+- `cat GPD/ROADMAP.md`
+- `cat GPD/STATE.md`
 
 {If gaps found during creation:}
 
@@ -1072,9 +1083,9 @@ After incorporating user feedback and updating files:
 
 **Files updated:**
 
-- .gpd/ROADMAP.md
-- .gpd/STATE.md (if needed)
-- .gpd/REQUIREMENTS.md (if traceability changed)
+- GPD/ROADMAP.md
+- GPD/STATE.md (if needed)
+- GPD/REQUIREMENTS.md (if traceability changed)
 
 ### Updated Summary
 

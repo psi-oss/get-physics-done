@@ -127,25 +127,33 @@ class TestTrailingWhitespace:
         assert meta["phase"] == "01"
 
     def test_trailing_whitespace_after_closing_delimiter(self):
-        """Trailing whitespace after the closing --- should not prevent matching.
-
-        Note: the regex requires exactly ``---`` at the start of a line followed
-        by \\r?\\n or end-of-string, so trailing spaces break the match.
-        This tests the actual behavior.
-        """
+        """Trailing horizontal whitespace after the closing --- should be ignored."""
         content = "---\ntitle: Hello\n---   \n\nBody."
         meta, body = extract_frontmatter(content)
-        # The regex won't match because of trailing spaces after ---
-        # So this falls through to "no frontmatter"
-        assert meta == {}
-        assert "---" in body
+        assert meta == {"title": "Hello"}
+        assert body == "\nBody."
 
     def test_trailing_whitespace_after_opening_delimiter(self):
-        """Trailing whitespace after opening --- breaks the regex too."""
+        """Trailing horizontal whitespace after the opening --- should be ignored."""
         content = "---   \ntitle: Hello\n---\n\nBody."
         meta, body = extract_frontmatter(content)
-        # Opening delimiter must be exactly '---' at start of string
-        assert meta == {}
+        assert meta == {"title": "Hello"}
+        assert body == "\nBody."
+
+    def test_trailing_whitespace_roundtrip_with_splice(self):
+        content = "---   \ntitle: Hello\n---   \n\nBody."
+        result = splice_frontmatter(content, {"title": "New"})
+        meta, body = extract_frontmatter(result)
+        assert meta == {"title": "New"}
+        assert body == "\nBody."
+
+    def test_trailing_whitespace_roundtrip_with_deep_merge(self):
+        content = "---\nouter:\n  a: 1\n---   \n\nBody."
+        result = deep_merge_frontmatter(content, {"outer": {"b": 2}})
+        meta, body = extract_frontmatter(result)
+        assert meta["outer"]["a"] == 1
+        assert meta["outer"]["b"] == 2
+        assert body == "\nBody."
 
     def test_tabs_in_yaml_values_raise(self):
         """YAML forbids literal tab characters in flow content; this should raise."""

@@ -183,13 +183,17 @@ class TestInstall:
         expected_bridge = expected_claude_bridge(target)
         command = (target / "commands" / "gpd" / "settings.md").read_text(encoding="utf-8")
         workflow = (target / "get-physics-done" / "workflows" / "set-profile.md").read_text(encoding="utf-8")
+        execute_phase = (target / "get-physics-done" / "workflows" / "execute-phase.md").read_text(encoding="utf-8")
         agent = (target / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
 
-        assert "gpd convention set" in command
+        assert f"{expected_bridge} convention set" in command
         assert expected_bridge + " init progress --include state,config" in workflow
         assert 'echo "ERROR: gpd initialization failed: $INIT"' in workflow
+        assert f'if ! {expected_bridge} verify plan "$plan"; then' in execute_phase
         assert f'INIT=$({expected_bridge} init plan-phase "${{PHASE}}")' in agent
+        assert "`gpd convention set`" not in command
         assert "gpd init progress --include state,config" not in workflow
+        assert 'if ! gpd verify plan "$plan"; then' not in execute_phase
         assert 'INIT=$(gpd init plan-phase "${PHASE}")' not in agent
 
     def test_install_configures_update_hook(self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
@@ -510,6 +514,52 @@ class TestInstall:
         assert "Math stays $T$." in checker
 
 
+class TestRuntimePermissions:
+    def test_sync_runtime_permissions_yolo_sets_bypass_permissions(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        result = adapter.sync_runtime_permissions(target, autonomy="yolo")
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+
+        assert settings["permissions"]["defaultMode"] == "bypassPermissions"
+        assert manifest["gpd_runtime_permissions"]["mode"] == "yolo"
+        assert result["sync_applied"] is True
+        assert result["requires_relaunch"] is True
+
+    def test_sync_runtime_permissions_restores_prior_claude_mode(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        (target / "settings.json").write_text(
+            json.dumps({"permissions": {"defaultMode": "acceptEdits"}}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        adapter.install(gpd_root, target)
+
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+        result = adapter.sync_runtime_permissions(target, autonomy="balanced")
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+
+        assert settings["permissions"]["defaultMode"] == "acceptEdits"
+        assert "gpd_runtime_permissions" not in manifest
+        assert result["sync_applied"] is True
+
+
 class TestUninstall:
     """Test uninstall cleans up GPD artifacts."""
 
@@ -688,3 +738,42 @@ class TestUninstall:
             if isinstance(hook, dict) and isinstance(hook.get("command"), str)
         ]
         assert "python3 /tmp/third-party-statusline.py" in commands
+
+    def test_uninstall_preserves_third_party_hooks_inside_hooks_dirs(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        adapter.finish_install(
+            result["settingsPath"],
+            result["settings"],
+            result["statuslineCommand"],
+            True,
+        )
+
+        settings_path = target / "settings.json"
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        settings["statusLine"] = {"type": "command", "command": "python3 /tmp/third-party/hooks/statusline.py"}
+        session_start = settings.setdefault("hooks", {}).setdefault("SessionStart", [])
+        session_start.append({"hooks": [{"type": "command", "command": "python3 /tmp/third-party/hooks/check_update.py"}]})
+        session_start.append({"hooks": [{"type": "command", "command": "python3 .claude/hooks/check_update.py"}]})
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+        adapter.uninstall(target)
+
+        cleaned = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert cleaned["statusLine"]["command"] == "python3 /tmp/third-party/hooks/statusline.py"
+        session_start = cleaned.get("hooks", {}).get("SessionStart", [])
+        commands = [
+            hook["command"]
+            for entry in session_start
+            if isinstance(entry, dict)
+            for hook in entry.get("hooks", [])
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str)
+        ]
+        assert "python3 /tmp/third-party/hooks/check_update.py" in commands
+        assert "python3 .claude/hooks/check_update.py" not in commands

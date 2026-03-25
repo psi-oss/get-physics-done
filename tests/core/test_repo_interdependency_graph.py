@@ -5,16 +5,19 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-import sys
 from contextlib import contextmanager
 from pathlib import Path
+from shutil import which
 
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from scripts.repo_graph_contract import (
     CONTRACT_PATH,
     GENERATED_ON_END,
     GENERATED_ON_START,
     GRAPH_PATH,
     REPO_ROOT,
+    SAME_STEM_COMMAND_WORKFLOW_END,
+    SAME_STEM_COMMAND_WORKFLOW_START,
     SCOPE_END,
     SCOPE_START,
     expected_scope_counts,
@@ -25,6 +28,8 @@ from scripts.repo_graph_contract import (
     read_graph_text,
     render_generated_on_block,
     render_scope_block,
+    replace_marked_block,
+    sync_readme_text,
 )
 
 
@@ -116,6 +121,33 @@ def test_graph_captures_paper_build_prompt_edges() -> None:
         assert edge in graph
 
 
+def test_graph_matches_strict_review_publication_artifact_contract() -> None:
+    graph = read_graph_text()
+    expected_edges = [
+        "`src/gpd/cli.py -> strict review artifact manifest candidates {manuscript.parent/ARTIFACT-MANIFEST.json}`",
+        "`src/gpd/cli.py -> strict review bibliography audit candidates {manuscript.parent/BIBLIOGRAPHY-AUDIT.json}`",
+        "`src/gpd/cli.py -> strict review reproducibility manifest candidates {manuscript.parent/reproducibility-manifest.json, manuscript.parent/REPRODUCIBILITY-MANIFEST.json}`",
+    ]
+    unexpected_edges = [
+        "<cwd>/GPD/paper/ARTIFACT-MANIFEST.json",
+        "<cwd>/GPD/paper/BIBLIOGRAPHY-AUDIT.json",
+        "<cwd>/GPD/paper/reproducibility-manifest.json",
+    ]
+
+    for edge in expected_edges:
+        assert edge in graph
+
+    for edge in unexpected_edges:
+        assert edge not in graph
+
+
+def test_graph_matches_explicit_peer_review_directory_resolution_contract() -> None:
+    graph = read_graph_text()
+
+    assert "`src/gpd/cli.py -> peer-review manuscript candidate family {target/main.tex, target/main.md}`" in graph
+    assert "lexicographically first direct *.tex/*.md fallback" not in graph
+
+
 def test_graph_captures_hook_runtime_wiring_edges() -> None:
     graph = read_graph_text()
     expected_edges = [
@@ -135,6 +167,40 @@ def test_graph_captures_hook_runtime_wiring_edges() -> None:
 
     for edge in unexpected_edges:
         assert edge not in graph
+
+
+def test_graph_captures_checkpoint_feature_edges() -> None:
+    graph = read_graph_text()
+    expected_edges = [
+        "`src/gpd/cli.py::sync_phase_checkpoints -> src/gpd/core/checkpoints.py::sync_phase_checkpoints`",
+        "`src/gpd/core/phases.py -> src/gpd/core/checkpoints.py::sync_phase_checkpoints`",
+        "`src/gpd/core/state.py -> <cwd>/GPD/.state-write-intent`",
+        "`src/gpd/core/checkpoints.py -> generated outputs {GPD/CHECKPOINTS.md, GPD/phase-checkpoints/*.md}`",
+        "`src/gpd/core/checkpoints.py -> <cwd>/GPD/CHECKPOINTS.md`",
+        "`src/gpd/core/checkpoints.py -> <cwd>/GPD/phase-checkpoints/*.md`",
+    ]
+    unexpected_edges = [
+        "`src/gpd/core/state.py -> src/gpd/core/checkpoints.py::sync_phase_checkpoints`",
+    ]
+
+    for edge in expected_edges:
+        assert edge in graph
+
+    for edge in unexpected_edges:
+        assert edge not in graph
+
+
+def test_graph_does_not_reference_removed_verify_between_waves_knob() -> None:
+    graph = read_graph_text()
+
+    assert "workflow.verify_between_waves" not in graph
+    assert "verify_between_waves" not in graph
+
+
+def test_graph_surfaces_codex_generated_skill_dir_manifest_ownership() -> None:
+    graph = read_graph_text()
+
+    assert "codex_generated_skill_dirs" in graph
 
 
 def test_graph_test_file_references_exist() -> None:
@@ -183,6 +249,45 @@ def test_graph_readme_generated_blocks_match_contract() -> None:
     assert extract_marked_block(graph_text, SCOPE_START, SCOPE_END) == render_scope_block(contract)
 
 
+def test_graph_sync_repairs_stale_marked_blocks() -> None:
+    original = read_graph_text()
+    contract = load_contract()
+    stale_contract = dict(contract)
+    stale_contract["generated_on"] = "2000-01-01"
+    stale_contract["scope_counts"] = {
+        label: int(value) + 1 for label, value in contract["scope_counts"].items()
+    }
+
+    stale = replace_marked_block(
+        original,
+        GENERATED_ON_START,
+        GENERATED_ON_END,
+        render_generated_on_block(stale_contract),
+    )
+    stale = replace_marked_block(
+        stale,
+        SCOPE_START,
+        SCOPE_END,
+        render_scope_block(stale_contract),
+    )
+    stale = replace_marked_block(
+        stale,
+        SAME_STEM_COMMAND_WORKFLOW_START,
+        SAME_STEM_COMMAND_WORKFLOW_END,
+        "\n".join(
+            (
+                SAME_STEM_COMMAND_WORKFLOW_START,
+                "- `src/gpd/commands/old.md -> src/gpd/specs/workflows/old.md`",
+                SAME_STEM_COMMAND_WORKFLOW_END,
+            )
+        ),
+    )
+
+    repaired = sync_readme_text(stale, contract)
+
+    assert repaired == original
+
+
 def test_live_repo_file_count_ignores_transient_root_artifacts() -> None:
     baseline = live_repo_file_count()
 
@@ -220,7 +325,8 @@ def test_live_repo_file_count_ignores_deleted_tracked_files(tmp_path: Path) -> N
 
 
 def test_live_repo_file_count_ignores_runtime_mirror_dirs(tmp_path: Path) -> None:
-    for rel_path in (".claude/a.txt", ".codex/b.txt", ".gemini/c.txt", ".opencode/d.txt"):
+    for config_dir_name in {descriptor.config_dir_name for descriptor in iter_runtime_descriptors()}:
+        rel_path = f"{config_dir_name}/sentinel.txt"
         path = tmp_path / rel_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("runtime mirror sentinel\n", encoding="utf-8")
@@ -231,8 +337,10 @@ def test_live_repo_file_count_ignores_runtime_mirror_dirs(tmp_path: Path) -> Non
 def test_sync_repo_graph_script_runs_as_direct_file() -> None:
     graph_before = GRAPH_PATH.read_text(encoding="utf-8")
     contract_before = CONTRACT_PATH.read_text(encoding="utf-8")
+    python_bin = which("python")
+    assert python_bin is not None, "plain PATH python is required for repo-graph bootstrap"
     completed = subprocess.run(
-        [sys.executable, "scripts/sync_repo_graph_contract.py"],
+        [python_bin, "scripts/sync_repo_graph_contract.py"],
         cwd=REPO_ROOT,
         check=False,
         capture_output=True,

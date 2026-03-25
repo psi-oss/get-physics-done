@@ -5,10 +5,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from gpd.adapters import get_adapter, iter_adapters
+from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import build_runtime_install_repair_command
-from gpd.adapters.runtime_catalog import iter_runtime_descriptors
-from gpd.hooks.runtime_detect import SCOPE_LOCAL
+from gpd.adapters.runtime_catalog import resolve_global_config_dir
+from gpd.hooks.runtime_detect import (
+    SCOPE_GLOBAL,
+    SCOPE_LOCAL,
+    normalize_runtime_name,
+)
 
 
 def load_install_manifest(config_dir: Path) -> dict[str, object]:
@@ -17,9 +21,35 @@ def load_install_manifest(config_dir: Path) -> dict[str, object]:
     manifest_path = config_dir / "gpd-file-manifest.json"
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, json.JSONDecodeError):
+    except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def load_install_manifest_state(config_dir: Path) -> tuple[str, dict[str, object]]:
+    """Return the manifest parse state and payload for *config_dir*.
+
+    The state is one of ``missing``, ``corrupt``, ``invalid``, or ``ok``.
+    ``ok`` means the manifest parsed as a mapping; the payload is the parsed
+    dict in that case and ``{}`` otherwise.
+    """
+
+    manifest_path = config_dir / "gpd-file-manifest.json"
+    try:
+        raw = manifest_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return "missing", {}
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return "corrupt", {}
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return "corrupt", {}
+
+    if not isinstance(payload, dict):
+        return "invalid", {}
+    return "ok", payload
 
 
 def install_scope_from_manifest(config_dir: Path) -> str | None:
@@ -27,6 +57,52 @@ def install_scope_from_manifest(config_dir: Path) -> str | None:
 
     scope = load_install_manifest(config_dir).get("install_scope")
     return scope if scope in {"local", "global"} else None
+
+
+def _install_scope_from_installed_update_workflow(config_dir: Path) -> str | None:
+    """Return the persisted install scope from the installed update workflow."""
+
+    update_workflow = config_dir / "get-physics-done" / "workflows" / "update.md"
+    try:
+        content = update_workflow.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    if 'INSTALL_SCOPE="--local"' in content:
+        return SCOPE_LOCAL
+    if 'INSTALL_SCOPE="--global"' in content:
+        return SCOPE_GLOBAL
+    return None
+
+
+def _explicit_target_from_installed_update_workflow(
+    config_dir: Path,
+    *,
+    install_scope: str | None,
+) -> bool | None:
+    """Infer explicit-target ownership from the installed update workflow."""
+
+    update_workflow = config_dir / "get-physics-done" / "workflows" / "update.md"
+    try:
+        content = update_workflow.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    config_dir_value = None
+    global_config_dir_value = None
+    for line in content.splitlines():
+        if line.startswith('GPD_CONFIG_DIR="') and line.endswith('"'):
+            config_dir_value = line[len('GPD_CONFIG_DIR="') : -1]
+        elif line.startswith('GPD_GLOBAL_CONFIG_DIR="') and line.endswith('"'):
+            global_config_dir_value = line[len('GPD_GLOBAL_CONFIG_DIR="') : -1]
+
+    if not isinstance(config_dir_value, str) or not config_dir_value:
+        return None
+    if install_scope == SCOPE_LOCAL:
+        return not config_dir_value.startswith("./")
+    if install_scope == SCOPE_GLOBAL and isinstance(global_config_dir_value, str) and global_config_dir_value:
+        return config_dir_value != global_config_dir_value
+    return None
 
 
 def _manifest_target_dir(config_dir: Path) -> Path:
@@ -43,6 +119,19 @@ def _manifest_explicit_target(config_dir: Path) -> bool | None:
     return None
 
 
+def _manifest_runtime(config_dir: Path) -> str | None:
+    """Return the authoritative runtime declared in *config_dir*'s manifest."""
+    manifest = load_install_manifest(config_dir)
+    runtime = manifest.get("runtime")
+    if not isinstance(runtime, str):
+        return None
+
+    normalized_runtime = runtime.strip()
+    if not normalized_runtime:
+        return None
+    return normalize_runtime_name(normalized_runtime)
+
+
 def _paths_equal(left: Path, right: Path) -> bool:
     try:
         return left.expanduser().resolve() == right.expanduser().resolve()
@@ -50,69 +139,116 @@ def _paths_equal(left: Path, right: Path) -> bool:
         return left.expanduser() == right.expanduser()
 
 
-def _infer_runtime_from_manifest(config_dir: Path) -> str | None:
-    manifest = load_install_manifest(config_dir)
-    runtime = manifest.get("runtime")
-    if isinstance(runtime, str) and runtime.strip():
-        return runtime.strip()
-
-    files = manifest.get("files")
-    if isinstance(files, dict):
-        file_keys = [str(key) for key in files]
-        for descriptor in iter_runtime_descriptors():
-            if any(
-                key.startswith(prefix)
-                for key in file_keys
-                for prefix in descriptor.manifest_file_prefixes
-            ):
-                return descriptor.runtime_name
-    return None
-
-
-def _infer_runtime_from_config_dir(config_dir: Path) -> str | None:
-    for adapter in iter_adapters():
-        if config_dir.name == adapter.local_config_dir_name:
-            return adapter.runtime_name
-    return None
-
-
 def installed_runtime(config_dir: Path) -> str | None:
-    """Return the runtime associated with *config_dir* when it can be inferred."""
+    """Return the authoritative runtime declared by *config_dir*'s manifest."""
+    return _manifest_runtime(config_dir)
 
-    return _infer_runtime_from_manifest(config_dir) or _infer_runtime_from_config_dir(config_dir)
+
+def _infer_explicit_target(
+    config_dir: Path,
+    *,
+    adapter,
+    install_scope: str | None,
+    install_target: Path,
+) -> bool:
+    """Infer whether the install target was explicitly selected.
+
+    This must stay independent of the current process cwd so installed hooks
+    behave deterministically even when invoked from nested workspaces or other
+    directories.
+    """
+    if install_scope == SCOPE_LOCAL:
+        workflow_explicit_target = _explicit_target_from_installed_update_workflow(
+            config_dir,
+            install_scope=install_scope,
+        )
+        if workflow_explicit_target is not None:
+            return workflow_explicit_target
+        if not _paths_equal(install_target, config_dir):
+            return True
+        return config_dir.name != adapter.local_config_dir_name
+
+    workflow_explicit_target = _explicit_target_from_installed_update_workflow(
+        config_dir,
+        install_scope=install_scope,
+    )
+    if install_scope is None and workflow_explicit_target is not None:
+        return workflow_explicit_target
+
+    canonical_global_dir = resolve_global_config_dir(adapter.runtime_descriptor, home=Path.home(), environ={})
+    return not _paths_equal(install_target, canonical_global_dir)
+
+
+def _detect_install_scope_fallback(
+    config_dir: Path,
+    *,
+    runtime: str,
+    install_target: Path,
+) -> str | None:
+    """Return a stable install-scope fallback when the manifest omits it."""
+
+    persisted_scope = _install_scope_from_installed_update_workflow(config_dir)
+    if persisted_scope is not None:
+        return persisted_scope
+
+    try:
+        adapter = get_adapter(runtime)
+    except KeyError:
+        return None
+
+    canonical_global_dir = resolve_global_config_dir(adapter.runtime_descriptor, home=Path.home(), environ={})
+    if _paths_equal(install_target, canonical_global_dir) or _paths_equal(config_dir, canonical_global_dir):
+        return SCOPE_GLOBAL
+
+    if _paths_equal(install_target, config_dir) and config_dir.name == adapter.local_config_dir_name:
+        return SCOPE_LOCAL
+
+    return None
 
 
 def config_dir_has_complete_install(config_dir: Path) -> bool:
-    """Return whether *config_dir* satisfies the shared install contract."""
-    return (config_dir / "gpd-file-manifest.json").is_file() and (config_dir / "get-physics-done").is_dir()
+    """Return whether *config_dir* is a complete install with authoritative runtime identity."""
+    runtime = _manifest_runtime(config_dir)
+    if runtime is not None:
+        try:
+            return get_adapter(runtime).has_complete_install(config_dir)
+        except KeyError:
+            return False
+    return False
 
 
 def installed_update_command(config_dir: Path) -> str | None:
     """Return the bootstrap update command for the install in *config_dir*."""
 
-    runtime = installed_runtime(config_dir)
+    runtime = _manifest_runtime(config_dir)
     if runtime is None:
         return None
 
-    scope = install_scope_from_manifest(config_dir)
+    install_target = _manifest_target_dir(config_dir)
+    scope = install_scope_from_manifest(config_dir) or _detect_install_scope_fallback(
+        config_dir,
+        runtime=runtime,
+        install_target=install_target,
+    )
     try:
         adapter = get_adapter(runtime)
     except KeyError:
         return build_runtime_install_repair_command(
             runtime,
             install_scope=scope,
-            target_dir=_manifest_target_dir(config_dir),
+            target_dir=install_target,
             explicit_target=bool(_manifest_explicit_target(config_dir)),
         )
 
-    install_target = _manifest_target_dir(config_dir)
     explicit_target = _manifest_explicit_target(config_dir)
 
     if explicit_target is None:
-        if scope == SCOPE_LOCAL:
-            explicit_target = not _paths_equal(install_target, Path.cwd() / adapter.local_config_dir_name)
-        else:
-            explicit_target = not _paths_equal(install_target, adapter.global_config_dir)
+        explicit_target = _infer_explicit_target(
+            config_dir,
+            adapter=adapter,
+            install_scope=scope,
+            install_target=install_target,
+        )
 
     return build_runtime_install_repair_command(
         runtime,

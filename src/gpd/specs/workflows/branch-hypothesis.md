@@ -118,10 +118,10 @@ Exit.
 Create the hypothesis documentation directory and file:
 
 ```bash
-mkdir -p .gpd/hypotheses/${SLUG}
+mkdir -p GPD/hypotheses/${SLUG}
 ```
 
-Write `.gpd/hypotheses/${SLUG}/HYPOTHESIS.md`:
+Write `GPD/hypotheses/${SLUG}/HYPOTHESIS.md`:
 
 ```markdown
 # Hypothesis: {description}
@@ -195,7 +195,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Use the file_read tool to read `.gpd/STATE.md`, `.gpd/ROADMAP.md`, and any SUMMARY.md files in the phase directory. If `state_content` and `roadmap_content` were included via `--include`, use those directly instead of re-reading.
+Use the file_read tool to read `GPD/STATE.md`, `GPD/ROADMAP.md`, and any SUMMARY.md files in the phase directory. If `state_content` and `roadmap_content` were included via `--include`, use those directly instead of re-reading.
 
 **2. Generate draft content for each placeholder section:**
 
@@ -235,7 +235,7 @@ Replace the placeholder sections with the generated content, clearly marked as A
 
 ```
 Drafted motivation, expected outcome, and success criteria from project context.
-Review and edit: .gpd/hypotheses/{slug}/HYPOTHESIS.md
+Review and edit: GPD/hypotheses/{slug}/HYPOTHESIS.md
 
 The AI-drafted content is marked with <!-- AI-drafted --> comments.
 Edit these sections before proceeding to planning.
@@ -265,19 +265,19 @@ This is a hypothesis branch investigating an alternative approach.
 Compare results with parent branch via `/gpd:compare-branches`.
 ```
 
-3. Treat that note as markdown-only context. It is not part of the structured state schema, so it will not be mirrored into `state.json`, and future JSON-driven state rewrites may replace it. The durable record for the hypothesis is the `gpd state add-decision` entry plus `.gpd/hypotheses/${SLUG}/HYPOTHESIS.md`.
+3. Treat that note as markdown-only context. It is not part of the structured state schema, so it will not be mirrored into `state.json`, and future JSON-driven state rewrites may replace it. The durable record for the hypothesis is the `gpd state add-decision` entry plus `GPD/hypotheses/${SLUG}/HYPOTHESIS.md`.
    </step>
 
 <step name="commit_setup">
 Commit the hypothesis setup.
 
-The `commit` CLI command respects `commit_docs` from `.gpd/config.json` internally — if `commit_docs` is false, the commit is automatically skipped.
+The `commit` CLI command respects `commit_docs` from `GPD/config.json` internally — if `commit_docs` is false, the commit is automatically skipped.
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/hypotheses/${SLUG}/HYPOTHESIS.md .gpd/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/hypotheses/${SLUG}/HYPOTHESIS.md GPD/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: create hypothesis branch for {slug}" --files .gpd/hypotheses/${SLUG}/HYPOTHESIS.md .gpd/STATE.md
+gpd commit "docs: create hypothesis branch for {slug}" --files GPD/hypotheses/${SLUG}/HYPOTHESIS.md GPD/STATE.md
 ```
 </step>
 
@@ -292,7 +292,7 @@ Present completion summary:
 **Branch:** hypothesis/{slug}
 **Description:** {description}
 **Parent:** {parent_branch}
-**Hypothesis doc:** .gpd/hypotheses/{slug}/HYPOTHESIS.md
+**Hypothesis doc:** GPD/hypotheses/{slug}/HYPOTHESIS.md
 
 ---
 
@@ -338,7 +338,7 @@ Hypothesis branch creation is complete when:
 - [ ] Description parsed and slug generated
 - [ ] Git state verified clean
 - [ ] Branch `hypothesis/{slug}` created
-- [ ] `.gpd/hypotheses/{slug}/HYPOTHESIS.md` created with metadata
+- [ ] `GPD/hypotheses/{slug}/HYPOTHESIS.md` created with metadata
 - [ ] Motivation, Expected Outcome, and Success Criteria populated from project context (AI-drafted)
 - [ ] Structured hypothesis record created (decision entry + HYPOTHESIS.md)
 - [ ] Changes committed (if commit_docs enabled)

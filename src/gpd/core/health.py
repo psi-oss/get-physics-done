@@ -20,6 +20,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
+from gpd.contracts import contract_from_data
 from gpd.core.config import GPDProjectConfig, load_config
 from gpd.core.constants import (
     DECISION_THRESHOLD,
@@ -37,14 +38,15 @@ from gpd.core.constants import (
     VALID_RETURN_STATUSES,
     ProjectLayout,
 )
+from gpd.core.contract_validation import validate_project_contract
 from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import GPDError, ValidationError
-from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
+from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, validate_frontmatter
 from gpd.core.observability import gpd_span
 from gpd.core.state import (
-    load_state_json,
+    peek_state_json,
+    save_state_json,
     state_validate,
-    sync_state_json,
 )
 from gpd.core.storage_paths import ProjectStorageLayout
 from gpd.core.utils import (
@@ -145,7 +147,7 @@ def check_environment() -> HealthCheck:
 
 
 def check_project_structure(cwd: Path) -> HealthCheck:
-    """Check that required .gpd/ files and directories exist."""
+    """Check that required GPD/ files and directories exist."""
     layout = ProjectLayout(cwd)
     issues: list[str] = []
     details: dict[str, object] = {}
@@ -188,14 +190,38 @@ def check_storage_paths(cwd: Path) -> HealthCheck:
     return HealthCheck(status=status, label="Storage-Path Policy", details=details, warnings=warnings)
 
 
+def _peek_normalized_state_for_health(cwd: Path) -> tuple[dict[str, object] | None, str | None]:
+    """Load normalized state for inspection without mutating on-disk files."""
+    state_obj, _integrity_issues, state_source = peek_state_json(cwd, recover_intent=False)
+    if not isinstance(state_obj, dict):
+        return None, state_source
+
+    project_contract = state_obj.get("project_contract")
+    if project_contract is not None and contract_from_data(project_contract) is None:
+        state_obj = dict(state_obj)
+        state_obj["project_contract"] = None
+    return state_obj, state_source
+
+
 def check_state_validity(cwd: Path) -> HealthCheck:
     """Cross-check state.json and STATE.md consistency.
 
     Delegates core validation to :func:`state_validate` and wraps the result.
     """
-    result = state_validate(cwd)
+    result = state_validate(cwd, recover_intent=False)
     issues = list(result.issues)
     warnings = list(result.warnings)
+
+    state_obj, state_source = _peek_normalized_state_for_health(cwd)
+    if isinstance(state_obj, dict) and state_obj.get("project_contract") is not None:
+        approval_validation = validate_project_contract(state_obj["project_contract"], mode="approved")
+        if not approval_validation.valid:
+            for error in approval_validation.errors:
+                issue = f"project_contract: {error}"
+                if issue not in issues:
+                    issues.append(issue)
+                if issue in warnings:
+                    warnings.remove(issue)
 
     # Additional: check phase ID format
     layout = ProjectLayout(cwd)
@@ -208,7 +234,12 @@ def check_state_validity(cwd: Path) -> HealthCheck:
     except (FileNotFoundError, json.JSONDecodeError, OSError, AttributeError, KeyError, TypeError):
         pass
 
-    details: dict[str, object] = {"has_json": layout.state_json.exists(), "has_md": layout.state_md.exists()}
+    details: dict[str, object] = {
+        "has_json": layout.state_json.exists(),
+        "has_md": layout.state_md.exists(),
+    }
+    if state_source is not None:
+        details["state_source"] = state_source
     status = CheckStatus.FAIL if issues else (CheckStatus.WARN if warnings else CheckStatus.OK)
     return HealthCheck(status=status, label="State Validity", details=details, issues=issues, warnings=warnings)
 
@@ -339,7 +370,7 @@ def check_orphans(cwd: Path) -> HealthCheck:
 def check_convention_lock(cwd: Path) -> HealthCheck:
     """Check convention lock completeness."""
     warnings: list[str] = []
-    state_obj = load_state_json(cwd)
+    state_obj, _state_source = _peek_normalized_state_for_health(cwd)
 
     if state_obj is None:
         return HealthCheck(status=CheckStatus.WARN, label="Convention Lock", warnings=["state.json not found"])
@@ -408,11 +439,17 @@ def check_config(cwd: Path) -> HealthCheck:
 
 
 def check_plan_frontmatter(cwd: Path) -> HealthCheck:
-    """Check plan file frontmatter for 'wave' field and numbering gaps."""
+    """Check plan file frontmatter for numbering gaps and canonical schema."""
     layout = ProjectLayout(cwd)
     phases_dir = layout.phases_dir
+    details: dict[str, object] = {
+        "plans_checked": 0,
+        "plans_missing_wave": 0,
+        "plans_missing_contract": 0,
+        "numbering_gaps": 0,
+    }
+    issues: list[str] = []
     warnings: list[str] = []
-    details: dict[str, object] = {"plans_checked": 0, "plans_missing_wave": 0, "numbering_gaps": 0}
 
     if not phases_dir.is_dir():
         return HealthCheck(status=CheckStatus.OK, label="Plan Frontmatter", details=details)
@@ -447,16 +484,24 @@ def check_plan_frontmatter(cwd: Path) -> HealthCheck:
             if content is None:
                 continue
             try:
-                meta, _ = extract_frontmatter(content)
+                validation = validate_frontmatter(content, "plan", source_path=plan_path)
             except FrontmatterParseError:
-                warnings.append(f"{phase_dir.name}/{plan_name}: YAML parse error")
+                issues.append(f"{phase_dir.name}/{plan_name}: YAML parse error")
                 continue
-            if meta.get("wave") is None:
-                warnings.append(f"{phase_dir.name}/{plan_name}: missing 'wave' in frontmatter")
+            missing = set(validation.missing)
+            if "wave" in missing:
                 details["plans_missing_wave"] = int(details["plans_missing_wave"]) + 1  # type: ignore[arg-type]
+            if "contract" in missing:
+                details["plans_missing_contract"] = int(details["plans_missing_contract"]) + 1  # type: ignore[arg-type]
+            if missing:
+                issues.append(
+                    f"{phase_dir.name}/{plan_name}: missing required frontmatter fields: {', '.join(validation.missing)}"
+                )
+            for error in validation.errors:
+                issues.append(f"{phase_dir.name}/{plan_name}: {error}")
 
-    status = CheckStatus.WARN if warnings else CheckStatus.OK
-    return HealthCheck(status=status, label="Plan Frontmatter", details=details, warnings=warnings)
+    status = CheckStatus.FAIL if issues else (CheckStatus.WARN if warnings else CheckStatus.OK)
+    return HealthCheck(status=status, label="Plan Frontmatter", details=details, issues=issues, warnings=warnings)
 
 
 def check_latest_return(cwd: Path) -> HealthCheck:
@@ -531,7 +576,7 @@ def check_latest_return(cwd: Path) -> HealthCheck:
 
 
 def check_git_status(cwd: Path) -> HealthCheck:
-    """Check for uncommitted files in .gpd/."""
+    """Check for uncommitted files in GPD/."""
     warnings: list[str] = []
     details: dict[str, object] = {}
 
@@ -624,24 +669,40 @@ def check_checkpoint_tags(cwd: Path) -> HealthCheck:
 # ─── Auto-Fix ────────────────────────────────────────────────────────────────
 
 
-def _apply_fixes(cwd: Path, checks: list[HealthCheck]) -> list[str]:
-    """Apply automatic fixes for known issues. Returns list of fix descriptions."""
+def _apply_fixes(
+    cwd: Path,
+    checks: list[HealthCheck],
+    *,
+    return_refreshed_labels: bool = False,
+) -> list[str] | tuple[list[str], set[str]]:
+    """Apply automatic fixes for known issues.
+
+    Returns a tuple of the fix descriptions and the labels that should be
+    recomputed so the final report reflects the post-fix filesystem state.
+    """
     layout = ProjectLayout(cwd)
     fixes: list[str] = []
+    refreshed_labels: set[str] = set()
 
-    # Fix 1: Regenerate state.json from STATE.md if missing
+    # Fix 1: Restore state.json through the state loader if missing.
+    # The loader prefers a valid state.json.bak before falling back to STATE.md.
     state_check = next((c for c in checks if c.label == "State Validity"), None)
-    if state_check and state_check.details.get("has_md") and not state_check.details.get("has_json"):
-        md_path = layout.state_md
-        content = safe_read_file(md_path)
-        if content is not None:
+    if state_check and state_check.status != CheckStatus.OK:
+        restored_state, _restored_issues, state_source = peek_state_json(cwd)
+        if restored_state is not None and state_source in {"state.json.bak", "STATE.md"}:
             try:
-                sync_state_json(cwd, content)
-                fixes.append("Regenerated state.json from STATE.md")
-                state_check.issues = [i for i in state_check.issues if "state.json not found" not in i]
-                state_check.status = CheckStatus.WARN if state_check.warnings else CheckStatus.OK
-            except Exception as e:
-                fixes.append(f"Failed to regenerate state.json: {e}")
+                save_state_json(cwd, restored_state)
+                if state_source == "state.json.bak":
+                    fixes.append("Restored state.json from state.json.bak")
+                else:
+                    fixes.append("Regenerated state.json from STATE.md")
+                state_check.details["state_source"] = state_source
+                refreshed_labels.update({"State Validity", "Convention Lock"})
+                structure_check = next((c for c in checks if c.label == "Project Structure"), None)
+                if structure_check is not None:
+                    structure_check.details["state.json"] = "present"
+            except OSError as e:
+                fixes.append(f"Failed to restore state.json: {e}")
 
     # Fix 2: Create config.json if missing or malformed
     config_check = next((c for c in checks if c.label == "Config"), None)
@@ -673,6 +734,12 @@ def _apply_fixes(cwd: Path, checks: list[HealthCheck]) -> list[str]:
                 shutil.copy2(config_path, config_path.with_suffix(".json.bak"))
             atomic_write(config_path, json.dumps(config_dict, indent=2) + "\n")
             fixes.append("Created default config.json")
+            config_check.details = {
+                "commit_docs": defaults.commit_docs,
+                "model_profile": defaults.model_profile.value,
+                "autonomy": defaults.autonomy.value,
+                "research_mode": defaults.research_mode.value,
+            }
             config_check.warnings = []
             config_check.issues = []
             config_check.status = CheckStatus.OK
@@ -705,6 +772,8 @@ def _apply_fixes(cwd: Path, checks: list[HealthCheck]) -> list[str]:
         except (FileNotFoundError, subprocess.TimeoutExpired) as e:
             fixes.append(f"Failed to delete stale checkpoint tags: {e}")
 
+    if return_refreshed_labels:
+        return fixes, refreshed_labels
     return fixes
 
 
@@ -747,7 +816,35 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
 
         fixes: list[str] = []
         if fix:
-            fixes = _apply_fixes(cwd, checks)
+            fixes, refreshed_labels = _apply_fixes(cwd, checks, return_refreshed_labels=True)
+            if refreshed_labels:
+                refreshed_checks: list[HealthCheck] = []
+                check_labels = {
+                    "environment": "Environment",
+                    "project_structure": "Project Structure",
+                    "storage_paths": "Storage-Path Policy",
+                    "state_validity": "State Validity",
+                    "compaction": "State Compaction",
+                    "roadmap": "Roadmap Consistency",
+                    "orphans": "Orphan Detection",
+                    "convention_lock": "Convention Lock",
+                    "plan_frontmatter": "Plan Frontmatter",
+                    "latest_return": "Latest Return Envelope",
+                    "config": "Config",
+                    "checkpoint_tags": "Checkpoint Tags",
+                    "git_status": "Git Status",
+                }
+                for name, check_fn in _ALL_CHECKS:
+                    label = check_labels[name]
+                    if label not in refreshed_labels:
+                        refreshed_checks.append(next(c for c in checks if c.label == label))
+                        continue
+                    with gpd_span(f"health.check.{name}"):
+                        if name == "environment":
+                            refreshed_checks.append(check_fn())  # type: ignore[operator]
+                        else:
+                            refreshed_checks.append(check_fn(cwd))  # type: ignore[operator]
+                checks = refreshed_checks
 
         ok_count = sum(1 for c in checks if c.status == CheckStatus.OK)
         warn_count = sum(1 for c in checks if c.status == CheckStatus.WARN)
@@ -796,7 +893,12 @@ def _doctor_check_protocol_bundles(specs_dir: Path) -> HealthCheck:
     for path in sorted(bundles_dir.glob("*.md")):
         document_count += 1
         try:
-            meta, _body = extract_frontmatter(path.read_text(encoding="utf-8"))
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            issues.append(f"{path.name}: unreadable bundle ({exc})")
+            continue
+        try:
+            meta, _body = extract_frontmatter(text)
         except FrontmatterParseError as exc:
             issues.append(f"{path.name}: invalid frontmatter ({exc})")
             continue
@@ -820,7 +922,16 @@ def _doctor_check_protocol_bundles(specs_dir: Path) -> HealthCheck:
 
         for role, asset in bundle.assets.iter_assets():
             asset_path = specs_dir / asset.path
-            if asset_path.exists():
+            try:
+                asset_exists = asset_path.is_file()
+            except OSError as exc:
+                message = f"{path.name}: unreadable {role} asset {asset.path} ({exc})"
+                if asset.required:
+                    issues.append(message)
+                else:
+                    warnings.append(message)
+                continue
+            if asset_exists:
                 continue
             message = f"{path.name}: missing {role} asset {asset.path}"
             if asset.required:

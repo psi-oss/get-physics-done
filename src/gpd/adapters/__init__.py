@@ -51,7 +51,11 @@ def _ensure_loaded() -> None:
         return
 
     registry: dict[str, type[RuntimeAdapter]] = {}
+    seen_runtime_names: set[str] = set()
     for descriptor in iter_runtime_descriptors():
+        if descriptor.runtime_name in seen_runtime_names:
+            raise RuntimeError(f"Duplicate runtime name in runtime catalog: {descriptor.runtime_name!r}")
+        seen_runtime_names.add(descriptor.runtime_name)
         registry[descriptor.runtime_name] = _load_adapter_class(descriptor.runtime_name)
 
     _REGISTRY.clear()

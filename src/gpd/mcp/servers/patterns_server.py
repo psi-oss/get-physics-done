@@ -12,8 +12,10 @@ Usage:
 import logging
 import sys
 from pathlib import Path
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import WithJsonSchema
 
 from gpd.core.errors import PatternError
 from gpd.core.observability import gpd_span
@@ -28,6 +30,7 @@ from gpd.core.patterns import (
     pattern_seed,
     patterns_root,
 )
+from gpd.mcp.servers import stable_mcp_error, stable_mcp_response
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
 logger = logging.getLogger("gpd-patterns")
@@ -37,6 +40,31 @@ mcp = FastMCP("gpd-patterns")
 # Default patterns library root — used when GPD_PATTERNS_ROOT / GPD_DATA_DIR
 # env vars are not set. Falls back to the global ~/.gpd data directory.
 _DEFAULT_PATTERNS_ROOT: Path | None = None
+
+_PATTERN_DOMAIN_VALUES = sorted(VALID_DOMAINS)
+_PATTERN_CATEGORY_VALUES = sorted(VALID_CATEGORIES)
+_PATTERN_SEVERITY_VALUES = list(VALID_SEVERITIES)
+
+PatternDomainInput = Annotated[
+    str,
+    WithJsonSchema({"type": "string", "enum": _PATTERN_DOMAIN_VALUES}),
+]
+PatternOptionalDomainInput = Annotated[
+    str | None,
+    WithJsonSchema({"anyOf": [{"type": "string", "enum": _PATTERN_DOMAIN_VALUES}, {"type": "null"}]}),
+]
+PatternCategoryInput = Annotated[
+    str,
+    WithJsonSchema({"type": "string", "enum": _PATTERN_CATEGORY_VALUES}),
+]
+PatternOptionalCategoryInput = Annotated[
+    str | None,
+    WithJsonSchema({"anyOf": [{"type": "string", "enum": _PATTERN_CATEGORY_VALUES}, {"type": "null"}]}),
+]
+PatternSeverityInput = Annotated[
+    str,
+    WithJsonSchema({"type": "string", "enum": _PATTERN_SEVERITY_VALUES}),
+]
 
 
 def _get_patterns_root() -> Path:
@@ -48,8 +76,8 @@ def _get_patterns_root() -> Path:
 
 @mcp.tool()
 def lookup_pattern(
-    domain: str | None = None,
-    category: str | None = None,
+    domain: PatternOptionalDomainInput = None,
+    category: PatternOptionalCategoryInput = None,
     keywords: str | None = None,
 ) -> dict:
     """Search the GPD pattern library for physics error patterns.
@@ -71,30 +99,36 @@ def lookup_pattern(
                     matches = [p for p in matches if p.domain == domain]
                 if category:
                     matches = [p for p in matches if p.category == category]
-                return {
-                    "count": len(matches),
-                    "patterns": [p.model_dump() for p in matches],
-                    "query": result.query,
-                    "library_exists": result.library_exists,
-                }
+                return stable_mcp_response(
+                    {
+                        "count": len(matches),
+                        "patterns": [p.model_dump() for p in matches],
+                        "query": result.query,
+                        "library_exists": result.library_exists,
+                    }
+                )
 
             result = pattern_list(domain=domain, category=category, root=_get_patterns_root())
-            return {
-                "count": result.count,
-                "patterns": [p.model_dump() for p in result.patterns],
-                "query": None,
-                "library_exists": result.library_exists,
-            }
-        except (PatternError, OSError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(
+                {
+                    "count": result.count,
+                    "patterns": [p.model_dump() for p in result.patterns],
+                    "query": None,
+                    "library_exists": result.library_exists,
+                }
+            )
+        except (PatternError, OSError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
 def add_pattern(
-    domain: str,
+    domain: PatternDomainInput,
     title: str,
-    category: str = "conceptual-error",
-    severity: str = "medium",
+    category: PatternCategoryInput = "conceptual-error",
+    severity: PatternSeverityInput = "medium",
     description: str = "",
     detection: str = "",
     prevention: str = "",
@@ -131,9 +165,11 @@ def add_pattern(
                 test_value=test_value,
                 root=_get_patterns_root(),
             )
-            return result.model_dump()
-        except (PatternError, OSError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(result.model_dump())
+        except (PatternError, OSError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -149,9 +185,11 @@ def promote_pattern(pattern_id: str) -> dict:
     with gpd_span("mcp.patterns.promote", pattern_id=pattern_id):
         try:
             result = pattern_promote(pattern_id, root=_get_patterns_root())
-            return result.model_dump()
-        except (PatternError, OSError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(result.model_dump())
+        except (PatternError, OSError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -165,9 +203,11 @@ def seed_patterns() -> dict:
     with gpd_span("mcp.patterns.seed"):
         try:
             result = pattern_seed(root=_get_patterns_root())
-            return result.model_dump()
-        except (PatternError, OSError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(result.model_dump())
+        except (PatternError, OSError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -178,11 +218,16 @@ def list_domains() -> dict:
     when adding new patterns.
     """
     with gpd_span("mcp.patterns.list_domains"):
-        return {
-            "domains": sorted(VALID_DOMAINS),
-            "categories": sorted(VALID_CATEGORIES),
-            "severities": list(VALID_SEVERITIES),
-        }
+        try:
+            return stable_mcp_response(
+                {
+                    "domains": sorted(VALID_DOMAINS),
+                    "categories": sorted(VALID_CATEGORIES),
+                    "severities": list(VALID_SEVERITIES),
+                }
+            )
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 # ---------------------------------------------------------------------------

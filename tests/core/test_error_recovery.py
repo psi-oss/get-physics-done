@@ -57,14 +57,14 @@ from gpd.core.utils import safe_read_file
 
 
 def _make_planning(tmp_path: Path) -> Path:
-    """Create minimal .gpd/ structure and return project root."""
-    planning = tmp_path / ".gpd"
+    """Create minimal GPD/ structure and return project root."""
+    planning = tmp_path / "GPD"
     planning.mkdir(parents=True, exist_ok=True)
     return tmp_path
 
 
 def _write_state_json(cwd: Path, obj: dict) -> Path:
-    """Write state.json to .gpd/ and return the path."""
+    """Write state.json to GPD/ and return the path."""
     p = ProjectLayout(cwd).state_json
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(obj, indent=2), encoding="utf-8")
@@ -72,7 +72,7 @@ def _write_state_json(cwd: Path, obj: dict) -> Path:
 
 
 def _write_state_md(cwd: Path, content: str) -> Path:
-    """Write STATE.md to .gpd/ and return the path."""
+    """Write STATE.md to GPD/ and return the path."""
     p = ProjectLayout(cwd).state_md
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content, encoding="utf-8")
@@ -84,7 +84,7 @@ MINIMAL_STATE_MD = """\
 
 ## Project Reference
 
-See: .gpd/PROJECT.md
+See: GPD/PROJECT.md
 
 **Core research question:** Test question
 **Current focus:** Testing recovery
@@ -127,7 +127,7 @@ See: .gpd/PROJECT.md
 
 **Last session:** 2026-03-09
 **Stopped at:** Phase 01, Plan 01, Task 2
-**Resume file:** .gpd/phases/01-test/01-test-01-PLAN.md
+**Resume file:** GPD/phases/01-test/01-test-01-PLAN.md
 """
 
 
@@ -547,9 +547,15 @@ class TestValidateFrontmatter:
             "depends_on: []\n"
             "files_modified: []\n"
             "interactive: false\n"
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n"
             "contract:\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
+            "  context_intake:\n"
+            "    must_read_refs: [ref-main]\n"
             "  claims:\n"
             "    - id: claim-main\n"
             "      statement: Recover the benchmark value within tolerance\n"

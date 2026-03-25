@@ -111,6 +111,7 @@ VALUE_ALIASES: dict[str, dict[str, str]] = {
         "-+++": "mostly-plus",
         "mostly_plus": "mostly-plus",
         "(+,+,+,+)": "euclidean",
+        "Euclidean (+,+,+,+)": "euclidean",
         "++++": "euclidean",
     },
 }
@@ -247,10 +248,7 @@ def sanitize_value(value: str) -> str:
     """
     cleaned = re.sub(r"[\r\n]+", " ", value).strip()
     if cleaned.lower() in _BOGUS_VALUES:
-        raise ConventionError(
-            f"Convention value cannot be empty or bogus ({cleaned!r}). "
-            "To clear a convention, set the field to None directly."
-        )
+        raise ConventionError(f"Convention value cannot be empty or bogus ({cleaned!r}).")
     return cleaned
 
 

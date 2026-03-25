@@ -19,12 +19,17 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
+Parse JSON for: `project_contract`, `project_contract_load_info`, `project_contract_validation`, `active_reference_context`
+
 If the relevant phase or artifact is contract-backed, resolve:
 - `subject_id`
 - `subject_kind`
 - `subject_role`
 - any linked `reference_id`
 - the decisive threshold or pass condition
+
+Treat `project_contract` as authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes.
+If `active_reference_context` is non-empty, keep that anchor ledger visible while resolving `subject_id`, `reference_id`, thresholds, and comparison linkage.
 
 Do not drop back to generic prose when a contract-backed target exists.
 
@@ -59,7 +64,7 @@ When the comparison is decisive, always emit `comparison_verdicts`. Do not hide 
 
 ## 4. Write The Artifact
 
-Write `.gpd/comparisons/[slug]-COMPARISON.md` using the internal-comparison template.
+Write `GPD/comparisons/[slug]-COMPARISON.md` using the internal-comparison template.
 
 The frontmatter must include:
 - `comparison_verdicts`

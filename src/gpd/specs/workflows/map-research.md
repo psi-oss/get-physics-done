@@ -1,9 +1,9 @@
 <purpose>
-Orchestrate parallel research-mapper agents to analyze a physics research project and produce structured documents in .gpd/research-map/
+Orchestrate parallel research-mapper agents to analyze a physics research project and produce structured documents in GPD/research-map/
 
 Each agent has fresh context, explores a specific focus area, and **writes documents directly**. The orchestrator only receives confirmation + line counts, then writes a summary.
 
-Output: .gpd/research-map/ folder with 7 structured documents covering theoretical content, computational methods, data artifacts, conventions, and open questions.
+Output: GPD/research-map/ folder with 7 structured documents covering theoretical content, computational methods, data artifacts, conventions, and open questions.
 </purpose>
 
 <philosophy>
@@ -47,7 +47,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `mapper_model`, `commit_docs`, `research_map_dir`, `existing_maps`, `has_maps`, `research_map_dir_exists`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`.
+Extract from init JSON: `mapper_model`, `commit_docs`, `research_map_dir`, `existing_maps`, `has_maps`, `research_map_dir_exists`, `project_contract`, `project_contract_load_info`, `project_contract_validation`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`.
 
 **Read mode settings:**
 
@@ -64,21 +64,22 @@ RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .v
 - Use `reference_artifacts_content` when the existing literature/research-map artifacts already contain stable citations, prior-output paths, or benchmark wording that should be preserved verbatim.
 - Preserve stable anchor identity when you rewrite or merge references: every durable anchor in `REFERENCES.md` should carry a reusable `Anchor ID` and a concrete `Source / Locator`.
 - Keep workflow carry-forward scope separate from canonical contract subject linkage. `Carry Forward To` names workflow stages; if exact claim/deliverable IDs are known, record them in a dedicated `Contract Subject IDs` field instead of overloading the stage field.
+- Treat `project_contract` as authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes. If either gate is blocked, keep the contract visible as context but do not treat it as approved mapping truth.
 </step>
 
 <step name="check_existing">
-Check if .gpd/research-map/ already exists using `has_maps` from init context.
+Check if GPD/research-map/ already exists using `has_maps` from init context.
 
 If `research_map_dir_exists` is true:
 
 ```bash
-ls -la .gpd/research-map/
+ls -la GPD/research-map/
 ```
 
 **If exists:**
 
 ```
-.gpd/research-map/ already exists with these documents:
+GPD/research-map/ already exists with these documents:
 [List files found]
 
 What's next?
@@ -89,7 +90,7 @@ What's next?
 
 Wait for user response.
 
-If "Refresh": Delete .gpd/research-map/, continue to create_structure
+If "Refresh": Delete GPD/research-map/, continue to create_structure
 If "Update": Ask which documents to update, continue to spawn_agents (filtered)
 If "Skip": Exit workflow
 
@@ -98,10 +99,10 @@ Continue to create_structure.
 </step>
 
 <step name="create_structure">
-Create .gpd/research-map/ directory:
+Create GPD/research-map/ directory:
 
 ```bash
-mkdir -p .gpd/research-map
+mkdir -p GPD/research-map
 ```
 
 **Expected output files:**
@@ -153,10 +154,18 @@ Keep this active reference context visible while mapping:
 Existing reference artifact excerpts:
 {reference_artifacts_content}
 
-If `project_contract` is present, use its existing IDs as the preferred canonical names for anchors and contract subject references:
+Project contract load info:
+{project_contract_load_info}
+
+Project contract validation:
+{project_contract_validation}
+
+If `project_contract` is present and `project_contract_load_info` is clean and `project_contract_validation` passes, use its existing IDs as the preferred canonical names for anchors and contract subject references:
 {project_contract}
 
-Write these documents to .gpd/research-map/:
+If the contract is blocked or not approved, keep it visible as context only and do not treat its IDs as authoritative mapping truth.
+
+Write these documents to GPD/research-map/:
 - FORMALISM.md - Lagrangians/Hamiltonians, symmetries, gauge groups, field content, key equations, approximation schemes, effective theories, governing PDEs/ODEs, boundary conditions, conservation laws
 - REFERENCES.md - Active anchor registry: papers cited, benchmarks, prior artifacts, required carry-forward actions, open questions from literature, experimental data sources, collaboration context. Every row must have a stable `Anchor ID` and concrete `Source / Locator`. Use `Carry Forward To` for workflow stages only; if exact contract claim/deliverable IDs are known, record them separately as `Contract Subject IDs`.
 
@@ -182,8 +191,22 @@ First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructio
 Focus: computation
 
 Analyze this research project for computational methods, solvers, and project structure.
+Treat the machine-readable intake below as binding carry-forward context:
+{effective_reference_intake}
 
-Write these documents to .gpd/research-map/:
+Keep this active reference context visible while mapping:
+{active_reference_context}
+
+Existing reference artifact excerpts:
+{reference_artifacts_content}
+
+Project contract load info:
+{project_contract_load_info}
+
+Project contract validation:
+{project_contract_validation}
+
+Write these documents to GPD/research-map/:
 - ARCHITECTURE.md - Computational pipeline, solver choices (ODE/PDE/linear algebra), algorithm design, parallelization strategy, key libraries used (NumPy, SciPy, PETSc, etc.), MCP simulation servers, data flow from input to output, performance bottlenecks
 - STRUCTURE.md - Directory layout, file organization (code vs data vs docs vs notebooks), naming conventions, input/output formats (HDF5, CSV, JSON), dependency graph between scripts, build system, job submission scripts
 
@@ -209,8 +232,22 @@ First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructio
 Focus: methodology
 
 Analyze this research project for notation conventions, unit systems, and validation practices.
+Treat the machine-readable intake below as binding carry-forward context:
+{effective_reference_intake}
 
-Write these documents to .gpd/research-map/:
+Keep this active reference context visible while mapping:
+{active_reference_context}
+
+Existing reference artifact excerpts:
+{reference_artifacts_content}
+
+Project contract load info:
+{project_contract_load_info}
+
+Project contract validation:
+{project_contract_validation}
+
+Write these documents to GPD/research-map/:
 - CONVENTIONS.md - Notation system, sign conventions (metric signature, Fourier transforms), unit system (natural/SI/CGS), index placement conventions (Einstein summation), coordinate labeling, variable naming in code vs equations, coupling constant definitions, Wick rotation conventions
 - VALIDATION.md - Known limits checked (analytic benchmarks, exact solutions), convergence tests performed, consistency checks (conservation laws, sum rules, Ward identities), comparison with published results, test suite structure, regression tests, error analysis methodology
 
@@ -236,8 +273,22 @@ First, read {GPD_AGENTS_DIR}/gpd-research-mapper.md for your role and instructio
 Focus: status
 
 Analyze this research project for open questions, known issues, and areas of concern.
+Treat the machine-readable intake below as binding carry-forward context:
+{effective_reference_intake}
 
-Write this document to .gpd/research-map/:
+Keep this active reference context visible while mapping:
+{active_reference_context}
+
+Existing reference artifact excerpts:
+{reference_artifacts_content}
+
+Project contract load info:
+{project_contract_load_info}
+
+Project contract validation:
+{project_contract_validation}
+
+Write this document to GPD/research-map/:
 - CONCERNS.md - Known issues (unresolved divergences, numerical instabilities, sign ambiguities), theoretical gaps (missing diagrams, uncontrolled approximations, gauge artifacts), TODO items found in code and notes, fragile areas (code that breaks easily, calculations sensitive to parameter choices), missing validation (untested regimes, unchecked limits), computational bottlenecks, stale or abandoned branches of investigation
 
 Explore thoroughly: search for TODO/FIXME/HACK/XXX comments, read issue trackers, check for commented-out code, look for notebooks with error outputs. Write document directly using template. Return confirmation only.
@@ -260,8 +311,8 @@ Read each agent's output file to collect confirmations.
 
 **Focus:** {focus}
 **Documents written:**
-- `.gpd/research-map/{DOC1}.md` ({N} lines)
-- `.gpd/research-map/{DOC2}.md` ({N} lines)
+- `GPD/research-map/{DOC1}.md` ({N} lines)
+- `GPD/research-map/{DOC2}.md` ({N} lines)
 
 Ready for orchestrator summary.
 ```
@@ -277,8 +328,8 @@ Continue to verify_output.
 Verify all documents created successfully:
 
 ```bash
-ls -la .gpd/research-map/
-wc -l .gpd/research-map/*.md
+ls -la GPD/research-map/
+wc -l GPD/research-map/*.md
 ```
 
 **Verification checklist:**
@@ -298,7 +349,7 @@ Run secret pattern detection:
 
 ```bash
 # Check for common API key patterns in generated docs
-grep -E '(sk-[a-zA-Z0-9]{20,}|sk_live_[a-zA-Z0-9]+|sk_test_[a-zA-Z0-9]+|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]+|AKIA[A-Z0-9]{16}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN.*PRIVATE KEY|eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.)' .gpd/research-map/*.md 2>/dev/null && SECRETS_FOUND=true || SECRETS_FOUND=false
+grep -E '(sk-[a-zA-Z0-9]{20,}|sk_live_[a-zA-Z0-9]+|sk_test_[a-zA-Z0-9]+|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]+|AKIA[A-Z0-9]{16}|xox[baprs]-[a-zA-Z0-9-]+|-----BEGIN.*PRIVATE KEY|eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.)' GPD/research-map/*.md 2>/dev/null && SECRETS_FOUND=true || SECRETS_FOUND=false
 ```
 
 **If SECRETS_FOUND=true:**
@@ -330,10 +381,10 @@ Continue to commit_research_map.
 Commit the research map:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/research-map/*.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/research-map/*.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: map existing research project" --files .gpd/research-map/*.md
+gpd commit "docs: map existing research project" --files GPD/research-map/*.md
 ```
 
 Continue to offer_next.
@@ -345,7 +396,7 @@ Present completion summary and next steps.
 **Get line counts:**
 
 ```bash
-wc -l .gpd/research-map/*.md
+wc -l GPD/research-map/*.md
 ```
 
 **Output format:**
@@ -353,7 +404,7 @@ wc -l .gpd/research-map/*.md
 ```
 Research project mapping complete.
 
-Created .gpd/research-map/:
+Created GPD/research-map/:
 - FORMALISM.md ([N] lines) - Theoretical framework, key equations, symmetries
 - REFERENCES.md ([N] lines) - Literature foundations, cited papers, experimental data
 - ARCHITECTURE.md ([N] lines) - Computational pipeline, solvers, algorithms
@@ -377,7 +428,7 @@ Created .gpd/research-map/:
 
 **Also available:**
 - Re-run mapping: `/gpd:map-research`
-- Review specific file: `cat .gpd/research-map/FORMALISM.md`
+- Review specific file: `cat GPD/research-map/FORMALISM.md`
 - Edit any document before proceeding
 
 ---
@@ -390,7 +441,7 @@ End workflow.
 
 <success_criteria>
 
-- .gpd/research-map/ directory created
+- GPD/research-map/ directory created
 - 4 parallel gpd-research-mapper agents spawned with run_in_background=true
 - Agents write documents directly (orchestrator doesn't receive document contents)
 - Read agent output files to collect confirmations

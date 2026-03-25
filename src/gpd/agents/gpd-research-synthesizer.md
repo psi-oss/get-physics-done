@@ -52,7 +52,7 @@ Your job: Create a unified research summary that informs research roadmap creati
 
 ## Research Mode Effects
 
-The research mode (from `.gpd/config.json` field `research_mode`, default: `"balanced"`) controls synthesis scope. See `research-modes.md` for full specification. Summary:
+The research mode (from `GPD/config.json` field `research_mode`, default: `"balanced"`) controls synthesis scope. See `research-modes.md` for full specification. Summary:
 
 - **explore**: Multi-approach synthesis without picking a winner; all pairwise cross-validation; flag complementary parallel approaches
 - **balanced**: Recommend single approach based on evidence weight; standard cross-validation matrix
@@ -478,12 +478,12 @@ Re-synthesis is triggered when:
 # Compare current research files with what SUMMARY.md was based on
 # Check modification times
 for file in METHODS.md PRIOR-WORK.md COMPUTATIONAL.md PITFALLS.md; do
-  filepath=".gpd/research/$file"
+  filepath="GPD/research/$file"
   if [ -f "$filepath" ]; then
     echo "$file: $(stat -f '%Sm' "$filepath" 2>/dev/null || stat -c '%y' "$filepath" 2>/dev/null)"
   fi
 done
-echo "SUMMARY.md: $(stat -f '%Sm' .gpd/research/SUMMARY.md 2>/dev/null || stat -c '%y' .gpd/research/SUMMARY.md 2>/dev/null)"
+echo "SUMMARY.md: $(stat -f '%Sm' GPD/research/SUMMARY.md 2>/dev/null || stat -c '%y' GPD/research/SUMMARY.md 2>/dev/null)"
 ```
 
 **Step 2: Identify affected sections**
@@ -570,7 +570,7 @@ Before synthesizing, verify each research file:
 
 ```bash
 for file in METHODS.md PRIOR-WORK.md COMPUTATIONAL.md PITFALLS.md; do
-  filepath=".gpd/research/$file"
+  filepath="GPD/research/$file"
   if [ ! -f "$filepath" ]; then
     echo "MISSING: $filepath"
   elif [ ! -s "$filepath" ]; then
@@ -630,7 +630,7 @@ When synthesizing findings from multiple research files, weight them by confiden
 Before synthesizing, check for existing literature review files:
 
 ```bash
-ls .gpd/literature/*-REVIEW.md 2>/dev/null
+ls GPD/literature/*-REVIEW.md 2>/dev/null
 ```
 
 If found, incorporate their findings into the synthesis, particularly:
@@ -643,11 +643,11 @@ If found, incorporate their findings into the synthesis, particularly:
 Read the 4 primary research files, plus the prior SUMMARY.md when re-synthesizing:
 
 ```bash
-cat .gpd/research/METHODS.md
-cat .gpd/research/PRIOR-WORK.md
-cat .gpd/research/COMPUTATIONAL.md
-cat .gpd/research/PITFALLS.md
-cat .gpd/research/SUMMARY.md 2>/dev/null  # May exist from prior synthesis
+cat GPD/research/METHODS.md
+cat GPD/research/PRIOR-WORK.md
+cat GPD/research/COMPUTATIONAL.md
+cat GPD/research/PITFALLS.md
+cat GPD/research/SUMMARY.md 2>/dev/null  # May exist from prior synthesis
 
 # Planning config loaded via gpd CLI in commit step
 ```
@@ -897,7 +897,7 @@ Identify gaps that could not be resolved and need attention during the research:
 
 Use template: {GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md
 
-Write to `.gpd/research/SUMMARY.md`
+Write to `GPD/research/SUMMARY.md`
 
 **SUMMARY.md structure:**
 
@@ -992,12 +992,12 @@ When SUMMARY.md is written:
 
 **Files synthesized:**
 
-- .gpd/research/METHODS.md
-- .gpd/research/PRIOR-WORK.md
-- .gpd/research/COMPUTATIONAL.md
-- .gpd/research/PITFALLS.md
+- GPD/research/METHODS.md
+- GPD/research/PRIOR-WORK.md
+- GPD/research/COMPUTATIONAL.md
+- GPD/research/PITFALLS.md
 
-**Output:** .gpd/research/SUMMARY.md
+**Output:** GPD/research/SUMMARY.md
 
 ### Unified Notation
 
@@ -1071,7 +1071,7 @@ Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 gpd_return:
   status: completed | checkpoint | blocked | failed
   # Mapping: SYNTHESIS COMPLETE → completed, SYNTHESIS BLOCKED → blocked
-  files_written: [.gpd/research/SUMMARY.md, ...]
+  files_written: [GPD/research/SUMMARY.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
   symbols_reconciled: {count}

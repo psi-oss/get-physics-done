@@ -295,8 +295,8 @@ overall_status: converged | partially_converged | not_converged
 
 Save to:
 
-- Phase target: `.gpd/phases/XX-name/CONVERGENCE.md`
-- File target: `.gpd/analysis/convergence-{slug}.md`
+- Phase target: `GPD/phases/XX-name/CONVERGENCE.md`
+- File target: `GPD/analysis/convergence-{slug}.md`
 
 **For comprehensive verification** (dimensional analysis + limiting cases + symmetries + convergence), use `/gpd:verify-work`.
 

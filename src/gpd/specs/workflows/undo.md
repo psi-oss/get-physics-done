@@ -103,7 +103,7 @@ Present:
 - {additions} insertions, {deletions} deletions
 ```
 
-If the commit modified `.gpd/STATE.md`, note this:
+If the commit modified `GPD/STATE.md`, note this:
 
 ```
 ⚠ This commit modified STATE.md -- the undo will also roll back state tracking.
@@ -187,7 +187,7 @@ git revert --abort
 Commit the revert:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/STATE.md .gpd/state.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/STATE.md GPD/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
 git commit -m "$(cat <<'EOF'
@@ -201,7 +201,7 @@ EOF
 <step name="update_state">
 **If the reverted commit modified STATE.md:**
 
-Read `.gpd/STATE.md` and check if it needs adjustment:
+Read `GPD/STATE.md` and check if it needs adjustment:
 
 1. If the reverted commit added a phase completion marker, restore the affected field(s) with `gpd state update` / `gpd state patch`
 2. If the reverted commit advanced the current phase, roll back the position with `gpd state update` / `gpd state patch` rather than direct `file_edit` so `STATE.md` and `state.json` stay aligned
@@ -214,10 +214,10 @@ gpd state add-decision --phase "undo" --summary "Rolled back: ${TARGET_MSG}" --r
 4. Commit:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/STATE.md .gpd/state.json 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/STATE.md GPD/state.json 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: update state after undo" --files .gpd/STATE.md .gpd/state.json
+gpd commit "docs: update state after undo" --files GPD/STATE.md GPD/state.json
 ```
 
 **If STATE.md was not affected:** Skip this step.

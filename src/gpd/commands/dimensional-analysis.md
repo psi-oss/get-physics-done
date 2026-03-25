@@ -35,8 +35,8 @@ Interpretation:
 Load unit system:
 
 ```bash
-cat .gpd/research-map/FORMALISM.md 2>/dev/null | grep -A 10 "Unit System"
-cat .gpd/research-map/FORMALISM.md 2>/dev/null | grep -A 20 "Notation and Conventions"
+cat GPD/research-map/FORMALISM.md 2>/dev/null | grep -A 10 "Unit System"
+cat GPD/research-map/FORMALISM.md 2>/dev/null | grep -A 20 "Notation and Conventions"
 ```
 
 </context>

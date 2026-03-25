@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd.adapters.install_utils import build_runtime_cli_bridge_command
 from gpd.adapters.opencode import (
     OpenCodeAdapter,
     configure_opencode_permissions,
@@ -22,6 +23,16 @@ from gpd.adapters.opencode import (
 @pytest.fixture()
 def adapter() -> OpenCodeAdapter:
     return OpenCodeAdapter()
+
+
+def expected_opencode_bridge(target: Path, *, is_global: bool = False, explicit_target: bool = False) -> str:
+    return build_runtime_cli_bridge_command(
+        "opencode",
+        target_dir=target,
+        config_dir_name=".opencode",
+        is_global=is_global,
+        explicit_target=explicit_target,
+    )
 
 
 class TestProperties:
@@ -260,7 +271,32 @@ class TestConfigureOpenCodePermissions:
         modified = configure_opencode_permissions(tmp_path)
         assert modified is False
 
+    def test_preserves_global_string_permission_via_star_rule(self, tmp_path: Path) -> None:
+        (tmp_path / "opencode.json").write_text(json.dumps({"permission": "ask"}), encoding="utf-8")
+
+        configure_opencode_permissions(tmp_path)
+
+        config = json.loads((tmp_path / "opencode.json").read_text(encoding="utf-8"))
+        assert config["permission"]["*"] == "ask"
+        assert any("get-physics-done" in key for key in config["permission"]["external_directory"])
+
 class TestInstall:
+    def test_help_command_does_not_describe_opencode_commands_as_slash_commands(
+        self,
+        adapter: OpenCodeAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        adapter.install(gpd_root, target)
+
+        content = (target / "command" / "gpd-help.md").read_text(encoding="utf-8")
+        assert "slash-command" not in content
+        assert "canonical in-runtime command names" in content
+        assert "/gpd-" in content
+
     def test_local_install_uses_relative_gpd_paths(
         self,
         adapter: OpenCodeAdapter,
@@ -400,6 +436,34 @@ class TestInstall:
         assert result["commands"] > 0
         assert result["agents"] > 0
 
+    def test_install_rewrites_gpd_cli_calls_to_runtime_cli_bridge(
+        self,
+        adapter: OpenCodeAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target, is_global=False)
+
+        expected_bridge = expected_opencode_bridge(target, is_global=False)
+        command = (target / "command" / "gpd-settings.md").read_text(encoding="utf-8")
+        workflow = (target / "get-physics-done" / "workflows" / "settings.md").read_text(encoding="utf-8")
+        execute_phase = (target / "get-physics-done" / "workflows" / "execute-phase.md").read_text(encoding="utf-8")
+        agent = (target / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
+
+        assert expected_bridge + " config ensure-section" in command
+        assert f'INIT=$({expected_bridge} init progress --include state,config)' in command
+        assert expected_bridge + " config ensure-section" in workflow
+        assert f'INIT=$({expected_bridge} init progress --include state,config)' in workflow
+        assert 'echo "ERROR: gpd initialization failed: $INIT"' in workflow
+        assert f'if ! {expected_bridge} verify plan "$plan"; then' in execute_phase
+        assert f'INIT=$({expected_bridge} init plan-phase "<PHASE>")' in agent
+        assert "```bash\ngpd config ensure-section\n" not in workflow
+        assert 'INIT=$(gpd init progress --include state,config)' not in workflow
+        assert 'if ! gpd verify plan "$plan"; then' not in execute_phase
+        assert 'INIT=$(gpd init plan-phase "<PHASE>")' not in agent
+
     def test_install_preserves_existing_mcp_overrides(
         self,
         adapter: OpenCodeAdapter,
@@ -445,6 +509,50 @@ class TestInstall:
         assert server["environment"]["LOG_LEVEL"] == "INFO"
         assert server["environment"]["EXTRA_FLAG"] == "1"
         assert config["mcp"]["custom-server"] == {"type": "local", "command": ["node", "custom.js"]}
+
+
+class TestRuntimePermissions:
+    def test_sync_runtime_permissions_yolo_sets_global_allow(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        result = adapter.sync_runtime_permissions(target, autonomy="yolo")
+
+        config = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+
+        assert config["permission"] == "allow"
+        assert manifest["gpd_runtime_permissions"]["mode"] == "yolo"
+        assert result["sync_applied"] is True
+        assert result["requires_relaunch"] is True
+
+    def test_sync_runtime_permissions_restores_non_yolo_permissions(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+        result = adapter.sync_runtime_permissions(target, autonomy="balanced")
+
+        config = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+
+        assert isinstance(config["permission"], dict)
+        assert config["permission"] != "allow"
+        assert any("get-physics-done" in key for key in config["permission"]["external_directory"])
+        assert "gpd_runtime_permissions" not in manifest
+        assert result["sync_applied"] is True
 
 
 class TestUninstall:
@@ -529,3 +637,23 @@ class TestUninstall:
         target.mkdir()
         result = adapter.uninstall(target)
         assert result["removed"] == []
+
+    def test_uninstall_restores_permissions_after_gpd_managed_yolo(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+
+        adapter.uninstall(target)
+
+        config_path = target / "opencode.json"
+        if config_path.exists():
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            permission = config.get("permission", {})
+            assert permission != "allow"
+            assert not any("get-physics-done" in key for key in permission.get("external_directory", {}))

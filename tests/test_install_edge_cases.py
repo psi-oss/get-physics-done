@@ -60,6 +60,51 @@ def _make_gpd_root(tmp_path: Path) -> Path:
     return root
 
 
+def _write_manifest(target: Path, *, runtime: str, install_scope: str = "local", explicit_target: bool = True) -> None:
+    target.mkdir(parents=True, exist_ok=True)
+    (target / MANIFEST_NAME).write_text(
+        json.dumps(
+            {
+                "runtime": runtime,
+                "install_scope": install_scope,
+                "explicit_target": explicit_target,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _seed_ambiguous_install_target(target: Path, *, manifest_state: str) -> None:
+    """Create a target that looks like an install but lacks trustworthy ownership data."""
+    (target / "commands" / "gpd").mkdir(parents=True, exist_ok=True)
+    (target / "commands" / "gpd" / "help.md").write_text("help\n", encoding="utf-8")
+    (target / "get-physics-done").mkdir(parents=True, exist_ok=True)
+    (target / "get-physics-done" / "VERSION").write_text("1.0\n", encoding="utf-8")
+
+    manifest_path = target / MANIFEST_NAME
+    if manifest_state == "corrupt":
+        manifest_path.write_text("{not-json", encoding="utf-8")
+    elif manifest_state == "unknown":
+        manifest_path.write_text(
+            json.dumps({"runtime": "not-a-runtime", "install_scope": "local"}),
+            encoding="utf-8",
+        )
+
+
+def _install_gemini_for_tests(gpd_root: Path, target: Path) -> None:
+    adapter = get_adapter("gemini")
+    result = adapter.install(gpd_root, target, is_global=True)
+    adapter.finalize_install(result)
+
+
+_FOREIGN_RUNTIME_BY_RUNTIME = {
+    "claude-code": "gemini",
+    "codex": "claude-code",
+    "gemini": "opencode",
+    "opencode": "claude-code",
+}
+
+
 # =========================================================================
 # 1. Install to a read-only directory
 # =========================================================================
@@ -237,7 +282,187 @@ class TestNonGpdFilesPreserved:
 
 
 # =========================================================================
-# 4. GPD_MODEL=invalid:model doesn't affect install
+# 4. Cross-runtime manifest ownership refusal
+# =========================================================================
+
+
+class TestCrossRuntimeManifestOwnershipRefusal:
+    """Foreign manifests should block explicit installs and most uninstalls."""
+
+    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    def test_install_refuses_foreign_manifest_on_explicit_target(self, tmp_path: Path, runtime: str) -> None:
+        gpd_root = _make_gpd_root(tmp_path)
+        adapter = get_adapter(runtime)
+        target = tmp_path / f"{runtime}-target"
+        target.mkdir()
+        preserved = target / "get-physics-done" / "keep.md"
+        preserved.parent.mkdir(parents=True, exist_ok=True)
+        preserved.write_text("keep\n", encoding="utf-8")
+        foreign_runtime = _FOREIGN_RUNTIME_BY_RUNTIME[runtime]
+        _write_manifest(target, runtime=foreign_runtime)
+
+        install_kwargs: dict[str, object] = {"is_global": False, "explicit_target": True}
+        if runtime == "codex":
+            skills_dir = tmp_path / "skills"
+            skills_dir.mkdir()
+            install_kwargs["skills_dir"] = skills_dir
+
+        with pytest.raises(RuntimeError) as excinfo:
+            adapter.install(gpd_root, target, **install_kwargs)
+
+        message = str(excinfo.value)
+        assert f"Refusing to install into `{target}`" in message
+        assert f"{get_adapter(foreign_runtime).display_name} (`{foreign_runtime}`)" in message
+        assert f"{adapter.display_name} (`{runtime}`)" in message
+        assert preserved.read_text(encoding="utf-8") == "keep\n"
+        assert json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))["runtime"] == foreign_runtime
+
+    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    def test_install_refuses_corrupt_manifest_on_explicit_target_named_like_runtime_default(
+        self, tmp_path: Path, runtime: str
+    ) -> None:
+        gpd_root = _make_gpd_root(tmp_path)
+        adapter = get_adapter(runtime)
+        target = tmp_path / adapter.config_dir_name
+        target.mkdir()
+        preserved = target / "get-physics-done" / "keep.md"
+        preserved.parent.mkdir(parents=True, exist_ok=True)
+        preserved.write_text("keep\n", encoding="utf-8")
+        (target / MANIFEST_NAME).write_text("{not valid json", encoding="utf-8")
+
+        install_kwargs: dict[str, object] = {"is_global": True, "explicit_target": True}
+        if runtime == "codex":
+            skills_dir = tmp_path / "skills"
+            skills_dir.mkdir()
+            install_kwargs["skills_dir"] = skills_dir
+
+        with pytest.raises(RuntimeError) as excinfo:
+            adapter.install(gpd_root, target, **install_kwargs)
+
+        message = str(excinfo.value)
+        assert f"Refusing to install into `{target}`" in message
+        assert "manifest cannot be trusted" in message
+        assert preserved.read_text(encoding="utf-8") == "keep\n"
+
+    @pytest.mark.parametrize("manifest_state", ["missing", "corrupt", "unknown"])
+    def test_install_refuses_ambiguous_target_when_manifest_cannot_prove_ownership(
+        self, tmp_path: Path, manifest_state: str
+    ) -> None:
+        gpd_root = _make_gpd_root(tmp_path)
+        adapter = get_adapter("claude-code")
+        target = tmp_path / "ambiguous-target"
+        target.mkdir()
+        _seed_ambiguous_install_target(target, manifest_state=manifest_state)
+
+        with pytest.raises(RuntimeError) as excinfo:
+            adapter.install(gpd_root, target, is_global=False, explicit_target=True)
+
+        message = str(excinfo.value)
+        assert f"Refusing to install into `{target}`" in message
+        if manifest_state == "unknown":
+            assert "manifest cannot be trusted" in message
+        assert (target / "commands" / "gpd" / "help.md").exists()
+        assert (target / "get-physics-done" / "VERSION").exists()
+
+    @pytest.mark.parametrize("runtime", ["codex", "opencode"])
+    def test_install_refuses_manifest_with_runtime_file_prefixes_but_no_runtime(
+        self, tmp_path: Path, runtime: str
+    ) -> None:
+        gpd_root = _make_gpd_root(tmp_path)
+        adapter = get_adapter(runtime)
+        target = tmp_path / f"{runtime}-prefixed-target"
+        target.mkdir()
+        manifest_prefix = adapter.runtime_descriptor.manifest_file_prefixes[0]
+        (target / MANIFEST_NAME).write_text(
+            json.dumps(
+                {
+                    "install_scope": "local",
+                    "files": {f"{manifest_prefix}artifact.txt": "hash"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(RuntimeError) as excinfo:
+            adapter.install(gpd_root, target, is_global=False, explicit_target=True)
+
+        message = str(excinfo.value)
+        assert f"Refusing to install into `{target}`" in message
+        assert "manifest cannot be trusted" in message
+
+    @pytest.mark.parametrize("manifest_state", ["missing", "corrupt", "unknown"])
+    def test_uninstall_refuses_ambiguous_target_when_manifest_cannot_prove_ownership(
+        self, tmp_path: Path, manifest_state: str
+    ) -> None:
+        adapter = get_adapter("claude-code")
+        target = tmp_path / "ambiguous-target"
+        target.mkdir()
+        _seed_ambiguous_install_target(target, manifest_state=manifest_state)
+
+        with pytest.raises(RuntimeError) as excinfo:
+            adapter.uninstall(target)
+
+        message = str(excinfo.value)
+        assert f"Refusing to uninstall from `{target}`" in message
+        if manifest_state == "unknown":
+            assert "manifest cannot be trusted" in message
+        assert (target / "commands" / "gpd" / "help.md").exists()
+        assert (target / "get-physics-done" / "VERSION").exists()
+
+    @pytest.mark.parametrize("runtime", ["codex", "opencode"])
+    def test_uninstall_refuses_manifest_with_runtime_file_prefixes_but_no_runtime(
+        self, tmp_path: Path, runtime: str
+    ) -> None:
+        adapter = get_adapter(runtime)
+        target = tmp_path / f"{runtime}-prefixed-target"
+        target.mkdir()
+        manifest_prefix = adapter.runtime_descriptor.manifest_file_prefixes[0]
+        (target / MANIFEST_NAME).write_text(
+            json.dumps(
+                {
+                    "install_scope": "local",
+                    "files": {f"{manifest_prefix}artifact.txt": "hash"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(RuntimeError) as excinfo:
+            adapter.uninstall(target)
+
+        message = str(excinfo.value)
+        assert f"Refusing to uninstall from `{target}`" in message
+        assert "manifest cannot be trusted" in message
+
+    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    def test_uninstall_refuses_foreign_manifest(self, tmp_path: Path, runtime: str) -> None:
+        adapter = get_adapter(runtime)
+        target = tmp_path / f"{runtime}-target"
+        target.mkdir()
+        foreign_runtime = _FOREIGN_RUNTIME_BY_RUNTIME[runtime]
+        _write_manifest(target, runtime=foreign_runtime)
+        preserved = target / "get-physics-done" / "keep.md"
+        preserved.parent.mkdir(parents=True, exist_ok=True)
+        preserved.write_text("keep\n", encoding="utf-8")
+
+        if runtime == "codex":
+            skills_dir = tmp_path / "skills"
+            skills_dir.mkdir()
+            with pytest.raises(RuntimeError) as excinfo:
+                adapter.uninstall(target, skills_dir=skills_dir)
+        else:
+            with pytest.raises(RuntimeError) as excinfo:
+                adapter.uninstall(target)
+
+        message = str(excinfo.value)
+        assert f"Refusing to uninstall from `{target}`" in message
+        assert f"{get_adapter(foreign_runtime).display_name} (`{foreign_runtime}`)" in message
+        assert f"{adapter.display_name} (`{runtime}`)" in message
+        assert preserved.read_text(encoding="utf-8") == "keep\n"
+
+
+# =========================================================================
+# 5. GPD_MODEL=invalid:model doesn't affect install
 # =========================================================================
 
 
@@ -269,12 +494,12 @@ class TestGpdModelEnvVar:
 
 
 # =========================================================================
-# 5. Uninstall with corrupted manifest JSON
+# 6. Uninstall with corrupted manifest JSON
 # =========================================================================
 
 
 class TestUninstallCorruptedManifest:
-    """Corrupted manifest should not prevent uninstall."""
+    """Corrupted or missing manifests should block managed uninstall."""
 
     def test_uninstall_with_corrupted_manifest(self, tmp_path: Path) -> None:
         gpd_root = _make_gpd_root(tmp_path)
@@ -288,11 +513,8 @@ class TestUninstallCorruptedManifest:
         # Corrupt the manifest
         (target / MANIFEST_NAME).write_text("{{{invalid json!!!", encoding="utf-8")
 
-        # Uninstall should still succeed
-        result = adapter.uninstall(target)
-        assert not (target / "commands" / "gpd").exists()
-        assert not (target / "get-physics-done").exists()
-        assert MANIFEST_NAME not in str(result.get("error", ""))
+        with pytest.raises(RuntimeError, match="manifest cannot be trusted"):
+            adapter.uninstall(target)
 
     def test_uninstall_with_missing_manifest(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")
@@ -304,12 +526,11 @@ class TestUninstallCorruptedManifest:
         (target / "get-physics-done").mkdir(parents=True)
         (target / "get-physics-done" / "VERSION").write_text("1.0\n", encoding="utf-8")
 
-        adapter.uninstall(target)
-        assert not (target / "commands" / "gpd").exists()
-        assert not (target / "get-physics-done").exists()
+        with pytest.raises(RuntimeError, match="contains GPD artifacts but no manifest"):
+            adapter.uninstall(target)
 
     def test_reinstall_after_corrupted_manifest(self, tmp_path: Path) -> None:
-        """Re-install over corrupted manifest should work (pre_install_cleanup handles it)."""
+        """Re-install over a corrupted manifest should refuse unsafe ownership guesses."""
         gpd_root = _make_gpd_root(tmp_path)
         adapter = get_adapter("claude-code")
         target = tmp_path / ".claude"
@@ -318,14 +539,8 @@ class TestUninstallCorruptedManifest:
         adapter.install(gpd_root, target, is_global=True)
         (target / MANIFEST_NAME).write_text("NOT JSON", encoding="utf-8")
 
-        # Reinstall should succeed (save_local_patches handles corrupted manifest)
-        result = adapter.install(gpd_root, target, is_global=True)
-        assert result["commands"] > 0
-
-        # Fresh manifest should be valid
-        manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
-        assert "version" in manifest
-        assert len(manifest["files"]) > 0
+        with pytest.raises(RuntimeError, match="manifest cannot be trusted"):
+            adapter.install(gpd_root, target, is_global=True)
 
 
 # =========================================================================
@@ -420,7 +635,7 @@ class TestMultiRuntimeSameTarget:
     """Multiple runtimes installing to the same directory."""
 
     def test_second_install_overwrites_get_physics_done(self, tmp_path: Path) -> None:
-        """Second runtime install to same dir replaces get-physics-done/ content."""
+        """Reinstalling the same runtime keeps the target structure valid."""
         gpd_root = _make_gpd_root(tmp_path)
         target = tmp_path / "shared"
         target.mkdir()
@@ -433,8 +648,8 @@ class TestMultiRuntimeSameTarget:
         assert version_file.exists()
         first_content = version_file.read_text(encoding="utf-8")
 
-        # Second install (gemini) to same dir — overwrites content
-        adapter2 = get_adapter("gemini")
+        # Second install of the same runtime should keep the install valid.
+        adapter2 = get_adapter("claude-code")
         adapter2.install(gpd_root, target, is_global=True)
 
         assert version_file.exists()
@@ -443,23 +658,28 @@ class TestMultiRuntimeSameTarget:
         assert second_content == first_content
 
     def test_both_runtimes_leave_valid_structure(self, tmp_path: Path) -> None:
-        """Both runtimes create their artifacts in the same directory."""
+        """Both runtimes can create valid installs in separate directories."""
         gpd_root = _make_gpd_root(tmp_path)
-        target = tmp_path / "shared"
-        target.mkdir()
+        target_cc = tmp_path / "claude"
+        target_cc.mkdir()
+        target_gem = tmp_path / "gemini"
+        target_gem.mkdir()
 
         adapter_cc = get_adapter("claude-code")
-        adapter_cc.install(gpd_root, target, is_global=True)
+        adapter_cc.install(gpd_root, target_cc, is_global=True)
 
-        adapter_gem = get_adapter("gemini")
-        adapter_gem.install(gpd_root, target, is_global=True)
+        _install_gemini_for_tests(gpd_root, target_gem)
 
         # Both should have written commands
-        assert (target / "commands" / "gpd").is_dir()
-        # Manifest should be valid (last writer wins)
-        manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
-        assert "version" in manifest
-        assert len(manifest["files"]) > 0
+        assert (target_cc / "commands" / "gpd").is_dir()
+        assert (target_gem / "commands" / "gpd").is_dir()
+        # Manifests should be valid independently
+        manifest_cc = json.loads((target_cc / MANIFEST_NAME).read_text(encoding="utf-8"))
+        manifest_gem = json.loads((target_gem / MANIFEST_NAME).read_text(encoding="utf-8"))
+        assert "version" in manifest_cc
+        assert "version" in manifest_gem
+        assert len(manifest_cc["files"]) > 0
+        assert len(manifest_gem["files"]) > 0
 
 
 # =========================================================================

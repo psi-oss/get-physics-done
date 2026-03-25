@@ -4,7 +4,7 @@ template_version: 1
 
 # PROJECT.md Template
 
-Template for `.gpd/PROJECT.md` — the living physics research project context document.
+Template for `GPD/PROJECT.md` — the living physics research project context document.
 
 <template>
 
@@ -123,8 +123,8 @@ One sentence that drives prioritization when tradeoffs arise.]
 
 ## Notation and Conventions
 
-See `.gpd/CONVENTIONS.md` for all notation and sign conventions.
-See `.gpd/NOTATION_GLOSSARY.md` for symbol definitions.
+See `GPD/CONVENTIONS.md` for all notation and sign conventions.
+See `GPD/NOTATION_GLOSSARY.md` for symbol definitions.
 
 ## Unit System
 
@@ -132,7 +132,7 @@ See `.gpd/NOTATION_GLOSSARY.md` for symbol definitions.
 
 ## Requirements
 
-See `.gpd/REQUIREMENTS.md` for the detailed requirements specification.
+See `GPD/REQUIREMENTS.md` for the detailed requirements specification.
 
 Key requirement categories: DERV (derivation), CALC (calculation), SIMU (simulation), VALD (validation)
 
@@ -155,7 +155,7 @@ Collaboration dependencies, Time to publication, Code availability, Symmetry req
 | -------- | --------- | --------- |
 | [Choice] | [Why]     | — Pending |
 
-Full log: `.gpd/DECISIONS.md`
+Full log: `GPD/DECISIONS.md`
 
 ---
 
@@ -203,7 +203,7 @@ _Last updated: [date] after [trigger]_
 - `transition.md` updates Known Results and Key Parameters after analytical/numerical phases
 - Key Parameters table should include symbol, regime of validity, and notes
 
-**Requirements:** Tracked in `.gpd/REQUIREMENTS.md` (single source of truth). Do not duplicate requirements content in PROJECT.md.
+**Requirements:** Tracked in `GPD/REQUIREMENTS.md` (single source of truth). Do not duplicate requirements content in PROJECT.md.
 
 **Key References:**
 
@@ -214,7 +214,7 @@ _Last updated: [date] after [trigger]_
 
 **Notation and Conventions:**
 
-- Populated during project initialization into `.gpd/CONVENTIONS.md` and `.gpd/NOTATION_GLOSSARY.md`
+- Populated during project initialization into `GPD/CONVENTIONS.md` and `GPD/NOTATION_GLOSSARY.md`
 - PROJECT.md contains only a pointer, not inline convention definitions
 
 **Constraints:**
@@ -225,7 +225,7 @@ _Last updated: [date] after [trigger]_
 
 **Key Decisions:**
 
-- Inline summary table for quick access; full log in `.gpd/DECISIONS.md`
+- Inline summary table for quick access; full log in `GPD/DECISIONS.md`
 - `transition.md` adds rows after each phase
 - `resume-work.md` reads the table for session context
 
@@ -247,7 +247,7 @@ PROJECT.md evolves throughout the research lifecycle.
 2. Requirements invalidated? — Move to Out of Scope with reason
 3. Requirements validated? — Move to Validated with phase reference
 4. New requirements emerged? — Add to Active
-5. Decisions to log? — Add row to Key Decisions table and to `.gpd/DECISIONS.md`
+5. Decisions to log? — Add row to Key Decisions table and to `GPD/DECISIONS.md`
 6. Research Context: Update Known Results with new findings; refine Key Parameters if values changed
 7. "What This Is" still accurate? — Update if research direction drifted
 8. New references discovered? — Add to Key References
@@ -295,7 +295,7 @@ STATE.md references PROJECT.md:
 ```markdown
 ## Project Reference
 
-See: .gpd/PROJECT.md (updated [date])
+See: GPD/PROJECT.md (updated [date])
 
 **Core research question:** [One-liner from Core Research Question section]
 **Current focus:** [Current phase name]

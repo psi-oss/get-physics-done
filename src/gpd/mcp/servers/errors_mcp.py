@@ -17,7 +17,12 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from gpd.core.observability import gpd_span
-from gpd.mcp.servers import parse_frontmatter_safe, run_mcp_server
+from gpd.mcp.servers import (
+    parse_frontmatter_safe,
+    run_mcp_server,
+    stable_mcp_error,
+    stable_mcp_response,
+)
 from gpd.specs import SPECS_DIR
 
 # MCP stdio uses stdout for JSON-RPC — redirect logging to stderr
@@ -316,14 +321,18 @@ def get_error_class(error_id: int) -> dict[str, object]:
             store = _get_store()
             error = store.get(error_id)
             if error is None:
-                return {
-                    "error": f"Error class #{error_id} not found",
-                    "valid_range": "1-104",
-                    "total_classes": store.count,
-                }
-            return dict(error)
-        except (OSError, ValueError, KeyError) as e:
-            return {"error": str(e)}
+                return stable_mcp_response(
+                    {
+                        "valid_range": "1-104",
+                        "total_classes": store.count,
+                    },
+                    error=f"Error class #{error_id} not found",
+                )
+            return stable_mcp_response(dict(error))
+        except (OSError, ValueError, KeyError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -341,13 +350,17 @@ def check_error_classes(computation_desc: str) -> dict[str, object]:
         try:
             store = _get_store()
             matches = store.check_relevant(computation_desc)
-            return {
-                "query": computation_desc,
-                "match_count": len(matches),
-                "error_classes": matches[:15],  # Top 15 matches
-            }
-        except (OSError, ValueError, KeyError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(
+                {
+                    "query": computation_desc,
+                    "match_count": len(matches),
+                    "error_classes": matches[:15],  # Top 15 matches
+                }
+            )
+        except (OSError, ValueError, KeyError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -364,18 +377,19 @@ def get_detection_strategy(error_id: int) -> dict[str, object]:
             store = _get_store()
             error = store.get(error_id)
             if error is None:
-                return {
-                    "error": f"Error class #{error_id} not found",
-                    "valid_range": "1-104",
+                return stable_mcp_response({"valid_range": "1-104"}, error=f"Error class #{error_id} not found")
+            return stable_mcp_response(
+                {
+                    "id": error["id"],
+                    "name": error["name"],
+                    "detection_strategy": error["detection_strategy"],
+                    "example": error["example"],
                 }
-            return {
-                "id": error["id"],
-                "name": error["name"],
-                "detection_strategy": error["detection_strategy"],
-                "example": error["example"],
-            }
-        except (OSError, ValueError, KeyError) as e:
-            return {"error": str(e)}
+            )
+        except (OSError, ValueError, KeyError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -394,31 +408,34 @@ def get_traceability(error_id: int) -> dict[str, object]:
             store = _get_store()
             error = store.get(error_id)
             if error is None:
-                return {
-                    "error": f"Error class #{error_id} not found",
-                    "valid_range": "1-104",
-                }
+                return stable_mcp_response({"valid_range": "1-104"}, error=f"Error class #{error_id} not found")
 
             traceability = store.get_traceability(error_id)
             if traceability is None:
-                return {
+                return stable_mcp_response(
+                    {
+                        "id": error_id,
+                        "name": error["name"],
+                        "verification_checks": {},
+                        "covered_by": [],
+                        "coverage_count": 0,
+                        "note": "No traceability data available for this error class",
+                    }
+                )
+
+            return stable_mcp_response(
+                {
                     "id": error_id,
                     "name": error["name"],
-                    "verification_checks": {},
-                    "covered_by": [],
-                    "coverage_count": 0,
-                    "note": "No traceability data available for this error class",
+                    "verification_checks": traceability,
+                    "covered_by": [col for col, val in traceability.items() if val],
+                    "coverage_count": len([v for v in traceability.values() if v]),
                 }
-
-            return {
-                "id": error_id,
-                "name": error["name"],
-                "verification_checks": traceability,
-                "covered_by": [col for col, val in traceability.items() if val],
-                "coverage_count": len([v for v in traceability.values() if v]),
-            }
-        except (OSError, ValueError, KeyError) as e:
-            return {"error": str(e)}
+            )
+        except (OSError, ValueError, KeyError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -435,14 +452,18 @@ def list_error_classes(domain: str | None = None) -> dict[str, object]:
         try:
             store = _get_store()
             errors = store.list_all(domain)
-            return {
-                "count": len(errors),
-                "error_classes": errors,
-                "available_domains": store.domains,
-                "total_classes": store.count,
-            }
-        except (OSError, ValueError, KeyError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(
+                {
+                    "count": len(errors),
+                    "error_classes": errors,
+                    "available_domains": store.domains,
+                    "total_classes": store.count,
+                }
+            )
+        except (OSError, ValueError, KeyError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 # ---------------------------------------------------------------------------

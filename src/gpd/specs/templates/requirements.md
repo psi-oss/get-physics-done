@@ -4,7 +4,7 @@ template_version: 1
 
 # Requirements Template
 
-Template for `.gpd/REQUIREMENTS.md` — checkable research requirements that define "done."
+Template for `GPD/REQUIREMENTS.md` — checkable research requirements that define "done."
 
 <template>
 

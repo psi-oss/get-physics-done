@@ -16,7 +16,12 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from gpd.core.observability import gpd_span
-from gpd.mcp.servers import parse_frontmatter_safe, run_mcp_server
+from gpd.mcp.servers import (
+    parse_frontmatter_safe,
+    run_mcp_server,
+    stable_mcp_error,
+    stable_mcp_response,
+)
 from gpd.specs import SPECS_DIR
 
 # MCP stdio uses stdout for JSON-RPC — redirect logging to stderr
@@ -325,22 +330,27 @@ def get_protocol(name: str) -> dict[str, object]:
               Use the stem of the .md filename without extension.
     """
     with gpd_span("mcp.protocols.get", protocol_name=name):
-        store = _get_store()
-        protocol = store.get(name)
-        if protocol is None:
-            available = [str(p["name"]) for p in store.list_all()]
-            return {"error": f"Protocol '{name}' not found", "available": available}
-        return {
-            "name": protocol["name"],
-            "title": protocol["title"],
-            "domain": protocol["domain"],
-            "tier": protocol["tier"],
-            "context_cost": protocol["context_cost"],
-            "load_when": protocol["load_when"],
-            "steps": protocol["steps"],
-            "checkpoints": protocol["checkpoints"],
-            "content": protocol["body"],
-        }
+        try:
+            store = _get_store()
+            protocol = store.get(name)
+            if protocol is None:
+                available = [str(p["name"]) for p in store.list_all()]
+                return stable_mcp_response({"available": available}, error=f"Protocol '{name}' not found")
+            return stable_mcp_response(
+                {
+                    "name": protocol["name"],
+                    "title": protocol["title"],
+                    "domain": protocol["domain"],
+                    "tier": protocol["tier"],
+                    "context_cost": protocol["context_cost"],
+                    "load_when": protocol["load_when"],
+                    "steps": protocol["steps"],
+                    "checkpoints": protocol["checkpoints"],
+                    "content": protocol["body"],
+                }
+            )
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -354,13 +364,18 @@ def list_protocols(domain: str | None = None) -> dict[str, object]:
                 "quantum_info", "condensed_matter", "general".
     """
     with gpd_span("mcp.protocols.list", domain=domain or "all"):
-        store = _get_store()
-        protocols = store.list_all(domain)
-        return {
-            "count": len(protocols),
-            "protocols": protocols,
-            "available_domains": store.domains,
-        }
+        try:
+            store = _get_store()
+            protocols = store.list_all(domain)
+            return stable_mcp_response(
+                {
+                    "count": len(protocols),
+                    "protocols": protocols,
+                    "available_domains": store.domains,
+                }
+            )
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -375,13 +390,18 @@ def route_protocol(computation_type: str) -> dict[str, object]:
                          calculation of vacuum polarization at one loop").
     """
     with gpd_span("mcp.protocols.route"):
-        store = _get_store()
-        matches = store.route(computation_type)
-        return {
-            "query": computation_type,
-            "match_count": len(matches),
-            "protocols": matches[:10],  # Top 10 matches
-        }
+        try:
+            store = _get_store()
+            matches = store.route(computation_type)
+            return stable_mcp_response(
+                {
+                    "query": computation_type,
+                    "match_count": len(matches),
+                    "protocols": matches[:10],  # Top 10 matches
+                }
+            )
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -395,17 +415,22 @@ def get_protocol_checkpoints(name: str) -> dict[str, object]:
         name: Protocol name (e.g., "perturbation-theory").
     """
     with gpd_span("mcp.protocols.checkpoints", protocol_name=name):
-        store = _get_store()
-        protocol = store.get(name)
-        if protocol is None:
-            available = [str(p["name"]) for p in store.list_all()]
-            return {"error": f"Protocol '{name}' not found", "available": available}
-        return {
-            "name": protocol["name"],
-            "title": protocol["title"],
-            "checkpoints": protocol["checkpoints"],
-            "checkpoint_count": len(protocol["checkpoints"]),
-        }
+        try:
+            store = _get_store()
+            protocol = store.get(name)
+            if protocol is None:
+                available = [str(p["name"]) for p in store.list_all()]
+                return stable_mcp_response({"available": available}, error=f"Protocol '{name}' not found")
+            return stable_mcp_response(
+                {
+                    "name": protocol["name"],
+                    "title": protocol["title"],
+                    "checkpoints": protocol["checkpoints"],
+                    "checkpoint_count": len(protocol["checkpoints"]),
+                }
+            )
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 # ---------------------------------------------------------------------------

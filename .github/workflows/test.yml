@@ -28,6 +28,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Smoke repo graph sync with PATH python
+        run: python scripts/sync_repo_graph_contract.py
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v4
 

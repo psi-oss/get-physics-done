@@ -286,12 +286,12 @@ fi
 **Commit all merge changes atomically:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json "${TARGET_DIR}" 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/ROADMAP.md GPD/STATE.md GPD/state.json "${TARGET_DIR}" 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "refactor(phases): merge phase ${SOURCE_PHASE} into phase ${TARGET_PHASE}" \
-  --files .gpd/ROADMAP.md .gpd/STATE.md .gpd/state.json "${TARGET_DIR}"
+  --files GPD/ROADMAP.md GPD/STATE.md GPD/state.json "${TARGET_DIR}"
 ```
 </step>
 

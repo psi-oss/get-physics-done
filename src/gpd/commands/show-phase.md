@@ -4,7 +4,7 @@ description: Inspect a single phase's artifacts, status, and results
 argument-hint: "<phase-number>"
 context_mode: project-required
 requires:
-  files: [".gpd/ROADMAP.md"]
+  files: ["GPD/ROADMAP.md"]
 allowed-tools:
   - file_read
   - shell
@@ -29,8 +29,8 @@ Use this when you want a deep look at one specific phase rather than overall pro
 Phase: $ARGUMENTS (required)
 - Phase number to inspect (e.g., "3", "2.1")
 
-@.gpd/STATE.md
-@.gpd/ROADMAP.md
+@GPD/STATE.md
+@GPD/ROADMAP.md
 </context>
 
 <process>
@@ -57,11 +57,11 @@ Read ROADMAP.md to extract this phase's description, goal, dependencies, and cur
 
 ## Step 4: Plan Completion
 
-For each PLAN.md, check if a matching SUMMARY.md exists. Present as completion table.
+For each PLAN.md, check if a matching `*-SUMMARY.md` exists. Present as completion table.
 
 ## Step 5: Key Results
 
-Extract key results from SUMMARY.md files using `summary-extract`:
+Extract key results from `*-SUMMARY.md` files using `summary-extract`:
 
 ```bash
 gpd summary-extract <path> --field one_liner --field key_results --field equations
@@ -69,11 +69,11 @@ gpd summary-extract <path> --field one_liner --field key_results --field equatio
 
 ## Step 6: Verification Status
 
-Check for VERIFICATION.md and VALIDATION.md files. Report their status (passed, issues found, pending).
+Check for `*-VERIFICATION.md` and `*-VALIDATION.md` files. Report their status (passed, issues found, pending).
 
 ## Step 7: Convention Changes
 
-Check SUMMARY.md frontmatter for `affects` fields that indicate convention changes introduced in this phase.
+Check `*-SUMMARY.md` frontmatter for `affects` fields that indicate convention changes introduced in this phase.
 
 ## Step 8: File Listing
 

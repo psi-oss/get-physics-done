@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
+
 import pytest
 
 from gpd.contracts import ResearchContract
@@ -240,6 +243,69 @@ def test_get_protocol_bundle_returns_verifier_extensions() -> None:
     assert bundle.trigger.min_tag_matches == 1
     assert bundle.assets.subfield_guides[0].path == "references/subfields/stat-mech.md"
     assert bundle.verifier_extensions[0].check_ids == ["5.4", "5.14", "5.16"]
+
+
+def test_list_protocol_bundles_skips_invalid_bundle_files(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    bundles_dir = tmp_path / "bundles"
+    bundles_dir.mkdir()
+    (bundles_dir / "valid-bundle.md").write_text(
+        """---
+bundle_id: valid-bundle
+bundle_version: 1
+title: Valid Bundle
+summary: Valid bundles remain available.
+trigger:
+  any_terms:
+    - benchmark
+  min_term_matches: 1
+---
+
+# Valid Bundle
+""",
+        encoding="utf-8",
+    )
+    (bundles_dir / "broken-frontmatter.md").write_text(
+        """---
+bundle_id: broken-frontmatter
+title: Broken Frontmatter
+summary: [unterminated
+---
+
+# Broken Frontmatter
+""",
+        encoding="utf-8",
+    )
+    (bundles_dir / "invalid-schema.md").write_text(
+        """---
+bundle_id: invalid-schema
+bundle_version: nope
+title: Invalid Schema
+summary: This bundle should be skipped.
+---
+
+# Invalid Schema
+""",
+        encoding="utf-8",
+    )
+
+    try:
+        with caplog.at_level(logging.WARNING, logger="gpd.core.protocol_bundles"):
+            bundles = list_protocol_bundles(bundles_dir=bundles_dir)
+            bundle = get_protocol_bundle("valid-bundle", bundles_dir=bundles_dir)
+    finally:
+        invalidate_protocol_bundle_cache()
+
+    assert [entry.bundle_id for entry in bundles] == ["valid-bundle"]
+    assert bundle is not None
+
+    warning_messages = [
+        record.message for record in caplog.records if "Skipping invalid protocol bundle" in record.message
+    ]
+    assert len(warning_messages) == 2
+    assert any("broken-frontmatter.md" in message for message in warning_messages)
+    assert any("invalid-schema.md" in message for message in warning_messages)
 
 
 def test_select_protocol_bundles_uses_project_metadata_and_contract() -> None:

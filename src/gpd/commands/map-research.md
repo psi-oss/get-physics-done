@@ -18,11 +18,11 @@ allowed-tools:
 <objective>
 Map an existing physics research project using parallel gpd-research-mapper agents.
 
-Each mapper agent explores a focus area and **writes documents directly** to `.gpd/research-map/`. The orchestrator only receives confirmations, keeping context usage minimal.
+Each mapper agent explores a focus area and **writes documents directly** to `GPD/research-map/`. The orchestrator only receives confirmations, keeping context usage minimal.
 
 Maps the **theoretical architecture** of the research: formalism, computational implementations, conventions, validation status, and open questions.
 
-Output: .gpd/research-map/ folder with 7 structured documents about the research project state.
+Output: GPD/research-map/ folder with 7 structured documents about the research project state.
 </objective>
 
 <execution_context>
@@ -33,7 +33,7 @@ Output: .gpd/research-map/ folder with 7 structured documents about the research
 Focus area: $ARGUMENTS (optional - if provided, tells agents to focus on specific subsystem, theory sector, or computational domain)
 
 **Load project state if exists:**
-Check for .gpd/STATE.md - loads context if project already initialized
+Check for GPD/STATE.md - loads context if project already initialized
 
 **This command can run:**
 
@@ -58,8 +58,8 @@ Check for .gpd/STATE.md - loads context if project already initialized
   </when_to_use>
 
 <process>
-1. Check if .gpd/research-map/ already exists (offer to refresh or skip)
-2. Create .gpd/research-map/ directory structure
+1. Check if GPD/research-map/ already exists (offer to refresh or skip)
+2. Create GPD/research-map/ directory structure
 3. Spawn 4 parallel gpd-research-mapper agents:
    - Agent 1: theory focus -> writes FORMALISM.md, REFERENCES.md
      - FORMALISM.md: Lagrangians/Hamiltonians, symmetries, gauge groups, field content, key equations, approximation schemes
@@ -80,7 +80,7 @@ Check for .gpd/STATE.md - loads context if project already initialized
 
 <success_criteria>
 
-- [ ] .gpd/research-map/ directory created
+- [ ] GPD/research-map/ directory created
 - [ ] All 7 research map documents written by mapper agents
 - [ ] REFERENCES.md preserves contract-critical anchors and benchmarks from setup/workflow context
 - [ ] Documents follow template structure

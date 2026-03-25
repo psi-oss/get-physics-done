@@ -2,6 +2,9 @@
 import ast
 from pathlib import Path
 
+from gpd.core.state import default_state_dict, generate_state_markdown
+from gpd.mcp.servers.state_server import get_progress
+
 
 def _get_except_handler_names(handler: ast.ExceptHandler) -> set[str]:
     """Extract exception class names from an except handler.
@@ -124,3 +127,46 @@ def test_state_server_has_expected_tool_count():
         f"Expected at least 7 @mcp.tool() functions, found {tool_count}. "
         "Was a tool accidentally removed?"
     )
+
+
+def test_get_progress_does_not_mutate_checkpoint_shelf_artifacts(tmp_path: Path) -> None:
+    """Progress reads should not create, update, or delete checkpoint shelf files."""
+    cwd = tmp_path
+    planning = cwd / "GPD"
+    planning.mkdir()
+    (planning / "phases").mkdir()
+
+    state = default_state_dict()
+    state["position"]["current_phase"] = "01"
+    state["position"]["total_phases"] = 2
+    state["position"]["status"] = "Executing"
+    (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
+
+    phase_one = planning / "phases" / "01-foundations"
+    phase_one.mkdir()
+    (phase_one / "PLAN.md").write_text("# plan\n", encoding="utf-8")
+    (phase_one / "01-SUMMARY.md").write_text("# summary\n", encoding="utf-8")
+
+    phase_two = planning / "phases" / "02-analysis"
+    phase_two.mkdir()
+    (phase_two / "PLAN.md").write_text("# plan\n", encoding="utf-8")
+    (phase_two / "02-SUMMARY.md").write_text("# summary\n", encoding="utf-8")
+
+    checkpoint_dir = cwd / "GPD" / "phase-checkpoints"
+    checkpoint_dir.mkdir()
+    stale_checkpoint = checkpoint_dir / "99-old-phase.md"
+    stale_checkpoint.write_text("stale checkpoint\n", encoding="utf-8")
+    checkpoints_index = cwd / "GPD" / "CHECKPOINTS.md"
+    checkpoints_index.write_text("stale index\n", encoding="utf-8")
+
+    result = get_progress(str(cwd))
+
+    assert result["updated"] is True
+    assert result["completed"] == 2
+    assert result["total"] == 2
+    assert "checkpoint_files" not in result
+    assert not (checkpoint_dir / "01-foundations.md").exists()
+    assert not (checkpoint_dir / "02-analysis.md").exists()
+    assert stale_checkpoint.read_text(encoding="utf-8") == "stale checkpoint\n"
+    assert stale_checkpoint.exists()
+    assert checkpoints_index.read_text(encoding="utf-8") == "stale index\n"

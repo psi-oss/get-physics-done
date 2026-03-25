@@ -3,7 +3,7 @@ phase: 01-benchmark
 verified: 2026-03-15T12:00:00Z
 status: passed
 score: 3/3 contract targets verified
-plan_contract_ref: .gpd/phases/01-benchmark/01-01-PLAN.md#/contract
+plan_contract_ref: GPD/phases/01-benchmark/01-01-PLAN.md#/contract
 contract_results:
   claims:
     claim-benchmark:
@@ -27,6 +27,9 @@ contract_results:
   forbidden_proxies:
     fp-benchmark:
       status: rejected
+  uncertainty_markers:
+    weakest_anchors: [Verification spot-check coverage]
+    disconfirming_observations: [Independent rerun misses the benchmark tolerance]
 comparison_verdicts:
   - subject_id: claim-benchmark
     subject_kind: claim

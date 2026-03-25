@@ -63,8 +63,8 @@ Read these files at execution start using the file_read tool:
 - Checkpoints ref: {GPD_INSTALL_DIR}/references/orchestration/checkpoints.md
 - Validation ref: {GPD_INSTALL_DIR}/references/verification/core/verification-core.md
 - Plan: {phase_dir}/{plan_file}
-- State: .gpd/STATE.md
-- Config: .gpd/config.json (if exists)
+- State: GPD/STATE.md
+- Config: GPD/config.json (if exists)
 </files_to_read>
 
 <verification_before_continuing>
@@ -113,7 +113,7 @@ Also verify the bounded execution segment still satisfies its resume preconditio
 | `{resume_instructions}`   | Generated from checkpoint type      | See table below                                                           |
 | `{execution_segment}`     | Structured bounded segment state    | Segment JSON or markdown block with cursor, checkpoint cause, downstream-lock status, any `pre_fanout_review_cleared` marker, skeptical re-questioning fields, and resume preconditions |
 | `{protocol_bundle_context}` | Selected protocol bundle summary | Additive specialized-loading guidance carried across continuations |
-| `{phase_dir}`             | Phase directory path                | `.gpd/phases/03-phase-diagram`                                       |
+| `{phase_dir}`             | Phase directory path                | `GPD/phases/03-phase-diagram`                                       |
 | `{plan_file}`             | Plan filename                       | `03-03-PLAN.md`                                                           |
 | `{phase}`                 | Phase prefix                        | `03`                                                                      |
 | `{plan}`                  | Plan prefix                         | `03`                                                                      |

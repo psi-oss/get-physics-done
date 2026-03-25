@@ -27,11 +27,20 @@ from gpd.core.state import (
     state_validate,
 )
 from gpd.core.utils import is_phase_complete
+from gpd.mcp.servers import stable_mcp_error, stable_mcp_response
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
 logger = logging.getLogger("gpd-state")
 
 mcp = FastMCP("gpd-state")
+
+
+def _resolve_project_dir(project_dir: str) -> Path | None:
+    """Return an absolute project root path or ``None`` when the contract is violated."""
+    cwd = Path(project_dir)
+    if not cwd.is_absolute():
+        return None
+    return cwd
 
 
 @mcp.tool()
@@ -43,15 +52,19 @@ def get_state(project_dir: str) -> dict:
     Args:
         project_dir: Absolute path to the project root directory.
     """
-    cwd = Path(project_dir)
+    cwd = _resolve_project_dir(project_dir)
+    if cwd is None:
+        return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.get", phase=""):
         try:
             state_obj = load_state_json(cwd)
             if state_obj is None:
-                return {"error": "No project state found. Run 'gpd init' to create STATE.md."}
-            return state_obj
-        except (GPDError, OSError, ValueError, TimeoutError) as e:
-            return {"error": str(e)}
+                return stable_mcp_error("No project state found. Run 'gpd init' to create STATE.md.")
+            return stable_mcp_response(state_obj)
+        except (GPDError, OSError, ValueError, TimeoutError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -64,25 +77,31 @@ def get_phase_info(project_dir: str, phase: str) -> dict:
     """
     from gpd.core.phases import find_phase
 
-    cwd = Path(project_dir)
+    cwd = _resolve_project_dir(project_dir)
+    if cwd is None:
+        return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.phase_info", phase=phase):
         try:
             info = find_phase(cwd, phase)
             if info is None:
-                return {"error": f"Phase {phase} not found"}
+                return stable_mcp_error(f"Phase {phase} not found")
             plan_count = len(info.plans)
             summary_count = len(info.summaries)
-            return {
-                "phase_number": info.phase_number,
-                "phase_name": info.phase_name,
-                "directory": info.directory,
-                "phase_slug": info.phase_slug,
-                "plan_count": plan_count,
-                "summary_count": summary_count,
-                "complete": is_phase_complete(plan_count, summary_count),
-            }
-        except (GPDError, OSError, ValueError, TimeoutError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(
+                {
+                    "phase_number": info.phase_number,
+                    "phase_name": info.phase_name,
+                    "directory": info.directory,
+                    "phase_slug": info.phase_slug,
+                    "plan_count": plan_count,
+                    "summary_count": summary_count,
+                    "complete": is_phase_complete(plan_count, summary_count),
+                }
+            )
+        except (GPDError, OSError, ValueError, TimeoutError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -94,12 +113,16 @@ def advance_plan(project_dir: str) -> dict:
     Args:
         project_dir: Absolute path to the project root directory.
     """
-    cwd = Path(project_dir)
+    cwd = _resolve_project_dir(project_dir)
+    if cwd is None:
+        return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.advance_plan"):
         try:
-            return state_advance_plan(cwd).model_dump()
-        except (GPDError, OSError, ValueError, TimeoutError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(state_advance_plan(cwd).model_dump())
+        except (GPDError, OSError, ValueError, TimeoutError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -107,17 +130,21 @@ def get_progress(project_dir: str) -> dict:
     """Get overall project progress summary.
 
     Updates progress_percent based on completed phases and returns
-    the current state.
+    the current state without surfacing checkpoint shelf artifacts.
 
     Args:
         project_dir: Absolute path to the project root directory.
     """
-    cwd = Path(project_dir)
+    cwd = _resolve_project_dir(project_dir)
+    if cwd is None:
+        return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.progress"):
         try:
-            return state_update_progress(cwd).model_dump()
-        except (GPDError, OSError, ValueError, TimeoutError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(state_update_progress(cwd).model_dump())
+        except (GPDError, OSError, ValueError, TimeoutError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -130,13 +157,17 @@ def validate_state(project_dir: str) -> dict:
     Args:
         project_dir: Absolute path to the project root directory.
     """
-    cwd = Path(project_dir)
+    cwd = _resolve_project_dir(project_dir)
+    if cwd is None:
+        return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.validate"):
         try:
             result = state_validate(cwd)
-            return result.model_dump()
-        except (GPDError, OSError, ValueError, TimeoutError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(result.model_dump())
+        except (GPDError, OSError, ValueError, TimeoutError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -151,13 +182,17 @@ def run_health_check(project_dir: str, fix: bool = False) -> dict:
         project_dir: Absolute path to the project root directory.
         fix: If True, attempt auto-fixes for common issues.
     """
-    cwd = Path(project_dir)
+    cwd = _resolve_project_dir(project_dir)
+    if cwd is None:
+        return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.health", fix=str(fix)):
         try:
             report = run_health(cwd, fix=fix)
-            return report.model_dump()
-        except (GPDError, OSError, ValueError, TimeoutError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(report.model_dump())
+        except (GPDError, OSError, ValueError, TimeoutError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 @mcp.tool()
@@ -170,13 +205,17 @@ def get_config(project_dir: str) -> dict:
     Args:
         project_dir: Absolute path to the project root directory.
     """
-    cwd = Path(project_dir)
+    cwd = _resolve_project_dir(project_dir)
+    if cwd is None:
+        return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.config"):
         try:
             config = load_config(cwd)
-            return config.model_dump()
-        except (GPDError, OSError, ValueError, TimeoutError) as e:
-            return {"error": str(e)}
+            return stable_mcp_response(config.model_dump())
+        except (GPDError, OSError, ValueError, TimeoutError) as exc:
+            return stable_mcp_error(exc)
+        except Exception as exc:  # pragma: no cover - defensive envelope
+            return stable_mcp_error(exc)
 
 
 # ---------------------------------------------------------------------------

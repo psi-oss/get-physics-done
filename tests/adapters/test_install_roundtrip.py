@@ -19,6 +19,7 @@ from gpd.adapters.claude_code import ClaudeCodeAdapter
 from gpd.adapters.codex import CodexAdapter
 from gpd.adapters.gemini import GeminiAdapter
 from gpd.adapters.install_utils import (
+    build_runtime_cli_bridge_command,
     convert_tool_references_in_body,
     expand_at_includes,
     translate_frontmatter_tool_names,
@@ -29,6 +30,16 @@ from gpd.registry import load_agents_from_dir
 
 REPO_GPD_ROOT = Path(__file__).resolve().parents[2] / "src" / "gpd"
 RUNTIME_ALIAS_MAP = build_canonical_alias_map(adapter.tool_name_map for adapter in iter_adapters())
+
+
+def expected_opencode_bridge(target: Path, *, is_global: bool = False, explicit_target: bool = False) -> str:
+    return build_runtime_cli_bridge_command(
+        "opencode",
+        target_dir=target,
+        config_dir_name=".opencode",
+        is_global=is_global,
+        explicit_target=explicit_target,
+    )
 
 
 def _install_real_repo_for_runtime(tmp_path: Path, runtime: str) -> Path:
@@ -49,9 +60,7 @@ def _install_real_repo_for_runtime(tmp_path: Path, runtime: str) -> Path:
     if runtime == "gemini":
         target = tmp_path / ".gemini"
         target.mkdir()
-        adapter = GeminiAdapter()
-        result = adapter.install(REPO_GPD_ROOT, target)
-        adapter.finalize_install(result)
+        _install_gemini_for_tests(REPO_GPD_ROOT, target)
         return target
 
     if runtime == "opencode":
@@ -61,6 +70,14 @@ def _install_real_repo_for_runtime(tmp_path: Path, runtime: str) -> Path:
         return target
 
     raise AssertionError(f"Unsupported runtime {runtime}")
+
+
+def _install_gemini_for_tests(gpd_root: Path, target: Path) -> GeminiAdapter:
+    """Install Gemini artifacts and persist the deferred Gemini settings."""
+    adapter = GeminiAdapter()
+    result = adapter.install(gpd_root, target)
+    adapter.finalize_install(result)
+    return adapter
 
 
 def _canonicalize_runtime_markdown(content: str, *, runtime: str) -> str:
@@ -112,6 +129,31 @@ def _read_compare_experiment_command(tmp_path: Path, target: Path, runtime: str)
     if runtime == "opencode":
         return (target / "command" / "gpd-compare-experiment.md").read_text(encoding="utf-8")
 
+    raise AssertionError(f"Unsupported runtime {runtime}")
+
+
+def _read_runtime_command_prompt(tmp_path: Path, target: Path, runtime: str, command_name: str) -> str:
+    if runtime == "claude-code":
+        return (target / "commands" / "gpd" / f"{command_name}.md").read_text(encoding="utf-8")
+
+    if runtime == "codex":
+        return (tmp_path / "skills" / f"gpd-{command_name}" / "SKILL.md").read_text(encoding="utf-8")
+
+    if runtime == "gemini":
+        parsed = tomllib.loads((target / "commands" / "gpd" / f"{command_name}.toml").read_text(encoding="utf-8"))
+        prompt = parsed.get("prompt")
+        assert isinstance(prompt, str)
+        return prompt
+
+    if runtime == "opencode":
+        return (target / "command" / f"gpd-{command_name}.md").read_text(encoding="utf-8")
+
+    raise AssertionError(f"Unsupported runtime {runtime}")
+
+
+def _read_runtime_agent_prompt(target: Path, runtime: str, agent_name: str) -> str:
+    if runtime in {"claude-code", "codex", "gemini", "opencode"}:
+        return (target / "agents" / f"{agent_name}.md").read_text(encoding="utf-8")
     raise AssertionError(f"Unsupported runtime {runtime}")
 
 # ---------------------------------------------------------------------------
@@ -220,9 +262,7 @@ class TestGeminiRoundtrip:
     def installed(self, gpd_root: Path, tmp_path: Path) -> Path:
         target = tmp_path / ".gemini"
         target.mkdir()
-        adapter = GeminiAdapter()
-        result = adapter.install(gpd_root, target)
-        adapter.finalize_install(result)
+        _install_gemini_for_tests(gpd_root, target)
         return target
 
     def test_commands_are_toml(self, installed: Path) -> None:
@@ -247,7 +287,7 @@ class TestGeminiRoundtrip:
             'argument-hint: "[--brief] [--full] [--reconcile]"\n'
             "context_mode: project-required\n"
             "requires:\n"
-            '  files: [".gpd/ROADMAP.md"]\n'
+            '  files: ["GPD/ROADMAP.md"]\n'
             "allowed-tools:\n"
             "  - file_read\n"
             "  - shell\n"
@@ -257,9 +297,7 @@ class TestGeminiRoundtrip:
         )
         target = tmp_path / ".gemini"
         target.mkdir()
-        adapter = GeminiAdapter()
-        result = adapter.install(gpd_root, target)
-        adapter.finalize_install(result)
+        _install_gemini_for_tests(gpd_root, target)
 
         content = (target / "commands" / "gpd" / "progress.toml").read_text(encoding="utf-8")
         parsed = tomllib.loads(content)
@@ -268,7 +306,7 @@ class TestGeminiRoundtrip:
         assert '# name: gpd:progress' in content
         assert '# argument-hint: "[--brief] [--full] [--reconcile]"' in content
         assert "# requires:" in content
-        assert '#   files: [".gpd/ROADMAP.md"]' in content
+        assert '#   files: ["GPD/ROADMAP.md"]' in content
         assert "# allowed-tools:" not in content
         assert parsed["context_mode"] == "project-required"
 
@@ -324,6 +362,29 @@ class TestGeminiRoundtrip:
         assert "Task(" not in workflow
         assert "google_web_search" in reference
         assert "WebSearch" not in reference
+
+    def test_runtime_cli_bridge_is_pinned_in_shell_heavy_surfaces(self, tmp_path: Path) -> None:
+        """Gemini install rewrites the shell-heavy surfaces to the runtime bridge."""
+        installed = _install_real_repo_for_runtime(tmp_path, "gemini")
+        bridge_marker = "-m gpd.runtime_cli --runtime gemini"
+        command = _read_runtime_command_prompt(tmp_path, installed, "gemini", "set-profile")
+        workflow = (installed / "get-physics-done" / "workflows" / "set-profile.md").read_text(encoding="utf-8")
+        execute_phase = (installed / "get-physics-done" / "workflows" / "execute-phase.md").read_text(encoding="utf-8")
+        agent = (installed / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
+
+        assert bridge_marker in command
+        assert bridge_marker in workflow
+        assert bridge_marker in execute_phase
+        assert bridge_marker in agent
+        assert "config ensure-section" in command
+        assert "config ensure-section" in workflow
+        assert "init progress --include state,config" in command
+        assert 'if !' in execute_phase and "verify plan \"$plan\"" in execute_phase
+        assert 'INIT=$(' in agent and "init plan-phase \"<PHASE>\"" in agent
+        assert "gpd config ensure-section" not in command
+        assert 'INIT=$(gpd init progress --include state,config)' not in command
+        assert 'if ! gpd verify plan "$plan"; then' not in execute_phase
+        assert 'INIT=$(gpd init plan-phase "<PHASE>")' not in agent
 
     def test_settings_json_has_experimental(self, installed: Path) -> None:
         """settings.json enables experimental.enableAgents."""
@@ -443,6 +504,27 @@ class TestCodexRoundtrip:
         assert "Task(" not in workflow
         assert "web_search" in reference
         assert "WebSearch" not in reference
+
+    def test_runtime_cli_bridge_is_pinned_in_shell_heavy_surfaces(self, tmp_path: Path) -> None:
+        """Codex install rewrites the shell-heavy surfaces to the runtime bridge."""
+        target = _install_real_repo_for_runtime(tmp_path, "codex")
+        bridge_marker = "-m gpd.runtime_cli --runtime codex"
+        command = _read_runtime_command_prompt(tmp_path, target, "codex", "set-profile")
+        workflow = (target / "get-physics-done" / "workflows" / "set-profile.md").read_text(encoding="utf-8")
+        execute_phase = (target / "get-physics-done" / "workflows" / "execute-phase.md").read_text(encoding="utf-8")
+        agent = (target / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
+
+        assert bridge_marker in command
+        assert bridge_marker in workflow
+        assert bridge_marker in execute_phase
+        assert bridge_marker in agent
+        assert "config ensure-section" in command
+        assert "config ensure-section" in workflow
+        assert "verify plan \"$plan\"" in execute_phase
+        assert 'INIT=$(' in agent and "init plan-phase \"${PHASE}\"" in agent
+        assert "```bash\ngpd config ensure-section\n" not in workflow
+        assert 'if ! gpd verify plan "$plan"; then' not in execute_phase
+        assert 'INIT=$(gpd init plan-phase "${PHASE}")' not in agent
 
     def test_slash_commands_converted(self, installed: tuple[Path, Path]) -> None:
         """Content replaces /gpd: with $gpd- for Codex invocation syntax."""
@@ -576,6 +658,23 @@ class TestOpenCodeRoundtrip:
         assert any(k.startswith("command/gpd-") for k in files)
 
 
+def test_real_installed_opencode_artifacts_rewrite_gpd_cli_calls_to_runtime_bridge(tmp_path: Path) -> None:
+    target = _install_real_repo_for_runtime(tmp_path, "opencode")
+    expected_bridge = expected_opencode_bridge(target, is_global=False)
+    command = (target / "command" / "gpd-settings.md").read_text(encoding="utf-8")
+    workflow = (target / "get-physics-done" / "workflows" / "settings.md").read_text(encoding="utf-8")
+    agent = (target / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
+
+    assert expected_bridge + " config ensure-section" in command
+    assert f'INIT=$({expected_bridge} init progress --include state,config)' in command
+    assert expected_bridge + " config ensure-section" in workflow
+    assert f'INIT=$({expected_bridge} init progress --include state,config)' in workflow
+    assert 'echo "ERROR: gpd initialization failed: $INIT"' in workflow
+    assert f'INIT=$({expected_bridge} init plan-phase "<PHASE>")' in agent
+    assert 'INIT=$(gpd init progress --include state,config)' not in workflow
+    assert 'INIT=$(gpd init plan-phase "<PHASE>")' not in agent
+
+
 # ---------------------------------------------------------------------------
 # Cross-runtime: install/uninstall cycle for each runtime
 # ---------------------------------------------------------------------------
@@ -598,15 +697,14 @@ class TestInstallUninstallCycle:
         assert not (target / "get-physics-done").exists()
 
     def test_gemini_cycle(self, gpd_root: Path, tmp_path: Path) -> None:
-        adapter = GeminiAdapter()
         target = tmp_path / ".gemini"
         target.mkdir()
 
-        adapter.install(gpd_root, target)
+        _install_gemini_for_tests(gpd_root, target)
         assert (target / "commands" / "gpd").is_dir()
         assert (target / "get-physics-done").is_dir()
 
-        adapter.uninstall(target)
+        GeminiAdapter().uninstall(target)
         assert not (target / "commands" / "gpd").exists()
         assert not (target / "get-physics-done").exists()
 
@@ -622,7 +720,7 @@ class TestInstallUninstallCycle:
         assert (target / "get-physics-done").is_dir()
 
         adapter.uninstall(target, skills_dir=skills)
-        assert not any(d.name.startswith("gpd-") for d in skills.iterdir() if d.is_dir())
+        assert not skills.exists() or not any(d.name.startswith("gpd-") for d in skills.iterdir() if d.is_dir())
         assert not (target / "get-physics-done").exists()
 
     def test_opencode_cycle(self, gpd_root: Path, tmp_path: Path) -> None:
@@ -666,7 +764,7 @@ class TestSerializationRoundtrip:
         """Command body text survives TOML conversion for Gemini."""
         target = tmp_path / ".gemini"
         target.mkdir()
-        GeminiAdapter().install(gpd_root, target)
+        _install_gemini_for_tests(gpd_root, target)
 
         toml_file = target / "commands" / "gpd" / "help.toml"
         content = toml_file.read_text(encoding="utf-8")
@@ -705,7 +803,7 @@ class TestSerializationRoundtrip:
         # Gemini: commands/gpd/sub/deep.toml
         gem_target = tmp_path / "gem" / ".gemini"
         gem_target.mkdir(parents=True)
-        GeminiAdapter().install(gpd_root, gem_target)
+        _install_gemini_for_tests(gpd_root, gem_target)
         assert (gem_target / "commands" / "gpd" / "sub" / "deep.toml").exists()
 
         # Codex: skills/gpd-sub-deep/SKILL.md
@@ -759,3 +857,86 @@ def test_real_installed_shared_prompt_semantics_are_equivalent_across_runtimes(t
     assert "review_cadence" in execute_plan
     assert "Required first-result sanity gate" in execute_plan
     assert "Contract-backed plans" in execute_plan
+
+
+@pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+def test_real_installed_contract_and_review_surfaces_keep_required_schema_bodies(
+    tmp_path: Path, runtime: str
+) -> None:
+    target = _install_real_repo_for_runtime(tmp_path, runtime)
+
+    verify_work = _canonicalize_runtime_markdown(
+        _read_runtime_command_prompt(tmp_path, target, runtime, "verify-work"),
+        runtime=runtime,
+    )
+    sync_state = _canonicalize_runtime_markdown(
+        _read_runtime_command_prompt(tmp_path, target, runtime, "sync-state"),
+        runtime=runtime,
+    )
+    write_paper = _canonicalize_runtime_markdown(
+        _read_runtime_command_prompt(tmp_path, target, runtime, "write-paper"),
+        runtime=runtime,
+    )
+    review_literature = _canonicalize_runtime_markdown(
+        _read_runtime_agent_prompt(target, runtime, "gpd-review-literature"),
+        runtime=runtime,
+    )
+    review_reader = _canonicalize_runtime_markdown(
+        _read_runtime_agent_prompt(target, runtime, "gpd-review-reader"),
+        runtime=runtime,
+    )
+    review_math = _canonicalize_runtime_markdown(
+        _read_runtime_agent_prompt(target, runtime, "gpd-review-math"),
+        runtime=runtime,
+    )
+    review_physics = _canonicalize_runtime_markdown(
+        _read_runtime_agent_prompt(target, runtime, "gpd-review-physics"),
+        runtime=runtime,
+    )
+    review_significance = _canonicalize_runtime_markdown(
+        _read_runtime_agent_prompt(target, runtime, "gpd-review-significance"),
+        runtime=runtime,
+    )
+    referee = _canonicalize_runtime_markdown(
+        _read_runtime_agent_prompt(target, runtime, "gpd-referee"),
+        runtime=runtime,
+    )
+
+    for content in (
+        verify_work,
+        sync_state,
+        write_paper,
+        review_literature,
+        review_reader,
+        review_math,
+        review_physics,
+        review_significance,
+        referee,
+    ):
+        lowered = content.lower()
+        assert "@ include not resolved:" not in lowered
+        assert "@ include cycle detected:" not in lowered
+        assert "@ include read error:" not in lowered
+        assert "@ include depth limit reached:" not in lowered
+
+    assert "Canonical source of truth for `plan_contract_ref`, `contract_results`, and `comparison_verdicts`" in verify_work
+    assert "check_subject_kind: [claim | deliverable | acceptance_test | reference]" in verify_work
+    assert 'gap_subject_kind: "{check_subject_kind}"' in verify_work
+    assert "\nsubject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]" not in verify_work
+    assert "check_subject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]" not in verify_work
+    assert "# state.json Schema" in sync_state
+    assert "Reproducibility Manifest Template" in write_paper
+    assert "Peer Review Panel Protocol" in review_literature
+    assert '"stage_id": "reader | literature | math | physics | interestingness"' in review_literature
+    assert '"stage_kind": "reader | literature | math | physics | interestingness"' in review_literature
+    assert "Peer Review Panel Protocol" in review_reader
+    for review_stage, stage_path, stage_kind in (
+        (review_math, "STAGE-math.json", "math"),
+        (review_physics, "STAGE-physics.json", "physics"),
+        (review_significance, "STAGE-interestingness.json", "interestingness"),
+    ):
+        assert f"Required schema for `{stage_path}` (`StageReviewReport`, mirroring the staged-review contract):" in review_stage
+        assert f"`stage_id` and `stage_kind` must both be `{stage_kind}`" in review_stage
+        assert "do not collapse them to prose or scalars" in review_stage
+    assert "Review Ledger Schema" in referee
+    assert "Referee Decision Schema" in referee

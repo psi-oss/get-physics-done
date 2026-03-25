@@ -9,6 +9,7 @@ Orchestrator coordinates, not executes. Each subagent loads the full execute-pla
 <required_reading>
 Read STATE.md before any operation to load project context.
 For agent selection strategy and verification failure routing, see `@{GPD_INSTALL_DIR}/references/orchestration/meta-orchestration.md`.
+For artifact class definitions and review priority rules, see `@{GPD_INSTALL_DIR}/references/orchestration/artifact-surfacing.md`.
 </required_reading>
 
 <process>
@@ -24,13 +25,17 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `review_cadence`, `research_mode`, `parallelization`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`.
+Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `review_cadence`, `research_mode`, `parallelization`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`.
 
 **If `phase_found` is false:** Error -- phase directory not found.
 **If `plan_count` is 0:** Error -- no plans found in phase.
-**If `state_exists` is false but `.gpd/` exists:** Offer reconstruct or continue.
+**If `state_exists` is false but `GPD/` exists:** Offer reconstruct or continue.
 
-Treat `project_contract` as the authoritative machine-readable execution contract when present.
+If `project_contract_load_info.status` starts with `blocked`, STOP and show the concrete `project_contract_load_info.errors` / `warnings` before execution. A contract that could not be loaded cleanly is not safe to execute from.
+
+If `project_contract_validation.valid` is false, STOP and show the explicit `project_contract_validation.errors` before execution. Do not treat a visible-but-blocked contract as an approved execution contract.
+
+Treat `project_contract` as the authoritative machine-readable execution contract only when it is present and `project_contract_validation.valid` is true.
 Treat `effective_reference_intake` as the carry-forward anchor ledger for refs, baselines, prior outputs, and unresolved context gaps.
 Use `active_reference_context` and `reference_artifacts_content` to interpret that ledger, not to replace it with markdown-only guesses.
 
@@ -490,8 +495,8 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
        - Checkpoints ref: {GPD_INSTALL_DIR}/references/orchestration/checkpoints.md
        - Validation ref: {GPD_INSTALL_DIR}/references/verification/core/verification-core.md (+ domain-specific verification file)
        - Plan: {phase_dir}/{plan_file}
-       - State: .gpd/STATE.md
-       - Config: .gpd/config.json (if exists)
+       - State: GPD/STATE.md
+       - Config: GPD/config.json (if exists)
        </files_to_read>
 
        <success_criteria>
@@ -545,6 +550,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    1. `gpd state advance` immediately
    2. `gpd state record-metric` for the completed plan
    3. This ensures crash recovery loses at most ONE plan's state, not an entire wave
+   4. By the time the wave-complete report is emitted, `GPD/STATE.md` already reflects every successful plan from that wave
 
    If pass:
 
@@ -581,7 +587,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
    **Classification rules:**
    - Assign artifact class from file extension and path (see artifact-surfacing.md section 1)
-   - Mark as `required` if the artifact is a load-bearing derivation, numerical result consumed by later waves, or contract deliverable tagged as an acceptance test
+   - Mark as `required` if the artifact is a load-bearing derivation, a numerical result consumed by later waves, or a contract deliverable that is the `subject` of an acceptance test
    - Mark as `final-deliverable` for completed manuscript outputs, compiled PDFs, and peer review reports
    - Mark as `optional` for supporting plots, intermediate notebooks, and literature notes
 
@@ -675,7 +681,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    done
    ```
 
-   Prefer paths surfaced through SUMMARY `key-files` or contract deliverables. Do not assume durable artifacts live beside the SUMMARY in `.gpd/phases/**`.
+   Prefer paths surfaced through SUMMARY `key-files` or contract deliverables. Do not assume durable artifacts live beside the SUMMARY in `GPD/phases/**`.
 
    If unverified identities are found: flag as WARNING. These identities may be correct but have not been numerically tested — downstream waves building on them carry unquantified risk.
 
@@ -1004,7 +1010,7 @@ find "${PHASE_ARTIFACT_DIR}" figures/ paper/figures/ -maxdepth 3 \
   grep -iE "fig|plot|phase_diag|spectrum|convergence|diagram" 2>/dev/null
 ```
 
-Generated figures and plots should live in stable workspace roots such as `artifacts/phases/${phase_number}-${phase_slug}/`, `figures/`, or `paper/figures/`, not under `.gpd/phases/**`.
+Generated figures and plots should live in stable workspace roots such as `artifacts/phases/${phase_number}-${phase_slug}/`, `figures/`, or `paper/figures/`, not under `GPD/phases/**`.
 
 **If any figures found:**
 
@@ -1014,15 +1020,15 @@ Read the figure tracker template:
 cat {GPD_INSTALL_DIR}/templates/paper/figure-tracker.md
 ```
 
-**If `.gpd/paper/FIGURE_TRACKER.md` already exists:** Append new figures to the existing registry. Do not overwrite existing entries.
+**If `GPD/paper/FIGURE_TRACKER.md` already exists:** Append new figures to the existing registry. Do not overwrite existing entries.
 
 **If it does not exist:** Create it from the template:
 
 ```bash
-mkdir -p .gpd/paper
+mkdir -p GPD/paper
 ```
 
-Write `.gpd/paper/FIGURE_TRACKER.md` with:
+Write `GPD/paper/FIGURE_TRACKER.md` with:
 
 - One entry per discovered figure/plot
 - `Source phase` set to the current phase number
@@ -1034,17 +1040,17 @@ Write `.gpd/paper/FIGURE_TRACKER.md` with:
 Commit:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/paper/FIGURE_TRACKER.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/paper/FIGURE_TRACKER.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs(phase-${phase_number}): update figure tracker" \
-  --files .gpd/paper/FIGURE_TRACKER.md
+  --files GPD/paper/FIGURE_TRACKER.md
 ```
 
 **If no figures found:** Skip silently (not all phases produce visual outputs).
 
-**Experimental comparison artifact:** If any plan in this phase compared theoretical predictions with experimental or observational data (PHENO-type objectives, or plans whose SUMMARY mentions "experimental comparison", "pull", "chi-squared", or "theory vs data"), create `.gpd/paper/EXPERIMENTAL_COMPARISON.md` using `{GPD_INSTALL_DIR}/templates/paper/experimental-comparison.md`. Populate with comparison tables, pull values, and discrepancy classifications from the plan SUMMARYs. Skip if no experimental comparison was performed.
+**Experimental comparison artifact:** If any plan in this phase compared theoretical predictions with experimental or observational data (PHENO-type objectives, or plans whose SUMMARY mentions "experimental comparison", "pull", "chi-squared", or "theory vs data"), create `GPD/paper/EXPERIMENTAL_COMPARISON.md` using `{GPD_INSTALL_DIR}/templates/paper/experimental-comparison.md`. Populate with comparison tables, pull values, and discrepancy classifications from the plan SUMMARYs. Skip if no experimental comparison was performed.
 
 </step>
 
@@ -1157,12 +1163,12 @@ checkpoint_tags: [{ list of all remaining gpd-checkpoint tags for this phase }]
 Commit recovery document:
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files "${RECOVERY_FILE}" .gpd/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "${RECOVERY_FILE}" GPD/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs(phase-${phase_number}): phase recovery report" \
-  --files "${RECOVERY_FILE}" .gpd/STATE.md
+  --files "${RECOVERY_FILE}" GPD/STATE.md
 ```
 
 **5. Offer actionable next steps based on failure pattern:**
@@ -1212,18 +1218,17 @@ Follow the verification workflow. Read `{GPD_INSTALL_DIR}/workflows/verify-phase
 Read status after verification completes:
 
 ```bash
-grep "^status:" "$phase_dir"/*-VERIFICATION.md | head -1 | cut -d: -f2 | tr -d ' '
+grep "^status:" "$phase_dir"/*-VERIFICATION.md 2>/dev/null | head -1 | cut -d: -f2 | tr -d ' '
 ```
 
 | Status         | Action                                                      |
 | -------------- | ----------------------------------------------------------- |
 | `passed`       | -> update_roadmap                                           |
-| `completed`    | -> update_roadmap (interactive verify-work equivalent)      |
 | `human_needed`  | Present items for human review, get approval or feedback    |
 | `expert_needed` | Domain expert review required; present items, escalate      |
 | `gaps_found`    | Present gap summary, offer `/gpd:plan-phase {phase} --gaps` |
-| `diagnosed`    | Gaps were debugged; review fixes, then -> update_roadmap    |
-| `validating`   | Verification in progress; wait or re-run verify-phase       |
+
+If the same report also carries `session_status: validating|completed|diagnosed`, treat that as conversational progress only. It does not replace the canonical verification `status` read above. A diagnosed verification session will normally still report `status: gaps_found` until the fixes are re-verified.
 
 **If human_needed:**
 
@@ -1269,9 +1274,10 @@ Gap closure cycle: `/gpd:plan-phase {X} --gaps` reads VERIFICATION.md -> creates
 Before triggering gap closure, classify the failure to select the minimum-cost recovery strategy. See `agent-infrastructure.md` Meta-Orchestration Intelligence > Feedback Loop Intelligence for the full classification table.
 
 ```bash
-# Count failed contract targets and classify
-FAILED_COUNT=$(grep -c "status: failed" "${phase_dir}"/*-VERIFICATION.md 2>/dev/null || echo 0)
-TOTAL_COUNT=$(grep -c "status:" "${phase_dir}"/*-VERIFICATION.md 2>/dev/null || echo 0)
+# Count only top-level verification outcomes. Nested contract-results and gap
+# ledgers also have `status:` fields, so unanchored grep would overcount them.
+FAILED_COUNT=$(rg -c '^status: (gaps_found|expert_needed|human_needed)$' "${phase_dir}"/*-VERIFICATION.md 2>/dev/null | awk -F: '{sum += $2} END {print sum+0}')
+TOTAL_COUNT=$(rg -c '^status: (passed|gaps_found|expert_needed|human_needed)$' "${phase_dir}"/*-VERIFICATION.md 2>/dev/null | awk -F: '{sum += $2} END {print sum+0}')
 ```
 
 | Failure Pattern | Recovery | Cost |
@@ -1303,7 +1309,7 @@ task(
   - Workflow: {GPD_INSTALL_DIR}/workflows/execute-plan.md
   - Plan: {phase_dir}/{FAILED_PLAN}-PLAN.md
   - Previous SUMMARY: {phase_dir}/{FAILED_PLAN}-SUMMARY.md
-  - State: .gpd/STATE.md
+  - State: GPD/STATE.md
   </files_to_read>",
   description="Targeted re-execution of {FAILED_PLAN}"
 )
@@ -1383,11 +1389,11 @@ Re-verify Phase {PHASE_NUMBER} after gap closure.
 Read these files using the file_read tool:
 - Verification: {phase_dir}/{phase}-VERIFICATION.md
 - All SUMMARY.md files in {phase_dir}/
-- State: .gpd/STATE.md
-- Roadmap: .gpd/ROADMAP.md
+- State: GPD/STATE.md
+- Roadmap: GPD/ROADMAP.md
 </files_to_read>
 
-Focus on the gaps that were marked as 'failed' or 'diagnosed' in the previous verification.
+Focus on the gaps that were previously marked failed, partial, blocked, or otherwise unresolved in the previous verification. If the prior report carries `session_status: diagnosed`, use the recorded root causes and missing actions as the starting point for re-verification.
 Check whether the gap closure plans have resolved each issue.
 Update VERIFICATION.md with new status for each gap.
 Return verification status: passed | gaps_found.",
@@ -1423,7 +1429,7 @@ task(prompt="First, read {GPD_AGENTS_DIR}/gpd-consistency-checker.md for your ro
 Check phase {PHASE_NUMBER} results against the full conventions ledger and all accumulated project state.
 Read conventions from state.json via: gpd convention list
 And from SUMMARY.md frontmatter convention fields.
-file_read: .gpd/STATE.md, .gpd/state.json
+file_read: GPD/STATE.md, GPD/state.json
 file_read: All SUMMARY.md files from phase {PHASE_NUMBER}
 
 Return consistency_status with any issues found.
@@ -1470,7 +1476,7 @@ Resolve convention inconsistencies found by consistency checker after phase {PHA
 </issues>
 
 <project_context>
-file_read: .gpd/STATE.md, .gpd/state.json, .gpd/CONVENTIONS.md
+file_read: GPD/STATE.md, GPD/state.json, GPD/CONVENTIONS.md
 file_read: All SUMMARY.md files from phase {PHASE_NUMBER}
 Load conventions: gpd convention list
 </project_context>
@@ -1511,10 +1517,10 @@ Mark phase complete in ROADMAP.md (date, status).
 Follow the full transition protocol. Read `{GPD_INSTALL_DIR}/workflows/transition.md` using the file_read tool for PROJECT.md evolution, DECISIONS.md updates, and parallel phase detection.
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files .gpd/ROADMAP.md .gpd/STATE.md "${phase_dir}"/*-VERIFICATION.md .gpd/REQUIREMENTS.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/ROADMAP.md GPD/STATE.md "${phase_dir}"/*-VERIFICATION.md GPD/REQUIREMENTS.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs(phase-${phase_number}): complete phase execution" --files .gpd/ROADMAP.md .gpd/STATE.md "${phase_dir}"/*-VERIFICATION.md .gpd/REQUIREMENTS.md
+gpd commit "docs(phase-${phase_number}): complete phase execution" --files GPD/ROADMAP.md GPD/STATE.md "${phase_dir}"/*-VERIFICATION.md GPD/REQUIREMENTS.md
 ```
 
 </step>

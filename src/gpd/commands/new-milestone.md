@@ -17,15 +17,15 @@ allowed-tools:
 <objective>
 Start a new research milestone: questioning → literature research (optional) → requirements → roadmap.
 
-Continuation equivalent of new-project. Research project exists, PROJECT.md has history. Gathers "what's next", updates PROJECT.md, then runs requirements → roadmap cycle.
+Continuation equivalent of new-project. Research project exists, PROJECT.md has history. Gathers "what's next", updates PROJECT.md, then runs requirements → roadmap cycle while honoring `planning.commit_docs` for milestone artifact commits.
 
 **Creates/Updates:**
 
-- `.gpd/PROJECT.md` — updated with new milestone goals
-- `.gpd/research/` — domain and literature research (optional, NEW research objectives only)
-- `.gpd/REQUIREMENTS.md` — scoped requirements for this milestone
-- `.gpd/ROADMAP.md` — phase structure (continues numbering)
-- `.gpd/STATE.md` — reset for new milestone
+- `GPD/PROJECT.md` — updated with new milestone goals
+- `GPD/research/` — domain and literature research (optional, NEW research objectives only)
+- `GPD/REQUIREMENTS.md` — scoped requirements for this milestone
+- `GPD/ROADMAP.md` — phase structure (continues numbering)
+- `GPD/STATE.md` — reset for new milestone
 
 **After:** `/gpd:plan-phase [N]` to start execution.
 </objective>
@@ -42,13 +42,13 @@ Continuation equivalent of new-project. Research project exists, PROJECT.md has 
 Milestone name: $ARGUMENTS (optional - will prompt if not provided)
 
 **Load project context:**
-@.gpd/PROJECT.md
-@.gpd/STATE.md
-@.gpd/MILESTONES.md
-@.gpd/config.json
+@GPD/PROJECT.md
+@GPD/STATE.md
+@GPD/MILESTONES.md
+@GPD/config.json
 
 **Load milestone context (if exists, from /gpd:discuss-phase):**
-@.gpd/MILESTONE-CONTEXT.md
+@GPD/MILESTONE-CONTEXT.md
 </context>
 
 <process>
@@ -88,7 +88,7 @@ All gates (validation, questioning, research, requirements, roadmap approval, co
 - [ ] Roadmap files written immediately (not draft)
 - [ ] User feedback incorporated (if any)
 - [ ] ROADMAP.md phases continue from previous milestone
-- [ ] All commits made (if planning docs committed)
+- [ ] All commits made when `planning.commit_docs` is true
 - [ ] User knows next step: `/gpd:discuss-phase [N]`
 
 **Atomic commits:** Each phase commits its artifacts immediately.

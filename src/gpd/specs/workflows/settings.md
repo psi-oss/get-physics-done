@@ -1,5 +1,5 @@
 <purpose>
-Interactive configuration of GPD workflow agents (research, plan_checker, verifier), research profile selection, runtime-specific tier model overrides, review cadence, and git branching via multi-question prompt. Updates `.gpd/config.json` with user preferences including model profile, optional `model_overrides`, workflow toggles, execution cadence, and branching strategy.
+Interactive configuration of GPD workflow agents (research, plan_checker, verifier), research profile selection, runtime-specific tier model overrides, `execution.review_cadence`, git branching, and runtime-permission sync guidance. Updates `GPD/config.json` with user preferences including model profile, optional `model_overrides`, workflow toggles, execution cadence, and branching strategy.
 </purpose>
 
 <required_reading>
@@ -20,12 +20,12 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Creates `.gpd/config.json` with defaults if missing and loads current config values.
+Creates `GPD/config.json` with defaults if missing and loads current config values.
 </step>
 
 <step name="read_current">
 ```bash
-cat .gpd/config.json
+cat GPD/config.json
 ```
 
 Parse current values (default to `true` / first option if not present):
@@ -39,13 +39,14 @@ Parse current values (default to `true` / first option if not present):
 - `execution.review_cadence` -- execution review density: `"dense"`, `"adaptive"` (default), `"sparse"`
 - `execution.max_unattended_minutes_per_plan` -- wall-clock budget before a bounded continuation should be created
 - `execution.checkpoint_after_n_tasks` -- task budget before a bounded continuation should be created
+- `planning.commit_docs` -- whether planning artifacts are committed to git (default: `true`)
 - `parallelization` -- execute wave plans in parallel (default: `true`)
 - `model_profile` -- which agent model profile to use (default: `review`)
 - `git.branching_strategy` -- branching approach (default: `"none"`)
 
 `execution.review_cadence` is independent of `model_profile` and `research_mode`: it controls bounded review stop density, not agent tiering or verification rigor.
 
-Project conventions do **not** live in `.gpd/config.json`. Do not invent or preserve a `physics` section here. Unit systems, metric signatures, Fourier conventions, and other notation choices belong in `.gpd/CONVENTIONS.md` and `.gpd/state.json` via `gpd convention set`.
+Project conventions do **not** live in `GPD/config.json`. Do not invent or preserve a `physics` section here. Unit systems, metric signatures, Fourier conventions, and other notation choices belong in `GPD/CONVENTIONS.md` and `GPD/state.json` via `gpd convention set`.
   </step>
 
 <step name="determine_runtime_for_model_overrides">
@@ -67,13 +68,13 @@ Use ask_user with current values pre-selected:
 ```
 ask_user([
   {
-    question: "How much autonomy should the AI have? Supervised pauses constantly, Balanced handles routine work but still pauses on important physics or scope decisions, and YOLO only stops on hard failures.",
+    question: "How much autonomy should the AI have? Supervised pauses constantly, Balanced handles routine work but still pauses on important physics or scope decisions, and YOLO only stops on hard failures after runtime permissions are synced.",
     header: "Autonomy",
     multiSelect: false,
     options: [
       { label: "Supervised", description: "Checkpoint after every important step. You approve each physics-bearing move." },
       { label: "Balanced (Recommended)", description: "AI handles routine work and pauses on important physics decisions, ambiguities, blockers, or scope changes." },
-      { label: "YOLO", description: "Fastest mode. AI auto-approves checkpoints and only stops on hard failures." }
+      { label: "YOLO", description: "Fastest mode. AI auto-approves checkpoints, syncs the runtime to its most autonomous permission mode when supported, and only stops on hard failures." }
     ]
   },
   {
@@ -147,6 +148,15 @@ ask_user([
     ]
   },
   {
+    question: "Should planning artifacts be committed to git?",
+    header: "Planning Commit Docs",
+    multiSelect: false,
+    options: [
+      { label: "Commit planning docs", description: "Set planning.commit_docs=true so planning artifacts are committed normally." },
+      { label: "Keep planning docs local-only", description: "Set planning.commit_docs=false so planning artifacts stay uncommitted." }
+    ]
+  },
+  {
     question: "Execute plans within a wave in parallel?",
     header: "Parallel",
     multiSelect: false,
@@ -160,9 +170,9 @@ ask_user([
     header: "Branching",
     multiSelect: false,
     options: [
-      { label: "None (Recommended)", description: "Commit directly to current branch" },
-      { label: "Per Phase", description: "Create branch for each phase (gpd/phase-{N}-{name})" },
-      { label: "Per Milestone", description: "Create branch for entire milestone (gpd/{version}-{name})" }
+      { label: "none (Recommended)", description: "Commit directly to current branch" },
+      { label: "per-phase", description: "Create branch for each phase (gpd/phase-{N}-{name})" },
+      { label: "per-milestone", description: "Create branch for entire milestone (gpd/{version}-{name})" }
     ]
   }
 ])
@@ -216,6 +226,9 @@ Merge new settings into existing config.json:
       "tier-3": "runtime-native model string"
     }
   }, // include only non-empty tier values; omit or clear <active_runtime> when using runtime defaults
+  "planning": {
+    "commit_docs": true/false
+  },
   "workflow": {
     "research": true/false,
     "plan_checker": true/false,
@@ -224,15 +237,33 @@ Merge new settings into existing config.json:
   "execution": {
     "review_cadence": "dense" | "adaptive" | "sparse",
     "max_unattended_minutes_per_plan": 45,
-    "checkpoint_after_n_tasks": 3
+    "max_unattended_minutes_per_wave": 90,
+    "checkpoint_after_n_tasks": 3,
+    "checkpoint_after_first_load_bearing_result": true/false,
+    "checkpoint_before_downstream_dependent_tasks": true/false
   },
   "git": {
-    "branching_strategy": "none" | "per-phase" | "per-milestone"
+    "branching_strategy": "none" | "per-phase" | "per-milestone",
+    "phase_branch_template": "gpd/phase-{phase}-{slug}",
+    "milestone_branch_template": "gpd/{milestone}-{slug}"
   }
 }
 ```
 
-Write updated config to `.gpd/config.json`.
+Write updated config to `GPD/config.json`.
+
+Then immediately sync runtime-owned permissions against the selected autonomy:
+
+```bash
+PERMISSIONS_SYNC=$(gpd --raw permissions sync --autonomy "$SELECTED_AUTONOMY" 2>/dev/null || true)
+echo "$PERMISSIONS_SYNC"
+```
+
+Interpret the sync payload:
+
+- Always surface `message` in the final confirmation.
+- If `requires_relaunch` is `true`, surface `next_step` verbatim so the user knows whether the runtime must be restarted or relaunched through a generated wrapper command.
+- If runtime detection or install resolution fails, explain that `GPD/config.json` was still updated but the runtime itself was not synchronized yet.
 </step>
 
 <step name="confirm">
@@ -252,14 +283,20 @@ Display:
 | Plan Checker         | {On/Off} |
 | Execution Verifier   | {On/Off} |
 | Review Cadence       | {Dense/Adaptive/Sparse} |
+| Planning Commit Docs | {On/Off} |
 | Parallelization      | {On/Off} |
-| Git Branching        | {None/Per Phase/Per Milestone} |
+| Git Branching        | {none/per-phase/per-milestone} |
+| Runtime Permissions  | {aligned / changed / manual follow-up required} |
 
 These settings apply to future /gpd:plan-phase and /gpd:execute-phase runs.
 
 Concrete tier model strings are passed through to the active runtime unchanged, so they should always use that runtime's native model syntax.
 
-Project conventions still live in `.gpd/CONVENTIONS.md` and `.gpd/state.json` (`convention_lock`), not in `.gpd/config.json`.
+Runtime sync:
+- {permissions_sync.message}
+- {permissions_sync.next_step if present}
+
+Project conventions still live in `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`), not in `GPD/config.json`.
 
 Quick commands:
 - /gpd:set-profile <profile> -- switch research profile
@@ -276,13 +313,13 @@ Quick commands:
 </process>
 
 <downstream_consumption>
-Workflow config from `.gpd/config.json` is consumed by:
+Workflow config from `GPD/config.json` is consumed by:
 
 - **gpd-planner / orchestrators**: Model profile, workflow toggles, and runtime-specific tier overrides
 - **gpd-executor**: Review cadence, unattended budgets, and workflow verifier settings
 - **gpd hooks / runtime adapters**: Runtime-specific model overrides and related execution defaults
 
-Project conventions propagate separately through `.gpd/CONVENTIONS.md` and `.gpd/state.json` (`convention_lock`), where notation and unit choices remain the single source of truth for planning, execution, and verification.
+Project conventions propagate separately through `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`), where notation and unit choices remain the single source of truth for planning, execution, and verification.
 </downstream_consumption>
 
 <success_criteria>
@@ -291,7 +328,8 @@ Project conventions propagate separately through `.gpd/CONVENTIONS.md` and `.gpd
 - [ ] Active runtime inferred or explicitly confirmed before model override guidance
 - [ ] User presented with profile, runtime-specific tier-model handling, workflow toggles, review cadence, and git branching
 - [ ] Config updated with model_profile, optional model_overrides, workflow, execution, and git sections
-- [ ] No stale `physics` section written into `.gpd/config.json`
+- [ ] Runtime permissions sync attempted after autonomy is written, with relaunch guidance surfaced when required
+- [ ] No stale `physics` section written into `GPD/config.json`
 - [ ] Concrete tier model strings stored in runtime-native format when the user chooses explicit overrides
 - [ ] Changes confirmed to user
 

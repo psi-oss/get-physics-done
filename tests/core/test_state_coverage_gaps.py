@@ -33,11 +33,11 @@ from gpd.core.state import (
 
 
 def _bootstrap_project(tmp_path: Path, state_dict: dict | None = None) -> Path:
-    """Create a minimal .gpd/ project with STATE.md + state.json.
+    """Create a minimal GPD/ project with STATE.md + state.json.
 
     Returns the project root (tmp_path).
     """
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
     (planning / "phases").mkdir()
     (planning / "PROJECT.md").write_text("# Project\nTest.\n")
@@ -77,7 +77,7 @@ class TestStateAddBlocker:
         assert result.blocker == "Need to verify gauge invariance"
 
         # Verify the blocker appears in STATE.md
-        md = (cwd / ".gpd" / "STATE.md").read_text()
+        md = (cwd / "GPD" / "STATE.md").read_text()
         assert "Need to verify gauge invariance" in md
 
     def test_add_blocker_empty_text_fails(self, tmp_path: Path) -> None:
@@ -87,7 +87,7 @@ class TestStateAddBlocker:
         assert result.error is not None
 
     def test_add_blocker_missing_state_md(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         result = state_add_blocker(tmp_path, "some blocker")
         assert result.added is False
@@ -98,7 +98,7 @@ class TestStateAddBlocker:
         result = state_add_blocker(cwd, "Second blocker")
         assert result.added is True
 
-        md = (cwd / ".gpd" / "STATE.md").read_text()
+        md = (cwd / "GPD" / "STATE.md").read_text()
         assert "First blocker" in md
         assert "Second blocker" in md
 
@@ -115,7 +115,7 @@ class TestStateResolveBlocker:
         result = state_resolve_blocker(cwd, "Need to verify gauge invariance")
         assert result.resolved is True
 
-        md = (cwd / ".gpd" / "STATE.md").read_text()
+        md = (cwd / "GPD" / "STATE.md").read_text()
         assert "Need to verify gauge invariance" not in md
 
     def test_resolve_substring_match(self, tmp_path: Path) -> None:
@@ -141,7 +141,7 @@ class TestStateResolveBlocker:
         assert result.resolved is False
 
     def test_resolve_missing_state_md(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         result = state_resolve_blocker(tmp_path, "some blocker")
         assert result.resolved is False
@@ -169,7 +169,7 @@ class TestSaveLoadStateJson:
         assert len(loaded["decisions"]) == 1
 
     def test_load_returns_none_when_no_files(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         result = load_state_json(tmp_path)
         assert result is None
@@ -180,7 +180,7 @@ class TestSaveLoadStateJson:
         state["position"]["current_phase"] = "07"
         save_state_json(cwd, state)
 
-        md_path = cwd / ".gpd" / "STATE.md"
+        md_path = cwd / "GPD" / "STATE.md"
         assert md_path.exists()
         content = md_path.read_text()
         assert "7" in content  # phase number appears in STATE.md
@@ -203,7 +203,7 @@ class TestSaveLoadStateJson:
         """When state.json is corrupt, load_state_json falls back to STATE.md."""
         cwd = _bootstrap_project(tmp_path)
         # Corrupt state.json
-        (cwd / ".gpd" / "state.json").write_text("NOT VALID JSON {{{")
+        (cwd / "GPD" / "state.json").write_text("NOT VALID JSON {{{")
         loaded = load_state_json(cwd)
         # Should still load from STATE.md fallback
         assert loaded is not None
@@ -221,7 +221,7 @@ class TestStatePatch:
         result = state_patch(cwd, {"Status": "Paused"})
         assert "Status" in result.updated
 
-        md = (cwd / ".gpd" / "STATE.md").read_text()
+        md = (cwd / "GPD" / "STATE.md").read_text()
         assert "Paused" in md
 
     def test_patch_multiple_fields(self, tmp_path: Path) -> None:
@@ -243,7 +243,7 @@ class TestStatePatch:
         assert "Status" in result.failed
         assert "Status" not in result.updated
 
-        md = (cwd / ".gpd" / "STATE.md").read_text()
+        md = (cwd / "GPD" / "STATE.md").read_text()
         assert "**Status:** Executing" in md
 
         loaded = load_state_json(cwd)
@@ -256,7 +256,7 @@ class TestStatePatch:
         assert "NonexistentFieldXYZ123" in result.failed
 
     def test_patch_missing_state_md_raises(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         with pytest.raises(StateError):
             state_patch(tmp_path, {"Status": "Paused"})
@@ -277,12 +277,12 @@ class TestStateSnapshot:
     def test_snapshot_falls_back_to_md(self, tmp_path: Path) -> None:
         cwd = _bootstrap_project(tmp_path)
         # Remove state.json so it falls back to STATE.md
-        (cwd / ".gpd" / "state.json").unlink()
+        (cwd / "GPD" / "state.json").unlink()
         snap = state_snapshot(cwd)
         assert snap.current_phase is not None
 
     def test_snapshot_missing_both_files(self, tmp_path: Path) -> None:
-        planning = tmp_path / ".gpd"
+        planning = tmp_path / "GPD"
         planning.mkdir()
         snap = state_snapshot(tmp_path)
         assert snap.error is not None

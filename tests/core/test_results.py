@@ -228,6 +228,32 @@ def test_result_verify():
     assert records[0]["confidence"] == "high"
 
 
+def test_result_verify_supports_full_contract_binding_set():
+    state: dict = {}
+    result_add(state, result_id="R-01")
+
+    result = result_verify(
+        state,
+        "R-01",
+        verifier="gpd-verifier",
+        claim_id="claim-benchmark",
+        deliverable_id="deliv-figure",
+        acceptance_test_id="test-benchmark",
+        reference_id="ref-benchmark",
+        forbidden_proxy_id="fp-benchmark",
+    )
+
+    record = result.verification_records[0]
+    assert record.claim_id == "claim-benchmark"
+    assert record.deliverable_id == "deliv-figure"
+    assert record.acceptance_test_id == "test-benchmark"
+    assert record.reference_id == "ref-benchmark"
+    assert record.forbidden_proxy_id == "fp-benchmark"
+
+    listed = result_list(state, verified=True)
+    assert listed[0].verification_records[0].forbidden_proxy_id == "fp-benchmark"
+
+
 def test_result_add_with_verification_records_sets_verified():
     state: dict = {}
     result = result_add(
@@ -237,6 +263,20 @@ def test_result_add_with_verification_records_sets_verified():
     )
     assert result.verified is True
     assert len(result.verification_records) == 1
+
+
+@pytest.mark.parametrize(
+    "verification_records",
+    [
+        ["not a dict"],
+        [{"verifier": "auditor", "method": "manual", "confidence": 17}],
+    ],
+)
+def test_result_add_rejects_malformed_verification_records(verification_records):
+    state: dict = {}
+
+    with pytest.raises(ResultError, match="verification_records"):
+        result_add(state, result_id="R-02a", verification_records=verification_records)
 
 
 def test_result_update_verification_records_normalizes_and_marks_verified():
@@ -292,22 +332,58 @@ def test_result_update_rejects_false_verified_when_existing_records_remain():
         result_update(state, "R-05a", verified=False)
 
 
-def test_result_update_rejects_string_false_verified_when_existing_records_remain():
+def test_result_update_rejects_string_verified_values():
     state: dict = {}
-    result_add(
-        state,
-        result_id="R-05b",
-        verification_records=[{"verifier": "gpd-verifier", "method": "limit-check", "confidence": "medium"}],
-    )
+    result_add(state, result_id="R-05b")
 
-    with pytest.raises(ResultError, match="verified cannot be false when verification_records are present"):
+    with pytest.raises(ResultError, match="verified must be a boolean"):
         result_update(state, "R-05b", verified="false")
+
+
+@pytest.mark.parametrize("verified", ["false", "maybe", 1, None])
+def test_result_update_rejects_non_boolean_verified_values(verified):
+    state: dict = {}
+    result_add(state, result_id="R-05c")
+
+    with pytest.raises(ResultError, match="verified must be a boolean"):
+        result_update(state, "R-05c", verified=verified)
+
+
+@pytest.mark.parametrize(
+    "verification_records",
+    [
+        ["not a dict"],
+        [{"verifier": "auditor", "method": "manual", "confidence": 17}],
+    ],
+)
+def test_result_update_rejects_malformed_verification_records(verification_records):
+    state: dict = {}
+    result_add(state, result_id="R-05d")
+
+    with pytest.raises(ResultError, match="verification_records"):
+        result_update(state, "R-05d", verification_records=verification_records)
 
 
 def test_result_verify_not_found():
     state: dict = {}
     with pytest.raises(ResultNotFoundError):
         result_verify(state, "R-nonexistent")
+
+
+def test_result_verify_rejects_existing_malformed_verification_records():
+    state: dict = {
+        "intermediate_results": [
+            {
+                "id": "R-verify-bad",
+                "description": "Bad stored evidence",
+                "verified": False,
+                "verification_records": ["oops"],
+            }
+        ]
+    }
+
+    with pytest.raises(ResultError, match="Existing verification_records for R-verify-bad are invalid"):
+        result_verify(state, "R-verify-bad")
 
 
 # ─── result_update ───────────────────────────────────────────────────────────

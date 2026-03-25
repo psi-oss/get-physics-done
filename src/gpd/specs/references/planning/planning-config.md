@@ -1,6 +1,6 @@
 <planning_config>
 
-Configuration options for `.gpd/` directory behavior in physics research projects.
+Configuration options for `GPD/` directory behavior in physics research projects.
 
 <config_schema>
 
@@ -34,7 +34,7 @@ Configuration options for `.gpd/` directory behavior in physics research project
 
 | Option                          | Default                      | Description                                                                                    |
 | ------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
-| `commit_docs`                   | `true`                       | Whether to commit planning artifacts to git                                                    |
+| `planning.commit_docs`          | `true`                       | Whether to commit planning artifacts to git                                                    |
 | `autonomy`                      | `"balanced"`                 | Human-in-the-loop level: `"supervised"`, `"balanced"`, `"yolo"`                                    |
 | `execution.review_cadence`      | `"adaptive"`                 | How aggressively long-running execution injects bounded review points                            |
 | `execution.max_unattended_minutes_per_plan` | `45`             | Wall-clock budget before a bounded continuation segment must be created, even if the run feels smooth |
@@ -56,42 +56,44 @@ Configuration options for `.gpd/` directory behavior in physics research project
 
 <commit_docs_behavior>
 
-**When `commit_docs: true` (default):**
+**When `planning.commit_docs: true` (default):**
 
 - Planning files committed normally
 - SUMMARY.md, STATE.md, ROADMAP.md tracked in git
 - Full history of research decisions preserved
+- Milestone workflows surface this setting directly and honor it when deciding whether to commit generated artifacts
 
-**When `commit_docs: false`:**
+**When `planning.commit_docs: false`:**
 
-- Skip all `git add`/`git commit` for `.gpd/` files
-- User must add `.gpd/` to `.gitignore`
+- Skip all `git add`/`git commit` for `GPD/` files
+- User must add `GPD/` to `.gitignore`
 - Useful for: private research notes, draft calculations, preliminary explorations
+- The settings workflow exposes this as the explicit `planning.commit_docs` toggle
 
 **Using gpd CLI (preferred):**
 
 ```bash
-# Commit with automatic commit_docs + gitignore checks:
-gpd commit "docs: update state" --files .gpd/STATE.md
+# Commit with automatic planning.commit_docs + gitignore checks:
+gpd commit "docs: update state" --files GPD/STATE.md
 
 # Load config via init progress (returns JSON):
 INIT=$(gpd init progress --include state,config)
-# commit_docs is available in the JSON output
+# planning.commit_docs is available in the JSON output
 
-# Or use init commands which include commit_docs:
+# Or use init commands which include planning.commit_docs:
 INIT=$(gpd init execute-phase "1")
-# commit_docs is included in all init command outputs
+# planning.commit_docs is included in all init command outputs
 ```
 
-**Auto-detection:** If `.gpd/` is gitignored, `commit_docs` is automatically `false` regardless of config.json. This prevents git errors when users have `.gpd/` in `.gitignore`.
+**Auto-detection:** If `GPD/` is gitignored, `planning.commit_docs` is automatically `false` regardless of config.json. This prevents git errors when users have `GPD/` in `.gitignore`.
 
 **Commit via CLI (handles checks automatically):**
 
 ```bash
-gpd commit "docs: update state" --files .gpd/STATE.md
+gpd commit "docs: update state" --files GPD/STATE.md
 ```
 
-The CLI checks `commit_docs` config and gitignore status internally -- no manual conditionals needed.
+The CLI checks `planning.commit_docs` config and gitignore status internally -- no manual conditionals needed.
 
 </commit_docs_behavior>
 
@@ -104,6 +106,8 @@ The CLI checks `commit_docs` config and gitignore status internally -- no manual
 | `"dense"`    | Frequent bounded review points and short unattended segments |
 | `"adaptive"` | Default. Insert first-result and risky-fanout gates automatically when results become load-bearing or decisive evidence remains unresolved |
 | `"sparse"`   | Fewest review stops, but required correctness gates still run when a result becomes load-bearing, decisive evidence is still missing, or a wall-clock/task budget trips |
+
+This knob is surfaced directly in `/gpd:settings` as `execution.review_cadence`.
 
 `autonomy` and `execution.review_cadence` are separate axes:
 
@@ -132,8 +136,8 @@ When cadence logic injects a gate, the orchestrator still runs lightweight conve
 
 Notation, unit systems, metric signatures, Fourier conventions, and similar physics choices live in:
 
-- `.gpd/CONVENTIONS.md` — human-readable convention reference
-- `.gpd/state.json` (`convention_lock`) — machine-readable convention state
+- `GPD/CONVENTIONS.md` — human-readable convention reference
+- `GPD/state.json` (`convention_lock`) — machine-readable convention state
 
 Manage those values with:
 
@@ -160,12 +164,12 @@ To use uncommitted mode:
 2. **Add to .gitignore:**
 
    ```
-   .gpd/
+   GPD/
    ```
 
-3. **Existing tracked files:** If `.gpd/` was previously tracked:
+3. **Existing tracked files:** If `GPD/` was previously tracked:
    ```bash
-   git rm -r --cached .gpd/
+   git rm -r --cached GPD/
    git commit -m "chore: stop tracking planning docs"
    ```
 
@@ -178,8 +182,8 @@ To use uncommitted mode:
 | Strategy    | When branch created                   | Branch scope     | Merge point             |
 | ----------- | ------------------------------------- | ---------------- | ----------------------- |
 | `none`      | Never                                 | N/A              | N/A                     |
-| `phase`     | At `execute-phase` start              | Single phase     | User merges after phase |
-| `milestone` | At first `execute-phase` of milestone | Entire milestone | At `complete-milestone` |
+| `per-phase`     | At `execute-phase` start              | Single phase     | User merges after phase |
+| `per-milestone` | At first `execute-phase` of milestone | Entire milestone | At `complete-milestone` |
 
 **When `git.branching_strategy: "none"` (default):**
 
@@ -259,8 +263,8 @@ Squash merge is recommended -- keeps main branch history clean while preserving 
 | Strategy    | Best for                                                                          |
 | ----------- | --------------------------------------------------------------------------------- |
 | `none`      | Solo research, exploratory work, single-problem investigations                    |
-| `phase`     | Multi-approach comparison, granular rollback, collaboration on shared calculation |
-| `milestone` | Publication-oriented work, versioned results, reproducibility checkpoints         |
+| `per-phase`     | Multi-approach comparison, granular rollback, collaboration on shared calculation |
+| `per-milestone` | Publication-oriented work, versioned results, reproducibility checkpoints         |
 
 </branching_strategy_behavior>
 

@@ -1,5 +1,5 @@
 <purpose>
-Verify research milestone achieved its definition of done by aggregating phase verifications, checking cross-phase consistency, and assessing research completeness. Reads existing VERIFICATION.md files (phases already verified during execute-phase), aggregates open questions and deferred analysis, then spawns consistency checker for cross-phase physics validation.
+Verify research milestone achieved its definition of done by aggregating phase verifications, checking cross-phase consistency, and assessing research completeness. Reads existing `*-VERIFICATION.md` files (phases already verified during execute-phase), aggregates open questions and deferred analysis, then spawns consistency checker for cross-phase physics validation.
 
 Key questions: Are all claims supported? All calculations verified? All comparisons made? Ready for publication or next research stage?
 </purpose>
@@ -74,15 +74,15 @@ gpd phase list
 
 ## 2. Read All Phase Verifications
 
-For each phase directory, read the VERIFICATION.md:
+For each phase directory, read the canonical `*-VERIFICATION.md` artifact:
 
 ```bash
-cat .gpd/phases/01-*/*-VERIFICATION.md
-cat .gpd/phases/02-*/*-VERIFICATION.md
+cat GPD/phases/01-*/*-VERIFICATION.md
+cat GPD/phases/02-*/*-VERIFICATION.md
 # etc.
 ```
 
-From each VERIFICATION.md, extract:
+From each `*-VERIFICATION.md`, extract:
 
 - **Status:** passed | gaps_found
 - **Critical gaps:** (if any -- these are blockers)
@@ -90,7 +90,7 @@ From each VERIFICATION.md, extract:
 - **Anti-patterns found:** placeholders, unjustified approximations, missing checks
 - **Requirements coverage:** which requirements satisfied/blocked
 
-If a phase is missing VERIFICATION.md, flag it as "unverified phase" -- this is a blocker.
+If a phase is missing `*-VERIFICATION.md`, flag it as "unverified phase" -- this is a blocker.
 
 ## 3. Spawn Consistency Checker
 
@@ -140,7 +140,7 @@ For each requirement in REQUIREMENTS.md mapped to this milestone:
 
 ## 6. Aggregate into v{version}-MILESTONE-AUDIT.md
 
-Create `.gpd/v{version}-MILESTONE-AUDIT.md` with:
+Create `GPD/v{version}-MILESTONE-AUDIT.md` with:
 
 ```yaml
 ---
@@ -178,7 +178,7 @@ Plus full markdown report with tables for requirements, phases, consistency, ope
 
 ## 7. Optional: Mock Peer Review
 
-If enabled in config (`referee_review: true` in `.gpd/config.json`) or if the user requests it, spawn the referee agent for a simulated peer review of the milestone's research outputs. This provides an independent critical assessment before the researcher decides on next steps, with a canonical Markdown report plus a polished LaTeX companion artifact.
+If enabled in config (`referee_review: true` in `GPD/config.json`) or if the user requests it, spawn the referee agent for a simulated peer review of the milestone's research outputs. This provides an independent critical assessment before the researcher decides on next steps, with a canonical Markdown report plus a polished LaTeX companion artifact.
 
 **Check config or ask user:**
 
@@ -186,7 +186,7 @@ If enabled in config (`referee_review: true` in `.gpd/config.json`) or if the us
 REFEREE_ENABLED=$(python3 -c "
 import json, pathlib
 try:
-    c = json.loads(pathlib.Path('.gpd/config.json').read_text())
+    c = json.loads(pathlib.Path('GPD/config.json').read_text())
     v = c.get('referee_review')
     print('unset' if v is None else str(v).lower())
 except Exception:
@@ -221,11 +221,11 @@ Milestone: {milestone_version} -- {milestone_name}
 
 Files to read:
 - ROADMAP.md (research goals and phase structure)
-- All SUMMARY.md files from completed phases in .gpd/phases/
+- All SUMMARY.md files from completed phases in GPD/phases/
 - STATE.md (conventions, notation, parameters)
 - All VERIFICATION.md files from completed phases
 - Any manuscript .tex files (if they exist)
-- .gpd/v{milestone_version}-MILESTONE-AUDIT.md (audit results)
+- GPD/v{milestone_version}-MILESTONE-AUDIT.md (audit results)
 
 Evaluate across all 10 dimensions:
 1. Correctness -- dimensional analysis, limiting cases, sign conventions
@@ -239,7 +239,7 @@ Evaluate across all 10 dimensions:
 9. Presentation quality -- organization, figures
 10. Publishability -- overall assessment
 
-Write `.gpd/REFEREE-REPORT.md` and the matching `.gpd/REFEREE-REPORT.tex` companion.
+Write `GPD/REFEREE-REPORT.md` and the matching `GPD/REFEREE-REPORT.tex` companion.
 
 Return REVIEW COMPLETE with recommendation and issue counts."
 )
@@ -250,8 +250,8 @@ Return REVIEW COMPLETE with recommendation and issue counts."
 **After referee report:**
 
 Verify the promised referee artifacts before trusting the handoff text:
-- Confirm `.gpd/REFEREE-REPORT.md` exists and contains a recommendation plus issue counts.
-- Confirm `.gpd/REFEREE-REPORT.tex` exists as the matching companion artifact.
+- Confirm `GPD/REFEREE-REPORT.md` exists and contains a recommendation plus issue counts.
+- Confirm `GPD/REFEREE-REPORT.tex` exists as the matching companion artifact.
 - If the agent reported success but either artifact is missing, treat peer review as failed, note the failure in the audit report, and do not summarize imaginary review findings.
 
 Read the report and include a summary in the presented results:
@@ -262,8 +262,8 @@ Read the report and include a summary in the presented results:
 **Recommendation:** {accept | minor_revision | major_revision | reject}
 **Major issues:** {N}
 **Minor issues:** {N}
-**Report:** .gpd/REFEREE-REPORT.md
-**LaTeX report:** .gpd/REFEREE-REPORT.tex
+**Report:** GPD/REFEREE-REPORT.md
+**LaTeX report:** GPD/REFEREE-REPORT.tex
 
 {2-3 sentence summary of key findings}
 ```
@@ -286,7 +286,7 @@ Output this markdown directly (not as a code block). Route based on status:
 ## Milestone {version} -- Audit Passed
 
 **Score:** {N}/{M} requirements satisfied
-**Report:** .gpd/v{version}-MILESTONE-AUDIT.md
+**Report:** GPD/v{version}-MILESTONE-AUDIT.md
 
 All requirements covered. Cross-phase consistency verified. Research is complete and coherent.
 
@@ -309,7 +309,7 @@ All requirements covered. Cross-phase consistency verified. Research is complete
 ## Milestone {version} -- Gaps Found
 
 **Score:** {N}/{M} requirements satisfied
-**Report:** .gpd/v{version}-MILESTONE-AUDIT.md
+**Report:** GPD/v{version}-MILESTONE-AUDIT.md
 
 ### Unsatisfied Requirements
 
@@ -344,7 +344,7 @@ All requirements covered. Cross-phase consistency verified. Research is complete
 
 **Also available:**
 
-- cat .gpd/v{version}-MILESTONE-AUDIT.md -- see full report
+- cat GPD/v{version}-MILESTONE-AUDIT.md -- see full report
 - /gpd:complete-milestone {version} -- proceed anyway (accept open questions)
 
 ---
@@ -356,7 +356,7 @@ All requirements covered. Cross-phase consistency verified. Research is complete
 ## Milestone {version} -- Open Questions Review
 
 **Score:** {N}/{M} requirements satisfied
-**Report:** .gpd/v{version}-MILESTONE-AUDIT.md
+**Report:** GPD/v{version}-MILESTONE-AUDIT.md
 
 All requirements met. No critical blockers. Accumulated open questions need review.
 

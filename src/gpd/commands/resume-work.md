@@ -3,7 +3,7 @@ name: gpd:resume-work
 description: Resume research from previous session with full context restoration
 context_mode: project-required
 requires:
-  files: [".gpd/ROADMAP.md", ".gpd/STATE.md"]
+  files: ["GPD/ROADMAP.md", "GPD/STATE.md"]
 allowed-tools:
   - file_read
   - shell

@@ -27,9 +27,11 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-- Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `current_phase`
-- **If `state_exists` is true:** Read `.gpd/state.json` to extract `convention_lock` for unit system, metric signature, and Fourier conventions. Extract active approximations and their validity ranges from state. Load `intermediate_results` from state for any previously computed quantities.
+- Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `current_phase`, `project_contract`, `project_contract_load_info`, `project_contract_validation`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`
+- **If `state_exists` is true:** Read `GPD/state.json` to extract `convention_lock` for unit system, metric signature, and Fourier conventions. Extract active approximations and their validity ranges from state. Load `intermediate_results` from state for any previously computed quantities.
 - **If `state_exists` is false** (standalone usage): Proceed with explicit convention declarations required from user via ask_user (unit system, sign conventions, normalization)
+- **If `selected_protocol_bundle_ids` is non-empty:** Treat `protocol_bundle_context` as additive provenance guidance only. Keep any decisive-artifact, estimator, or benchmark expectations visible while choosing theory/data anchors, and record the bundle IDs / expectations in the output frontmatter when they materially informed the comparison.
+- **If `active_reference_context` is non-empty:** Keep those contract-backed anchors visible when selecting `reference_id`, interpreting tolerances, and deciding whether the comparison closes a decisive requirement.
 
 Convention context is critical for theory-experiment comparison: unit mismatches and convention mismatches are the two most common sources of discrepancy.
 
@@ -45,14 +47,17 @@ fi
 
 ## 1. Identify What to Compare
 
-If the project is contract-backed, first resolve the comparison target against the approved contract:
+If the project is contract-backed, first resolve the comparison target against the approved contract only when `project_contract_load_info` is clean and `project_contract_validation` passes:
 - `subject_id`
-- `subject_kind` (`claim`, `deliverable`, `acceptance_test`, or artifact)
-- `subject_role` (`decisive`, `supporting`, `supplemental`)
+- `subject_kind` (`claim`, `deliverable`, `acceptance_test`, or `reference`)
+- `subject_role` (`decisive`, `supporting`, `supplemental`, or `other`)
 - `reference_id` for the benchmark / prior-work / data anchor
 - the pass condition or tolerance that makes this comparison decisive
 
+Treat `project_contract` as authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes. If either gate is blocked, keep the contract visible for context but do not treat it as approved comparison scope.
+
 Do not write a generic comparison report without this mapping when a decisive comparison target exists.
+If the comparison is about a concrete file or plot, map it to the deliverable or reference ID that owns it instead of inventing an `artifact` subject kind.
 
 ### 1a. Theoretical predictions
 
@@ -226,16 +231,20 @@ Write COMPARISON.md:
 date: { YYYY-MM-DD }
 theory_source: { derivation/computation path }
 data_source: { experiment/measurement reference }
+protocol_bundle_ids (optional):
+  - { bundle-id }
+bundle_expectations (optional):
+  - { additive provenance cue that materially informed the comparison }
 overall_agreement: good | tension | discrepancy
 chi2_ndof: { value }
 p_value: { value }
 max_tension_sigma: { value }
 comparison_verdicts:
   - subject_id: claim-id
-    subject_kind: claim|deliverable|acceptance_test|artifact
-    subject_role: decisive|supporting|supplemental
+    subject_kind: claim|deliverable|acceptance_test|reference
+    subject_role: decisive|supporting|supplemental|other
     reference_id: ref-id
-    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline
+    comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other
     metric: chi2_ndof | relative_error | pull
     threshold: "<= 2 sigma"
     verdict: pass | tension | fail | inconclusive
@@ -257,6 +266,9 @@ comparison_verdicts:
 ## Convention Matching
 
 {Document all convention alignments}
+
+Only `subject_role: decisive` satisfies a required decisive comparison. `supporting` and `supplemental` verdicts record useful tension or corroboration but do not replace the decisive verdict the contract requires.
+If selected protocol bundles informed the comparison design, record them in `protocol_bundle_ids` / `bundle_expectations` as additive provenance only; they do not replace contract IDs, benchmark anchors, or pass/fail thresholds.
 
 ## Point-by-Point Comparison
 
@@ -294,16 +306,11 @@ comparison_verdicts:
 
 The `comparison_verdicts` block is the authoritative machine-readable ledger. The tables and prose explain it; they do not replace it.
 
-Save to:
-
-- **Phase-scoped** (if running within a phase context and `phase_dir` is set): `${phase_dir}/COMPARISON-{slug}.md`
-- **Standalone** (no phase context):
+Set `COMPARISON_OUTPUT_PATH="GPD/comparisons/[slug]-COMPARISON.md"` and write the report there.
 
 ```bash
-mkdir -p .gpd/analysis
+mkdir -p GPD/comparisons
 ```
-
-Write to `.gpd/analysis/comparison-{slug}.md`
 
 ## 6. Generate Comparison Figures
 
@@ -314,7 +321,7 @@ Create scripts for standard comparison plots:
 3. **Residual plot** -- (theory-exp) vs parameter, looking for systematic trends
 4. **Ratio plot** -- theory/experiment vs parameter (for normalizations)
 
-Write final comparison figures, tables, and helper scripts to stable workspace roots. Default to `artifacts/comparisons/{slug}/` unless the project already has a clearer durable home such as `figures/`, `data/`, or `scripts/`. Do not place final comparison figures, tables, or scripts under `.gpd/`.
+Write final comparison figures, tables, and helper scripts to stable workspace roots. Default to `artifacts/comparisons/{slug}/` unless the project already has a clearer durable home such as `figures/`, `data/`, or `scripts/`. Do not place final comparison figures, tables, or scripts under `GPD/`.
 
 ## 7. Present Results and Route
 
@@ -358,12 +365,12 @@ gpd commit \
   --files "${COMPARISON_OUTPUT_PATH}"
 ```
 
-Where `${COMPARISON_OUTPUT_PATH}` is the path chosen in step 5 (phase-scoped or standalone).
+Where `${COMPARISON_OUTPUT_PATH}` is `GPD/comparisons/[slug]-COMPARISON.md`.
 
 </process>
 
 <output>
-COMPARISON.md written to `.gpd/analysis/comparison-{slug}.md` with full quantified comparison.
+COMPARISON.md written to `${COMPARISON_OUTPUT_PATH}` with full quantified comparison.
 </output>
 
 <success_criteria>

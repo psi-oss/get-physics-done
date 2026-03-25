@@ -10,20 +10,20 @@ from unittest.mock import patch
 
 
 def _setup_project(tmp_path: Path) -> Path:
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     return tmp_path
 
 
 def _create_roadmap(tmp_path: Path, content: str) -> Path:
-    roadmap = tmp_path / ".gpd" / "ROADMAP.md"
+    roadmap = tmp_path / "GPD" / "ROADMAP.md"
     roadmap.write_text(textwrap.dedent(content), encoding="utf-8")
     return roadmap
 
 
 def _create_state_md(tmp_path: Path, content: str) -> Path:
-    state = tmp_path / ".gpd" / "STATE.md"
+    state = tmp_path / "GPD" / "STATE.md"
     state.write_text(textwrap.dedent(content), encoding="utf-8")
     return state
 
@@ -38,20 +38,20 @@ def _create_state_json(tmp_path: Path, *, current_phase: str = "01") -> Path:
     position["current_plan"] = "1"
     position["total_plans_in_phase"] = 1
     position["progress_percent"] = 50
-    path = tmp_path / ".gpd" / "state.json"
+    path = tmp_path / "GPD" / "state.json"
     path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
     return path
 
 
 def _create_phase_dir(tmp_path: Path, name: str) -> Path:
-    phase_dir = tmp_path / ".gpd" / "phases" / name
+    phase_dir = tmp_path / "GPD" / "phases" / name
     phase_dir.mkdir(parents=True, exist_ok=True)
     return phase_dir
 
 
 class TestRoadmapCheckboxMatching:
     def _make_project(self, tmp_path: Path, roadmap_content: str) -> Path:
-        gpd_dir = tmp_path / ".gpd"
+        gpd_dir = tmp_path / "GPD"
         gpd_dir.mkdir()
         (gpd_dir / "phases").mkdir()
         (gpd_dir / "ROADMAP.md").write_text(roadmap_content, encoding="utf-8")
@@ -123,7 +123,7 @@ def test_phase_add_does_not_emit_none_slug(tmp_path: Path) -> None:
         result = phase_add(tmp_path, "!!!")
 
     assert "None" not in result.directory
-    created_dirs = [entry.name for entry in (tmp_path / ".gpd" / "phases").iterdir() if entry.is_dir()]
+    created_dirs = [entry.name for entry in (tmp_path / "GPD" / "phases").iterdir() if entry.is_dir()]
     assert all("None" not in entry for entry in created_dirs)
 
 
@@ -136,14 +136,14 @@ def test_first_phase_depends_on_none(tmp_path: Path) -> None:
     result = phase_add(tmp_path, "First phase")
 
     assert result.phase_number == 1
-    roadmap = (tmp_path / ".gpd" / "ROADMAP.md").read_text(encoding="utf-8")
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
     assert "**Depends on:** None" in roadmap
     assert "Phase 0" not in roadmap
 
 
 class TestProgressPercentCapping:
     def _setup_phases(self, tmp_path: Path, plan_counts: dict[str, int], summary_counts: dict[str, int]) -> None:
-        gpd_dir = tmp_path / ".gpd"
+        gpd_dir = tmp_path / "GPD"
         phases_dir = gpd_dir / "phases"
         gpd_dir.mkdir(parents=True, exist_ok=True)
         (gpd_dir / "ROADMAP.md").write_text("## v1.0: Test\n\n", encoding="utf-8")
@@ -167,7 +167,7 @@ class TestProgressPercentCapping:
     def test_roadmap_analyze_caps_at_100(self, tmp_path: Path) -> None:
         from gpd.core.phases import roadmap_analyze
 
-        gpd = tmp_path / ".gpd"
+        gpd = tmp_path / "GPD"
         phase_dir = gpd / "phases" / "01-setup"
         phase_dir.mkdir(parents=True)
         (phase_dir / "task-1-PLAN.md").write_text("plan", encoding="utf-8")
@@ -259,7 +259,7 @@ def test_milestone_complete_uses_utc_date_near_midnight(tmp_path: Path) -> None:
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
     (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
     (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
-    (tmp_path / ".gpd" / "REQUIREMENTS.md").write_text("# Requirements\n", encoding="utf-8")
+    (tmp_path / "GPD" / "REQUIREMENTS.md").write_text("# Requirements\n", encoding="utf-8")
 
     fake_utc = datetime(2026, 3, 31, 23, 59, 0, tzinfo=UTC)
     with patch("gpd.core.phases.datetime") as mock_datetime:

@@ -2,7 +2,7 @@
 
 Subfield-specific verification checklists for the GPD verifier agent. Load ONLY the checklist(s) matching the phase's physics domain.
 
-**For every checklist item: perform the CHECK, do not grep for the CONCEPT.**
+**For every checklist item: perform the CHECK, do not search_files for the CONCEPT.**
 Profiles may change breadth, but they still run every contract-aware check required by the plan.
 
 ---

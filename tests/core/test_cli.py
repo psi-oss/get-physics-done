@@ -515,7 +515,7 @@ def test_trace_stop(mock_stop):
 
 
 def test_observe_sessions_reads_local_metadata(tmp_path: Path) -> None:
-    planning = tmp_path / ".gpd" / "observability" / "sessions"
+    planning = tmp_path / "GPD" / "observability" / "sessions"
     planning.mkdir(parents=True)
     (planning / "cli-session-1.jsonl").write_text(
         "\n".join(
@@ -562,7 +562,7 @@ def test_observe_sessions_reads_local_metadata(tmp_path: Path) -> None:
 
 
 def test_observe_show_filters_events(tmp_path: Path) -> None:
-    sessions_dir = tmp_path / ".gpd" / "observability" / "sessions"
+    sessions_dir = tmp_path / "GPD" / "observability" / "sessions"
     sessions_dir.mkdir(parents=True)
     (sessions_dir / "cli-a.jsonl").write_text(
         "\n".join(
@@ -611,7 +611,7 @@ def test_observe_show_filters_events(tmp_path: Path) -> None:
 
 def test_observe_show_falls_back_to_session_logs(tmp_path: Path) -> None:
     """show_events reads per-session logs when filtering observability data."""
-    sessions_dir = tmp_path / ".gpd" / "observability" / "sessions"
+    sessions_dir = tmp_path / "GPD" / "observability" / "sessions"
     sessions_dir.mkdir(parents=True)
     (sessions_dir / "cli-a.jsonl").write_text(
         json.dumps(
@@ -640,7 +640,7 @@ def test_observe_show_falls_back_to_session_logs(tmp_path: Path) -> None:
 
 
 def test_observe_event_appends_event(tmp_path: Path) -> None:
-    (tmp_path / ".gpd").mkdir()
+    (tmp_path / "GPD").mkdir()
 
     result = runner.invoke(
         app,
@@ -672,21 +672,21 @@ def test_observe_event_appends_event(tmp_path: Path) -> None:
     assert payload["category"] == "workflow"
     assert payload["name"] == "wave-start"
     assert payload["data"]["wave"] == 2
-    sessions_dir = tmp_path / ".gpd" / "observability" / "sessions"
+    sessions_dir = tmp_path / "GPD" / "observability" / "sessions"
     session_logs = sorted(sessions_dir.glob("*.jsonl"))
     assert len(session_logs) == 1
     events = [json.loads(line) for line in session_logs[0].read_text(encoding="utf-8").splitlines() if line.strip()]
     assert any(event["category"] == "workflow" and event["name"] == "wave-start" for event in events)
-    assert not (tmp_path / ".gpd" / "observability" / "events.jsonl").exists()
+    assert not (tmp_path / "GPD" / "observability" / "events.jsonl").exists()
 
 
 def test_cli_invocation_does_not_write_observability_files_without_explicit_events(tmp_path: Path) -> None:
-    (tmp_path / ".gpd").mkdir()
+    (tmp_path / "GPD").mkdir()
 
     result = runner.invoke(app, ["--cwd", str(tmp_path), "timestamp"])
 
     assert result.exit_code == 0
-    obs_dir = tmp_path / ".gpd" / "observability"
+    obs_dir = tmp_path / "GPD" / "observability"
     assert not obs_dir.exists()
 
 
@@ -910,7 +910,7 @@ def test_paper_build_prefers_manuscript_before_draft(tmp_path: Path) -> None:
 
 
 def test_paper_build_does_not_discover_legacy_planning_configs(tmp_path: Path, capsys) -> None:
-    planning_paper_dir = tmp_path / ".gpd" / "paper"
+    planning_paper_dir = tmp_path / "GPD" / "paper"
     planning_paper_dir.mkdir(parents=True)
     (planning_paper_dir / "PAPER-CONFIG.json").write_text(
         json.dumps(
@@ -933,11 +933,11 @@ def test_paper_build_does_not_discover_legacy_planning_configs(tmp_path: Path, c
     captured = capsys.readouterr()
     payload = json.loads(captured.err)
     assert "No paper config found" in payload["error"]
-    assert ".gpd/paper" not in payload["error"]
+    assert "GPD/paper" not in payload["error"]
 
 
 def test_paper_build_rejects_explicit_legacy_planning_config_path(tmp_path: Path, capsys) -> None:
-    planning_paper_dir = tmp_path / ".gpd" / "paper"
+    planning_paper_dir = tmp_path / "GPD" / "paper"
     planning_paper_dir.mkdir(parents=True)
     (planning_paper_dir / "PAPER-CONFIG.json").write_text(
         json.dumps(
@@ -953,7 +953,7 @@ def test_paper_build_rejects_explicit_legacy_planning_config_path(tmp_path: Path
     )
 
     try:
-        cli_module.app(args=["--raw", "--cwd", str(tmp_path), "paper-build", ".gpd/paper/PAPER-CONFIG.json"])
+        cli_module.app(args=["--raw", "--cwd", str(tmp_path), "paper-build", "GPD/paper/PAPER-CONFIG.json"])
     except SystemExit as exc:
         assert exc.code == 1
 
@@ -1106,9 +1106,10 @@ def test_sync_phase_checkpoints_subcommand(mock_sync):
     mock_result.model_dump.return_value = {
         "generated": True,
         "phase_count": 1,
-        "checkpoint_dir": "phase-checkpoints",
-        "root_index": "CHECKPOINTS.md",
-        "updated_files": ["phase-checkpoints/01-test-phase.md", "CHECKPOINTS.md"],
+        "preserved_phase_count": 0,
+        "checkpoint_dir": "GPD/phase-checkpoints",
+        "root_index": "GPD/CHECKPOINTS.md",
+        "updated_files": ["GPD/phase-checkpoints/01-test-phase.md", "GPD/CHECKPOINTS.md"],
         "removed_files": [],
     }
     mock_sync.return_value = mock_result

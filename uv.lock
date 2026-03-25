@@ -621,7 +621,6 @@ name = "get-physics-done"
 version = "1.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "arxiv-mcp-server" },
     { name = "jinja2" },
     { name = "mcp", extra = ["cli"] },
     { name = "pillow" },
@@ -630,6 +629,11 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
     { name = "typer" },
+]
+
+[package.optional-dependencies]
+arxiv = [
+    { name = "arxiv-mcp-server" },
 ]
 
 [package.dev-dependencies]
@@ -641,7 +645,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "arxiv-mcp-server", specifier = ">=0.3.2" },
+    { name = "arxiv-mcp-server", marker = "extra == 'arxiv'", specifier = ">=0.3.2" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.26.0" },
     { name = "pillow", specifier = ">=12.1.1" },
@@ -651,6 +655,7 @@ requires-dist = [
     { name = "rich", specifier = ">=14.3.3" },
     { name = "typer", specifier = ">=0.24.1" },
 ]
+provides-extras = ["arxiv"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -57,7 +57,7 @@ mkdir -p "$SWEEP_PHASE_DIR"
 **If no phase specified:** Create a sweep-specific phase directory for internal records:
 
 ```bash
-SWEEP_PHASE_DIR=".gpd/phases/XX-sweep"
+SWEEP_PHASE_DIR="GPD/phases/XX-sweep"
 SWEEP_PHASE_KEY="XX-sweep"
 mkdir -p "$SWEEP_PHASE_DIR"
 ```
@@ -140,7 +140,7 @@ SWEEP_ARTIFACT_DIR="artifacts/phases/${SWEEP_PHASE_KEY}/sweeps/${SWEEP_SLUG}"
 mkdir -p "${SWEEP_ARTIFACT_DIR}/results"
 ```
 
-Keep plans and SUMMARY files in `${SWEEP_PHASE_DIR}` because they are internal execution records. Write machine-readable sweep datasets to `${SWEEP_ARTIFACT_DIR}`. Do not put point-result JSON under `.gpd/phases/**`.
+Keep plans and SUMMARY files in `${SWEEP_PHASE_DIR}` because they are internal execution records. Write machine-readable sweep datasets to `${SWEEP_ARTIFACT_DIR}`. Do not put point-result JSON under `GPD/phases/**`.
 </step>
 
 <step name="generate_sweep_plans">
@@ -173,6 +173,10 @@ files_modified:
 contract:
   scope:
     question: "What does {observable} evaluate to at {param_name}={p_i}?"
+  context_intake:
+    must_read_refs: [ref-sweep-anchor]
+    must_include_prior_outputs: ["Phase-level sweep baseline"]
+    user_asserted_anchors: ["The observable stays within the approved regime"]
   claims:
     - id: claim-sweep-point
       statement: "{observable} computed at {param_name}={p_i}"
@@ -321,8 +325,8 @@ Execute the sweep plans using wave-based parallel execution following the execut
        - Workflow: {GPD_INSTALL_DIR}/workflows/execute-plan.md
        - Summary template: {GPD_INSTALL_DIR}/templates/summary.md
        - Plan: ${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-PLAN.md
-       - State: .gpd/STATE.md
-       - Config: .gpd/config.json (if exists)
+       - State: GPD/STATE.md
+       - Config: GPD/config.json (if exists)
        </files_to_read>
 
        <success_criteria>
@@ -614,12 +618,12 @@ Re-run feature identification on the merged dataset.
 **Commit all sweep artifacts:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files "${SWEEP_ARTIFACT_DIR}/sweep-results.json" "${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md" .gpd/STATE.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files "${SWEEP_ARTIFACT_DIR}/sweep-results.json" "${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md" GPD/STATE.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "data(phase-${phase_number}): parameter sweep - ${OBSERVABLE} vs ${PARAM_NAME}" \
-  --files "${SWEEP_ARTIFACT_DIR}/sweep-results.json" "${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md" "${SWEEP_ARTIFACT_DIR}/results" .gpd/STATE.md
+  --files "${SWEEP_ARTIFACT_DIR}/sweep-results.json" "${SWEEP_PHASE_DIR}/SWEEP-SUMMARY.md" "${SWEEP_ARTIFACT_DIR}/results" GPD/STATE.md
 ```
 
 **Present final results:**

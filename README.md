@@ -2,10 +2,19 @@
 
 ### Built by physicists, for physicists
 
-[![CI](https://github.com/psi-oss/get-physics-done/actions/workflows/test.yml/badge.svg)](https://github.com/psi-oss/get-physics-done/actions/workflows/test.yml)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/psi-oss/get-physics-done/blob/main/LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![npm](https://img.shields.io/npm/v/get-physics-done)](https://www.npmjs.com/package/get-physics-done)
+<p align="center">
+  <a href="https://github.com/psi-oss/get-physics-done/actions/workflows/test.yml"><img alt="CI" src="https://github.com/psi-oss/get-physics-done/actions/workflows/test.yml/badge.svg"></a>
+  <a href="https://github.com/psi-oss/get-physics-done/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-Apache_2.0-d4d4d8?style=flat&labelColor=3f3f46"></a>
+  <a href="https://www.python.org/downloads/"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-ffd43b?style=flat&labelColor=3776ab&logo=python&logoColor=white"></a>
+  <a href="https://www.npmjs.com/package/get-physics-done"><img alt="npm" src="https://img.shields.io/npm/v/get-physics-done?style=flat&logo=npm&logoColor=white&labelColor=1f1f1f&color=cb3837"></a>
+</p>
+
+<p align="center">
+  <a href="#supported-runtimes"><img alt="Claude Code supported" src="https://img.shields.io/badge/Claude%20Code-supported-d97757?style=flat&labelColor=141413&logo=claude&logoColor=faf9f5"></a>
+  <a href="#supported-runtimes"><img alt="Codex supported" src="https://img.shields.io/badge/Codex-supported-f5f5f5?style=flat&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyBpZD0iTGF5ZXJfMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2ZXJzaW9uPSIxLjEiIHZpZXdCb3g9IjAgMCAxNTguNzEyOCAxNTcuMjk2Ij4KICA8IS0tIEdlbmVyYXRvcjogQWRvYmUgSWxsdXN0cmF0b3IgMjkuMi4xLCBTVkcgRXhwb3J0IFBsdWctSW4gLiBTVkcgVmVyc2lvbjogMi4xLjAgQnVpbGQgMTE2KSAgLS0%2BCiAgPHBhdGggZmlsbD0iI0ZGRkZGRiIgZD0iTTYwLjg3MzQsNTcuMjU1NnYtMTQuOTQzMmMwLTEuMjU4Ni40NzIyLTIuMjAyOSwxLjU3MjgtMi44MzE0bDMwLjA0NDMtMTcuMzAyM2M0LjA4OTktMi4zNTkzLDguOTY2Mi0zLjQ1OTksMTMuOTk4OC0zLjQ1OTksMTguODc1OSwwLDMwLjgzMDcsMTQuNjI4OSwzMC44MzA3LDMwLjIwMDYsMCwxLjEwMDcsMCwyLjM1OTMtLjE1OCwzLjYxNzhsLTMxLjE0NDYtMTguMjQ2N2MtMS44ODcyLTEuMTAwNi0zLjc3NTQtMS4xMDA2LTUuNjYyOSwwbC0zOS40ODEyLDIyLjk2NTFaTTEzMS4wMjc2LDExNS40NTYxdi0zNS43MDc0YzAtMi4yMDI4LS45NDQ2LTMuNzc1Ni0yLjgzMTgtNC44NzYzbC0zOS40ODEtMjIuOTY1MSwxMi44OTgyLTcuMzkzNGMxLjEwMDctLjYyODUsMi4wNDUzLS42Mjg1LDMuMTQ1OCwwbDMwLjA0NDEsMTcuMzAyNGM4LjY1MjMsNS4wMzQxLDE0LjQ3MDgsMTUuNzI5NiwxNC40NzA4LDI2LjExMDcsMCwxMS45NTM5LTcuMDc2OSwyMi45NjUtMTguMjQ2MSwyNy41Mjd2LjAwMjFaTTUxLjU5Myw4My45OTY0bC0xMi44OTgyLTcuNTQ5N2MtMS4xMDA3LS42Mjg1LTEuNTcyOC0xLjU3MjgtMS41NzI4LTIuODMxNHYtMzQuNjA0OGMwLTE2LjgzMDMsMTIuODk4Mi0yOS41NzIyLDMwLjM1ODUtMjkuNTcyMiw2LjYwNywwLDEyLjc0MDMsMi4yMDI5LDE3LjkzMjQsNi4xMzQ5bC0zMC45ODcsMTcuOTMyNGMtMS44ODcxLDEuMTAwNy0yLjgzMTQsMi42NzM1LTIuODMxNCw0Ljg3NjR2NDUuNjE1OWwtLjAwMTQtLjAwMTVaTTc5LjM1NjIsMTAwLjA0MDNsLTE4LjQ4MjktMTAuMzgxMXYtMjIuMDIwOWwxOC40ODI5LTEwLjM4MTEsMTguNDgxMiwxMC4zODExdjIyLjAyMDlsLTE4LjQ4MTIsMTAuMzgxMVpNOTEuMjMxOSwxNDcuODU5MWMtNi42MDcsMC0xMi43NDAzLTIuMjAzMS0xNy45MzI0LTYuMTM0NGwzMC45ODY2LTE3LjkzMzNjMS44ODcyLTEuMTAwNSwyLjgzMTgtMi42NzI4LDIuODMxOC00Ljg3NTl2LTQ1LjYxNmwxMy4wNTY0LDcuNTQ5OGMxLjEwMDUuNjI4NSwxLjU3MjMsMS41NzI4LDEuNTcyMywyLjgzMTR2MzQuNjA1MWMwLDE2LjgyOTctMTMuMDU2NCwyOS41NzIzLTMwLjUxNDcsMjkuNTcyM3YuMDAxWk01My45NTIyLDExMi43ODIybC0zMC4wNDQzLTE3LjMwMjRjLTguNjUyLTUuMDM0My0xNC40NzEtMTUuNzI5Ni0xNC40NzEtMjYuMTEwNywwLTEyLjExMTksNy4yMzU2LTIyLjk2NTIsMTguNDAzLTI3LjUyNzJ2MzUuODYzNGMwLDIuMjAyOC45NDQzLDMuNzc1NiwyLjgzMTQsNC44NzYzbDM5LjMyNDgsMjIuODA2OC0xMi44OTgyLDcuMzkzOGMtMS4xMDA3LjYyODctMi4wNDUuNjI4Ny0zLjE0NTYsMFpNNTIuMjIyOSwxMzguNTc5MWMtMTcuNzc0NSwwLTMwLjgzMDYtMTMuMzcxMy0zMC44MzA2LTI5Ljg4NzEsMC0xLjI1ODUuMTU3OC0yLjUxNjkuMzE0My0zLjc3NTRsMzAuOTg3LDE3LjkzMjNjMS44ODcxLDEuMTAwNSwzLjc3NTcsMS4xMDA1LDUuNjYyOCwwbDM5LjQ4MTEtMjIuODA3djE0Ljk0MzVjMCwxLjI1ODUtLjQ3MjEsMi4yMDIxLTEuNTcyOCwyLjgzMDhsLTMwLjA0NDMsMTcuMzAyNWMtNC4wODk4LDIuMzU5LTguOTY2MiwzLjQ2MDUtMTMuOTk4OSwzLjQ2MDVoLjAwMTRaTTkxLjIzMTksMTU3LjI5NmMxOS4wMzI3LDAsMzQuOTE4OC0xMy41MjcyLDM4LjUzODMtMzEuNDU5NCwxNy42MTY0LTQuNTYyLDI4Ljk0MjUtMjEuMDc3OSwyOC45NDI1LTM3LjkwOCwwLTExLjAxMTItNC43MTktMjEuNzA2Ni0xMy4yMTMzLTI5LjQxNDMuNzg2Ny0zLjMwMzUsMS4yNTk1LTYuNjA3LDEuMjU5NS05LjkwOSwwLTIyLjQ5MjktMTguMjQ3MS0zOS4zMjQ3LTM5LjMyNTEtMzkuMzI0Ny00LjI0NjEsMC04LjMzNjMuNjI4NS0xMi40MjYyLDIuMDQ1LTcuMDc5Mi02LjkyMTMtMTYuODMxOC0xMS4zMjU0LTI3LjUyNzEtMTEuMzI1NC0xOS4wMzMxLDAtMzQuOTE5MSwxMy41MjY4LTM4LjUzODQsMzEuNDU5MUMxMS4zMjU1LDM2LjAyMTIsMCw1Mi41MzczLDAsNjkuMzY3NWMwLDExLjAxMTIsNC43MTg0LDIxLjcwNjUsMTMuMjEyNSwyOS40MTQyLS43ODY1LDMuMzAzNS0xLjI1ODYsNi42MDY3LTEuMjU4Niw5LjkwOTIsMCwyMi40OTIzLDE4LjI0NjYsMzkuMzI0MSwzOS4zMjQ4LDM5LjMyNDEsNC4yNDYyLDAsOC4zMzYyLS42Mjc3LDEyLjQyNi0yLjA0NDEsNy4wNzc2LDYuOTIxLDE2LjgzMDIsMTEuMzI1MSwyNy41MjcxLDExLjMyNTFaIi8%2BCjwvc3ZnPg%3D%3D"></a>
+  <a href="#supported-runtimes"><img alt="Gemini CLI supported" src="https://img.shields.io/badge/Gemini%20CLI-supported-4285f4?style=flat&labelColor=202124&logo=googlegemini&logoColor=8e75b2"></a>
+  <a href="#supported-runtimes"><img alt="OpenCode supported" src="https://img.shields.io/badge/OpenCode-supported-cfcecd?style=flat&labelColor=565656&logo=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABzUlEQVR4AeycQQrCQBAEF1%2Bg6J%2F0o5LPCXmCnnNx0E2nNqGEPciw024VffV0PZ%2FfHo7BqflBCSgAxd%2BaAhQAE4DjbYACYAJwvA1QAEwAjrcBCgAIDBRpA2AZClAATACOtwEKgAnA8TZAATABOD7egNc8tz2ftJ%2B4gPQD9r5fAbDBDQXALx00XgGwGAUoACYAx9sABcAE4HgboACYABxvAxSwJHC7XFryLNP4bzYg7KBar4CKUHiugDDgar0CKkLhuQLCgKv1CqgIhecKCAOu1iugIhSeKyAMuFqvgIpQeK6AMOBq%2FXAC7o9H6z5fdlRAtp4PJ2BrAHSeAmADClAATACOtwEKgAnA8TZAATABON4GKAAmAMev2AD4JTuNVwAsTgEKgAnA8TZAATABON4GKAAmAMfbAAXABOB4G9ApoPe6AnoJdt5XQCfA3uvDCXhOU0ueXmBr3x9OwNoPHH2fAmBDClAATACOtwEKgAnA8TZAAX8QONAVGwDLVIACYAJwfLwByf%2F%2B2WJ32k9cQPoBe9%2BvANigAhQAE4DjbYACYAJw%2FA8NgH%2FpQeMVAItVgAJgAnC8DVAATACOtwEKgAnA8TZAATABON4GFALS4w8AAAD%2F%2Fx7wkLQAAAAGSURBVAMAKj5LkLSa6SQAAAAASUVORK5CYII%3D"></a>
+</p>
 
 Get Physics Done is an open-source AI copilot for physics research from [Physical Superintelligence PBC (PSI)](https://www.psi.inc), released as a community contribution. GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
 
@@ -26,7 +35,7 @@ We welcome contributions and feedback via GitHub issues or pull requests; if GPD
 Install GPD:
 
 ```bash
-npx -y get-physics-done
+npx get-physics-done
 ```
 
 **Next steps after install**
@@ -53,7 +62,7 @@ If you are starting from existing work, run `map-research` first to map the form
 
 Typical new-project workflow:
 
-`new-project -> plan-phase 1 -> execute-phase 1 -> verify-work 1`
+`/gpd:new-project -> /gpd:discuss-phase 1 -> /gpd:plan-phase 1 -> /gpd:execute-phase 1 -> /gpd:verify-work 1`
 
 <details>
 <summary><strong>Install options</strong></summary>
@@ -65,9 +74,9 @@ Typical new-project workflow:
 | `--local`, `-l` | Use the current project only. |
 | `--global`, `-g` | Use the global runtime config dir. |
 | `--uninstall` | Uninstall from the selected runtime config instead of installing. |
-| `--reinstall` | Reinstall the matching tagged GitHub source into `~/.gpd/venv`. |
-| `--upgrade` | Upgrade `~/.gpd/venv` from the latest GitHub `main` source. |
-| `--target-dir <path>` | Override the runtime config directory; implies local scope. |
+| `--reinstall` | Reinstall the matching tagged GitHub source into `~/GPD/venv`. |
+| `--upgrade` | Upgrade `~/GPD/venv` from the latest GitHub `main` source. |
+| `--target-dir <path>` | Override the runtime config directory; defaults to local scope unless the path resolves to that runtime's canonical global config dir. |
 | `--force-statusline` | Replace an existing runtime statusline during install. |
 | `--help`, `-h` | Show bootstrap help. |
 
@@ -130,7 +139,7 @@ GPD also locks conventions for up to 18 physics fields across a project so notat
 
 ## How Work Is Structured
 
-GPD's main workflow in `.gpd/` is organized like this:
+GPD's main workflow in `GPD/` is organized like this:
 
 ```text
 Project
@@ -172,7 +181,7 @@ Suppose you want to use crossing symmetry and the numerical conformal bootstrap 
 
 GPD will:
 - ask clarifying questions about the correlator sector, conventions, target observables, numerical precision, and verification strategy
-- create `.gpd/PROJECT.md`, `.gpd/REQUIREMENTS.md`, `.gpd/ROADMAP.md`, and `.gpd/STATE.md`
+- create `GPD/PROJECT.md`, `GPD/REQUIREMENTS.md`, `GPD/ROADMAP.md`, and `GPD/STATE.md`
 - break the work into phases such as crossing-equation setup, derivative-basis construction, semidefinite-program formulation, convergence checks, and interpretation of the resulting bounds
 
 Then continue with:
@@ -192,7 +201,7 @@ Once the relevant phases are complete and verified, continue toward write-up wit
 /gpd:respond-to-referees
 ```
 
-Typical artifacts include derivation notes, numerical scripts, convergence studies, and phase-level planning and verification documents under `.gpd/`.
+Typical artifacts include derivation notes, numerical scripts, convergence studies, and phase-level planning and verification documents under `GPD/`.
 
 </details>
 
@@ -217,7 +226,7 @@ These commands run inside your installed AI runtime after GPD has been installed
 | `respond-to-referees` | Structure referee responses and revise the manuscript |
 | `arxiv-submission` | Validate and package the manuscript for arXiv |
 
-Typical research loop: `/gpd:new-project -> /gpd:plan-phase -> /gpd:execute-phase -> /gpd:verify-work -> repeat -> /gpd:complete-milestone`
+Typical research loop: `/gpd:new-project -> /gpd:discuss-phase 1 -> /gpd:plan-phase 1 -> /gpd:execute-phase 1 -> /gpd:verify-work -> repeat -> /gpd:complete-milestone`
 
 Typical publication loop: `/gpd:write-paper -> /gpd:peer-review -> /gpd:respond-to-referees -> /gpd:arxiv-submission`
 
@@ -227,7 +236,7 @@ Not every GPD command needs the same amount of project state.
 
 | Command type | Meaning | Examples |
 |--------------|---------|----------|
-| `Projectless` | Can run before `.gpd/PROJECT.md` exists | `/gpd:new-project`, `/gpd:map-research`, `/gpd:add-todo` |
+| `Projectless` | Can run before `GPD/PROJECT.md` exists | `/gpd:new-project`, `/gpd:map-research`, `/gpd:add-todo` |
 | `Project-aware` | Uses project context when present, but can also run from explicit standalone inputs | `/gpd:discover "finite-temperature RG flow"`, `/gpd:explain "Ward identity"`, `/gpd:literature-review "axion monodromy"` |
 | `Project-required` | Requires initialized GPD project state | `/gpd:progress`, `/gpd:plan-phase`, `/gpd:write-paper`, `/gpd:peer-review` |
 
@@ -339,7 +348,7 @@ The full command reference below uses Claude Code / Gemini CLI syntax. Codex use
 | `/gpd:numerical-convergence` | Systematic convergence testing for numerical physics computations |
 | `/gpd:compare-experiment` | Systematically compare theoretical predictions with experimental or observational data |
 | `/gpd:validate-conventions [phase]` | Validate convention consistency across all phases |
-| `/gpd:regression-check [phase]` | Re-verify all previously verified truths to catch regressions after changes |
+| `/gpd:regression-check [phase]` | Scan-only audit for convention conflicts and verification-state regressions in completed phase summaries and verifications |
 
 #### Quantitative Analysis
 
@@ -437,7 +446,7 @@ Available profiles are `deep-theory`, `numerical`, `exploratory`, `review`, and 
 When you set explicit tier overrides, the model string is runtime-native. GPD passes it through unchanged, so it must match what that runtime already accepts:
 
 - **Claude Code**: aliases like `opus`, `sonnet`, `haiku`, `default`, `sonnet[1m]`, or a provider-native pinned model ID. If your Claude Code install is backed by Bedrock, Vertex, or Foundry, use that provider's deployment/version identifier.
-- **Codex**: the exact string Codex accepts for its `model` setting. If you configured a non-default Codex `model_provider`, keep that provider's exact model ID format.
+- **Codex**: the exact string Codex accepts for its `model` setting. If you configured a non-default Codex `model_provider`, keep that provider's exact model ID format. For OpenAI-hosted Codex tiers, the recommended mapping is `tier-1 = gpt-5.4`, `tier-2 = gpt-5.4-mini`, `tier-3 = gpt-5.4-nano`.
 - **Gemini CLI**: an exact Gemini model name accepted by your installed Gemini runtime. Prefer exact model names for GPD tier overrides rather than the interactive Auto picker.
 - **OpenCode**: a full `provider/model` string such as `anthropic/<model>`, `openai/<model>`, or `google/<model>`.
 
@@ -446,16 +455,16 @@ When you set explicit tier overrides, the model string is runtime-native. GPD pa
 <details>
 <summary><strong>Manual config example</strong></summary>
 
-Per-project tier settings live in `.gpd/config.json` under `model_overrides`:
+Per-project tier settings live in `GPD/config.json` under `model_overrides`:
 
 ```json
 {
   "model_profile": "review",
   "model_overrides": {
     "codex": {
-      "tier-1": "your-tier-1-codex-model",
-      "tier-2": "your-tier-2-codex-model",
-      "tier-3": "your-tier-3-codex-model"
+      "tier-1": "gpt-5.4",
+      "tier-2": "gpt-5.4-mini",
+      "tier-3": "gpt-5.4-nano"
     },
     "claude-code": {
       "tier-1": "opus",
@@ -503,7 +512,7 @@ The `gpd` CLI also includes machine-readable validation, observability, and trac
 <details>
 <summary><strong>Observability and trace inspection</strong></summary>
 
-GPD stores project-local observability under `.gpd/observability/` and detailed plan traces under `.gpd/traces/`.
+GPD stores project-local observability under `GPD/observability/` and detailed plan traces under `GPD/traces/`.
 
 | Command | What it does |
 |---------|--------------|
@@ -517,10 +526,10 @@ GPD stores project-local observability under `.gpd/observability/` and detailed 
 
 | Path | What it stores |
 |------|----------------|
-| `.gpd/observability/sessions/*.jsonl` | Per-session event logs |
-| `.gpd/observability/current-session.json` | Latest session metadata for status and resume tooling |
-| `.gpd/traces/` | Plan-local execution traces for debugging and post-mortem review |
-| `.gpd/STATE.md` | Concise human-readable continuity state, not the full event ledger |
+| `GPD/observability/sessions/*.jsonl` | Per-session event logs |
+| `GPD/observability/current-session.json` | Latest session metadata for status and resume tooling |
+| `GPD/traces/` | Plan-local execution traces for debugging and post-mortem review |
+| `GPD/STATE.md` | Concise human-readable continuity state, not the full event ledger |
 
 Low-level function and span calls are not recorded automatically. Observability is reserved for explicit workflow facts, trace lifecycle, and any agent or subagent events surfaced by the active runtime.
 
@@ -551,7 +560,7 @@ Low-level function and span calls are not recorded automatically. Observability 
 
 Run `npx -y get-physics-done --uninstall` for interactive uninstall. The equivalent subcommand form `npx -y get-physics-done uninstall` also works, and you can add the runtime and scope flags above for a non-interactive uninstall.
 
-Uninstall removes GPD from the selected runtime config only. It does not delete project `.gpd/` artifacts or shared files under `~/.gpd`; remove `~/.gpd/` manually, or `GPD_HOME` if you used it, for a full wipe after uninstalling from all runtimes.
+Uninstall removes GPD from the selected runtime config only. It does not delete project `GPD/` artifacts or shared files under `~/GPD`; remove `~/GPD/` manually, or `GPD_HOME` if you used it, for a full wipe after uninstalling from all runtimes.
 
 ## Inspiration
 
@@ -561,7 +570,7 @@ GPD takes its name in explicit analogy with [GSD (Get Shit Done)](https://github
 
 If GPD contributes to published research, please cite the software using [`CITATION.cff`](https://github.com/psi-oss/get-physics-done/blob/main/CITATION.cff). Copy-ready formats:
 
-```bibtex
+```bib
 @software{physical_superintelligence_2026_gpd,
   author = {{Physical Superintelligence PBC}},
   title = {Get Physics Done (GPD)},
@@ -575,6 +584,18 @@ If GPD contributes to published research, please cite the software using [`CITAT
 ```text
 Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 1.1.0). https://github.com/psi-oss/get-physics-done
 ```
+
+## Star History
+
+<p align="center">
+  <a href="https://star-history.com/#psi-oss/get-physics-done&Date">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=psi-oss/get-physics-done&type=Date&theme=dark" />
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=psi-oss/get-physics-done&type=Date" />
+      <img alt="Star History Chart" src="https://api.star-history.com/image?repos=psi-oss/get-physics-done&type=Date" />
+    </picture>
+  </a>
+</p>
 
 ## License
 

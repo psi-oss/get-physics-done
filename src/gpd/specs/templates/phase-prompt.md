@@ -6,7 +6,13 @@ template_version: 1
 
 Canonical PLAN.md structure for `gpd-planner`. PLAN.md is the executor prompt, so every field must be specific enough to execute and verify without interpretation.
 
-Before authoring or revising the `contract:` block, use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the schema source of truth. The contract must stay a YAML object with object arrays and fully resolved ID cross-links.
+Before authoring or revising the `contract:` block, use the canonical schema below as the source of truth. The include is intentionally standalone so the prompt expander can inline it.
+
+@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md
+
+The validator is strict here: for ordinary execution plans, the contract must carry non-empty claims, deliverables, acceptance tests, forbidden proxies, and a non-empty `context_intake`, plus non-empty `uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations`. If references are present, at least one must set `must_surface: true`.
+Semantic enum fields with schema defaults may be omitted when `other` is actually intended. Use explicit `kind`, `role`, and `relation` values when the plan already knows the more specific semantics.
+The defaultable semantic fields still exist in the contract surface: `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation`. They default to `other`, but the more specific value remains mandatory when the plan already knows it.
 
 ---
 
@@ -41,6 +47,13 @@ approximations:
 contract:
   scope:
     question: "[The decisive question this plan advances]"
+  context_intake:
+    must_read_refs: [ref-main]
+    must_include_prior_outputs: ["Phase 00 benchmark table"]
+    user_asserted_anchors: ["Use the lattice normalization from the user notes"]
+    known_good_baselines: ["Published large-N curve from Smith et al."]
+    context_gaps: ["Comparison source still undecided before planning"]
+    crucial_inputs: ["Check the user's finite-volume cutoff choice before proceeding"]
   claims:
     - id: "claim-main"
       statement: "[Physics statement this plan must establish]"
@@ -97,9 +110,9 @@ Output: [Derivations, code, data, figures, or notes created by this plan]
 </execution_context>
 
 <context>
-@.gpd/PROJECT.md
-@.gpd/ROADMAP.md
-@.gpd/STATE.md
+@GPD/PROJECT.md
+@GPD/ROADMAP.md
+@GPD/STATE.md
 @path/to/reference-or-benchmark-anchor.md
 @path/to/prior-summary-or-input.md
 </context>
@@ -133,7 +146,7 @@ Output: [Derivations, code, data, figures, or notes created by this plan]
 </success_criteria>
 
 <output>
-After completion, create `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md`.
+After completion, create `GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md`.
 </output>
 ```
 
@@ -177,7 +190,8 @@ For `plan depth: light`, keep the same frontmatter but reduce the body to:
 - `<success_criteria>`
 
 Do not omit the `contract`, conventions, or approximation validity just because the plan is light.
-The `contract` block is still required in light mode, including any `links` needed to make downstream handoffs explicit.
+The `contract` block is still required in light mode, including `context_intake` and any `links` needed to make downstream handoffs explicit.
+If the plan is intentionally scoping-only, keep that limited shape explicit and preserve at least one target, open question, or carry-forward input instead of emitting a half-empty execution contract.
 
 ---
 
@@ -204,6 +218,13 @@ dimensional_check:
 contract:
   scope:
     question: What benchmark must this plan recover?
+  context_intake:
+    must_read_refs: [ref-textbook]
+    must_include_prior_outputs: ["Phase 01 benchmark table"]
+    user_asserted_anchors: ["Use the normalization from the user notes"]
+    known_good_baselines: ["Accepted reference curve from the milestone review"]
+    context_gaps: ["Need the exact comparison source before planning"]
+    crucial_inputs: ["Confirm the user's cutoff convention before writing the plan"]
   claims:
     - id: claim-polarization
       statement: Vacuum polarization tensor is transverse

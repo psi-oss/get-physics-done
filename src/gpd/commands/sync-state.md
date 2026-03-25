@@ -29,15 +29,18 @@ Routes to the sync-state workflow which handles conflict detection and resolutio
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/sync-state.md
+@{GPD_INSTALL_DIR}/templates/state-json-schema.md
 </execution_context>
 
 <context>
-@.gpd/STATE.md
-@.gpd/state.json
+@GPD/STATE.md
+@GPD/state.json
 </context>
 
 <process>
 **Follow the sync-state workflow** from `@{GPD_INSTALL_DIR}/workflows/sync-state.md`.
+
+Use the included `state.json` schema in that workflow as the reconciliation contract. Do not infer authoritative fields from whichever file happens to look newer.
 
 If `--prefer md` is passed, resolve all conflicts by treating STATE.md as the source of truth.
 If `--prefer json` is passed, resolve all conflicts by treating state.json as the source of truth.

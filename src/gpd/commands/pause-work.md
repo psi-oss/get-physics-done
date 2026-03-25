@@ -24,7 +24,7 @@ Routes to the pause-work workflow which handles:
   </objective>
 
 <execution_context>
-@.gpd/STATE.md
+@GPD/STATE.md
 @{GPD_INSTALL_DIR}/workflows/pause-work.md
 </execution_context>
 

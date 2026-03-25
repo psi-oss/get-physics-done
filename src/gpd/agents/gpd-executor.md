@@ -92,7 +92,7 @@ When a computed result is very small compared to individual terms that contribut
 
 ## Profile-Aware Execution Style
 
-The active model profile (from `.gpd/config.json`) controls how you execute research tasks — not just which model tier is used, but how much detail, rigor, and documentation you apply.
+The active model profile (from `GPD/config.json`) controls how you execute research tasks — not just which model tier is used, but how much detail, rigor, and documentation you apply.
 
 | Profile | Execution Style | Checkpoint Frequency | Documentation Level |
 |---|---|---|---|
@@ -110,7 +110,7 @@ The active model profile (from `.gpd/config.json`) controls how you execute rese
 
 ## Autonomy Mode Behavior
 
-The autonomy mode (from `.gpd/config.json` field `autonomy`) controls how much human interaction occurs during execution. Read it at `load_project_state` alongside the model profile.
+The autonomy mode (from `GPD/config.json` field `autonomy`) controls how much human interaction occurs during execution. Read it at `load_project_state` alongside the model profile.
 
 **Key principle:** Autonomy affects DECISION AUTHORITY, not CORRECTNESS. Physics guards (self-critique, dimensional analysis, convention checks, mini-checklists, first-result sanity gates, and bounded execution segments) run at every autonomy level. The difference is who decides when physics choices arise and whether a clean gate auto-continues.
 
@@ -399,15 +399,15 @@ Extract from init JSON: `executor_model`, `checkpoint_docs`, `phase_dir`, `plans
 Also read STATE.md for position, decisions, blockers:
 
 ```bash
-if [ -f .gpd/STATE.md ]; then
-  cat .gpd/STATE.md
+if [ -f GPD/STATE.md ]; then
+  cat GPD/STATE.md
 else
-  echo "WARNING: .gpd/STATE.md not found"
+  echo "WARNING: GPD/STATE.md not found"
 fi
 ```
 
-If STATE.md missing but .gpd/ exists: offer to reconstruct or continue without.
-If .gpd/ missing: Error --- project not initialized.
+If STATE.md missing but GPD/ exists: offer to reconstruct or continue without.
+If GPD/ missing: Error --- project not initialized.
 
 If the prompt does NOT provide a phase identifier because this is a scoped quick task or another bounded execution handoff, skip `gpd init execute-phase` and instead load only the files, artifacts, and constraints named explicitly in the prompt. In that scoped-task mode, the prompt itself is the execution contract.
 </step>
@@ -439,13 +439,13 @@ Convention loading: see agent-infrastructure.md Convention Loading Protocol. If 
 
 ```bash
 # FALLBACK — read state.json convention_lock directly
-if [ ! -f .gpd/state.json ]; then
-  echo "WARNING: .gpd/state.json not found — no conventions loaded"
+if [ ! -f GPD/state.json ]; then
+  echo "WARNING: GPD/state.json not found — no conventions loaded"
 else
   python3 -c "
 import json, sys
 try:
-    state = json.load(open('.gpd/state.json'))
+    state = json.load(open('GPD/state.json'))
     lock = state.get('convention_lock', {})
     if not lock:
         print('WARNING: convention_lock is empty in state.json')
@@ -488,7 +488,7 @@ This enables automated verification by convention validation tooling and the ver
 **Check cross-project pattern library for known pitfalls in this physics domain.**
 
 ```bash
-gpd pattern search "$(python3 -c "import json; print(json.load(open('.gpd/state.json')).get('physics_domain',''))" 2>/dev/null)" 2>/dev/null || true
+gpd pattern search "$(python3 -c "import json; print(json.load(open('GPD/state.json')).get('physics_domain',''))" 2>/dev/null)" 2>/dev/null || true
 ```
 
 If patterns exist, note them for this session — they represent errors to avoid and techniques that work. For patterns with severity `critical` or `high`, keep them in working memory as "watch for" items during derivation and computation. When a step matches a known pattern's trigger conditions, apply the prevention method before proceeding.
@@ -504,7 +504,7 @@ PLAN_START_EPOCH=$(date +%s)
 </step>
 
 <step name="trace_logging">
-The execute-plan workflow starts and stops the execution trace automatically, and the broader session/workflow event stream lives under `.gpd/observability/`. During task execution, use trace logging for low-level execution milestones and explicit observability events for workflow- or agent-level facts when available:
+The execute-plan workflow starts and stops the execution trace automatically, and the broader session/workflow event stream lives under `GPD/observability/`. During task execution, use trace logging for low-level execution milestones and explicit observability events for workflow- or agent-level facts when available:
 
 ```bash
 gpd observe event <category> <name> --phase <N> --plan <PLAN> --data '{"key":"value"}' 2>/dev/null || true
@@ -889,9 +889,9 @@ Load during `execute_tasks` step when performing verification. Key minimums alwa
 - **Code:** known-answer tests, regression tests, scaling, reproducibility
 - **Figures:** labels+units, legends, physical reasonableness
 
-Research log location: `.gpd/phases/XX-name/{phase}-{plan}-LOG.md` --- write entries DURING execution, not after.
+Research log location: `GPD/phases/XX-name/{phase}-{plan}-LOG.md` --- write entries DURING execution, not after.
 
-State tracking location: `.gpd/phases/XX-name/{phase}-{plan}-STATE-TRACKING.md` --- update after each task.
+State tracking location: `GPD/phases/XX-name/{phase}-{plan}-STATE-TRACKING.md` --- update after each task.
 </verification_flows>
 
 <task_checkpoint_protocol>
@@ -914,10 +914,18 @@ After all tasks complete, load the completion protocols reference for detailed S
 
 **file_read:** `{GPD_INSTALL_DIR}/references/execution/executor-completion.md`
 
+For contract-backed SUMMARY frontmatter, explicitly load and read the canonical ledger schema before drafting any YAML:
+
+@{GPD_INSTALL_DIR}/templates/contract-results-schema.md
+
+This schema is authoritative for `plan_contract_ref`, `contract_results`, and `comparison_verdicts`. Re-open it immediately before writing frontmatter so the exact validator-consumed fields and closed-schema rules are visible in context. Do not rely on memory, prior plans, or a paraphrase from `templates/summary.md`.
+
 Key requirements (always in memory — sufficient if the file_read above fails):
-- SUMMARY.md location: `.gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md`
+- SUMMARY.md location: `GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md`
+- For contract-backed plans, load the schema above before writing frontmatter and copy `plan_contract_ref`, `contract_results`, and `comparison_verdicts` exactly from that canonical contract surface
 - If the PLAN has a `contract`, SUMMARY frontmatter MUST declare `plan_contract_ref` and `contract_results`
 - Include `comparison_verdicts` whenever the plan produces decisive internal or external comparisons
+- Contract-backed examples in `executor-completion.md` and `executor-worked-example.md` keep `uncertainty_markers` explicit and non-empty; do not copy an older empty-list pattern.
 - One-liner must be substantive and physics-specific (not "calculation completed")
 - Use template: @{GPD_INSTALL_DIR}/templates/summary.md
 - Include conventions table, key results with confidence tags, deviation documentation
@@ -1009,7 +1017,7 @@ Full templates and error handling in `executor-completion.md` (loaded during sum
 
 ### Shared State Discipline (after SUMMARY.md written)
 
-- **Spawned subagent mode:** Return state updates in `gpd_return.state_updates`. Do NOT write `.gpd/STATE.md` directly unless the invoking workflow explicitly delegates shared-state ownership.
+- **Spawned subagent mode:** Return state updates in `gpd_return.state_updates`. Do NOT write `GPD/STATE.md` directly unless the invoking workflow explicitly delegates shared-state ownership.
 - **Main-context / direct-owner mode:** If the workflow says you are the state owner, apply the required `gpd state ...` commands yourself and document any manual fallback in `SUMMARY.md`.
 
 The default spawned-agent path is `shared_state_policy: return_only`.
@@ -1019,10 +1027,10 @@ The default spawned-agent path is `shared_state_policy: return_only`.
 ```bash
 gpd commit \
   "docs({phase}-{plan}): complete [plan-name] research plan" \
-  --files .gpd/phases/XX-name/{phase}-{plan}-SUMMARY.md \
-         .gpd/phases/XX-name/{phase}-{plan}-LOG.md \
-         .gpd/phases/XX-name/{phase}-{plan}-STATE-TRACKING.md \
-         .gpd/STATE.md
+  --files GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md \
+         GPD/phases/XX-name/{phase}-{plan}-LOG.md \
+         GPD/phases/XX-name/{phase}-{plan}-STATE-TRACKING.md \
+         GPD/STATE.md
 ```
 
 </state_updates_and_completion>

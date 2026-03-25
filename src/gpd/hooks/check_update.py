@@ -23,6 +23,7 @@ except ImportError:
 
 SECONDS_PER_HOUR = 3600
 UPDATE_CHECK_TTL_SECONDS = 12 * SECONDS_PER_HOUR
+UPDATE_CHECK_INFLIGHT_TTL_SECONDS = 5 * 60
 NPM_PACKAGE_NAME = "get-physics-done"
 NPM_LATEST_RELEASE_URL = f"https://registry.npmjs.org/{NPM_PACKAGE_NAME}/latest"
 
@@ -32,35 +33,25 @@ def _debug(msg: str) -> None:
         sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 
+def _self_config_dir() -> Path | None:
+    """Return the installed runtime config dir when this hook runs from one."""
+    from gpd.hooks.install_metadata import config_dir_has_complete_install
+
+    candidate = Path(__file__).resolve().parent.parent
+    if config_dir_has_complete_install(candidate):
+        return candidate
+    return None
+
+
 def _version_files() -> list[Path]:
     """Return VERSION file candidates, preferring the active runtime's install first."""
-    from gpd.hooks.runtime_detect import (
-        ALL_RUNTIMES,
-        _global_runtime_dir,
-        _local_runtime_dir,
-        detect_runtime_for_gpd_use,
-    )
+    from gpd.hooks.runtime_detect import get_gpd_install_dirs
 
-    resolved_cwd = Path.cwd()
-    resolved_home = Path.home()
-    active_runtime = detect_runtime_for_gpd_use(cwd=resolved_cwd, home=resolved_home)
-    runtimes = [active_runtime] + [runtime for runtime in ALL_RUNTIMES if runtime != active_runtime]
+    self_config_dir = _self_config_dir()
+    if self_config_dir is not None:
+        return [self_config_dir / GPD_INSTALL_DIR_NAME / "VERSION"]
 
-    install_dirs: list[Path] = []
-    for runtime in runtimes:
-        if runtime not in ALL_RUNTIMES:
-            continue
-        install_dirs.append(_local_runtime_dir(runtime, resolved_cwd) / GPD_INSTALL_DIR_NAME)
-        install_dirs.append(_global_runtime_dir(runtime, home=resolved_home) / GPD_INSTALL_DIR_NAME)
-
-    seen: set[Path] = set()
-    ordered: list[Path] = []
-    for install_dir in install_dirs:
-        if install_dir in seen:
-            continue
-        seen.add(install_dir)
-        ordered.append(install_dir)
-    return [d / "VERSION" for d in ordered]
+    return [install_dir / "VERSION" for install_dir in get_gpd_install_dirs(prefer_active=True)]
 
 
 def _read_installed_version() -> str:
@@ -115,36 +106,112 @@ def _is_older_than(a: str, b: str) -> bool:
 
 def _do_check(cache_file: Path) -> None:
     """Perform the actual network check and write cache (runs in child process)."""
-    installed = _read_installed_version()
-
-    latest = None
     try:
-        import urllib.request
+        installed = _read_installed_version()
 
-        with urllib.request.urlopen(NPM_LATEST_RELEASE_URL, timeout=10) as resp:
-            data = json.loads(resp.read())
-            latest = data["version"]
-    except Exception as exc:
-        _debug(f"npm registry version check failed: {exc}")
+        latest = None
+        try:
+            import urllib.request
 
-    result = {
-        "update_available": bool(latest and _is_older_than(installed, latest)),
-        "installed": installed,
-        "latest": latest or "unknown",
-        "checked": int(time.time()),
-    }
+            with urllib.request.urlopen(NPM_LATEST_RELEASE_URL, timeout=10) as resp:
+                data = json.loads(resp.read())
+                latest = data["version"]
+        except Exception as exc:
+            _debug(f"npm registry version check failed: {exc}")
 
+        result = {
+            "update_available": bool(latest and _is_older_than(installed, latest)),
+            "installed": installed,
+            "latest": latest or "unknown",
+            "checked": int(time.time()),
+        }
+
+        try:
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text(json.dumps(result), encoding="utf-8")
+        except OSError as exc:
+            _debug(f"Failed to write update cache: {exc}")
+    finally:
+        _clear_inflight_marker(cache_file)
+
+
+def _inflight_marker(cache_file: Path) -> Path:
+    return cache_file.with_name(f"{cache_file.name}.inflight")
+
+
+def _inflight_started_at(marker_path: Path) -> int | None:
     try:
-        cache_file.parent.mkdir(parents=True, exist_ok=True)
-        cache_file.write_text(json.dumps(result), encoding="utf-8")
-    except OSError as exc:
-        _debug(f"Failed to write update cache: {exc}")
+        raw = marker_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        try:
+            return int(marker_path.stat().st_mtime)
+        except OSError:
+            return None
+    try:
+        return int(raw)
+    except ValueError:
+        try:
+            return int(marker_path.stat().st_mtime)
+        except OSError:
+            return None
+
+
+def _has_fresh_inflight_marker(cache_file: Path) -> bool:
+    marker_path = _inflight_marker(cache_file)
+    if not marker_path.exists():
+        return False
+    started_at = _inflight_started_at(marker_path)
+    if started_at is None:
+        return False
+    age = int(time.time()) - started_at
+    return 0 <= age < UPDATE_CHECK_INFLIGHT_TTL_SECONDS
+
+
+def _claim_inflight_marker(cache_file: Path) -> bool:
+    marker_path = _inflight_marker(cache_file)
+    if _has_fresh_inflight_marker(cache_file):
+        return False
+    if marker_path.exists():
+        try:
+            marker_path.unlink()
+        except OSError:
+            if _has_fresh_inflight_marker(cache_file):
+                return False
+    try:
+        marker_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return False
+    try:
+        fd = os.open(marker_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+    except (FileExistsError, OSError):
+        return False
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(str(int(time.time())))
+    except OSError:
+        try:
+            marker_path.unlink()
+        except OSError:
+            pass
+        return False
+    return True
+
+
+def _clear_inflight_marker(cache_file: Path) -> None:
+    try:
+        _inflight_marker(cache_file).unlink()
+    except FileNotFoundError:
+        return
+    except OSError:
+        return
 
 
 def main() -> None:
     """Entry point: throttle-check for updates, spawn background worker if needed."""
     from gpd.hooks.runtime_detect import (
         ALL_RUNTIMES,
+        RUNTIME_UNKNOWN,
+        UpdateCacheCandidate,
         detect_active_runtime_with_gpd_install,
         detect_runtime_for_gpd_use,
         get_update_cache_candidates,
@@ -153,33 +220,52 @@ def main() -> None:
 
     resolved_cwd = Path.cwd()
     resolved_home = Path.home()
-    cache_candidates = get_update_cache_candidates(cwd=resolved_cwd, home=resolved_home)
-    active_installed_runtime = detect_active_runtime_with_gpd_install(cwd=resolved_cwd, home=resolved_home)
-    preferred_runtime = detect_runtime_for_gpd_use(cwd=resolved_cwd, home=resolved_home)
-    relevant_candidates = [
-        candidate
-        for candidate in cache_candidates
-        if should_consider_update_cache_candidate(
-            candidate,
-            active_installed_runtime=active_installed_runtime,
-            cwd=resolved_cwd,
-            home=resolved_home,
-        )
-    ]
-    if active_installed_runtime in (None, "", "unknown") and preferred_runtime in ALL_RUNTIMES:
+    self_config_dir = _self_config_dir()
+    if self_config_dir is not None:
+        cache_file = self_config_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME
+        relevant_candidates = [UpdateCacheCandidate(path=cache_file)]
+    else:
+        cache_candidates = get_update_cache_candidates(cwd=resolved_cwd, home=resolved_home)
+        active_installed_runtime = detect_active_runtime_with_gpd_install(cwd=resolved_cwd, home=resolved_home)
+        preferred_runtime = detect_runtime_for_gpd_use(cwd=resolved_cwd, home=resolved_home)
         relevant_candidates = [
             candidate
-            for candidate in relevant_candidates
-            if candidate.runtime in (None, preferred_runtime)
+            for candidate in cache_candidates
+            if should_consider_update_cache_candidate(
+                candidate,
+                active_installed_runtime=active_installed_runtime,
+                cwd=resolved_cwd,
+                home=resolved_home,
+            )
         ]
-    cache_file = (
-        relevant_candidates[0].path
-        if relevant_candidates
-        else (resolved_home / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
-    )
+        if active_installed_runtime in (None, "", RUNTIME_UNKNOWN) and preferred_runtime in ALL_RUNTIMES:
+            preferred_candidates = [candidate for candidate in cache_candidates if candidate.runtime == preferred_runtime]
+            fallback_candidates = [candidate for candidate in relevant_candidates if candidate.runtime is None]
+            if preferred_candidates:
+                seen_paths: set[Path] = set()
+                preferred_first: list[UpdateCacheCandidate] = []
+                for candidate in [*preferred_candidates, *fallback_candidates]:
+                    if candidate.path in seen_paths:
+                        continue
+                    seen_paths.add(candidate.path)
+                    preferred_first.append(candidate)
+                relevant_candidates = preferred_first
+            relevant_candidates = [
+                candidate
+                for candidate in relevant_candidates
+                if candidate.runtime in (None, preferred_runtime)
+            ]
+        cache_file = (
+            relevant_candidates[0].path
+            if relevant_candidates
+            else (resolved_home / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
+        )
 
     # Throttle: skip only when the preferred runtime/home cache set is still fresh.
+    has_runtime_specific_candidate = any(candidate.runtime in ALL_RUNTIMES for candidate in relevant_candidates)
     for candidate in relevant_candidates:
+        if candidate.runtime is None and has_runtime_specific_candidate:
+            continue
         candidate_path = candidate.path
         if not candidate_path.exists():
             continue
@@ -194,6 +280,9 @@ def main() -> None:
                     return
         except Exception as exc:
             _debug(f"Failed to read update cache {candidate_path}: {exc}")
+
+    if not _claim_inflight_marker(cache_file):
+        return
 
     # Spawn background child to do the actual check
     try:
@@ -210,6 +299,7 @@ def main() -> None:
             start_new_session=True,
         )
     except OSError as exc:
+        _clear_inflight_marker(cache_file)
         _debug(f"Failed to spawn background update check: {exc}")
 
 

@@ -23,8 +23,6 @@ from gpd.core.constants import (
     ROADMAP_FILENAME,
     STANDALONE_PLAN,
     STANDALONE_RESEARCH,
-    STANDALONE_SUMMARY,
-    STANDALONE_VERIFICATION,
     STATE_JSON_FILENAME,
     SUMMARY_SUFFIX,
     TODOS_DIR_NAME,
@@ -156,7 +154,7 @@ def _is_plan_file(name: str) -> bool:
 
 
 def _is_summary_file(name: str) -> bool:
-    return name.endswith(SUMMARY_SUFFIX) or name == STANDALONE_SUMMARY
+    return name.endswith(SUMMARY_SUFFIX)
 
 
 def _is_research_file(name: str) -> bool:
@@ -164,7 +162,7 @@ def _is_research_file(name: str) -> bool:
 
 
 def _is_verification_file(name: str) -> bool:
-    return name.endswith(VERIFICATION_SUFFIX) or name == STANDALONE_VERIFICATION
+    return name.endswith(VERIFICATION_SUFFIX)
 
 
 
@@ -187,6 +185,30 @@ def _load_config(cwd: Path) -> dict[str, object]:
     }
 
 
+_LOCAL_CLI_INIT_COMMANDS: dict[str, str] = {
+    "check-todos": "todos",
+    "execute-phase": "execute-phase",
+    "map-research": "map-research",
+    "milestone-op": "milestone-op",
+    "new-milestone": "new-milestone",
+    "new-project": "new-project",
+    "phase-op": "phase-op",
+    "plan-phase": "plan-phase",
+    "quick": "quick",
+    "resume": "resume",
+    "resume-work": "resume",
+    "verify-work": "verify-work",
+}
+
+
+def _format_local_cli_command(action: str) -> str:
+    """Format the best available local CLI equivalent for a workflow action."""
+    init_action = _LOCAL_CLI_INIT_COMMANDS.get(action)
+    if init_action is not None:
+        return f"gpd init {init_action}"
+    return f"gpd {action}"
+
+
 def _format_command(action: str, *, cwd: Path | None = None) -> str:
     """Format a GPD command name."""
     try:
@@ -198,10 +220,10 @@ def _format_command(action: str, *, cwd: Path | None = None) -> str:
 
         runtime = detect_active_runtime_with_gpd_install(cwd=cwd)
         if runtime == RUNTIME_UNKNOWN:
-            return f"gpd {action}"
+            return _format_local_cli_command(action)
         return get_adapter(runtime).format_command(action)
     except Exception:
-        return f"gpd {action}"
+        return _format_local_cli_command(action)
 
 
 def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:
@@ -321,7 +343,7 @@ def _resolve_unverified_result_phase(
 
 
 def _count_pending_todos(cwd: Path) -> int:
-    """Count .md files in .gpd/todos/pending/."""
+    """Count .md files in GPD/todos/pending/."""
     pending_dir = _planning_dir(cwd) / TODOS_DIR_NAME / "pending"
     if not pending_dir.is_dir():
         return 0

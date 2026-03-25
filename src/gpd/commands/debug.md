@@ -33,7 +33,7 @@ User's issue: $ARGUMENTS
 Check for active sessions:
 
 ```bash
-ls .gpd/debug/*.md 2>/dev/null | grep -v resolved | head -5
+ls GPD/debug/*.md 2>/dev/null | grep -v resolved | head -5
 ```
 
 </context>
@@ -144,7 +144,7 @@ Physics debugging follows a hierarchy of checks, ordered from cheapest to most e
   </common_physics_errors>
 
 <debug_file>
-Create: .gpd/debug/{slug}.md
+Create: GPD/debug/{slug}.md
 </debug_file>
 ```
 
@@ -199,7 +199,7 @@ Continue debugging {slug}. Evidence is in the debug file.
 </objective>
 
 <prior_state>
-Debug file path: .gpd/debug/{slug}.md
+Debug file path: GPD/debug/{slug}.md
 Read that file before continuing so you inherit the prior investigation state instead of relying on an inline `@...` attachment.
 </prior_state>
 

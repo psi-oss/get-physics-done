@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from gpd.mcp.paper.bibliography import BibliographyAudit
 
-Sha256Hex = Annotated[str, Field(pattern=r"^[0-9a-fA-F]{64}$")]
+Sha256Hex = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 ClaimId = Annotated[str, Field(pattern=r"^CLM-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 ReviewIssueId = Annotated[str, Field(pattern=r"^REF-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 
@@ -46,6 +46,8 @@ class FigureRef(BaseModel):
 class ArtifactSourceRef(BaseModel):
     """A source artifact or upstream input associated with an emitted paper artifact."""
 
+    model_config = ConfigDict(extra="forbid")
+
     path: str
     role: str = ""
 
@@ -53,10 +55,12 @@ class ArtifactSourceRef(BaseModel):
 class ArtifactRecord(BaseModel):
     """Machine-readable record for an emitted paper artifact."""
 
+    model_config = ConfigDict(extra="forbid")
+
     artifact_id: str
     category: Literal["tex", "bib", "figure", "pdf", "audit"]
     path: str
-    sha256: str
+    sha256: Sha256Hex
     produced_by: str
     sources: list[ArtifactSourceRef] = Field(default_factory=list)
     metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
@@ -65,7 +69,9 @@ class ArtifactRecord(BaseModel):
 class ArtifactManifest(BaseModel):
     """Manifest describing the concrete paper artifacts emitted by the build."""
 
-    version: int = 1
+    model_config = ConfigDict(extra="forbid")
+
+    version: Literal[1] = 1
     paper_title: str
     journal: str
     created_at: str
@@ -157,10 +163,18 @@ class ClaimIndex(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    version: int = 1
+    version: Literal[1] = 1
     manuscript_path: str
     manuscript_sha256: Sha256Hex
     claims: list[ClaimRecord] = Field(default_factory=list)
+
+    @field_validator("manuscript_path")
+    @classmethod
+    def _nonempty_manuscript_path(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("manuscript_path must be non-empty")
+        return normalized
 
 
 class ReviewFinding(BaseModel):
@@ -185,8 +199,8 @@ class StageReviewReport(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    version: int = 1
-    round: int = 1
+    version: Literal[1] = 1
+    round: int = Field(default=1, gt=0)
     stage_id: str
     stage_kind: ReviewStageKind
     manuscript_path: str
@@ -197,6 +211,21 @@ class StageReviewReport(BaseModel):
     findings: list[ReviewFinding] = Field(default_factory=list)
     confidence: ReviewConfidence
     recommendation_ceiling: ReviewRecommendation
+
+    @field_validator("manuscript_path")
+    @classmethod
+    def _nonempty_manuscript_path(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("manuscript_path must be non-empty")
+        return normalized
+
+    @model_validator(mode="after")
+    def _stage_id_matches_stage_kind(self) -> StageReviewReport:
+        expected_stage_id = self.stage_kind.value
+        if self.stage_id != expected_stage_id:
+            raise ValueError(f"stage_id must equal stage_kind ({expected_stage_id})")
+        return self
 
 
 class ReviewIssue(BaseModel):
@@ -221,29 +250,18 @@ class ReviewLedger(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    version: int = 1
-    round: int = 1
+    version: Literal[1] = 1
+    round: int = Field(default=1, gt=0)
     manuscript_path: str
     issues: list[ReviewIssue] = Field(default_factory=list)
 
-
-class ReviewPanelBundle(BaseModel):
-    """Bundle tying staged review artifacts to the final referee decision."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    version: int = 1
-    round: int = 1
-    manuscript_path: str
-    target_journal: str = "unspecified"
-    claim_index_path: str
-    stage_reports: list[str] = Field(default_factory=list)
-    review_ledger_path: str
-    decision_path: str
-    final_recommendation: ReviewRecommendation
-    final_confidence: ReviewConfidence
-    final_report_path: str
-    final_report_tex_path: str = ""
+    @field_validator("manuscript_path")
+    @classmethod
+    def _nonempty_manuscript_path(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("manuscript_path must be non-empty")
+        return normalized
 
 
 class JournalSpec(BaseModel):
@@ -267,6 +285,8 @@ class JournalSpec(BaseModel):
 class PaperConfig(BaseModel):
     """Complete configuration for generating a paper."""
 
+    model_config = ConfigDict(extra="forbid")
+
     title: str
     authors: list[Author]
     abstract: str
@@ -274,9 +294,18 @@ class PaperConfig(BaseModel):
     figures: list[FigureRef] = Field(default_factory=list)
     acknowledgments: str = ""
     bib_file: str = "references"
-    journal: str = "prl"
+    journal: Literal["prl", "apj", "mnras", "nature", "jhep", "jfm"] = "prl"
     appendix_sections: list[Section] = Field(default_factory=list)
     attribution_footer: str = "Generated with Get Physics Done"
+
+
+SUPPORTED_PAPER_JOURNALS = frozenset(get_args(PaperConfig.model_fields["journal"].annotation))
+
+
+def is_supported_paper_journal(journal: object) -> bool:
+    """Return whether *journal* is one of the builder's supported journal keys."""
+
+    return isinstance(journal, str) and journal in SUPPORTED_PAPER_JOURNALS
 
 
 class PaperOutput(BaseModel):

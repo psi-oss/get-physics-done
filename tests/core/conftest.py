@@ -17,7 +17,7 @@ def _write_state_project(
     status: str = "Executing",
     extra_lines: int = 0,
 ) -> Path:
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
     (planning / "PROJECT.md").write_text("# Project\nTest.\n", encoding="utf-8")

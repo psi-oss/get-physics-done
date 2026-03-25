@@ -4,7 +4,7 @@ description: Execute all plans in a phase with wave-based parallelization
 argument-hint: "<phase-number> [--gaps-only]"
 context_mode: project-required
 requires:
-  files: [".gpd/ROADMAP.md"]
+  files: ["GPD/ROADMAP.md"]
   state: "phase_planned"
 allowed-tools:
   - file_read
@@ -49,8 +49,8 @@ Phase: $ARGUMENTS
 
 - `--gaps-only` -- Execute only gap closure plans (plans with `gap_closure: true` in frontmatter). Use after verify-work creates fix plans.
 
-@.gpd/ROADMAP.md
-@.gpd/STATE.md
+@GPD/ROADMAP.md
+@GPD/STATE.md
 </context>
 
 <inline_guidance>
@@ -71,11 +71,11 @@ Phase: $ARGUMENTS
 
 ## Inter-wave Verification Gates
 
-Between waves, the orchestrator runs lightweight verification on the just-completed wave's SUMMARY.md outputs (dimensional consistency and convention checks). This is controlled by the `workflow.verify_between_waves` config:
+Between waves, the orchestrator can run lightweight verification on the just-completed wave's SUMMARY.md outputs (dimensional consistency, convention checks, and other class-specific scans). This is controlled by `execution.review_cadence`, together with the phase classification rules in the full workflow:
 
-- `"auto"` (default) — enabled for `deep-theory` and `review` profiles, disabled for others
-- `true` — always run inter-wave gates
-- `false` — skip inter-wave gates (fastest execution)
+- `"dense"` — always run the bounded inter-wave review gates
+- `"adaptive"` (default) — run the gates when the completed wave created or challenged decisive downstream evidence, baseline selection, or fanout-critical results
+- `"sparse"` — skip routine inter-wave gates unless the wave raised a failed sanity check, anchor gap, or dependency warning
 
 Cost: ~2-5k tokens per gate. Catches sign errors and convention drift before they propagate to downstream waves.
 
@@ -84,7 +84,7 @@ Cost: ~2-5k tokens per gate. Catches sign errors and convention drift before the
 - If execution is interrupted (context limit, user stop, crash), the completed task SUMMARY.md files are already written.
 - On resumption, the orchestrator detects which plans already have SUMMARY.md files and skips them.
 - To force re-execution of a completed plan, delete or rename its SUMMARY.md before re-running `/gpd:execute-phase`.
-- STATE.md is updated after each wave completes, so progress is never lost silently.
+- The orchestrator applies returned shared-state updates after each successfully completed plan, so by the time a wave completes `STATE.md` already reflects that plan-level progress.
 
 </inline_guidance>
 

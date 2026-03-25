@@ -9,16 +9,66 @@ without crashing.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
+from gpd.adapters import get_adapter
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.cli import app
 from gpd.core.state import default_state_dict, generate_state_markdown
 
 runner = CliRunner()
+_RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
+
+
+@pytest.fixture()
+def codex_command_prefix(monkeypatch: pytest.MonkeyPatch) -> str:
+    """Force the integration preflight surface to resolve the Codex runtime."""
+    monkeypatch.setattr("gpd.cli.detect_runtime_for_gpd_use", lambda cwd=None: "codex")
+    return get_adapter("codex").command_prefix
+
+
+@pytest.fixture()
+def claude_code_command_prefix(monkeypatch: pytest.MonkeyPatch) -> str:
+    """Force the integration preflight surface to resolve the Claude Code runtime."""
+    monkeypatch.setattr("gpd.cli.detect_runtime_for_gpd_use", lambda cwd=None: "claude-code")
+    return get_adapter("claude-code").command_prefix
+
+def _runtime_env_prefixes() -> tuple[str, ...]:
+    prefixes: set[str] = set()
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        for env_var in descriptor.activation_env_vars:
+            prefixes.add(env_var)
+            prefixes.add(env_var.rsplit("_", 1)[0] if "_" in env_var else env_var)
+    return tuple(sorted(prefixes, key=len, reverse=True))
+
+
+_RUNTIME_ENV_PREFIXES = _runtime_env_prefixes()
+
+
+def _runtime_env_vars_to_clear() -> set[str]:
+    env_vars = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"}
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        global_config = descriptor.global_config
+        for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var):
+            if env_var:
+                env_vars.add(env_var)
+    return env_vars
+
+
+_RUNTIME_ENV_VARS_TO_CLEAR = _runtime_env_vars_to_clear()
+
+
+@pytest.fixture(autouse=True)
+def _reset_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep CLI integration tests isolated from prior runtime env overrides."""
+    for key in list(os.environ):
+        if key.startswith(_RUNTIME_ENV_PREFIXES) or key in _RUNTIME_ENV_VARS_TO_CLEAR:
+            monkeypatch.delenv(key, raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -29,7 +79,7 @@ runner = CliRunner()
 @pytest.fixture()
 def gpd_project(tmp_path: Path) -> Path:
     """Create a minimal GPD project with all files commands might touch."""
-    planning = tmp_path / ".gpd"
+    planning = tmp_path / "GPD"
     planning.mkdir()
 
     state = default_state_dict()
@@ -88,7 +138,7 @@ def gpd_project(tmp_path: Path) -> Path:
         "---\nphase: '01'\nplan: '01'\nwave: 1\n---\n\n# Plan A\n\n## Tasks\n\n- Task 1\n"
     )
     (p1 / "01-SUMMARY.md").write_text(
-        '---\nphase: "01"\nplan: "01"\none-liner: "Set up project"\n'
+        '---\nphase: "01"\nplan: "01"\ndepth: "full"\nprovides: ["main-module"]\ncompleted: "2026-03-22"\none-liner: "Set up project"\n'
         "key-files:\n  - src/main.py\n"
         "dependency-graph:\n  provides:\n    - main-module\n  affects:\n    - phase-2\n"
         "patterns-established:\n  - modular-design\n"
@@ -124,11 +174,23 @@ def _invoke(*args: str, expect_ok: bool = True) -> object:
 
 def _mark_complete_runtime_install(config_dir: Path, *, runtime: str, install_scope: str = "local") -> None:
     """Create the concrete install markers real runtime installs write."""
-    (config_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
-    (config_dir / "gpd-file-manifest.json").write_text(
-        json.dumps({"runtime": runtime, "install_scope": install_scope}),
-        encoding="utf-8",
-    )
+    adapter = get_adapter(runtime)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    for relpath in adapter.install_completeness_relpaths():
+        if relpath == "gpd-file-manifest.json":
+            continue
+        artifact = config_dir / relpath
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        if artifact.suffix:
+            artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
+        else:
+            artifact.mkdir(parents=True, exist_ok=True)
+    manifest: dict[str, object] = {"runtime": runtime, "install_scope": install_scope}
+    if runtime == "codex":
+        skills_dir = config_dir.parent / ".agents" / "skills"
+        (skills_dir / "gpd-help").mkdir(parents=True, exist_ok=True)
+        manifest["codex_skills_dir"] = str(skills_dir)
+    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -192,11 +254,11 @@ class TestSlug:
 
 class TestVerifyPath:
     def test_verify_existing_file(self, gpd_project: Path) -> None:
-        result = _invoke("verify-path", ".gpd/state.json")
+        result = _invoke("verify-path", "GPD/state.json")
         assert "file" in result.output.lower() or "True" in result.output or "true" in result.output
 
     def test_verify_existing_directory(self) -> None:
-        result = _invoke("verify-path", ".gpd")
+        result = _invoke("verify-path", "GPD")
         assert "directory" in result.output.lower() or "True" in result.output or "true" in result.output
 
     def test_verify_nonexistent_path(self) -> None:
@@ -205,7 +267,7 @@ class TestVerifyPath:
         assert "False" in result.output or "false" in result.output
 
     def test_verify_path_raw(self, gpd_project: Path) -> None:
-        result = _invoke("--raw", "verify-path", ".gpd/state.json")
+        result = _invoke("--raw", "verify-path", "GPD/state.json")
         parsed = json.loads(result.output)
         assert parsed["exists"] is True
         assert parsed["type"] == "file"
@@ -356,7 +418,71 @@ class TestFrontmatterValidate:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 5. regression-check
+# 5. init include parsing + command-context surface
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestInitIncludeParsing:
+    def test_init_progress_include_trims_whitespace_and_drops_empty_entries(self) -> None:
+        result = _invoke("--raw", "init", "progress", "--include", " state, roadmap, , ")
+        payload = json.loads(result.output)
+
+        assert payload["state_content"] is not None
+        assert payload["roadmap_content"] is not None
+
+    def test_init_progress_include_rejects_unknown_values(self) -> None:
+        result = _invoke("--raw", "init", "progress", "--include", "state, bogus", expect_ok=False)
+
+        assert result.exit_code == 1
+        payload = json.loads(result.output)
+        assert payload["error"] == (
+            "Unknown --include value(s) for gpd init progress: bogus. "
+            "Allowed values: config, project, roadmap, state."
+        )
+
+
+class TestCommandContextSurface:
+    def test_validate_command_context_reports_runtime_command_surface(self, codex_command_prefix: str) -> None:
+        result = _invoke("--raw", "validate", "command-context", "gpd:settings")
+        payload = json.loads(result.output)
+
+        assert payload["command"] == "gpd:settings"
+        assert payload["validated_surface"] == "public_runtime_dollar_command"
+        assert payload["local_cli_equivalence_guaranteed"] is False
+        assert f"public `{codex_command_prefix}*` runtime command surface" in payload["dispatch_note"]
+        assert "same-name local `gpd` subcommand" in payload["dispatch_note"]
+
+    def test_validate_command_context_reports_slash_runtime_surface(
+        self, claude_code_command_prefix: str
+    ) -> None:
+        result = _invoke("--raw", "validate", "command-context", "gpd:settings")
+        payload = json.loads(result.output)
+
+        assert payload["command"] == "gpd:settings"
+        assert payload["validated_surface"] == "public_runtime_slash_command"
+        assert payload["local_cli_equivalence_guaranteed"] is False
+        assert f"public `{claude_code_command_prefix}*` runtime command surface" in payload["dispatch_note"]
+        assert "same-name local `gpd` subcommand" in payload["dispatch_note"]
+
+    def test_validate_command_context_falls_back_when_runtime_resolution_fails(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def _raise_runtime_error(cwd=None) -> str:
+            raise RuntimeError("runtime resolution failed")
+
+        monkeypatch.setattr("gpd.cli.detect_runtime_for_gpd_use", _raise_runtime_error)
+
+        result = _invoke("--raw", "validate", "command-context", "gpd:settings")
+        payload = json.loads(result.output)
+
+        assert payload["command"] == "gpd:settings"
+        assert payload["validated_surface"] == "public_runtime_command_surface"
+        assert payload["local_cli_equivalence_guaranteed"] is False
+        assert "the active runtime command surface" in payload["dispatch_note"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 6. regression-check
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -377,9 +503,24 @@ class TestRegressionCheck:
         result = _invoke("regression-check", "--quick")
         assert result.exit_code == 0
 
+    def test_regression_check_phase_scope(self, gpd_project: Path) -> None:
+        p2 = gpd_project / "GPD" / "phases" / "02-phase-two"
+        (p2 / "01-PLAN.md").write_text("---\nphase: '02'\n---\n# Plan\n")
+        (p2 / "01-SUMMARY.md").write_text(
+            '---\nphase: "02"\nplan: "01"\n'
+            "conventions:\n  metric: (+,-,-,-)\n"
+            "---\n\n# Summary\n"
+        )
+
+        result = _invoke("--raw", "regression-check", "1")
+        parsed = json.loads(result.output)
+        assert result.exit_code == 0
+        assert parsed["passed"] is True
+        assert parsed["phases_checked"] == 1
+
     def test_regression_check_detects_conflict(self, gpd_project: Path) -> None:
         """Inject a convention conflict across two completed phases."""
-        p2 = gpd_project / ".gpd" / "phases" / "02-phase-two"
+        p2 = gpd_project / "GPD" / "phases" / "02-phase-two"
 
         # Make phase 2 look completed with a conflicting convention
         (p2 / "01-PLAN.md").write_text("---\nphase: '02'\n---\n# Plan\n")
@@ -503,7 +644,7 @@ class TestConfigCommands:
 
     def test_config_get_alias_key_reads_effective_value(self, gpd_project: Path) -> None:
         """Alias keys should resolve through the canonical config surface."""
-        config_path = gpd_project / ".gpd" / "config.json"
+        config_path = gpd_project / "GPD" / "config.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))
         config["commit_docs"] = False
         config_path.write_text(json.dumps(config), encoding="utf-8")
@@ -514,7 +655,7 @@ class TestConfigCommands:
         assert parsed["value"] is False
 
     def test_config_get_returns_defaults_when_config_is_missing(self, gpd_project: Path) -> None:
-        (gpd_project / ".gpd" / "config.json").unlink()
+        (gpd_project / "GPD" / "config.json").unlink()
 
         result = _invoke("--raw", "config", "get", "autonomy")
         parsed = json.loads(result.output)
@@ -527,12 +668,12 @@ class TestConfigCommands:
         parsed = json.loads(result.output)
         assert "Unsupported config key" in parsed["error"]
 
-        config = json.loads((gpd_project / ".gpd" / "config.json").read_text(encoding="utf-8"))
+        config = json.loads((gpd_project / "GPD" / "config.json").read_text(encoding="utf-8"))
         assert "new_key" not in config
 
     def test_config_set_nested_alias_updates_canonical_value(self, gpd_project: Path) -> None:
         _invoke("--raw", "config", "set", "planning.commit_docs", "false")
-        config = json.loads((gpd_project / ".gpd" / "config.json").read_text(encoding="utf-8"))
+        config = json.loads((gpd_project / "GPD" / "config.json").read_text(encoding="utf-8"))
         assert config["commit_docs"] is False
         assert "planning" not in config
 
@@ -544,7 +685,7 @@ class TestConfigCommands:
     def test_config_set_json_value(self, gpd_project: Path) -> None:
         """Setting a JSON value (e.g. integer, boolean) should parse it."""
         _invoke("config", "set", "parallelization", "false")
-        config = json.loads((gpd_project / ".gpd" / "config.json").read_text(encoding="utf-8"))
+        config = json.loads((gpd_project / "GPD" / "config.json").read_text(encoding="utf-8"))
         assert config["parallelization"] is False
 
     def test_config_set_rejects_legacy_autonomy_value(self, gpd_project: Path) -> None:
@@ -553,7 +694,7 @@ class TestConfigCommands:
         parsed = json.loads(result.output)
         assert "Invalid config.json values" in parsed["error"]
 
-        config = json.loads((gpd_project / ".gpd" / "config.json").read_text(encoding="utf-8"))
+        config = json.loads((gpd_project / "GPD" / "config.json").read_text(encoding="utf-8"))
         assert config["autonomy"] == "yolo"
 
     def test_config_ensure_section_exists(self) -> None:
@@ -564,11 +705,11 @@ class TestConfigCommands:
 
     def test_config_ensure_section_creates(self, gpd_project: Path) -> None:
         """ensure-section without config.json should create defaults."""
-        (gpd_project / ".gpd" / "config.json").unlink()
+        (gpd_project / "GPD" / "config.json").unlink()
         result = _invoke("--raw", "config", "ensure-section")
         parsed = json.loads(result.output)
         assert parsed["created"] is True
-        config_path = gpd_project / ".gpd" / "config.json"
+        config_path = gpd_project / "GPD" / "config.json"
         assert config_path.exists()
         config = json.loads(config_path.read_text())
         assert config["autonomy"] == "balanced"
@@ -579,6 +720,257 @@ class TestConfigCommands:
         assert config["git"]["branching_strategy"] == "none"
         assert "brave_search" not in config
         assert "search_gitignored" not in config
+
+    def test_permissions_sync_updates_installed_runtime(self, gpd_project: Path) -> None:
+        from gpd.adapters.claude_code import ClaudeCodeAdapter
+
+        target = gpd_project / ".claude"
+        target.mkdir()
+        gpd_root = Path(__file__).resolve().parents[1] / "src" / "gpd"
+        ClaudeCodeAdapter().install(gpd_root, target)
+
+        result = _invoke("--raw", "permissions", "sync", "--runtime", "claude-code", "--autonomy", "yolo")
+        parsed = json.loads(result.output)
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+
+        assert parsed["runtime"] == "claude-code"
+        assert parsed["sync_applied"] is True
+        assert settings["permissions"]["defaultMode"] == "bypassPermissions"
+
+    def test_permissions_sync_accepts_display_name_runtime(self, gpd_project: Path) -> None:
+        from gpd.adapters.claude_code import ClaudeCodeAdapter
+
+        target = gpd_project / ".claude"
+        target.mkdir()
+        gpd_root = Path(__file__).resolve().parents[1] / "src" / "gpd"
+        ClaudeCodeAdapter().install(gpd_root, target)
+
+        result = _invoke("--raw", "permissions", "sync", "--runtime", "Claude Code", "--autonomy", "yolo")
+        parsed = json.loads(result.output)
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+
+        assert parsed["runtime"] == "claude-code"
+        assert parsed["sync_applied"] is True
+        assert settings["permissions"]["defaultMode"] == "bypassPermissions"
+
+    def test_permissions_sync_accepts_alias_runtime(self, gpd_project: Path) -> None:
+        from gpd.adapters.claude_code import ClaudeCodeAdapter
+
+        target = gpd_project / ".claude"
+        target.mkdir()
+        gpd_root = Path(__file__).resolve().parents[1] / "src" / "gpd"
+        ClaudeCodeAdapter().install(gpd_root, target)
+
+        result = _invoke("--raw", "permissions", "sync", "--runtime", "claude", "--autonomy", "yolo")
+        parsed = json.loads(result.output)
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+
+        assert parsed["runtime"] == "claude-code"
+        assert parsed["sync_applied"] is True
+        assert settings["permissions"]["defaultMode"] == "bypassPermissions"
+
+    def test_permissions_status_and_sync_use_explicit_local_install_target(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.adapters.claude_code import ClaudeCodeAdapter
+
+        target = gpd_project / "external" / "claude-config"
+        target.mkdir(parents=True)
+        gpd_root = Path(__file__).resolve().parents[1] / "src" / "gpd"
+        ClaudeCodeAdapter().install(gpd_root, target, is_global=False, explicit_target=True)
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(target))
+
+        status_result = _invoke("--raw", "permissions", "status", "--runtime", "claude-code")
+        parsed_status = json.loads(status_result.output)
+        assert parsed_status["runtime"] == "claude-code"
+        assert parsed_status["target"] == str(target)
+        assert parsed_status["settings_path"] == str(target / "settings.json")
+
+        sync_result = _invoke("--raw", "permissions", "sync", "--runtime", "claude-code", "--autonomy", "yolo")
+        parsed_sync = json.loads(sync_result.output)
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+
+        assert parsed_sync["runtime"] == "claude-code"
+        assert parsed_sync["target"] == str(target)
+        assert parsed_sync["sync_applied"] is True
+        assert settings["permissions"]["defaultMode"] == "bypassPermissions"
+
+    def test_permissions_status_uses_public_adapter_target_validation_contract(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import gpd.adapters as adapters_module
+
+        target = gpd_project / "external" / "codex-config"
+        target.mkdir(parents=True)
+        validation_calls: list[tuple[Path, str]] = []
+
+        class _FakeAdapter:
+            runtime_name = "codex"
+            display_name = "Codex"
+
+            def validate_target_runtime(self, target_dir: Path, *, action: str) -> None:
+                validation_calls.append((target_dir, action))
+
+            def has_complete_install(self, target_dir: Path) -> bool:
+                return True
+
+            def runtime_permissions_status(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
+                return {
+                    "runtime": "codex",
+                    "desired_mode": "default",
+                    "configured_mode": "default",
+                    "config_aligned": True,
+                    "requires_relaunch": False,
+                    "managed_by_gpd": False,
+                    "message": f"validated {target_dir.name} for {autonomy}",
+                }
+
+        monkeypatch.setattr(adapters_module, "get_adapter", lambda runtime_name: _FakeAdapter())
+
+        result = _invoke(
+            "--raw",
+            "permissions",
+            "status",
+            "--runtime",
+            "codex",
+            "--target-dir",
+            str(target),
+            "--autonomy",
+            "balanced",
+        )
+        parsed = json.loads(result.output)
+
+        assert validation_calls == [(target.resolve(strict=False), "inspect runtime permissions on")]
+        assert parsed["runtime"] == "codex"
+        assert parsed["target"] == str(target.resolve(strict=False))
+        assert parsed["message"] == "validated codex-config for balanced"
+
+    @pytest.mark.parametrize("command", ["status", "sync"])
+    def test_permissions_reject_foreign_manifest_target(
+        self,
+        gpd_project: Path,
+        command: str,
+    ) -> None:
+        from gpd.adapters.claude_code import ClaudeCodeAdapter
+
+        target = gpd_project / ".claude"
+        target.mkdir()
+        gpd_root = Path(__file__).resolve().parents[1] / "src" / "gpd"
+        ClaudeCodeAdapter().install(gpd_root, target)
+
+        manifest_before = (target / "gpd-file-manifest.json").read_text(encoding="utf-8")
+        config_toml = target / "config.toml"
+        config_toml_existed_before = config_toml.exists()
+        action = "sync" if command == "sync" else "inspect"
+
+        result = _invoke(
+            "--raw",
+            "permissions",
+            command,
+            "--runtime",
+            "codex",
+            "--target-dir",
+            str(target),
+            "--autonomy",
+            "yolo",
+            expect_ok=False,
+        )
+        parsed = json.loads(result.output)
+
+        assert result.exit_code == 1
+        assert parsed["error"].startswith(f"Refusing to {action} runtime permissions on")
+        assert "`claude-code`" in parsed["error"]
+        assert "`codex`" in parsed["error"]
+        assert (target / "gpd-file-manifest.json").read_text(encoding="utf-8") == manifest_before
+        assert config_toml.exists() == config_toml_existed_before
+
+    def test_config_set_autonomy_attempts_runtime_permission_sync(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.adapters.claude_code import ClaudeCodeAdapter
+
+        target = gpd_project / ".claude"
+        target.mkdir()
+        gpd_root = Path(__file__).resolve().parents[1] / "src" / "gpd"
+        adapter = ClaudeCodeAdapter()
+        adapter.install(gpd_root, target)
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+        monkeypatch.setenv("GPD_ACTIVE_RUNTIME", "claude-code")
+
+        result = _invoke("--raw", "config", "set", "autonomy", "balanced")
+        parsed = json.loads(result.output)
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+
+        assert parsed["value"] == "balanced"
+        assert parsed["runtime_permissions"]["runtime"] == "claude-code"
+        assert parsed["runtime_permissions"]["sync_applied"] is True
+        assert settings.get("permissions", {}).get("defaultMode") != "bypassPermissions"
+
+    def test_permissions_sync_prefers_active_runtime_over_other_installed_runtime(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.adapters.codex import CodexAdapter
+
+        target = gpd_project / ".codex"
+        target.mkdir()
+        gpd_root = Path(__file__).resolve().parents[1] / "src" / "gpd"
+        CodexAdapter().install(gpd_root, target)
+        fake_home = gpd_project / "_fake_home_permissions"
+        fake_home.mkdir()
+        monkeypatch.setenv("CLAUDE_CODE_SESSION", "active")
+
+        with patch("pathlib.Path.home", return_value=fake_home):
+            result = _invoke("--raw", "permissions", "sync", "--autonomy", "yolo", expect_ok=False)
+
+        parsed = json.loads(result.output)
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+        config_toml = (target / "config.toml").read_text(encoding="utf-8")
+
+        assert parsed["error"] == "No GPD install found for runtime 'claude-code'. Run `gpd install claude-code` first."
+        assert "gpd_runtime_permissions" not in manifest
+        assert 'approval_policy = "never"' not in config_toml
+        assert 'sandbox_mode = "danger-full-access"' not in config_toml
+
+    def test_config_set_autonomy_does_not_sync_other_installed_runtime(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.adapters.codex import CodexAdapter
+
+        target = gpd_project / ".codex"
+        target.mkdir()
+        gpd_root = Path(__file__).resolve().parents[1] / "src" / "gpd"
+        CodexAdapter().install(gpd_root, target)
+        fake_home = gpd_project / "_fake_home_config_set"
+        fake_home.mkdir()
+        monkeypatch.setenv("CLAUDE_CODE_SESSION", "active")
+
+        with patch("pathlib.Path.home", return_value=fake_home):
+            result = _invoke("--raw", "config", "set", "autonomy", "yolo")
+
+        parsed = json.loads(result.output)
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+        config_toml = (target / "config.toml").read_text(encoding="utf-8")
+
+        assert parsed["value"] == "yolo"
+        assert parsed["runtime_permissions"]["runtime"] == "claude-code"
+        assert parsed["runtime_permissions"]["sync_applied"] is False
+        assert parsed["runtime_permissions"]["changed"] is False
+        assert parsed["runtime_permissions"]["message"] == (
+            "No GPD install found for runtime 'claude-code'. Run `gpd install claude-code` first."
+        )
+        assert "gpd_runtime_permissions" not in manifest
+        assert 'approval_policy = "never"' not in config_toml
+        assert 'sandbox_mode = "danger-full-access"' not in config_toml
 
     def test_config_help(self) -> None:
         result = _invoke("config", "--help")
@@ -719,7 +1111,7 @@ class TestSummaryExtractCommand:
         result = _invoke(
             "--raw",
             "summary-extract",
-            ".gpd/phases/01-test-phase/01-SUMMARY.md",
+            "GPD/phases/01-test-phase/01-SUMMARY.md",
         )
         parsed = json.loads(result.output)
         assert parsed["one_liner"] == "Set up project"
@@ -729,7 +1121,7 @@ class TestSummaryExtractCommand:
         result = _invoke(
             "--raw",
             "summary-extract",
-            ".gpd/phases/01-test-phase/01-SUMMARY.md",
+            "GPD/phases/01-test-phase/01-SUMMARY.md",
             "--field",
             "one_liner",
         )
@@ -740,15 +1132,15 @@ class TestSummaryExtractCommand:
 
 class TestSyncPhaseCheckpointsCommand:
     def test_sync_phase_checkpoints(self, gpd_project: Path) -> None:
-        phase_dir = gpd_project / ".gpd" / "phases" / "01-test-phase"
+        phase_dir = gpd_project / "GPD" / "phases" / "01-test-phase"
         (phase_dir / "01-VERIFICATION.md").write_text("# Verification\n\nPassed.\n", encoding="utf-8")
 
         result = _invoke("--raw", "sync-phase-checkpoints")
 
         parsed = json.loads(result.output)
         assert parsed["phase_count"] == 1
-        assert (gpd_project / "phase-checkpoints" / "01-test-phase.md").exists()
-        assert (gpd_project / "CHECKPOINTS.md").exists()
+        assert (gpd_project / "GPD" / "phase-checkpoints" / "01-test-phase.md").exists()
+        assert (gpd_project / "GPD" / "CHECKPOINTS.md").exists()
 
 
 class TestResolveModelCommand:
@@ -761,30 +1153,43 @@ class TestResolveModelCommand:
         parsed = json.loads(result.output)
         assert parsed["error"] == "Unknown agent 'not-an-agent'"
 
-    def test_resolve_model_prefers_installed_runtime_override(self, gpd_project: Path) -> None:
-        config_path = gpd_project / ".gpd" / "config.json"
+    @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+    def test_resolve_model_prefers_installed_runtime_override(self, gpd_project: Path, descriptor) -> None:
+        config_path = gpd_project / "GPD" / "config.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))
-        config["model_overrides"] = {"codex": {"tier-1": "gpt-5"}}
+        config["model_overrides"] = {
+            descriptor.runtime_name: {
+                "tier-1": f"{descriptor.runtime_name}-planner-model",
+                "tier-2": f"{descriptor.runtime_name}-executor-model",
+            }
+        }
         config_path.write_text(json.dumps(config), encoding="utf-8")
-        (gpd_project / ".claude").mkdir()
-        _mark_complete_runtime_install(gpd_project / ".codex", runtime="codex")
-
+        _mark_complete_runtime_install(gpd_project / descriptor.config_dir_name, runtime=descriptor.runtime_name)
         fake_home = gpd_project / "_fake_home"
         fake_home.mkdir()
         with patch("pathlib.Path.home", return_value=fake_home):
             result = _invoke("resolve-model", "gpd-executor")
-            assert result.output.strip() == ""
+            assert result.output.strip() == f"{descriptor.runtime_name}-executor-model"
 
             planner_result = _invoke("resolve-model", "gpd-planner")
-            assert planner_result.output.strip() == "gpt-5"
+            assert planner_result.output.strip() == f"{descriptor.runtime_name}-planner-model"
 
-    def test_init_execute_phase_prefers_installed_runtime_for_model_fields(self, gpd_project: Path) -> None:
-        config_path = gpd_project / ".gpd" / "config.json"
+    @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+    def test_init_execute_phase_prefers_installed_runtime_for_model_fields(
+        self,
+        gpd_project: Path,
+        descriptor,
+    ) -> None:
+        config_path = gpd_project / "GPD" / "config.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))
-        config["model_overrides"] = {"codex": {"tier-1": "gpt-5", "tier-2": "gpt-5-mini"}}
+        config["model_overrides"] = {
+            descriptor.runtime_name: {
+                "tier-1": f"{descriptor.runtime_name}-planner-model",
+                "tier-2": f"{descriptor.runtime_name}-executor-model",
+            }
+        }
         config_path.write_text(json.dumps(config), encoding="utf-8")
-        (gpd_project / ".claude").mkdir()
-        _mark_complete_runtime_install(gpd_project / ".codex", runtime="codex")
+        _mark_complete_runtime_install(gpd_project / descriptor.config_dir_name, runtime=descriptor.runtime_name)
 
         fake_home = gpd_project / "_fake_home"
         fake_home.mkdir()
@@ -792,10 +1197,17 @@ class TestResolveModelCommand:
             result = _invoke("--raw", "init", "execute-phase", "1")
             payload = json.loads(result.output)
 
-            assert payload["executor_model"] == "gpt-5-mini"
-            assert payload["verifier_model"] == "gpt-5"
+            assert payload["executor_model"] == f"{descriptor.runtime_name}-executor-model"
+            assert payload["verifier_model"] == f"{descriptor.runtime_name}-planner-model"
 
     def test_resolve_model_rejects_unknown_agent(self) -> None:
-        result = _invoke("--raw", "resolve-model", "not-an-agent", "--runtime", "codex", expect_ok=False)
+        result = _invoke(
+            "--raw",
+            "resolve-model",
+            "not-an-agent",
+            "--runtime",
+            _RUNTIME_DESCRIPTORS[0].runtime_name,
+            expect_ok=False,
+        )
         parsed = json.loads(result.output)
         assert parsed["error"] == "Unknown agent 'not-an-agent'"

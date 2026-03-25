@@ -79,19 +79,9 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `phases`, `current_phase`, `next_phase`, `milestone_version`, `completed_count`, `phase_count`, `paused_at`, `autonomy`, `research_mode`, `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`.
+Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `phases`, `current_phase`, `next_phase`, `milestone_version`, `completed_count`, `phase_count`, `paused_at`, `autonomy`, `research_mode`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`.
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `project_content`, `config_content`. These are null if files don't exist.
-
-Run centralized context preflight before continuing:
-
-```bash
-CONTEXT=$(gpd --raw validate command-context progress "$ARGUMENTS")
-if [ $? -ne 0 ]; then
-  echo "$CONTEXT"
-  exit 1
-fi
-```
 
 If missing STATE.md: suggest `/gpd:new-project`.
 
@@ -111,11 +101,23 @@ All file contents are already loaded via `--include` in init_context step:
 - `roadmap_content` — phase structure and objectives
 - `project_content` — current state (Research Question, Framework, Answered Questions)
 - `config_content` — settings (model_profile, workflow toggles)
-- `project_contract` — machine-readable scoping and anchor contract
+- `project_contract` — machine-readable scoping and anchor contract, authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes
+- `project_contract_load_info` — structured load status, warnings, and blockers for the contract
+- `project_contract_validation` — contract approval gate for authoritative use
 - `effective_reference_intake` — structured carry-forward ledger for refs, baselines, prior outputs, and context gaps
 - `active_reference_context` / `reference_artifacts_content` — readable anchor context to explain the next-step recommendation
 
 No additional file reads needed.
+
+Run centralized context preflight before continuing:
+
+```bash
+CONTEXT=$(gpd --raw validate command-context progress "$ARGUMENTS")
+if [ $? -ne 0 ]; then
+  echo "$CONTEXT"
+  exit 1
+fi
+```
 </step>
 
 <step name="analyze_roadmap">
@@ -151,10 +153,10 @@ Use this instead of manually reading/parsing ROADMAP.md.
 **Parse current position from init context and roadmap analysis:**
 
 - Use `current_phase` and `next_phase` from roadmap analyze
-- Use phase-level `has_context` and `has_literature` flags from analyze
+- Use phase-level `has_context` and `has_research` flags from analyze
 - Note `paused_at` if work was paused (from init context)
 - Count pending items: use `init todos` or `list-todos`
-- Check for active debug sessions: `ls .gpd/debug/*.md 2>/dev/null | grep -v resolved | wc -l`
+- Check for active debug sessions: `ls GPD/debug/*.md 2>/dev/null | grep -v resolved | wc -l`
 - Check state compaction health: `gpd state compact 2>&1` — if output contains `"warn": true`, STATE.md is growing large. Note this for the report.
   </step>
 
@@ -240,25 +242,25 @@ If health reports any issues (non-empty `issues` array), append a summary:
 List files in the current phase directory:
 
 ```bash
-ls -1 .gpd/phases/[current-phase-dir]/*-PLAN.md 2>/dev/null | wc -l
-ls -1 .gpd/phases/[current-phase-dir]/*-SUMMARY.md 2>/dev/null | wc -l
-ls -1 .gpd/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null | wc -l
+ls -1 GPD/phases/[current-phase-dir]/*-PLAN.md 2>/dev/null | wc -l
+ls -1 GPD/phases/[current-phase-dir]/*-SUMMARY.md 2>/dev/null | wc -l
+ls -1 GPD/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null | wc -l
 ```
 
 State: "This phase has {X} plans, {Y} summaries."
 
 **Step 1.5: Check for unaddressed validation gaps**
 
-Check for VERIFICATION.md files with gaps or review requirements. This includes `gaps_found` (verification found issues), `diagnosed` (root causes identified), `human_needed` (human review required), and `expert_needed` (domain expert review required).
+Check for `*-VERIFICATION.md` files with gaps or review requirements. This includes canonical verification `status: gaps_found|human_needed|expert_needed`, plus researcher-session files where `session_status: diagnosed` records rooted gap analysis without changing the final verification vocabulary.
 
 ```bash
 # Check for validation with gaps or review requirements
-grep -l -E "status: (gaps_found|diagnosed|human_needed|expert_needed)" .gpd/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null
+grep -l -E "^(status: (gaps_found|human_needed|expert_needed)|session_status: diagnosed)$" GPD/phases/[current-phase-dir]/*-VERIFICATION.md 2>/dev/null
 ```
 
 Track:
 
-- `validation_with_gaps`: VERIFICATION.md files with status "gaps_found", "diagnosed", "human_needed", or "expert_needed"
+- `validation_with_gaps`: `*-VERIFICATION.md` files with `status: gaps_found|human_needed|expert_needed` or `session_status: diagnosed`
 
 **Step 1.75: Check for existing gap-closure plans**
 
@@ -267,7 +269,7 @@ If `validation_with_gaps > 0`, check whether gap-closure plans already exist but
 ```bash
 # Check for gap_closure plans without matching SUMMARYs
 GAP_PLANS_UNEXECUTED=0
-for plan in .gpd/phases/[current-phase-dir]/*-PLAN.md; do
+for plan in GPD/phases/[current-phase-dir]/*-PLAN.md; do
   if grep -q "gap_closure: true" "$plan" 2>/dev/null; then
     SUMMARY="${plan%-PLAN.md}-SUMMARY.md"
     if [ ! -f "$SUMMARY" ]; then

@@ -60,7 +60,7 @@ _KIND_MAP = {
     "user_anchor": "user_anchor",
 }
 _PATH_HINT_RE = re.compile(
-    r"(?P<path>(?:\.gpd/|\.?/)?[\w./-]+\.(?:md|txt|pdf|png|jpg|jpeg|csv|json|ya?ml|tex|ipynb|py|bib))",
+    r"(?P<path>(?:GPD/|\.?/)?[\w./-]+\.(?:md|txt|pdf|png|jpg|jpeg|csv|json|ya?ml|tex|ipynb|py|bib))",
 )
 _ACTIVE_REFERENCE_REGISTRY_HEADINGS = (
     "Active Anchor Registry",
@@ -121,6 +121,23 @@ _DIRECT_INTAKE_SECTION_ALIASES = {
         "Required Inputs",
     ),
 }
+_DETAIL_SLASH_JOIN_KEYS = {
+    "action",
+    "applies to",
+    "carry forward to",
+    "contract subject ids",
+    "downstream use",
+    "required action",
+    "required actions",
+    "subject ids",
+    "subject ids applies to",
+}
+_APPLIES_TO_KEYS = (
+    "applies to",
+    "contract subject ids",
+    "subject ids",
+    "subject ids / applies to",
+)
 
 
 @dataclass
@@ -233,6 +250,18 @@ def _normalize_actions(value: object) -> list[str]:
     return result
 
 
+def _normalize_optional_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized in {"true", "yes", "y", "required"}:
+            return True
+        if normalized in {"false", "no", "n", "optional", "advisory"}:
+            return False
+    return None
+
+
 def _normalize_multi_value(value: object) -> list[str]:
     if isinstance(value, list):
         tokens = [_clean_text(item) for item in value]
@@ -323,10 +352,10 @@ def _mapping_value(mapping: dict[str, str], *keys: str) -> str:
 
 
 def _detail_mapping(details: object) -> dict[str, str]:
-    mapping: dict[str, str] = {}
+    collected: dict[str, list[str]] = {}
     freeform: list[str] = []
     if not isinstance(details, list):
-        return mapping
+        return {}
     for detail in details:
         detail_text = _clean_text(detail)
         if not detail_text:
@@ -339,11 +368,13 @@ def _detail_mapping(details: object) -> dict[str, str]:
         cleaned_value = _clean_text(value)
         if not canonical_key or not cleaned_value:
             continue
-        if canonical_key in mapping:
-            if cleaned_value not in mapping[canonical_key]:
-                mapping[canonical_key] = f"{mapping[canonical_key]}; {cleaned_value}"
-        else:
-            mapping[canonical_key] = cleaned_value
+        bucket = collected.setdefault(canonical_key, [])
+        if cleaned_value not in bucket:
+            bucket.append(cleaned_value)
+    mapping = {
+        key: (" / " if key in _DETAIL_SLASH_JOIN_KEYS else "; ").join(values)
+        for key, values in collected.items()
+    }
     if freeform:
         mapping["freeform"] = "; ".join(freeform)
     return mapping
@@ -396,10 +427,11 @@ def _parse_reference_block(
         anchor_id=_mapping_value(detail_map, "anchor id", "reference id", "id"),
         label=label,
         locator=locator or label,
-        applies_to=_mapping_value(detail_map, "applies to", "subject ids", "subject ids / applies to"),
+        applies_to=_mapping_value(detail_map, *_APPLIES_TO_KEYS),
         kind=_mapping_value(detail_map, "kind", "artifact kind"),
         role=_mapping_value(detail_map, "type", "role", "kind"),
         why_it_matters=why,
+        must_surface_hint=_mapping_value(detail_map, "must surface", "must_surface"),
         actions=_mapping_value(detail_map, "required action", "required actions", "action"),
         downstream=_mapping_value(detail_map, "downstream use", "carry forward to", "applies to"),
         source_path=source_path,
@@ -546,6 +578,7 @@ def _reference_from_active_anchor(
     kind: str | None,
     role: str | None,
     why_it_matters: str | None,
+    must_surface_hint: object | None = None,
     actions: object,
     downstream: object,
     source_path: str,
@@ -563,8 +596,10 @@ def _reference_from_active_anchor(
     for alias in {_clean_text(label), _clean_text(locator), _clean_text(anchor_id)}:
         if alias and alias not in {locator_value, _clean_text(anchor_id)}:
             alias_values.append(alias)
-    must_surface = normalized_role in {"benchmark", "definition", "method", "must_consider"} or bool(
-        {"use", "compare", "avoid"} & set(normalized_actions)
+    explicit_must_surface = _normalize_optional_bool(must_surface_hint)
+    must_surface = explicit_must_surface if explicit_must_surface is not None else (
+        normalized_role in {"benchmark", "definition", "method", "must_consider"}
+        or bool({"use", "compare", "avoid"} & set(normalized_actions))
     )
     return ArtifactReference(
         id=_clean_text(anchor_id) or _reference_id(label, locator_value, prefix),
@@ -596,10 +631,11 @@ def _ingest_reference_registry_section(
             anchor_id=_mapping_value(canonical_row, "anchor id", "reference id", "id"),
             label=_mapping_value(canonical_row, "anchor", "reference", "label", "source / locator"),
             locator=_mapping_value(canonical_row, "source / locator", "locator", "source", "reference", "anchor"),
-            applies_to=_mapping_value(canonical_row, "applies to", "subject ids"),
+            applies_to=_mapping_value(canonical_row, *_APPLIES_TO_KEYS),
             kind=_mapping_value(canonical_row, "kind", "artifact kind"),
             role=_mapping_value(canonical_row, "type", "role", "kind"),
             why_it_matters=_mapping_value(canonical_row, "why it matters", "what it constrains", "description"),
+            must_surface_hint=_mapping_value(canonical_row, "must surface", "must_surface"),
             actions=_mapping_value(canonical_row, "required action", "required actions", "action"),
             downstream=_mapping_value(canonical_row, "downstream use", "carry forward to", "applies to"),
             source_path=source_path,
@@ -713,7 +749,9 @@ def _ingest_literature_review(content: str, source_path: str, result: ArtifactRe
                     anchor_id=str(entry.get("anchor_id") or ""),
                     label=str(entry.get("anchor") or entry.get("label") or entry.get("locator") or "literature-anchor"),
                     locator=str(entry.get("locator") or entry.get("source") or entry.get("anchor") or ""),
-                    applies_to=entry.get("applies_to") or entry.get("subject_ids"),
+                    applies_to=entry.get("applies_to")
+                    or entry.get("contract_subject_ids")
+                    or entry.get("subject_ids"),
                     kind=str(entry.get("kind") or ""),
                     role=str(entry.get("type") or entry.get("role") or "other"),
                     why_it_matters=str(entry.get("why_it_matters") or ""),

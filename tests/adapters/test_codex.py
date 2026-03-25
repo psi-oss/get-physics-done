@@ -11,7 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from gpd.adapters.codex import CodexAdapter, _convert_codex_tool_name, _convert_to_codex_skill
+from gpd.adapters.codex import (
+    CodexAdapter,
+    _convert_codex_tool_name,
+    _convert_to_codex_skill,
+    _normalize_codex_questioning,
+)
 from gpd.adapters.install_utils import build_runtime_cli_bridge_command
 from gpd.registry import load_agents_from_dir
 
@@ -165,6 +170,24 @@ class TestConvertToCodexSkill:
 
 
 class TestInstall:
+    def test_help_skill_does_not_describe_codex_commands_as_slash_commands(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        content = (skills / "gpd-help" / "SKILL.md").read_text(encoding="utf-8")
+        assert "slash-command" not in content
+        assert "canonical in-runtime command names" in content
+        assert "$gpd-" in content
+
     def test_local_install_uses_repo_scoped_skills_dir_by_default(
         self,
         adapter: CodexAdapter,
@@ -200,6 +223,76 @@ class TestInstall:
         for skill_dir in gpd_skills:
             assert (skill_dir / "SKILL.md").exists()
 
+    def test_install_failure_preserves_live_skills(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        existing_skill = skills / "gpd-help"
+        existing_skill.mkdir()
+        (existing_skill / "SKILL.md").write_text("old help", encoding="utf-8")
+        preserved_skill = skills / "custom-keep"
+        preserved_skill.mkdir()
+        (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
+
+        def fail_compile(*args, **kwargs):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr("gpd.adapters.codex.compile_markdown_for_runtime", fail_compile)
+
+        with pytest.raises(RuntimeError, match="boom"):
+            adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") == "old help"
+        assert (preserved_skill / "SKILL.md").read_text(encoding="utf-8") == "keep"
+
+    def test_install_failure_after_live_backup_restores_original_skills(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        existing_skill = skills / "gpd-help"
+        existing_skill.mkdir()
+        (existing_skill / "SKILL.md").write_text("old help", encoding="utf-8")
+        preserved_skill = skills / "custom-keep"
+        preserved_skill.mkdir()
+        (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
+
+        original_rename = Path.rename
+
+        def fake_render(*args, **kwargs):
+            return None
+
+        def fake_rename(self: Path, target_path: Path):
+            if target_path == skills and self.name.endswith(".backup"):
+                return original_rename(self, target_path)
+            if target_path == skills:
+                raise RuntimeError("boom after backup")
+            return original_rename(self, target_path)
+
+        monkeypatch.setattr("gpd.adapters.codex._render_commands_as_skills", fake_render)
+        monkeypatch.setattr(Path, "rename", fake_rename)
+
+        with pytest.raises(RuntimeError, match="boom after backup"):
+            adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") == "old help"
+        assert (preserved_skill / "SKILL.md").read_text(encoding="utf-8") == "keep"
+
     def test_install_rewrites_gpd_cli_calls_to_runtime_cli_bridge(
         self,
         adapter: CodexAdapter,
@@ -214,17 +307,21 @@ class TestInstall:
         expected_bridge = expected_codex_bridge(target, is_global=False)
         skill = (local_skills / "gpd-set-profile" / "SKILL.md").read_text(encoding="utf-8")
         workflow = (target / "get-physics-done" / "workflows" / "set-profile.md").read_text(encoding="utf-8")
+        execute_phase = (target / "get-physics-done" / "workflows" / "execute-phase.md").read_text(encoding="utf-8")
         agent = (target / "agents" / "gpd-planner.md").read_text(encoding="utf-8")
 
         assert "Codex shell compatibility:" in skill
         assert f"When shell steps call the GPD CLI, use {expected_bridge}" in skill
-        assert "`GPD_ACTIVE_RUNTIME=codex uv run gpd ...`" in skill
+        assert "validates the install contract" in skill
+        assert "`GPD_ACTIVE_RUNTIME=codex uv run gpd ...`" not in skill
         assert expected_bridge + " config ensure-section" in skill
         assert f'INIT=$({expected_bridge} init progress --include state,config)' in skill
         assert 'echo "ERROR: gpd initialization failed: $INIT"' in skill
         assert expected_bridge + " config ensure-section" in workflow
+        assert f'if ! {expected_bridge} verify plan "$plan"; then' in execute_phase
         assert f'INIT=$({expected_bridge} init plan-phase "${{PHASE}}")' in agent
         assert "```bash\ngpd config ensure-section\n" not in workflow
+        assert 'if ! gpd verify plan "$plan"; then' not in execute_phase
         assert 'INIT=$(gpd init plan-phase "${PHASE}")' not in agent
 
     def test_install_does_not_expose_agents_as_skills(
@@ -417,6 +514,68 @@ class TestInstall:
         workflow = (target / "get-physics-done" / "workflows" / "set-profile.md").read_text(encoding="utf-8")
         assert expected_codex_bridge(target, explicit_target=True) + " config ensure-section" in workflow
 
+
+class TestRuntimePermissions:
+    def test_sync_runtime_permissions_yolo_updates_codex_root_and_role_configs(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        result = adapter.sync_runtime_permissions(target, autonomy="yolo")
+
+        parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
+        role = tomllib.loads((target / "agents" / "gpd-executor.toml").read_text(encoding="utf-8"))
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+
+        assert parsed["approval_policy"] == "never"
+        assert parsed["sandbox_mode"] == "danger-full-access"
+        assert role["approval_policy"] == "never"
+        assert role["sandbox_mode"] == "danger-full-access"
+        assert manifest["gpd_runtime_permissions"]["mode"] == "yolo"
+        assert result["sync_applied"] is True
+        assert result["requires_relaunch"] is True
+
+    def test_sync_runtime_permissions_restores_previous_codex_settings(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        (target / "config.toml").write_text(
+            'approval_policy = "on-request"\n'
+            'sandbox_mode = "workspace-write"\n',
+            encoding="utf-8",
+        )
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+        result = adapter.sync_runtime_permissions(target, autonomy="balanced")
+
+        parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
+        role = tomllib.loads((target / "agents" / "gpd-executor.toml").read_text(encoding="utf-8"))
+        content = (target / "config.toml").read_text(encoding="utf-8")
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+
+        assert parsed["approval_policy"] == "on-request"
+        assert parsed["sandbox_mode"] == "workspace-write"
+        assert "approval_policy" not in role
+        assert role["sandbox_mode"] == "workspace-write"
+        assert "GPD runtime approval policy" not in content
+        assert "GPD runtime sandbox mode" not in content
+        assert "gpd_runtime_permissions" not in manifest
+        assert result["sync_applied"] is True
+
     def test_reinstall_rewrites_stale_managed_notify_interpreter(
         self,
         adapter: CodexAdapter,
@@ -467,7 +626,10 @@ class TestInstall:
         skills.mkdir()
         adapter.install(gpd_root, target, skills_dir=skills)
 
-        assert (target / "gpd-file-manifest.json").exists()
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+        assert manifest["codex_skills_dir"] == str(skills)
+        assert manifest["codex_generated_skill_dirs"]
+        assert all(name.startswith("gpd-") for name in manifest["codex_generated_skill_dirs"])
 
     def test_install_returns_counts(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
@@ -547,6 +709,42 @@ description: Nested command include expansion regression
         assert "> **Platform note:** If `ask_user` is not available" not in content
         assert "Use ask_user:" not in content
         assert "Ask the user once using a single compact prompt block:" in content
+
+    @pytest.mark.parametrize(
+        ("content", "expected"),
+        [
+            (
+                "> **Platform note:** if `ask_user` is not available, present these options in plain text and wait for the user's freeform response.\n\n"
+                "use ask_user with current values pre-selected:\n\n"
+                "```\n"
+                "ask_user([\n"
+                "  {\"question\": \"How much autonomy should the AI have?\"}\n"
+                "])\n"
+                "```\n",
+                "plain_text_prompt([",
+            ),
+            (
+                "> **Platform note:** if `ask_user` is not available, present these options in plain text and wait for the user's freeform response.\n\n"
+                "if overlapping, use ask_user:\n",
+                "If overlapping, present the duplicate choices in plain text:",
+            ),
+            (
+                "ask inline (freeform, not ask_user):\n\n"
+                "based on what they said, ask follow-up questions that dig into their response. use ask_user with options that probe what they mentioned — interpretations, clarifications, concrete examples.\n\n"
+                "when you could write a clear scoping contract, use ask_user:\n",
+                "When you could write a clear scoping contract, ask the user inline:",
+            ),
+        ],
+    )
+    def test_normalize_codex_questioning_rewrites_lowercase_fallback_variants(
+        self,
+        content: str,
+        expected: str,
+    ) -> None:
+        normalized = _normalize_codex_questioning(content)
+
+        assert "ask_user" not in normalized.lower()
+        assert expected.lower() in normalized.lower()
 
     def test_new_project_workflow_normalizes_codex_questioning(
         self,
@@ -646,7 +844,7 @@ class TestUninstall:
 
         adapter.uninstall(target)
 
-        assert not any(
+        assert not original_shared_skills.exists() or not any(
             entry.is_dir() and entry.name.startswith("gpd-")
             for entry in original_shared_skills.iterdir()
         )
@@ -671,7 +869,7 @@ class TestUninstall:
         adapter.uninstall(target)
         local_skills = tmp_path / ".agents" / "skills"
 
-        assert not any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
+        assert not local_skills.exists() or not any(d.name.startswith("gpd-") for d in local_skills.iterdir() if d.is_dir())
         assert (shared_skills / "custom-keep" / "SKILL.md").exists()
 
     def test_uninstall_removes_skills(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
@@ -683,9 +881,56 @@ class TestUninstall:
 
         result = adapter.uninstall(target, skills_dir=skills)
 
-        gpd_skills = [d for d in skills.iterdir() if d.is_dir() and d.name.startswith("gpd-")]
+        gpd_skills = [d for d in skills.iterdir() if d.is_dir() and d.name.startswith("gpd-")] if skills.exists() else []
         assert len(gpd_skills) == 0
         assert any("skills" in item for item in result["removed"])
+
+    def test_uninstall_preserves_untracked_gpd_skill_dir(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+        tracked_skill_names = set(manifest["codex_generated_skill_dirs"])
+        preserved_skill = skills / "gpd-user-keep"
+        preserved_skill.mkdir()
+        (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
+
+        adapter.uninstall(target, skills_dir=skills)
+
+        assert (preserved_skill / "SKILL.md").exists()
+        assert "gpd-user-keep" not in tracked_skill_names
+
+    def test_legacy_manifest_file_entries_drive_completeness_and_uninstall(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+        manifest_path = target / "gpd-file-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        tracked_skill_names = set(manifest["codex_generated_skill_dirs"])
+        manifest.pop("codex_generated_skill_dirs", None)
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        assert adapter.has_complete_install(target) is True
+
+        adapter.uninstall(target, skills_dir=skills)
+
+        assert not any((skills / name).exists() for name in tracked_skill_names)
 
     def test_uninstall_removes_agents(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"
@@ -701,7 +946,7 @@ class TestUninstall:
         adapter.uninstall(target, skills_dir=skills)
 
         agents_dir = target / "agents"
-        assert not any(f.name.startswith("gpd-") for f in agents_dir.iterdir())
+        assert not agents_dir.exists() or not any(f.name.startswith("gpd-") for f in agents_dir.iterdir())
         assert (agents_dir / "custom.md").exists()
         assert (agents_dir / "custom.toml").exists()
 

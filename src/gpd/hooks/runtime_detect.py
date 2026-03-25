@@ -18,6 +18,12 @@ from gpd.adapters.install_utils import (
     MANIFEST_NAME,
     UPDATE_CACHE_FILENAME,
 )
+from gpd.adapters.runtime_catalog import (
+    iter_runtime_descriptors,
+)
+from gpd.adapters.runtime_catalog import (
+    resolve_global_config_dir as _resolve_global_config_dir,
+)
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, PLANNING_DIR_NAME, TODOS_DIR_NAME
 
 RUNTIME_UNKNOWN = "unknown"
@@ -66,7 +72,7 @@ def _adapter(runtime: str):
         return None
 
 
-def _normalize_runtime_name(value: str | None) -> str | None:
+def normalize_runtime_name(value: str | None) -> str | None:
     """Resolve a runtime id, display name, or alias to a canonical runtime name."""
     if not isinstance(value, str):
         return None
@@ -75,22 +81,49 @@ def _normalize_runtime_name(value: str | None) -> str | None:
     if not normalized:
         return None
 
-    for runtime in ALL_RUNTIMES:
-        adapter = _adapter(runtime)
-        if adapter is None:
-            continue
+    for descriptor in iter_runtime_descriptors():
         if normalized in {
-            runtime.casefold(),
-            adapter.display_name.casefold(),
-            *(alias.casefold() for alias in adapter.selection_aliases),
+            descriptor.runtime_name.casefold(),
+            descriptor.display_name.casefold(),
+            *(alias.casefold() for alias in descriptor.selection_aliases),
         }:
-            return runtime
+            return descriptor.runtime_name
     return None
+
+
+def _paths_equal(left: Path, right: Path) -> bool:
+    try:
+        return left.expanduser().resolve() == right.expanduser().resolve()
+    except OSError:
+        return left.expanduser() == right.expanduser()
+
+
+def _is_workspace_local_runtime_dir(
+    config_dir: Path,
+    *,
+    runtime: str,
+    cwd: Path | None = None,
+) -> bool:
+    """Return whether *config_dir* is the canonical local runtime dir for one workspace root.
+
+    Manifestless explicit targets must not claim ownership merely because their
+    basename matches a runtime's local config dir. Only directories anchored to
+    the current workspace ancestry qualify for local-path ownership fallback.
+    """
+    adapter = _adapter(runtime)
+    if adapter is None or config_dir.name != adapter.local_config_dir_name:
+        return False
+
+    resolved_cwd = cwd or Path.cwd()
+    for base in (resolved_cwd, *resolved_cwd.parents):
+        if _paths_equal(config_dir, adapter.resolve_local_config_dir(base)):
+            return True
+    return False
 
 
 def _explicit_runtime_override() -> str | None:
     """Return an explicit runtime override supplied by GPD-owned shell surfaces."""
-    return _normalize_runtime_name(os.environ.get(ENV_GPD_ACTIVE_RUNTIME))
+    return normalize_runtime_name(os.environ.get(ENV_GPD_ACTIVE_RUNTIME))
 
 
 def _prioritized_runtimes(preferred_runtime: str | None = None) -> list[str]:
@@ -124,7 +157,7 @@ def _manifest_install_scope(config_dir: Path) -> str | None:
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
 
     if not isinstance(manifest, dict):
@@ -134,44 +167,80 @@ def _manifest_install_scope(config_dir: Path) -> str | None:
     return scope if scope in (SCOPE_LOCAL, SCOPE_GLOBAL) else None
 
 
-def _runtime_from_manifest_or_path(config_dir: Path) -> str | None:
-    """Infer the owning runtime for *config_dir* from its manifest or path."""
+def _manifest_runtime_status(config_dir: Path) -> tuple[str, str | None]:
+    """Return the manifest parse state and normalized runtime when available."""
     manifest_path = config_dir / MANIFEST_NAME
-    if manifest_path.exists():
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            manifest = None
-        if isinstance(manifest, dict):
-            runtime = manifest.get("runtime")
-            if isinstance(runtime, str) and runtime in ALL_RUNTIMES:
-                return runtime
+    if not manifest_path.exists():
+        return "missing", None
 
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return "corrupt", None
+
+    if not isinstance(manifest, dict):
+        return "invalid", None
+
+    if "runtime" not in manifest:
+        return "invalid", None
+
+    runtime = manifest.get("runtime")
+    if not isinstance(runtime, str):
+        return "invalid", None
+
+    normalized = runtime.strip()
+    if not normalized:
+        return "invalid", None
+    normalized_runtime = normalize_runtime_name(normalized)
+    if normalized_runtime is None:
+        return "invalid", None
+    return "ok", normalized_runtime
+
+
+def _runtime_from_manifest_or_path(
+    config_dir: Path,
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+    allow_local_path_fallback: bool = True,
+) -> str | None:
+    """Infer the owning runtime for *config_dir* from its manifest or path."""
+    manifest_state, manifest_runtime = _manifest_runtime_status(config_dir)
+    if manifest_state == "ok":
+        return manifest_runtime or RUNTIME_UNKNOWN
+    if manifest_state != "missing":
+        return None
+
+    resolved_cwd = cwd or Path.cwd()
+    resolved_home = home or Path.home()
     for runtime in ALL_RUNTIMES:
         adapter = _adapter(runtime)
-        if adapter is not None and config_dir.name == adapter.local_config_dir_name:
+        if adapter is None:
+            continue
+        if allow_local_path_fallback and _is_workspace_local_runtime_dir(config_dir, runtime=runtime, cwd=resolved_cwd):
+            return runtime
+        # Explicit config-dir ownership should remain stable even when the
+        # current process carries unrelated runtime/XDG override env vars.
+        canonical_global_dir = _resolve_global_config_dir(adapter.runtime_descriptor, home=resolved_home, environ={})
+        if _paths_equal(config_dir, canonical_global_dir):
             return runtime
     return None
 
 
-def _has_gpd_install(config_dir: Path) -> bool:
-    """Return True when *config_dir* appears to contain a GPD install."""
-    runtime = _runtime_from_manifest_or_path(config_dir)
-    if runtime is None:
+def _has_gpd_install(
+    config_dir: Path,
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+) -> bool:
+    """Return True when *config_dir* has stable markers of a GPD install."""
+    runtime = _runtime_from_manifest_or_path(config_dir, cwd=cwd, home=home)
+    if runtime in (None, RUNTIME_UNKNOWN):
         return False
     adapter = _adapter(runtime)
     if adapter is None:
         return False
     return adapter.has_complete_install(config_dir)
-
-
-def _install_marker_quality(config_dir: Path) -> int:
-    """Rank how confidently *config_dir* represents a real GPD install."""
-    if _has_gpd_install(config_dir):
-        return 2
-    if (config_dir / MANIFEST_NAME).is_file() or (config_dir / GPD_INSTALL_DIR_NAME).is_dir():
-        return 1
-    return 0
 
 
 def _runtime_dir_has_gpd_install(
@@ -186,9 +255,9 @@ def _runtime_dir_has_gpd_install(
     resolved_cwd = cwd or Path.cwd()
     resolved_home = home or Path.home()
 
-    if include_local and _has_gpd_install(_local_runtime_dir(runtime, resolved_cwd)):
+    if include_local and _has_gpd_install(_local_runtime_dir(runtime, resolved_cwd), cwd=resolved_cwd, home=resolved_home):
         return True
-    if include_global and _has_gpd_install(_global_runtime_dir(runtime, home=resolved_home)):
+    if include_global and _has_gpd_install(_global_runtime_dir(runtime, home=resolved_home), cwd=resolved_cwd, home=resolved_home):
         return True
     return False
 
@@ -201,16 +270,16 @@ def _detect_runtime_install_target(
 ) -> RuntimeInstallTarget | None:
     """Return the concrete config dir currently serving a runtime install, if any."""
     resolved_cwd = cwd or Path.cwd()
+    resolved_home = home or Path.home()
     local_dir = _local_runtime_dir(runtime, resolved_cwd)
-    if _has_gpd_install(local_dir):
+    if _has_gpd_install(local_dir, cwd=resolved_cwd, home=resolved_home):
         return RuntimeInstallTarget(
             config_dir=local_dir,
             install_scope=_manifest_install_scope(local_dir) or SCOPE_LOCAL,
         )
 
-    resolved_home = home or Path.home()
     global_dir = _global_runtime_dir(runtime, home=resolved_home)
-    if _has_gpd_install(global_dir):
+    if _has_gpd_install(global_dir, cwd=resolved_cwd, home=resolved_home):
         return RuntimeInstallTarget(
             config_dir=global_dir,
             install_scope=_manifest_install_scope(global_dir) or SCOPE_GLOBAL,
@@ -268,50 +337,27 @@ def resolve_effective_runtime(
                         install_scope=install_scope,
                     )
 
-    if require_gpd_install:
-        for runtime in ordered_runtimes:
-            local_dir = _local_runtime_dir(runtime, resolved_cwd)
-            if _has_gpd_install(local_dir):
-                return EffectiveRuntimeResolution(
-                    runtime=runtime,
-                    source=SOURCE_LOCAL,
-                    has_gpd_install=True,
-                    install_scope=_manifest_install_scope(local_dir) or SCOPE_LOCAL,
-                )
-
-            global_dir = _global_runtime_dir(runtime, home=resolved_home)
-            if _has_gpd_install(global_dir):
-                return EffectiveRuntimeResolution(
-                    runtime=runtime,
-                    source=SOURCE_GLOBAL,
-                    has_gpd_install=True,
-                    install_scope=_manifest_install_scope(global_dir) or SCOPE_GLOBAL,
-                )
-        return EffectiveRuntimeResolution()
-
     for runtime in ordered_runtimes:
         local_dir = _local_runtime_dir(runtime, resolved_cwd)
-        if local_dir.is_dir():
-            install_scope = detect_install_scope(runtime, cwd=resolved_cwd, home=resolved_home)
-            has_install = install_scope is not None
+        if _has_gpd_install(local_dir, cwd=resolved_cwd, home=resolved_home):
             return EffectiveRuntimeResolution(
                 runtime=runtime,
                 source=SOURCE_LOCAL,
-                has_gpd_install=has_install,
-                install_scope=install_scope,
+                has_gpd_install=True,
+                install_scope=_manifest_install_scope(local_dir) or SCOPE_LOCAL,
             )
 
-    for runtime in ordered_runtimes:
         global_dir = _global_runtime_dir(runtime, home=resolved_home)
-        if global_dir.is_dir():
-            install_scope = detect_install_scope(runtime, cwd=resolved_cwd, home=resolved_home)
-            has_install = install_scope is not None
+        if _has_gpd_install(global_dir, cwd=resolved_cwd, home=resolved_home):
             return EffectiveRuntimeResolution(
                 runtime=runtime,
                 source=SOURCE_GLOBAL,
-                has_gpd_install=has_install,
-                install_scope=install_scope,
+                has_gpd_install=True,
+                install_scope=_manifest_install_scope(global_dir) or SCOPE_GLOBAL,
             )
+
+    if require_gpd_install:
+        return EffectiveRuntimeResolution()
 
     return EffectiveRuntimeResolution()
 
@@ -344,6 +390,16 @@ def detect_runtime_for_gpd_use(*, cwd: Path | None = None, home: Path | None = N
     if installed_runtime != RUNTIME_UNKNOWN:
         return installed_runtime
     return detect_active_runtime(cwd=cwd, home=home)
+
+
+def detect_runtime_install_target(
+    runtime: str,
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+) -> RuntimeInstallTarget | None:
+    """Return the concrete config dir currently serving *runtime*, if any."""
+    return _detect_runtime_install_target(runtime, cwd=cwd, home=home)
 
 
 def detect_install_scope(
@@ -431,34 +487,6 @@ def _resolved_priority_runtime(
     if preferred_runtime in ALL_RUNTIMES:
         return preferred_runtime
     return detect_runtime_for_gpd_use(cwd=cwd, home=home)
-
-
-def _runtime_dirs_in_priority_order(
-    *,
-    cwd: Path | None = None,
-    home: Path | None = None,
-    preferred_runtime: str | None = None,
-) -> list[Path]:
-    """Return runtime config dirs, optionally prioritizing one runtime first."""
-    resolved_cwd = cwd or Path.cwd()
-    resolved_home = home or Path.home()
-    prioritized_runtime = _resolved_priority_runtime(preferred_runtime, cwd=resolved_cwd, home=resolved_home)
-
-    dirs: list[Path] = []
-    if prioritized_runtime in ALL_RUNTIMES:
-        for runtime_dir, _scope in _ordered_runtime_dirs_for_lookup(
-            prioritized_runtime,
-            cwd=resolved_cwd,
-            home=resolved_home,
-        ):
-            dirs.append(runtime_dir)
-
-    for runtime in ALL_RUNTIMES:
-        if runtime == prioritized_runtime:
-            continue
-        dirs.append(_local_runtime_dir(runtime, resolved_cwd))
-        dirs.append(_global_runtime_dir(runtime, home=resolved_home))
-    return _unique_paths(dirs)
 
 
 def all_runtime_dirs(*, include_local: bool = False, cwd: Path | None = None, home: Path | None = None) -> list[Path]:
@@ -607,12 +635,24 @@ def should_consider_update_cache_candidate(
     if runtime not in ALL_RUNTIMES:
         return True
 
+    candidate_config_dir = candidate.path.parent.parent
+    manifest_state, manifest_runtime = _manifest_runtime_status(candidate_config_dir)
+    if manifest_state == "ok":
+        if manifest_runtime != runtime:
+            return False
+    elif manifest_state != "missing":
+        return False
+
     install_target = _detect_runtime_install_target(runtime, cwd=cwd, home=home)
     if install_target is not None:
-        candidate_config_dir = candidate.path.parent.parent
         if candidate_config_dir != install_target.config_dir:
             return False
         return candidate.scope in (None, install_target.install_scope)
+
+    if manifest_state == "missing":
+        return False
+    if not _has_gpd_install(candidate_config_dir, cwd=cwd, home=home):
+        return False
 
     if active_installed_runtime in (None, "", RUNTIME_UNKNOWN):
         return True
@@ -638,12 +678,24 @@ def should_consider_todo_candidate(
     if runtime not in ALL_RUNTIMES:
         return True
 
+    candidate_config_dir = candidate.path.parent
+    manifest_state, manifest_runtime = _manifest_runtime_status(candidate_config_dir)
+    if manifest_state == "ok":
+        if manifest_runtime != runtime:
+            return False
+    elif manifest_state != "missing":
+        return False
+
     install_target = _detect_runtime_install_target(runtime, cwd=cwd, home=home)
     if install_target is not None:
-        candidate_config_dir = candidate.path.parent
         if candidate_config_dir != install_target.config_dir:
             return False
         return candidate.scope in (None, install_target.install_scope)
+
+    if manifest_state == "missing":
+        return False
+    if not _has_gpd_install(candidate_config_dir, cwd=cwd, home=home):
+        return False
 
     if active_installed_runtime in (None, "", RUNTIME_UNKNOWN):
         return True
@@ -681,12 +733,19 @@ def get_gpd_install_dirs(*, prefer_active: bool = False, cwd: Path | None = None
 
 
 def update_command_for_runtime(runtime: str, scope: str | None = None) -> str:
-    """Return the public bootstrap command to update a given runtime install."""
-    base = "npx -y get-physics-done"
+    """Return the public update command for a given runtime install.
+
+    When the runtime cannot be identified, fall back to the canonical
+    runtime-neutral command id instead of a hard-coded bootstrap runtime.
+    """
+    base = "gpd-update"
     try:
         command = get_adapter(runtime).update_command
     except KeyError:
         command = base
+
+    if command == base:
+        return command
 
     scope_flag = ""
     if scope == SCOPE_LOCAL:
@@ -713,12 +772,14 @@ __all__ = [
     "detect_active_runtime",
     "detect_active_runtime_with_gpd_install",
     "detect_runtime_for_gpd_use",
+    "detect_runtime_install_target",
     "get_cache_dirs",
     "get_update_cache_candidates",
     "get_gpd_install_dirs",
     "get_todo_candidates",
     "get_todo_dirs",
     "get_update_cache_files",
+    "normalize_runtime_name",
     "should_consider_todo_candidate",
     "should_consider_update_cache_candidate",
     "resolve_effective_runtime",

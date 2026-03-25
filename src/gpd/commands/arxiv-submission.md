@@ -14,15 +14,20 @@ review-contract:
     - compiled manuscript
     - bibliography audit
     - artifact manifest
+    - peer-review review ledger when available
+    - peer-review referee decision when available
   blocking_conditions:
     - missing project state
     - missing manuscript
+    - missing compiled manuscript
     - missing conventions
     - unresolved publication blockers
+    - peer-review recommendation blocks submission when staged review artifacts are present
     - degraded review integrity
   preflight_checks:
     - project_state
     - manuscript
+    - compiled_manuscript
     - conventions
 allowed-tools:
   - file_read
@@ -43,6 +48,8 @@ Prepare a completed paper for arXiv submission. Handles the full submission pipe
 **Why a dedicated command:** arXiv has specific requirements (no subdirectories in uploads, .bbl instead of .bib, specific figure formats, 00README.XXX for multi-file submissions). Getting these wrong means rejected submissions and wasted time. This command automates the tedious compliance steps.
 
 Output: A submission-ready tarball and checklist of manual steps remaining.
+
+The workflow's preflight gate checks the explicit paper target, the compiled manuscript, unresolved publication blockers, and, when staged review artifacts exist, the latest `REVIEW-LEDGER{round_suffix}.json` / `REFEREE-DECISION{round_suffix}.json` outcome before packaging begins.
 </objective>
 
 <execution_context>
@@ -50,9 +57,9 @@ Output: A submission-ready tarball and checklist of manual steps remaining.
 </execution_context>
 
 <context>
-Paper directory: $ARGUMENTS (optional, defaults to `paper/` or `manuscript/`)
+Paper directory: $ARGUMENTS (optional; when omitted, resolve only from `paper/`, `manuscript/`, or `draft/`)
 
-@.gpd/STATE.md
+@GPD/STATE.md
 </context>
 
 <process>
@@ -63,7 +70,6 @@ Find the paper directory:
 
 ```bash
 ls paper/main.tex manuscript/main.tex draft/main.tex 2>/dev/null
-find . -name "main.tex" -maxdepth 2 2>/dev/null | head -5
 ```
 
 If no paper found, suggest `/gpd:write-paper` first.

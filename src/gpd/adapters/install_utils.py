@@ -14,10 +14,11 @@ import re
 import shlex
 import sys
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from gpd.adapters.runtime_catalog import get_runtime_descriptor, resolve_global_config_dir
 from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES
+from gpd.core.constants import HOME_DATA_DIR_NAME
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -92,6 +93,69 @@ def _default_install_target(config_dir: Path, runtime: str, scope_flag: str | No
     if scope_flag == "--global":
         return resolve_global_config_dir(descriptor)
     return None
+
+
+def bundled_hooks_dir() -> Path:
+    """Return the directory containing the bundled GPD hook scripts."""
+    return Path(__file__).resolve().parents[1] / HOOKS_DIR_NAME
+
+
+def bundled_hook_relpaths() -> tuple[str, ...]:
+    """Return managed bundled hook file paths relative to a runtime config dir."""
+    hooks_dir = bundled_hooks_dir()
+    if not hooks_dir.is_dir():
+        return ()
+
+    relpaths: list[str] = []
+    for hook_file in sorted(hooks_dir.iterdir()):
+        if hook_file.is_file() and not hook_file.name.startswith("__"):
+            relpaths.append(f"{HOOKS_DIR_NAME}/{hook_file.name}")
+    return tuple(relpaths)
+
+
+def prune_empty_ancestors(path: Path, *, stop_at: Path | None = None) -> None:
+    """Remove *path* and empty ancestor directories until *stop_at* is reached."""
+    current = path
+    while True:
+        if stop_at is not None and _paths_equal(current, stop_at):
+            return
+        if not current.exists() or not current.is_dir():
+            return
+        try:
+            next(current.iterdir())
+        except StopIteration:
+            current.rmdir()
+            current = current.parent
+            continue
+        return
+
+
+def remove_empty_json_object_file(path: Path) -> bool:
+    """Delete *path* when it contains only an empty JSON object."""
+    if not path.is_file():
+        return False
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if payload != {}:
+        return False
+    path.unlink()
+    return True
+
+
+def remove_empty_text_file(path: Path) -> bool:
+    """Delete *path* when its text content is empty after stripping whitespace."""
+    if not path.is_file():
+        return False
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    if content.strip():
+        return False
+    path.unlink()
+    return True
 
 
 def config_dir_reference(
@@ -223,13 +287,45 @@ def replace_placeholders(
     return _replace_runtime_placeholders(content, path_prefix, runtime, install_scope)
 
 
+def materialize_first_round_review_schema_headings(content: str) -> str:
+    """Render staged-review schema headings with first-round filenames.
+
+    Source prompts stay round-aware via ``{round_suffix}``, but installed agent
+    prompts should show the concrete first-round artifact names in the schema
+    headings models read before producing those files.
+    """
+    replacements = {
+        "Required schema for `CLAIMS{round_suffix}.json` (`ClaimIndex`):": (
+            "Required schema for `CLAIMS.json` (`ClaimIndex`):"
+        ),
+        "Required schema for `STAGE-reader{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):": (
+            "Required schema for `STAGE-reader.json` (`StageReviewReport`, mirroring the staged-review contract):"
+        ),
+        "Required schema for `STAGE-literature{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):": (
+            "Required schema for `STAGE-literature.json` (`StageReviewReport`, mirroring the staged-review contract):"
+        ),
+        "Required schema for `STAGE-math{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):": (
+            "Required schema for `STAGE-math.json` (`StageReviewReport`, mirroring the staged-review contract):"
+        ),
+        "Required schema for `STAGE-physics{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):": (
+            "Required schema for `STAGE-physics.json` (`StageReviewReport`, mirroring the staged-review contract):"
+        ),
+        "Required schema for `STAGE-interestingness{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):": (
+            "Required schema for `STAGE-interestingness.json` (`StageReviewReport`, mirroring the staged-review contract):"
+        ),
+    }
+    for source, rendered in replacements.items():
+        content = content.replace(source, rendered)
+    return content
+
+
 _BRACED_PROMPT_VAR_RE = re.compile(r"(?<!\\)\$\{([A-Za-z_][A-Za-z0-9_]*)(?:[^{}]*)\}")
 _PLAIN_SHELL_VAR_RE = re.compile(r"(?<!\\)\$([A-Za-z_][A-Za-z0-9_]*)(?=[^A-Za-z0-9_-]|$)")
 _INLINE_MATH_RE = re.compile(r"(?<!\\)\$(?=\S)([^$\n]*?\S)(?<!\\)\$(?![A-Za-z0-9_])")
 _MARKDOWN_FRONTMATTER_RE = re.compile(
     r"^(?P<preamble>\ufeff?(?:[ \t]*\r?\n)*)---[ \t]*\r?\n(?P<frontmatter>[\s\S]*?)(?P<separator>\r?\n)---[ \t]*(?P<body_separator>\r?\n|$)"
 )
-_LIST_ITEM_INCLUDE_RE = re.compile(r"^(?:[-*+]\s+|\d+\.\s+)(@.*)$")
+_AT_INCLUDE_LINE_RE = re.compile(r"^(?:[-*+]\s+|\d+\.\s+)?`?(@[^\s`]+)`?(?:\s+.*)?$")
 _COMMON_INLINE_MATH_NAMES = frozenset(
     {
         "sin",
@@ -252,6 +348,13 @@ _COMMON_INLINE_MATH_NAMES = frozenset(
         "inf",
     }
 )
+_UNRESOLVED_INCLUDE_MARKERS = (
+    "@ include not resolved:",
+    "@ include cycle detected:",
+    "@ include read error:",
+    "@ include depth limit reached:",
+)
+_TEXT_INSTALL_ARTIFACT_SUFFIXES = frozenset({".md", ".toml"})
 
 
 def protect_runtime_agent_prompt(content: str, runtime: str) -> str:
@@ -709,8 +812,8 @@ def expand_at_includes(
 
         >>> expand_at_includes("no includes here", "/src", "/runtime/")
         'no includes here'
-        >>> expand_at_includes("@.gpd/notes.md", "/src", "/runtime/")
-        '@.gpd/notes.md'
+        >>> expand_at_includes("@GPD/notes.md", "/src", "/runtime/")
+        '@GPD/notes.md'
     """
     if depth > MAX_INCLUDE_EXPANSION_DEPTH:
         return content
@@ -735,18 +838,15 @@ def expand_at_includes(
             result.append(line)
             continue
 
-        include_candidate = trimmed
-        bullet_match = _LIST_ITEM_INCLUDE_RE.match(trimmed)
-        if bullet_match:
-            include_candidate = bullet_match.group(1)
+        include_match = _AT_INCLUDE_LINE_RE.match(trimmed)
+        if not include_match:
+            result.append(line)
+            continue
+
+        include_candidate = include_match.group(1)
 
         # Must start with @ followed by a path (not a BibTeX entry like @article{)
-        if (
-            not include_candidate.startswith("@")
-            or len(include_candidate) < 3
-            or include_candidate[1] == " "
-            or re.match(r"^@\w+\{", include_candidate)
-        ):
+        if len(include_candidate) < 3 or include_candidate[1] == " " or re.match(r"^@\w+\{", include_candidate):
             result.append(line)
             continue
 
@@ -762,8 +862,8 @@ def expand_at_includes(
             result.append(line)
             continue
 
-        # .gpd/ relative paths — project-specific, skip
-        if include_path.startswith(".gpd/"):
+        # GPD/ relative paths — project-specific, skip
+        if include_path.startswith("GPD/"):
             result.append(line)
             continue
 
@@ -773,21 +873,7 @@ def expand_at_includes(
             continue
 
         # Resolve against source directory
-        src_path: Path | None = None
-        if include_path.startswith("{GPD_INSTALL_DIR}/"):
-            relative_path = include_path[len("{GPD_INSTALL_DIR}/") :]
-            src_path = src_root / relative_path
-        elif include_path.startswith("{GPD_AGENTS_DIR}/"):
-            relative_path = include_path[len("{GPD_AGENTS_DIR}/") :]
-            src_path = src_root.parent / "agents" / relative_path
-        elif "get-physics-done/" in include_path:
-            gpd_idx = include_path.index("get-physics-done/")
-            relative_path = include_path[gpd_idx:]
-            src_path = src_root.parent / relative_path
-        elif "/agents/" in include_path:
-            agents_idx = include_path.index("/agents/")
-            relative_path = include_path[agents_idx + 1 :]
-            src_path = src_root.parent / relative_path
+        src_path = _resolve_include_source_path(src_root, include_path)
 
         # Try to read and inline the file
         if src_path and src_path.exists():
@@ -813,8 +899,8 @@ def expand_at_includes(
             if frontmatter:
                 body = split_body.strip()
 
-            # Normalize path references in included content before recursion
-            body = replace_placeholders(body, path_prefix, runtime, install_scope)
+            # Expand nested includes against canonical source paths before
+            # translating placeholders into installed runtime paths.
             body = expand_at_includes(
                 body,
                 str(src_root),
@@ -824,6 +910,7 @@ def expand_at_includes(
                 depth=depth + 1,
                 include_stack=include_stack,
             )
+            body = replace_placeholders(body, path_prefix, runtime, install_scope)
 
             result.append("")
             result.append(f"<!-- [included: {src_path.name}] -->")
@@ -835,6 +922,49 @@ def expand_at_includes(
             result.append(f"<!-- @ include not resolved: {include_path} -->")
 
     return "\n".join(result)
+
+
+def _resolve_include_source_path(src_root: Path, include_path: str) -> Path | None:
+    """Map a canonical or installed include path back to its source file."""
+
+    specs_root = _specs_source_root(src_root)
+    agents_root = _agents_source_root(src_root)
+
+    if include_path.startswith("{GPD_INSTALL_DIR}/"):
+        relative_path = include_path[len("{GPD_INSTALL_DIR}/") :]
+        return specs_root / relative_path
+    if include_path.startswith("{GPD_AGENTS_DIR}/"):
+        relative_path = include_path[len("{GPD_AGENTS_DIR}/") :]
+        return agents_root / relative_path
+    if "get-physics-done/" in include_path:
+        relative_path = include_path.split("get-physics-done/", 1)[1]
+        return specs_root / relative_path
+    if "/agents/" in include_path:
+        relative_path = include_path.split("/agents/", 1)[1]
+        return agents_root / relative_path
+    return None
+
+
+def _specs_source_root(src_root: Path) -> Path:
+    """Return the canonical source root for installed get-physics-done content."""
+
+    specs_root = src_root / "specs"
+    if specs_root.is_dir():
+        return specs_root
+    return src_root
+
+
+def _agents_source_root(src_root: Path) -> Path:
+    """Return the canonical source root for agent markdown files."""
+
+    specs_root = _specs_source_root(src_root)
+    sibling_agents = specs_root.parent / "agents"
+    if sibling_agents.is_dir():
+        return sibling_agents
+    direct_agents = src_root / "agents"
+    if direct_agents.is_dir():
+        return direct_agents
+    return sibling_agents
 
 
 # ---------------------------------------------------------------------------
@@ -1009,6 +1139,7 @@ def write_manifest(
     skills_dir: str | Path | None = None,
     metadata: dict[str, object] | None = None,
     install_scope: str | None = None,
+    explicit_target: bool | None = None,
 ) -> dict[str, object]:
     """Write a file manifest after installation for future modification detection.
 
@@ -1033,7 +1164,9 @@ def write_manifest(
     elif normalized_scope == "--global":
         manifest["install_scope"] = "global"
     manifest["install_target_dir"] = str(config_dir)
-    if isinstance(runtime, str) and runtime.strip() and normalized_scope in {"--local", "--global"}:
+    if explicit_target is not None:
+        manifest["explicit_target"] = bool(explicit_target)
+    elif isinstance(runtime, str) and runtime.strip() and normalized_scope in {"--local", "--global"}:
         default_target = _default_install_target(config_dir, runtime.strip(), normalized_scope)
         if default_target is not None:
             manifest["explicit_target"] = not _paths_equal(config_dir, default_target)
@@ -1056,14 +1189,14 @@ def write_manifest(
 
     # hooks/
     if hooks_dir.exists():
-        bundled_hooks_dir = Path(__file__).resolve().parents[1] / HOOKS_DIR_NAME
-        for hook_name in HOOK_SCRIPTS.values():
+        for rel_path in bundled_hook_relpaths():
+            hook_name = PurePosixPath(rel_path).name
             installed_hook = hooks_dir / hook_name
-            bundled_hook = bundled_hooks_dir / hook_name
+            bundled_hook = bundled_hooks_dir() / hook_name
             if not installed_hook.exists() or not bundled_hook.exists():
                 continue
             if file_hash(installed_hook) == file_hash(bundled_hook):
-                files[f"hooks/{hook_name}"] = file_hash(installed_hook)
+                files[rel_path] = file_hash(installed_hook)
 
     # External/shared skills
     if skills_dir:
@@ -1089,6 +1222,11 @@ def _tracked_hook_paths_for_cleanup(
     skills_dir: str | Path | None = None,
 ) -> set[str]:
     """Return managed hook paths that pre-install cleanup may safely remove."""
+    return managed_hook_paths(config_dir)
+
+
+def tracked_hook_paths_from_manifest(config_dir: Path) -> set[str]:
+    """Return hook paths explicitly tracked in the install manifest."""
     manifest_path = config_dir / MANIFEST_NAME
     if not manifest_path.exists():
         return set()
@@ -1096,18 +1234,40 @@ def _tracked_hook_paths_for_cleanup(
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        manifest = None
+        return set()
 
-    if isinstance(manifest, dict):
-        raw_files = manifest.get("files")
-        if isinstance(raw_files, dict):
-            return {str(path) for path in raw_files if str(path).startswith("hooks/")}
+    if not isinstance(manifest, dict):
+        return set()
 
-    return {
-        rel_path
-        for rel_path in _managed_install_paths(config_dir, skills_dir=skills_dir)
-        if rel_path.startswith("hooks/")
-    }
+    raw_files = manifest.get("files")
+    if not isinstance(raw_files, dict):
+        return set()
+
+    return {str(path) for path in raw_files if str(path).startswith("hooks/")}
+
+
+def managed_hook_paths(config_dir: Path) -> set[str]:
+    """Return bundled hook paths that are manifest-tracked or hash-matched."""
+    tracked = tracked_hook_paths_from_manifest(config_dir)
+    managed: set[str] = set()
+
+    for rel_path in bundled_hook_relpaths():
+        installed_hook = config_dir / rel_path
+        if rel_path in tracked:
+            managed.add(rel_path)
+            continue
+        if not installed_hook.is_file():
+            continue
+        bundled_hook = bundled_hooks_dir() / PurePosixPath(rel_path).name
+        if not bundled_hook.is_file():
+            continue
+        try:
+            if file_hash(installed_hook) == file_hash(bundled_hook):
+                managed.add(rel_path)
+        except (FileNotFoundError, OSError):
+            continue
+
+    return managed
 
 
 def _managed_install_paths(
@@ -1188,7 +1348,8 @@ def save_local_patches(
             manifest_version = str(manifest.get("version", "unknown"))
             raw_files = manifest.get("files") or {}
             if isinstance(raw_files, dict) and all(
-                isinstance(rel_path, str) and isinstance(original_hash, str) for rel_path, original_hash in raw_files.items()
+                isinstance(rel_path, str) and isinstance(original_hash, str)
+                for rel_path, original_hash in raw_files.items()
             ):
                 tracked_files = raw_files
             else:
@@ -1280,6 +1441,16 @@ def verify_installed(dir_path: str | Path, description: str) -> bool:
             return False
     except OSError:
         return False
+    for artifact in p.rglob("*"):
+        if not artifact.is_file() or artifact.suffix not in _TEXT_INSTALL_ARTIFACT_SUFFIXES:
+            continue
+        try:
+            content = artifact.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        lowered = content.casefold()
+        if any(marker in lowered for marker in _UNRESOLVED_INCLUDE_MARKERS):
+            return False
     return True
 
 
@@ -1303,12 +1474,13 @@ def validate_package_integrity(gpd_root: Path) -> None:
     for required in ("commands", "agents", "hooks", "specs"):
         if not (gpd_root / required).is_dir():
             raise FileNotFoundError(
-                f"Package integrity check failed: missing {required}/. "
-                "Try reinstalling: npx -y get-physics-done"
+                f"Package integrity check failed: missing {required}/. Try reinstalling: npx -y get-physics-done"
             )
 
 
-def compute_path_prefix(target_dir: Path, config_dir_name: str, *, is_global: bool, explicit_target: bool = False) -> str:
+def compute_path_prefix(
+    target_dir: Path, config_dir_name: str, *, is_global: bool, explicit_target: bool = False
+) -> str:
     """Compute the path prefix for placeholder replacement.
 
     Global installs use absolute path; local installs use ``./.<config_dir>/``.
@@ -1485,14 +1657,36 @@ def _is_hook_command_for_script(
     if config_dir_name:
         managed_paths.append(f"{config_dir_name}/hooks/{hook_filename}")
 
-    if managed_paths:
-        if any(managed_path in normalized_command for managed_path in managed_paths):
-            return True
-        # Some installs use bare filenames like `python3 check_update.py`.
-        # Match only filename tokens, not third-party paths ending in the same basename.
-        return re.search(rf"(^|[\s'\"`]){re.escape(hook_filename)}(['\"`]|$)", normalized_command) is not None
+    try:
+        command_tokens = shlex.split(normalized_command)
+    except ValueError:
+        command_tokens = normalized_command.split()
 
-    return hook_filename in normalized_command
+    if managed_paths:
+        managed_path_set = {path.replace("\\", "/") for path in managed_paths}
+        if any(token.replace("\\", "/") in managed_path_set for token in command_tokens):
+            return True
+
+        return False
+
+    for token in command_tokens:
+        normalized_token = token.replace("\\", "/")
+        if normalized_token == hook_filename:
+            return True
+        path = PurePosixPath(normalized_token)
+        if path.name == hook_filename and path.parent.name == "hooks":
+            return True
+
+    return False
+
+
+def _is_managed_statusline_command(command: object, *, target_dir: Path) -> bool:
+    """Return True when *command* points at the GPD-managed statusline hook."""
+    return _is_hook_command_for_script(
+        command,
+        HOOK_SCRIPTS["statusline"],
+        target_dir=target_dir,
+    )
 
 
 def ensure_update_hook(
@@ -1595,10 +1789,11 @@ def finish_install(
     if should_install_statusline:
         status_line = settings.get("statusLine")
         existing_cmd = status_line.get("command") if isinstance(status_line, dict) else None
+        config_dir = Path(settings_path).expanduser().resolve(strict=False).parent
 
         if (
             isinstance(existing_cmd, str)
-            and "statusline.py" not in existing_cmd
+            and not _is_managed_statusline_command(existing_cmd, target_dir=config_dir)
             and not force_statusline
         ):
             _install_logger.warning("Skipping statusline (already configured by another tool)")
@@ -1648,7 +1843,7 @@ def _gpd_home_dir() -> Path:
         expanded = expand_tilde(raw_home)
         if expanded:
             return Path(expanded).expanduser()
-    return Path.home() / ".gpd"
+    return Path.home() / HOME_DATA_DIR_NAME
 
 
 def _managed_gpd_python() -> str | None:
