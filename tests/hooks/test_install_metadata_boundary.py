@@ -9,7 +9,11 @@ from unittest.mock import patch
 
 import pytest
 
-from gpd.hooks.install_metadata import config_dir_has_complete_install, installed_update_command
+from gpd.hooks.install_metadata import (
+    config_dir_has_complete_install,
+    installed_update_command,
+    load_install_manifest_state,
+)
 
 
 def _seed_anonymous_install_tree(config_dir: Path, *, hook_filename: str) -> Path:
@@ -32,6 +36,33 @@ def _seed_anonymous_install_tree(config_dir: Path, *, hook_filename: str) -> Pat
     hook_path.parent.mkdir(parents=True, exist_ok=True)
     hook_path.write_text("# hook\n", encoding="utf-8")
     return hook_path
+
+
+@pytest.mark.parametrize(
+    ("manifest_content", "expected_state", "expected_payload"),
+    [
+        (None, "missing", {}),
+        (b"\xff", "corrupt", {}),
+        ("[]", "invalid", {}),
+        (json.dumps({"install_scope": "local", "runtime": "codex"}), "ok", {"install_scope": "local", "runtime": "codex"}),
+    ],
+)
+def test_load_install_manifest_state_classifies_manifest_payloads(
+    tmp_path: Path,
+    manifest_content: bytes | str | None,
+    expected_state: str,
+    expected_payload: dict[str, object],
+) -> None:
+    config_dir = tmp_path / ".codex"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = config_dir / "gpd-file-manifest.json"
+    if manifest_content is not None:
+        if isinstance(manifest_content, bytes):
+            manifest_path.write_bytes(manifest_content)
+        else:
+            manifest_path.write_text(manifest_content, encoding="utf-8")
+
+    assert load_install_manifest_state(config_dir) == (expected_state, expected_payload)
 
 
 def test_runtime_less_manifest_tree_is_rejected_by_install_metadata(tmp_path: Path) -> None:

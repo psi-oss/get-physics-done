@@ -11,6 +11,7 @@ import os
 import sys
 from pathlib import Path
 
+from gpd.adapters.install_utils import CACHE_DIR_NAME, UPDATE_CACHE_FILENAME
 from gpd.core.constants import ENV_GPD_DEBUG, PLANNING_DIR_NAME, STATE_JSON_FILENAME
 from gpd.core.observability import resolve_project_root
 from gpd.hooks.install_metadata import (
@@ -308,30 +309,28 @@ def _read_current_task(session_id: str, workspace_dir: str | None = None) -> str
     return ""
 
 
-def _workspace_from_payload(data: dict[str, object]) -> str:
+def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
     """Extract the workspace directory from a runtime hook payload."""
-    from gpd.adapters.runtime_catalog import get_hook_payload_policy
-
-    hook_payload = get_hook_payload_policy()
+    hook_payload = _hook_payload_policy(cwd) if cwd else _hook_payload_policy()
     workspace_value = data.get("workspace")
     raw_workspace = (
         workspace_value
         if isinstance(workspace_value, str) and workspace_value
         else _first_string(workspace_value, *hook_payload.workspace_keys)
-        or _first_string(
-        data,
-        *hook_payload.workspace_keys,
-        )
+        or _first_string(data, *hook_payload.workspace_keys)
         or os.getcwd()
     )
     return _normalize_workspace_text(raw_workspace)
 
 
-def _workspace_root_from_payload(data: dict[str, object], workspace_dir: str) -> str:
+def _workspace_root_from_payload(
+    data: dict[str, object],
+    workspace_dir: str,
+    *,
+    cwd: str | None = None,
+) -> str:
     """Resolve the project root for one hook payload workspace."""
-    from gpd.adapters.runtime_catalog import get_hook_payload_policy
-
-    hook_payload = get_hook_payload_policy()
+    hook_payload = _hook_payload_policy(cwd or workspace_dir)
     workspace_value = data.get("workspace")
     project_dir = _first_string(workspace_value, *hook_payload.project_dir_keys) or _first_string(
         data,
@@ -478,7 +477,7 @@ def _latest_update_cache(workspace_dir: str | None = None) -> tuple[dict[str, ob
             workspace_path is not None and getattr(active_install_target, "install_scope", None) == "local"
         )
     if self_config_dir is not None and prefer_self_cache:
-        cache_file = self_config_dir / "cache" / "gpd-update-check.json"
+        cache_file = self_config_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME
         if cache_file.exists():
             try:
                 cache = json.loads(cache_file.read_text(encoding="utf-8"))

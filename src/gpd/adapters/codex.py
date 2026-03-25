@@ -24,7 +24,7 @@ import re
 import shutil
 import tempfile
 import tomllib
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
@@ -190,7 +190,7 @@ def _load_manifest_codex_skills_dir(target_dir: Path) -> Path | None:
 
 
 def _load_manifest_codex_generated_skill_dirs(target_dir: Path) -> tuple[str, ...]:
-    """Return tracked Codex skill directory names from the local manifest."""
+    """Return tracked Codex skill directory names from the local manifest metadata."""
     manifest_path = target_dir / MANIFEST_NAME
     if not manifest_path.exists():
         return ()
@@ -206,22 +206,9 @@ def _load_manifest_codex_generated_skill_dirs(target_dir: Path) -> tuple[str, ..
     metadata_dirs = manifest.get(_MANIFEST_CODEX_GENERATED_SKILL_DIRS_KEY)
     if isinstance(metadata_dirs, list):
         names = [str(name) for name in metadata_dirs if isinstance(name, str) and name.strip()]
-        if names:
-            return tuple(dict.fromkeys(names))
+        return tuple(dict.fromkeys(names))
 
-    raw_files = manifest.get("files")
-    if not isinstance(raw_files, dict):
-        return ()
-
-    names: list[str] = []
-    for rel_path in raw_files:
-        if not isinstance(rel_path, str):
-            continue
-        rel = PurePosixPath(rel_path)
-        parts = rel.parts
-        if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md" and parts[1]:
-            names.append(parts[1])
-    return tuple(dict.fromkeys(names))
+    return ()
 
 
 def _load_manifest_install_scope(target_dir: Path) -> str | None:
@@ -978,12 +965,9 @@ class CodexAdapter(RuntimeAdapter):
 
         tracked_skill_dirs = _load_manifest_codex_generated_skill_dirs(target_dir)
         try:
-            if tracked_skill_dirs:
-                has_gpd_skills = skills_dir.is_dir() and all((skills_dir / name).is_dir() for name in tracked_skill_dirs)
-            else:
-                has_gpd_skills = skills_dir.is_dir() and any(
-                    entry.is_dir() and entry.name.startswith("gpd-") for entry in skills_dir.iterdir()
-                )
+            has_gpd_skills = bool(tracked_skill_dirs) and skills_dir.is_dir() and all(
+                (skills_dir / name).is_dir() for name in tracked_skill_dirs
+            )
         except OSError:
             has_gpd_skills = False
 

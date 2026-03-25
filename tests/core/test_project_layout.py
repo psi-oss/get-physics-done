@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from gpd.core.constants import LEGACY_PLANNING_DIR_NAME, PLANNING_DIR_NAME, ProjectLayout
+from gpd.core.constants import PLANNING_DIR_NAME, ProjectLayout
 
 
 @pytest.mark.parametrize(
@@ -123,16 +123,16 @@ def test_project_layout_phase_artifact_paths(
     assert path.parent == tmp_path / "GPD" / "phases" / "01-setup"
 
 
-def test_project_layout_uses_legacy_project_dir_when_canonical_missing(tmp_path: Path) -> None:
-    legacy = tmp_path / LEGACY_PLANNING_DIR_NAME
+def test_project_layout_ignores_legacy_hidden_project_dir_when_canonical_missing(tmp_path: Path) -> None:
+    legacy = tmp_path / ".gpd"
     legacy.mkdir()
     (legacy / "state.json").write_text("{}\n", encoding="utf-8")
 
-    assert ProjectLayout(tmp_path).gpd == legacy
+    assert ProjectLayout(tmp_path).gpd == tmp_path / PLANNING_DIR_NAME
 
 
 def test_project_layout_ignores_non_project_hidden_gpd_dirs(tmp_path: Path) -> None:
-    legacy = tmp_path / LEGACY_PLANNING_DIR_NAME
+    legacy = tmp_path / ".gpd"
     (legacy / "venv" / "bin").mkdir(parents=True)
 
     assert ProjectLayout(tmp_path).gpd == tmp_path / PLANNING_DIR_NAME

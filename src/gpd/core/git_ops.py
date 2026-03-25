@@ -468,6 +468,14 @@ def cmd_commit(
             error="nothing to commit (no staged changes)",
             reason="nothing_to_commit",
         )
+    if rc != 1:
+        return CommitResult(
+            committed=False,
+            message=message,
+            files=files_to_stage,
+            error=f"git diff --cached --quiet failed: {stderr or stdout}",
+            reason="git_diff_failed",
+        )
 
     # Commit
     rc, stdout, stderr = _exec_git(cwd, ["commit", "-m", message])

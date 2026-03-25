@@ -320,6 +320,17 @@ def _strip_unknown_model_keys(
     return cleaned
 
 
+def _top_level_extra_input_findings(findings: list[str]) -> list[str]:
+    """Return project-contract findings for unknown top-level keys only."""
+
+    blocking: list[str] = []
+    for finding in findings:
+        location, separator, message = finding.partition(": ")
+        if separator and message == "Extra inputs are not permitted" and "." not in location:
+            blocking.append(finding)
+    return blocking
+
+
 def _salvage_model_mapping(
     value: object,
     *,
@@ -405,6 +416,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
 
     working = _strip_unknown_model_keys(scalar_sanitized, path_prefix="", model=ResearchContract, errors=errors)
     normalized_contract = copy.deepcopy(working)
+    top_level_extra_key_errors = _top_level_extra_input_findings(errors)
 
     collection_models: dict[str, type[BaseModel]] = {
         "observables": ContractObservable,
@@ -460,6 +472,9 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         except PydanticValidationError:
             errors.append("schema_version: Input should be 1")
             normalized_contract.pop("schema_version", None)
+
+    if top_level_extra_key_errors:
+        return None, errors
 
     try:
         return ResearchContract.model_validate(normalized_contract), errors
@@ -786,12 +801,11 @@ def validate_project_contract(
         schema_warnings = _dedupe_findings([*schema_warnings, *list_shape_drift_errors])
         schema_errors = _dedupe_findings(schema_errors)
         if parsed is None:
-            if schema_errors:
-                return ProjectContractValidationResult(valid=False, errors=schema_errors, mode=mode)
-            try:
-                parsed = ResearchContract.model_validate(contract)
-            except PydanticValidationError as exc:
-                return _schema_error_result(exc, mode=mode)
+            return ProjectContractValidationResult(
+                valid=False,
+                errors=schema_errors or schema_warnings or ["project contract could not be normalized"],
+                mode=mode,
+            )
     errors: list[str] = list(schema_errors)
     warnings: list[str] = list(schema_warnings)
 

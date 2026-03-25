@@ -277,6 +277,26 @@ class TestCommit:
         assert "git commit failed" in (result.error or "")
         assert result.reason == "git_commit_failed"
 
+    def test_git_diff_failure_stops_before_commit(self, tmp_path: Path) -> None:
+        with (
+            patch("gpd.core.config.load_config", return_value=MagicMock(commit_docs=True)),
+            patch(
+                "gpd.core.git_ops.cmd_pre_commit_check",
+                return_value=PreCommitCheckResult(passed=True, files_checked=1),
+            ),
+            patch("gpd.core.git_ops._exec_git") as mock_git,
+        ):
+            mock_git.side_effect = [
+                (0, "", ""),  # git add
+                (2, "", "fatal: ambiguous argument"),  # git diff --cached --quiet fails
+            ]
+            result = cmd_commit(tmp_path, "test: diff failure", files=["GPD/STATE.md"])
+
+        assert result.committed is False
+        assert result.reason == "git_diff_failed"
+        assert "git diff --cached --quiet failed" in (result.error or "")
+        assert mock_git.call_count == 2
+
     def test_default_files_stages_planning(self, tmp_path: Path) -> None:
         with (
             patch("gpd.core.config.load_config", return_value=MagicMock(commit_docs=True)),

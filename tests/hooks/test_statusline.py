@@ -10,6 +10,7 @@ import io
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -27,6 +28,8 @@ from gpd.hooks.statusline import (
     _read_model_label,
     _read_position,
     _read_workspace_label,
+    _workspace_from_payload,
+    _workspace_root_from_payload,
     main,
 )
 
@@ -93,14 +96,20 @@ def _mark_complete_install(config_dir: Path, *, runtime: str | None = None, inst
             else:
                 artifact.mkdir(parents=True, exist_ok=True)
         if runtime == "codex":
-            (config_dir.parent / ".agents" / "skills" / "gpd-help").mkdir(parents=True, exist_ok=True)
+            help_skill_dir = config_dir.parent / ".agents" / "skills" / "gpd-help"
+            help_skill_dir.mkdir(parents=True, exist_ok=True)
+            (help_skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
     else:
         (config_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
     manifest: dict[str, object] = {"install_scope": install_scope}
     if runtime is not None:
+        explicit_target = config_dir.name != adapter.config_dir_name
         manifest["runtime"] = runtime
+        manifest["explicit_target"] = explicit_target
+        manifest["install_target_dir"] = str(config_dir)
         if runtime == "codex":
             manifest["codex_skills_dir"] = str(config_dir.parent / ".agents" / "skills")
+            manifest["codex_generated_skill_dirs"] = ["gpd-help"]
     (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 # ─── _context_bar edge cases ───────────────────────────────────────────────
@@ -402,6 +411,36 @@ class TestReadCurrentTask:
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):
             assert _read_current_task("session-123", str(workspace)) == "Workspace-scoped task"
+
+    def test_workspace_from_payload_uses_runtime_aware_payload_policy(self, tmp_path: Path) -> None:
+        process_cwd = tmp_path / "process-cwd"
+        process_cwd.mkdir()
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        payload = {"payload_workspace": str(workspace)}
+        hook_payload = SimpleNamespace(workspace_keys=("payload_workspace",), project_dir_keys=("project_root",))
+
+        with patch("gpd.hooks.statusline._hook_payload_policy", return_value=hook_payload) as mock_policy:
+            result = _workspace_from_payload(payload, cwd=str(process_cwd))
+
+        mock_policy.assert_called_once_with(str(process_cwd))
+        assert result == str(workspace.resolve(strict=False))
+
+    def test_workspace_root_from_payload_uses_runtime_aware_payload_policy(self, tmp_path: Path) -> None:
+        process_cwd = tmp_path / "process-cwd"
+        process_cwd.mkdir()
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        project = tmp_path / "project"
+        project.mkdir()
+        payload = {"workspace": str(workspace), "project_root": str(project)}
+        hook_payload = SimpleNamespace(workspace_keys=("workspace",), project_dir_keys=("project_root",))
+
+        with patch("gpd.hooks.statusline._hook_payload_policy", return_value=hook_payload) as mock_policy:
+            result = _workspace_root_from_payload(payload, str(workspace), cwd=str(process_cwd))
+
+        mock_policy.assert_called_once_with(str(process_cwd))
+        assert result == str(project.resolve(strict=False))
 
     def test_runtime_less_explicit_target_hook_todo_dir_is_ignored_for_task_lookup(self, tmp_path: Path) -> None:
         explicit_target = tmp_path / "custom-runtime-dir"
@@ -812,7 +851,7 @@ class TestCheckUpdateHook:
         assert expected in result
         assert str(unrelated_runtime_dir) not in result
 
-    def test_explicit_target_hook_cache_recovers_missing_install_scope_from_installed_surface(
+    def test_explicit_target_hook_cache_does_not_recover_missing_install_scope_from_legacy_surface(
         self,
         tmp_path: Path,
     ) -> None:
@@ -839,13 +878,7 @@ class TestCheckUpdateHook:
         with patch("gpd.hooks.statusline.__file__", str(hook_path)):
             result = _check_update(str(workspace))
 
-        expected = _repair_command(
-            "codex",
-            install_scope="local",
-            target_dir=explicit_target,
-            explicit_target=True,
-        )
-        assert expected in result
+        assert result == ""
 
     def test_runtime_less_explicit_target_hook_does_not_emit_update_command(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"

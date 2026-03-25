@@ -23,6 +23,7 @@ from gpd.core.constants import (
     ROADMAP_FILENAME,
     STANDALONE_PLAN,
     STANDALONE_RESEARCH,
+    STANDALONE_SUMMARY,
     STATE_JSON_FILENAME,
     SUMMARY_SUFFIX,
     TODOS_DIR_NAME,
@@ -154,7 +155,7 @@ def _is_plan_file(name: str) -> bool:
 
 
 def _is_summary_file(name: str) -> bool:
-    return name.endswith(SUMMARY_SUFFIX)
+    return name.endswith(SUMMARY_SUFFIX) or name == STANDALONE_SUMMARY
 
 
 def _is_research_file(name: str) -> bool:

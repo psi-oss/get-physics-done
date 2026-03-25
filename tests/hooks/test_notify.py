@@ -83,14 +83,20 @@ def _mark_complete_install(config_dir: Path, *, runtime: str | None = None, inst
             else:
                 artifact.mkdir(parents=True, exist_ok=True)
         if runtime == "codex":
-            (config_dir.parent / ".agents" / "skills" / "gpd-help").mkdir(parents=True, exist_ok=True)
+            help_skill_dir = config_dir.parent / ".agents" / "skills" / "gpd-help"
+            help_skill_dir.mkdir(parents=True, exist_ok=True)
+            (help_skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
     else:
         (config_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
     manifest: dict[str, object] = {"install_scope": install_scope}
     if runtime is not None:
+        explicit_target = config_dir.name != adapter.config_dir_name
         manifest["runtime"] = runtime
+        manifest["explicit_target"] = explicit_target
+        manifest["install_target_dir"] = str(config_dir)
         if runtime == "codex":
             manifest["codex_skills_dir"] = str(config_dir.parent / ".agents" / "skills")
+            manifest["codex_generated_skill_dirs"] = ["gpd-help"]
     (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
@@ -317,7 +323,7 @@ def test_notify_prefers_explicit_target_hook_cache_and_target_dir_command(tmp_pa
     assert expected in output
 
 
-def test_notify_explicit_target_hook_cache_recovers_missing_install_scope_from_installed_surface(tmp_path: Path) -> None:
+def test_notify_explicit_target_hook_cache_does_not_recover_missing_install_scope_from_legacy_surface(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     explicit_target = tmp_path / "custom-runtime-dir"
@@ -356,8 +362,7 @@ def test_notify_explicit_target_hook_cache_recovers_missing_install_scope_from_i
         _check_and_notify_update(str(workspace))
 
     output = stderr.getvalue()
-    expected = _repair_command("codex", install_scope="local", target_dir=explicit_target, explicit_target=True)
-    assert expected in output
+    assert output == ""
 
 
 def test_notify_ignores_unrelated_self_config_cache_when_workspace_has_active_install(tmp_path: Path) -> None:
@@ -425,17 +430,11 @@ def test_notify_keeps_target_dir_for_default_named_explicit_target(tmp_path: Pat
     cache_file.parent.mkdir(parents=True)
     hook_path.write_text("# hook\n", encoding="utf-8")
     _mark_complete_install(explicit_target, runtime="codex")
-    (explicit_target / "gpd-file-manifest.json").write_text(
-        json.dumps(
-            {
-                "install_scope": "local",
-                "runtime": "codex",
-                "explicit_target": True,
-                "install_target_dir": str(explicit_target),
-            }
-        ),
-        encoding="utf-8",
-    )
+    manifest_path = explicit_target / "gpd-file-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["explicit_target"] = True
+    manifest["install_target_dir"] = str(explicit_target)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     cache_file.write_text(
         json.dumps(
             {

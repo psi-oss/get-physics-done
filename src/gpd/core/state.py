@@ -37,6 +37,7 @@ from gpd.core.constants import (
     PLANNING_DIR_NAME,
     PROJECT_FILENAME,
     STANDALONE_PLAN,
+    STANDALONE_SUMMARY,
     STATE_ARCHIVE_FILENAME,
     STATE_JSON_BACKUP_FILENAME,
     STATE_JSON_FILENAME,
@@ -1128,8 +1129,6 @@ def _normalize_project_contract_section(
         allow_singleton_defaults=allow_project_contract_salvage,
     )
     if schema_errors:
-        if retain_blocking_project_contract_errors:
-            return normalized_contract_dump
         integrity_issues.append(
             'schema normalization: dropped "project_contract" because contract schema required normalization'
         )
@@ -2410,9 +2409,11 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
             _integrity_issue_from_contract_error(error) for error in list_shape_drift_errors
         )
         if normalized_contract is None:
-            parsed = ResearchContract.model_validate(contract_payload)
-        else:
-            parsed = normalized_contract
+            return StateUpdateResult(
+                updated=False,
+                reason="Invalid project contract schema: project contract could not be normalized",
+            )
+        parsed = normalized_contract
     except PydanticValidationError as exc:
         first_error = exc.errors()[0] if exc.errors() else {}
         location = ".".join(str(part) for part in first_error.get("loc", ())) or "project_contract"
@@ -2582,7 +2583,9 @@ def state_update_progress(cwd: Path) -> UpdateProgressResult:
                     continue
                 phase_files = [f.name for f in phase_dir.iterdir() if f.is_file()]
                 phase_plans = sum(1 for f in phase_files if f.endswith(PLAN_SUFFIX) or f == STANDALONE_PLAN)
-                phase_summaries = sum(1 for f in phase_files if f.endswith(SUMMARY_SUFFIX))
+                phase_summaries = sum(
+                    1 for f in phase_files if f.endswith(SUMMARY_SUFFIX) or f == STANDALONE_SUMMARY
+                )
                 total_plans += phase_plans
                 total_completed += min(phase_plans, phase_summaries)
 

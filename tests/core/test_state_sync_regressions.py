@@ -509,7 +509,7 @@ def test_state_update_progress_leaves_checkpoint_shelf_artifacts_unchanged(tmp_p
     assert checkpoints_index.read_text(encoding="utf-8") == "stale index\n"
 
 
-def test_state_update_progress_ignores_legacy_standalone_summary_files(tmp_path: Path) -> None:
+def test_state_update_progress_counts_legacy_standalone_summary_files(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
     planning = cwd / "GPD"
     state = default_state_dict()
@@ -527,8 +527,8 @@ def test_state_update_progress_ignores_legacy_standalone_summary_files(tmp_path:
 
     assert result.updated is True
     assert result.total == 1
-    assert result.completed == 0
-    assert result.percent == 0
+    assert result.completed == 1
+    assert result.percent == 100
 
 
 def test_state_validate_allows_pristine_default_convention_lock(tmp_path: Path) -> None:

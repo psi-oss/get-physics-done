@@ -11,17 +11,7 @@ MCP_SCHEMA_VERSION = 1
 
 
 class StableMCPEnvelope(dict[str, object]):
-    """Dict envelope that remains comparable to legacy payload-only mappings."""
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Mapping):
-            return super().__eq__(other)
-
-        envelope = dict(self)
-        other_mapping = dict(other)
-        if "schema_version" not in other_mapping:
-            envelope.pop("schema_version", None)
-        return envelope == other_mapping
+    """Schema-versioned MCP envelope for all server responses."""
 
 
 def stable_mcp_response(

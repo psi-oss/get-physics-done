@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import gpd.hooks.check_update as check_update
 from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.hooks.check_update import (
@@ -79,11 +80,20 @@ def _mark_complete_install(config_dir: Path, *, runtime: str, install_scope: str
             artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
         else:
             artifact.mkdir(parents=True, exist_ok=True)
-    manifest: dict[str, object] = {"install_scope": install_scope, "runtime": runtime}
+    explicit_target = config_dir.name != adapter.config_dir_name
+    manifest: dict[str, object] = {
+        "install_scope": install_scope,
+        "runtime": runtime,
+        "explicit_target": explicit_target,
+        "install_target_dir": str(config_dir),
+    }
     if runtime == "codex":
         skills_dir = config_dir.parent / ".agents" / "skills"
-        (skills_dir / "gpd-help").mkdir(parents=True, exist_ok=True)
+        help_skill_dir = skills_dir / "gpd-help"
+        help_skill_dir.mkdir(parents=True, exist_ok=True)
+        (help_skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
         manifest["codex_skills_dir"] = str(skills_dir)
+        manifest["codex_generated_skill_dirs"] = ["gpd-help"]
     (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 # ─── _is_older_than ────────────────────────────────────────────────────────
@@ -125,6 +135,13 @@ class TestIsOlderThan:
 
     def test_pep440_post_release_is_not_older_than_base_release(self) -> None:
         assert _is_older_than("1.2.3.post1", "1.2.3") is False
+
+
+def test_version_comparison_does_not_depend_on_packaging_modules() -> None:
+    source = inspect.getsource(check_update)
+
+    assert "packaging.version" not in source
+    assert "pip._vendor.packaging" not in source
 
 
 # ─── _read_installed_version ───────────────────────────────────────────────

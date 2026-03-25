@@ -49,11 +49,20 @@ def _mark_complete_runtime_install(config_dir: Path, *, runtime: str, install_sc
             artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
         else:
             artifact.mkdir(parents=True, exist_ok=True)
-    manifest: dict[str, object] = {"runtime": runtime, "install_scope": install_scope}
+    explicit_target = config_dir.name != adapter.config_dir_name
+    manifest: dict[str, object] = {
+        "runtime": runtime,
+        "install_scope": install_scope,
+        "explicit_target": explicit_target,
+        "install_target_dir": str(config_dir),
+    }
     if runtime == "codex":
         skills_dir = config_dir.parent / ".agents" / "skills"
-        (skills_dir / "gpd-help").mkdir(parents=True, exist_ok=True)
+        help_skill_dir = skills_dir / "gpd-help"
+        help_skill_dir.mkdir(parents=True, exist_ok=True)
+        (help_skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
         manifest["codex_skills_dir"] = str(skills_dir)
+        manifest["codex_generated_skill_dirs"] = ["gpd-help"]
     (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 

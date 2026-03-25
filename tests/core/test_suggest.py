@@ -9,7 +9,6 @@ from unittest.mock import patch
 import pytest
 
 from gpd.adapters import get_adapter, list_runtimes
-from gpd.adapters.install_utils import GPD_INSTALL_DIR_NAME, MANIFEST_NAME
 from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME
 from gpd.core.suggest import (
@@ -112,11 +111,32 @@ def _create_todos(tmp_path: Path, count: int) -> None:
 
 def _mark_complete_runtime_install(config_dir: Path, *, runtime: str, install_scope: str = "local") -> None:
     """Create the concrete install markers real runtime installs write."""
-    (config_dir / GPD_INSTALL_DIR_NAME).mkdir(parents=True, exist_ok=True)
-    (config_dir / MANIFEST_NAME).write_text(
-        json.dumps({"runtime": runtime, "install_scope": install_scope}),
-        encoding="utf-8",
-    )
+    adapter = get_adapter(runtime)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    for relpath in adapter.install_completeness_relpaths():
+        if relpath == "gpd-file-manifest.json":
+            continue
+        artifact = config_dir / relpath
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        if artifact.suffix:
+            artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
+        else:
+            artifact.mkdir(parents=True, exist_ok=True)
+    explicit_target = config_dir.name != adapter.config_dir_name
+    manifest: dict[str, object] = {
+        "runtime": runtime,
+        "install_scope": install_scope,
+        "explicit_target": explicit_target,
+        "install_target_dir": str(config_dir),
+    }
+    if runtime == "codex":
+        skills_dir = config_dir.parent / ".agents" / "skills"
+        help_skill_dir = skills_dir / "gpd-help"
+        help_skill_dir.mkdir(parents=True, exist_ok=True)
+        (help_skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
+        manifest["codex_skills_dir"] = str(skills_dir)
+        manifest["codex_generated_skill_dirs"] = ["gpd-help"]
+    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
 # ─── No Project ────────────────────────────────────────────────────────────────
@@ -264,6 +284,20 @@ def test_in_progress_phase_suggests_execute(tmp_path: Path) -> None:
     assert exec_rec.command == "gpd init execute-phase 01"
     assert "2 incomplete plan(s)" in exec_rec.reason
     assert exec_rec.phase == "01"
+
+
+def test_standalone_summary_file_counts_as_phase_completion(tmp_path: Path) -> None:
+    """Standalone SUMMARY.md should complete a phase the same way numbered summaries do."""
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    phase_dir = _create_phase(root, "01-setup", plans=1, summaries=0)
+    (phase_dir / "SUMMARY.md").write_text("Summary\n", encoding="utf-8")
+
+    result = suggest_next(root)
+
+    assert result.context.phase_count == 1
+    assert result.context.completed_phases == 1
+    assert all(s.action != "execute-phase" for s in result.suggestions)
 
 
 def test_complete_unverified_suggests_verify(tmp_path: Path) -> None:

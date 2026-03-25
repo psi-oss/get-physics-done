@@ -114,7 +114,7 @@ def test_legacy_local_install_without_install_scope_keeps_local_update_scope(
     manifest.pop("install_scope", None)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    assert installed_update_command(target) == f"{adapter.update_command} --local"
+    assert installed_update_command(target) is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
@@ -139,7 +139,7 @@ def test_explicit_target_local_install_without_install_scope_keeps_local_update_
     manifest.pop("install_scope", None)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    assert installed_update_command(target) == f"{adapter.update_command} --local --target-dir {target.as_posix()}"
+    assert installed_update_command(target) is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
@@ -164,7 +164,7 @@ def test_explicit_target_global_install_without_install_scope_keeps_global_updat
     manifest.pop("install_scope", None)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    assert installed_update_command(target) == f"{adapter.update_command} --global --target-dir {target.as_posix()}"
+    assert installed_update_command(target) is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
@@ -260,8 +260,7 @@ def test_legacy_global_install_without_explicit_target_ignores_current_env_overr
         ctx.setattr("gpd.hooks.install_metadata.Path.home", lambda: home_dir)
         command = installed_update_command(canonical_target)
 
-    assert command == f"{adapter.update_command} --global"
-    assert "--target-dir" not in command
+    assert command is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
@@ -307,8 +306,7 @@ def test_legacy_global_install_without_explicit_target_ignores_env_leak_captured
         ctx.setattr("gpd.hooks.install_metadata.Path.home", lambda: home_dir)
         command = installed_update_command(canonical_target)
 
-    assert command == f"{adapter.update_command} --global"
-    assert "--target-dir" not in command
+    assert command is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

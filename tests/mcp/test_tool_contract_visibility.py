@@ -67,6 +67,10 @@ def _assert_open_object(schema_fragment: dict[str, object], *, label: str) -> No
     assert schema_fragment["additionalProperties"] is True, f"{label} must remain salvage-friendly"
 
 
+def _assert_closed_object(schema_fragment: dict[str, object], *, label: str) -> None:
+    assert schema_fragment["additionalProperties"] is False, f"{label} must reject unknown top-level keys"
+
+
 def _binding_condition_for_check(run_request_schema: dict[str, object], check_identifier: str) -> dict[str, object]:
     for clause in run_request_schema.get("allOf", []):
         if_branch = clause.get("if")
@@ -116,6 +120,7 @@ def test_run_contract_check_tool_description_surfaces_request_requirements() -> 
     assert "``request.check_key`` or ``request.check_id`` is required" in description
     assert "``request.contract`` is optional" in description
     assert "``schema_version`` defaults to ``1`` when omitted" in description
+    assert "unknown top-level keys" in description
     assert "same-kind IDs must be unique" in description
     assert "contract context must stay consistent with metadata defaults" in description
     assert "metadata defaults and explicit" in description
@@ -219,7 +224,7 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     assert artifact_content["pattern"] == r"\S"
 
     contract_schema = _schema_anyof_object(run_request["properties"]["contract"])
-    _assert_open_object(contract_schema, label="contract")
+    _assert_closed_object(contract_schema, label="contract")
     assert {"schema_version", "scope", "claims", "references"} <= set(contract_schema["properties"])
     scope = _schema_object(contract_schema, contract_schema["properties"]["scope"])
     _assert_open_object(scope, label="contract.scope")
@@ -331,7 +336,7 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
 
     suggest_schema = _tool_input_schema(mcp, "suggest_contract_checks")
     contract_schema = _schema_anyof_object(suggest_schema["properties"]["contract"])
-    _assert_open_object(contract_schema, label="suggest_contract_checks.contract")
+    _assert_closed_object(contract_schema, label="suggest_contract_checks.contract")
     assert {"schema_version", "scope", "claims", "references"} <= set(contract_schema["properties"])
     assert contract_schema["properties"]["scope"]["required"] == ["question"]
     assert contract_schema["properties"]["references"]["items"]["properties"]["required_actions"]["items"]["enum"] == [
@@ -344,6 +349,8 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     active_checks = suggest_schema["properties"]["active_checks"]
     assert active_checks["anyOf"][0]["type"] == "array"
     assert active_checks["anyOf"][0]["items"]["type"] == "string"
+    assert active_checks["anyOf"][0]["items"]["minLength"] == 1
+    assert active_checks["anyOf"][0]["items"]["pattern"] == r"\S"
 
     for field_name in ("source_reference_id", "regime_label", "expected_behavior", "declared_family"):
         field_schema = _schema_anyof_string(metadata["properties"][field_name])
@@ -443,6 +450,20 @@ def test_get_checklist_tool_description_mentions_full_live_registry() -> None:
 
     assert "currently 5.1-5.19" in description
     assert "5.1-5.14" not in description
+
+
+def test_run_check_tool_description_surfaces_alias_and_contract_hint_support() -> None:
+    from gpd.mcp.servers.verification_server import mcp
+
+    description = _tool_description(mcp, "run_check")
+
+    assert "canonical check keys" in description
+    assert "contract.limit_recovery" in description
+    assert "required_request_fields" in description
+    assert "optional_request_fields" in description
+    assert "supported_binding_fields" in description
+    assert "request_template" in description
+    assert "run_contract_check" in description
 
 
 def test_public_verification_infra_descriptor_surfaces_semantic_contract_rules() -> None:

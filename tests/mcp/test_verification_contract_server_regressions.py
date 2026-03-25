@@ -1048,7 +1048,7 @@ def test_suggest_contract_checks_surfaces_salvage_warnings() -> None:
     assert any(entry["check_key"] == "contract.benchmark_reproduction" for entry in result["suggested_checks"])
 
 
-def test_contract_tools_salvage_unknown_top_level_contract_fields() -> None:
+def test_contract_tools_reject_unknown_top_level_contract_fields() -> None:
     from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 
     contract = _load_project_contract_fixture()
@@ -1065,10 +1065,12 @@ def test_contract_tools_salvage_unknown_top_level_contract_fields() -> None:
     )
     suggest_result = suggest_contract_checks(contract)
 
-    assert run_result["contract_salvaged"] is True
-    assert "legacy_notes: Extra inputs are not permitted" in run_result["contract_salvage_findings"]
-    assert suggest_result["contract_salvaged"] is True
-    assert "legacy_notes: Extra inputs are not permitted" in suggest_result["contract_salvage_findings"]
+    expected_error = {
+        "error": "Invalid contract payload: legacy_notes: Extra inputs are not permitted",
+        "schema_version": 1,
+    }
+    assert run_result == expected_error
+    assert suggest_result == expected_error
 
 
 @pytest.mark.parametrize("payload", ["not-a-dict", ["claim-benchmark"], 3])
@@ -1529,7 +1531,7 @@ def test_contract_tools_reject_shared_integrity_errors_after_salvage() -> None:
     )
 
 
-def test_verification_server_success_responses_keep_stable_envelope_equality() -> None:
+def test_verification_server_success_responses_keep_strict_stable_envelopes() -> None:
     from gpd.mcp.servers.verification_server import get_checklist, run_contract_check, suggest_contract_checks
 
     run_result = run_contract_check(
@@ -1542,17 +1544,20 @@ def test_verification_server_success_responses_keep_stable_envelope_equality() -
     )
     run_expected = dict(run_result)
     run_expected.pop("schema_version")
-    assert run_result == run_expected
+    assert run_result != run_expected
+    assert run_result == {"schema_version": 1, **run_expected}
 
     suggest_result = suggest_contract_checks(_derived_template_contract())
     suggest_expected = dict(suggest_result)
     suggest_expected.pop("schema_version")
-    assert suggest_result == suggest_expected
+    assert suggest_result != suggest_expected
+    assert suggest_result == {"schema_version": 1, **suggest_expected}
 
     checklist_result = get_checklist("qft")
     checklist_expected = dict(checklist_result)
     checklist_expected.pop("schema_version")
-    assert checklist_result == checklist_expected
+    assert checklist_result != checklist_expected
+    assert checklist_result == {"schema_version": 1, **checklist_expected}
 
 
 def test_checklist_helpers_return_defensive_copies() -> None:

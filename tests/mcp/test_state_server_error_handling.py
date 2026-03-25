@@ -19,7 +19,7 @@ class TestAdvancePlanErrorHandling:
             lambda _cwd: (_ for _ in ()).throw(GPDError("test error")),
         )
         result = advance_plan("/tmp/fake")
-        assert result == {"error": "test error"}
+        assert result == {"error": "test error", "schema_version": 1}
 
     def test_os_error(self, monkeypatch):
         monkeypatch.setattr(
@@ -27,7 +27,7 @@ class TestAdvancePlanErrorHandling:
             lambda _cwd: (_ for _ in ()).throw(OSError("file not found")),
         )
         result = advance_plan("/tmp/fake")
-        assert result == {"error": "file not found"}
+        assert result == {"error": "file not found", "schema_version": 1}
 
 
 class TestValidateStateErrorHandling:
@@ -39,7 +39,7 @@ class TestValidateStateErrorHandling:
             lambda _cwd: (_ for _ in ()).throw(GPDError("bad state")),
         )
         result = validate_state("/tmp/fake")
-        assert result == {"error": "bad state"}
+        assert result == {"error": "bad state", "schema_version": 1}
 
     def test_value_error(self, monkeypatch):
         monkeypatch.setattr(
@@ -47,4 +47,4 @@ class TestValidateStateErrorHandling:
             lambda _cwd: (_ for _ in ()).throw(ValueError("invalid")),
         )
         result = validate_state("/tmp/fake")
-        assert result == {"error": "invalid"}
+        assert result == {"error": "invalid", "schema_version": 1}

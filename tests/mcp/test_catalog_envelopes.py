@@ -5,13 +5,14 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 
-def _assert_legacy_envelope(result: object, expected_payload: dict[str, object]) -> None:
+def _assert_strict_envelope(result: object, expected_payload: dict[str, object]) -> None:
     from gpd.mcp.servers import StableMCPEnvelope
 
     assert isinstance(result, StableMCPEnvelope)
     assert result["schema_version"] == 1
-    assert result == expected_payload
     assert dict(result) == {"schema_version": 1, **expected_payload}
+    assert result != expected_payload
+    assert result == {"schema_version": 1, **expected_payload}
 
 
 def test_protocols_success_envelope() -> None:
@@ -33,7 +34,7 @@ def test_protocols_success_envelope() -> None:
     with patch("gpd.mcp.servers.protocols_server._get_store", return_value=store):
         result = get_protocol("perturbation-theory")
 
-    _assert_legacy_envelope(
+    _assert_strict_envelope(
         result,
         {
             "name": "perturbation-theory",
@@ -55,7 +56,7 @@ def test_protocols_error_envelope() -> None:
     with patch("gpd.mcp.servers.protocols_server._get_store", side_effect=OSError("protocol catalog offline")):
         result = get_protocol("perturbation-theory")
 
-    _assert_legacy_envelope(result, {"error": "protocol catalog offline"})
+    _assert_strict_envelope(result, {"error": "protocol catalog offline"})
 
 
 def test_patterns_success_envelope() -> None:
@@ -71,7 +72,7 @@ def test_patterns_success_envelope() -> None:
     with patch("gpd.mcp.servers.patterns_server.pattern_list", return_value=listing):
         result = lookup_pattern(domain="qft")
 
-    _assert_legacy_envelope(
+    _assert_strict_envelope(
         result,
         {
             "count": 1,
@@ -88,7 +89,7 @@ def test_patterns_error_envelope() -> None:
     with patch("gpd.mcp.servers.patterns_server.pattern_list", side_effect=OSError("pattern store offline")):
         result = lookup_pattern(domain="qft")
 
-    _assert_legacy_envelope(result, {"error": "pattern store offline"})
+    _assert_strict_envelope(result, {"error": "pattern store offline"})
 
 
 def test_errors_success_envelope() -> None:
@@ -108,7 +109,7 @@ def test_errors_success_envelope() -> None:
     with patch("gpd.mcp.servers.errors_mcp._get_store", return_value=store):
         result = get_error_class(1)
 
-    _assert_legacy_envelope(
+    _assert_strict_envelope(
         result,
         {
             "id": 1,
@@ -128,7 +129,7 @@ def test_errors_error_envelope() -> None:
     with patch("gpd.mcp.servers.errors_mcp._get_store", side_effect=OSError("error catalog offline")):
         result = get_error_class(1)
 
-    _assert_legacy_envelope(result, {"error": "error catalog offline"})
+    _assert_strict_envelope(result, {"error": "error catalog offline"})
 
 
 def test_conventions_success_envelope() -> None:
@@ -137,7 +138,7 @@ def test_conventions_success_envelope() -> None:
     result = subfield_defaults("qft")
 
     defaults = SUBFIELD_DEFAULTS["qft"]
-    _assert_legacy_envelope(
+    _assert_strict_envelope(
         result,
         {
             "found": True,
@@ -162,4 +163,4 @@ def test_conventions_error_envelope() -> None:
     ):
         result = convention_set("/tmp/project", "metric_signature", "(+,-,-,-)")
 
-    _assert_legacy_envelope(result, {"error": "lock acquisition timed out"})
+    _assert_strict_envelope(result, {"error": "lock acquisition timed out"})

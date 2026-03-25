@@ -31,7 +31,6 @@ from gpd.core.observability import gpd_span
 from gpd.core.protocol_bundles import ResolvedProtocolBundle, get_protocol_bundle, render_protocol_bundle_context
 from gpd.core.verification_checks import (
     ERROR_CLASS_COVERAGE,
-    VERIFICATION_CHECK_IDS,
     VERIFICATION_SCHEMA_VERSION,
     get_verification_check,
     list_verification_checks,
@@ -423,6 +422,13 @@ _CONTRACT_CHECK_IDENTIFIER_VALUES: tuple[str, ...] = tuple(
     for entry in _CONTRACT_AWARE_CHECK_ENTRIES
     for identifier in _check_identifier_values(entry)
 )
+_RUN_CHECK_IDENTIFIER_VALUES: tuple[str, ...] = tuple(
+    dict.fromkeys(
+        identifier
+        for entry in list_verification_checks()
+        for identifier in _check_identifier_values(entry)
+    )
+)
 
 
 _CONTRACT_BINDING_INPUT_SCHEMA: dict[str, object] = _binding_input_schema_for_targets(_CONTRACT_BINDING_TARGETS)
@@ -572,7 +578,7 @@ _CONTRACT_UNCERTAINTY_MARKERS_INPUT_SCHEMA: dict[str, object] = _open_object_sch
         "disconfirming_observations": _string_list_schema(),
     }
 )
-_CONTRACT_PAYLOAD_INPUT_SCHEMA: dict[str, object] = _open_object_schema(
+_CONTRACT_PAYLOAD_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "schema_version": {"type": "integer", "const": 1},
         "scope": dict(_CONTRACT_SCOPE_INPUT_SCHEMA),
@@ -609,6 +615,7 @@ _CONTRACT_PAYLOAD_INPUT_SCHEMA: dict[str, object] = _open_object_schema(
         "uncertainty_markers": dict(_CONTRACT_UNCERTAINTY_MARKERS_INPUT_SCHEMA),
     },
     required=("scope",),
+    additional_properties=False,
 )
 
 
@@ -697,7 +704,7 @@ RunContractCheckPayload = Annotated[object, WithJsonSchema(_RUN_CONTRACT_CHECK_R
 SuggestContractPayload = Annotated[object, WithJsonSchema(_CONTRACT_PAYLOAD_INPUT_SCHEMA)]
 StringListPayload = Annotated[
     object | None,
-    WithJsonSchema({"anyOf": [{"type": "array", "items": {"type": "string"}}, {"type": "null"}]}),
+    WithJsonSchema({"anyOf": [{"type": "array", "items": _non_empty_string_schema()}, {"type": "null"}]}),
 ]
 
 
@@ -1217,17 +1224,25 @@ def _validate_string(value: object, *, field_name: str) -> tuple[str | None, dic
     """Return a validated string scalar or an MCP error envelope."""
     if not isinstance(value, str):
         return None, _error_result(f"{field_name} must be a string")
-    return value, None
+    stripped = value.strip()
+    if not stripped:
+        return None, _error_result(f"{field_name} must be a non-empty string")
+    return stripped, None
 
 
 def _validate_string_list(value: object, *, field_name: str) -> tuple[list[str] | None, dict[str, object] | None]:
     """Return a validated list[str] or an MCP error envelope."""
     if not isinstance(value, list):
         return None, _error_result(f"{field_name} must be a list of strings")
+    validated: list[str] = []
     for index, item in enumerate(value):
         if not isinstance(item, str):
             return None, _error_result(f"{field_name}[{index}] must be a string")
-    return value, None
+        stripped = item.strip()
+        if not stripped:
+            return None, _error_result(f"{field_name}[{index}] must be a non-empty string")
+        validated.append(stripped)
+    return validated, None
 
 
 def _normalize_active_checks(active_checks: list[str]) -> list[str]:
@@ -1266,9 +1281,15 @@ def _validate_string_mapping(
     for key, item in value.items():
         if not isinstance(key, str):
             return None, _error_result(f"{field_name} keys must be strings")
+        stripped_key = key.strip()
+        if not stripped_key:
+            return None, _error_result(f"{field_name} keys must be non-empty strings")
         if not isinstance(item, str):
             return None, _error_result(f"{field_name}[{key}] must be a string")
-        validated[key] = item
+        stripped_item = item.strip()
+        if not stripped_item:
+            return None, _error_result(f"{field_name}[{stripped_key}] must be a non-empty string")
+        validated[stripped_key] = stripped_item
     return validated, None
 
 
@@ -1315,8 +1336,15 @@ def run_check(check_id: str, domain: str, artifact_content: str) -> dict:
     this tool provides the check specification, what to look for,
     and structured result formatting.
 
+    ``check_id`` accepts the stable numeric check ids (for example ``"5.1"``)
+    and the canonical check keys (for example ``"contract.limit_recovery"``).
+    For contract-aware checks, the response also surfaces
+    ``required_request_fields``, ``optional_request_fields``,
+    ``supported_binding_fields``, and a ``request_template`` so callers can
+    build a valid ``run_contract_check`` request before executing it.
+
     Args:
-        check_id: Check identifier (e.g., "5.1", "5.3")
+        check_id: Check identifier or canonical check key
         domain: Physics domain for domain-specific guidance
         artifact_content: The content to verify (derivation, code, etc.)
     """
@@ -1325,7 +1353,8 @@ def run_check(check_id: str, domain: str, artifact_content: str) -> dict:
             check_meta = get_verification_check(check_id)
             if check_meta is None:
                 return _error_result(
-                    f"Unknown check_id: {check_id}. Valid check ids: {list(VERIFICATION_CHECK_IDS)}"
+                    f"Unknown check_id: {check_id}. "
+                    f"Valid identifiers include: {list(_RUN_CHECK_IDENTIFIER_VALUES)}"
                 )
 
             # Get domain-specific guidance
@@ -2709,7 +2738,7 @@ def run_contract_check(request: RunContractCheckPayload) -> dict:
     ``request.contract`` is optional, but when supplied it must be a project or
     phase contract object. ``schema_version`` defaults to ``1`` when omitted
     and must equal ``1`` when provided. The payload is treated as a hard schema
-    boundary for authoritative fields: non-object sections,
+    boundary for authoritative fields: unknown top-level keys, non-object sections,
     coercive scalars, blank strings, and malformed list members are rejected
     instead of being guessed. Recoverable scalar-to-list drift is normalized by
     the shared contract parser before verification, and benchmark prose may
@@ -3172,9 +3201,10 @@ def suggest_contract_checks(contract: SuggestContractPayload, active_checks: Str
     ``contract`` must be an object with the normal GPD contract structure.
     ``schema_version`` defaults to ``1`` when omitted and must equal ``1`` when
     provided. The tool keeps authoritative fields strict: non-object
-    payloads, coercive scalars, and malformed list members are rejected rather
-    than inferred. Recoverable scalar-to-list drift is normalized by the shared
-    contract parser before verification. Contract payloads must also satisfy
+    payloads, unknown top-level keys, coercive scalars, and malformed list
+    members are rejected rather than inferred. Recoverable scalar-to-list drift
+    is normalized by the shared contract parser before verification. Contract
+    payloads must also satisfy
     the shared semantic integrity rules: same-kind IDs must be unique.
     references[].carry_forward_to uses workflow scope labels, never contract IDs.
     target IDs must not be reused across claim/deliverable/acceptance-test/reference kinds when that would make resolution ambiguous.
@@ -3187,9 +3217,9 @@ def suggest_contract_checks(contract: SuggestContractPayload, active_checks: Str
     binding. Limited recoverable structural drift may still be salvaged, and
     any such recovery is carried through the suggestion metadata.
 
-    ``active_checks`` is optional and must be ``list[str]`` when provided. Supply
-    already-enabled check ids or check keys so each suggestion can mark
-    ``already_active`` precisely.
+    ``active_checks`` is optional and must be ``list[str]`` with non-empty
+    entries when provided. Supply already-enabled check ids or check keys so
+    each suggestion can mark ``already_active`` precisely.
 
     Each ``suggested_checks[]`` entry includes ``required_request_fields``,
     ``optional_request_fields``, ``supported_binding_fields``, and a

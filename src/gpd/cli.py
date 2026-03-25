@@ -3002,19 +3002,18 @@ def _default_paper_output_dir(config_file: Path) -> Path:
 
 def _reject_legacy_paper_config_location(config_file: Path) -> None:
     """Reject removed paper-config locations under internal planning storage."""
-    from gpd.core.storage_paths import ProjectStorageLayout
-
-    legacy_config_root = ProjectStorageLayout(_get_cwd()).internal_root / "paper"
-    planning_dir_name = legacy_config_root.parent.name
     resolved_config = config_file.resolve(strict=False)
-    try:
-        resolved_config.relative_to(legacy_config_root)
-    except ValueError:
-        return
-    raise GPDError(
-        f"Paper configs under `{planning_dir_name}/paper/` are no longer supported. "
-        "Move the config to `paper/`, `manuscript/`, or `draft/`."
-    )
+    project_root = _get_cwd().resolve(strict=False)
+    for legacy_config_root in (project_root / "GPD" / "paper", project_root / ".gpd" / "paper"):
+        try:
+            resolved_config.relative_to(legacy_config_root)
+        except ValueError:
+            continue
+        planning_dir_name = legacy_config_root.parent.name
+        raise GPDError(
+            f"Paper configs under `{planning_dir_name}/paper/` are no longer supported. "
+            "Move the config to `paper/`, `manuscript/`, or `draft/`."
+        )
 
 
 def _split_command_arguments(arguments: str | None) -> list[str]:
@@ -4388,7 +4387,7 @@ def resolve_model_cmd(
     runtime model parameter and let the platform use its default model.
     """
     from gpd.core.config import resolve_model, validate_agent_name
-    from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use
+    from gpd.core.context import _resolve_model as resolve_context_model
 
     supported_runtimes = _supported_runtime_names()
     if runtime is not None:
@@ -4401,10 +4400,14 @@ def resolve_model_cmd(
         supported = ", ".join(supported_runtimes)
         _error(f"Unknown runtime {runtime!r}. Supported: {supported}")
 
-    active_runtime = runtime or detect_runtime_for_gpd_use(cwd=_get_cwd())
     try:
         validate_agent_name(agent_name)
-        _output(resolve_model(_get_cwd(), agent_name, runtime=active_runtime))
+        resolved_model = (
+            resolve_model(_get_cwd(), agent_name, runtime=runtime)
+            if runtime is not None
+            else resolve_context_model(_get_cwd(), agent_name)
+        )
+        _output(resolved_model)
     except ConfigError as exc:
         _error(str(exc))
 

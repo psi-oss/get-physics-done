@@ -12,20 +12,53 @@ from pathlib import Path
 from gpd.adapters.install_utils import CACHE_DIR_NAME, GPD_INSTALL_DIR_NAME, UPDATE_CACHE_FILENAME
 from gpd.core.constants import ENV_GPD_DEBUG, PLANNING_DIR_NAME
 
-try:
-    from packaging.version import InvalidVersion, Version
-except ImportError:
-    try:
-        from pip._vendor.packaging.version import InvalidVersion, Version
-    except ImportError:
-        InvalidVersion = ValueError
-        Version = None
-
 SECONDS_PER_HOUR = 3600
 UPDATE_CHECK_TTL_SECONDS = 12 * SECONDS_PER_HOUR
 UPDATE_CHECK_INFLIGHT_TTL_SECONDS = 5 * 60
 NPM_PACKAGE_NAME = "get-physics-done"
 NPM_LATEST_RELEASE_URL = f"https://registry.npmjs.org/{NPM_PACKAGE_NAME}/latest"
+_VERSION_RELEASE_RE = re.compile(r"^\s*v?(?P<release>\d+(?:\.\d+)*)(?P<suffix>.*)$")
+
+
+def _trim_trailing_zero_segments(parts: tuple[int, ...]) -> tuple[int, ...]:
+    trimmed = parts
+    while len(trimmed) > 1 and trimmed[-1] == 0:
+        trimmed = trimmed[:-1]
+    return trimmed
+
+
+def _suffix_rank(suffix: str) -> tuple[int, int]:
+    normalized = suffix.lower().split("+", 1)[0]
+    if not normalized:
+        return 1, 0
+
+    def _extract_number(tag: str) -> int:
+        match = re.search(rf"{re.escape(tag)}(?:[._-])?(\d+)", normalized)
+        return int(match.group(1)) if match is not None and match.group(1) else 0
+
+    if "post" in normalized:
+        return 2, _extract_number("post")
+    if "dev" in normalized:
+        return -3, _extract_number("dev")
+    if "alpha" in normalized or re.search(r"(?:^|[._-])a\d*", normalized):
+        return -2, _extract_number("alpha") or _extract_number("a")
+    if "beta" in normalized or re.search(r"(?:^|[._-])b\d*", normalized):
+        return -1, _extract_number("beta") or _extract_number("b")
+    if "rc" in normalized:
+        return 0, _extract_number("rc")
+    return -1, 0
+
+
+def _version_key(version: str) -> tuple[tuple[int, ...], int, int, str]:
+    normalized = version.strip().lstrip("v").split("+", 1)[0]
+    match = _VERSION_RELEASE_RE.match(normalized)
+    if match is None:
+        return ((), -1, 0, normalized.casefold())
+
+    release = tuple(int(part) for part in match.group("release").split("."))
+    release = _trim_trailing_zero_segments(release) or (0,)
+    rank, number = _suffix_rank(match.group("suffix"))
+    return (release, rank, number, "")
 
 
 def _debug(msg: str) -> None:
@@ -76,32 +109,7 @@ def _read_installed_version() -> str:
 
 def _is_older_than(a: str, b: str) -> bool:
     """Return True if version *a* is strictly older than *b*."""
-    normalized_a = a.strip().lstrip("v")
-    normalized_b = b.strip().lstrip("v")
-
-    if Version is not None:
-        try:
-            return Version(normalized_a) < Version(normalized_b)
-        except InvalidVersion as exc:
-            _debug(f"Version parsing failed for {a!r} vs {b!r}: {exc}")
-
-    def parts(v: str) -> tuple[int, int, int, int]:
-        numeric_parts: list[int] = []
-        for segment in v.split("."):
-            digits = []
-            for ch in segment:
-                if not ch.isdigit():
-                    break
-                digits.append(ch)
-            numeric_parts.append(int("".join(digits)) if digits else 0)
-            if len(numeric_parts) == 3:
-                break
-        numeric_parts.extend([0] * (3 - len(numeric_parts)))
-        # Pre-release versions (dev/alpha/beta/rc) sort before final release
-        is_pre = -1 if re.search(r"(?:dev|alpha|beta|rc|\d+[ab]\d+)", v) else 0
-        return (numeric_parts[0], numeric_parts[1], numeric_parts[2], is_pre)
-
-    return parts(normalized_a) < parts(normalized_b)
+    return _version_key(a) < _version_key(b)
 
 
 def _do_check(cache_file: Path) -> None:

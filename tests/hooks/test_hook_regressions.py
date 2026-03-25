@@ -176,7 +176,14 @@ def test_installed_update_command_uses_manifest_runtime_metadata_for_custom_targ
     explicit_target = tmp_path / "custom-runtime-dir"
     explicit_target.mkdir()
     (explicit_target / "gpd-file-manifest.json").write_text(
-        json.dumps({"install_scope": "local", "runtime": "codex"}),
+        json.dumps(
+            {
+                "install_scope": "local",
+                "runtime": "codex",
+                "explicit_target": True,
+                "install_target_dir": str(explicit_target),
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -267,7 +274,7 @@ def test_installed_update_command_ignores_process_cwd_for_nested_default_local_i
     default_local_target = tmp_path / "workspace" / ".codex"
     default_local_target.mkdir(parents=True)
     (default_local_target / "gpd-file-manifest.json").write_text(
-        json.dumps({"install_scope": "local", "runtime": "codex"}),
+        json.dumps({"install_scope": "local", "runtime": "codex", "explicit_target": False}),
         encoding="utf-8",
     )
 
@@ -326,14 +333,10 @@ def test_installed_update_command_treats_scope_less_explicit_local_named_target_
 
     command = installed_update_command(explicit_target)
 
-    assert command is not None
-    assert "--local" in command
-    assert "--global" not in command
-    assert "--target-dir" in command
-    assert str(explicit_target) in command
+    assert command is None
 
 
-def test_installed_update_command_recovers_legacy_explicit_target_named_like_default_from_update_workflow(
+def test_installed_update_command_does_not_recover_legacy_explicit_target_named_like_default_from_update_workflow(
     tmp_path: Path,
 ) -> None:
     from gpd.hooks.install_metadata import installed_update_command
@@ -366,10 +369,7 @@ def test_installed_update_command_recovers_legacy_explicit_target_named_like_def
 
     command = installed_update_command(explicit_target)
 
-    assert command is not None
-    assert "--local" in command
-    assert "--target-dir" in command
-    assert str(explicit_target) in command
+    assert command is None
 
 
 @pytest.mark.parametrize(

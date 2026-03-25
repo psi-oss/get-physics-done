@@ -696,6 +696,16 @@ def test_validate_project_contract_reports_extra_item_keys_without_dropping_sema
     assert result.decisive_target_count > 0
 
 
+def test_validate_project_contract_rejects_top_level_extra_keys() -> None:
+    contract = _load_contract_fixture()
+    contract["legacy_notes"] = "forwarded from a prior schema revision"
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "legacy_notes: Extra inputs are not permitted" in result.errors
+
+
 def test_validate_project_contract_ignores_nested_metadata_must_surface_without_false_boolean_error() -> None:
     contract = _load_contract_fixture()
     contract["references"][0]["metadata"] = {"must_surface": "yes"}
