@@ -94,6 +94,12 @@ def _project_contract_with_question(question: str) -> dict[str, object]:
     contract["scope"]["question"] = question
     return contract
 
+
+def _draft_invalid_project_contract() -> dict[str, object]:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["claims"][0]["references"] = ["missing-ref"]
+    return contract
+
 # ─── default_state_dict ──────────────────────────────────────────────────────
 
 
@@ -434,7 +440,7 @@ def test_ensure_state_schema_drops_project_contract_for_malformed_list_item():
 def test_ensure_state_schema_malformed_project_contract_singleton_field_preserves_valid_siblings():
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["context_intake"] = {
-        "must_read_refs": "not-a-list",
+        "must_read_refs": "ref-benchmark",
         "known_good_baselines": ["baseline-A"],
         "crucial_inputs": ["normalize with published convention"],
     }
@@ -442,7 +448,7 @@ def test_ensure_state_schema_malformed_project_contract_singleton_field_preserve
     result = ensure_state_schema({"project_contract": contract})
 
     assert result["project_contract"] is not None
-    assert result["project_contract"]["context_intake"]["must_read_refs"] == ["not-a-list"]
+    assert result["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
     assert result["project_contract"]["context_intake"]["known_good_baselines"] == ["baseline-A"]
     assert result["project_contract"]["context_intake"]["crucial_inputs"] == [
         "normalize with published convention"
@@ -524,6 +530,18 @@ def test_normalize_state_schema_reports_coercive_project_contract_scalars():
         in issue
         for issue in issues
     )
+
+
+def test_normalize_state_schema_drops_project_contract_that_fails_draft_scoping_validation():
+    normalized, issues = _normalize_state_schema({"project_contract": _draft_invalid_project_contract()})
+
+    assert normalized["project_contract"] is None
+    assert any(
+        'schema normalization: dropped "project_contract" because contract failed draft scoping validation'
+        in issue
+        for issue in issues
+    )
+    assert any("project_contract: claim claim-benchmark references unknown reference missing-ref" in issue for issue in issues)
 
 
 def test_ensure_state_schema_strips_claim_extra_keys_without_dropping_claim():
@@ -838,6 +856,18 @@ def test_save_state_json_preserves_recoverable_warning_only_project_contract_dri
     assert "notes" not in persisted["project_contract"]["claims"][0]
 
 
+def test_save_state_json_drops_project_contract_that_fails_draft_scoping_validation(tmp_path: Path) -> None:
+    state = default_state_dict()
+    state["position"]["status"] = "Executing"
+    state["project_contract"] = _draft_invalid_project_contract()
+
+    save_state_json(tmp_path, state)
+
+    layout = ProjectLayout(tmp_path)
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    assert persisted["project_contract"] is None
+
+
 def test_save_state_markdown_preserves_project_contract_when_singleton_list_drift_is_salvageable(
     tmp_path: Path,
 ):
@@ -971,6 +1001,29 @@ def test_save_state_markdown_does_not_promote_backup_project_contract_when_prima
     assert persisted["position"]["status"] == "Paused"
     assert backup["project_contract"] is None
     assert backup["position"]["status"] == "Paused"
+
+
+def test_save_state_markdown_does_not_preserve_draft_invalid_primary_project_contract(tmp_path: Path) -> None:
+    baseline = default_state_dict()
+    baseline["position"]["status"] = "Executing"
+    save_state_json(tmp_path, baseline)
+    save_state_markdown(tmp_path, generate_state_markdown(baseline))
+    layout = ProjectLayout(tmp_path)
+
+    broken_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    broken_state["project_contract"] = _draft_invalid_project_contract()
+    layout.state_json.write_text(json.dumps(broken_state, indent=2) + "\n", encoding="utf-8")
+
+    md_content = layout.state_md.read_text(encoding="utf-8").replace("**Status:** Executing", "**Status:** Paused", 1)
+    result = save_state_markdown(tmp_path, md_content)
+
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    backup = json.loads(layout.state_json_backup.read_text(encoding="utf-8"))
+
+    assert result["project_contract"] is None
+    assert persisted["project_contract"] is None
+    assert persisted["position"]["status"] == "Paused"
+    assert backup["project_contract"] is None
 
 
 def test_load_state_json_backup_restore_preserves_project_contract_when_backup_requires_salvage(

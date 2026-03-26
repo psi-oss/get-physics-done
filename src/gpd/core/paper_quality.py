@@ -512,7 +512,6 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
         ]
         if issue is not None
     )
-
     blockers: list[PaperQualityIssue] = []
     if not data.citations.missing_placeholders.passed and not data.citations.missing_placeholders.not_applicable:
         blockers.append(

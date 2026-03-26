@@ -197,7 +197,10 @@ def _peek_normalized_state_for_health(cwd: Path) -> tuple[dict[str, object] | No
         return None, state_source
 
     project_contract = state_obj.get("project_contract")
-    if project_contract is not None and contract_from_data(project_contract) is None:
+    if (
+        project_contract is not None
+        and contract_from_data(project_contract, require_draft_validity=True, project_root=cwd) is None
+    ):
         state_obj = dict(state_obj)
         state_obj["project_contract"] = None
     return state_obj, state_source

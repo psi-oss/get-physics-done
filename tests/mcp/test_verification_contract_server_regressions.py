@@ -272,9 +272,12 @@ def _assert_contract_tools_reject(contract: dict[str, object], expected_error: s
     )
     suggest_result = suggest_contract_checks(contract)
 
-    expected = {"error": f"Invalid contract payload: {expected_error}", "schema_version": 1}
-    assert run_result == expected
-    assert suggest_result == expected
+    for result in (run_result, suggest_result):
+        assert result["schema_version"] == 1
+        assert result["error"].startswith(f"Invalid contract payload: {expected_error}")
+        details = result.get("contract_error_details")
+        if details is not None:
+            assert expected_error in details
 
 
 @pytest.mark.parametrize(
@@ -1566,6 +1569,28 @@ def test_contract_tools_reject_blocking_salvage_schema_drift() -> None:
     }
     assert run_result == expected
     assert suggest_result == expected
+
+
+def test_contract_tools_reject_cross_link_invalid_contracts() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _load_project_contract_fixture()
+    contract["claims"][0]["references"] = ["missing-ref"]
+
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "binding": {"claim_ids": ["claim-benchmark"]},
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    expected = {
+        "error": "Invalid contract payload: claim claim-benchmark references unknown reference missing-ref",
+        "schema_version": 1,
+    }
+    assert run_contract_check(request) == expected
+    assert suggest_contract_checks(contract) == expected
 
 
 def test_contract_tools_surface_full_contract_error_details_for_multi_error_payloads() -> None:

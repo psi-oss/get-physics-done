@@ -1009,7 +1009,8 @@ class TestCheckUpdateHook:
         ):
             result = _check_update()
 
-        assert "gpd-update" in result
+        assert update_command_for_runtime("unknown") in result
+        assert "gpd-update" not in result
 
     def test_read_current_task_uses_runtime_unknown_constant_not_literal(self, tmp_path: Path) -> None:
         runtime_unknown = "runtime-unknown"

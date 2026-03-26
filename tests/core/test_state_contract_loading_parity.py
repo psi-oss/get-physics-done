@@ -23,6 +23,12 @@ def _setup_project(tmp_path: Path) -> None:
     (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
 
 
+def _draft_invalid_project_contract() -> dict[str, object]:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["claims"][0]["references"] = ["missing-ref"]
+    return contract
+
+
 def test_load_state_json_uses_backup_when_primary_root_is_not_an_object(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     save_state_json(tmp_path, default_state_dict())
@@ -218,6 +224,28 @@ def test_state_and_context_drop_integrity_invalid_backup_project_contract(tmp_pa
     assert ctx["project_contract_load_info"]["status"] == "blocked_integrity"
     assert loaded.state["project_contract"] is None
     assert json.loads(layout.state_json.read_text(encoding="utf-8"))["project_contract"] is None
+
+
+def test_state_and_context_hide_draft_invalid_primary_project_contract_after_state_load(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    save_state_json(tmp_path, default_state_dict())
+
+    layout = ProjectLayout(tmp_path)
+    raw_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    raw_state["project_contract"] = _draft_invalid_project_contract()
+    layout.state_json.write_text(json.dumps(raw_state, indent=2) + "\n", encoding="utf-8")
+
+    loaded = state_load(tmp_path)
+    ctx = init_progress(tmp_path)
+
+    assert loaded.state["project_contract"] is None
+    assert any("unknown reference missing-ref" in issue for issue in loaded.integrity_issues)
+    assert ctx["project_contract"] is None
+    assert ctx["project_contract_load_info"]["status"] == "blocked_integrity"
+    assert any(
+        "unknown reference missing-ref" in error
+        for error in ctx["project_contract_load_info"]["errors"]
+    )
 
 
 def test_state_and_context_hide_project_contract_when_raw_singleton_section_is_invalid(tmp_path: Path) -> None:

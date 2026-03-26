@@ -1129,28 +1129,36 @@ def _normalize_project_contract_section(
     normalized_contract_dump = normalized_contract.model_dump() if normalized_contract is not None else None
     if list_shape_drift_errors:
         integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in list_shape_drift_errors)
-    if not combined_errors:
-        return normalized_contract_dump
-
-    # Run contract salvage before any direct Pydantic acceptance so coercive
-    # scalar drift is surfaced as an integrity issue instead of silently
-    # canonicalized by field validators or bool/int coercion.
-    integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in combined_errors)
-    if _has_authoritative_scalar_schema_findings(combined_errors):
-        integrity_issues.append(
-            'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization'
-        )
-        return None
-    _schema_warnings, schema_errors = _split_project_contract_schema_findings(
-        combined_errors,
-        allow_singleton_defaults=allow_project_contract_salvage,
-    )
-    if schema_errors:
-        integrity_issues.append(
-            'schema normalization: dropped "project_contract" because contract schema required normalization'
-        )
-        return None
     if normalized_contract is None:
+        return None
+    if combined_errors:
+        # Run contract salvage before any direct Pydantic acceptance so coercive
+        # scalar drift is surfaced as an integrity issue instead of silently
+        # canonicalized by field validators or bool/int coercion.
+        integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in combined_errors)
+        if _has_authoritative_scalar_schema_findings(combined_errors):
+            integrity_issues.append(
+                'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization'
+            )
+            return None
+        _schema_warnings, schema_errors = _split_project_contract_schema_findings(
+            combined_errors,
+            allow_singleton_defaults=allow_project_contract_salvage,
+        )
+        if schema_errors:
+            integrity_issues.append(
+                'schema normalization: dropped "project_contract" because contract schema required normalization'
+            )
+            return None
+    draft_validation = validate_project_contract(normalized_contract, mode="draft")
+    if not draft_validation.valid:
+        for error in draft_validation.errors:
+            issue = f"project_contract: {error}"
+            if issue not in integrity_issues:
+                integrity_issues.append(issue)
+        integrity_issues.append(
+            'schema normalization: dropped "project_contract" because contract failed draft scoping validation'
+        )
         return None
     return normalized_contract_dump
 
@@ -2137,12 +2145,12 @@ def peek_state_json(
 
 def _drop_invalid_project_contract(state_obj: dict) -> tuple[dict, list[str]]:
     project_contract = state_obj.get("project_contract")
-    if project_contract is None or contract_from_data(project_contract) is not None:
+    if project_contract is None or contract_from_data(project_contract, require_draft_validity=True) is not None:
         return state_obj, []
     cleaned_state = dict(state_obj)
     cleaned_state["project_contract"] = None
     return cleaned_state, [
-        'schema normalization: dropped "project_contract" because contract integrity checks failed'
+        'schema normalization: dropped "project_contract" because contract validity checks failed'
     ]
 
 
@@ -2223,7 +2231,7 @@ def _preserved_project_contract_for_markdown_save(cwd: Path) -> dict[str, object
 
     if isinstance(existing, dict):
         project_contract = existing.get("project_contract")
-        contract = contract_from_data(project_contract)
+        contract = contract_from_data(project_contract, require_draft_validity=True, project_root=cwd)
         return contract.model_dump(mode="python") if contract is not None else None
 
     if not primary_unreadable:
@@ -2237,7 +2245,7 @@ def _preserved_project_contract_for_markdown_save(cwd: Path) -> dict[str, object
         return None
 
     project_contract = backup.get("project_contract")
-    contract = contract_from_data(project_contract)
+    contract = contract_from_data(project_contract, require_draft_validity=True, project_root=cwd)
     return contract.model_dump(mode="python") if contract is not None else None
 
 

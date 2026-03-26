@@ -27,6 +27,7 @@ from gpd.core.contract_validation import (
     _sanitize_contract_scalars,
     _split_project_contract_schema_findings,
     salvage_project_contract,
+    validate_project_contract,
 )
 from gpd.core.observability import gpd_span
 from gpd.core.protocol_bundles import ResolvedProtocolBundle, get_protocol_bundle, render_protocol_bundle_context
@@ -2465,6 +2466,10 @@ def _validate_contract_integrity(contract: ResearchContract) -> dict[str, object
     """Reject semantically ambiguous contracts after structural validation."""
 
     errors = collect_contract_integrity_errors(contract)
+    draft_validation = validate_project_contract(contract, mode="draft")
+    for error in draft_validation.errors:
+        if error not in errors:
+            errors.append(error)
     if not errors:
         return None
     return _contract_payload_error(errors)

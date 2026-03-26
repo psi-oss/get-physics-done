@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from gpd.adapters import get_adapter
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from scripts.release_workflow import (
     ReleaseError,
     bump_version,
@@ -25,6 +27,24 @@ from scripts.release_workflow import (
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
+
+
+_RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
+
+
+def _documented_runtime_flags() -> tuple[str, ...]:
+    flags: set[str] = set()
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        flags.update(descriptor.selection_flags)
+    return tuple(sorted(flags))
+
+
+def _runtime_note_heading_regex(descriptor) -> re.Pattern[str]:
+    display_name = re.escape(descriptor.display_name)
+    short_name = re.escape(descriptor.display_name.split()[0])
+    if display_name == short_name:
+        return re.compile(rf"{display_name}-specific note:")
+    return re.compile(rf"(?:{display_name}|{short_name})-specific note:")
 
 
 def _project_script_lines(repo_root: Path) -> list[str]:
@@ -297,12 +317,8 @@ def test_public_bootstrap_installer_documents_public_flags_and_runtime_aliases()
     content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
 
     assert "npx -y get-physics-done" in readme
-    assert "`--claude`" in readme
-    assert "`--claude-code`" in readme
-    assert "`--gemini`" in readme
-    assert "`--gemini-cli`" in readme
-    assert "`--codex`" in readme
-    assert "`--opencode`" in readme
+    for flag in _documented_runtime_flags():
+        assert f"`{flag}`" in readme
     assert "`--all`" in readme
     assert "`--global`" in readme
     assert "`--local`" in readme
@@ -539,10 +555,12 @@ def test_public_runtime_docs_explain_runtime_specific_command_syntax() -> None:
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
 
     assert "## Supported Runtimes" in readme
-    assert "| Claude Code | `--claude` | `/gpd:help` | `/gpd:new-project` |" in readme
-    assert "| Gemini CLI | `--gemini` | `/gpd:help` | `/gpd:new-project` |" in readme
-    assert "| Codex | `--codex` | `$gpd-help` | `$gpd-new-project` |" in readme
-    assert "| OpenCode | `--opencode` | `/gpd-help` | `/gpd-new-project` |" in readme
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        adapter = get_adapter(descriptor.runtime_name)
+        assert (
+            f"| {descriptor.display_name} | `{descriptor.install_flag}` | "
+            f"`{adapter.help_command}` | `{adapter.new_project_command}` |"
+        ) in readme
     assert "Each runtime uses its own command prefix" in readme
 
 
@@ -559,10 +577,8 @@ def test_public_runtime_notes_cover_all_runtime_specific_install_surfaces() -> N
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
 
-    assert "Claude Code-specific note:" in readme
-    assert "Gemini-specific note:" in readme
-    assert "Codex-specific note:" in readme
-    assert "OpenCode-specific note:" in readme
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        assert _runtime_note_heading_regex(descriptor).search(readme) is not None
     assert "`policies/gpd-auto-edit.toml`" in readme
     assert "`CODEX_SKILLS_DIR`" in readme
 

@@ -36,6 +36,12 @@ from gpd.core.storage_paths import ProjectStorageLayout
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
+
+def _draft_invalid_project_contract() -> dict[str, object]:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["claims"][0]["references"] = ["missing-ref"]
+    return contract
+
 # ─── Model Tests ─────────────────────────────────────────────────────────────
 
 
@@ -462,6 +468,24 @@ class TestCheckStateValidityProjectContract:
 
         assert not any(issue.startswith("project_contract: ") for issue in result.issues)
         assert not any(warning.startswith("project_contract: ") for warning in result.warnings)
+
+    def test_draft_invalid_project_contract_is_hidden_before_health_approval_checks(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        state = default_state_dict()
+        state["project_contract"] = _draft_invalid_project_contract()
+        layout = ProjectLayout(cwd)
+        layout.state_json.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+        layout.state_md.write_text(generate_state_markdown(state), encoding="utf-8")
+
+        result = check_state_validity(cwd)
+
+        assert not any("unknown reference missing-ref" in issue for issue in result.issues)
+        assert any("project_contract: claim claim-benchmark references unknown reference missing-ref" in warning for warning in result.warnings)
+        assert any(
+            'schema normalization: dropped "project_contract" because contract failed draft scoping validation'
+            in warning
+            for warning in result.warnings
+        )
 
 
 class TestCheckStateValidity:

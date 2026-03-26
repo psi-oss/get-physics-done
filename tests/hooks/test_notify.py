@@ -18,6 +18,7 @@ from gpd.adapters.install_utils import build_runtime_install_repair_command
 from gpd.adapters.runtime_catalog import get_hook_payload_policy, iter_runtime_descriptors
 from gpd.core.constants import ProjectLayout
 from gpd.hooks.notify import _check_and_notify_update, _emit_execution_notification, _hook_payload_policy, main
+from gpd.hooks.runtime_detect import update_command_for_runtime
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 
@@ -531,6 +532,35 @@ def test_notify_runtime_directory_without_install_emits_no_update_command(tmp_pa
         _check_and_notify_update(str(workspace))
 
     assert stderr.getvalue() == ""
+
+
+def test_notify_unknown_runtime_falls_back_to_runtime_neutral_update_command(tmp_path: Path) -> None:
+    gpd_cache = tmp_path / "GPD" / "cache"
+    gpd_cache.mkdir(parents=True)
+    (gpd_cache / "gpd-update-check.json").write_text(
+        json.dumps(
+            {
+                "update_available": True,
+                "installed": "2.0.0",
+                "latest": "2.1.0",
+                "checked": 30,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    stderr = io.StringIO()
+    with (
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
+        patch("sys.stderr", stderr),
+    ):
+        _check_and_notify_update()
+
+    output = stderr.getvalue()
+    assert f"Run: {update_command_for_runtime('unknown')}" in output
+    assert "Run: gpd-update" not in output
 
 
 def test_notify_ignores_stale_uninstalled_runtime_cache_when_other_runtime_is_installed(tmp_path: Path) -> None:

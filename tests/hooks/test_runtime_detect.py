@@ -1343,7 +1343,7 @@ class TestUpdateCommand:
             assert update_command_for_runtime(runtime) == get_adapter(runtime).update_command
 
     def test_unknown_runtime_uses_runtime_neutral_update_command(self) -> None:
-        assert update_command_for_runtime(RUNTIME_UNKNOWN) == "gpd-update"
+        assert update_command_for_runtime(RUNTIME_UNKNOWN) == "npx -y get-physics-done"
 
     def test_claude_runtime_uses_claude_flag(self) -> None:
         assert update_command_for_runtime(RUNTIME_CLAUDE).endswith(" --claude")

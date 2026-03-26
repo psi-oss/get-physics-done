@@ -18,13 +18,6 @@ def _load_manifest_payload(config_dir: Path) -> dict[str, object] | None:
     return payload
 
 
-def load_install_manifest(config_dir: Path) -> dict[str, object]:
-    """Return the parsed install manifest for *config_dir* when available."""
-
-    payload = _load_manifest_payload(config_dir)
-    return payload if payload is not None else {}
-
-
 def load_install_manifest_state(config_dir: Path) -> tuple[str, dict[str, object]]:
     """Return the manifest parse state and payload for *config_dir*.
 

@@ -85,6 +85,13 @@ def test_contract_from_data_rejects_blank_observable_regime_and_units() -> None:
     assert contract_from_data(contract) is None
 
 
+def test_contract_from_data_rejects_blank_scalar_to_list_drift() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["references"] = "   "
+
+    assert contract_from_data(contract) is None
+
+
 def test_validate_project_contract_rejects_missing_decisive_targets_and_skepticism() -> None:
     contract = _load_contract_fixture()
     contract["observables"] = []
@@ -224,6 +231,9 @@ def test_validate_project_contract_approved_mode_accepts_prior_output_grounding(
         ("paper", "arXiv:2401.12345"),
         ("paper", "Table 2"),
         ("paper", "Fig. 3"),
+        ("dataset", "https://huggingface.co/datasets/org/sample"),
+        ("spec", "https://docs.example.org/specs/solver-v2"),
+        ("prior_artifact", "https://github.com/org/repo/blob/main/artifacts/report.json"),
     ],
 )
 def test_validate_project_contract_approved_mode_accepts_concrete_reference_locator_grounding(
@@ -663,6 +673,32 @@ def test_validate_project_contract_accepts_singleton_list_string_drift_at_valida
     assert parsed.references[0].required_actions == ["read", "compare", "cite"]
     assert result.valid is True
     assert result.errors == []
+
+
+@pytest.mark.parametrize(
+    ("mutator", "expected_error"),
+    [
+        (
+            lambda contract: contract["claims"][0].__setitem__("references", "   "),
+            "claims.0.references must not be blank",
+        ),
+        (
+            lambda contract: contract["scope"].__setitem__("in_scope", "   "),
+            "scope.in_scope must not be blank",
+        ),
+    ],
+)
+def test_validate_project_contract_rejects_blank_scalar_to_list_drift(
+    mutator,
+    expected_error: str,
+) -> None:
+    contract = _load_contract_fixture()
+    mutator(contract)
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert expected_error in result.errors
 
 
 def test_validate_project_contract_rejects_coercive_reference_must_surface_scalar() -> None:

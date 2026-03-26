@@ -986,6 +986,15 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
             **project_contract_load_info,
             "warnings": [*list(project_contract_load_info.get("warnings") or []), *canonicalization_warnings],
         }
+    if canonical_contract is not None:
+        draft_validation = validate_project_contract(canonical_contract, mode="draft", project_root=cwd)
+        if not draft_validation.valid:
+            canonical_contract = None
+            project_contract_load_info = {
+                **project_contract_load_info,
+                "status": "blocked_integrity",
+                "errors": draft_validation.errors,
+            }
     project_contract_validation = _project_contract_validation_payload(canonical_contract, cwd=cwd)
     project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
     selected_protocol_bundles = select_protocol_bundles(project_text, canonical_contract)

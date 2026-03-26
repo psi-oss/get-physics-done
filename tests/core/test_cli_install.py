@@ -70,6 +70,24 @@ def _install_adapter(descriptor=_PRIMARY_INSTALL_DESCRIPTOR):
     return get_adapter(descriptor.runtime_name)
 
 
+def _install_adapter_surface(descriptor=_PRIMARY_INSTALL_DESCRIPTOR) -> dict[str, object]:
+    adapter = _install_adapter(descriptor)
+    return {
+        "display_name": descriptor.display_name,
+        "launch_command": adapter.launch_command,
+        "help_command": adapter.help_command,
+        "new_project_command": adapter.new_project_command,
+        "map_research_command": adapter.map_research_command,
+        "selection_aliases": descriptor.selection_aliases,
+    }
+
+
+def _mock_install_adapter(descriptor=_PRIMARY_INSTALL_DESCRIPTOR, **overrides):
+    surface = _install_adapter_surface(descriptor)
+    surface.update(overrides)
+    return MagicMock(**surface)
+
+
 def _assert_complete_install(target: Path, *, adapter) -> None:
     for relpath in adapter.install_completeness_relpaths():
         assert (target / relpath).exists()
@@ -223,10 +241,7 @@ def test_install_banner_uses_display_names(tmp_path: Path):
         patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
         patch("gpd.adapters.get_adapter") as mock_get,
     ):
-        mock_adapter = MagicMock()
-        mock_adapter.display_name = _PRIMARY_INSTALL_DESCRIPTOR.display_name
-        mock_adapter.help_command = "/gpd:help"
-        mock_get.return_value = mock_adapter
+        mock_get.return_value = _mock_install_adapter(_PRIMARY_INSTALL_DESCRIPTOR)
 
         result = runner.invoke(app, ["--cwd", str(tmp_path), "install", _PRIMARY_INSTALL_DESCRIPTOR.runtime_name, "--local"])
 
@@ -270,10 +285,7 @@ def test_install_summary_formats_target_relative_to_cwd(tmp_path: Path):
         patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
         patch("gpd.adapters.get_adapter") as mock_get,
     ):
-        mock_adapter = MagicMock()
-        mock_adapter.display_name = _PRIMARY_INSTALL_DESCRIPTOR.display_name
-        mock_adapter.help_command = "/gpd:help"
-        mock_get.return_value = mock_adapter
+        mock_get.return_value = _mock_install_adapter(_PRIMARY_INSTALL_DESCRIPTOR)
 
         result = runner.invoke(app, ["--cwd", str(tmp_path), "install", _PRIMARY_INSTALL_DESCRIPTOR.runtime_name, "--local"])
 
@@ -285,6 +297,7 @@ def test_install_summary_formats_target_relative_to_cwd(tmp_path: Path):
 def test_install_summary_leaves_blank_line_after_next_steps(tmp_path: Path):
     """Install output should leave a blank line after the next-steps block."""
     target = _install_target(tmp_path)
+    adapter = _install_adapter(_PRIMARY_INSTALL_DESCRIPTOR)
 
     def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(target)}
@@ -293,13 +306,7 @@ def test_install_summary_leaves_blank_line_after_next_steps(tmp_path: Path):
         patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
         patch("gpd.adapters.get_adapter") as mock_get,
     ):
-        mock_adapter = MagicMock()
-        mock_adapter.display_name = _PRIMARY_INSTALL_DESCRIPTOR.display_name
-        mock_adapter.launch_command = _install_adapter().launch_command
-        mock_adapter.help_command = "/gpd:help"
-        mock_adapter.new_project_command = "/gpd:new-project"
-        mock_adapter.map_research_command = "/gpd:map-research"
-        mock_get.return_value = mock_adapter
+        mock_get.return_value = _mock_install_adapter(_PRIMARY_INSTALL_DESCRIPTOR)
 
         result = runner.invoke(app, ["--cwd", str(tmp_path), "install", _PRIMARY_INSTALL_DESCRIPTOR.runtime_name, "--local"])
 
@@ -307,11 +314,12 @@ def test_install_summary_leaves_blank_line_after_next_steps(tmp_path: Path):
     assert "Next steps" in result.output
     assert (
         f"1. Open {_PRIMARY_INSTALL_DESCRIPTOR.display_name} from your system terminal "
-        f"({_install_adapter().launch_command})." in result.output
+        f"({adapter.launch_command})." in result.output
     )
-    assert "2. Run /gpd:help for the command list." in result.output
+    assert f"2. Run {adapter.help_command} for the command list." in result.output
     assert (
-        "3. Start with /gpd:new-project for a new project or /gpd:map-research for existing work.\n\n"
+        f"3. Start with {adapter.new_project_command} for a new project or "
+        f"{adapter.map_research_command} for existing work.\n\n"
         in result.output
     )
 
@@ -718,7 +726,7 @@ def test_install_single_runtime_forwards_is_global(tmp_path: Path):
         runtime_name = descriptor.runtime_name
         display_name = descriptor.display_name
         config_dir_name = descriptor.config_dir_name
-        help_command = "/gpd:help"
+        help_command = _install_adapter(descriptor).help_command
 
         def resolve_target_dir(self, is_global, cwd=None):
             return _install_target(tmp_path, descriptor)
@@ -764,7 +772,7 @@ def test_install_single_runtime_prefers_checkout_source_tree(tmp_path: Path):
         runtime_name = descriptor.runtime_name
         display_name = descriptor.display_name
         config_dir_name = descriptor.config_dir_name
-        help_command = "/gpd:help"
+        help_command = _install_adapter(descriptor).help_command
 
         def resolve_target_dir(self, is_global, cwd=None):
             return _install_target(tmp_path, descriptor)
@@ -798,7 +806,7 @@ def test_install_single_runtime_marks_explicit_target(tmp_path: Path):
         runtime_name = descriptor.runtime_name
         display_name = descriptor.display_name
         config_dir_name = descriptor.config_dir_name
-        help_command = "/gpd:help"
+        help_command = _install_adapter(descriptor).help_command
 
         def resolve_target_dir(self, is_global, cwd=None):
             return _install_target(tmp_path, descriptor)
@@ -841,13 +849,7 @@ def test_install_target_dir_preserves_explicit_global_scope(tmp_path: Path) -> N
         )
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(target)}
 
-    mock_adapter = MagicMock(
-        display_name=target_descriptor.display_name,
-        help_command="/gpd:help",
-        launch_command=_install_adapter(target_descriptor).launch_command,
-        new_project_command="/gpd:new-project",
-        map_research_command="/gpd:map-research",
-    )
+    mock_adapter = _mock_install_adapter(target_descriptor)
 
     with (
         patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
@@ -1258,14 +1260,9 @@ def test_install_interactive_accepts_unique_fuzzy_runtime_name(tmp_path: Path):
         patch("gpd.adapters.get_adapter") as mock_get,
     ):
         adapters = {
-            descriptor.runtime_name: MagicMock(
-                display_name=descriptor.display_name,
-                selection_aliases=descriptor.selection_aliases,
-            )
+            descriptor.runtime_name: _mock_install_adapter(descriptor)
             for descriptor in _INSTALL_TEST_DESCRIPTORS
         }
-        for adapter in adapters.values():
-            adapter.help_command = "/gpd:help"
         mock_get.side_effect = lambda runtime: adapters[runtime]
 
         result = runner.invoke(app, ["install"], input="open\n1\n")
@@ -1295,13 +1292,7 @@ def test_install_accepts_runtime_display_name_alias(tmp_path: Path) -> None:
         )
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path / runtime_name)}
 
-    mock_adapter = MagicMock(
-        display_name=target_descriptor.display_name,
-        help_command="/gpd:help",
-        launch_command=_install_adapter(target_descriptor).launch_command,
-        new_project_command="/gpd:new-project",
-        map_research_command="/gpd:map-research",
-    )
+    mock_adapter = _mock_install_adapter(target_descriptor)
 
     with (
         patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
@@ -1419,9 +1410,7 @@ def test_install_local_option_never_forwards_global_scope(
         patch("gpd.adapters.get_adapter") as mock_get,
         patch("gpd.adapters.list_runtimes", return_value=supported_runtimes),
     ):
-        mock_adapter = MagicMock()
-        mock_adapter.display_name = "Test"
-        mock_adapter.help_command = "/gpd:help"
+        mock_adapter = _mock_install_adapter(_PRIMARY_INSTALL_DESCRIPTOR, display_name="Test")
         mock_get.return_value = mock_adapter
 
         result = runner.invoke(app, argv)

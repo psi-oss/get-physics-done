@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
@@ -66,7 +67,9 @@ def _normalize_required_str(value: object) -> object:
 def _normalize_string_list(value: object) -> object:
     if isinstance(value, str):
         stripped = value.strip()
-        return [stripped] if stripped else []
+        if not stripped:
+            raise ValueError("must not be blank")
+        return [stripped]
     if not isinstance(value, list):
         return value
     normalized: list[str] = []
@@ -900,16 +903,23 @@ def contract_from_data(
     data: object,
     *,
     allow_recoverable_warnings: bool = True,
+    require_draft_validity: bool = False,
+    project_root: Path | None = None,
 ) -> ResearchContract | None:
     """Return a validated :class:`ResearchContract` when *data* is a mapping.
 
     Malformed mappings degrade to ``None`` so callers can treat this helper as a
-    safe probe instead of an exception boundary.
+    safe probe instead of an exception boundary. Callers that preserve contracts
+    back into state can additionally require draft-level scoping validity.
     """
 
     if not isinstance(data, dict):
         return None
-    from gpd.core.contract_validation import _split_project_contract_schema_findings, salvage_project_contract
+    from gpd.core.contract_validation import (
+        _split_project_contract_schema_findings,
+        salvage_project_contract,
+        validate_project_contract,
+    )
 
     contract, schema_findings = salvage_project_contract(data)
     _schema_warnings, schema_errors = _split_project_contract_schema_findings(
@@ -922,4 +932,8 @@ def contract_from_data(
         return None
     if collect_contract_integrity_errors(contract):
         return None
+    if require_draft_validity:
+        draft_validation = validate_project_contract(contract, mode="draft", project_root=project_root)
+        if not draft_validation.valid:
+            return None
     return contract

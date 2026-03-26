@@ -6,6 +6,7 @@ import copy
 import re
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
 from pydantic import ValidationError as PydanticValidationError
@@ -218,6 +219,9 @@ def _format_schema_error(error: dict[str, object]) -> str:
     if "valid dictionary" in message.lower():
         actual_type = type(input_value).__name__
         return f"{location} must be an object, not {actual_type}"
+
+    if message == "Value error, must not be blank":
+        return f"{location} must not be blank"
 
     if message in {"Value error, must be a non-empty string", "Value error, value must not be blank"}:
         return f"{location} must be a non-empty string"
@@ -536,6 +540,8 @@ def _collect_list_shape_drift_errors(contract: dict[str, object]) -> list[str]:
             raw_value = mapping.get(field_name)
             if isinstance(raw_value, list):
                 continue
+            if isinstance(raw_value, str) and not raw_value.strip():
+                continue
             location = f"{path_prefix}.{field_name}" if path_prefix else field_name
             errors.append(f"{location} must be a list, not {type(raw_value).__name__}")
 
@@ -658,6 +664,22 @@ def _resolve_project_artifact_path(value: str, *, project_root: Path | None) -> 
     return resolved
 
 
+def _is_concrete_external_http_locator(
+    value: str,
+    *,
+    reference_kind: str,
+) -> bool:
+    """Return whether *value* is a concrete external URL for the requested kind."""
+
+    if reference_kind not in {"dataset", "spec", "prior_artifact"}:
+        return False
+
+    parsed = urlparse(value.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return False
+    return (parsed.path not in {"", "/"}) or bool(parsed.query or parsed.fragment)
+
+
 def _is_project_artifact_path(value: str, *, project_root: Path | None = None) -> bool:
     """Return whether *value* names a concrete prior-output artifact path."""
 
@@ -710,6 +732,8 @@ def _is_concrete_reference_locator(
     if re.search(r"\b(?:et al\.|journal|proceedings?|conference|chapter|sec\.?|section|table|fig(?:ure)?|eq(?:uation)?)\b", lowered) and re.search(
         r"\b\d+\b", lowered
     ):
+        return True
+    if _is_concrete_external_http_locator(value, reference_kind=reference_kind):
         return True
     if reference_kind == "user_anchor":
         return _is_concrete_text_grounding(value)
