@@ -128,6 +128,45 @@ def test_help():
     assert "paper-build" in result.output
 
 
+def test_help_surfaces_local_setup_and_preflight_commands() -> None:
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "doctor" in result.output
+    assert "Check GPD installation and environment health." in result.output
+    assert "install" in result.output
+    assert "Install GPD skills, agents, and hooks into runtime" in result.output
+    assert "uninstall" in result.output
+    assert "Remove GPD skills, agents, and hooks from runtime" in result.output
+    assert "init" in result.output
+    assert "validate" in result.output
+
+
+def test_init_help_surfaces_local_onboarding_entrypoints() -> None:
+    result = runner.invoke(app, ["init", "--help"])
+    assert result.exit_code == 0
+    assert "Assemble context for AI agent workflows" in result.output
+    assert "new-project" in result.output
+    assert "resume" in result.output
+    assert "map-research" in result.output
+    assert "verify-work" in result.output
+
+
+def test_validate_help_surfaces_command_context_preflight_entrypoint() -> None:
+    result = runner.invoke(app, ["validate", "--help"])
+    assert result.exit_code == 0
+    assert "Validation checks" in result.output
+    assert "command-context" in result.output
+    assert "review-preflight" in result.output
+    assert "project-contract" in result.output
+
+
+def test_validate_command_context_help_surfaces_registry_argument_name() -> None:
+    result = runner.invoke(app, ["validate", "command-context", "--help"])
+    assert result.exit_code == 0
+    assert "Run centralized command-context preflight based on command metadata." in result.output
+    assert "Command registry key or gpd:name" in result.output
+
+
 def test_resolve_model_help_lists_supported_runtime_ids():
     result = runner.invoke(app, ["resolve-model", "--help"])
     assert result.exit_code == 0

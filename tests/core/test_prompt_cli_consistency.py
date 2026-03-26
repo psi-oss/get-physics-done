@@ -28,6 +28,12 @@ RAW_AFTER_SUBCOMMAND_RE = re.compile(r"\bgpd\s+(?!--raw\b)[^`\n]*\s+--raw\b")
 SUMMARY_EXTRACT_FIELDS_RE = re.compile(r"\bgpd\s+summary-extract\b[^\n`]*\s--fields\b")
 
 
+def _extract_between(content: str, start_marker: str, end_marker: str) -> str:
+    start = content.index(start_marker) + len(start_marker)
+    end = content.index(end_marker, start)
+    return content[start:end]
+
+
 def _iter_prompt_sources() -> list[Path]:
     files: list[Path] = []
     for root in PROMPT_ROOTS:
@@ -133,6 +139,42 @@ def test_help_prompt_command_count_matches_live_inventory() -> None:
     help_prompt = (REPO_ROOT / "src/gpd/commands/help.md").read_text(encoding="utf-8")
 
     assert f"Run `/gpd:help --all` for all {command_count} commands." in help_prompt
+
+
+def test_help_prompt_default_quick_start_stays_runtime_surface_focused() -> None:
+    help_prompt = (COMMANDS_DIR / "help.md").read_text(encoding="utf-8")
+    quick_start = _extract_between(
+        help_prompt,
+        "## Step 2: Quick Start (Default Output)",
+        "## Step 3: Full Command Reference (--all)",
+    )
+
+    assert "# GPD Command Reference" in quick_start
+    assert "These `/gpd:*` entries are canonical in-runtime slash-command names" in quick_start
+    assert "## Quick Start" in quick_start
+    assert "Choose the path that matches your starting point:" in quick_start
+    for section in (
+        "**New work**",
+        "**Existing work**",
+        "**Returning work**",
+        "**Optional setup**",
+    ):
+        assert section in quick_start
+    for line in (
+        "/gpd:new-project",
+        "/gpd:new-project --minimal",
+        "/gpd:map-research",
+        "/gpd:resume-work",
+        "/gpd:progress",
+        "/gpd:suggest-next",
+        "/gpd:settings",
+        "/gpd:help --all",
+    ):
+        assert line in quick_start
+    assert "**Core workflow:** new-project → discuss-phase → plan-phase → execute-phase → verify-work → repeat → complete-milestone" in quick_start
+    assert "**Publication:** write-paper → peer-review → respond-to-referees → arxiv-submission" in quick_start
+    assert "gpd --help" not in quick_start
+    assert "gpd init new-project" not in quick_start
 
 
 def test_suggest_next_prompt_uses_real_cli_subcommand() -> None:

@@ -294,6 +294,12 @@ def _expand_prompt_surface(path: Path) -> str:
     )
 
 
+def _extract_between(content: str, start_marker: str, end_marker: str) -> str:
+    start = content.index(start_marker) + len(start_marker)
+    end = content.index(end_marker, start)
+    return content[start:end]
+
+
 def test_planner_templates_exist():
     planner_prompt = TEMPLATES_DIR / "planner-subagent-prompt.md"
     phase_prompt = TEMPLATES_DIR / "phase-prompt.md"
@@ -2178,6 +2184,43 @@ def test_help_surfaces_distinguish_runtime_slash_commands_from_local_cli_subcomm
         assert "local `gpd` CLI" in content
         assert "gpd --help" in content
         assert "gpd validate command-context gpd:<name>" in content
+
+
+def test_help_command_keeps_static_quick_start_while_workflow_owns_full_reference() -> None:
+    help_command = (COMMANDS_DIR / "help.md").read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    quick_start = _extract_between(
+        help_command,
+        "## Step 2: Quick Start (Default Output)",
+        "## Step 3: Full Command Reference (--all)",
+    )
+
+    assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
+    assert "## Invocation Surfaces" not in quick_start
+    assert "## Invocation Surfaces" in help_workflow
+    assert "## Core Workflow" in help_workflow
+    assert "Choose the path that matches your starting point:" in quick_start
+    assert "Choose the path that matches your starting point:" in help_workflow
+    for token in (
+        "/gpd:new-project",
+        "/gpd:new-project --minimal",
+        "/gpd:map-research",
+        "/gpd:resume-work",
+        "/gpd:suggest-next",
+        "/gpd:settings",
+        "/gpd:help --all",
+    ):
+        assert token in quick_start
+        assert token in help_workflow
+
+
+def test_help_workflow_state_aware_variant_surfaces_paused_resume_branch() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert "**Project exists, paused or resumable:**" in help_workflow
+    assert "/gpd:resume-work" in help_workflow
+    assert "/gpd:progress" in help_workflow
+    assert "/gpd:suggest-next" in help_workflow
 
 
 def test_help_surfaces_describe_regression_check_as_metadata_scan_not_full_reverification() -> None:

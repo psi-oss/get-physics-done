@@ -565,9 +565,19 @@ class _GPDTyper(typer.Typer):
 
 app = _GPDTyper(
     name="gpd",
-    help="GPD — Get Physics Done: unified physics research CLI",
+    help="GPD — Get Physics Done: local install, validation, init, permissions, and diagnostics CLI",
     no_args_is_help=True,
     add_completion=True,
+    epilog=(
+        "Primary research workflow commands run inside an installed runtime surface, not the local `gpd` CLI.\n"
+        "Use `gpd install <runtime>` to install GPD, then open that runtime and run its GPD help command there.\n\n"
+        "Use the local CLI for install, validation, context assembly, permissions sync, and diagnostics.\n"
+        "Examples:\n"
+        "  gpd install <runtime>\n"
+        "  gpd validate command-context new-project\n"
+        "  gpd init new-project\n"
+        "  gpd permissions status --runtime <runtime>"
+    ),
 )
 
 
@@ -4774,6 +4784,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
         console.print("[bold]Next steps[/]")
         if len(next_step_entries) == 1:
             display_name, launch_command, help_command, new_project_command, map_research_command = next_step_entries[0]
+            resume_work_command = _get_adapter_or_error(results[0][0], action="install summary").format_command("resume-work")
             console.print(
                 f"1. Open [bold]{display_name}[/] from your system terminal "
                 f"([{_INSTALL_ACCENT_COLOR} bold]{launch_command}[/]).",
@@ -4787,7 +4798,21 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
                 "3. Start with "
                 f"[{_INSTALL_ACCENT_COLOR} bold]{new_project_command}[/] for a new project "
                 "or "
-                f"[{_INSTALL_ACCENT_COLOR} bold]{map_research_command}[/] for existing work.",
+                f"[{_INSTALL_ACCENT_COLOR} bold]{map_research_command}[/] for existing work, "
+                "or "
+                f"[{_INSTALL_ACCENT_COLOR} bold]{resume_work_command}[/] to continue paused work.",
+                soft_wrap=True,
+            )
+            console.print()
+            console.print(
+                "   Fast bootstrap: use "
+                f"[{_INSTALL_ACCENT_COLOR} bold]{new_project_command} --minimal[/] "
+                "for the shortest onboarding path.",
+                soft_wrap=True,
+            )
+            console.print(
+                "4. Use [bold]gpd --help[/] for local install, validation, permissions, and diagnostics. "
+                f"Use [{_INSTALL_ACCENT_COLOR} bold]{help_command}[/] inside {display_name} for workflow help.",
                 soft_wrap=True,
             )
         else:
@@ -4797,9 +4822,14 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
                     f"([{_INSTALL_ACCENT_COLOR} bold]{launch_command}[/]), then "
                     f"[{_INSTALL_ACCENT_COLOR} bold]{help_command}[/], then "
                     f"[{_INSTALL_ACCENT_COLOR} bold]{new_project_command}[/] "
-                    f"or [{_INSTALL_ACCENT_COLOR} bold]{map_research_command}[/]",
+                    f"or [{_INSTALL_ACCENT_COLOR} bold]{map_research_command}[/]. "
+                    f"Quick bootstrap: [{_INSTALL_ACCENT_COLOR} bold]{new_project_command} --minimal[/]",
                     soft_wrap=True,
                 )
+            console.print(
+                "\nUse [bold]gpd --help[/] for local install, validation, permissions, and diagnostics.",
+                soft_wrap=True,
+            )
         console.print()
 
 

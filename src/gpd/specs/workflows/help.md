@@ -15,9 +15,17 @@ When a state-aware help view is requested, show guidance based on project state:
 **No project exists:**
 ```
 Getting started:
-  /gpd:new-project         — Start a new research project
-  /gpd:new-project --minimal — Quick start with minimal setup
+  /gpd:new-project         — Start a new research project with full scoping
+  /gpd:new-project --minimal — Faster one-question project bootstrap
   /gpd:map-research        — Map an existing research project
+```
+
+**Project exists, paused or resumable:**
+```
+Returning to work:
+  /gpd:resume-work         — Restore the last handoff and continue
+  /gpd:progress            — Review the broader project snapshot
+  /gpd:suggest-next        — Ask for the fastest next-action recommendation
 ```
 
 **Project exists, no plans yet:**
@@ -109,15 +117,26 @@ This reference lists canonical in-runtime slash-command names in `/gpd:*` form.
 
 ## Quick Start
 
-1. `/gpd:new-project` - Initialize research project (includes literature survey, objectives, roadmap)
-2. `/gpd:discuss-phase 1` - Clarify the first phase before planning
-3. `/gpd:plan-phase 1` - Create detailed plan for first phase
-4. `/gpd:execute-phase 1` - Execute the phase
+Choose the path that matches your starting point:
+
+**New work**
+1. `/gpd:new-project` - Full project setup (deep questioning, literature survey, requirements, roadmap)
+2. `/gpd:new-project --minimal` - Fast path from a single description to a working GPD project
+3. `/gpd:settings` - Optional: tune workflow and model defaults after setup
+
+**Existing work**
+1. `/gpd:map-research` - Map an existing folder or project first
+2. `/gpd:new-project` - Convert that mapped context into a structured GPD project
+
+**Returning work**
+1. `/gpd:resume-work` - Restore project context and continue from current state
+2. `/gpd:progress` - Secondary manual status check when you want the broader snapshot
+3. `/gpd:suggest-next` - Fastest next-action hint without the full progress report
 
 ## Core Workflow
 
 ```
-/gpd:new-project -> /gpd:discuss-phase -> /gpd:plan-phase -> /gpd:execute-phase -> repeat
+/gpd:new-project -> /gpd:discuss-phase -> /gpd:plan-phase -> /gpd:execute-phase -> /gpd:verify-work -> repeat
 ```
 
 ### Project Initialization
@@ -377,9 +396,9 @@ Usage: `/gpd:progress --reconcile` (fix diverged STATE.md and state.json)
 **`/gpd:resume-work`**
 Resume research from previous session with full context restoration.
 
-- Reads STATE.md for project context
-- Shows current position and recent progress
-- Offers next actions based on project state
+- Restores live execution state, recent progress, and session handoff context
+- Uses resume files and project state to pick up where you left off
+- Best first command when returning to paused or interrupted work
 
 Usage: `/gpd:resume-work`
 
@@ -952,7 +971,8 @@ Example config:
 **Resuming work after a break:**
 
 ```
-/gpd:progress  # See where you left off and continue
+/gpd:resume-work  # Restore the last handoff and continue
+/gpd:progress     # Review the broader project snapshot if needed
 ```
 
 **Adding urgent mid-milestone work:**

@@ -35,8 +35,10 @@ We welcome contributions and feedback via GitHub issues or pull requests; if GPD
 Install GPD:
 
 ```bash
-npx get-physics-done
+npx -y get-physics-done
 ```
+
+Requires Node.js 20+, Python 3.11+ with `venv`, and one supported runtime (`claude`, `gemini`, `codex`, or `opencode`).
 
 **Next steps after install**
 
@@ -44,7 +46,7 @@ The installer adds GPD to your runtime config, but it does not launch the runtim
 
 1. Open your chosen runtime from your normal system terminal (`claude` for Claude Code, `gemini` for Gemini CLI, `codex` for Codex, `opencode` for OpenCode).
 2. Run its help command first: Claude Code / Gemini CLI use `/gpd:help`, Codex uses `$gpd-help`, and OpenCode uses `/gpd-help`.
-3. Start with `new-project` for a fresh research project or `map-research` for an existing folder or project.
+3. Use the exact runtime-specific command syntax below for your first command.
 
 For best performance, run both this install step and your chosen runtime from your normal system terminal, not inside the VS Code, Cursor, or other AI runtime command/chat interface.
 
@@ -52,11 +54,14 @@ Then choose the path that matches your starting point:
 
 | Starting point | First command | What it's for |
 |----------------|---------------|----------------|
-| New research project | `new-project` | Start a fresh GPD research workflow. |
+| New research project | `new-project` | Start a fresh GPD research workflow with the full onboarding path. |
+| New research project, fast path | `new-project --minimal` | Skip deep questioning and the literature-survey setup when you already know the scope and want the fastest project bootstrap. |
+| Returning to an existing GPD project | `resume-work` | Restore prior session context and continue from the current project state. |
 | Existing research folder or codebase | `map-research` | Map existing work before planning. |
-| Configure workflow and model defaults | `settings` | Set workflow toggles, tier models, and research preferences. |
 
-Use the runtime-specific command syntax shown in [Supported Runtimes](#supported-runtimes), for example `/gpd:settings` or `/gpd:set-profile review`.
+Secondary configuration path: use `settings` after startup when you want to tune workflow toggles, tier models, or research preferences.
+
+Use the runtime-specific command syntax shown in [Supported Runtimes](#supported-runtimes), for example `/gpd:new-project --minimal`, `$gpd-resume-work`, or `/gpd:map-research`.
 
 If you are starting from existing work, run `map-research` first to map the formalism, computations, conventions, validation status, and open questions before `new-project`.
 
@@ -102,6 +107,17 @@ GPD currently installs into four AI runtimes. To preselect one during install, u
 | OpenCode | `--opencode` | `/gpd-help` | `/gpd-new-project` |
 
 Each runtime uses its own command prefix, but the workflow is the same across all four. After installing GPD, open your chosen runtime normally from your system terminal and use the commands shown above.
+
+Common first commands by runtime:
+
+| Goal | Claude Code / Gemini CLI | Codex | OpenCode |
+|------|---------------------------|-------|----------|
+| Help | `/gpd:help` | `$gpd-help` | `/gpd-help` |
+| Full onboarding for a new project | `/gpd:new-project` | `$gpd-new-project` | `/gpd-new-project` |
+| Fast onboarding for a new project | `/gpd:new-project --minimal` | `$gpd-new-project --minimal` | `/gpd-new-project --minimal` |
+| Returning to an existing GPD project | `/gpd:resume-work` | `$gpd-resume-work` | `/gpd-resume-work` |
+| Existing research folder or codebase | `/gpd:map-research` | `$gpd-map-research` | `/gpd-map-research` |
+| Optional configuration after startup | `/gpd:settings` | `$gpd-settings` | `/gpd-settings` |
 
 Notes:
 - Claude Code-specific note: GPD writes `.claude/settings.json` for hooks and statusline. MCP servers are added to project `.mcp.json` for local installs or `~/.claude.json` for global installs.
@@ -214,7 +230,9 @@ These commands run inside your installed AI runtime after GPD has been installed
 | Command | What it does |
 |---------|--------------|
 | `map-research` | Map an existing research project before `new-project` |
-| `new-project` | Start a new research project |
+| `new-project` | Start a new research project with the full onboarding flow |
+| `new-project --minimal` | Fast path: initialize a new project from a compact description with lighter upfront setup |
+| `resume-work` | Resume the previous session with full context restoration |
 | `plan-phase N` | Plan phase `N` with task breakdown and checkpoints |
 | `execute-phase N` | Execute all tasks in phase `N` |
 | `verify-work` | Run verification checks against current work |
@@ -222,6 +240,7 @@ These commands run inside your installed AI runtime after GPD has been installed
 | `progress` | Show project state and recommend the next step |
 | `discuss-phase N` | Explore a phase before committing to a plan |
 | `quick` | Run a smaller task with a lighter workflow |
+| `settings` | Configure workflow and model defaults after startup when needed |
 | `write-paper` | Draft a manuscript from completed research artifacts |
 | `respond-to-referees` | Structure referee responses and revise the manuscript |
 | `arxiv-submission` | Validate and package the manuscript for arXiv |

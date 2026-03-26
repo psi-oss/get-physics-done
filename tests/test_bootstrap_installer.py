@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -38,6 +39,7 @@ _RUNTIME_LAUNCH_COMMANDS = {name: adapter.launch_command for name, adapter in _R
 _RUNTIME_HELP_COMMANDS = {name: adapter.help_command for name, adapter in _RUNTIME_ADAPTERS.items()}
 _RUNTIME_NEW_PROJECT_COMMANDS = {name: adapter.new_project_command for name, adapter in _RUNTIME_ADAPTERS.items()}
 _RUNTIME_MAP_RESEARCH_COMMANDS = {name: adapter.map_research_command for name, adapter in _RUNTIME_ADAPTERS.items()}
+_RUNTIME_RESUME_WORK_COMMANDS = {name: adapter.format_command("resume-work") for name, adapter in _RUNTIME_ADAPTERS.items()}
 _CODEX_RUNTIME_NAME = next(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if "skills/" in descriptor.manifest_file_prefixes)
 _CLAUDE_RUNTIME_NAME = next(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if descriptor.launch_command == "claude")
 _OPENCODE_RUNTIME_NAME = next(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if descriptor.launch_command == "opencode")
@@ -49,12 +51,32 @@ _OPENCODE_RUNTIME_ALIAS = next(
 )
 
 
-def _next_step_line(runtime: str) -> str:
-    return (
-        f"- {_RUNTIME_DISPLAY_NAMES[runtime]} ({_RUNTIME_LAUNCH_COMMANDS[runtime]}), then "
-        f"{_RUNTIME_HELP_COMMANDS[runtime]}, then "
-        f"{_RUNTIME_NEW_PROJECT_COMMANDS[runtime]} or {_RUNTIME_MAP_RESEARCH_COMMANDS[runtime]}"
+def _assert_single_runtime_next_steps(output: str, runtime: str) -> None:
+    pattern = re.compile(
+        rf"Next steps.*?"
+        rf"Open .*?{re.escape(_RUNTIME_DISPLAY_NAMES[runtime])}.*?{re.escape(_RUNTIME_LAUNCH_COMMANDS[runtime])}.*?"
+        rf"Run {re.escape(_RUNTIME_HELP_COMMANDS[runtime])} for the command list\..*?"
+        rf"Start with {re.escape(_RUNTIME_NEW_PROJECT_COMMANDS[runtime])} for a new project or "
+        rf"{re.escape(_RUNTIME_MAP_RESEARCH_COMMANDS[runtime])} for existing work, or "
+        rf"{re.escape(_RUNTIME_RESUME_WORK_COMMANDS[runtime])} to continue paused work\..*?"
+        rf"Fast bootstrap: use {re.escape(_RUNTIME_NEW_PROJECT_COMMANDS[runtime])} --minimal.*?"
+        rf"Use gpd --help for local install, validation, permissions, and diagnostics\..*?"
+        rf"Use {re.escape(_RUNTIME_HELP_COMMANDS[runtime])} inside {re.escape(_RUNTIME_DISPLAY_NAMES[runtime])} for workflow help\.",
+        re.S,
     )
+    assert pattern.search(output), output
+
+
+def _assert_multi_runtime_next_steps_line(output: str, runtime: str) -> None:
+    pattern = re.compile(
+        rf"- {re.escape(_RUNTIME_DISPLAY_NAMES[runtime])}.*?"
+        rf"{re.escape(_RUNTIME_LAUNCH_COMMANDS[runtime])}.*?"
+        rf"{re.escape(_RUNTIME_HELP_COMMANDS[runtime])}.*?"
+        rf"{re.escape(_RUNTIME_NEW_PROJECT_COMMANDS[runtime])}.*?"
+        rf"{re.escape(_RUNTIME_MAP_RESEARCH_COMMANDS[runtime])}.*?"
+        rf"{re.escape(_RUNTIME_NEW_PROJECT_COMMANDS[runtime])} --minimal",
+        )
+    assert pattern.search(output), output
 
 
 def test_version_consistency():
@@ -87,6 +109,7 @@ LAUNCH_COMMANDS = {_RUNTIME_LAUNCH_COMMANDS!r}
 HELP_COMMANDS = {_RUNTIME_HELP_COMMANDS!r}
 NEW_PROJECT_COMMANDS = {_RUNTIME_NEW_PROJECT_COMMANDS!r}
 MAP_RESEARCH_COMMANDS = {_RUNTIME_MAP_RESEARCH_COMMANDS!r}
+RESUME_WORK_COMMANDS = {_RUNTIME_RESUME_WORK_COMMANDS!r}
 ALL_RUNTIMES = {_RUNTIME_NAMES!r}
 
 
@@ -206,15 +229,27 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
         print(
             "3. Start with "
             f"{{NEW_PROJECT_COMMANDS[runtime]}} for a new project or "
-            f"{{MAP_RESEARCH_COMMANDS[runtime]}} for existing work."
+            f"{{MAP_RESEARCH_COMMANDS[runtime]}} for existing work, or "
+            f"{{RESUME_WORK_COMMANDS[runtime]}} to continue paused work."
+        )
+        print("")
+        print(
+            "   Fast bootstrap: use "
+            f"{{NEW_PROJECT_COMMANDS[runtime]}} --minimal for the shortest onboarding path."
+        )
+        print(
+            f"4. Use gpd --help for local install, validation, permissions, and diagnostics. "
+            f"Use {{HELP_COMMANDS[runtime]}} inside {{RUNTIME_LABELS[runtime]}} for workflow help."
         )
     else:
         for runtime in runtimes:
             print(
                 f"- {{RUNTIME_LABELS[runtime]}} ({{LAUNCH_COMMANDS[runtime]}}), then "
                 f"{{HELP_COMMANDS[runtime]}}, then "
-                f"{{NEW_PROJECT_COMMANDS[runtime]}} or {{MAP_RESEARCH_COMMANDS[runtime]}}"
+                f"{{NEW_PROJECT_COMMANDS[runtime]}} or {{MAP_RESEARCH_COMMANDS[runtime]}}. "
+                f"Quick bootstrap: {{NEW_PROJECT_COMMANDS[runtime]}} --minimal"
             )
+        print("Use gpd --help for local install, validation, permissions, and diagnostics.")
     record()
     raise SystemExit(0)
 
@@ -318,14 +353,7 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert "© 2026 Physical Superintelligence PBC (PSI)" in result.stdout
     assert f"Installing GPD (local) for: {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}" in result.stdout
     assert "Install Summary" in result.stdout
-    assert "Next steps" in result.stdout
-    assert f"1. Open {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} from your system terminal ({_CODEX_RUNTIME_NAME})." in result.stdout
-    assert f"2. Run {_RUNTIME_HELP_COMMANDS[_CODEX_RUNTIME_NAME]} for the command list." in result.stdout
-    assert (
-        f"3. Start with {_RUNTIME_NEW_PROJECT_COMMANDS[_CODEX_RUNTIME_NAME]} for a new project or "
-        f"{_RUNTIME_MAP_RESEARCH_COMMANDS[_CODEX_RUNTIME_NAME]} for existing work."
-        in result.stdout
-    )
+    _assert_single_runtime_next_steps(result.stdout, _CODEX_RUNTIME_NAME)
     assert f"Installing GPD for {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)..." not in result.stdout
     assert f"Installed GPD for {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)." not in result.stdout
 
@@ -404,6 +432,7 @@ def test_bootstrap_install_subcommand_accepts_positional_runtime_alias(tmp_path:
     assert len(managed_runtime_installs) == 1
     assert f"Installing GPD (local) for: {_RUNTIME_DISPLAY_NAMES[_CLAUDE_RUNTIME_NAME]}" in result.stdout
     assert "Install Summary" in result.stdout
+    _assert_single_runtime_next_steps(result.stdout, _CLAUDE_RUNTIME_NAME)
     assert f"Installed GPD for {_RUNTIME_DISPLAY_NAMES[_CLAUDE_RUNTIME_NAME]} (local)." not in result.stdout
 
 
@@ -772,7 +801,8 @@ def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> N
     assert "Install Summary" in result.stdout
     assert "Next steps" in result.stdout
     for runtime in _RUNTIME_NAMES:
-        assert _next_step_line(runtime) in result.stdout
+        _assert_multi_runtime_next_steps_line(result.stdout, runtime)
+    assert "Use gpd --help for local install, validation, permissions, and diagnostics." in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

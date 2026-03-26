@@ -190,6 +190,21 @@ def _readme_command_rows(content: str) -> dict[str, str]:
     return {stem: description.strip() for stem, description in README_COMMAND_ROW_RE.findall(content)}
 
 
+def _markdown_section(content: str, heading: str) -> str:
+    lines = content.splitlines()
+    collected: list[str] = []
+    in_section = False
+    for line in lines:
+        if line == heading:
+            in_section = True
+        elif in_section and line.startswith("## "):
+            break
+        if in_section:
+            collected.append(line)
+    assert collected, f"expected section {heading!r}"
+    return "\n".join(collected)
+
+
 def test_required_public_release_artifacts_exist() -> None:
     repo_root = _repo_root()
     required = (
@@ -534,11 +549,6 @@ def test_public_docs_keep_runtime_surface_first() -> None:
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
 
     assert "## Quick Start" in readme
-    assert "**Next steps after install**" in readme
-    assert "it does not launch the runtime for you" in readme
-    assert "Open your chosen runtime from your normal system terminal" in readme
-    assert "`claude` for Claude Code" in readme
-    assert "`gemini` for Gemini CLI" in readme
     assert "## Supported Runtimes" in readme
     assert "## Advanced CLI Utilities" in readme
     assert readme.index("## Supported Runtimes") < readme.index("## Advanced CLI Utilities")
@@ -548,6 +558,39 @@ def test_public_docs_keep_runtime_surface_first() -> None:
     assert "GPD/observability/" in readme
     assert "`GPD/STATE.md` | Concise human-readable continuity state" in readme
     assert "does not fabricate opaque provider internals" in readme
+
+
+def test_public_readme_quick_start_keeps_runtime_first_next_steps() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+    quick_start = _markdown_section(readme, "## Quick Start")
+
+    assert "npx -y get-physics-done" in quick_start
+    assert "Requires Node.js 20+, Python 3.11+ with `venv`" in quick_start
+    assert "**Next steps after install**" in quick_start
+    assert "it does not launch the runtime for you" in quick_start
+    assert "Open your chosen runtime from your normal system terminal" in quick_start
+    assert "`claude` for Claude Code" in quick_start
+    assert "`gemini` for Gemini CLI" in quick_start
+    assert "Run its help command first" in quick_start
+    assert "/gpd:help" in quick_start
+    assert "$gpd-help" in quick_start
+    assert "/gpd-help" in quick_start
+
+
+def test_public_readme_quick_start_surfaces_step_one_entry_points() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+    quick_start = _markdown_section(readme, "## Quick Start")
+
+    assert "| New research project | `new-project` |" in quick_start
+    assert "| New research project, fast path | `new-project --minimal` |" in quick_start
+    assert "| Returning to an existing GPD project | `resume-work` |" in quick_start
+    assert "| Existing research folder or codebase | `map-research` |" in quick_start
+    assert "Secondary configuration path: use `settings` after startup" in quick_start
+    assert "Use the exact runtime-specific command syntax below for your first command." in quick_start
+    assert "If you are starting from existing work, run `map-research` first" in quick_start
+    assert "/gpd:new-project --minimal" in quick_start
+    assert "$gpd-resume-work" in quick_start
+    assert "/gpd:map-research" in quick_start
 
 
 def test_public_runtime_docs_explain_runtime_specific_command_syntax() -> None:
@@ -562,6 +605,7 @@ def test_public_runtime_docs_explain_runtime_specific_command_syntax() -> None:
             f"`{adapter.help_command}` | `{adapter.new_project_command}` |"
         ) in readme
     assert "Each runtime uses its own command prefix" in readme
+    assert "Common first commands by runtime:" in readme
 
 
 def test_codex_runtime_docs_distinguish_public_skills_from_full_agent_install() -> None:

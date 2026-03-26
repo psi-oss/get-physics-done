@@ -13,6 +13,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -74,6 +75,7 @@ def _install_adapter_surface(descriptor=_PRIMARY_INSTALL_DESCRIPTOR) -> dict[str
     adapter = _install_adapter(descriptor)
     return {
         "display_name": descriptor.display_name,
+        "format_command": adapter.format_command,
         "launch_command": adapter.launch_command,
         "help_command": adapter.help_command,
         "new_project_command": adapter.new_project_command,
@@ -95,6 +97,37 @@ def _assert_complete_install(target: Path, *, adapter) -> None:
 
 def _first_installed_file(target: Path) -> Path:
     return next(path for path in target.rglob("*") if path.is_file() and path.name != "gpd-file-manifest.json")
+
+
+def _assert_single_runtime_next_steps(output: str, descriptor=_PRIMARY_INSTALL_DESCRIPTOR) -> None:
+    adapter = _install_adapter(descriptor)
+    resume_work_command = adapter.format_command("resume-work")
+    pattern = re.compile(
+        rf"Next steps.*?"
+        rf"Open .*?{re.escape(descriptor.display_name)}.*?{re.escape(adapter.launch_command)}.*?"
+        rf"Run {re.escape(adapter.help_command)} for the command list\..*?"
+        rf"Start with {re.escape(adapter.new_project_command)} for a new project or "
+        rf"{re.escape(adapter.map_research_command)} for existing work, or "
+        rf"{re.escape(resume_work_command)} to continue paused work\..*?"
+        rf"Fast bootstrap: use {re.escape(adapter.new_project_command)} --minimal.*?"
+        rf"Use gpd --help for local install, validation, permissions, and diagnostics\..*?"
+        rf"Use {re.escape(adapter.help_command)} inside {re.escape(descriptor.display_name)} for workflow help\.",
+        re.S,
+    )
+    assert pattern.search(output), output
+
+
+def _assert_multi_runtime_next_step_line(output: str, descriptor) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    pattern = re.compile(
+        rf"- {re.escape(descriptor.display_name)}.*?"
+        rf"{re.escape(adapter.launch_command)}.*?"
+        rf"{re.escape(adapter.help_command)}.*?"
+        rf"{re.escape(adapter.new_project_command)}.*?"
+        rf"{re.escape(adapter.map_research_command)}.*?"
+        rf"{re.escape(adapter.new_project_command)} --minimal",
+    )
+    assert pattern.search(output), output
 
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -294,10 +327,9 @@ def test_install_summary_formats_target_relative_to_cwd(tmp_path: Path):
     assert str(target) not in result.output
 
 
-def test_install_summary_leaves_blank_line_after_next_steps(tmp_path: Path):
-    """Install output should leave a blank line after the next-steps block."""
+def test_install_summary_surfaces_help_then_new_or_existing_entry_points(tmp_path: Path):
+    """Single-runtime install summaries should lead with help, then project entry points."""
     target = _install_target(tmp_path)
-    adapter = _install_adapter(_PRIMARY_INSTALL_DESCRIPTOR)
 
     def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(target)}
@@ -311,17 +343,9 @@ def test_install_summary_leaves_blank_line_after_next_steps(tmp_path: Path):
         result = runner.invoke(app, ["--cwd", str(tmp_path), "install", _PRIMARY_INSTALL_DESCRIPTOR.runtime_name, "--local"])
 
     assert result.exit_code == 0
-    assert "Next steps" in result.output
-    assert (
-        f"1. Open {_PRIMARY_INSTALL_DESCRIPTOR.display_name} from your system terminal "
-        f"({adapter.launch_command})." in result.output
-    )
-    assert f"2. Run {adapter.help_command} for the command list." in result.output
-    assert (
-        f"3. Start with {adapter.new_project_command} for a new project or "
-        f"{adapter.map_research_command} for existing work.\n\n"
-        in result.output
-    )
+    _assert_single_runtime_next_steps(result.output)
+    assert "\n   Fast bootstrap:" in result.output
+    assert "Use gpd --help for local install, validation, permissions, and diagnostics." in result.output
 
 
 def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(tmp_path: Path):
@@ -356,12 +380,9 @@ def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(t
     assert result.exit_code == 0
     assert "Next steps" in result.output
     for descriptor in descriptors:
-        adapter = get_adapter(descriptor.runtime_name)
-        assert (
-            f"- {descriptor.display_name} ({adapter.launch_command}), then {adapter.help_command}, then "
-            f"{adapter.new_project_command} or {adapter.map_research_command}" in result.output
-        )
+        _assert_multi_runtime_next_step_line(result.output, descriptor)
     assert "1. From your system terminal" not in result.output
+    assert "Use gpd --help for local install, validation, permissions, and diagnostics." in result.output
 
 
 # ─── 4. Uninstall without manifest ──────────────────────────────────────────
