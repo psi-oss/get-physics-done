@@ -31,6 +31,7 @@ from gpd.core.utils import atomic_write, file_lock, phase_normalize, safe_read_f
 
 __all__ = [
     "CurrentExecutionState",
+    "ExportLogsResult",
     "LocalSpan",
     "ObservabilityEvent",
     "ObservabilitySession",
@@ -39,6 +40,7 @@ __all__ = [
     "ObservabilityShowResult",
     "ensure_session",
     "ensure_observability_session",
+    "export_logs",
     "get_current_execution",
     "get_current_session",
     "get_current_session_id",
@@ -1383,3 +1385,212 @@ def show_events(
         )
 
     return ObservabilityShowResult(count=len(events), events=events)
+
+
+class ExportLogsResult(BaseModel):
+    """Return value for ``export_logs``."""
+
+    model_config = ConfigDict(frozen=True)
+
+    exported: bool
+    output_dir: str
+    sessions_exported: int = 0
+    events_exported: int = 0
+    traces_exported: int = 0
+    files_written: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+
+def export_logs(
+    cwd: Path | None = None,
+    *,
+    output_dir: str | None = None,
+    session: str | None = None,
+    category: str | None = None,
+    command: str | None = None,
+    phase: str | None = None,
+    last: int | None = None,
+    include_traces: bool = True,
+    format: str = "jsonl",
+) -> ExportLogsResult:
+    """Export session logs and traces to files.
+
+    Reads observability sessions and optionally traces, applies filters,
+    and writes the results to the specified output directory.
+
+    Supported formats: ``jsonl`` (raw, one JSON object per line),
+    ``json`` (pretty-printed array), ``markdown`` (human-readable report).
+    """
+    layout = _layout(cwd)
+    if layout is None:
+        return ExportLogsResult(
+            exported=False,
+            output_dir=output_dir or "",
+            reason="No GPD project found in working directory",
+        )
+
+    dest = Path(output_dir) if output_dir else layout.root / "GPD" / "exports" / "logs"
+    dest.mkdir(parents=True, exist_ok=True)
+
+    if format not in {"jsonl", "json", "markdown"}:
+        return ExportLogsResult(
+            exported=False,
+            output_dir=str(dest),
+            reason=f"Unsupported format: {format}. Use jsonl, json, or markdown.",
+        )
+
+    files_written: list[str] = []
+    sessions_exported = 0
+    events_exported = 0
+    traces_exported = 0
+
+    sessions = _iter_session_meta(layout)
+    if command:
+        sessions = [s for s in sessions if s.command == command]
+    if session:
+        sessions = [s for s in sessions if s.session_id == session]
+    if last and last > 0:
+        sessions = sessions[:last]
+
+    sessions_exported = len(sessions)
+
+    all_events: list[dict[str, object]] = []
+    for sess in sessions:
+        events = _filter_events(
+            _read_events(_session_log(layout, sess.session_id)),
+            category=category,
+            phase=phase,
+        )
+        all_events.extend(events)
+    all_events.sort(key=lambda e: str(e.get("timestamp", "")))
+    events_exported = len(all_events)
+
+    timestamp_slug = _now_iso().replace(":", "").replace("-", "")[:15]
+
+    if format == "jsonl":
+        sessions_path = dest / f"sessions-{timestamp_slug}.jsonl"
+        lines = [json.dumps(s.model_dump(mode="json")) for s in sessions]
+        atomic_write(sessions_path, "\n".join(lines) + "\n" if lines else "")
+        files_written.append(str(sessions_path))
+
+        events_path = dest / f"events-{timestamp_slug}.jsonl"
+        event_lines = [json.dumps(e) for e in all_events]
+        atomic_write(events_path, "\n".join(event_lines) + "\n" if event_lines else "")
+        files_written.append(str(events_path))
+
+    elif format == "json":
+        sessions_path = dest / f"sessions-{timestamp_slug}.json"
+        atomic_write(
+            sessions_path,
+            json.dumps([s.model_dump(mode="json") for s in sessions], indent=2) + "\n",
+        )
+        files_written.append(str(sessions_path))
+
+        events_path = dest / f"events-{timestamp_slug}.json"
+        atomic_write(events_path, json.dumps(all_events, indent=2) + "\n")
+        files_written.append(str(events_path))
+
+    elif format == "markdown":
+        report_path = dest / f"log-report-{timestamp_slug}.md"
+        md_lines = [
+            "# GPD Session Log Export",
+            "",
+            f"**Exported:** {_now_iso()}",
+            f"**Sessions:** {sessions_exported}",
+            f"**Events:** {events_exported}",
+            "",
+            "## Sessions",
+            "",
+            "| Session ID | Started | Last Event | Command | Status |",
+            "|------------|---------|------------|---------|--------|",
+        ]
+        for sess in sessions:
+            md_lines.append(
+                f"| `{sess.session_id}` | {sess.started_at} | {sess.last_event_at} "
+                f"| {sess.command or '—'} | {sess.status} |"
+            )
+        md_lines.extend(["", "## Events", ""])
+        for evt in all_events:
+            ts = evt.get("timestamp", "?")
+            cat = evt.get("category", "?")
+            nm = evt.get("name", "?")
+            act = evt.get("action", "?")
+            st = evt.get("status", "?")
+            md_lines.append(f"- **{ts}** [{cat}/{nm}] action={act} status={st}")
+            if evt.get("phase"):
+                md_lines.append(f"  - Phase: {evt['phase']}")
+            if evt.get("data"):
+                md_lines.append(f"  - Data: `{json.dumps(evt['data'])}`")
+        md_lines.append("")
+        atomic_write(report_path, "\n".join(md_lines))
+        files_written.append(str(report_path))
+
+    if include_traces and layout.traces_dir.is_dir():
+        trace_files = sorted(layout.traces_dir.glob("*.jsonl"))
+        if trace_files:
+            if format == "jsonl":
+                traces_path = dest / f"traces-{timestamp_slug}.jsonl"
+                trace_lines: list[str] = []
+                for tf in trace_files:
+                    content = safe_read_file(tf)
+                    if content:
+                        trace_lines.extend(line for line in content.splitlines() if line.strip())
+                atomic_write(traces_path, "\n".join(trace_lines) + "\n" if trace_lines else "")
+                files_written.append(str(traces_path))
+                traces_exported = len(trace_lines)
+
+            elif format == "json":
+                traces_path = dest / f"traces-{timestamp_slug}.json"
+                all_traces: list[dict[str, object]] = []
+                for tf in trace_files:
+                    content = safe_read_file(tf)
+                    if content:
+                        for line in content.splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                all_traces.append(json.loads(line))
+                            except Exception:
+                                continue
+                atomic_write(traces_path, json.dumps(all_traces, indent=2) + "\n")
+                files_written.append(str(traces_path))
+                traces_exported = len(all_traces)
+
+            elif format == "markdown":
+                trace_section: list[str] = ["", "## Traces", ""]
+                trace_count = 0
+                for tf in trace_files:
+                    trace_section.append(f"### {tf.stem}")
+                    trace_section.append("")
+                    content = safe_read_file(tf)
+                    if content:
+                        for line in content.splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                obj = json.loads(line)
+                            except Exception:
+                                continue
+                            trace_count += 1
+                            ts = obj.get("timestamp", "?")
+                            etype = obj.get("type", obj.get("event_type", "?"))
+                            trace_section.append(f"- **{ts}** [{etype}]")
+                            if obj.get("summary"):
+                                trace_section.append(f"  - {obj['summary']}")
+                    trace_section.append("")
+                traces_exported = trace_count
+
+                report_path_obj = Path(files_written[-1]) if files_written else dest / f"log-report-{timestamp_slug}.md"
+                existing = safe_read_file(report_path_obj) or ""
+                atomic_write(report_path_obj, existing + "\n".join(trace_section))
+
+    return ExportLogsResult(
+        exported=True,
+        output_dir=str(dest),
+        sessions_exported=sessions_exported,
+        events_exported=events_exported,
+        traces_exported=traces_exported,
+        files_written=files_written,
+    )

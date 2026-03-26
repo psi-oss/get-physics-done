@@ -1738,6 +1738,36 @@ def observe_show(
     )
 
 
+@observe_app.command("export")
+def observe_export(
+    output_dir: str | None = typer.Option(None, "--output-dir", "-o", help="Directory to write exported files"),
+    session: str | None = typer.Option(None, "--session", help="Export only this session"),
+    category: str | None = typer.Option(None, "--category", help="Filter events by category"),
+    command: str | None = typer.Option(None, "--command", help="Filter by command label"),
+    phase: str | None = typer.Option(None, "--phase", help="Filter by phase"),
+    last: int | None = typer.Option(None, "--last", help="Export only the last N sessions"),
+    format: str = typer.Option("jsonl", "--format", "-f", help="Output format: jsonl, json, or markdown"),
+    no_traces: bool = typer.Option(False, "--no-traces", help="Exclude execution traces from export"),
+) -> None:
+    """Export session logs and traces to files."""
+    from gpd.core.observability import export_logs
+
+    result = export_logs(
+        _get_cwd(),
+        output_dir=output_dir,
+        session=session,
+        category=category,
+        command=command,
+        phase=phase,
+        last=last,
+        include_traces=not no_traces,
+        format=format,
+    )
+    if not result.exported:
+        raise GPDError(result.reason or "Export failed")
+    _output(result)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # init — Workflow context assembly
 # ═══════════════════════════════════════════════════════════════════════════

@@ -245,7 +245,7 @@ Passing a manuscript path to a project-required command such as `/gpd:peer-revie
 The full command reference below uses Claude Code / Gemini CLI syntax. Codex uses `$gpd-...` and OpenCode uses `/gpd-...`.
 
 <details>
-<summary><strong>Full Command Reference (61 Commands)</strong></summary>
+<summary><strong>Full Command Reference (62 Commands)</strong></summary>
 
 #### Project Initialization
 
@@ -389,6 +389,7 @@ The full command reference below uses Claude Code / Gemini CLI syntax. Codex use
 | `/gpd:graph` | Visualize dependency graph across phases and identify gaps |
 | `/gpd:slides [topic]` | Create presentation slides from a GPD project or the current folder |
 | `/gpd:export [--format {html,latex,zip,all}]` | Export research results to HTML, LaTeX, or ZIP package |
+| `/gpd:export-logs [--format {jsonl,json,markdown}]` | Export session logs and traces to files for external review or archival |
 | `/gpd:error-patterns [category]` | View accumulated physics error patterns for this project |
 | `/gpd:record-insight [description]` | Record a project-specific learning or pattern to the insights ledger |
 

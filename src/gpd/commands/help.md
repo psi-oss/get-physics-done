@@ -56,7 +56,7 @@ These `/gpd:*` entries are canonical in-runtime slash-command names exposed insi
 **Workflow:** new-project → discuss-phase → plan-phase → execute-phase → verify-work → repeat → complete-milestone
 **Publication:** write-paper → peer-review → respond-to-referees → arxiv-submission
 
-Run `/gpd:help --all` for all 61 commands.
+Run `/gpd:help --all` for all 62 commands.
 
 --- END of default output. STOP here. ---
 
