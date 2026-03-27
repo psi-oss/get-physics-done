@@ -171,6 +171,8 @@ def test_doctor_help_surfaces_runtime_readiness_mode() -> None:
     assert "--local" in result.output
     assert "--global" in result.output
     assert "--target-dir" in result.output
+    assert "Check the runtime's local install target (default)" in result.output
+    assert "Override the runtime config directory to inspect" in result.output
 
 
 def test_permissions_help_surfaces_status_and_sync_roles() -> None:
@@ -848,6 +850,34 @@ def test_doctor_target_dir_infers_install_scope(mock_doctor, tmp_path: Path) -> 
         specs_dir=SPECS_DIR,
         runtime=runtime_name,
         install_scope="global",
+        target_dir=target_dir.resolve(strict=False),
+        cwd=tmp_path,
+    )
+
+
+@patch("gpd.core.health.run_doctor")
+def test_doctor_target_dir_stays_local_when_target_is_not_global(mock_doctor, tmp_path: Path) -> None:
+    from gpd.specs import SPECS_DIR
+
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"mode": "runtime-readiness", "overall": "ok"}
+    mock_doctor.return_value = mock_result
+    runtime_name = list_runtimes()[0]
+    target_dir = tmp_path / ".gpd-target"
+
+    with patch("gpd.cli._target_dir_matches_global", return_value=False) as mock_matches_global:
+        result = runner.invoke(
+            app,
+            ["--cwd", str(tmp_path), "--raw", "doctor", "--runtime", runtime_name, "--target-dir", str(target_dir)],
+        )
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {"mode": "runtime-readiness", "overall": "ok"}
+    mock_matches_global.assert_called_once_with(runtime_name, str(target_dir), action="doctor")
+    mock_doctor.assert_called_once_with(
+        specs_dir=SPECS_DIR,
+        runtime=runtime_name,
+        install_scope="local",
         target_dir=target_dir.resolve(strict=False),
         cwd=tmp_path,
     )

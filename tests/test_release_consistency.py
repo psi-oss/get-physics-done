@@ -571,7 +571,7 @@ def test_public_readme_quick_start_keeps_runtime_first_next_steps() -> None:
     quick_start = _markdown_section(readme, "## Quick Start")
 
     assert "npx -y get-physics-done" in quick_start
-    assert "Requires Node.js 20+, Python 3.11+ with `venv`" in quick_start
+    assert "The bootstrap installer requires Node.js 20+, Python 3.11+ with `venv`" in quick_start
     assert "**Next steps after install**" in quick_start
     assert "The installer adds GPD to your runtime config" in quick_start
     assert "it does not launch the runtime for you" in quick_start
@@ -680,9 +680,25 @@ def test_public_readme_and_bootstrap_surface_optional_workflow_add_on_guidance()
     assert "Optional workflow add-ons let you keep the base install narrow" in readme
     assert "Optional workflow add-ons are workflow-specific extra capabilities." in readme
     assert "The first supported add-on is paper/manuscript workflows;" in readme
-    assert "check LaTeX add-on readiness before relying on `write-paper`, `paper-build`, `peer-review`, or `arxiv-submission`" in readme
+    assert "check runtime-local LaTeX add-on readiness before relying on `write-paper`, `paper-build`, `peer-review`, or `arxiv-submission`" in readme
+    assert "Missing add-on tooling degrades those optional workflows; it does not block the base GPD install." in readme
     assert "Optional workflow add-ons: if you plan paper/manuscript workflows, rerun " in installer
-    assert "check `Optional Workflow Add-ons` plus `LaTeX Toolchain`." in installer
+    assert "check whether `Optional Workflow Add-ons` is `ready` or `degraded`." in installer
+    assert "Without LaTeX, `write-paper` and `peer-review` remain usable" in installer
+    assert "`paper-build` and `arxiv-submission` require the `LaTeX Toolchain`." in installer
+
+
+def test_public_readme_keeps_bootstrap_prerequisites_and_runtime_doctor_scopes_distinct() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+    quick_start = _markdown_section(readme, "## Quick Start")
+
+    assert "The bootstrap installer requires Node.js 20+, Python 3.11+ with `venv`" in quick_start
+    assert "**Bootstrap hard blockers**" in quick_start
+    assert "These are bootstrap prerequisites for `npx -y get-physics-done`, not a claim that every local `gpd ...` command rechecks them." in quick_start
+    assert "Here, `gpd doctor --runtime ...` is a runtime-readiness check for the selected runtime target." in quick_start
+    assert "If the bootstrap installer fails before `gpd doctor --runtime <runtime> --local|--global` can run, fix Node / Python / `venv` bootstrap prerequisites first." in quick_start
+    assert "If `gpd doctor --runtime <runtime> --local|--global` fails, fix the selected runtime's launcher / target / runtime-readiness issue first." in quick_start
+    assert "If `gpd doctor --runtime <runtime> --local|--global` only warns about `Optional Workflow Add-ons` or `LaTeX Toolchain`, the base install can still be fine;" in quick_start
 
 
 def test_public_readme_recovery_surfaces_keep_runtime_pause_and_resume_roles_distinct() -> None:
@@ -737,6 +753,8 @@ def test_public_help_surfaces_keep_settings_as_guided_post_startup_path() -> Non
         assert "Choose a model-cost posture: `Max quality`, `Balanced`, or `Budget-aware`" in content
         assert "review` with runtime defaults is the safest first choice" in content
         assert "gpd observe execution" in content
+        assert "The bootstrap installer owns Node.js / Python / `venv` prerequisites." in content
+        assert "Check runtime-local LaTeX add-on readiness from your normal terminal before using that add-on; failed add-on rows degrade that workflow rather than blocking the base install" in content
 
 
 def test_public_settings_workflow_keeps_balanced_recommendation_and_relaunch_guidance() -> None:
@@ -766,7 +784,8 @@ def test_public_bootstrap_help_examples_cover_install_and_readiness_handoff() ->
     assert "# Interactive uninstall" in content
     assert "# Uninstall from all runtimes globally" in content
     assert "# Equivalent uninstall subcommand form" in content
-    assert "Also use `settings` after startup to choose your model-cost posture; runtime defaults are the safest starting point." in content
+    assert "Use the runtime-specific `settings` command after startup to review autonomy, workflow defaults, and model-cost posture." in content
+    assert "Recommended unattended default: Balanced autonomy (`balanced`). The safest model starting point is `review` plus runtime defaults." in content
 
 
 def test_public_readme_observability_surface_keeps_execution_guidance_in_command_space() -> None:

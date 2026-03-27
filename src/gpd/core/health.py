@@ -993,6 +993,15 @@ class DoctorReport(BaseModel):
     checks: list[HealthCheck] = Field(default_factory=list)
 
 
+class DoctorRuntimeReadinessContext(BaseModel):
+    """Normalized runtime-scoped readiness inputs used by doctor/install flows."""
+
+    runtime: str
+    install_scope: str | None = None
+    target: Path
+    launch_command: str
+
+
 def _doctor_active_virtualenv() -> bool:
     """Return whether the active interpreter is running inside a virtualenv."""
     return bool(
@@ -1240,6 +1249,50 @@ def _doctor_check_optional_workflow_addons(latex_check: HealthCheck) -> HealthCh
     )
 
 
+def resolve_doctor_runtime_readiness(
+    runtime: str,
+    *,
+    install_scope: str | None = None,
+    target_dir: str | Path | None = None,
+    cwd: Path | None = None,
+) -> DoctorRuntimeReadinessContext:
+    """Normalize runtime readiness inputs to one canonical runtime/scope/target tuple."""
+    from gpd.adapters import get_adapter
+
+    normalized_runtime = _doctor_normalize_runtime(runtime)
+    normalized_scope_input = install_scope.lower() if isinstance(install_scope, str) else None
+    if normalized_scope_input not in {None, "local", "global"}:
+        raise ValidationError(
+            f"Unsupported install_scope {install_scope!r}; expected 'local' or 'global'."
+        )
+
+    adapter = get_adapter(normalized_runtime)
+    workspace_root = cwd or Path.cwd()
+    normalized_scope = normalized_scope_input
+    if target_dir is not None:
+        explicit_target = Path(target_dir).expanduser()
+        if explicit_target.is_absolute():
+            resolved_target = explicit_target.resolve(strict=False)
+        else:
+            resolved_target = (workspace_root / explicit_target).resolve(strict=False)
+    else:
+        resolved_target = adapter.resolve_target_dir(normalized_scope == "global", workspace_root)
+    if normalized_scope is None and target_dir is None:
+        normalized_scope = "local"
+
+    return DoctorRuntimeReadinessContext(
+        runtime=normalized_runtime,
+        install_scope=normalized_scope,
+        target=resolved_target,
+        launch_command=adapter.launch_command,
+    )
+
+
+def extract_doctor_blockers(report: DoctorReport) -> list[HealthCheck]:
+    """Return the blocking doctor checks for install-gating decisions."""
+    return [check for check in report.checks if check.status == CheckStatus.FAIL]
+
+
 def run_doctor(
     specs_dir: Path | None = None,
     version: str | None = None,
@@ -1342,30 +1395,26 @@ def run_doctor(
         normalized_scope: str | None = None
         normalized_runtime: str | None = None
         if runtime is not None:
-            from gpd.adapters import get_adapter
-
-            normalized_runtime = _doctor_normalize_runtime(runtime)
-            normalized_scope_input = install_scope.lower() if isinstance(install_scope, str) else None
-            if normalized_scope_input not in {None, "local", "global"}:
-                raise ValidationError(
-                    f"Unsupported install_scope {install_scope!r}; expected 'local' or 'global'."
-                )
-
-            adapter = get_adapter(normalized_runtime)
-            workspace_root = cwd or Path.cwd()
-            normalized_scope = normalized_scope_input
-            resolved_target = (
-                Path(target_dir).expanduser().resolve(strict=False)
-                if target_dir is not None
-                else adapter.resolve_target_dir(normalized_scope == "global", workspace_root)
+            runtime_context = resolve_doctor_runtime_readiness(
+                runtime,
+                install_scope=install_scope,
+                target_dir=target_dir,
+                cwd=cwd,
             )
-            if normalized_scope is None and target_dir is None:
-                normalized_scope = "local"
+            normalized_runtime = runtime_context.runtime
+            normalized_scope = runtime_context.install_scope
+            resolved_target = runtime_context.target
             resolved_target_str = str(resolved_target)
             checks.append(_doctor_check_runtime_launcher(normalized_runtime))
             checks.append(_doctor_check_runtime_target(resolved_target))
             checks.append(_doctor_check_bootstrap_network_access())
-            checks.append(_doctor_check_provider_auth(normalized_runtime, adapter.launch_command, resolved_target))
+            checks.append(
+                _doctor_check_provider_auth(
+                    normalized_runtime,
+                    runtime_context.launch_command,
+                    resolved_target,
+                )
+            )
             latex_check = _doctor_check_latex_toolchain()
             checks.append(latex_check)
             checks.append(_doctor_check_optional_workflow_addons(latex_check))
@@ -1394,9 +1443,12 @@ def run_doctor(
 __all__ = [
     "CheckStatus",
     "DoctorReport",
+    "DoctorRuntimeReadinessContext",
     "HealthCheck",
     "HealthReport",
     "HealthSummary",
+    "extract_doctor_blockers",
+    "resolve_doctor_runtime_readiness",
     "check_compaction_needed",
     "check_config",
     "check_convention_lock",

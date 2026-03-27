@@ -5716,6 +5716,107 @@ def _target_dir_matches_global(runtime_name: str, target_dir: str, *, action: st
     return resolved_target == canonical_global_target.expanduser().resolve(strict=False)
 
 
+def _doctor_check_messages(check: object, field_names: tuple[str, ...]) -> list[str]:
+    """Collect normalized issue/warning text from one doctor check payload."""
+    messages: list[str] = []
+    for field_name in field_names:
+        field_value = getattr(check, field_name, None)
+        if not isinstance(field_value, list):
+            continue
+        for item in field_value:
+            if not isinstance(item, str):
+                continue
+            normalized = item.strip()
+            if normalized:
+                messages.append(normalized)
+    return messages
+
+
+def _doctor_blocker_messages(report: object) -> list[str]:
+    """Extract blocking readiness messages from a doctor report."""
+    from gpd.core.health import extract_doctor_blockers
+
+    seen: set[str] = set()
+    blockers: list[str] = []
+    for check in extract_doctor_blockers(report):
+        messages = _doctor_check_messages(check, ("issues", "warnings"))
+        if not messages:
+            label = str(getattr(check, "label", "") or "").strip() or "Readiness Check"
+            messages = [f"{label}: readiness check failed."]
+        for message in messages:
+            if message not in seen:
+                seen.add(message)
+                blockers.append(message)
+    return blockers
+
+
+def _doctor_advisory_messages(report: object) -> list[str]:
+    """Extract advisory readiness messages from a doctor report."""
+    summary = getattr(report, "summary", None)
+    if getattr(summary, "warn", 0) <= 0:
+        return []
+
+    seen: set[str] = set()
+    advisories: list[str] = []
+    for check in getattr(report, "checks", []):
+        if getattr(check, "status", None) != "warn":
+            continue
+        for message in _doctor_check_messages(check, ("issues", "warnings")):
+            if message not in seen:
+                seen.add(message)
+                advisories.append(message)
+    return advisories
+
+
+def _runtime_doctor_hint(runtime_name: str, *, install_scope: str, target_dir: Path | None) -> str:
+    """Build the exact doctor command that inspects one install target."""
+    parts = ["gpd", "doctor", "--runtime", runtime_name, f"--{install_scope}"]
+    if target_dir is not None:
+        parts.extend(["--target-dir", str(target_dir)])
+    return " ".join(shlex.quote(part) for part in parts)
+
+
+def _run_install_readiness_preflight(
+    runtimes: list[str],
+    *,
+    install_scope: str,
+    target_dir: Path | None,
+) -> tuple[list[tuple[str, list[str]]], dict[str, list[str]]]:
+    """Run doctor-led readiness checks before mutating runtime install targets."""
+    from gpd.core.health import CheckStatus, run_doctor
+    from gpd.specs import SPECS_DIR
+
+    failures: list[tuple[str, list[str]]] = []
+    advisories: dict[str, list[str]] = {}
+
+    for runtime_name in runtimes:
+        try:
+            report = run_doctor(
+                specs_dir=SPECS_DIR,
+                runtime=runtime_name,
+                install_scope=install_scope,
+                target_dir=target_dir,
+                cwd=_get_cwd(),
+            )
+        except Exception as exc:
+            failures.append((runtime_name, [str(exc)]))
+            continue
+
+        blocker_messages = _doctor_blocker_messages(report)
+        if getattr(report, "overall", None) == CheckStatus.FAIL and not blocker_messages:
+            blocker_messages = ["Runtime readiness reported a failure without blocking details."]
+
+        if blocker_messages:
+            failures.append((runtime_name, blocker_messages))
+            continue
+
+        advisory_messages = _doctor_advisory_messages(report)
+        if advisory_messages:
+            advisories[runtime_name] = advisory_messages
+
+    return failures, advisories
+
+
 @app.command("install")
 def install(
     runtimes: list[str] | None = typer.Argument(
@@ -5791,7 +5892,55 @@ def install(
         is_global = False
 
     location_label = "global" if is_global else "local"
+    install_scope = "global" if is_global else "local"
+    resolved_target_override = _resolve_cli_target_dir(target_dir) if target_dir else None
+
+    preflight_failures, preflight_advisories = _run_install_readiness_preflight(
+        selected,
+        install_scope=install_scope,
+        target_dir=resolved_target_override,
+    )
+    if preflight_failures:
+        if _raw:
+            _output(
+                {
+                    "installed": [],
+                    "failed": [
+                        {"runtime": runtime_name, "error": "; ".join(messages)}
+                        for runtime_name, messages in preflight_failures
+                    ],
+                }
+            )
+        else:
+            console.print(f"\n[bold]Runtime readiness preflight for: {_format_runtime_list(selected)}[/]")
+            console.print()
+            err_console.print("[bold red]Error:[/] Runtime readiness preflight failed.", highlight=False)
+            for runtime_name, messages in preflight_failures:
+                display_name = _get_adapter_or_error(runtime_name, action="install readiness").display_name
+                for message in messages:
+                    err_console.print(f"- {display_name}: {message}", highlight=False)
+            doctor_hints = ", ".join(
+                f"`{_runtime_doctor_hint(runtime_name, install_scope=install_scope, target_dir=resolved_target_override)}`"
+                for runtime_name, _messages in preflight_failures
+            )
+            console.print(
+                f"Fix the blocking readiness issue(s) above, then rerun `gpd install`. Inspect directly with {doctor_hints}.",
+                soft_wrap=True,
+            )
+        raise typer.Exit(code=1)
+
     if not _raw:
+        console.print(f"\n[bold]Runtime readiness preflight for: {_format_runtime_list(selected)}[/]")
+        for runtime_name in selected:
+            display_name = _get_adapter_or_error(runtime_name, action="install readiness").display_name
+            advisories = preflight_advisories.get(runtime_name, [])
+            if advisories:
+                console.print(f"- {display_name}: readiness check passed with advisories.")
+                for advisory in advisories:
+                    console.print(f"  - {advisory}")
+            else:
+                console.print(f"- {display_name}: readiness check passed.")
+        console.print()
         console.print(f"\n[bold]Installing GPD ({location_label}) for: {_format_runtime_list(selected)}[/]\n")
 
     # Install each runtime with progress

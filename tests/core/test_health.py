@@ -16,6 +16,7 @@ from gpd.core.contract_validation import validate_project_contract
 from gpd.core.errors import ValidationError
 from gpd.core.health import (
     CheckStatus,
+    DoctorReport,
     HealthCheck,
     HealthReport,
     HealthSummary,
@@ -32,6 +33,8 @@ from gpd.core.health import (
     check_roadmap_consistency,
     check_state_validity,
     check_storage_paths,
+    extract_doctor_blockers,
+    resolve_doctor_runtime_readiness,
     run_doctor,
     run_health,
 )
@@ -82,6 +85,23 @@ class TestHealthModels:
         assert restored.overall == CheckStatus.OK
         assert restored.fixes_applied == ["fixed X"]
         assert len(restored.checks) == 1
+
+    def test_extract_doctor_blockers_returns_only_failures(self):
+        report = DoctorReport(
+            overall=CheckStatus.FAIL,
+            version="0.1.0",
+            summary=HealthSummary(ok=1, warn=1, fail=2, total=4),
+            checks=[
+                HealthCheck(status=CheckStatus.OK, label="ok"),
+                HealthCheck(status=CheckStatus.WARN, label="warn"),
+                HealthCheck(status=CheckStatus.FAIL, label="fail-a"),
+                HealthCheck(status=CheckStatus.FAIL, label="fail-b"),
+            ],
+        )
+
+        blockers = extract_doctor_blockers(report)
+
+        assert [check.label for check in blockers] == ["fail-a", "fail-b"]
 
 
 # ─── Individual Check Tests ──────────────────────────────────────────────────
@@ -1164,6 +1184,105 @@ trigger:
         assert report.runtime == _PRIMARY_RUNTIME
         assert report.install_scope is None
         assert report.target == str(target_dir.resolve(strict=False))
+
+    def test_runtime_resolution_preserves_explicit_local_scope_and_target(self, tmp_path: Path):
+        target_dir = tmp_path / ".runtime-config"
+
+        context = resolve_doctor_runtime_readiness(
+            _PRIMARY_RUNTIME,
+            install_scope="local",
+            target_dir=target_dir,
+            cwd=tmp_path,
+        )
+
+        assert context.runtime == _PRIMARY_RUNTIME
+        assert context.install_scope == "local"
+        assert context.target == target_dir.resolve(strict=False)
+
+    def test_runtime_resolution_anchors_relative_target_to_supplied_cwd(self, tmp_path: Path):
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+
+        context = resolve_doctor_runtime_readiness(
+            _PRIMARY_RUNTIME,
+            install_scope="local",
+            target_dir="relative-target",
+            cwd=workspace,
+        )
+
+        assert context.runtime == _PRIMARY_RUNTIME
+        assert context.install_scope == "local"
+        assert context.target == (workspace / "relative-target").resolve(strict=False)
+
+    def test_runtime_mode_with_explicit_local_scope_and_target_keeps_both(self, tmp_path: Path):
+        target_dir = tmp_path / ".runtime-config"
+        specs_dir = self._make_specs_dir(tmp_path)
+
+        with (
+            patch("gpd.core.health._doctor_active_virtualenv", return_value=True),
+            patch("gpd.core.health.shutil.which", return_value="/usr/bin/runtime"),
+            patch(
+                "gpd.core.health._doctor_check_bootstrap_network_access",
+                return_value=HealthCheck(status=CheckStatus.OK, label="Bootstrap Network Access"),
+            ),
+            patch(
+                "gpd.core.health._doctor_check_provider_auth",
+                return_value=HealthCheck(status=CheckStatus.OK, label="Provider/Auth Guidance"),
+            ),
+            patch(
+                "gpd.core.health._doctor_check_latex_toolchain",
+                return_value=HealthCheck(status=CheckStatus.OK, label="LaTeX Toolchain"),
+            ),
+        ):
+            report = run_doctor(
+                specs_dir=specs_dir,
+                version="0.1.0",
+                runtime=_PRIMARY_RUNTIME,
+                install_scope="local",
+                target_dir=target_dir,
+                cwd=tmp_path,
+            )
+
+        checks = {check.label: check for check in report.checks}
+        assert report.install_scope == "local"
+        assert report.target == str(target_dir.resolve(strict=False))
+        assert checks["Runtime Config Target"].details["target"] == str(target_dir.resolve(strict=False))
+
+    def test_runtime_mode_with_relative_target_dir_resolves_against_supplied_cwd(self, tmp_path: Path):
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        specs_dir = self._make_specs_dir(tmp_path)
+        expected_target = (workspace / "relative-target").resolve(strict=False)
+
+        with (
+            patch("gpd.core.health._doctor_active_virtualenv", return_value=True),
+            patch("gpd.core.health.shutil.which", return_value="/usr/bin/runtime"),
+            patch(
+                "gpd.core.health._doctor_check_bootstrap_network_access",
+                return_value=HealthCheck(status=CheckStatus.OK, label="Bootstrap Network Access"),
+            ),
+            patch(
+                "gpd.core.health._doctor_check_provider_auth",
+                return_value=HealthCheck(status=CheckStatus.OK, label="Provider/Auth Guidance"),
+            ),
+            patch(
+                "gpd.core.health._doctor_check_latex_toolchain",
+                return_value=HealthCheck(status=CheckStatus.OK, label="LaTeX Toolchain"),
+            ),
+        ):
+            report = run_doctor(
+                specs_dir=specs_dir,
+                version="0.1.0",
+                runtime=_PRIMARY_RUNTIME,
+                install_scope="local",
+                target_dir="relative-target",
+                cwd=workspace,
+            )
+
+        checks = {check.label: check for check in report.checks}
+        assert report.install_scope == "local"
+        assert report.target == str(expected_target)
+        assert checks["Runtime Config Target"].details["target"] == str(expected_target)
 
     def test_runtime_mode_rejects_scope_without_runtime(self, tmp_path: Path):
         specs_dir = self._make_specs_dir(tmp_path)

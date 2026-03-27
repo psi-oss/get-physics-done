@@ -181,6 +181,28 @@ def test_help_prompt_default_quick_start_stays_runtime_surface_focused() -> None
     assert "gpd init new-project" not in quick_start
 
 
+def test_help_prompt_keeps_optional_add_on_readiness_on_local_cli_surface() -> None:
+    help_command = (COMMANDS_DIR / "help.md").read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    quick_start = _extract_between(
+        help_command,
+        "## Step 2: Quick Start (Default Output)",
+        "## Step 3: Full Command Reference (--all)",
+    )
+
+    assert "**Optional workflow add-ons**" in quick_start
+    assert "gpd doctor --runtime <runtime> --local|--global" in quick_start
+    assert "LaTeX add-on readiness from your normal terminal before using that add-on" in quick_start
+    for content in (help_command, help_workflow):
+        assert (
+            "Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly."
+            in content
+        )
+        assert "gpd doctor --runtime <runtime> --local|--global" in content
+        assert "LaTeX add-on readiness" in content
+        assert "from your normal terminal before using that add-on" in content
+
+
 def test_suggest_next_prompt_uses_real_cli_subcommand() -> None:
     suggest_prompt = (REPO_ROOT / "src/gpd/commands/suggest-next.md").read_text(encoding="utf-8")
 

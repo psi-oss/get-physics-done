@@ -959,7 +959,7 @@ function runManagedDoctorReadinessCheck(managedPython, runtime, scope, targetDir
 }
 
 function runInstallReadinessPreflight(managedPython, runtimes, scope, targetDir = null) {
-  console.log(` ${bold}${brandTitle}Runtime readiness preflight${reset}`);
+  console.log(` ${bold}${brandTitle}Runtime launcher/target preflight${reset}`);
   console.log("");
 
   const blockers = [];
@@ -983,13 +983,13 @@ function runInstallReadinessPreflight(managedPython, runtimes, scope, targetDir 
     }
 
     const advisories = collectDoctorAdvisories(report);
-    success(`${displayName}: readiness check passed${advisories.length > 0 ? " with advisories" : ""}.`);
+    success(`${displayName}: launcher/target preflight passed${advisories.length > 0 ? " with advisories" : ""}.`);
     advisories.forEach((message) => warn(`${displayName}: ${message}`));
   }
 
   if (blockers.length > 0) {
     console.log("");
-    error("Runtime readiness preflight failed.");
+    error("Runtime launcher/target preflight failed.");
     [...new Set(blockers)].forEach((message) => error(message));
     const doctorHints = runtimes.map((runtime) => `\`${runtimeDoctorHint(runtime, scope, targetDir)}\``).join(", ");
     log(`Fix the blocking readiness issue(s) above, then rerun the bootstrap installer. Inspect directly with ${doctorHints}.`);
@@ -997,12 +997,14 @@ function runInstallReadinessPreflight(managedPython, runtimes, scope, targetDir 
   }
 
   console.log("");
-  success(`Runtime readiness preflight passed for ${formatRuntimeList(runtimes)}.`);
+  success(`Runtime launcher/target preflight passed for ${formatRuntimeList(runtimes)}.`);
   const doctorHints = runtimes.map((runtime) => `\`${runtimeDoctorHint(runtime, scope, targetDir)}\``).join(", ");
-  log(`For deeper local diagnostics after install, use ${doctorHints}.`);
+  log(`For the full runtime-target doctor report after install, use ${doctorHints}.`);
   log(
     "Optional workflow add-ons: if you plan paper/manuscript workflows, rerun "
-    + `${doctorHints} after install and check \`Optional Workflow Add-ons\` plus \`LaTeX Toolchain\`.`
+    + `${doctorHints} after install and check whether \`Optional Workflow Add-ons\` is \`ready\` or \`degraded\`. `
+    + "Without LaTeX, `write-paper` and `peer-review` remain usable, but `paper-build` and "
+    + "`arxiv-submission` require the `LaTeX Toolchain`."
   );
   console.log("");
   return true;
@@ -1012,17 +1014,20 @@ function printUnattendedConfigurationReminder(runtimes, targetDir = null) {
   console.log("");
   console.log(` ${bold}${brandTitle}Unattended configuration${reset}`);
   console.log("");
-  log("Recommended default: Balanced autonomy (`balanced`).");
+  log("Recommended unattended default: Balanced autonomy (`balanced`).");
   if (runtimes.length === 1) {
     const runtime = runtimes[0];
     log(
       `Inside ${runtimeDisplayName(runtime)}, use \`${runtimeSurfaceCommand(runtime, "settings")}\` `
-      + "to review or change autonomy."
+      + "to review autonomy, workflow defaults, and model-cost posture."
     );
+    log("The safest model starting point is `review` plus runtime defaults.");
     log(`Check unattended readiness with \`${runtimePermissionsHint("status", runtime, "balanced", targetDir)}\`.`);
     log(`If it reports drift, run \`${runtimePermissionsHint("sync", runtime, "balanced", targetDir)}\`.`);
     warn("If `requires_relaunch` is true, the runtime is not ready for unattended use until you exit and relaunch it.");
   } else {
+    log("Inside each runtime, use `settings` to review autonomy, workflow defaults, and model-cost posture.");
+    log("The safest model starting point is `review` plus runtime defaults.");
     for (const runtime of runtimes) {
       log(
         `${runtimeDisplayName(runtime)}: \`${runtimeSurfaceCommand(runtime, "settings")}\`, then `
@@ -1130,9 +1135,14 @@ function printHelp() {
   console.log("");
   console.log(` ${yellow}After install:${reset}`);
   console.log(` ${dim}# Recommended unattended configuration${reset}`);
-  console.log(" Use the runtime-specific `settings` command to keep autonomy at Balanced (`balanced`).");
-  console.log(" Also use `settings` after startup to choose your model-cost posture; runtime defaults are the safest starting point.");
-  console.log(" Optional workflow add-ons: if you plan paper/manuscript workflows, rerun `gpd doctor --runtime <runtime> --local|--global` and check `Optional Workflow Add-ons` plus `LaTeX Toolchain`.");
+  console.log(" Bootstrap preflight checks runtime launcher/target blockers only; configure unattended behavior after startup.");
+  console.log(" Use the runtime-specific `settings` command after startup to review autonomy, workflow defaults, and model-cost posture.");
+  console.log(" Recommended unattended default: Balanced autonomy (`balanced`). The safest model starting point is `review` plus runtime defaults.");
+  console.log(
+    " Optional workflow add-ons: if you plan paper/manuscript workflows, rerun `gpd doctor --runtime <runtime> --local|--global` "
+    + "and check whether `Optional Workflow Add-ons` is `ready` or `degraded`. Without LaTeX, `write-paper` and `peer-review` remain usable, "
+    + "but `paper-build` and `arxiv-submission` require the `LaTeX Toolchain`."
+  );
   console.log(" Then run `gpd permissions status --runtime <runtime> --autonomy balanced`.");
   console.log(" If it reports drift, run `gpd permissions sync --runtime <runtime> --autonomy balanced`.");
   console.log(" If it reports `requires_relaunch`, exit and relaunch the runtime before unattended use.");

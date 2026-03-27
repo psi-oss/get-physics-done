@@ -23,6 +23,7 @@ from typer.testing import CliRunner
 from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.cli import _format_install_header_lines, _render_install_option_line, app
+from gpd.core.health import CheckStatus, DoctorReport, HealthCheck, HealthSummary
 
 runner = CliRunner()
 _INSTALL_TEST_DESCRIPTORS = iter_runtime_descriptors()
@@ -88,6 +89,43 @@ def _mock_install_adapter(descriptor=_PRIMARY_INSTALL_DESCRIPTOR, **overrides):
     surface = _install_adapter_surface(descriptor)
     surface.update(overrides)
     return MagicMock(**surface)
+
+
+def _doctor_report(
+    *,
+    overall: CheckStatus = CheckStatus.OK,
+    runtime: str | None = None,
+    install_scope: str | None = None,
+    target: str | None = None,
+    checks: list[HealthCheck] | None = None,
+) -> DoctorReport:
+    report_checks = checks or [HealthCheck(status=CheckStatus.OK, label="Runtime Launcher")]
+    fail_count = sum(1 for check in report_checks if check.status == CheckStatus.FAIL)
+    warn_count = sum(1 for check in report_checks if check.status == CheckStatus.WARN)
+    ok_count = sum(1 for check in report_checks if check.status == CheckStatus.OK)
+    return DoctorReport(
+        overall=overall,
+        mode="runtime-readiness",
+        runtime=runtime,
+        install_scope=install_scope,
+        target=target,
+        summary=HealthSummary(ok=ok_count, warn=warn_count, fail=fail_count, total=len(report_checks)),
+        checks=report_checks,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _mock_install_preflight_doctor(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _fake_run_doctor(*args, **kwargs):
+        target_dir = kwargs.get("target_dir")
+        target_text = str(target_dir) if target_dir is not None else None
+        return _doctor_report(
+            runtime=kwargs.get("runtime"),
+            install_scope=kwargs.get("install_scope"),
+            target=target_text,
+        )
+
+    monkeypatch.setattr("gpd.core.health.run_doctor", _fake_run_doctor)
 
 
 def _assert_complete_install(target: Path, *, adapter) -> None:
@@ -743,6 +781,154 @@ def test_install_raw_finalize_failure_not_reported_as_installed(tmp_path: Path):
     assert payload["failed"] == [{"runtime": _PRIMARY_INSTALL_DESCRIPTOR.runtime_name, "error": "finalize boom"}]
 
 
+@patch("gpd.core.health.run_doctor")
+def test_install_raw_reports_preflight_failures_without_changing_raw_schema(mock_run_doctor, tmp_path: Path) -> None:
+    mock_run_doctor.return_value = _doctor_report(
+        overall=CheckStatus.FAIL,
+        runtime=_PRIMARY_INSTALL_DESCRIPTOR.runtime_name,
+        install_scope="local",
+        checks=[
+            HealthCheck(
+                status=CheckStatus.FAIL,
+                label="Runtime Launcher",
+                issues=["launcher missing"],
+            )
+        ],
+    )
+
+    with patch("gpd.cli._install_single_runtime") as mock_install_single:
+        result = runner.invoke(app, ["--raw", "install", _PRIMARY_INSTALL_DESCRIPTOR.runtime_name, "--local"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload == {
+        "installed": [],
+        "failed": [{"runtime": _PRIMARY_INSTALL_DESCRIPTOR.runtime_name, "error": "launcher missing"}],
+    }
+    mock_install_single.assert_not_called()
+
+
+@patch("gpd.core.health.run_doctor")
+def test_install_preflight_aggregates_blockers_and_skips_all_runtime_installs(mock_run_doctor, tmp_path: Path) -> None:
+    mock_run_doctor.side_effect = [
+        _doctor_report(
+            runtime=_PRIMARY_INSTALL_DESCRIPTOR.runtime_name,
+            install_scope="local",
+            checks=[
+                HealthCheck(
+                    status=CheckStatus.OK,
+                    label="Runtime Launcher",
+                )
+            ],
+        ),
+        _doctor_report(
+            overall=CheckStatus.FAIL,
+            runtime=_SECONDARY_INSTALL_DESCRIPTOR.runtime_name,
+            install_scope="local",
+            checks=[
+                HealthCheck(
+                    status=CheckStatus.FAIL,
+                    label="Runtime Config Target",
+                    issues=["secondary target not writable"],
+                )
+            ],
+        ),
+    ]
+
+    with (
+        patch(
+            "gpd.adapters.list_runtimes",
+            return_value=[_PRIMARY_INSTALL_DESCRIPTOR.runtime_name, _SECONDARY_INSTALL_DESCRIPTOR.runtime_name],
+        ),
+        patch("gpd.cli._install_single_runtime") as mock_install_single,
+    ):
+        result = runner.invoke(app, ["install", "--all", "--local"])
+
+    assert result.exit_code == 1
+    mock_install_single.assert_not_called()
+    assert _SECONDARY_INSTALL_DESCRIPTOR.display_name in result.output
+    assert "secondary target not writable" in result.output
+    assert "readiness check passed" not in result.output
+
+
+@patch("gpd.core.health.run_doctor")
+def test_install_raw_reports_all_preflight_failures_for_multi_runtime_install(mock_run_doctor, tmp_path: Path) -> None:
+    mock_run_doctor.side_effect = [
+        _doctor_report(
+            overall=CheckStatus.FAIL,
+            runtime=_PRIMARY_INSTALL_DESCRIPTOR.runtime_name,
+            install_scope="local",
+            checks=[
+                HealthCheck(
+                    status=CheckStatus.FAIL,
+                    label="Runtime Launcher",
+                    issues=["primary launcher missing"],
+                )
+            ],
+        ),
+        _doctor_report(
+            overall=CheckStatus.FAIL,
+            runtime=_SECONDARY_INSTALL_DESCRIPTOR.runtime_name,
+            install_scope="local",
+            checks=[
+                HealthCheck(
+                    status=CheckStatus.FAIL,
+                    label="Runtime Config Target",
+                    issues=["secondary target not writable"],
+                )
+            ],
+        ),
+    ]
+
+    with (
+        patch(
+            "gpd.adapters.list_runtimes",
+            return_value=[_PRIMARY_INSTALL_DESCRIPTOR.runtime_name, _SECONDARY_INSTALL_DESCRIPTOR.runtime_name],
+        ),
+        patch("gpd.cli._install_single_runtime") as mock_install_single,
+    ):
+        result = runner.invoke(app, ["--raw", "install", "--all", "--local"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload == {
+        "installed": [],
+        "failed": [
+            {"runtime": _PRIMARY_INSTALL_DESCRIPTOR.runtime_name, "error": "primary launcher missing"},
+            {"runtime": _SECONDARY_INSTALL_DESCRIPTOR.runtime_name, "error": "secondary target not writable"},
+        ],
+    }
+    mock_install_single.assert_not_called()
+
+
+@patch("gpd.core.health.run_doctor")
+def test_install_preflight_forwards_scope_and_explicit_target_dir(mock_run_doctor, tmp_path: Path) -> None:
+    runtime_name = _PRIMARY_INSTALL_DESCRIPTOR.runtime_name
+    target_dir = tmp_path / "target-config"
+    mock_run_doctor.return_value = _doctor_report(
+        runtime=runtime_name,
+        install_scope="local",
+        target=str(target_dir),
+    )
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(target_dir)}
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch("gpd.adapters.get_adapter") as mock_get,
+    ):
+        mock_get.return_value = _mock_install_adapter(_PRIMARY_INSTALL_DESCRIPTOR)
+        result = runner.invoke(app, ["install", runtime_name, "--target-dir", str(target_dir)])
+
+    assert result.exit_code == 0
+    mock_run_doctor.assert_called_once()
+    _, kwargs = mock_run_doctor.call_args
+    assert kwargs["runtime"] == runtime_name
+    assert kwargs["install_scope"] == "local"
+    assert kwargs["target_dir"] == target_dir.resolve(strict=False)
+
+
 def test_uninstall_raw_outputs_json(tmp_path: Path):
     """--raw flag on uninstall outputs clean JSON."""
     target = _install_target(tmp_path)
@@ -1055,6 +1241,7 @@ def test_install_target_dir_uses_env_overridden_global_path_as_global_target(
     mock_adapter.resolve_target_dir.side_effect = (
         lambda is_global, cwd=None: override_dir if is_global else workspace / descriptor.config_dir_name
     )
+    captured_preflight: list[dict[str, object]] = []
 
     def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
         captured_calls.append(
@@ -1066,7 +1253,19 @@ def test_install_target_dir_uses_env_overridden_global_path_as_global_target(
         )
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(override_dir)}
 
+    def mock_run_doctor(*, specs_dir=None, version=None, runtime=None, install_scope=None, target_dir=None, cwd=None):
+        captured_preflight.append(
+            {
+                "runtime": runtime,
+                "install_scope": install_scope,
+                "target_dir": target_dir,
+            }
+        )
+        target_text = str(target_dir) if target_dir is not None else None
+        return _doctor_report(runtime=runtime, install_scope=install_scope, target=target_text)
+
     with (
+        patch("gpd.core.health.run_doctor", side_effect=mock_run_doctor),
         patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
         patch("gpd.adapters.get_adapter", return_value=mock_adapter),
         patch("gpd.cli._get_cwd", return_value=workspace),
@@ -1080,6 +1279,13 @@ def test_install_target_dir_uses_env_overridden_global_path_as_global_target(
             "runtime": runtime_name,
             "is_global": True,
             "target_dir_override": str(override_dir),
+        }
+    ]
+    assert captured_preflight == [
+        {
+            "runtime": runtime_name,
+            "install_scope": "global",
+            "target_dir": override_dir.resolve(strict=False),
         }
     ]
 

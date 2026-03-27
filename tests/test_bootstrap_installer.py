@@ -61,10 +61,10 @@ def _assert_single_runtime_next_steps(output: str, runtime: str) -> None:
         rf"{re.escape(_RUNTIME_MAP_RESEARCH_COMMANDS[runtime])} for existing work, or "
         rf"{re.escape(_RUNTIME_RESUME_WORK_COMMANDS[runtime])} to continue paused work\..*?"
         rf"Fast bootstrap: use {re.escape(_RUNTIME_NEW_PROJECT_COMMANDS[runtime])} --minimal.*?"
-        rf"Use gpd --help for local install, validation, permissions, and diagnostics\..*?"
+        rf"Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics\..*?"
         rf"Use {re.escape(_RUNTIME_HELP_COMMANDS[runtime])} inside {re.escape(_RUNTIME_DISPLAY_NAMES[runtime])} for workflow help\..*?"
         rf"Verify or troubleshoot this machine with gpd doctor --runtime {re.escape(runtime)} --(?:local|global)\..*?"
-        rf"After startup, use the runtime `settings` command to choose your model-cost posture\. "
+        rf"After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture\. "
         rf"The safest starting point is `review` plus runtime defaults\..*?"
         rf"If you plan to use paper/manuscript workflows, rerun gpd doctor --runtime {re.escape(runtime)} --(?:local|global) "
         rf"and check the `Optional Workflow Add-ons` and `LaTeX Toolchain` rows before publication work\.",
@@ -432,12 +432,12 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
             f"{{NEW_PROJECT_COMMANDS[runtime]}} --minimal for the shortest onboarding path."
         )
         print(
-            f"4. Use gpd --help for local install, validation, permissions, and diagnostics. "
+            f"4. Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics. "
             f"Use {{HELP_COMMANDS[runtime]}} inside {{RUNTIME_LABELS[runtime]}} for workflow help."
         )
         print(f"5. Verify or troubleshoot this machine with gpd doctor --runtime {{runtime}} --{{scope}}.")
         print(
-            "6. After startup, use the runtime `settings` command to choose your model-cost posture. "
+            "6. After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture. "
             "The safest starting point is `review` plus runtime defaults."
         )
         print(
@@ -453,10 +453,10 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
                 f"{{NEW_PROJECT_COMMANDS[runtime]}} or {{MAP_RESEARCH_COMMANDS[runtime]}}. "
                 f"Quick bootstrap: {{NEW_PROJECT_COMMANDS[runtime]}} --minimal"
             )
-        print("Use gpd --help for local install, validation, permissions, and diagnostics.")
+        print("Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics.")
         print("Run gpd doctor --runtime <runtime> --local|--global for a focused readiness check.")
         print(
-            "After startup, use the runtime `settings` command to choose your model-cost posture. "
+            "After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture. "
             "The safest starting point is `review` plus runtime defaults."
         )
         print(
@@ -597,17 +597,20 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert f"GPD v{PACKAGE_VERSION} - Get Physics Done" in result.stdout
     assert "© 2026 Physical Superintelligence PBC (PSI)" in result.stdout
     assert f"Installing GPD (local) for: {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}" in result.stdout
-    assert "Runtime readiness preflight" in result.stdout
-    assert f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: readiness check passed" in result.stdout
+    assert "Runtime launcher/target preflight" in result.stdout
+    assert f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: launcher/target preflight passed" in result.stdout
     assert "GPD does not verify provider credentials automatically" in result.stdout
     assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in result.stdout
     assert (
         "Optional workflow add-ons: if you plan paper/manuscript workflows, rerun "
-        f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local` after install and check "
-        "`Optional Workflow Add-ons` plus `LaTeX Toolchain`."
+        f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local` after install and check whether "
+        "`Optional Workflow Add-ons` is `ready` or `degraded`. Without LaTeX, `write-paper` and "
+        "`peer-review` remain usable, but `paper-build` and `arxiv-submission` require the `LaTeX Toolchain`."
     ) in result.stdout
     assert "Install Summary" in result.stdout
     _assert_single_runtime_next_steps(result.stdout, _CODEX_RUNTIME_NAME)
+    assert "Recommended unattended default: Balanced autonomy (`balanced`)." in result.stdout
+    assert "The safest model starting point is `review` plus runtime defaults." in result.stdout
     assert f"Installing GPD for {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)..." not in result.stdout
     assert f"Installed GPD for {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)." not in result.stdout
 
@@ -647,7 +650,7 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
 
     assert (home / "GPD" / "venv" / "bin" / "python").exists()
     assert f"Preparing managed GPD CLI from PyPI (get-physics-done=={PYTHON_PACKAGE_VERSION}) into the managed environment..." in result.stdout
-    assert "Runtime readiness preflight" not in result.stdout
+    assert "Runtime launcher/target preflight" not in result.stdout
     assert f"Uninstalling GPD from {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)..." in result.stdout
     assert "runtime uninstall ok" in result.stdout
 
@@ -790,7 +793,7 @@ def test_bootstrap_install_blocks_when_selected_runtime_launcher_is_missing(tmp_
         entry for entry in entries if entry["managed"] and entry["argv"][:3] == ["-m", "gpd.cli", "install"]
     ]
     assert managed_runtime_installs == []
-    assert "Runtime readiness preflight failed." in result.stderr
+    assert "Runtime launcher/target preflight failed." in result.stderr
     assert (
         f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: Runtime Launcher: "
         f"{_RUNTIME_LAUNCH_COMMANDS[_CODEX_RUNTIME_NAME]} not found on PATH"
@@ -843,7 +846,7 @@ def test_bootstrap_install_blocks_when_target_dir_is_not_writable(tmp_path: Path
         entry for entry in entries if entry["managed"] and entry["argv"][:3] == ["-m", "gpd.cli", "install"]
     ]
     assert managed_runtime_installs == []
-    assert "Runtime readiness preflight failed." in result.stderr
+    assert "Runtime launcher/target preflight failed." in result.stderr
     assert f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: Runtime Config Target:" in result.stderr
     assert "is not writable" in result.stderr
     assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local --target-dir {target_dir}`" in result.stdout
@@ -1181,11 +1184,13 @@ def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> N
     assert (
         "Optional workflow add-ons: if you plan paper/manuscript workflows, rerun "
         + ", ".join(f"`gpd doctor --runtime {runtime} --global`" for runtime in _RUNTIME_NAMES)
-        + " after install and check `Optional Workflow Add-ons` plus `LaTeX Toolchain`."
+        + " after install and check whether `Optional Workflow Add-ons` is `ready` or `degraded`. "
+        + "Without LaTeX, `write-paper` and `peer-review` remain usable, but `paper-build` and "
+        + "`arxiv-submission` require the `LaTeX Toolchain`."
     ) in result.stdout
     for runtime in _RUNTIME_NAMES:
         _assert_multi_runtime_next_steps_line(result.stdout, runtime)
-    assert "Use gpd --help for local install, validation, permissions, and diagnostics." in result.stdout
+    assert "Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics." in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

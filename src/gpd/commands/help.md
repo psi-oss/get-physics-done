@@ -40,7 +40,7 @@ Output this and STOP (do not display the full reference):
 
 **GPD** (Get Physics Done) — agentic physics research with AI research agents.
 
-These `/gpd:*` entries are canonical in-runtime slash-command names exposed inside the installed agent surface. They are not a promise that the local `gpd` CLI exposes matching top-level subcommands.
+These `/gpd:*` entries are canonical in-runtime slash-command names exposed inside the installed agent surface. They are not a promise that the local `gpd` CLI exposes matching top-level subcommands. Bootstrap prerequisites such as Node.js, Python, and `venv` belong to the normal-terminal installer, not to these in-runtime commands.
 
 ## Quick Start
 
@@ -73,7 +73,7 @@ Before stepping away mid-phase, run `/gpd:pause-work` so `/gpd:resume-work` has 
 
 **Optional workflow add-ons**
 1. `Paper/manuscript workflows` — First supported optional workflow add-on for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`
-2. `gpd doctor --runtime <runtime> --local|--global` — Check LaTeX add-on readiness from your normal terminal before using that add-on
+2. `gpd doctor --runtime <runtime> --local|--global` — Check runtime-local LaTeX add-on readiness from your normal terminal before using that add-on; failed add-on rows degrade that workflow rather than blocking the base install
 
 **Core workflow:** new-project → discuss-phase → plan-phase → execute-phase → verify-work → repeat → complete-milestone
 **Publication:** write-paper → peer-review → respond-to-referees → arxiv-submission
@@ -96,7 +96,7 @@ Display the reference content directly — no additions or modifications.
 This reference lists canonical in-runtime slash-command names in `/gpd:*` form.
 
 - Use these names inside the installed agent/runtime command surface.
-- The local `gpd` CLI may expose different `gpd ...` subcommands and grouping. Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
+- The bootstrap installer owns Node.js / Python / `venv` prerequisites. The local `gpd` CLI may expose different `gpd ...` subcommands and grouping. Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
 - If you need to validate whether a slash-command can run in the current workspace, use `gpd validate command-context gpd:<name>`.
 - For a normal-terminal, read-only recovery snapshot without launching the runtime, use `gpd resume`.
 - For cross-project discovery from your normal terminal, use `gpd resume --recent` first, then open the selected project and run the per-project recovery surface there.
@@ -112,7 +112,7 @@ Choose the path that matches your starting point:
 
 **Optional workflow add-ons**
 1. `Paper/manuscript workflows` - First supported optional workflow add-on for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`
-2. `gpd doctor --runtime <runtime> --local|--global` - Check LaTeX add-on readiness from your normal terminal before using that add-on
+2. `gpd doctor --runtime <runtime> --local|--global` - Check runtime-local LaTeX add-on readiness from your normal terminal before using that add-on; failed add-on rows degrade that workflow rather than blocking the base install
 
 **Existing work**
 1. `/gpd:map-research` - Map an existing folder or project first
