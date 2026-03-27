@@ -56,8 +56,12 @@ def _assert_complete_install(target: Path, *, adapter) -> None:
         assert (target / relpath).exists()
 
 
-def _first_installed_file(target: Path) -> Path:
-    return next(path for path in target.rglob("*") if path.is_file() and path.name != "gpd-file-manifest.json")
+def _first_overwritable_installed_file(target: Path) -> Path:
+    return next(
+        path
+        for path in target.rglob("*")
+        if path.is_file() and path.name != "gpd-file-manifest.json" and "hooks" not in path.relative_to(target).parts
+    )
 
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -138,7 +142,7 @@ def test_install_upgrades_existing(gpd_root: Path, tmp_path: Path):
     assert result1["commands"] >= 1
 
     # Modify an installed file to simulate user edit
-    first_file = _first_installed_file(target)
+    first_file = _first_overwritable_installed_file(target)
     first_file.write_text("user modified content", encoding="utf-8")
 
     # Second install (upgrade)
