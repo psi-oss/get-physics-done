@@ -1366,3 +1366,28 @@ class TestMain:
         assert "REVIEW:skeptical" in output
         assert "Direct observable benchmark" in output
         assert "Proxy fit" not in output
+
+    def test_execution_state_rendering_does_not_claim_stuck(self) -> None:
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_position", return_value="P4/10"),
+            patch("gpd.hooks.statusline._read_current_task", return_value="Routine task"),
+            patch(
+                "gpd.hooks.statusline._read_execution_state",
+                return_value={
+                    "segment_status": "waiting_review",
+                    "waiting_for_review": True,
+                    "waiting_reason": "time_budget_exceeded",
+                    "segment_started_at": "2026-03-10T00:00:00+00:00",
+                    "updated_at": "2026-03-10T00:45:00+00:00",
+                },
+            ),
+            patch("gpd.hooks.statusline._check_update", return_value=""),
+        ):
+            main()
+
+        output = captured.getvalue().lower()
+        assert "stuck" not in output
+        assert "wait" in output or "review" in output

@@ -940,6 +940,31 @@ def test_emit_execution_notification_keeps_pre_fanout_review_until_clear_even_if
     assert "Pre-fanout review due for 05-05" in stderr.getvalue()
 
 
+def test_emit_execution_notification_does_not_claim_stuck(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _write_current_execution(
+        workspace,
+        {
+            "phase": "06",
+            "plan": "01",
+            "segment_id": "seg-12",
+            "segment_status": "blocked",
+            "blocked_reason": "anchor mismatch",
+            "waiting_reason": "time_budget_exceeded",
+            "waiting_for_review": True,
+        },
+    )
+
+    stderr = io.StringIO()
+    with patch("sys.stderr", stderr):
+        _emit_execution_notification(str(workspace))
+
+    output = stderr.getvalue().lower()
+    assert "stuck" not in output
+    assert "blocked in 06-01" in output or "waiting in 06-01" in output
+
+
 def test_emit_execution_notification_dedupes_repeated_resume_state(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -233,6 +234,10 @@ def _invoke(*args: str, expect_ok: bool = True) -> object:
     return result
 
 
+def _iso_minutes_ago(minutes: int) -> str:
+    return (datetime.now(UTC) - timedelta(minutes=minutes)).isoformat()
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. timestamp
 # ═══════════════════════════════════════════════════════════════════════════
@@ -303,6 +308,40 @@ class TestResume:
         assert "Read-only local recovery snapshot for this workspace." in result.output
         assert "gpd resume" in result.output
         assert "gpd init resume" in result.output
+
+
+class TestObserveExecution:
+    def test_observe_execution_raw_surfaces_possibly_stalled_active_segment_without_mutating_state(
+        self, gpd_project: Path
+    ) -> None:
+        observability = gpd_project / "GPD" / "observability"
+        observability.mkdir(parents=True, exist_ok=True)
+        (observability / "current-execution.json").write_text(
+            json.dumps(
+                {
+                    "session_id": "sess-1",
+                    "phase": "01",
+                    "plan": "02",
+                    "segment_id": "seg-4",
+                    "segment_status": "active",
+                    "current_task": "Inspect a long-running segment",
+                    "updated_at": _iso_minutes_ago(31),
+                }
+            ),
+            encoding="utf-8",
+        )
+        snapshot_before = _target_file_snapshot(gpd_project / "GPD")
+
+        result = _invoke("--raw", "observe", "execution")
+        parsed = json.loads(result.output)
+
+        assert parsed["found"] is True
+        assert parsed["current_state"] == "active"
+        assert parsed["assessment"] == "possibly stalled"
+        assert parsed["last_update_age_minutes"] >= 30
+        assert parsed["current_task"] == "Inspect a long-running segment"
+        assert parsed["suggested_next_commands"]
+        assert _target_file_snapshot(gpd_project / "GPD") == snapshot_before
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -575,6 +614,43 @@ class TestInitIncludeParsing:
         assert payload["segment_candidates"][1]["resume_file"] == "GPD/phases/01-test-phase/alternate.md"
         assert payload["segment_candidates"][2]["agent_id"] == "agent-77"
         assert _target_file_snapshot(planning) == snapshot_before
+
+    def test_observe_execution_reports_waiting_without_marking_it_possibly_stalled(self, gpd_project: Path) -> None:
+        observability = gpd_project / "GPD" / "observability"
+        observability.mkdir(parents=True, exist_ok=True)
+        (observability / "current-execution.json").write_text(
+            json.dumps(
+                {
+                    "session_id": "sess-1",
+                    "phase": "04",
+                    "plan": "03",
+                    "segment_status": "waiting_review",
+                    "checkpoint_reason": "first_result",
+                    "waiting_for_review": True,
+                    "first_result_gate_pending": True,
+                    "updated_at": "2000-01-01T00:00:00+00:00",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = _invoke("--raw", "observe", "execution")
+        payload = json.loads(result.output)
+
+        assert payload["found"] is True
+        assert payload["status_classification"] == "waiting"
+        assert payload["assessment"] == "waiting"
+        assert payload["possibly_stalled"] is False
+        assert payload["review_reason"] == "first-result review pending"
+
+    def test_observe_execution_without_snapshot_reports_idle(self, gpd_project: Path) -> None:
+        result = _invoke("--raw", "observe", "execution")
+        payload = json.loads(result.output)
+
+        assert payload["found"] is False
+        assert payload["status_classification"] == "idle"
+        assert payload["assessment"] == "idle"
+        assert payload["possibly_stalled"] is False
 
 
 class TestCommandContextSurface:

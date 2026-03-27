@@ -2000,6 +2000,24 @@ def test_resume_workflow_surfaces_contract_load_and_validation_state() -> None:
     assert "Repair the blocked contract or state-integrity issue before planning or execution" in resume_work
 
 
+def test_execution_observability_and_resume_surfaces_stay_conservative_about_stalls() -> None:
+    help_command = (COMMANDS_DIR / "help.md").read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    progress = (WORKFLOWS_DIR / "progress.md").read_text(encoding="utf-8")
+    resume_work = (WORKFLOWS_DIR / "resume-work.md").read_text(encoding="utf-8")
+
+    assert "gpd observe execution" in help_command
+    assert "Read-only long-run visibility from your normal terminal; shows progress / waiting state and may say `possibly stalled`" in help_command
+    assert "gpd observe execution" in help_workflow
+    assert "Read-only live status from your normal terminal; use this for progress / waiting state, not runtime hotkeys" in help_workflow
+    assert "For read-only long-run visibility from your normal system terminal, use `gpd observe execution`." in readme
+    assert "conservatively say `possibly stalled` instead of relying on runtime hotkeys" in readme
+    assert "When STATE.md appears out of sync with disk reality" in progress
+    assert "advisory context only" in resume_work
+    assert "it is not a ranked bounded-segment resume candidate and does not justify `resume_mode=\"bounded_segment\"`." in resume_work
+
+
 def test_pause_resume_and_help_wiring_keep_runtime_handoff_and_local_snapshot_boundary() -> None:
     pause_work = (WORKFLOWS_DIR / "pause-work.md").read_text(encoding="utf-8")
     resume_work = (WORKFLOWS_DIR / "resume-work.md").read_text(encoding="utf-8")
@@ -2017,6 +2035,8 @@ def test_pause_resume_and_help_wiring_keep_runtime_handoff_and_local_snapshot_bo
     assert "To inspect local recovery summary: gpd resume" in pause_work
     assert "/gpd:resume-work" in help_workflow
     assert "- For a normal-terminal, read-only recovery snapshot without launching the runtime, use `gpd resume`." in help_workflow
+    assert "gpd observe execution" in help_workflow
+    assert "not runtime hotkeys" in help_workflow
 
 
 def test_stage6_surfaces_protocol_bundle_context_across_planning_execution_and_verification() -> None:
@@ -2228,6 +2248,7 @@ def test_help_surfaces_distinguish_runtime_slash_commands_from_local_cli_subcomm
         assert "local `gpd` CLI" in content
         assert "gpd --help" in content
         assert "gpd validate command-context gpd:<name>" in content
+        assert "gpd observe execution" in content
 
 
 def test_help_command_keeps_static_quick_start_while_workflow_owns_full_reference() -> None:

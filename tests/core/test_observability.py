@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 
@@ -15,6 +16,10 @@ def _bootstrap_project(tmp_path: Path) -> Path:
 
 def _read_jsonl(path: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _iso_minutes_ago(minutes: int) -> str:
+    return (datetime.now(UTC) - timedelta(minutes=minutes)).isoformat()
 
 
 def test_ensure_session_writes_single_session_log_and_current_pointer(tmp_path: Path, monkeypatch) -> None:
@@ -145,6 +150,84 @@ def test_execution_events_write_current_execution_snapshot(tmp_path: Path, monke
     assert snapshot.downstream_locked is True
 
 
+def test_derive_execution_visibility_marks_old_active_segment_as_possibly_stalled(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    observability_dir = project / "GPD" / "observability"
+    observability_dir.mkdir(parents=True, exist_ok=True)
+    (observability_dir / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "sess-raw",
+                "phase": "03",
+                "plan": "02",
+                "segment_status": "active",
+                "current_task": "Benchmark reproduction",
+                "updated_at": "2000-01-01T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from gpd.core.observability import derive_execution_visibility
+
+    visibility = derive_execution_visibility(project)
+    assert visibility is not None
+    assert visibility.status_classification == "active"
+    assert visibility.assessment == "possibly stalled"
+    assert visibility.possibly_stalled is True
+    assert visibility.stale_after_minutes == 30
+    assert visibility.current_task == "Benchmark reproduction"
+    assert visibility.last_updated_at == "2000-01-01T00:00:00+00:00"
+    assert visibility.last_updated_age_label is not None
+
+
+def test_derive_execution_visibility_waiting_state_is_not_marked_possibly_stalled(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    observability_dir = project / "GPD" / "observability"
+    observability_dir.mkdir(parents=True, exist_ok=True)
+    (observability_dir / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "sess-raw",
+                "phase": "03",
+                "plan": "02",
+                "segment_status": "waiting_review",
+                "waiting_for_review": True,
+                "checkpoint_reason": "first_result",
+                "updated_at": "2000-01-01T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from gpd.core.observability import derive_execution_visibility
+
+    visibility = derive_execution_visibility(project)
+    assert visibility is not None
+    assert visibility.status_classification == "waiting"
+    assert visibility.assessment == "waiting"
+    assert visibility.possibly_stalled is False
+    assert visibility.review_reason == "first-result review pending"
+
+
+def test_derive_execution_visibility_without_snapshot_is_idle_not_possibly_stalled(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import derive_execution_visibility
+
+    visibility = derive_execution_visibility(project)
+    assert visibility is not None
+    assert visibility.has_live_execution is False
+    assert visibility.status_classification == "idle"
+    assert visibility.assessment == "idle"
+    assert visibility.possibly_stalled is False
+
+
 def test_get_current_execution_normalizes_phase_plan_and_checkpoint_reason(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)
@@ -172,6 +255,99 @@ def test_get_current_execution_normalizes_phase_plan_and_checkpoint_reason(tmp_p
     assert snapshot.phase == "03"
     assert snapshot.plan == "02"
     assert snapshot.checkpoint_reason == "pre_fanout"
+
+
+def test_derive_execution_visibility_marks_only_active_segments_possibly_stalled_after_30_minutes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    observability_dir = project / "GPD" / "observability"
+    observability_dir.mkdir(parents=True, exist_ok=True)
+    (observability_dir / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "sess-active",
+                "phase": "03",
+                "plan": "01",
+                "segment_status": "active",
+                "current_task": "Inspect a long-running segment",
+                "updated_at": _iso_minutes_ago(31),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from gpd.core.observability import derive_execution_visibility
+
+    visibility = derive_execution_visibility(project)
+    assert visibility is not None
+    assert visibility.has_live_execution is True
+    assert visibility.status_classification == "active"
+    assert visibility.possibly_stalled is True
+    assert visibility.last_updated_age_minutes is not None
+    assert visibility.last_updated_age_minutes >= 30.0
+    assert any("30+ minutes" in step for step in visibility.suggested_next_steps)
+
+
+def test_derive_execution_visibility_keeps_recent_active_segments_active(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    observability_dir = project / "GPD" / "observability"
+    observability_dir.mkdir(parents=True, exist_ok=True)
+    (observability_dir / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "sess-active",
+                "phase": "03",
+                "plan": "01",
+                "segment_status": "active",
+                "current_task": "Inspect a recent segment",
+                "updated_at": _iso_minutes_ago(29),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from gpd.core.observability import derive_execution_visibility
+
+    visibility = derive_execution_visibility(project)
+    assert visibility is not None
+    assert visibility.has_live_execution is True
+    assert visibility.status_classification == "active"
+    assert visibility.possibly_stalled is False
+
+
+def test_derive_execution_visibility_never_flags_paused_segments_as_stalled(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    observability_dir = project / "GPD" / "observability"
+    observability_dir.mkdir(parents=True, exist_ok=True)
+    (observability_dir / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "sess-paused",
+                "phase": "03",
+                "plan": "01",
+                "segment_status": "paused",
+                "resume_file": "GPD/phases/03-test-phase/.continue-here.md",
+                "updated_at": _iso_minutes_ago(45),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from gpd.core.observability import derive_execution_visibility
+
+    visibility = derive_execution_visibility(project)
+    assert visibility is not None
+    assert visibility.has_live_execution is True
+    assert visibility.status_classification == "paused-or-resumable"
+    assert visibility.possibly_stalled is False
+    assert any("Resume the paused context" in step for step in visibility.suggested_next_steps)
 
 
 def test_pre_fanout_gate_records_skeptical_review_state(tmp_path: Path, monkeypatch) -> None:

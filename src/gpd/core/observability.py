@@ -31,6 +31,7 @@ from gpd.core.utils import atomic_write, file_lock, phase_normalize, safe_read_f
 
 __all__ = [
     "CurrentExecutionState",
+    "ExecutionVisibilityState",
     "LocalSpan",
     "ObservabilityEvent",
     "ObservabilitySession",
@@ -39,6 +40,7 @@ __all__ = [
     "ObservabilityShowResult",
     "ensure_session",
     "ensure_observability_session",
+    "derive_execution_visibility",
     "get_current_execution",
     "get_current_session",
     "get_current_session_id",
@@ -153,6 +155,40 @@ class CurrentExecutionState(BaseModel):
     @classmethod
     def _normalize_checkpoint_reason_field(cls, value: object) -> object:
         return _normalized_checkpoint_reason(value)
+
+
+class ExecutionVisibilityState(BaseModel):
+    """Normalized read-only execution visibility payload for local status surfaces."""
+
+    model_config = ConfigDict(frozen=True)
+
+    workspace_root: str | None = None
+    has_live_execution: bool = False
+    status_classification: str = "idle"
+    assessment: str = "idle"
+    possibly_stalled: bool = False
+    stale_after_minutes: int = 30
+    last_updated_at: str | None = None
+    last_updated_age_label: str | None = None
+    last_updated_age_minutes: float | None = None
+    phase: str | None = None
+    plan: str | None = None
+    wave: int | str | None = None
+    segment_status: str | None = None
+    current_task: str | None = None
+    current_task_index: int | None = None
+    current_task_total: int | None = None
+    current_task_progress: str | None = None
+    segment_reason: str | None = None
+    checkpoint_reason: str | None = None
+    waiting_reason: str | None = None
+    blocked_reason: str | None = None
+    review_reason: str | None = None
+    last_result_label: str | None = None
+    last_artifact_path: str | None = None
+    resume_file: str | None = None
+    current_execution: dict[str, object] | None = None
+    suggested_next_steps: list[str] = Field(default_factory=list)
 
 
 class ObserveEventResult(BaseModel):
@@ -348,6 +384,190 @@ def get_current_execution(cwd: Path | None = None) -> CurrentExecutionState | No
         return CurrentExecutionState.model_validate(raw)
     except Exception:
         return None
+
+
+def _execution_visibility_age_minutes(updated_at: str | None) -> float | None:
+    if not isinstance(updated_at, str) or not updated_at.strip():
+        return None
+    observed_at = _parse_iso_datetime(updated_at)
+    if observed_at is None:
+        return None
+    age_minutes = (datetime.now(UTC) - observed_at).total_seconds() / 60.0
+    return round(max(0.0, age_minutes), 1)
+
+
+def _execution_visibility_age_label(updated_at: str | None) -> str | None:
+    """Return a compact human label like ``12m ago`` for one update timestamp."""
+    if not isinstance(updated_at, str) or not updated_at.strip():
+        return None
+    observed_at = _parse_iso_datetime(updated_at)
+    if observed_at is None:
+        return None
+    elapsed_seconds = max(0, int((datetime.now(UTC) - observed_at).total_seconds()))
+    if elapsed_seconds < 60:
+        return f"{elapsed_seconds}s ago"
+    if elapsed_seconds < 3600:
+        return f"{elapsed_seconds // 60}m ago"
+    return f"{elapsed_seconds // 3600}h ago"
+
+
+def _execution_visibility_review_reason(snapshot: CurrentExecutionState | None) -> str | None:
+    """Return the most relevant review-stop reason for one execution snapshot."""
+    if snapshot is None:
+        return None
+    checkpoint = _str_or_none(snapshot.checkpoint_reason)
+    if snapshot.first_result_gate_pending:
+        return "first-result review pending"
+    if snapshot.pre_fanout_review_pending:
+        return "pre-fanout review pending"
+    if snapshot.skeptical_requestioning_required:
+        return "skeptical re-questioning required"
+    if snapshot.waiting_for_review:
+        if checkpoint == "first_result":
+            return "first-result review pending"
+        if checkpoint == "pre_fanout":
+            return "pre-fanout review pending"
+        if checkpoint == "skeptical_requestioning":
+            return "skeptical re-questioning required"
+        if checkpoint is not None:
+            return checkpoint.replace("_", " ")
+        return "review checkpoint pending"
+    return None
+
+
+def _execution_visibility_classification(snapshot: CurrentExecutionState | None) -> str:
+    if snapshot is None:
+        return "idle"
+
+    blocked_reason = _str_or_none(snapshot.blocked_reason)
+    if blocked_reason:
+        return "blocked"
+
+    waiting_markers = (
+        snapshot.waiting_for_review,
+        snapshot.review_required,
+        snapshot.first_result_gate_pending,
+        snapshot.pre_fanout_review_pending,
+        snapshot.skeptical_requestioning_required,
+        snapshot.downstream_locked,
+        _str_or_none(snapshot.waiting_reason),
+    )
+    segment_status = (snapshot.segment_status or "").strip().lower()
+    if any(bool(marker) for marker in waiting_markers) or segment_status in {"waiting_review", "awaiting_user"}:
+        return "waiting"
+
+    paused_states = {"paused", "awaiting_user", "ready_to_continue"}
+    if segment_status in paused_states:
+        return "paused-or-resumable"
+    if segment_status == "blocked":
+        return "blocked"
+    if segment_status in {"completed", "complete", "done", "finished"}:
+        return "idle"
+    if _str_or_none(snapshot.resume_file):
+        return "paused-or-resumable"
+    return "active"
+
+
+def _execution_visibility_next_steps(
+    *,
+    classification: str,
+    snapshot: CurrentExecutionState | None,
+    possibly_stalled: bool,
+) -> list[str]:
+    steps: list[str] = []
+    if snapshot is None:
+        return [
+            "Run `gpd observe sessions --last 5` to inspect recent local observability sessions.",
+            "Run `gpd progress --brief` to inspect the workspace state separately from live execution telemetry.",
+        ]
+
+    phase_plan = "-".join(part for part in (snapshot.phase, snapshot.plan) if part) or "current execution"
+    session_scope = f" --session {snapshot.session_id}" if snapshot.session_id else ""
+
+    if classification == "blocked":
+        steps.append("Run `gpd resume` to inspect the current recovery snapshot and blocker context.")
+        steps.append(f"Run `gpd observe show{session_scope} --last 20` to inspect the recent execution event trail for {phase_plan}.")
+    elif classification == "waiting":
+        steps.append("Run `gpd resume` to inspect the resumable checkpoint and review context.")
+        steps.append(f"Run `gpd observe show{session_scope} --last 20` to inspect the recent execution event trail for {phase_plan}.")
+    elif classification == "paused-or-resumable":
+        steps.append("Resume the paused context with `gpd resume` to review the ranked recovery candidates.")
+        steps.append(f"Run `gpd observe show{session_scope} --last 20` to inspect the recent execution event trail for {phase_plan}.")
+    elif classification == "active":
+        if possibly_stalled:
+            steps.append(f"No update for 30+ minutes in {phase_plan}; this execution is possibly stalled.")
+            steps.append(f"Run `gpd observe show{session_scope} --last 20` to inspect the recent execution event trail for {phase_plan}.")
+            steps.append("Run `gpd resume` to inspect the latest recovery snapshot if the run should already have paused.")
+        else:
+            steps.append("Run `gpd observe show --last 20` when you want the recent observability event trail.")
+            steps.append("Recheck with `gpd progress --brief` when you want a compact workspace-level summary.")
+    else:
+        steps.append("Run `gpd observe sessions --last 5` to inspect the recent local observability sessions.")
+        steps.append("Run `gpd progress --brief` to inspect the current workspace state.")
+    return steps
+
+
+def derive_execution_visibility(cwd: Path | None = None) -> ExecutionVisibilityState | None:
+    """Derive a normalized local execution visibility payload from the current snapshot."""
+    layout = _layout(cwd)
+    if layout is None:
+        return None
+
+    snapshot = get_current_execution(layout.root)
+    if snapshot is None:
+        return ExecutionVisibilityState(
+            workspace_root=str(layout.root),
+            has_live_execution=False,
+            status_classification="idle",
+            assessment="idle",
+        suggested_next_steps=[
+                "Run `gpd observe sessions --last 5` to inspect recent local observability sessions.",
+                "Run `gpd progress --brief` to inspect the workspace state separately from live execution telemetry.",
+            ],
+        )
+
+    classification = _execution_visibility_classification(snapshot)
+    age_minutes = _execution_visibility_age_minutes(snapshot.updated_at)
+    age_label = _execution_visibility_age_label(snapshot.updated_at)
+    possibly_stalled = classification == "active" and age_minutes is not None and age_minutes >= 30.0
+    assessment = "possibly stalled" if possibly_stalled else classification
+    current_task_progress: str | None = None
+    if snapshot.current_task_index is not None and snapshot.current_task_total is not None:
+        current_task_progress = f"{snapshot.current_task_index}/{snapshot.current_task_total}"
+
+    return ExecutionVisibilityState(
+        workspace_root=str(layout.root),
+        has_live_execution=True,
+        status_classification=classification,
+        assessment=assessment,
+        possibly_stalled=possibly_stalled,
+        stale_after_minutes=30,
+        last_updated_at=snapshot.updated_at,
+        last_updated_age_label=age_label,
+        last_updated_age_minutes=age_minutes,
+        phase=snapshot.phase,
+        plan=snapshot.plan,
+        wave=snapshot.wave,
+        segment_status=snapshot.segment_status,
+        current_task=snapshot.current_task,
+        current_task_index=snapshot.current_task_index,
+        current_task_total=snapshot.current_task_total,
+        current_task_progress=current_task_progress,
+        segment_reason=snapshot.segment_reason,
+        checkpoint_reason=snapshot.checkpoint_reason,
+        waiting_reason=snapshot.waiting_reason,
+        blocked_reason=snapshot.blocked_reason,
+        review_reason=_execution_visibility_review_reason(snapshot),
+        last_result_label=snapshot.last_result_label,
+        last_artifact_path=snapshot.last_artifact_path,
+        resume_file=snapshot.resume_file,
+        current_execution=snapshot.model_dump(mode="json"),
+        suggested_next_steps=_execution_visibility_next_steps(
+            classification=classification,
+            snapshot=snapshot,
+            possibly_stalled=possibly_stalled,
+        ),
+    )
 
 
 def _execution_data(data: dict[str, object]) -> dict[str, object]:

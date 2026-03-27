@@ -1942,8 +1942,166 @@ def trace_show(
 # observe — Local observability logs
 # ═══════════════════════════════════════════════════════════════════════════
 
-observe_app = typer.Typer(help="Inspect local observability sessions and events")
+
+@dataclasses.dataclass(frozen=True)
+class ObserveExecutionSuggestion:
+    """One suggested follow-up command for a live execution snapshot."""
+
+    command: str
+    reason: str
+
+
+@dataclasses.dataclass(frozen=True)
+class ObserveExecutionResult:
+    """Read-only execution snapshot for local CLI inspection."""
+
+    found: bool
+    workspace: str
+    phase: str | None
+    plan: str | None
+    status_classification: str
+    current_state: str | None
+    assessment: str
+    possibly_stalled: bool
+    stale_after_minutes: int
+    current_task: str | None
+    waiting_reason: str | None
+    blocked_reason: str | None
+    review_reason: str | None
+    last_update_at: str | None
+    last_update_age: str | None
+    last_update_age_minutes: float | None
+    resume_file: str | None
+    suggested_next_commands: list[ObserveExecutionSuggestion]
+    current_execution: dict[str, object] | None = None
+
+def _observe_execution_payload() -> ObserveExecutionResult:
+    """Build the read-only execution snapshot for the local CLI surface."""
+    from gpd.core.observability import derive_execution_visibility
+
+    visibility = derive_execution_visibility(_get_cwd())
+    if visibility is None:
+        visibility = derive_execution_visibility(Path.cwd())
+    if visibility is None:
+        raise GPDError("Local observability unavailable for this working directory")
+
+    status_classification = str(visibility.status_classification or "idle")
+    current_state = status_classification.replace("-", " ")
+    assessment = str(visibility.assessment or status_classification).replace("-", " ")
+
+    suggested_next_commands: list[ObserveExecutionSuggestion] = []
+    if not visibility.has_live_execution:
+        suggested_next_commands.extend(
+            [
+                ObserveExecutionSuggestion(
+                    command="gpd observe sessions --last 5",
+                    reason="Inspect recent local observability sessions",
+                ),
+                ObserveExecutionSuggestion(
+                    command="gpd progress --brief",
+                    reason="Check workspace-level progress separately from live execution telemetry",
+                ),
+            ]
+        )
+    else:
+        if status_classification in {"blocked", "waiting", "paused-or-resumable"} or visibility.possibly_stalled:
+            suggested_next_commands.append(
+                ObserveExecutionSuggestion(
+                    command="gpd resume",
+                    reason="Review the current local recovery snapshot and the best resumable target",
+                )
+            )
+        suggested_next_commands.extend(
+            [
+                ObserveExecutionSuggestion(
+                    command="gpd observe show --last 20",
+                    reason="Inspect the recent observability event trail for this workspace",
+                ),
+                ObserveExecutionSuggestion(
+                    command="gpd observe sessions --last 5",
+                    reason="Compare recent observability sessions and their command history",
+                ),
+                ObserveExecutionSuggestion(
+                    command="gpd progress --brief",
+                    reason="Check phase-level progress separately from live execution state",
+                ),
+            ]
+        )
+
+    return ObserveExecutionResult(
+        found=visibility.has_live_execution,
+        workspace=_format_display_path(visibility.workspace_root or _get_cwd()),
+        phase=visibility.phase,
+        plan=visibility.plan,
+        status_classification=status_classification,
+        current_state=current_state,
+        assessment=assessment,
+        possibly_stalled=visibility.possibly_stalled,
+        stale_after_minutes=visibility.stale_after_minutes,
+        current_task=visibility.current_task,
+        waiting_reason=visibility.waiting_reason,
+        blocked_reason=visibility.blocked_reason,
+        review_reason=visibility.review_reason,
+        last_update_at=visibility.last_updated_at,
+        last_update_age=visibility.last_updated_age_label,
+        last_update_age_minutes=visibility.last_updated_age_minutes,
+        resume_file=visibility.resume_file,
+        suggested_next_commands=suggested_next_commands,
+        current_execution=visibility.current_execution,
+    )
+
+
+def _render_observe_execution(result: ObserveExecutionResult) -> None:
+    """Render a human-friendly local execution snapshot."""
+    console.print("[bold]Execution Status[/]")
+    console.print("[dim]Read-only local snapshot from core observability.[/]")
+    console.print()
+
+    summary = Table.grid(padding=(0, 2))
+    summary.add_column(style=f"bold {_INSTALL_ACCENT_COLOR}")
+    summary.add_column()
+    summary.add_row("Workspace", result.workspace)
+    if result.phase or result.plan:
+        phase_plan = " / ".join(part for part in (result.phase, result.plan) if part)
+        summary.add_row("Phase/Plan", phase_plan or "—")
+    summary.add_row("Current state", result.current_state or "unknown")
+    summary.add_row("Assessment", result.assessment)
+    summary.add_row("Current task", result.current_task or "—")
+    summary.add_row("Waiting reason", result.waiting_reason or "—")
+    summary.add_row("Blocked reason", result.blocked_reason or "—")
+    summary.add_row("Review reason", result.review_reason or "—")
+    summary.add_row("Last update age", result.last_update_age or "unknown")
+    if result.resume_file:
+        summary.add_row("Resume file", _format_display_path(result.resume_file))
+    console.print(summary)
+
+    console.print()
+    console.print("[bold]Suggested next commands[/]")
+    for suggestion in result.suggested_next_commands:
+        console.print(f"- {suggestion.command} — {suggestion.reason}")
+
+    if not result.found:
+        console.print()
+        console.print("[dim]No live execution snapshot is currently recorded for this workspace.[/]")
+    elif result.possibly_stalled:
+        console.print()
+        console.print(
+            f"[yellow]This execution is possibly stalled.[/] It is still marked active and has not updated for at least {result.stale_after_minutes} minutes."
+        )
+
+
+observe_app = typer.Typer(help="Inspect local observability sessions, live execution status, and events")
 app.add_typer(observe_app, name="observe")
+
+
+@observe_app.command("execution")
+def observe_execution() -> None:
+    """Show the current local execution status without modifying project state."""
+    result = _observe_execution_payload()
+    if _raw:
+        _output(result)
+        return
+    _render_observe_execution(result)
 
 
 @observe_app.command("sessions")

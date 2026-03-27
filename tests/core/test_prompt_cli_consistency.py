@@ -319,6 +319,7 @@ def test_help_prompt_workflow_modes_match_current_settings_vocabulary() -> None:
         assert "execution.review_cadence" in content
         assert "planning.commit_docs" in content
         assert "git.branching_strategy" in content
+        assert "gpd observe execution" in content
 
 
 def test_help_prompt_session_management_keeps_pause_before_leave_and_resume_on_return() -> None:

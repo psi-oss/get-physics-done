@@ -151,6 +151,12 @@ def test_help_surfaces_permissions_readiness_commands() -> None:
     assert "gpd resume" in result.output
 
 
+def test_observe_help_surfaces_read_only_execution_snapshot_command() -> None:
+    result = runner.invoke(app, ["observe", "execution", "--help"])
+    assert result.exit_code == 0
+    assert "Show the current local execution status without modifying project state." in result.output
+
+
 def test_doctor_help_surfaces_runtime_readiness_mode() -> None:
     result = runner.invoke(app, ["doctor", "--help"])
     assert result.exit_code == 0
@@ -206,6 +212,13 @@ def test_resume_help_surfaces_read_only_local_recovery_role() -> None:
     result = runner.invoke(app, ["resume", "--help"])
     assert result.exit_code == 0
     assert "Summarize local recovery state without routing or modifying project files." in result.output
+
+
+def test_observe_execution_help_surfaces_read_only_local_status_role() -> None:
+    result = runner.invoke(app, ["observe", "execution", "--help"])
+    assert result.exit_code == 0
+    assert "Show the current local execution status without modifying project state." in result.output
+    assert "possibly stalled" not in result.output.lower()
 
 
 def test_validate_help_surfaces_command_context_preflight_entrypoint() -> None:
@@ -760,6 +773,62 @@ def test_observe_sessions_reads_local_metadata(tmp_path: Path) -> None:
     assert payload["count"] >= 1
     assert any(session["session_id"] == "cli-session-1" for session in payload["sessions"])
     assert any(session.get("command") == "timestamp" for session in payload["sessions"])
+
+
+def test_observe_execution_raw_reads_local_visibility_snapshot(tmp_path: Path) -> None:
+    observability = tmp_path / "GPD" / "observability"
+    observability.mkdir(parents=True)
+    (observability / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "cli-session-1",
+                "phase": "03",
+                "plan": "02",
+                "segment_status": "active",
+                "current_task": "Benchmark reproduction",
+                "updated_at": "2000-01-01T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "observe", "execution"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["found"] is True
+    assert payload["status_classification"] == "active"
+    assert payload["assessment"] == "possibly stalled"
+    assert payload["possibly_stalled"] is True
+    assert payload["stale_after_minutes"] == 30
+    assert payload["current_task"] == "Benchmark reproduction"
+
+
+def test_observe_execution_human_output_keeps_waiting_state_distinct_from_possibly_stalled(tmp_path: Path) -> None:
+    observability = tmp_path / "GPD" / "observability"
+    observability.mkdir(parents=True)
+    (observability / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "cli-session-1",
+                "phase": "03",
+                "plan": "02",
+                "segment_status": "waiting_review",
+                "waiting_for_review": True,
+                "checkpoint_reason": "first_result",
+                "first_result_gate_pending": True,
+                "updated_at": "2000-01-01T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["--cwd", str(tmp_path), "observe", "execution"])
+
+    assert result.exit_code == 0
+    assert "Execution Status" in result.output
+    assert "waiting" in result.output.lower()
+    assert "possibly stalled" not in result.output.lower()
 
 
 def test_observe_show_filters_events(tmp_path: Path) -> None:
