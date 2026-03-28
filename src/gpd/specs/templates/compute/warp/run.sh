@@ -27,7 +27,7 @@ docker run --rm \
     -v "${OUTPUT_DIR}:/app/output" \
     -e OUTPUT_DIR=/app/output \
     -e WARP_DEVICE="${WARP_DEVICE:-cpu}" \
-    "${@}" \
+    ${@+"$@"} \
     "${IMAGE}"
 
 echo ""
