@@ -669,6 +669,41 @@ _BOOTSTRAP_PATTERNS: list[dict[str, object]] = [
         "prevention": "With (+,-,-,-), rotate k0 -> ik4 counterclockwise. Verify Minkowski -> Euclidean mapping.",
         "tags": ["wick-rotation", "euclidean", "sign", "pole", "analytic-continuation"],
     },
+    # ── Differentiable simulation patterns ────────────────────────────────────
+    {
+        "domain": "classical",
+        "category": "convergence-issue",
+        "severity": "high",
+        "title": "Inconsistent iteration count for forward and gradient passes",
+        "slug": "forward-gradient-iteration-mismatch",
+        "description": "Using fewer solver iterations for the backward/gradient pass than the forward pass produces noisy, unreliable gradients that do not reflect the actual loss landscape.",
+        "detection": "Compare iteration counts in forward solve vs gradient tape. Check gradient norm stability across iteration counts.",
+        "prevention": "Always use the same solver fidelity for forward and backward passes in tape-based autodiff.",
+        "tags": ["autodiff", "gradient", "iteration", "convergence", "differentiable-simulation", "tape"],
+    },
+    {
+        "domain": "classical",
+        "category": "approximation-failure",
+        "severity": "high",
+        "title": "Uniform material properties in spatially heterogeneous domain",
+        "slug": "uniform-properties-heterogeneous-domain",
+        "domains_extra": ["fluid"],
+        "description": "Using a single effective conductivity, viscosity, or diffusivity for a domain with large property contrasts (e.g., k ranging from 2 to 150 W/mK) misrepresents heat flow paths and produces qualitatively wrong temperature or velocity fields.",
+        "detection": "Check if the property field is a scalar vs a spatially varying array. Compare against known material values for the geometry.",
+        "prevention": "Map material properties spatially from geometry. Use harmonic mean at material interfaces for FDM, or proper weak form for FEM.",
+        "tags": ["material-properties", "conductivity", "heterogeneous", "interface", "FDM", "FEM"],
+    },
+    {
+        "domain": "classical",
+        "category": "convergence-issue",
+        "severity": "medium",
+        "title": "Finite-difference gradients when autodiff is available",
+        "slug": "fd-gradients-when-autodiff-available",
+        "description": "Computing gradients via finite differences (2N extra solves per step) when the forward solver is composed entirely of differentiable operations that support tape-based AD. Wastes compute and introduces FD step-size sensitivity.",
+        "detection": "Look for perturbation-based gradient loops (eps parameter, multiple solve calls per optimization step) in code where the solver uses a differentiable framework.",
+        "prevention": "If the forward pass is composed of differentiable kernels (Warp, JAX, PyTorch, Taichi), use the framework's built-in AD instead of finite differences.",
+        "tags": ["autodiff", "finite-difference", "gradient", "efficiency", "differentiable-simulation"],
+    },
 ]
 
 
