@@ -22,6 +22,12 @@ https://github.com/user-attachments/assets/e79f8153-c0bd-484f-b69e-da8f142649e0
 
 [Quick Start](#quick-start) · [Supported Runtimes](#supported-runtimes) · [Workflow](#what-gpd-does) · [Commands](#key-in-runtime-commands) · [Models](#optional-model-profiles-and-tier-overrides) · [Advanced CLI](#advanced-cli-utilities) · [System Requirements](#system-requirements)
 
+<p align="center">
+  <img src=".github/warp-barrier-optimization.png" alt="Differentiable simulation: autodiff through a 2D PDE solver to optimize thermal shielding" width="800">
+  <br>
+  <sub>Differentiable simulation with NVIDIA Warp — gradient-based design optimization through containerized PDE solvers</sub>
+</p>
+
 ## Who This Is For
 
 GPD is for hard physics research problems that cannot be handled reliably with manual prompting.
