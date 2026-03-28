@@ -6,7 +6,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from gpd.mcp.paper.bibliography import BibliographyAudit
 
@@ -280,6 +280,49 @@ class JournalSpec(BaseModel):
     texlive_package: str
     required_tex_files: list[str] = Field(default_factory=list)
     install_hint: str = ""
+
+
+class PaperToolchainCapability(BaseModel):
+    """Machine-local paper toolchain capability summary.
+
+    This is intentionally scoped to the shared build environment.  It covers
+    the compiler and helper binaries that influence paper generation, but not
+    journal-specific class/package readiness.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    compiler: str = "pdflatex"
+    compiler_available: bool = False
+    compiler_path: str | None = None
+    distribution: str | None = None
+    bibtex_available: bool = False
+    latexmk_available: bool = False
+    kpsewhich_available: bool = False
+    readiness_state: Literal["blocked", "degraded", "ready"] = "blocked"
+    message: str = ""
+    warnings: list[str] = Field(default_factory=list)
+
+    @computed_field
+    @property
+    def available(self) -> bool:
+        """Backward-compatible alias for compiler availability."""
+
+        return self.compiler_available
+
+    @computed_field
+    @property
+    def paper_build_ready(self) -> bool:
+        """Whether the basic paper build toolchain is usable."""
+
+        return self.compiler_available
+
+    @computed_field
+    @property
+    def arxiv_submission_ready(self) -> bool:
+        """Whether the build environment can produce bibliography-resolved PDFs."""
+
+        return self.compiler_available and self.bibtex_available
 
 
 class PaperConfig(BaseModel):

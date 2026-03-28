@@ -27,7 +27,7 @@ from gpd.mcp.paper.bibliography import (
 )
 from gpd.mcp.paper.figures import _prepare_figures_with_sources
 from gpd.mcp.paper.journal_map import get_journal_spec
-from gpd.mcp.paper.models import FigureRef, JournalSpec, PaperConfig, PaperOutput
+from gpd.mcp.paper.models import FigureRef, JournalSpec, PaperConfig, PaperOutput, PaperToolchainCapability
 from gpd.mcp.paper.template_registry import render_paper
 
 logger = logging.getLogger(__name__)
@@ -86,46 +86,94 @@ def find_latex_compiler(compiler: str = "pdflatex") -> str | None:
     return None
 
 
-@dataclass(frozen=True)
-class LatexToolchainStatus:
-    """Result of a LaTeX toolchain availability check."""
-
-    available: bool
-    compiler_path: str | None = None
-    distribution: str | None = None
-    message: str = ""
+LatexToolchainStatus = PaperToolchainCapability
 
 
 def detect_latex_toolchain(compiler: str = "pdflatex") -> LatexToolchainStatus:
-    """Detect whether a usable LaTeX toolchain is present.
+    """Detect whether a usable paper toolchain is present.
 
-    Returns a :class:`LatexToolchainStatus` summarising availability, the
-    resolved compiler path, the likely distribution name, and a
-    human-readable message.
+    Returns a :class:`LatexToolchainStatus` summarising compiler availability,
+    the resolved compiler path, helper-tool availability, the likely
+    distribution name, and a human-readable readiness summary.
     """
     path = find_latex_compiler(compiler)
-    if path is None:
-        return LatexToolchainStatus(
-            available=False,
-            message=get_latex_install_guidance(),
-        )
+    bibtex_path = find_latex_compiler("bibtex")
+    latexmk_path = find_latex_compiler("latexmk")
+    kpsewhich_path = find_latex_compiler("kpsewhich")
+
+    compiler_available = path is not None
+    bibtex_available = bibtex_path is not None
+    latexmk_available = latexmk_path is not None
+    kpsewhich_available = kpsewhich_path is not None
+    warnings: list[str] = []
+
+    if compiler_available:
+        if not bibtex_available:
+            warnings.append("bibtex not found; bibliography processing will require a fallback path.")
+        if not latexmk_available:
+            warnings.append("latexmk not found; multi-pass compilation will fall back to manual passes.")
+        if not kpsewhich_available:
+            warnings.append("kpsewhich not found; TeX resource checks will assume installed resources.")
+    else:
+        warnings.append("Install a LaTeX distribution to enable paper compilation.")
 
     # Heuristic distribution name
-    lower = path.lower().replace("\\", "/")
-    if "miktex" in lower:
-        dist = "MiKTeX"
-    elif "texlive" in lower:
-        dist = "TeX Live"
-    elif "mactex" in lower or "/Library/TeX/" in path:
-        dist = "MacTeX"
+    dist: str | None
+    if compiler_available:
+        lower = path.lower().replace("\\", "/")
+        if "miktex" in lower:
+            dist = "MiKTeX"
+        elif "texlive" in lower:
+            dist = "TeX Live"
+        elif "mactex" in lower or "/Library/TeX/" in path:
+            dist = "MacTeX"
+        else:
+            dist = "TeX distribution"
     else:
-        dist = "TeX distribution"
+        dist = None
+
+    if not compiler_available:
+        return LatexToolchainStatus(
+            compiler=compiler,
+            compiler_available=False,
+            compiler_path=None,
+            distribution=None,
+            bibtex_available=bibtex_available,
+            latexmk_available=latexmk_available,
+            kpsewhich_available=kpsewhich_available,
+            readiness_state="blocked",
+            message=get_latex_install_guidance(),
+            warnings=warnings,
+        )
+
+    if bibtex_available:
+        readiness_state = "ready"
+        summary = f"{compiler} found ({dist}): {path}; BibTeX available"
+    else:
+        readiness_state = "degraded"
+        summary = f"{compiler} found ({dist}): {path}; BibTeX missing"
+
+    if latexmk_available:
+        summary += "; latexmk available"
+    else:
+        summary += "; latexmk unavailable"
+    if kpsewhich_available:
+        summary += "; kpsewhich available"
+    else:
+        summary += "; kpsewhich unavailable"
+    summary += f"; readiness={readiness_state}"
 
     return LatexToolchainStatus(
-        available=True,
+        compiler=compiler,
+        compiler_available=True,
         compiler_path=path,
         distribution=dist,
-        message=f"{compiler} found ({dist}): {path}",
+        bibtex_available=bibtex_available,
+        latexmk_available=latexmk_available,
+        kpsewhich_available=kpsewhich_available,
+        readiness_state=readiness_state,
+        message=summary,
+        warnings=warnings,
     )
 
 
