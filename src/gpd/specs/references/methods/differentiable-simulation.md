@@ -19,9 +19,9 @@ context_cost: medium
 A method protocol for optimizing through physics solvers using automatic differentiation. Covers when to use it, how to verify gradient correctness, common failure modes, and the relationship to classical adjoint methods.
 
 **Related files:**
-- `../approximation-selection.md` — broader method selection framework
-- `../../verification/core/verification-numerical.md` — convergence and numerical stability
-- `../../verification/core/verification-core.md` — conservation laws, limiting cases
+- `approximation-selection.md` — broader method selection framework
+- `../verification/core/verification-numerical.md` — convergence and numerical stability
+- `../verification/core/verification-core.md` — conservation laws, limiting cases
 - `../../templates/compute/warp-simulation.md` — containerized Warp simulation guide
 - `../../templates/compute/warp/` — ready-to-copy Dockerfiles, requirements.txt, and run script
 
