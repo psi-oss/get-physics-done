@@ -30,6 +30,15 @@ from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
 
+try:
+    from gpd.mcp.managed_integrations import (
+        WOLFRAM_MANAGED_INTEGRATION,
+        WOLFRAM_MANAGED_SERVER_KEY,
+    )
+except ImportError:  # pragma: no cover - partial checkout fallback
+    WOLFRAM_MANAGED_INTEGRATION = None
+    WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
+
 logger = logging.getLogger(__name__)
 
 _SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
@@ -190,9 +199,9 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         #   Project: .mcp.json (in project root, parent of .claude/)
         import json as _json
 
-        from gpd.mcp.builtin_servers import build_mcp_servers_dict, merge_managed_mcp_servers
+        from gpd.mcp.builtin_servers import merge_managed_mcp_servers
 
-        mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+        mcp_servers = _build_managed_mcp_servers()
         mcp_count = 0
         if mcp_servers:
             mcp_config_path = _mcp_config_path(target_dir, is_global=is_global)
@@ -489,9 +498,9 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                 except (ValueError, OSError):
                     mcp_config = None
                 if isinstance(mcp_config, dict) and isinstance(mcp_config.get("mcpServers"), dict):
-                    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
-                    removed_keys = [key for key in list(mcp_config["mcpServers"]) if key in GPD_MCP_SERVER_KEYS]
+                    removed_keys = [
+                        key for key in list(mcp_config["mcpServers"]) if key in _managed_mcp_server_keys()
+                    ]
                     if removed_keys:
                         for key in removed_keys:
                             del mcp_config["mcpServers"][key]
@@ -525,14 +534,12 @@ class ClaudeCodeAdapter(RuntimeAdapter):
 
         import json as _json
 
-        from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
         mcp_config = read_settings(mcp_config_path)
         mcp_servers = mcp_config.get("mcpServers")
         if not isinstance(mcp_servers, dict):
             return result
 
-        removed_keys = [key for key in list(mcp_servers) if key in GPD_MCP_SERVER_KEYS]
+        removed_keys = [key for key in list(mcp_servers) if key in _managed_mcp_server_keys()]
         if not removed_keys:
             for path in (
                 target_dir / "commands",
@@ -750,6 +757,36 @@ def _entry_has_gpd_hook(
         )
         for hook in entry_hooks
     )
+
+
+def _build_managed_mcp_servers() -> dict[str, dict[str, object]]:
+    """Return shared MCP servers plus configured optional integrations."""
+    from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+    servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+    servers.update(_build_managed_optional_mcp_servers())
+    return servers
+
+
+def _build_managed_optional_mcp_servers() -> dict[str, dict[str, object]]:
+    """Return optional managed MCP servers that are currently configured."""
+    if WOLFRAM_MANAGED_INTEGRATION is None:
+        return {}
+    if not WOLFRAM_MANAGED_INTEGRATION.is_configured():
+        return {}
+    return {
+        WOLFRAM_MANAGED_SERVER_KEY: {
+            "command": WOLFRAM_MANAGED_INTEGRATION.bridge_command,
+            "args": [],
+        }
+    }
+
+
+def _managed_mcp_server_keys() -> frozenset[str]:
+    """Return MCP server keys owned by GPD or managed optional integrations."""
+    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+    return frozenset(set(GPD_MCP_SERVER_KEYS) | {WOLFRAM_MANAGED_SERVER_KEY})
 
 
 __all__ = ["ClaudeCodeAdapter"]

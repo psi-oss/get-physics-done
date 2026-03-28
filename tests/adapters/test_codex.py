@@ -20,6 +20,9 @@ from gpd.adapters.codex import (
 from gpd.adapters.install_utils import build_runtime_cli_bridge_command, compile_markdown_for_runtime
 from gpd.registry import load_agents_from_dir
 
+WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
+WOLFRAM_MCP_API_KEY_ENV_VAR = "GPD_WOLFRAM_MCP_API_KEY"
+
 
 @pytest.fixture()
 def adapter() -> CodexAdapter:
@@ -492,6 +495,47 @@ class TestInstall:
         parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
         assert parsed["mcp_servers"]["gpd-state"]["startup_timeout_sec"] == 30
 
+    def test_install_projects_wolfram_mcp_server_and_preserves_overrides(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (target / "config.toml").write_text(
+            '[mcp_servers.gpd-wolfram]\n'
+            'command = "python3"\n'
+            'args = ["-m", "legacy.wolfram"]\n'
+            'cwd = "/tmp/custom-wolfram"\n'
+            '\n'
+            '[mcp_servers.gpd-wolfram.env]\n'
+            'EXTRA_FLAG = "1"\n'
+            '\n'
+            '[mcp_servers.custom-server]\n'
+            'command = "node"\n'
+            'args = ["custom.js"]\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "codex-test-key")
+
+        result = adapter.install(gpd_root, target, skills_dir=skills)
+
+        parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
+        server = parsed["mcp_servers"][WOLFRAM_MANAGED_SERVER_KEY]
+        assert server["command"] == "gpd-mcp-wolfram"
+        assert server["args"] == []
+        assert server["cwd"] == "/tmp/custom-wolfram"
+        assert server["env"] == {"EXTRA_FLAG": "1"}
+        assert parsed["mcp_servers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
+        assert "codex-test-key" not in (target / "config.toml").read_text(encoding="utf-8")
+        assert result["mcpServers"] == len(build_mcp_servers_dict(python_path=sys.executable)) + 1
+
     def test_install_notify_not_inside_existing_section(
         self,
         adapter: CodexAdapter,
@@ -604,7 +648,7 @@ class TestRuntimePermissions:
         adapter.install(gpd_root, target, skills_dir=skills)
 
         adapter.sync_runtime_permissions(target, autonomy="yolo")
-        result = adapter.sync_runtime_permissions(target, autonomy="balanced")
+        adapter.sync_runtime_permissions(target, autonomy="balanced")
 
         parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
         role = tomllib.loads((target / "agents" / "gpd-executor.toml").read_text(encoding="utf-8"))
@@ -1037,6 +1081,37 @@ class TestUninstall:
             assert "gpd-" not in content
             assert "notify.py" not in content
             assert "multi_agent" not in content
+
+    def test_uninstall_removes_wolfram_mcp_server_from_config_toml(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (target / "config.toml").write_text(
+            '[mcp_servers.gpd-wolfram]\n'
+            'command = "python3"\n'
+            'args = ["-m", "legacy.wolfram"]\n'
+            '\n'
+            '[mcp_servers.custom-server]\n'
+            'command = "node"\n'
+            'args = ["custom.js"]\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "codex-test-key")
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+        adapter.uninstall(target, skills_dir=skills)
+
+        content = (target / "config.toml").read_text(encoding="utf-8")
+        parsed = tomllib.loads(content)
+        assert WOLFRAM_MANAGED_SERVER_KEY not in parsed["mcp_servers"]
+        assert parsed["mcp_servers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
 
     def test_uninstall_on_empty_dir(self, adapter: CodexAdapter, tmp_path: Path) -> None:
         target = tmp_path / "empty"

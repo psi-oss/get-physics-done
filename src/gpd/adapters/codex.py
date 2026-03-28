@@ -53,6 +53,15 @@ from gpd.adapters.tool_names import build_runtime_alias_map, reference_translati
 from gpd.core.observability import gpd_span
 from gpd.registry import AgentDef, load_agents_from_dir
 
+try:
+    from gpd.mcp.managed_integrations import (
+        WOLFRAM_MANAGED_INTEGRATION,
+        WOLFRAM_MANAGED_SERVER_KEY,
+    )
+except ImportError:  # pragma: no cover - partial checkout fallback
+    WOLFRAM_MANAGED_INTEGRATION = None
+    WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
+
 logger = logging.getLogger(__name__)
 
 _TOOL_NAME_MAP: dict[str, str] = {
@@ -747,6 +756,7 @@ class CodexAdapter(RuntimeAdapter):
         from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
         mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+        mcp_servers.update(_build_managed_optional_mcp_servers())
         mcp_count = 0
         if mcp_servers:
             mcp_count = _write_mcp_servers_codex_toml(target_dir, mcp_servers)
@@ -1114,7 +1124,10 @@ class CodexAdapter(RuntimeAdapter):
             config_toml_mcp = target_dir / "config.toml"
             if config_toml_mcp.exists():
                 toml_mcp = config_toml_mcp.read_text(encoding="utf-8")
-                cleaned_mcp = _remove_gpd_mcp_toml_sections(toml_mcp)
+                cleaned_mcp = _remove_gpd_mcp_toml_sections(
+                    toml_mcp,
+                    extra_keys=_managed_optional_mcp_server_keys(),
+                )
                 if cleaned_mcp != toml_mcp:
                     config_toml_mcp.write_text(cleaned_mcp, encoding="utf-8")
                     removed.append("config.toml MCP servers")
@@ -1618,7 +1631,7 @@ def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str,
     existing_content = content
 
     # Remove existing GPD MCP sections before rewriting.
-    content = _remove_gpd_mcp_toml_sections(content)
+    content = _remove_gpd_mcp_toml_sections(content, extra_keys=set(servers))
 
     # Append new MCP server sections.
     lines: list[str] = []
@@ -1676,13 +1689,35 @@ def _write_codex_agent_roles_toml(target_dir: Path) -> int:
     return len(installed_agents)
 
 
-def _remove_gpd_mcp_toml_sections(content: str) -> str:
+def _build_managed_optional_mcp_servers() -> dict[str, dict[str, object]]:
+    """Return optional managed MCP servers that are currently configured."""
+    if WOLFRAM_MANAGED_INTEGRATION is None:
+        return {}
+    if not WOLFRAM_MANAGED_INTEGRATION.is_configured():
+        return {}
+    return {
+        WOLFRAM_MANAGED_SERVER_KEY: {
+            "command": WOLFRAM_MANAGED_INTEGRATION.bridge_command,
+            "args": [],
+        }
+    }
+
+
+def _managed_optional_mcp_server_keys() -> frozenset[str]:
+    """Return optional managed MCP server keys removed during uninstall."""
+    return frozenset({WOLFRAM_MANAGED_SERVER_KEY})
+
+
+def _remove_gpd_mcp_toml_sections(content: str, *, extra_keys: set[str] | None = None) -> str:
     """Remove GPD MCP server sections from TOML content."""
     from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
 
     # Remove the header comment and all [mcp_serversGPD-*] sections.
     content = re.sub(r"^# GPD MCP servers\n", "", content, flags=re.MULTILINE)
-    for key in GPD_MCP_SERVER_KEYS:
+    managed_keys = set(GPD_MCP_SERVER_KEYS)
+    if extra_keys:
+        managed_keys.update(extra_keys)
+    for key in managed_keys:
         escaped = re.escape(key)
         # Remove [mcp_servers.key] and [mcp_servers.key.env] sections until the next section.
         content = re.sub(
