@@ -49,7 +49,12 @@ from gpd.core.constants import (
     RECENT_PROJECTS_INDEX_FILENAME,
 )
 from gpd.core.errors import ConfigError, GPDError
-from gpd.core.workflow_presets import get_workflow_preset, list_workflow_presets
+from gpd.core.workflow_presets import (
+    apply_workflow_preset_config,
+    get_workflow_preset,
+    get_workflow_preset_config_bundle,
+    list_workflow_presets,
+)
 from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use, normalize_runtime_name
 
 if TYPE_CHECKING:
@@ -2822,16 +2827,16 @@ def init_milestone_op() -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# presets — Read-only workflow preset surface
+# presets — Workflow preset surface
 # ═══════════════════════════════════════════════════════════════════════════
 
-presets_app = typer.Typer(help="Read-only workflow presets for local CLI guidance")
+presets_app = typer.Typer(help="Workflow presets for local CLI preview and application")
 app.add_typer(presets_app, name="presets")
 
 
 @presets_app.command("list")
 def presets_list() -> None:
-    """List the central read-only workflow preset registry."""
+    """List the central workflow preset registry."""
     if _raw:
         _json_cli_output([dataclasses.asdict(preset) for preset in list_workflow_presets()])
         return
@@ -2851,6 +2856,66 @@ def presets_show(
         _json_cli_output(dataclasses.asdict(preset))
         return
     _print_workflow_preset_details(preset_name)
+
+
+@presets_app.command("apply")
+def presets_apply(
+    preset_name: str = typer.Argument(..., help="Workflow preset name"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the merged config without writing it"),
+) -> None:
+    """Apply a workflow preset to GPD/config.json."""
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.utils import atomic_write, file_lock
+
+    preset = get_workflow_preset(preset_name)
+    if preset is None:
+        supported = ", ".join(preset.id for preset in list_workflow_presets())
+        _error(f"Unknown workflow preset {preset_name!r}. Supported: {supported}")
+
+    bundle = get_workflow_preset_config_bundle(preset_name)
+    if bundle is None:
+        supported = ", ".join(preset.id for preset in list_workflow_presets())
+        _error(f"Unknown workflow preset {preset_name!r}. Supported: {supported}")
+    config_path = ProjectLayout(_get_cwd()).config_json
+    with file_lock(config_path):
+        try:
+            raw_text = config_path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            raw: dict[str, object] = {}
+        except OSError as exc:
+            _error(f"Cannot read config.json: {exc}")
+        else:
+            try:
+                raw = json.loads(raw_text)
+            except json.JSONDecodeError as exc:
+                _error(f"Malformed config.json: {exc}")
+
+        if not isinstance(raw, dict):
+            _error("config.json must be a JSON object")
+
+        try:
+            updated_config, _ = apply_workflow_preset_config(raw, preset_name)
+        except (ConfigError, ValueError) as exc:
+            _error(str(exc))
+
+        if not dry_run:
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write(config_path, json.dumps(updated_config, indent=2) + "\n")
+
+    ignored_keys = [key for key in preset.recommended_config if key not in bundle]
+    result: dict[str, object] = {
+        "preset": preset.id,
+        "label": preset.label,
+        "dry_run": dry_run,
+        "config_path": str(config_path),
+        "applied_keys": list(bundle.keys()),
+        "ignored_keys": ignored_keys,
+    }
+    if dry_run:
+        result["preview_config"] = updated_config
+    else:
+        result["updated"] = True
+    _output(result)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -6029,7 +6094,7 @@ def _workflow_preset_surface_note() -> str:
 
 
 def _print_workflow_preset_list() -> None:
-    """Render the read-only workflow preset registry as a table."""
+    """Render the workflow preset registry as a table."""
     presets = list_workflow_presets()
     table = Table(
         title="Workflow Presets",

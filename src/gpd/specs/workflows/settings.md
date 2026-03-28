@@ -16,13 +16,17 @@ When a preset is selected, resolve it into the current knobs:
 - `workflow.plan_checker`
 - `workflow.verifier`
 - `model_profile`
-- runtime-specific `model_overrides`
+- Existing `model_overrides` should remain unchanged unless the user explicitly edits tier overrides later in this same settings flow.
 
-Conservative starter bundles:
+Current preset catalog:
 
-- `Recommended defaults`: `autonomy=balanced`, `research_mode=balanced`, `execution.review_cadence=adaptive`, `parallelization=true`, `planning.commit_docs=true`, all workflow agents on, `model_profile=review`, and no pinned model overrides.
-- `Review-heavy`: `autonomy=supervised`, `research_mode=balanced`, `execution.review_cadence=dense`, `parallelization=false`, `planning.commit_docs=true`, all workflow agents on, `model_profile=review`, and no pinned model overrides.
-- `Budget-aware`: `autonomy=balanced`, `research_mode=balanced` or `exploit` when the scope is already narrow, `execution.review_cadence=adaptive`, `parallelization=true`, `planning.commit_docs=true`, all workflow agents on, `model_profile=review`, and no pinned model overrides.
+- `core-research` — recommended balanced default for most projects
+- `theory` — derivation-heavy workflow with `model_profile=deep-theory`
+- `numerics` — computation-heavy workflow with `model_profile=numerical`
+- `publication-manuscript` — paper-writing workflow with `model_profile=paper-writing`; build/submission depend on LaTeX readiness
+- `full-research` — core research defaults with publication readiness tracked alongside them
+
+Preset application must be explicit and previewable. Show the resolved knobs first, then ask whether to apply the bundle or return to the detailed questions. Do not create or persist a separate preset block.
 </preset_guidance>
 
 <required_reading>
@@ -93,7 +97,17 @@ If `model_overrides.<runtime>` already exists, surface the current `tier-1` / `t
 
 Treat this as the primary guided unattended-use flow: explain that autonomy, unattended budgets, runtime permission sync, and conservative preset bundles all live here, and that `Balanced` is the recommended default for most users.
 
-If the user asks for a preset, map it onto the existing knobs above. Present it as a starting bundle only; do not add a new persisted config section or install step.
+If the user asks for a preset, map it onto the existing knobs above. Present the resolved bundle first, let the user preview it, then ask for an explicit apply/adjust choice. Do not add a new persisted config section or install step.
+Use `gpd presets list` for the catalog, `gpd presets show <preset>` to preview one bundle, and `gpd presets apply <preset> --dry-run` when the user wants the local preview/apply path from a normal terminal.
+
+Before the detailed question list, offer a compact preset chooser when the user wants a starter bundle:
+
+- Core research (Recommended): preview and apply the balanced default bundle over the existing knobs
+- Theory: preview and apply the derivation-heavy bundle over the existing knobs
+- Numerics: preview and apply the computation-heavy bundle over the existing knobs
+- Publication / manuscript: preview and apply the paper-writing bundle over the existing knobs
+- Full research: preview and apply the core-research-plus-publication-readiness bundle over the existing knobs
+- Customize settings: skip the preset and proceed to the detailed questions below
 
 Use ask_user with current values pre-selected:
 

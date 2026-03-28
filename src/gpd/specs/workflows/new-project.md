@@ -1014,21 +1014,27 @@ CHECKPOINT
 
 ## 5. Workflow Preferences
 
-**Quick setup gate — offer recommended defaults before individual questions:**
+**Quick setup gate — offer a preset choice before individual questions:**
 
 Run this step after scope approval and before the first project-artifact commit whenever `GPD/config.json` does not exist yet.
 
-Treat the recommended setup as a conservative preset bundle over the existing config knobs, not a new persisted preset block. The workflow should only write `autonomy`, `research_mode`, `parallelization`, `planning.commit_docs`, `execution.review_cadence`, `model_profile`, and the workflow toggles that already exist.
+Treat the selected setup as a workflow preset bundle over the existing config knobs, not a new persisted preset block. The workflow should only write `autonomy`, `research_mode`, `parallelization`, `planning.commit_docs`, `execution.review_cadence`, `model_profile`, and the workflow toggles that already exist.
+
+First surface a preset choice so the user can start from a bundle or jump straight to customization. If a preset is selected, preview the resolved knobs before writing `GPD/config.json`. Do not persist a separate preset key.
 
 Use ask_user:
 
 - header: "Workflow Setup"
-- question: "How would you like to write `GPD/config.json`? Recommended defaults are a conservative preset bundle over the existing settings: `autonomy=balanced`, `research_mode=balanced`, `parallelization=true`, `planning.commit_docs=true`, `execution.review_cadence=adaptive`, `model_profile=review`, and enable `workflow.research`, `workflow.plan_checker`, and `workflow.verifier`. After writing config, also sync runtime permissions so yolo behaves correctly in the active runtime."
+- question: "Which starting workflow preset should GPD use for `GPD/config.json`?"
 - options:
-  - "Use recommended defaults (Recommended)" — write those exact values now. Saves 3-5 minutes.
+  - "Core research (Recommended)" — balanced planning/execution/verification default using the base runtime-readiness contract only
+  - "Theory" — derivation-heavy workflow with `model_profile=deep-theory` and denser review cadence
+  - "Numerics" — computation-heavy workflow with `model_profile=numerical` and the base runtime-readiness contract only
+  - "Publication / manuscript" — paper-writing workflow with `model_profile=paper-writing`; `paper-build` and `arxiv-submission` depend on LaTeX readiness later
+  - "Full research" — core research defaults plus publication readiness tracking for projects expected to end in a paper
   - "Customize settings" — choose `autonomy`, `research_mode`, `parallelization`, `planning.commit_docs`, `execution.review_cadence`, workflow agents, and `model_profile` individually
 
-**If "Use recommended defaults":** Skip all 8 config questions below. Create config.json directly with:
+**If a preset is selected:** Resolve the selected catalog preset into the existing config keys, show a one-line preview of the resolved knobs before writing config.json, and if the user wants to adjust the bundle, fall back to "Customize settings". For the recommended `core-research` preset, that preview should surface `autonomy=balanced`, `research_mode=balanced`, `parallelization=true`, `planning.commit_docs=true`, `execution.review_cadence=adaptive`, and `model_profile=review`. Example for `core-research`:
 
 ```json
 {

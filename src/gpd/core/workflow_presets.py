@@ -7,15 +7,22 @@ doctor-backed readiness for the machine-local surface.
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from typing import Any
 
+from gpd.core.config import apply_config_update, canonical_config_key, supported_config_keys
+
 __all__ = [
     "WorkflowPreset",
+    "apply_workflow_preset_config",
     "get_workflow_preset",
+    "get_workflow_preset_config_bundle",
     "list_workflow_presets",
     "resolve_workflow_preset_readiness",
 ]
+
+_GUIDANCE_ONLY_PRESET_KEYS = frozenset({"model_cost_posture"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +145,63 @@ WORKFLOW_PRESETS: tuple[WorkflowPreset, ...] = (
 )
 
 WORKFLOW_PRESET_INDEX: dict[str, WorkflowPreset] = {preset.id: preset for preset in WORKFLOW_PRESETS}
+
+
+def _preset_actionable_config_bundle(preset: WorkflowPreset) -> dict[str, Any]:
+    """Return a config-only bundle for one preset.
+
+    The bundle is limited to keys that already exist in the config schema.
+    Guidance-only values remain in ``recommended_config`` for callers that want
+    to display them, but they are not returned here because they are not
+    persisted config keys.
+    """
+
+    bundle: dict[str, Any] = {}
+    supported_keys = set(supported_config_keys())
+    for key, value in preset.recommended_config.items():
+        if key in _GUIDANCE_ONLY_PRESET_KEYS:
+            continue
+        if canonical_config_key(key) is None or key not in supported_keys:
+            supported = ", ".join(sorted(supported_keys))
+            raise ValueError(
+                f"Workflow preset {preset.id!r} contains unsupported config key {key!r}; "
+                f"expected one of: {supported}"
+            )
+        bundle[key] = copy.deepcopy(value)
+    return bundle
+
+
+def get_workflow_preset_config_bundle(preset_id: str) -> dict[str, Any] | None:
+    """Return the actionable config bundle for one preset.
+
+    The returned bundle is a detached copy that can be merged into a raw
+    ``config.json`` payload without mutating the preset registry or the input
+    config object.
+    """
+
+    preset = get_workflow_preset(preset_id)
+    if preset is None:
+        return None
+    return _preset_actionable_config_bundle(preset)
+
+
+def apply_workflow_preset_config(raw_config: dict[str, object], preset_id: str) -> tuple[dict[str, object], str]:
+    """Apply one preset bundle to a raw config payload atomically.
+
+    The input payload is never mutated. The preset is expanded into the current
+    config schema only, then validated once per key against the shared config
+    model so callers can write the returned payload directly.
+    """
+
+    preset = get_workflow_preset(preset_id)
+    if preset is None:
+        supported = ", ".join(preset.id for preset in list_workflow_presets())
+        raise ValueError(f"Unknown workflow preset {preset_id!r}. Supported: {supported}")
+
+    updated = copy.deepcopy(raw_config)
+    for key, value in _preset_actionable_config_bundle(preset).items():
+        updated, _ = apply_config_update(updated, key, value)
+    return updated, preset.id
 
 
 def list_workflow_presets() -> tuple[WorkflowPreset, ...]:

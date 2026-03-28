@@ -71,8 +71,13 @@ def _dedupe_text(items: list[str]) -> list[str]:
 
 def workflow_preset_surface_note() -> str:
     """Return the shared workflow-preset surface note."""
-    preset_labels = ", ".join(preset.label for preset in list_workflow_presets())
-    return f"Use `gpd presets list` to inspect the workflow preset surface: {preset_labels}."
+    preset_labels = ", ".join(preset.id for preset in list_workflow_presets())
+    return (
+        "Use `gpd presets list` to inspect the workflow preset catalog "
+        f"({preset_labels}), `gpd presets show <preset>` to preview one bundle, "
+        "and `gpd presets apply <preset> --dry-run` to preview the merged config "
+        "before writing it."
+    )
 
 
 def _row_value(row: object, field: str, default: object = None) -> object:

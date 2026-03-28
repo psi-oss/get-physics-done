@@ -71,16 +71,18 @@ Before stepping away mid-phase, run `/gpd:pause-work` so `/gpd:resume-work` has 
 **Local CLI bridge**
 1. `gpd --help` — inspect the local install/readiness/permissions/diagnostics surface directly
 2. `gpd permissions status --runtime <runtime> --autonomy balanced` / `gpd permissions sync --runtime <runtime> --autonomy balanced` — confirm and resync unattended readiness from your normal terminal
-3. `gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list` — read-only recovery, visibility, cost, and preset checks
+3. `gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list`, `gpd presets show <preset>`, `gpd presets apply <preset> --dry-run` — local recovery, visibility, cost, and preset preview/apply checks
 
 **Unattended / autonomy setup**
 1. `/gpd:settings` — Primary guided setup for autonomy, runtime permission sync, and unattended budgets (`Balanced` recommended)
 2. `/gpd:help --all` — Full command reference
 
 **Workflow presets**
-1. `Paper/manuscript workflows` — First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`
+1. `Paper/manuscript workflows` — First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
 2. `gpd doctor --runtime <runtime> --local|--global` — Check runtime-local LaTeX preset readiness from your normal terminal before using that preset; failed preset rows degrade that workflow rather than blocking the base install
-3. `gpd presets list` — Read-only local preset catalog showing the current preset names and their recommended config bundles
+3. `gpd presets list` — Inspect the local preset catalog; presets resolve to the existing config keys and are not stored as a separate preset block
+4. `gpd presets show <preset>` — Preview one preset's bundle before applying it
+5. `gpd presets apply <preset> [--dry-run]` — Apply or preview one preset from your normal terminal without inventing a separate preset schema
 
 **Core workflow:** new-project → discuss-phase → plan-phase → execute-phase → verify-work → repeat → complete-milestone
 **Publication:** write-paper → peer-review → respond-to-referees → arxiv-submission
@@ -119,9 +121,11 @@ Choose the path that matches your starting point:
 3. `/gpd:settings` - Primary guided unattended/autonomy setup after project creation; review budgets and sync runtime permissions here
 
 **Workflow presets**
-1. `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`
+1. `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
 2. `gpd doctor --runtime <runtime> --local|--global` - Check runtime-local LaTeX preset readiness from your normal terminal before using that preset; failed preset rows degrade that workflow rather than blocking the base install
-3. `gpd presets list` - Read-only local preset catalog showing the current preset names and their recommended config bundles
+3. `gpd presets list` - Inspect the local preset catalog; presets resolve to the existing config keys and are not stored as a separate preset block
+4. `gpd presets show <preset>` - Preview one preset's bundle before applying it
+5. `gpd presets apply <preset> [--dry-run]` - Apply or preview one preset from your normal terminal without inventing a separate preset schema
 
 **Existing work**
 1. `/gpd:map-research` - Map an existing folder or project first

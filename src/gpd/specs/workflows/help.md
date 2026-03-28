@@ -61,7 +61,7 @@ Phase {N} complete:
 Publication workflow:
   /gpd:peer-review         — Run manuscript peer review inside the current project
   /gpd:arxiv-submission    — Package only after review passes
-  gpd doctor --runtime <runtime> --local|--global — Check runtime-local LaTeX preset readiness for the paper/manuscript workflow preset; failed preset rows degrade that workflow rather than blocking the base install
+  gpd doctor --runtime <runtime> --local|--global — Check runtime-local LaTeX preset readiness for the paper/manuscript workflow preset; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade that workflow rather than blocking the base install
 ```
 
 **Referee report exists:**
@@ -138,9 +138,11 @@ Choose the path that matches your starting point:
 2. `/gpd:branch-hypothesis` - Explicit git-backed alternative path with isolated `GPD/` state when the tangent needs to diverge cleanly
 
 **Workflow presets**
-1. `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`
+1. `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
 2. `gpd doctor --runtime <runtime> --local|--global` - Check runtime-local LaTeX preset readiness from your normal terminal before using that preset; failed preset rows degrade that workflow rather than blocking the base install
-3. `gpd presets list` - Read-only local preset catalog showing the current preset names and their recommended config bundles
+3. `gpd presets list` - Inspect the local preset catalog; presets resolve to the existing config keys and are not stored as a separate preset block
+4. `gpd presets show <preset>` - Preview one preset's bundle before applying it
+5. `gpd presets apply <preset> [--dry-run]` - Apply or preview one preset from your normal terminal without inventing a separate preset schema
 
 **Existing work**
 1. `/gpd:map-research` - Map an existing folder or project first

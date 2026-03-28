@@ -645,7 +645,12 @@ def test_new_project_recommended_autonomy_matches_balanced_default() -> None:
     workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
 
     assert workflow_text.count('"autonomy": "balanced"') >= 2
-    assert "How would you like to write `GPD/config.json`?" in workflow_text
+    assert "Which starting workflow preset should GPD use for `GPD/config.json`?" in workflow_text
+    assert '"Core research (Recommended)"' in workflow_text
+    assert '"Theory"' in workflow_text
+    assert '"Numerics"' in workflow_text
+    assert '"Publication / manuscript"' in workflow_text
+    assert '"Full research"' in workflow_text
     assert (
         "`autonomy=balanced`, `research_mode=balanced`, `parallelization=true`, "
         "`planning.commit_docs=true`, `execution.review_cadence=adaptive`"
@@ -715,7 +720,8 @@ def test_new_project_defers_workflow_setup_until_after_scope_approval() -> None:
     assert "Run this step after scope approval and before the first project-artifact commit whenever `GPD/config.json` does not exist yet." in workflow_text
     assert "If Step 2.5 already captured provisional setup preferences" not in workflow_text
     assert "workflow opens with the physics-questioning pass" in command_text
-    assert "asks for workflow preferences only after scope approval and before the first project-artifact commit" in command_text
+    assert "surfaces a preset choice before writing workflow preferences" in command_text
+    assert "only asks the detailed config questions after scope approval" in command_text
 
 
 def test_questioning_guide_requires_anchors_and_disconfirming_questions() -> None:
@@ -2252,6 +2258,8 @@ def test_settings_workflow_surfaces_qualitative_model_cost_onboarding_and_runtim
     assert "gpd --help" in settings_workflow
     assert "gpd permissions status --runtime <runtime> --autonomy balanced" in settings_workflow
     assert "gpd permissions sync --runtime <runtime> --autonomy balanced" in settings_workflow
+    assert "gpd presets show <preset>" in settings_workflow
+    assert "gpd presets apply <preset> --dry-run" in settings_workflow
 
 
 def test_help_surfaces_distinguish_runtime_slash_commands_from_local_cli_subcommands() -> None:
@@ -2295,6 +2303,7 @@ def test_help_command_keeps_static_quick_start_while_workflow_owns_full_referenc
         "gpd --help",
         "gpd permissions status --runtime <runtime> --autonomy balanced",
         "gpd permissions sync --runtime <runtime> --autonomy balanced",
+        "gpd presets show <preset>",
         "gpd observe execution",
         "/gpd:suggest-next",
         "/gpd:tangent",

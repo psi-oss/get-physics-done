@@ -162,7 +162,7 @@ def _assert_single_runtime_next_steps(
         rf"If you plan to use paper/manuscript workflows, rerun "
         rf"gpd doctor --runtime {re.escape(descriptor.runtime_name)} --{re.escape(doctor_scope)} "
         rf"and check the `Workflow Presets` and `LaTeX Toolchain` rows before publication work\..*?"
-        rf"Use `gpd presets list` to inspect the workflow preset surface:",
+        r"Use `gpd presets list` to inspect the workflow preset (?:surface|catalog)",
         re.S,
     )
     assert pattern.search(output), output

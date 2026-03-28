@@ -162,10 +162,19 @@ def test_help_surfaces_workflow_presets_surface() -> None:
     assert result.exit_code == 0
     normalized_output = " ".join(result.output.split())
     assert "presets" in normalized_output
-    assert "Read-only workflow presets for local CLI guidance" in normalized_output
+    assert "Workflow presets for local CLI preview" in normalized_output
+    assert "application" in normalized_output
 
 
-def test_workflow_presets_surface_is_read_only() -> None:
+def test_workflow_presets_help_surfaces_apply_command() -> None:
+    result = runner.invoke(app, ["presets", "apply", "--help"])
+    assert result.exit_code == 0
+    normalized_output = " ".join(result.output.split())
+    assert "--dry-run" in normalized_output
+    assert "Show the merged config without writing it" in normalized_output
+
+
+def test_workflow_presets_surface_lists_catalog() -> None:
     result = runner.invoke(app, ["presets", "list"])
     assert result.exit_code == 0
     assert "Workflow Presets" in result.output
@@ -182,6 +191,117 @@ def test_workflow_preset_show_raw_outputs_central_contract() -> None:
     assert payload["required_checks"] == []
     assert payload["recommended_config"]["model_profile"] == "review"
     assert payload["summary"] == "Balanced default workflow for planning, execution, and verification."
+
+
+def test_workflow_preset_apply_dry_run_previews_merged_config(tmp_path: Path) -> None:
+    config_dir = tmp_path / "GPD"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    config_path = config_dir / "config.json"
+    original_config = {
+        "autonomy": "supervised",
+        "research_mode": "balanced",
+        "model_profile": "review",
+        "parallelization": False,
+        "execution": {
+            "review_cadence": "sparse",
+            "checkpoint_after_n_tasks": 7,
+            "checkpoint_before_downstream_dependent_tasks": False,
+        },
+        "planning": {"commit_docs": False},
+        "workflow": {"research": False, "plan_checker": False, "verifier": False},
+    }
+    config_path.write_text(json.dumps(original_config), encoding="utf-8")
+
+    result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "presets", "apply", "core-research", "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["preset"] == "core-research"
+    assert payload["label"] == "Core research"
+    assert payload["dry_run"] is True
+    assert payload["applied_keys"] == [
+        "autonomy",
+        "research_mode",
+        "model_profile",
+        "execution.review_cadence",
+        "parallelization",
+        "planning.commit_docs",
+        "workflow.research",
+        "workflow.plan_checker",
+        "workflow.verifier",
+    ]
+    assert payload["ignored_keys"] == ["model_cost_posture"]
+    preview = payload["preview_config"]
+    assert preview["autonomy"] == "balanced"
+    assert preview["research_mode"] == "balanced"
+    assert preview["model_profile"] == "review"
+    assert preview["parallelization"] is True
+    assert preview["commit_docs"] is True
+    assert preview["execution"]["review_cadence"] == "adaptive"
+    assert preview["execution"]["checkpoint_after_n_tasks"] == 7
+    assert preview["execution"]["checkpoint_before_downstream_dependent_tasks"] is False
+    assert preview["research"] is True
+    assert preview["plan_checker"] is True
+    assert preview["verifier"] is True
+    assert "planning" not in preview
+    assert "workflow" not in preview
+    assert json.loads(config_path.read_text(encoding="utf-8")) == original_config
+
+
+def test_workflow_preset_apply_writes_merged_config(tmp_path: Path) -> None:
+    config_dir = tmp_path / "GPD"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    config_path = config_dir / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "autonomy": "supervised",
+                "research_mode": "adaptive",
+                "model_profile": "review",
+                "parallelization": False,
+                "execution": {
+                    "review_cadence": "dense",
+                    "checkpoint_after_n_tasks": 11,
+                },
+                "workflow": {"research": False, "plan_checker": False, "verifier": False},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "presets", "apply", "publication-manuscript"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["preset"] == "publication-manuscript"
+    assert payload["dry_run"] is False
+    assert payload["updated"] is True
+    assert payload["ignored_keys"] == ["model_cost_posture"]
+    assert payload["applied_keys"] == [
+        "autonomy",
+        "research_mode",
+        "model_profile",
+        "execution.review_cadence",
+        "parallelization",
+        "planning.commit_docs",
+        "workflow.research",
+        "workflow.plan_checker",
+        "workflow.verifier",
+    ]
+
+    written = json.loads(config_path.read_text(encoding="utf-8"))
+    assert written["autonomy"] == "balanced"
+    assert written["research_mode"] == "exploit"
+    assert written["model_profile"] == "paper-writing"
+    assert written["parallelization"] is False
+    assert written["commit_docs"] is True
+    assert written["execution"]["review_cadence"] == "dense"
+    assert written["execution"]["checkpoint_after_n_tasks"] == 11
+    assert written["research"] is True
+    assert written["plan_checker"] is True
+    assert written["verifier"] is True
+    assert "planning" not in written
+    assert "workflow" not in written
 
 
 def _sample_cost_summary(workspace: Path) -> CostSummary:

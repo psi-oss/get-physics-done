@@ -687,8 +687,10 @@ def test_public_readme_and_bootstrap_surface_optional_workflow_add_on_guidance()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
     installer = (repo_root / "bin/install.js").read_text(encoding="utf-8")
 
-    assert "Workflow presets let you keep the base install narrow" in readme
+    assert "Workflow presets are actionable bundles over the existing config keys." in readme
     assert "The first supported workflow preset is paper/manuscript workflows" in readme
+    assert "preview one bundle before choosing it" in readme
+    assert "gpd presets apply <preset> --dry-run" in readme
     assert "check runtime-local LaTeX preset readiness on this machine" in readme
     assert "Missing preset tooling degrades that preset; it does not block the base GPD install." in readme
     assert "Workflow presets: if you plan paper/manuscript workflows, rerun " in installer
@@ -708,6 +710,8 @@ def test_public_readme_keeps_bootstrap_prerequisites_and_runtime_doctor_scopes_d
     assert "If the bootstrap installer fails before `gpd doctor --runtime <runtime> --local|--global` can run, fix Node / Python / `venv` bootstrap prerequisites first." in quick_start
     assert "If `gpd doctor --runtime <runtime> --local|--global` fails, fix the selected runtime's launcher / target / runtime-readiness issue first." in quick_start
     assert "Workflow presets are workflow-specific extra capabilities that sit on top of the base install." in quick_start
+    assert "inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and use `gpd presets apply <preset> --dry-run`" in quick_start
+    assert "There is no separate persisted preset block" in quick_start
     assert "If `gpd doctor --runtime <runtime> --local|--global` only warns about `Workflow Presets` or `LaTeX Toolchain`, the base install can still be fine;" in quick_start
 
 
@@ -761,6 +765,9 @@ def test_public_help_surfaces_keep_settings_as_guided_post_startup_path() -> Non
         assert "3. `/gpd:settings` - Primary guided unattended/autonomy setup after project creation" in content
         assert "Paper/manuscript workflows" in content
         assert "gpd presets list" in content
+        assert "gpd presets show <preset>" in content
+        assert "gpd presets apply <preset>" in content
+        assert "not stored as a separate preset block" in content
         assert "gpd --help" in content
         assert "gpd permissions status --runtime <runtime> --autonomy balanced" in content
         assert "gpd permissions sync --runtime <runtime> --autonomy balanced" in content
@@ -780,6 +787,8 @@ def test_public_settings_workflow_keeps_balanced_recommendation_and_relaunch_gui
     assert 'gpd --raw permissions sync --autonomy "$SELECTED_AUTONOMY"' in settings_workflow
     assert "If `requires_relaunch` is `true`, surface `next_step` verbatim" in settings_workflow
     assert "Runtime permissions sync attempted after autonomy is written, with relaunch guidance surfaced when required" in settings_workflow
+    assert "Preset application must be explicit and previewable." in settings_workflow
+    assert "Present the resolved bundle first, let the user preview it, then ask for an explicit apply/adjust choice." in settings_workflow
     assert "Local CLI bridge: use `gpd --help`, `gpd permissions status --runtime <runtime> --autonomy balanced`, `gpd permissions sync --runtime <runtime> --autonomy balanced`, `gpd resume --recent`, `gpd observe execution`, `gpd cost`, and `gpd presets list`" in settings_workflow
     assert "What model-cost posture should GPD optimize for?" in settings_workflow
     assert "Use runtime defaults" in settings_workflow

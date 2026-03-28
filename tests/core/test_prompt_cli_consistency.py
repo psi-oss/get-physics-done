@@ -174,6 +174,7 @@ def test_help_prompt_default_quick_start_stays_runtime_surface_focused() -> None
         "gpd observe execution",
         "gpd cost",
         "gpd presets list",
+        "gpd presets show <preset>",
         "/gpd:progress",
         "/gpd:suggest-next",
         "/gpd:tangent",
@@ -199,6 +200,8 @@ def test_help_prompt_keeps_workflow_preset_readiness_on_local_cli_surface() -> N
     assert "Paper/manuscript workflows" in quick_start
     assert "gpd doctor --runtime <runtime> --local|--global" in quick_start
     assert "gpd presets list" in quick_start
+    assert "gpd presets show <preset>" in quick_start
+    assert "gpd presets apply <preset>" in quick_start
     assert "runtime-local LaTeX preset readiness" in quick_start
     for content in (help_command, help_workflow):
         assert (
@@ -209,6 +212,9 @@ def test_help_prompt_keeps_workflow_preset_readiness_on_local_cli_surface() -> N
         assert "gpd permissions sync --runtime <runtime> --autonomy balanced" in content
         assert "gpd doctor --runtime <runtime> --local|--global" in content
         assert "Workflow presets" in content
+        assert "gpd presets show <preset>" in content
+        assert "gpd presets apply <preset>" in content
+        assert "not stored as a separate preset block" in content
         assert "failed preset rows degrade that workflow rather than blocking the base install" in content
 
 
@@ -350,16 +356,27 @@ def test_help_prompts_surface_tangent_command_for_side_investigations() -> None:
 
 def test_settings_and_research_mode_docs_keep_tangent_branch_taxonomy_strict() -> None:
     settings = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+    new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
     research_modes = (
         REPO_ROOT / "src/gpd/specs/references/research/research-modes.md"
     ).read_text(encoding="utf-8")
 
+    assert "Which starting workflow preset should GPD use for `GPD/config.json`?" in new_project
+    assert "offer a preset choice before individual questions" in new_project
+    assert "preview the resolved knobs before writing `GPD/config.json`" in new_project
+    assert '"Core research (Recommended)"' in new_project
+    assert '"Theory"' in new_project
+    assert '"Numerics"' in new_project
+    assert '"Publication / manuscript"' in new_project
+    assert '"Full research"' in new_project
     assert "multiple hypothesis branches" not in settings
     assert "Minimal branching, fast convergence." not in settings
     assert "auto-switch to exploit once approach is validated" not in settings
     assert "does **not** by itself authorize git-backed hypothesis branches" in settings
     assert "surface tangent decisions explicitly" in settings
     assert "Suppress optional tangents unless the user explicitly requests them" in settings
+    assert "Preset application must be explicit and previewable." in settings
+    assert "Present the resolved bundle first, let the user preview it, then ask for an explicit apply/adjust choice." in settings
     assert "do **not** silently create git-backed hypothesis branches" in research_modes
     assert "only explicit tangent decisions become hypothesis branches or parallel plans" in research_modes
     assert "Flag complementary approaches as tangent candidates for optional parallel investigation" in research_modes
@@ -415,6 +432,9 @@ def test_help_prompt_surfaces_workflow_presets_on_the_local_cli_surface() -> Non
         assert "Paper/manuscript workflows" in content
         assert "gpd doctor --runtime <runtime> --local|--global" in content
         assert "gpd presets list" in content
+        assert "gpd presets show <preset>" in content
+        assert "gpd presets apply <preset>" in content
+        assert "not stored as a separate preset block" in content
         assert "failed preset rows degrade that workflow rather than blocking the base install" in content
         assert "/gpd:settings" in content
         assert "/gpd:set-profile" in content
