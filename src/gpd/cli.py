@@ -21,6 +21,7 @@ import os
 import posixpath
 import re
 import shlex
+import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -4200,6 +4201,38 @@ def _resolve_bibliography_path(
     return _first_existing_path(*candidates)
 
 
+def _paper_build_toolchain_payload() -> dict[str, object]:
+    """Return the paper-build toolchain contract payload."""
+    from gpd.mcp.paper.compiler import detect_latex_toolchain
+
+    latex_status = detect_latex_toolchain()
+    latexmk_available = shutil.which("latexmk") is not None
+    bibtex_available = shutil.which("bibtex") is not None
+    kpsewhich_available = shutil.which("kpsewhich") is not None
+
+    warnings: list[str] = []
+    if not latex_status.available and latex_status.message:
+        warnings.append(latex_status.message)
+    if latex_status.available and not bibtex_available:
+        warnings.append("bibtex not found; bibliography passes may be degraded.")
+    if latex_status.available and not kpsewhich_available:
+        warnings.append("kpsewhich not found; TeX resource checks may be best-effort only.")
+
+    compiler_available = bool(latex_status.available)
+    return {
+        "compiler_available": compiler_available,
+        "compiler_path": latex_status.compiler_path,
+        "distribution": latex_status.distribution,
+        "latexmk_available": latexmk_available,
+        "bibtex_available": bibtex_available,
+        "kpsewhich_available": kpsewhich_available,
+        "compile_checks_available": compiler_available,
+        "paper_build_ready": compiler_available,
+        "arxiv_submission_ready": compiler_available and bibtex_available,
+        "warnings": warnings,
+    }
+
+
 def _default_paper_output_dir(config_file: Path) -> Path:
     """Resolve the default durable output directory for a paper build."""
     return config_file.resolve(strict=False).parent
@@ -5500,6 +5533,7 @@ def paper_build(
             raise GPDError(f"Citation sources must be a JSON array: {_format_display_path(citation_source_path)}")
         citation_payload = [CitationSource.model_validate(item) for item in raw_sources]
 
+    toolchain = _paper_build_toolchain_payload()
     result = asyncio.run(
         build_paper(
             paper_config,
@@ -5522,7 +5556,9 @@ def paper_build(
         "success": result.success,
         "error_count": len(result.errors),
         "errors": result.errors,
-        "warnings": list(storage_check.warnings),
+        "toolchain": toolchain,
+        "warnings": list(storage_check.warnings)
+        + [warning for warning in toolchain["warnings"] if warning not in storage_check.warnings],
     }
     _output(payload)
     if not result.success:

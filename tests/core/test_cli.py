@@ -1835,7 +1835,19 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     result_payload.success = True
     result_payload.errors = []
 
-    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+    with (
+        patch("gpd.cli.shutil.which", side_effect=lambda binary: {
+            "latexmk": "/usr/bin/latexmk",
+            "bibtex": "/usr/bin/bibtex",
+            "kpsewhich": "/usr/bin/kpsewhich",
+        }.get(binary)),
+        patch("gpd.mcp.paper.compiler.detect_latex_toolchain") as mock_detect,
+        patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build,
+    ):
+        mock_detect.return_value.available = True
+        mock_detect.return_value.compiler_path = "/usr/bin/pdflatex"
+        mock_detect.return_value.distribution = "TeX Live"
+        mock_detect.return_value.message = "pdflatex found (TeX Live): /usr/bin/pdflatex"
         result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
 
     assert result.exit_code == 0
@@ -1846,6 +1858,20 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     assert payload["bibliography_source"] == "./references/references.bib"
     assert payload["manifest_path"] == "./paper/ARTIFACT-MANIFEST.json"
     assert payload["pdf_path"] == "./paper/main.pdf"
+    assert payload["toolchain"] == {
+        "compiler_available": True,
+        "compiler_path": "/usr/bin/pdflatex",
+        "distribution": "TeX Live",
+        "latexmk_available": True,
+        "bibtex_available": True,
+        "kpsewhich_available": True,
+        "compile_checks_available": True,
+        "paper_build_ready": True,
+        "arxiv_submission_ready": True,
+        "warnings": [],
+    }
+    assert len(payload["warnings"]) == 1
+    assert "temporary directory" in payload["warnings"][0]
 
     args = mock_build.await_args.args
     kwargs = mock_build.await_args.kwargs
@@ -2138,6 +2164,54 @@ def test_paper_build_without_bibliography_does_not_import_pybtex(tmp_path: Path,
     payload = json.loads(result.output)
     assert payload["bibliography_source"] == ""
     assert mock_build.await_args.kwargs["bib_data"] is None
+
+
+def test_paper_build_surfaces_toolchain_failure_details(tmp_path: Path) -> None:
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Configured Paper",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = None
+    result_payload.success = False
+    result_payload.errors = ["Compiler 'pdflatex' not found."]
+
+    mock_toolchain = MagicMock()
+    mock_toolchain.available = False
+    mock_toolchain.compiler_path = None
+    mock_toolchain.distribution = None
+    mock_toolchain.message = "No LaTeX compiler found."
+
+    with (
+        patch("gpd.cli.shutil.which", return_value=None),
+        patch("gpd.mcp.paper.compiler.detect_latex_toolchain", return_value=mock_toolchain),
+        patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)),
+    ):
+        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["success"] is False
+    assert payload["errors"] == ["Compiler 'pdflatex' not found."]
+    assert payload["toolchain"]["compiler_available"] is False
+    assert payload["toolchain"]["paper_build_ready"] is False
+    assert payload["toolchain"]["arxiv_submission_ready"] is False
+    assert payload["toolchain"]["warnings"] == ["No LaTeX compiler found."]
+    assert any("temporary directory" in warning for warning in payload["warnings"])
+    assert any(warning == "No LaTeX compiler found." for warning in payload["warnings"])
 
 
 # ─── ported command subcommands ─────────────────────────────────────────────
