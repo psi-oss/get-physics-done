@@ -19,7 +19,7 @@ Getting started:
   /gpd:new-project --minimal — Faster one-question project bootstrap
   /gpd:map-research        — Map an existing research project
   gpd resume             — Current-workspace read-only recovery snapshot from your normal terminal
-  gpd resume --recent    — Find the workspace when you need to reopen it
+  gpd resume --recent    — Find the workspace first when you need to reopen a different one
 ```
 
 **Project exists, paused or resumable:**
@@ -31,7 +31,7 @@ Returning to work:
   /gpd:progress            — Review the broader project snapshot
   /gpd:suggest-next        — Fastest post-resume next command
   gpd observe execution    — Read-only live status from your normal terminal; use this for progress / waiting state, then follow its suggested read-only checks rather than runtime hotkeys
-  gpd cost                 — Read-only machine-local usage / cost summary from recorded local telemetry plus the current profile tier mix
+  gpd cost                 — Read-only machine-local usage / cost summary from recorded local telemetry plus the current profile tier mix; advisory only, not live budget enforcement or provider billing truth. If telemetry or the tier mix is missing, the summary stays partial or estimated rather than exact.
   /gpd:tangent             — Choose stay / quick / defer / branch when a side investigation appears
 ```
 
@@ -149,9 +149,11 @@ If `gpd observe execution` surfaces an alternative-path follow-up, route it thro
 **Workflow presets**
 1. `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
 2. `gpd doctor --runtime <runtime> --local|--global` - Check runtime-local paper-toolchain readiness from your normal terminal before using that preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
-3. `gpd presets list` - Inspect the local preset catalog; presets resolve to the existing config keys and are not stored as a separate preset block
+3. `gpd presets list` - Inspect the local preset catalog; presets resolve to the existing config keys and do not add a separate persisted preset block
 4. `gpd presets show <preset>` - Preview one preset's bundle before applying it
 5. `gpd presets apply <preset> [--dry-run]` - Apply or preview one preset from your normal terminal without inventing a separate preset schema
+
+Workflow presets are bundles over the existing config keys only; they do not add a separate persisted preset block.
 
 **Wolfram integration**
 1. `gpd integrations status wolfram` - Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
@@ -173,7 +175,7 @@ Workflow preset tooling is layered on top of the base install; it does not chang
 4. `/gpd:progress` - Secondary manual status check; use `--brief` when you only need a short snapshot
 5. `/gpd:suggest-next` - Fastest post-resume next command
 6. `gpd observe execution` - Read-only long-run visibility from your normal terminal; use this for progress / waiting state, conservative `possibly stalled` wording, and the next read-only checks
-7. `gpd cost` - Read-only machine-local usage / cost summary from recorded local telemetry plus the current profile tier mix; advisory only, not live budget enforcement or provider billing truth. If telemetry or the tier mix is missing, the summary stays partial or estimated rather than exact
+7. `gpd cost` - Read-only machine-local usage / cost summary from recorded local telemetry plus the current profile tier mix; advisory only, not live budget enforcement or provider billing truth. If telemetry or the tier mix is missing, the summary stays partial or estimated rather than exact.
 
 Recovery ladder: use `gpd resume` for the current-workspace read-only recovery snapshot. If that is the wrong workspace, use `gpd resume --recent` to find the workspace first, then continue inside that workspace with `/gpd:resume-work`. After resuming, `/gpd:suggest-next` is the fastest next command. Before stepping away mid-phase, run `/gpd:pause-work` so that ladder has an explicit handoff to restore.
 

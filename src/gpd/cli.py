@@ -50,6 +50,13 @@ from gpd.core.constants import (
     RECENT_PROJECTS_INDEX_FILENAME,
 )
 from gpd.core.errors import ConfigError, GPDError
+from gpd.core.surface_phrases import (
+    recovery_continue_action,
+    recovery_fast_next_action,
+    recovery_recent_action,
+    recovery_resume_action,
+    workflow_preset_surface_note,
+)
 from gpd.core.workflow_presets import (
     apply_workflow_preset_config,
     get_workflow_preset,
@@ -1432,13 +1439,13 @@ def _render_recent_resume_summary(rows: list[dict[str, object]]) -> None:
     console.print("[bold]Next here[/]")
     console.print("- Run the exact `gpd --cwd ... resume` command from the table to inspect the selected workspace.")
     if isinstance(runtime_resume_command, str) and runtime_resume_command.strip():
-        console.print(f"- In that workspace, `{runtime_resume_command}` continues paused work inside the runtime.")
+        console.print(f"- {recovery_continue_action(mode='recent-projects', continue_command=runtime_resume_command.strip())}")
     else:
-        console.print("- In that workspace, runtime `resume-work` continues paused work inside the runtime.")
+        console.print("- After selecting a workspace, use runtime `resume-work` there to continue paused work.")
     if isinstance(runtime_suggest_next_command, str) and runtime_suggest_next_command.strip():
-        console.print(f"- Once resumed, `{runtime_suggest_next_command}` is the fastest next runtime action.")
+        console.print(f"- {recovery_fast_next_action(fast_next_command=runtime_suggest_next_command.strip())}")
     else:
-        console.print("- Once resumed, runtime `suggest-next` is the fastest next runtime action.")
+        console.print("- runtime `suggest-next` is the fastest post-resume command when you only need the next action.")
 
 
 def _render_resume_summary(payload: dict[str, object]) -> None:
@@ -1532,8 +1539,8 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
 
     console.print()
     console.print("[bold]Recovery ladder[/]")
-    console.print("- `gpd resume` summarizes the current workspace recovery state.")
-    console.print("- `gpd resume --recent` lists machine-local recent projects when you need a different workspace.")
+    console.print(f"- {recovery_resume_action()}")
+    console.print(f"- {recovery_recent_action()}")
     console.print("- `gpd init resume` remains the machine-readable backend used by runtime resume workflows.")
     hint = _resume_recent_hint(payload)
     if hint is not None:
@@ -1542,14 +1549,12 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
     runtime_resume_command, runtime_suggest_next_command = _resume_runtime_commands()
 
     if isinstance(runtime_resume_command, str) and runtime_resume_command.strip():
-        console.print(f"- `{runtime_resume_command}` continues paused work inside the active runtime.")
+        console.print(f"- {recovery_continue_action(mode='current-workspace', continue_command=runtime_resume_command.strip())}")
     else:
         console.print("- runtime `resume-work` continues paused work inside the active runtime.")
 
     if isinstance(runtime_suggest_next_command, str) and runtime_suggest_next_command.strip():
-        console.print(
-            f"- `{runtime_suggest_next_command}` is the fastest post-resume command when you only need the next action."
-        )
+        console.print(f"- {recovery_fast_next_action(fast_next_command=runtime_suggest_next_command.strip())}")
     else:
         console.print("- runtime `suggest-next` is the fastest post-resume command when you only need the next action.")
 
@@ -6570,8 +6575,6 @@ def _target_dir_matches_global(runtime_name: str, target_dir: str, *, action: st
 
 def _workflow_preset_surface_note() -> str:
     """Return the shared preset-surface note derived from the preset registry."""
-    from gpd.core.runtime_hints import workflow_preset_surface_note
-
     return workflow_preset_surface_note()
 
 

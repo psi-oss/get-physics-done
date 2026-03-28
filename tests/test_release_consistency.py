@@ -16,6 +16,13 @@ import pytest
 
 from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.core.surface_phrases import (
+    cost_after_runs_guidance,
+    cost_summary_surface_note,
+    local_cli_bridge_note,
+    recovery_ladder_note,
+    workflow_preset_storage_note,
+)
 from scripts.release_workflow import (
     ReleaseError,
     bump_version,
@@ -171,14 +178,29 @@ def _assert_unattended_readiness_surface(content: str) -> None:
     )
 
 
+def _assert_shared_preset_surface_contract(content: str) -> None:
+    assert workflow_preset_storage_note() in content
+    assert "gpd presets list" in content
+    assert "gpd presets show <preset>" in content
+    assert "gpd presets apply <preset> --dry-run" in content
+
+
+def _assert_cost_advisory_contract(content: str) -> None:
+    assert "gpd cost" in content
+    assert "current profile tier mix" in content
+    assert "advisory only" in cost_summary_surface_note()
+    assert "partial or estimated rather than exact" in content
+
+
 def _assert_wolfram_plan_boundary(content: str) -> None:
     assert WOLFRAM_STATUS_SURFACE in content
     assert PLAN_PREFLIGHT_SURFACE in content
     assert (
         "does not prove local Mathematica availability or plan readiness" in content
         or "does not mean a plan is ready to run" in content
-        or "plan gate" in content
-        or "stays config-only" in content
+        or "shared Wolfram integration surface" in content
+        or "shared optional Wolfram integration config" in content
+        or "does not install Mathematica or prove plan readiness" in content
     )
 
 
@@ -684,15 +706,18 @@ def test_public_readme_quick_start_surfaces_step_one_entry_points() -> None:
     assert "the matching `branch-hypothesis` command only when you want the explicit git-backed alternative path" in quick_start
     assert "For model choice, the safe default is `review` plus runtime defaults." in quick_start
     assert "Use your runtime-specific `settings` command to move toward `Max quality`, `Balanced`, or `Budget-aware`" in quick_start
-    assert "After runs, use `gpd cost` to inspect recorded local usage/cost and the current profile tier mix" in quick_start
+    assert cost_after_runs_guidance().replace("local usage / cost", "local usage/cost") in quick_start
     assert "Use the exact runtime-specific command syntax below for your first command." in quick_start
     assert "If you are starting from existing work, run your runtime's `map-research` command first" in quick_start
     assert "gpd cost" in quick_start
     assert "/gpd:new-project --minimal" in quick_start
     assert "$gpd-resume-work" in quick_start
     assert "/gpd:map-research" in quick_start
-    assert "Recovery ladder: use `gpd resume`" in quick_start
-    assert "After resuming, the runtime `suggest-next` command is the fastest post-resume next command." in quick_start
+    assert recovery_ladder_note(
+        resume_work_phrase="the runtime `resume-work` command",
+        suggest_next_phrase="the runtime `suggest-next` command",
+        pause_work_phrase="your runtime-specific `pause-work` command",
+    ) in quick_start
     assert "| Continue in an existing GPD project | `/gpd:resume-work` | Use the runtime `resume-work` command to continue from the selected project state. |" in quick_start
 
 
@@ -703,12 +728,10 @@ def test_public_readme_quick_start_keeps_settings_guided_balanced_unattended_rea
     assert "For unattended execution, the recommended default is Balanced (`balanced`)." in quick_start
     assert "Use your runtime-specific `settings` command to confirm or change autonomy" in quick_start
     _assert_unattended_readiness_surface(quick_start)
-    _assert_wolfram_plan_boundary(quick_start)
     assert "executable probes" in quick_start
     assert "pdflatex" in quick_start
     assert "wolframscript" in quick_start
-    assert "Local CLI bridge: use `gpd --help`" in quick_start
-    assert "Use `gpd integrations enable wolfram` / `gpd integrations disable wolfram` to manage the shared optional Wolfram MCP config" in quick_start
+    assert f"Local CLI bridge: {local_cli_bridge_note()}" in quick_start
     assert "Balanced (`balanced`) is the recommended unattended default." in quick_start
     assert UNATTENDED_READINESS_SURFACE in quick_start
     assert (
@@ -721,19 +744,16 @@ def test_public_readme_and_bootstrap_surface_optional_workflow_add_on_guidance()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
     installer = (repo_root / "bin/install.js").read_text(encoding="utf-8")
 
-    assert "Workflow presets are actionable bundles over the existing config keys." in readme
+    assert workflow_preset_storage_note() in readme
     _assert_unattended_readiness_surface(readme)
     _assert_wolfram_plan_boundary(readme)
     assert "executable probes" in readme
-    assert "The first supported workflow preset is paper/manuscript workflows" in readme
-    assert "preview one bundle before choosing it" in readme
-    assert "gpd presets apply <preset> --dry-run" in readme
+    _assert_shared_preset_surface_contract(readme)
     assert "check runtime-local paper-toolchain readiness on this machine" in readme
     assert "Missing preset tooling degrades that preset; it does not block the base GPD install." in readme
-    assert "check runtime-local paper-toolchain readiness before relying on `write-paper`, `paper-build`, `peer-review`, or `arxiv-submission`" in readme
+    assert "If you plan to use that preset, run `gpd doctor --runtime <runtime> --local|--global` from your normal system terminal to check runtime-local paper-toolchain readiness on this machine." in readme
     assert "`write-paper` remains usable when readiness is degraded, but `paper-build` defines the manuscript build contract" in readme
     assert WOLFRAM_STATUS_SURFACE in readme
-    assert "a local Mathematica install is a separate machine-local dependency from the shared optional Wolfram integration" in readme
     assert PLAN_PREFLIGHT_SURFACE in readme
     assert "Workflow presets: if you plan paper/manuscript workflows, rerun " in installer
     assert (
@@ -752,7 +772,7 @@ def test_public_paper_toolchain_capability_model_stays_consistent_across_surface
     help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
     installer = (repo_root / "bin/install.js").read_text(encoding="utf-8")
 
-    readme_preset_snippet = "Workflow presets are workflow-specific extra capabilities that sit on top of the base install."
+    readme_preset_snippet = workflow_preset_storage_note()
     readme_preset_degrade_snippet = "Missing preset tooling degrades that preset; it does not block the base GPD install."
     help_preset_snippet = "Paper/manuscript workflows"
     installer_readiness_snippet = (
@@ -768,7 +788,7 @@ def test_public_paper_toolchain_capability_model_stays_consistent_across_surface
     assert readme_preset_snippet in readme
     assert readme_preset_degrade_snippet in readme
     assert WOLFRAM_STATUS_SURFACE in readme
-    assert "gpd integrations enable wolfram" in readme
+    assert "shared Wolfram integration" in readme
     assert "Local Mathematica installs are separate from the shared optional Wolfram integration config." in help_command
     assert "Local Mathematica installs are separate from the shared optional Wolfram integration config." in help_workflow
     for content in (help_command, help_workflow):
@@ -796,9 +816,7 @@ def test_public_readme_keeps_bootstrap_prerequisites_and_runtime_doctor_scopes_d
     _assert_unattended_readiness_surface(quick_start)
     _assert_wolfram_plan_boundary(quick_start)
     assert DOCTOR_RUNTIME_SCOPE_RE.search(quick_start) is not None
-    assert "Workflow presets are workflow-specific extra capabilities that sit on top of the base install." in quick_start
-    assert "inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and use `gpd presets apply <preset> --dry-run`" in quick_start
-    assert "There is no separate persisted preset block" in quick_start
+    _assert_shared_preset_surface_contract(quick_start)
     assert WOLFRAM_STATUS_SURFACE in quick_start
     assert (
         "If the bootstrap installer fails before `gpd doctor --runtime <runtime> --local|--global` can run, "
@@ -872,7 +890,7 @@ def test_public_help_surfaces_keep_settings_as_guided_post_startup_path() -> Non
         assert "gpd presets list" in content
         assert "gpd presets show <preset>" in content
         assert "gpd presets apply <preset>" in content
-        assert "not stored as a separate preset block" in content
+        assert workflow_preset_storage_note() in content
         assert "gpd --help" in content
         _assert_unattended_readiness_surface(content)
         assert "Check runtime-local paper-toolchain readiness from your normal terminal before using that preset" in content
@@ -896,14 +914,14 @@ def test_public_settings_workflow_keeps_balanced_recommendation_and_relaunch_gui
     assert "If `requires_relaunch` is `true`, surface `next_step` verbatim" in settings_workflow
     assert "Runtime permissions sync attempted after autonomy is written, with relaunch guidance surfaced when required" in settings_workflow
     assert "This sync only updates runtime-owned permission settings; it does not validate install health or workflow/tool readiness." in settings_workflow
-    assert "Preset application must be explicit and previewable." in settings_workflow
-    assert "Present the resolved bundle first, let the user preview it, then ask for an explicit apply/adjust choice." in settings_workflow
+    _assert_shared_preset_surface_contract(settings_workflow)
     assert UNATTENDED_READINESS_SURFACE in settings_workflow
-    assert "Local CLI bridge: use `gpd --help`" in settings_workflow
+    assert f"Local CLI bridge: {local_cli_bridge_note()}" in settings_workflow
     _assert_wolfram_plan_boundary(settings_workflow)
     assert "What model-cost posture should GPD optimize for?" in settings_workflow
     assert "Use runtime defaults" in settings_workflow
-    assert "Use `gpd cost` after runs to inspect recorded local usage / cost and the current profile tier mix" in settings_workflow
+    assert cost_after_runs_guidance() in settings_workflow
+    assert f"Local CLI bridge: {local_cli_bridge_note()}" in settings_workflow
 
 
 def test_public_bootstrap_help_examples_cover_install_and_readiness_handoff() -> None:
@@ -938,9 +956,8 @@ def test_public_readme_observability_surface_keeps_execution_guidance_in_command
     assert "For read-only long-run visibility from your normal system terminal, use `gpd observe execution`." in readme
     assert "Start with `gpd observe show --last 20` when you need the recent event trail" in readme
     assert "route it through the runtime `tangent` command first" in readme
-    assert "gpd cost" in readme
-    assert "For a read-only machine-local usage / cost summary from your normal system terminal, use `gpd cost`." in readme
-    assert "shows the current profile tier mix for this workspace" in readme
+    _assert_cost_advisory_contract(readme)
+    assert cost_summary_surface_note() in readme
 
 
 def test_public_local_cli_help_and_install_summary_keep_readiness_diagnostics_emphasis() -> None:

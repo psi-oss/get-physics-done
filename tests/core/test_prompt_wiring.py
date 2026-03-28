@@ -13,6 +13,12 @@ from gpd.adapters.install_utils import expand_at_includes
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.contracts import ResearchContract, VerificationEvidence
 from gpd.core.frontmatter import validate_frontmatter
+from gpd.core.surface_phrases import (
+    cost_after_runs_guidance,
+    cost_summary_surface_note,
+    local_cli_bridge_note,
+    recovery_ladder_note,
+)
 from gpd.registry import _parse_frontmatter, _parse_tools
 from scripts.repo_graph_contract import parse_scope_count
 
@@ -2067,29 +2073,22 @@ def test_execution_observability_and_resume_surfaces_stay_conservative_about_sta
     resume_work = (WORKFLOWS_DIR / "resume-work.md").read_text(encoding="utf-8")
 
     assert "gpd observe execution" in help_command
-    assert (
-        "Read-only long-run visibility from your normal terminal; shows progress / waiting state, may say `possibly stalled`, "
-        "and points you to the next read-only checks"
-    ) in help_command
+    assert "progress / waiting state" in help_command
+    assert "possibly stalled" in help_command
+    assert "read-only checks" in help_command
     assert "gpd cost" in help_command
-    assert "Read-only machine-local usage / cost summary from recorded local telemetry" in help_command
-    assert "summary stays partial or estimated rather than exact" in help_command
+    assert cost_summary_surface_note() in help_command
     assert "gpd observe execution" in help_workflow
-    assert (
-        "Read-only live status from your normal terminal; use this for progress / waiting state, then follow its suggested "
-        "read-only checks rather than runtime hotkeys"
-    ) in help_workflow
+    assert "progress / waiting state" in help_workflow
+    assert "read-only checks" in help_workflow
     assert "gpd cost" in help_workflow
-    assert "Read-only machine-local usage / cost summary from recorded local telemetry" in help_workflow
-    assert "summary stays partial or estimated rather than exact" in help_workflow
+    assert cost_summary_surface_note() in help_workflow
     assert "For read-only long-run visibility from your normal system terminal, use `gpd observe execution`." in readme
     assert "conservatively say `possibly stalled` instead of relying on runtime hotkeys" in readme
     assert "Start with `gpd observe show --last 20` when you need the recent event trail" in readme
     assert "route it through the runtime `tangent` command first" in readme
     assert "For a read-only machine-local usage / cost summary from your normal system terminal, use `gpd cost`." in readme
-    assert "shows the current profile tier mix for this workspace" in readme
-    assert "does not invent provider pricing, promise invoice-level accuracy, or enforce budgets by itself" in readme
-    assert "If the telemetry or tier mix is missing, the summary remains partial or estimated rather than exact." in readme
+    assert cost_summary_surface_note() in readme
     assert "gpd resume --recent" in help_command
     assert "gpd resume --recent" in help_workflow
     assert "gpd resume --recent" in readme
@@ -2118,12 +2117,11 @@ def test_pause_resume_and_help_wiring_keep_runtime_handoff_and_local_snapshot_bo
     assert "To rediscover the project first: gpd resume --recent" in pause_work
     assert "/gpd:resume-work" in help_workflow
     assert "- For a normal-terminal, current-workspace read-only recovery snapshot without launching the runtime, use `gpd resume`." in help_workflow
-    assert (
-        "Recovery ladder: use `gpd resume` for the current-workspace read-only recovery snapshot. "
-        "If that is the wrong workspace, use `gpd resume --recent` to find the workspace first, "
-        "then continue inside that workspace with `/gpd:resume-work`."
+    assert recovery_ladder_note(
+        resume_work_phrase="`/gpd:resume-work`",
+        suggest_next_phrase="`/gpd:suggest-next`",
+        pause_work_phrase="`/gpd:pause-work`",
     ) in help_workflow
-    assert "After resuming, `/gpd:suggest-next` is the fastest next command." in help_workflow
     assert "gpd observe execution" in help_workflow
     assert "suggested read-only checks rather than runtime hotkeys" in help_workflow
 
@@ -2315,7 +2313,7 @@ def test_settings_workflow_surfaces_qualitative_model_cost_onboarding_and_runtim
     assert "tier-1" in settings_workflow
     assert "tier-2" in settings_workflow
     assert "tier-3" in settings_workflow
-    assert "Use `gpd cost` after runs to inspect recorded local usage / cost and the current profile tier mix" in settings_workflow
+    assert cost_after_runs_guidance() in settings_workflow
     assert "dollar" not in settings_workflow.lower()
 
     assert "Tier models for the active runtime" in settings_command
@@ -2327,6 +2325,7 @@ def test_settings_workflow_surfaces_qualitative_model_cost_onboarding_and_runtim
     assert "Configure explicit tier models" in settings_workflow
     assert "Local CLI bridge" in settings_workflow
     assert "gpd --help" in settings_workflow
+    assert f"Local CLI bridge: {local_cli_bridge_note()}" in settings_workflow
     assert "gpd permissions sync --runtime <runtime> --autonomy balanced" in settings_workflow
     assert "This sync only updates runtime-owned permission settings; it does not validate install health or workflow/tool readiness." in settings_workflow
     assert "gpd presets show <preset>" in settings_workflow

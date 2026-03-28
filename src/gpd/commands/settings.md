@@ -14,7 +14,7 @@ allowed-tools:
 
 <objective>
 Interactive configuration of autonomy, unattended execution budgets, runtime permission sync, GPD workflow agents, workflow preset bundles, model-cost posture, runtime-specific tier model overrides, `execution.review_cadence`, and workflow/git preferences via multi-question prompt.
-Preset bundles are previewable first and always resolve to the existing config knobs only.
+Workflow presets are bundles over the existing config keys only; they do not add a separate persisted preset block.
 
 Routes to the settings workflow which handles:
 
@@ -44,8 +44,8 @@ The workflow handles all logic including:
    - **Unattended budgets**: review bounded continuation limits such as per-plan and per-wave unattended minutes
    - **Runtime permission sync**: align runtime-owned approvals with the chosen autonomy level
    - **Research profile**: deep-theory / numerical / exploratory / review / paper-writing
-   - **Workflow presets**: canonical bundles over the existing knobs above, not a new persisted config block, previewable before apply and also available via `gpd presets apply <preset> [--dry-run]` from your normal terminal
-   - **Model cost posture**: Max quality / Balanced / Budget-aware
+   - **Workflow presets**: bundle the existing config keys above; preview first, then apply explicitly or adjust further. Use `gpd presets list`, `gpd presets show <preset>`, or `gpd presets apply <preset> [--dry-run]` from your normal terminal
+   - **Model cost posture**: Max quality / Balanced / Budget-aware; advisory only and not a persisted config key
    - **Tier models for the active runtime**: leave unchanged / use runtime defaults / configure explicit tier-1, tier-2, tier-3 model strings
    - **Plan researcher**: on / off
    - **Plan checker**: on / off

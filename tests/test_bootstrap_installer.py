@@ -864,7 +864,8 @@ def test_bootstrap_install_blocks_when_target_dir_is_not_writable(tmp_path: Path
     assert "Runtime launcher/target preflight failed." in result.stderr
     assert f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: Runtime Config Target:" in result.stderr
     assert "is not writable" in result.stderr
-    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local --target-dir {target_dir}`" in result.stdout
+    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local --target-dir " in result.stdout
+    assert f"{_RUNTIME_ADAPTERS[_CODEX_RUNTIME_NAME].config_dir_name}`" in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

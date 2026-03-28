@@ -16,9 +16,19 @@ from pydantic import BaseModel, ConfigDict, Field
 from gpd.core.costs import build_cost_summary
 from gpd.core.observability import derive_execution_visibility, resolve_project_root
 from gpd.core.recent_projects import list_recent_projects
+from gpd.core.surface_phrases import (
+    cost_after_run_action,
+    cost_inspect_action,
+    recovery_continue_action,
+    recovery_fast_next_action,
+    recovery_recent_action,
+    recovery_resume_action,
+)
+from gpd.core.surface_phrases import (
+    workflow_preset_surface_note as _workflow_preset_surface_note_text,
+)
 from gpd.core.workflow_presets import (
     _normalize_latex_capability,
-    list_workflow_presets,
     resolve_workflow_preset_readiness,
 )
 
@@ -76,13 +86,7 @@ def _dedupe_text(items: list[str]) -> list[str]:
 
 def workflow_preset_surface_note() -> str:
     """Return the shared workflow-preset surface note."""
-    preset_labels = ", ".join(preset.id for preset in list_workflow_presets())
-    return (
-        "Use `gpd presets list` to inspect the workflow preset catalog "
-        f"({preset_labels}), `gpd presets show <preset>` to preview one bundle, "
-        "and `gpd presets apply <preset> --dry-run` to preview the merged config "
-        "before writing it."
-    )
+    return _workflow_preset_surface_note_text()
 
 
 def _row_value(row: object, field: str, default: object = None) -> object:
@@ -111,10 +115,6 @@ def _runtime_command(action: str, *, cwd: Path) -> str | None:
         return str(get_adapter(runtime_name).format_command(action)).strip()
     except Exception:
         return None
-
-
-def _command_phrase(command: str) -> str:
-    return command if command.startswith("runtime `") else f"`{command}`"
 
 
 def _build_recovery_orientation(
@@ -189,20 +189,15 @@ def _recovery_next_actions(orientation: dict[str, object], *, existing_actions: 
 
     if primary_command == "gpd resume":
         if not any(action.startswith("Run `gpd resume`") for action in existing_actions):
-            actions.append("Run `gpd resume` to inspect the current recovery snapshot for this workspace.")
+            actions.append(recovery_resume_action())
     elif primary_command == "gpd resume --recent":
-        actions.append("Run `gpd resume --recent` to find the workspace you want to reopen on this machine.")
+        actions.append(recovery_recent_action())
 
     if isinstance(continue_command, str) and continue_command.strip() and mode in {"current-workspace", "recent-projects"}:
-        continue_phrase = _command_phrase(continue_command.strip())
-        if mode == "current-workspace":
-            actions.append(f"{continue_phrase} continues paused work inside this workspace.")
-        else:
-            actions.append(f"After selecting a workspace, use {continue_phrase} there to continue paused work.")
+        actions.append(recovery_continue_action(mode=mode, continue_command=continue_command.strip()))
 
     if isinstance(fast_next_command, str) and fast_next_command.strip() and mode in {"current-workspace", "recent-projects"}:
-        fast_next_phrase = _command_phrase(fast_next_command.strip())
-        actions.append(f"{fast_next_phrase} is the fastest post-resume command when you only need the next action.")
+        actions.append(recovery_fast_next_action(fast_next_command=fast_next_command.strip()))
     return actions
 
 
@@ -237,16 +232,12 @@ def _cost_next_actions(cost_summary: object) -> list[str]:
     actions: list[str] = []
     project_rollup = getattr(cost_summary, "project", None)
     if int(getattr(project_rollup, "record_count", 0) or 0) > 0:
-        actions.append(
-            "Run `gpd cost` to inspect recorded machine-local usage / cost and the current profile tier mix for this workspace."
-        )
+        actions.append(cost_inspect_action())
         return actions
 
     capabilities = getattr(cost_summary, "active_runtime_capabilities", {}) or {}
     if isinstance(capabilities, dict) and capabilities.get("telemetry_completeness") == "best-effort":
-        actions.append(
-            "After a run, use `gpd cost` to inspect recorded machine-local usage / cost and the current profile tier mix for this workspace."
-        )
+        actions.append(cost_after_run_action())
     return actions
 
 

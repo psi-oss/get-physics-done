@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from gpd.core.costs import UsageRecord, usage_ledger_path
 from gpd.core.recent_projects import record_recent_project
-from gpd.core.runtime_hints import build_runtime_hint_payload
+from gpd.core.runtime_hints import build_runtime_hint_payload, workflow_preset_surface_note
 
 
 def _bootstrap_project(tmp_path: Path) -> Path:
@@ -405,3 +405,13 @@ def test_build_runtime_hint_payload_formats_generic_runtime_follow_up_when_runti
     assert "runtime `resume-work` continues paused work inside this workspace." in payload.next_actions
     assert "runtime `suggest-next` is the fastest post-resume command when you only need the next action." in payload.next_actions
     assert not any("`runtime `resume-work``" in action for action in payload.next_actions)
+
+
+def test_workflow_preset_surface_note_is_command_oriented_and_preview_first() -> None:
+    note = workflow_preset_surface_note()
+
+    assert "gpd presets list" in note
+    assert "gpd presets show <preset>" in note
+    assert "gpd presets apply <preset> --dry-run" in note
+    assert "preview" in note
+    assert "before writing it" in note

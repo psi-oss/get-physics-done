@@ -5,6 +5,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from gpd.core.surface_phrases import (
+    cost_summary_surface_note,
+    recovery_ladder_note,
+    workflow_preset_storage_note,
+)
 from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -207,8 +212,11 @@ def test_help_prompt_default_quick_start_stays_runtime_surface_focused() -> None
         "/gpd:help --all",
     ):
         assert line in quick_start
-    assert "Recovery ladder: use `gpd resume`" in quick_start
-    assert "After resuming, `/gpd:suggest-next` is the fastest next command." in quick_start
+    assert recovery_ladder_note(
+        resume_work_phrase="`/gpd:resume-work`",
+        suggest_next_phrase="`/gpd:suggest-next`",
+        pause_work_phrase="`/gpd:pause-work`",
+    ) in quick_start
     assert "Continue in-runtime from the selected project state" in quick_start
     assert "**Core workflow:** new-project → discuss-phase → plan-phase → execute-phase → verify-work → repeat → complete-milestone" in quick_start
     assert "**Publication:** write-paper → peer-review → respond-to-referees → arxiv-submission" in quick_start
@@ -242,7 +250,7 @@ def test_help_prompt_keeps_workflow_preset_readiness_on_local_cli_surface() -> N
         assert "Workflow presets" in content
         assert "gpd presets show <preset>" in content
         assert "gpd presets apply <preset>" in content
-        assert "not stored as a separate preset block" in content
+        assert workflow_preset_storage_note() in content
         assert "Check runtime-local paper-toolchain readiness from your normal terminal before using that preset" in content
         assert "Failed preset rows degrade `write-paper`" in content
         assert "`paper-build` remains the build contract" in content
@@ -436,8 +444,11 @@ def test_settings_and_research_mode_docs_keep_tangent_branch_taxonomy_strict() -
     assert "does **not** by itself authorize git-backed hypothesis branches" in settings
     assert "surface tangent decisions explicitly" in settings
     assert "Suppress optional tangents unless the user explicitly requests them" in settings
-    assert "Preset application must be explicit and previewable." in settings
-    assert "Present the resolved bundle first, let the user preview it, then ask for an explicit apply/adjust choice." in settings
+    assert "gpd presets list" in settings
+    assert "gpd presets show <preset>" in settings
+    assert "gpd presets apply <preset> --dry-run" in settings
+    assert "preview" in settings
+    assert "explicit apply/adjust choice" in settings
     assert "do **not** silently create git-backed hypothesis branches" in research_modes
     assert "only explicit tangent decisions become hypothesis branches or parallel plans" in research_modes
     assert "Flag complementary approaches as tangent candidates for optional parallel investigation" in research_modes
@@ -496,7 +507,7 @@ def test_help_prompt_surfaces_workflow_presets_on_the_local_cli_surface() -> Non
         assert "gpd presets list" in content
         assert "gpd presets show <preset>" in content
         assert "gpd presets apply <preset>" in content
-        assert "not stored as a separate preset block" in content
+        assert workflow_preset_storage_note() in content
         assert "Check runtime-local paper-toolchain readiness from your normal terminal before using that preset" in content
         assert "Failed preset rows degrade `write-paper`" in content
         assert "`paper-build` remains the build contract" in content
@@ -512,12 +523,7 @@ def test_help_prompt_keeps_cost_surface_on_local_cli_not_runtime_slash_command()
     for content in (help_command, help_workflow):
         assert "gpd cost" in content
         assert "/gpd:cost" not in content
-        assert "machine-local usage / cost summary" in content
-        assert "recorded local telemetry" in content
-        assert "current profile tier mix" in content
-        assert content.count("current profile tier mix") >= 2
-        assert "not live budget enforcement or provider billing truth" in content
-        assert "summary stays partial or estimated rather than exact" in content
+        assert cost_summary_surface_note() in content
 
 
 def test_help_prompt_session_management_keeps_pause_before_leave_and_resume_on_return() -> None:

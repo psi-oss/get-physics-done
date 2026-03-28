@@ -7,8 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import gpd.core.costs as costs
 import gpd.core.config as config_module
+import gpd.core.costs as costs
 import gpd.hooks.runtime_detect as runtime_detect
 from gpd.adapters import get_adapter
 from gpd.adapters.base import RuntimeAdapter
@@ -18,6 +18,7 @@ from gpd.adapters.runtime_catalog import (
     iter_runtime_descriptors,
 )
 from gpd.core.costs import build_cost_summary, record_usage_from_runtime_payload
+from gpd.core.surface_phrases import cost_summary_surface_note
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -292,11 +293,11 @@ def test_public_runtime_surfaces_stay_conservative_when_capabilities_differ() ->
         for content in (readme, help_command, help_workflow):
             assert "gpd cost" in content
             assert "recorded local telemetry" in content
-        assert "does not invent provider pricing" in readme
+        assert cost_summary_surface_note() in readme
         assert "provider billing truth" in help_command
         assert "provider billing truth" in help_workflow
 
     if any(descriptor.capabilities.permissions_surface != "unsupported" for descriptor in descriptors):
         assert "gpd permissions status --runtime <runtime> --autonomy balanced" in readme
-        assert "requires_relaunch" in readme
+        assert "relaunch-required" in readme
         assert "requires_relaunch" in settings_workflow
