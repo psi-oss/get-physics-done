@@ -22,7 +22,8 @@ A method protocol for optimizing through physics solvers using automatic differe
 - `../approximation-selection.md` — broader method selection framework
 - `../../verification/core/verification-numerical.md` — convergence and numerical stability
 - `../../verification/core/verification-core.md` — conservation laws, limiting cases
-- `../../templates/compute/warp-simulation.md` — containerized Warp simulation template (Dockerfile, run script, project layout)
+- `../../templates/compute/warp-simulation.md` — containerized Warp simulation guide
+- `../../templates/compute/warp/` — ready-to-copy Dockerfiles, requirements.txt, and run script
 
 ---
 

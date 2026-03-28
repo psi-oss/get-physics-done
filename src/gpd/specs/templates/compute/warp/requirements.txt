@@ -1,0 +1,4 @@
+numpy>=1.26,<2.1
+matplotlib>=3.9
+Pillow>=11.0
+warp-lang>=1.12
