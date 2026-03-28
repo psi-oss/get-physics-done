@@ -328,6 +328,8 @@ class GPDProjectConfig(BaseModel):
     checkpoint_after_n_tasks: int = Field(default=3, ge=1)
     checkpoint_after_first_load_bearing_result: bool = True
     checkpoint_before_downstream_dependent_tasks: bool = True
+    project_usd_budget: float | None = Field(default=None, gt=0)
+    session_usd_budget: float | None = Field(default=None, gt=0)
 
     # Git settings
     branching_strategy: BranchingStrategy = BranchingStrategy.NONE
@@ -414,9 +416,11 @@ _EFFECTIVE_CONFIG_LEAVES: dict[str, Callable[[GPDProjectConfig], object]] = {
     "parallelization": lambda config: config.parallelization,
     "phase_branch_template": lambda config: config.phase_branch_template,
     "plan_checker": lambda config: config.plan_checker,
+    "project_usd_budget": lambda config: config.project_usd_budget,
     "research": lambda config: config.research,
     "review_cadence": lambda config: _enum_value(config.review_cadence),
     "research_mode": lambda config: _enum_value(config.research_mode),
+    "session_usd_budget": lambda config: config.session_usd_budget,
     "verifier": lambda config: config.verifier,
 }
 
@@ -434,6 +438,8 @@ _EFFECTIVE_CONFIG_SECTIONS: dict[str, Callable[[GPDProjectConfig], dict[str, obj
         "checkpoint_after_n_tasks": config.checkpoint_after_n_tasks,
         "checkpoint_after_first_load_bearing_result": config.checkpoint_after_first_load_bearing_result,
         "checkpoint_before_downstream_dependent_tasks": config.checkpoint_before_downstream_dependent_tasks,
+        "project_usd_budget": config.project_usd_budget,
+        "session_usd_budget": config.session_usd_budget,
     },
     "workflow": lambda config: {
         "research": config.research,
@@ -467,10 +473,14 @@ _CONFIG_KEY_ALIASES: dict[str, str] = {
     "phase_branch_template": "phase_branch_template",
     "plan_checker": "plan_checker",
     "planning.commit_docs": "commit_docs",
+    "project_usd_budget": "project_usd_budget",
     "research": "research",
     "review_cadence": "review_cadence",
     "research_mode": "research_mode",
+    "session_usd_budget": "session_usd_budget",
     "verifier": "verifier",
+    "execution.project_usd_budget": "project_usd_budget",
+    "execution.session_usd_budget": "session_usd_budget",
     "workflow.plan_checker": "plan_checker",
     "workflow.research": "research",
     "workflow.verifier": "verifier",
@@ -493,6 +503,8 @@ _CANONICAL_CONFIG_STORAGE_PATHS.update(
             "execution",
             "checkpoint_before_downstream_dependent_tasks",
         ),
+        "project_usd_budget": ("execution", "project_usd_budget"),
+        "session_usd_budget": ("execution", "session_usd_budget"),
     }
 )
 
@@ -638,6 +650,8 @@ _ALLOWED_CONFIG_ROOT_KEYS = frozenset(
         "checkpoint_after_first_load_bearing_result",
         "checkpoint_after_n_tasks",
         "checkpoint_before_downstream_dependent_tasks",
+        "project_usd_budget",
+        "session_usd_budget",
         "commit_docs",
         "execution",
         "git",
@@ -668,6 +682,8 @@ _ALLOWED_CONFIG_SECTION_KEYS = {
             "checkpoint_after_n_tasks",
             "checkpoint_after_first_load_bearing_result",
             "checkpoint_before_downstream_dependent_tasks",
+            "project_usd_budget",
+            "session_usd_budget",
         }
     ),
     "planning": frozenset({"commit_docs"}),
@@ -811,6 +827,14 @@ def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
                     field="checkpoint_before_downstream_dependent_tasks",
                 ),
                 _CONFIG_DEFAULTS.checkpoint_before_downstream_dependent_tasks,
+            ),
+            project_usd_budget=_coalesce(
+                _get_nested(parsed, "project_usd_budget", section="execution", field="project_usd_budget"),
+                _CONFIG_DEFAULTS.project_usd_budget,
+            ),
+            session_usd_budget=_coalesce(
+                _get_nested(parsed, "session_usd_budget", section="execution", field="session_usd_budget"),
+                _CONFIG_DEFAULTS.session_usd_budget,
             ),
             model_overrides=_coalesce(
                 _get_nested(parsed, "model_overrides"),

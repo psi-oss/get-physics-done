@@ -1206,6 +1206,8 @@ def _config_to_dict(cfg: GPDProjectConfig) -> dict:
         "parallelization": cfg.parallelization,
         "max_unattended_minutes_per_plan": cfg.max_unattended_minutes_per_plan,
         "max_unattended_minutes_per_wave": cfg.max_unattended_minutes_per_wave,
+        "project_usd_budget": cfg.project_usd_budget,
+        "session_usd_budget": cfg.session_usd_budget,
         "checkpoint_after_n_tasks": cfg.checkpoint_after_n_tasks,
         "checkpoint_after_first_load_bearing_result": cfg.checkpoint_after_first_load_bearing_result,
         "checkpoint_before_downstream_dependent_tasks": cfg.checkpoint_before_downstream_dependent_tasks,

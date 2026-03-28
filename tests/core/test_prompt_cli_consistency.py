@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from gpd.core.surface_phrases import (
+    cost_after_runs_guidance,
     cost_summary_surface_note,
     recovery_ladder_note,
 )
@@ -55,6 +56,13 @@ def _assert_wolfram_plan_boundary(content: str) -> None:
         or "does not mean a plan is ready to run" in content
         or "plan gate" in content
     )
+
+
+def _assert_cost_advisory_guardrail(content: str) -> None:
+    assert "gpd cost" in content
+    assert "current profile tier mix" in content or "recorded local telemetry" in content
+    assert "advisory only" in content or "billing truth" in content
+    assert "partial or estimated rather than exact" in content or "estimated rather than exact" in content
 
 
 def _assert_shared_preset_surface_contract(content: str) -> None:
@@ -451,6 +459,7 @@ def test_settings_and_research_mode_docs_keep_tangent_branch_taxonomy_strict() -
     assert "does **not** by itself authorize git-backed hypothesis branches" in settings
     assert "surface tangent decisions explicitly" in settings
     assert "Suppress optional tangents unless the user explicitly requests them" in settings
+    assert cost_after_runs_guidance() in settings
     assert "gpd presets list" in settings
     assert "gpd presets show <preset>" in settings
     assert "gpd presets apply <preset> --dry-run" in settings
@@ -499,7 +508,7 @@ def test_help_prompt_workflow_modes_match_current_settings_vocabulary() -> None:
         assert "planning.commit_docs" in content
         assert "git.branching_strategy" in content
         assert "gpd observe execution" in content
-        assert "gpd cost" in content
+        _assert_cost_advisory_guardrail(content)
 
 
 def test_help_prompt_surfaces_workflow_presets_on_the_local_cli_surface() -> None:

@@ -21,7 +21,7 @@ import gpd.runtime_cli as runtime_cli
 from gpd.adapters import get_adapter, list_runtimes
 from gpd.cli import app
 from gpd.core import cli_args as cli_args_module
-from gpd.core.costs import CostProjectSummary, CostSessionSummary, CostSummary
+from gpd.core.costs import CostBudgetThresholdSummary, CostProjectSummary, CostSessionSummary, CostSummary
 
 runner = CliRunner()
 
@@ -431,6 +431,23 @@ def _sample_cost_summary(workspace: Path) -> CostSummary:
         project=project,
         current_session=current_session,
         recent_sessions=[current_session],
+        budget_thresholds=[
+            CostBudgetThresholdSummary(
+                scope="project",
+                config_key="project_usd_budget",
+                budget_usd=1.0,
+                spent_usd=0.85,
+                remaining_usd=0.15,
+                percent_used=85.0,
+                cost_status="measured",
+                comparison_exact=True,
+                state="near_budget",
+                message=(
+                    "Configured project USD budget is nearing budget based on measured local USD telemetry; "
+                    "it stays advisory only and never stops work automatically."
+                ),
+            )
+        ],
         guidance=[
             "Measured tokens are available, but no pricing snapshot is configured at the machine-local cost root, so USD cost is unavailable.",
             "Current model posture: profile `review` with codex runtime defaults. Use the runtime `settings` command only if you want explicit tier-model overrides.",
@@ -465,6 +482,12 @@ def test_cost_raw_outputs_summary_payload(tmp_path: Path) -> None:
     assert payload["runtime_model_selection"] == "runtime defaults"
     assert payload["profile_tier_mix"] == {"tier-1": 12, "tier-2": 10, "tier-3": 1}
     assert payload["profile_tier_mix_interpretation"].startswith("Advisory only; counts profile-to-tier assignments")
+    assert payload["budget_thresholds"][0]["scope"] == "project"
+    assert payload["budget_thresholds"][0]["config_key"] == "project_usd_budget"
+    assert payload["budget_thresholds"][0]["advisory_only"] is True
+    assert payload["budget_thresholds"][0]["comparison_exact"] is True
+    assert payload["budget_thresholds"][0]["state"] == "near_budget"
+    assert "nearing budget" in payload["budget_thresholds"][0]["message"]
     assert payload["project"]["usage_status"] == "measured"
     assert payload["project"]["cost_status"] == "unavailable"
     assert payload["project"]["interpretation"] == "tokens measured; USD unavailable"
@@ -485,11 +508,16 @@ def test_cost_human_output_stays_read_only_and_advisory(tmp_path: Path) -> None:
     assert "Read-only machine-local usage/cost summary." in result.output
     assert "clearly labels estimates or unavailable values" in result.output
     assert "Current posture" in result.output
+    assert "Budget guardrails" in result.output
     assert "Telemetry support" in result.output
     assert "best-effort via notify-hook" in result.output
     assert "Profile tier mix" in result.output
     assert "tier-1=12, tier-2=10, tier-3=1" in result.output
     assert "Advisory only; counts profile-to-tier assignments" in result.output
+    assert "Scope" in result.output
+    assert "Used" in result.output
+    assert "85.00%" in result.output
+    assert "Configured project USD budget is nearing budget" in result.output
     assert "Pricing snapshot" in result.output
     assert "not configured" in result.output
     assert "Current project" in result.output

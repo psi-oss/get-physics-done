@@ -2677,6 +2677,12 @@ def _profile_tier_mix_interpretation() -> str:
     return "Advisory only; counts profile-to-tier assignments, not measured runtime model usage or spend."
 
 
+def _format_guardrail_state(value: object) -> str:
+    if not isinstance(value, str):
+        return "unknown"
+    return value.replace("_", " ")
+
+
 def _format_runtime_capability_value(summary: object, *keys: str) -> str:
     capabilities = getattr(summary, "active_runtime_capabilities", {}) or {}
     if not isinstance(capabilities, dict):
@@ -2717,6 +2723,48 @@ def _render_cost_rollup(label: str, rollup: object, *, project_root: str | None 
     console.print(f"[bold]{label}[/]")
     console.print(summary)
 
+
+def _render_budget_guardrails(summary: object) -> None:
+    thresholds = list(getattr(summary, "budget_thresholds", []) or [])
+    console.print("[bold]Budget guardrails[/]")
+    if not thresholds:
+        console.print("[dim]No optional USD budget guardrails are configured for this workspace.[/]")
+        console.print()
+        return
+
+    table = Table(show_header=True, header_style=f"bold {_INSTALL_ACCENT_COLOR}")
+    table.add_column("Scope")
+    table.add_column("Budget")
+    table.add_column("Spent")
+    table.add_column("Remaining")
+    table.add_column("Used")
+    table.add_column("Comparison")
+    table.add_column("Exact")
+    table.add_column("State")
+    for threshold in thresholds:
+        percent_used = getattr(threshold, "percent_used", None)
+        table.add_row(
+            str(getattr(threshold, "scope", "unknown")),
+            _format_cost_money(getattr(threshold, "budget_usd", None)),
+            _format_cost_money(getattr(threshold, "spent_usd", None)),
+            _format_cost_money(getattr(threshold, "remaining_usd", None)),
+            "—" if percent_used is None else f"{percent_used:.2f}%",
+            str(getattr(threshold, "cost_status", "unavailable")),
+            "yes" if bool(getattr(threshold, "comparison_exact", False)) else "no",
+            _format_guardrail_state(getattr(threshold, "state", "unavailable")),
+        )
+    console.print(table)
+    console.print(
+        "[dim]Optional USD guardrails compare recorded machine-local USD against configured project/session budgets. "
+        "They stay advisory only, may be partial or estimated when telemetry is missing, and never stop work automatically.[/]"
+    )
+    for threshold in thresholds:
+        message = getattr(threshold, "message", None)
+        if isinstance(message, str) and message.strip():
+            console.print(f"[dim]- {message.strip()}[/]")
+    console.print()
+
+
 def _render_cost_summary(summary: object, *, last_sessions: int) -> None:
     console.print("[bold]Cost Summary[/]")
     console.print(
@@ -2756,6 +2804,8 @@ def _render_cost_summary(summary: object, *, last_sessions: int) -> None:
     if profile_tier_mix != "unknown":
         console.print(f"[dim]{_profile_tier_mix_interpretation()}[/]")
     console.print()
+
+    _render_budget_guardrails(summary)
 
     project_rollup = summary.project
     _render_cost_rollup("Current project", project_rollup, project_root=project_rollup.project_root)

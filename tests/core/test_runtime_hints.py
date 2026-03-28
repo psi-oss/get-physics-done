@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from gpd.core.costs import UsageRecord, usage_ledger_path
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.runtime_hints import build_runtime_hint_payload, workflow_preset_surface_note
+from gpd.core.surface_phrases import cost_inspect_action
 
 
 def _bootstrap_project(tmp_path: Path) -> Path:
@@ -160,12 +161,10 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
     assert payload.workflow_presets["latex_capability"]["paper_build_ready"] is True
     assert payload.workflow_presets["latex_capability"]["arxiv_submission_ready"] is True
 
+    assert payload.cost["advisory"]["state"] == "unavailable"
+    assert payload.cost["advisory"]["next_action"] == cost_inspect_action()
     assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
-    assert (
-        "Run `gpd cost` to inspect recorded machine-local usage / cost and the current profile tier mix for this workspace."
-        in payload.next_actions
-    )
-    assert any("pricing snapshot" in action for action in payload.next_actions)
+    assert payload.cost["advisory"]["next_action"] in payload.next_actions
     assert any("latexmk" in action for action in payload.next_actions)
     assert any("kpsewhich" in action for action in payload.next_actions)
     assert any("Workflow presets ready" in action for action in payload.next_actions)
@@ -231,7 +230,7 @@ def test_build_runtime_hint_payload_handles_absent_execution_snapshot(tmp_path: 
     assert any("base runtime-readiness" in action for action in payload.next_actions)
 
 
-def test_build_runtime_hint_payload_keeps_cost_guidance_visible_when_best_effort_telemetry_is_active(
+def test_build_runtime_hint_payload_keeps_cost_guidance_quiet_when_best_effort_telemetry_has_no_guardrail(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = _bootstrap_project(tmp_path)
@@ -246,6 +245,7 @@ def test_build_runtime_hint_payload_keeps_cost_guidance_visible_when_best_effort
         project=SimpleNamespace(record_count=0, cost_status="unavailable"),
         current_session=None,
         recent_sessions=[],
+        budget_thresholds=[],
         pricing_snapshot_configured=False,
         pricing_snapshot_source=None,
         pricing_snapshot_as_of=None,
@@ -265,14 +265,10 @@ def test_build_runtime_hint_payload_keeps_cost_guidance_visible_when_best_effort
     payload = build_runtime_hint_payload(project, include_recovery=False, include_workflow_presets=False)
 
     assert "advisory" not in payload.cost
-    assert (
-        "After a run, use `gpd cost` to inspect recorded machine-local usage / cost and the current profile tier mix for this workspace."
-        in payload.next_actions
-    )
-    assert fake_summary.guidance[0] in payload.next_actions
+    assert not any("gpd cost" in action for action in payload.next_actions)
 
 
-def test_build_runtime_hint_payload_skips_cost_nudge_when_runtime_exposes_no_telemetry(
+def test_build_runtime_hint_payload_surfaces_one_cost_advisory_for_measured_usage_without_usd(
     tmp_path: Path, monkeypatch
 ) -> None:
     project = _bootstrap_project(tmp_path)
@@ -284,9 +280,87 @@ def test_build_runtime_hint_payload_skips_cost_nudge_when_runtime_exposes_no_tel
         runtime_model_selection="runtime defaults",
         profile_tier_mix={},
         workspace_root=project.resolve(strict=False).as_posix(),
-        project=SimpleNamespace(record_count=0, cost_status="unavailable"),
+        project=SimpleNamespace(record_count=2, usage_status="measured", cost_status="unavailable"),
         current_session=None,
         recent_sessions=[],
+        budget_thresholds=[],
+        pricing_snapshot_configured=False,
+        pricing_snapshot_source=None,
+        pricing_snapshot_as_of=None,
+        guidance=[
+            "Measured tokens are available, but no pricing snapshot is configured at the machine-local cost root, so USD cost is unavailable."
+        ],
+    )
+    monkeypatch.setattr("gpd.core.runtime_hints.build_cost_summary", lambda *args, **kwargs: fake_summary)
+
+    payload = build_runtime_hint_payload(project, include_recovery=False, include_workflow_presets=False)
+
+    assert payload.cost["advisory"]["state"] == "unavailable"
+    assert payload.cost["advisory"]["message"] == fake_summary.guidance[0]
+    assert payload.cost["advisory"]["next_action"] == cost_inspect_action()
+    cost_actions = [action for action in payload.next_actions if "gpd cost" in action]
+    assert cost_actions == [payload.cost["advisory"]["next_action"]]
+
+
+def test_build_runtime_hint_payload_surfaces_budget_guardrail_advisory_when_threshold_is_near(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+
+    fake_summary = SimpleNamespace(
+        current_session_id="sess-cost",
+        active_runtime="codex",
+        model_profile="review",
+        runtime_model_selection="runtime defaults",
+        profile_tier_mix={},
+        workspace_root=project.resolve(strict=False).as_posix(),
+        project=SimpleNamespace(record_count=2, usage_status="measured", cost_status="measured"),
+        current_session=None,
+        recent_sessions=[],
+        budget_thresholds=[
+            SimpleNamespace(
+                scope="session",
+                config_key="session_usd_budget",
+                state="near_budget",
+                message=(
+                    "Configured session USD budget is nearing budget based on measured local USD telemetry; "
+                    "it stays advisory only and never stops work automatically."
+                ),
+            )
+        ],
+        pricing_snapshot_configured=True,
+        pricing_snapshot_source="tests",
+        pricing_snapshot_as_of="2026-03-27",
+        guidance=[],
+    )
+    monkeypatch.setattr("gpd.core.runtime_hints.build_cost_summary", lambda *args, **kwargs: fake_summary)
+
+    payload = build_runtime_hint_payload(project, include_recovery=False, include_workflow_presets=False)
+
+    assert payload.cost["advisory"]["state"] == "near_budget"
+    assert payload.cost["advisory"]["scope"] == "session"
+    assert payload.cost["advisory"]["config_key"] == "session_usd_budget"
+    assert "nearing budget" in payload.cost["advisory"]["message"]
+    assert payload.cost["advisory"]["next_action"] == cost_inspect_action()
+    assert payload.cost["advisory"]["next_action"] in payload.next_actions
+
+
+def test_build_runtime_hint_payload_skips_cost_advisory_when_runtime_exposes_no_threshold(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+
+    fake_summary = SimpleNamespace(
+        current_session_id="sess-cost",
+        active_runtime="codex",
+        model_profile="review",
+        runtime_model_selection="runtime defaults",
+        profile_tier_mix={},
+        workspace_root=project.resolve(strict=False).as_posix(),
+        project=SimpleNamespace(record_count=0, usage_status="unavailable", cost_status="unavailable"),
+        current_session=None,
+        recent_sessions=[],
+        budget_thresholds=[],
         pricing_snapshot_configured=False,
         pricing_snapshot_source=None,
         pricing_snapshot_as_of=None,
@@ -306,8 +380,7 @@ def test_build_runtime_hint_payload_skips_cost_nudge_when_runtime_exposes_no_tel
     payload = build_runtime_hint_payload(project, include_recovery=False, include_workflow_presets=False)
 
     assert "advisory" not in payload.cost
-    assert not any(action.startswith("Run `gpd cost`") or action.startswith("After a run, use `gpd cost`") for action in payload.next_actions)
-    assert fake_summary.guidance[0] in payload.next_actions
+    assert not any("gpd cost" in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_surfaces_tangent_follow_up_from_execution_visibility(tmp_path: Path) -> None:

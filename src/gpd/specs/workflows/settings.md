@@ -65,11 +65,14 @@ Parse current values (default to `true` / first option if not present):
 - `workflow.verifier` -- spawn verifier during execute-phase
 - `execution.review_cadence` -- execution review density: `"dense"`, `"adaptive"` (default), `"sparse"`
 - `execution.max_unattended_minutes_per_plan` -- wall-clock budget before a bounded continuation should be created
+- `execution.project_usd_budget` -- optional advisory USD budget for the whole current workspace / project
+- `execution.session_usd_budget` -- optional advisory USD budget for the current active session
 - `execution.checkpoint_after_n_tasks` -- task budget before a bounded continuation should be created
 - `planning.commit_docs` -- whether planning artifacts are committed to git (default: `true`)
 - `parallelization` -- execute wave plans in parallel (default: `true`)
 - `model_profile` -- which agent model profile to use (default: `review`)
 - `model-cost posture` is a qualitative guidance layer only; it maps onto the existing `model_profile` and `model_overrides` choices and does not add a new persisted config key.
+- Optional USD budget guardrails are advisory only; `gpd cost` evaluates them, and missing telemetry keeps the result partial or estimated rather than exact.
 - `git.branching_strategy` -- branching approach (default: `"none"`)
 
 `research_mode` controls breadth vs focus only. It does **not** by itself authorize git-backed hypothesis branches, branch-like alternative plans, or side investigations; those still require an explicit tangent decision.
@@ -100,7 +103,7 @@ Teach one coherent posture-to-inspection loop:
 
 - choose a qualitative posture first (`Max Quality`, `Balanced`, `Budget-aware`)
 - use that posture to decide whether to keep runtime defaults or pin explicit tier model strings
-- use `gpd cost` after runs to inspect recorded local usage / cost and the current profile tier mix instead of treating posture labels as billing truth
+- use `gpd cost` after runs to inspect recorded local usage / cost, optional USD budget guardrails, and the current profile tier mix instead of treating posture labels as billing truth
 - do not present posture labels or `gpd cost` as provider billing truth or spend enforcement
 
 If the user asks for a preset, map it onto the existing knobs above. Preview the changed knobs first, then ask for an explicit apply or customize choice. Do not add a new persisted config section or install step.
@@ -247,6 +250,13 @@ After the ask_user responses are collected, ask one compact inline follow-up for
 
 Explain that these budgets bound how long GPD should keep running before it creates a continuation or another review stop. If the user is unsure, preserve the current values.
 
+Then ask one compact inline follow-up for optional advisory USD budget guardrails using the current values as defaults:
+
+- `execution.project_usd_budget`
+- `execution.session_usd_budget`
+
+Explain that these are optional read-only guardrails checked by `gpd cost` against recorded machine-local USD telemetry. They are advisory only, may stay partial or estimated when telemetry is missing, and never stop work automatically. If the user is unsure, preserve the current values. Blank / `none` should clear the corresponding USD budget.
+
 </step>
 
 <step name="configure_model_overrides">
@@ -313,6 +323,8 @@ Merge new settings into existing config.json:
     "review_cadence": "dense" | "adaptive" | "sparse",
     "max_unattended_minutes_per_plan": 45,
     "max_unattended_minutes_per_wave": 90,
+    "project_usd_budget": 25.0,
+    "session_usd_budget": 5.0,
     "checkpoint_after_n_tasks": 3,
     "checkpoint_after_first_load_bearing_result": true/false,
     "checkpoint_before_downstream_dependent_tasks": true/false
@@ -361,6 +373,8 @@ Display:
 | Plan Checker         | {On/Off} |
 | Execution Verifier   | {On/Off} |
 | Review Cadence       | {Dense/Adaptive/Sparse} |
+| Project USD Budget   | {none / $... advisory} |
+| Session USD Budget   | {none / $... advisory} |
 | Planning Commit Docs | {On/Off} |
 | Parallelization      | {On/Off} |
 | Git Branching        | {none/per-phase/per-milestone} |
@@ -372,7 +386,9 @@ These settings apply to future /gpd:plan-phase and /gpd:execute-phase runs.
 
 Model-cost posture is qualitative guidance only. It maps onto the existing `model_profile` and `model_overrides` decisions, not a new persisted config key, pricing system, or billing promise.
 
-Use `gpd cost` after runs to inspect recorded local usage / cost and the current profile tier mix instead of treating posture labels as billing truth.
+Use `gpd cost` after runs to inspect recorded local usage / cost, optional USD budget guardrails, and the current profile tier mix instead of treating posture labels as billing truth.
+
+Optional USD budget guardrails are checked there too. They compare recorded machine-local USD against the configured project/session thresholds, stay advisory only, may remain partial or estimated when telemetry is missing, and never stop work automatically.
 
 Concrete tier model strings are passed through to the active runtime unchanged, so they should always use that runtime's native model syntax.
 
@@ -403,6 +419,7 @@ Workflow config from `GPD/config.json` is consumed by:
 
 - **gpd-planner / orchestrators**: Model profile, workflow toggles, and runtime-specific tier overrides
 - **gpd-executor**: Review cadence, unattended budgets, and workflow verifier settings
+- **gpd cost / runtime hints**: advisory USD budget guardrails for the current project/session when configured
 - **gpd hooks / runtime adapters**: Runtime-specific model overrides and related execution defaults
 
 Project conventions propagate separately through `GPD/CONVENTIONS.md` and `GPD/state.json` (`convention_lock`), where notation and unit choices remain the single source of truth for planning, execution, and verification.
@@ -412,7 +429,7 @@ Project conventions propagate separately through `GPD/CONVENTIONS.md` and `GPD/s
 
 - [ ] Current config read
 - [ ] Active runtime inferred or explicitly confirmed before model override guidance
-- [ ] User presented with autonomy guidance (`Balanced` recommended), unattended budget review, profile, model-cost posture, runtime-specific tier-model handling, workflow toggles, review cadence, and git branching
+- [ ] User presented with autonomy guidance (`Balanced` recommended), unattended time-budget review, optional advisory USD budget guardrails, profile, model-cost posture, runtime-specific tier-model handling, workflow toggles, review cadence, and git branching
 - [ ] Config updated with model_profile, optional model_overrides, workflow, execution, and git sections
 - [ ] Runtime permissions sync attempted after autonomy is written, with relaunch guidance surfaced when required
 - [ ] Relaunch-required state explained as not unattended-ready yet

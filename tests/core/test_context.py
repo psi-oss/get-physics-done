@@ -424,6 +424,8 @@ class TestLoadConfig:
         assert config["parallelization"] is True
         assert config["verifier"] is True
         assert config["checkpoint_after_first_load_bearing_result"] is True
+        assert config["project_usd_budget"] is None
+        assert config["session_usd_budget"] is None
 
     def test_custom_config(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -435,10 +437,18 @@ class TestLoadConfig:
 
     def test_nested_config(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        _create_config(tmp_path, {"workflow": {"research": False, "plan_checker": False}})
+        _create_config(
+            tmp_path,
+            {
+                "workflow": {"research": False, "plan_checker": False},
+                "execution": {"project_usd_budget": 12.5, "session_usd_budget": 2.5},
+            },
+        )
         config = load_config(tmp_path)
         assert config["research"] is False
         assert config["plan_checker"] is False
+        assert config["project_usd_budget"] == 12.5
+        assert config["session_usd_budget"] == 2.5
 
     def test_parallelization_bool(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

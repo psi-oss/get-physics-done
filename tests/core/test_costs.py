@@ -289,6 +289,124 @@ def test_build_cost_summary_marks_mixed_measured_and_estimated_usd_as_advisory(
     assert any("mixes measured runtime telemetry with pricing-snapshot estimates" in item for item in summary.guidance)
 
 
+def test_build_cost_summary_surfaces_advisory_budget_thresholds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    project = _bootstrap_project(tmp_path)
+    (project / "GPD" / "config.json").write_text(
+        json.dumps(
+            {
+                "execution": {
+                    "project_usd_budget": 1.0,
+                    "session_usd_budget": 0.3,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-budget")
+    monkeypatch.setattr(costs, "_now_iso", lambda: "2026-03-27T16:00:00+00:00")
+
+    record_usage_from_runtime_payload(
+        _payload(input_tokens=600, output_tokens=400, cost_usd=0.25),
+        runtime="codex",
+        cwd=project,
+        data_root=data_root,
+    )
+
+    summary = build_cost_summary(project, data_root=data_root, last_sessions=5)
+    thresholds = {threshold.config_key: threshold for threshold in summary.budget_thresholds}
+
+    assert set(thresholds) == {"project_usd_budget", "session_usd_budget"}
+
+    project_threshold = thresholds["project_usd_budget"]
+    assert project_threshold.scope == "project"
+    assert project_threshold.advisory_only is True
+    assert project_threshold.budget_usd == 1.0
+    assert project_threshold.spent_usd == pytest.approx(0.25)
+    assert project_threshold.remaining_usd == pytest.approx(0.75)
+    assert project_threshold.percent_used == pytest.approx(25.0)
+    assert project_threshold.cost_status == "measured"
+    assert project_threshold.comparison_exact is True
+    assert project_threshold.state == "within_budget"
+    assert "within budget based on measured local USD telemetry" in project_threshold.message
+
+    session_threshold = thresholds["session_usd_budget"]
+    assert session_threshold.scope == "session"
+    assert session_threshold.budget_usd == 0.3
+    assert session_threshold.spent_usd == pytest.approx(0.25)
+    assert session_threshold.remaining_usd == pytest.approx(0.05)
+    assert session_threshold.percent_used == pytest.approx(83.33)
+    assert session_threshold.cost_status == "measured"
+    assert session_threshold.comparison_exact is True
+    assert session_threshold.state == "near_budget"
+    assert "nearing budget based on measured local USD telemetry" in session_threshold.message
+
+
+def test_build_cost_summary_marks_configured_budgets_unavailable_without_spend(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    (project / "GPD" / "config.json").write_text(
+        json.dumps(
+            {
+                "execution": {
+                    "project_usd_budget": 1.0,
+                    "session_usd_budget": 0.5,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: None)
+
+    summary = build_cost_summary(project, data_root=tmp_path / "data", last_sessions=5)
+    thresholds = {threshold.config_key: threshold for threshold in summary.budget_thresholds}
+
+    assert thresholds["project_usd_budget"].spent_usd is None
+    assert thresholds["project_usd_budget"].remaining_usd is None
+    assert thresholds["project_usd_budget"].percent_used is None
+    assert thresholds["project_usd_budget"].cost_status == "unavailable"
+    assert thresholds["project_usd_budget"].comparison_exact is False
+    assert thresholds["project_usd_budget"].state == "unavailable"
+    assert "comparison is unavailable" in thresholds["project_usd_budget"].message
+    assert thresholds["session_usd_budget"].spent_usd is None
+    assert thresholds["session_usd_budget"].comparison_exact is False
+    assert thresholds["session_usd_budget"].state == "unavailable"
+
+
+def test_build_cost_summary_marks_budget_overrun_when_spend_reaches_threshold(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    project = _bootstrap_project(tmp_path)
+    (project / "GPD" / "config.json").write_text(
+        json.dumps({"execution": {"project_usd_budget": 0.25}}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-overrun")
+    monkeypatch.setattr(costs, "_now_iso", lambda: "2026-03-27T16:00:00+00:00")
+
+    record_usage_from_runtime_payload(
+        _payload(input_tokens=600, output_tokens=400, cost_usd=0.25),
+        runtime="codex",
+        cwd=project,
+        data_root=data_root,
+    )
+
+    summary = build_cost_summary(project, data_root=data_root, last_sessions=5)
+    project_threshold = next(
+        threshold for threshold in summary.budget_thresholds if threshold.config_key == "project_usd_budget"
+    )
+
+    assert project_threshold.state == "at_or_over_budget"
+    assert project_threshold.remaining_usd == pytest.approx(0.0)
+    assert "at or over budget" in project_threshold.message
+
+
 def test_build_cost_summary_marks_cost_only_records_as_token_incomplete(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

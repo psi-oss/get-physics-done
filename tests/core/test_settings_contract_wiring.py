@@ -59,6 +59,18 @@ def test_settings_model_cost_onboarding_stays_qualitative_and_runtime_default_fi
     assert "dollar" not in settings_workflow.lower()
 
 
+def test_settings_workflow_surfaces_optional_usd_budget_guardrails_as_advisory_only() -> None:
+    settings_command = (COMMANDS_DIR / "settings.md").read_text(encoding="utf-8")
+    settings_workflow = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+
+    assert "Optional USD budget guardrails are advisory only" in settings_command
+    assert "project_usd_budget" in settings_workflow
+    assert "session_usd_budget" in settings_workflow
+    assert "Blank / `none` should clear the corresponding USD budget." in settings_workflow
+    assert "never stop work automatically" in settings_workflow
+    assert "live budget enforcement" not in settings_workflow
+
+
 def test_settings_workflow_preset_contract_keeps_runtime_default_tier_model_path_explicit() -> None:
     settings_workflow = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
 

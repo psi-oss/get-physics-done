@@ -1771,6 +1771,8 @@ def test_cost_human_output_without_usage_ledger_stays_read_only_and_advisory(
     assert "Read-only machine-local usage/cost summary." in normalized_output
     assert "GPD reports measured telemetry when available" in normalized_output
     assert "clearly labels estimates or unavailable values." in normalized_output
+    assert "Budget guardrails" in result.output
+    assert "No optional USD budget guardrails are configured for this workspace." in result.output
     assert "Profile tier mix" in result.output
     assert "Advisory only; counts profile-to-tier assignments" in result.output
     assert "No measured usage telemetry is recorded for this workspace yet." in result.output
@@ -1817,6 +1819,7 @@ def test_cost_raw_keeps_tokens_measured_but_usd_unavailable_without_pricing_snap
     assert payload["project"]["cost_usd"] is None
     assert payload["profile_tier_mix"] == {"tier-1": 12, "tier-2": 10, "tier-3": 1}
     assert payload["profile_tier_mix_interpretation"].startswith("Advisory only; counts profile-to-tier assignments")
+    assert payload["budget_thresholds"] == []
     assert payload["recent_sessions"][0]["session_id"] == "session-1"
     assert payload["recent_sessions"][0]["usage_status"] == "measured"
     assert payload["recent_sessions"][0]["cost_status"] == "unavailable"

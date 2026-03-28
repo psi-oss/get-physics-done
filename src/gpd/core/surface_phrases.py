@@ -47,30 +47,30 @@ def recovery_fast_next_action(*, fast_next_command: str) -> str:
 
 def cost_inspect_action() -> str:
     return (
-        "Run `gpd cost` to inspect recorded machine-local usage / cost and the current profile tier mix "
-        "for this workspace."
+        "Run `gpd cost` to inspect recorded machine-local usage / cost, optional USD budget guardrails, "
+        "and the current profile tier mix for this workspace."
     )
 
 
 def cost_after_run_action() -> str:
     return (
-        "After a run, use `gpd cost` to inspect recorded machine-local usage / cost and the current "
-        "profile tier mix for this workspace."
+        "After a run, use `gpd cost` to inspect recorded machine-local usage / cost, optional USD budget "
+        "guardrails, and the current profile tier mix for this workspace."
     )
 
 
 def cost_after_runs_guidance() -> str:
     return (
-        "Use `gpd cost` after runs to inspect recorded local usage / cost and the current profile tier mix "
-        "instead of treating posture labels as billing truth."
+        "Use `gpd cost` after runs to inspect recorded local usage / cost, optional USD budget guardrails, "
+        "and the current profile tier mix instead of treating posture labels as billing truth."
     )
 
 
 def cost_summary_surface_note() -> str:
     return (
-        "Read-only machine-local usage / cost summary from recorded local telemetry plus the current profile "
-        "tier mix; advisory only, not live budget enforcement or provider billing truth. If telemetry or the "
-        "tier mix is missing, the summary stays partial or estimated rather than exact."
+        "Read-only machine-local usage / cost summary from recorded local telemetry, optional USD budget "
+        "guardrails, and the current profile tier mix; advisory only, not live budget enforcement or provider "
+        "billing truth. If telemetry is missing, the USD view stays partial or estimated rather than exact."
     )
 
 

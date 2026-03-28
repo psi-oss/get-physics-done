@@ -108,6 +108,8 @@ class TestGPDProjectConfigDefaults:
         assert cfg.checkpoint_after_n_tasks == 3
         assert cfg.checkpoint_after_first_load_bearing_result is True
         assert cfg.checkpoint_before_downstream_dependent_tasks is True
+        assert cfg.project_usd_budget is None
+        assert cfg.session_usd_budget is None
         assert cfg.branching_strategy == BranchingStrategy.NONE
         assert cfg.model_overrides is None
 
@@ -136,6 +138,10 @@ class TestLoadConfig:
                     "review_cadence": "dense",
                     "research_mode": "explore",
                     "commit_docs": False,
+                    "execution": {
+                        "project_usd_budget": 12.5,
+                        "session_usd_budget": 2.25,
+                    },
                 }
             )
         )
@@ -145,6 +151,8 @@ class TestLoadConfig:
         assert cfg.review_cadence == ReviewCadence.DENSE
         assert cfg.research_mode == ResearchMode.EXPLORE
         assert cfg.commit_docs is False
+        assert cfg.project_usd_budget == 12.5
+        assert cfg.session_usd_budget == 2.25
 
     @pytest.mark.parametrize(
         "invalid_value",
@@ -157,6 +165,20 @@ class TestLoadConfig:
     ) -> None:
         (tmp_path / "GPD").mkdir()
         (tmp_path / "GPD" / "config.json").write_text(json.dumps({"autonomy": invalid_value}))
+
+        with pytest.raises(ConfigError, match="Invalid config.json values"):
+            load_config(tmp_path)
+
+    @pytest.mark.parametrize("invalid_budget", [0, -1, -0.5])
+    def test_invalid_budget_values_raise_config_error(
+        self,
+        tmp_path: Path,
+        invalid_budget: float,
+    ) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps({"execution": {"project_usd_budget": invalid_budget}}),
+        )
 
         with pytest.raises(ConfigError, match="Invalid config.json values"):
             load_config(tmp_path)

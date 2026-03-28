@@ -21,6 +21,7 @@ Routes to the settings workflow which handles:
 - Config existence ensuring
 - Current settings reading and parsing
 - Interactive prompt covering autonomy mode, unattended budgets, research profile, model-cost posture, runtime-specific tier models, review cadence, and workflow/git toggles
+- Optional USD budget guardrails are advisory only; they are checked by `gpd cost`, may be partial or estimated when telemetry is missing, and never stop work automatically
 - Runtime permission sync status plus relaunch-readiness guidance for unattended use
 - Config merging and writing
 - Confirmation display with a compact local CLI bridge and quick command references
@@ -42,6 +43,7 @@ The workflow handles all logic including:
    - **Autonomy**: supervised / balanced / yolo
    - **Balanced (Recommended)**: best default for most unattended runs because it keeps work moving but still pauses on important physics, scope, or blocker decisions
    - **Unattended budgets**: review bounded continuation limits such as per-plan and per-wave unattended minutes
+   - **Optional USD budget guardrails**: advisory-only project/session thresholds checked by `gpd cost`; never enforcement or auto-stop
    - **Runtime permission sync**: align runtime-owned approvals with the chosen autonomy level
    - **Research profile**: deep-theory / numerical / exploratory / review / paper-writing
    - **Workflow presets**: bundle the existing config keys above; preview the changed knobs first, then apply explicitly or customize further. Use `gpd presets list`, `gpd presets show <preset>`, or `gpd presets apply <preset> [--dry-run]` from your normal terminal

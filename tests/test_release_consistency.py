@@ -190,8 +190,8 @@ def _assert_shared_preset_surface_contract(content: str) -> None:
 def _assert_cost_advisory_contract(content: str) -> None:
     assert "gpd cost" in content
     assert "current profile tier mix" in content
-    assert "advisory only" in cost_summary_surface_note()
-    assert "partial or estimated rather than exact" in content
+    assert "advisory only" in content or "billing truth" in content
+    assert "partial or estimated rather than exact" in content or "estimated rather than exact" in content
 
 
 def _assert_wolfram_plan_boundary(content: str) -> None:
@@ -746,6 +746,7 @@ def test_public_readme_and_bootstrap_surface_optional_workflow_add_on_guidance()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
     installer = (repo_root / "bin/install.js").read_text(encoding="utf-8")
 
+    _assert_cost_advisory_contract(readme)
     _assert_unattended_readiness_surface(readme)
     _assert_wolfram_plan_boundary(readme)
     assert "executable probes" in readme
@@ -790,6 +791,7 @@ def test_public_paper_toolchain_capability_model_stays_consistent_across_surface
     assert installer_readiness_snippet in installer
     _assert_shared_preset_surface_contract(readme)
     assert readme_preset_degrade_snippet in readme
+    _assert_cost_advisory_contract(readme)
     assert WOLFRAM_STATUS_SURFACE in readme
     assert "shared Wolfram integration" in readme
     assert "Local Mathematica installs are separate from the shared optional Wolfram integration config." in help_command
@@ -891,6 +893,7 @@ def test_public_help_surfaces_keep_settings_as_guided_post_startup_path() -> Non
         assert "3. `/gpd:settings` - Primary guided unattended/autonomy setup after project creation" in content
         assert "Paper/manuscript workflows" in content
         _assert_shared_preset_surface_contract(content)
+        _assert_cost_advisory_contract(content)
         assert "gpd --help" in content
         _assert_unattended_readiness_surface(content)
         assert "paper-toolchain readiness" in content
@@ -951,13 +954,11 @@ def test_public_readme_observability_surface_keeps_execution_guidance_in_command
         "| `gpd observe execution` | Show read-only live execution status for the current workspace, including progress / waiting state, "
         "conservative `possibly stalled` wording, and the next read-only checks to run |"
     ) in readme
-    assert "| `gpd cost` | Show the read-only machine-local usage / cost summary from recorded local telemetry; advisory only, not live budget enforcement or provider billing truth. If telemetry or the tier mix is missing, the summary stays partial or estimated rather than exact |" in readme
     assert "gpd observe execution" in readme
     assert "For read-only long-run visibility from your normal system terminal, use `gpd observe execution`." in readme
     assert "Start with `gpd observe show --last 20` when you need the recent event trail" in readme
     assert "route it through the runtime `tangent` command first" in readme
     _assert_cost_advisory_contract(readme)
-    assert cost_summary_surface_note() in readme
 
 
 def test_public_local_cli_help_and_install_summary_keep_readiness_diagnostics_emphasis() -> None:

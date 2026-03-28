@@ -17,7 +17,6 @@ from gpd.core.costs import build_cost_summary
 from gpd.core.observability import derive_execution_visibility, resolve_project_root
 from gpd.core.recent_projects import list_recent_projects
 from gpd.core.surface_phrases import (
-    cost_after_run_action,
     cost_inspect_action,
     recovery_continue_action,
     recovery_fast_next_action,
@@ -228,17 +227,45 @@ def _workflow_next_actions(details: dict[str, object], *, base_ready: bool, late
     return actions
 
 
-def _cost_next_actions(cost_summary: object) -> list[str]:
-    actions: list[str] = []
-    project_rollup = getattr(cost_summary, "project", None)
-    if int(getattr(project_rollup, "record_count", 0) or 0) > 0:
-        actions.append(cost_inspect_action())
-        return actions
+def _cost_advisory(cost_summary: object) -> dict[str, object] | None:
+    budget_thresholds = list(getattr(cost_summary, "budget_thresholds", []) or [])
+    prioritized_budget_states = ("at_or_over_budget", "near_budget", "unavailable")
+    for state in prioritized_budget_states:
+        for threshold in budget_thresholds:
+            threshold_state = str(getattr(threshold, "state", "unavailable") or "unavailable")
+            if threshold_state != state:
+                continue
+            advisory: dict[str, object] = {
+                "state": threshold_state,
+                "scope": getattr(threshold, "scope", "unknown"),
+                "config_key": getattr(threshold, "config_key", "unknown"),
+                "message": str(getattr(threshold, "message", "") or "").strip(),
+            }
+            advisory["next_action"] = cost_inspect_action()
+            return advisory
 
-    capabilities = getattr(cost_summary, "active_runtime_capabilities", {}) or {}
-    if isinstance(capabilities, dict) and capabilities.get("telemetry_completeness") == "best-effort":
-        actions.append(cost_after_run_action())
-    return actions
+    project_rollup = getattr(cost_summary, "project", None)
+    guidance = list(getattr(cost_summary, "guidance", []) or [])
+    if not guidance:
+        return None
+
+    record_count = int(getattr(project_rollup, "record_count", 0) or 0)
+    usage_status = str(getattr(project_rollup, "usage_status", "unavailable") or "unavailable")
+    cost_status = str(getattr(project_rollup, "cost_status", "unavailable") or "unavailable")
+    if record_count <= 0 and cost_status == "unavailable":
+        return None
+    if cost_status not in {"mixed", "unavailable"} and not (
+        cost_status == "estimated" and record_count > 0 and usage_status == "measured"
+    ):
+        return None
+
+    advisory: dict[str, object] = {
+        "state": cost_status,
+        "message": guidance[0],
+    }
+    if cost_status in {"mixed", "unavailable"}:
+        advisory["next_action"] = cost_inspect_action()
+    return advisory
 
 
 def build_runtime_hint_payload(
@@ -289,6 +316,9 @@ def build_runtime_hint_payload(
 
     cost_summary = build_cost_summary(project_root, data_root=data_root, last_sessions=cost_last_sessions) if include_cost else None
     cost = (_model_dump(cost_summary) or {}) if cost_summary is not None else {}
+    cost_advisory = _cost_advisory(cost_summary) if cost_summary is not None else None
+    if cost_advisory is not None:
+        cost["advisory"] = cost_advisory
 
     normalized_latex_capability = _normalize_latex_capability(latex_capability, legacy_available=latex_available)
 
@@ -324,8 +354,10 @@ def build_runtime_hint_payload(
     if include_recovery:
         next_action_parts.extend(_recovery_next_actions(orientation, existing_actions=execution_actions))
     if cost_summary is not None:
-        next_action_parts.extend(_cost_next_actions(cost_summary))
-        next_action_parts.extend(cost_summary.guidance or [])
+        if cost_advisory is not None:
+            next_action = cost_advisory.get("next_action")
+            if isinstance(next_action, str) and next_action.strip():
+                next_action_parts.append(next_action.strip())
     if include_workflow_presets:
         next_action_parts.extend(_workflow_next_actions(workflow_presets, base_ready=base_ready, latex_capability=normalized_latex_capability))
     next_actions = _dedupe_text(next_action_parts)

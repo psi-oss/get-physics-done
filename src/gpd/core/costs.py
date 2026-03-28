@@ -27,6 +27,7 @@ from gpd.core.observability import get_current_session_id, resolve_project_root
 from gpd.core.utils import atomic_write, file_lock, safe_read_file
 
 __all__ = [
+    "CostBudgetThresholdSummary",
     "CostProjectSummary",
     "CostSessionSummary",
     "CostSummary",
@@ -43,6 +44,8 @@ __all__ = [
 
 _RECENT_SESSION_DEFAULT = 5
 _DEDUP_WINDOW_SECONDS = 10.0
+
+
 class UsageRecord(BaseModel):
     """One machine-local usage/cost ledger entry."""
 
@@ -148,7 +151,26 @@ class CostSummary(BaseModel):
     pricing_snapshot_configured: bool = False
     pricing_snapshot_source: str | None = None
     pricing_snapshot_as_of: str | None = None
+    budget_thresholds: list["CostBudgetThresholdSummary"] = Field(default_factory=list)
     guidance: list[str] = Field(default_factory=list)
+
+
+class CostBudgetThresholdSummary(BaseModel):
+    """Advisory cost guardrail comparison for one configured budget."""
+
+    model_config = ConfigDict(frozen=True)
+
+    scope: str
+    config_key: str
+    advisory_only: bool = True
+    budget_usd: float
+    spent_usd: float | None = None
+    remaining_usd: float | None = None
+    percent_used: float | None = None
+    cost_status: str = "unavailable"
+    comparison_exact: bool = False
+    state: str = "unavailable"
+    message: str
 
 
 def _now_iso() -> str:
@@ -661,6 +683,68 @@ def _session_rows(records: list[UsageRecord], *, last: int) -> list[CostSessionS
     return rows[:last] if last > 0 else rows
 
 
+def _budget_threshold_summary(
+    *,
+    scope: str,
+    config_key: str,
+    budget_usd: float | None,
+    rollup: CostRollup | None,
+) -> CostBudgetThresholdSummary | None:
+    if budget_usd is None:
+        return None
+
+    scope_label = scope.replace("_", " ")
+    spent_usd = rollup.cost_usd if rollup is not None else None
+    cost_status = rollup.cost_status if rollup is not None else "unavailable"
+    comparison_exact = cost_status == "measured"
+    comparison_basis = (
+        "measured local USD telemetry"
+        if comparison_exact
+        else "advisory local USD telemetry"
+        if cost_status in {"estimated", "mixed"}
+        else "unavailable local USD telemetry"
+    )
+    if spent_usd is None:
+        return CostBudgetThresholdSummary(
+            scope=scope,
+            config_key=config_key,
+            budget_usd=budget_usd,
+            cost_status=cost_status,
+            comparison_exact=comparison_exact,
+            message=(
+                f"Configured {scope_label} USD budget is advisory only; current comparison is unavailable "
+                f"because {comparison_basis} cannot provide a usable USD total yet."
+            ),
+        )
+
+    remaining_usd = round(budget_usd - spent_usd, 6)
+    percent_used = round((spent_usd / budget_usd) * 100.0, 2)
+    if spent_usd >= budget_usd:
+        state = "at_or_over_budget"
+        state_message = "is at or over budget"
+    elif percent_used >= 80.0:
+        state = "near_budget"
+        state_message = "is nearing budget"
+    else:
+        state = "within_budget"
+        state_message = "remains within budget"
+    return CostBudgetThresholdSummary(
+        scope=scope,
+        config_key=config_key,
+        budget_usd=budget_usd,
+        spent_usd=spent_usd,
+        remaining_usd=remaining_usd,
+        percent_used=percent_used,
+        cost_status=cost_status,
+        comparison_exact=comparison_exact,
+        state=state,
+        message=(
+            f"Configured {scope_label} USD budget {state_message} based on {comparison_basis}; "
+            "it stays advisory only and never stops work automatically."
+        ),
+    )
+
+
 def build_cost_summary(
     cwd: Path | None = None,
     *,
@@ -683,6 +767,7 @@ def build_cost_summary(
     model_profile: str | None = None
     runtime_model_selection: str | None = None
     profile_tier_mix: dict[str, int] = {}
+    config = None
     try:
         from gpd.core.config import load_config
         from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_runtime_for_gpd_use
@@ -705,6 +790,24 @@ def build_cost_summary(
     guidance: list[str] = []
     project_rollup = _rollup(project_records)
     current_session_rollup = _rollup(current_session_records) if current_session_records else None
+
+    budget_thresholds: list[CostBudgetThresholdSummary] = []
+    if config is not None:
+        budget_summary = [
+            _budget_threshold_summary(
+                scope="project",
+                config_key="project_usd_budget",
+                budget_usd=getattr(config, "project_usd_budget", None),
+                rollup=project_rollup,
+            ),
+            _budget_threshold_summary(
+                scope="session",
+                config_key="session_usd_budget",
+                budget_usd=getattr(config, "session_usd_budget", None),
+                rollup=current_session_rollup,
+            ),
+        ]
+        budget_thresholds = [entry for entry in budget_summary if entry is not None]
 
     if not project_records:
         if active_runtime_capabilities.get("telemetry_completeness") == "none" and active_runtime:
@@ -760,5 +863,6 @@ def build_cost_summary(
         pricing_snapshot_configured=bool(pricing_snapshot.entries),
         pricing_snapshot_source=pricing_snapshot.source,
         pricing_snapshot_as_of=pricing_snapshot.as_of,
+        budget_thresholds=budget_thresholds,
         guidance=guidance,
     )

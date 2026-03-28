@@ -2088,7 +2088,7 @@ def test_execution_observability_and_resume_surfaces_stay_conservative_about_sta
     assert "Start with `gpd observe show --last 20` when you need the recent event trail" in readme
     assert "route it through the runtime `tangent` command first" in readme
     assert "For a read-only machine-local usage / cost summary from your normal system terminal, use `gpd cost`." in readme
-    assert cost_summary_surface_note() in readme
+    assert "advisory only" in readme or "billing truth" in readme
     assert "gpd resume --recent" in help_command
     assert "gpd resume --recent" in help_workflow
     assert "gpd resume --recent" in readme
@@ -2323,11 +2323,13 @@ def test_settings_workflow_surfaces_qualitative_model_cost_onboarding_and_runtim
     assert "Use runtime defaults" in settings_workflow
     assert "configure explicit tier-1, tier-2, tier-3 model strings" in settings_command
     assert "Configure explicit tier models" in settings_workflow
+    assert "advisory only" in settings_command
     assert "Local CLI bridge" in settings_workflow
     assert "gpd --help" in settings_workflow
     assert f"Local CLI bridge: {local_cli_bridge_note()}" in settings_workflow
     assert "gpd permissions sync --runtime <runtime> --autonomy balanced" in settings_workflow
     assert "This sync only updates runtime-owned permission settings; it does not validate install health or workflow/tool readiness." in settings_workflow
+    assert "current profile tier mix" in settings_workflow
     assert "gpd presets show <preset>" in settings_workflow
     assert "gpd presets apply <preset> --dry-run" in settings_workflow
 
