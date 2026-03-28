@@ -3184,6 +3184,13 @@ class TestReviewValidationCommands:
     def test_integrations_surface_smoke(self, command_args: tuple[str, ...]) -> None:
         _invoke(*command_args)
 
+    def test_doctor_help_smoke_retains_runtime_scoping_and_probe_slot(self) -> None:
+        result = runner.invoke(app, ["doctor", "--help"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        assert "Check GPD installation and environment health" in result.output
+        assert "inspect runtime readiness" in result.output
+
     def test_validate_summary_contract_command_rejects_unknown_contract_ids(self, gpd_project: Path) -> None:
         phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"
         phase_dir.mkdir(parents=True, exist_ok=True)

@@ -505,12 +505,11 @@ def test_doctor_help_surfaces_runtime_readiness_mode() -> None:
     assert result.exit_code == 0
     assert "Check GPD installation and environment health" in result.output
     assert "inspect runtime readiness" in result.output
+    assert "--live-executable-probes" in result.output
     assert "--runtime" in result.output
     assert "--local" in result.output
     assert "--global" in result.output
     assert "--target-dir" in result.output
-    assert "Check the runtime's local install target (default)" in result.output
-    assert "Override the runtime config directory to inspect" in result.output
 
 
 def test_permissions_help_surfaces_status_and_sync_roles() -> None:
@@ -1434,7 +1433,55 @@ def test_doctor(mock_doctor):
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 0
     mock_doctor.assert_called_once()
-    assert mock_doctor.call_args.kwargs == {"specs_dir": SPECS_DIR}
+    assert mock_doctor.call_args.kwargs == {
+        "specs_dir": SPECS_DIR,
+        "live_executable_probes": False,
+    }
+
+
+def test_doctor_live_executable_probes_pass_through(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from gpd.specs import SPECS_DIR
+
+    captured: dict[str, object] = {}
+
+    def fake_run_doctor(
+        *,
+        specs_dir: Path | None = None,
+        version: str | None = None,
+        runtime: str | None = None,
+        install_scope: str | None = None,
+        target_dir: str | Path | None = None,
+        cwd: Path | None = None,
+        live_executable_probes: bool = False,
+    ) -> MagicMock:
+        captured["kwargs"] = {
+            "specs_dir": specs_dir,
+            "version": version,
+            "runtime": runtime,
+            "install_scope": install_scope,
+            "target_dir": target_dir,
+            "cwd": cwd,
+            "live_executable_probes": live_executable_probes,
+        }
+        mock_result = MagicMock()
+        mock_result.model_dump.return_value = {"mode": "runtime-readiness", "overall": "ok"}
+        return mock_result
+
+    monkeypatch.setattr("gpd.core.health.run_doctor", fake_run_doctor)
+
+    result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "doctor", "--live-executable-probes"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {"mode": "runtime-readiness", "overall": "ok"}
+    assert captured["kwargs"] == {
+        "specs_dir": SPECS_DIR,
+        "version": None,
+        "runtime": None,
+        "install_scope": None,
+        "target_dir": None,
+        "cwd": None,
+        "live_executable_probes": True,
+    }
 
 
 @patch("gpd.core.health.run_doctor")
@@ -1455,6 +1502,7 @@ def test_doctor_runtime_mode_uses_run_doctor(mock_doctor, tmp_path: Path) -> Non
         install_scope="local",
         target_dir=None,
         cwd=tmp_path,
+        live_executable_probes=False,
     )
 
 
@@ -1477,6 +1525,7 @@ def test_doctor_runtime_readiness_mode(mock_doctor, tmp_path: Path):
         install_scope="global",
         target_dir=None,
         cwd=tmp_path,
+        live_executable_probes=False,
     )
 
 
@@ -1505,6 +1554,7 @@ def test_doctor_target_dir_infers_install_scope(mock_doctor, tmp_path: Path) -> 
         install_scope="global",
         target_dir=target_dir.resolve(strict=False),
         cwd=tmp_path,
+        live_executable_probes=False,
     )
 
 
@@ -1533,6 +1583,7 @@ def test_doctor_target_dir_stays_local_when_target_is_not_global(mock_doctor, tm
         install_scope="local",
         target_dir=target_dir.resolve(strict=False),
         cwd=tmp_path,
+        live_executable_probes=False,
     )
 
 

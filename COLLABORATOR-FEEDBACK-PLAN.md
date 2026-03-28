@@ -216,18 +216,55 @@ Remaining friction after Step 4:
 
 ### Next Step
 
-Step 5 should add live, harmless executable probes so machine readiness and runtime readiness stop being purely static/config-level judgments.
+### Step 5 Completed: Opt-In Live Executable Probes In Doctor
 
-That step should:
+Status: completed on March 27, 2026.
 
-- preserve the current runtime-agnostic user-facing surfaces instead of creating per-runtime probe commands
-- add an explicit opt-in probe mode to `gpd doctor` and related readiness summaries
-- distinguish static config/readiness evidence from current-session probe evidence
-- cover the exact high-signal commands users care about:
-  - `gpd --help`
-  - `pdflatex --version`
-  - `wolframscript -version` when local Wolfram is expected
-- avoid treating failed or unavailable probes as proof that optional capabilities are impossible; the result should explain what was and was not tested
+What shipped:
+
+- `gpd doctor` now exposes one explicit opt-in flag:
+  - `--live-executable-probes`
+- The doctor report now records whether probes were enabled:
+  - `DoctorReport.live_executable_probes`
+- When enabled, doctor adds one shared `Live Executable Probes` check instead of inventing a new reporting subsystem.
+- The probe surface stays runtime-agnostic and local-only:
+  - mandatory GPD CLI probe via `python -m gpd.cli --help`
+  - optional local executable probes for `pdflatex`, `bibtex`, `latexmk`, `kpsewhich`, and `wolframscript` when present on `PATH`
+- Probe semantics are intentionally conservative:
+  - failure of the GPD CLI probe is a hard issue
+  - missing or failing optional tools become warnings, not install-blocking proof that those capabilities are impossible
+  - no network, license, or remote-provider probing was added
+- Public docs/help/readme now name the actual flag instead of vaguely saying users can “opt in”.
+- Existing boundaries remain intact:
+  - `gpd permissions ...` stays runtime-owned approval/alignment only
+  - `gpd integrations status wolfram` stays config-only
+  - `gpd validate plan-preflight <PLAN.md>` remains the plan gate
+
+Verification:
+
+- Focused Step 5 suite passed:
+  - `uv run pytest -q tests/core/test_health.py tests/core/test_cli.py tests/test_cli_commands.py tests/core/test_prompt_cli_consistency.py tests/test_release_consistency.py`
+  - `uv run ruff check README.md src/gpd/cli.py src/gpd/commands/help.md src/gpd/core/health.py src/gpd/specs/workflows/help.md src/gpd/specs/workflows/new-project.md src/gpd/specs/workflows/settings.md tests/core/test_cli.py tests/core/test_health.py tests/core/test_prompt_cli_consistency.py tests/test_cli_commands.py tests/test_release_consistency.py`
+- Result:
+  - `452 passed`
+  - `ruff clean`
+
+Remaining friction after Step 5:
+
+- Live probe evidence is still local-command only; it does not prove runtime-owned approval state in the current session.
+- Managed Wolfram integration still proves config shape plus env presence, not remote authentication success or license/session health.
+- The GPD probe uses the local Python module entry path, not every possible shell alias or wrapper a user might create.
+- The probe surface is intentionally narrow; richer liveness checks should only be added if real demand appears.
+
+### Next Step
+
+If we continue beyond the collaborator-permissions/toolchain slice, the next highest-value step is a single explicit overnight-readiness surface that composes:
+
+- install/readiness state from `gpd doctor`
+- permission alignment / relaunch requirements from `gpd permissions status`
+- optional live probe evidence when requested
+
+That step should answer one user question directly: “Can I leave this runtime alone overnight, and if not, exactly what do I need to fix first?”
 
 ## Feedback Map
 

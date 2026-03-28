@@ -153,6 +153,7 @@ def _expected_wheel_dependency_names() -> set[str]:
 
 HELP_COMMAND_HEADING_RE = re.compile(r"^\*\*`/gpd:([a-z0-9-]+)(?:[^`]*)`\*\*$", re.MULTILINE)
 README_COMMAND_ROW_RE = re.compile(r"^\| `/gpd:([a-z0-9-]+)(?:[^`]*)` \| (.*?) \|$", re.MULTILINE)
+DOCTOR_RUNTIME_SCOPE_RE = re.compile(r"gpd doctor --runtime <runtime> --local\|--global")
 
 
 def _normalized_requirement_name(requirement: str) -> str:
@@ -670,7 +671,12 @@ def test_public_readme_quick_start_keeps_settings_guided_balanced_unattended_rea
 
     assert "For unattended execution, the recommended default is Balanced (`balanced`)." in quick_start
     assert "Use your runtime-specific `settings` command to confirm or change autonomy" in quick_start
-    assert "Use `gpd doctor` for the selected install target and runtime-local readiness signals; use `gpd permissions ...` for runtime-owned approval/alignment only." in quick_start
+    assert (
+        "Use `gpd doctor` for the selected install target and runtime-local readiness signals. "
+        "Add `--live-executable-probes` if you also want cheap local executable probes such as "
+        "`pdflatex --version` or `wolframscript -version`, "
+        "but it still does not replace plan preflight. Use `gpd permissions ...` for runtime-owned approval/alignment only."
+    ) in quick_start
     assert "Local CLI bridge: use `gpd --help`, `gpd permissions status --runtime <runtime> --autonomy balanced`, `gpd permissions sync --runtime <runtime> --autonomy balanced`, `gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list`, and `gpd integrations status wolfram`" in quick_start
     assert "gpd permissions status --runtime <runtime> --autonomy balanced" in quick_start
     assert "gpd permissions sync --runtime <runtime> --autonomy balanced" in quick_start
@@ -691,7 +697,12 @@ def test_public_readme_and_bootstrap_surface_optional_workflow_add_on_guidance()
     installer = (repo_root / "bin/install.js").read_text(encoding="utf-8")
 
     assert "Workflow presets are actionable bundles over the existing config keys." in readme
-    assert "Use `gpd doctor` for the selected install target and runtime-local readiness signals; use `gpd permissions ...` for runtime-owned approval/alignment only." in readme
+    assert (
+        "Use `gpd doctor` for the selected install target and runtime-local readiness signals. "
+        "Add `--live-executable-probes` if you also want cheap local executable probes such as "
+        "`pdflatex --version` or `wolframscript -version`, "
+        "but it still does not replace plan preflight. Use `gpd permissions ...` for runtime-owned approval/alignment only."
+    ) in readme
     assert "The first supported workflow preset is paper/manuscript workflows" in readme
     assert "preview one bundle before choosing it" in readme
     assert "gpd presets apply <preset> --dry-run" in readme
@@ -700,7 +711,7 @@ def test_public_readme_and_bootstrap_surface_optional_workflow_add_on_guidance()
     assert "check runtime-local paper-toolchain readiness before relying on `write-paper`, `paper-build`, `peer-review`, or `arxiv-submission`" in readme
     assert "`write-paper` remains usable when readiness is degraded, but `paper-build` defines the manuscript build contract" in readme
     assert "gpd integrations status wolfram" in readme
-    assert "local Mathematica install is separate from the shared optional Wolfram integration config" in readme
+    assert "a local Mathematica install is a separate machine-local dependency from the shared optional Wolfram integration" in readme
     assert "gpd validate plan-preflight <PLAN.md>" in readme
     assert "Workflow presets: if you plan paper/manuscript workflows, rerun " in installer
     assert "Use `gpd doctor` for install/readiness checks and `gpd permissions status` for runtime-owned permission alignment." in installer
@@ -717,19 +728,25 @@ def test_public_paper_toolchain_capability_model_stays_consistent_across_surface
     installer = (repo_root / "bin/install.js").read_text(encoding="utf-8")
 
     readme_readiness_snippet = (
-        "Use `gpd doctor` for the selected install target and runtime-local readiness signals; "
-        "use `gpd permissions ...` for runtime-owned approval/alignment only."
+        "Use `gpd doctor` for the selected install target and runtime-local readiness signals. "
+        "Add `--live-executable-probes` if you also want cheap local executable probes such as "
+        "`pdflatex --version` or `wolframscript -version`, "
+        "but it still does not replace plan preflight. Use `gpd permissions ...` for runtime-owned approval/alignment only."
     )
     help_readiness_snippet = (
-        "`gpd doctor` checks the selected install target and runtime-local readiness signals; "
+        "`gpd doctor` checks the selected install target and runtime-local readiness signals. "
+        "Add `--live-executable-probes` if you also want cheap local executable probes such as "
+        "`pdflatex --version` or `wolframscript -version`. "
         "`gpd permissions ...` checks runtime-owned approval/alignment only."
     )
     readme_preset_snippet = "Workflow presets are workflow-specific extra capabilities that sit on top of the base install."
     readme_preset_degrade_snippet = "Missing preset tooling degrades that preset; it does not block the base GPD install."
     help_preset_snippet = "Paper/manuscript workflows"
     help_preset_degrade_snippet = (
-        "Check runtime-local paper-toolchain readiness from your normal terminal before using that preset; "
-        "failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and "
+        "Check runtime-local paper-toolchain readiness from your normal terminal before using that preset. "
+        "Add `--live-executable-probes` if you also want cheap local executable probes such as "
+        "`pdflatex --version` or `wolframscript -version`. "
+        "Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and "
         "`arxiv-submission` requires the built manuscript"
     )
     installer_readiness_snippet = (
@@ -748,7 +765,7 @@ def test_public_paper_toolchain_capability_model_stays_consistent_across_surface
     for content in (help_command, help_workflow):
         assert help_preset_snippet in content
         assert help_preset_degrade_snippet in content
-        assert "gpd doctor --runtime <runtime> --local|--global" in content
+        assert DOCTOR_RUNTIME_SCOPE_RE.search(content) is not None
         assert "gpd integrations status wolfram" in content
     assert "Workflow presets: if you plan paper/manuscript workflows, rerun " in installer
     assert "check whether `Workflow Presets` is `ready` or `degraded`." in installer
@@ -764,14 +781,32 @@ def test_public_readme_keeps_bootstrap_prerequisites_and_runtime_doctor_scopes_d
     assert "**Bootstrap hard blockers**" in quick_start
     assert "These are bootstrap prerequisites for `npx -y get-physics-done`, not a claim that every local `gpd ...` command rechecks them." in quick_start
     assert "Here, `gpd doctor --runtime ...` is a runtime-readiness check for the selected runtime target." in quick_start
-    assert "Use `gpd doctor` for the selected install target and runtime-local readiness signals; use `gpd permissions ...` for runtime-owned approval/alignment only." in quick_start
-    assert "If the bootstrap installer fails before `gpd doctor --runtime <runtime> --local|--global` can run, fix Node / Python / `venv` bootstrap prerequisites first." in quick_start
-    assert "If `gpd doctor --runtime <runtime> --local|--global` fails, fix the selected runtime's launcher / target / runtime-readiness issue first." in quick_start
+    assert (
+        "Use `gpd doctor` for the selected install target and runtime-local readiness signals. "
+        "Add `--live-executable-probes` if you also want cheap local executable probes such as "
+        "`pdflatex --version` or `wolframscript -version`, "
+        "but it still does not replace plan preflight. Use `gpd permissions ...` for runtime-owned approval/alignment only."
+    ) in quick_start
+    assert DOCTOR_RUNTIME_SCOPE_RE.search(quick_start) is not None
     assert "Workflow presets are workflow-specific extra capabilities that sit on top of the base install." in quick_start
     assert "inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and use `gpd presets apply <preset> --dry-run`" in quick_start
     assert "There is no separate persisted preset block" in quick_start
     assert "gpd integrations status wolfram" in quick_start
-    assert "If `gpd doctor --runtime <runtime> --local|--global` only warns about `Workflow Presets` or `LaTeX Toolchain`, the base install can still be fine;" in quick_start
+    assert (
+        "If the bootstrap installer fails before `gpd doctor --runtime <runtime> --local|--global` can run, "
+        "fix Node / Python / `venv` bootstrap prerequisites first."
+    ) in quick_start
+    assert (
+        "If `gpd doctor --runtime <runtime> --local|--global` fails, fix the selected runtime's launcher / target / "
+        "runtime-readiness issue first."
+    ) in quick_start
+    assert (
+        "If `gpd doctor --runtime <runtime> --local|--global` only warns about `Workflow Presets` or `LaTeX Toolchain`, "
+        "the base install can still be fine; treat that as degraded readiness for `write-paper` and local smoke checks "
+        "rather than a full install blocker. If you pass `--live-executable-probes`, doctor may also report missing local tools "
+        "like `pdflatex` or `wolframscript`; that still stays separate from `gpd integrations status wolfram` and from "
+        "`gpd validate plan-preflight <PLAN.md>`. Use `gpd paper-build` to judge whether the manuscript scaffold is buildable."
+    ) in quick_start
 
 
 def test_public_readme_recovery_surfaces_keep_runtime_pause_and_resume_roles_distinct() -> None:
@@ -831,8 +866,10 @@ def test_public_help_surfaces_keep_settings_as_guided_post_startup_path() -> Non
         assert "gpd permissions status --runtime <runtime> --autonomy balanced" in content
         assert "gpd permissions sync --runtime <runtime> --autonomy balanced" in content
         assert (
-            "Check runtime-local paper-toolchain readiness from your normal terminal before using that preset; "
-            "failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and "
+            "Check runtime-local paper-toolchain readiness from your normal terminal before using that preset. "
+            "Add `--live-executable-probes` if you also want cheap local executable probes such as "
+            "`pdflatex --version` or `wolframscript -version`. "
+            "Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and "
             "`arxiv-submission` requires the built manuscript"
         ) in content
         assert "gpd observe execution" in content

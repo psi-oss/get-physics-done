@@ -275,7 +275,7 @@ To be established during initial phases.
 
 [Extracted from input, or "To be determined"]
 
-If the project may rely on Wolfram capability, distinguish a local Mathematica / Wolfram Language install from the shared optional Wolfram integration config. The shared path is enabled with `gpd integrations enable wolfram`, but it is still separate from `gpd validate plan-preflight <PLAN.md>` and from local install checks.
+If the project may rely on Wolfram capability, distinguish a local Mathematica / Wolfram Language install from the shared optional Wolfram integration config. Add `--live-executable-probes` to `gpd doctor` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`, but that stays separate from the shared path enabled with `gpd integrations enable wolfram`, and it is still separate from `gpd validate plan-preflight <PLAN.md>` and from local install checks.
 
 ## Requirements
 

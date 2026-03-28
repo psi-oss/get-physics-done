@@ -98,7 +98,7 @@ If `model_overrides.<runtime>` already exists, surface the current `tier-1` / `t
 Treat this as the primary guided unattended-use flow: explain that autonomy, unattended budgets, runtime permission sync, and conservative preset bundles all live here, and that `Balanced` is the recommended default for most users.
 
 If the user asks for a preset, map it onto the existing knobs above. Present the resolved bundle first, let the user preview it, then ask for an explicit apply/adjust choice. Do not add a new persisted config section or install step.
-Use `gpd presets list` for the catalog, `gpd presets show <preset>` to preview one bundle, and `gpd presets apply <preset> --dry-run` when the user wants the local preview/apply path from a normal terminal. For Wolfram capability, use `gpd integrations status wolfram` to inspect the shared optional integration config; that is separate from a local Mathematica install and does not mean a plan is ready to run.
+Use `gpd presets list` for the catalog, `gpd presets show <preset>` to preview one bundle, and `gpd presets apply <preset> --dry-run` when the user wants the local preview/apply path from a normal terminal. Add `--live-executable-probes` to `gpd doctor` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`, but that stays separate from the shared Wolfram integration config. For Wolfram capability, use `gpd integrations status wolfram` to inspect the shared optional integration config; that is separate from a local Mathematica install and does not mean a plan is ready to run.
 
 Before the detailed question list, offer a compact preset chooser when the user wants a starter bundle:
 
@@ -360,7 +360,7 @@ Display:
 | Git Branching        | {none/per-phase/per-milestone} |
 | Runtime Permissions  | {aligned / changed / manual follow-up required} |
 
-Local CLI bridge: use `gpd --help`, `gpd permissions status --runtime <runtime> --autonomy balanced`, `gpd permissions sync --runtime <runtime> --autonomy balanced`, `gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list`, and `gpd integrations status wolfram` from your normal terminal when you want the broader local diagnostics, readiness, recovery, visibility, cost, preset, and shared Wolfram integration surface.
+Local CLI bridge: use `gpd --help`, `gpd permissions status --runtime <runtime> --autonomy balanced`, `gpd permissions sync --runtime <runtime> --autonomy balanced`, `gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list`, and `gpd integrations status wolfram` from your normal terminal when you want the broader local diagnostics, readiness, recovery, visibility, cost, preset, and shared Wolfram integration surface. Add `--live-executable-probes` to `gpd doctor` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`; that remains separate from `gpd integrations status wolfram` and from `gpd validate plan-preflight <PLAN.md>`.
 
 These settings apply to future /gpd:plan-phase and /gpd:execute-phase runs.
 

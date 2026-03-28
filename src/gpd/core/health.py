@@ -46,8 +46,6 @@ from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import GPDError, ValidationError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, validate_frontmatter
 from gpd.core.observability import gpd_span
-from gpd.core.workflow_presets import resolve_workflow_preset_readiness
-from gpd.hooks.install_metadata import InstallTargetAssessment, assess_install_target
 from gpd.core.state import (
     peek_state_json,
     save_state_json,
@@ -61,6 +59,8 @@ from gpd.core.utils import (
     safe_parse_int,
     safe_read_file,
 )
+from gpd.core.workflow_presets import resolve_workflow_preset_readiness
+from gpd.hooks.install_metadata import InstallTargetAssessment, assess_install_target
 
 logger = logging.getLogger(__name__)
 
@@ -991,6 +991,7 @@ class DoctorReport(BaseModel):
     runtime: str | None = None
     install_scope: str | None = None
     target: str | None = None
+    live_executable_probes: bool = False
     summary: HealthSummary
     checks: list[HealthCheck] = Field(default_factory=list)
 
@@ -1058,6 +1059,118 @@ def _doctor_check_package_imports() -> HealthCheck:
         label="Package Imports",
         details={"modules_checked": 4},
         issues=import_issues,
+    )
+
+
+_DOCTOR_LIVE_EXECUTABLE_PROBE_TIMEOUT_SECONDS = 5
+_DOCTOR_LIVE_EXECUTABLE_OPTIONAL_COMMANDS = ("pdflatex", "bibtex", "latexmk", "kpsewhich", "wolframscript")
+
+
+def _doctor_run_executable_probe(argv: list[str], *, timeout_seconds: int) -> dict[str, object]:
+    """Run one short-lived executable probe and capture its output."""
+    started_at = time.perf_counter()
+    try:
+        completed = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        elapsed_seconds = round(time.perf_counter() - started_at, 3)
+        return {
+            "command": argv,
+            "status": "missing",
+            "elapsed_seconds": elapsed_seconds,
+            "error": str(exc),
+        }
+    except subprocess.TimeoutExpired:
+        elapsed_seconds = round(time.perf_counter() - started_at, 3)
+        return {
+            "command": argv,
+            "status": "timeout",
+            "elapsed_seconds": elapsed_seconds,
+            "error": f"timed out after {timeout_seconds}s",
+        }
+
+    elapsed_seconds = round(time.perf_counter() - started_at, 3)
+    stdout = (completed.stdout or "").strip()
+    stderr = (completed.stderr or "").strip()
+    output = stdout or stderr
+    return {
+        "command": argv,
+        "status": "ok" if completed.returncode == 0 else "failed",
+        "elapsed_seconds": elapsed_seconds,
+        "returncode": completed.returncode,
+        "stdout": stdout,
+        "stderr": stderr,
+        "output": output,
+    }
+
+
+def _doctor_gpd_cli_probe_command() -> list[str]:
+    """Return the local command used to prove the GPD CLI can execute."""
+    return [sys.executable, "-m", "gpd.cli", "--help"]
+
+
+def _doctor_check_live_executable_probes() -> HealthCheck:
+    """Optionally run harmless local executable probes for live doctor feedback."""
+    probe_results: list[dict[str, object]] = []
+    issues: list[str] = []
+    warnings: list[str] = []
+    skipped: list[str] = []
+
+    gpd_probe = _doctor_run_executable_probe(
+        _doctor_gpd_cli_probe_command(),
+        timeout_seconds=_DOCTOR_LIVE_EXECUTABLE_PROBE_TIMEOUT_SECONDS,
+    )
+    gpd_probe["label"] = "gpd-cli"
+    probe_results.append(gpd_probe)
+    if gpd_probe["status"] != "ok":
+        issues.append(
+            f"gpd-cli probe failed: {gpd_probe.get('error') or gpd_probe.get('output') or 'no output captured'}"
+        )
+
+    for executable in _DOCTOR_LIVE_EXECUTABLE_OPTIONAL_COMMANDS:
+        resolved = shutil.which(executable)
+        if resolved is None:
+            skipped.append(executable)
+            probe_results.append(
+                {
+                    "label": executable,
+                    "command": [executable, "--version"],
+                    "status": "skipped",
+                    "reason": "not found on PATH",
+                }
+            )
+            warnings.append(f"{executable} not found on PATH")
+            continue
+
+        probe = _doctor_run_executable_probe([resolved, "--version"], timeout_seconds=_DOCTOR_LIVE_EXECUTABLE_PROBE_TIMEOUT_SECONDS)
+        probe["label"] = executable
+        probe["resolved_path"] = resolved
+        probe_results.append(probe)
+        if probe["status"] != "ok":
+            warnings.append(
+                f"{executable} probe failed: {probe.get('error') or probe.get('output') or 'no output captured'}"
+            )
+
+    details: dict[str, object] = {
+        "enabled": True,
+        "timeout_seconds": _DOCTOR_LIVE_EXECUTABLE_PROBE_TIMEOUT_SECONDS,
+        "mandatory_probe": "python -m gpd.cli --help",
+        "optional_commands": list(_DOCTOR_LIVE_EXECUTABLE_OPTIONAL_COMMANDS),
+        "probe_count": len(probe_results),
+        "probed": probe_results,
+        "skipped": skipped,
+    }
+    return HealthCheck(
+        status=CheckStatus.FAIL if issues else CheckStatus.WARN if warnings else CheckStatus.OK,
+        label="Live Executable Probes",
+        details=details,
+        issues=issues,
+        warnings=warnings,
     )
 
 
@@ -1369,6 +1482,7 @@ def run_doctor(
     install_scope: str | None = None,
     target_dir: str | Path | None = None,
     cwd: Path | None = None,
+    live_executable_probes: bool = False,
 ) -> DoctorReport:
     """Cross-runtime installation verification.
 
@@ -1459,6 +1573,9 @@ def run_doctor(
         # 7. Package importability
         checks.append(_doctor_check_package_imports())
 
+        if live_executable_probes:
+            checks.append(_doctor_check_live_executable_probes())
+
         resolved_target_str: str | None = None
         normalized_scope: str | None = None
         normalized_runtime: str | None = None
@@ -1504,6 +1621,7 @@ def run_doctor(
             runtime=normalized_runtime,
             install_scope=normalized_scope,
             target=resolved_target_str,
+            live_executable_probes=live_executable_probes,
             summary=HealthSummary(ok=ok_count, warn=warn_count, fail=fail_count, total=len(checks)),
             checks=checks,
         )

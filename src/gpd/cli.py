@@ -2001,6 +2001,11 @@ def doctor(
         "--target-dir",
         help="Override the runtime config directory to inspect",
     ),
+    live_executable_probes: bool = typer.Option(
+        False,
+        "--live-executable-probes",
+        help="Run cheap local executable probes such as `pdflatex --version` or `wolframscript -version`",
+    ),
 ) -> None:
     """Check GPD installation and environment health, or inspect runtime readiness."""
     from gpd.core.health import run_doctor
@@ -2012,7 +2017,7 @@ def doctor(
     if runtime is None:
         if global_install or local_install or target_dir is not None:
             _error("--runtime is required when using --global, --local, or --target-dir")
-        _output(run_doctor(specs_dir=SPECS_DIR))
+        _output(run_doctor(specs_dir=SPECS_DIR, live_executable_probes=live_executable_probes))
         return
 
     normalized_runtime = _normalize_runtime_selection([runtime], action="doctor")[0]
@@ -2033,6 +2038,7 @@ def doctor(
             install_scope=install_scope,
             target_dir=resolved_target,
             cwd=_get_cwd(),
+            live_executable_probes=live_executable_probes,
         )
     )
 

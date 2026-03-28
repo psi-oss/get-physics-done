@@ -73,7 +73,7 @@ Before stepping away mid-phase, run `/gpd:pause-work` so `/gpd:resume-work` has 
 2. `gpd permissions status --runtime <runtime> --autonomy balanced` / `gpd permissions sync --runtime <runtime> --autonomy balanced` — confirm and resync unattended readiness from your normal terminal
 3. `gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list`, `gpd presets show <preset>`, `gpd presets apply <preset> --dry-run`, `gpd integrations status wolfram`, `gpd integrations enable wolfram`, `gpd integrations disable wolfram` — local recovery, visibility, cost, preset preview/apply, and shared Wolfram integration config checks
 
-`gpd doctor` checks the selected install target and runtime-local readiness signals; `gpd permissions ...` checks runtime-owned approval/alignment only.
+`gpd doctor` checks the selected install target and runtime-local readiness signals. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. `gpd permissions ...` checks runtime-owned approval/alignment only.
 
 **Unattended / autonomy setup**
 1. `/gpd:settings` — Primary guided setup for autonomy, runtime permission sync, and unattended budgets (`Balanced` recommended)
@@ -81,14 +81,14 @@ Before stepping away mid-phase, run `/gpd:pause-work` so `/gpd:resume-work` has 
 
 **Workflow presets**
 1. `Paper/manuscript workflows` — First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
-2. `gpd doctor --runtime <runtime> --local|--global` — Check runtime-local paper-toolchain readiness from your normal terminal before using that preset; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
+2. `gpd doctor --runtime <runtime> --local|--global` — Check runtime-local paper-toolchain readiness from your normal terminal before using that preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
 3. `gpd presets list` — Inspect the local preset catalog; presets resolve to the existing config keys and are not stored as a separate preset block
 4. `gpd presets show <preset>` — Preview one preset's bundle before applying it
 5. `gpd presets apply <preset> [--dry-run]` — Apply or preview one preset from your normal terminal without inventing a separate preset schema
 
 Workflow preset tooling is layered on top of the base install; it does not change runtime permission alignment.
 
-Wolfram capability is separate from a local Mathematica install. Use `gpd integrations status wolfram` for the shared optional remote MCP config, and use `gpd validate plan-preflight <PLAN.md>` to check whether a specific plan is runnable.
+Wolfram capability is separate from a local Mathematica install. Use `gpd integrations status wolfram` for the shared optional remote MCP config, and use `gpd validate plan-preflight <PLAN.md>` to check whether a specific plan is runnable. Optional doctor probes do not change that boundary.
 
 **Core workflow:** new-project → discuss-phase → plan-phase → execute-phase → verify-work → repeat → complete-milestone
 **Publication:** write-paper → peer-review → respond-to-referees → arxiv-submission
@@ -117,7 +117,7 @@ This reference lists canonical in-runtime slash-command names in `/gpd:*` form.
 - For a normal-terminal, read-only recovery snapshot without launching the runtime, use `gpd resume`.
 - For cross-project discovery from your normal terminal, use `gpd resume --recent` first, then open the selected project and run the per-project recovery surface there.
 - For a normal-terminal, read-only machine-local usage / cost summary, use `gpd cost`.
-- `gpd doctor` checks the selected install target and runtime-local readiness signals; `gpd permissions ...` checks runtime-owned approval/alignment only.
+- `gpd doctor` checks the selected install target and runtime-local readiness signals. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. `gpd permissions ...` checks runtime-owned approval/alignment only.
 
 ## Quick Start
 
@@ -130,13 +130,13 @@ Choose the path that matches your starting point:
 
 **Workflow presets**
 1. `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
-2. `gpd doctor --runtime <runtime> --local|--global` - Check runtime-local paper-toolchain readiness from your normal terminal before using that preset; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
+2. `gpd doctor --runtime <runtime> --local|--global` - Check runtime-local paper-toolchain readiness from your normal terminal before using that preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
 3. `gpd presets list` - Inspect the local preset catalog; presets resolve to the existing config keys and are not stored as a separate preset block
 4. `gpd presets show <preset>` - Preview one preset's bundle before applying it
 5. `gpd presets apply <preset> [--dry-run]` - Apply or preview one preset from your normal terminal without inventing a separate preset schema
 
 **Wolfram integration**
-1. `gpd integrations status wolfram` - Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness
+1. `gpd integrations status wolfram` - Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
 2. `gpd integrations enable wolfram` - Enable the shared optional Wolfram integration config
 3. `gpd integrations disable wolfram` - Disable the shared optional Wolfram integration config
 

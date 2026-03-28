@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -39,9 +40,9 @@ from gpd.core.health import (
     run_doctor,
     run_health,
 )
-from gpd.hooks.install_metadata import InstallTargetAssessment
 from gpd.core.state import default_state_dict, generate_state_markdown, save_state_json
 from gpd.core.storage_paths import ProjectStorageLayout
+from gpd.hooks.install_metadata import InstallTargetAssessment
 
 _PRIMARY_RUNTIME = iter_runtime_descriptors()[0].runtime_name
 
@@ -87,6 +88,19 @@ class TestHealthModels:
         assert restored.overall == CheckStatus.OK
         assert restored.fixes_applied == ["fixed X"]
         assert len(restored.checks) == 1
+
+    def test_doctor_report_roundtrip_preserves_live_executable_probe_flag(self):
+        report = DoctorReport(
+            overall=CheckStatus.OK,
+            version="0.1.0",
+            summary=HealthSummary(ok=1, warn=0, fail=0, total=1),
+            live_executable_probes=True,
+            checks=[HealthCheck(status=CheckStatus.OK, label="A")],
+        )
+
+        restored = DoctorReport.model_validate(report.model_dump())
+
+        assert restored.live_executable_probes is True
 
     def test_extract_doctor_blockers_returns_only_failures(self):
         report = DoctorReport(
@@ -1103,12 +1117,99 @@ trigger:
         assert report.runtime is None
         assert report.install_scope is None
         assert report.target is None
+        assert report.live_executable_probes is False
         assert "Runtime Launcher" not in labels
         assert "Runtime Config Target" not in labels
         assert "Bootstrap Network Access" not in labels
         assert "Provider/Auth Guidance" not in labels
         assert "LaTeX Toolchain" not in labels
         assert "Workflow Presets" not in labels
+        assert "Live Executable Probes" not in labels
+
+    def test_live_executable_probes_are_opt_in_and_recorded(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        specs_dir = self._make_specs_dir(tmp_path)
+
+        def fake_which(binary: str) -> str | None:
+            return {
+                "pdflatex": "/usr/bin/pdflatex",
+                "bibtex": "/usr/bin/bibtex",
+                "wolframscript": None,
+            }.get(binary)
+
+        def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            if command == ["git", "--version"]:
+                return subprocess.CompletedProcess(args=command, returncode=0, stdout="git version 2.47.0\n", stderr="")
+            if command == [sys.executable, "-m", "gpd.cli", "--help"]:
+                return subprocess.CompletedProcess(args=command, returncode=0, stdout="Usage: gpd [OPTIONS] COMMAND\n", stderr="")
+            if command == ["/usr/bin/pdflatex", "--version"]:
+                return subprocess.CompletedProcess(args=command, returncode=0, stdout="pdfTeX 3.14159265\n", stderr="")
+            if command == ["/usr/bin/bibtex", "--version"]:
+                return subprocess.CompletedProcess(args=command, returncode=0, stdout="BibTeX 0.99d\n", stderr="")
+            raise AssertionError(f"Unexpected command: {command}")
+
+        monkeypatch.setattr("gpd.core.health.shutil.which", fake_which)
+        monkeypatch.setattr("gpd.core.health.subprocess.run", fake_run)
+
+        report = run_doctor(
+            specs_dir=specs_dir,
+            version="0.1.0",
+            live_executable_probes=True,
+        )
+
+        checks = {check.label: check for check in report.checks}
+        probe_check = checks["Live Executable Probes"]
+
+        assert report.live_executable_probes is True
+        assert probe_check.status == CheckStatus.WARN
+        assert probe_check.details["enabled"] is True
+        assert probe_check.details["timeout_seconds"] == 5
+        assert probe_check.details["mandatory_probe"] == "python -m gpd.cli --help"
+        assert probe_check.details["skipped"] == ["latexmk", "kpsewhich", "wolframscript"]
+        assert [probe["label"] for probe in probe_check.details["probed"]] == [
+            "gpd-cli",
+            "pdflatex",
+            "bibtex",
+            "latexmk",
+            "kpsewhich",
+            "wolframscript",
+        ]
+        assert probe_check.details["probed"][0]["status"] == "ok"
+        assert probe_check.details["probed"][1]["status"] == "ok"
+        assert probe_check.details["probed"][2]["status"] == "ok"
+        assert probe_check.details["probed"][3]["status"] == "skipped"
+        assert probe_check.details["probed"][4]["status"] == "skipped"
+        assert probe_check.details["probed"][5]["status"] == "skipped"
+        assert "latexmk not found on PATH" in probe_check.warnings
+        assert "kpsewhich not found on PATH" in probe_check.warnings
+        assert "wolframscript not found on PATH" in probe_check.warnings
+
+    def test_live_executable_probes_warn_for_optional_failures(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        specs_dir = self._make_specs_dir(tmp_path)
+
+        monkeypatch.setattr(
+            "gpd.core.health.shutil.which",
+            lambda binary: {
+                "pdflatex": "/usr/bin/pdflatex",
+            }.get(binary),
+        )
+
+        def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            if command == [sys.executable, "-m", "gpd.cli", "--help"]:
+                return subprocess.CompletedProcess(args=command, returncode=0, stdout="Usage: gpd [OPTIONS] COMMAND\n", stderr="")
+            if command == ["/usr/bin/pdflatex", "--version"]:
+                return subprocess.CompletedProcess(args=command, returncode=1, stdout="", stderr="permission denied")
+            raise AssertionError(f"Unexpected command: {command}")
+
+        monkeypatch.setattr("gpd.core.health.subprocess.run", fake_run)
+
+        report = run_doctor(specs_dir=specs_dir, version="0.1.0", live_executable_probes=True)
+
+        checks = {check.label: check for check in report.checks}
+        probe_check = checks["Live Executable Probes"]
+
+        assert probe_check.status == CheckStatus.WARN
+        assert probe_check.issues == []
+        assert "pdflatex probe failed: permission denied" in probe_check.warnings
 
     def test_runtime_mode_records_virtualenv_state_without_blocking(self, tmp_path: Path):
         target_dir = tmp_path / ".codex"
