@@ -864,6 +864,40 @@ def test_resume_help_surfaces_read_only_local_recovery_role() -> None:
     assert "List recent GPD projects on this machine" in result.output
 
 
+def test_resume_recovery_advice_uses_resolved_runtime_commands(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        cli_module,
+        "_resume_runtime_commands",
+        lambda cwd=None: ("/gpd:resume-work", "/gpd:suggest-next"),
+    )
+
+    advice = cli_module._resume_recovery_advice(
+        resume_payload={"segment_candidates": [{"source": "session_resume_file"}]},
+        recent_rows=[],
+        cwd=Path("/tmp/runtime-advice"),
+    )
+
+    assert advice.continue_command == "/gpd:resume-work"
+    assert advice.fast_next_command == "/gpd:suggest-next"
+    assert advice.mode == "current-workspace"
+    assert advice.primary_command == "gpd resume"
+
+
+def test_resume_recovery_advice_keeps_recent_projects_fallbacks_distinct(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli_module, "_resume_runtime_commands", lambda cwd=None: (None, None))
+
+    advice = cli_module._resume_recovery_advice(
+        recent_rows=[{"project_root": "/tmp/project-a", "available": True, "resumable": True}],
+        force_recent=True,
+        cwd=Path("/tmp/runtime-advice-fallback"),
+    )
+
+    assert advice.continue_command == "runtime `resume-work`"
+    assert advice.fast_next_command == "runtime `suggest-next`"
+    assert advice.mode == "recent-projects"
+    assert advice.primary_command == "gpd resume --recent"
+
+
 def test_resume_recent_raw_surfaces_machine_local_recent_projects(
     tmp_path: Path, monkeypatch
 ) -> None:

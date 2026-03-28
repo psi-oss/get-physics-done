@@ -6,6 +6,9 @@ from gpd.core.surface_phrases import (
     cost_inspect_action,
     cost_summary_surface_note,
     local_cli_bridge_note,
+    observe_execution_action,
+    observe_execution_surface_note,
+    observe_tangent_routing_note,
     recovery_continue_action,
     recovery_fast_next_action,
     recovery_ladder_note,
@@ -54,6 +57,30 @@ def test_recovery_surface_phrases_cover_current_and_cross_project_paths() -> Non
             pause_work_phrase="`/gpd:pause-work`",
         )
         == "Recovery ladder: use `gpd resume` for the current-workspace read-only recovery snapshot. If that is the wrong workspace, use `gpd resume --recent` to find the workspace first, then continue inside that workspace with `/gpd:resume-work`. After resuming, `/gpd:suggest-next` is the fastest next command. Before stepping away mid-phase, run `/gpd:pause-work` so that ladder has an explicit handoff to restore."
+    )
+
+
+def test_observe_surface_phrases_stay_read_only_and_route_follow_ups_explicitly() -> None:
+    assert observe_execution_action() == (
+        "Run `gpd observe execution` for read-only long-run visibility from your normal terminal."
+    )
+    assert observe_execution_surface_note() == (
+        "Read-only long-run visibility from your normal terminal; use this for progress / waiting state, "
+        "conservative `possibly stalled` wording, and the next read-only checks."
+    )
+    assert (
+        observe_tangent_routing_note(
+            tangent_phrase="/gpd:tangent",
+            branch_phrase="/gpd:branch-hypothesis",
+        )
+        == "If `gpd observe execution` surfaces an alternative-path follow-up or `branch later` recommendation, route it through `/gpd:tangent` first; use `/gpd:branch-hypothesis` only after that explicit choice."
+    )
+    assert (
+        observe_tangent_routing_note(
+            tangent_phrase="runtime `tangent`",
+            branch_phrase="runtime `branch-hypothesis`",
+        )
+        == "If `gpd observe execution` surfaces an alternative-path follow-up or `branch later` recommendation, route it through runtime `tangent` first; use runtime `branch-hypothesis` only after that explicit choice."
     )
 
 

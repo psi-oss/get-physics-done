@@ -13,9 +13,11 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from gpd.core.context import init_resume
 from gpd.core.costs import build_cost_summary
 from gpd.core.observability import derive_execution_visibility, resolve_project_root
 from gpd.core.recent_projects import list_recent_projects
+from gpd.core.recovery_advice import RecoveryAdvice, build_recovery_advice
 from gpd.core.surface_phrases import (
     cost_inspect_action,
     recovery_continue_action,
@@ -116,86 +118,32 @@ def _runtime_command(action: str, *, cwd: Path) -> str | None:
         return None
 
 
-def _build_recovery_orientation(
-    recovery: dict[str, object],
-    current_project: dict[str, object] | None,
-    *,
-    cwd: Path,
-) -> dict[str, object]:
-    resume_work_command = _runtime_command("resume-work", cwd=cwd) or "runtime `resume-work`"
-    suggest_next_command = _runtime_command("suggest-next", cwd=cwd) or "runtime `suggest-next`"
-    recent_projects_count = int(recovery.get("recent_projects_count") or 0)
-
-    orientation: dict[str, object] = {
-        "continue_command": resume_work_command,
-        "continue_reason": "Continue paused work inside the selected workspace.",
-        "fast_next_command": suggest_next_command,
-        "fast_next_reason": "Fastest post-resume next command when you only need the next action.",
-        "recent_projects_count": recent_projects_count,
-    }
-
-    if current_project is not None and bool(current_project.get("resumable")):
-        orientation.update(
-            {
-                "mode": "current-workspace",
-                "primary_command": "gpd resume",
-                "primary_reason": "Current workspace has a resumable recovery snapshot.",
-            }
-        )
-        return orientation
-
-    if current_project is not None and current_project.get("resume_file"):
-        orientation.update(
-            {
-                "mode": "recent-projects",
-                "primary_command": "gpd resume --recent",
-                "primary_reason": "Current workspace is not resumable, so rediscover the workspace you want to reopen on this machine.",
-                "continue_command": "runtime `resume-work`",
-                "fast_next_command": "runtime `suggest-next`",
-            }
-        )
-        return orientation
-
-    if recent_projects_count > 0:
-        orientation.update(
-            {
-                "mode": "recent-projects",
-                "primary_command": "gpd resume --recent",
-                "primary_reason": "Use the machine-local recent-project index to find the workspace you want to reopen.",
-                "continue_command": "runtime `resume-work`",
-                "fast_next_command": "runtime `suggest-next`",
-            }
-        )
-        return orientation
-
-    orientation.update(
-        {
-            "mode": "idle",
-            "primary_command": None,
-            "primary_reason": "No recent recovery target is currently recorded on this machine.",
-        }
-    )
-    return orientation
+def _resume_context(cwd: Path) -> dict[str, object]:
+    payload = init_resume(cwd)
+    return payload if isinstance(payload, dict) else {}
 
 
-def _recovery_next_actions(orientation: dict[str, object], *, existing_actions: list[str] | None = None) -> list[str]:
+def _recovery_next_actions(advice: RecoveryAdvice, *, existing_actions: list[str] | None = None) -> list[str]:
     actions: list[str] = []
     existing_actions = existing_actions or []
-    primary_command = orientation.get("primary_command")
-    continue_command = orientation.get("continue_command")
-    fast_next_command = orientation.get("fast_next_command")
-    mode = str(orientation.get("mode") or "").strip()
+    primary_command = advice.primary_command
 
     if primary_command == "gpd resume":
         if not any(action.startswith("Run `gpd resume`") for action in existing_actions):
             actions.append(recovery_resume_action())
     elif primary_command == "gpd resume --recent":
         actions.append(recovery_recent_action())
+        return actions
 
-    if isinstance(continue_command, str) and continue_command.strip() and mode in {"current-workspace", "recent-projects"}:
-        actions.append(recovery_continue_action(mode=mode, continue_command=continue_command.strip()))
+    if advice.mode != "current-workspace":
+        return actions
 
-    if isinstance(fast_next_command, str) and fast_next_command.strip() and mode in {"current-workspace", "recent-projects"}:
+    continue_command = advice.continue_command
+    fast_next_command = advice.fast_next_command
+    if isinstance(continue_command, str) and continue_command.strip():
+        actions.append(recovery_continue_action(mode=advice.mode, continue_command=continue_command.strip()))
+
+    if isinstance(fast_next_command, str) and fast_next_command.strip():
         actions.append(recovery_fast_next_action(fast_next_command=fast_next_command.strip()))
     return actions
 
@@ -293,26 +241,54 @@ def build_runtime_hint_payload(
 
     recent_rows = list_recent_projects(data_root, last=recent_projects_last) if include_recovery else []
     current_project = _current_project_row(recent_rows, project_root=project_root.as_posix()) if include_recovery else None
+    resume_context = _resume_context(project_root) if include_recovery else {}
+    recovery_advice = (
+        build_recovery_advice(
+            project_root,
+            data_root=data_root,
+            recent_rows=recent_rows,
+            resume_payload=resume_context,
+            continue_command=_runtime_command("resume-work", cwd=project_root),
+            fast_next_command=_runtime_command("suggest-next", cwd=project_root),
+        )
+        if include_recovery
+        else None
+    )
     recovery = (
         {
             "current_project": current_project,
             "recent_projects": [_model_dump(row) or row for row in recent_rows],
-            "recent_projects_count": len(recent_rows),
-            "resumable_projects": sum(
+            "recent_projects_count": recovery_advice.recent_projects_count if recovery_advice is not None else len(recent_rows),
+            "resumable_projects": recovery_advice.resumable_projects_count if recovery_advice is not None else sum(
                 1
                 for row in recent_rows
                 if bool(row.get("resumable") if isinstance(row, dict) else _row_value(row, "resumable", False))
             ),
-            "available_projects": sum(
+            "available_projects": recovery_advice.available_projects_count if recovery_advice is not None else sum(
                 1
                 for row in recent_rows
                 if bool(row.get("available") if isinstance(row, dict) else _row_value(row, "available", False))
+            ),
+            "current_workspace": (
+                {
+                    "has_recovery": recovery_advice.current_workspace_has_recovery,
+                    "resumable": recovery_advice.current_workspace_resumable,
+                    "has_resume_file": recovery_advice.current_workspace_has_resume_file,
+                    "candidate_count": recovery_advice.current_workspace_candidate_count,
+                    "has_live_execution": recovery_advice.has_live_execution,
+                    "has_session_resume_file": recovery_advice.has_session_resume_file,
+                    "missing_session_resume_file": recovery_advice.missing_session_resume_file,
+                    "has_interrupted_agent": recovery_advice.has_interrupted_agent,
+                    "machine_change_notice": recovery_advice.machine_change_notice,
+                }
+                if recovery_advice is not None
+                else {}
             ),
         }
         if include_recovery
         else {}
     )
-    orientation = _build_recovery_orientation(recovery, current_project, cwd=project_root) if include_recovery else {}
+    orientation = recovery_advice.model_dump(mode="json") if recovery_advice is not None else {}
 
     cost_summary = build_cost_summary(project_root, data_root=data_root, last_sessions=cost_last_sessions) if include_cost else None
     cost = (_model_dump(cost_summary) or {}) if cost_summary is not None else {}
@@ -351,8 +327,8 @@ def build_runtime_hint_payload(
         execution_actions = list(execution_visibility.suggested_next_steps)
 
     next_action_parts: list[str] = [*execution_actions]
-    if include_recovery:
-        next_action_parts.extend(_recovery_next_actions(orientation, existing_actions=execution_actions))
+    if recovery_advice is not None:
+        next_action_parts.extend(_recovery_next_actions(recovery_advice, existing_actions=execution_actions))
     if cost_summary is not None:
         if cost_advisory is not None:
             next_action = cost_advisory.get("next_action")

@@ -62,6 +62,7 @@ from gpd.core.workflow_presets import (
     list_workflow_presets,
     preview_workflow_preset_application,
 )
+from gpd.core.recovery_advice import build_recovery_advice
 from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use, normalize_runtime_name
 
 if TYPE_CHECKING:
@@ -1051,6 +1052,25 @@ def _resume_runtime_commands(*, cwd: Path | None = None) -> tuple[str | None, st
         return None, None
 
 
+def _resume_recovery_advice(
+    *,
+    resume_payload: dict[str, object] | None = None,
+    recent_rows: list[dict[str, object]] | None = None,
+    force_recent: bool = False,
+    cwd: Path | None = None,
+):
+    """Return the shared recovery-orientation contract with resolved runtime commands."""
+    resume_work_command, suggest_next_command = _resume_runtime_commands(cwd=cwd)
+    return build_recovery_advice(
+        cwd or _get_cwd(),
+        recent_rows=recent_rows,
+        resume_payload=resume_payload,
+        continue_command=resume_work_command,
+        fast_next_command=suggest_next_command,
+        force_recent=force_recent,
+    )
+
+
 def _resume_mode_label(value: object) -> str:
     """Format a resume mode for human-facing CLI output."""
     if not isinstance(value, str) or not value.strip():
@@ -1408,14 +1428,14 @@ def _resume_recent_project_notes(row: dict[str, object]) -> str:
 
 def _render_recent_resume_summary(rows: list[dict[str, object]]) -> None:
     """Render the recent-project picker for cross-project recovery."""
-    runtime_resume_command, runtime_suggest_next_command = _resume_runtime_commands()
+    recovery_advice = _resume_recovery_advice(recent_rows=rows, force_recent=True)
 
     console.print("[bold]Recent Projects[/]")
     console.print("[dim]Machine-local recovery index. Select a project, inspect it with the command shown in the table, then continue inside that workspace with the runtime `resume-work` command.[/]")
-    if isinstance(runtime_resume_command, str) and runtime_resume_command.strip():
-        console.print(f"[dim]In the selected workspace, continue with `{runtime_resume_command}`.[/]")
-    if isinstance(runtime_suggest_next_command, str) and runtime_suggest_next_command.strip():
-        console.print(f"[dim]After resuming, `{runtime_suggest_next_command}` is the fastest next runtime action.[/]")
+    if isinstance(recovery_advice.continue_command, str) and recovery_advice.continue_command.strip() and not recovery_advice.continue_command.startswith("runtime `"):
+        console.print(f"[dim]In the selected workspace, continue with `{recovery_advice.continue_command}`.[/]")
+    if isinstance(recovery_advice.fast_next_command, str) and recovery_advice.fast_next_command.strip() and not recovery_advice.fast_next_command.startswith("runtime `"):
+        console.print(f"[dim]After resuming, `{recovery_advice.fast_next_command}` is the fastest next runtime action.[/]")
     console.print()
 
     if not rows:
@@ -1437,14 +1457,12 @@ def _render_recent_resume_summary(rows: list[dict[str, object]]) -> None:
     console.print()
     console.print("[bold]Next here[/]")
     console.print("- Run the exact `gpd --cwd ... resume` command from the table to inspect the selected workspace.")
-    if isinstance(runtime_resume_command, str) and runtime_resume_command.strip():
-        console.print(f"- {recovery_continue_action(mode='recent-projects', continue_command=runtime_resume_command.strip())}")
-    else:
-        console.print("- After selecting a workspace, use runtime `resume-work` there to continue paused work.")
-    if isinstance(runtime_suggest_next_command, str) and runtime_suggest_next_command.strip():
-        console.print(f"- {recovery_fast_next_action(fast_next_command=runtime_suggest_next_command.strip())}")
-    else:
-        console.print("- runtime `suggest-next` is the fastest post-resume command when you only need the next action.")
+    console.print(
+        f"- {recovery_continue_action(mode='recent-projects', continue_command=recovery_advice.continue_command or 'runtime `resume-work`')}"
+    )
+    console.print(
+        f"- {recovery_fast_next_action(fast_next_command=recovery_advice.fast_next_command or 'runtime `suggest-next`')}"
+    )
 
 
 def _render_resume_summary(payload: dict[str, object]) -> None:
@@ -1545,17 +1563,13 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
     if hint is not None:
         console.print(f"- {hint}")
 
-    runtime_resume_command, runtime_suggest_next_command = _resume_runtime_commands()
-
-    if isinstance(runtime_resume_command, str) and runtime_resume_command.strip():
-        console.print(f"- {recovery_continue_action(mode='current-workspace', continue_command=runtime_resume_command.strip())}")
-    else:
-        console.print("- runtime `resume-work` continues paused work inside the active runtime.")
-
-    if isinstance(runtime_suggest_next_command, str) and runtime_suggest_next_command.strip():
-        console.print(f"- {recovery_fast_next_action(fast_next_command=runtime_suggest_next_command.strip())}")
-    else:
-        console.print("- runtime `suggest-next` is the fastest post-resume command when you only need the next action.")
+    recovery_advice = _resume_recovery_advice(resume_payload=payload)
+    console.print(
+        f"- {recovery_continue_action(mode='current-workspace', continue_command=recovery_advice.continue_command or 'runtime `resume-work`')}"
+    )
+    console.print(
+        f"- {recovery_fast_next_action(fast_next_command=recovery_advice.fast_next_command or 'runtime `suggest-next`')}"
+    )
 
 
 @app.command("resume")

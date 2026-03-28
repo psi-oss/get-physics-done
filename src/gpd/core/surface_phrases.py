@@ -15,6 +15,9 @@ __all__ = [
     "cost_inspect_action",
     "cost_summary_surface_note",
     "local_cli_bridge_note",
+    "observe_execution_action",
+    "observe_execution_surface_note",
+    "observe_tangent_routing_note",
     "recovery_ladder_note",
     "recovery_continue_action",
     "recovery_fast_next_action",
@@ -43,6 +46,26 @@ def recovery_continue_action(*, mode: str, continue_command: str) -> str:
 def recovery_fast_next_action(*, fast_next_command: str) -> str:
     fast_next_phrase = fast_next_command if fast_next_command.startswith("runtime `") else f"`{fast_next_command}`"
     return f"{fast_next_phrase} is the fastest post-resume command when you only need the next action."
+
+
+def observe_execution_action() -> str:
+    return "Run `gpd observe execution` for read-only long-run visibility from your normal terminal."
+
+
+def observe_execution_surface_note() -> str:
+    return (
+        "Read-only long-run visibility from your normal terminal; use this for progress / waiting state, "
+        "conservative `possibly stalled` wording, and the next read-only checks."
+    )
+
+
+def observe_tangent_routing_note(*, tangent_phrase: str, branch_phrase: str) -> str:
+    tangent_text = tangent_phrase if tangent_phrase.startswith(("runtime `", "the runtime `", "`")) else f"`{tangent_phrase}`"
+    branch_text = branch_phrase if branch_phrase.startswith(("runtime `", "the runtime `", "`")) else f"`{branch_phrase}`"
+    return (
+        "If `gpd observe execution` surfaces an alternative-path follow-up or `branch later` recommendation, "
+        f"route it through {tangent_text} first; use {branch_text} only after that explicit choice."
+    )
 
 
 def cost_inspect_action() -> str:

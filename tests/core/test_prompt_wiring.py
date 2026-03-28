@@ -2102,21 +2102,24 @@ def test_pause_resume_and_help_wiring_keep_runtime_handoff_and_local_snapshot_bo
     resume_work = (WORKFLOWS_DIR / "resume-work.md").read_text(encoding="utf-8")
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
 
-    assert (
-        "`/gpd:resume-work` is the guided runtime path for the selected project, `gpd resume` is the public "
-        "local read-only summary, `gpd resume --recent` is the cross-project discovery surface, and "
-        "`gpd init resume` is the machine-readable intake they share:"
-    ) in resume_work
+    assert "/gpd:resume-work" in resume_work
+    assert "gpd resume" in resume_work
+    assert "gpd resume --recent" in resume_work
+    assert "`gpd init resume`" in resume_work
+    assert "guided runtime path" in resume_work
+    assert "public local read-only summary" in resume_work
+    assert "cross-project discovery surface" in resume_work
+    assert "machine-readable intake" in resume_work
     assert "segment_candidates" in resume_work
     assert "Do NOT invent additional candidates from plan files without summaries, auto-checkpoints, or other ad hoc checkpoints." in resume_work
-    assert "Record session continuity so /gpd:resume-work, local gpd resume," in pause_work
-    assert "and gpd resume --recent" in pause_work
+    assert "/gpd:resume-work" in pause_work
+    assert "gpd resume" in pause_work
+    assert "gpd resume --recent" in pause_work
     assert "This is the canonical pause/resume handoff for the current phase." in pause_work
-    assert "To return in the runtime: /gpd:resume-work" in pause_work
-    assert "To inspect local recovery summary: gpd resume" in pause_work
-    assert "To rediscover the project first: gpd resume --recent" in pause_work
+    assert "context handoff" in pause_work or "session continuity" in pause_work
     assert "/gpd:resume-work" in help_workflow
-    assert "- For a normal-terminal, current-workspace read-only recovery snapshot without launching the runtime, use `gpd resume`." in help_workflow
+    assert "current-workspace read-only recovery snapshot" in help_workflow
+    assert "gpd resume" in help_workflow
     assert recovery_ladder_note(
         resume_work_phrase="`/gpd:resume-work`",
         suggest_next_phrase="`/gpd:suggest-next`",

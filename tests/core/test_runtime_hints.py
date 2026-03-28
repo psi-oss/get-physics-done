@@ -144,7 +144,12 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
     assert payload.recovery["current_project"]["resume_file_available"] is True
     assert payload.orientation["mode"] == "current-workspace"
     assert payload.orientation["primary_command"] == "gpd resume"
-    assert "resumable recovery snapshot" in str(payload.orientation["primary_reason"])
+    assert "bounded resumable execution segment" in str(payload.orientation["primary_reason"])
+    assert payload.orientation["resume_mode"] == "bounded_segment"
+    assert payload.orientation["execution_resume_file"] == "GPD/phases/03/.continue-here.md"
+    assert payload.orientation["execution_resume_file_source"] == "current_execution"
+    assert payload.orientation["segment_candidates_count"] >= 1
+    assert payload.orientation["has_local_recovery_target"] is True
     assert "resume-work" in str(payload.orientation["continue_command"])
     assert "suggest-next" in str(payload.orientation["fast_next_command"])
 
@@ -224,9 +229,14 @@ def test_build_runtime_hint_payload_handles_absent_execution_snapshot(tmp_path: 
     assert payload.recovery["current_project"] is None
     assert payload.orientation["mode"] == "recent-projects"
     assert payload.orientation["primary_command"] == "gpd resume --recent"
+    assert payload.orientation["resume_mode"] is None
+    assert payload.orientation["segment_candidates_count"] == 0
+    assert payload.orientation["has_local_recovery_target"] is False
     assert payload.cost["workspace_root"] == project.resolve(strict=False).as_posix()
     assert payload.workflow_presets["blocked"] == 5
     assert any("resume --recent" in action for action in payload.next_actions)
+    assert not any("resume-work" in action for action in payload.next_actions)
+    assert not any("suggest-next" in action for action in payload.next_actions)
     assert any("base runtime-readiness" in action for action in payload.next_actions)
 
 
@@ -410,6 +420,41 @@ def test_build_runtime_hint_payload_surfaces_tangent_follow_up_from_execution_vi
     assert any("runtime `tangent` command" in action for action in payload.next_actions)
 
 
+def test_build_runtime_hint_payload_uses_shared_resume_contract_without_recent_project_row(
+    tmp_path: Path,
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    data_root = tmp_path / "data"
+    resume_file = project / "GPD" / "phases" / "05" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("resume\n", encoding="utf-8")
+
+    _write_current_execution(
+        project,
+        session_id="sess-010",
+        extra_execution={
+            "phase": "05",
+            "plan": "02",
+            "resume_file": "GPD/phases/05/.continue-here.md",
+        },
+    )
+
+    payload = build_runtime_hint_payload(
+        project,
+        data_root=data_root,
+        include_cost=False,
+        include_workflow_presets=False,
+    )
+
+    assert payload.recovery["recent_projects_count"] == 0
+    assert payload.orientation["mode"] == "current-workspace"
+    assert payload.orientation["primary_command"] == "gpd resume"
+    assert payload.orientation["resume_mode"] == "bounded_segment"
+    assert payload.orientation["execution_resume_file"] == "GPD/phases/05/.continue-here.md"
+    assert payload.orientation["execution_resume_file_source"] == "current_execution"
+    assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
+
+
 def test_build_runtime_hint_payload_rediscovery_branch_handles_non_resumable_current_project(
     tmp_path: Path,
 ) -> None:
@@ -442,8 +487,11 @@ def test_build_runtime_hint_payload_rediscovery_branch_handles_non_resumable_cur
     assert payload.recovery["current_project"]["resume_file_reason"] == "resume file missing"
     assert payload.orientation["mode"] == "recent-projects"
     assert payload.orientation["primary_command"] == "gpd resume --recent"
+    assert payload.orientation["resume_mode"] is None
+    assert payload.orientation["has_local_recovery_target"] is False
     assert any("resume --recent" in action for action in payload.next_actions)
-    assert any("After selecting a workspace" in action for action in payload.next_actions)
+    assert not any("After selecting a workspace" in action for action in payload.next_actions)
+    assert not any("suggest-next" in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_formats_generic_runtime_follow_up_when_runtime_detection_fails(
@@ -463,6 +511,15 @@ def test_build_runtime_hint_payload_formats_generic_runtime_follow_up_when_runti
             "resume_file": "GPD/phases/02/.continue-here.md",
         },
         store_root=data_root,
+    )
+    _write_current_execution(
+        project,
+        session_id="sess-011",
+        extra_execution={
+            "phase": "02",
+            "plan": "01",
+            "resume_file": "GPD/phases/02/.continue-here.md",
+        },
     )
     monkeypatch.setattr("gpd.core.runtime_hints._runtime_command", lambda *args, **kwargs: None)
 

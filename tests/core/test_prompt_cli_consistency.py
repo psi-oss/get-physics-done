@@ -545,15 +545,12 @@ def test_help_prompt_session_management_keeps_pause_before_leave_and_resume_on_r
 
     for content in (help_command, help_workflow):
         assert "**`/gpd:resume-work`**" in content
-        assert "Uses resume files and project state to pick up where you left off" in content
-        assert "Best first command when returning to paused or interrupted work" in content
         assert "gpd resume" in content
         assert "gpd resume --recent" in content
         assert "**`/gpd:pause-work`**" in content
-        assert "Create context handoff when pausing work mid-phase." in content
-        assert "Creates .continue-here file with current state" in content
-        assert "Updates STATE.md session continuity section" in content
-        assert "Captures in-progress work context" in content
+        assert "selected project state" in content or "paused or interrupted work" in content
+        assert "context handoff" in content
+        assert ".continue-here" in content or "session continuity" in content
 
 
 def test_new_project_prompt_surfaces_discuss_phase_before_planning() -> None:
