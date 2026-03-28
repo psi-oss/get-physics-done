@@ -316,7 +316,7 @@ Remaining friction after Step 6:
 - Shared Wolfram integration remains config/env oriented rather than a proof of remote authentication or license/session success.
 - The result can intentionally report `readiness="ready"` while `passed=false` if permissions are aligned but doctor still finds blocking machine-local issues; that boundary is correct, but users may still need a little time to internalize it.
 
-### Next Step
+### Next Step After Step 6
 
 If we continue beyond the collaborator-permissions/toolchain slice, the next highest-value step is a single state-aware startup/recovery surface that composes:
 
@@ -325,6 +325,57 @@ If we continue beyond the collaborator-permissions/toolchain slice, the next hig
 - install/help/runtime-hint guidance about what to do next in the current workspace
 
 That step should answer one user question directly: “I’m back after a restart or interruption; what is the next safe command to run here?”
+
+### Step 7 Completed: Minimal Startup And Recovery Ladder
+
+Status: completed on March 28, 2026.
+
+What shipped:
+
+- GPD now teaches one explicit recovery ladder instead of scattering the startup/recovery story across partially overlapping phrases:
+  - `gpd resume` for the current-workspace read-only recovery snapshot
+  - `gpd resume --recent` to find the workspace first
+  - runtime `resume-work` to continue inside that workspace
+  - runtime `suggest-next` as the fastest post-resume command
+- `gpd resume` now renders that ladder directly in its human-facing output while keeping `gpd init resume` as the machine-readable backend note.
+- Shared runtime hints no longer overclaim that `gpd resume` itself reopens or continues live work; it is now consistently framed as inspection of the current recovery snapshot.
+- Install/startup guidance now surfaces the “wrong workspace” escape hatch via `gpd resume --recent` without promoting `suggest-next` as a generic first-startup command.
+- README and help/docs now use the same split between:
+  - current-workspace snapshot
+  - workspace discovery
+  - in-runtime continuation
+  - post-resume orientation
+- The step intentionally stayed narrow:
+  - no new command
+  - no new recovery backend
+  - no ranking or picker changes
+  - no wrapper/workflow contract surgery in `resume-work`
+
+Verification:
+
+- Focused Step 7 suites passed:
+  - `uv run pytest -q tests/core/test_cli.py tests/test_cli_integration.py tests/core/test_cli_install.py tests/core/test_runtime_hints.py tests/core/test_observability.py tests/core/test_prompt_cli_consistency.py tests/core/test_prompt_wiring.py tests/test_release_consistency.py tests/core/test_resume_alignment.py tests/test_bootstrap_installer.py::test_bootstrap_uninstall_routes_to_runtime_uninstall tests/test_bootstrap_installer.py::test_bootstrap_install_subcommand_accepts_positional_runtime_alias`
+  - `uv run ruff check README.md src/gpd/cli.py src/gpd/core/runtime_hints.py src/gpd/core/observability.py src/gpd/commands/help.md src/gpd/specs/workflows/help.md tests/core/test_cli_install.py tests/test_bootstrap_installer.py tests/test_cli_integration.py tests/core/test_runtime_hints.py tests/core/test_observability.py tests/core/test_prompt_wiring.py tests/test_release_consistency.py`
+- Result:
+  - `517 passed`
+  - `ruff clean`
+
+Remaining friction after Step 7:
+
+- `resume-work` / `progress` command-wrapper requirements still do not perfectly match all of the richer recovery branches described in their workflow specs.
+- `gpd resume --recent` is still a list-style discovery surface, not a guided picker or “best target” recommendation.
+- `suggest-next` remains a command-only recovery/orientation surface rather than a workflow-backed prompt like some adjacent commands.
+- Long-run stale/stuck visibility is still separate from this recovery ladder and remains the next obvious UX gap.
+
+### Next Step
+
+If we continue, the next highest-value step is long-run visibility and stuck-state UX:
+
+- clearer heartbeat / stale-progress surfacing
+- better statusline / notify alignment for “waiting” vs “possibly stalled”
+- a more obvious “what should I check next?” path from `gpd observe execution`
+
+That step should answer one user question directly: “Is this run still healthy, waiting normally, or actually stuck?”
 
 ## Feedback Map
 

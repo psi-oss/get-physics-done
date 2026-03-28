@@ -58,17 +58,18 @@ The table below uses the Claude Code / Gemini CLI form for in-runtime commands. 
 |----------------|---------------|----------------|
 | New research project | `/gpd:new-project` | Start a fresh GPD research workflow with the full onboarding path. |
 | New research project, fast path | `/gpd:new-project --minimal` | Skip deep questioning and the literature-survey setup when you already know the scope and want the fastest project bootstrap. |
-| Find a recently used GPD project | `gpd resume --recent` | Discover recent projects from your normal system terminal, then reopen the chosen repo. |
-| Returning to an existing GPD project | `/gpd:resume-work` | Restore prior session context and continue from the current project state. |
+| Current-workspace recovery snapshot | `gpd resume` | Read-only local recovery summary for the current workspace from your normal system terminal. |
+| Find a workspace to reopen | `gpd resume --recent` | Discover recent projects from your normal system terminal, then reopen the chosen workspace. |
+| Continue in an existing GPD project | `/gpd:resume-work` | Use the runtime `resume-work` command to continue from the current project state. |
 | Existing research folder or codebase | `/gpd:map-research` | Map existing work before planning. |
 
-Leave / return path: run your runtime-specific `pause-work` command before stepping away mid-phase, then use the matching `resume-work` command when you return inside that runtime. If you only need a local, read-only recovery snapshot for the current project from your normal system terminal, use `gpd resume`. If you are not sure which repo to reopen, use `gpd resume --recent` first to find it, then run the per-project recovery surface inside that workspace.
+Leave / return path: run your runtime-specific `pause-work` command before stepping away mid-phase, then use the runtime `resume-work` command when you return inside that runtime. If you only need a current-workspace, read-only recovery snapshot from your normal system terminal, use `gpd resume`. If you need to find the workspace first, use `gpd resume --recent`, then continue inside that workspace with the runtime `resume-work` command. After resuming, the runtime `suggest-next` command is the fastest post-resume command.
 
 For read-only long-run visibility from your normal system terminal, use `gpd observe execution`. It is the passive status surface for progress and waiting state; if it cannot prove the run is healthy, it will conservatively say `possibly stalled` instead of relying on runtime hotkeys.
 
 For a read-only machine-local usage / cost summary from your normal system terminal, use `gpd cost`. It reports recorded local usage/cost telemetry only; it does not invent provider pricing, promise invoice-level accuracy, or enforce budgets by itself.
 
-Local CLI bridge: use `gpd --help`, `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced`, `gpd permissions sync --runtime <runtime> --autonomy balanced`, `gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list`, and `gpd integrations status wolfram` from your normal system terminal when you want the broader local diagnostics, readiness, recovery, visibility, cost, preset, and shared Wolfram integration surface. Use `gpd doctor` for the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness ...` for the unattended or overnight verdict: `ready`, `relaunch-required`, `not-ready`, or `unresolved`. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`, but that still does not replace `gpd validate plan-preflight <PLAN.md>`. Use `gpd permissions ...` for runtime-owned approval/alignment only. Use `gpd integrations enable wolfram` / `gpd integrations disable wolfram` to manage the shared optional Wolfram MCP config; that does not install Mathematica or prove plan readiness.
+Local CLI bridge: use `gpd --help`, `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced`, `gpd permissions sync --runtime <runtime> --autonomy balanced`, `gpd resume`, `gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list`, and `gpd integrations status wolfram` from your normal system terminal when you want the broader local diagnostics, readiness, recovery, visibility, cost, preset, and shared Wolfram integration surface. Use `gpd doctor` for the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness ...` for the unattended or overnight verdict: `ready`, `relaunch-required`, `not-ready`, or `unresolved`. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`, but that still does not replace `gpd validate plan-preflight <PLAN.md>`. Use `gpd permissions ...` for runtime-owned approval/alignment only. Use `gpd integrations enable wolfram` / `gpd integrations disable wolfram` to manage the shared optional Wolfram MCP config; that does not install Mathematica or prove plan readiness.
 
 For side investigations, use your runtime-specific `tangent` command when GPD surfaces an alternative path worth checking. `tangent` is the lightweight chooser for stay / quick / defer / branch. Use the matching `branch-hypothesis` command only when you want the explicit git-backed alternative path with isolated `GPD/` state.
 
@@ -115,7 +116,7 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 5. Run `gpd validate unattended-readiness --runtime codex --autonomy balanced`. If it returns `not-ready`, run `gpd permissions sync --runtime codex --autonomy balanced`; if it returns `relaunch-required`, exit and relaunch Codex before treating unattended use as ready.
 6. If you explicitly want prompt-free runtime approvals, switch to YOLO (`yolo`) in your runtime-specific `settings` command, run `gpd permissions sync --runtime codex --autonomy yolo`, and relaunch when required by the runtime.
 7. If those checks pass, continue with the runtime-specific `new-project`, `new-project --minimal`, `resume-work`, or `map-research` command.
-8. For recent-session recovery from your normal system terminal without launching the runtime, use `gpd resume`. It is a read-only local recovery summary for the current project. If you are not sure which repo to reopen, use `gpd resume --recent` first to find it, then continue with the per-project recovery surface inside that workspace.
+8. For recent-session recovery from your normal system terminal without launching the runtime, use `gpd resume`. It is a current-workspace, read-only recovery snapshot. If you need to find the workspace first, use `gpd resume --recent`, then continue inside that workspace with the runtime `resume-work` command.
 
 **Troubleshooting**
 
@@ -298,15 +299,16 @@ These commands run inside your installed AI runtime after GPD has been installed
 | `map-research` | Map an existing research project before `new-project` |
 | `new-project` | Start a new research project with the full onboarding flow |
 | `new-project --minimal` | Fast path: initialize a new project from a compact description with lighter upfront setup |
-| `gpd resume --recent` | Find a recently used GPD project when you are not sure which repo to reopen |
-| `resume-work` | Resume the previous session with full context restoration |
-| `pause-work` | Capture a handoff before stepping away mid-phase so `resume-work` has explicit continuity |
+| `gpd resume` | Current-workspace read-only recovery snapshot from your normal system terminal |
+| `gpd resume --recent` | Find the workspace you need to reopen |
+| `resume-work` | Continue the previous session from the current project state |
+| `pause-work` | Capture a handoff before stepping away mid-phase so `resume-work` can continue cleanly |
 | `plan-phase N` | Plan phase `N` with task breakdown and checkpoints |
 | `execute-phase N` | Execute all tasks in phase `N` |
 | `verify-work` | Run verification checks against current work |
 | `peer-review` | Run manuscript peer review inside the current project before submission |
 | `progress` | Show project state and recommend the next step |
-| `suggest-next` | Fastest next-action recommendation when you do not need the full progress snapshot |
+| `suggest-next` | Fastest post-resume next command when you do not need the full progress snapshot |
 | `discuss-phase N` | Explore a phase before committing to a plan |
 | `quick` | Run a smaller task with a lighter workflow |
 | `settings` | Guided path for workflow defaults, autonomy, and unattended execution settings after startup |
@@ -318,7 +320,7 @@ Typical research loop: `/gpd:new-project -> /gpd:discuss-phase 1 -> /gpd:plan-ph
 
 Typical publication loop: `/gpd:write-paper -> /gpd:peer-review -> /gpd:respond-to-referees -> /gpd:arxiv-submission`
 
-Leave / return path: `/gpd:pause-work` before leaving mid-phase, `/gpd:resume-work` when you return in-runtime, `/gpd:progress --brief` or `/gpd:suggest-next` when you only need orientation, and `gpd resume` from your normal system terminal for a local read-only recovery snapshot.
+Leave / return path: `/gpd:pause-work` before leaving mid-phase, `/gpd:resume-work` when you return in-runtime, `/gpd:suggest-next` when you want the fastest post-resume command, and `gpd resume` from your normal system terminal for a current-workspace read-only recovery snapshot. Use `gpd resume --recent` first if you need to find the workspace before resuming it, then continue with the runtime `resume-work` command.
 
 ### Command Context
 
@@ -619,7 +621,8 @@ GPD stores project-local observability under `GPD/observability/` and detailed p
 | `gpd observe show [--session ...] [--category ...] [--name ...] [--action ...] [--status ...] [--command ...] [--phase ...] [--plan ...] [--last N]` | Show logged observability events with filters |
 | `gpd observe execution` | Show read-only live execution status for the current workspace, including progress / waiting state and conservative `possibly stalled` wording |
 | `gpd cost` | Show the read-only machine-local usage / cost summary from recorded local telemetry; advisory only, not live budget enforcement or provider billing truth |
-| `gpd resume --recent` | Show recently used GPD projects from the machine-local index and hand off to the chosen workspace's per-project resume flow |
+| `gpd resume` | Show a current-workspace read-only recovery snapshot |
+| `gpd resume --recent` | Show recently used GPD projects from the machine-local index so you can find the workspace before resuming |
 | `gpd observe event <category> <name> [--action ...] [--status ...] [--command ...] [--phase ...] [--plan ...] [--session ...] [--data <json>]` | Append an explicit observability event with optional structured metadata |
 | `gpd trace start <phase> <plan>` | Start a plan-local trace session |
 | `gpd trace log <event> [--data <json>]` | Append an event to the active trace |

@@ -671,7 +671,8 @@ def test_public_readme_quick_start_surfaces_step_one_entry_points() -> None:
     assert "`gpd ...` rows are local terminal commands." in quick_start
     assert "| New research project | `/gpd:new-project` |" in quick_start
     assert "| New research project, fast path | `/gpd:new-project --minimal` |" in quick_start
-    assert "| Returning to an existing GPD project | `/gpd:resume-work` |" in quick_start
+    assert "| Current-workspace recovery snapshot | `gpd resume` |" in quick_start
+    assert "| Continue in an existing GPD project | `/gpd:resume-work` |" in quick_start
     assert "| Existing research folder or codebase | `/gpd:map-research` |" in quick_start
     assert "gpd resume --recent" in quick_start
     assert "gpd --help" in quick_start
@@ -816,7 +817,8 @@ def test_public_readme_recovery_surfaces_keep_runtime_pause_and_resume_roles_dis
     readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
     quick_start = _markdown_section(readme, "## Quick Start")
 
-    assert "| Returning to an existing GPD project | `/gpd:resume-work` |" in quick_start
+    assert "| Current-workspace recovery snapshot | `gpd resume` |" in quick_start
+    assert "| Continue in an existing GPD project | `/gpd:resume-work` |" in quick_start
     assert "| Returning to an existing GPD project | `pause-work` |" not in quick_start
     assert "use `gpd resume`" in quick_start
     assert "gpd resume --recent" in quick_start

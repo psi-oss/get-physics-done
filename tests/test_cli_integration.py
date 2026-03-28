@@ -357,7 +357,10 @@ class TestResume:
         assert "Resume Summary" in result.output
         assert "Read-only local recovery snapshot for this workspace." in result.output
         assert "gpd resume" in result.output
+        assert "gpd resume --recent" in result.output
         assert "gpd init resume" in result.output
+        assert "resume-work" in result.output
+        assert "suggest-next" in result.output
 
     def test_resume_human_output_marks_missing_session_handoff_as_advisory(self, gpd_project: Path) -> None:
         state_path = gpd_project / "GPD" / "state.json"

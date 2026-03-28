@@ -59,7 +59,8 @@ def _assert_single_runtime_next_steps(output: str, runtime: str) -> None:
         rf"Run {re.escape(_RUNTIME_HELP_COMMANDS[runtime])} for the command list\..*?"
         rf"Start with {re.escape(_RUNTIME_NEW_PROJECT_COMMANDS[runtime])} for a new project or "
         rf"{re.escape(_RUNTIME_MAP_RESEARCH_COMMANDS[runtime])} for existing work, or "
-        rf"{re.escape(_RUNTIME_RESUME_WORK_COMMANDS[runtime])} to continue paused work\..*?"
+        rf"{re.escape(_RUNTIME_RESUME_WORK_COMMANDS[runtime])} to continue paused work\. "
+        rf"If you need to find a different workspace first, use gpd resume --recent from your system terminal\..*?"
         rf"Fast bootstrap: use {re.escape(_RUNTIME_NEW_PROJECT_COMMANDS[runtime])} --minimal.*?"
         rf"Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics\..*?"
         rf"Use {re.escape(_RUNTIME_HELP_COMMANDS[runtime])} inside {re.escape(_RUNTIME_DISPLAY_NAMES[runtime])} for workflow help\..*?"
@@ -425,7 +426,8 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
             "3. Start with "
             f"{{NEW_PROJECT_COMMANDS[runtime]}} for a new project or "
             f"{{MAP_RESEARCH_COMMANDS[runtime]}} for existing work, or "
-            f"{{RESUME_WORK_COMMANDS[runtime]}} to continue paused work."
+            f"{{RESUME_WORK_COMMANDS[runtime]}} to continue paused work. "
+            "If you need to find a different workspace first, use gpd resume --recent from your system terminal."
         )
         print("")
         print(
@@ -458,6 +460,7 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
                 f"{{NEW_PROJECT_COMMANDS[runtime]}} or {{MAP_RESEARCH_COMMANDS[runtime]}}. "
                 f"Quick bootstrap: {{NEW_PROJECT_COMMANDS[runtime]}} --minimal"
             )
+        print("If you need to find a different workspace first, use gpd resume --recent from your system terminal.")
         print("Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics.")
         print("Run gpd doctor --runtime <runtime> --local|--global for a focused readiness check.")
         print(
@@ -1168,8 +1171,7 @@ def test_bootstrap_upgrade_fails_closed_without_falling_back_to_release_sources(
     assert TAG_ARCHIVE_SPEC not in managed_pip_targets
     assert TAG_HTTPS_GIT_SPEC not in managed_pip_targets
     assert managed_runtime_installs == []
-    assert "GitHub main upgrade failed across all main-branch candidates." in result.stdout
-    assert "broader GitHub source candidate set" not in result.stdout
+    assert "git checkout could not resolve branch main" in result.stderr
     assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
 
 

@@ -1493,10 +1493,10 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
         )
 
     console.print()
-    console.print("[bold]References[/]")
-    console.print("- `gpd resume` is the public local recovery surface.")
+    console.print("[bold]Recovery ladder[/]")
+    console.print("- `gpd resume` summarizes the current workspace recovery state.")
+    console.print("- `gpd resume --recent` lists machine-local recent projects when you need a different workspace.")
     console.print("- `gpd init resume` remains the machine-readable backend used by runtime resume workflows.")
-    console.print("- `gpd observe sessions --last 5` shows recent local observability sessions.")
     hint = _resume_recent_hint(payload)
     if hint is not None:
         console.print(f"- {hint}")
@@ -1506,10 +1506,22 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
 
         runtime_name = detect_runtime_for_gpd_use(cwd=_get_cwd())
         runtime_resume_command = get_adapter(runtime_name).format_command("resume-work")
+        runtime_suggest_next_command = get_adapter(runtime_name).format_command("suggest-next")
     except Exception:
         runtime_resume_command = None
+        runtime_suggest_next_command = None
+
     if isinstance(runtime_resume_command, str) and runtime_resume_command.strip():
-        console.print(f"- `{runtime_resume_command}` is the guided in-runtime continuation surface.")
+        console.print(f"- `{runtime_resume_command}` continues paused work inside the active runtime.")
+    else:
+        console.print("- runtime `resume-work` continues paused work inside the active runtime.")
+
+    if isinstance(runtime_suggest_next_command, str) and runtime_suggest_next_command.strip():
+        console.print(
+            f"- `{runtime_suggest_next_command}` is the fastest post-resume command when you only need the next action."
+        )
+    else:
+        console.print("- runtime `suggest-next` is the fastest post-resume command when you only need the next action.")
 
 
 @app.command("resume")
@@ -6312,7 +6324,13 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
         console.print("[bold]Next steps[/]")
         if len(next_step_entries) == 1:
             single_runtime_name, single_result = results[0]
-            display_name, launch_command, help_command, new_project_command, map_research_command = next_step_entries[0]
+            (
+                display_name,
+                launch_command,
+                help_command,
+                new_project_command,
+                map_research_command,
+            ) = next_step_entries[0]
             resume_work_command = _get_adapter_or_error(single_runtime_name, action="install summary").format_command("resume-work")
             target_value = single_result.get("target")
             doctor_scope = (
@@ -6335,7 +6353,8 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
                 "or "
                 f"[{_INSTALL_ACCENT_COLOR} bold]{map_research_command}[/] for existing work, "
                 "or "
-                f"[{_INSTALL_ACCENT_COLOR} bold]{resume_work_command}[/] to continue paused work.",
+                f"[{_INSTALL_ACCENT_COLOR} bold]{resume_work_command}[/] to continue paused work. "
+                "If you need to find a different workspace first, use [bold]gpd resume --recent[/] from your system terminal.",
                 soft_wrap=True,
             )
             console.print()
@@ -6378,6 +6397,10 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
                     f"Quick bootstrap: [{_INSTALL_ACCENT_COLOR} bold]{new_project_command} --minimal[/]",
                     soft_wrap=True,
                 )
+            console.print(
+                "If you need to find a different workspace first, use [bold]gpd resume --recent[/] from your system terminal.",
+                soft_wrap=True,
+            )
             console.print(
                 "\nUse [bold]gpd --help[/] for local install, readiness, validation, permissions, observability, and diagnostics.",
                 soft_wrap=True,

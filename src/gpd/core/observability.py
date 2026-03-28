@@ -491,7 +491,7 @@ def _execution_visibility_next_steps(
         steps.append("Run `gpd resume` to inspect the resumable checkpoint and review context.")
         steps.append(f"Run `gpd observe show{session_scope} --last 20` to inspect the recent execution event trail for {phase_plan}.")
     elif classification == "paused-or-resumable":
-        steps.append("Resume the paused context with `gpd resume` to review the ranked recovery candidates.")
+        steps.append("Run `gpd resume` to inspect the ranked recovery candidates before continuing inside the runtime.")
         steps.append(f"Run `gpd observe show{session_scope} --last 20` to inspect the recent execution event trail for {phase_plan}.")
     elif classification == "active":
         if possibly_stalled:

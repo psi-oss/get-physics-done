@@ -151,7 +151,7 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
     assert payload.workflow_presets["latex_capability"]["paper_build_ready"] is True
     assert payload.workflow_presets["latex_capability"]["arxiv_submission_ready"] is True
 
-    assert any("gpd resume" in action for action in payload.next_actions)
+    assert "Run `gpd resume` to inspect the current recovery snapshot for this project." in payload.next_actions
     assert any("pricing snapshot" in action for action in payload.next_actions)
     assert any("latexmk" in action for action in payload.next_actions)
     assert any("kpsewhich" in action for action in payload.next_actions)

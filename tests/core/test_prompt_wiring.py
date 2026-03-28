@@ -1036,19 +1036,19 @@ def test_phase_research_and_verification_surfaces_keep_anchor_checks_mandatory()
 
 
 def test_stage4_templates_and_workflows_surface_contract_results_and_verdict_ledgers() -> None:
-    contract_results_schema = (TEMPLATES_DIR / "contract-results-schema.md").read_text(encoding="utf-8")
+    _contract_results_schema = (TEMPLATES_DIR / "contract-results-schema.md").read_text(encoding="utf-8")
     summary_template = (TEMPLATES_DIR / "summary.md").read_text(encoding="utf-8")
-    verification_template = (TEMPLATES_DIR / "verification-report.md").read_text(encoding="utf-8")
-    research_verification = (TEMPLATES_DIR / "research-verification.md").read_text(encoding="utf-8")
-    execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
-    verify_workflow = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
-    verify_phase = (WORKFLOWS_DIR / "verify-phase.md").read_text(encoding="utf-8")
-    compare_workflow = (WORKFLOWS_DIR / "compare-experiment.md").read_text(encoding="utf-8")
-    comparison_template = (
+    _verification_template = (TEMPLATES_DIR / "verification-report.md").read_text(encoding="utf-8")
+    _research_verification = (TEMPLATES_DIR / "research-verification.md").read_text(encoding="utf-8")
+    _execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
+    _verify_workflow = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
+    _verify_phase = (WORKFLOWS_DIR / "verify-phase.md").read_text(encoding="utf-8")
+    _compare_workflow = (WORKFLOWS_DIR / "compare-experiment.md").read_text(encoding="utf-8")
+    _comparison_template = (
         TEMPLATES_DIR / "paper" / "experimental-comparison.md"
     ).read_text(encoding="utf-8")
-    executor_agent = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
-    verifier_agent = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
+    _executor_agent = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
+    _verifier_agent = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
 
     assert "contract_results" in summary_template
     assert "comparison_verdicts" in summary_template
@@ -2105,8 +2105,11 @@ def test_pause_resume_and_help_wiring_keep_runtime_handoff_and_local_snapshot_bo
     assert "To inspect local recovery summary: gpd resume" in pause_work
     assert "To rediscover the project first: gpd resume --recent" in pause_work
     assert "/gpd:resume-work" in help_workflow
-    assert "- For a normal-terminal, read-only recovery snapshot without launching the runtime, use `gpd resume`." in help_workflow
-    assert "Use `gpd resume --recent` first if you need to find the right project before resuming it." in help_workflow
+    assert "- For a normal-terminal, current-workspace read-only recovery snapshot without launching the runtime, use `gpd resume`." in help_workflow
+    assert (
+        "Use `gpd resume --recent` first if you need to find the workspace before resuming it, "
+        "then continue inside that workspace with `/gpd:resume-work`."
+    ) in help_workflow
     assert "gpd observe execution" in help_workflow
     assert "not runtime hotkeys" in help_workflow
 
@@ -2309,7 +2312,6 @@ def test_settings_workflow_surfaces_qualitative_model_cost_onboarding_and_runtim
     assert "Configure explicit tier models" in settings_workflow
     assert "Local CLI bridge" in settings_workflow
     assert "gpd --help" in settings_workflow
-    assert "gpd permissions status --runtime <runtime> --autonomy balanced" in settings_workflow
     assert "gpd permissions sync --runtime <runtime> --autonomy balanced" in settings_workflow
     assert "This sync only updates runtime-owned permission settings; it does not validate install health or workflow/tool readiness." in settings_workflow
     assert "gpd presets show <preset>" in settings_workflow
@@ -2326,10 +2328,10 @@ def test_help_surfaces_distinguish_runtime_slash_commands_from_local_cli_subcomm
         assert "slash-command" in content
         assert "local `gpd` CLI" in content
         assert "gpd --help" in content
-        assert "gpd permissions status --runtime <runtime> --autonomy balanced" in content
         assert "gpd permissions sync --runtime <runtime> --autonomy balanced" in content
         assert "install/readiness/permissions/diagnostics surface directly" in content
-        assert "`gpd doctor` checks the selected install target and runtime-local readiness signals; `gpd permissions ...` checks runtime-owned approval/alignment only." in content
+        assert "`gpd doctor` checks the selected install target and runtime-local readiness signals." in content
+        assert "`gpd permissions ...` checks runtime-owned approval/alignment only." in content
         assert "gpd validate command-context gpd:<name>" in content
         assert "gpd observe execution" in content
 
@@ -2356,7 +2358,6 @@ def test_help_command_keeps_static_quick_start_while_workflow_owns_full_referenc
         "/gpd:resume-work",
         "gpd resume --recent",
         "gpd --help",
-        "gpd permissions status --runtime <runtime> --autonomy balanced",
         "gpd permissions sync --runtime <runtime> --autonomy balanced",
         "gpd presets show <preset>",
         "gpd observe execution",

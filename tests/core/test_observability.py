@@ -347,7 +347,7 @@ def test_derive_execution_visibility_never_flags_paused_segments_as_stalled(tmp_
     assert visibility.has_live_execution is True
     assert visibility.status_classification == "paused-or-resumable"
     assert visibility.possibly_stalled is False
-    assert any("Resume the paused context" in step for step in visibility.suggested_next_steps)
+    assert any("inspect the ranked recovery candidates" in step for step in visibility.suggested_next_steps)
 
 
 def test_pre_fanout_gate_records_skeptical_review_state(tmp_path: Path, monkeypatch) -> None:

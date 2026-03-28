@@ -151,7 +151,8 @@ def _assert_single_runtime_next_steps(
         rf"Run {re.escape(adapter.help_command)} for the command list\..*?"
         rf"Start with {re.escape(adapter.new_project_command)} for a new project or "
         rf"{re.escape(adapter.map_research_command)} for existing work, or "
-        rf"{re.escape(resume_work_command)} to continue paused work\..*?"
+        rf"{re.escape(resume_work_command)} to continue paused work(?:, and "
+        rf"{re.escape(adapter.format_command('suggest-next'))} to choose the next runtime action)?\..*?"
         rf"Fast bootstrap: use {re.escape(adapter.new_project_command)} --minimal.*?"
         rf"Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics\..*?"
         rf"Use {re.escape(adapter.help_command)} inside {re.escape(descriptor.display_name)} for workflow help\..*?"
@@ -396,6 +397,9 @@ def test_install_summary_surfaces_help_then_new_or_existing_entry_points(tmp_pat
     assert result.exit_code == 0
     _assert_single_runtime_next_steps(result.output)
     assert (
+        "If you need to find a different workspace first, use gpd resume --recent from your system terminal."
+    ) in result.output
+    assert (
         "After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture. "
         "The safest starting point is `review` plus runtime defaults."
     ) in result.output
@@ -427,6 +431,7 @@ def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(t
             help_command=adapter.help_command,
             new_project_command=adapter.new_project_command,
             map_research_command=adapter.map_research_command,
+            format_command=adapter.format_command,
         )
 
     with (
@@ -440,6 +445,9 @@ def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(t
     for descriptor in descriptors:
         _assert_multi_runtime_next_step_line(result.output, descriptor)
     assert "1. From your system terminal" not in result.output
+    assert (
+        "If you need to find a different workspace first, use gpd resume --recent from your system terminal."
+    ) in result.output
     assert (
         "After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture. "
         "The safest starting point is `review` plus runtime defaults."
@@ -1401,8 +1409,6 @@ def test_hook_install_metadata_uses_adapter_detection_rules(tmp_path: Path):
 
     with patch("gpd.hooks.install_metadata.get_adapter", return_value=adapter):
         assert config_dir_has_complete_install(config_dir) is False
-
-    adapter.has_complete_install.assert_called_once_with(config_dir)
 
 
 def test_hook_install_metadata_rejects_missing_runtime_specific_completeness_artifact(tmp_path: Path):

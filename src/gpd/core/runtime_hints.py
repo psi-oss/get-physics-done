@@ -105,7 +105,7 @@ def _recovery_next_actions(recovery: dict[str, object], current_project: dict[st
     actions: list[str] = []
     if current_project is not None:
         if bool(current_project.get("resumable")):
-            actions.append("Run `gpd resume` to reopen the current project.")
+            actions.append("Run `gpd resume` to inspect the current recovery snapshot for this project.")
         elif current_project.get("resume_file"):
             actions.append("Run `gpd resume --recent` to rediscover a resumable project on this machine.")
     elif recovery.get("recent_projects"):
