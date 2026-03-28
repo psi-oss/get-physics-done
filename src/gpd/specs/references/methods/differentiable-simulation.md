@@ -86,7 +86,7 @@ rel_err = abs(grad_ad - grad_fd) / (abs(grad_fd) + 1e-8)
 # PASS: < 0.05    INVESTIGATE: 0.05-0.20    FAIL: > 0.20
 ```
 
-**Common causes of mismatch:** in-place mutation, branching, unconverged solver, float32 precision through long unrolls.
+**Common causes of mismatch:** in-place mutation, branching, unconverged solver, float32 precision through long unrolls. **Also:** if the loss value is very small (near-converged), both AD and FD gradients approach zero and relative error blows up even when gradients are qualitatively correct. Validate at a point where the loss is not near its minimum.
 
 </verification_protocol>
 
