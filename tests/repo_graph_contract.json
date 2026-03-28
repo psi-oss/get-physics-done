@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_on": "2026-03-26",
+  "generated_on": "2026-03-27",
   "excluded_graph_dirs": [
     ".git",
     ".mcp.json",
@@ -18,8 +18,8 @@
     "dist"
   ],
   "scope_counts": {
-    "Live repo files analyzed in the current tree": 686,
-    "Python files under `src/` and `tests/`": 244,
+    "Live repo files analyzed in the current tree": 688,
+    "Python files under `src/` and `tests/`": 246,
     "`src/gpd/commands/*.md`": 62,
     "`src/gpd/agents/*.md`": 23,
     "`src/gpd/specs/workflows/*.md`": 63,
@@ -28,7 +28,7 @@
     "`src/gpd/adapters/*.py`": 9,
     "`src/gpd/hooks/*.py`": 7,
     "`src/gpd/mcp/servers/*.py`": 8,
-    "`tests/**` files": 171,
+    "`tests/**` files": 172,
     "`infra/gpd-*.json`": 8
   }
 }

@@ -86,12 +86,29 @@ def _payload_runtime(cwd: str | None = None) -> str | None:
     return None if runtime == RUNTIME_UNKNOWN else runtime
 
 
+def _runtime_supports_usage_telemetry(runtime: str | None) -> bool:
+    """Return whether one concrete runtime exposes a usage-telemetry contract."""
+    if not isinstance(runtime, str) or not runtime.strip():
+        return False
+
+    from gpd.adapters.runtime_catalog import get_runtime_capabilities
+
+    try:
+        capability = get_runtime_capabilities(runtime)
+    except Exception:
+        return False
+    return capability.telemetry_source == "notify-hook" and capability.telemetry_completeness != "none"
+
+
 def _record_usage_telemetry(data: dict[str, object], *, cwd: str) -> None:
     """Persist measured usage/cost telemetry when the runtime payload exposes it."""
     from gpd.core.costs import record_usage_from_runtime_payload
 
     try:
         runtime = _payload_runtime(cwd)
+        if not _runtime_supports_usage_telemetry(runtime):
+            _debug("usage telemetry skipped: runtime capability unknown or unsupported")
+            return
         record_usage_from_runtime_payload(data, runtime=runtime, cwd=Path(cwd))
     except Exception as exc:
         # Usage telemetry is advisory only and must never break the notify hook.

@@ -189,6 +189,13 @@ def _sample_cost_summary(workspace: Path) -> CostSummary:
     return CostSummary(
         workspace_root=workspace_text,
         active_runtime="codex",
+        active_runtime_capabilities={
+            "permissions_surface": "config-file",
+            "statusline_surface": "none",
+            "notify_surface": "explicit",
+            "telemetry_source": "notify-hook",
+            "telemetry_completeness": "best-effort",
+        },
         model_profile="review",
         runtime_model_selection="runtime defaults",
         current_session_id="session-123",
@@ -223,6 +230,8 @@ def test_cost_raw_outputs_summary_payload(tmp_path: Path) -> None:
     payload = json.loads(result.output)
     assert payload["workspace_root"] == str(tmp_path)
     assert payload["active_runtime"] == "codex"
+    assert payload["active_runtime_capabilities"]["telemetry_completeness"] == "best-effort"
+    assert payload["active_runtime_capabilities"]["telemetry_source"] == "notify-hook"
     assert payload["model_profile"] == "review"
     assert payload["runtime_model_selection"] == "runtime defaults"
     assert payload["project"]["usage_status"] == "measured"
@@ -245,12 +254,50 @@ def test_cost_human_output_stays_read_only_and_advisory(tmp_path: Path) -> None:
     assert "Read-only machine-local usage/cost summary." in result.output
     assert "clearly labels estimates or unavailable values" in result.output
     assert "Current posture" in result.output
+    assert "Telemetry support" in result.output
+    assert "best-effort via notify-hook" in result.output
     assert "Pricing snapshot" in result.output
     assert "not configured" in result.output
     assert "Current project" in result.output
     assert "Recent sessions" in result.output
     assert "Measured tokens are available, but no pricing snapshot is configured" in result.output
     assert "Current model posture: profile `review` with codex runtime defaults." in result.output
+
+
+def test_permissions_status_raw_includes_runtime_capabilities(tmp_path: Path) -> None:
+    with (
+        patch("gpd.cli._resolve_permissions_runtime_name", return_value="gemini"),
+        patch("gpd.cli._resolve_permissions_target_dir", return_value=tmp_path / ".gemini"),
+        patch("gpd.cli._resolve_permissions_autonomy", return_value="yolo"),
+        patch(
+            "gpd.adapters.get_adapter",
+            return_value=MagicMock(
+                runtime_permissions_status=MagicMock(
+                    return_value={
+                        "runtime": "gemini",
+                        "desired_mode": "yolo",
+                        "configured_mode": "launch-wrapper",
+                        "config_aligned": True,
+                        "requires_relaunch": True,
+                        "managed_by_gpd": True,
+                        "message": "Gemini only supports yolo at launch time.",
+                        "next_step": None,
+                    }
+                )
+            ),
+        ),
+    ):
+        result = runner.invoke(
+            app,
+            ["--raw", "permissions", "status", "--runtime", "gemini", "--autonomy", "yolo"],
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["readiness"] == "relaunch-required"
+    assert payload["capabilities"]["permissions_surface"] == "launch-wrapper"
+    assert payload["capabilities"]["statusline_surface"] == "explicit"
+    assert payload["capabilities"]["telemetry_completeness"] == "none"
 
 
 def test_observe_help_surfaces_read_only_execution_snapshot_command() -> None:
@@ -300,6 +347,113 @@ def test_permissions_sync_help_surfaces_guided_runtime_changes() -> None:
     assert "--runtime" in result.output
     assert "--autonomy" in result.output
     assert "--target-dir" in result.output
+
+
+def test_permissions_status_surfaces_runtime_capabilities_and_config_scope() -> None:
+    class _DummyAdapter:
+        def runtime_permissions_status(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
+            return {
+                "runtime": "codex",
+                "desired_mode": "default",
+                "configured_mode": "on-request/workspace-write",
+                "config_aligned": True,
+                "requires_relaunch": False,
+                "managed_by_gpd": False,
+                "approval_policy": "on-request",
+                "sandbox_mode": "workspace-write",
+                "message": "Codex is using its normal approval and sandbox defaults.",
+            }
+
+    with (
+        patch("gpd.cli._resolve_permissions_runtime_name", return_value="codex"),
+        patch("gpd.cli._resolve_permissions_target_dir", return_value=Path("/tmp/.codex")),
+        patch("gpd.cli._resolve_permissions_autonomy", return_value="balanced"),
+        patch("gpd.adapters.get_adapter", return_value=_DummyAdapter()),
+    ):
+        result = runner.invoke(app, ["--raw", "permissions", "status", "--runtime", "codex", "--autonomy", "balanced"])
+
+    assert result.exit_code == 0
+    parsed = json.loads(result.output)
+    assert parsed["capabilities"]["contract_source"] == "runtime-catalog"
+    assert parsed["capabilities"]["permissions_surface"] == "config-file"
+    assert parsed["requested_surface"] == "ordinary-unattended"
+    assert parsed["status_scope"] == "config-only"
+    assert parsed["current_session_verified"] is False
+    assert parsed["more_permissive_than_requested"] is False
+    assert parsed["readiness"] == "ready"
+
+
+def test_permissions_status_marks_known_more_permissive_runtime_not_ready() -> None:
+    class _DummyAdapter:
+        def runtime_permissions_status(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
+            return {
+                "runtime": "claude-code",
+                "desired_mode": "default",
+                "configured_mode": "bypassPermissions",
+                "config_aligned": True,
+                "requires_relaunch": False,
+                "managed_by_gpd": False,
+                "message": (
+                    "Claude Code is still configured for bypassPermissions, but GPD left it untouched because "
+                    "that setting was not created by a prior GPD yolo sync."
+                ),
+            }
+
+    with (
+        patch("gpd.cli._resolve_permissions_runtime_name", return_value="claude-code"),
+        patch("gpd.cli._resolve_permissions_target_dir", return_value=Path("/tmp/.claude")),
+        patch("gpd.cli._resolve_permissions_autonomy", return_value="balanced"),
+        patch("gpd.adapters.get_adapter", return_value=_DummyAdapter()),
+    ):
+        result = runner.invoke(
+            app,
+            ["--raw", "permissions", "status", "--runtime", "claude-code", "--autonomy", "balanced"],
+        )
+
+    assert result.exit_code == 0
+    parsed = json.loads(result.output)
+    assert parsed["capabilities"]["permissions_surface"] == "config-file"
+    assert parsed["more_permissive_than_requested"] is True
+    assert parsed["readiness"] == "not-ready"
+    assert parsed["ready"] is False
+    assert parsed["readiness_message"] == (
+        "Runtime permissions are more permissive than the requested autonomy, so unattended readiness is not confirmed."
+    )
+
+
+def test_runtime_permissions_sync_payload_surfaces_launch_wrapper_scope() -> None:
+    class _DummyAdapter:
+        def sync_runtime_permissions(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
+            return {
+                "runtime": "gemini",
+                "desired_mode": "yolo",
+                "configured_mode": "launch-wrapper",
+                "config_aligned": True,
+                "requires_relaunch": True,
+                "managed_by_gpd": True,
+                "launch_command": "/tmp/.gemini/get-physics-done/bin/gemini-gpd-yolo",
+                "message": "Gemini only supports yolo at launch time. The GPD launcher is ready for the next session.",
+            }
+
+    with (
+        patch("gpd.cli._resolve_permissions_runtime_name", return_value="gemini"),
+        patch("gpd.cli._resolve_permissions_target_dir", return_value=Path("/tmp/.gemini")),
+        patch("gpd.cli._resolve_permissions_autonomy", return_value="yolo"),
+        patch("gpd.adapters.get_adapter", return_value=_DummyAdapter()),
+    ):
+        payload = cli_module._runtime_permissions_payload(
+            runtime="gemini",
+            autonomy="yolo",
+            target_dir=None,
+            apply_sync=True,
+            strict=True,
+        )
+
+    assert payload["capabilities"]["contract_source"] == "runtime-catalog"
+    assert payload["capabilities"]["permissions_surface"] == "launch-wrapper"
+    assert payload["requested_surface"] == "prompt-free"
+    assert payload["status_scope"] == "next-launch"
+    assert payload["current_session_verified"] is False
 
 
 def test_init_help_surfaces_local_onboarding_entrypoints() -> None:

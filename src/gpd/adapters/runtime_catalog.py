@@ -39,6 +39,24 @@ class HookPayloadPolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class RuntimeCapabilityPolicy:
+    permissions_surface: str = "unsupported"
+    permission_surface_kind: str = "none"
+    supports_runtime_permission_sync: bool = False
+    supports_prompt_free_mode: bool = False
+    prompt_free_requires_relaunch: bool = False
+    statusline_surface: str = "none"
+    statusline_config_surface: str = "none"
+    notify_surface: str = "none"
+    notify_config_surface: str = "none"
+    telemetry_source: str = "none"
+    telemetry_completeness: str = "none"
+    supports_usage_tokens: bool = False
+    supports_cost_usd: bool = False
+    supports_context_meter: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class RuntimeDescriptor:
     runtime_name: str
     display_name: str
@@ -52,6 +70,7 @@ class RuntimeDescriptor:
     selection_aliases: tuple[str, ...]
     global_config: GlobalConfigPolicy
     hook_payload: HookPayloadPolicy
+    capabilities: RuntimeCapabilityPolicy = RuntimeCapabilityPolicy()
     manifest_file_prefixes: tuple[str, ...] = ()
     native_include_support: bool = False
     agent_prompt_uses_dollar_templates: bool = False
@@ -66,6 +85,7 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
     raw_entries = json.loads(_catalog_path().read_text(encoding="utf-8"))
     descriptors: list[RuntimeDescriptor] = []
     for entry in raw_entries:
+        capability_entry = entry.get("capabilities", {})
         hook_payload_entry = entry.get("hook_payload", {})
         descriptors.append(
             RuntimeDescriptor(
@@ -89,68 +109,65 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                     xdg_subdir=_optional_str(entry["global_config"].get("xdg_subdir")),
                     home_subpath=str(entry["global_config"].get("home_subpath", "")),
                 ),
+                capabilities=RuntimeCapabilityPolicy(
+                    permissions_surface=str(capability_entry.get("permissions_surface", "unsupported")),
+                    permission_surface_kind=str(capability_entry.get("permission_surface_kind", "none")),
+                    supports_runtime_permission_sync=bool(
+                        capability_entry.get("supports_runtime_permission_sync", False)
+                    ),
+                    supports_prompt_free_mode=bool(capability_entry.get("supports_prompt_free_mode", False)),
+                    prompt_free_requires_relaunch=bool(
+                        capability_entry.get("prompt_free_requires_relaunch", False)
+                    ),
+                    statusline_surface=str(capability_entry.get("statusline_surface", "none")),
+                    statusline_config_surface=str(capability_entry.get("statusline_config_surface", "none")),
+                    notify_surface=str(capability_entry.get("notify_surface", "none")),
+                    notify_config_surface=str(capability_entry.get("notify_config_surface", "none")),
+                    telemetry_source=str(capability_entry.get("telemetry_source", "none")),
+                    telemetry_completeness=str(capability_entry.get("telemetry_completeness", "none")),
+                    supports_usage_tokens=bool(capability_entry.get("supports_usage_tokens", False)),
+                    supports_cost_usd=bool(capability_entry.get("supports_cost_usd", False)),
+                    supports_context_meter=bool(capability_entry.get("supports_context_meter", False)),
+                ),
                 hook_payload=HookPayloadPolicy(
-                    notify_event_types=_tuple_of_str(hook_payload_entry.get("notify_event_types")),
-                    workspace_keys=_tuple_of_str(
-                        hook_payload_entry.get("workspace_keys"),
+                    notify_event_types=_tuple_of_str_from_entry(hook_payload_entry, "notify_event_types"),
+                    workspace_keys=_tuple_of_str_from_entry(
+                        hook_payload_entry,
+                        "workspace_keys",
                         ("current_dir", "cwd", "path", "workspace_dir"),
                     ),
-                    project_dir_keys=_tuple_of_str(
-                        hook_payload_entry.get("project_dir_keys"),
+                    project_dir_keys=_tuple_of_str_from_entry(
+                        hook_payload_entry,
+                        "project_dir_keys",
                         ("project_dir",),
                     ),
-                    model_keys=_tuple_of_str(
-                        hook_payload_entry.get("model_keys"),
+                    model_keys=_tuple_of_str_from_entry(
+                        hook_payload_entry,
+                        "model_keys",
                         ("display_name", "name", "id"),
                     ),
-                    provider_keys=_tuple_of_str(
-                        hook_payload_entry.get("provider_keys"),
-                        ("provider", "vendor"),
+                    provider_keys=_tuple_of_str_from_entry(hook_payload_entry, "provider_keys"),
+                    usage_keys=_tuple_of_str_from_entry(hook_payload_entry, "usage_keys"),
+                    input_tokens_keys=_tuple_of_str_from_entry(hook_payload_entry, "input_tokens_keys"),
+                    output_tokens_keys=_tuple_of_str_from_entry(hook_payload_entry, "output_tokens_keys"),
+                    total_tokens_keys=_tuple_of_str_from_entry(hook_payload_entry, "total_tokens_keys"),
+                    cached_input_tokens_keys=_tuple_of_str_from_entry(
+                        hook_payload_entry,
+                        "cached_input_tokens_keys",
                     ),
-                    usage_keys=_tuple_of_str(
-                        hook_payload_entry.get("usage_keys"),
-                        ("usage", "token_usage", "tokens"),
+                    cache_write_input_tokens_keys=_tuple_of_str_from_entry(
+                        hook_payload_entry,
+                        "cache_write_input_tokens_keys",
                     ),
-                    input_tokens_keys=_tuple_of_str(
-                        hook_payload_entry.get("input_tokens_keys"),
-                        ("input_tokens", "prompt_tokens", "inputTokens", "promptTokens"),
-                    ),
-                    output_tokens_keys=_tuple_of_str(
-                        hook_payload_entry.get("output_tokens_keys"),
-                        ("output_tokens", "completion_tokens", "outputTokens", "completionTokens"),
-                    ),
-                    total_tokens_keys=_tuple_of_str(
-                        hook_payload_entry.get("total_tokens_keys"),
-                        ("total_tokens", "totalTokens"),
-                    ),
-                    cached_input_tokens_keys=_tuple_of_str(
-                        hook_payload_entry.get("cached_input_tokens_keys"),
-                        (
-                            "cached_input_tokens",
-                            "cache_read_input_tokens",
-                            "cachedInputTokens",
-                            "cacheReadInputTokens",
-                        ),
-                    ),
-                    cache_write_input_tokens_keys=_tuple_of_str(
-                        hook_payload_entry.get("cache_write_input_tokens_keys"),
-                        (
-                            "cache_write_input_tokens",
-                            "cache_creation_input_tokens",
-                            "cacheWriteInputTokens",
-                            "cacheCreationInputTokens",
-                        ),
-                    ),
-                    cost_usd_keys=_tuple_of_str(
-                        hook_payload_entry.get("cost_usd_keys"),
-                        ("cost_usd", "costUsd", "usd_cost", "usdCost"),
-                    ),
-                    context_window_size_keys=_tuple_of_str(
-                        hook_payload_entry.get("context_window_size_keys"),
+                    cost_usd_keys=_tuple_of_str_from_entry(hook_payload_entry, "cost_usd_keys"),
+                    context_window_size_keys=_tuple_of_str_from_entry(
+                        hook_payload_entry,
+                        "context_window_size_keys",
                         ("context_window_size",),
                     ),
-                    context_remaining_keys=_tuple_of_str(
-                        hook_payload_entry.get("context_remaining_keys"),
+                    context_remaining_keys=_tuple_of_str_from_entry(
+                        hook_payload_entry,
+                        "context_remaining_keys",
                         ("remaining_percentage", "remainingPercent", "remaining"),
                     ),
                 ),
@@ -172,6 +189,19 @@ def _tuple_of_str(value: object, default: tuple[str, ...] = ()) -> tuple[str, ..
         result = tuple(item for item in value if isinstance(item, str) and item)
         if result:
             return result
+    return default
+
+
+def _tuple_of_str_from_entry(
+    entry: dict[str, object],
+    key: str,
+    default: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    if key not in entry:
+        return default
+    value = entry.get(key)
+    if isinstance(value, (list, tuple)):
+        return tuple(item for item in value if isinstance(item, str) and item)
     return default
 
 
@@ -235,6 +265,11 @@ def get_hook_payload_policy(runtime: str | None = None) -> HookPayloadPolicy:
     )
 
 
+def get_runtime_capabilities(runtime: str) -> RuntimeCapabilityPolicy:
+    """Return the static runtime capability contract declared for one runtime."""
+    return get_runtime_descriptor(runtime).capabilities
+
+
 def resolve_global_config_dir(
     descriptor: RuntimeDescriptor,
     *,
@@ -270,8 +305,10 @@ def resolve_global_config_dir(
 __all__ = [
     "GlobalConfigPolicy",
     "HookPayloadPolicy",
+    "RuntimeCapabilityPolicy",
     "RuntimeDescriptor",
     "get_hook_payload_policy",
+    "get_runtime_capabilities",
     "get_runtime_descriptor",
     "iter_runtime_descriptors",
     "list_runtime_names",

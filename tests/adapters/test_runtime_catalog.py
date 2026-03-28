@@ -6,6 +6,7 @@ from pathlib import Path
 
 from gpd.adapters.runtime_catalog import (
     get_hook_payload_policy,
+    get_runtime_capabilities,
     get_runtime_descriptor,
     iter_runtime_descriptors,
     list_runtime_names,
@@ -78,6 +79,142 @@ def test_hook_payload_policy_uses_runtime_specific_overrides_and_merged_fallback
     assert "cwd" in merged_policy.workspace_keys
 
 
+def test_runtime_capabilities_are_explicit_per_runtime() -> None:
+    claude = get_runtime_capabilities("claude-code")
+    gemini = get_runtime_capabilities("gemini")
+    codex = get_runtime_capabilities("codex")
+    opencode = get_runtime_capabilities("opencode")
+
+    assert claude.permissions_surface == "config-file"
+    assert claude.permission_surface_kind == "settings.json:permissions.defaultMode"
+    assert claude.supports_runtime_permission_sync is True
+    assert claude.supports_prompt_free_mode is True
+    assert claude.prompt_free_requires_relaunch is True
+    assert claude.statusline_surface == "explicit"
+    assert claude.statusline_config_surface == "settings.json:statusLine"
+    assert claude.notify_surface == "none"
+    assert claude.notify_config_surface == "none"
+    assert claude.supports_context_meter is True
+    assert claude.supports_usage_tokens is False
+    assert claude.supports_cost_usd is False
+    assert claude.telemetry_completeness == "none"
+
+    assert gemini.permissions_surface == "launch-wrapper"
+    assert gemini.permission_surface_kind == "managed-launcher-wrapper"
+    assert gemini.supports_runtime_permission_sync is True
+    assert gemini.supports_prompt_free_mode is True
+    assert gemini.prompt_free_requires_relaunch is True
+    assert gemini.statusline_surface == "explicit"
+    assert gemini.statusline_config_surface == "settings.json:statusLine"
+    assert gemini.notify_surface == "none"
+    assert gemini.notify_config_surface == "none"
+    assert gemini.supports_context_meter is True
+    assert gemini.supports_usage_tokens is False
+    assert gemini.supports_cost_usd is False
+    assert gemini.telemetry_completeness == "none"
+
+    assert codex.permissions_surface == "config-file"
+    assert codex.permission_surface_kind == "config.toml:approval_policy+sandbox_mode"
+    assert codex.supports_runtime_permission_sync is True
+    assert codex.supports_prompt_free_mode is True
+    assert codex.prompt_free_requires_relaunch is True
+    assert codex.statusline_surface == "none"
+    assert codex.statusline_config_surface == "none"
+    assert codex.notify_surface == "explicit"
+    assert codex.notify_config_surface == "config.toml:notify"
+    assert codex.telemetry_source == "notify-hook"
+    assert codex.telemetry_completeness == "best-effort"
+    assert codex.supports_context_meter is False
+    assert codex.supports_usage_tokens is True
+    assert codex.supports_cost_usd is True
+
+    assert opencode.permissions_surface == "config-file"
+    assert opencode.permission_surface_kind == "opencode.json:permission"
+    assert opencode.supports_runtime_permission_sync is True
+    assert opencode.supports_prompt_free_mode is True
+    assert opencode.prompt_free_requires_relaunch is True
+    assert opencode.statusline_surface == "none"
+    assert opencode.statusline_config_surface == "none"
+    assert opencode.notify_surface == "none"
+    assert opencode.notify_config_surface == "none"
+    assert opencode.telemetry_completeness == "none"
+    assert opencode.supports_context_meter is False
+    assert opencode.supports_usage_tokens is False
+    assert opencode.supports_cost_usd is False
+
+
+def test_runtime_capabilities_and_hook_payload_contract_stay_coherent() -> None:
+    allowed_permissions_surfaces = {"config-file", "launch-wrapper", "unsupported"}
+    allowed_permission_surface_kinds = {
+        "settings.json:permissions.defaultMode",
+        "managed-launcher-wrapper",
+        "config.toml:approval_policy+sandbox_mode",
+        "opencode.json:permission",
+        "none",
+    }
+    allowed_hook_surfaces = {"explicit", "none"}
+    allowed_statusline_config_surfaces = {"settings.json:statusLine", "none"}
+    allowed_notify_config_surfaces = {"config.toml:notify", "none"}
+    allowed_telemetry_sources = {"notify-hook", "none"}
+    allowed_telemetry_completeness = {"best-effort", "none"}
+
+    for runtime_name in list_runtime_names():
+        capabilities = get_runtime_capabilities(runtime_name)
+        hook_payload = get_hook_payload_policy(runtime_name)
+
+        assert capabilities.permissions_surface in allowed_permissions_surfaces
+        assert capabilities.permission_surface_kind in allowed_permission_surface_kinds
+        assert isinstance(capabilities.supports_runtime_permission_sync, bool)
+        assert isinstance(capabilities.supports_prompt_free_mode, bool)
+        assert isinstance(capabilities.prompt_free_requires_relaunch, bool)
+        assert capabilities.statusline_surface in allowed_hook_surfaces
+        assert capabilities.statusline_config_surface in allowed_statusline_config_surfaces
+        assert capabilities.notify_surface in allowed_hook_surfaces
+        assert capabilities.notify_config_surface in allowed_notify_config_surfaces
+        assert capabilities.telemetry_source in allowed_telemetry_sources
+        assert capabilities.telemetry_completeness in allowed_telemetry_completeness
+        assert isinstance(capabilities.supports_usage_tokens, bool)
+        assert isinstance(capabilities.supports_cost_usd, bool)
+        assert isinstance(capabilities.supports_context_meter, bool)
+
+        if capabilities.statusline_surface == "explicit":
+            assert capabilities.statusline_config_surface != "none"
+            assert hook_payload.model_keys
+            assert hook_payload.context_window_size_keys
+            assert hook_payload.context_remaining_keys
+            assert capabilities.supports_context_meter is True
+        else:
+            assert capabilities.statusline_config_surface == "none"
+            assert not hook_payload.context_window_size_keys
+            assert not hook_payload.context_remaining_keys
+            assert capabilities.supports_context_meter is False
+
+        if capabilities.notify_surface == "explicit":
+            assert capabilities.notify_config_surface != "none"
+            assert hook_payload.notify_event_types
+        else:
+            assert capabilities.notify_config_surface == "none"
+            assert not hook_payload.notify_event_types
+
+        if capabilities.telemetry_completeness == "best-effort":
+            assert capabilities.telemetry_source == "notify-hook"
+            assert capabilities.notify_surface == "explicit"
+            assert capabilities.supports_usage_tokens is True
+            assert capabilities.supports_cost_usd is True
+            assert hook_payload.usage_keys
+            assert hook_payload.input_tokens_keys
+            assert hook_payload.output_tokens_keys
+            assert hook_payload.cost_usd_keys
+        else:
+            assert capabilities.telemetry_source == "none"
+            assert capabilities.supports_usage_tokens is False
+            assert capabilities.supports_cost_usd is False
+            assert not hook_payload.usage_keys
+            assert not hook_payload.input_tokens_keys
+            assert not hook_payload.output_tokens_keys
+            assert not hook_payload.cost_usd_keys
+
+
 def test_hook_payload_policy_exposes_usage_alias_fields_for_cost_telemetry() -> None:
     codex_policy = get_hook_payload_policy("codex")
     merged_policy = get_hook_payload_policy()
@@ -113,6 +250,7 @@ def test_hook_payload_policy_exposes_usage_alias_fields_for_cost_telemetry() -> 
     assert codex_policy.cost_usd_keys == ("cost_usd", "costUsd", "usd_cost", "usdCost")
 
     for alias in (
+        "usage",
         "token_usage",
         "tokens",
         "promptTokens",

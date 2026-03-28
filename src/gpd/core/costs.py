@@ -15,7 +15,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from gpd.adapters.runtime_catalog import get_hook_payload_policy
+from gpd.adapters.runtime_catalog import get_hook_payload_policy, get_runtime_capabilities
 from gpd.core.constants import (
     COST_LEDGER_DIR_NAME,
     COST_LEDGER_RECORDS_FILENAME,
@@ -138,6 +138,7 @@ class CostSummary(BaseModel):
 
     workspace_root: str
     active_runtime: str | None = None
+    active_runtime_capabilities: dict[str, str] = Field(default_factory=dict)
     model_profile: str | None = None
     runtime_model_selection: str | None = None
     current_session_id: str | None = None
@@ -205,6 +206,23 @@ def _normalized_runtime(value: str | None) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _runtime_capability_payload(runtime: str | None) -> dict[str, str]:
+    normalized_runtime = _normalized_runtime(runtime)
+    if not normalized_runtime:
+        return {}
+    try:
+        capability = get_runtime_capabilities(normalized_runtime)
+    except KeyError:
+        return {}
+    return {
+        "permissions_surface": capability.permissions_surface,
+        "statusline_surface": capability.statusline_surface,
+        "notify_surface": capability.notify_surface,
+        "telemetry_source": capability.telemetry_source,
+        "telemetry_completeness": capability.telemetry_completeness,
+    }
 
 
 def _usage_container(payload: dict[str, object], usage_keys: tuple[str, ...]) -> dict[str, object]:
@@ -408,6 +426,12 @@ def record_usage_from_runtime_payload(
     data_root: Path | None = None,
 ) -> UsageRecord | None:
     """Record one measured usage payload when the runtime exposes token/cost telemetry."""
+    capability_payload = _runtime_capability_payload(runtime)
+    if capability_payload.get("telemetry_completeness") == "none":
+        return None
+    if capability_payload.get("telemetry_source") not in {"notify-hook"}:
+        return None
+
     policy = get_hook_payload_policy(runtime)
     usage = _usage_container(payload, policy.usage_keys)
     model_value = payload.get("model")
@@ -617,6 +641,7 @@ def build_cost_summary(cwd: Path | None = None, *, data_root: Path | None = None
     pricing_snapshot = load_pricing_snapshot(data_root)
 
     active_runtime: str | None = None
+    active_runtime_capabilities: dict[str, str] = {}
     model_profile: str | None = None
     runtime_model_selection: str | None = None
     try:
@@ -628,6 +653,7 @@ def build_cost_summary(cwd: Path | None = None, *, data_root: Path | None = None
         detected_runtime = detect_runtime_for_gpd_use(cwd=resolved_workspace)
         if detected_runtime != RUNTIME_UNKNOWN:
             active_runtime = detected_runtime
+            active_runtime_capabilities = _runtime_capability_payload(detected_runtime)
             overrides = sorted(((config.model_overrides or {}).get(detected_runtime) or {}).keys())
             if overrides:
                 runtime_model_selection = f"explicit overrides pinned for {', '.join(overrides)}"
@@ -641,9 +667,18 @@ def build_cost_summary(cwd: Path | None = None, *, data_root: Path | None = None
     current_session_rollup = _rollup(current_session_records) if current_session_records else None
 
     if not project_records:
-        guidance.append(
-            "No measured usage telemetry is recorded for this workspace yet. GPD records usage only when the runtime emits token or cost payloads."
-        )
+        if active_runtime_capabilities.get("telemetry_completeness") == "none" and active_runtime:
+            guidance.append(
+                f"{active_runtime} does not currently expose a GPD-managed usage telemetry collection path, so `gpd cost` may remain empty even when work runs."
+            )
+        elif active_runtime_capabilities.get("telemetry_completeness") == "best-effort" and active_runtime:
+            guidance.append(
+                f"{active_runtime} only exposes best-effort usage telemetry through {active_runtime_capabilities.get('telemetry_source') or 'its runtime hook'}, so missing turns remain unavailable instead of being guessed."
+            )
+        else:
+            guidance.append(
+                "No measured usage telemetry is recorded for this workspace yet. GPD records usage only when the runtime emits token or cost payloads."
+            )
     elif project_rollup.usage_status == "measured" and project_rollup.cost_status == "unavailable":
         if pricing_snapshot.entries:
             guidance.append(
@@ -666,6 +701,7 @@ def build_cost_summary(cwd: Path | None = None, *, data_root: Path | None = None
     return CostSummary(
         workspace_root=resolved_workspace.as_posix(),
         active_runtime=active_runtime,
+        active_runtime_capabilities=active_runtime_capabilities,
         model_profile=model_profile,
         runtime_model_selection=runtime_model_selection,
         current_session_id=current_session_id,

@@ -812,6 +812,86 @@ def test_main_records_usage_telemetry_from_alias_fields(tmp_path: Path) -> None:
     assert row["cost_status"] == "measured"
 
 
+def test_main_does_not_record_usage_when_runtime_capability_is_unknown(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    data_root = tmp_path / "data-root"
+    payload = {
+        "type": "agent-turn-complete",
+        "workspace": str(workspace),
+        "model": {"id": "gpt-5", "provider": "openai"},
+        "tokens": {
+            "promptTokens": 120,
+            "completionTokens": 30,
+            "usdCost": 0.42,
+        },
+    }
+
+    with (
+        patch.dict("os.environ", {"GPD_DATA_DIR": str(data_root)}),
+        patch("sys.stdin", io.StringIO(json.dumps(payload))),
+        patch("gpd.hooks.notify._payload_runtime", return_value=None),
+        patch("gpd.core.costs.record_usage_from_runtime_payload") as mock_record,
+        patch("gpd.hooks.notify._trigger_update_check"),
+        patch("gpd.hooks.notify._check_and_notify_update"),
+        patch("gpd.hooks.notify._emit_execution_notification"),
+    ):
+        main()
+
+    mock_record.assert_not_called()
+    assert not usage_ledger_path(data_root).exists()
+
+
+def test_main_does_not_record_usage_when_runtime_capability_excludes_notify_telemetry(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    data_root = tmp_path / "data-root"
+    payload = {
+        "type": "agent-turn-complete",
+        "workspace": str(workspace),
+        "model": {"id": "gpt-5", "provider": "openai"},
+        "tokens": {
+            "promptTokens": 120,
+            "completionTokens": 30,
+            "usdCost": 0.42,
+        },
+    }
+
+    with (
+        patch.dict("os.environ", {"GPD_DATA_DIR": str(data_root)}),
+        patch("sys.stdin", io.StringIO(json.dumps(payload))),
+        patch("gpd.hooks.notify._payload_runtime", return_value="claude-code"),
+        patch("gpd.core.costs.record_usage_from_runtime_payload") as mock_record,
+        patch("gpd.hooks.notify._trigger_update_check"),
+        patch("gpd.hooks.notify._check_and_notify_update"),
+        patch("gpd.hooks.notify._emit_execution_notification"),
+    ):
+        main()
+
+    mock_record.assert_not_called()
+    assert not usage_ledger_path(data_root).exists()
+
+
+def test_main_logs_usage_skip_when_runtime_capability_is_unknown(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    payload = json.dumps({"type": "agent-turn-complete", "workspace": str(workspace)})
+    stderr = io.StringIO()
+
+    with (
+        patch("sys.stdin", io.StringIO(payload)),
+        patch("gpd.hooks.notify._payload_runtime", return_value=""),
+        patch("gpd.hooks.notify._trigger_update_check"),
+        patch("gpd.hooks.notify._check_and_notify_update"),
+        patch("gpd.hooks.notify._emit_execution_notification"),
+        patch.dict("os.environ", {"GPD_DEBUG": "1"}),
+        patch("sys.stderr", stderr),
+    ):
+        main()
+
+    assert "usage telemetry skipped: runtime capability unknown or unsupported" in stderr.getvalue()
+
+
 def test_main_does_not_record_usage_when_usage_container_has_no_token_or_cost_signal(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()

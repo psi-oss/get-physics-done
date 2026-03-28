@@ -23,7 +23,7 @@ def _bootstrap_project(tmp_path: Path, name: str = "project") -> Path:
 
 def _payload(
     *,
-    model: str = "claude-sonnet-4",
+    model: str = "gpt-5.4",
     input_tokens: int | None = None,
     output_tokens: int | None = None,
     total_tokens: int | None = None,
@@ -62,8 +62,8 @@ def _write_pricing_snapshot(data_root: Path) -> None:
                 "currency": "USD",
                 "entries": [
                     {
-                        "runtime": "claude-code",
-                        "model": "claude-sonnet-4",
+                        "runtime": "codex",
+                        "model": "gpt-5.4",
                         "input_per_million_usd": 3.0,
                         "output_per_million_usd": 15.0,
                         "cached_input_per_million_usd": 0.3,
@@ -96,21 +96,21 @@ def test_record_usage_writes_measured_records_and_builds_project_summary(
 
     record_usage_from_runtime_payload(
         _payload(input_tokens=100, output_tokens=25, cost_usd=0.01),
-        runtime="claude-code",
+        runtime="codex",
         cwd=project,
         data_root=data_root,
     )
     current_session["value"] = "sess-b"
     record_usage_from_runtime_payload(
         _payload(input_tokens=200, output_tokens=50, cost_usd=0.02),
-        runtime="claude-code",
+        runtime="codex",
         cwd=project,
         data_root=data_root,
     )
     current_session["value"] = "sess-c"
     record_usage_from_runtime_payload(
         _payload(input_tokens=300, output_tokens=75, cost_usd=0.03),
-        runtime="claude-code",
+        runtime="codex",
         cwd=other_project,
         data_root=data_root,
     )
@@ -145,7 +145,26 @@ def test_record_usage_skips_when_runtime_payload_has_no_usage_signal(
     monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-empty")
 
     record = record_usage_from_runtime_payload(
-        {"type": "response.completed", "model": "claude-sonnet-4", "usage": {}},
+        {"type": "response.completed", "model": "gpt-5.4", "usage": {}},
+        runtime="codex",
+        cwd=project,
+        data_root=data_root,
+    )
+
+    assert record is None
+    assert list_usage_records(data_root) == []
+    assert not usage_ledger_path(data_root).exists()
+
+
+def test_record_usage_skips_runtime_without_declared_telemetry_collection_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-claude")
+
+    record = record_usage_from_runtime_payload(
+        _payload(input_tokens=100, output_tokens=25, cost_usd=0.01),
         runtime="claude-code",
         cwd=project,
         data_root=data_root,
@@ -172,7 +191,7 @@ def test_record_usage_estimates_cost_from_pricing_snapshot(
             cached_input_tokens=100,
             cache_write_input_tokens=50,
         ),
-        runtime="claude-code",
+        runtime="codex",
         cwd=project,
         data_root=data_root,
     )
@@ -211,13 +230,13 @@ def test_record_usage_dedupes_identical_payloads_within_window(
     payload = _payload(input_tokens=400, output_tokens=100, cost_usd=0.04)
     first = record_usage_from_runtime_payload(
         payload,
-        runtime="claude-code",
+        runtime="codex",
         cwd=project,
         data_root=data_root,
     )
     second = record_usage_from_runtime_payload(
         payload,
-        runtime="claude-code",
+        runtime="codex",
         cwd=project,
         data_root=data_root,
     )
@@ -249,13 +268,13 @@ def test_build_cost_summary_marks_mixed_measured_and_estimated_usd_as_advisory(
 
     record_usage_from_runtime_payload(
         _payload(input_tokens=400, output_tokens=100, cost_usd=0.04),
-        runtime="claude-code",
+        runtime="codex",
         cwd=project,
         data_root=data_root,
     )
     record_usage_from_runtime_payload(
         _payload(input_tokens=1_000, output_tokens=500),
-        runtime="claude-code",
+        runtime="codex",
         cwd=project,
         data_root=data_root,
     )
@@ -268,3 +287,47 @@ def test_build_cost_summary_marks_mixed_measured_and_estimated_usd_as_advisory(
     assert summary.project.cost_status == "mixed"
     assert summary.project.cost_usd == pytest.approx(round(0.04 + expected_estimated, 6))
     assert any("mixes measured runtime telemetry with pricing-snapshot estimates" in item for item in summary.guidance)
+
+
+def test_build_cost_summary_surfaces_active_runtime_capabilities_in_guidance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: None)
+
+    class _Config:
+        model_profile = "review"
+        model_overrides = {}
+
+    monkeypatch.setattr("gpd.core.config.load_config", lambda _cwd: _Config())
+    monkeypatch.setattr("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", lambda cwd=None: "claude-code")
+
+    summary = build_cost_summary(project, data_root=tmp_path / "data", last_sessions=5)
+
+    assert summary.active_runtime == "claude-code"
+    assert summary.active_runtime_capabilities["telemetry_completeness"] == "none"
+    assert summary.active_runtime_capabilities["statusline_surface"] == "explicit"
+    assert any("does not currently expose a GPD-managed usage telemetry collection path" in item for item in summary.guidance)
+    assert not any("No measured usage telemetry is recorded for this workspace yet." in item for item in summary.guidance)
+
+
+def test_build_cost_summary_surfaces_best_effort_runtime_guidance_without_generic_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: None)
+
+    class _Config:
+        model_profile = "review"
+        model_overrides = {}
+
+    monkeypatch.setattr("gpd.core.config.load_config", lambda _cwd: _Config())
+    monkeypatch.setattr("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", lambda cwd=None: "codex")
+
+    summary = build_cost_summary(project, data_root=tmp_path / "data", last_sessions=5)
+
+    assert summary.active_runtime == "codex"
+    assert summary.active_runtime_capabilities["telemetry_source"] == "notify-hook"
+    assert summary.active_runtime_capabilities["telemetry_completeness"] == "best-effort"
+    assert any("only exposes best-effort usage telemetry through notify-hook" in item for item in summary.guidance)
+    assert not any("No measured usage telemetry is recorded for this workspace yet." in item for item in summary.guidance)
