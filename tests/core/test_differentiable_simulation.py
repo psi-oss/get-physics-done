@@ -71,10 +71,9 @@ class TestDifferentiableSimulationReference:
     def test_reference_covers_key_topics(self) -> None:
         ref_path = SPECS_DIR / "references" / "methods" / "differentiable-simulation.md"
         content = ref_path.read_text(encoding="utf-8")
-        assert "<core_principle>" in content
         assert "<gradient_methods>" in content
+        assert "<warp_kernel_rules>" in content
         assert "<verification_protocol>" in content
-        assert "<failure_modes>" in content
         assert "<tools_landscape>" in content
 
 
