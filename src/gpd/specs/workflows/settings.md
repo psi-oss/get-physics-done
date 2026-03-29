@@ -107,7 +107,17 @@ Teach one coherent posture-to-inspection loop:
 - do not present posture labels or `gpd cost` as provider billing truth or spend enforcement
 
 If the user asks for a preset, map it onto the existing knobs above. Preview the changed knobs first, then ask for an explicit apply or customize choice. Do not add a new persisted config section or install step.
-Use `gpd presets list` to inspect the workflow preset catalog, `gpd presets show <preset>` to preview one bundle, and `gpd presets apply <preset> --dry-run` to preview the changed knobs before writing them. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>` for the unattended or overnight verdict, `gpd doctor` for install and runtime-local readiness, and `gpd validate plan-preflight <PLAN.md>` for plan readiness. Add `--live-executable-probes` to `gpd doctor` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`, but that stays separate from the shared Wolfram integration config. For Wolfram capability, use `gpd integrations status wolfram` to inspect the shared optional integration config; that is separate from a local Mathematica install and does not mean a plan is ready to run.
+
+For normal-terminal follow-up around these settings:
+
+- use `gpd --help` when you need the broader local CLI entrypoint
+- use `gpd presets list`, `gpd presets show <preset>`, and `gpd presets apply <preset> --dry-run` to inspect the preset catalog, preview one bundle, and preview the changed knobs before writing them
+- use `gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>` for the unattended or overnight verdict after autonomy and permissions changes
+- use `gpd permissions sync --runtime <runtime> --autonomy <mode>` when the runtime-owned permission settings need explicit alignment
+- use `gpd cost` after runs for advisory local usage / cost, optional USD budget guardrails, and the current profile tier mix
+- use `gpd doctor` for install and runtime-local readiness; add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`
+- use `gpd integrations status wolfram` to inspect the shared optional Wolfram integration config; that stays separate from a local Mathematica install
+- use `gpd validate plan-preflight <PLAN.md>` for plan readiness; it stays separate from both `gpd doctor` and `gpd integrations status wolfram`
 
 Before the detailed question list, offer a compact preset chooser when the user wants a starter bundle:
 
@@ -380,7 +390,15 @@ Display:
 | Git Branching        | {none/per-phase/per-milestone} |
 | Runtime Permissions  | {aligned / changed / manual follow-up required} |
 
-Local CLI bridge: Use `gpd --help`, `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced`, `gpd permissions status --runtime <runtime> --autonomy balanced`, `gpd permissions sync --runtime <runtime> --autonomy balanced`, `gpd resume`, `gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list`, and `gpd integrations status wolfram` from your normal terminal when you want the broader local diagnostics, readiness, recovery, visibility, cost, preset, and shared Wolfram integration surface. `gpd doctor` remains install and runtime-local readiness, `gpd validate unattended-readiness ...` is the unattended or overnight verdict, and `gpd validate plan-preflight <PLAN.md>` remains plan readiness. Add `--live-executable-probes` to `gpd doctor` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`; that remains separate from `gpd integrations status wolfram` and from `gpd validate plan-preflight <PLAN.md>`.
+Terminal follow-ups for these settings:
+- `gpd --help` for the broader local CLI entrypoint from your normal terminal
+- `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict after these settings changes
+- `gpd permissions sync --runtime <runtime> --autonomy balanced` when you need to align runtime-owned permission settings explicitly
+- `gpd cost` after runs for advisory local usage / cost, optional USD budget guardrails, and the current profile tier mix
+- `gpd presets list`, `gpd presets show <preset>`, and `gpd presets apply <preset> --dry-run` to inspect or preview workflow bundles
+- `gpd doctor` for install and runtime-local readiness; add `--live-executable-probes` for cheap local executable probes such as `pdflatex --version` or `wolframscript -version`
+- `gpd integrations status wolfram` for the shared optional Wolfram integration config; that remains separate from local Mathematica readiness
+- `gpd validate plan-preflight <PLAN.md>` for plan readiness; that remains separate from both `gpd doctor` and `gpd integrations status wolfram`
 
 These settings apply to future /gpd:plan-phase and /gpd:execute-phase runs.
 

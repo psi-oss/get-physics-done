@@ -19,6 +19,7 @@ from tests.doc_surface_contracts import (
     assert_execution_observability_surface_contract,
     assert_recovery_ladder_contract,
     assert_runtime_readiness_handoff_contract,
+    assert_settings_local_terminal_follow_up_contract,
 )
 
 
@@ -2229,12 +2230,7 @@ def test_settings_workflow_surfaces_qualitative_model_cost_onboarding_and_runtim
     assert "Step-by-step setup for runtime-specific tier-1, tier-2, and tier-3 model strings" in settings_workflow
     assert "Use runtime defaults" in settings_workflow
     assert "Configure explicit tier models" in settings_workflow
-    assert "Local CLI bridge" in settings_workflow
-    assert "gpd --help" in settings_workflow
-    assert "gpd permissions sync --runtime <runtime> --autonomy balanced" in settings_workflow
-    assert "This sync only updates runtime-owned permission settings; it does not validate install health or workflow/tool readiness." in settings_workflow
-    assert "gpd presets show <preset>" in settings_workflow
-    assert "gpd presets apply <preset> --dry-run" in settings_workflow
+    assert_settings_local_terminal_follow_up_contract(settings_workflow)
 
 
 def test_help_surfaces_distinguish_runtime_slash_commands_from_local_cli_subcommands() -> None:

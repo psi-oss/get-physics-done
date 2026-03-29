@@ -19,6 +19,7 @@ from gpd.adapters.runtime_catalog import (
 )
 from gpd.core.costs import build_cost_summary, record_usage_from_runtime_payload
 from gpd.core.surface_phrases import cost_summary_surface_note
+from tests.doc_surface_contracts import assert_settings_local_terminal_follow_up_contract
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -333,5 +334,5 @@ def test_public_runtime_surfaces_stay_conservative_when_capabilities_differ() ->
     if any(descriptor.capabilities.permissions_surface != "unsupported" for descriptor in descriptors):
         assert "gpd validate unattended-readiness --runtime <runtime> --autonomy balanced" in readme
         assert "relaunch-required" in readme
-        assert "gpd permissions status --runtime <runtime> --autonomy balanced" in settings_workflow
+        assert_settings_local_terminal_follow_up_contract(settings_workflow)
         assert "requires_relaunch" in settings_workflow

@@ -24,6 +24,7 @@ __all__ = [
     "assert_publication_toolchain_boundary_contract",
     "assert_recovery_ladder_contract",
     "assert_runtime_readiness_handoff_contract",
+    "assert_settings_local_terminal_follow_up_contract",
     "_assert_cost_surface_discoverability",
     "_assert_cost_advisory_contract",
     "_assert_cost_advisory_guardrail",
@@ -342,6 +343,38 @@ def assert_install_summary_runtime_follow_up_contract(
     )
 
 
+def assert_settings_local_terminal_follow_up_contract(content: str) -> None:
+    assert "gpd --help" in content
+    _assert_contains_any(
+        content,
+        (
+            "Terminal follow-ups for these settings",
+            "normal-terminal follow-up",
+            "normal terminal",
+            "normal system terminal",
+            "local CLI entrypoint",
+        ),
+        label="settings local terminal follow-up framing",
+    )
+    assert UNATTENDED_READINESS_SURFACE in content
+    _assert_contains_any(
+        content,
+        (
+            PERMISSIONS_SYNC_SURFACE,
+            "gpd permissions sync --runtime <runtime> --autonomy <mode>",
+            "gpd permissions status --runtime <runtime> --autonomy balanced",
+        ),
+        label="settings runtime-permission follow-up surface",
+    )
+    assert "gpd cost" in content
+    assert "gpd doctor" in content
+    assert PLAN_PREFLIGHT_SURFACE in content
+    assert WOLFRAM_STATUS_SURFACE in content
+    assert "gpd presets list" in content
+    assert "gpd presets show <preset>" in content
+    assert "gpd presets apply <preset> --dry-run" in content
+
+
 def assert_optional_paper_workflow_guidance_contract(content: str) -> None:
     _assert_contains_any(
         content,
@@ -452,6 +485,7 @@ _assert_cost_surface_discoverability = assert_cost_surface_discoverability
 _assert_cost_advisory_contract = assert_cost_advisory_contract
 _assert_cost_advisory_guardrail = assert_cost_advisory_contract
 _assert_shared_preset_surface_contract = assert_workflow_preset_surface_contract
+_assert_settings_local_terminal_follow_up_contract = assert_settings_local_terminal_follow_up_contract
 _assert_unattended_readiness_boundary = assert_unattended_readiness_contract
 _assert_unattended_readiness_surface = assert_unattended_readiness_contract
 _assert_wolfram_plan_boundary = assert_wolfram_plan_boundary_contract

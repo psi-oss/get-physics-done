@@ -21,7 +21,6 @@ from gpd.core.onboarding_surfaces import (
     beginner_runtime_surfaces,
     beginner_startup_ladder_text,
 )
-from gpd.core.surface_phrases import local_cli_bridge_note
 from scripts.release_workflow import (
     ReleaseError,
     bump_version,
@@ -45,6 +44,7 @@ from tests.doc_surface_contracts import (
     assert_publication_toolchain_boundary_contract,
     assert_recovery_ladder_contract,
     assert_runtime_readiness_handoff_contract,
+    assert_settings_local_terminal_follow_up_contract,
 )
 
 
@@ -928,14 +928,12 @@ def test_public_settings_workflow_keeps_balanced_recommendation_and_relaunch_gui
     assert "If `requires_relaunch` is `true`, surface `next_step` verbatim" in settings_workflow
     assert "Runtime permissions sync attempted after autonomy is written, with relaunch guidance surfaced when required" in settings_workflow
     assert "This sync only updates runtime-owned permission settings; it does not validate install health or workflow/tool readiness." in settings_workflow
+    assert_settings_local_terminal_follow_up_contract(settings_workflow)
     _assert_shared_preset_surface_contract(settings_workflow)
-    assert UNATTENDED_READINESS_SURFACE in settings_workflow
-    assert f"Local CLI bridge: {local_cli_bridge_note()}" in settings_workflow
     _assert_wolfram_plan_boundary(settings_workflow)
     assert "What model-cost posture should GPD optimize for?" in settings_workflow
     assert "Use runtime defaults" in settings_workflow
     _assert_cost_advisory_contract(settings_workflow)
-    assert f"Local CLI bridge: {local_cli_bridge_note()}" in settings_workflow
 
 
 def test_public_bootstrap_help_examples_cover_install_and_readiness_handoff() -> None:
