@@ -271,6 +271,7 @@ Pattern B/D only (authored or virtual checkpoints). Skip for A/C.
 1. Parse segment map: checkpoint locations and types, then merge in virtual boundaries from `FIRST_RESULT_GATE_REQUIRED`, `SEGMENT_TASK_CAP`, `MAX_UNATTENDED_MINUTES_PER_PLAN`, and context pressure
 2. Per segment:
    - Subagent route: spawn gpd-executor for assigned tasks only. Prompt: task range, plan path, read full plan for context, execute assigned tasks, track deviations, `<autonomy_mode>{AUTONOMY}</autonomy_mode>`, `<review_cadence>{REVIEW_CADENCE}</review_cadence>`, `<segment_task_cap>{SEGMENT_TASK_CAP}</segment_task_cap>`, `<max_unattended_minutes_per_plan>{MAX_UNATTENDED_MINUTES_PER_PLAN}</max_unattended_minutes_per_plan>`, `<first_result_gate>{FIRST_RESULT_GATE_REQUIRED}</first_result_gate>`, NO SUMMARY/commit, but RETURN `contract_updates` keyed by claim/deliverable/acceptance-test/reference/forbidden-proxy IDs and any `execution_segment` fields needed to keep bounded gates live across continuation. Track via agent protocol.
+   - Treat `execution_segment` as the runtime transport payload for the pause/continue handoff. When the segment is durably recorded, the runtime may mirror that same payload into `continuation.bounded_segment` so later resume logic can resolve the bounded stop without parsing prose. The markdown handoff file and session pointer remain surfaces only.
    - Main route: execute tasks using standard flow (step name="execute")
 3. After ALL segments: aggregate files/deviations/decisions/`contract_updates` -> create SUMMARY.md -> apply returned state updates in main context -> final metadata commit -> self-check:
 
@@ -394,7 +395,7 @@ Context is finite (~200k tokens, ~80% usable). After completing each task:
 
 Signs of context pressure: re-reading files you already read, losing track of parameter values or sign conventions, derivation steps getting sloppy. A fresh context with saved state outperforms a saturated one.
 
-If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, recommend `/clear` + `/gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for budget guidelines.
+If pausing mid-plan: commit current work, create `.continue-here.md` with full derivation state, and persist the matching `execution_segment` as `continuation.bounded_segment` if the stop is meant to be resumable. Recommend `/clear` + `/gpd:resume-work`. See `{GPD_INSTALL_DIR}/references/orchestration/context-budget.md` for budget guidelines. The markdown handoff file and `session` record are discovery surfaces; `continuation.bounded_segment` is the bounded authority for the pause.
 
 **Auto-checkpoint protocol (autonomy-aware):**
 
@@ -421,7 +422,7 @@ CHECKPOINT
 2. If above 75% (or 85% in yolo mode): Proactively trigger pause protocol:
    - Commit all current work
    - Create `.continue-here.md` with full derivation state and a bounded execution segment summary
-   - Update STATE.md session info
+   - Update STATE.md session info as a handoff pointer
   - **supervised/balanced:** Suggest `/clear` + `/gpd:resume-work`
   - **yolo:** Prepare the bounded resume handoff automatically and continue only if the runtime can spawn the continuation with explicit segment state; otherwise suggest `/clear` + `/gpd:resume-work`
 
@@ -659,6 +660,8 @@ gpd state record-session \
   --resume-file "—"
 gpd observe event session continuity-updated --phase "${phase}" --plan "${plan}" --data "{\"stopped_at\":\"Completed ${phase}-${plan}-PLAN.md\",\"resume_file\":\"—\"}" 2>/dev/null || true
 ```
+
+This session update is a handoff pointer only. If plan completion would otherwise leave a stale `continuation.bounded_segment` pointing at this work, clear that bounded segment as part of completion cleanup so no bounded stop survives past the completed plan.
 
 Keep STATE.md under 150 lines.
 </step>

@@ -62,6 +62,42 @@ def _write_current_execution(project: Path, *, session_id: str, extra_execution:
     )
 
 
+def _write_canonical_continuation(
+    project: Path,
+    *,
+    resume_file: str,
+    phase: str = "03",
+    plan: str = "01",
+    segment_status: str = "paused",
+) -> None:
+    state_path = project / "GPD" / "state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "continuation": {
+                    "schema_version": 1,
+                    "handoff": {
+                        "resume_file": resume_file,
+                        "stopped_at": f"Phase {phase}",
+                    },
+                    "bounded_segment": {
+                        "resume_file": resume_file,
+                        "phase": phase,
+                        "plan": plan,
+                        "segment_id": "seg-canonical",
+                        "segment_status": segment_status,
+                    },
+                    "machine": {
+                        "hostname": "builder-01",
+                        "platform": "Linux 6.1 x86_64",
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _write_usage_record(*, data_root: Path, project_root: Path, session_id: str) -> None:
     ledger_path = usage_ledger_path(data_root)
     ledger_path.parent.mkdir(parents=True, exist_ok=True)
@@ -569,6 +605,76 @@ def test_build_runtime_hint_payload_uses_canonical_bounded_resume_mode_without_l
     assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
     assert any("resume-work" in action for action in payload.next_actions)
     assert any("suggest-next" in action for action in payload.next_actions)
+
+
+def test_build_runtime_hint_payload_uses_canonical_bounded_segment_without_current_execution_snapshot(
+    tmp_path: Path,
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    data_root = tmp_path / "data"
+    resume_file = "GPD/phases/06/.continue-here.md"
+    (project / resume_file).parent.mkdir(parents=True, exist_ok=True)
+    (project / resume_file).write_text("resume\n", encoding="utf-8")
+    _write_canonical_continuation(project, resume_file=resume_file, phase="06", plan="02")
+
+    payload = build_runtime_hint_payload(
+        project,
+        data_root=data_root,
+        include_cost=False,
+        include_workflow_presets=False,
+    )
+
+    assert payload.execution is not None
+    assert payload.execution["has_live_execution"] is False
+    assert payload.orientation["mode"] == "current-workspace"
+    assert payload.orientation["status"] == "bounded-segment"
+    assert payload.orientation["resume_mode"] == "bounded_segment"
+    assert payload.orientation["execution_resume_file"] == resume_file
+    assert payload.orientation["execution_resume_file_source"] == "current_execution"
+    assert payload.orientation["has_local_recovery_target"] is True
+    assert "resume-work" in str(payload.orientation["continue_command"])
+    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+    assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
+
+
+def test_build_runtime_hint_payload_prefers_canonical_bounded_segment_over_conflicting_live_overlay(
+    tmp_path: Path,
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    data_root = tmp_path / "data"
+    canonical_resume_file = "GPD/phases/07/.continue-here.md"
+    overlay_resume_file = "GPD/phases/07/overlay.md"
+    canonical_path = project / canonical_resume_file
+    overlay_path = project / overlay_resume_file
+    canonical_path.parent.mkdir(parents=True, exist_ok=True)
+    canonical_path.write_text("canonical\n", encoding="utf-8")
+    overlay_path.write_text("overlay\n", encoding="utf-8")
+    _write_canonical_continuation(project, resume_file=canonical_resume_file, phase="07", plan="03")
+    _write_current_execution(
+        project,
+        session_id="sess-conflict",
+        extra_execution={
+            "phase": "07",
+            "plan": "03",
+            "segment_status": "paused",
+            "resume_file": overlay_resume_file,
+            "segment_id": "seg-overlay",
+        },
+    )
+
+    payload = build_runtime_hint_payload(
+        project,
+        data_root=data_root,
+        include_cost=False,
+        include_workflow_presets=False,
+    )
+
+    assert payload.orientation["resume_mode"] == "bounded_segment"
+    assert payload.orientation["execution_resume_file"] == canonical_resume_file
+    assert payload.orientation["execution_resume_file_source"] == "current_execution"
+    assert payload.orientation["status"] == "bounded-segment"
+    assert payload.execution is not None
+    assert payload.execution["resume_file"] == overlay_resume_file
 
 
 def test_build_runtime_hint_payload_rediscovery_branch_handles_non_resumable_current_project(

@@ -31,7 +31,7 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 | `pending_todos` | `string[]` | `[]` | Ideas captured via /gpd:add-todo | Synced from todos/ |
 | `blockers` | `string[]` | `[]` | Active blockers/concerns | Synced from STATE.md |
 | `session` | `SessionObject` | see below | Session continuity for resumption | Synced from STATE.md |
-| `continuation` | `ContinuationObject` | see below | Durable canonical handoff + machine state mirrored from `session` | **Authoritative** (JSON-only compatibility anchor) |
+| `continuation` | `ContinuationObject` | see below | Durable canonical continuation payload; `bounded_segment` stores the authoritative bounded-segment state and `session` mirrors the handoff/machine view | **Authoritative** (JSON-only compatibility anchor) |
 
 ### Authoritative vs Derived
 
@@ -70,7 +70,7 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
   },
   "context_intake": {
     "must_read_refs": ["Ref-01"],
-    "must_include_prior_outputs": ["GPD/phases/01-setup/01-01-SUMMARY.md"],
+    "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
     "user_asserted_anchors": ["Recover known asymptotic limit from the accepted benchmark curve"],
     "known_good_baselines": ["Baseline derivation in notebook X"],
     "context_gaps": ["Need grounding; decisive target not yet chosen before planning"],
@@ -179,7 +179,7 @@ The `project_contract` value itself must be a JSON object. Do not replace it wit
 
 `schema_version` must be `1`. Unsupported schema versions are invalid.
 
-Approved project contracts must include at least one observable, claim, or deliverable.
+Project contracts must include at least one observable, claim, or deliverable.
 
 `uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty.
 
@@ -466,7 +466,7 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 
 `session` stores the markdown-compatible session timestamp, advisory machine identity, stop location, and handoff resume file. Keep `resume_file` project-relative when it points inside the repository; `gpd state record-session` normalizes project-local absolute paths back to that form before persisting them. Omitting `--resume-file` preserves the current handoff pointer, while explicit placeholders such as `—`, `None`, or `null` clear it. `gpd resume` is the public local read-only recovery surface, while `gpd init resume` remains the machine-readable backend. That backend may rank `session.resume_file` as a non-resumable `session_resume_file` candidate, uses it as `execution_resume_file` only when no usable live-execution pointer exists, and compares `hostname`/`platform` with the current machine to emit a non-blocking `machine_change_notice` that recommends rerunning the installer when runtime-local config may be stale.
 
-`session` remains the source that STATE.md can render directly. The durable JSON-only `continuation` object below mirrors the same handoff and machine facts so future runtime layers can read one canonical continuation payload without depending on markdown parsing.
+`session` remains the source that STATE.md can render directly. The durable JSON-only `continuation` object below mirrors the same handoff and machine facts so future runtime layers can read one canonical continuation payload without depending on markdown parsing. `gpd init resume` treats this canonical object first and only falls back to the live execution overlay when the canonical continuation is missing or incomplete, including legacy projects without persisted bounded-segment state.
 
 ### `ContinuationObject`
 
@@ -502,7 +502,7 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 | `stopped_at` | `string \| null` | Human-readable stop location |
 | `resume_file` | `string \| null` | Project-relative handoff artifact when available |
 
-`continuation.bounded_segment` is reserved for a future durable bounded-segment writer. In the current codebase it may be `null` or absent in older projects, and `gpd init resume` still derives the active bounded-segment candidate from the live execution overlay when no canonical bounded segment is present.
+`state.json.continuation.bounded_segment` is the durable authoritative bounded-segment state stored in `state.json`. When present, it is the canonical bounded-segment resume source. When the canonical continuation is missing or incomplete, `gpd init resume` may project a bounded-segment candidate from `GPD/observability/current-execution.json` for compatibility, but the overlay does not replace the persisted canonical state.
 
 `continuation.machine` is the canonical recorded machine state:
 

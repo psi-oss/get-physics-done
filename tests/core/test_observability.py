@@ -18,6 +18,10 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def _read_state_json(project: Path) -> dict[str, object]:
+    return json.loads((project / "GPD" / "state.json").read_text(encoding="utf-8"))
+
+
 def _iso_minutes_ago(minutes: int) -> str:
     return (datetime.now(UTC) - timedelta(minutes=minutes)).isoformat()
 
@@ -174,6 +178,136 @@ def test_execution_events_write_current_execution_snapshot(tmp_path: Path, monke
     assert snapshot.first_result_gate_pending is True
     assert snapshot.last_result_label == "Benchmark reproduction"
     assert snapshot.downstream_locked is True
+
+
+def test_execution_events_dual_write_durable_bounded_segment_from_resumable_snapshot(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    resume_file = project / "GPD" / "phases" / "05-test" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("", encoding="utf-8")
+
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="start",
+        status="active",
+        command="execute-phase",
+        phase="05",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"segment_id": "seg-resume", "current_task": "Keep working"}},
+    )
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="pause",
+        status="ok",
+        command="execute-phase",
+        phase="05",
+        plan="01",
+        session_id=session.session_id,
+        data={
+            "execution": {
+                "segment_status": "awaiting_user",
+                "resume_file": "GPD/phases/05-test/.continue-here.md",
+            }
+        },
+    )
+
+    current_execution = json.loads((project / "GPD" / "observability" / "current-execution.json").read_text(encoding="utf-8"))
+    assert current_execution["segment_status"] == "awaiting_user"
+    assert current_execution["resume_file"] == "GPD/phases/05-test/.continue-here.md"
+
+    state = _read_state_json(project)
+    bounded_segment = state["continuation"]["bounded_segment"]
+    assert bounded_segment["resume_file"] == "GPD/phases/05-test/.continue-here.md"
+    assert bounded_segment["phase"] == "05"
+    assert bounded_segment["plan"] == "01"
+    assert bounded_segment["segment_status"] == "awaiting_user"
+    assert bounded_segment["source_session_id"] == session.session_id
+
+
+def test_execution_events_clear_durable_bounded_segment_when_execution_becomes_non_resumable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.observability import ensure_session, get_current_execution, observe_event
+
+    session = ensure_session(project, source="cli", command="execute-phase")
+    assert session is not None
+
+    resume_file = project / "GPD" / "phases" / "05-test" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("", encoding="utf-8")
+
+    (project / "GPD" / "state.json").write_text(
+        json.dumps(
+            {
+                "continuation": {
+                    "bounded_segment": {
+                        "resume_file": "GPD/phases/05-test/.continue-here.md",
+                        "phase": "05",
+                        "plan": "01",
+                        "segment_status": "paused",
+                        "updated_at": "2026-03-14T12:00:00+00:00",
+                    }
+                }
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="start",
+        status="active",
+        command="execute-phase",
+        phase="05",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"segment_id": "seg-clear", "current_task": "Keep working"}},
+    )
+
+    snapshot = get_current_execution(project)
+    assert snapshot is not None
+    assert snapshot.resume_file is None
+
+    state = _read_state_json(project)
+    assert state["continuation"]["bounded_segment"] is None
+
+    observe_event(
+        project,
+        category="execution",
+        name="segment",
+        action="finish",
+        status="ok",
+        command="execute-phase",
+        phase="05",
+        plan="01",
+        session_id=session.session_id,
+        data={"execution": {"segment_status": "completed"}},
+    )
+
+    assert get_current_execution(project) is None
+    state = _read_state_json(project)
+    assert state["continuation"]["bounded_segment"] is None
 
 
 def test_derive_execution_visibility_marks_old_active_segment_as_possibly_stalled(tmp_path: Path, monkeypatch) -> None:

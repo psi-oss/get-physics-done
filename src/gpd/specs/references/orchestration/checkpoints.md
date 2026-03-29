@@ -303,6 +303,8 @@ Every authored or auto-inserted checkpoint must return a bounded execution paylo
 
 When the stop is a first-result, skeptical, or pre-fanout review, the `execution_segment` must also carry the live gate fields that keep resume/status surfaces honest: `first_result_gate_pending`, `pre_fanout_review_pending`, `pre_fanout_review_cleared` when applicable, `skeptical_requestioning_required`, and `downstream_locked`.
 
+`execution_segment` is the runtime transport payload. If the checkpoint is durably recorded, the same payload becomes the persisted `continuation.bounded_segment` record. Clear or replace that persisted copy when the bounded stop is consumed, retired, or superseded; do not rely on `.continue-here.md` or session fields as bounded authority.
+
 This keeps authored checkpoints and auto-inserted Stage 5 checkpoints on the same continuation path.
 
 Clear transitions are reason-scoped. Clearing `first_result` must not erase `pre_fanout` or skeptical fields, and `fanout unlock` must not clear a live pre-fanout review on its own. A pre-fanout stop is only retired after the matching review clear and fanout unlock have both been observed.

@@ -31,6 +31,7 @@ __all__ = [
     "ContinuationSource",
     "ContinuationState",
     "RESUMABLE_SEGMENT_STATUSES",
+    "canonical_bounded_segment_from_execution_snapshot",
     "normalize_continuation",
     "normalize_continuation_reference",
     "resolve_continuation",
@@ -152,6 +153,8 @@ class ContinuationBoundedSegment(BaseModel):
     skeptical_requestioning_summary: str | None = None
     weakest_unchecked_anchor: str | None = None
     disconfirming_observation: str | None = None
+    transition_id: str | None = None
+    last_result_id: str | None = None
     updated_at: str | None = None
     source_session_id: str | None = None
     recorded_by: str | None = None
@@ -166,6 +169,8 @@ class ContinuationBoundedSegment(BaseModel):
         "skeptical_requestioning_summary",
         "weakest_unchecked_anchor",
         "disconfirming_observation",
+        "transition_id",
+        "last_result_id",
         "updated_at",
         "source_session_id",
         "recorded_by",
@@ -224,6 +229,8 @@ class ContinuationBoundedSegment(BaseModel):
                 self.skeptical_requestioning_summary,
                 self.weakest_unchecked_anchor,
                 self.disconfirming_observation,
+                self.transition_id,
+                self.last_result_id,
                 self.updated_at,
                 self.source_session_id,
                 self.recorded_by,
@@ -349,7 +356,7 @@ def synthesize_legacy_continuation(
         platform=session_payload.get("platform"),
     )
 
-    segment = _bounded_segment_from_current_execution(project_root, current_execution_payload)
+    segment = canonical_bounded_segment_from_execution_snapshot(project_root, current_execution_payload)
     bounded_segment = segment if segment is not None and segment.resume_file and segment.is_resumable_status else None
 
     return ContinuationState(
@@ -359,38 +366,42 @@ def synthesize_legacy_continuation(
     )
 
 
-def _bounded_segment_from_current_execution(
+def canonical_bounded_segment_from_execution_snapshot(
     project_root: Path | str,
-    current_execution: Mapping[str, object] | BaseModel | None,
+    execution_snapshot: Mapping[str, object] | BaseModel | None,
 ) -> ContinuationBoundedSegment | None:
-    current_execution_payload = _as_mapping(current_execution) or {}
-    if not current_execution_payload:
+    """Derive a canonical bounded segment from a normalized execution snapshot."""
+
+    execution_payload = _as_mapping(execution_snapshot) or {}
+    if not execution_payload:
         return None
 
     segment = ContinuationBoundedSegment(
         resume_file=normalize_continuation_reference(
             project_root,
-            current_execution_payload.get("resume_file"),
+            execution_payload.get("resume_file"),
             require_exists=True,
         ),
-        phase=current_execution_payload.get("phase"),
-        plan=current_execution_payload.get("plan"),
-        segment_id=current_execution_payload.get("segment_id"),
-        segment_status=current_execution_payload.get("segment_status"),
-        checkpoint_reason=current_execution_payload.get("checkpoint_reason"),
-        waiting_reason=current_execution_payload.get("waiting_reason"),
-        blocked_reason=current_execution_payload.get("blocked_reason"),
-        waiting_for_review=current_execution_payload.get("waiting_for_review"),
-        first_result_gate_pending=current_execution_payload.get("first_result_gate_pending"),
-        pre_fanout_review_pending=current_execution_payload.get("pre_fanout_review_pending"),
-        pre_fanout_review_cleared=current_execution_payload.get("pre_fanout_review_cleared"),
-        skeptical_requestioning_required=current_execution_payload.get("skeptical_requestioning_required"),
-        downstream_locked=current_execution_payload.get("downstream_locked"),
-        skeptical_requestioning_summary=current_execution_payload.get("skeptical_requestioning_summary"),
-        weakest_unchecked_anchor=current_execution_payload.get("weakest_unchecked_anchor"),
-        disconfirming_observation=current_execution_payload.get("disconfirming_observation"),
-        updated_at=current_execution_payload.get("updated_at"),
-        source_session_id=current_execution_payload.get("session_id"),
+        phase=execution_payload.get("phase"),
+        plan=execution_payload.get("plan"),
+        segment_id=execution_payload.get("segment_id"),
+        segment_status=execution_payload.get("segment_status"),
+        checkpoint_reason=execution_payload.get("checkpoint_reason"),
+        waiting_reason=execution_payload.get("waiting_reason"),
+        blocked_reason=execution_payload.get("blocked_reason"),
+        waiting_for_review=execution_payload.get("waiting_for_review"),
+        first_result_gate_pending=execution_payload.get("first_result_gate_pending"),
+        pre_fanout_review_pending=execution_payload.get("pre_fanout_review_pending"),
+        pre_fanout_review_cleared=execution_payload.get("pre_fanout_review_cleared"),
+        skeptical_requestioning_required=execution_payload.get("skeptical_requestioning_required"),
+        downstream_locked=execution_payload.get("downstream_locked"),
+        skeptical_requestioning_summary=execution_payload.get("skeptical_requestioning_summary"),
+        weakest_unchecked_anchor=execution_payload.get("weakest_unchecked_anchor"),
+        disconfirming_observation=execution_payload.get("disconfirming_observation"),
+        transition_id=execution_payload.get("transition_id"),
+        last_result_id=execution_payload.get("last_result_id"),
+        updated_at=execution_payload.get("updated_at"),
+        source_session_id=execution_payload.get("session_id"),
         recorded_by="legacy_current_execution",
     )
     return segment if segment.resume_file and segment.is_resumable_status else None
@@ -463,11 +474,12 @@ def resolve_continuation(
     raw_continuation = state_payload.get("continuation")
     if raw_continuation is not None:
         continuation = normalize_continuation(project_root, raw_continuation)
-        if continuation.bounded_segment is None:
-            overlay_segment = _bounded_segment_from_current_execution(project_root, current_execution)
-            if overlay_segment is not None:
-                continuation = continuation.model_copy(update={"bounded_segment": overlay_segment})
-        return _project_continuation(project_root, source=ContinuationSource.CANONICAL, continuation=continuation)
+        if not continuation.is_empty:
+            if continuation.bounded_segment is None:
+                overlay_segment = canonical_bounded_segment_from_execution_snapshot(project_root, current_execution)
+                if overlay_segment is not None:
+                    continuation = continuation.model_copy(update={"bounded_segment": overlay_segment})
+            return _project_continuation(project_root, source=ContinuationSource.CANONICAL, continuation=continuation)
 
     legacy = synthesize_legacy_continuation(
         project_root,

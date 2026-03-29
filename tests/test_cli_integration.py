@@ -343,6 +343,106 @@ class TestResume:
             }
         ]
 
+    def test_resume_raw_uses_canonical_bounded_segment_without_live_snapshot(self, gpd_project: Path) -> None:
+        canonical_resume_file = "GPD/phases/01-test-phase/.continue-here.md"
+        handoff = gpd_project / canonical_resume_file
+        handoff.write_text("resume\n", encoding="utf-8")
+        state_path = gpd_project / "GPD" / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["continuation"] = {
+            "schema_version": 1,
+            "handoff": {
+                "resume_file": canonical_resume_file,
+                "stopped_at": "Phase 01",
+            },
+            "bounded_segment": {
+                "resume_file": canonical_resume_file,
+                "phase": "01",
+                "plan": "01",
+                "segment_id": "seg-canonical",
+                "segment_status": "paused",
+            },
+            "machine": {
+                "hostname": "builder-01",
+                "platform": "Linux 6.1 x86_64",
+            },
+        }
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+        result = _invoke("--raw", "resume")
+        parsed = json.loads(result.output)
+
+        assert parsed["has_live_execution"] is False
+        assert parsed["current_execution"] is None
+        assert parsed["resume_mode"] == "bounded_segment"
+        assert parsed["execution_resume_file"] == canonical_resume_file
+        assert parsed["execution_resume_file_source"] == "current_execution"
+        candidate = parsed["segment_candidates"][0]
+        assert candidate["source"] == "current_execution"
+        assert candidate["status"] == "paused"
+        assert candidate["phase"] == "01"
+        assert candidate["plan"] == "01"
+        assert candidate["segment_id"] == "seg-canonical"
+        assert candidate["resume_file"] == canonical_resume_file
+
+    def test_resume_raw_prefers_canonical_bounded_segment_over_conflicting_live_snapshot(
+        self, gpd_project: Path
+    ) -> None:
+        canonical_resume_file = "GPD/phases/01-test-phase/.continue-here.md"
+        overlay_resume_file = "GPD/phases/01-test-phase/overlay.md"
+        canonical = gpd_project / canonical_resume_file
+        overlay = gpd_project / overlay_resume_file
+        canonical.write_text("canonical\n", encoding="utf-8")
+        overlay.write_text("overlay\n", encoding="utf-8")
+        state_path = gpd_project / "GPD" / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["continuation"] = {
+            "schema_version": 1,
+            "handoff": {
+                "resume_file": canonical_resume_file,
+                "stopped_at": "Canonical handoff",
+            },
+            "bounded_segment": {
+                "resume_file": canonical_resume_file,
+                "phase": "01",
+                "plan": "01",
+                "segment_id": "seg-canonical",
+                "segment_status": "paused",
+            },
+            "machine": {
+                "hostname": "builder-01",
+                "platform": "Linux 6.1 x86_64",
+            },
+        }
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+        observability = gpd_project / "GPD" / "observability"
+        observability.mkdir(parents=True, exist_ok=True)
+        (observability / "current-execution.json").write_text(
+            json.dumps(
+                {
+                    "session_id": "sess-overlay",
+                    "phase": "01",
+                    "plan": "01",
+                    "segment_id": "seg-overlay",
+                    "segment_status": "paused",
+                    "resume_file": overlay_resume_file,
+                    "updated_at": "2026-03-10T12:00:00+00:00",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = _invoke("--raw", "resume")
+        parsed = json.loads(result.output)
+
+        assert parsed["resume_mode"] == "bounded_segment"
+        assert parsed["execution_resume_file"] == canonical_resume_file
+        assert parsed["execution_resume_file_source"] == "current_execution"
+        assert parsed["segment_candidates"][0]["resume_file"] == canonical_resume_file
+        assert parsed["active_execution_segment"]["resume_file"] == canonical_resume_file
+        assert parsed["current_execution"]["resume_file"] == overlay_resume_file
+
     def test_resume_human_output_surfaces_public_and_backend_commands(self, gpd_project: Path) -> None:
         handoff = gpd_project / "GPD" / "phases" / "01-test-phase" / ".continue-here.md"
         handoff.write_text("resume\n", encoding="utf-8")

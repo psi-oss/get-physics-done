@@ -26,7 +26,9 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from gpd.core import continuation as _continuation_module
 from gpd.core.constants import ProjectLayout
+from gpd.core.continuation import ContinuationBoundedSegment
 from gpd.core.root_resolution import normalize_workspace_hint as _normalize_workspace_path
 from gpd.core.root_resolution import resolve_project_root as _shared_resolve_project_root
 from gpd.core.utils import atomic_write, file_lock, phase_normalize, safe_read_file
@@ -371,6 +373,71 @@ def _clear_current_execution(layout: ProjectLayout) -> None:
 
 def _read_current_execution_raw(layout: ProjectLayout) -> dict[str, object] | None:
     return _read_json(layout.current_observability_execution)
+
+
+def _normalized_execution_snapshot(snapshot: CurrentExecutionState | None) -> dict[str, object]:
+    if snapshot is None:
+        return {}
+    return snapshot.model_dump(mode="json")
+
+
+def _bounded_segment_helper() -> Callable | None:
+    for helper_name in (
+        "canonical_bounded_segment_from_execution_snapshot",
+        "bounded_segment_from_normalized_execution_snapshot",
+        "derive_bounded_segment_from_normalized_execution_snapshot",
+        "build_bounded_segment_from_normalized_execution_snapshot",
+        "bounded_segment_from_current_execution",
+        "_bounded_segment_from_current_execution",
+    ):
+        helper = getattr(_continuation_module, helper_name, None)
+        if callable(helper):
+            return helper
+    return None
+
+
+def _bounded_segment_from_normalized_execution_snapshot(
+    cwd: Path,
+    snapshot: CurrentExecutionState | None,
+) -> ContinuationBoundedSegment | None:
+    if snapshot is None:
+        return None
+
+    helper = _bounded_segment_helper()
+    if helper is None:
+        return None
+
+    payload = _normalized_execution_snapshot(snapshot)
+    for candidate in (payload, snapshot):
+        try:
+            derived = helper(cwd, candidate)
+        except TypeError:
+            continue
+        except Exception:
+            return None
+        if derived is None:
+            return None
+        if isinstance(derived, ContinuationBoundedSegment):
+            return derived
+        try:
+            return ContinuationBoundedSegment.model_validate(derived)
+        except Exception:
+            return None
+    return None
+
+
+def _persist_durable_bounded_segment(layout: ProjectLayout, next_execution: CurrentExecutionState | None) -> None:
+    """Best-effort durable continuation write for the normalized execution snapshot."""
+    from gpd.core.state import (
+        state_clear_continuation_bounded_segment,
+        state_set_continuation_bounded_segment,
+    )
+
+    desired_bounded_segment = _bounded_segment_from_normalized_execution_snapshot(layout.root, next_execution)
+    if desired_bounded_segment is None:
+        state_clear_continuation_bounded_segment(layout.root)
+        return
+    state_set_continuation_bounded_segment(layout.root, desired_bounded_segment)
 
 
 def get_current_execution(cwd: Path | None = None) -> CurrentExecutionState | None:
@@ -1604,6 +1671,7 @@ def observe_event(
         _clear_current_execution(layout)
     else:
         _save_current_execution(layout, next_execution)
+    _persist_durable_bounded_segment(layout, next_execution)
 
     updated = _updated_session(
         session,

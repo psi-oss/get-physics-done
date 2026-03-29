@@ -335,11 +335,11 @@ def _classify_project_contract_payload(
     integrity_errors = collect_contract_integrity_errors(normalized_contract)
     if integrity_errors:
         logger.warning(
-            "Skipping project_contract from %s because semantic integrity checks failed: %s",
+            "Loaded blocked project_contract from %s because semantic integrity checks failed: %s",
             source_path,
             "; ".join(integrity_errors),
         )
-        return None, _project_contract_load_payload(
+        return normalized_contract, _project_contract_load_payload(
             status="blocked_integrity",
             source_path=source_label,
             errors=integrity_errors,
@@ -977,7 +977,7 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
         artifact_ingestion.intake.to_dict(),
         active_references,
     )
-    canonical_contract, canonicalization_warnings = _canonicalize_project_contract(
+    visible_contract, canonicalization_warnings = _canonicalize_project_contract(
         contract,
         active_references=active_references,
         effective_reference_intake=effective_reference_intake,
@@ -987,18 +987,18 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
             **project_contract_load_info,
             "warnings": [*list(project_contract_load_info.get("warnings") or []), *canonicalization_warnings],
         }
-    if canonical_contract is not None:
-        draft_validation = validate_project_contract(canonical_contract, mode="draft", project_root=cwd)
+    if visible_contract is not None:
+        draft_validation = validate_project_contract(visible_contract, mode="draft", project_root=cwd)
         if not draft_validation.valid:
-            canonical_contract = None
+            existing_errors = list(project_contract_load_info.get("errors") or [])
             project_contract_load_info = {
                 **project_contract_load_info,
                 "status": "blocked_integrity",
-                "errors": draft_validation.errors,
+                "errors": list(dict.fromkeys([*existing_errors, *draft_validation.errors])),
             }
-    project_contract_validation = _project_contract_validation_payload(canonical_contract, cwd=cwd)
+    project_contract_validation = _project_contract_validation_payload(visible_contract, cwd=cwd)
     project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
-    selected_protocol_bundles = select_protocol_bundles(project_text, canonical_contract)
+    selected_protocol_bundles = select_protocol_bundles(project_text, visible_contract)
 
     bundle_verifier_extensions: list[dict[str, object]] = []
     for bundle in selected_protocol_bundles:
@@ -1012,10 +1012,10 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
             )
 
     return {
-        "project_contract": canonical_contract.model_dump(mode="json") if canonical_contract is not None else None,
+        "project_contract": visible_contract.model_dump(mode="json") if visible_contract is not None else None,
         "project_contract_validation": project_contract_validation,
         "project_contract_load_info": project_contract_load_info,
-        "contract_intake": canonical_contract.context_intake.model_dump(mode="json") if canonical_contract is not None else None,
+        "contract_intake": visible_contract.context_intake.model_dump(mode="json") if visible_contract is not None else None,
         "effective_reference_intake": effective_reference_intake,
         "derived_active_references": derived_references,
         "derived_active_reference_count": len(derived_references),
@@ -1207,6 +1207,8 @@ def _resume_candidate_from_segment(segment: dict[str, object]) -> dict[str, obje
         "skeptical_requestioning_summary": segment.get("skeptical_requestioning_summary"),
         "weakest_unchecked_anchor": segment.get("weakest_unchecked_anchor"),
         "disconfirming_observation": segment.get("disconfirming_observation"),
+        "transition_id": segment.get("transition_id"),
+        "last_result_id": segment.get("last_result_id"),
         "downstream_locked": segment.get("downstream_locked"),
         "waiting_reason": segment.get("waiting_reason"),
         "blocked_reason": segment.get("blocked_reason"),
@@ -1308,19 +1310,18 @@ def _build_resume_read_state(
     if hasattr(resume_projection, "continuation"):
         current_execution_raw = execution_context.get("current_execution")
         current_execution = current_execution_raw if isinstance(current_execution_raw, dict) else None
-        active_execution_segment = current_execution
-        if active_execution_segment is None:
-            bounded_segment = getattr(resume_projection.continuation, "bounded_segment", None)
-            if bounded_segment is not None:
-                active_execution_segment = bounded_segment.model_dump(mode="json")
+        bounded_segment = getattr(resume_projection.continuation, "bounded_segment", None)
+        active_execution_segment = None
+        if bounded_segment is not None:
+            active_execution_segment = bounded_segment.model_dump(mode="json")
+        elif current_execution is not None:
+            active_execution_segment = current_execution
 
         segment_candidates: list[dict[str, object]] = []
-        if resume_projection.resumable:
-            candidate_payload = active_execution_segment
-            if isinstance(candidate_payload, dict):
-                candidate_payload = dict(candidate_payload)
-                candidate_payload["resume_file"] = resume_projection.bounded_segment_resume_file
-                segment_candidates.append(_resume_candidate_from_segment(candidate_payload))
+        if resume_projection.resumable and isinstance(active_execution_segment, dict):
+            candidate_payload = dict(active_execution_segment)
+            candidate_payload["resume_file"] = resume_projection.bounded_segment_resume_file
+            segment_candidates.append(_resume_candidate_from_segment(candidate_payload))
 
         if isinstance(resume_projection.handoff_resume_file, str) and resume_projection.handoff_resume_file:
             if not any(

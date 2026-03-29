@@ -44,7 +44,7 @@ from gpd.core.constants import (
     STATE_LINES_TARGET,
     ProjectLayout,
 )
-from gpd.core.continuation import ContinuationState
+from gpd.core.continuation import ContinuationBoundedSegment, ContinuationState, normalize_continuation
 from gpd.core.contract_validation import (
     _collect_list_shape_drift_errors,
     _has_authoritative_scalar_schema_findings,
@@ -127,6 +127,8 @@ __all__ = [
     "state_record_session",
     "state_replace_field",
     "state_set_project_contract",
+    "state_set_continuation_bounded_segment",
+    "state_clear_continuation_bounded_segment",
     "state_resolve_blocker",
     "state_snapshot",
     "state_update",
@@ -320,6 +322,7 @@ class StateUpdateResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     updated: bool
+    unchanged: bool = Field(default=False, exclude=True)
     reason: str | None = None
     warnings: list[str] = Field(default_factory=list)
 
@@ -503,6 +506,23 @@ def _normalize_continuation_payload(continuation: object) -> dict[str, object]:
         return ContinuationState.model_validate(continuation).model_dump(mode="python")
     except PydanticValidationError:
         return _blank_continuation_payload()
+
+
+def _load_state_snapshot_for_mutation(cwd: Path) -> dict:
+    """Load the current state for an authoritative write, preferring primary JSON."""
+
+    for path in (_state_json_path(cwd), _state_json_path(cwd).parent / STATE_JSON_BACKUP_FILENAME):
+        raw = safe_read_file(path)
+        if raw is None:
+            continue
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+
+    return default_state_dict()
 
 
 def _session_payload_has_values(payload: object) -> bool:
@@ -2156,6 +2176,7 @@ def _load_state_json_with_integrity_issues(
     integrity_mode: str = "standard",
     persist_recovery: bool = True,
     recover_intent: bool = True,
+    surface_blocked_project_contract: bool = False,
 ) -> tuple[dict | None, list[str], str | None]:
     """Load state.json and return the normalized state, integrity issues, and source."""
     json_path = _state_json_path(cwd)
@@ -2189,8 +2210,8 @@ def _load_state_json_with_integrity_issues(
                     allow_project_contract_salvage=allow_project_contract_salvage,
                 )
             )
-            normalized, contract_integrity_issues = _drop_invalid_project_contract(normalized)
-            integrity_issues.extend(contract_integrity_issues)
+            if surface_blocked_project_contract:
+                normalized = _restore_visible_project_contract(normalized, parsed.get("project_contract"))
             state_source = "state.json.bak" if recovered_root_from_backup else "state.json"
             if recovered_root_from_backup:
                 integrity_issues.append(
@@ -2210,6 +2231,7 @@ def _load_state_json_with_integrity_issues(
                 bak_path,
                 integrity_mode=integrity_mode,
                 allow_project_contract_salvage=allow_project_contract_salvage,
+                surface_blocked_project_contract=surface_blocked_project_contract,
             )
             if restored is not None:
                 integrity_issues.append(
@@ -2227,6 +2249,7 @@ def _load_state_json_with_integrity_issues(
                 bak_path,
                 integrity_mode=integrity_mode,
                 allow_project_contract_salvage=allow_project_contract_salvage,
+                surface_blocked_project_contract=surface_blocked_project_contract,
             )
             if restored is not None:
                 integrity_issues.append(
@@ -2250,6 +2273,7 @@ def _load_state_json_with_integrity_issues(
                 bak_path,
                 integrity_mode=integrity_mode,
                 allow_project_contract_salvage=allow_project_contract_salvage,
+                surface_blocked_project_contract=surface_blocked_project_contract,
             )
             if restored is not None:
                 integrity_issues.insert(0, parse_issue)
@@ -2297,18 +2321,31 @@ def peek_state_json(
         integrity_mode=integrity_mode,
         persist_recovery=False,
         recover_intent=recover_intent,
+        surface_blocked_project_contract=False,
     )
 
 
-def _drop_invalid_project_contract(state_obj: dict) -> tuple[dict, list[str]]:
-    project_contract = state_obj.get("project_contract")
-    if project_contract is None or contract_from_data(project_contract, require_draft_validity=True) is not None:
-        return state_obj, []
-    cleaned_state = dict(state_obj)
-    cleaned_state["project_contract"] = None
-    return cleaned_state, [
-        'schema normalization: dropped "project_contract" because contract validity checks failed'
-    ]
+def _restore_visible_project_contract(state_obj: dict, raw_project_contract: object) -> dict:
+    """Restore a load-time contract that is draft-invalid but otherwise salvageable."""
+
+    if state_obj.get("project_contract") is not None or not isinstance(raw_project_contract, dict):
+        return state_obj
+
+    contract, schema_findings = salvage_project_contract(raw_project_contract)
+    _schema_warnings, schema_errors = _split_project_contract_schema_findings(
+        schema_findings,
+        allow_singleton_defaults=False,
+    )
+    if contract is None or schema_errors:
+        return state_obj
+
+    draft_validation = validate_project_contract(contract, mode="draft")
+    if draft_validation.valid:
+        return state_obj
+
+    restored_state = dict(state_obj)
+    restored_state["project_contract"] = contract.model_dump(mode="python")
+    return restored_state
 
 
 def _load_state_json_from_backup(
@@ -2316,6 +2353,7 @@ def _load_state_json_from_backup(
     *,
     integrity_mode: str,
     allow_project_contract_salvage: bool,
+    surface_blocked_project_contract: bool,
 ) -> tuple[dict | None, list[str]]:
     try:
         bak_raw = bak_path.read_text(encoding="utf-8")
@@ -2329,8 +2367,8 @@ def _load_state_json_from_backup(
                 allow_project_contract_salvage=allow_project_contract_salvage,
             )
         )
-        restored, contract_integrity_issues = _drop_invalid_project_contract(restored)
-        integrity_issues.extend(contract_integrity_issues)
+        if surface_blocked_project_contract:
+            restored = _restore_visible_project_contract(restored, bak_parsed.get("project_contract"))
         if integrity_mode == "review" and integrity_issues:
             logger.warning("state.json backup failed review-mode integrity checks: %s", "; ".join(integrity_issues))
             return None, integrity_issues
@@ -2349,6 +2387,7 @@ def load_state_json(cwd: Path, integrity_mode: str = "standard") -> dict | None:
         cwd,
         integrity_mode=integrity_mode,
         persist_recovery=True,
+        surface_blocked_project_contract=True,
     )
     if integrity_mode == "review" and integrity_issues:
         return None
@@ -2443,6 +2482,7 @@ def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
         cwd,
         integrity_mode=integrity_mode,
         persist_recovery=True,
+        surface_blocked_project_contract=True,
     )
     validation = state_validate(cwd, integrity_mode=integrity_mode)
     integrity_issues: list[str] = []
@@ -2654,6 +2694,7 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
     if state_obj.get("project_contract") == contract_payload:
         return StateUpdateResult(
             updated=False,
+            unchanged=True,
             reason="Project contract already matches requested value",
             warnings=warning_messages,
         )
@@ -2674,6 +2715,82 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
 
     save_state_json(cwd, state_obj)
     return StateUpdateResult(updated=True, warnings=warning_messages)
+
+
+@instrument_gpd_function("state.set_continuation_bounded_segment")
+def state_set_continuation_bounded_segment(
+    cwd: Path,
+    bounded_segment: dict[str, object] | ContinuationBoundedSegment,
+) -> StateUpdateResult:
+    """Persist the canonical continuation bounded_segment to state.json only."""
+
+    try:
+        if isinstance(bounded_segment, ContinuationBoundedSegment):
+            bounded_segment_payload = bounded_segment.model_dump(mode="python")
+        elif isinstance(bounded_segment, dict):
+            bounded_segment_payload = bounded_segment
+        else:
+            return StateUpdateResult(
+                updated=False,
+                reason="Invalid continuation bounded_segment schema: bounded_segment must be a JSON object",
+            )
+
+        normalized_segment = normalize_continuation(
+            cwd,
+            {
+                "bounded_segment": bounded_segment_payload,
+            },
+        )
+    except PydanticValidationError as exc:
+        first_error = exc.errors()[0] if exc.errors() else {}
+        location = ".".join(str(part) for part in first_error.get("loc", ())) or "continuation.bounded_segment"
+        message = first_error.get("msg", "validation failed")
+        return StateUpdateResult(updated=False, reason=f"Invalid continuation bounded_segment at {location}: {message}")
+
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
+        state_obj = _load_state_snapshot_for_mutation(cwd)
+        current_continuation = _normalize_continuation_payload(state_obj.get("continuation"))
+        desired_continuation = normalize_continuation(
+            cwd,
+            {
+                **current_continuation,
+                "bounded_segment": normalized_segment.bounded_segment.model_dump(mode="python")
+                if normalized_segment.bounded_segment is not None
+                else None,
+            },
+        ).model_dump(mode="python")
+
+        if current_continuation.get("bounded_segment") == desired_continuation.get("bounded_segment"):
+            return StateUpdateResult(updated=False, reason="Continuation bounded_segment already matches requested value")
+
+        state_obj["continuation"] = desired_continuation
+        save_state_json_locked(cwd, state_obj)
+        return StateUpdateResult(updated=True)
+
+
+@instrument_gpd_function("state.clear_continuation_bounded_segment")
+def state_clear_continuation_bounded_segment(cwd: Path) -> StateUpdateResult:
+    """Clear the canonical continuation bounded_segment in state.json only."""
+
+    with _state_lock(cwd):
+        _recover_intent_locked(cwd)
+        state_obj = _load_state_snapshot_for_mutation(cwd)
+        current_continuation = _normalize_continuation_payload(state_obj.get("continuation"))
+
+        if current_continuation.get("bounded_segment") is None:
+            return StateUpdateResult(updated=False, reason="Continuation bounded_segment already clear")
+
+        desired_continuation = normalize_continuation(
+            cwd,
+            {
+                **current_continuation,
+                "bounded_segment": None,
+            },
+        ).model_dump(mode="python")
+        state_obj["continuation"] = desired_continuation
+        save_state_json_locked(cwd, state_obj)
+        return StateUpdateResult(updated=True)
 
 
 @instrument_gpd_function("state.advance_plan")

@@ -276,6 +276,84 @@ def test_init_resume_reads_canonical_continuation_from_state_json(
     ]
 
 
+def test_init_resume_prefers_canonical_bounded_segment_over_live_overlay(
+    tmp_path: Path, state_project_factory, monkeypatch
+) -> None:
+    cwd = state_project_factory(tmp_path)
+    state_path = cwd / "GPD" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["session"] = {
+        "last_date": None,
+        "hostname": "builder-01",
+        "platform": "Linux 6.1 x86_64",
+        "stopped_at": None,
+        "resume_file": None,
+    }
+    state["continuation"] = {
+        "schema_version": 1,
+        "handoff": {
+            "recorded_at": "2026-03-29T12:00:00+00:00",
+            "stopped_at": "Phase 03 Plan 02 Task 04",
+            "resume_file": "GPD/phases/03-analysis/alternate-resume.md",
+        },
+        "bounded_segment": {
+            "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+            "phase": "03",
+            "plan": "02",
+            "segment_id": "canonical-seg",
+            "segment_status": "paused",
+            "transition_id": "transition-canonical",
+            "last_result_id": "result-canonical",
+        },
+        "machine": {
+            "recorded_at": "2026-03-29T12:00:00+00:00",
+            "hostname": "builder-01",
+            "platform": "Linux 6.1 x86_64",
+        },
+    }
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    canonical_resume = cwd / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
+    canonical_resume.parent.mkdir(parents=True, exist_ok=True)
+    canonical_resume.write_text("resume\n", encoding="utf-8")
+    overlay_resume = cwd / "GPD" / "phases" / "03-analysis" / "live-overlay.md"
+    overlay_resume.parent.mkdir(parents=True, exist_ok=True)
+    overlay_resume.write_text("resume\n", encoding="utf-8")
+    _write_current_execution(
+        cwd,
+        {
+            "session_id": "sess-overlay",
+            "phase": "04",
+            "plan": "03",
+            "segment_id": "overlay-seg",
+            "segment_status": "paused",
+            "resume_file": "GPD/phases/03-analysis/live-overlay.md",
+            "transition_id": "transition-overlay",
+            "last_result_id": "result-overlay",
+            "updated_at": "2026-03-29T12:15:00+00:00",
+        },
+    )
+    monkeypatch.setattr(
+        context_module,
+        "_current_machine_identity",
+        lambda: {"hostname": "builder-01", "platform": "Linux 6.1 x86_64"},
+    )
+
+    ctx = init_resume(tmp_path)
+
+    assert ctx["current_execution"]["resume_file"] == "GPD/phases/03-analysis/live-overlay.md"
+    assert ctx["current_execution_resume_file"] == "GPD/phases/03-analysis/live-overlay.md"
+    assert ctx["execution_resume_file_source"] == "current_execution"
+    assert ctx["execution_resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
+    assert ctx["resume_mode"] == "bounded_segment"
+    assert ctx["active_execution_segment"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
+    assert ctx["active_execution_segment"]["transition_id"] == "transition-canonical"
+    assert ctx["active_execution_segment"]["last_result_id"] == "result-canonical"
+    assert ctx["segment_candidates"][0]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
+    assert ctx["segment_candidates"][0]["transition_id"] == "transition-canonical"
+    assert ctx["segment_candidates"][0]["last_result_id"] == "result-canonical"
+    assert ctx["segment_candidates"][0]["source"] == "current_execution"
+
+
 def test_init_resume_deduplicates_matching_session_handoff_and_ranks_interrupted_agent_last(
     tmp_path: Path, state_project_factory, monkeypatch
 ) -> None:

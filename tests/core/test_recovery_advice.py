@@ -35,6 +35,35 @@ def test_build_recovery_advice_prefers_current_workspace_recovery_state(tmp_path
     assert [action.availability for action in advice.actions] == ["now", "now", "now"]
 
 
+def test_build_recovery_advice_treats_canonical_bounded_segment_as_authoritative_without_live_overlay(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+
+    advice = build_recovery_advice(
+        project,
+        recent_rows=[],
+        resume_payload={
+            "active_execution_segment": None,
+            "execution_resume_file": "GPD/phases/06/.continue-here.md",
+            "execution_resume_file_source": "current_execution",
+            "execution_resumable": True,
+            "has_live_execution": False,
+            "resume_mode": "bounded_segment",
+            "segment_candidates": [],
+        },
+    )
+
+    assert advice.mode == "current-workspace"
+    assert advice.status == "bounded-segment"
+    assert advice.primary_command == "gpd resume"
+    assert advice.current_workspace_resumable is True
+    assert advice.current_workspace_has_resume_file is True
+    assert advice.has_local_recovery_target is True
+    assert advice.execution_resume_file == "GPD/phases/06/.continue-here.md"
+    assert advice.execution_resume_file_source == "current_execution"
+
+
 def test_build_recovery_advice_uses_recent_projects_when_workspace_is_idle(tmp_path: Path) -> None:
     project = _project(tmp_path)
     other = _project(tmp_path, "other")

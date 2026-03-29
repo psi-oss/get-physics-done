@@ -61,8 +61,8 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "does not create a resumable `current_execution` candidate" in portability_doc
     assert 'set `resume_mode="bounded_segment"`' in portability_doc
     assert "Current public behavior does **not** persist a separate standalone continuation ledger." in portability_doc
-    assert "`gpd init resume` computes the current canonical continuation view" in portability_doc
-    assert "Storage authority for machine-readable project state and session continuity" in portability_doc
+    assert "`gpd init resume` computes the current canonical continuation view by reading `state.json.continuation` first" in portability_doc
+    assert "Storage authority for machine-readable project state, canonical continuation, and session continuity" in portability_doc
     assert "Editable human-readable mirror of state" in portability_doc
     assert "Temporary handoff artifact written by `/gpd:pause-work`" in portability_doc
     assert "Live execution overlay showing the latest execution snapshot" in portability_doc
@@ -132,10 +132,14 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "Platform" in state_doc
     assert "normalizes project-local absolute paths back to that form" in schema_doc
     assert "recommends rerunning the installer when runtime-local config may be stale" in schema_doc
+    assert "Durable canonical continuation payload; `bounded_segment` stores the authoritative bounded-segment state" in schema_doc
+    assert "canonical object first and only falls back to the live execution overlay when the canonical continuation is missing or incomplete" in schema_doc
+    assert "state.json.continuation.bounded_segment" in schema_doc
     assert "GPD does **not** currently persist a separate standalone continuation ledger." in state_machine_doc
     assert "Temporary handoff artifact" in state_machine_doc
     assert "Live execution overlay" in state_machine_doc
-    assert "The canonical continuation decision comes from `gpd init resume`" in state_machine_doc
+    assert "state.json.continuation first as the canonical source" in state_machine_doc
+    assert "only falls back to the live execution overlay when the canonical continuation is missing or incomplete" in state_machine_doc
     assert "canonical temporary phase handoff artifact" in continue_here_doc
     assert "This file is **not** the authoritative store for project position, session continuity, or resume ranking." in continue_here_doc
     assert "Deleting or missing this file does not erase project state by itself" in continue_here_doc

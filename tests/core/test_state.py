@@ -870,6 +870,26 @@ def test_save_state_json_drops_project_contract_that_fails_draft_scoping_validat
     assert persisted["project_contract"] is None
 
 
+def test_load_state_json_preserves_draft_invalid_project_contract_visibility(tmp_path: Path) -> None:
+    state = default_state_dict()
+    state["position"]["status"] = "Executing"
+    save_state_json(tmp_path, state)
+
+    layout = ProjectLayout(tmp_path)
+    raw_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    raw_state["project_contract"] = _draft_invalid_project_contract()
+    layout.state_json.write_text(json.dumps(raw_state, indent=2) + "\n", encoding="utf-8")
+
+    loaded = load_state_json(tmp_path)
+
+    assert loaded is not None
+    assert loaded["project_contract"] is not None
+    assert loaded["project_contract"]["claims"][0]["references"] == ["missing-ref"]
+    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["project_contract"]["claims"][0][
+        "references"
+    ] == ["missing-ref"]
+
+
 def test_save_state_markdown_preserves_project_contract_when_singleton_list_drift_is_salvageable(
     tmp_path: Path,
 ):
@@ -1079,6 +1099,37 @@ def test_load_state_json_recovers_backup_only_state_when_primary_json_is_missing
     assert loaded["position"]["status"] == "Executing"
     assert json.loads(layout.state_json.read_text(encoding="utf-8"))["project_contract"]["scope"]["question"] == (
         "Recovered from backup state"
+    )
+
+
+def test_load_state_json_recovers_backup_continuation_when_primary_json_is_corrupted(tmp_path: Path) -> None:
+    primary_state = default_state_dict()
+    primary_state["session"]["last_date"] = "2026-03-29T12:00:00+00:00"
+    primary_state["session"]["stopped_at"] = "Phase 03 Plan 2"
+    primary_state["session"]["resume_file"] = "resume.md"
+    primary_state["continuation"]["handoff"]["recorded_at"] = "2026-03-29T12:00:00+00:00"
+    primary_state["continuation"]["handoff"]["stopped_at"] = "Phase 03 Plan 2"
+    backup_state = json.loads(json.dumps(primary_state))
+    backup_state["continuation"]["bounded_segment"] = {
+        "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        "phase": "03",
+        "plan": "02",
+        "segment_id": "segment-03-02",
+        "segment_status": "blocked",
+        "waiting_for_review": True,
+    }
+    layout = _write_backup_only_state(tmp_path, primary_state, backup_state=backup_state)
+    layout.state_json.write_text("{not-json", encoding="utf-8")
+
+    loaded = load_state_json(tmp_path)
+
+    assert loaded is not None
+    assert loaded["session"]["resume_file"] == "resume.md"
+    assert loaded["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 2"
+    assert loaded["continuation"]["bounded_segment"]["segment_id"] == "segment-03-02"
+    assert loaded["continuation"]["bounded_segment"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
+    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["continuation"]["bounded_segment"]["segment_id"] == (
+        "segment-03-02"
     )
 
 

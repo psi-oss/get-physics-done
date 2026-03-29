@@ -4,7 +4,7 @@ template_version: 1
 
 # Executor Continuation Prompt Template
 
-Template for spawning a fresh gpd-executor agent to continue plan execution after a checkpoint pause. Uses a fresh agent with explicit state instead of resume to avoid serialization issues with parallel tool calls.
+Template for spawning a fresh gpd-executor agent to continue plan execution after a checkpoint pause. Uses a fresh agent with explicit state instead of resume to avoid serialization issues with parallel tool calls. The `<execution_segment>` block is the workflow/runtime handoff payload; if the pause is durably recorded, the same content is mirrored into `continuation.bounded_segment` as the persisted storage shape.
 
 Referenced by `workflows/execute-phase.md` checkpoint_handling step.
 
@@ -37,6 +37,8 @@ Return state updates (position, decisions, metrics) in your response -- do NOT w
 <execution_segment>
 {execution_segment}
 </execution_segment>
+
+`execution_segment` is the transient runtime handoff payload. `continuation.bounded_segment` is the persisted storage shape that records the same bounded stop when the orchestrator durably writes or refreshes the pause state. Clear or replace that persisted field when the bounded stop is consumed, retired, or superseded by a newer segment. Keep `.continue-here.md` and `session` as handoff surfaces only.
 
 If the execution segment indicates `pre_fanout_review_pending: true`, do not unlock downstream dependent work until the review outcome has been incorporated into this continuation.
 
@@ -111,7 +113,7 @@ Also verify the bounded execution segment still satisfies its resume preconditio
 | `{checkpoint_type}`       | From checkpoint return              | `human-verify`                                                            |
 | `{user_response}`         | User's response to checkpoint       | `approved` or `Select: option-a` or `done`                                |
 | `{resume_instructions}`   | Generated from checkpoint type      | See table below                                                           |
-| `{execution_segment}`     | Structured bounded segment state    | Segment JSON or markdown block with cursor, checkpoint cause, downstream-lock status, any `pre_fanout_review_cleared` marker, skeptical re-questioning fields, and resume preconditions |
+| `{execution_segment}`     | Runtime handoff payload             | Segment JSON or markdown block with cursor, checkpoint cause, downstream-lock status, any `pre_fanout_review_cleared` marker, skeptical re-questioning fields, and resume preconditions |
 | `{protocol_bundle_context}` | Selected protocol bundle summary | Additive specialized-loading guidance carried across continuations |
 | `{phase_dir}`             | Phase directory path                | `GPD/phases/03-phase-diagram`                                       |
 | `{plan_file}`             | Plan filename                       | `03-03-PLAN.md`                                                           |

@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from gpd.core.continuation import (
     ContinuationResumeSource,
     ContinuationSource,
+    canonical_bounded_segment_from_execution_snapshot,
     normalize_continuation,
     normalize_continuation_reference,
     resolve_continuation,
@@ -65,6 +66,34 @@ def test_normalize_continuation_normalizes_canonical_references(tmp_path: Path) 
     assert continuation.bounded_segment.plan == "02"
 
 
+def test_canonical_bounded_segment_from_execution_snapshot_normalizes_lineage_fields(
+    tmp_path: Path,
+) -> None:
+    resume_path = _write_resume(tmp_path, "GPD/phases/03-analysis/.continue-here.md")
+
+    segment = canonical_bounded_segment_from_execution_snapshot(
+        tmp_path,
+        {
+            "session_id": "sess-1",
+            "phase": "3",
+            "plan": "2",
+            "segment_id": "seg-4",
+            "segment_status": "waiting_review",
+            "resume_file": str(resume_path),
+            "transition_id": "transition-9",
+            "last_result_id": "result-12",
+            "updated_at": "2026-03-29T12:00:00+00:00",
+        },
+    )
+
+    assert segment is not None
+    assert segment.resume_file == "GPD/phases/03-analysis/.continue-here.md"
+    assert segment.phase == "03"
+    assert segment.plan == "02"
+    assert segment.transition_id == "transition-9"
+    assert segment.last_result_id == "result-12"
+
+
 def test_resolve_continuation_prefers_canonical_state_over_legacy_inputs(tmp_path: Path) -> None:
     _write_resume(tmp_path, "GPD/phases/03-analysis/.continue-here.md")
     _write_resume(tmp_path, "GPD/phases/03-analysis/handoff.md")
@@ -86,6 +115,8 @@ def test_resolve_continuation_prefers_canonical_state_over_legacy_inputs(tmp_pat
                     "plan": "2",
                     "segment_id": "seg-4",
                     "segment_status": "paused",
+                    "transition_id": "transition-3",
+                    "last_result_id": "result-8",
                 },
                 "machine": {"hostname": "builder-01", "platform": "Linux 6.1 x86_64"},
             },
@@ -98,6 +129,8 @@ def test_resolve_continuation_prefers_canonical_state_over_legacy_inputs(tmp_pat
             "resume_file": "GPD/phases/03-analysis/legacy.md",
             "segment_status": "paused",
             "segment_id": "legacy-seg",
+            "transition_id": "transition-legacy",
+            "last_result_id": "result-legacy",
         },
     )
 
@@ -105,6 +138,8 @@ def test_resolve_continuation_prefers_canonical_state_over_legacy_inputs(tmp_pat
     assert projection.continuation.handoff.stopped_at == "Canonical handoff"
     assert projection.continuation.bounded_segment is not None
     assert projection.continuation.bounded_segment.phase == "03"
+    assert projection.continuation.bounded_segment.transition_id == "transition-3"
+    assert projection.continuation.bounded_segment.last_result_id == "result-8"
     assert projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT
     assert projection.active_resume_file == "GPD/phases/03-analysis/.continue-here.md"
     assert projection.handoff_resume_file == "GPD/phases/03-analysis/handoff.md"
@@ -136,6 +171,8 @@ def test_resolve_continuation_uses_live_bounded_segment_when_canonical_state_onl
             "segment_id": "seg-4",
             "segment_status": "paused",
             "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+            "transition_id": "transition-legacy",
+            "last_result_id": "result-legacy",
         },
     )
 
@@ -143,6 +180,8 @@ def test_resolve_continuation_uses_live_bounded_segment_when_canonical_state_onl
     assert projection.continuation.handoff.stopped_at == "Canonical handoff"
     assert projection.continuation.bounded_segment is not None
     assert projection.continuation.bounded_segment.phase == "03"
+    assert projection.continuation.bounded_segment.transition_id == "transition-legacy"
+    assert projection.continuation.bounded_segment.last_result_id == "result-legacy"
     assert projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT
     assert projection.active_resume_file == "GPD/phases/03-analysis/.continue-here.md"
     assert projection.handoff_resume_file == "GPD/phases/03-analysis/handoff.md"
@@ -303,6 +342,38 @@ def test_resolve_continuation_returns_empty_projection_without_canonical_or_lega
     assert projection.active_resume_file is None
     assert projection.active_resume_source is None
     assert projection.resumable is False
+
+
+def test_resolve_continuation_ignores_empty_canonical_state_and_falls_back_to_legacy_inputs(tmp_path: Path) -> None:
+    _write_resume(tmp_path, "GPD/phases/03-analysis/.continue-here.md")
+    _write_resume(tmp_path, "GPD/phases/03-analysis/handoff.md")
+
+    projection = resolve_continuation(
+        tmp_path,
+        state={
+            "continuation": {"schema_version": 1},
+            "session": {
+                "last_date": "2026-03-29T12:00:00+00:00",
+                "hostname": "builder-01",
+                "platform": "Linux 6.1 x86_64",
+                "stopped_at": "Paused after Task 4",
+                "resume_file": "GPD/phases/03-analysis/handoff.md",
+            },
+        },
+        current_execution={
+            "session_id": "sess-1",
+            "phase": "3",
+            "plan": "2",
+            "segment_id": "seg-4",
+            "segment_status": "paused",
+            "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        },
+    )
+
+    assert projection.source == ContinuationSource.LEGACY
+    assert projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT
+    assert projection.active_resume_file == "GPD/phases/03-analysis/.continue-here.md"
+    assert projection.handoff_resume_file == "GPD/phases/03-analysis/handoff.md"
 
 
 def test_normalize_continuation_rejects_invalid_canonical_shape(tmp_path: Path) -> None:

@@ -11,17 +11,17 @@ Reference document specifying all valid entity lifecycles, state ownership, and 
 
 ## Continuation Surfaces
 
-Current public behavior distinguishes four continuation-related surfaces plus one recovery backup. GPD does **not** currently persist a separate standalone continuation ledger. Instead, `gpd init resume` derives the current canonical continuation view from the surfaces below.
+Current public behavior distinguishes four continuation-related surfaces plus one recovery backup. GPD does **not** currently persist a separate standalone continuation ledger. Instead, `gpd init resume` reads state.json.continuation first as the canonical source and only falls back to the live execution overlay when the canonical continuation is missing or incomplete, including legacy projects without persisted bounded-segment state.
 
 | Surface | Role | Authority Level | Notes |
 |---------|------|-----------------|-------|
-| `GPD/state.json` | Storage authority | Authoritative | Machine-readable project state, including session continuity |
+| `GPD/state.json` | Storage authority | Authoritative | Machine-readable project state, including canonical `continuation` and session continuity |
 | `GPD/state.json.bak` | Recovery backup | Fallback only | Used when the primary JSON state is unreadable or unavailable |
 | `GPD/STATE.md` | Editable mirror | Reconstruction/edit surface | Human-readable mirror of state; also the final reconstruction source if both JSON files are unavailable |
 | `GPD/phases/.../.continue-here.md` | Temporary handoff artifact | Non-authoritative | Written by `/gpd:pause-work`; may be referenced by session continuity or a live execution snapshot |
-| `GPD/observability/current-execution.json` | Live execution overlay | Advisory unless resumable | Latest execution snapshot; only upgrades to a bounded-segment resume candidate when paused at a resumable gate with a portable usable `resume_file` |
+| `GPD/observability/current-execution.json` | Live execution overlay | Advisory unless resumable | Latest execution snapshot; only upgrades to a bounded-segment resume candidate when canonical continuation is missing or incomplete |
 
-The canonical continuation decision comes from `gpd init resume`, not from reading any one of these files in isolation.
+The canonical continuation decision comes from `gpd init resume`, not from reading any one of these files in isolation. Canonical `state.json.continuation` wins first; the overlay only fills gaps when the canonical continuation is incomplete.
 
 ---
 
@@ -33,7 +33,7 @@ The canonical continuation decision comes from `gpd init resume`, not from readi
 Created → Active → Paused → Active → Complete → Archived
 ```
 
-- **Owner surfaces**: `GPD/state.json` (authoritative state), `GPD/STATE.md` (editable mirror), optional `.continue-here.md` temporary handoff artifact, optional `GPD/observability/current-execution.json` live execution overlay
+- **Owner surfaces**: `GPD/state.json` (authoritative state, including canonical `continuation`), `GPD/STATE.md` (editable mirror), optional `.continue-here.md` temporary handoff artifact, optional `GPD/observability/current-execution.json` live execution overlay
 - **Created → Active**: `/gpd:new-project` completes (ROADMAP.md exists, STATE.md initialized)
 - **Active → Paused**: `/gpd:pause-work` (explicit user action, records session continuity and may write `.continue-here.md`)
 - **Paused → Active**: `/gpd:resume-work` (restores context from authoritative state plus any handoff artifact or live execution overlay)
@@ -220,7 +220,7 @@ For continuation specifically:
 
 - `.continue-here.md` is the canonical temporary handoff artifact, not the storage authority
 - `GPD/observability/current-execution.json` is the live execution overlay, not the storage authority
-- `gpd init resume` resolves the canonical continuation view across authority, mirror, handoff, and overlay surfaces
+- `gpd init resume` resolves the canonical continuation view with `state.json.continuation` first and overlay fallback for legacy bounded-segment recovery
 
 ---
 

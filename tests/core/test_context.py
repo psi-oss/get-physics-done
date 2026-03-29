@@ -1642,9 +1642,13 @@ class TestInitProgress:
         (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         loaded, load_info = _load_project_contract(tmp_path)
+        ctx = init_progress(tmp_path)
 
-        assert loaded is None
+        assert loaded is not None
         assert load_info["status"] == "blocked_integrity"
+        assert any("duplicate" in error for error in load_info["errors"])
+        assert ctx["project_contract"] is not None
+        assert ctx["project_contract_load_info"]["status"] == "blocked_integrity"
         assert any("duplicate" in error for error in load_info["errors"])
 
     def test_load_project_contract_rejects_whole_singleton_defaulting_from_raw_state(self, tmp_path: Path) -> None:

@@ -1,5 +1,5 @@
 <purpose>
-Create the canonical `.continue-here.md` handoff file to preserve complete research state across sessions. This is the phase-level handoff artifact paired with `/gpd:resume-work`, the local `gpd resume` recovery surface, and `gpd resume --recent` when the user needs to rediscover the project first.
+Create the canonical `.continue-here.md` handoff surface to preserve complete research state across sessions. This is the phase-level handoff artifact paired with `/gpd:resume-work`, the local `gpd resume` recovery surface, and `gpd resume --recent` when the user needs to rediscover the project first. It is a discovery surface, not the bounded authority store.
 </purpose>
 
 <required_reading>
@@ -41,7 +41,7 @@ Ask user for clarifications if needed via conversational questions.
 <step name="extract_persistent_state">
 **Extract and append persistent derivation state to `GPD/DERIVATION-STATE.md`:**
 
-Before writing the canonical continue-here handoff file, extract all equations,
+Before writing the canonical continue-here handoff surface, extract all equations,
 conventions, and results from the current session and append them to the cumulative
 derivation state file. This file is append-only and never deleted -- it is the
 permanent record that prevents lossy compression across context resets.
@@ -165,7 +165,7 @@ gpd commit "wip: append derivation state from session" --files GPD/DERIVATION-ST
 </step>
 
 <step name="write">
-**Write the canonical handoff to `GPD/phases/{phase_slug}/.continue-here.md`** (where `{phase_slug}` is the detected phase directory name from the `detect` step, e.g., `03-dispersion`).
+**Write the canonical handoff surface to `GPD/phases/{phase_slug}/.continue-here.md`** (where `{phase_slug}` is the detected phase directory name from the `detect` step, e.g., `03-dispersion`).
 
 Use the shared template at `@{GPD_INSTALL_DIR}/templates/continue-here.md` as the authoritative structure. Do not invent alternate tag names when writing the handoff. The canonical file should keep:
 
@@ -179,6 +179,8 @@ Use the shared template at `@{GPD_INSTALL_DIR}/templates/continue-here.md` as th
 - `<context>` for the reasoning chain and overall approach
 - `<next_action>` for the exact first thing to do on return
 - `<persistent_state>` for the subset that must be appended to `GPD/DERIVATION-STATE.md`
+
+The `.continue-here.md` file and `session` record are handoff surfaces only. If the pause produces a resumable bounded stop, persist the matching `execution_segment` into `continuation.bounded_segment`; that persisted field is the bounded authority for later resume logic. If the bounded stop is later consumed, retired, or replaced by a newer bounded stop, clear or supersede `continuation.bounded_segment` as part of that state update. Do not treat the markdown handoff file as the durable authority.
 
 Fold older ad hoc notions such as separate `parameter_values`, `approximations_active`, or `open_questions` into the canonical sections above instead of creating extra top-level tags. For example:
 
@@ -207,7 +209,8 @@ gpd state record-session \
   --resume-file "GPD/phases/[{phase_slug}]/.continue-here.md"
 if [ $? -ne 0 ]; then echo "WARNING: state record-session failed — resume info may be lost"; fi
 
-# Set status to Paused so resume-work detects it
+# Set status to Paused so resume-work detects it. This updates the session
+# handoff surface; the bounded continuation record is managed separately.
 gpd state patch --Status "Paused"
 if [ $? -ne 0 ]; then echo "WARNING: state patch failed — status not marked as Paused"; fi
 ```
@@ -258,7 +261,7 @@ To rediscover the project first: gpd resume --recent
 - [ ] All canonical sections are filled with specific content, especially `<current_state>`, `<completed_work>`, `<remaining_work>`, `<intermediate_results>`, `<context>`, and `<next_action>`
 - [ ] The `<persistent_state>` and `<intermediate_results>` sections in `.continue-here.md` are filled (documenting what was appended to DERIVATION-STATE.md)
 - [ ] Enough physics context preserved that a fresh session can resume without re-deriving
-- [ ] STATE.md session continuity updated with pause point and resume file path
+- [ ] STATE.md session continuity updated as a handoff pointer to the pause point and resume file path
 - [ ] STATE.md status set to "Paused"
 - [ ] Committed as WIP (including STATE.md and state.json)
 - [ ] User knows the handoff location and the return path via `/gpd:resume-work` / `gpd resume` / `gpd resume --recent`
