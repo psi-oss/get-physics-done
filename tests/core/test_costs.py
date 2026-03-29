@@ -503,6 +503,126 @@ def test_record_usage_preserves_explicit_workspace_and_project_roots(
     assert record.project_root == project.resolve(strict=False).as_posix()
 
 
+def test_record_usage_uses_project_root_for_workspace_state_attribution_and_summary_from_nested_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    project = _bootstrap_project(tmp_path, "project-a")
+    sibling = _bootstrap_project(tmp_path, "project-b")
+    nested = project / "src"
+    nested.mkdir()
+    (project / "GPD" / "current-agent-id.txt").write_text("agent-parent\n", encoding="utf-8")
+    _write_current_execution(
+        project,
+        {
+            "session_id": "sess-parent",
+            "segment_status": "active",
+            "current_task": "Run executor task",
+        },
+    )
+
+    monkeypatch.setattr(
+        costs,
+        "get_current_session_id",
+        lambda root: (
+            "sess-parent"
+            if root is not None and root.resolve(strict=False) == project.resolve(strict=False)
+            else "sess-sibling"
+        ),
+    )
+    timestamps = iter(
+        [
+            "2026-03-27T14:06:00+00:00",
+            "2026-03-27T14:07:00+00:00",
+        ]
+    )
+    monkeypatch.setattr(costs, "_now_iso", lambda: next(timestamps))
+
+    record = record_usage_from_runtime_payload(
+        _payload(input_tokens=120, output_tokens=30, cost_usd=0.02),
+        runtime="codex",
+        cwd=nested,
+        workspace_root=nested,
+        project_root=project,
+        data_root=data_root,
+    )
+    record_usage_from_runtime_payload(
+        _payload(input_tokens=220, output_tokens=55, cost_usd=0.03),
+        runtime="codex",
+        cwd=sibling,
+        workspace_root=sibling,
+        project_root=sibling,
+        data_root=data_root,
+    )
+
+    assert record is not None
+    assert record.workspace_root == nested.resolve(strict=False).as_posix()
+    assert record.project_root == project.resolve(strict=False).as_posix()
+    assert record.agent_id == "agent-parent"
+    assert record.agent_attribution_source == "workspace-state"
+
+    project_records = list_usage_records(data_root, project_root=project, session_id="sess-parent")
+    assert len(project_records) == 1
+    assert project_records[0].project_root == project.resolve(strict=False).as_posix()
+    assert project_records[0].workspace_root == nested.resolve(strict=False).as_posix()
+
+    summary = build_cost_summary(nested, data_root=data_root)
+    assert summary.workspace_root == project.resolve(strict=False).as_posix()
+    assert summary.current_session_id == "sess-parent"
+    assert summary.project.project_root == project.resolve(strict=False).as_posix()
+    assert summary.project.record_count == 1
+    assert summary.project.total_tokens == 150
+    assert summary.current_session is not None
+    assert summary.current_session.session_id == "sess-parent"
+    assert summary.current_session.total_tokens == 150
+
+
+def test_record_usage_dedup_keeps_distinct_nested_workspace_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    data_root = tmp_path / "data"
+    project = _bootstrap_project(tmp_path, "project-a")
+    nested_a = project / "src" / "a"
+    nested_b = project / "src" / "b"
+    nested_a.mkdir(parents=True)
+    nested_b.mkdir(parents=True)
+
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-parent")
+    timestamps = iter(
+        [
+            "2026-03-27T14:08:00+00:00",
+            "2026-03-27T14:08:01+00:00",
+        ]
+    )
+    monkeypatch.setattr(costs, "_now_iso", lambda: next(timestamps))
+
+    first = record_usage_from_runtime_payload(
+        _payload(input_tokens=120, output_tokens=30, cost_usd=0.02),
+        runtime="codex",
+        cwd=nested_a,
+        workspace_root=nested_a,
+        project_root=project,
+        data_root=data_root,
+    )
+    second = record_usage_from_runtime_payload(
+        _payload(input_tokens=120, output_tokens=30, cost_usd=0.02),
+        runtime="codex",
+        cwd=nested_b,
+        workspace_root=nested_b,
+        project_root=project,
+        data_root=data_root,
+    )
+
+    assert first is not None
+    assert second is not None
+    assert first.record_id != second.record_id
+
+    records = list_usage_records(data_root, project_root=project, session_id="sess-parent")
+    assert len(records) == 2
+    assert {row.workspace_root for row in records} == {
+        nested_a.resolve(strict=False).as_posix(),
+        nested_b.resolve(strict=False).as_posix(),
+    }
+
+
 def test_build_cost_summary_marks_mixed_measured_and_estimated_usd_as_advisory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

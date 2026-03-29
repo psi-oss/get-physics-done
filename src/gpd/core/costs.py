@@ -183,7 +183,7 @@ class CostSummary(BaseModel):
     pricing_snapshot_configured: bool = False
     pricing_snapshot_source: str | None = None
     pricing_snapshot_as_of: str | None = None
-    budget_thresholds: list["CostBudgetThresholdSummary"] = Field(default_factory=list)
+    budget_thresholds: list[CostBudgetThresholdSummary] = Field(default_factory=list)
     guidance: list[str] = Field(default_factory=list)
 
 
@@ -622,6 +622,7 @@ def _estimated_cost_from_pricing(
 def _fingerprint_from_payload(
     *,
     runtime: str | None,
+    workspace_root: str | None,
     project_root: str | None,
     session_id: str | None,
     runtime_session_id: str | None,
@@ -640,6 +641,7 @@ def _fingerprint_from_payload(
     raw = json.dumps(
         {
             "runtime": runtime,
+            "workspace_root": workspace_root,
             "project_root": project_root,
             "session_id": session_id,
             "runtime_session_id": runtime_session_id,
@@ -828,6 +830,7 @@ def record_usage_from_runtime_payload(
         agent_kind_source=attribution.agent_kind_source,
         fingerprint=_fingerprint_from_payload(
             runtime=runtime,
+            workspace_root=workspace_text,
             project_root=project_text,
             session_id=session_id,
             runtime_session_id=runtime_session_id,

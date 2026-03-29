@@ -14,6 +14,9 @@ from pathlib import Path
 import gpd.hooks.install_context as hook_layout
 from gpd.core.constants import ENV_GPD_DEBUG, PLANNING_DIR_NAME, STATE_JSON_FILENAME
 from gpd.core.observability import resolve_project_root
+from gpd.hooks.payload_roots import project_root_from_payload as _shared_project_root_from_payload
+from gpd.hooks.payload_roots import resolve_payload_roots as _resolve_payload_roots
+from gpd.hooks.payload_roots import workspace_dir_from_payload as _shared_workspace_dir_from_payload
 
 # Context bar thresholds (percentage of scaled usage)
 _CONTEXT_REAL_LIMIT_PCT = 80
@@ -97,16 +100,6 @@ def _compact_age_label(value: object) -> str:
     return label
 
 
-def _normalize_workspace_text(value: str | None) -> str:
-    if not value:
-        return str(Path.cwd().resolve(strict=False))
-    path = Path(value).expanduser()
-    try:
-        return str(path.resolve(strict=False))
-    except OSError:
-        return str(path)
-
-
 def _hook_payload_policy(workspace_dir: str | None = None):
     """Return hook payload metadata for the active runtime or a merged fallback."""
     from gpd.adapters.runtime_catalog import get_hook_payload_policy
@@ -156,7 +149,13 @@ def _read_model_label(data: dict[str, object], hook_payload=None) -> str:
     return model_label
 
 
-def _read_workspace_label(data: dict[str, object], workspace_dir: str, hook_payload=None) -> str:
+def _read_workspace_label(
+    data: dict[str, object],
+    workspace_dir: str,
+    *,
+    project_root: str | None = None,
+    hook_payload=None,
+) -> str:
     """Return a compact workspace label, relative to the project root when possible."""
     if not workspace_dir:
         return ""
@@ -164,7 +163,10 @@ def _read_workspace_label(data: dict[str, object], workspace_dir: str, hook_payl
     policy = hook_payload or _hook_payload_policy(workspace_dir)
     workspace_path = Path(workspace_dir).expanduser()
     workspace_value = data.get("workspace")
-    project_dir = _first_string(workspace_value, *policy.project_dir_keys) or _first_string(data, *policy.project_dir_keys)
+    project_dir = project_root or _first_string(workspace_value, *policy.project_dir_keys) or _first_string(
+        data,
+        *policy.project_dir_keys,
+    )
 
     try:
         resolved_workspace = workspace_path.resolve()
@@ -308,19 +310,11 @@ def _read_current_task(session_id: str, workspace_dir: str | None = None) -> str
 
 def _workspace_dir_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
     """Extract the raw workspace directory from a runtime hook payload."""
-    from gpd.adapters.runtime_catalog import get_hook_payload_policy
-
-    hook_payload = _hook_payload_policy(cwd) if cwd else get_hook_payload_policy()
-    workspace_value = data.get("workspace")
-    raw_workspace = (
-        workspace_value
-        if isinstance(workspace_value, str) and workspace_value
-        else _first_string(workspace_value, *hook_payload.workspace_keys)
-        or _first_string(data, *hook_payload.workspace_keys)
-        or cwd
-        or os.getcwd()
+    return _shared_workspace_dir_from_payload(
+        data,
+        policy_getter=_hook_payload_policy,
+        cwd=cwd,
     )
-    return _normalize_workspace_text(raw_workspace)
 
 
 def _project_root_from_payload(
@@ -330,20 +324,21 @@ def _project_root_from_payload(
     cwd: str | None = None,
 ) -> str:
     """Resolve the project root for one hook payload workspace."""
-    hook_payload = _hook_payload_policy(cwd or workspace_dir)
-    workspace_value = data.get("workspace")
-    project_dir = _first_string(workspace_value, *hook_payload.project_dir_keys) or _first_string(
+    return _shared_project_root_from_payload(
         data,
-        *hook_payload.project_dir_keys,
+        workspace_dir,
+        policy_getter=_hook_payload_policy,
+        cwd=cwd,
     )
-    resolved_root = resolve_project_root(workspace_dir, project_dir=project_dir)
-    return str(resolved_root) if resolved_root is not None else workspace_dir
 
 
 def _resolved_project_root_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
     """Return the resolved project root for one statusline payload workspace."""
-    workspace_dir = _workspace_dir_from_payload(data, cwd=cwd)
-    return _project_root_from_payload(data, workspace_dir, cwd=cwd)
+    return _resolve_payload_roots(
+        data,
+        policy_getter=_hook_payload_policy,
+        cwd=cwd,
+    ).project_root
 
 
 def _read_context_remaining(data: dict[str, object], hook_payload) -> float | int | None:
@@ -628,8 +623,9 @@ def main() -> None:
         return
 
     try:
-        workspace_dir = _workspace_dir_from_payload(data)
-        project_root = _resolved_project_root_from_payload(data, cwd=workspace_dir)
+        roots = _resolve_payload_roots(data, policy_getter=_hook_payload_policy)
+        workspace_dir = roots.workspace_dir
+        project_root = roots.project_root
         hook_payload = _hook_payload_policy(project_root)
 
         session_value = data.get("session_id")
@@ -651,7 +647,12 @@ def main() -> None:
         artifact_label = _execution_artifact_label(execution)
         gpd_update = _check_update(project_root)
         model_label = _read_model_label(data, hook_payload)
-        workspace_label = _read_workspace_label(data, workspace_dir, hook_payload)
+        workspace_label = _read_workspace_label(
+            data,
+            workspace_dir,
+            project_root=project_root,
+            hook_payload=hook_payload,
+        )
 
         segments = [f"\x1b[2m{_STATUS_LABEL}\x1b[0m"]
         if model_label:

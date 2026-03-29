@@ -718,6 +718,21 @@ def test_workspace_resolution_helpers_keep_raw_workspace_path_distinct_from_proj
     assert raw_workspace != resolved_project
 
 
+def test_project_root_resolution_helpers_honor_runtime_specific_alias_keys(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    nested = project / "src" / "notes"
+    nested.mkdir(parents=True)
+    payload = {"workspace": {"current_dir": str(nested), "project_root": str(project)}}
+    hook_payload = type("HookPayload", (), {"workspace_keys": ("current_dir",), "project_dir_keys": ("project_root",)})()
+
+    with patch("gpd.hooks.notify._hook_payload_policy", return_value=hook_payload):
+        raw_workspace = notify_module._workspace_dir_from_payload(payload)
+        resolved_project = notify_module._resolved_project_root_from_payload(payload, cwd=raw_workspace)
+
+    assert raw_workspace == nested.resolve(strict=False).as_posix()
+    assert resolved_project == project.resolve(strict=False).as_posix()
+
+
 def test_main_prefers_project_dir_root_over_nested_workspace_cwd(tmp_path: Path) -> None:
     project = tmp_path / "project"
     nested = project / "src" / "notes"
@@ -808,6 +823,70 @@ def test_main_passes_workspace_and_project_roots_to_usage_recorder_when_supporte
     assert captured["project_root"] == resolved_project
     assert captured["cwd"] == captured["workspace_root"]
     assert captured["workspace_root"] != captured["project_root"]
+
+
+def test_main_passes_workspace_and_project_roots_to_usage_recorder_for_runtime_specific_aliases(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    nested = project / "src" / "notes"
+    nested.mkdir(parents=True)
+
+    payload = {
+        "type": "agent-turn-complete",
+        "workspace": {"current_dir": str(nested), "project_root": str(project)},
+        "model": {"id": "gpt-5", "provider": "openai"},
+        "tokens": {"promptTokens": 120, "completionTokens": 30},
+    }
+    captured: dict[str, object] = {}
+    hook_payload = type(
+        "HookPayload",
+        (),
+        {
+            "workspace_keys": ("current_dir",),
+            "project_dir_keys": ("project_root",),
+            "notify_event_types": (),
+        },
+    )()
+
+    def _record(
+        payload_arg: dict[str, object],
+        *,
+        runtime: str | None,
+        cwd: Path,
+        workspace_root: Path,
+        project_root: Path,
+    ) -> None:
+        captured["payload"] = payload_arg
+        captured["runtime"] = runtime
+        captured["cwd"] = cwd
+        captured["workspace_root"] = workspace_root
+        captured["project_root"] = project_root
+
+    with (
+        patch("sys.stdin", io.StringIO(json.dumps(payload))),
+        patch("gpd.hooks.notify._hook_payload_policy", return_value=hook_payload),
+        patch("gpd.hooks.notify._payload_runtime", return_value="codex"),
+        patch("gpd.hooks.notify._runtime_supports_usage_telemetry", return_value=True),
+        patch("gpd.core.costs.record_usage_from_runtime_payload", side_effect=_record) as mock_record,
+        patch("gpd.hooks.notify._trigger_update_check") as mock_trigger,
+        patch("gpd.hooks.notify._check_and_notify_update") as mock_notify,
+        patch("gpd.hooks.notify._emit_execution_notification") as mock_execution,
+    ):
+        main()
+
+    resolved_nested = nested.resolve(strict=False)
+    resolved_project = project.resolve(strict=False)
+
+    mock_record.assert_called_once()
+    mock_trigger.assert_called_once_with(str(project))
+    mock_notify.assert_called_once_with(str(project))
+    mock_execution.assert_called_once_with(str(project))
+    assert captured["payload"] == payload
+    assert captured["runtime"] == "codex"
+    assert captured["cwd"] == resolved_nested
+    assert captured["workspace_root"] == resolved_nested
+    assert captured["project_root"] == resolved_project
 
 
 def test_usage_recorder_kwargs_keep_legacy_cwd_contract_for_old_recorders(tmp_path: Path) -> None:
@@ -973,6 +1052,56 @@ def test_main_records_workspace_state_subagent_attribution(tmp_path: Path) -> No
     assert row["agent_id_source"] == "workspace.current-agent-id"
 
 
+def test_main_records_workspace_state_subagent_attribution_from_top_level_aliases(tmp_path: Path) -> None:
+    project = tmp_path / "workspace"
+    nested = project / "src"
+    nested.mkdir(parents=True)
+    data_root = tmp_path / "data-root"
+    (project / "GPD").mkdir(parents=True, exist_ok=True)
+    (project / "GPD" / "current-agent-id.txt").write_text("agent-88\n", encoding="utf-8")
+    _write_current_execution(
+        project,
+        {
+            "session_id": "sess-top-level",
+            "segment_status": "active",
+            "current_task": "Run executor task",
+        },
+    )
+    payload = {
+        "type": "agent-turn-complete",
+        "cwd": str(nested),
+        "project_dir": str(project),
+        "model": {"id": "gpt-5", "provider": "openai"},
+        "tokens": {
+            "promptTokens": 120,
+            "completionTokens": 30,
+            "usdCost": 0.42,
+        },
+    }
+
+    with (
+        patch.dict("os.environ", {"GPD_DATA_DIR": str(data_root)}),
+        patch("sys.stdin", io.StringIO(json.dumps(payload))),
+        patch("gpd.hooks.notify._payload_runtime", return_value="codex"),
+        patch("gpd.core.costs.get_current_session_id", return_value="sess-top-level"),
+        patch("gpd.hooks.notify._trigger_update_check"),
+        patch("gpd.hooks.notify._check_and_notify_update"),
+        patch("gpd.hooks.notify._emit_execution_notification"),
+    ):
+        main()
+
+    ledger_path = usage_ledger_path(data_root)
+    rows = [json.loads(line) for line in ledger_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["workspace_root"] == nested.resolve(strict=False).as_posix()
+    assert row["project_root"] == project.resolve(strict=False).as_posix()
+    assert row["agent_scope"] == "subagent"
+    assert row["agent_id"] == "agent-88"
+    assert row["agent_attribution_source"] == "workspace-state"
+
+
 def test_main_does_not_record_usage_when_runtime_capability_is_unknown(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -1120,7 +1249,7 @@ def test_main_logs_workspace_resolution_exception_instead_of_raising() -> None:
     stderr = io.StringIO()
     with (
         patch("sys.stdin", io.StringIO(payload)),
-        patch("gpd.hooks.notify._resolved_project_root_from_payload", side_effect=RuntimeError("boom")),
+        patch("gpd.hooks.notify._resolve_payload_roots", side_effect=RuntimeError("boom")),
         patch.dict("os.environ", {"GPD_DEBUG": "1"}),
         patch("sys.stderr", stderr),
     ):

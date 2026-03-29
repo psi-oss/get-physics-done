@@ -12,6 +12,9 @@ import gpd.hooks.install_context as hook_layout
 from gpd.core.constants import ENV_GPD_DEBUG, ProjectLayout
 from gpd.core.observability import humanize_execution_reason, resolve_project_root
 from gpd.core.utils import atomic_write, file_lock
+from gpd.hooks.payload_roots import project_root_from_payload as _shared_project_root_from_payload
+from gpd.hooks.payload_roots import resolve_payload_roots as _resolve_payload_roots
+from gpd.hooks.payload_roots import workspace_dir_from_payload as _shared_workspace_dir_from_payload
 
 _PAUSED_SEGMENT_STATES = {"paused", "awaiting_user", "ready_to_continue"}
 _COMPLETED_SEGMENT_STATES = {"completed", "complete", "done", "finished"}
@@ -35,16 +38,6 @@ def _first_string(value: object, *keys: str) -> str:
         if isinstance(candidate, str) and candidate:
             return candidate
     return ""
-
-
-def _normalize_workspace_text(value: str | None) -> str:
-    if not value:
-        return str(Path.cwd().resolve(strict=False))
-    path = Path(value).expanduser()
-    try:
-        return str(path.resolve(strict=False))
-    except OSError:
-        return str(path)
 
 
 def _trigger_update_check(cwd: str) -> None:
@@ -267,24 +260,11 @@ def _check_and_notify_update(cwd: str | None = None) -> None:
 
 
 def _workspace_dir_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
-    from gpd.adapters.runtime_catalog import get_hook_payload_policy
-
-    # Before the payload workspace is resolved, accept the union of known
-    # workspace keys so event filtering can defer to the runtime that owns
-    # the payload's actual workspace instead of the process cwd.
-    policy = _hook_payload_policy(cwd) if cwd else get_hook_payload_policy()
-    workspace_value = data.get("workspace")
-    raw_workspace = (
-        workspace_value
-        if isinstance(workspace_value, str) and workspace_value
-        else (
-            _first_string(workspace_value, *policy.workspace_keys)
-            or _first_string(data, *policy.workspace_keys)
-            or cwd
-            or os.getcwd()
-        )
+    return _shared_workspace_dir_from_payload(
+        data,
+        policy_getter=_hook_payload_policy,
+        cwd=cwd,
     )
-    return _normalize_workspace_text(raw_workspace)
 
 
 def _project_root_from_payload(
@@ -294,20 +274,21 @@ def _project_root_from_payload(
     cwd: str | None = None,
 ) -> str:
     """Resolve the project root for one notify payload workspace."""
-    policy = _hook_payload_policy(cwd or workspace_dir)
-    workspace_value = data.get("workspace")
-    project_dir = _first_string(workspace_value, *policy.project_dir_keys) or _first_string(
+    return _shared_project_root_from_payload(
         data,
-        *policy.project_dir_keys,
+        workspace_dir,
+        policy_getter=_hook_payload_policy,
+        cwd=cwd,
     )
-    resolved_root = resolve_project_root(workspace_dir, project_dir=project_dir)
-    return str(resolved_root) if resolved_root is not None else workspace_dir
 
 
 def _resolved_project_root_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
     """Return the resolved project root for one notify payload workspace."""
-    workspace_dir = _workspace_dir_from_payload(data, cwd=cwd)
-    return _project_root_from_payload(data, workspace_dir, cwd=cwd)
+    return _resolve_payload_roots(
+        data,
+        policy_getter=_hook_payload_policy,
+        cwd=cwd,
+    ).project_root
 
 
 def _notification_state_path(cwd: str) -> Path:
@@ -425,8 +406,9 @@ def main() -> None:
         return
 
     try:
-        workspace_dir = _workspace_dir_from_payload(data)
-        project_root = _resolved_project_root_from_payload(data, cwd=workspace_dir)
+        roots = _resolve_payload_roots(data, policy_getter=_hook_payload_policy)
+        workspace_dir = roots.workspace_dir
+        project_root = roots.project_root
         hook_payload = _hook_payload_policy(project_root)
         allowed_event_types = hook_payload.notify_event_types
         if allowed_event_types and data.get("type") not in (*allowed_event_types, None):

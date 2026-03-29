@@ -24,11 +24,11 @@ from gpd.hooks.statusline import (
     _context_bar,
     _execution_badge,
     _format_context_window_size,
+    _project_root_from_payload,
     _read_current_task,
     _read_model_label,
     _read_position,
     _read_workspace_label,
-    _project_root_from_payload,
     _resolved_project_root_from_payload,
     _workspace_dir_from_payload,
     main,
@@ -236,6 +236,14 @@ class TestStatusMetadata:
         current.mkdir(parents=True)
 
         label = _read_workspace_label({"workspace": {"project_dir": str(project)}}, str(current))
+        assert label == "[project/src/gpd]"
+
+    def test_read_workspace_label_prefers_resolved_project_root_argument(self, tmp_path: Path) -> None:
+        project = tmp_path / "project"
+        current = project / "src" / "gpd"
+        current.mkdir(parents=True)
+
+        label = _read_workspace_label({}, str(current), project_root=str(project))
         assert label == "[project/src/gpd]"
 
     def test_read_workspace_label_falls_back_to_directory_name(self, tmp_path: Path) -> None:
@@ -1254,6 +1262,7 @@ class TestMain:
         with (
             patch("sys.stdin", io.StringIO(json.dumps({"workspace": {"cwd": str(nested), "project_dir": str(project)}}))),
             patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())) as mock_hints,
             patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
             patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
             patch("gpd.hooks.statusline._read_execution_state", return_value={}) as mock_execution,
@@ -1261,6 +1270,56 @@ class TestMain:
         ):
             main()
 
+        mock_hints.assert_called_once_with(str(project))
+        mock_position.assert_called_once_with(str(project))
+        mock_task.assert_called_once_with("", str(project))
+        mock_execution.assert_called_once_with(str(project))
+        mock_update.assert_called_once_with(str(project))
+        assert "[project/src/notes]" in captured.getvalue()
+
+    def test_main_uses_project_root_for_top_level_aliases_and_keeps_nested_workspace_label(self, tmp_path: Path) -> None:
+        project = tmp_path / "project"
+        nested = project / "src" / "notes"
+        nested.mkdir(parents=True)
+        (project / "GPD").mkdir(parents=True, exist_ok=True)
+
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({"cwd": str(nested)}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())) as mock_hints,
+            patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
+            patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}) as mock_execution,
+            patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
+        ):
+            main()
+
+        mock_hints.assert_called_once_with(str(project))
+        mock_position.assert_called_once_with(str(project))
+        mock_task.assert_called_once_with("", str(project))
+        mock_execution.assert_called_once_with(str(project))
+        mock_update.assert_called_once_with(str(project))
+        assert "[project/src/notes]" in captured.getvalue()
+
+    def test_main_uses_project_root_for_top_level_project_dir_aliases(self, tmp_path: Path) -> None:
+        project = tmp_path / "project"
+        nested = project / "src" / "notes"
+        nested.mkdir(parents=True)
+
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({"cwd": str(nested), "project_dir": str(project)}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())) as mock_hints,
+            patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
+            patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}) as mock_execution,
+            patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
+        ):
+            main()
+
+        mock_hints.assert_called_once_with(str(project))
         mock_position.assert_called_once_with(str(project))
         mock_task.assert_called_once_with("", str(project))
         mock_execution.assert_called_once_with(str(project))
