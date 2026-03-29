@@ -49,6 +49,7 @@ _RUNTIME_PAUSE_WORK_COMMANDS = {name: adapter.format_command("pause-work") for n
 _CODEX_RUNTIME_NAME = next(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if "skills/" in descriptor.manifest_file_prefixes)
 _CLAUDE_RUNTIME_NAME = next(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if descriptor.launch_command == "claude")
 _OPENCODE_RUNTIME_NAME = next(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if descriptor.launch_command == "opencode")
+_BEGINNER_ONBOARDING_HUB_URL = "https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md"
 _CODEX_INSTALL_FLAG = _RUNTIME_ADAPTERS[_CODEX_RUNTIME_NAME].install_flag
 _CLAUDE_INSTALL_FLAG = _RUNTIME_ADAPTERS[_CLAUDE_RUNTIME_NAME].install_flag
 _CLAUDE_RUNTIME_ALIAS = _RUNTIME_ADAPTERS[_CLAUDE_RUNTIME_NAME].display_name.lower()
@@ -451,6 +452,7 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
         print(f"✓ {{RUNTIME_LABELS[runtime]}}")
     print("Install Summary")
     print("Next steps")
+    print(f"Beginner Onboarding Hub: {_BEGINNER_ONBOARDING_HUB_URL}")
     if len(runtimes) == 1:
         runtime = runtimes[0]
         print(
@@ -662,6 +664,8 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
         "`write-paper` and `peer-review`, but `paper-build` and `arxiv-submission` require the `LaTeX Toolchain`."
     ) in result.stdout
     assert "Install Summary" in result.stdout
+    assert "Beginner Onboarding Hub:" in result.stdout
+    assert _BEGINNER_ONBOARDING_HUB_URL in result.stdout
     _assert_single_runtime_next_steps(result.stdout, _CODEX_RUNTIME_NAME)
     assert "Recommended unattended default: Balanced autonomy (`balanced`)." in result.stdout
     assert "The safest model starting point is `review` plus runtime defaults." in result.stdout
@@ -1235,6 +1239,8 @@ def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> N
         assert _RUNTIME_DISPLAY_NAMES[runtime] in result.stdout
     assert "Install Summary" in result.stdout
     assert "Next steps" in result.stdout
+    assert "Beginner Onboarding Hub:" in result.stdout
+    assert _BEGINNER_ONBOARDING_HUB_URL in result.stdout
     assert (
         "Workflow presets: if you plan paper/manuscript workflows, rerun "
         + ", ".join(f"`gpd doctor --runtime {runtime} --global`" for runtime in _RUNTIME_NAMES)

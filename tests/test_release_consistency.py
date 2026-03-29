@@ -167,6 +167,7 @@ def _expected_wheel_dependency_names() -> set[str]:
 
 HELP_COMMAND_HEADING_RE = re.compile(r"^\*\*`/gpd:([a-z0-9-]+)(?:[^`]*)`\*\*$", re.MULTILINE)
 README_COMMAND_ROW_RE = re.compile(r"^\| `/gpd:([a-z0-9-]+)(?:[^`]*)` \| (.*?) \|$", re.MULTILINE)
+BEGINNER_ONBOARDING_HUB_URL = "https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md"
 
 
 def _normalized_requirement_name(requirement: str) -> str:
@@ -671,6 +672,48 @@ def test_public_readme_start_here_surfaces_beginner_hub_links_and_order() -> Non
     assert "Inside your AI runtime:" in start_here
 
 
+def test_public_beginner_hub_keeps_top_level_and_help_surfaces_aligned() -> None:
+    repo_root = _repo_root()
+    hub = (repo_root / "docs" / "README.md").read_text(encoding="utf-8")
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    help_command = (repo_root / "src" / "gpd" / "commands" / "help.md").read_text(encoding="utf-8")
+    help_workflow = (repo_root / "src" / "gpd" / "specs" / "workflows" / "help.md").read_text(encoding="utf-8")
+    cli_content = (repo_root / "src" / "gpd" / "cli.py").read_text(encoding="utf-8")
+    install_js = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+
+    assert "Use this hub to pick:" in hub
+    assert "If you only remember one order, use this:" in hub
+    assert "help -> start -> tour -> new-project / map-research -> resume-work" in hub
+    assert "[macOS guide](./macos.md)" in hub
+    assert "[Claude Code quickstart](./claude-code.md)" in hub
+    assert "[Codex quickstart](./codex.md)" in hub
+    assert "[Gemini CLI quickstart](./gemini-cli.md)" in hub
+    assert "[OpenCode quickstart](./opencode.md)" in hub
+
+    start_here = _markdown_section(readme, "## Start Here")
+    quick_start = _markdown_section(readme, "## Quick Start")
+
+    assert "[Beginner Onboarding Hub](./docs/README.md)" in start_here
+    assert "The intended first-pass order is `help`, then `start`, then `tour`, then `new-project` or `map-research`." in quick_start
+    assert "| Claude Code | `/gpd:help` | `/gpd:start` | `/gpd:tour` | `/gpd:new-project --minimal` |" in quick_start
+    assert "| Codex | `$gpd-help` | `$gpd-start` | `$gpd-tour` | `$gpd-new-project --minimal` |" in quick_start
+    assert "| OpenCode | `/gpd-help` | `/gpd-start` | `/gpd-tour` | `/gpd-new-project --minimal` |" in quick_start
+
+    assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
+    assert BEGINNER_ONBOARDING_HUB_URL in help_workflow
+    assert BEGINNER_ONBOARDING_HUB_URL in cli_content
+    assert "Beginner Onboarding Hub:" in install_js
+    assert "/blob/main/docs/README.md" in install_js
+    assert "repositoryBaseUrl(repository)" in install_js
+    assert "Getting started:" in help_workflow
+    start_snippet = "/gpd:start               — Guided router when you are not sure whether to create, map, resume, or just explain something"
+    tour_snippet = "/gpd:tour               — Optional guided tour of the main commands and when to use them"
+    new_project_snippet = "/gpd:new-project         — Start a new research project with full scoping"
+
+    assert help_workflow.index(start_snippet) < help_workflow.index(tour_snippet)
+    assert help_workflow.index(tour_snippet) < help_workflow.index(new_project_snippet)
+
+
 def test_public_readme_quick_start_keeps_settings_guided_balanced_unattended_readiness_path() -> None:
     readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
     quick_start = _markdown_section(readme, "## Quick Start")
@@ -818,13 +861,16 @@ def test_public_help_surface_keeps_start_tour_new_project_and_map_research_order
 def test_js_bootstrap_after_install_surface_keeps_beginner_order() -> None:
     install_js = (_repo_root() / "bin/install.js").read_text(encoding="utf-8")
 
+    hub_line = "Beginner Onboarding Hub: ${beginnerOnboardingHubUrl}"
     onboarding_line = (
         "Open your runtime, run its help command first, then use `start` if you are not sure what fits this folder. "
         "Use `tour` for a read-only walkthrough first. Then use your runtime's `new-project` command for new work "
         "or `map-research` for existing work."
     )
 
+    assert hub_line in install_js
     assert onboarding_line in install_js
+    assert install_js.index(hub_line) < install_js.index(onboarding_line)
     assert install_js.index("help command first") < install_js.index("use `start`")
     assert install_js.index("use `start`") < install_js.index("Use `tour`")
     assert install_js.index("Use `tour`") < install_js.index("use your runtime's `new-project` command")

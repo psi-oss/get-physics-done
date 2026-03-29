@@ -122,6 +122,7 @@ Project ─── the overall research goal
 
 This reference lists canonical in-runtime slash-command names in `/gpd:*` form.
 
+- If you are new to terminals or runtime setup, use the Beginner Onboarding Hub: https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md
 - Use these names inside the installed agent/runtime command surface.
 - The bootstrap installer owns Node.js / Python / `venv` prerequisites. The local `gpd` CLI may expose different `gpd ...` subcommands and grouping. Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
 - Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict, and `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment.

@@ -6516,6 +6516,10 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
 
         console.print()
         console.print("[bold]Next steps[/]")
+        console.print(
+            "Beginner Onboarding Hub: https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md",
+            soft_wrap=True,
+        )
         if len(next_step_entries) == 1:
             single_runtime_name, single_result = results[0]
             (

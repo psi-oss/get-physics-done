@@ -1088,6 +1088,8 @@ function printHelp() {
   const primaryFlag = runtimeInstallFlag(primaryRuntime);
   const dollarCommandFlag = runtimeInstallFlag(dollarCommandRuntime);
   const targetDirExample = `/path/to/${runtimeConfigDirName(dollarCommandRuntime)}`;
+  const repoBaseUrl = repositoryBaseUrl(repository) || "https://github.com/psi-oss/get-physics-done";
+  const beginnerOnboardingHubUrl = `${repoBaseUrl}/blob/main/docs/README.md`;
   console.log(` ${yellow}Usage:${reset} ${installCommand} [install|uninstall] [options]`);
   console.log("");
   console.log(` ${dim}${productPositioning}${reset}`);
@@ -1145,6 +1147,7 @@ function printHelp() {
   console.log(` ${yellow}After install:${reset}`);
   console.log(` ${dim}# Recommended unattended configuration${reset}`);
   console.log(" Bootstrap preflight checks runtime launcher/target blockers only; configure unattended behavior after startup.");
+  console.log(` Beginner Onboarding Hub: ${beginnerOnboardingHubUrl}`);
   console.log(" Open your runtime, run its help command first, then use `start` if you are not sure what fits this folder. Use `tour` for a read-only walkthrough first. Then use your runtime's `new-project` command for new work or `map-research` for existing work.");
   console.log(" Recommended unattended default: Balanced autonomy (`balanced`). The safest model starting point is `review` plus runtime defaults.");
   console.log(
