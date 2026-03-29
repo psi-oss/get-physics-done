@@ -28,6 +28,8 @@ __all__ = [
     "recovery_next_actions",
     "recovery_recent_action",
     "recovery_resume_action",
+    "tangent_branch_later_action",
+    "tangent_branch_later_follow_up_lines",
     "tangent_chooser_action",
     "workflow_preset_storage_note",
     "workflow_preset_surface_note",
@@ -190,6 +192,32 @@ def tangent_chooser_action() -> str:
         "Inside the runtime, use the `tangent` command to choose stay on the main path, "
         "run a bounded quick check, capture and defer, or open a hypothesis branch."
     )
+
+
+def tangent_branch_later_action(
+    *,
+    tangent_phrase: str = "the runtime `tangent`",
+    branch_phrase: str = "the runtime `branch-hypothesis`",
+) -> str:
+    tangent_text = _command_phrase(tangent_phrase)
+    branch_text = _command_phrase(branch_phrase)
+    return (
+        f"After the bounded stop, use {tangent_text} command to keep the chooser explicit for this alternative path; "
+        f"use {branch_text} command only if you decide to open a git-backed alternative path."
+    )
+
+
+def tangent_branch_later_follow_up_lines(
+    *,
+    tangent_phrase: str = "the runtime `tangent`",
+    branch_phrase: str = "the runtime `branch-hypothesis`",
+) -> list[str]:
+    tangent_text = _command_phrase(tangent_phrase)
+    branch_text = _command_phrase(branch_phrase)
+    return [
+        f"Use {tangent_text} command to keep the chooser explicit for this alternative path.",
+        f"Use {branch_text} command only if you decide to open a git-backed alternative path after this bounded stop.",
+    ]
 
 
 def cost_inspect_action() -> str:

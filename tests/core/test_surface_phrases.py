@@ -17,6 +17,8 @@ from gpd.core.surface_phrases import (
     recovery_next_actions,
     recovery_recent_action,
     recovery_resume_action,
+    tangent_branch_later_action,
+    tangent_branch_later_follow_up_lines,
     tangent_chooser_action,
     workflow_preset_storage_note,
     workflow_preset_surface_note,
@@ -125,6 +127,28 @@ def test_observe_surface_phrases_stay_read_only_and_route_follow_ups_explicitly(
     assert tangent_chooser_action() == (
         "Inside the runtime, use the `tangent` command to choose stay on the main path, "
         "run a bounded quick check, capture and defer, or open a hypothesis branch."
+    )
+    assert tangent_branch_later_action() == (
+        "After the bounded stop, use the runtime `tangent` command to keep the chooser explicit for this alternative path; "
+        "use the runtime `branch-hypothesis` command only if you decide to open a git-backed alternative path."
+    )
+    assert tangent_branch_later_follow_up_lines() == [
+        "Use the runtime `tangent` command to keep the chooser explicit for this alternative path.",
+        "Use the runtime `branch-hypothesis` command only if you decide to open a git-backed alternative path after this bounded stop.",
+    ]
+    assert tangent_branch_later_follow_up_lines(
+        tangent_phrase="runtime `tangent`",
+        branch_phrase="runtime `branch-hypothesis`",
+    ) == [
+        "Use runtime `tangent` command to keep the chooser explicit for this alternative path.",
+        "Use runtime `branch-hypothesis` command only if you decide to open a git-backed alternative path after this bounded stop.",
+    ]
+    assert tangent_branch_later_action(
+        tangent_phrase="runtime `tangent`",
+        branch_phrase="runtime `branch-hypothesis`",
+    ) == (
+        "After the bounded stop, use runtime `tangent` command to keep the chooser explicit for this alternative path; "
+        "use runtime `branch-hypothesis` command only if you decide to open a git-backed alternative path."
     )
 
 

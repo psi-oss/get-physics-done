@@ -537,17 +537,19 @@ def _execution_visibility_tangent_steps(snapshot: CurrentExecutionState | None) 
     if tangent_summary is None:
         return []
 
+    from gpd.core.surface_phrases import tangent_branch_later_action, tangent_chooser_action
+
     decision = _normalized_tangent_decision(snapshot.tangent_decision)
     decision_label = _humanize_tangent_decision(decision)
     if decision is None:
         return [
             f"Tangent proposal pending at this review stop: {tangent_summary}.",
-            "Inside the runtime, use the `tangent` command to choose stay on the main path, run a bounded quick check, capture and defer, or open a hypothesis branch.",
+            tangent_chooser_action(),
         ]
     if decision == "branch_later":
         return [
             f"Tangent proposal recorded: {tangent_summary}. Recommendation: {decision_label}.",
-            "After the bounded stop, use the runtime `tangent` command to keep the chooser explicit; use `branch-hypothesis` only if you decide to open a git-backed alternative path.",
+            tangent_branch_later_action(),
         ]
     if decision == "defer":
         return [f"Tangent proposal recorded: {tangent_summary}. Recommendation: {decision_label}."]

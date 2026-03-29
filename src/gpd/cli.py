@@ -56,6 +56,7 @@ from gpd.core.surface_phrases import (
     recovery_ladder_note,
     recovery_recent_action,
     recovery_resume_action,
+    tangent_branch_later_follow_up_lines,
     workflow_preset_surface_note,
 )
 from gpd.core.workflow_presets import (
@@ -2443,10 +2444,7 @@ def _observe_execution_tangent_follow_up(
             "Use the runtime `branch-hypothesis` command only after that explicit choice.",
         ]
     if tangent_decision == "branch_later":
-        return [
-            "Use the runtime `tangent` command to keep the chooser explicit for this alternative path.",
-            "Use the runtime `branch-hypothesis` command only if you decide to open a git-backed alternative path after this bounded stop.",
-        ]
+        return tangent_branch_later_follow_up_lines()
     if tangent_decision == "defer":
         return ["This tangent was classified as capture and defer. Keep the current run bounded unless you intentionally reopen it."]
     if tangent_decision == "pursue_now":

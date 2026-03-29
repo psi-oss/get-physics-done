@@ -459,8 +459,35 @@ def test_build_runtime_hint_payload_surfaces_tangent_follow_up_from_execution_vi
     assert payload.execution["tangent_summary"] == "Check whether the 2D case is degenerate"
     assert payload.execution["tangent_decision"] == "branch_later"
     assert payload.execution["tangent_decision_label"] == "branch later"
-    assert any("use the `tangent` command" in action for action in payload.next_actions)
+    assert any("After the bounded stop" in action for action in payload.next_actions)
+    assert any("`branch-hypothesis`" in action for action in payload.next_actions)
     assert not any("Tangent proposal recorded" in action for action in payload.next_actions)
+
+
+def test_build_runtime_hint_payload_keeps_pending_tangent_on_generic_chooser(tmp_path: Path) -> None:
+    project = _bootstrap_project(tmp_path)
+    data_root = tmp_path / "data"
+    _write_current_execution(
+        project,
+        session_id="sess-009-pending",
+        extra_execution={
+            "checkpoint_reason": "pre_fanout",
+            "tangent_summary": "Check whether the 2D case is degenerate",
+        },
+    )
+
+    payload = build_runtime_hint_payload(
+        project,
+        data_root=data_root,
+        base_ready=True,
+        latex_capability=_latex_capability(),
+    )
+
+    assert payload.execution is not None
+    assert payload.execution["tangent_summary"] == "Check whether the 2D case is degenerate"
+    assert payload.execution["tangent_decision"] is None
+    assert any("Inside the runtime, use the `tangent` command" in action for action in payload.next_actions)
+    assert not any("After the bounded stop" in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_uses_shared_resume_contract_without_recent_project_row(

@@ -395,6 +395,39 @@ def test_derive_execution_visibility_surfaces_tangent_decision_label_without_cha
     assert any("capture and defer" in step for step in visibility.suggested_next_steps)
 
 
+def test_derive_execution_visibility_reuses_branch_later_tangent_follow_up(tmp_path: Path, monkeypatch) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    observability_dir = project / "GPD" / "observability"
+    observability_dir.mkdir(parents=True, exist_ok=True)
+    (observability_dir / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "sess-tangent",
+                "phase": "03",
+                "plan": "01",
+                "segment_status": "waiting_review",
+                "waiting_for_review": True,
+                "checkpoint_reason": "pre_fanout",
+                "tangent_summary": "Check whether the 2D case is degenerate",
+                "tangent_decision": "branch_later",
+                "updated_at": _iso_minutes_ago(5),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from gpd.core.observability import derive_execution_visibility
+
+    visibility = derive_execution_visibility(project)
+    assert visibility is not None
+    assert visibility.tangent_decision == "branch_later"
+    assert any("Recommendation: branch later." in step for step in visibility.suggested_next_steps)
+    assert any("After the bounded stop" in step for step in visibility.suggested_next_steps)
+    assert any("`branch-hypothesis`" in step for step in visibility.suggested_next_steps)
+
+
 def test_derive_execution_visibility_keeps_recent_active_segments_active(tmp_path: Path, monkeypatch) -> None:
     project = _bootstrap_project(tmp_path)
     monkeypatch.chdir(project)

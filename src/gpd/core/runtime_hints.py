@@ -22,6 +22,7 @@ from gpd.core.surface_phrases import (
     command_follow_up_action,
     cost_inspect_action,
     recovery_action_lines,
+    tangent_branch_later_action,
     tangent_chooser_action,
 )
 from gpd.core.surface_phrases import (
@@ -165,8 +166,10 @@ def _execution_next_actions(execution_visibility: object | None) -> list[str]:
 
     tangent_summary = _suggestion_text(execution_visibility, "tangent_summary")
     tangent_decision = _suggestion_text(execution_visibility, "tangent_decision")
-    if tangent_summary is not None and tangent_decision in {None, "branch_later"}:
+    if tangent_summary is not None and tangent_decision is None:
         actions.append(tangent_chooser_action())
+    if tangent_summary is not None and tangent_decision == "branch_later":
+        actions.append(tangent_branch_later_action())
     return actions
 
 
