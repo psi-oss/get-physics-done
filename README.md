@@ -61,7 +61,7 @@ If you are new to terminals, start with one OS guide and one runtime guide:
 
 Most beginners should install GPD into one runtime at a time and use `--local`.
 
-Here, `--local` means "install GPD for this project or folder only."
+Here, `--local` means "install GPD for this project or folder only," so run it from inside the folder where you want this research project to live.
 
 </details>
 
@@ -85,14 +85,19 @@ We welcome contributions and feedback via GitHub issues or pull requests; if GPD
 
 ## Quick Start
 
-If you already know your runtime and are comfortable in a terminal, use one of these exact install commands:
+If you already know your runtime and are comfortable in a terminal:
 
-| Runtime | Install command | Open runtime | First help command | Fastest first project |
-|---------|-----------------|--------------|--------------------|-----------------------|
-| Claude Code | `npx -y get-physics-done --claude --local` | `claude` | `/gpd:help` | `/gpd:new-project --minimal` |
-| Codex | `npx -y get-physics-done --codex --local` | `codex` | `$gpd-help` | `$gpd-new-project --minimal` |
-| Gemini CLI | `npx -y get-physics-done --gemini --local` | `gemini` | `/gpd:help` | `/gpd:new-project --minimal` |
-| OpenCode | `npx -y get-physics-done --opencode --local` | `opencode` | `/gpd-help` | `/gpd-new-project --minimal` |
+1. From inside the folder where your project should live, run the matching install command from [Start Here](#start-here).
+2. Launch your runtime with `claude`, `codex`, `gemini`, or `opencode`.
+3. Run the matching GPD help command shown below.
+4. Start with `new-project --minimal`, `resume-work`, or `map-research` using your runtime's command syntax.
+
+| Runtime | First help command | Fastest first project |
+|---------|--------------------|-----------------------|
+| Claude Code | `/gpd:help` | `/gpd:new-project --minimal` |
+| Codex | `$gpd-help` | `$gpd-new-project --minimal` |
+| Gemini CLI | `/gpd:help` | `/gpd:new-project --minimal` |
+| OpenCode | `/gpd-help` | `/gpd-new-project --minimal` |
 
 The bootstrap installer requires Node.js 20+, Python 3.11+ with `venv`, and one supported runtime (`claude`, `gemini`, `codex`, or `opencode`).
 
@@ -103,17 +108,23 @@ If the install worked, both of these should be true:
 
 Then choose the path that matches your starting point:
 
-| Starting point | What to run | What it's for |
-|----------------|-------------|----------------|
-| New research project | Your runtime's `new-project --minimal` command | Start the fastest guided project bootstrap. |
+Use the runtime syntax above for the command names below.
+
+| Starting point | Command name | What it's for |
+|----------------|--------------|----------------|
+| New research project | `new-project --minimal` | Start the fastest guided project bootstrap. |
 | Current-workspace recovery snapshot | `gpd resume` | Current-workspace read-only recovery snapshot from your normal system terminal. |
 | Find a workspace to reopen | `gpd resume --recent` | Find the workspace first when you need to reopen a different one, then continue there with the runtime `resume-work` command. |
-| Continue in an existing GPD project | Your runtime's `resume-work` command | Continue in-runtime from the selected project state. |
-| Existing research folder or codebase | Your runtime's `map-research` command | Map existing work before planning. |
-
-Use the runtime table above for the exact command prefix for Claude Code, Codex, Gemini CLI, or OpenCode.
+| Continue in an existing GPD project | `resume-work` | Continue in-runtime from the selected project state. |
+| Existing research folder or codebase | `map-research` | Map existing work before planning. |
 
 If you are new to terminals or not sure which runtime to choose, use [Start Here](#start-here) above.
+
+Typical next move after install:
+
+- Brand-new project: run your runtime's `new-project --minimal` command.
+- Existing folder with papers, notes, or code: run your runtime's `map-research` command.
+- Returning to a paused GPD project: use `gpd resume` in your normal terminal or your runtime's `resume-work` command.
 
 <details>
 <summary><strong>Clean-machine readiness and first-run verification</strong></summary>

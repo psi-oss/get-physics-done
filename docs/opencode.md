@@ -4,6 +4,11 @@ OpenCode is the runtime where GPD adds its commands. In OpenCode, the GPD comman
 
 If you are on Windows, OpenCode's official docs recommend using WSL for the best experience.
 
+## Before you start
+
+Open your normal terminal in the folder where you want this research project to live.
+This guide uses `--local`, so GPD is installed only for the current folder.
+
 ## 1) Confirm OpenCode works
 
 Run this in your normal terminal:
@@ -13,6 +18,11 @@ opencode --help
 ```
 
 If you see OpenCode help instead of `command not found`, the CLI is available.
+If `opencode` is missing, install the runtime first with:
+
+```bash
+npm install -g opencode-ai
+```
 
 ## 2) Install GPD for OpenCode
 
@@ -24,7 +34,7 @@ npx -y get-physics-done --opencode --local
 
 ## 3) Start OpenCode
 
-From your normal terminal:
+From the same project folder:
 
 ```bash
 opencode
@@ -34,7 +44,7 @@ If you are not signed in yet, run `opencode auth login` from your normal termina
 
 ## 4) First commands inside OpenCode
 
-Open OpenCode, then type these inside OpenCode, not in your normal terminal:
+Type these inside OpenCode, not in your normal terminal:
 
 ```text
 /gpd-help

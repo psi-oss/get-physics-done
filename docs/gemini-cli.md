@@ -2,6 +2,11 @@
 
 Gemini CLI is the terminal app where GPD runs for Gemini users. In this setup, you open `gemini`, then use GPD commands inside that session.
 
+## Before you start
+
+Open your normal terminal in the folder where you want this research project to live.
+This guide uses `--local`, so GPD is installed only for the current folder.
+
 ## 1) Check that `gemini` works
 
 Run this in your normal terminal:
@@ -11,6 +16,11 @@ gemini --help
 ```
 
 If that prints help text, Gemini CLI is installed and launchable.
+If `gemini` is missing, install the runtime first with:
+
+```bash
+npm install -g @google/gemini-cli
+```
 
 ## 2) Install GPD for Gemini CLI
 
@@ -20,7 +30,7 @@ npx -y get-physics-done --gemini --local
 
 ## 3) Start Gemini CLI
 
-From your normal terminal:
+From the same project folder:
 
 ```bash
 gemini
@@ -30,7 +40,7 @@ If you are not signed in yet, choose **Sign in with Google** and finish the brow
 
 ## 4) First commands inside Gemini CLI
 
-Open Gemini CLI, then type these inside Gemini CLI, not in your normal terminal:
+Type these inside Gemini CLI, not in your normal terminal:
 
 ```text
 /gpd:help

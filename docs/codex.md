@@ -8,6 +8,11 @@ In this project, “Codex” means the Codex CLI runtime that GPD installs into.
 
 If you are on Windows, the official Codex docs currently say Windows support is experimental and recommend using Codex in WSL for the best experience.
 
+## Before you start
+
+Open your normal terminal in the folder where you want this research project to live.
+This guide uses `--local`, so GPD is installed only for the current folder.
+
 ## 1) Confirm `codex` works
 
 From your normal terminal:
@@ -17,6 +22,11 @@ codex --help
 ```
 
 If that prints help text, Codex is installed and launchable.
+If `codex` is missing, install the runtime first with:
+
+```bash
+npm install -g @openai/codex
+```
 
 ## 2) Install GPD for Codex
 
@@ -28,7 +38,7 @@ npx -y get-physics-done --codex --local
 
 ## 3) Start Codex
 
-From your normal terminal:
+From the same project folder:
 
 ```bash
 codex
@@ -38,7 +48,7 @@ The first time you run Codex, it should prompt you to sign in with your ChatGPT 
 
 ## 4) First commands inside Codex
 
-Open Codex, then type these inside Codex, not in your normal terminal:
+Type these inside Codex, not in your normal terminal:
 
 ```text
 $gpd-help
@@ -74,4 +84,4 @@ You are in the right place when:
 ## Official docs
 
 - OpenAI: [Codex CLI docs](https://developers.openai.com/codex/cli)
-- OpenAI: [Codex CLI overview](https://developers.openai.com/codex/cli)
+- OpenAI: [Codex authentication](https://developers.openai.com/codex/auth)

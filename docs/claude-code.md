@@ -8,6 +8,11 @@ Claude Code is the terminal app you talk to. GPD adds physics-research commands 
 
 If you are on Windows, Claude Code's official docs say you need Git for Windows or WSL.
 
+## Before you start
+
+Open your normal terminal in the folder where you want this research project to live.
+This guide uses `--local`, so GPD is installed only for the current folder.
+
 ## 1) Check that `claude` works
 
 From your normal terminal, run:
