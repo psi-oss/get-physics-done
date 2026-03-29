@@ -272,6 +272,7 @@ def test_tour_prompt_delegates_routing_to_workflow_only() -> None:
     assert "It will not change your files." in tour_workflow
     assert "$ARGUMENTS" in tour_workflow
     assert "Do not narrow the command list, select a path, or route based on it." in tour_workflow
+    assert "the runtime, where you use the GPD command prefix provided for that runtime" in tour_workflow
     assert "Normal terminal vs runtime" in tour_workflow
     assert "Use \\`gpd resume\\` first if you need to reopen the project before using \\`/gpd:resume-work\\`." in tour_workflow
     assert "Use `settings` when you want to change autonomy, permissions, or runtime" in tour_workflow

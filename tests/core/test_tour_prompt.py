@@ -28,7 +28,7 @@ def test_tour_workflow_introduces_a_safe_beginner_walkthrough() -> None:
         "Provide a beginner-friendly, read-only tour of the core GPD command surface.",
         "This is a read-only tour of the main GPD commands. It will not change your files.",
         "the normal terminal, where you install GPD and run setup / status commands",
-        "the runtime, where you use `/gpd:...`, `$gpd-...`, or `/gpd-...` commands",
+        "the runtime, where you use the GPD command prefix provided for that runtime",
         "Use a compact table with four columns:",
         "Use this when",
         "Do not use this when",

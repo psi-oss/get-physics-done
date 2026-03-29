@@ -100,6 +100,87 @@ function runtimeSurfaceCommand(runtime, commandName) {
   return `${runtimeCommandPrefix(runtime)}${commandName}`;
 }
 
+const DEFAULT_PUBLIC_SURFACE_TEXT = Object.freeze({
+  settingsCommandSentence:
+    "After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture.",
+  settingsRecommendationSentence: "The safest starting point is `review` plus runtime defaults.",
+});
+
+function readOptionalUtf8(filePath) {
+  try {
+    return fs.readFileSync(filePath, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function extractConcatenatedDoubleQuotedString(source, marker) {
+  if (typeof source !== "string" || !source.includes(marker)) {
+    return null;
+  }
+
+  const groupedStrings = /((?:"(?:[^"\\]|\\.)*"\s*)+)/g;
+  for (const match of source.matchAll(groupedStrings)) {
+    const group = match[1];
+    if (!group.includes(marker)) {
+      continue;
+    }
+
+    const literals = group.match(/"(?:[^"\\]|\\.)*"/g);
+    if (!literals) {
+      continue;
+    }
+
+    return literals
+      .map((literal) => {
+        try {
+          return JSON.parse(literal);
+        } catch {
+          return literal.slice(1, -1);
+        }
+      })
+      .join("");
+  }
+
+  return null;
+}
+
+function loadSharedPublicSurfaceText() {
+  const cliSource = readOptionalUtf8(path.join(__dirname, "..", "src", "gpd", "cli.py"));
+  const settingsCombined = extractConcatenatedDoubleQuotedString(
+    cliSource,
+    DEFAULT_PUBLIC_SURFACE_TEXT.settingsCommandSentence,
+  );
+  if (!settingsCombined) {
+    return DEFAULT_PUBLIC_SURFACE_TEXT;
+  }
+
+  const recommendationMarker = ` ${DEFAULT_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence}`;
+  const splitIndex = settingsCombined.indexOf(recommendationMarker);
+  if (splitIndex < 0) {
+    return {
+      settingsCommandSentence: settingsCombined.trim(),
+      settingsRecommendationSentence: DEFAULT_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence,
+    };
+  }
+
+  return {
+    settingsCommandSentence: settingsCombined.slice(0, splitIndex).trim(),
+    settingsRecommendationSentence: settingsCombined.slice(splitIndex + 1).trim(),
+  };
+}
+
+const SHARED_PUBLIC_SURFACE_TEXT = loadSharedPublicSurfaceText();
+const SETTINGS_COMMAND_PREFIX = "After startup, use the runtime `settings` command ";
+
+function settingsCommandTail() {
+  const { settingsCommandSentence } = SHARED_PUBLIC_SURFACE_TEXT;
+  if (settingsCommandSentence.startsWith(SETTINGS_COMMAND_PREFIX)) {
+    return settingsCommandSentence.slice(SETTINGS_COMMAND_PREFIX.length);
+  }
+  return "to review autonomy, workflow defaults, and model-cost posture.";
+}
+
 function log(msg) {
   console.log(` ${cyan}i${reset} ${msg}`);
 }
@@ -1028,15 +1109,15 @@ function printUnattendedConfigurationReminder(runtimes, targetDir = null) {
     const runtime = runtimes[0];
     log(
       `Inside ${runtimeDisplayName(runtime)}, use \`${runtimeSurfaceCommand(runtime, "settings")}\` `
-      + "to review autonomy, workflow defaults, and model-cost posture."
+      + settingsCommandTail()
     );
-    log("The safest model starting point is `review` plus runtime defaults.");
+    log(SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence);
     log(`Check the unattended or overnight verdict with \`${runtimeUnattendedReadinessHint(runtime, "balanced", targetDir)}\`.`);
     log(`If it reports \`not-ready\`, run \`${runtimePermissionsHint("sync", runtime, "balanced", targetDir)}\`.`);
     warn("If it reports `relaunch-required`, the runtime is not ready for unattended use until you exit and relaunch it.");
   } else {
-    log("Inside each runtime, use `settings` to review autonomy, workflow defaults, and model-cost posture.");
-    log("The safest model starting point is `review` plus runtime defaults.");
+    log(`Inside each runtime, use \`settings\` ${settingsCommandTail()}`);
+    log(SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence);
     for (const runtime of runtimes) {
       log(
         `${runtimeDisplayName(runtime)}: \`${runtimeSurfaceCommand(runtime, "settings")}\`, then `
@@ -1149,7 +1230,8 @@ function printHelp() {
   console.log(" Bootstrap preflight checks runtime launcher/target blockers only; configure unattended behavior after startup.");
   console.log(` Beginner Onboarding Hub: ${beginnerOnboardingHubUrl}`);
   console.log(" Open your runtime, run its help command first, then use `start` if you are not sure what fits this folder. Use `tour` for a read-only walkthrough first. Then use your runtime's `new-project` command for new work or `map-research` for existing work.");
-  console.log(" Recommended unattended default: Balanced autonomy (`balanced`). The safest model starting point is `review` plus runtime defaults.");
+  console.log(` Recommended unattended default: Balanced autonomy (\`balanced\`). ${SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence}`);
+  console.log(` Use the runtime-specific \`settings\` command after startup ${settingsCommandTail()}`);
   console.log(
     " For returning work, use `gpd resume` for the current-workspace read-only recovery snapshot. "
     + "If that is the wrong workspace, use `gpd resume --recent` to find the workspace first, then continue inside that workspace with your runtime-specific `resume-work` command. "

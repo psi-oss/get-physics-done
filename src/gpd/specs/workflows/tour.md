@@ -24,7 +24,7 @@ Do not narrow the command list, select a path, or route based on it.
 Then explain the two places beginners will see GPD commands:
 
 - the normal terminal, where you install GPD and run setup / status commands
-- the runtime, where you use `/gpd:...`, `$gpd-...`, or `/gpd-...` commands
+- the runtime, where you use the GPD command prefix provided for that runtime
 
 When you first use an official GPD term such as `runtime`, `read-only`, or
 `resume-work`, explain it in one short plain-English phrase.

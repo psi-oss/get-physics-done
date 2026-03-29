@@ -141,9 +141,9 @@ Choose the path that matches your starting point:
 **New work**
 1. `/gpd:start` - Guided first-run router when you are not sure whether to create a new project, map existing work, resume, or ask a standalone explanation question
 2. `/gpd:tour` - Optional read-only guided tour of the main commands and when to use them
-3. `/gpd:new-project` - Full project setup (deep questioning, literature survey, requirements, roadmap)
-4. `/gpd:new-project --minimal` - Fast path from a single description to a working GPD project
-5. `/gpd:settings` - Primary guided unattended/autonomy setup after project creation; choose posture, decide whether to keep runtime defaults or pin tiers, review advisory limits, and sync runtime permissions here
+3. `/gpd:settings` - Primary guided unattended/autonomy setup after project creation; choose posture, decide whether to keep runtime defaults or pin tiers, review advisory limits, and sync runtime permissions here
+4. `/gpd:new-project` - Full project setup (deep questioning, literature survey, requirements, roadmap)
+5. `/gpd:new-project --minimal` - Fast path from a single description to a working GPD project
 
 **Tangents**
 1. `/gpd:tangent` - Chooser for stay / quick / defer / branch when a side investigation appears

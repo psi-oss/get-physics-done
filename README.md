@@ -66,6 +66,13 @@ If you already know your runtime and are comfortable in a terminal:
 
 The intended first-pass order is `help`, then `start`, then `tour`, then `new-project` or `map-research`.
 
+**Next steps after install**
+
+The installer adds GPD to your runtime config; it does not launch the runtime for you.
+Open your chosen runtime from your normal system terminal.
+Run its help command first: Claude Code / Gemini CLI use `/gpd:help`. Codex uses `$gpd-help`, and OpenCode uses `/gpd-help`.
+For best performance, run both this install step and your chosen runtime from the same normal system terminal session: use `claude` for Claude Code, `codex` for Codex, `gemini` for Gemini CLI, and `opencode` for OpenCode.
+
 1. From inside the folder where your project should live, run the matching install command from [Start Here](#start-here).
 2. Launch your runtime with `claude`, `codex`, `gemini`, or `opencode`.
 3. Run the matching GPD help command shown below.
@@ -101,6 +108,14 @@ Use the runtime syntax above for the command names below.
 | Continue in an existing GPD project | `resume-work` | Continue in-runtime from the selected project state. |
 | Existing research folder or codebase | `map-research` | Map existing work before planning. |
 
+Common slash-command example for an existing GPD project:
+
+| Starting point | Example command |
+|----------------|-----------------|
+| Continue in an existing GPD project | `/gpd:resume-work` |
+
+After resuming, the runtime `suggest-next` command is the fastest post-resume next command when you only need the next action.
+
 If you are new to terminals or not sure which runtime to choose, use [Start Here](#start-here) above.
 
 Typical next move after install:
@@ -124,13 +139,18 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 
 - Choose `--local` or `--global` explicitly if you do not want the installer's default path selection
 - Runtime permissions are runtime-owned permission alignment only; use the guided checks after startup to decide whether the runtime is ready.
+- For unattended execution, the recommended default is Balanced (`balanced`).
+- Use your runtime-specific `settings` command to confirm or change autonomy after the first successful launch.
 - Use your runtime-specific `settings` command after the first successful launch as the guided path for unattended configuration. Balanced (`balanced`) is the recommended unattended default.
+- Local CLI bridge: Use `gpd --help`, `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced`, `gpd permissions status --runtime <runtime> --autonomy balanced`, `gpd permissions sync --runtime <runtime> --autonomy balanced`, `gpd resume`, `gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list`, and `gpd integrations status wolfram` from your normal terminal when you want the broader local diagnostics, readiness, recovery, visibility, cost, preset, and shared Wolfram integration surface.
 - Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict; if it returns `not-ready`, run `gpd permissions sync --runtime <runtime> --autonomy balanced`, and if it returns `relaunch-required`, the runtime is not ready yet.
+- If it returns `relaunch-required`, exit and relaunch the runtime before treating unattended use as ready.
 - If you want prompt-free runtime approvals rather than ordinary unattended execution, switch to YOLO (`yolo`) in your runtime-specific `settings` command, run `gpd permissions sync --runtime <runtime> --autonomy yolo`, and relaunch when required.
 - Workflow presets are bundles over the existing config keys only; they do not add a separate persisted preset block. Use `gpd presets list`, `gpd presets show <preset>`, and `gpd presets apply <preset> --dry-run` for the shared preview/apply flow, or choose the same preset in your runtime-specific `settings` command. The first supported preset is paper/manuscript workflows; run `gpd doctor --runtime <runtime> --local|--global` first if you plan to use that preset.
 - Local Mathematica installs are separate from the shared Wolfram integration config.
 - The shared Wolfram integration does not replace `gpd validate plan-preflight <PLAN.md>`.
-- Missing workflow preset tooling degrades that preset instead of blocking the base install; treat failed preset rows as a signal to avoid that workflow until the tooling is fixed
+- Missing preset tooling degrades that preset; it does not block the base GPD install.
+- Failed preset rows still mean degraded readiness for `write-paper` and related local smoke checks until the tooling is fixed.
 - Provider authentication is checked manually in the runtime itself; GPD will point this out, but it does not hard-block installation readiness on it
 - Use `--upgrade` only when you intentionally want the latest unreleased GitHub `main` snapshot
 
@@ -193,12 +213,12 @@ npx -y github:psi-oss/get-physics-done --upgrade
 
 GPD currently installs into four AI runtimes. To preselect one during install, use the matching `npx` flag, or use `--all` to install everything in one pass:
 
-| Runtime | `npx` flag | Help command | Guided first-run command | Guided walkthrough command |
-|---------|------------|--------------|--------------------------|-----------------------------|
-| Claude Code | `--claude` | `/gpd:help` | `/gpd:start` | `/gpd:tour` |
-| Codex | `--codex` | `$gpd-help` | `$gpd-start` | `$gpd-tour` |
-| Gemini CLI | `--gemini` | `/gpd:help` | `/gpd:start` | `/gpd:tour` |
-| OpenCode | `--opencode` | `/gpd-help` | `/gpd-start` | `/gpd-tour` |
+| Runtime | `npx` flag | Help command | New project command | Guided first-run command | Guided walkthrough command |
+|---------|------------|--------------|---------------------|--------------------------|-----------------------------|
+| Claude Code | `--claude` | `/gpd:help` | `/gpd:new-project` | `/gpd:start` | `/gpd:tour` |
+| Codex | `--codex` | `$gpd-help` | `$gpd-new-project` | `$gpd-start` | `$gpd-tour` |
+| Gemini CLI | `--gemini` | `/gpd:help` | `/gpd:new-project` | `/gpd:start` | `/gpd:tour` |
+| OpenCode | `--opencode` | `/gpd-help` | `/gpd-new-project` | `/gpd-start` | `/gpd-tour` |
 
 Each runtime uses its own command prefix, but the workflow is the same across all four. After installing GPD, open your chosen runtime normally from your system terminal and use the commands shown above.
 
@@ -502,6 +522,9 @@ The full command reference below uses Claude Code / Gemini CLI syntax. Codex use
 | `/gpd:branch-hypothesis <description>` | Create a hypothesis branch for parallel investigation of an alternative approach |
 | `/gpd:compare-branches` | Compare results across hypothesis branches side-by-side |
 
+Use the matching `branch-hypothesis` command only when you want the explicit git-backed alternative path.
+If `gpd observe execution` surfaces an alternative-path follow-up or `branch later` recommendation, route it through the runtime `tangent` command first.
+
 #### Decision Tracking
 
 | Command | What it does |
@@ -663,6 +686,11 @@ GPD stores project-local observability under `GPD/observability/` and detailed p
 | `gpd trace log <event> [--data <json>]` | Append an event to the active trace |
 | `gpd trace stop` | Stop the active trace session |
 | `gpd trace show [--phase ...] [--plan ...] [--type ...] [--last N]` | Inspect plan-local trace events |
+
+For read-only long-run visibility from your normal system terminal, use `gpd observe execution`.
+When the status is uncertain, conservatively say `possibly stalled` instead of relying on runtime hotkeys.
+Start with `gpd observe show --last 20` when you need the recent event trail.
+If `gpd observe execution` surfaces an alternative-path follow-up or `branch later` recommendation, route it through the runtime `tangent` command first; use the matching `branch-hypothesis` command only when you want the explicit git-backed alternative path.
 
 | Path | What it stores |
 |------|----------------|
