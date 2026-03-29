@@ -13,7 +13,11 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters import get_adapter, iter_runtime_descriptors
-from gpd.core.surface_phrases import recovery_ladder_note
+from gpd.core.surface_phrases import (
+    post_start_settings_note,
+    post_start_settings_recommendation,
+    recovery_ladder_note,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_JSON = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
@@ -61,6 +65,8 @@ _GENERIC_RECOVERY_LADDER_NOTE = recovery_ladder_note(
     suggest_next_phrase="your runtime-specific `suggest-next` command",
     pause_work_phrase="your runtime-specific `pause-work` command",
 )
+_POST_START_SETTINGS_NOTE = post_start_settings_note()
+_POST_START_SETTINGS_RECOMMENDATION = post_start_settings_recommendation()
 _RUNTIME_RECOVERY_LADDER_TEMPLATE = (
     "Recovery ladder: use `gpd resume` for the current-workspace read-only recovery snapshot. "
     "If that is the wrong workspace, use `gpd resume --recent` to find the workspace first, then continue inside "
@@ -88,8 +94,8 @@ def _assert_single_runtime_next_steps(output: str, runtime: str) -> None:
         rf"Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics\..*?"
         rf"Use {re.escape(_RUNTIME_HELP_COMMANDS[runtime])} inside {re.escape(_RUNTIME_DISPLAY_NAMES[runtime])} for workflow help\..*?"
         rf"Verify or troubleshoot this machine with gpd doctor --runtime {re.escape(runtime)} --(?:local|global)\..*?"
-        rf"After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture\. "
-        rf"The safest starting point is `review` plus runtime defaults\..*?"
+        rf"{re.escape(_POST_START_SETTINGS_NOTE)} "
+        rf"{re.escape(_POST_START_SETTINGS_RECOMMENDATION)}.*?"
         rf"If you plan to use paper/manuscript workflows, rerun gpd doctor --runtime {re.escape(runtime)} --(?:local|global) "
         rf"and check the `Workflow Presets` and `LaTeX Toolchain` rows before publication work\..*?"
         rf"Use `gpd presets list` to inspect the workflow preset surface:",
@@ -482,8 +488,7 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
         )
         print(f"6. Verify or troubleshoot this machine with gpd doctor --runtime {{runtime}} --{{scope}}.")
         print(
-            "7. After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture. "
-            "The safest starting point is `review` plus runtime defaults."
+            f"7. {_POST_START_SETTINGS_NOTE} {_POST_START_SETTINGS_RECOMMENDATION}"
         )
         print(
             "8. If you plan to use paper/manuscript workflows, rerun "
@@ -508,8 +513,7 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
         print("Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics.")
         print("Run gpd doctor --runtime <runtime> --local|--global for a focused readiness check.")
         print(
-            "After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture. "
-            "The safest starting point is `review` plus runtime defaults."
+            f"{_POST_START_SETTINGS_NOTE} {_POST_START_SETTINGS_RECOMMENDATION}"
         )
         print(
             "For paper/manuscript workflows, rerun gpd doctor --runtime <runtime> --local|--global "
@@ -668,7 +672,7 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
     assert _BEGINNER_ONBOARDING_HUB_URL in result.stdout
     _assert_single_runtime_next_steps(result.stdout, _CODEX_RUNTIME_NAME)
     assert "Recommended unattended default: Balanced autonomy (`balanced`)." in result.stdout
-    assert "The safest model starting point is `review` plus runtime defaults." in result.stdout
+    assert _POST_START_SETTINGS_RECOMMENDATION in result.stdout
     assert f"Installing GPD for {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)..." not in result.stdout
     assert f"Installed GPD for {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)." not in result.stdout
 

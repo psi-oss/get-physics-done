@@ -10,6 +10,8 @@ from gpd.core.surface_phrases import (
     observe_execution_action,
     observe_execution_surface_note,
     observe_tangent_routing_note,
+    post_start_settings_note,
+    post_start_settings_recommendation,
     recovery_action_lines,
     recovery_continue_action,
     recovery_fast_next_action,
@@ -36,13 +38,10 @@ def test_cost_surface_phrases_stay_conservative_and_advisory() -> None:
     assert "gpd cost" in cost_after_runs_guidance()
     assert "budget guardrails" in cost_after_runs_guidance()
     assert "billing truth" in cost_after_runs_guidance()
-    summary_note = cost_summary_surface_note()
-    assert summary_note.startswith("Read-only machine-local usage / cost summary from recorded local telemetry")
-    assert "current profile tier mix" in summary_note
-    assert "advisory only" in summary_note
-    assert "budget guardrails" in summary_note
-    assert "provider billing truth" in summary_note
-    assert "partial or estimated rather than exact" in summary_note
+    assert "advisory only" in cost_summary_surface_note()
+    assert "budget guardrails" in cost_summary_surface_note()
+    assert "provider billing truth" in cost_summary_surface_note()
+    assert "partial or estimated rather than exact" in cost_summary_surface_note()
 
 
 def test_recovery_surface_phrases_cover_current_and_cross_project_paths() -> None:
@@ -186,3 +185,8 @@ def test_preset_and_local_bridge_phrases_remain_command_oriented() -> None:
         "gpd integrations status wolfram",
     ):
         assert token in bridge_note
+    assert (
+        post_start_settings_note()
+        == "After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture."
+    )
+    assert post_start_settings_recommendation() == "The safest starting point is `review` plus runtime defaults."

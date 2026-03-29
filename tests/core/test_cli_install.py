@@ -24,7 +24,7 @@ from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.cli import _format_install_header_lines, _render_install_option_line, app
 from gpd.core.health import CheckStatus, DoctorReport, HealthCheck, HealthSummary
-from gpd.core.surface_phrases import recovery_ladder_note
+from gpd.core.surface_phrases import post_start_settings_note, post_start_settings_recommendation, recovery_ladder_note
 
 runner = CliRunner()
 _INSTALL_TEST_DESCRIPTORS = iter_runtime_descriptors()
@@ -40,6 +40,8 @@ _ENV_OVERRIDE_INSTALL_DESCRIPTOR = next(
         or descriptor.global_config.env_file_var
     )
 )
+_POST_START_SETTINGS_NOTE = post_start_settings_note()
+_POST_START_SETTINGS_RECOMMENDATION = post_start_settings_recommendation()
 
 
 def _descriptor_with_selection_alias_fragment(fragment: str):
@@ -160,8 +162,8 @@ def _assert_single_runtime_next_steps(
         rf"Use {re.escape(adapter.help_command)} inside {re.escape(descriptor.display_name)} for workflow help\..*?"
         rf"Verify or troubleshoot this machine with gpd doctor --runtime "
         rf"{re.escape(descriptor.runtime_name)} --{re.escape(doctor_scope)}\..*?"
-        rf"After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture\. "
-        rf"The safest starting point is `review` plus runtime defaults\..*?"
+        rf"{re.escape(_POST_START_SETTINGS_NOTE)} "
+        rf"{re.escape(_POST_START_SETTINGS_RECOMMENDATION)}.*?"
         rf"If you plan to use paper/manuscript workflows, rerun "
         rf"gpd doctor --runtime {re.escape(descriptor.runtime_name)} --{re.escape(doctor_scope)} "
         rf"and check the `Workflow Presets` and `LaTeX Toolchain` rows before publication work\..*?"
@@ -406,8 +408,7 @@ def test_install_summary_surfaces_help_then_new_or_existing_entry_points(tmp_pat
         )
     ) in result.output
     assert (
-        "After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture. "
-        "The safest starting point is `review` plus runtime defaults."
+        f"{_POST_START_SETTINGS_NOTE} {_POST_START_SETTINGS_RECOMMENDATION}"
     ) in result.output
     assert (
         f"If you plan to use paper/manuscript workflows, rerun "
@@ -459,8 +460,7 @@ def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(t
         )
     ) in result.output
     assert (
-        "After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture. "
-        "The safest starting point is `review` plus runtime defaults."
+        f"{_POST_START_SETTINGS_NOTE} {_POST_START_SETTINGS_RECOMMENDATION}"
     ) in result.output
     assert (
         "For paper/manuscript workflows, rerun gpd doctor --runtime <runtime> --local|--global "

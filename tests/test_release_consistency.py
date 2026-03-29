@@ -319,6 +319,7 @@ def test_public_bootstrap_package_exposes_npx_installer() -> None:
     assert package_json["name"] == "get-physics-done"
     assert package_json.get("bin", {}).get("get-physics-done") == "bin/install.js"
     assert "bin/" in package_json.get("files", [])
+    assert "src/gpd/core/public_surface_contract.json" in package_json.get("files", [])
     assert (repo_root / "bin" / "install.js").is_file()
 
 
@@ -335,6 +336,7 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
 
     assert 'require("../package.json")' in content
+    assert 'require("../src/gpd/core/public_surface_contract.json")' in content
     assert "gpdPythonVersion" in content
     assert '["-m", "venv", "--help"]' in content
     assert "managed environment" in content
@@ -956,10 +958,9 @@ def test_public_bootstrap_help_examples_cover_install_and_readiness_handoff() ->
     assert "# Interactive uninstall" in content
     assert "# Uninstall from all runtimes globally" in content
     assert "# Equivalent uninstall subcommand form" in content
-    assert "settings" in content
-    assert "review autonomy, workflow defaults, and model-cost posture" in content
+    assert "settingsCommandTail()" in content
+    assert "SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence" in content
     assert "Recommended unattended default: Balanced autonomy (`balanced`)." in content
-    assert "The safest starting point is `review` plus runtime defaults." in content
 
 
 def test_public_readme_observability_surface_keeps_execution_guidance_in_command_space() -> None:
@@ -989,7 +990,8 @@ def test_public_local_cli_help_and_install_summary_keep_readiness_diagnostics_em
     assert "gpd observe execution" in cli
     assert "gpd cost" in cli
     assert "gpd resume --recent" in cli
-    assert "review autonomy, workflow defaults, and model-cost posture" in cli
+    assert "post_start_settings_note()" in cli
+    assert "post_start_settings_recommendation()" in cli
 
 
 def test_public_runtime_docs_explain_runtime_specific_command_syntax() -> None:
@@ -1266,6 +1268,7 @@ def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
     assert pack["version"] == _python_release_version(repo_root)
     assert "bin/install.js" in packed_paths
     assert "src/gpd/adapters/runtime_catalog.json" in packed_paths
+    assert "src/gpd/core/public_surface_contract.json" in packed_paths
     assert (tmp_path / "npm-cache").is_dir()
 
     if existed_before:
@@ -1288,6 +1291,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
     with zipfile.ZipFile(wheel) as wheel_zip:
         wheel_names = set(wheel_zip.namelist())
         assert "gpd/cli.py" in wheel_names
+        assert "gpd/core/public_surface_contract.json" in wheel_names
         assert "gpd/mcp/viewer/cli.py" not in wheel_names
         for template_path in wheel_template_paths:
             assert template_path in wheel_names
@@ -1303,6 +1307,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         assert f"{sdist_prefix}docs/USER-GUIDE.md" not in sdist_names
         assert f"{sdist_prefix}bin/install.js" in sdist_names
         assert f"{sdist_prefix}package.json" in sdist_names
+        assert f"{sdist_prefix}src/gpd/core/public_surface_contract.json" in sdist_names
         assert f"{sdist_prefix}MANUAL-TEST-PLAN.md" not in sdist_names
         for template_path in sdist_template_paths:
             assert f"{sdist_prefix}{template_path}" in sdist_names
@@ -1311,6 +1316,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         assert install_js is not None
         install_content = install_js.read().decode("utf-8")
         assert 'require("../package.json")' in install_content
+        assert 'require("../src/gpd/core/public_surface_contract.json")' in install_content
         assert "gpdPythonVersion" in install_content
         assert 'const GITHUB_MAIN_BRANCH = "main"' in install_content
         assert '"-m", "venv"' in install_content

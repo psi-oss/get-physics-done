@@ -25,6 +25,7 @@ const {
   gpdPythonVersion: rawPythonPackageVersion,
 } = require("../package.json");
 const RUNTIME_CATALOG = require("../src/gpd/adapters/runtime_catalog.json");
+const PUBLIC_SURFACE_CONTRACT = require("../src/gpd/core/public_surface_contract.json");
 
 const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPythonPackageVersion.trim() : "";
 const GPD_HOME_ENV = "GPD_HOME";
@@ -100,73 +101,21 @@ function runtimeSurfaceCommand(runtime, commandName) {
   return `${runtimeCommandPrefix(runtime)}${commandName}`;
 }
 
-const DEFAULT_PUBLIC_SURFACE_TEXT = Object.freeze({
-  settingsCommandSentence:
-    "After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture.",
-  settingsRecommendationSentence: "The safest starting point is `review` plus runtime defaults.",
-});
-
-function readOptionalUtf8(filePath) {
-  try {
-    return fs.readFileSync(filePath, "utf8");
-  } catch {
-    return null;
-  }
-}
-
-function extractConcatenatedDoubleQuotedString(source, marker) {
-  if (typeof source !== "string" || !source.includes(marker)) {
-    return null;
-  }
-
-  const groupedStrings = /((?:"(?:[^"\\]|\\.)*"\s*)+)/g;
-  for (const match of source.matchAll(groupedStrings)) {
-    const group = match[1];
-    if (!group.includes(marker)) {
-      continue;
-    }
-
-    const literals = group.match(/"(?:[^"\\]|\\.)*"/g);
-    if (!literals) {
-      continue;
-    }
-
-    return literals
-      .map((literal) => {
-        try {
-          return JSON.parse(literal);
-        } catch {
-          return literal.slice(1, -1);
-        }
-      })
-      .join("");
-  }
-
-  return null;
-}
-
 function loadSharedPublicSurfaceText() {
-  const cliSource = readOptionalUtf8(path.join(__dirname, "..", "src", "gpd", "cli.py"));
-  const settingsCombined = extractConcatenatedDoubleQuotedString(
-    cliSource,
-    DEFAULT_PUBLIC_SURFACE_TEXT.settingsCommandSentence,
-  );
-  if (!settingsCombined) {
-    return DEFAULT_PUBLIC_SURFACE_TEXT;
+  const payload = PUBLIC_SURFACE_CONTRACT && typeof PUBLIC_SURFACE_CONTRACT === "object"
+    ? PUBLIC_SURFACE_CONTRACT.post_start_settings
+    : null;
+  if (!payload || typeof payload !== "object") {
+    throw new Error("public surface contract is missing post_start_settings");
   }
-
-  const recommendationMarker = ` ${DEFAULT_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence}`;
-  const splitIndex = settingsCombined.indexOf(recommendationMarker);
-  if (splitIndex < 0) {
-    return {
-      settingsCommandSentence: settingsCombined.trim(),
-      settingsRecommendationSentence: DEFAULT_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence,
-    };
+  const settingsCommandSentence = typeof payload.primary_sentence === "string" ? payload.primary_sentence.trim() : "";
+  const settingsRecommendationSentence = typeof payload.default_sentence === "string" ? payload.default_sentence.trim() : "";
+  if (!settingsCommandSentence || !settingsRecommendationSentence) {
+    throw new Error("public surface contract post_start_settings is incomplete");
   }
-
   return {
-    settingsCommandSentence: settingsCombined.slice(0, splitIndex).trim(),
-    settingsRecommendationSentence: settingsCombined.slice(splitIndex + 1).trim(),
+    settingsCommandSentence,
+    settingsRecommendationSentence,
   };
 }
 
