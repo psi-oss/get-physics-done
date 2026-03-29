@@ -45,6 +45,7 @@ If you are new to terminals, start with one OS guide and one runtime guide:
 <summary><strong>Choose Your Operating System</strong></summary>
 
 - [macOS guide](./docs/macos.md)
+- [Linux guide](./docs/linux.md)
 - [Windows guide](./docs/windows.md)
 
 </details>
@@ -695,7 +696,7 @@ Low-level function and span calls are not recorded automatically. Observability 
 ## System Requirements
 
 - Node.js with `npm`/`npx`
-- Python 3.11+ with the standard `venv` module (install a newer version with `brew install python@3.13` on macOS, `pyenv install 3.13` on Linux, or from [python.org](https://www.python.org/downloads/) on Windows)
+- Python 3.11+ with the standard `venv` module (install a newer version with Homebrew on macOS, your distro package manager or `pyenv` on Linux, or from [python.org](https://www.python.org/downloads/) on Windows)
 - Network access to npm and GitHub for the bootstrap installer
 - One of: Claude Code, Gemini CLI, Codex, or OpenCode
 - API access for the model provider used by your selected runtime
