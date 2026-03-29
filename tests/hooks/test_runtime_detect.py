@@ -45,6 +45,8 @@ from gpd.hooks.runtime_detect import (
     should_consider_update_cache_candidate,
     update_command_for_runtime,
 )
+from tests.hooks.helpers import clean_runtime_env as _clean_runtime_env
+from tests.hooks.helpers import mark_complete_install as _mark_complete_install
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 _RUNTIME_BY_NAME = {descriptor.runtime_name: descriptor for descriptor in _RUNTIME_DESCRIPTORS}
@@ -52,76 +54,9 @@ RUNTIME_CLAUDE = _RUNTIME_BY_NAME["claude-code"].runtime_name
 RUNTIME_CODEX = _RUNTIME_BY_NAME["codex"].runtime_name
 RUNTIME_GEMINI = _RUNTIME_BY_NAME["gemini"].runtime_name
 RUNTIME_OPENCODE = _RUNTIME_BY_NAME["opencode"].runtime_name
-_RUNTIME_ENV_VARS_TO_CLEAR = {
-    env_var
-    for descriptor in _RUNTIME_DESCRIPTORS
-    for env_var in descriptor.activation_env_vars
-} | {
-    env_var
-    for descriptor in _RUNTIME_DESCRIPTORS
-    for env_var in (
-        descriptor.global_config.env_var,
-        descriptor.global_config.env_dir_var,
-        descriptor.global_config.env_file_var,
-    )
-    if env_var
-} | {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"}
-
-
-def _clean_runtime_env() -> dict[str, str]:
-    """Return a deterministic env baseline for runtime-detection tests."""
-    return {
-        key: value
-        for key, value in os.environ.items()
-        if key not in _RUNTIME_ENV_VARS_TO_CLEAR
-    }
-
-
-@pytest.fixture(autouse=True)
-def _reset_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep runtime-detection tests isolated from ambient runtime env drift."""
-    for key in list(os.environ):
-        if key in _RUNTIME_ENV_VARS_TO_CLEAR:
-            monkeypatch.delenv(key, raising=False)
-
-
 def _mark_gpd_install(config_dir: Path, *, runtime: str | None = None, install_scope: str = SCOPE_LOCAL) -> None:
     """Mark a runtime directory as containing a GPD install."""
-    if runtime is None:
-        for descriptor in _RUNTIME_DESCRIPTORS:
-            candidate = descriptor.runtime_name
-            if config_dir.name == get_adapter(candidate).local_config_dir_name:
-                runtime = candidate
-                break
-    if runtime is None:
-        raise AssertionError(f"Cannot infer runtime for install marker at {config_dir}")
-
-    config_dir.mkdir(parents=True, exist_ok=True)
-    adapter = get_adapter(runtime)
-    for relpath in adapter.install_completeness_relpaths():
-        if relpath == "gpd-file-manifest.json":
-            continue
-        artifact = config_dir / relpath
-        artifact.parent.mkdir(parents=True, exist_ok=True)
-        if artifact.suffix:
-            artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
-        else:
-            artifact.mkdir(parents=True, exist_ok=True)
-    explicit_target = config_dir.name != adapter.config_dir_name
-    manifest: dict[str, object] = {
-        "install_scope": install_scope,
-        "runtime": runtime,
-        "explicit_target": explicit_target,
-        "install_target_dir": str(config_dir),
-    }
-    if runtime == RUNTIME_CODEX:
-        skills_dir = config_dir.parent / ".agents" / "skills"
-        help_skill_dir = skills_dir / "gpd-help"
-        help_skill_dir.mkdir(parents=True, exist_ok=True)
-        (help_skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
-        manifest["codex_skills_dir"] = str(skills_dir)
-        manifest["codex_generated_skill_dirs"] = ["gpd-help"]
-    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    _mark_complete_install(config_dir, runtime=runtime, install_scope=install_scope)
 
 
 def _write_install_manifest(config_dir: Path, *, install_scope: str) -> None:

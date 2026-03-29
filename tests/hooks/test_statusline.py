@@ -15,9 +15,7 @@ from unittest.mock import patch
 
 import pytest
 
-from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import build_runtime_install_repair_command
-from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.hooks.runtime_detect import TodoCandidate, update_command_for_runtime
 from gpd.hooks.statusline import (
     _check_update,
@@ -33,17 +31,7 @@ from gpd.hooks.statusline import (
     _workspace_dir_from_payload,
     main,
 )
-
-_RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
-
-
-def _runtime_env_prefixes() -> tuple[str, ...]:
-    prefixes: set[str] = set()
-    for descriptor in _RUNTIME_DESCRIPTORS:
-        for env_var in descriptor.activation_env_vars:
-            prefixes.add(env_var)
-            prefixes.add(env_var.rsplit("_", 1)[0] if "_" in env_var else env_var)
-    return tuple(sorted(prefixes, key=len, reverse=True))
+from tests.hooks.helpers import mark_complete_install as _mark_complete_install
 
 
 def _repair_command(runtime: str, *, install_scope: str, target_dir: Path, explicit_target: bool) -> str:
@@ -53,30 +41,6 @@ def _repair_command(runtime: str, *, install_scope: str, target_dir: Path, expli
         target_dir=target_dir,
         explicit_target=explicit_target,
     )
-
-
-_RUNTIME_ENV_PREFIXES = _runtime_env_prefixes()
-
-
-def _runtime_env_vars_to_clear() -> set[str]:
-    env_vars = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"}
-    for descriptor in _RUNTIME_DESCRIPTORS:
-        global_config = descriptor.global_config
-        for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var):
-            if env_var:
-                env_vars.add(env_var)
-    return env_vars
-
-
-_RUNTIME_ENV_VARS_TO_CLEAR = _runtime_env_vars_to_clear()
-
-
-@pytest.fixture(autouse=True)
-def _reset_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep statusline-hook tests isolated from prior runtime env overrides."""
-    for key in list(os.environ):
-        if key.startswith(_RUNTIME_ENV_PREFIXES) or key in _RUNTIME_ENV_VARS_TO_CLEAR:
-            monkeypatch.delenv(key, raising=False)
 
 
 def _todo_candidates(*paths: Path) -> list[TodoCandidate]:
@@ -128,37 +92,6 @@ def _runtime_hints_payload(
         "execution": vars(visibility) if visibility is not None else None,
         "cost": cost or {},
     }
-
-
-def _mark_complete_install(config_dir: Path, *, runtime: str | None = None, install_scope: str = "local") -> None:
-    config_dir.mkdir(parents=True, exist_ok=True)
-    if runtime is not None:
-        adapter = get_adapter(runtime)
-        for relpath in adapter.install_completeness_relpaths():
-            if relpath == "gpd-file-manifest.json":
-                continue
-            artifact = config_dir / relpath
-            artifact.parent.mkdir(parents=True, exist_ok=True)
-            if artifact.suffix:
-                artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
-            else:
-                artifact.mkdir(parents=True, exist_ok=True)
-        if runtime == "codex":
-            help_skill_dir = config_dir.parent / ".agents" / "skills" / "gpd-help"
-            help_skill_dir.mkdir(parents=True, exist_ok=True)
-            (help_skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
-    else:
-        (config_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
-    manifest: dict[str, object] = {"install_scope": install_scope}
-    if runtime is not None:
-        explicit_target = config_dir.name != adapter.config_dir_name
-        manifest["runtime"] = runtime
-        manifest["explicit_target"] = explicit_target
-        manifest["install_target_dir"] = str(config_dir)
-        if runtime == "codex":
-            manifest["codex_skills_dir"] = str(config_dir.parent / ".agents" / "skills")
-            manifest["codex_generated_skill_dirs"] = ["gpd-help"]
-    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 # ─── _context_bar edge cases ───────────────────────────────────────────────
 

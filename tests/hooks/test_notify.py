@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import threading
 import time
 from pathlib import Path
@@ -13,24 +12,13 @@ from unittest.mock import patch
 import pytest
 
 import gpd.hooks.notify as notify_module
-from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import build_runtime_install_repair_command
-from gpd.adapters.runtime_catalog import get_hook_payload_policy, iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import get_hook_payload_policy
 from gpd.core.constants import ProjectLayout
 from gpd.core.costs import usage_ledger_path
 from gpd.hooks.notify import _check_and_notify_update, _emit_execution_notification, _hook_payload_policy, main
 from gpd.hooks.runtime_detect import update_command_for_runtime
-
-_RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
-
-
-def _runtime_env_prefixes() -> tuple[str, ...]:
-    prefixes: set[str] = set()
-    for descriptor in _RUNTIME_DESCRIPTORS:
-        for env_var in descriptor.activation_env_vars:
-            prefixes.add(env_var)
-            prefixes.add(env_var.rsplit("_", 1)[0] if "_" in env_var else env_var)
-    return tuple(sorted(prefixes, key=len, reverse=True))
+from tests.hooks.helpers import mark_complete_install as _mark_complete_install
 
 
 def _repair_command(runtime: str, *, install_scope: str, target_dir: Path, explicit_target: bool) -> str:
@@ -42,66 +30,10 @@ def _repair_command(runtime: str, *, install_scope: str, target_dir: Path, expli
     )
 
 
-_RUNTIME_ENV_PREFIXES = _runtime_env_prefixes()
-
-
-def _runtime_env_vars_to_clear() -> set[str]:
-    env_vars = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"}
-    for descriptor in _RUNTIME_DESCRIPTORS:
-        global_config = descriptor.global_config
-        for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var):
-            if env_var:
-                env_vars.add(env_var)
-    return env_vars
-
-
-_RUNTIME_ENV_VARS_TO_CLEAR = _runtime_env_vars_to_clear()
-
-
-@pytest.fixture(autouse=True)
-def _reset_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep notify-hook tests isolated from prior runtime env overrides."""
-    for key in list(os.environ):
-        if key.startswith(_RUNTIME_ENV_PREFIXES) or key in _RUNTIME_ENV_VARS_TO_CLEAR:
-            monkeypatch.delenv(key, raising=False)
-
-
 def _write_current_execution(workspace: Path, payload: dict[str, object]) -> None:
     observability = workspace / "GPD" / "observability"
     observability.mkdir(parents=True, exist_ok=True)
     (observability / "current-execution.json").write_text(json.dumps(payload), encoding="utf-8")
-
-
-def _mark_complete_install(config_dir: Path, *, runtime: str | None = None, install_scope: str = "local") -> None:
-    config_dir.mkdir(parents=True, exist_ok=True)
-    if runtime is not None:
-        adapter = get_adapter(runtime)
-        for relpath in adapter.install_completeness_relpaths():
-            if relpath == "gpd-file-manifest.json":
-                continue
-            artifact = config_dir / relpath
-            artifact.parent.mkdir(parents=True, exist_ok=True)
-            if artifact.suffix:
-                artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
-            else:
-                artifact.mkdir(parents=True, exist_ok=True)
-        if runtime == "codex":
-            help_skill_dir = config_dir.parent / ".agents" / "skills" / "gpd-help"
-            help_skill_dir.mkdir(parents=True, exist_ok=True)
-            (help_skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
-    else:
-        (config_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
-    manifest: dict[str, object] = {"install_scope": install_scope}
-    if runtime is not None:
-        explicit_target = config_dir.name != adapter.config_dir_name
-        manifest["runtime"] = runtime
-        manifest["explicit_target"] = explicit_target
-        manifest["install_target_dir"] = str(config_dir)
-        if runtime == "codex":
-            manifest["codex_skills_dir"] = str(config_dir.parent / ".agents" / "skills")
-            manifest["codex_generated_skill_dirs"] = ["gpd-help"]
-    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-
 
 def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_path: Path) -> None:
     home = tmp_path / "home"
