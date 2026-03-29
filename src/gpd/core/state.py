@@ -44,6 +44,7 @@ from gpd.core.constants import (
     STATE_LINES_TARGET,
     ProjectLayout,
 )
+from gpd.core.continuation import ContinuationState
 from gpd.core.contract_validation import (
     _collect_list_shape_drift_errors,
     _has_authoritative_scalar_schema_findings,
@@ -265,6 +266,7 @@ class ResearchState(BaseModel):
     pending_todos: list[str | dict] = Field(default_factory=list)
     blockers: list[str | dict] = Field(default_factory=list)
     session: SessionInfo = Field(default_factory=SessionInfo)
+    continuation: ContinuationState = Field(default_factory=ContinuationState)
 
     model_config = {"extra": "allow"}
 
@@ -475,6 +477,110 @@ def _current_machine_identity() -> dict[str, str | None]:
     ]
     platform_value = " ".join(part for part in platform_parts if part) or None
     return {"hostname": hostname, "platform": platform_value}
+
+
+def _optional_state_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _blank_session_payload() -> dict[str, str | None]:
+    return SessionInfo().model_dump()
+
+
+def _blank_continuation_payload() -> dict[str, object]:
+    return ContinuationState().model_dump(mode="python")
+
+
+def _normalize_continuation_payload(continuation: object) -> dict[str, object]:
+    if isinstance(continuation, ContinuationState):
+        return continuation.model_dump(mode="python")
+    if not isinstance(continuation, dict):
+        return _blank_continuation_payload()
+    try:
+        return ContinuationState.model_validate(continuation).model_dump(mode="python")
+    except PydanticValidationError:
+        return _blank_continuation_payload()
+
+
+def _session_payload_has_values(payload: object) -> bool:
+    return isinstance(payload, dict) and any(payload.get(field) is not None for field in _blank_session_payload())
+
+
+def _session_from_continuation_payload(continuation: object) -> dict[str, str | None]:
+    session = _blank_session_payload()
+    normalized = _normalize_continuation_payload(continuation)
+
+    handoff = normalized.get("handoff")
+    machine = normalized.get("machine")
+    handoff_recorded_at = _optional_state_text(handoff.get("recorded_at")) if isinstance(handoff, dict) else None
+    machine_recorded_at = None
+    if isinstance(machine, dict):
+        machine_recorded_at = _optional_state_text(machine.get("recorded_at"))
+        if machine_recorded_at is None:
+            machine_recorded_at = _optional_state_text(machine.get("last_seen_at"))
+
+    session["last_date"] = handoff_recorded_at or machine_recorded_at
+    if isinstance(handoff, dict):
+        session["stopped_at"] = _optional_state_text(handoff.get("stopped_at"))
+        session["resume_file"] = _optional_state_text(handoff.get("resume_file"))
+    if isinstance(machine, dict):
+        session["hostname"] = _optional_state_text(machine.get("hostname"))
+        session["platform"] = _optional_state_text(machine.get("platform"))
+    return session
+
+
+def _continuation_from_session_payload(
+    session: object,
+    *,
+    base_continuation: object = None,
+) -> dict[str, object]:
+    continuation = _normalize_continuation_payload(base_continuation)
+    if not isinstance(session, dict):
+        return continuation
+
+    recorded_at = _optional_state_text(session.get("last_date"))
+    handoff = continuation.get("handoff")
+    machine = continuation.get("machine")
+    if isinstance(handoff, dict):
+        handoff["recorded_at"] = recorded_at
+        handoff["stopped_at"] = _optional_state_text(session.get("stopped_at"))
+        handoff["resume_file"] = _optional_state_text(session.get("resume_file"))
+    if isinstance(machine, dict):
+        machine["recorded_at"] = recorded_at
+        machine["hostname"] = _optional_state_text(session.get("hostname"))
+        machine["platform"] = _optional_state_text(session.get("platform"))
+    return continuation
+
+
+def _mirror_continuation_state(raw: dict[str, object]) -> dict[str, object]:
+    """Keep legacy ``session`` and canonical ``continuation`` fields aligned."""
+
+    mirrored = copy.deepcopy(raw)
+    session_payload = mirrored.get("session")
+    if not isinstance(session_payload, dict):
+        session_payload = _blank_session_payload()
+    else:
+        session_payload = {**_blank_session_payload(), **session_payload}
+
+    continuation_payload = _normalize_continuation_payload(mirrored.get("continuation"))
+    derived_session = _session_from_continuation_payload(continuation_payload)
+    if _session_payload_has_values(session_payload):
+        continuation_payload = _continuation_from_session_payload(
+            session_payload,
+            base_continuation=continuation_payload,
+        )
+    elif _session_payload_has_values(derived_session):
+        session_payload = {
+            **session_payload,
+            **{key: value for key, value in derived_session.items() if value is not None},
+        }
+
+    mirrored["session"] = session_payload
+    mirrored["continuation"] = continuation_payload
+    return mirrored
 
 
 # ─── Status Constants ──────────────────────────────────────────────────────────
@@ -964,6 +1070,7 @@ def parse_state_to_json(content: str) -> dict:
         "stopped_at": stopped_at,
         "resume_file": resume_file,
     }
+    continuation = _continuation_from_session_payload(session)
 
     return {
         "_version": 1,
@@ -986,6 +1093,7 @@ def parse_state_to_json(content: str) -> dict:
             "paused_at": _strip_placeholder(parsed["position"]["paused_at"]),
         },
         "session": session,
+        "continuation": continuation,
         "decisions": parsed["decisions"],
         "blockers": parsed["blockers"],
         "performance_metrics": {"rows": parsed["metrics"]},
@@ -1037,7 +1145,8 @@ def _normalize_state_schema(
     )
 
     try:
-        return ResearchState.model_validate(normalized).model_dump(), integrity_issues
+        validated = ResearchState.model_validate(normalized).model_dump()
+        return _mirror_continuation_state(validated), integrity_issues
     except PydanticValidationError as exc:
         bad_keys: set[str] = set()
         for err in exc.errors():
@@ -1053,7 +1162,8 @@ def _normalize_state_schema(
             for bad_key in bad_keys:
                 normalized.pop(bad_key, None)
             try:
-                return ResearchState.model_validate(normalized).model_dump(), integrity_issues
+                validated = ResearchState.model_validate(normalized).model_dump()
+                return _mirror_continuation_state(validated), integrity_issues
             except PydanticValidationError:
                 pass
 
@@ -1063,7 +1173,7 @@ def _normalize_state_schema(
         for key, value in normalized.items():
             if key not in result:
                 result[key] = value
-        return result, integrity_issues
+        return _mirror_continuation_state(result), integrity_issues
 
 
 def _normalize_state_schema_with_backup_project_contract(
@@ -3132,6 +3242,7 @@ def state_validate(
             "decisions",
             "blockers",
             "session",
+            "continuation",
             "convention_lock",
             "approximations",
             "propagated_uncertainties",

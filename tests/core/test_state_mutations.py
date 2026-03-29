@@ -214,6 +214,12 @@ class TestStateRecordSession:
         assert stored["session"]["stopped_at"] == "Phase 03 Plan 2"
         assert stored["session"]["resume_file"] == "next-step.md"
         assert stored["session"]["last_date"] is not None
+        assert stored["continuation"]["handoff"]["recorded_at"] == stored["session"]["last_date"]
+        assert stored["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 2"
+        assert stored["continuation"]["handoff"]["resume_file"] == "next-step.md"
+        assert stored["continuation"]["machine"]["recorded_at"] == stored["session"]["last_date"]
+        assert stored["continuation"]["machine"]["hostname"] == stored["session"]["hostname"]
+        assert stored["continuation"]["machine"]["platform"] == stored["session"]["platform"]
 
     def test_record_session_preserves_resume_file_when_omitted(
         self, tmp_path: Path, session_state_project_factory
@@ -230,6 +236,7 @@ class TestStateRecordSession:
         assert "Done" in markdown
         assert "**Resume file:** resume.md" in markdown
         assert stored["session"]["resume_file"] == "resume.md"
+        assert stored["continuation"]["handoff"]["resume_file"] == "resume.md"
 
     @pytest.mark.parametrize("clear_value", ["", "  ", "—", "None", "null"])
     def test_record_session_clears_resume_file_when_placeholder_is_passed(
@@ -247,6 +254,7 @@ class TestStateRecordSession:
         markdown = (cwd / "GPD" / "STATE.md").read_text(encoding="utf-8")
 
         assert stored["session"]["resume_file"] is None
+        assert stored["continuation"]["handoff"]["resume_file"] is None
         assert "**Resume file:** —" in markdown
 
     def test_record_session_missing_state_file(self, tmp_path: Path) -> None:

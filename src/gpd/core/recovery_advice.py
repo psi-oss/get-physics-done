@@ -115,6 +115,23 @@ def _has_segment_candidate(
     return False
 
 
+def _has_usable_segment_candidate(
+    segment_candidates: Sequence[Mapping[str, object]],
+    *,
+    source: str,
+) -> bool:
+    for candidate in segment_candidates:
+        if _candidate_text(candidate, "source") != source:
+            continue
+        resume_file = _candidate_text(candidate, "resume_file")
+        if resume_file is None:
+            continue
+        if _candidate_text(candidate, "status") == "missing":
+            continue
+        return True
+    return False
+
+
 def _has_usable_candidate_resume_file(segment_candidates: Sequence[Mapping[str, object]]) -> bool:
     for candidate in segment_candidates:
         resume_file = _candidate_text(candidate, "resume_file")
@@ -251,32 +268,62 @@ def build_recovery_advice(
     segment_candidates_raw = payload.get("segment_candidates")
     segment_candidates = [item for item in segment_candidates_raw if isinstance(item, Mapping)] if isinstance(segment_candidates_raw, list) else []
 
-    execution_resumable = _bool_field(payload, "execution_resumable")
-    has_interrupted_agent = _bool_field(payload, "has_interrupted_agent") or _has_segment_candidate(
-        segment_candidates,
-        source="interrupted_agent",
-        status="interrupted",
-    )
-    has_live_execution = _bool_field(payload, "has_live_execution")
-    has_session_resume_file = _text_field(payload, "session_resume_file") is not None or _has_segment_candidate(
-        segment_candidates,
-        source="session_resume_file",
-        status="handoff",
-    )
-    missing_session_resume_file = _text_field(payload, "missing_session_resume_file") is not None or _has_segment_candidate(
-        segment_candidates,
-        source="session_resume_file",
-        status="missing",
-    )
-    current_workspace_has_resume_file = (
-        _text_field(payload, "execution_resume_file") is not None
-        or _text_field(payload, "session_resume_file") is not None
-        or _has_usable_candidate_resume_file(segment_candidates)
-    )
-    machine_change_notice = _text_field(payload, "machine_change_notice")
     resume_mode = _text_field(payload, "resume_mode")
     execution_resume_file = _text_field(payload, "execution_resume_file")
     execution_resume_file_source = _text_field(payload, "execution_resume_file_source")
+    session_resume_file = _text_field(payload, "session_resume_file")
+    recorded_session_resume_file = _text_field(payload, "recorded_session_resume_file")
+
+    has_bounded_segment_candidate = _has_usable_segment_candidate(
+        segment_candidates,
+        source="current_execution",
+    )
+    execution_resumable = (
+        _bool_field(payload, "execution_resumable")
+        or resume_mode == "bounded_segment"
+        or has_bounded_segment_candidate
+    )
+    has_interrupted_agent = (
+        _bool_field(payload, "has_interrupted_agent")
+        or resume_mode == "interrupted_agent"
+        or _has_segment_candidate(
+            segment_candidates,
+            source="interrupted_agent",
+            status="interrupted",
+        )
+    )
+    has_live_execution = _bool_field(payload, "has_live_execution") or isinstance(payload.get("active_execution_segment"), Mapping)
+    has_session_resume_file = (
+        session_resume_file is not None
+        or (
+            execution_resume_file_source == "session_resume_file"
+            and execution_resume_file is not None
+        )
+        or _has_segment_candidate(
+            segment_candidates,
+            source="session_resume_file",
+            status="handoff",
+        )
+    )
+    missing_session_resume_file = (
+        _text_field(payload, "missing_session_resume_file") is not None
+        or _has_segment_candidate(
+            segment_candidates,
+            source="session_resume_file",
+            status="missing",
+        )
+        or (
+            recorded_session_resume_file is not None
+            and session_resume_file is None
+            and not has_session_resume_file
+        )
+    )
+    current_workspace_has_resume_file = (
+        execution_resume_file is not None
+        or session_resume_file is not None
+        or _has_usable_candidate_resume_file(segment_candidates)
+    )
+    machine_change_notice = _text_field(payload, "machine_change_notice")
 
     current_workspace_has_recovery = bool(
         segment_candidates
@@ -286,6 +333,8 @@ def build_recovery_advice(
         or missing_session_resume_file
         or has_live_execution
         or machine_change_notice is not None
+        or recorded_session_resume_file is not None
+        or execution_resume_file is not None
     )
     has_local_recovery_target = bool(
         execution_resumable

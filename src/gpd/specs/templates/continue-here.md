@@ -2,12 +2,14 @@
 template_version: 1
 ---
 
-<!-- Used by: pause-work workflow as the canonical pause/resume handoff artifact. -->
+<!-- Used by: pause-work workflow as the canonical temporary pause/resume handoff artifact. -->
 
-# Canonical Continue-Here Handoff Template
+# Canonical Temporary Continue-Here Handoff Template
 
 Copy and fill this structure for `GPD/phases/XX-name/.continue-here.md`.
-This is the canonical phase handoff written by `/gpd:pause-work` and consumed by `/gpd:resume-work` plus the local `gpd resume` recovery surface. The machine-readable backend remains `gpd init resume`:
+This is the canonical temporary phase handoff artifact written by `/gpd:pause-work` and consumed by `/gpd:resume-work` plus the local `gpd resume` recovery surface. The machine-readable backend remains `gpd init resume`.
+
+This file is **not** the authoritative store for project position, session continuity, or resume ranking. Current public behavior keeps those responsibilities split across `GPD/state.json` (authoritative storage), `GPD/state.json.bak` (recovery backup), `GPD/STATE.md` (editable mirror), and `GPD/observability/current-execution.json` (live execution overlay). `gpd init resume` resolves the current canonical continuation view across those surfaces and may reach this file through session continuity or the live execution overlay:
 
 ```yaml
 ---
@@ -155,6 +157,8 @@ Required YAML frontmatter:
 - The `<next_action>` should be actionable without reading anything else
 - The `<intermediate_results>` section is critical for physics - unlike software, you can't just "run the code" to recover state
 - This file is the canonical temporary handoff artifact. `/gpd:resume-work`, `gpd resume`, and the `gpd init resume` backend reach it through session continuity or live execution pointers, and it may be deleted once the handoff is consumed
+- Deleting or missing this file does not erase project state by itself; it only removes one temporary handoff input to the canonical continuation view
+- This template must not be treated as the storage authority for project status, session continuity, or bounded resume ranking
 - The `<persistent_state>` section is the exception: its content is appended to `GPD/DERIVATION-STATE.md` BEFORE this file is deleted, so equations/conventions/results accumulate permanently across all sessions
 - Fill `<persistent_state>` carefully -- it is the antidote to lossy compression across context resets
 </guidelines>

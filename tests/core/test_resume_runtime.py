@@ -223,6 +223,59 @@ def test_init_resume_keeps_current_execution_primary_across_machine_change(
     assert ctx["segment_candidates"][1]["source"] == "session_resume_file"
 
 
+def test_init_resume_reads_canonical_continuation_from_state_json(
+    tmp_path: Path, state_project_factory, monkeypatch
+) -> None:
+    cwd = state_project_factory(tmp_path)
+    state_path = cwd / "GPD" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["session"] = {
+        "last_date": None,
+        "hostname": None,
+        "platform": None,
+        "stopped_at": None,
+        "resume_file": None,
+    }
+    state["continuation"] = {
+        "schema_version": 1,
+        "handoff": {
+            "recorded_at": "2026-03-29T12:00:00+00:00",
+            "stopped_at": "Phase 03 Plan 02 Task 04",
+            "resume_file": "GPD/phases/03-analysis/alternate-resume.md",
+        },
+        "machine": {
+            "recorded_at": "2026-03-29T12:00:00+00:00",
+            "hostname": "builder-01",
+            "platform": "Linux 6.1 x86_64",
+        },
+    }
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    handoff = cwd / "GPD" / "phases" / "03-analysis" / "alternate-resume.md"
+    handoff.parent.mkdir(parents=True, exist_ok=True)
+    handoff.write_text("resume\n", encoding="utf-8")
+    monkeypatch.setattr(
+        context_module,
+        "_current_machine_identity",
+        lambda: {"hostname": "builder-01", "platform": "Linux 6.1 x86_64"},
+    )
+
+    ctx = init_resume(tmp_path)
+
+    assert ctx["execution_resume_file_source"] == "session_resume_file"
+    assert ctx["execution_resume_file"] == "GPD/phases/03-analysis/alternate-resume.md"
+    assert ctx["resume_mode"] is None
+    assert ctx["session_hostname"] == "builder-01"
+    assert ctx["session_platform"] == "Linux 6.1 x86_64"
+    assert ctx["segment_candidates"] == [
+        {
+            "source": "session_resume_file",
+            "status": "handoff",
+            "resume_file": "GPD/phases/03-analysis/alternate-resume.md",
+            "resumable": False,
+        }
+    ]
+
+
 def test_init_resume_deduplicates_matching_session_handoff_and_ranks_interrupted_agent_last(
     tmp_path: Path, state_project_factory, monkeypatch
 ) -> None:

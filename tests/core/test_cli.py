@@ -35,7 +35,6 @@ from tests.runtime_test_support import (
     PRIMARY_RUNTIME,
     runtime_config_dir_name,
     runtime_display_name,
-    runtime_launch_executable,
     runtime_target_dir,
     runtime_with_permissions_surface,
 )
@@ -1118,7 +1117,7 @@ def test_resume_plain_output_surfaces_session_handoff_status(tmp_path: Path, mon
             "autonomy": None,
             "research_mode": None,
             "active_execution_segment": None,
-            "session_resume_file": "GPD/phases/01/.continue-here.md",
+            "execution_resume_file_source": "session_resume_file",
         },
     )
 
@@ -1129,6 +1128,42 @@ def test_resume_plain_output_surfaces_session_handoff_status(tmp_path: Path, mon
     assert "A recorded session handoff is available" in normalized
     assert "no resumable live execution snapshot is currently active." in normalized
     assert "Recovery context is available, but no live bounded segment is currently resumable." not in result.output
+
+
+def test_resume_plain_output_surfaces_bounded_segment_status_from_canonical_resume_mode(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "gpd.core.context.init_resume",
+        lambda _cwd: {
+            "planning_exists": True,
+            "state_exists": True,
+            "roadmap_exists": True,
+            "project_exists": True,
+            "segment_candidates": [],
+            "has_live_execution": True,
+            "resume_mode": "bounded_segment",
+            "execution_resume_file": "GPD/phases/03/.continue-here.md",
+            "execution_resume_file_source": "current_execution",
+            "execution_paused_at": None,
+            "autonomy": None,
+            "research_mode": None,
+            "active_execution_segment": {
+                "phase": "03",
+                "plan": "01",
+                "segment_status": "waiting_review",
+            },
+        },
+    )
+
+    result = runner.invoke(app, ["resume"])
+
+    assert result.exit_code == 0
+    normalized = " ".join(result.output.split())
+    assert "A bounded execution segment is resumable from the current workspace state." in normalized
+    assert "resume-work" in result.output
+    assert "suggest-next" in result.output
 
 
 def test_resume_plain_output_surfaces_interrupted_agent_status_from_candidate(tmp_path: Path, monkeypatch) -> None:

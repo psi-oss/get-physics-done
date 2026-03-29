@@ -31,6 +31,7 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 | `pending_todos` | `string[]` | `[]` | Ideas captured via /gpd:add-todo | Synced from todos/ |
 | `blockers` | `string[]` | `[]` | Active blockers/concerns | Synced from STATE.md |
 | `session` | `SessionObject` | see below | Session continuity for resumption | Synced from STATE.md |
+| `continuation` | `ContinuationObject` | see below | Durable canonical handoff + machine state mirrored from `session` | **Authoritative** (JSON-only compatibility anchor) |
 
 ### Authoritative vs Derived
 
@@ -205,7 +206,7 @@ If a project-contract reference sets `must_surface: true`, `applies_to[]` must n
 
 Approved-mode grounding is field-specific:
 
-- `must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames, such as `GPD/phases/.../*-SUMMARY.md` or `paper/main.tex`. In approved mode they only count as grounding if that path already resolves inside the current project root.
+- `must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames that already exist inside the current project root.
 - `user_asserted_anchors[]` and `known_good_baselines[]` should use at least three words and name a concrete benchmark, baseline, reference, paper, notebook, figure, table, dataset, curve, result, derivation, observable, limit, comparison, or comparable anchor phrase. Single-token filler does not count.
 - If a `references[].locator` uses a project-local artifact path instead of an external paper locator, it only counts as approved grounding when the referenced file already exists inside the current project root.
 - `Placeholder`, `TBD`, `TODO`, `unknown`, `unclear`, `none`, `n/a`, and `placeholder` remain non-grounding unless they are part of a genuinely missing-anchor blocker phrase.
@@ -463,7 +464,53 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 
 **Written by:** `gpd state record-session`, `/gpd:pause-work`
 
-`session` stores the last session timestamp, advisory machine identity, stop location, and handoff resume file. Keep `resume_file` project-relative when it points inside the repository; `gpd state record-session` normalizes project-local absolute paths back to that form before persisting them. Omitting `--resume-file` preserves the current handoff pointer, while explicit placeholders such as `—`, `None`, or `null` clear it. `gpd resume` is the public local read-only recovery surface, while `gpd init resume` remains the machine-readable backend. That backend may rank `session.resume_file` as a non-resumable `session_resume_file` candidate, uses it as `execution_resume_file` only when no usable live-execution pointer exists, and compares `hostname`/`platform` with the current machine to emit a non-blocking `machine_change_notice` that recommends rerunning the installer when runtime-local config may be stale.
+`session` stores the markdown-compatible session timestamp, advisory machine identity, stop location, and handoff resume file. Keep `resume_file` project-relative when it points inside the repository; `gpd state record-session` normalizes project-local absolute paths back to that form before persisting them. Omitting `--resume-file` preserves the current handoff pointer, while explicit placeholders such as `—`, `None`, or `null` clear it. `gpd resume` is the public local read-only recovery surface, while `gpd init resume` remains the machine-readable backend. That backend may rank `session.resume_file` as a non-resumable `session_resume_file` candidate, uses it as `execution_resume_file` only when no usable live-execution pointer exists, and compares `hostname`/`platform` with the current machine to emit a non-blocking `machine_change_notice` that recommends rerunning the installer when runtime-local config may be stale.
+
+`session` remains the source that STATE.md can render directly. The durable JSON-only `continuation` object below mirrors the same handoff and machine facts so future runtime layers can read one canonical continuation payload without depending on markdown parsing.
+
+### `ContinuationObject`
+
+```json
+{
+  "schema_version": 1,
+  "handoff": {
+    "recorded_at": "2026-03-15T14:30:00.000Z",
+    "stopped_at": "Phase 3, Plan 2, Task 4: MC thermalization",
+    "resume_file": "GPD/phases/03-analysis/.continue-here.md"
+  },
+  "bounded_segment": null,
+  "machine": {
+    "recorded_at": "2026-03-15T14:30:00.000Z",
+    "hostname": "builder-01",
+    "platform": "Linux 6.1 x86_64"
+  }
+}
+```
+
+**Written by:** `gpd state record-session`, `save_state_markdown()`, `save_state_json()`
+
+`continuation` is the durable canonical continuation payload in `state.json`. It is JSON-only and does not render as a separate markdown section. Instead, state normalization keeps it mirrored with `session` in both directions:
+
+- `session -> continuation`: normal state/session writes copy the current handoff and machine identity into `continuation`
+- `continuation -> session`: if a future writer only updates `continuation`, state normalization backfills `session` so STATE.md generation and existing readers still work
+
+`continuation.handoff` is the canonical handoff block:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `recorded_at` | `string \| null` | Timestamp of the recorded handoff |
+| `stopped_at` | `string \| null` | Human-readable stop location |
+| `resume_file` | `string \| null` | Project-relative handoff artifact when available |
+
+`continuation.bounded_segment` is reserved for a future durable bounded-segment writer. In the current codebase it may be `null` or absent in older projects, and `gpd init resume` still derives the active bounded-segment candidate from the live execution overlay when no canonical bounded segment is present.
+
+`continuation.machine` is the canonical recorded machine state:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `recorded_at` | `string \| null` | Timestamp when the machine identity was recorded |
+| `hostname` | `string \| null` | Advisory host identity from the last session |
+| `platform` | `string \| null` | Advisory platform string from the last session |
 
 ---
 

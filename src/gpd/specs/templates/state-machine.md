@@ -9,6 +9,22 @@ Reference document specifying all valid entity lifecycles, state ownership, and 
 
 ---
 
+## Continuation Surfaces
+
+Current public behavior distinguishes four continuation-related surfaces plus one recovery backup. GPD does **not** currently persist a separate standalone continuation ledger. Instead, `gpd init resume` derives the current canonical continuation view from the surfaces below.
+
+| Surface | Role | Authority Level | Notes |
+|---------|------|-----------------|-------|
+| `GPD/state.json` | Storage authority | Authoritative | Machine-readable project state, including session continuity |
+| `GPD/state.json.bak` | Recovery backup | Fallback only | Used when the primary JSON state is unreadable or unavailable |
+| `GPD/STATE.md` | Editable mirror | Reconstruction/edit surface | Human-readable mirror of state; also the final reconstruction source if both JSON files are unavailable |
+| `GPD/phases/.../.continue-here.md` | Temporary handoff artifact | Non-authoritative | Written by `/gpd:pause-work`; may be referenced by session continuity or a live execution snapshot |
+| `GPD/observability/current-execution.json` | Live execution overlay | Advisory unless resumable | Latest execution snapshot; only upgrades to a bounded-segment resume candidate when paused at a resumable gate with a portable usable `resume_file` |
+
+The canonical continuation decision comes from `gpd init resume`, not from reading any one of these files in isolation.
+
+---
+
 ## Entity Lifecycles
 
 ### Project
@@ -17,10 +33,10 @@ Reference document specifying all valid entity lifecycles, state ownership, and 
 Created → Active → Paused → Active → Complete → Archived
 ```
 
-- **Owner file**: `GPD/PROJECT.md` (status), `GPD/STATE.md` (position)
+- **Owner surfaces**: `GPD/state.json` (authoritative state), `GPD/STATE.md` (editable mirror), optional `.continue-here.md` temporary handoff artifact, optional `GPD/observability/current-execution.json` live execution overlay
 - **Created → Active**: `/gpd:new-project` completes (ROADMAP.md exists, STATE.md initialized)
-- **Active → Paused**: `/gpd:pause-work` (explicit user action, writes `.continue-here` file)
-- **Paused → Active**: `/gpd:resume-work` (restores context from `.continue-here`)
+- **Active → Paused**: `/gpd:pause-work` (explicit user action, records session continuity and may write `.continue-here.md`)
+- **Paused → Active**: `/gpd:resume-work` (restores context from authoritative state plus any handoff artifact or live execution overlay)
 - **Active → Complete**: All phases reach `complete` status
 - **Complete → Archived**: `/gpd:complete-milestone` (archives ROADMAP.md, REQUIREMENTS.md to `milestones/`, updates MILESTONES.md)
 
@@ -129,7 +145,7 @@ Active → Audited → Complete → Archived
 | Blockers | STATE.md (Blockers section) | `gpd state add-blocker/resolve-blocker` |
 | Approximations | state.json (`approximations`) | `gpd approximation add/list/check` |
 | Propagated Uncertainties | state.json (`propagated_uncertainties`) | `gpd uncertainty add/list` |
-| Session Continuity | STATE.md (Session section) | `gpd state record-session` |
+| Session Continuity | state.json (`session`) + STATE.md (mirror) | `gpd state record-session` |
 | Performance Metrics | STATE.md (Performance Metrics table) | `gpd state record-metric` |
 | Phase Completion | ROADMAP.md (checkbox `[x]`) | `gpd phase complete` |
 | Milestone Completion | MILESTONES.md | `gpd milestone complete` |
@@ -141,8 +157,8 @@ Active → Audited → Complete → Archived
 | Transition | Command / Workflow | Files Modified |
 |-----------|---------|---------------|
 | Project: Created → Active | `/gpd:new-project` | PROJECT.md, ROADMAP.md, STATE.md, state.json, config.json created |
-| Project: Active → Paused | `/gpd:pause-work` | STATE.md (Paused At set), `.continue-here` created |
-| Project: Paused → Active | `/gpd:resume-work` | STATE.md (Paused At cleared), `.continue-here` consumed |
+| Project: Active → Paused | `/gpd:pause-work` | state.json + STATE.md (session continuity / paused marker), `.continue-here.md` temporary handoff may be created |
+| Project: Paused → Active | `/gpd:resume-work` | Guided by `gpd init resume` over state authority, editable mirror, temporary handoff artifact, and any live execution overlay; STATE.md paused marker may be cleared and the handoff artifact may be consumed |
 | Phase: Not started → Discussed | `/gpd:discuss-phase` | `{NN}-CONTEXT.md` created |
 | Phase: → Researched | `/gpd:research-phase` or `/gpd:plan-phase` | `{NN}-RESEARCH.md` created |
 | Phase: Researched → Planned | `/gpd:plan-phase` | `{NN}-{plan}-PLAN.md` files created, STATE.md updated |
@@ -192,12 +208,19 @@ Three status systems coexist. The **disk status** (from `roadmap_analyze`) is th
 
 STATE.md and state.json are kept in sync via `sync_state_json()`:
 
-- **STATE.md** is the human-readable source, rendered by `generate_state_markdown()`
-- **state.json** is the machine-readable sidecar, with additional fields not in markdown (convention_lock, approximations, propagated_uncertainties, intermediate_results as structured objects)
-- Every write to STATE.md triggers `sync_state_json()` which parses markdown and merges into existing JSON
+- **state.json** is the authoritative machine-readable storage surface
+- **state.json.bak** is the crash-recovery backup if the primary JSON state becomes unreadable or unavailable
+- **STATE.md** is the editable human-readable mirror, rendered by `generate_state_markdown()` and still usable as the final reconstruction source when both JSON files are unavailable
+- Every write to STATE.md triggers `sync_state_json()` which parses markdown edits and merges them into existing JSON
 - Every write to state.json via `save_state_json()` also regenerates STATE.md
 - `state_validate` cross-checks position fields between both files
 - `state.json.bak` provides crash recovery if state.json becomes corrupt
+
+For continuation specifically:
+
+- `.continue-here.md` is the canonical temporary handoff artifact, not the storage authority
+- `GPD/observability/current-execution.json` is the live execution overlay, not the storage authority
+- `gpd init resume` resolves the canonical continuation view across authority, mirror, handoff, and overlay surfaces
 
 ---
 

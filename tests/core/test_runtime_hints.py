@@ -535,6 +535,42 @@ def test_build_runtime_hint_payload_uses_shared_resume_contract_without_recent_p
     assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
 
 
+def test_build_runtime_hint_payload_uses_canonical_bounded_resume_mode_without_legacy_execution_flag(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    data_root = tmp_path / "data"
+    monkeypatch.setattr(
+        "gpd.core.runtime_hints._resume_context",
+        lambda _cwd: {
+            "planning_exists": True,
+            "state_exists": True,
+            "roadmap_exists": True,
+            "project_exists": True,
+            "segment_candidates": [],
+            "resume_mode": "bounded_segment",
+            "execution_resume_file": "GPD/phases/06/.continue-here.md",
+            "execution_resume_file_source": "current_execution",
+            "has_live_execution": True,
+        },
+    )
+
+    payload = build_runtime_hint_payload(
+        project,
+        data_root=data_root,
+        include_cost=False,
+        include_workflow_presets=False,
+    )
+
+    assert payload.orientation["mode"] == "current-workspace"
+    assert payload.orientation["status"] == "bounded-segment"
+    assert payload.orientation["current_workspace_resumable"] is True
+    assert payload.orientation["has_local_recovery_target"] is True
+    assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
+    assert any("resume-work" in action for action in payload.next_actions)
+    assert any("suggest-next" in action for action in payload.next_actions)
+
+
 def test_build_runtime_hint_payload_rediscovery_branch_handles_non_resumable_current_project(
     tmp_path: Path,
 ) -> None:
@@ -666,9 +702,16 @@ def test_build_runtime_hint_payload_missing_handoff_keeps_local_resume_without_i
             "state_exists": True,
             "roadmap_exists": True,
             "project_exists": True,
-            "segment_candidates": [],
+            "segment_candidates": [
+                {
+                    "source": "session_resume_file",
+                    "status": "missing",
+                    "resume_file": "GPD/phases/04/.continue-here.md",
+                    "resumable": False,
+                    "advisory": True,
+                }
+            ],
             "has_live_execution": False,
-            "missing_session_resume_file": "GPD/phases/04/.continue-here.md",
         },
     )
 

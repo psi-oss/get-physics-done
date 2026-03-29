@@ -8,13 +8,13 @@ import warnings
 from pathlib import Path
 
 from gpd.contracts import ResearchContract
-from gpd.core.constants import STATE_JSON_BACKUP_FILENAME, ProjectLayout
 from gpd.core import state as state_module
+from gpd.core.constants import STATE_JSON_BACKUP_FILENAME, ProjectLayout
 from gpd.core.state import (
     VALID_STATUSES,
     ResearchState,
-    _normalize_state_schema,
     _load_recent_projects_index,
+    _normalize_state_schema,
     _recent_projects_index_path,
     default_state_dict,
     ensure_state_schema,
@@ -112,6 +112,7 @@ def test_default_state_dict_has_required_keys():
     assert "decisions" in s
     assert "blockers" in s
     assert "session" in s
+    assert "continuation" in s
     assert "convention_lock" in s
     assert "approximations" in s
     assert "propagated_uncertainties" in s
@@ -124,6 +125,7 @@ def test_default_state_dict_position_defaults():
     assert pos["current_phase"] is None
     assert pos["status"] is None
     assert pos["progress_percent"] == 0
+    assert s["continuation"]["handoff"]["resume_file"] is None
     assert s["project_contract"] is None
 
 
@@ -1219,6 +1221,56 @@ def test_ensure_state_schema_list_for_session():
     assert isinstance(result["session"], dict)
 
 
+def test_ensure_state_schema_mirrors_session_into_canonical_continuation():
+    result = ensure_state_schema({
+        "session": {
+            "last_date": "2026-03-02T12:00:00+00:00",
+            "stopped_at": "Phase 3 P2",
+            "resume_file": "resume.md",
+            "hostname": "builder-01",
+            "platform": "Linux x86_64",
+        }
+    })
+
+    assert result["continuation"]["handoff"] == {
+        "recorded_at": "2026-03-02T12:00:00+00:00",
+        "stopped_at": "Phase 3 P2",
+        "resume_file": "resume.md",
+        "recorded_by": None,
+    }
+    assert result["continuation"]["machine"] == {
+        "recorded_at": "2026-03-02T12:00:00+00:00",
+        "hostname": "builder-01",
+        "platform": "Linux x86_64",
+    }
+
+
+def test_ensure_state_schema_backfills_session_from_canonical_continuation():
+    result = ensure_state_schema({
+        "continuation": {
+            "schema_version": 1,
+            "handoff": {
+                "recorded_at": "2026-03-02T12:00:00+00:00",
+                "stopped_at": "Phase 4 P1",
+                "resume_file": "continue.md",
+            },
+            "machine": {
+                "recorded_at": "2026-03-02T12:00:00+00:00",
+                "hostname": "builder-02",
+                "platform": "macOS arm64",
+            },
+        }
+    })
+
+    assert result["session"] == {
+        "last_date": "2026-03-02T12:00:00+00:00",
+        "stopped_at": "Phase 4 P1",
+        "resume_file": "continue.md",
+        "hostname": "builder-02",
+        "platform": "macOS arm64",
+    }
+
+
 # ─── integrity mode / provenance ─────────────────────────────────────────────
 
 
@@ -2124,6 +2176,10 @@ def test_parse_state_to_json_structure():
     assert result["position"]["current_phase"] == "3"
     assert result["position"]["status"] == "Executing"
     assert result["session"]["last_date"] is not None
+    assert result["continuation"]["handoff"]["recorded_at"] == result["session"]["last_date"]
+    assert result["continuation"]["handoff"]["stopped_at"] == result["session"]["stopped_at"]
+    assert result["continuation"]["handoff"]["resume_file"] is None
+    assert result["continuation"]["machine"]["recorded_at"] == result["session"]["last_date"]
     assert result["performance_metrics"]["rows"][0]["label"] == "Phase 1 P1"
     assert len(result["decisions"]) == 1
     assert len(result["blockers"]) == 1
@@ -2251,6 +2307,7 @@ def test_research_state_model():
     dumped = state.model_dump()
     assert "position" in dumped
     assert "decisions" in dumped
+    assert "continuation" in dumped
     assert isinstance(dumped["decisions"], list)
 
 

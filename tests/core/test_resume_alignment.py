@@ -26,6 +26,8 @@ def _write_state(tmp_path: Path, state: dict) -> None:
 def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     resume_doc = (ROOT / "src/gpd/specs/workflows/resume-work.md").read_text(encoding="utf-8")
     portability_doc = (ROOT / "src/gpd/specs/references/orchestration/state-portability.md").read_text(encoding="utf-8")
+    state_machine_doc = (ROOT / "src/gpd/specs/templates/state-machine.md").read_text(encoding="utf-8")
+    continue_here_doc = (ROOT / "src/gpd/specs/templates/continue-here.md").read_text(encoding="utf-8")
     schema_doc = (ROOT / "src/gpd/specs/templates/state-json-schema.md").read_text(encoding="utf-8")
     state_doc = (ROOT / "src/gpd/specs/templates/state.md").read_text(encoding="utf-8")
     new_project_doc = (ROOT / "src/gpd/specs/workflows/new-project.md").read_text(encoding="utf-8")
@@ -58,6 +60,17 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "advisory continuity context only" in portability_doc
     assert "does not create a resumable `current_execution` candidate" in portability_doc
     assert 'set `resume_mode="bounded_segment"`' in portability_doc
+    assert "Current public behavior does **not** persist a separate standalone continuation ledger." in portability_doc
+    assert "`gpd init resume` computes the current canonical continuation view" in portability_doc
+    assert "Storage authority for machine-readable project state and session continuity" in portability_doc
+    assert "Editable human-readable mirror of state" in portability_doc
+    assert "Temporary handoff artifact written by `/gpd:pause-work`" in portability_doc
+    assert "Live execution overlay showing the latest execution snapshot" in portability_doc
+    assert "temporary handoff artifact" in resume_doc
+    assert "live execution overlay" in resume_doc
+    assert "Do not treat any single `.continue-here.md` file or live execution snapshot as the sole authority in isolation." in resume_doc
+    assert "The live execution overlay and the temporary handoff artifact are both subordinate to the storage authority chain." in resume_doc
+    assert "Current public behavior distinguishes four continuation-facing layers:" in resume_doc
     assert "project-relative paths" in portability_doc
     assert "normalizes project-local absolute `resume_file` paths back to relative form" in portability_doc
     assert "usable state from `GPD/state.json`, `GPD/state.json.bak`, or `GPD/STATE.md`" in resume_doc
@@ -119,6 +132,14 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "Platform" in state_doc
     assert "normalizes project-local absolute paths back to that form" in schema_doc
     assert "recommends rerunning the installer when runtime-local config may be stale" in schema_doc
+    assert "GPD does **not** currently persist a separate standalone continuation ledger." in state_machine_doc
+    assert "Temporary handoff artifact" in state_machine_doc
+    assert "Live execution overlay" in state_machine_doc
+    assert "The canonical continuation decision comes from `gpd init resume`" in state_machine_doc
+    assert "canonical temporary phase handoff artifact" in continue_here_doc
+    assert "This file is **not** the authoritative store for project position, session continuity, or resume ranking." in continue_here_doc
+    assert "Deleting or missing this file does not erase project state by itself" in continue_here_doc
+    assert "must not be treated as the storage authority for project status, session continuity, or bounded resume ranking" in continue_here_doc
 
 
 def test_recovery_docs_keep_runtime_resume_work_distinct_from_local_resume_surfaces() -> None:

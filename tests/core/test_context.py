@@ -1176,7 +1176,6 @@ class TestInitResume:
         assert ctx["segment_candidates"] == []
         assert ctx["active_execution_segment"]["segment_id"] == "seg-4"
 
-
 # ─── init_verify_work ─────────────────────────────────────────────────────────
 
 
@@ -1646,6 +1645,7 @@ class TestInitProgress:
 
         assert loaded is None
         assert load_info["status"] == "blocked_integrity"
+        assert any("duplicate" in error for error in load_info["errors"])
 
     def test_load_project_contract_rejects_whole_singleton_defaulting_from_raw_state(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
