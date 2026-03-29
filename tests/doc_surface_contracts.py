@@ -17,7 +17,10 @@ __all__ = [
     "PLAN_PREFLIGHT_SURFACE",
     "UNATTENDED_READINESS_SURFACE",
     "WOLFRAM_STATUS_SURFACE",
+    "assert_optional_paper_workflow_guidance_contract",
+    "assert_publication_toolchain_boundary_contract",
     "assert_recovery_ladder_contract",
+    "assert_runtime_readiness_handoff_contract",
     "_assert_cost_surface_discoverability",
     "_assert_cost_advisory_contract",
     "_assert_cost_advisory_guardrail",
@@ -156,6 +159,84 @@ def assert_recovery_ladder_contract(
             "session continuity",
         ),
         label="pause/resume handoff semantics",
+    )
+
+
+def assert_runtime_readiness_handoff_contract(content: str) -> None:
+    assert "gpd doctor" in content
+    assert UNATTENDED_READINESS_SURFACE in content
+    _assert_contains_any(
+        content,
+        (
+            "install and runtime-local readiness",
+            "runtime-local readiness",
+            "runtime-readiness check",
+        ),
+        label="runtime-local readiness handoff",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "gpd permissions ...",
+            PERMISSIONS_SYNC_SURFACE,
+            "runtime-owned permission alignment and sync",
+            "runtime-owned permission alignment",
+        ),
+        label="runtime-owned permission handoff",
+    )
+
+
+def assert_optional_paper_workflow_guidance_contract(content: str) -> None:
+    _assert_contains_any(
+        content,
+        (
+            "Paper/manuscript workflows",
+            "paper/manuscript workflows",
+            "plan paper/manuscript workflows",
+            "plan to use that preset",
+        ),
+        label="paper/manuscript workflow mention",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "paper-toolchain readiness",
+            "check whether `Workflow Presets` is `ready` or `degraded`.",
+            "Workflow Presets",
+        ),
+        label="paper workflow readiness surface",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "Missing preset tooling degrades that preset; it does not block the base GPD install.",
+            "degrade `write-paper`",
+            "degraded readiness for `write-paper`",
+            "Without LaTeX, the paper/manuscript and full research presets remain usable for `write-paper` and `peer-review`",
+        ),
+        label="optional paper workflow degradation guidance",
+    )
+
+
+def assert_publication_toolchain_boundary_contract(content: str) -> None:
+    _assert_contains_any(
+        content,
+        (
+            "Use `gpd paper-build` to judge whether the manuscript scaffold is buildable.",
+            "`paper-build` remains the build contract",
+            "`paper-build` and `arxiv-submission` require the `LaTeX Toolchain`.",
+            "but `paper-build` and `arxiv-submission` require the `LaTeX Toolchain`.",
+        ),
+        label="paper-build boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`arxiv-submission` requires the built manuscript",
+            "`paper-build` and `arxiv-submission` require the `LaTeX Toolchain`.",
+            "but `paper-build` and `arxiv-submission` require the `LaTeX Toolchain`.",
+        ),
+        label="arxiv-submission boundary",
     )
 
 

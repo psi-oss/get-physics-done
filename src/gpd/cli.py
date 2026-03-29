@@ -52,6 +52,8 @@ from gpd.core.constants import (
 from gpd.core.errors import ConfigError, GPDError
 from gpd.core.recovery_advice import RecoveryAdvice, build_recovery_advice
 from gpd.core.surface_phrases import (
+    post_start_settings_note,
+    post_start_settings_recommendation,
     recovery_action_lines,
     recovery_ladder_note,
     recovery_recent_action,
@@ -6582,8 +6584,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
                 soft_wrap=True,
             )
             console.print(
-                "7. After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture. "
-                "The safest starting point is `review` plus runtime defaults.",
+                f"7. {post_start_settings_note()} {post_start_settings_recommendation()}",
                 soft_wrap=True,
             )
             console.print(
@@ -6623,8 +6624,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
                 soft_wrap=True,
             )
             console.print(
-                "After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture. "
-                "The safest starting point is `review` plus runtime defaults.",
+                f"{post_start_settings_note()} {post_start_settings_recommendation()}",
                 soft_wrap=True,
             )
             console.print(

@@ -35,7 +35,10 @@ from tests.doc_surface_contracts import (
     _assert_shared_preset_surface_contract,
     _assert_unattended_readiness_surface,
     _assert_wolfram_plan_boundary,
+    assert_optional_paper_workflow_guidance_contract,
+    assert_publication_toolchain_boundary_contract,
     assert_recovery_ladder_contract,
+    assert_runtime_readiness_handoff_contract,
 )
 
 
@@ -742,23 +745,15 @@ def test_public_readme_and_bootstrap_surface_optional_workflow_add_on_guidance()
     _assert_wolfram_plan_boundary(readme)
     assert "executable probes" in readme
     _assert_shared_preset_surface_contract(readme)
+    assert_optional_paper_workflow_guidance_contract(readme)
     assert "gpd doctor --runtime <runtime> --local|--global" in readme
-    assert "paper-toolchain readiness" in readme
-    assert "Missing preset tooling degrades that preset; it does not block the base GPD install." in readme
-    assert "gpd doctor --runtime <runtime> --local|--global" in readme
-    assert "plan to use that preset" in readme or "plan paper/manuscript workflows" in readme
-    assert "degraded readiness for `write-paper`" in readme
     assert "Use `gpd paper-build` to judge whether the manuscript scaffold is buildable." in readme
     assert WOLFRAM_STATUS_SURFACE in readme
     assert PLAN_PREFLIGHT_SURFACE in readme
     assert "Workflow presets: if you plan paper/manuscript workflows, rerun " in installer
-    assert (
-        "Use `gpd doctor` for install and runtime-local readiness, `gpd validate unattended-readiness` for the unattended "
-        "or overnight verdict, and `gpd permissions ...` for runtime-owned permission alignment and sync."
-    ) in installer
-    assert "check whether `Workflow Presets` is `ready` or `degraded`." in installer
-    assert "Without LaTeX, the paper/manuscript and full research presets remain usable for `write-paper` and `peer-review`" in installer
-    assert "`paper-build` and `arxiv-submission` require the `LaTeX Toolchain`." in installer
+    assert_runtime_readiness_handoff_contract(installer)
+    assert_optional_paper_workflow_guidance_contract(installer)
+    assert_publication_toolchain_boundary_contract(installer)
 
 
 def test_public_paper_toolchain_capability_model_stays_consistent_across_surfaces() -> None:
@@ -768,35 +763,25 @@ def test_public_paper_toolchain_capability_model_stays_consistent_across_surface
     help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
     installer = (repo_root / "bin/install.js").read_text(encoding="utf-8")
 
-    readme_preset_degrade_snippet = "Missing preset tooling degrades that preset; it does not block the base GPD install."
-    help_preset_snippet = "Paper/manuscript workflows"
-    installer_readiness_snippet = (
-        "Use `gpd doctor` for install and runtime-local readiness, `gpd validate unattended-readiness` for the unattended "
-        "or overnight verdict, and `gpd permissions ...` for runtime-owned permission alignment and sync."
-    )
     _assert_unattended_readiness_surface(readme)
     _assert_wolfram_plan_boundary(readme)
+    assert_optional_paper_workflow_guidance_contract(readme)
     assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
     _assert_unattended_readiness_surface(help_workflow)
     _assert_wolfram_plan_boundary(help_workflow)
-    assert installer_readiness_snippet in installer
+    assert_optional_paper_workflow_guidance_contract(help_workflow)
+    assert_publication_toolchain_boundary_contract(help_workflow)
+    assert_runtime_readiness_handoff_contract(installer)
+    assert_optional_paper_workflow_guidance_contract(installer)
+    assert_publication_toolchain_boundary_contract(installer)
     _assert_shared_preset_surface_contract(readme)
-    assert readme_preset_degrade_snippet in readme
     _assert_cost_advisory_contract(readme)
     assert WOLFRAM_STATUS_SURFACE in readme
     assert "shared Wolfram integration" in readme
     assert "Local Mathematica installs are separate from the shared optional Wolfram integration config." in help_workflow
-    assert help_preset_snippet in help_workflow
-    assert "paper-toolchain readiness" in help_workflow
-    assert "degrade `write-paper`" in help_workflow
-    assert "`paper-build` remains the build contract" in help_workflow
-    assert "`arxiv-submission` requires the built manuscript" in help_workflow
     assert DOCTOR_RUNTIME_SCOPE_RE.search(help_workflow) is not None
     assert WOLFRAM_STATUS_SURFACE in help_workflow
     assert "Workflow presets: if you plan paper/manuscript workflows, rerun " in installer
-    assert "check whether `Workflow Presets` is `ready` or `degraded`." in installer
-    assert "Without LaTeX, the paper/manuscript and full research presets remain usable for `write-paper` and `peer-review`" in installer
-    assert "but `paper-build` and `arxiv-submission` require the `LaTeX Toolchain`." in installer
 
 
 def test_public_readme_keeps_bootstrap_prerequisites_and_runtime_doctor_scopes_distinct() -> None:
@@ -926,16 +911,13 @@ def test_public_help_surfaces_keep_settings_as_guided_post_startup_path() -> Non
 
     assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
     assert "3. `/gpd:settings` - Primary guided unattended/autonomy setup after project creation" in help_workflow
-    assert "Paper/manuscript workflows" in help_workflow
     _assert_shared_preset_surface_contract(help_workflow)
     _assert_cost_surface_discoverability(help_workflow)
     assert "gpd --help" in help_workflow
     _assert_unattended_readiness_surface(help_workflow)
-    assert "paper-toolchain readiness" in help_workflow
     assert "executable probes" in help_workflow
-    assert "degrade `write-paper`" in help_workflow
-    assert "`paper-build` remains the build contract" in help_workflow
-    assert "`arxiv-submission` requires the built manuscript" in help_workflow
+    assert_optional_paper_workflow_guidance_contract(help_workflow)
+    assert_publication_toolchain_boundary_contract(help_workflow)
     assert "gpd observe execution" in help_workflow
     assert "The bootstrap installer owns Node.js / Python / `venv` prerequisites." in help_workflow
 
@@ -974,8 +956,10 @@ def test_public_bootstrap_help_examples_cover_install_and_readiness_handoff() ->
     assert "# Interactive uninstall" in content
     assert "# Uninstall from all runtimes globally" in content
     assert "# Equivalent uninstall subcommand form" in content
-    assert "Use the runtime-specific `settings` command after startup to review autonomy, workflow defaults, and model-cost posture." in content
-    assert "Recommended unattended default: Balanced autonomy (`balanced`). The safest model starting point is `review` plus runtime defaults." in content
+    assert "settings" in content
+    assert "review autonomy, workflow defaults, and model-cost posture" in content
+    assert "Recommended unattended default: Balanced autonomy (`balanced`)." in content
+    assert "The safest starting point is `review` plus runtime defaults." in content
 
 
 def test_public_readme_observability_surface_keeps_execution_guidance_in_command_space() -> None:

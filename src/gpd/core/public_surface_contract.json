@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "local_cli_bridge": {
+    "commands": [
+      "gpd --help",
+      "gpd validate unattended-readiness --runtime <runtime> --autonomy balanced",
+      "gpd permissions status --runtime <runtime> --autonomy balanced",
+      "gpd permissions sync --runtime <runtime> --autonomy balanced",
+      "gpd resume",
+      "gpd resume --recent",
+      "gpd observe execution",
+      "gpd cost",
+      "gpd presets list",
+      "gpd integrations status wolfram"
+    ],
+    "terminal_phrase": "from your normal terminal",
+    "purpose_phrase": "the broader local diagnostics, readiness, recovery, visibility, cost, preset, and shared Wolfram integration surface"
+  },
+  "post_start_settings": {
+    "primary_sentence": "After startup, use the runtime `settings` command to review autonomy, workflow defaults, and model-cost posture.",
+    "default_sentence": "The safest starting point is `review` plus runtime defaults."
+  }
+}

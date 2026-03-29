@@ -87,6 +87,10 @@ def _write_pricing_snapshot(data_root: Path) -> None:
     )
 
 
+def _budget_thresholds_by_key(summary: costs.CostSummary) -> dict[str, costs.CostBudgetThresholdSummary]:
+    return {threshold.config_key: threshold for threshold in summary.budget_thresholds}
+
+
 def test_record_usage_writes_measured_records_and_builds_project_summary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -135,7 +139,8 @@ def test_record_usage_writes_measured_records_and_builds_project_summary(
     current_session["value"] = "sess-b"
     summary = build_cost_summary(project, data_root=data_root, last_sessions=5)
 
-    assert summary.workspace_root == project.resolve(strict=False).as_posix()
+    assert summary.project_root == project.resolve(strict=False).as_posix()
+    assert summary.workspace_root == summary.project_root
     assert summary.project.project_root == project.resolve(strict=False).as_posix()
     assert summary.project.record_count == 2
     assert summary.project.usage_status == "measured"
@@ -567,7 +572,8 @@ def test_record_usage_uses_project_root_for_workspace_state_attribution_and_summ
     assert project_records[0].workspace_root == nested.resolve(strict=False).as_posix()
 
     summary = build_cost_summary(nested, data_root=data_root)
-    assert summary.workspace_root == project.resolve(strict=False).as_posix()
+    assert summary.project_root == project.resolve(strict=False).as_posix()
+    assert summary.workspace_root == summary.project_root
     assert summary.current_session_id == "sess-parent"
     assert summary.project.project_root == project.resolve(strict=False).as_posix()
     assert summary.project.record_count == 1
@@ -575,6 +581,22 @@ def test_record_usage_uses_project_root_for_workspace_state_attribution_and_summ
     assert summary.current_session is not None
     assert summary.current_session.session_id == "sess-parent"
     assert summary.current_session.total_tokens == 150
+
+
+def test_build_cost_summary_serializes_project_root_with_workspace_root_compat_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-alias")
+
+    summary = build_cost_summary(project, data_root=tmp_path / "data")
+    payload = summary.model_dump(mode="json")
+
+    assert summary.project_root == project.resolve(strict=False).as_posix()
+    assert summary.workspace_root == summary.project_root
+    assert summary.project.project_root == summary.project_root
+    assert payload["project_root"] == summary.project_root
+    assert payload["workspace_root"] == summary.project_root
 
 
 def test_record_usage_dedup_keeps_distinct_nested_workspace_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -660,7 +682,10 @@ def test_build_cost_summary_marks_mixed_measured_and_estimated_usd_as_advisory(
 
     assert summary.project.cost_status == "mixed"
     assert summary.project.cost_usd == pytest.approx(round(0.04 + expected_estimated, 6))
-    assert any("mixes measured runtime telemetry with pricing-snapshot estimates" in item for item in summary.guidance)
+    assert summary.current_session is not None
+    assert summary.current_session.session_id == "sess-estimated"
+    assert summary.current_session.cost_status == "estimated"
+    assert {row.cost_status for row in summary.recent_sessions} == {"estimated", "measured"}
 
 
 def test_build_cost_summary_surfaces_advisory_budget_thresholds(
@@ -691,7 +716,7 @@ def test_build_cost_summary_surfaces_advisory_budget_thresholds(
     )
 
     summary = build_cost_summary(project, data_root=data_root, last_sessions=5)
-    thresholds = {threshold.config_key: threshold for threshold in summary.budget_thresholds}
+    thresholds = _budget_thresholds_by_key(summary)
 
     assert set(thresholds) == {"project_usd_budget", "session_usd_budget"}
 
@@ -705,7 +730,6 @@ def test_build_cost_summary_surfaces_advisory_budget_thresholds(
     assert project_threshold.cost_status == "measured"
     assert project_threshold.comparison_exact is True
     assert project_threshold.state == "within_budget"
-    assert "within budget based on measured local USD telemetry" in project_threshold.message
 
     session_threshold = thresholds["session_usd_budget"]
     assert session_threshold.scope == "session"
@@ -716,7 +740,6 @@ def test_build_cost_summary_surfaces_advisory_budget_thresholds(
     assert session_threshold.cost_status == "measured"
     assert session_threshold.comparison_exact is True
     assert session_threshold.state == "near_budget"
-    assert "nearing budget based on measured local USD telemetry" in session_threshold.message
 
 
 def test_build_cost_summary_marks_configured_budgets_unavailable_without_spend(
@@ -737,7 +760,7 @@ def test_build_cost_summary_marks_configured_budgets_unavailable_without_spend(
     monkeypatch.setattr(costs, "get_current_session_id", lambda _root: None)
 
     summary = build_cost_summary(project, data_root=tmp_path / "data", last_sessions=5)
-    thresholds = {threshold.config_key: threshold for threshold in summary.budget_thresholds}
+    thresholds = _budget_thresholds_by_key(summary)
 
     assert thresholds["project_usd_budget"].spent_usd is None
     assert thresholds["project_usd_budget"].remaining_usd is None
@@ -745,8 +768,10 @@ def test_build_cost_summary_marks_configured_budgets_unavailable_without_spend(
     assert thresholds["project_usd_budget"].cost_status == "unavailable"
     assert thresholds["project_usd_budget"].comparison_exact is False
     assert thresholds["project_usd_budget"].state == "unavailable"
-    assert "comparison is unavailable" in thresholds["project_usd_budget"].message
     assert thresholds["session_usd_budget"].spent_usd is None
+    assert thresholds["session_usd_budget"].remaining_usd is None
+    assert thresholds["session_usd_budget"].percent_used is None
+    assert thresholds["session_usd_budget"].cost_status == "unavailable"
     assert thresholds["session_usd_budget"].comparison_exact is False
     assert thresholds["session_usd_budget"].state == "unavailable"
 
@@ -777,8 +802,10 @@ def test_build_cost_summary_marks_budget_overrun_when_spend_reaches_threshold(
     )
 
     assert project_threshold.state == "at_or_over_budget"
+    assert project_threshold.cost_status == "measured"
+    assert project_threshold.comparison_exact is True
     assert project_threshold.remaining_usd == pytest.approx(0.0)
-    assert "at or over budget" in project_threshold.message
+    assert project_threshold.percent_used == pytest.approx(100.0)
 
 
 def test_build_cost_summary_marks_cost_only_records_as_token_incomplete(
@@ -806,12 +833,18 @@ def test_build_cost_summary_marks_cost_only_records_as_token_incomplete(
 
     assert summary.project.usage_status == "unavailable"
     assert summary.project.cost_status == "measured"
-    assert summary.project.interpretation == "USD measured; token counts unavailable"
+    assert summary.project.input_tokens == 0
+    assert summary.project.output_tokens == 0
+    assert summary.project.total_tokens == 0
+    assert summary.project.cost_usd == pytest.approx(0.25)
     assert summary.current_session is not None
-    assert summary.current_session.interpretation == "USD measured; token counts unavailable"
+    assert summary.current_session.usage_status == "unavailable"
+    assert summary.current_session.cost_status == "measured"
+    assert summary.current_session.total_tokens == 0
+    assert summary.current_session.cost_usd == pytest.approx(0.25)
 
 
-def test_build_cost_summary_surfaces_active_runtime_capabilities_in_guidance(
+def test_build_cost_summary_surfaces_active_runtime_capabilities_without_records(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _bootstrap_project(tmp_path)
@@ -819,7 +852,7 @@ def test_build_cost_summary_surfaces_active_runtime_capabilities_in_guidance(
 
     class _Config:
         model_profile = "review"
-        model_overrides = {}
+        model_overrides = {"claude-code": {"fast": "tier-1"}}
 
     monkeypatch.setattr("gpd.core.config.load_config", lambda _cwd: _Config())
     monkeypatch.setattr("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", lambda cwd=None: "claude-code")
@@ -829,15 +862,16 @@ def test_build_cost_summary_surfaces_active_runtime_capabilities_in_guidance(
     assert summary.active_runtime == "claude-code"
     assert summary.active_runtime_capabilities["telemetry_completeness"] == "none"
     assert summary.active_runtime_capabilities["statusline_surface"] == "explicit"
-    assert any(
-        "does not currently expose a GPD-managed usage telemetry collection path" in item for item in summary.guidance
-    )
-    assert not any(
-        "No measured usage telemetry is recorded for this workspace yet." in item for item in summary.guidance
-    )
+    assert summary.model_profile == "review"
+    assert summary.project.record_count == 0
+    assert summary.project.usage_status == "unavailable"
+    assert summary.project.cost_status == "unavailable"
+    assert summary.current_session is None
+    assert summary.recent_sessions == []
+    assert summary.budget_thresholds == []
 
 
-def test_build_cost_summary_surfaces_best_effort_runtime_guidance_without_generic_fallback(
+def test_build_cost_summary_surfaces_best_effort_runtime_capabilities_without_records(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _bootstrap_project(tmp_path)
@@ -845,7 +879,7 @@ def test_build_cost_summary_surfaces_best_effort_runtime_guidance_without_generi
 
     class _Config:
         model_profile = "review"
-        model_overrides = {}
+        model_overrides = {"codex": {"fast": "tier-1"}}
 
     monkeypatch.setattr("gpd.core.config.load_config", lambda _cwd: _Config())
     monkeypatch.setattr("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", lambda cwd=None: "codex")
@@ -855,7 +889,10 @@ def test_build_cost_summary_surfaces_best_effort_runtime_guidance_without_generi
     assert summary.active_runtime == "codex"
     assert summary.active_runtime_capabilities["telemetry_source"] == "notify-hook"
     assert summary.active_runtime_capabilities["telemetry_completeness"] == "best-effort"
-    assert any("only exposes best-effort usage telemetry through notify-hook" in item for item in summary.guidance)
-    assert not any(
-        "No measured usage telemetry is recorded for this workspace yet." in item for item in summary.guidance
-    )
+    assert summary.model_profile == "review"
+    assert summary.project.record_count == 0
+    assert summary.project.usage_status == "unavailable"
+    assert summary.project.cost_status == "unavailable"
+    assert summary.current_session is None
+    assert summary.recent_sessions == []
+    assert summary.budget_thresholds == []

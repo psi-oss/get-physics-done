@@ -9,6 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 
+from gpd.core.public_surface_contract import (
+    local_cli_bridge_note as _public_local_cli_bridge_note,
+    post_start_settings_note as _public_post_start_settings_note,
+    post_start_settings_recommendation as _public_post_start_settings_recommendation,
+)
 from gpd.core.workflow_presets import list_workflow_presets
 
 __all__ = [
@@ -21,6 +26,8 @@ __all__ = [
     "observe_execution_action",
     "observe_execution_surface_note",
     "observe_tangent_routing_note",
+    "post_start_settings_note",
+    "post_start_settings_recommendation",
     "recovery_action_lines",
     "recovery_ladder_note",
     "recovery_continue_action",
@@ -244,14 +251,15 @@ def cost_summary_surface_note() -> str:
 
 
 def local_cli_bridge_note() -> str:
-    return (
-        "Use `gpd --help`, `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced`, "
-        "`gpd permissions status --runtime <runtime> --autonomy balanced`, "
-        "`gpd permissions sync --runtime <runtime> --autonomy balanced`, `gpd resume`, "
-        "`gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list`, and "
-        "`gpd integrations status wolfram` from your normal terminal when you want the broader local "
-        "diagnostics, readiness, recovery, visibility, cost, preset, and shared Wolfram integration surface."
-    )
+    return _public_local_cli_bridge_note()
+
+
+def post_start_settings_note() -> str:
+    return _public_post_start_settings_note()
+
+
+def post_start_settings_recommendation() -> str:
+    return _public_post_start_settings_recommendation()
 
 
 def recovery_ladder_note(
