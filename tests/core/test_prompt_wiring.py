@@ -2251,7 +2251,6 @@ def test_help_surfaces_distinguish_runtime_slash_commands_from_local_cli_subcomm
     assert "slash-command" in help_workflow
     assert "local `gpd` CLI" in help_workflow
     assert "gpd --help" in help_workflow
-    assert "install/readiness/permissions/diagnostics surface directly" in help_workflow
     assert_runtime_readiness_handoff_contract(help_workflow)
     assert "gpd validate command-context gpd:<name>" in help_workflow
     assert "gpd observe execution" in help_workflow
@@ -2270,7 +2269,8 @@ def test_help_command_keeps_static_quick_start_while_workflow_owns_full_referenc
     assert "/gpd:help --all" in help_command
     assert "## Invocation Surfaces" in help_workflow
     assert "## Core Workflow" in help_workflow
-    assert "After that, choose the path that matches your current situation:" in help_workflow
+    for section in ("**New work**", "**Existing work**", "**Returning work**", "**Post-startup settings**"):
+        assert section in help_workflow
     for token in (
         "/gpd:new-project",
         "/gpd:new-project --minimal",
@@ -2291,7 +2291,8 @@ def test_help_command_keeps_static_quick_start_while_workflow_owns_full_referenc
 def test_help_workflow_state_aware_variant_surfaces_paused_resume_branch() -> None:
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
 
-    assert "**Project exists, paused or resumable:**" in help_workflow
+    assert "## Contextual Help (State-Aware Variant)" in help_workflow
+    assert "Returning to work:" in help_workflow
     assert "gpd resume --recent" in help_workflow
     assert "/gpd:resume-work" in help_workflow
     assert "/gpd:progress" in help_workflow

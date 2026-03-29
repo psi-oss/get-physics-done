@@ -2,6 +2,12 @@
 
 Use this page as the single first-stop for new users.
 
+Use it to pick one OS guide and one runtime guide. The exact install,
+startup, and return-to-work commands live in those guides.
+
+<details>
+<summary>Show the full beginner path on one page</summary>
+
 Use this one-line path:
 
 `help -> start -> tour -> new-project / map-research -> resume-work`
@@ -20,6 +26,8 @@ If you already have a GPD project, `resume-work` is the in-runtime return path
 after you open the right folder. If you need to reopen from your normal
 terminal first, use `gpd resume` or `gpd resume --recent`, then come back into
 the runtime.
+
+</details>
 
 ## First: terminal vs runtime
 
@@ -118,6 +126,6 @@ Use this if you want GPD inside OpenCode. Inside the runtime, GPD commands use `
 ## After the guides
 
 1. Finish the OS and runtime guide you opened.
-2. Inside the runtime, use `help`, then `start`, then `tour`.
+2. Inside the runtime, use `help` for the command menu, `start` if you are not sure what fits this folder, or `tour` if you want a read-only orientation first.
 3. Then choose `new-project`, `map-research`, or `resume-work`.
-4. Come back to this hub only when you need the ladder or a different guide.
+4. Come back to this hub only when you need a different OS guide or runtime guide.

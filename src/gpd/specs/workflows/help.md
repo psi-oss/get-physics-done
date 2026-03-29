@@ -120,8 +120,7 @@ Project ─── the overall research goal
 
 ## Startup Checklist
 
-If you only remember one order, use this:
-`help -> start -> tour -> new-project / map-research -> resume-work`
+For the exact beginner-first startup order, use the shared onboarding surfaces in the README or installer output.
 
 1. `/gpd:help` - See the command reference first.
 2. `/gpd:start` - Let GPD choose the safest first step for the current folder.
@@ -134,8 +133,8 @@ If you only remember one order, use this:
 
 This reference lists canonical in-runtime slash-command names in `/gpd:*` form.
 
-- If you are new to terminals or runtime setup, use the Beginner Onboarding Hub: https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md
-- The hub keeps the OS guides, runtime guides, and beginner startup checklist in one place.
+- If you are new to terminals or runtime setup, start with the Beginner Onboarding Hub linked from the README and installer output.
+- That shared onboarding surface keeps the OS guides, runtime guides, and beginner startup checklist in one place.
 - Use these names inside the installed agent/runtime command surface.
 - The bootstrap installer owns Node.js / Python / `venv` prerequisites. The local `gpd` CLI may expose different `gpd ...` subcommands and grouping. Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
 - Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict, and `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment.
@@ -205,7 +204,7 @@ Local Mathematica installs are separate from the shared optional Wolfram integra
 
 Workflow preset tooling is layered on top of the base install; it does not change runtime permission alignment.
 
-Recovery ladder: use `gpd resume` for the current-workspace read-only recovery snapshot. If that is the wrong workspace, use `gpd resume --recent` to find the workspace first, then continue inside that workspace with `/gpd:resume-work`. After resuming, `/gpd:suggest-next` is the fastest next command. Before stepping away mid-phase, run `/gpd:pause-work` so that ladder has an explicit handoff to restore.
+For recovery, start with `gpd resume` in the current workspace or `gpd resume --recent` when you need to find the workspace first, then continue in-runtime with `/gpd:resume-work`; `/gpd:suggest-next` is the fast post-resume follow-up, and `/gpd:pause-work` is the pre-break handoff.
 
 ## What comes later after startup
 

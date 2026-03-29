@@ -117,10 +117,8 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 
 - Choose `--local` or `--global` explicitly if you do not want the installer's default path selection
 - Runtime permissions are runtime-owned permission alignment only; use the guided checks after startup to decide whether the runtime is ready.
-- For unattended execution, the recommended default is Balanced (`balanced`).
-- Use your runtime-specific `settings` command to confirm or change autonomy after the first successful launch.
 - Use your runtime-specific `settings` command after the first successful launch as the guided path for unattended configuration. Balanced (`balanced`) is the recommended unattended default.
-- Local CLI bridge: Use `gpd --help`, `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced`, `gpd permissions status --runtime <runtime> --autonomy balanced`, `gpd permissions sync --runtime <runtime> --autonomy balanced`, `gpd resume`, `gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list`, and `gpd integrations status wolfram` from your normal terminal when you want the broader local diagnostics, readiness, recovery, visibility, cost, preset, and shared Wolfram integration surface.
+- For the broader terminal-side diagnostics, readiness, recovery, visibility, cost, and preset surface, start with `gpd --help` from your normal terminal.
 - Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict; if it returns `not-ready`, run `gpd permissions sync --runtime <runtime> --autonomy balanced`, and if it returns `relaunch-required`, the runtime is not ready yet.
 - If it returns `relaunch-required`, exit and relaunch the runtime before treating unattended use as ready.
 - If you want prompt-free runtime approvals rather than ordinary unattended execution, switch to YOLO (`yolo`) in your runtime-specific `settings` command, run `gpd permissions sync --runtime <runtime> --autonomy yolo`, and relaunch when required.
@@ -141,7 +139,6 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 5. Run `gpd validate unattended-readiness --runtime codex --autonomy balanced`. If it returns `not-ready`, run `gpd permissions sync --runtime codex --autonomy balanced`; if it returns `relaunch-required`, exit and relaunch Codex before treating unattended use as ready.
 6. If you explicitly want prompt-free runtime approvals, switch to YOLO (`yolo`) in your runtime-specific `settings` command, run `gpd permissions sync --runtime codex --autonomy yolo`, and relaunch when required by the runtime.
 7. If those checks pass, continue with the runtime-specific `new-project`, `new-project --minimal`, `resume-work`, or `map-research` command.
-8. For recent-session recovery from your normal system terminal without launching the runtime, use `gpd resume`. It is a current-workspace, read-only recovery snapshot. If that is the wrong workspace, use `gpd resume --recent` to find the workspace first, then continue inside that workspace with the runtime `resume-work` command.
 
 **Troubleshooting**
 
@@ -344,12 +341,8 @@ The full in-runtime reference uses Claude Code / Gemini CLI syntax. Codex uses `
 This README is the onboarding and orientation surface, not the complete in-runtime command manual.
 
 - For the full in-runtime command reference, examples, and per-command usage details, run your runtime's help command such as `/gpd:help --all`, `$gpd-help --all`, or `/gpd-help --all`.
-- For local install, readiness, validation, permissions, observability, recovery, and diagnostics, run `gpd --help` in your normal system terminal.
-
-#### Session Management
-
-Session management lives primarily in `gpd resume`, `gpd resume --recent`, `/gpd:pause-work`, `/gpd:resume-work`, and `/gpd:suggest-next`.
-Use `/gpd:pause-work` before stepping away when you want an explicit context handoff for the next return.
+- For local CLI commands such as install checks, readiness, validation, permissions, observability, recovery, and diagnostics, run `gpd --help` in your normal system terminal.
+Use the runtime-specific `pause-work` command when you want an explicit context handoff to restore on return.
 
 #### Tangents & Hypothesis Branches
 
@@ -474,8 +467,6 @@ GPD stores project-local observability under `GPD/observability/` and detailed p
 | `gpd observe show [--session ...] [--category ...] [--name ...] [--action ...] [--status ...] [--command ...] [--phase ...] [--plan ...] [--last N]` | Show logged observability events with filters |
 | `gpd observe execution` | Show read-only live execution status for the current workspace, including progress / waiting state, conservative `possibly stalled` wording, and the next read-only checks to run |
 | `gpd cost` | Show the read-only machine-local usage / cost summary from recorded local telemetry, optional USD budget guardrails, and the current profile tier mix; advisory only, not live budget enforcement or provider billing truth. If telemetry is missing, the USD view stays partial or estimated rather than exact |
-| `gpd resume` | Show a current-workspace read-only recovery snapshot |
-| `gpd resume --recent` | Show recently used GPD projects from the machine-local index so you can find the workspace first before continuing there with the runtime `resume-work` command |
 | `gpd observe event <category> <name> [--action ...] [--status ...] [--command ...] [--phase ...] [--plan ...] [--session ...] [--data <json>]` | Append an explicit observability event with optional structured metadata |
 | `gpd trace start <phase> <plan>` | Start a plan-local trace session |
 | `gpd trace log <event> [--data <json>]` | Append an event to the active trace |

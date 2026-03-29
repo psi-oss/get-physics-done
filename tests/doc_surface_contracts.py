@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 import re
 
+from gpd.core.onboarding_surfaces import beginner_startup_ladder_text
 from gpd.core.surface_phrases import post_start_settings_note, post_start_settings_recommendation
 
 DOCTOR_RUNTIME_SCOPE_RE = re.compile(r"gpd doctor --runtime <runtime> --local\|--global")
@@ -32,6 +33,7 @@ __all__ = [
     "_assert_unattended_readiness_surface",
     "_assert_wolfram_plan_boundary",
     "assert_cost_advisory_contract",
+    "assert_beginner_startup_routing_contract",
     "assert_execution_observability_surface_contract",
     "assert_install_summary_runtime_follow_up_contract",
     "assert_shared_preset_surface_contract",
@@ -124,6 +126,74 @@ def assert_execution_observability_surface_contract(content: str) -> None:
             "suggested read-only checks",
         ),
         label="read-only execution checks wording",
+    )
+
+
+def assert_beginner_startup_routing_contract(content: str) -> None:
+    ladder = beginner_startup_ladder_text()
+    _assert_contains_any(
+        content,
+        (
+            ladder,
+            ladder.strip("`"),
+            "If you just installed GPD, use this order first:",
+            "If you only remember one order, use this:",
+        ),
+        label="startup order surface",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`start`",
+            "/gpd:start",
+            "$gpd-start",
+            "/gpd-start",
+            "Run `start`",
+        ),
+        label="start entry point",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`tour`",
+            "/gpd:tour",
+            "$gpd-tour",
+            "/gpd-tour",
+            "Run `tour`",
+        ),
+        label="tour entry point",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`new-project --minimal`",
+            "/gpd:new-project --minimal",
+            "$gpd-new-project --minimal",
+            "/gpd-new-project --minimal",
+            "`new-project`",
+            "/gpd:new-project",
+        ),
+        label="new-project entry point",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`map-research`",
+            "/gpd:map-research",
+            "$gpd-map-research",
+            "/gpd-map-research",
+        ),
+        label="map-research entry point",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "`resume-work`",
+            "/gpd:resume-work",
+            "$gpd-resume-work",
+            "/gpd-resume-work",
+        ),
+        label="resume-work entry point",
     )
 
 
