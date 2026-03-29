@@ -50,6 +50,7 @@ from gpd.core.constants import (
     RECENT_PROJECTS_INDEX_FILENAME,
 )
 from gpd.core.errors import ConfigError, GPDError
+from gpd.core.recovery_advice import build_recovery_advice
 from gpd.core.surface_phrases import (
     recovery_continue_action,
     recovery_fast_next_action,
@@ -63,7 +64,6 @@ from gpd.core.workflow_presets import (
     list_workflow_presets,
     preview_workflow_preset_application,
 )
-from gpd.core.recovery_advice import build_recovery_advice
 from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use, normalize_runtime_name
 
 if TYPE_CHECKING:
@@ -1472,7 +1472,6 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
     segment_candidates = [item for item in candidates if isinstance(item, dict)] if isinstance(candidates, list) else []
     active_execution_raw = payload.get("active_execution_segment")
     active_execution = active_execution_raw if isinstance(active_execution_raw, dict) else None
-
     console.print("[bold]Resume Summary[/]")
     console.print("[dim]Read-only local recovery snapshot for this workspace.[/]")
     console.print()
@@ -1564,7 +1563,6 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
     if hint is not None:
         console.print(f"- {hint}")
 
-    recovery_advice = _resume_recovery_advice(resume_payload=payload)
     console.print(
         f"- {recovery_continue_action(mode='current-workspace', continue_command=recovery_advice.continue_command or 'runtime `resume-work`')}"
     )
