@@ -8,18 +8,18 @@ from pathlib import Path
 from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter
 from tests.doc_surface_contracts import (
     DOCTOR_RUNTIME_SCOPE_RE,
+    assert_beginner_startup_routing_contract,
     assert_cost_advisory_contract,
     assert_cost_surface_discoverability,
     assert_help_command_quick_start_extract_contract,
     assert_help_workflow_quick_start_taxonomy_contract,
     assert_help_workflow_runtime_reference_contract,
+    assert_recovery_ladder_contract,
     assert_start_workflow_router_contract,
     assert_tour_command_surface_contract,
     assert_unattended_readiness_contract,
     assert_wolfram_plan_boundary_contract,
     assert_workflow_preset_surface_contract,
-    assert_beginner_startup_routing_contract,
-    assert_recovery_ladder_contract,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -277,6 +277,7 @@ def test_suggest_next_prompt_uses_real_cli_subcommand() -> None:
 
     assert "Uses `gpd --raw suggest`" in suggest_prompt
     assert "Local CLI fallback: `gpd --raw suggest`" in suggest_prompt
+    assert "`/clear` first -> fresh context window, then `{command}`" in suggest_prompt
     assert "gpd suggest-next to scan" not in suggest_prompt
 
 

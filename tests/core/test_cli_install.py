@@ -24,6 +24,7 @@ from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.cli import _format_install_header_lines, _render_install_option_line, app
 from gpd.core.health import CheckStatus, DoctorReport, HealthCheck, HealthSummary
+from gpd.core.onboarding_surfaces import beginner_startup_ladder_text
 from gpd.core.surface_phrases import (
     local_cli_bridge_note,
     post_start_settings_note,
@@ -201,6 +202,7 @@ def _assert_single_runtime_next_steps(
         match = re.search(pattern, output[cursor:], re.S)
         assert match, output
         cursor += match.end()
+    assert beginner_startup_ladder_text() in output
     assert_install_summary_runtime_follow_up_contract(
         output,
         runtime_help_fragments=(
@@ -499,6 +501,7 @@ def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(t
 
     assert result.exit_code == 0
     assert "Startup checklist" in result.output
+    assert beginner_startup_ladder_text() in result.output
     for descriptor in descriptors:
         _assert_multi_runtime_next_step_line(result.output, descriptor)
     assert "1. From your system terminal" not in result.output

@@ -1261,7 +1261,7 @@ def test_emit_execution_notification_prefers_review_over_resume_for_bounded_gate
         _emit_execution_notification(str(workspace))
 
     assert "Pre-fanout review due for 05-03" in stderr.getvalue()
-    assert "Resume ready" not in stderr.getvalue()
+    assert "Resume candidate from live overlay" not in stderr.getvalue()
 
 
 def test_emit_execution_notification_for_skeptical_review_uses_anchor_focus(tmp_path: Path) -> None:
@@ -1360,7 +1360,7 @@ def test_emit_execution_notification_dedupes_repeated_resume_state(tmp_path: Pat
         _emit_execution_notification(str(workspace))
 
     output = stderr.getvalue()
-    assert output.count("Resume ready for 04-02") == 1
+    assert output.count("Resume candidate from live overlay for 04-02") == 1
 
 
 def test_emit_execution_notification_for_paused_state_without_resume_file_is_conservative(tmp_path: Path) -> None:
@@ -1383,7 +1383,7 @@ def test_emit_execution_notification_for_paused_state_without_resume_file_is_con
 
     output = stderr.getvalue()
     assert "Paused in 04-03" in output
-    assert "Resume ready" not in output
+    assert "Resume candidate from live overlay" not in output
 
 
 def test_emit_execution_notification_dedupes_concurrent_resume_state(tmp_path: Path) -> None:
@@ -1409,7 +1409,7 @@ def test_emit_execution_notification_dedupes_concurrent_resume_state(tmp_path: P
     def _message(_cwd: str) -> tuple[str, str]:
         barrier.wait(timeout=1)
         return (
-            "[GPD] Resume ready for 04-02: GPD/phases/04/.continue-here.md\n",
+            "[GPD] Resume candidate from live overlay for 04-02: GPD/phases/04/.continue-here.md\n",
             "resume:seg-2",
         )
 
@@ -1433,6 +1433,6 @@ def test_emit_execution_notification_dedupes_concurrent_resume_state(tmp_path: P
             thread.join()
 
     assert errors == []
-    assert stderr.getvalue().count("Resume ready for 04-02") == 1
+    assert stderr.getvalue().count("Resume candidate from live overlay for 04-02") == 1
     state = json.loads(ProjectLayout(workspace).last_observability_notification.read_text(encoding="utf-8"))
     assert state["fingerprint"] == "resume:seg-2"

@@ -2216,7 +2216,7 @@ def suggest(
     kwargs: dict[str, int] = {}
     if limit is not None:
         kwargs["limit"] = limit
-    _output(suggest_next(_get_cwd(), **kwargs))
+    _output(suggest_next(_status_command_cwd(), **kwargs))
 
 
 # ═══════════════════════════════════════════════════════════════════════════

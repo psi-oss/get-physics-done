@@ -11,9 +11,17 @@ from collections.abc import Iterable, Mapping
 
 from gpd.core.public_surface_contract import (
     local_cli_bridge_commands as _public_local_cli_bridge_commands,
+)
+from gpd.core.public_surface_contract import (
     local_cli_bridge_note as _public_local_cli_bridge_note,
+)
+from gpd.core.public_surface_contract import (
     post_start_settings_note as _public_post_start_settings_note,
+)
+from gpd.core.public_surface_contract import (
     post_start_settings_recommendation as _public_post_start_settings_recommendation,
+)
+from gpd.core.public_surface_contract import (
     recovery_ladder_note as _public_recovery_ladder_note,
 )
 from gpd.core.workflow_presets import list_workflow_presets
@@ -30,13 +38,16 @@ __all__ = [
     "observe_tangent_routing_note",
     "post_start_settings_note",
     "post_start_settings_recommendation",
+    "recovery_continue_reason",
     "recovery_action_lines",
     "recovery_ladder_note",
     "recovery_continue_action",
     "recovery_fast_next_action",
+    "recovery_fast_next_reason",
     "recovery_next_actions",
     "recovery_recent_action",
     "recovery_resume_action",
+    "recovery_primary_reason",
     "tangent_branch_later_action",
     "tangent_branch_later_follow_up_lines",
     "tangent_chooser_action",
@@ -75,6 +86,38 @@ def recovery_recent_action() -> str:
     return f"Run `{_recovery_recent_command()}` to find the workspace first when you need to reopen a different one."
 
 
+def recovery_primary_reason(
+    *,
+    mode: str,
+    forced_recent: bool = False,
+    execution_resumable: bool,
+    has_interrupted_agent: bool,
+    has_live_execution: bool,
+    has_session_resume_file: bool,
+    missing_session_resume_file: bool,
+    machine_change_notice: str | None,
+) -> str:
+    if mode == "recent-projects":
+        if forced_recent:
+            return "Use the machine-local recent-project index to choose the workspace you want to reopen."
+        return "Use the machine-local recent-project index to find the workspace you want to reopen."
+    if mode != "current-workspace":
+        return "No recent recovery target is currently recorded on this machine."
+    if execution_resumable:
+        return "Current workspace has a bounded resumable execution segment."
+    if has_interrupted_agent:
+        return "Current workspace has an interrupted-agent marker to inspect."
+    if has_session_resume_file:
+        return "Current workspace has a recorded session handoff."
+    if missing_session_resume_file:
+        return "Current workspace has recorded recovery state, but the last handoff file is missing."
+    if has_live_execution:
+        return "Current workspace has a live execution snapshot that should be inspected first."
+    if machine_change_notice:
+        return "Current workspace has recorded recovery state and a machine-change notice to inspect."
+    return "Current workspace has recorded recovery state."
+
+
 def recovery_continue_action(*, mode: str, continue_command: str) -> str:
     continue_phrase = _command_phrase(continue_command)
     if mode == "current-workspace":
@@ -82,9 +125,19 @@ def recovery_continue_action(*, mode: str, continue_command: str) -> str:
     return f"After selecting a workspace, use {continue_phrase} there to continue from the selected project state."
 
 
+def recovery_continue_reason(*, mode: str) -> str:
+    if mode == "recent-projects":
+        return "Continue paused work inside the selected workspace."
+    return "Continue paused work inside the current workspace."
+
+
 def recovery_fast_next_action(*, fast_next_command: str) -> str:
     fast_next_phrase = _command_phrase(fast_next_command)
     return f"{fast_next_phrase} is the fastest post-resume next command when you only need the next action."
+
+
+def recovery_fast_next_reason() -> str:
+    return "Fastest post-resume next command when you only need the next action."
 
 
 def _action_field(action: object, field: str) -> str | None:

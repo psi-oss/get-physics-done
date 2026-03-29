@@ -7,7 +7,11 @@ from types import SimpleNamespace
 from gpd.core.costs import UsageRecord, usage_ledger_path
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.runtime_hints import build_runtime_hint_payload, workflow_preset_surface_note
-from gpd.core.surface_phrases import cost_inspect_action
+from gpd.core.surface_phrases import (
+    cost_inspect_action,
+    recovery_continue_reason,
+    recovery_fast_next_reason,
+)
 
 _TEST_RUNTIME = "runtime-under-test"
 _TEST_MODEL = "model-under-test"
@@ -206,6 +210,8 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
     assert payload.orientation["mode"] == "current-workspace"
     assert payload.orientation["primary_command"] == "gpd resume"
     assert "bounded resumable execution segment" in str(payload.orientation["primary_reason"])
+    assert payload.orientation["continue_reason"] == recovery_continue_reason(mode="current-workspace")
+    assert payload.orientation["fast_next_reason"] == recovery_fast_next_reason()
     assert payload.orientation["resume_mode"] == "bounded_segment"
     assert payload.orientation["execution_resume_file"] == "GPD/phases/03/.continue-here.md"
     assert payload.orientation["execution_resume_file_source"] == "current_execution"

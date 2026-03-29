@@ -489,9 +489,9 @@ Usage: `/gpd:progress --reconcile` (fix diverged STATE.md and state.json)
 **`/gpd:resume-work`**
 Resume research from previous session with full context restoration.
 
-- Restores live execution state, recent progress, and session handoff context
-- Uses resume files and project state to pick up where you left off
-- Best first command when returning to paused or interrupted work
+- Restores live execution state, recent progress, and session handoff context through the canonical continuation hierarchy
+- Uses the recovery ladder (`gpd resume` -> `gpd resume --recent` when needed -> `/gpd:resume-work`) to pick up where you left off
+- Best first in-runtime command when returning to paused or interrupted work
 - This is the in-runtime continue path; for a current-workspace read-only recovery snapshot, use `gpd resume`
 - If you need to find the workspace first, use `gpd resume --recent`, then continue inside that workspace with `/gpd:resume-work`
 
@@ -1072,11 +1072,11 @@ Example config:
 
 ```
 /gpd:new-project        # Unified flow: questioning -> survey -> discuss -> objectives -> roadmap
-/clear
+/clear                  # then run /gpd:discuss-phase 1
 /gpd:discuss-phase 1    # Gather context and clarify approach
-/clear
+/clear                  # then run /gpd:plan-phase 1
 /gpd:plan-phase 1       # Create plans for first phase
-/clear
+/clear                  # then run /gpd:execute-phase 1
 /gpd:execute-phase 1    # Execute all plans in phase
 ```
 
@@ -1091,7 +1091,7 @@ Example config:
 
 ```
 /gpd:pause-work        # Before leaving mid-phase, capture a handoff
-/clear
+/clear                 # then run gpd resume to reopen the current workspace
 gpd resume             # Current-workspace read-only recovery snapshot
 gpd resume --recent    # Find the workspace first when you need to reopen a different one
 /gpd:resume-work       # Continue in-runtime from the selected project state
@@ -1125,7 +1125,7 @@ Read-only machine-local usage / cost summary from recorded local telemetry, opti
 
 ```
 /gpd:complete-milestone 1.1.0
-/clear
+/clear                 # then run /gpd:new-milestone for the next milestone
 /gpd:new-milestone  # Start next milestone (questioning -> survey -> objectives -> roadmap)
 ```
 

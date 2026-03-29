@@ -432,7 +432,7 @@ Wait for user selection.
 <step name="route_to_workflow">
 Based on user selection, route to appropriate workflow:
 
-- **Execute plan** -> Show command for user to run after clearing:
+- **Execute plan** -> Show the exact next command after clearing:
 
   ```
   ---
@@ -443,12 +443,12 @@ Based on user selection, route to appropriate workflow:
 
   `/gpd:execute-phase {phase}`
 
-  <sub>`/clear` first -> fresh context window</sub>
+  <sub>`/clear` first, then run `/gpd:execute-phase {phase}`</sub>
 
   ---
   ```
 
-- **Plan phase** -> Show command for user to run after clearing:
+- **Plan phase** -> Show the exact next command after clearing:
 
   ```
   ---
@@ -459,7 +459,7 @@ Based on user selection, route to appropriate workflow:
 
   `/gpd:plan-phase [phase-number]`
 
-  <sub>`/clear` first -> fresh context window</sub>
+  <sub>`/clear` first, then run `/gpd:plan-phase [phase-number]`</sub>
 
   ---
 

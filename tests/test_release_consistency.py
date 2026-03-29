@@ -14,7 +14,6 @@ from pathlib import Path
 
 import pytest
 
-from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.core.onboarding_surfaces import (
     beginner_onboarding_hub_url,
@@ -30,17 +29,15 @@ from scripts.release_workflow import (
 )
 from tests.doc_surface_contracts import (
     DOCTOR_RUNTIME_SCOPE_RE,
-    PLAN_PREFLIGHT_SURFACE,
     WOLFRAM_STATUS_SURFACE,
     assert_beginner_caveat_follow_up_contract,
     assert_beginner_help_bridge_contract,
     assert_beginner_hub_preflight_contract,
     assert_beginner_preflight_notice_contract,
-    assert_cost_advisory_contract,
-    assert_help_command_quick_start_extract_contract,
     assert_beginner_router_bridge_contract,
     assert_beginner_startup_routing_contract,
-    assert_execution_observability_surface_contract,
+    assert_cost_advisory_contract,
+    assert_help_command_quick_start_extract_contract,
     assert_help_workflow_quick_start_taxonomy_contract,
     assert_help_workflow_runtime_reference_contract,
     assert_optional_paper_workflow_guidance_contract,
@@ -677,6 +674,14 @@ def test_public_beginner_hub_keeps_top_level_and_help_surfaces_aligned() -> None
     install_js = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
 
     assert beginner_startup_ladder_text() in hub
+    assert "Then choose `new-project`, `map-research`, or `resume-work`." in hub
+    assert (
+        "If you already have a GPD project, `gpd resume` is the normal-terminal,\n"
+        "current-workspace read-only recovery snapshot, and `resume-work` is the\n"
+        "in-runtime continue command after you open the right folder. If you need to\n"
+        "reopen a different workspace first, use `gpd resume --recent`, then come back\n"
+        "into the runtime."
+    ) in hub
     assert_beginner_hub_preflight_contract(hub)
 
     start_here = _markdown_section(readme, "## Start Here")
@@ -688,7 +693,6 @@ def test_public_beginner_hub_keeps_top_level_and_help_surfaces_aligned() -> None
     assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
     assert "beginner_onboarding_hub_url()" in cli_content
     assert "Beginner Onboarding Hub:" in install_js
-    assert "beginnerHubUrl" in install_js
     assert "beginnerHubUrl" in install_js
     assert "First-run order:" in install_js
     assert install_js.index("Beginner Onboarding Hub:") < install_js.index("First-run order:")
@@ -759,6 +763,15 @@ def test_js_bootstrap_after_install_surface_keeps_beginner_order() -> None:
     assert hub_line in install_js
     assert order_line in install_js
     assert onboarding_line in install_js
+    assert (
+        "Open your runtime, run its help command first, use `start` if you are not sure what fits this folder, "
+        "and use `tour` if you want a read-only overview of the broader command surface before choosing."
+    ) in install_js
+    assert (
+        "Then use your runtime's `new-project` command for new work or `map-research` for existing work. "
+        "When you come back later, use `gpd resume` for the current-workspace read-only recovery snapshot or "
+        "`gpd resume --recent` to find a different workspace first, then continue in the runtime with `resume-work`."
+    ) in install_js
     assert install_js.index(hub_line) < install_js.index(order_line)
     assert install_js.index(order_line) < install_js.index(onboarding_line)
     assert install_js.index("help command first") < install_js.index("use `start`")

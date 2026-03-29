@@ -14,6 +14,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.context import init_resume
 from gpd.core.recent_projects import list_recent_projects
+from gpd.core.surface_phrases import (
+    recovery_continue_reason,
+    recovery_fast_next_reason,
+    recovery_primary_reason,
+)
 
 __all__ = [
     "RecoveryAdvice",
@@ -141,30 +146,6 @@ def _has_usable_candidate_resume_file(segment_candidates: Sequence[Mapping[str, 
             continue
         return True
     return False
-
-
-def _primary_reason(
-    *,
-    execution_resumable: bool,
-    has_interrupted_agent: bool,
-    has_live_execution: bool,
-    has_session_resume_file: bool,
-    missing_session_resume_file: bool,
-    machine_change_notice: str | None,
-) -> str:
-    if execution_resumable:
-        return "Current workspace has a bounded resumable execution segment."
-    if has_interrupted_agent:
-        return "Current workspace has an interrupted-agent marker to inspect."
-    if has_session_resume_file:
-        return "Current workspace has a recorded session handoff."
-    if missing_session_resume_file:
-        return "Current workspace has recorded recovery state, but the last handoff file is missing."
-    if has_live_execution:
-        return "Current workspace has a live execution snapshot that should be inspected first."
-    if machine_change_notice:
-        return "Current workspace has recorded recovery state and a machine-change notice to inspect."
-    return "Current workspace has recorded recovery state."
 
 
 def _status(
@@ -359,17 +340,35 @@ def build_recovery_advice(
             mode = "recent-projects"
             decision_source = "forced-recent-projects"
             primary_command = "gpd resume --recent"
-            primary_reason = "Use the machine-local recent-project index to choose the workspace you want to reopen."
+            primary_reason = recovery_primary_reason(
+                mode=mode,
+                forced_recent=True,
+                execution_resumable=execution_resumable,
+                has_interrupted_agent=has_interrupted_agent,
+                has_live_execution=has_live_execution,
+                has_session_resume_file=has_session_resume_file,
+                missing_session_resume_file=missing_session_resume_file,
+                machine_change_notice=machine_change_notice,
+            )
         else:
             mode = "idle"
             decision_source = "forced-recent-projects"
             primary_command = None
-            primary_reason = "No recent recovery target is currently recorded on this machine."
+            primary_reason = recovery_primary_reason(
+                mode=mode,
+                execution_resumable=execution_resumable,
+                has_interrupted_agent=has_interrupted_agent,
+                has_live_execution=has_live_execution,
+                has_session_resume_file=has_session_resume_file,
+                missing_session_resume_file=missing_session_resume_file,
+                machine_change_notice=machine_change_notice,
+            )
     elif current_workspace_has_recovery:
         mode = "current-workspace"
         decision_source = "current-workspace"
         primary_command = "gpd resume"
-        primary_reason = _primary_reason(
+        primary_reason = recovery_primary_reason(
+            mode=mode,
             execution_resumable=execution_resumable,
             has_interrupted_agent=has_interrupted_agent,
             has_live_execution=has_live_execution,
@@ -381,19 +380,31 @@ def build_recovery_advice(
         mode = "recent-projects"
         decision_source = "recent-projects"
         primary_command = "gpd resume --recent"
-        primary_reason = "Use the machine-local recent-project index to find the workspace you want to reopen."
+        primary_reason = recovery_primary_reason(
+            mode=mode,
+            execution_resumable=execution_resumable,
+            has_interrupted_agent=has_interrupted_agent,
+            has_live_execution=has_live_execution,
+            has_session_resume_file=has_session_resume_file,
+            missing_session_resume_file=missing_session_resume_file,
+            machine_change_notice=machine_change_notice,
+        )
     else:
         mode = "idle"
         decision_source = "none"
         primary_command = None
-        primary_reason = "No recent recovery target is currently recorded on this machine."
+        primary_reason = recovery_primary_reason(
+            mode=mode,
+            execution_resumable=execution_resumable,
+            has_interrupted_agent=has_interrupted_agent,
+            has_live_execution=has_live_execution,
+            has_session_resume_file=has_session_resume_file,
+            missing_session_resume_file=missing_session_resume_file,
+            machine_change_notice=machine_change_notice,
+        )
 
-    continue_reason = (
-        "Continue paused work inside the selected workspace."
-        if mode == "recent-projects"
-        else "Continue paused work inside the current workspace."
-    )
-    fast_next_reason = "Fastest post-resume next command when you only need the next action."
+    continue_reason = recovery_continue_reason(mode=mode)
+    fast_next_reason = recovery_fast_next_reason()
 
     return RecoveryAdvice(
         mode=mode,

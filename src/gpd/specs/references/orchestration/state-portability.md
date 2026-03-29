@@ -4,17 +4,17 @@ How GPD project state travels between machines, survives session interruptions, 
 
 ## Continuation Surface Contract
 
-Current public behavior does **not** persist a separate standalone continuation ledger. Instead, `gpd init resume` computes the current canonical continuation view by reading `state.json.continuation` first and only consulting the live execution overlay as a compatibility fallback for legacy bounded-segment recovery:
+Current public behavior does **not** persist a separate standalone continuation ledger. Instead, `gpd init resume` computes the current canonical continuation view by reading `state.json.continuation` first and only consulting the live execution overlay as a compatibility fallback for legacy bounded-segment recovery within the canonical continuation hierarchy:
 
 | Surface | Current Role | Authority |
 |---------|--------------|-----------|
-| `GPD/state.json` | Storage authority for machine-readable project state, canonical continuation, and session continuity | Authoritative |
-| `GPD/state.json.bak` | Recovery backup when `state.json` is unreadable or unavailable | Fallback only |
-| `GPD/STATE.md` | Editable human-readable mirror of state; reconstruction input when both JSON files fail | Mirror / reconstruction surface |
-| `GPD/phases/.../.continue-here.md` | Temporary handoff artifact written by `/gpd:pause-work` | Non-authoritative continuity artifact |
+| `GPD/state.json` | Storage authority for machine-readable project state and canonical continuation hierarchy | Authoritative |
+| `GPD/state.json.bak` | Recovery backup for `state.json` | Recovery fallback |
+| `GPD/STATE.md` | Editable human-readable mirror of state; reconstruction input when the recovery ladder falls back to text | Mirror / reconstruction surface |
+| `GPD/phases/.../.continue-here.md` | Temporary handoff artifact written by `/gpd:pause-work`; only meaningful through the canonical continuation hierarchy | Non-authoritative continuity artifact |
 | `GPD/observability/current-execution.json` | Live execution overlay showing the latest execution snapshot | Advisory unless it yields a resumable bounded segment and canonical `continuation.bounded_segment` is absent |
 
-The resolver is `gpd init resume`. No single handoff file or observability snapshot is, by itself, the canonical continuation state. Canonical state in `state.json.continuation` wins first; the overlay only fills legacy gaps.
+The resolver is `gpd init resume`. No single handoff file or observability snapshot is, by itself, the canonical continuation state. Canonical state in `state.json.continuation` wins first; the overlay only fills legacy gaps in the recovery ladder.
 
 ## What Is Portable
 
@@ -22,7 +22,7 @@ The `GPD/` project directory is the unit of portability. It lives inside the use
 
 Portable contents include:
 
-- `state.json` and `STATE.md` (dual-write state engine; `continuation` is durable JSON-only state)
+- `state.json` and `STATE.md` (dual-write state engine; `continuation` is durable JSON-only state and `state.json.bak` is the recovery backup)
 - `state.json.bak` (crash-recovery backup)
 - `PROJECT.md`, `ROADMAP.md`, `DERIVATION-STATE.md`
 - `phases/` tree (plans, summaries, context files, resume artifacts)
@@ -51,7 +51,7 @@ The following are **primarily machine-local** across machines and should be rege
 1. **On the source machine**: Commit all work including `GPD/` state. Push to the remote.
 2. **On the target machine**: Clone the repository.
 3. **Run the installer**: `npx get-physics-done` (or the equivalent install pathway). This creates a fresh managed venv, installs the GPD package, writes runtime-local configuration, and registers MCP servers.
-4. **Resume**: If you already know the repo, run `/gpd:resume-work` in the coding assistant when you are ready to continue work there, or `gpd resume` from your normal system terminal for a read-only local recovery summary. If you are not sure which repo to reopen, run `gpd resume --recent` first to discover the project, then open that workspace and use the per-project resume surface there. The shared resume machinery reconstructs the full project context from recoverable state in `GPD/state.json`, `GPD/state.json.bak`, or `GPD/STATE.md`, with canonical `state.json.continuation` taking precedence whenever it is present and complete.
+4. **Resume**: If you already know the repo, run `/gpd:resume-work` in the coding assistant when you are ready to continue work there, or `gpd resume` from your normal system terminal for a read-only local recovery summary. If you are not sure which repo to reopen, run `gpd resume --recent` first to discover the project, then open that workspace and use the per-project resume surface there. The shared resume machinery reconstructs the full project context from the recovery ladder in `GPD/state.json`, `GPD/state.json.bak`, or `GPD/STATE.md`, with canonical `state.json.continuation` taking precedence whenever it is present and complete.
 
 No manual patching of state files is needed. The `GPD/` directory is self-contained.
 
@@ -95,7 +95,7 @@ For most disagreements, `/gpd:sync-state` or `gpd state validate` will detect an
 
 Current public behavior therefore distinguishes:
 
-- storage authority: `GPD/state.json` (including `continuation`), then `GPD/state.json.bak`
+- storage authority: `GPD/state.json` (including `continuation`), then `GPD/state.json.bak`, then `GPD/STATE.md`
 - editable mirror: `GPD/STATE.md`
 - temporary handoff artifact: `GPD/phases/.../.continue-here.md`
 - live execution overlay: `GPD/observability/current-execution.json`
@@ -123,7 +123,7 @@ This is deterministic: given the same `GPD/` directory, resume produces the same
 The state engine maintains a recovery chain:
 
 ```
-state.json  >  state.json.bak  >  STATE.md
+state.json (including canonical continuation)  >  state.json.bak  >  STATE.md
 ```
 
 `state.json.bak` is written after every successful state save. State writes fail closed if the backup cannot be refreshed. If `state.json` is corrupt or missing, `load_state_json()` automatically tries the backup. If both are lost, the system falls back to parsing `STATE.md` and reconstructing the JSON state.

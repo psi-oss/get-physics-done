@@ -236,7 +236,7 @@ def _execution_notification_message(cwd: str) -> tuple[str | None, str | None]:
     if snapshot.resume_file:
         resume_target = snapshot.resume_file
         return (
-            f"[GPD] Resume ready for {phase_plan}: {resume_target}\n",
+            f"[GPD] Resume candidate from live overlay for {phase_plan}: {resume_target}\n",
             f"resume:{snapshot.transition_id or snapshot.segment_id or resume_target}",
         )
     if segment_status in _PAUSED_SEGMENT_STATES:

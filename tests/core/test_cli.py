@@ -2766,13 +2766,39 @@ def test_cli_invocation_does_not_write_observability_files_without_explicit_even
 
 
 @patch("gpd.core.suggest.suggest_next")
-def test_suggest(mock_suggest):
+def test_suggest_uses_ancestor_project_root_from_nested_cwd(mock_suggest, tmp_path: Path, monkeypatch) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "work" / "nested"
+    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    nested_cwd.mkdir(parents=True, exist_ok=True)
+
     mock_result = MagicMock()
     mock_result.model_dump.return_value = {"suggestions": []}
     mock_suggest.return_value = mock_result
+
+    monkeypatch.chdir(nested_cwd)
     result = runner.invoke(app, ["suggest"])
+
     assert result.exit_code == 0
-    mock_suggest.assert_called_once()
+    mock_suggest.assert_called_once_with(project_root.resolve())
+
+
+@patch("gpd.core.suggest.suggest_next")
+def test_suggest_uses_ancestor_project_root_from_cleared_cwd(mock_suggest, tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "work" / "nested"
+    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    nested_cwd.mkdir(parents=True, exist_ok=True)
+    nested_cwd.rmdir()
+
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"suggestions": []}
+    mock_suggest.return_value = mock_result
+
+    result = runner.invoke(app, ["--cwd", str(nested_cwd), "suggest"])
+
+    assert result.exit_code == 0
+    mock_suggest.assert_called_once_with(project_root.resolve())
 
 
 # ─── pattern subcommands ────────────────────────────────────────────────────

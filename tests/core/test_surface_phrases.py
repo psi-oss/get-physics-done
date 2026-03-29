@@ -15,9 +15,12 @@ from gpd.core.surface_phrases import (
     post_start_settings_recommendation,
     recovery_action_lines,
     recovery_continue_action,
+    recovery_continue_reason,
     recovery_fast_next_action,
+    recovery_fast_next_reason,
     recovery_ladder_note,
     recovery_next_actions,
+    recovery_primary_reason,
     recovery_recent_action,
     recovery_resume_action,
     tangent_branch_later_action,
@@ -50,9 +53,49 @@ def test_recovery_surface_phrases_cover_current_and_cross_project_paths() -> Non
     assert "gpd resume" in recovery_resume_action()
     assert "gpd resume --recent" in recovery_recent_action()
     assert (
+        recovery_primary_reason(
+            mode="current-workspace",
+            execution_resumable=True,
+            has_interrupted_agent=False,
+            has_live_execution=False,
+            has_session_resume_file=False,
+            missing_session_resume_file=False,
+            machine_change_notice=None,
+        )
+        == "Current workspace has a bounded resumable execution segment."
+    )
+    assert (
+        recovery_primary_reason(
+            mode="recent-projects",
+            forced_recent=False,
+            execution_resumable=False,
+            has_interrupted_agent=False,
+            has_live_execution=False,
+            has_session_resume_file=False,
+            missing_session_resume_file=False,
+            machine_change_notice=None,
+        )
+        == "Use the machine-local recent-project index to find the workspace you want to reopen."
+    )
+    assert (
+        recovery_primary_reason(
+            mode="recent-projects",
+            forced_recent=True,
+            execution_resumable=False,
+            has_interrupted_agent=False,
+            has_live_execution=False,
+            has_session_resume_file=False,
+            missing_session_resume_file=False,
+            machine_change_notice=None,
+        )
+        == "Use the machine-local recent-project index to choose the workspace you want to reopen."
+    )
+    assert (
         recovery_continue_action(mode="current-workspace", continue_command="codex-resume-work")
         == "`codex-resume-work` continues in-runtime from the selected project state."
     )
+    assert recovery_continue_reason(mode="current-workspace") == "Continue paused work inside the current workspace."
+    assert recovery_continue_reason(mode="recent-projects") == "Continue paused work inside the selected workspace."
     assert (
         recovery_continue_action(mode="recent-projects", continue_command="runtime `resume-work`")
         == "After selecting a workspace, use runtime `resume-work` there to continue from the selected project state."
@@ -61,6 +104,7 @@ def test_recovery_surface_phrases_cover_current_and_cross_project_paths() -> Non
         recovery_fast_next_action(fast_next_command="/gpd:suggest-next")
         == "`/gpd:suggest-next` is the fastest post-resume next command when you only need the next action."
     )
+    assert recovery_fast_next_reason() == "Fastest post-resume next command when you only need the next action."
 
     ladder_note = recovery_ladder_note(
         resume_work_phrase="`/gpd:resume-work`",

@@ -62,7 +62,7 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert 'set `resume_mode="bounded_segment"`' in portability_doc
     assert "Current public behavior does **not** persist a separate standalone continuation ledger." in portability_doc
     assert "`gpd init resume` computes the current canonical continuation view by reading `state.json.continuation` first" in portability_doc
-    assert "Storage authority for machine-readable project state, canonical continuation, and session continuity" in portability_doc
+    assert "Storage authority for machine-readable project state and canonical continuation hierarchy" in portability_doc
     assert "Editable human-readable mirror of state" in portability_doc
     assert "Temporary handoff artifact written by `/gpd:pause-work`" in portability_doc
     assert "Live execution overlay showing the latest execution snapshot" in portability_doc
@@ -78,8 +78,8 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "current readable `state.json` carries a malformed `project_contract`" in resume_doc
     assert "silently promoting `state.json.bak` as the current authoritative contract" in portability_doc
     assert "does not choose a newer backup by timestamp alone" in portability_doc
-    assert "state.json  >  state.json.bak  >  STATE.md" in portability_doc
-    assert "reconstructs the full project context from recoverable state in `GPD/state.json`, `GPD/state.json.bak`, or `GPD/STATE.md`" in portability_doc
+    assert "state.json (including canonical continuation)  >  state.json.bak  >  STATE.md" in portability_doc
+    assert "reconstructs the full project context from the recovery ladder in `GPD/state.json`, `GPD/state.json.bak`, or `GPD/STATE.md`" in portability_doc
     assert "state.json > state.json.bak > STATE.md" in schema_doc
     assert "state saves fail closed if the backup cannot be refreshed" in schema_doc
     assert "/gpd:sync-state" in portability_doc
