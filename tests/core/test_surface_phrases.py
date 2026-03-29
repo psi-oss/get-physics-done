@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from gpd.core.surface_phrases import (
+    command_follow_up_action,
     cost_after_run_action,
     cost_after_runs_guidance,
     cost_inspect_action,
@@ -9,12 +10,14 @@ from gpd.core.surface_phrases import (
     observe_execution_action,
     observe_execution_surface_note,
     observe_tangent_routing_note,
+    recovery_action_lines,
     recovery_continue_action,
     recovery_fast_next_action,
     recovery_ladder_note,
     recovery_next_actions,
     recovery_recent_action,
     recovery_resume_action,
+    tangent_chooser_action,
     workflow_preset_storage_note,
     workflow_preset_surface_note,
 )
@@ -75,7 +78,29 @@ def test_recovery_next_actions_respect_local_target_gating_and_resume_dedup() ->
     ]
 
 
+def test_recovery_action_lines_render_structured_actions_with_availability_filter() -> None:
+    actions = [
+        {"kind": "primary", "command": "gpd resume --recent", "availability": "now"},
+        {"kind": "continue", "command": "runtime `resume-work`", "availability": "after_selection"},
+        {"kind": "fast-next", "command": "runtime `suggest-next`", "availability": "after_selection"},
+    ]
+
+    assert recovery_action_lines(actions=actions, mode="recent-projects") == [
+        recovery_recent_action(),
+        recovery_continue_action(mode="recent-projects", continue_command="runtime `resume-work`"),
+        recovery_fast_next_action(fast_next_command="runtime `suggest-next`"),
+    ]
+    assert recovery_action_lines(
+        actions=actions,
+        mode="recent-projects",
+        allowed_availability={"now"},
+    ) == [recovery_recent_action()]
+
+
 def test_observe_surface_phrases_stay_read_only_and_route_follow_ups_explicitly() -> None:
+    assert command_follow_up_action(command="gpd observe show --last 20", reason="inspect the recent execution trail") == (
+        "Run `gpd observe show --last 20` to inspect the recent execution trail."
+    )
     assert observe_execution_action() == (
         "Run `gpd observe execution` for read-only long-run visibility from your normal terminal."
     )
@@ -96,6 +121,10 @@ def test_observe_surface_phrases_stay_read_only_and_route_follow_ups_explicitly(
             branch_phrase="runtime `branch-hypothesis`",
         )
         == "If `gpd observe execution` surfaces an alternative-path follow-up or `branch later` recommendation, route it through runtime `tangent` first; use runtime `branch-hypothesis` only after that explicit choice."
+    )
+    assert tangent_chooser_action() == (
+        "Inside the runtime, use the `tangent` command to choose stay on the main path, "
+        "run a bounded quick check, capture and defer, or open a hypothesis branch."
     )
 
 

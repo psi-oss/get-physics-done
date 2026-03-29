@@ -19,8 +19,10 @@ from gpd.core.observability import derive_execution_visibility, resolve_project_
 from gpd.core.recent_projects import list_recent_projects
 from gpd.core.recovery_advice import RecoveryAdvice, build_recovery_advice
 from gpd.core.surface_phrases import (
+    command_follow_up_action,
     cost_inspect_action,
-    recovery_next_actions,
+    recovery_action_lines,
+    tangent_chooser_action,
 )
 from gpd.core.surface_phrases import (
     workflow_preset_surface_note as _workflow_preset_surface_note_text,
@@ -122,24 +124,55 @@ def _resume_context(cwd: Path) -> dict[str, object]:
 
 def _recovery_next_actions(advice: RecoveryAdvice, *, existing_actions: list[str] | None = None) -> list[str]:
     existing = list(existing_actions or [])
-    primary_command = advice.primary_command
-    if primary_command == "gpd resume" and any("`gpd resume`" in action for action in existing):
-        primary_command = None
-    available_action_kinds = {
-        str(action.kind)
-        for action in advice.actions
-        if str(action.availability) == "now"
-    }
-    return recovery_next_actions(
-        primary_command=primary_command,
+    actions = list(advice.actions)
+    if any("`gpd resume`" in action for action in existing):
+        actions = [
+            action
+            for action in actions
+            if not (str(action.kind) == "primary" and str(action.command) == "gpd resume")
+        ]
+    return recovery_action_lines(
+        actions=actions,
         mode=advice.mode,
-        continue_command=advice.continue_command if "continue" in available_action_kinds else None,
-        fast_next_command=advice.fast_next_command if "fast-next" in available_action_kinds else None,
         existing_actions=existing,
+        allowed_availability={"now"},
+        include_primary=True,
     )
 
 
-def _workflow_next_actions(details: dict[str, object], *, base_ready: bool, latex_capability: dict[str, object]) -> list[str]:
+def _suggestion_text(value: object, field: str) -> str | None:
+    if isinstance(value, dict):
+        candidate = value.get(field)
+    else:
+        candidate = getattr(value, field, None)
+    if not isinstance(candidate, str):
+        return None
+    stripped = candidate.strip()
+    return stripped or None
+
+
+def _execution_next_actions(execution_visibility: object | None) -> list[str]:
+    if execution_visibility is None:
+        return []
+
+    raw_suggestions = list(getattr(execution_visibility, "suggested_next_commands", []) or [])
+    actions = [
+        command_follow_up_action(command=command, reason=reason)
+        for suggestion in raw_suggestions
+        if (command := _suggestion_text(suggestion, "command")) is not None
+        and (reason := _suggestion_text(suggestion, "reason")) is not None
+    ]
+
+    tangent_summary = _suggestion_text(execution_visibility, "tangent_summary")
+    tangent_decision = _suggestion_text(execution_visibility, "tangent_decision")
+    if tangent_summary is not None and tangent_decision in {None, "branch_later"}:
+        actions.append(tangent_chooser_action())
+    return actions
+
+
+def _workflow_next_actions(
+    _details: dict[str, object], *, base_ready: bool, latex_capability: dict[str, object]
+) -> list[str]:
     actions: list[str] = []
     if not base_ready:
         actions.append("Fix base runtime-readiness issues before relying on workflow presets.")
@@ -156,13 +189,6 @@ def _workflow_next_actions(details: dict[str, object], *, base_ready: bool, late
             actions.append("Install latexmk to speed up paper builds; manual multipass compilation is still available.")
         if compiler_available and bibtex_available and kpsewhich_available is False:
             actions.append("Install kpsewhich/TeX resource lookup support to improve journal and class checks.")
-        ready_ids = [
-            str(preset.get("id"))
-            for preset in details.get("presets", [])
-            if isinstance(preset, dict) and preset.get("status") == "ready" and preset.get("id")
-        ]
-        if ready_ids:
-            actions.append(f"Workflow presets ready: {', '.join(ready_ids)}.")
     return actions
 
 
@@ -323,9 +349,7 @@ def build_runtime_hint_payload(
         "include_workflow_presets": include_workflow_presets,
     }
 
-    execution_actions = []
-    if execution_visibility is not None:
-        execution_actions = list(execution_visibility.suggested_next_steps)
+    execution_actions = _execution_next_actions(execution_visibility)
 
     next_action_parts: list[str] = [*execution_actions]
     if recovery_advice is not None:

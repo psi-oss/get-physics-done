@@ -7,11 +7,12 @@ phrasing without dragging docs or CLI renderers into the dependency surface.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from gpd.core.workflow_presets import list_workflow_presets
 
 __all__ = [
+    "command_follow_up_action",
     "cost_after_runs_guidance",
     "cost_after_run_action",
     "cost_inspect_action",
@@ -20,12 +21,14 @@ __all__ = [
     "observe_execution_action",
     "observe_execution_surface_note",
     "observe_tangent_routing_note",
+    "recovery_action_lines",
     "recovery_ladder_note",
     "recovery_continue_action",
     "recovery_fast_next_action",
     "recovery_next_actions",
     "recovery_recent_action",
     "recovery_resume_action",
+    "tangent_chooser_action",
     "workflow_preset_storage_note",
     "workflow_preset_surface_note",
 ]
@@ -33,6 +36,10 @@ __all__ = [
 
 def _command_phrase(command: str) -> str:
     return command if command.startswith(("runtime `", "the runtime `", "`")) else f"`{command}`"
+
+
+def command_follow_up_action(*, command: str, reason: str) -> str:
+    return f"Run `{command}` to {reason}."
 
 
 def recovery_resume_action() -> str:
@@ -55,6 +62,57 @@ def recovery_fast_next_action(*, fast_next_command: str) -> str:
     return f"{fast_next_phrase} is the fastest post-resume next command when you only need the next action."
 
 
+def _action_field(action: object, field: str) -> str | None:
+    if isinstance(action, Mapping):
+        value = action.get(field)
+    else:
+        value = getattr(action, field, None)
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def recovery_action_lines(
+    *,
+    actions: Iterable[object],
+    mode: str,
+    existing_actions: Iterable[str] = (),
+    allowed_availability: Iterable[str] | None = None,
+    include_primary: bool = True,
+) -> list[str]:
+    existing = {action.strip() for action in existing_actions if action.strip()}
+    allowed = {value.strip() for value in allowed_availability or () if isinstance(value, str) and value.strip()} or None
+    rendered: list[str] = []
+
+    for action in actions:
+        availability = _action_field(action, "availability") or "now"
+        if allowed is not None and availability not in allowed:
+            continue
+
+        kind = _action_field(action, "kind")
+        command = _action_field(action, "command")
+        line: str | None = None
+
+        if kind == "primary":
+            if not include_primary:
+                continue
+            if command == "gpd resume":
+                line = recovery_resume_action()
+            elif command == "gpd resume --recent":
+                line = recovery_recent_action()
+        elif kind == "continue" and command is not None:
+            line = recovery_continue_action(mode=mode, continue_command=command)
+        elif kind == "fast-next" and command is not None:
+            line = recovery_fast_next_action(fast_next_command=command)
+
+        if line is None or line in existing or line in rendered:
+            continue
+        rendered.append(line)
+
+    return rendered
+
+
 def recovery_next_actions(
     *,
     primary_command: str | None,
@@ -63,29 +121,48 @@ def recovery_next_actions(
     fast_next_command: str | None = None,
     existing_actions: Iterable[str] = (),
 ) -> list[str]:
-    existing = {action.strip() for action in existing_actions if action.strip()}
-    actions: list[str] = []
+    structured_actions: list[dict[str, str]] = []
+    if primary_command in {"gpd resume", "gpd resume --recent"}:
+        structured_actions.append(
+            {
+                "kind": "primary",
+                "command": primary_command,
+                "availability": "now",
+            }
+        )
 
-    if primary_command == "gpd resume":
-        resume_action = recovery_resume_action()
-        if resume_action not in existing:
-            actions.append(resume_action)
-    elif primary_command == "gpd resume --recent":
-        recent_action = recovery_recent_action()
-        if recent_action not in existing:
-            actions.append(recent_action)
-        return actions
+    if mode == "current-workspace":
+        availability = "now"
+    elif mode == "recent-projects":
+        availability = "after_selection"
+    else:
+        availability = None
 
-    if mode != "current-workspace":
-        return actions
+    if availability is not None:
+        if isinstance(continue_command, str) and continue_command.strip():
+            structured_actions.append(
+                {
+                    "kind": "continue",
+                    "command": continue_command.strip(),
+                    "availability": availability,
+                }
+            )
+        if isinstance(fast_next_command, str) and fast_next_command.strip():
+            structured_actions.append(
+                {
+                    "kind": "fast-next",
+                    "command": fast_next_command.strip(),
+                    "availability": availability,
+                }
+            )
 
-    if isinstance(continue_command, str) and continue_command.strip():
-        actions.append(recovery_continue_action(mode=mode, continue_command=continue_command.strip()))
-
-    if isinstance(fast_next_command, str) and fast_next_command.strip():
-        actions.append(recovery_fast_next_action(fast_next_command=fast_next_command.strip()))
-
-    return actions
+    return recovery_action_lines(
+        actions=structured_actions,
+        mode=mode,
+        existing_actions=existing_actions,
+        allowed_availability={"now"},
+        include_primary=True,
+    )
 
 
 def observe_execution_action() -> str:
@@ -105,6 +182,13 @@ def observe_tangent_routing_note(*, tangent_phrase: str, branch_phrase: str) -> 
     return (
         "If `gpd observe execution` surfaces an alternative-path follow-up or `branch later` recommendation, "
         f"route it through {tangent_text} first; use {branch_text} only after that explicit choice."
+    )
+
+
+def tangent_chooser_action() -> str:
+    return (
+        "Inside the runtime, use the `tangent` command to choose stay on the main path, "
+        "run a bounded quick check, capture and defer, or open a hypothesis branch."
     )
 
 

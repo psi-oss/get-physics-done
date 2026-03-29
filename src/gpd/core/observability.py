@@ -672,7 +672,12 @@ def _execution_visibility_next_commands(
 def _execution_visibility_next_steps(
     suggestions: list[ExecutionVisibilitySuggestion],
 ) -> list[str]:
-    return [f"Run `{suggestion.command}` to {suggestion.reason}." for suggestion in suggestions]
+    from gpd.core.surface_phrases import command_follow_up_action
+
+    return [
+        command_follow_up_action(command=suggestion.command, reason=suggestion.reason)
+        for suggestion in suggestions
+    ]
 
 
 def derive_execution_visibility(cwd: Path | None = None) -> ExecutionVisibilityState | None:

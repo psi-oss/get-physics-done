@@ -52,8 +52,7 @@ from gpd.core.constants import (
 from gpd.core.errors import ConfigError, GPDError
 from gpd.core.recovery_advice import RecoveryAdvice, build_recovery_advice
 from gpd.core.surface_phrases import (
-    recovery_continue_action,
-    recovery_fast_next_action,
+    recovery_action_lines,
     recovery_ladder_note,
     recovery_recent_action,
     recovery_resume_action,
@@ -1427,13 +1426,11 @@ def _resume_recent_project_notes(row: dict[str, object]) -> str:
 
 def _resume_follow_up_actions(recovery_advice: RecoveryAdvice) -> list[str]:
     """Render recovery follow-up lines from the shared structured action contract."""
-    lines: list[str] = []
-    for action in recovery_advice.actions:
-        if action.kind == "continue":
-            lines.append(recovery_continue_action(mode=recovery_advice.mode, continue_command=action.command))
-        elif action.kind == "fast-next":
-            lines.append(recovery_fast_next_action(fast_next_command=action.command))
-    return lines
+    return recovery_action_lines(
+        actions=recovery_advice.actions,
+        mode=recovery_advice.mode,
+        include_primary=False,
+    )
 
 
 def _render_recent_resume_summary(rows: list[dict[str, object]]) -> None:
