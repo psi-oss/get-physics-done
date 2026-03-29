@@ -656,7 +656,7 @@ def test_permissions_status_surfaces_runtime_capabilities_and_config_scope() -> 
                 "managed_by_gpd": False,
                 "approval_policy": "on-request",
                 "sandbox_mode": "workspace-write",
-                "message": "Codex is using its normal approval and sandbox defaults.",
+                "message": f"{runtime_display_name(runtime)} is using its normal approval and sandbox defaults.",
             }
 
     with (

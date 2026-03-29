@@ -1372,7 +1372,7 @@ function printHelp() {
   console.log(` Beginner Onboarding Hub: ${SHARED_PUBLIC_SURFACE_TEXT.beginnerHubUrl}`);
   console.log(` First-run order: ${beginnerStartupLadderText()}`);
   console.log(" Open your runtime, run its help command first, use `start` if you are not sure what fits this folder, and use `tour` if you want a read-only overview of the broader command surface before choosing.");
-  console.log(" Then use your runtime's `new-project` command for new work or `map-research` for existing work. When you come back later, use `gpd resume` for the current workspace or `gpd resume --recent` to find a different workspace first, then continue in the runtime with `resume-work`.");
+  console.log(" Then use your runtime's `new-project` command for new work or `map-research` for existing work. When you come back later, use `gpd resume` for the current-workspace read-only recovery snapshot or `gpd resume --recent` to find a different workspace first, then continue in the runtime with `resume-work`.");
   console.log(` Later, use the runtime-specific \`settings\` command after your first successful start or later ${settingsCommandTail()}`);
   console.log(` Recommended unattended default: Balanced autonomy (\`balanced\`). ${SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence}`);
   console.log(

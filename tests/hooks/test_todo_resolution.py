@@ -113,3 +113,20 @@ def test_ordered_todo_lookup_candidates_uses_runtime_unknown_constant_not_litera
         patch("gpd.hooks.runtime_detect.detect_runtime_install_target", side_effect=AssertionError("unexpected lookup")),
     ):
         assert ordered_todo_lookup_candidates(hook_file=__file__, cwd=str(tmp_path)) == []
+
+
+def test_ordered_todo_lookup_candidates_uses_non_project_cwd_for_runtime_preference_lookup(tmp_path: Path) -> None:
+    workspace = tmp_path / "scratch"
+    workspace.mkdir()
+
+    with (
+        patch("gpd.hooks.install_context.resolve_project_root", return_value=None),
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=None),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
+        patch("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", return_value="codex") as mock_preferred,
+        patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=[]),
+        patch("gpd.hooks.runtime_detect.should_consider_todo_candidate", return_value=True),
+    ):
+        assert ordered_todo_lookup_candidates(hook_file=__file__, cwd=str(workspace)) == []
+
+    assert mock_preferred.call_args.kwargs["cwd"] == workspace

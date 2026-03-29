@@ -147,6 +147,28 @@ def test_resolve_update_cache_inputs_uses_explicit_preference_without_runtime_lo
     assert preferred_runtime == "codex"
 
 
+def test_resolve_update_cache_inputs_uses_non_project_cwd_for_runtime_preference_lookup(tmp_path: Path) -> None:
+    workspace = tmp_path / "scratch"
+    workspace.mkdir()
+    home = tmp_path / "home"
+
+    with (
+        patch("gpd.hooks.install_context.resolve_project_root", return_value=None),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
+        patch("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", return_value="codex") as mock_preferred,
+    ):
+        workspace_path, resolved_home, active_runtime, preferred_runtime = resolve_update_cache_inputs(
+            cwd=workspace,
+            home=home,
+        )
+
+    assert workspace_path == workspace
+    assert resolved_home == home
+    assert active_runtime == "unknown"
+    assert preferred_runtime == "codex"
+    assert mock_preferred.call_args.kwargs["cwd"] == workspace
+
+
 def test_primary_update_cache_file_falls_back_to_home_gpd_cache(tmp_path: Path) -> None:
     home = tmp_path / "home"
 
@@ -195,7 +217,7 @@ def test_latest_update_cache_uses_runtime_unknown_constant_not_literal(tmp_path:
 
     with (
         patch("gpd.hooks.install_context.detect_self_owned_install", return_value=None),
-        patch("gpd.hooks.update_resolution.resolve_project_root", return_value=workspace),
+        patch("gpd.hooks.install_context.resolve_project_root", return_value=workspace),
         patch("gpd.hooks.runtime_detect.RUNTIME_UNKNOWN", runtime_unknown),
         patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value=runtime_unknown),
         patch("gpd.hooks.runtime_detect.detect_runtime_install_target", side_effect=AssertionError("unexpected lookup")),

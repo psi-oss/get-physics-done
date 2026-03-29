@@ -9,7 +9,6 @@ from pathlib import Path
 from gpd.adapters.install_utils import CACHE_DIR_NAME, UPDATE_CACHE_FILENAME
 from gpd.core.constants import PLANNING_DIR_NAME
 import gpd.hooks.install_context as hook_layout
-from gpd.core.observability import resolve_project_root
 
 DebugLogger = Callable[[str], None]
 
@@ -36,23 +35,13 @@ def resolve_update_cache_inputs(
     preferred_runtime: str | None = None,
 ) -> tuple[Path | None, Path, str | None, str | None]:
     """Return the shared runtime-preference inputs for update-cache lookup."""
-    from gpd.hooks.runtime_detect import detect_active_runtime_with_gpd_install, detect_runtime_for_gpd_use
-
-    workspace_path = resolve_project_root(cwd) if cwd else None
-    resolved_home = Path.home() if home is None else Path(home)
-    active_runtime = (
-        active_installed_runtime
-        if active_installed_runtime is not None
-        else detect_active_runtime_with_gpd_install(cwd=workspace_path, home=resolved_home)
+    lookup = hook_layout.resolve_hook_lookup_context(
+        cwd=cwd,
+        home=home,
+        active_installed_runtime=active_installed_runtime,
+        preferred_runtime=preferred_runtime,
     )
-    resolved_preferred_runtime = (
-        preferred_runtime
-        if preferred_runtime is not None
-        else detect_runtime_for_gpd_use(cwd=workspace_path, home=resolved_home)
-        if workspace_path is not None
-        else None
-    )
-    return workspace_path, resolved_home, active_runtime, resolved_preferred_runtime
+    return lookup.lookup_cwd, lookup.resolved_home, lookup.active_runtime, lookup.preferred_runtime
 
 
 def ordered_update_cache_candidates(
@@ -185,7 +174,8 @@ def update_command_for_candidate(
         update_command_for_runtime,
     )
 
-    workspace_path = resolve_project_root(cwd) if cwd else None
+    lookup = hook_layout.resolve_hook_lookup_context(cwd=cwd)
+    workspace_path = lookup.lookup_cwd
     self_install = hook_layout.detect_self_owned_install(hook_file)
     candidate_path = getattr(candidate, "path", None)
     if self_install is not None and candidate_path == self_install.cache_file:

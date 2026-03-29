@@ -44,10 +44,11 @@ Follow one linear path:
 6. Run `tour` if you want a read-only overview of what GPD can do before choosing.
 7. Then choose `new-project`, `map-research`, or `resume-work`.
 
-If you already have a GPD project, `gpd resume` is the normal-terminal recovery
-step, and `resume-work` is the in-runtime continue command after you open the
-right folder. If you need to reopen a different workspace first, use
-`gpd resume --recent`, then come back into the runtime.
+If you already have a GPD project, `gpd resume` is the normal-terminal,
+current-workspace read-only recovery snapshot, and `resume-work` is the
+in-runtime continue command after you open the right folder. If you need to
+reopen a different workspace first, use `gpd resume --recent`, then come back
+into the runtime.
 
 </details>
 

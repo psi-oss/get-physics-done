@@ -7,7 +7,16 @@ from gpd.adapters.runtime_catalog import get_runtime_capabilities, iter_runtime_
 
 _RUNTIME_DESCRIPTORS = tuple(iter_runtime_descriptors())
 RUNTIME_NAMES = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
-PRIMARY_RUNTIME = RUNTIME_NAMES[0]
+
+
+def _runtime_with_permissions_surface_or_first(surface: str) -> str:
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        if get_runtime_capabilities(descriptor.runtime_name).permissions_surface == surface:
+            return descriptor.runtime_name
+    return RUNTIME_NAMES[0]
+
+
+PRIMARY_RUNTIME = _runtime_with_permissions_surface_or_first("config-file")
 FOREIGN_RUNTIME = next((runtime_name for runtime_name in RUNTIME_NAMES if runtime_name != PRIMARY_RUNTIME), PRIMARY_RUNTIME)
 
 
