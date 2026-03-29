@@ -246,6 +246,26 @@ def _cost_advisory(cost_summary: object) -> dict[str, object] | None:
     return advisory
 
 
+def _cost_project_root(cost_summary: object) -> str | None:
+    project_rollup = getattr(cost_summary, "project", None)
+    project_root = getattr(project_rollup, "project_root", None)
+    if isinstance(project_root, str) and project_root.strip():
+        return project_root.strip()
+    workspace_root = getattr(cost_summary, "workspace_root", None)
+    if isinstance(workspace_root, str) and workspace_root.strip():
+        return workspace_root.strip()
+    return None
+
+
+def _cost_payload(cost_summary: object) -> dict[str, object]:
+    payload = _model_dump(cost_summary) or {}
+    project_root = _cost_project_root(cost_summary)
+    if project_root is not None:
+        payload["project_root"] = project_root
+    payload.pop("workspace_root", None)
+    return payload
+
+
 def build_runtime_hint_payload(
     cwd: Path | None = None,
     *,
@@ -321,7 +341,7 @@ def build_runtime_hint_payload(
     orientation = recovery_advice.model_dump(mode="json") if recovery_advice is not None else {}
 
     cost_summary = build_cost_summary(project_root, data_root=data_root, last_sessions=cost_last_sessions) if include_cost else None
-    cost = (_model_dump(cost_summary) or {}) if cost_summary is not None else {}
+    cost = _cost_payload(cost_summary) if cost_summary is not None else {}
     cost_advisory = _cost_advisory(cost_summary) if cost_summary is not None else None
     if cost_advisory is not None:
         cost["advisory"] = cost_advisory

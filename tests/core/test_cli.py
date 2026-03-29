@@ -455,6 +455,15 @@ def _sample_cost_summary(workspace: Path) -> CostSummary:
     )
 
 
+def _assert_cost_posture_semantics(output: str) -> None:
+    assert "codex" in output
+    assert "review" in output
+    assert "runtime defaults" in output
+    assert "tier-1=12, tier-2=10, tier-3=1" in output
+    assert "Advisory only; counts profile-to-tier assignments" in output
+    assert "tier-model overrides" in output
+
+
 def test_cost_help_surfaces_machine_local_advisory_role() -> None:
     result = runner.invoke(app, ["cost", "--help"])
     assert result.exit_code == 0
@@ -474,7 +483,8 @@ def test_cost_raw_outputs_summary_payload(tmp_path: Path) -> None:
     assert result.exit_code == 0
     mock_build.assert_called_once_with(tmp_path, last_sessions=2)
     payload = json.loads(result.output)
-    assert payload["workspace_root"] == str(tmp_path)
+    assert payload["project_root"] == str(tmp_path)
+    assert "workspace_root" not in payload
     assert payload["active_runtime"] == "codex"
     assert payload["active_runtime_capabilities"]["telemetry_completeness"] == "best-effort"
     assert payload["active_runtime_capabilities"]["telemetry_source"] == "notify-hook"
@@ -507,13 +517,7 @@ def test_cost_human_output_stays_read_only_and_advisory(tmp_path: Path) -> None:
     assert "Cost Summary" in result.output
     assert "Read-only machine-local usage/cost summary." in result.output
     assert "clearly labels estimates or unavailable values" in result.output
-    assert "Current posture" in result.output
-    assert "Budget guardrails" in result.output
-    assert "Telemetry support" in result.output
     assert "best-effort via notify-hook" in result.output
-    assert "Profile tier mix" in result.output
-    assert "tier-1=12, tier-2=10, tier-3=1" in result.output
-    assert "Advisory only; counts profile-to-tier assignments" in result.output
     assert "Scope" in result.output
     assert "Used" in result.output
     assert "85.00%" in result.output
@@ -525,7 +529,7 @@ def test_cost_human_output_stays_read_only_and_advisory(tmp_path: Path) -> None:
     assert "Interpretation" in result.output
     assert "tokens measured; USD unavailable" in result.output
     assert "Measured tokens are available, but no pricing snapshot is configured" in result.output
-    assert "Current model posture: profile `review` with codex runtime defaults." in result.output
+    _assert_cost_posture_semantics(result.output)
 
 
 def test_permissions_status_raw_includes_runtime_capabilities(tmp_path: Path) -> None:

@@ -2705,6 +2705,30 @@ def _format_runtime_capability_value(summary: object, *keys: str) -> str:
     return "unknown"
 
 
+def _cost_summary_project_root(summary: object) -> str | None:
+    project_rollup = getattr(summary, "project", None)
+    project_root = getattr(project_rollup, "project_root", None)
+    if isinstance(project_root, str) and project_root.strip():
+        return project_root.strip()
+    workspace_root = getattr(summary, "workspace_root", None)
+    if isinstance(workspace_root, str) and workspace_root.strip():
+        return workspace_root.strip()
+    return None
+
+
+def _cost_summary_payload(summary: object) -> dict[str, object]:
+    if not hasattr(summary, "model_dump"):
+        return {}
+    payload = summary.model_dump(mode="json")
+    if not isinstance(payload, dict):
+        return {}
+    project_root = _cost_summary_project_root(summary)
+    if project_root is not None:
+        payload["project_root"] = project_root
+    payload.pop("workspace_root", None)
+    return payload
+
+
 def _render_cost_rollup(label: str, rollup: object, *, project_root: str | None = None, session_id: str | None = None) -> None:
     summary = Table.grid(padding=(0, 2))
     summary.add_column(style=f"bold {_INSTALL_ACCENT_COLOR}")
@@ -2786,7 +2810,7 @@ def _render_cost_summary(summary: object, *, last_sessions: int) -> None:
     model_table = Table.grid(padding=(0, 2))
     model_table.add_column(style=f"bold {_INSTALL_ACCENT_COLOR}")
     model_table.add_column()
-    model_table.add_row("Workspace", _format_display_path(str(getattr(summary, "workspace_root", _get_cwd()))))
+    model_table.add_row("Project", _format_display_path(str(_cost_summary_project_root(summary) or _get_cwd())))
     model_table.add_row("Active runtime", str(getattr(summary, "active_runtime", None) or "unknown"))
     telemetry_completeness = _format_runtime_capability_value(summary, "telemetry_completeness")
     telemetry_source = _format_runtime_capability_value(summary, "telemetry_source")
@@ -2869,12 +2893,12 @@ def _render_cost_summary(summary: object, *, last_sessions: int) -> None:
 def cost(
     last_sessions: int = typer.Option(5, "--last-sessions", help="Show the most recent N recorded usage sessions"),
 ) -> None:
-    """Show machine-local usage and cost summaries for the current workspace and recent sessions."""
+    """Show machine-local usage and cost summaries for the current project and recent sessions."""
     from gpd.core.costs import build_cost_summary
 
     summary = build_cost_summary(_get_cwd(), last_sessions=last_sessions)
     if _raw:
-        payload = summary.model_dump(mode="json")
+        payload = _cost_summary_payload(summary)
         payload["profile_tier_mix_interpretation"] = _profile_tier_mix_interpretation()
         _output(payload)
         return

@@ -1813,7 +1813,8 @@ def test_cost_raw_keeps_tokens_measured_but_usd_unavailable_without_pricing_snap
     result = _invoke("--raw", "cost", "--last-sessions", "1")
     payload = json.loads(result.output)
 
-    assert payload["workspace_root"] == workspace_root
+    assert payload["project_root"] == workspace_root
+    assert "workspace_root" not in payload
     assert payload["project"]["record_count"] == 1
     assert payload["project"]["usage_status"] == "measured"
     assert payload["project"]["cost_status"] == "unavailable"

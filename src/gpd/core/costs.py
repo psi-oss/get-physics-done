@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field
 
 from gpd.adapters.runtime_catalog import get_hook_payload_policy, get_runtime_capabilities
 from gpd.core.constants import (
@@ -166,11 +166,11 @@ class CostProjectSummary(CostRollup):
 
 
 class CostSummary(BaseModel):
-    """Read-only cost summary for the local CLI."""
+    """Read-only cost summary for the current project and recent sessions."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
 
-    workspace_root: str
+    project_root: str = Field(validation_alias=AliasChoices("project_root", "workspace_root"))
     active_runtime: str | None = None
     active_runtime_capabilities: dict[str, str] = Field(default_factory=dict)
     model_profile: str | None = None
@@ -185,6 +185,12 @@ class CostSummary(BaseModel):
     pricing_snapshot_as_of: str | None = None
     budget_thresholds: list[CostBudgetThresholdSummary] = Field(default_factory=list)
     guidance: list[str] = Field(default_factory=list)
+
+    @computed_field
+    @property
+    def workspace_root(self) -> str:
+        """Backward-compatible alias for the project-scoped summary root."""
+        return self.project_root
 
 
 class CostBudgetThresholdSummary(BaseModel):
@@ -1009,16 +1015,16 @@ def build_cost_summary(
     data_root: Path | None = None,
     last_sessions: int = _RECENT_SESSION_DEFAULT,
 ) -> CostSummary:
-    """Build a read-only usage/cost summary for the current workspace and recent sessions."""
-    resolved_workspace = resolve_project_root(cwd) if cwd is not None else None
-    if resolved_workspace is None:
-        resolved_workspace = (
+    """Build a read-only usage/cost summary for the current project and recent sessions."""
+    resolved_project_root = resolve_project_root(cwd) if cwd is not None else None
+    if resolved_project_root is None:
+        resolved_project_root = (
             cwd.expanduser().resolve(strict=False) if cwd is not None else Path.cwd().resolve(strict=False)
         )
 
     records = list_usage_records(data_root)
-    project_records = [record for record in records if record.project_root == resolved_workspace.as_posix()]
-    current_session_id = get_current_session_id(resolved_workspace)
+    project_records = [record for record in records if record.project_root == resolved_project_root.as_posix()]
+    current_session_id = get_current_session_id(resolved_project_root)
     current_session_records = [
         record for record in project_records if current_session_id and record.session_id == current_session_id
     ]
@@ -1034,10 +1040,10 @@ def build_cost_summary(
         from gpd.core.config import load_config
         from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_runtime_for_gpd_use
 
-        config = load_config(resolved_workspace)
+        config = load_config(resolved_project_root)
         model_profile = getattr(config.model_profile, "value", None) or str(config.model_profile)
         profile_tier_mix = _profile_tier_mix(model_profile)
-        detected_runtime = detect_runtime_for_gpd_use(cwd=resolved_workspace)
+        detected_runtime = detect_runtime_for_gpd_use(cwd=resolved_project_root)
         if detected_runtime != RUNTIME_UNKNOWN:
             active_runtime = detected_runtime
             active_runtime_capabilities = _runtime_capability_payload(detected_runtime)
@@ -1104,18 +1110,18 @@ def build_cost_summary(
         )
 
     return CostSummary(
-        workspace_root=resolved_workspace.as_posix(),
+        project_root=resolved_project_root.as_posix(),
         active_runtime=active_runtime,
         active_runtime_capabilities=active_runtime_capabilities,
         model_profile=model_profile,
         runtime_model_selection=runtime_model_selection,
         profile_tier_mix=profile_tier_mix,
         current_session_id=current_session_id,
-        project=CostProjectSummary(project_root=resolved_workspace.as_posix(), **project_rollup.model_dump()),
+        project=CostProjectSummary(project_root=resolved_project_root.as_posix(), **project_rollup.model_dump()),
         current_session=(
             CostSessionSummary(
                 session_id=current_session_id,
-                project_root=resolved_workspace.as_posix(),
+                project_root=resolved_project_root.as_posix(),
                 **current_session_rollup.model_dump(),
             )
             if current_session_id and current_session_rollup is not None

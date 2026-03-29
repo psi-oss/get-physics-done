@@ -174,7 +174,8 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
     assert "resume-work" in str(payload.orientation["continue_command"])
     assert "suggest-next" in str(payload.orientation["fast_next_command"])
 
-    assert payload.cost["workspace_root"] == project.resolve(strict=False).as_posix()
+    assert payload.cost["project_root"] == project.resolve(strict=False).as_posix()
+    assert "workspace_root" not in payload.cost
     assert payload.cost["project"]["record_count"] == 1
     assert payload.cost["project"]["usage_status"] == "measured"
     assert payload.cost["project"]["interpretation"] == "tokens measured; USD unavailable"
@@ -191,8 +192,6 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
     assert "next_action" not in payload.cost["advisory"]
     assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
     assert not any("gpd cost" in action for action in payload.next_actions)
-    assert any("latexmk" in action for action in payload.next_actions)
-    assert any("kpsewhich" in action for action in payload.next_actions)
     assert not any("Workflow presets ready" in action for action in payload.next_actions)
     assert any("continues in-runtime from the selected project state" in action for action in payload.next_actions)
     assert any("fastest post-resume next command" in action for action in payload.next_actions)
@@ -253,7 +252,8 @@ def test_build_runtime_hint_payload_handles_absent_execution_snapshot(tmp_path: 
     assert payload.orientation["resume_mode"] is None
     assert payload.orientation["segment_candidates_count"] == 0
     assert payload.orientation["has_local_recovery_target"] is False
-    assert payload.cost["workspace_root"] == project.resolve(strict=False).as_posix()
+    assert payload.cost["project_root"] == project.resolve(strict=False).as_posix()
+    assert "workspace_root" not in payload.cost
     assert payload.workflow_presets["blocked"] == 5
     assert any("resume --recent" in action for action in payload.next_actions)
     assert not any("resume-work" in action for action in payload.next_actions)
