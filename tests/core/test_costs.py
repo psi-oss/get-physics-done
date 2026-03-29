@@ -21,6 +21,12 @@ def _bootstrap_project(tmp_path: Path, name: str = "project") -> Path:
     return project
 
 
+def _write_current_execution(project: Path, payload: dict[str, object]) -> None:
+    observability_dir = project / "GPD" / "observability"
+    observability_dir.mkdir(parents=True, exist_ok=True)
+    (observability_dir / "current-execution.json").write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _payload(
     *,
     model: str = "gpt-5.4",
@@ -30,6 +36,7 @@ def _payload(
     cached_input_tokens: int | None = None,
     cache_write_input_tokens: int | None = None,
     cost_usd: float | None = None,
+    extra: dict[str, object] | None = None,
 ) -> dict[str, object]:
     usage: dict[str, object] = {}
     if input_tokens is not None:
@@ -44,11 +51,14 @@ def _payload(
         usage["cache_write_input_tokens"] = cache_write_input_tokens
     if cost_usd is not None:
         usage["cost_usd"] = cost_usd
-    return {
+    payload = {
         "type": "response.completed",
         "model": model,
         "usage": usage,
     }
+    if extra:
+        payload.update(extra)
+    return payload
 
 
 def _write_pricing_snapshot(data_root: Path) -> None:
@@ -117,6 +127,8 @@ def test_record_usage_writes_measured_records_and_builds_project_summary(
 
     records = list_usage_records(data_root)
     assert len(records) == 3
+    assert all(record.agent_scope == "main_agent" for record in records)
+    assert all(record.agent_attribution_source == "default-main" for record in records)
 
     current_session["value"] = "sess-b"
     summary = build_cost_summary(project, data_root=data_root, last_sessions=5)
@@ -135,6 +147,137 @@ def test_record_usage_writes_measured_records_and_builds_project_summary(
     assert summary.current_session.record_count == 1
     assert summary.current_session.total_tokens == 250
     assert [row.session_id for row in summary.recent_sessions] == ["sess-c", "sess-b", "sess-a"]
+
+
+def test_record_usage_keeps_explicit_subagent_identity_from_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-agent")
+    monkeypatch.setattr(costs, "_now_iso", lambda: "2026-03-27T12:10:00+00:00")
+
+    record = record_usage_from_runtime_payload(
+        _payload(
+            input_tokens=120,
+            output_tokens=30,
+            cost_usd=0.02,
+            extra={"subagent": {"id": "agent-42", "name": "gpd-executor"}},
+        ),
+        runtime="codex",
+        cwd=project,
+        data_root=data_root,
+    )
+
+    assert record is not None
+    assert record.agent_id == "agent-42"
+    assert record.agent_name == "gpd-executor"
+    assert record.agent_kind == "subagent"
+    assert record.agent_id_source == "payload.subagent.id"
+    assert record.agent_name_source == "payload.subagent.name"
+    assert record.agent_kind_source == "payload.subagent"
+
+
+def test_record_usage_prefers_explicit_payload_attribution_over_workspace_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-agent")
+    monkeypatch.setattr(costs, "_now_iso", lambda: "2026-03-27T12:11:00+00:00")
+    (project / "GPD" / "current-agent-id.txt").write_text("agent-fallback\n", encoding="utf-8")
+    _write_current_execution(
+        project,
+        {
+            "session_id": "sess-agent",
+            "segment_status": "active",
+            "current_task": "Run executor task",
+        },
+    )
+
+    record = record_usage_from_runtime_payload(
+        _payload(
+            input_tokens=120,
+            output_tokens=30,
+            cost_usd=0.02,
+            extra={"subagent_id": "agent-explicit", "subagent_type": "gpd-executor"},
+        ),
+        runtime="codex",
+        cwd=project,
+        data_root=data_root,
+    )
+
+    assert record is not None
+    assert record.agent_id == "agent-explicit"
+    assert record.agent_name == "gpd-executor"
+    assert record.agent_kind == "subagent"
+    assert record.agent_id_source == "payload.subagent_id"
+    assert record.agent_name_source == "payload.subagent_type"
+    assert record.agent_kind_source == "payload.subagent_type"
+
+
+def test_record_usage_falls_back_to_current_agent_file_when_active_session_matches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-fallback")
+    monkeypatch.setattr(costs, "_now_iso", lambda: "2026-03-27T12:12:00+00:00")
+    (project / "GPD" / "current-agent-id.txt").write_text("agent-fallback\n", encoding="utf-8")
+    _write_current_execution(
+        project,
+        {
+            "session_id": "sess-fallback",
+            "segment_status": "active",
+            "current_task": "Run executor task",
+        },
+    )
+
+    record = record_usage_from_runtime_payload(
+        _payload(input_tokens=120, output_tokens=30, cost_usd=0.02),
+        runtime="codex",
+        cwd=project,
+        data_root=data_root,
+    )
+
+    assert record is not None
+    assert record.agent_id == "agent-fallback"
+    assert record.agent_name is None
+    assert record.agent_kind is None
+    assert record.agent_id_source == "workspace.current-agent-id"
+    assert record.agent_name_source is None
+    assert record.agent_kind_source is None
+
+
+def test_record_usage_does_not_claim_workspace_agent_id_without_matching_active_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-live")
+    monkeypatch.setattr(costs, "_now_iso", lambda: "2026-03-27T12:13:00+00:00")
+    (project / "GPD" / "current-agent-id.txt").write_text("agent-stale\n", encoding="utf-8")
+    _write_current_execution(
+        project,
+        {
+            "session_id": "sess-other",
+            "segment_status": "active",
+            "current_task": "Run executor task",
+        },
+    )
+
+    record = record_usage_from_runtime_payload(
+        _payload(input_tokens=120, output_tokens=30, cost_usd=0.02),
+        runtime="codex",
+        cwd=project,
+        data_root=data_root,
+    )
+
+    assert record is not None
+    assert record.agent_id is None
+    assert record.agent_name is None
+    assert record.agent_kind is None
+    assert record.agent_id_source is None
 
 
 def test_record_usage_skips_when_runtime_payload_has_no_usage_signal(
@@ -175,9 +318,7 @@ def test_record_usage_skips_runtime_without_declared_telemetry_collection_path(
     assert not usage_ledger_path(data_root).exists()
 
 
-def test_record_usage_estimates_cost_from_pricing_snapshot(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_record_usage_estimates_cost_from_pricing_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     data_root = tmp_path / "data"
     project = _bootstrap_project(tmp_path)
     _write_pricing_snapshot(data_root)
@@ -197,10 +338,7 @@ def test_record_usage_estimates_cost_from_pricing_snapshot(
     )
 
     expected_cost = round(
-        (1_000 / 1_000_000) * 3.0
-        + (500 / 1_000_000) * 15.0
-        + (100 / 1_000_000) * 0.3
-        + (50 / 1_000_000) * 3.75,
+        (1_000 / 1_000_000) * 3.0 + (500 / 1_000_000) * 15.0 + (100 / 1_000_000) * 0.3 + (50 / 1_000_000) * 3.75,
         6,
     )
 
@@ -219,9 +357,7 @@ def test_record_usage_estimates_cost_from_pricing_snapshot(
     assert summary.project.cost_usd == expected_cost
 
 
-def test_record_usage_dedupes_identical_payloads_within_window(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_record_usage_dedupes_identical_payloads_within_window(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     data_root = tmp_path / "data"
     project = _bootstrap_project(tmp_path)
     monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-dedupe")
@@ -247,6 +383,59 @@ def test_record_usage_dedupes_identical_payloads_within_window(
     records = list_usage_records(data_root)
     assert len(records) == 1
     assert records[0].total_tokens == 500
+
+
+def test_record_usage_marks_workspace_fallback_as_subagent_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-fallback")
+    monkeypatch.setattr(costs, "_now_iso", lambda: "2026-03-27T14:05:00+00:00")
+    (project / "GPD" / "current-agent-id.txt").write_text("agent-fallback\n", encoding="utf-8")
+    _write_current_execution(
+        project,
+        {
+            "session_id": "sess-fallback",
+            "segment_status": "active",
+            "current_task": "Run executor task",
+        },
+    )
+
+    record = record_usage_from_runtime_payload(
+        _payload(input_tokens=120, output_tokens=30, cost_usd=0.02),
+        runtime="codex",
+        cwd=project,
+        data_root=data_root,
+    )
+
+    assert record is not None
+    assert record.agent_scope == "subagent"
+    assert record.agent_attribution_source == "workspace-state"
+
+
+def test_record_usage_preserves_explicit_workspace_and_project_roots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root = tmp_path / "data"
+    project = _bootstrap_project(tmp_path)
+    nested = project / "src"
+    nested.mkdir()
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: "sess-roots")
+    monkeypatch.setattr(costs, "_now_iso", lambda: "2026-03-27T14:06:00+00:00")
+
+    record = record_usage_from_runtime_payload(
+        _payload(input_tokens=120, output_tokens=30, cost_usd=0.02),
+        runtime="codex",
+        cwd=nested,
+        workspace_root=nested,
+        project_root=project,
+        data_root=data_root,
+    )
+
+    assert record is not None
+    assert record.workspace_root == nested.resolve(strict=False).as_posix()
+    assert record.project_root == project.resolve(strict=False).as_posix()
 
 
 def test_build_cost_summary_marks_mixed_measured_and_estimated_usd_as_advisory(
@@ -455,8 +644,12 @@ def test_build_cost_summary_surfaces_active_runtime_capabilities_in_guidance(
     assert summary.active_runtime == "claude-code"
     assert summary.active_runtime_capabilities["telemetry_completeness"] == "none"
     assert summary.active_runtime_capabilities["statusline_surface"] == "explicit"
-    assert any("does not currently expose a GPD-managed usage telemetry collection path" in item for item in summary.guidance)
-    assert not any("No measured usage telemetry is recorded for this workspace yet." in item for item in summary.guidance)
+    assert any(
+        "does not currently expose a GPD-managed usage telemetry collection path" in item for item in summary.guidance
+    )
+    assert not any(
+        "No measured usage telemetry is recorded for this workspace yet." in item for item in summary.guidance
+    )
 
 
 def test_build_cost_summary_surfaces_best_effort_runtime_guidance_without_generic_fallback(
@@ -478,4 +671,6 @@ def test_build_cost_summary_surfaces_best_effort_runtime_guidance_without_generi
     assert summary.active_runtime_capabilities["telemetry_source"] == "notify-hook"
     assert summary.active_runtime_capabilities["telemetry_completeness"] == "best-effort"
     assert any("only exposes best-effort usage telemetry through notify-hook" in item for item in summary.guidance)
-    assert not any("No measured usage telemetry is recorded for this workspace yet." in item for item in summary.guidance)
+    assert not any(
+        "No measured usage telemetry is recorded for this workspace yet." in item for item in summary.guidance
+    )

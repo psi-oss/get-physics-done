@@ -16,10 +16,7 @@ import pytest
 
 from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
-from gpd.core.surface_phrases import (
-    cost_after_runs_guidance,
-    local_cli_bridge_note,
-)
+from gpd.core.surface_phrases import local_cli_bridge_note
 from scripts.release_workflow import (
     ReleaseError,
     bump_version,
@@ -661,10 +658,9 @@ def test_public_readme_quick_start_surfaces_step_one_entry_points() -> None:
     assert "the matching `branch-hypothesis` command only when you want the explicit git-backed alternative path" in quick_start
     assert "For model choice, the safe default is `review` plus runtime defaults." in quick_start
     assert "Use your runtime-specific `settings` command to move toward `Max quality`, `Balanced`, or `Budget-aware`" in quick_start
-    assert cost_after_runs_guidance().replace("local usage / cost", "local usage/cost") in quick_start
+    _assert_cost_advisory_contract(quick_start)
     assert "Use the exact runtime-specific command syntax below for your first command." in quick_start
     assert "If you are starting from existing work, run your runtime's `map-research` command first" in quick_start
-    assert "gpd cost" in quick_start
     assert "/gpd:new-project --minimal" in quick_start
     assert "$gpd-resume-work" in quick_start
     assert "/gpd:map-research" in quick_start
@@ -874,7 +870,7 @@ def test_public_settings_workflow_keeps_balanced_recommendation_and_relaunch_gui
     _assert_wolfram_plan_boundary(settings_workflow)
     assert "What model-cost posture should GPD optimize for?" in settings_workflow
     assert "Use runtime defaults" in settings_workflow
-    assert cost_after_runs_guidance() in settings_workflow
+    _assert_cost_advisory_contract(settings_workflow)
     assert f"Local CLI bridge: {local_cli_bridge_note()}" in settings_workflow
 
 

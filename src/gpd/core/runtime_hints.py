@@ -161,6 +161,13 @@ def _workflow_next_actions(details: dict[str, object], *, base_ready: bool, late
     return actions
 
 
+def _cost_next_action(advisory: dict[str, object]) -> str | None:
+    state = str(advisory.get("state", "") or "").strip()
+    if state in {"at_or_over_budget", "near_budget", "mixed"}:
+        return cost_inspect_action()
+    return None
+
+
 def _cost_advisory(cost_summary: object) -> dict[str, object] | None:
     budget_thresholds = list(getattr(cost_summary, "budget_thresholds", []) or [])
     prioritized_budget_states = ("at_or_over_budget", "near_budget", "unavailable")
@@ -175,7 +182,9 @@ def _cost_advisory(cost_summary: object) -> dict[str, object] | None:
                 "config_key": getattr(threshold, "config_key", "unknown"),
                 "message": str(getattr(threshold, "message", "") or "").strip(),
             }
-            advisory["next_action"] = cost_inspect_action()
+            next_action = _cost_next_action(advisory)
+            if next_action is not None:
+                advisory["next_action"] = next_action
             return advisory
 
     project_rollup = getattr(cost_summary, "project", None)
@@ -197,8 +206,9 @@ def _cost_advisory(cost_summary: object) -> dict[str, object] | None:
         "state": cost_status,
         "message": guidance[0],
     }
-    if cost_status in {"mixed", "unavailable"}:
-        advisory["next_action"] = cost_inspect_action()
+    next_action = _cost_next_action(advisory)
+    if next_action is not None:
+        advisory["next_action"] = next_action
     return advisory
 
 

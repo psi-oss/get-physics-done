@@ -59,35 +59,37 @@ def assert_cost_advisory_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
+            "normal system terminal",
+            "normal terminal",
+            "Local CLI bridge",
+            "after runs",
+        ),
+        label="local CLI cost surface",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "read-only machine-local usage / cost summary",
+            "read-only machine-local usage/cost summary",
             "machine-local usage / cost",
+            "machine-local usage/cost",
             "recorded local telemetry",
-            "current profile tier mix",
+            "recorded local usage / cost",
+            "recorded local usage/cost",
         ),
         label="machine-local usage/cost surface",
     )
     _assert_contains_any(
         content,
         (
-            "budget guardrails",
-            "USD budget",
-        ),
-        label="budget guidance",
-    )
-    _assert_contains_any(
-        content,
-        (
             "advisory only",
+            "partial or estimated rather than exact",
+            "partial or estimated when telemetry is missing",
+            "estimated rather than exact",
+            "not live budget enforcement",
             "billing truth",
         ),
         label="non-authoritative cost wording",
-    )
-    _assert_contains_any(
-        content,
-        (
-            "partial or estimated rather than exact",
-            "estimated rather than exact",
-        ),
-        label="partial telemetry caveat",
     )
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from gpd.core.constants import (
     COST_PRICING_SNAPSHOT_FILENAME,
     ENV_DATA_DIR,
     HOME_DATA_DIR_NAME,
+    ProjectLayout,
 )
 from gpd.core.observability import get_current_session_id, resolve_project_root
 from gpd.core.utils import atomic_write, file_lock, safe_read_file
@@ -44,6 +46,7 @@ __all__ = [
 
 _RECENT_SESSION_DEFAULT = 5
 _DEDUP_WINDOW_SECONDS = 10.0
+_COMPLETED_SEGMENT_STATES = {"completed", "complete", "done", "finished"}
 
 
 class UsageRecord(BaseModel):
@@ -57,8 +60,13 @@ class UsageRecord(BaseModel):
     provider: str | None = None
     model: str | None = None
     session_id: str | None = None
+    runtime_session_id: str | None = None
     workspace_root: str | None = None
     project_root: str | None = None
+    agent_scope: str = "unknown"
+    agent_id: str | None = None
+    agent_name: str | None = None
+    agent_attribution_source: str = "unknown"
     source: str = "runtime-hook"
     event_type: str | None = None
     usage_status: str = "measured"
@@ -72,7 +80,31 @@ class UsageRecord(BaseModel):
     cost_source: str | None = None
     pricing_snapshot_source: str | None = None
     pricing_snapshot_as_of: str | None = None
+    agent_kind: str | None = None
+    agent_id_source: str | None = None
+    agent_name_source: str | None = None
+    agent_kind_source: str | None = None
     fingerprint: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _UsageAttribution:
+    agent_id: str | None = None
+    agent_name: str | None = None
+    agent_kind: str | None = None
+    agent_id_source: str | None = None
+    agent_name_source: str | None = None
+    agent_kind_source: str | None = None
+
+    def has_any(self) -> bool:
+        return any(
+            value is not None
+            for value in (
+                self.agent_id,
+                self.agent_name,
+                self.agent_kind,
+            )
+        )
 
 
 class PricingEntry(BaseModel):
@@ -197,6 +229,14 @@ def _first_string(value: object, *keys: str) -> str | None:
     return None
 
 
+def _first_string_from_containers(containers: tuple[object, ...], *keys: str) -> str | None:
+    for container in containers:
+        candidate = _first_string(container, *keys)
+        if candidate is not None:
+            return candidate
+    return None
+
+
 def _first_number(value: object, *keys: str) -> int | float | None:
     mapping = _mapping(value)
     for key in keys:
@@ -228,6 +268,59 @@ def _normalized_runtime(value: str | None) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _normalize_agent_scope(value: str | None) -> str | None:
+    normalized = _normalize_optional_text(value)
+    if normalized is None:
+        return None
+    key = normalized.casefold().replace("-", "_").replace(" ", "_")
+    if key in {"main", "main_agent", "primary", "root", "orchestrator"}:
+        return "main_agent"
+    if key in {"subagent", "child", "child_agent", "worker", "delegate"}:
+        return "subagent"
+    if key in {"unknown", "unspecified"}:
+        return "unknown"
+    return None
+
+
+def _runtime_session_id_from_payload(
+    payload: dict[str, object],
+    *,
+    usage: object,
+    model_value: object,
+    policy,
+) -> str | None:
+    containers = (payload, payload.get("workspace"), model_value, usage)
+    return _first_string_from_containers(containers, *policy.runtime_session_id_keys)
+
+
+def _agent_scope_from_attribution(attribution: _UsageAttribution, *, project_root: Path | None) -> str:
+    normalized_kind = _normalize_agent_scope(attribution.agent_kind)
+    if normalized_kind is not None:
+        return normalized_kind
+    if attribution.agent_id_source == "workspace.current-agent-id":
+        return "subagent"
+    if attribution.has_any():
+        return "unknown"
+    if project_root is not None:
+        return "main_agent"
+    return "unknown"
+
+
+def _agent_attribution_source(attribution: _UsageAttribution, *, project_root: Path | None) -> str:
+    for candidate in (
+        attribution.agent_id_source,
+        attribution.agent_name_source,
+        attribution.agent_kind_source,
+    ):
+        if isinstance(candidate, str) and candidate.startswith("payload"):
+            return "payload"
+    if attribution.agent_id_source == "workspace.current-agent-id":
+        return "workspace-state"
+    if project_root is not None:
+        return "default-main"
+    return "unknown"
 
 
 def _runtime_capability_payload(runtime: str | None) -> dict[str, str]:
@@ -266,12 +359,155 @@ def _profile_tier_mix(profile: str | None) -> dict[str, int]:
             counts[key] += 1
     return {key: value for key, value in counts.items() if value > 0}
 
+
 def _usage_container(payload: dict[str, object], usage_keys: tuple[str, ...]) -> dict[str, object]:
     for key in usage_keys:
         candidate = _mapping(payload.get(key))
         if candidate:
             return candidate
     return {}
+
+
+def _attribution_scopes(payload: dict[str, object]) -> tuple[tuple[dict[str, object], str], ...]:
+    scopes: list[tuple[dict[str, object], str]] = [(payload, "payload")]
+    for key in ("metadata", "data", "context", "event"):
+        candidate = _mapping(payload.get(key))
+        if candidate:
+            scopes.append((candidate, f"payload.{key}"))
+    return tuple(scopes)
+
+
+def _mapping_attribution(mapping: dict[str, object], *, prefix: str, key: str, kind: str) -> _UsageAttribution:
+    value = mapping.get(key)
+    if isinstance(value, str):
+        agent_name = _normalize_optional_text(value)
+        if agent_name is None:
+            return _UsageAttribution()
+        return _UsageAttribution(
+            agent_name=agent_name,
+            agent_kind=kind,
+            agent_name_source=f"{prefix}.{key}",
+            agent_kind_source=f"{prefix}.{key}",
+        )
+
+    candidate = _mapping(value)
+    if not candidate:
+        return _UsageAttribution()
+
+    agent_id_key = next(
+        (candidate_key for candidate_key in (f"{key}_id", "id") if _first_string(candidate, candidate_key) is not None),
+        None,
+    )
+    agent_name_key = next(
+        (
+            candidate_key
+            for candidate_key in (f"{key}_name", "name", f"{key}_type", "type")
+            if _first_string(candidate, candidate_key) is not None
+        ),
+        None,
+    )
+    agent_id = _first_string(candidate, *(agent_id_key,) if agent_id_key else ())
+    agent_name = _first_string(candidate, *(agent_name_key,) if agent_name_key else ())
+    explicit_kind_key = next(
+        (
+            candidate_key
+            for candidate_key in (f"{key}_kind", "kind")
+            if _first_string(candidate, candidate_key) is not None
+        ),
+        None,
+    )
+    agent_kind = _first_string(candidate, *(explicit_kind_key,) if explicit_kind_key else ()) or kind
+    if agent_id is None and agent_name is None:
+        return _UsageAttribution()
+
+    return _UsageAttribution(
+        agent_id=agent_id,
+        agent_name=agent_name,
+        agent_kind=agent_kind,
+        agent_id_source=f"{prefix}.{key}.{agent_id_key}" if agent_id_key else None,
+        agent_name_source=f"{prefix}.{key}.{agent_name_key}" if agent_name_key else None,
+        agent_kind_source=f"{prefix}.{key}.{explicit_kind_key}" if explicit_kind_key else f"{prefix}.{key}",
+    )
+
+
+def _payload_usage_attribution(payload: dict[str, object]) -> _UsageAttribution:
+    for mapping, prefix in _attribution_scopes(payload):
+        for key, kind in (
+            ("subagent", "subagent"),
+            ("assistant", "assistant"),
+            ("worker", "worker"),
+            ("agent", "agent"),
+        ):
+            attribution = _mapping_attribution(mapping, prefix=prefix, key=key, kind=kind)
+            if attribution.has_any():
+                return attribution
+
+        for kind, id_keys, name_keys in (
+            ("subagent", ("subagent_id",), ("subagent_name", "subagent_type")),
+            ("assistant", ("assistant_id",), ("assistant_name",)),
+            ("worker", ("worker_id",), ("worker_name",)),
+            ("agent", ("agent_id",), ("agent_name",)),
+        ):
+            agent_id_key = next(
+                (candidate_key for candidate_key in id_keys if _first_string(mapping, candidate_key) is not None), None
+            )
+            agent_name_key = next(
+                (candidate_key for candidate_key in name_keys if _first_string(mapping, candidate_key) is not None),
+                None,
+            )
+            agent_id = _first_string(mapping, *(agent_id_key,) if agent_id_key else ())
+            agent_name = _first_string(mapping, *(agent_name_key,) if agent_name_key else ())
+            if agent_id is None and agent_name is None:
+                continue
+            return _UsageAttribution(
+                agent_id=agent_id,
+                agent_name=agent_name,
+                agent_kind=kind,
+                agent_id_source=f"{prefix}.{agent_id_key}" if agent_id_key else None,
+                agent_name_source=f"{prefix}.{agent_name_key}" if agent_name_key else None,
+                agent_kind_source=f"{prefix}.{agent_name_key or agent_id_key}"
+                if (agent_name_key or agent_id_key)
+                else None,
+            )
+    return _UsageAttribution()
+
+
+def _workspace_usage_attribution(workspace_root: Path | None, *, session_id: str | None) -> _UsageAttribution:
+    if workspace_root is None or session_id is None:
+        return _UsageAttribution()
+
+    agent_id = _normalize_optional_text(safe_read_file(ProjectLayout(workspace_root).agent_id_file))
+    if agent_id is None:
+        return _UsageAttribution()
+
+    try:
+        from gpd.core.observability import get_current_execution
+
+        snapshot = get_current_execution(workspace_root)
+    except Exception:
+        snapshot = None
+
+    if snapshot is None or snapshot.session_id != session_id:
+        return _UsageAttribution()
+    if (
+        isinstance(snapshot.segment_status, str)
+        and snapshot.segment_status.strip().lower() in _COMPLETED_SEGMENT_STATES
+    ):
+        return _UsageAttribution()
+
+    return _UsageAttribution(
+        agent_id=agent_id,
+        agent_id_source="workspace.current-agent-id",
+    )
+
+
+def _resolve_usage_attribution(
+    payload: dict[str, object], *, workspace_root: Path | None, session_id: str | None
+) -> _UsageAttribution:
+    payload_attribution = _payload_usage_attribution(payload)
+    if payload_attribution.has_any():
+        return payload_attribution
+    return _workspace_usage_attribution(workspace_root, session_id=session_id)
 
 
 def _cost_root(explicit_data_dir: Path | None = None) -> Path:
@@ -337,7 +573,9 @@ def list_usage_records(
     """Return usage records newest-first with optional project/session filters."""
     records = _load_usage_records(data_root)
     filtered: list[UsageRecord] = []
-    normalized_project = project_root.expanduser().resolve(strict=False).as_posix() if project_root is not None else None
+    normalized_project = (
+        project_root.expanduser().resolve(strict=False).as_posix() if project_root is not None else None
+    )
     for record in records:
         if normalized_project is not None and record.project_root != normalized_project:
             continue
@@ -374,7 +612,9 @@ def _append_record(record: UsageRecord, *, data_root: Path | None = None) -> Usa
     return record
 
 
-def _match_pricing_entry(snapshot: PricingSnapshot, *, runtime: str | None, provider: str | None, model: str | None) -> PricingEntry | None:
+def _match_pricing_entry(
+    snapshot: PricingSnapshot, *, runtime: str | None, provider: str | None, model: str | None
+) -> PricingEntry | None:
     if runtime is None or model is None:
         return None
     runtime_key = runtime.casefold()
@@ -430,28 +670,46 @@ def _fingerprint_from_payload(
     runtime: str | None,
     project_root: str | None,
     session_id: str | None,
+    runtime_session_id: str | None,
     event_type: str | None,
     model: str | None,
+    agent_scope: str,
+    agent_id: str | None,
+    agent_name: str | None,
+    agent_attribution_source: str,
     input_tokens: int | None,
     output_tokens: int | None,
     total_tokens: int | None,
     cached_input_tokens: int | None,
     cache_write_input_tokens: int | None,
     cost_usd: float | None,
+    agent_kind: str | None,
+    agent_id_source: str | None,
+    agent_name_source: str | None,
+    agent_kind_source: str | None,
 ) -> str:
     raw = json.dumps(
         {
             "runtime": runtime,
             "project_root": project_root,
             "session_id": session_id,
+            "runtime_session_id": runtime_session_id,
             "event_type": event_type,
             "model": model,
+            "agent_scope": agent_scope,
+            "agent_id": agent_id,
+            "agent_name": agent_name,
+            "agent_attribution_source": agent_attribution_source,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,
             "cached_input_tokens": cached_input_tokens,
             "cache_write_input_tokens": cache_write_input_tokens,
             "cost_usd": cost_usd,
+            "agent_kind": agent_kind,
+            "agent_id_source": agent_id_source,
+            "agent_name_source": agent_name_source,
+            "agent_kind_source": agent_kind_source,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -464,6 +722,8 @@ def record_usage_from_runtime_payload(
     *,
     runtime: str | None,
     cwd: Path | None,
+    workspace_root: Path | None = None,
+    project_root: Path | None = None,
     data_root: Path | None = None,
 ) -> UsageRecord | None:
     """Record one measured usage payload when the runtime exposes token/cost telemetry."""
@@ -526,12 +786,34 @@ def record_usage_from_runtime_payload(
     if not has_usage_signal:
         return None
 
-    workspace_root = resolve_project_root(cwd) if cwd is not None else None
-    if workspace_root is None and cwd is not None:
-        workspace_root = cwd.expanduser().resolve(strict=False)
-    workspace_text = workspace_root.as_posix() if workspace_root is not None else None
-    session_id = get_current_session_id(workspace_root) if workspace_root is not None else None
+    resolved_workspace_root = workspace_root.expanduser().resolve(strict=False) if workspace_root is not None else None
+    if resolved_workspace_root is None and cwd is not None:
+        resolved_workspace_root = cwd.expanduser().resolve(strict=False)
+
+    resolved_project_root = project_root.expanduser().resolve(strict=False) if project_root is not None else None
+    if resolved_project_root is None:
+        root_hint = resolved_workspace_root or cwd
+        resolved_project_root = resolve_project_root(root_hint) if root_hint is not None else None
+    if resolved_project_root is None:
+        resolved_project_root = resolved_workspace_root
+
+    workspace_text = resolved_workspace_root.as_posix() if resolved_workspace_root is not None else None
+    project_text = resolved_project_root.as_posix() if resolved_project_root is not None else None
+    session_id = get_current_session_id(resolved_project_root) if resolved_project_root is not None else None
     event_type = _normalize_optional_text(payload.get("type"))
+    runtime_session_id = _runtime_session_id_from_payload(
+        payload=payload,
+        usage=usage,
+        model_value=model_value,
+        policy=policy,
+    )
+    attribution = _resolve_usage_attribution(
+        payload,
+        workspace_root=resolved_project_root,
+        session_id=session_id,
+    )
+    agent_scope = _agent_scope_from_attribution(attribution, project_root=resolved_project_root)
+    agent_attribution_source = _agent_attribution_source(attribution, project_root=resolved_project_root)
 
     pricing_snapshot = load_pricing_snapshot(data_root)
     estimated_cost_usd, _matched_model = _estimated_cost_from_pricing(
@@ -566,8 +848,13 @@ def record_usage_from_runtime_payload(
         provider=provider,
         model=model,
         session_id=session_id,
+        runtime_session_id=runtime_session_id,
         workspace_root=workspace_text,
-        project_root=workspace_text,
+        project_root=project_text,
+        agent_scope=agent_scope,
+        agent_id=attribution.agent_id,
+        agent_name=attribution.agent_name,
+        agent_attribution_source=agent_attribution_source,
         event_type=event_type,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
@@ -579,18 +866,31 @@ def record_usage_from_runtime_payload(
         cost_source=cost_source,
         pricing_snapshot_source=pricing_source,
         pricing_snapshot_as_of=pricing_as_of,
+        agent_kind=attribution.agent_kind,
+        agent_id_source=attribution.agent_id_source,
+        agent_name_source=attribution.agent_name_source,
+        agent_kind_source=attribution.agent_kind_source,
         fingerprint=_fingerprint_from_payload(
             runtime=runtime,
-            project_root=workspace_text,
+            project_root=project_text,
             session_id=session_id,
+            runtime_session_id=runtime_session_id,
             event_type=event_type,
             model=model,
+            agent_scope=agent_scope,
+            agent_id=attribution.agent_id,
+            agent_name=attribution.agent_name,
+            agent_attribution_source=agent_attribution_source,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             total_tokens=total_tokens,
             cached_input_tokens=cached_input_tokens,
             cache_write_input_tokens=cache_write_input_tokens,
             cost_usd=cost_usd,
+            agent_kind=attribution.agent_kind,
+            agent_id_source=attribution.agent_id_source,
+            agent_name_source=attribution.agent_name_source,
+            agent_kind_source=attribution.agent_kind_source,
         ),
     )
     return _append_record(record, data_root=data_root)
@@ -602,8 +902,12 @@ def _rollup(records: list[UsageRecord]) -> CostRollup:
 
     runtime_values = sorted({value for record in records if (value := _normalize_optional_text(record.runtime))})
     model_values = sorted({value for record in records if (value := _normalize_optional_text(record.model))})
-    measured_costs = [record.cost_usd for record in records if record.cost_status == "measured" and record.cost_usd is not None]
-    estimated_costs = [record.cost_usd for record in records if record.cost_status == "estimated" and record.cost_usd is not None]
+    measured_costs = [
+        record.cost_usd for record in records if record.cost_status == "measured" and record.cost_usd is not None
+    ]
+    estimated_costs = [
+        record.cost_usd for record in records if record.cost_status == "estimated" and record.cost_usd is not None
+    ]
     usage_status = (
         "measured"
         if any(
@@ -754,12 +1058,16 @@ def build_cost_summary(
     """Build a read-only usage/cost summary for the current workspace and recent sessions."""
     resolved_workspace = resolve_project_root(cwd) if cwd is not None else None
     if resolved_workspace is None:
-        resolved_workspace = cwd.expanduser().resolve(strict=False) if cwd is not None else Path.cwd().resolve(strict=False)
+        resolved_workspace = (
+            cwd.expanduser().resolve(strict=False) if cwd is not None else Path.cwd().resolve(strict=False)
+        )
 
     records = list_usage_records(data_root)
     project_records = [record for record in records if record.project_root == resolved_workspace.as_posix()]
     current_session_id = get_current_session_id(resolved_workspace)
-    current_session_records = [record for record in project_records if current_session_id and record.session_id == current_session_id]
+    current_session_records = [
+        record for record in project_records if current_session_id and record.session_id == current_session_id
+    ]
     pricing_snapshot = load_pricing_snapshot(data_root)
 
     active_runtime: str | None = None

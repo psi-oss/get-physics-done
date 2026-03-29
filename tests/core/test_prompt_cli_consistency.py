@@ -5,10 +5,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from gpd.core.surface_phrases import (
-    cost_after_runs_guidance,
-    cost_summary_surface_note,
-)
 from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter
 from tests.doc_surface_contracts import (
     DOCTOR_RUNTIME_SCOPE_RE,
@@ -398,7 +394,7 @@ def test_settings_and_research_mode_docs_keep_tangent_branch_taxonomy_strict() -
     assert "does **not** by itself authorize git-backed hypothesis branches" in settings
     assert "surface tangent decisions explicitly" in settings
     assert "Suppress optional tangents unless the user explicitly requests them" in settings
-    assert cost_after_runs_guidance() in settings
+    _assert_cost_advisory_guardrail(settings)
     assert "gpd presets list" in settings
     assert "gpd presets show <preset>" in settings
     assert "gpd presets apply <preset> --dry-run" in settings
@@ -469,7 +465,7 @@ def test_help_prompt_keeps_cost_surface_on_local_cli_not_runtime_slash_command()
 
     assert "gpd cost" in help_workflow
     assert "/gpd:cost" not in help_workflow
-    assert cost_summary_surface_note() in help_workflow
+    _assert_cost_advisory_guardrail(help_workflow)
 
 
 def test_help_prompt_session_management_keeps_pause_before_leave_and_resume_on_return() -> None:

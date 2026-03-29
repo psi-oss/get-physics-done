@@ -77,6 +77,7 @@ def test_merged_hook_payload_policy_is_exact_ordered_union_of_runtime_contracts(
         "notify_event_types",
         "workspace_keys",
         "project_dir_keys",
+        "runtime_session_id_keys",
         "model_keys",
         "provider_keys",
         "usage_keys",
@@ -86,11 +87,30 @@ def test_merged_hook_payload_policy_is_exact_ordered_union_of_runtime_contracts(
         "cached_input_tokens_keys",
         "cache_write_input_tokens_keys",
         "cost_usd_keys",
+        "agent_id_keys",
+        "agent_name_keys",
+        "agent_scope_keys",
         "context_window_size_keys",
         "context_remaining_keys",
     ):
         expected = _ordered_unique([getattr(descriptor.hook_payload, field_name) for descriptor in descriptors])
         assert getattr(merged_policy, field_name) == expected
+
+
+def test_runtime_hook_payload_attribution_fields_stay_explicitly_opt_in() -> None:
+    merged_policy = get_hook_payload_policy()
+
+    assert merged_policy.runtime_session_id_keys == ()
+    assert merged_policy.agent_id_keys == ()
+    assert merged_policy.agent_name_keys == ()
+    assert merged_policy.agent_scope_keys == ()
+
+    for descriptor in iter_runtime_descriptors():
+        policy = descriptor.hook_payload
+        assert policy.runtime_session_id_keys == ()
+        assert policy.agent_id_keys == ()
+        assert policy.agent_name_keys == ()
+        assert policy.agent_scope_keys == ()
 
 
 def test_runtime_capability_matrix_locks_hook_surfacing_surfaces() -> None:
@@ -292,7 +312,7 @@ def test_public_runtime_surfaces_stay_conservative_when_capabilities_differ() ->
         for content in (readme, help_workflow):
             assert "gpd cost" in content
             assert "recorded local telemetry" in content
-        assert cost_summary_surface_note() in readme
+        assert cost_summary_surface_note() in help_workflow
         assert "provider billing truth" in help_workflow
 
     if any(descriptor.capabilities.permissions_surface != "unsupported" for descriptor in descriptors):

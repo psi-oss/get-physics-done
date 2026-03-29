@@ -1994,8 +1994,7 @@ def test_execution_observability_and_resume_surfaces_stay_conservative_about_sta
     assert "conservatively say `possibly stalled` instead of relying on runtime hotkeys" in readme
     assert "Start with `gpd observe show --last 20` when you need the recent event trail" in readme
     assert "route it through the runtime `tangent` command first" in readme
-    assert "For a read-only machine-local usage / cost summary from your normal system terminal, use `gpd cost`." in readme
-    assert "advisory only" in readme or "billing truth" in readme
+    assert "gpd cost" in readme
     assert "Start at `# GPD Command Reference`." in help_command
     assert "gpd resume --recent" in readme
     assert "When STATE.md appears out of sync with disk reality" in progress
@@ -2229,7 +2228,6 @@ def test_settings_workflow_surfaces_qualitative_model_cost_onboarding_and_runtim
     assert "gpd --help" in settings_workflow
     assert "gpd permissions sync --runtime <runtime> --autonomy balanced" in settings_workflow
     assert "This sync only updates runtime-owned permission settings; it does not validate install health or workflow/tool readiness." in settings_workflow
-    assert "current profile tier mix" in settings_workflow
     assert "gpd presets show <preset>" in settings_workflow
     assert "gpd presets apply <preset> --dry-run" in settings_workflow
 

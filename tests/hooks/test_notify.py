@@ -723,6 +723,58 @@ def test_main_prefers_project_dir_root_over_nested_workspace_cwd(tmp_path: Path)
     mock_execution.assert_called_once_with(str(project))
 
 
+def test_main_passes_workspace_and_project_roots_to_usage_recorder_when_supported(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    nested = project / "src" / "notes"
+    nested.mkdir(parents=True)
+
+    payload = {
+        "type": "agent-turn-complete",
+        "workspace": {"cwd": str(nested), "project_dir": str(project)},
+        "model": {"id": "gpt-5", "provider": "openai"},
+        "tokens": {"promptTokens": 120, "completionTokens": 30},
+    }
+    captured: dict[str, object] = {}
+
+    def _record(
+        payload_arg: dict[str, object],
+        *,
+        runtime: str | None,
+        cwd: Path,
+        workspace_root: Path,
+        project_root: Path,
+    ) -> None:
+        captured["payload"] = payload_arg
+        captured["runtime"] = runtime
+        captured["cwd"] = cwd
+        captured["workspace_root"] = workspace_root
+        captured["project_root"] = project_root
+
+    with (
+        patch("sys.stdin", io.StringIO(json.dumps(payload))),
+        patch("gpd.hooks.notify._payload_runtime", return_value="codex"),
+        patch("gpd.hooks.notify._runtime_supports_usage_telemetry", return_value=True),
+        patch("gpd.core.costs.record_usage_from_runtime_payload", side_effect=_record) as mock_record,
+        patch("gpd.hooks.notify._trigger_update_check") as mock_trigger,
+        patch("gpd.hooks.notify._check_and_notify_update") as mock_notify,
+        patch("gpd.hooks.notify._emit_execution_notification") as mock_execution,
+    ):
+        main()
+
+    resolved_nested = nested.resolve(strict=False)
+    resolved_project = project.resolve(strict=False)
+
+    mock_record.assert_called_once()
+    mock_trigger.assert_called_once_with(str(project))
+    mock_notify.assert_called_once_with(str(project))
+    mock_execution.assert_called_once_with(str(project))
+    assert captured["payload"] == payload
+    assert captured["runtime"] == "codex"
+    assert captured["cwd"] == resolved_nested
+    assert captured["workspace_root"] == resolved_nested
+    assert captured["project_root"] == resolved_project
+
+
 def test_main_expands_tilde_workspace_and_project_dir(tmp_path: Path) -> None:
     home = tmp_path / "home"
     project = home / "project"
@@ -810,6 +862,58 @@ def test_main_records_usage_telemetry_from_alias_fields(tmp_path: Path) -> None:
     assert row["cache_write_input_tokens"] == 5
     assert row["cost_usd"] == 0.42
     assert row["cost_status"] == "measured"
+    assert row["agent_scope"] == "main_agent"
+    assert row["agent_attribution_source"] == "default-main"
+
+
+def test_main_records_workspace_state_subagent_attribution(tmp_path: Path) -> None:
+    project = tmp_path / "workspace"
+    nested = project / "src"
+    nested.mkdir(parents=True)
+    data_root = tmp_path / "data-root"
+    (project / "GPD").mkdir(parents=True, exist_ok=True)
+    (project / "GPD" / "current-agent-id.txt").write_text("agent-77\n", encoding="utf-8")
+    _write_current_execution(
+        project,
+        {
+            "session_id": "sess-subagent",
+            "segment_status": "active",
+            "current_task": "Run executor task",
+        },
+    )
+    payload = {
+        "type": "agent-turn-complete",
+        "workspace": {"cwd": str(nested), "project_dir": str(project)},
+        "model": {"id": "gpt-5", "provider": "openai"},
+        "tokens": {
+            "promptTokens": 120,
+            "completionTokens": 30,
+            "usdCost": 0.42,
+        },
+    }
+
+    with (
+        patch.dict("os.environ", {"GPD_DATA_DIR": str(data_root)}),
+        patch("sys.stdin", io.StringIO(json.dumps(payload))),
+        patch("gpd.hooks.notify._payload_runtime", return_value="codex"),
+        patch("gpd.core.costs.get_current_session_id", return_value="sess-subagent"),
+        patch("gpd.hooks.notify._trigger_update_check"),
+        patch("gpd.hooks.notify._check_and_notify_update"),
+        patch("gpd.hooks.notify._emit_execution_notification"),
+    ):
+        main()
+
+    ledger_path = usage_ledger_path(data_root)
+    rows = [json.loads(line) for line in ledger_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["workspace_root"] == nested.resolve(strict=False).as_posix()
+    assert row["project_root"] == project.resolve(strict=False).as_posix()
+    assert row["agent_scope"] == "subagent"
+    assert row["agent_id"] == "agent-77"
+    assert row["agent_attribution_source"] == "workspace-state"
+    assert row["agent_id_source"] == "workspace.current-agent-id"
 
 
 def test_main_does_not_record_usage_when_runtime_capability_is_unknown(tmp_path: Path) -> None:

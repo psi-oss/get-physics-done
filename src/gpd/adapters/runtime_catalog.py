@@ -25,6 +25,7 @@ class HookPayloadPolicy:
     notify_event_types: tuple[str, ...] = ()
     workspace_keys: tuple[str, ...] = ()
     project_dir_keys: tuple[str, ...] = ()
+    runtime_session_id_keys: tuple[str, ...] = ()
     model_keys: tuple[str, ...] = ()
     provider_keys: tuple[str, ...] = ()
     usage_keys: tuple[str, ...] = ()
@@ -34,6 +35,9 @@ class HookPayloadPolicy:
     cached_input_tokens_keys: tuple[str, ...] = ()
     cache_write_input_tokens_keys: tuple[str, ...] = ()
     cost_usd_keys: tuple[str, ...] = ()
+    agent_id_keys: tuple[str, ...] = ()
+    agent_name_keys: tuple[str, ...] = ()
+    agent_scope_keys: tuple[str, ...] = ()
     context_window_size_keys: tuple[str, ...] = ()
     context_remaining_keys: tuple[str, ...] = ()
 
@@ -141,6 +145,10 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                         "project_dir_keys",
                         ("project_dir",),
                     ),
+                    runtime_session_id_keys=_tuple_of_str_from_entry(
+                        hook_payload_entry,
+                        "runtime_session_id_keys",
+                    ),
                     model_keys=_tuple_of_str_from_entry(
                         hook_payload_entry,
                         "model_keys",
@@ -160,6 +168,9 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                         "cache_write_input_tokens_keys",
                     ),
                     cost_usd_keys=_tuple_of_str_from_entry(hook_payload_entry, "cost_usd_keys"),
+                    agent_id_keys=_tuple_of_str_from_entry(hook_payload_entry, "agent_id_keys"),
+                    agent_name_keys=_tuple_of_str_from_entry(hook_payload_entry, "agent_name_keys"),
+                    agent_scope_keys=_tuple_of_str_from_entry(hook_payload_entry, "agent_scope_keys"),
                     context_window_size_keys=_tuple_of_str_from_entry(
                         hook_payload_entry,
                         "context_window_size_keys",
@@ -245,6 +256,9 @@ def get_hook_payload_policy(runtime: str | None = None) -> HookPayloadPolicy:
         notify_event_types=_merge_unique(descriptor.hook_payload.notify_event_types for descriptor in descriptors),
         workspace_keys=_merge_unique(descriptor.hook_payload.workspace_keys for descriptor in descriptors),
         project_dir_keys=_merge_unique(descriptor.hook_payload.project_dir_keys for descriptor in descriptors),
+        runtime_session_id_keys=_merge_unique(
+            descriptor.hook_payload.runtime_session_id_keys for descriptor in descriptors
+        ),
         model_keys=_merge_unique(descriptor.hook_payload.model_keys for descriptor in descriptors),
         provider_keys=_merge_unique(descriptor.hook_payload.provider_keys for descriptor in descriptors),
         usage_keys=_merge_unique(descriptor.hook_payload.usage_keys for descriptor in descriptors),
@@ -258,6 +272,9 @@ def get_hook_payload_policy(runtime: str | None = None) -> HookPayloadPolicy:
             descriptor.hook_payload.cache_write_input_tokens_keys for descriptor in descriptors
         ),
         cost_usd_keys=_merge_unique(descriptor.hook_payload.cost_usd_keys for descriptor in descriptors),
+        agent_id_keys=_merge_unique(descriptor.hook_payload.agent_id_keys for descriptor in descriptors),
+        agent_name_keys=_merge_unique(descriptor.hook_payload.agent_name_keys for descriptor in descriptors),
+        agent_scope_keys=_merge_unique(descriptor.hook_payload.agent_scope_keys for descriptor in descriptors),
         context_window_size_keys=_merge_unique(
             descriptor.hook_payload.context_window_size_keys for descriptor in descriptors
         ),

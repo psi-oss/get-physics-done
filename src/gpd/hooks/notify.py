@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Runtime notification hook for GPD."""
 
+import inspect
 import json
 import os
 import subprocess
@@ -103,16 +104,61 @@ def _runtime_supports_usage_telemetry(runtime: str | None) -> bool:
     return capability.telemetry_source == "notify-hook" and capability.telemetry_completeness != "none"
 
 
-def _record_usage_telemetry(data: dict[str, object], *, cwd: str) -> None:
+def _usage_recorder_kwargs(
+    recorder: object,
+    *,
+    runtime: str | None,
+    workspace_dir: str,
+    project_root: str,
+) -> dict[str, object]:
+    """Return supported recorder kwargs for one notify payload.
+
+    The notify hook keeps project-scoped helpers rooted at the resolved project,
+    but usage attribution may also need the original workspace path from the
+    runtime payload. Forward those extra hints only when the active recorder
+    contract advertises matching parameters.
+    """
+
+    candidate_kwargs: dict[str, object] = {
+        "runtime": runtime,
+        "cwd": Path(workspace_dir),
+        "workspace_root": Path(workspace_dir),
+        "project_root": Path(project_root),
+    }
+    signature_target = recorder
+    side_effect = getattr(recorder, "side_effect", None)
+    if callable(side_effect):
+        signature_target = side_effect
+    try:
+        parameters = inspect.signature(signature_target).parameters
+    except (TypeError, ValueError):
+        return {
+            "runtime": runtime,
+            "cwd": Path(workspace_dir),
+        }
+    if any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters.values()):
+        return candidate_kwargs
+    return {name: value for name, value in candidate_kwargs.items() if name in parameters}
+
+
+def _record_usage_telemetry(data: dict[str, object], *, workspace_dir: str, project_root: str) -> None:
     """Persist measured usage/cost telemetry when the runtime payload exposes it."""
     from gpd.core.costs import record_usage_from_runtime_payload
 
     try:
-        runtime = _payload_runtime(cwd)
+        runtime = _payload_runtime(project_root)
         if not _runtime_supports_usage_telemetry(runtime):
             _debug("usage telemetry skipped: runtime capability unknown or unsupported")
             return
-        record_usage_from_runtime_payload(data, runtime=runtime, cwd=Path(cwd))
+        record_usage_from_runtime_payload(
+            data,
+            **_usage_recorder_kwargs(
+                record_usage_from_runtime_payload,
+                runtime=runtime,
+                workspace_dir=workspace_dir,
+                project_root=project_root,
+            ),
+        )
     except Exception as exc:
         # Usage telemetry is advisory only and must never break the notify hook.
         _debug(f"usage telemetry skipped: {exc}")
@@ -219,7 +265,7 @@ def _check_and_notify_update(cwd: str | None = None) -> None:
         sys.stderr.write(f"[GPD] Update available: v{installed} \u2192 v{latest}. Run: {cmd}\n")
 
 
-def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
+def _workspace_dir_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
     from gpd.adapters.runtime_catalog import get_hook_payload_policy
 
     # Before the payload workspace is resolved, accept the union of known
@@ -231,18 +277,35 @@ def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) 
         workspace_value
         if isinstance(workspace_value, str) and workspace_value
         else (
-        _first_string(workspace_value, *policy.workspace_keys)
-        or _first_string(data, *policy.workspace_keys)
-        or cwd
-        or os.getcwd()
+            _first_string(workspace_value, *policy.workspace_keys)
+            or _first_string(data, *policy.workspace_keys)
+            or cwd
+            or os.getcwd()
         )
     )
+    return _normalize_workspace_text(raw_workspace)
+
+
+def _workspace_root_from_payload(
+    data: dict[str, object],
+    workspace_dir: str,
+    *,
+    cwd: str | None = None,
+) -> str:
+    """Resolve the project root for one notify payload workspace."""
+    policy = _hook_payload_policy(cwd or workspace_dir)
+    workspace_value = data.get("workspace")
     project_dir = _first_string(workspace_value, *policy.project_dir_keys) or _first_string(
         data,
         *policy.project_dir_keys,
     )
-    resolved_root = resolve_project_root(raw_workspace, project_dir=project_dir)
-    return str(resolved_root) if resolved_root is not None else _normalize_workspace_text(raw_workspace)
+    resolved_root = resolve_project_root(workspace_dir, project_dir=project_dir)
+    return str(resolved_root) if resolved_root is not None else workspace_dir
+
+
+def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
+    workspace_dir = _workspace_dir_from_payload(data, cwd=cwd)
+    return _workspace_root_from_payload(data, workspace_dir, cwd=cwd)
 
 
 def _notification_state_path(cwd: str) -> Path:
@@ -360,12 +423,13 @@ def main() -> None:
         return
 
     try:
-        cwd = _workspace_from_payload(data)
+        workspace_dir = _workspace_dir_from_payload(data)
+        cwd = _workspace_from_payload(data, cwd=workspace_dir)
         hook_payload = _hook_payload_policy(cwd)
         allowed_event_types = hook_payload.notify_event_types
         if allowed_event_types and data.get("type") not in (*allowed_event_types, None):
             return
-        _record_usage_telemetry(data, cwd=cwd)
+        _record_usage_telemetry(data, workspace_dir=workspace_dir, project_root=cwd)
         _trigger_update_check(cwd)
         _check_and_notify_update(cwd)
         _emit_execution_notification(cwd)

@@ -109,17 +109,11 @@ def observe_tangent_routing_note(*, tangent_phrase: str, branch_phrase: str) -> 
 
 
 def cost_inspect_action() -> str:
-    return (
-        "Run `gpd cost` to inspect recorded machine-local usage / cost, optional USD budget guardrails, "
-        "and the current profile tier mix for this workspace."
-    )
+    return "Run `gpd cost` for the local usage/cost summary and any USD budget warnings."
 
 
 def cost_after_run_action() -> str:
-    return (
-        "After a run, use `gpd cost` to inspect recorded machine-local usage / cost, optional USD budget "
-        "guardrails, and the current profile tier mix for this workspace."
-    )
+    return "After a run, check `gpd cost` for local usage/cost and any USD budget warnings."
 
 
 def cost_after_runs_guidance() -> str:

@@ -67,7 +67,7 @@ Recovery ladder: use `gpd resume` for the current-workspace read-only recovery s
 
 For read-only long-run visibility from your normal system terminal, use `gpd observe execution`. It is the passive status surface for progress and waiting state; if it cannot prove the run is healthy, it will conservatively say `possibly stalled` instead of relying on runtime hotkeys. Start with `gpd observe show --last 20` when you need the recent event trail, then inspect `gpd resume` if the run is waiting, paused, blocked, or flagged `possibly stalled`. If the same execution surface shows an alternative-path follow-up or `branch later` recommendation, route it through the runtime `tangent` command first and use `branch-hypothesis` only after that explicit choice.
 
-For a read-only machine-local usage / cost summary from your normal system terminal, use `gpd cost`. Read-only machine-local usage / cost summary from recorded local telemetry, optional USD budget guardrails, and the current profile tier mix; advisory only, not live budget enforcement or provider billing truth. If telemetry is missing, the USD view stays partial or estimated rather than exact.
+For a read-only machine-local usage / cost summary from your normal system terminal, use `gpd cost`.
 
 Local CLI bridge: Use `gpd --help`, `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced`, `gpd permissions status --runtime <runtime> --autonomy balanced`, `gpd permissions sync --runtime <runtime> --autonomy balanced`, `gpd resume`, `gpd resume --recent`, `gpd observe execution`, `gpd cost`, `gpd presets list`, and `gpd integrations status wolfram` from your normal terminal when you want the broader local diagnostics, readiness, recovery, visibility, cost, preset, and shared Wolfram integration surface. Use `gpd doctor` for the selected install target and runtime-local readiness signals. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`; that still does not replace `gpd validate plan-preflight <PLAN.md>`. Use `gpd permissions ...` for runtime-owned approval/alignment only.
 
@@ -75,7 +75,7 @@ For side investigations, use your runtime-specific `tangent` command when GPD su
 
 Guided unattended configuration path: use your runtime-specific `settings` command after startup when you want to tune workflow toggles, tier models, research preferences, or autonomy. Start there if you are deciding how much unattended execution to allow or what model-cost posture you want.
 
-For model choice, the safe default is `review` plus runtime defaults. Use your runtime-specific `settings` command to move toward `Max quality`, `Balanced`, or `Budget-aware` only if you want to trade off quality against cost or model access. Treat that posture choice as the starting heuristic, then pin explicit tier models only if you actually need that control. Use `gpd cost` after runs to inspect recorded local usage/cost, optional USD budget guardrails, and the current profile tier mix instead of treating posture labels as billing truth. If the telemetry is missing, treat the USD summary as partial or estimated rather than exact.
+For model choice, the safe default is `review` plus runtime defaults. Use your runtime-specific `settings` command to move toward `Max quality`, `Balanced`, or `Budget-aware` only if you want to trade off quality against cost or model access. Treat that posture choice as the starting heuristic, then pin explicit tier models only if you actually need that control. Use `gpd cost` after runs to inspect recorded local usage/cost, optional USD budget guardrails, and the current profile tier mix instead of treating posture labels as billing truth.
 
 Workflow presets are bundles over the existing config keys only; they do not add a separate persisted preset block. Use `gpd presets list` to inspect the catalog, `gpd presets show <preset>` to preview one bundle, and `gpd presets apply <preset> --dry-run` to preview the changed knobs before writing them. If you prefer the guided runtime path, choose the same preset explicitly in your runtime-specific `settings` command. The first supported workflow preset is paper/manuscript workflows such as `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; run `gpd doctor --runtime <runtime> --local|--global` first if you plan to use that preset. Missing preset tooling degrades that preset; it does not block the base GPD install.
 
@@ -525,7 +525,7 @@ If you are choosing a posture for the first time:
 - `Balanced` means keep the default profile and let the runtime use its own defaults unless you have a reason to override them.
 - `Budget-aware` means prefer lighter tiers and only pin explicit runtime models when you need to control cost or access.
 
-Use posture as the starting heuristic, not as a pricing promise. After runs, use `gpd cost` to inspect recorded local usage / cost, optional USD budget guardrails, and the current profile tier mix for the workspace; if telemetry is missing, the USD summary stays partial or estimated rather than exact.
+Use posture as the starting heuristic, not as a pricing promise. If you need the detailed recorded usage / cost view and advisory USD budget comparison for the workspace, use `gpd cost`.
 
 | Tier | Meaning |
 |------|---------|

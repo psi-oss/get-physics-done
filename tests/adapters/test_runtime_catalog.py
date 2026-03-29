@@ -77,6 +77,30 @@ def test_hook_payload_policy_uses_runtime_specific_overrides_and_merged_fallback
     assert codex_policy.notify_event_types == ("agent-turn-complete",)
     assert "agent-turn-complete" in merged_policy.notify_event_types
     assert "cwd" in merged_policy.workspace_keys
+    assert codex_policy.runtime_session_id_keys == ()
+    assert codex_policy.agent_id_keys == ()
+    assert codex_policy.agent_name_keys == ()
+    assert codex_policy.agent_scope_keys == ()
+    assert merged_policy.runtime_session_id_keys == ()
+    assert merged_policy.agent_id_keys == ()
+    assert merged_policy.agent_name_keys == ()
+    assert merged_policy.agent_scope_keys == ()
+
+
+def test_hook_payload_policy_keeps_runtime_session_and_agent_attribution_opt_in() -> None:
+    merged_policy = get_hook_payload_policy()
+
+    assert merged_policy.runtime_session_id_keys == ()
+    assert merged_policy.agent_id_keys == ()
+    assert merged_policy.agent_name_keys == ()
+    assert merged_policy.agent_scope_keys == ()
+
+    for runtime_name in list_runtime_names():
+        policy = get_hook_payload_policy(runtime_name)
+        assert policy.runtime_session_id_keys == ()
+        assert policy.agent_id_keys == ()
+        assert policy.agent_name_keys == ()
+        assert policy.agent_scope_keys == ()
 
 
 def test_runtime_capabilities_are_explicit_per_runtime() -> None:

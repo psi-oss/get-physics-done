@@ -167,9 +167,9 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
     assert payload.workflow_presets["latex_capability"]["arxiv_submission_ready"] is True
 
     assert payload.cost["advisory"]["state"] == "unavailable"
-    assert payload.cost["advisory"]["next_action"] == cost_inspect_action()
+    assert "next_action" not in payload.cost["advisory"]
     assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
-    assert payload.cost["advisory"]["next_action"] in payload.next_actions
+    assert not any("gpd cost" in action for action in payload.next_actions)
     assert any("latexmk" in action for action in payload.next_actions)
     assert any("kpsewhich" in action for action in payload.next_actions)
     assert any("Workflow presets ready" in action for action in payload.next_actions)
@@ -307,9 +307,8 @@ def test_build_runtime_hint_payload_surfaces_one_cost_advisory_for_measured_usag
 
     assert payload.cost["advisory"]["state"] == "unavailable"
     assert payload.cost["advisory"]["message"] == fake_summary.guidance[0]
-    assert payload.cost["advisory"]["next_action"] == cost_inspect_action()
-    cost_actions = [action for action in payload.next_actions if "gpd cost" in action]
-    assert cost_actions == [payload.cost["advisory"]["next_action"]]
+    assert "next_action" not in payload.cost["advisory"]
+    assert not any("gpd cost" in action for action in payload.next_actions)
 
 
 def test_build_runtime_hint_payload_surfaces_budget_guardrail_advisory_when_threshold_is_near(

@@ -21,11 +21,12 @@ from gpd.core.surface_phrases import (
 
 def test_cost_surface_phrases_stay_conservative_and_advisory() -> None:
     assert "gpd cost" in cost_inspect_action()
-    assert "machine-local usage / cost" in cost_inspect_action()
-    assert "budget guardrails" in cost_inspect_action()
+    assert "local usage/cost summary" in cost_inspect_action()
+    assert "USD budget warnings" in cost_inspect_action()
     assert "gpd cost" in cost_after_run_action()
     assert "After a run" in cost_after_run_action()
-    assert "budget guardrails" in cost_after_run_action()
+    assert "local usage/cost" in cost_after_run_action()
+    assert "USD budget warnings" in cost_after_run_action()
     assert "gpd cost" in cost_after_runs_guidance()
     assert "budget guardrails" in cost_after_runs_guidance()
     assert "billing truth" in cost_after_runs_guidance()
