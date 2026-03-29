@@ -32,6 +32,8 @@ You need three things before GPD can work:
 - Node.js 20+
 - Python 3.11+ with the standard `venv` module
 
+Here, "runtime" means the AI terminal app you talk to, such as Claude Code, Codex, Gemini CLI, or OpenCode.
+
 There are two places you type commands:
 
 - In your normal system terminal: `npx ...`, `gpd ...`, `claude`, `codex`, `gemini`, `opencode`
@@ -59,6 +61,8 @@ If you are new to terminals, start with one OS guide and one runtime guide:
 
 Most beginners should install GPD into one runtime at a time and use `--local`.
 
+Here, `--local` means "install GPD for this project or folder only."
+
 </details>
 
 <details>
@@ -66,6 +70,7 @@ Most beginners should install GPD into one runtime at a time and use `--local`.
 
 - GPD does not install Claude Code, Codex, Gemini CLI, or OpenCode for you.
 - GPD does not include model access, billing, or API credits. You still need an account, subscription, or API access for the runtime you choose.
+- "API credits" means paid model usage from the provider behind your runtime.
 - GPD does not require you to understand Git to start using it. It manages the research workflow for you unless you deliberately choose advanced branching workflows later.
 
 </details>
@@ -105,6 +110,8 @@ Then choose the path that matches your starting point:
 | Find a workspace to reopen | `gpd resume --recent` | Find the workspace first when you need to reopen a different one, then continue there with the runtime `resume-work` command. |
 | Continue in an existing GPD project | Your runtime's `resume-work` command | Continue in-runtime from the selected project state. |
 | Existing research folder or codebase | Your runtime's `map-research` command | Map existing work before planning. |
+
+Use the runtime table above for the exact command prefix for Claude Code, Codex, Gemini CLI, or OpenCode.
 
 If you are new to terminals or not sure which runtime to choose, use [Start Here](#start-here) above.
 

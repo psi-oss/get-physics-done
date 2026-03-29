@@ -18,6 +18,8 @@ claude --version
 
 If it prints a version number, Claude Code is installed and available on your `PATH`.
 
+If it does not, use Anthropic's getting-started guide linked below, then come back here.
+
 ## 2) Install GPD for Claude Code
 
 Run this from your normal terminal:
@@ -28,7 +30,7 @@ npx -y get-physics-done --claude --local
 
 ## 3) Start Claude Code
 
-Open Claude Code from the terminal:
+Open Claude Code from the terminal in the folder where you want to work:
 
 ```bash
 claude
@@ -65,4 +67,4 @@ If you already have research in this folder, use:
 ## Official docs
 
 - Anthropic: [Claude Code getting started](https://code.claude.com/docs/en/getting-started)
-- Anthropic: [Claude Code settings](https://docs.anthropic.com/en/docs/claude-code/settings)
+- Anthropic: [Claude Code settings](https://code.claude.com/docs/en/settings)

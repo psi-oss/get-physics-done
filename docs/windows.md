@@ -2,6 +2,8 @@
 
 GPD adds structured physics-research commands to Claude Code, Codex, Gemini CLI, or OpenCode.
 
+In these docs, "runtime" means the AI terminal app you talk to.
+
 ## What you need first
 
 - Windows 10 or 11
@@ -46,15 +48,15 @@ If `python` is not recognized, try `py`.
 
 If Node or Python is missing, the simplest path for most beginners is to use the official installer pages linked below.
 
-If you prefer to install from PowerShell and `winget` is available, you can run:
+If you prefer to install from PowerShell and `winget` is available:
 
-If Node is missing:
+- If Node is missing, run:
 
 ```powershell
 winget install OpenJS.NodeJS.LTS
 ```
 
-If Python is missing:
+- If Python is missing, run:
 
 ```powershell
 winget install Python.Python.3.11

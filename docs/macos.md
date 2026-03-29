@@ -2,6 +2,8 @@
 
 GPD adds structured physics-research commands to Claude Code, Codex, Gemini CLI, or OpenCode.
 
+In these docs, "runtime" means the AI terminal app you talk to.
+
 ## What you need first
 
 - A Mac with internet access

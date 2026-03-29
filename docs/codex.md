@@ -74,4 +74,4 @@ You are in the right place when:
 ## Official docs
 
 - OpenAI: [Codex CLI docs](https://developers.openai.com/codex/cli)
-- OpenAI: [Codex cloud overview](https://platform.openai.com/docs/codex)
+- OpenAI: [Codex CLI overview](https://developers.openai.com/codex/cli)
