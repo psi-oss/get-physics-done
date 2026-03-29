@@ -28,8 +28,9 @@ from gpd.hooks.statusline import (
     _read_model_label,
     _read_position,
     _read_workspace_label,
-    _workspace_from_payload,
-    _workspace_root_from_payload,
+    _project_root_from_payload,
+    _resolved_project_root_from_payload,
+    _workspace_dir_from_payload,
     main,
 )
 
@@ -524,7 +525,7 @@ class TestReadCurrentTask:
         ):
             assert _read_current_task("session-123", str(workspace)) == "Workspace-scoped task"
 
-    def test_workspace_from_payload_uses_runtime_aware_payload_policy(self, tmp_path: Path) -> None:
+    def test_workspace_dir_from_payload_uses_runtime_aware_payload_policy(self, tmp_path: Path) -> None:
         process_cwd = tmp_path / "process-cwd"
         process_cwd.mkdir()
         workspace = tmp_path / "workspace"
@@ -533,12 +534,12 @@ class TestReadCurrentTask:
         hook_payload = SimpleNamespace(workspace_keys=("payload_workspace",), project_dir_keys=("project_root",))
 
         with patch("gpd.hooks.statusline._hook_payload_policy", return_value=hook_payload) as mock_policy:
-            result = _workspace_from_payload(payload, cwd=str(process_cwd))
+            result = _workspace_dir_from_payload(payload, cwd=str(process_cwd))
 
         mock_policy.assert_called_once_with(str(process_cwd))
         assert result == str(workspace.resolve(strict=False))
 
-    def test_workspace_root_from_payload_uses_runtime_aware_payload_policy(self, tmp_path: Path) -> None:
+    def test_project_root_from_payload_uses_runtime_aware_payload_policy(self, tmp_path: Path) -> None:
         process_cwd = tmp_path / "process-cwd"
         process_cwd.mkdir()
         workspace = tmp_path / "workspace"
@@ -549,9 +550,24 @@ class TestReadCurrentTask:
         hook_payload = SimpleNamespace(workspace_keys=("workspace",), project_dir_keys=("project_root",))
 
         with patch("gpd.hooks.statusline._hook_payload_policy", return_value=hook_payload) as mock_policy:
-            result = _workspace_root_from_payload(payload, str(workspace), cwd=str(process_cwd))
+            result = _project_root_from_payload(payload, str(workspace), cwd=str(process_cwd))
 
         mock_policy.assert_called_once_with(str(process_cwd))
+        assert result == str(project.resolve(strict=False))
+
+    def test_resolved_project_root_from_payload_returns_resolved_project_root(self, tmp_path: Path) -> None:
+        process_cwd = tmp_path / "process-cwd"
+        process_cwd.mkdir()
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        project = tmp_path / "project"
+        project.mkdir()
+        payload = {"payload_workspace": str(workspace), "project_root": str(project)}
+        hook_payload = SimpleNamespace(workspace_keys=("payload_workspace",), project_dir_keys=("project_root",))
+
+        with patch("gpd.hooks.statusline._hook_payload_policy", return_value=hook_payload):
+            result = _resolved_project_root_from_payload(payload, cwd=str(process_cwd))
+
         assert result == str(project.resolve(strict=False))
 
     def test_runtime_less_explicit_target_hook_todo_dir_is_ignored_for_task_lookup(self, tmp_path: Path) -> None:
@@ -1210,7 +1226,7 @@ class TestMain:
 
         assert "[workspace]" in captured.getvalue()
 
-    def test_workspace_from_payload_uses_merged_policy_before_workspace_resolution(self, tmp_path: Path) -> None:
+    def test_workspace_dir_from_payload_uses_merged_policy_before_workspace_resolution(self, tmp_path: Path) -> None:
         process_cwd = tmp_path / "process-cwd"
         process_cwd.mkdir()
         _mark_complete_install(process_cwd / ".codex", runtime="codex")
@@ -1227,7 +1243,7 @@ class TestMain:
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=process_cwd),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
         ):
-            assert _workspace_from_payload(payload) == str(workspace)
+            assert _workspace_dir_from_payload(payload) == str(workspace)
 
     def test_main_uses_project_root_for_project_state_helpers_when_workspace_is_nested_mapping(self, tmp_path: Path) -> None:
         project = tmp_path / "project"

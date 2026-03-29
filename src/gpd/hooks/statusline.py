@@ -306,8 +306,8 @@ def _read_current_task(session_id: str, workspace_dir: str | None = None) -> str
     return ""
 
 
-def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
-    """Extract the workspace directory from a runtime hook payload."""
+def _workspace_dir_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
+    """Extract the raw workspace directory from a runtime hook payload."""
     from gpd.adapters.runtime_catalog import get_hook_payload_policy
 
     hook_payload = _hook_payload_policy(cwd) if cwd else get_hook_payload_policy()
@@ -317,12 +317,13 @@ def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) 
         if isinstance(workspace_value, str) and workspace_value
         else _first_string(workspace_value, *hook_payload.workspace_keys)
         or _first_string(data, *hook_payload.workspace_keys)
+        or cwd
         or os.getcwd()
     )
     return _normalize_workspace_text(raw_workspace)
 
 
-def _workspace_root_from_payload(
+def _project_root_from_payload(
     data: dict[str, object],
     workspace_dir: str,
     *,
@@ -337,6 +338,12 @@ def _workspace_root_from_payload(
     )
     resolved_root = resolve_project_root(workspace_dir, project_dir=project_dir)
     return str(resolved_root) if resolved_root is not None else workspace_dir
+
+
+def _resolved_project_root_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
+    """Return the resolved project root for one statusline payload workspace."""
+    workspace_dir = _workspace_dir_from_payload(data, cwd=cwd)
+    return _project_root_from_payload(data, workspace_dir, cwd=cwd)
 
 
 def _read_context_remaining(data: dict[str, object], hook_payload) -> float | int | None:
@@ -621,28 +628,28 @@ def main() -> None:
         return
 
     try:
-        workspace_dir = _workspace_from_payload(data)
-        workspace_root = _workspace_root_from_payload(data, workspace_dir)
-        hook_payload = _hook_payload_policy(workspace_root)
+        workspace_dir = _workspace_dir_from_payload(data)
+        project_root = _resolved_project_root_from_payload(data, cwd=workspace_dir)
+        hook_payload = _hook_payload_policy(project_root)
 
         session_value = data.get("session_id")
         session_id = session_value if isinstance(session_value, str) else ""
         remaining = _read_context_remaining(data, hook_payload)
-        runtime_hints = _read_runtime_hints(workspace_root)
+        runtime_hints = _read_runtime_hints(project_root)
         visibility = _mapping(runtime_hints.get("execution"))
-        execution = _mapping(visibility.get("current_execution")) or _read_execution_state(workspace_root)
+        execution = _mapping(visibility.get("current_execution")) or _read_execution_state(project_root)
 
         ctx = _context_bar(remaining) if isinstance(remaining, (int, float)) and math.isfinite(remaining) else ""
-        position = _read_position(workspace_root)
+        position = _read_position(project_root)
         execution_badge = _execution_badge(execution, visibility or None)
         execution_task = _object_string(visibility, "current_task") or _first_string(execution, "current_task")
-        task = execution_task or _read_current_task(session_id, workspace_root)
+        task = execution_task or _read_current_task(session_id, project_root)
         if execution_task:
             task = execution_task
         elif execution_badge:
             task = ""
         artifact_label = _execution_artifact_label(execution)
-        gpd_update = _check_update(workspace_root)
+        gpd_update = _check_update(project_root)
         model_label = _read_model_label(data, hook_payload)
         workspace_label = _read_workspace_label(data, workspace_dir, hook_payload)
 

@@ -287,7 +287,7 @@ def _workspace_dir_from_payload(data: dict[str, object], *, cwd: str | None = No
     return _normalize_workspace_text(raw_workspace)
 
 
-def _workspace_root_from_payload(
+def _project_root_from_payload(
     data: dict[str, object],
     workspace_dir: str,
     *,
@@ -304,10 +304,10 @@ def _workspace_root_from_payload(
     return str(resolved_root) if resolved_root is not None else workspace_dir
 
 
-def _workspace_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
+def _resolved_project_root_from_payload(data: dict[str, object], *, cwd: str | None = None) -> str:
     """Return the resolved project root for one notify payload workspace."""
     workspace_dir = _workspace_dir_from_payload(data, cwd=cwd)
-    return _workspace_root_from_payload(data, workspace_dir, cwd=cwd)
+    return _project_root_from_payload(data, workspace_dir, cwd=cwd)
 
 
 def _notification_state_path(cwd: str) -> Path:
@@ -426,7 +426,7 @@ def main() -> None:
 
     try:
         workspace_dir = _workspace_dir_from_payload(data)
-        project_root = _workspace_from_payload(data, cwd=workspace_dir)
+        project_root = _resolved_project_root_from_payload(data, cwd=workspace_dir)
         hook_payload = _hook_payload_policy(project_root)
         allowed_event_types = hook_payload.notify_event_types
         if allowed_event_types and data.get("type") not in (*allowed_event_types, None):

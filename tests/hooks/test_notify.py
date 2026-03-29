@@ -704,6 +704,20 @@ def test_main_accepts_workspace_mapping_with_cwd_field() -> None:
     mock_notify.assert_called_once_with(expected)
 
 
+def test_workspace_resolution_helpers_keep_raw_workspace_path_distinct_from_project_root(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    nested = project / "src" / "notes"
+    nested.mkdir(parents=True)
+    payload = {"workspace": {"cwd": str(nested), "project_dir": str(project)}}
+
+    raw_workspace = notify_module._workspace_dir_from_payload(payload)
+    resolved_project = notify_module._resolved_project_root_from_payload(payload, cwd=raw_workspace)
+
+    assert raw_workspace == nested.resolve(strict=False).as_posix()
+    assert resolved_project == project.resolve(strict=False).as_posix()
+    assert raw_workspace != resolved_project
+
+
 def test_main_prefers_project_dir_root_over_nested_workspace_cwd(tmp_path: Path) -> None:
     project = tmp_path / "project"
     nested = project / "src" / "notes"
@@ -792,6 +806,8 @@ def test_main_passes_workspace_and_project_roots_to_usage_recorder_when_supporte
     assert captured["cwd"] == resolved_nested
     assert captured["workspace_root"] == resolved_nested
     assert captured["project_root"] == resolved_project
+    assert captured["cwd"] == captured["workspace_root"]
+    assert captured["workspace_root"] != captured["project_root"]
 
 
 def test_usage_recorder_kwargs_keep_legacy_cwd_contract_for_old_recorders(tmp_path: Path) -> None:
@@ -950,6 +966,7 @@ def test_main_records_workspace_state_subagent_attribution(tmp_path: Path) -> No
     row = rows[0]
     assert row["workspace_root"] == nested.resolve(strict=False).as_posix()
     assert row["project_root"] == project.resolve(strict=False).as_posix()
+    assert row["workspace_root"] != row["project_root"]
     assert row["agent_scope"] == "subagent"
     assert row["agent_id"] == "agent-77"
     assert row["agent_attribution_source"] == "workspace-state"
@@ -1103,7 +1120,7 @@ def test_main_logs_workspace_resolution_exception_instead_of_raising() -> None:
     stderr = io.StringIO()
     with (
         patch("sys.stdin", io.StringIO(payload)),
-        patch("gpd.hooks.notify._workspace_from_payload", side_effect=RuntimeError("boom")),
+        patch("gpd.hooks.notify._resolved_project_root_from_payload", side_effect=RuntimeError("boom")),
         patch.dict("os.environ", {"GPD_DEBUG": "1"}),
         patch("sys.stderr", stderr),
     ):

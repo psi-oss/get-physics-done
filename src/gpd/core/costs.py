@@ -409,7 +409,13 @@ def _payload_usage_attribution(
     )
 
 
-def _workspace_usage_attribution(project_root: Path | None, *, session_id: str | None) -> _UsageAttribution:
+def _project_state_usage_attribution(project_root: Path | None, *, session_id: str | None) -> _UsageAttribution:
+    """Infer subagent attribution from project-scoped recovery state.
+
+    ``project_root`` here is the resolved GPD project scope used for
+    ``ProjectLayout`` and observability/session lookups. The raw runtime
+    workspace path remains separate as ``workspace_root`` on the usage record.
+    """
     if project_root is None or session_id is None:
         return _UsageAttribution()
 
@@ -455,7 +461,7 @@ def _resolve_usage_attribution(
     )
     if payload_attribution.has_any():
         return payload_attribution
-    return _workspace_usage_attribution(project_root, session_id=session_id)
+    return _project_state_usage_attribution(project_root, session_id=session_id)
 
 
 def _cost_root(explicit_data_dir: Path | None = None) -> Path:
@@ -664,7 +670,14 @@ def record_usage_from_runtime_payload(
     project_root: Path | None = None,
     data_root: Path | None = None,
 ) -> UsageRecord | None:
-    """Record one measured usage payload when the runtime exposes token/cost telemetry."""
+    """Record one measured usage payload when the runtime exposes token/cost telemetry.
+
+    ``cwd`` is a legacy compatibility hint from the caller. ``workspace_root``
+    preserves the raw runtime workspace path for this event, while
+    ``project_root`` identifies the resolved GPD project scope used for
+    session lookup, project filtering, and project-state attribution. When the
+    explicit roots are omitted, ``cwd`` seeds that resolution.
+    """
     capability_payload = _runtime_capability_payload(runtime)
     if capability_payload.get("telemetry_completeness") == "none":
         return None
@@ -724,6 +737,8 @@ def record_usage_from_runtime_payload(
     if not has_usage_signal:
         return None
 
+    # Keep the runtime's raw workspace path separate from the resolved GPD
+    # project root used for session and observability lookups.
     resolved_workspace_root = workspace_root.expanduser().resolve(strict=False) if workspace_root is not None else None
     if resolved_workspace_root is None and cwd is not None:
         resolved_workspace_root = cwd.expanduser().resolve(strict=False)
