@@ -11,6 +11,7 @@ import builtins
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -69,6 +70,14 @@ def _make_checkout(tmp_path: Path, version: str = "9.9.9") -> Path:
     for subdir in ("commands", "agents", "hooks", "specs"):
         (gpd_root / subdir).mkdir(parents=True, exist_ok=True)
     return repo_root
+
+
+class _ExecutionSnapshot(SimpleNamespace):
+    def model_dump(self, mode: str = "json") -> dict[str, object]:
+        return dict(self.__dict__)
+
+    def __getattr__(self, name: str) -> object:
+        return None
 
 
 # ─── version & help ─────────────────────────────────────────────────────────
@@ -2511,6 +2520,47 @@ def test_observe_execution_raw_reads_local_visibility_snapshot(tmp_path: Path) -
     assert "execution event trail" in payload["next_check_reason"]
     assert payload["suggested_next_steps"]
     assert any("gpd observe show --session cli-session-1 --last 20" in step for step in payload["suggested_next_steps"])
+
+
+def test_observe_execution_raw_prefers_lineage_head_over_legacy_current_execution_snapshot(
+    tmp_path: Path,
+) -> None:
+    observability = tmp_path / "GPD" / "observability"
+    observability.mkdir(parents=True)
+    (observability / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "legacy-session",
+                "phase": "09",
+                "plan": "02",
+                "segment_status": "paused",
+                "current_task": "Legacy snapshot task",
+                "updated_at": "2026-03-27T12:01:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    head_snapshot = _ExecutionSnapshot(
+        session_id="lineage-session",
+        phase="09",
+        plan="02",
+        segment_status="blocked",
+        blocked_reason="manual stop required",
+        current_task="Lineage head task",
+        updated_at="2026-03-27T12:03:00+00:00",
+    )
+
+    with patch("gpd.core.observability.get_current_execution", return_value=head_snapshot):
+        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "observe", "execution"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["status_classification"] == "blocked"
+    assert payload["current_task"] == "Lineage head task"
+    assert payload["current_execution"]["current_task"] == "Lineage head task"
+    assert payload["current_execution"]["segment_status"] == "blocked"
+    assert payload["current_task"] != "Legacy snapshot task"
 
 
 def test_observe_execution_human_output_keeps_waiting_state_distinct_from_possibly_stalled(tmp_path: Path) -> None:

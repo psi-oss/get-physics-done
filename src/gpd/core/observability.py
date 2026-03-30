@@ -1,9 +1,12 @@
 """Session-focused local observability helpers for GPD.
 
-Observability is written to the project-local ``GPD/observability/`` tree:
+Observability is written to the project-local telemetry and lineage surfaces:
 
 - ``sessions/<session-id>.jsonl`` stores the full event stream for one session
 - ``current-session.json`` points at the latest observed session summary
+- ``GPD/lineage/execution-lineage.jsonl`` stores append-only execution lineage
+- ``GPD/lineage/execution-head.json`` stores the derived execution head cache
+- ``current-execution.json`` remains the compatibility mirror for legacy readers
 
 Automatic low-level function/span logging is intentionally disabled. Only
 explicit session/workflow events should be recorded here.
@@ -29,6 +32,16 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from gpd.core import continuation as _continuation_module
 from gpd.core.constants import ProjectLayout
 from gpd.core.continuation import ContinuationBoundedSegment
+from gpd.core.execution_lineage import (
+    ExecutionHeadEffect,
+    build_execution_lineage_entry,
+    clear_execution_lineage_head,
+    execution_lineage_ledger_path,
+    load_execution_lineage_entries,
+    load_execution_lineage_head,
+    project_execution_lineage_head,
+    write_execution_lineage_head,
+)
 from gpd.core.root_resolution import normalize_workspace_hint as _normalize_workspace_path
 from gpd.core.root_resolution import resolve_project_root as _shared_resolve_project_root
 from gpd.core.utils import atomic_write, file_lock, phase_normalize, safe_read_file
@@ -333,6 +346,7 @@ def _layout(cwd: Path | None = None) -> ProjectLayout | None:
 def _ensure_dirs(layout: ProjectLayout) -> None:
     layout.observability_dir.mkdir(parents=True, exist_ok=True)
     layout.observability_sessions_dir.mkdir(parents=True, exist_ok=True)
+    layout.lineage_dir.mkdir(parents=True, exist_ok=True)
 
 
 def _read_json(path: Path) -> dict[str, object] | None:
@@ -354,6 +368,13 @@ def _append_event(path: Path, payload: dict[str, object]) -> None:
             handle.write(line + "\n")
 
 
+def _append_event_locked(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(payload, default=str)
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+
+
 def _save_current_session(layout: ProjectLayout, session: ObservabilitySession) -> None:
     atomic_write(layout.current_observability_session, session.model_dump_json(indent=2))
 
@@ -373,6 +394,22 @@ def _clear_current_execution(layout: ProjectLayout) -> None:
 
 def _read_current_execution_raw(layout: ProjectLayout) -> dict[str, object] | None:
     return _read_json(layout.current_observability_execution)
+
+
+def _current_execution_snapshot(layout: ProjectLayout) -> CurrentExecutionState | None:
+    head_snapshot = load_execution_lineage_head(layout.root)
+    if head_snapshot is not None and isinstance(head_snapshot.execution, dict):
+        try:
+            return CurrentExecutionState.model_validate(head_snapshot.execution)
+        except Exception:
+            pass
+    raw = _read_current_execution_raw(layout)
+    if raw is None:
+        return None
+    try:
+        return CurrentExecutionState.model_validate(raw)
+    except Exception:
+        return None
 
 
 def _normalized_execution_snapshot(snapshot: CurrentExecutionState | None) -> dict[str, object]:
@@ -444,13 +481,7 @@ def get_current_execution(cwd: Path | None = None) -> CurrentExecutionState | No
     layout = _layout(cwd)
     if layout is None:
         return None
-    raw = _read_current_execution_raw(layout)
-    if raw is None:
-        return None
-    try:
-        return CurrentExecutionState.model_validate(raw)
-    except Exception:
-        return None
+    return _current_execution_snapshot(layout)
 
 
 def _execution_visibility_age_minutes(updated_at: str | None) -> float | None:
@@ -1080,6 +1111,70 @@ def _clear_execution_after_event(snapshot: CurrentExecutionState, payload: Obser
     return payload.action in {"finish", "stop"} or snapshot.segment_status == "completed"
 
 
+def _execution_head_effect(
+    previous: CurrentExecutionState | None,
+    next_execution: CurrentExecutionState | None,
+) -> ExecutionHeadEffect:
+    if next_execution is None:
+        return ExecutionHeadEffect.CLEAR
+    if previous is None:
+        return ExecutionHeadEffect.SEED
+    if previous.model_dump(mode="json") == next_execution.model_dump(mode="json"):
+        return ExecutionHeadEffect.NOOP
+    return ExecutionHeadEffect.REPLACE
+
+
+def _persist_execution_lineage_transition(
+    layout: ProjectLayout,
+    payload: ObservabilityEvent,
+    *,
+    previous_execution: CurrentExecutionState | None,
+    next_execution: CurrentExecutionState | None,
+) -> None:
+    lineage_entries = load_execution_lineage_entries(layout.root)
+    previous_record = lineage_entries[-1] if lineage_entries else None
+    execution = _execution_data(payload.data)
+    segment_id = _str_or_none(execution.get("segment_id"))
+    bounded_segment = _bounded_segment_from_normalized_execution_snapshot(layout.root, next_execution)
+    record = build_execution_lineage_entry(
+        kind=f"{payload.name}.{payload.action}",
+        event_id=payload.event_id,
+        recorded_at=payload.timestamp,
+        session_id=payload.session_id,
+        phase=payload.phase,
+        plan=payload.plan,
+        segment_id=segment_id or (next_execution.segment_id if next_execution is not None else None),
+        parent_segment_id=previous_execution.segment_id
+        if payload.name == "segment" and payload.action == "start" and previous_execution is not None
+        else None,
+        prev_event_id=previous_record.event_id if previous_record is not None else None,
+        causation_event_id=payload.event_id,
+        source_category=payload.category,
+        source_name=payload.name,
+        source_action=payload.action,
+        head_effect=_execution_head_effect(previous_execution, next_execution),
+        head_after=next_execution,
+        bounded_segment_after=bounded_segment,
+        data=payload.data,
+        seq=(previous_record.seq + 1) if previous_record is not None else 1,
+    )
+    _append_event_locked(execution_lineage_ledger_path(layout.root), record.model_dump(mode="json"))
+
+    if next_execution is None:
+        clear_execution_lineage_head(layout.root)
+        _clear_current_execution(layout)
+    else:
+        head = project_execution_lineage_head(
+            next_execution,
+            bounded_segment=bounded_segment,
+            last_applied_seq=record.seq,
+            last_applied_event_id=record.event_id,
+            recorded_at=payload.timestamp,
+        )
+        write_execution_lineage_head(layout.root, head)
+        _save_current_execution(layout, next_execution)
+
+
 def _matches_active_execution(
     existing: CurrentExecutionState | None,
     payload: ObservabilityEvent,
@@ -1665,13 +1760,28 @@ def observe_event(
         parent_span_id=parent_span_id,
         data=data or {},
     )
-    _append_event(_session_log(layout, session.session_id), payload.model_dump(mode="json"))
-    next_execution = _updated_execution_state(get_current_execution(layout.root), payload, cwd=layout.root)
-    if next_execution is None:
-        _clear_current_execution(layout)
+    session_log = _session_log(layout, session.session_id)
+    if payload.category == "execution":
+        lineage_path = execution_lineage_ledger_path(layout.root)
+        with file_lock(lineage_path):
+            _append_event_locked(session_log, payload.model_dump(mode="json"))
+            previous_execution = _current_execution_snapshot(layout)
+            next_execution = _updated_execution_state(previous_execution, payload, cwd=layout.root)
+            _persist_execution_lineage_transition(
+                layout,
+                payload,
+                previous_execution=previous_execution,
+                next_execution=next_execution,
+            )
+            _persist_durable_bounded_segment(layout, next_execution)
     else:
-        _save_current_execution(layout, next_execution)
-    _persist_durable_bounded_segment(layout, next_execution)
+        _append_event(session_log, payload.model_dump(mode="json"))
+        next_execution = _updated_execution_state(get_current_execution(layout.root), payload, cwd=layout.root)
+        if next_execution is None:
+            _clear_current_execution(layout)
+        else:
+            _save_current_execution(layout, next_execution)
+        _persist_durable_bounded_segment(layout, next_execution)
 
     updated = _updated_session(
         session,

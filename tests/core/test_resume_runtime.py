@@ -6,6 +6,7 @@ from pathlib import Path
 from gpd.core import context as context_module
 from gpd.core import state as state_module
 from gpd.core.context import init_resume
+from gpd.core.observability import CurrentExecutionState
 from gpd.core.state import parse_state_to_json, state_record_session
 
 
@@ -276,7 +277,7 @@ def test_init_resume_reads_canonical_continuation_from_state_json(
     ]
 
 
-def test_init_resume_prefers_canonical_bounded_segment_over_live_overlay(
+def test_init_resume_prefers_canonical_bounded_segment_over_lineage_head_snapshot(
     tmp_path: Path, state_project_factory, monkeypatch
 ) -> None:
     cwd = state_project_factory(tmp_path)
@@ -315,33 +316,33 @@ def test_init_resume_prefers_canonical_bounded_segment_over_live_overlay(
     canonical_resume = cwd / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
     canonical_resume.parent.mkdir(parents=True, exist_ok=True)
     canonical_resume.write_text("resume\n", encoding="utf-8")
-    overlay_resume = cwd / "GPD" / "phases" / "03-analysis" / "live-overlay.md"
-    overlay_resume.parent.mkdir(parents=True, exist_ok=True)
-    overlay_resume.write_text("resume\n", encoding="utf-8")
-    _write_current_execution(
-        cwd,
-        {
-            "session_id": "sess-overlay",
-            "phase": "04",
-            "plan": "03",
-            "segment_id": "overlay-seg",
-            "segment_status": "paused",
-            "resume_file": "GPD/phases/03-analysis/live-overlay.md",
-            "transition_id": "transition-overlay",
-            "last_result_id": "result-overlay",
-            "updated_at": "2026-03-29T12:15:00+00:00",
-        },
-    )
+    lineage_resume = cwd / "GPD" / "phases" / "03-analysis" / "lineage-head.md"
+    lineage_resume.parent.mkdir(parents=True, exist_ok=True)
+    lineage_resume.write_text("resume\n", encoding="utf-8")
     monkeypatch.setattr(
         context_module,
         "_current_machine_identity",
         lambda: {"hostname": "builder-01", "platform": "Linux 6.1 x86_64"},
     )
+    monkeypatch.setattr(
+        "gpd.core.observability.get_current_execution",
+        lambda cwd=None: CurrentExecutionState(
+            session_id="sess-head",
+            phase="04",
+            plan="03",
+            segment_id="head-seg",
+            segment_status="paused",
+            resume_file="GPD/phases/03-analysis/lineage-head.md",
+            transition_id="transition-head",
+            last_result_id="result-head",
+            updated_at="2026-03-29T12:18:00+00:00",
+        ),
+    )
 
     ctx = init_resume(tmp_path)
 
-    assert ctx["current_execution"]["resume_file"] == "GPD/phases/03-analysis/live-overlay.md"
-    assert ctx["current_execution_resume_file"] == "GPD/phases/03-analysis/live-overlay.md"
+    assert ctx["current_execution"]["resume_file"] == "GPD/phases/03-analysis/lineage-head.md"
+    assert ctx["current_execution_resume_file"] == "GPD/phases/03-analysis/lineage-head.md"
     assert ctx["execution_resume_file_source"] == "current_execution"
     assert ctx["execution_resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
     assert ctx["resume_mode"] == "bounded_segment"

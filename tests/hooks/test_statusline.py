@@ -20,6 +20,7 @@ from gpd.hooks.statusline import (
     _execution_badge,
     _format_context_window_size,
     _read_current_task,
+    _read_execution_state,
     _read_model_label,
     _read_position,
     _read_workspace_label,
@@ -80,6 +81,14 @@ def _runtime_hints_payload(
         "execution": vars(visibility) if visibility is not None else None,
         "cost": cost or {},
     }
+
+
+class _ExecutionSnapshot(SimpleNamespace):
+    def model_dump(self, mode: str = "json") -> dict[str, object]:
+        return dict(self.__dict__)
+
+    def __getattr__(self, name: str) -> object:
+        return None
 
 # ─── _context_bar edge cases ───────────────────────────────────────────────
 
@@ -277,6 +286,47 @@ class TestExecutionBadge:
             }
         )
         assert "REVIEW:pre-fanout" in badge
+
+
+def test_read_execution_state_prefers_lineage_head_over_legacy_current_execution_snapshot(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    observability = workspace / "GPD" / "observability"
+    observability.mkdir(parents=True, exist_ok=True)
+    (observability / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "legacy-session",
+                "phase": "06",
+                "plan": "03",
+                "segment_status": "paused",
+                "current_task": "Legacy snapshot task",
+                "updated_at": "2026-03-27T12:01:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    head_snapshot = _ExecutionSnapshot(
+        session_id="lineage-session",
+        phase="06",
+        plan="03",
+        segment_status="waiting_review",
+        waiting_for_review=True,
+        checkpoint_reason="pre_fanout",
+        pre_fanout_review_pending=True,
+        current_task="Lineage head task",
+        updated_at="2026-03-27T12:03:00+00:00",
+    )
+
+    with patch("gpd.core.observability.get_current_execution", return_value=head_snapshot):
+        execution = _read_execution_state(str(workspace))
+
+    assert execution["current_task"] == "Lineage head task"
+    assert execution["checkpoint_reason"] == "pre_fanout"
+    assert execution["segment_status"] == "waiting_review"
+    assert execution["current_task"] != "Legacy snapshot task"
 
 
 # ─── _read_position edge cases ─────────────────────────────────────────────

@@ -7,6 +7,7 @@ import json
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import gpd.hooks.notify as notify_module
@@ -31,6 +32,15 @@ def _write_current_execution(workspace: Path, payload: dict[str, object]) -> Non
     observability = workspace / "GPD" / "observability"
     observability.mkdir(parents=True, exist_ok=True)
     (observability / "current-execution.json").write_text(json.dumps(payload), encoding="utf-8")
+
+
+class _ExecutionSnapshot(SimpleNamespace):
+    def model_dump(self, mode: str = "json") -> dict[str, object]:
+        return dict(self.__dict__)
+
+    def __getattr__(self, name: str) -> object:
+        return None
+
 
 def test_notify_uses_latest_local_cache_and_scoped_codex_install_command(tmp_path: Path) -> None:
     home = tmp_path / "home"
@@ -1237,6 +1247,46 @@ def test_emit_execution_notification_for_pre_fanout_review(tmp_path: Path) -> No
         _emit_execution_notification(str(workspace))
 
     assert "Pre-fanout review due for 05-03" in stderr.getvalue()
+
+
+def test_emit_execution_notification_prefers_lineage_head_over_legacy_current_execution_snapshot(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _write_current_execution(
+        workspace,
+        {
+            "phase": "07",
+            "plan": "02",
+            "segment_id": "legacy-seg",
+            "segment_status": "paused",
+            "resume_file": "GPD/phases/07/.continue-here.md",
+            "updated_at": "2026-03-27T12:01:00+00:00",
+        },
+    )
+
+    head_snapshot = _ExecutionSnapshot(
+        phase="07",
+        plan="02",
+        segment_id="head-seg",
+        segment_status="blocked",
+        blocked_reason="manual stop required",
+        current_task="Lineage head task",
+        updated_at="2026-03-27T12:03:00+00:00",
+    )
+
+    stderr = io.StringIO()
+    with (
+        patch("gpd.core.observability.get_current_execution", return_value=head_snapshot),
+        patch("sys.stderr", stderr),
+    ):
+        _emit_execution_notification(str(workspace))
+
+    output = stderr.getvalue()
+    assert "Blocked in 07-02" in output
+    assert "manual stop required" in output
+    assert "Resume candidate from live overlay" not in output
 
 
 def test_emit_execution_notification_prefers_review_over_resume_for_bounded_gate_state(tmp_path: Path) -> None:

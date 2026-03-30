@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from gpd.core.costs import UsageRecord, usage_ledger_path
 from gpd.core.recent_projects import record_recent_project
@@ -15,6 +16,14 @@ from gpd.core.surface_phrases import (
 
 _TEST_RUNTIME = "runtime-under-test"
 _TEST_MODEL = "model-under-test"
+
+
+class _ExecutionSnapshot(SimpleNamespace):
+    def model_dump(self, mode: str = "json") -> dict[str, object]:
+        return dict(self.__dict__)
+
+    def __getattr__(self, name: str) -> object:
+        return None
 
 
 def _bootstrap_project(tmp_path: Path) -> Path:
@@ -243,6 +252,60 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
     assert any("continues in-runtime from the selected project state" in action for action in payload.next_actions)
     assert any("fastest post-resume next command" in action for action in payload.next_actions)
     assert len(payload.next_actions) == len(set(payload.next_actions))
+
+
+def test_build_runtime_hint_payload_prefers_lineage_head_over_legacy_current_execution_snapshot(
+    tmp_path: Path,
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    data_root = tmp_path / "data"
+
+    _write_current_session(project, session_id="legacy-session")
+    _write_current_execution(
+        project,
+        session_id="legacy-session",
+        extra_execution={
+            "segment_status": "waiting_review",
+            "current_task": "Legacy snapshot task",
+            "current_task_index": 4,
+            "current_task_total": 8,
+            "waiting_for_review": True,
+            "review_required": True,
+            "checkpoint_reason": "first_result",
+            "waiting_reason": "first_result_review_required",
+            "updated_at": "2026-03-27T12:01:00+00:00",
+        },
+    )
+
+    head_snapshot = _ExecutionSnapshot(
+        session_id="lineage-session",
+        phase="03",
+        plan="02",
+        segment_status="blocked",
+        blocked_reason="manual stop required",
+        current_task="Lineage head task",
+        current_task_index=1,
+        current_task_total=4,
+        updated_at="2026-03-27T12:03:00+00:00",
+    )
+
+    with patch("gpd.core.observability.get_current_execution", return_value=head_snapshot):
+        payload = build_runtime_hint_payload(
+            project,
+            data_root=data_root,
+            base_ready=True,
+            latex_capability=_latex_capability(),
+            include_cost=False,
+            include_recovery=False,
+            include_workflow_presets=False,
+        )
+
+    assert payload.execution is not None
+    assert payload.execution["status_classification"] == "blocked"
+    assert payload.execution["current_task"] == "Lineage head task"
+    assert payload.execution["current_task_progress"] == "1/4"
+    assert payload.execution["current_task"] != "Legacy snapshot task"
+    assert payload.execution["has_live_execution"] is True
 
 
 def test_build_runtime_hint_payload_reports_degraded_publication_presets_when_bibtex_is_missing(
