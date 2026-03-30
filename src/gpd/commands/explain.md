@@ -25,7 +25,7 @@ Produce a rigorous, well-scoped explanation of a concept, method, notation, resu
 
 **Why subagent:** A good explanation has to hold together local project state, notation, nearby derivations, and literature context. Fresh context lets the explainer stay rigorous without dropping the active process.
 When available, the explainer should also use the derived citation-source catalog so literature guides can prefer stable `reference_id` anchors and openable URLs instead of reconstructing papers from prose.
-If the topic is already represented in `intermediate_results`, use `gpd result search` to recover the canonical result before explaining it so the explanation can anchor to the stored equation, description, phase, and verification state. When the explanation also needs the upstream derivation path, run `gpd result deps "{result_id}"` after the search so the explanation can reuse the recorded dependency chain instead of reconstructing it from prose.
+If the topic is already represented in `intermediate_results`, use `gpd result search` to recover the canonical result before explaining it so the explanation can anchor to the stored equation, description, phase, and verification state. If a canonical `result_id` is already known, use `gpd result show "{result_id}"` to inspect the stored result directly before explaining it. When the explanation also needs the upstream derivation path, run `gpd result deps "{result_id}"` after the search or show step so the explanation can reuse the recorded dependency chain instead of reconstructing it from prose.
 </objective>
 
 <execution_context>

@@ -32,7 +32,9 @@ def test_explain_surfaces_result_deps_for_upstream_context() -> None:
     workflow_text = EXPLAIN_WORKFLOW.read_text(encoding="utf-8")
     command_text = EXPLAIN_COMMAND.read_text(encoding="utf-8")
 
+    assert 'gpd result show "{result_id}"' in workflow_text
     assert 'gpd result deps "{result_id}"' in workflow_text
+    assert 'gpd result show "{result_id}"' in command_text
     assert 'gpd result deps "{result_id}"' in command_text
 
 

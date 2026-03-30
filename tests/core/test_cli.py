@@ -2339,6 +2339,26 @@ def test_result_search_raw_outputs_json_list(mock_search):
     assert kwargs["unverified"] is True
 
 
+def test_result_help_surfaces_show_command_and_dependency_chain() -> None:
+    result = runner.invoke(app, ["result", "--help"])
+
+    assert result.exit_code == 0
+    normalized_output = " ".join(result.output.split())
+    assert "show" in normalized_output
+    assert "Show a canonical result" in normalized_output
+    assert "direct/transitive" in normalized_output
+
+
+def test_result_show_help_surfaces_required_result_id_argument() -> None:
+    result = runner.invoke(app, ["result", "show", "--help"])
+
+    assert result.exit_code == 0
+    normalized_output = " ".join(result.output.split())
+    assert "Show a canonical result and its direct/transitive dependency chain." in normalized_output
+    assert "RESULT_ID" in normalized_output
+    assert "Canonical result ID [required]" in normalized_output
+
+
 @patch("gpd.core.results.result_upsert", create=True)
 def test_result_upsert_with_explicit_id(mock_upsert):
     mock_result = MagicMock()
