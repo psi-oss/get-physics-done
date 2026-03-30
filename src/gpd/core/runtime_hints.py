@@ -109,6 +109,79 @@ def _current_project_row(
     return None
 
 
+def _normalized_row_text(row: dict[str, object] | None, field: str) -> str | None:
+    if row is None:
+        return None
+    value = row.get(field)
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _recent_project_summary(row: dict[str, object] | None) -> str | None:
+    if row is None:
+        return None
+
+    bits: list[str] = []
+    last_seen = _normalized_row_text(row, "last_session_at") or _normalized_row_text(row, "last_seen_at")
+    stopped_at = _normalized_row_text(row, "stopped_at")
+    hostname = _normalized_row_text(row, "hostname")
+    platform = _normalized_row_text(row, "platform")
+    resume_file_reason = _normalized_row_text(row, "resume_file_reason")
+    availability_reason = _normalized_row_text(row, "availability_reason")
+
+    if last_seen is not None:
+        bits.append(f"last seen {last_seen}")
+    if stopped_at is not None:
+        bits.append(f"stopped at {stopped_at}")
+    if hostname is not None and platform is not None:
+        bits.append(f"on {hostname} ({platform})")
+    elif hostname is not None:
+        bits.append(f"on {hostname}")
+    elif platform is not None:
+        bits.append(f"on {platform}")
+
+    resumable = bool(row.get("resumable"))
+    if resumable:
+        bits.append("resume file ready")
+    elif resume_file_reason is not None:
+        bits.append(resume_file_reason)
+    elif availability_reason is not None:
+        bits.append(availability_reason)
+
+    if not bits:
+        return None
+    return "; ".join(bits)
+
+
+def _project_reentry_summary(
+    reentry: object,
+    current_project: dict[str, object] | None,
+    *,
+    recovery_reason: str | None = None,
+) -> str | None:
+    auto_selected = bool(getattr(reentry, "auto_selected", False))
+    requires_selection = bool(getattr(reentry, "requires_user_selection", False))
+    mode = _suggestion_text(reentry, "mode")
+
+    if auto_selected:
+        summary = "GPD auto-selected the only recoverable recent project on this machine."
+        current_project_summary = _recent_project_summary(current_project)
+        if current_project_summary is not None:
+            summary = f"{summary} {current_project_summary}."
+        return summary
+    if requires_selection:
+        return "GPD found multiple recoverable recent projects on this machine, so you need to choose one."
+    if mode == "recent-projects":
+        if current_project is not None and bool(current_project.get("resumable")):
+            return "GPD found recent projects on this machine, but none are selected automatically."
+        return "GPD found recent projects on this machine, but none are ready to reopen automatically."
+    if recovery_reason is not None:
+        return recovery_reason
+    return None
+
+
 def _runtime_command(action: str, *, cwd: Path) -> str | None:
     try:
         from gpd.adapters import get_adapter
@@ -265,8 +338,18 @@ def build_runtime_hint_payload(
     )
     recovery = (
         {
-            "current_project": current_project,
+            "current_project": (
+                {**current_project, "summary": _recent_project_summary(current_project)}
+                if current_project is not None
+                else None
+            ),
+            "current_project_summary": _recent_project_summary(current_project),
             "project_reentry": _model_dump(reentry),
+            "project_reentry_summary": _project_reentry_summary(
+                reentry,
+                current_project,
+                recovery_reason=recovery_advice.project_reentry_reason if recovery_advice is not None else None,
+            ),
             "recent_projects": [_model_dump(row) or row for row in recent_rows],
         }
         if include_recovery

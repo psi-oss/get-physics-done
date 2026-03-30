@@ -108,6 +108,7 @@ def test_build_recovery_advice_marks_auto_selected_recent_project_recovery(
     assert advice.project_reentry_mode == "auto-recent-project"
     assert advice.project_root_auto_selected is True
     assert advice.primary_command == "gpd resume --recent"
+    assert advice.project_reentry_reason == "GPD found the only recoverable recent project on this machine and selected it automatically."
     assert advice.current_workspace_has_recovery is True
     assert advice.actions[0].availability == "now"
     assert advice.actions[1].availability == "now"
@@ -141,6 +142,7 @@ def test_build_recovery_advice_marks_ambiguous_recent_projects_as_explicit_selec
     assert advice.project_reentry_mode == "ambiguous-recent-projects"
     assert advice.project_reentry_requires_selection is True
     assert advice.primary_command == "gpd resume --recent"
+    assert advice.project_reentry_reason == "GPD found 2 recoverable recent projects on this machine, so you need to choose one."
     assert advice.recent_projects_count == 2
     assert advice.actions[0].availability == "now"
     assert advice.actions[1].availability == "after_selection"
@@ -329,3 +331,28 @@ def test_build_recovery_advice_keeps_machine_change_notice_in_current_workspace_
     assert [(action.kind, action.command, action.availability) for action in advice.actions] == [
         ("primary", "gpd resume", "now")
     ]
+
+
+def test_build_recovery_advice_describes_recent_projects_that_are_not_auto_selectable(
+    tmp_path: Path,
+) -> None:
+    workspace = _project(tmp_path)
+    candidate = _project(tmp_path, "candidate")
+
+    advice = build_recovery_advice(
+        workspace,
+        recent_rows=[
+            {
+                "project_root": candidate.as_posix(),
+                "available": True,
+                "resumable": False,
+            }
+        ],
+        resume_payload={},
+    )
+
+    assert advice.mode == "recent-projects"
+    assert advice.status == "recent-projects"
+    assert advice.decision_source == "recent-projects"
+    assert advice.primary_command == "gpd resume --recent"
+    assert advice.project_reentry_reason == "GPD found recent projects on this machine, but none are ready to reopen automatically."

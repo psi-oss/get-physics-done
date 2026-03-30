@@ -58,6 +58,7 @@ class RecoveryAdvice(BaseModel):
     project_root_auto_selected: bool = False
     project_reentry_mode: str | None = None
     project_reentry_requires_selection: bool = False
+    project_reentry_reason: str | None = None
     current_workspace_resumable: bool = False
     current_workspace_has_recovery: bool = False
     current_workspace_has_resume_file: bool = False
@@ -179,6 +180,31 @@ def _status(
     if recent_projects_count > 0:
         return "recent-projects"
     return "no-recovery"
+
+
+def _recent_project_reentry_reason(
+    *,
+    decision_source: str,
+    recent_projects_count: int,
+    resumable_projects_count: int,
+    available_projects_count: int,
+) -> str | None:
+    if decision_source == "auto-selected-recent-project":
+        return "GPD found the only recoverable recent project on this machine and selected it automatically."
+    if decision_source == "ambiguous-recent-projects":
+        if resumable_projects_count > 0:
+            return f"GPD found {resumable_projects_count} recoverable recent projects on this machine, so you need to choose one."
+        return "GPD found recent projects on this machine, but none are ready to reopen automatically."
+    if decision_source == "forced-recent-projects":
+        return "GPD will show the recent-project list so you can pick a workspace manually."
+    if decision_source == "recent-projects":
+        if resumable_projects_count > 0:
+            return "GPD found recent projects on this machine, but none are selected automatically."
+        if available_projects_count > 0:
+            return "GPD found recent projects on this machine, but none are ready to reopen automatically."
+        if recent_projects_count > 0:
+            return "GPD found recent projects on this machine, but none can be reopened automatically."
+    return None
 
 
 def _build_actions(
@@ -340,7 +366,9 @@ def build_recovery_advice(
         else "current-workspace"
         if current_workspace_has_recovery
         else "ambiguous-recent-projects"
-        if project_reentry_requires_selection or recent_projects_count > 0
+        if project_reentry_requires_selection
+        else "recent-projects"
+        if recent_projects_count > 0
         else "no-recovery"
     )
     auto_selected_recent_project = inferred_reentry_mode == "auto-recent-project" or (
@@ -393,6 +421,12 @@ def build_recovery_advice(
         continue_reason = recovery_continue_reason(mode="current-workspace" if auto_selected_recent_project or current_workspace_has_recovery else "recent-projects")
         fast_next_reason = recovery_fast_next_reason()
 
+    project_reentry_reason = _recent_project_reentry_reason(
+        decision_source=decision_source,
+        recent_projects_count=recent_projects_count,
+        resumable_projects_count=resumable_projects_count,
+        available_projects_count=available_projects_count,
+    )
     mode = "current-workspace" if (auto_selected_recent_project or current_workspace_has_recovery) else "recent-projects" if recent_projects_count > 0 and decision_source != "no-recovery" else "idle"
     primary_reason = recovery_primary_reason(
         mode="current-workspace"
@@ -409,6 +443,8 @@ def build_recovery_advice(
         missing_session_resume_file=missing_session_resume_file,
         machine_change_notice=machine_change_notice,
     )
+    if project_reentry_reason is not None:
+        primary_reason = project_reentry_reason
     status = "no-recovery" if decision_source == "no-recovery" else resolved_status
 
     return RecoveryAdvice(
@@ -427,6 +463,7 @@ def build_recovery_advice(
         project_root_auto_selected=project_root_auto_selected,
         project_reentry_mode=inferred_reentry_mode,
         project_reentry_requires_selection=project_reentry_requires_selection,
+        project_reentry_reason=project_reentry_reason,
         current_workspace_resumable=execution_resumable,
         current_workspace_has_recovery=current_workspace_has_recovery,
         current_workspace_has_resume_file=current_workspace_has_resume_file,

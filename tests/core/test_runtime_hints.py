@@ -223,6 +223,8 @@ def test_build_runtime_hint_payload_merges_source_sections_and_actions(tmp_path:
     assert len(payload.recovery["recent_projects"]) == 1
     assert payload.recovery["current_project"]["resumable"] is True
     assert payload.recovery["current_project"]["resume_file_available"] is True
+    assert payload.recovery["current_project_summary"] == payload.recovery["current_project"]["summary"]
+    assert "resume file ready" in payload.recovery["current_project_summary"]
     assert "current_workspace" not in payload.recovery
     assert payload.orientation["mode"] == "current-workspace"
     assert payload.orientation["primary_command"] == "gpd resume"
@@ -370,6 +372,7 @@ def test_build_runtime_hint_payload_handles_absent_execution_snapshot(tmp_path: 
     assert payload.execution["status_classification"] == "idle"
     assert len(payload.recovery["recent_projects"]) == 1
     assert payload.recovery["current_project"] is None
+    assert payload.recovery["project_reentry_summary"] == "GPD found recent projects on this machine, but none are ready to reopen automatically."
     assert payload.orientation["mode"] == "recent-projects"
     assert payload.orientation["primary_command"] == "gpd resume --recent"
     assert payload.orientation["resume_mode"] is None
@@ -389,11 +392,15 @@ def test_build_runtime_hint_payload_auto_selects_unique_recoverable_recent_proje
     workspace.mkdir()
     project = _bootstrap_recoverable_project(tmp_path / "project-root")
     data_root = tmp_path / "data"
+    resume_file = project / "GPD" / "phases" / "01" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("resume\n", encoding="utf-8")
     record_recent_project(
         project,
         session_data={
             "last_date": "2026-03-27T11:55:00+00:00",
             "stopped_at": "Phase 01",
+            "resume_file": "GPD/phases/01/.continue-here.md",
         },
         store_root=data_root,
     )
@@ -410,6 +417,11 @@ def test_build_runtime_hint_payload_auto_selects_unique_recoverable_recent_proje
     assert payload.recovery["project_reentry"]["project_root"] == project.resolve(strict=False).as_posix()
     assert payload.recovery["project_reentry"]["mode"] == "auto-recent-project"
     assert payload.recovery["project_reentry"]["auto_selected"] is True
+    assert (
+        payload.recovery["project_reentry_summary"]
+        == "GPD auto-selected the only recoverable recent project on this machine. last seen 2026-03-27T11:55:00+00:00; stopped at Phase 01; resume file ready."
+    )
+    assert "resume file ready" in payload.recovery["current_project_summary"]
     assert payload.orientation["primary_command"] == "gpd resume --recent"
     assert any("resume-work" in action for action in payload.next_actions)
     assert any("suggest-next" in action for action in payload.next_actions)
@@ -421,12 +433,19 @@ def test_build_runtime_hint_payload_keeps_ambiguous_recent_projects_explicit(tmp
     first_project = _bootstrap_recoverable_project(tmp_path / "first-project")
     second_project = _bootstrap_recoverable_project(tmp_path / "second-project")
     data_root = tmp_path / "data"
+    first_resume = first_project / "GPD" / "phases" / "01" / ".continue-here.md"
+    second_resume = second_project / "GPD" / "phases" / "02" / ".continue-here.md"
+    first_resume.parent.mkdir(parents=True, exist_ok=True)
+    second_resume.parent.mkdir(parents=True, exist_ok=True)
+    first_resume.write_text("resume\n", encoding="utf-8")
+    second_resume.write_text("resume\n", encoding="utf-8")
 
     record_recent_project(
         first_project,
         session_data={
             "last_date": "2026-03-27T11:55:00+00:00",
             "stopped_at": "Phase 01",
+            "resume_file": "GPD/phases/01/.continue-here.md",
         },
         store_root=data_root,
     )
@@ -435,6 +454,7 @@ def test_build_runtime_hint_payload_keeps_ambiguous_recent_projects_explicit(tmp
         session_data={
             "last_date": "2026-03-27T11:56:00+00:00",
             "stopped_at": "Phase 02",
+            "resume_file": "GPD/phases/02/.continue-here.md",
         },
         store_root=data_root,
     )
@@ -449,6 +469,7 @@ def test_build_runtime_hint_payload_keeps_ambiguous_recent_projects_explicit(tmp
     assert payload.source_meta["project_root"] == workspace.resolve(strict=False).as_posix()
     assert payload.recovery["project_reentry"]["mode"] == "ambiguous-recent-projects"
     assert payload.recovery["project_reentry"]["requires_user_selection"] is True
+    assert payload.recovery["project_reentry_summary"] == "GPD found multiple recoverable recent projects on this machine, so you need to choose one."
     assert payload.recovery["current_project"] is None
     assert payload.orientation["primary_command"] == "gpd resume --recent"
     assert not any("resume-work" in action for action in payload.next_actions)
@@ -855,6 +876,8 @@ def test_build_runtime_hint_payload_rediscovery_branch_handles_non_resumable_cur
     assert payload.recovery["current_project"]["resume_file"] == "GPD/phases/04/.continue-here.md"
     assert payload.recovery["current_project"]["resumable"] is False
     assert payload.recovery["current_project"]["resume_file_reason"] == "resume file missing"
+    assert payload.recovery["current_project_summary"] == "last seen 2026-03-27T12:05:00+00:00; stopped at Phase 04; resume file missing"
+    assert payload.recovery["project_reentry_summary"] == "GPD found recent projects on this machine, but none are ready to reopen automatically."
     assert payload.orientation["mode"] == "recent-projects"
     assert payload.orientation["primary_command"] == "gpd resume --recent"
     assert payload.orientation["resume_mode"] is None
