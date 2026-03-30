@@ -10,6 +10,7 @@ A conversational walkthrough of research results, checking derivation logic, phy
 Use `@{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract. This template adds the researcher-session body scaffold (`Current Check`, conversational logs, and diagnosis flow) on top of that same verification ledger.
 The verification-side `suggested_contract_checks` entries are part of the same canonical schema surface, so the body scaffold must stay aligned with the frontmatter contract rather than inventing a parallel checklist format.
 The contract-backed frontmatter example below keeps `uncertainty_markers` explicit and non-empty so the strict contract-results validator sees unresolved anchors before the report is written.
+If the project has an active convention lock, include a machine-readable `ASSERT_CONVENTION` comment immediately after the YAML frontmatter using canonical lock keys and exact lock values. Changed phase verification artifacts now fail `gpd pre-commit-check` if this required header is missing or mismatched.
 
 ---
 
@@ -93,6 +94,8 @@ started: "ISO timestamp"
 updated: "ISO timestamp"
 session_status: validating | completed | diagnosed
 ---
+
+<!-- ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-minus, fourier_convention=physics -->
 
 ## Current Check
 
