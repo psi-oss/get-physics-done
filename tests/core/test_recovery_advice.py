@@ -271,6 +271,80 @@ def test_build_recovery_advice_uses_selected_recent_project_candidate_when_resum
     assert advice.available_projects_count == 1
 
 
+def test_build_recovery_advice_prefers_project_reentry_selected_candidate_over_candidates_list(
+    tmp_path: Path,
+) -> None:
+    workspace = _project(tmp_path)
+    selected_project = _project(tmp_path, "selected-candidate")
+    fallback_project = _project(tmp_path, "fallback-candidate")
+
+    advice = build_recovery_advice(
+        workspace,
+        recent_rows=[],
+        resume_payload={
+            "project_root": selected_project.as_posix(),
+            "project_root_source": "recent_project",
+            "project_root_auto_selected": True,
+            "project_reentry_mode": "auto-recent-project",
+            "project_reentry_selected_candidate": {
+                "source": "recent_project",
+                "project_root": selected_project.as_posix(),
+                "available": True,
+                "recoverable": True,
+                "resumable": True,
+                "confidence": "high",
+                "reason": "recent project cache entry with confirmed handoff resume target",
+                "resume_file": "GPD/phases/04/.continue-here.md",
+                "resume_target_kind": "handoff",
+                "resume_target_recorded_at": "2026-03-27T12:00:00+00:00",
+                "resume_file_available": True,
+                "source_kind": "continuation.handoff",
+                "source_segment_id": "segment-selected",
+                "source_transition_id": "transition-selected",
+                "recovery_phase": "04",
+                "recovery_plan": "02",
+                "auto_selectable": True,
+            },
+            "project_reentry_candidates": [
+                {
+                    "source": "recent_project",
+                    "project_root": fallback_project.as_posix(),
+                    "available": True,
+                    "recoverable": True,
+                    "resumable": True,
+                    "confidence": "high",
+                    "reason": "recent project cache entry with confirmed bounded segment resume target",
+                    "resume_file": "GPD/phases/03/.continue-here.md",
+                    "resume_target_kind": "bounded_segment",
+                    "resume_target_recorded_at": "2026-03-27T11:55:00+00:00",
+                    "resume_file_available": True,
+                    "source_kind": "continuation.bounded_segment",
+                    "source_segment_id": "segment-fallback",
+                    "source_transition_id": "transition-fallback",
+                    "recovery_phase": "03",
+                    "recovery_plan": "01",
+                    "auto_selectable": True,
+                }
+            ],
+            "has_live_execution": False,
+        },
+    )
+
+    assert advice.decision_source == "auto-selected-recent-project"
+    assert advice.project_reentry_mode == "auto-recent-project"
+    assert advice.project_root == selected_project.as_posix()
+    assert advice.project_root_auto_selected is True
+    assert advice.primary_command == "gpd resume --recent"
+    assert advice.active_resume_kind == "continuity_handoff"
+    assert advice.active_resume_origin == "continuation.handoff"
+    assert advice.current_workspace_has_resume_file is False
+    assert advice.current_workspace_resumable is False
+    assert advice.has_local_recovery_target is False
+    assert advice.recent_projects_count == 1
+    assert advice.resumable_projects_count == 1
+    assert advice.available_projects_count == 1
+
+
 def test_build_recovery_advice_marks_ambiguous_recent_projects_as_explicit_selection(
     tmp_path: Path,
 ) -> None:

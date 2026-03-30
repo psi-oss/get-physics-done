@@ -139,6 +139,10 @@ def test_init_resume_surfaces_machine_change_and_session_resume_candidate(
     assert "Rerun the installer" in ctx["machine_change_notice"]
     assert ctx["session_hostname"] == "old-host"
     assert ctx["session_platform"] == "Linux 5.15 x86_64"
+    assert ctx["project_reentry_mode"] == "current-workspace"
+    assert ctx["project_reentry_selected_candidate"] is not None
+    assert ctx["project_reentry_selected_candidate"]["source"] == "current_workspace"
+    assert ctx["project_reentry_selected_candidate"]["project_root"] == cwd.resolve(strict=False).as_posix()
     assert ctx["current_hostname"] == "new-host"
     assert ctx["current_platform"] == "Linux 6.1 x86_64"
     assert ctx["resume_surface_schema_version"] == 1
@@ -281,6 +285,10 @@ def test_init_resume_auto_selects_unique_recoverable_recent_project(tmp_path: Pa
     assert ctx["project_root_source"] == "recent_project"
     assert ctx["project_root_auto_selected"] is True
     assert ctx["project_reentry_mode"] == "auto-recent-project"
+    assert ctx["project_reentry_selected_candidate"] is not None
+    assert ctx["project_reentry_selected_candidate"]["source"] == "recent_project"
+    assert ctx["project_reentry_selected_candidate"]["project_root"] == project_root.resolve(strict=False).as_posix()
+    assert ctx["project_reentry_selected_candidate"]["resume_target_kind"] == "handoff"
     assert ctx["planning_exists"] is True
     assert ctx["project_exists"] is True
 
@@ -803,6 +811,69 @@ def test_init_resume_treats_missing_live_resume_file_as_advisory_only(
     _assert_no_resume_compat_aliases(ctx)
     assert ctx["compat_resume_surface"]["segment_candidates"] == []
     assert ctx["resume_candidates"] == []
+
+
+def test_init_resume_leaves_selected_candidate_absent_for_ambiguous_recent_projects(
+    tmp_path: Path, state_project_factory, monkeypatch
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    first_parent = tmp_path / "recent-a"
+    second_parent = tmp_path / "recent-b"
+    first_parent.mkdir()
+    second_parent.mkdir()
+    first = state_project_factory(first_parent)
+    second = state_project_factory(second_parent)
+    data_root = tmp_path / "data"
+    for project, stamp, phase in (
+        (first, "2026-03-29T12:00:00+00:00", "01"),
+        (second, "2026-03-29T12:05:00+00:00", "02"),
+    ):
+        resume_path = project / "GPD" / "phases" / f"{phase}-analysis" / ".continue-here.md"
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("resume\n", encoding="utf-8")
+        record_recent_project(
+            project,
+            session_data={
+                "last_date": stamp,
+                "stopped_at": f"Phase {phase}",
+                "resume_file": f"GPD/phases/{phase}-analysis/.continue-here.md",
+            },
+            store_root=data_root,
+        )
+    monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
+
+    ctx = init_resume(workspace)
+
+    assert ctx["project_reentry_mode"] == "ambiguous-recent-projects"
+    assert ctx["project_reentry_requires_selection"] is True
+    assert ctx["project_reentry_selected_candidate"] is None
+
+
+def test_init_resume_leaves_selected_candidate_absent_for_unselected_recent_projects(
+    tmp_path: Path, state_project_factory, monkeypatch
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    project_parent = tmp_path / "recent-weak"
+    project_parent.mkdir()
+    project = state_project_factory(project_parent)
+    data_root = tmp_path / "data"
+    record_recent_project(
+        project,
+        session_data={
+            "last_date": "2026-03-29T12:00:00+00:00",
+            "stopped_at": "Phase 01",
+            "resume_file": None,
+        },
+        store_root=data_root,
+    )
+    monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
+
+    ctx = init_resume(workspace)
+
+    assert ctx["project_reentry_mode"] == "recent-projects"
+    assert ctx["project_reentry_selected_candidate"] is None
 
 
 def test_init_resume_state_exists_false_when_only_unrecoverable_state_file_is_present(tmp_path: Path) -> None:

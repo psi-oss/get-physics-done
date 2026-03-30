@@ -271,7 +271,12 @@ def _canonical_project_reentry_candidates(
 def _selected_project_reentry_candidate(
     payload: Mapping[str, object],
     candidates: Sequence[Mapping[str, object]] | None,
+    compat_surface: Mapping[str, object] | None,
 ) -> Mapping[str, object] | None:
+    selected_candidate = _canonical_mapping_field(payload, compat_surface, "project_reentry_selected_candidate")
+    if selected_candidate is not None:
+        return selected_candidate
+
     if not candidates:
         return None
     project_root = _text_field(payload, "project_root")
@@ -628,7 +633,11 @@ def build_recovery_advice(
     compat_resume_surface = _compat_resume_surface(payload)
     rows = list(recent_rows) if recent_rows is not None else list_recent_projects(data_root, last=recent_projects_last)
     project_reentry_candidates = _canonical_project_reentry_candidates(payload, compat_resume_surface)
-    selected_project_reentry_candidate = _selected_project_reentry_candidate(payload, project_reentry_candidates)
+    selected_project_reentry_candidate = _selected_project_reentry_candidate(
+        payload,
+        project_reentry_candidates,
+        compat_resume_surface,
+    )
     recent_project_rows = (
         [candidate for candidate in project_reentry_candidates if _row_value(candidate, "source") == "recent_project"]
         if project_reentry_candidates is not None
