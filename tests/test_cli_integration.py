@@ -1145,6 +1145,31 @@ class TestSuggest:
         assert parsed["context"]["status"] == "Paused"
         assert parsed["context"]["paused_at"] == "Paused after task 2"
 
+    def test_suggest_raw_without_project_returns_new_project(
+        self, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        workspace = tmp_path_factory.mktemp("suggest-no-project")
+        fake_home = workspace / "fake-home"
+        fake_home.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr("gpd.hooks.runtime_detect.Path.home", lambda: fake_home)
+
+        result = _invoke("--raw", "--cwd", str(workspace), "suggest")
+        parsed = json.loads(result.output)
+
+        assert parsed["total_suggestions"] == 1
+        assert parsed["suggestion_count"] == 1
+        assert parsed["suggestion_count"] == len(parsed["suggestions"])
+        assert parsed["top_action"]["action"] == "new-project"
+        assert parsed["top_action"]["priority"] == 1
+        assert parsed["top_action"]["reason"] == "No PROJECT.md found — initialize a new research project first"
+        assert parsed["top_action"]["command"] == "gpd init new-project"
+        assert parsed["top_action"] == parsed["suggestions"][0]
+        assert parsed["context"]["current_phase"] is None
+        assert parsed["context"]["status"] is None
+        assert parsed["context"]["phase_count"] == 0
+        assert parsed["context"]["completed_phases"] == 0
+        assert parsed["context"]["missing_conventions"] == []
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. slug
