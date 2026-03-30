@@ -84,7 +84,7 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "derived execution head and `GPD/observability/current-execution.json` are compatibility projections" in portability_doc
     assert "temporary handoff artifact" in resume_doc
     assert "supporting continuity surfaces only" in resume_doc
-    assert "Do not treat any single `.continue-here.md` file or compatibility snapshot as the sole authority in isolation." in resume_doc
+    assert "Do not treat any single `.continue-here.md` file or compatibility snapshot as the sole authority in isolation" in resume_doc
     assert "The derived execution head and the temporary handoff artifact are both subordinate to the storage authority chain." in resume_doc
     assert "Current public behavior distinguishes canonical continuation authority, continuity mirrors, and the derived execution head:" in resume_doc
     assert "project-relative paths" in portability_doc

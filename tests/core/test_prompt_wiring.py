@@ -2053,7 +2053,7 @@ def test_pause_resume_and_help_wiring_keep_runtime_handoff_and_local_snapshot_bo
     assert "This is the canonical recorded handoff artifact for the current phase." in pause_work
     assert "continuation handoff artifact" in pause_work or "session continuity" in pause_work
     assert "Public resume vocabulary centers on" in help_workflow
-    assert "nested compatibility-only cues" in help_workflow
+    assert "stay nested as compatibility-only cues" in help_workflow
     assert_recovery_ladder_contract(
         help_workflow,
         resume_work_fragments=("/gpd:resume-work",),
