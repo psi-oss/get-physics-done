@@ -30,7 +30,7 @@ This format is a presentation layer only: the displayed next step is derived fro
 1. **Always show what it is** -- name + description, never just a command path
 2. **Pull context from source** -- ROADMAP.md for phases, PLAN.md `<objective>` for plans
 3. **Command in inline code** -- backticks, easy to copy-paste, renders as clickable link
-4. **`/clear` explanation** -- always include, and pair it with the next command instead of leaving it as a dead-end
+4. **`/clear` explanation** -- always include, and pair it with the next command instead of leaving it as a dead-end. If project rediscovery is still required, say so explicitly and point to `gpd resume` or `gpd resume --recent` before reopening the runtime instead of implying that `/clear` performs recovery.
 5. **"Also available" not "Other options"** -- sounds more app-like
 6. **Visual separators** -- `---` above and below to make it stand out
 7. **Derived, not authoritative** -- the message is a projection of the current recovery decision, not a competing source of truth
