@@ -953,6 +953,50 @@ class TestResume:
         assert "resume-work" in result.output
         assert "suggest-next" in result.output
 
+    def test_resume_human_output_surfaces_hydrated_resume_result_from_nested_cwd(
+        self, gpd_project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        data_dir = gpd_project / ".gpd-data"
+        monkeypatch.setenv("GPD_DATA_DIR", str(data_dir))
+
+        handoff = gpd_project / "GPD" / "phases" / "01-test-phase" / ".continue-here.md"
+        handoff.write_text("resume\n", encoding="utf-8")
+        state_path = gpd_project / "GPD" / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["position"]["status"] = "Paused"
+        state["continuation"] = {
+            "schema_version": 1,
+            "handoff": {
+                "resume_file": "GPD/phases/01-test-phase/.continue-here.md",
+                "stopped_at": "Paused in phase 01",
+                "last_result_id": "R-bridge-01",
+            },
+        }
+        state["intermediate_results"] = [
+            {
+                "id": "R-bridge-01",
+                "equation": "F = ma",
+                "description": "Benchmark reproduction",
+                "phase": "01",
+                "depends_on": [],
+                "verified": True,
+                "verification_records": [],
+            }
+        ]
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+        nested_cwd = gpd_project / "workspace" / "nested"
+        nested_cwd.mkdir(parents=True, exist_ok=True)
+
+        result = _invoke("--cwd", str(nested_cwd), "resume")
+
+        assert "Resume Summary" in result.output
+        assert "Read-only local recovery snapshot for this workspace." in result.output
+        assert "Resume result" in result.output
+        assert "Benchmark reproduction" in result.output
+        assert "F = ma" in result.output
+        assert "R-bridge-01" in result.output
+
     def test_resume_human_output_marks_missing_continuity_handoff_as_advisory(self, gpd_project: Path) -> None:
         # Compatibility-only regression: keep the legacy session mirror callable until it fully ages out.
         state_path = gpd_project / "GPD" / "state.json"
