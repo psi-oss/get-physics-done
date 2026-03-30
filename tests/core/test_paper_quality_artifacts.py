@@ -571,6 +571,56 @@ Done.
     assert result.citations.citation_keys_resolve.total == 1
 
 
+def test_build_paper_quality_input_surfaces_current_manuscript_reference_status(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        r"""
+\documentclass{article}
+\begin{document}
+\begin{abstract}
+Reference bridge test.
+\end{abstract}
+\section{Introduction}
+See \cite{bench2026}.
+\section{Conclusion}
+Done.
+\end{document}
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json",
+        json.dumps(
+            {
+                "generated_at": "2026-03-13T00:00:00+00:00",
+                "total_sources": 1,
+                "resolved_sources": 1,
+                "partial_sources": 0,
+                "unverified_sources": 0,
+                "failed_sources": 0,
+                "entries": [
+                    {
+                        "key": "bench2026",
+                        "reference_id": "ref-benchmark",
+                        "source_type": "paper",
+                        "title": "Benchmark",
+                        "resolution_status": "provided",
+                        "verification_status": "verified",
+                    }
+                ],
+            }
+        ),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.journal_extra_checks["manuscript_reference_status_present"] is True
+    assert result.journal_extra_checks["manuscript_reference_bridge_complete"] is True
+    assert result.citations.citation_keys_resolve.satisfied == 1
+    assert result.citations.citation_keys_resolve.total == 1
+    assert result.citations.hallucination_free.passed is True
+
+
 def test_build_paper_quality_input_checks_cited_keys_against_available_bibliography(tmp_path: Path) -> None:
     _write(
         tmp_path / "paper" / "main.tex",
