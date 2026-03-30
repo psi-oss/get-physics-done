@@ -16,6 +16,7 @@ def test_derive_equation_command_doc_promises_registry_writeback() -> None:
     assert "Record the derived equation in the project's `intermediate_results` registry through the executable `gpd result persist-derived` bridge" in text
     assert "the workflow reuses or carries forward a stable `result_id` request on reruns" in text
     assert "actual canonical `result_id`" in text
+    assert "skips cleanly when no recoverable project state exists" in text
     assert "standalone runs stop after writing the derivation document" in text
     assert "do not write project registry state" in text
 
@@ -37,4 +38,6 @@ def test_derive_equation_workflow_reuses_prior_results_and_persists_final_equati
     assert "Carry the resulting `result_id` forward in the derivation workflow context and any downstream handoff metadata (`last_result_id` in pause/resume surfaces) so later reruns can target the same canonical registry entry without rediscovering it from prose." in text
     assert "Keep `verified=false` unless the derivation also produced verification evidence" in text
     assert "Skip registry write-back entirely" in text
+    assert "status=skipped" in text
+    assert "reason=no_recoverable_project_state" in text
     assert "Final derived equation persisted through the executable `gpd result persist-derived` bridge in project mode, with the actual persisted canonical `result_id` retained for later reruns" in text
