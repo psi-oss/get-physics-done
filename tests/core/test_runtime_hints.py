@@ -430,6 +430,8 @@ def test_build_runtime_hint_payload_auto_selects_unique_recoverable_recent_proje
     assert payload.recovery["project_reentry"]["project_root"] == project.resolve(strict=False).as_posix()
     assert payload.recovery["project_reentry"]["mode"] == "auto-recent-project"
     assert payload.recovery["project_reentry"]["auto_selected"] is True
+    assert payload.recovery["current_project"]["resume_target_kind"] == "handoff"
+    assert payload.recovery["current_project"]["resume_target_recorded_at"] == "2026-03-27T11:55:00+00:00"
     assert (
         payload.recovery["project_reentry_summary"]
         == "GPD auto-selected the only recoverable recent project on this machine. last seen 2026-03-27T11:55:00+00:00; stopped at Phase 01; resume file ready."
@@ -446,6 +448,143 @@ def test_build_runtime_hint_payload_auto_selects_unique_recoverable_recent_proje
     assert payload.orientation["recorded_continuity_handoff_file"] == "GPD/phases/01/.continue-here.md"
     assert payload.orientation["has_continuity_handoff"] is True
     assert payload.orientation["current_workspace_resumable"] is False
+    assert payload.orientation["has_local_recovery_target"] is True
+    assert payload.orientation["primary_command"] == "gpd resume --recent"
+    assert "resume-work" in str(payload.orientation["continue_command"])
+    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+    assert any("resume-work" in action for action in payload.next_actions)
+    assert any("suggest-next" in action for action in payload.next_actions)
+
+
+def test_build_runtime_hint_payload_auto_selected_bounded_segment_recent_project_stays_bounded_segment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "outside"
+    workspace.mkdir()
+    project = _bootstrap_recoverable_project(tmp_path / "project-root")
+    data_root = tmp_path / "data"
+    resume_file = project / "GPD" / "phases" / "02" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("resume\n", encoding="utf-8")
+    record_recent_project(
+        project,
+        session_data={
+            "last_date": "2026-03-27T11:55:00+00:00",
+            "stopped_at": "Phase 02",
+            "resume_file": "GPD/phases/02/.continue-here.md",
+            "resume_target_kind": "bounded_segment",
+            "resume_target_recorded_at": "2026-03-27T11:55:00+00:00",
+        },
+        store_root=data_root,
+    )
+    monkeypatch.setattr(
+        "gpd.core.runtime_hints._resume_context",
+        lambda _cwd, data_root=None: {
+            "planning_exists": True,
+            "state_exists": True,
+            "roadmap_exists": True,
+            "project_exists": True,
+            "project_root": project.resolve(strict=False).as_posix(),
+            "project_root_source": "recent_project",
+            "project_root_auto_selected": True,
+            "project_reentry_mode": "auto-recent-project",
+            "active_resume_kind": "bounded_segment",
+            "active_resume_origin": "continuation.bounded_segment",
+            "active_resume_pointer": "GPD/phases/02/.continue-here.md",
+            "resume_candidates": [
+                {
+                    "kind": "bounded_segment",
+                    "origin": "continuation.bounded_segment",
+                    "status": "paused",
+                    "resume_file": "GPD/phases/02/.continue-here.md",
+                    "resume_pointer": "GPD/phases/02/.continue-here.md",
+                }
+            ],
+            "execution_resumable": True,
+            "has_live_execution": True,
+        },
+    )
+
+    payload = build_runtime_hint_payload(
+        workspace,
+        data_root=data_root,
+        base_ready=True,
+        latex_capability=_latex_capability(),
+    )
+
+    assert payload.source_meta["project_root"] == project.resolve(strict=False).as_posix()
+    assert payload.recovery["current_project"]["project_root"] == project.resolve(strict=False).as_posix()
+    assert payload.recovery["current_project"]["resume_target_kind"] == "bounded_segment"
+    assert payload.recovery["current_project"]["resume_target_recorded_at"] == "2026-03-27T11:55:00+00:00"
+    assert payload.recovery["current_project"]["resumable"] is True
+    assert payload.recovery["project_reentry"]["mode"] == "auto-recent-project"
+    assert payload.recovery["project_reentry"]["auto_selected"] is True
+    assert payload.orientation["decision_source"] == "auto-selected-recent-project"
+    assert payload.orientation["mode"] == "current-workspace"
+    assert payload.orientation["status"] == "bounded-segment"
+    assert payload.orientation["active_resume_kind"] == "bounded_segment"
+    assert payload.orientation["active_resume_origin"] == "continuation.bounded_segment"
+    assert payload.orientation["active_resume_pointer"] == "GPD/phases/02/.continue-here.md"
+    assert payload.orientation["continuity_handoff_file"] is None
+    assert payload.orientation["has_continuity_handoff"] is False
+    assert payload.orientation["has_local_recovery_target"] is True
+    assert payload.orientation["current_workspace_resumable"] is True
+    assert payload.orientation["resume_candidates_count"] == 1
+    assert payload.orientation["primary_command"] == "gpd resume --recent"
+    assert "resume-work" in str(payload.orientation["continue_command"])
+    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+    assert any("resume-work" in action for action in payload.next_actions)
+    assert any("suggest-next" in action for action in payload.next_actions)
+
+
+def test_build_runtime_hint_payload_prefers_selected_project_resume_state_for_auto_selected_recent_project(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "outside"
+    workspace.mkdir()
+    project = _bootstrap_recoverable_project(tmp_path / "selected-project")
+    data_root = tmp_path / "data"
+    resume_file = project / "GPD" / "phases" / "03" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("resume\n", encoding="utf-8")
+    _write_current_execution(
+        project,
+        session_id="sess-selected",
+        extra_execution={
+            "phase": "03",
+            "plan": "01",
+            "resume_file": "GPD/phases/03/.continue-here.md",
+        },
+    )
+    record_recent_project(
+        project,
+        session_data={
+            "last_date": "2026-03-27T12:05:00+00:00",
+            "stopped_at": "Phase 03",
+            "resume_file": "GPD/phases/03/.continue-here.md",
+        },
+        store_root=data_root,
+    )
+
+    payload = build_runtime_hint_payload(
+        workspace,
+        data_root=data_root,
+        base_ready=True,
+        latex_capability=_latex_capability(),
+    )
+
+    assert payload.source_meta["project_root"] == project.resolve(strict=False).as_posix()
+    assert payload.recovery["current_project"]["project_root"] == project.resolve(strict=False).as_posix()
+    assert payload.recovery["project_reentry"]["mode"] == "auto-recent-project"
+    assert payload.orientation["mode"] == "current-workspace"
+    assert payload.orientation["status"] == "bounded-segment"
+    assert payload.orientation["decision_source"] == "auto-selected-recent-project"
+    assert payload.orientation["project_root_auto_selected"] is True
+    assert payload.orientation["active_resume_kind"] == "bounded_segment"
+    assert payload.orientation["active_resume_origin"] == "compat.current_execution"
+    assert payload.orientation["active_resume_pointer"] == "GPD/phases/03/.continue-here.md"
+    assert payload.orientation["continuity_handoff_file"] is None
+    assert payload.orientation["current_workspace_resumable"] is True
     assert payload.orientation["has_local_recovery_target"] is True
     assert payload.orientation["primary_command"] == "gpd resume --recent"
     assert "resume-work" in str(payload.orientation["continue_command"])
