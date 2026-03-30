@@ -10,11 +10,13 @@ from gpd.core.results import (
     MissingDep,
     ResultDeps,
     ResultSearchResult,
+    ResultUpsertResult,
     _int_to_base36,
     result_add,
     result_deps,
     result_list,
     result_search,
+    result_upsert,
     result_update,
     result_verify,
 )
@@ -203,6 +205,98 @@ def test_result_search_matches_exact_ids():
 
     assert [result.id for result in matches.matches] == ["R-01"]
     assert matches.total == 1
+
+
+def test_result_upsert_adds_new_result_when_no_match_exists():
+    state: dict = {"position": {"current_phase": "2"}}
+
+    result = result_upsert(
+        state,
+        equation="E = mc^2",
+        description="Mass-energy relation",
+        phase="2",
+    )
+
+    assert isinstance(result, ResultUpsertResult)
+    assert result.action == "added"
+    assert result.result.equation == "E = mc^2"
+    assert len(state["intermediate_results"]) == 1
+
+
+def test_result_upsert_updates_existing_result_by_explicit_id():
+    state: dict = {}
+    result_add(state, result_id="R-01", equation="E = mc^2", description="Old description", phase="1")
+
+    result = result_upsert(
+        state,
+        result_id="R-01",
+        equation="E=mc^2",
+        description="Updated description",
+        validity="rest frame",
+    )
+
+    assert result.action == "updated"
+    assert set(result.updated_fields) == {"equation", "description", "validity"}
+    assert result.result.description == "Updated description"
+    assert result.result.validity == "rest frame"
+    assert len(state["intermediate_results"]) == 1
+
+
+def test_result_upsert_reuses_unique_equation_match_when_preferred_id_is_new():
+    state: dict = {}
+    result_add(state, result_id="R-01", equation="E = mc^2", description="Original", phase="1")
+
+    result = result_upsert(
+        state,
+        result_id="R-new",
+        equation="E=mc^2",
+        description="Canonical description",
+        phase="1",
+    )
+
+    assert result.action == "updated"
+    assert result.result.id == "R-01"
+    assert result.result.description == "Canonical description"
+    assert len(state["intermediate_results"]) == 1
+
+
+def test_result_upsert_updates_existing_result_by_exact_equation_match():
+    state: dict = {}
+    result_add(state, result_id="R-01", equation="E = mc^2", description="Original", phase="1")
+
+    result = result_upsert(
+        state,
+        equation="E=mc^2",
+        description="Canonical description",
+        phase="1",
+    )
+
+    assert result.action == "updated"
+    assert result.result.id == "R-01"
+    assert result.result.description == "Canonical description"
+    assert len(state["intermediate_results"]) == 1
+
+
+def test_result_upsert_raises_for_ambiguous_equation_match():
+    state: dict = {}
+    result_add(state, result_id="R-01", equation="E = mc^2", phase="1")
+    result_add(state, result_id="R-02", equation="E=mc^2", phase="2")
+
+    with pytest.raises(ResultError, match="Multiple existing results match this equation"):
+        result_upsert(state, equation="E = mc^2")
+
+
+def test_result_upsert_phase_filter_disambiguates_equation_match():
+    state: dict = {}
+    result_add(state, result_id="R-01", equation="E = mc^2", description="phase one", phase="1")
+    result_add(state, result_id="R-02", equation="E=mc^2", description="phase two", phase="2")
+
+    result = result_upsert(state, equation="E = mc^2", description="updated two", phase="2")
+
+    assert result.action == "updated"
+    assert result.result.id == "R-02"
+    assert result.result.description == "updated two"
+    assert len(state["intermediate_results"]) == 2
 
 
 def test_result_search_normalizes_phase_filters():

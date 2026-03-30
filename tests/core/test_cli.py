@@ -2239,6 +2239,99 @@ def test_result_search_raw_outputs_json_list(mock_search):
     assert kwargs["unverified"] is True
 
 
+@patch("gpd.core.results.result_upsert", create=True)
+def test_result_upsert_with_explicit_id(mock_upsert):
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {
+        "action": "updated",
+        "result": {
+            "id": "R-02",
+            "equation": "E = mc^2",
+            "description": "Energy-mass equivalence",
+            "phase": "2",
+            "depends_on": ["R-01"],
+            "verified": False,
+        },
+        "updated_fields": ["equation", "description"],
+    }
+    mock_upsert.return_value = mock_result
+
+    result = runner.invoke(
+        app,
+        [
+            "result",
+            "upsert",
+            "--id",
+            "R-02",
+            "--equation",
+            "E = mc^2",
+            "--description",
+            "Energy-mass equivalence",
+            "--phase",
+            "2",
+            "--depends-on",
+            "R-01",
+        ],
+    )
+
+    assert result.exit_code == 0
+    mock_upsert.assert_called_once()
+    _, kwargs = mock_upsert.call_args
+    assert kwargs["result_id"] == "R-02"
+    assert kwargs["equation"] == "E = mc^2"
+    assert kwargs["description"] == "Energy-mass equivalence"
+    assert kwargs["phase"] == "2"
+    assert kwargs["depends_on"] == ["R-01"]
+
+
+@patch("gpd.core.results.result_upsert", create=True)
+def test_result_upsert_without_explicit_id(mock_upsert, tmp_path: Path):
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {
+        "action": "updated",
+        "updated_fields": ["equation", "description"],
+        "result": {
+            "id": "R-02",
+            "equation": "a = b + c",
+            "description": "Canonical quantity",
+            "phase": "2",
+            "depends_on": ["R-01"],
+            "verified": False,
+        },
+    }
+    mock_upsert.return_value = mock_result
+    planning = tmp_path / "GPD"
+    planning.mkdir()
+    (planning / "state.json").write_text("{}", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "--cwd",
+            str(tmp_path),
+            "result",
+            "upsert",
+            "--equation",
+            "a = b + c",
+            "--description",
+            "Canonical quantity",
+            "--phase",
+            "2",
+            "--depends-on",
+            "R-01",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    mock_upsert.assert_called_once()
+    _, kwargs = mock_upsert.call_args
+    assert kwargs["equation"] == "a = b + c"
+    assert kwargs["description"] == "Canonical quantity"
+    assert kwargs["phase"] == "2"
+    assert kwargs["depends_on"] == ["R-01"]
+
+
 # ─── query subcommands ──────────────────────────────────────────────────────
 
 

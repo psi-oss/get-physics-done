@@ -443,8 +443,24 @@ Persist the final derived equation back into the existing result registry when p
 
 - If `state_exists` is true:
   1. Resolve a stable `result_id`. On reruns, prefer the `result_id` already written into the derivation document frontmatter. Otherwise derive a deterministic ID from the derivation slug and phase.
-  2. Re-check `state.json.intermediate_results` for the same `result_id` or an existing canonical equation for the same target. If a matching entry already exists, reuse its `result_id` and update it instead of creating a duplicate.
-  3. Persist the final result using the existing CLI surface only:
+  2. Re-check `state.json.intermediate_results` for the same `result_id` or an existing canonical equation for the same target. If a matching entry already exists, reuse its `result_id` instead of creating a duplicate.
+  3. Persist the final result using the canonical upsert surface first:
+
+```bash
+gpd result upsert --id "{result_id}" --equation "{final_equation}" --description "{short description}" --phase "{phase}" --validity "{validity}" [--depends-on "{comma-separated ids}"]
+```
+
+If no stable `result_id` is available yet, use the equation-matching form instead:
+
+```bash
+gpd result upsert --equation "{final_equation}" --description "{short description}" --phase "{phase}" --validity "{validity}" [--depends-on "{comma-separated ids}"]
+```
+
+This updates the existing canonical entry when `result_id` is already present, reuses a unique exact equation match in the same phase when `result_id` is absent, and only adds a new registry entry when no safe match exists.
+
+If `gpd result upsert` reports multiple matches for the same equation, STOP and disambiguate with an explicit `result_id` or narrower `phase`. Do not guess which registry entry should be canonical.
+
+If the upsert path is unavailable, fall back to the existing add/update pair:
 
 ```bash
 gpd result add --id "{result_id}" --equation "{final_equation}" --description "{short description}" --phase "{phase}" --validity "{validity}" [--depends-on "{comma-separated ids}"]
@@ -505,7 +521,7 @@ This keeps standalone derivations safe while making project-mode derivations reu
 - [ ] Regime of validity stated
 - [ ] All relevant limiting cases verified
 - [ ] Connection to known results documented
-- [ ] Final derived equation persisted through `gpd result add` or `gpd result update` in project mode, with `result_id` recorded in frontmatter
+- [ ] Final derived equation persisted through `gpd result upsert` in project mode, with `result_id` recorded in frontmatter
 - [ ] Standalone mode skipped registry write-back and stayed self-contained
 - [ ] Complete derivation document written
 

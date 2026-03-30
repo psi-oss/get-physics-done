@@ -24,11 +24,13 @@ __all__ = [
     "RESULT_FIELDS",
     "IntermediateResult",
     "ResultSearchResult",
+    "ResultUpsertResult",
     "ResultDeps",
     "MissingDep",
     "result_add",
     "result_list",
     "result_search",
+    "result_upsert",
     "result_deps",
     "result_verify",
     "result_update",
@@ -73,6 +75,16 @@ class ResultSearchResult(BaseModel):
 
     matches: list[IntermediateResult] = Field(default_factory=list)
     total: int = 0
+
+
+class ResultUpsertResult(BaseModel):
+    """Outcome of adding or updating a canonical intermediate result."""
+
+    model_config = ConfigDict(frozen=True)
+
+    action: str
+    result: IntermediateResult
+    updated_fields: list[str] = Field(default_factory=list)
 
 
 class MissingDep(BaseModel):
@@ -218,6 +230,11 @@ def _normalized_identifier_matches(identifier: str, value: object) -> bool:
     if not normalized_identifier:
         return False
     return _normalize_identifier(value) == normalized_identifier
+
+
+def _normalize_equation_for_match(value: str | None) -> str:
+    """Return an equation token normalized only for whitespace-insensitive equality."""
+    return re.sub(r"\s+", "", str(value or ""))
 
 
 # --- Functions ---
@@ -387,6 +404,95 @@ def result_search(
         matches.append(result)
 
     return ResultSearchResult(matches=matches, total=len(matches))
+
+
+@instrument_gpd_function("results.upsert")
+def result_upsert(
+    state: dict,
+    *,
+    equation: str | None = None,
+    description: str | None = None,
+    units: str | None = None,
+    validity: str | None = None,
+    phase: str | None = None,
+    depends_on: list[str] | str | None = None,
+    verified: bool | None = None,
+    verification_records: list[VerificationEvidence | dict[str, object]] | None = None,
+    result_id: str | None = None,
+) -> ResultUpsertResult:
+    """Add a canonical result or update the matching existing entry.
+
+    Matching precedence:
+    1. Explicit ``result_id`` if it already exists.
+    2. Exact equation match after whitespace normalization, optionally narrowed by phase.
+    3. Otherwise add a new result.
+    """
+    results = state.get("intermediate_results", [])
+    if result_id is not None and _find_result_index(results, result_id) != -1:
+        updates: dict[str, object] = {}
+        if equation is not None:
+            updates["equation"] = equation
+        if description is not None:
+            updates["description"] = description
+        if units is not None:
+            updates["units"] = units
+        if validity is not None:
+            updates["validity"] = validity
+        if phase is not None:
+            updates["phase"] = phase
+        if depends_on is not None:
+            updates["depends_on"] = depends_on
+        if verified is not None:
+            updates["verified"] = verified
+        if verification_records is not None:
+            updates["verification_records"] = verification_records
+        updated_fields, updated = result_update(state, result_id, updates)
+        return ResultUpsertResult(action="updated", result=updated, updated_fields=updated_fields)
+
+    normalized_equation = _normalize_equation_for_match(equation)
+    if normalized_equation:
+        equation_matches = [
+            result
+            for result in result_list(state, phase=phase)
+            if _normalize_equation_for_match(result.equation) == normalized_equation
+        ]
+        if len(equation_matches) > 1:
+            raise ResultError(
+                "Multiple existing results match this equation. Provide an explicit result_id or phase to disambiguate."
+            )
+        if len(equation_matches) == 1:
+            matched = equation_matches[0]
+            updates: dict[str, object] = {"equation": equation}
+            if description is not None:
+                updates["description"] = description
+            if units is not None:
+                updates["units"] = units
+            if validity is not None:
+                updates["validity"] = validity
+            if phase is not None:
+                updates["phase"] = phase
+            if depends_on is not None:
+                updates["depends_on"] = depends_on
+            if verified is not None:
+                updates["verified"] = verified
+            if verification_records is not None:
+                updates["verification_records"] = verification_records
+            updated_fields, updated = result_update(state, matched.id, updates)
+            return ResultUpsertResult(action="updated", result=updated, updated_fields=updated_fields)
+
+    added = result_add(
+        state,
+        result_id=result_id,
+        equation=equation,
+        description=description,
+        units=units,
+        validity=validity,
+        phase=phase,
+        depends_on=depends_on,
+        verified=bool(verified),
+        verification_records=verification_records,
+    )
+    return ResultUpsertResult(action="added", result=added, updated_fields=[])
 
 
 @instrument_gpd_function("results.deps")

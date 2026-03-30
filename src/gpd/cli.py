@@ -2295,6 +2295,50 @@ def result_search(
     )
 
 
+@result_app.command("upsert")
+def result_upsert(
+    id: str | None = typer.Option(None, "--id", help="Stable result ID to reuse when present"),
+    equation: str | None = typer.Option(None, "--equation", help="LaTeX equation"),
+    description: str | None = typer.Option(None, "--description", help="Description"),
+    units: str | None = typer.Option(None, "--units", help="Physical units"),
+    validity: str | None = typer.Option(None, "--validity", help="Validity range"),
+    phase: str | None = typer.Option(None, "--phase", help="Phase number"),
+    depends_on: str | None = typer.Option(None, "--depends-on", help="Comma-separated dependency IDs"),
+    verified: bool | None = typer.Option(None, "--verified/--no-verified", help="Mark as verified or un-verify"),
+) -> None:
+    """Add or update a canonical result by explicit ID or exact equation match."""
+    import json as _json
+
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.results import result_upsert as _result_upsert
+    from gpd.core.state import save_state_json_locked
+    from gpd.core.utils import file_lock
+
+    cwd = _get_cwd()
+    state_path = ProjectLayout(cwd).state_json
+
+    with file_lock(state_path):
+        try:
+            state = _json.loads(state_path.read_text(encoding="utf-8"))
+        except OSError:
+            state = {}
+        except _json.JSONDecodeError as e:
+            _error(f"Malformed state.json: {e}")
+        res = _result_upsert(
+            state,
+            result_id=id,
+            equation=equation,
+            description=description,
+            units=units,
+            validity=validity,
+            phase=phase,
+            depends_on=depends_on.split(",") if depends_on else None,
+            verified=verified,
+        )
+        save_state_json_locked(cwd, state)
+    _output(res)
+
+
 @result_app.command("verify")
 def result_verify(
     result_id: str = typer.Argument(..., help="Result ID to mark verified"),
