@@ -92,6 +92,9 @@ class TestBuildPaper:
         assert output.tex_content != ""
         assert output.pdf_path == pdf_path
         assert output.success is True
+        assert output.bibliography_audit_path == tmp_path / "BIBLIOGRAPHY-AUDIT.json"
+        assert output.bibliography_audit is not None
+        assert output.bibliography_audit.total_sources == 1
         assert output.manifest_path == tmp_path / "ARTIFACT-MANIFEST.json"
         assert output.manifest is not None
         manifest_content = json.loads(output.manifest_path.read_text(encoding="utf-8"))
@@ -99,8 +102,11 @@ class TestBuildPaper:
         assert "tex-paper" in artifact_ids
         assert "bib-references" in artifact_ids
         assert "pdf-main" in artifact_ids
+        assert "audit-bibliography" in artifact_ids
         bib_artifact = next(artifact for artifact in manifest_content["artifacts"] if artifact["artifact_id"] == "bib-references")
         assert bib_artifact["metadata"]["entry_source"] == "bib_data"
+        audit_artifact = next(artifact for artifact in manifest_content["artifacts"] if artifact["artifact_id"] == "audit-bibliography")
+        assert audit_artifact["path"] == "BIBLIOGRAPHY-AUDIT.json"
 
     @pytest.mark.asyncio
     async def test_build_paper_merges_bib_data_and_citation_sources(self, tmp_path, monkeypatch):
@@ -150,11 +156,15 @@ class TestBuildPaper:
         assert "bohr1913" in bib_content
         assert output.success is True
         assert output.pdf_path == pdf_path
+        assert output.bibliography_audit_path == tmp_path / "BIBLIOGRAPHY-AUDIT.json"
         assert output.bibliography_audit is not None
-        assert output.bibliography_audit.entries[0].key == "bohr1913"
+        assert output.bibliography_audit.total_sources == 2
+        assert {entry.key for entry in output.bibliography_audit.entries} == {"einstein1905", "bohr1913"}
         assert output.manifest is not None
         bib_artifact = next(artifact for artifact in output.manifest.artifacts if artifact.artifact_id == "bib-references")
         assert bib_artifact.metadata["entry_source"] == "bib_data+citation_sources"
+        audit_artifact = next(artifact for artifact in output.manifest.artifacts if artifact.artifact_id == "audit-bibliography")
+        assert audit_artifact.path == "BIBLIOGRAPHY-AUDIT.json"
 
     @pytest.mark.asyncio
     async def test_build_paper_prepares_config_figures(self, tmp_path, monkeypatch):
@@ -235,6 +245,7 @@ class TestBuildPaper:
         assert output.bibliography_audit_path == tmp_path / "BIBLIOGRAPHY-AUDIT.json"
         assert output.bibliography_audit is not None
         assert output.bibliography_audit.total_sources == 1
+        assert (tmp_path / "BIBLIOGRAPHY-AUDIT.json").exists()
         manifest_ids = {artifact.artifact_id for artifact in output.manifest.artifacts}
         assert "audit-bibliography" in manifest_ids
         bib_artifact = next(artifact for artifact in output.manifest.artifacts if artifact.artifact_id == "bib-references")

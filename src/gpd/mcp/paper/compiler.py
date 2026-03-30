@@ -13,14 +13,20 @@ import os
 import platform
 import shutil
 import subprocess
+import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pybtex.database import BibliographyData
+from pybtex.database import Entry
 
 from gpd.mcp.paper.artifact_manifest import build_artifact_manifest, write_artifact_manifest
 from gpd.mcp.paper.bibliography import (
+    BibliographyAudit,
+    CitationAuditRecord,
     CitationSource,
+    audit_citation_source,
     build_bibliography_with_audit,
     write_bib_file,
     write_bibliography_audit,
@@ -31,6 +37,72 @@ from gpd.mcp.paper.models import FigureRef, JournalSpec, PaperConfig, PaperOutpu
 from gpd.mcp.paper.template_registry import render_paper
 
 logger = logging.getLogger(__name__)
+
+
+_ARXIV_NOTE_RE = re.compile(r"arXiv:\s*([^\s,;]+)", re.IGNORECASE)
+
+
+def _split_bibtex_authors(author_field: str) -> list[str]:
+    """Split a BibTeX author field into individual author strings."""
+    return [author.strip() for author in author_field.split(" and ") if author.strip()]
+
+
+def _bib_entry_source_type(entry: Entry) -> str:
+    """Infer a CitationSource type for a final BibTeX entry."""
+    if entry.type == "misc":
+        url = entry.fields.get("url", "").strip()
+        doi = entry.fields.get("doi", "").strip()
+        note = entry.fields.get("note", "").strip()
+        if url and not doi and not _ARXIV_NOTE_RE.search(note):
+            return "website"
+    return "paper"
+
+
+def _citation_source_from_bib_entry(key: str, entry: Entry) -> CitationSource:
+    """Convert an emitted BibTeX entry back into a citation audit input."""
+    authors = _split_bibtex_authors(entry.fields.get("author", "").strip())
+    arxiv_id = entry.fields.get("arxiv_id", "").strip() or entry.fields.get("eprint", "").strip()
+    if not arxiv_id:
+        note = entry.fields.get("note", "").strip()
+        arxiv_match = _ARXIV_NOTE_RE.search(note)
+        if arxiv_match:
+            arxiv_id = arxiv_match.group(1)
+
+    return CitationSource(
+        source_type=_bib_entry_source_type(entry),
+        reference_id=key,
+        title=entry.fields.get("title", "").strip(),
+        authors=authors,
+        year=entry.fields.get("year", "").strip(),
+        arxiv_id=arxiv_id or None,
+        doi=entry.fields.get("doi", "").strip() or None,
+        url=entry.fields.get("url", "").strip() or None,
+        journal=entry.fields.get("journal", "").strip(),
+        volume=entry.fields.get("volume", "").strip(),
+        pages=entry.fields.get("pages", "").strip(),
+    )
+
+
+def _audit_record_from_bib_entry(key: str, entry: Entry, *, existing_keys: set[str] | None = None) -> CitationAuditRecord:
+    """Build a bibliography audit record for an already-emitted BibTeX entry."""
+    source = _citation_source_from_bib_entry(key, entry)
+    _audited_source, record = audit_citation_source(source, existing_keys=existing_keys, enrich=False)
+    if record.key != key:
+        record = record.model_copy(update={"key": key})
+    return record
+
+
+def _build_full_bibliography_audit(records: list[CitationAuditRecord]) -> BibliographyAudit:
+    """Summarize the final emitted bibliography in a machine-readable audit artifact."""
+    return BibliographyAudit(
+        generated_at=datetime.now(UTC).isoformat(),
+        total_sources=len(records),
+        resolved_sources=sum(1 for entry in records if entry.resolution_status in {"provided", "enriched"}),
+        partial_sources=sum(1 for entry in records if entry.verification_status == "partial"),
+        unverified_sources=sum(1 for entry in records if entry.verification_status == "unverified"),
+        failed_sources=sum(1 for entry in records if entry.resolution_status == "failed"),
+        entries=records,
+    )
 
 
 # ---- Cross-platform LaTeX detection ----
@@ -526,6 +598,8 @@ async def build_paper(
     figures_prepared_successfully = True
     bib_path: Path | None = None
     bib_entry_source: str | None = "bib_data" if bib_data is not None else None
+    explicit_bib_entries: list[tuple[str, Entry]] = list(bib_data.entries.items()) if bib_data is not None else []
+    citation_audit_entries: list[CitationAuditRecord] = []
 
     # 1. Prepare figures
     if config.figures:
@@ -574,12 +648,22 @@ async def build_paper(
             enrich_bibliography,
             reserved_bib_keys,
         )
+        citation_audit_entries = list(bibliography_audit.entries)
         if bib_data is None:
             bib_data = built_bib
             bib_entry_source = "citation_sources"
         else:
             bib_data = _merge_bibliography_data(bib_data, built_bib)
             bib_entry_source = "bib_data+citation_sources"
+
+    bibliography_audit_entries: list[CitationAuditRecord] = []
+    bibliography_audit_entries.extend(
+        _audit_record_from_bib_entry(key, entry) for key, entry in explicit_bib_entries
+    )
+    bibliography_audit_entries.extend(citation_audit_entries)
+
+    if bibliography_audit_entries:
+        bibliography_audit = _build_full_bibliography_audit(bibliography_audit_entries)
         bibliography_audit_path = output_dir / "BIBLIOGRAPHY-AUDIT.json"
         await asyncio.to_thread(write_bibliography_audit, bibliography_audit, bibliography_audit_path)
 
