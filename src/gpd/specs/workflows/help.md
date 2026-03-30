@@ -489,21 +489,22 @@ Usage: `/gpd:progress --reconcile` (fix diverged STATE.md and state.json)
 **`/gpd:resume-work`**
 Resume research from previous session with full context restoration.
 
-- Restores bounded execution state, recent progress, and recorded handoff context through the canonical continuation hierarchy
+- Restores canonical continuation state, recent progress, and recorded handoff context; `state.json.continuation` is the durable authority and the legacy resume fields remain compatibility mirrors in the raw intake
 - Uses the recovery ladder (`gpd resume` -> `gpd resume --recent` when needed -> `/gpd:resume-work`) to pick up where you left off
 - Best first in-runtime command when returning to paused or interrupted work
 - This is the in-runtime continue path; for a current-workspace read-only recovery snapshot, use `gpd resume`
 - If you need to find the workspace first, use `gpd resume --recent`, then continue inside that workspace with `/gpd:resume-work`
+- The raw `session_*` fields and `segment_candidates` labels remain compatibility intake names only
 
 Usage: `/gpd:resume-work`
 
 **`/gpd:pause-work`**
 Create a continuation handoff artifact when pausing work mid-phase.
 
-- Creates the canonical `.continue-here.md` continuation handoff artifact with current state
+- Creates the canonical `.continue-here.md` continuation handoff artifact with current state and mirrors it into `session` for compatibility
 - Updates the mirrored STATE.md session continuity entry
 - Captures in-progress work context
-- Run this before leaving mid-phase so `/gpd:resume-work` has an explicit recorded handoff artifact to restore, mirrored from canonical continuation
+- Run this before leaving mid-phase so `/gpd:resume-work` has an explicit recorded handoff artifact to restore; `session.resume_file` remains the compatibility mirror of `state.json.continuation.handoff.resume_file`
 
 Usage: `/gpd:pause-work`
 

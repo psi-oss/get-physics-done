@@ -752,6 +752,7 @@ def test_public_help_surface_keeps_start_tour_new_project_and_map_research_order
     help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
 
     assert "Getting started:" in help_workflow
+    assert "`state.json.continuation` is the durable authority" in help_workflow
     assert_beginner_startup_routing_contract(help_workflow)
 
 

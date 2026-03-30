@@ -226,6 +226,7 @@ class TestStateRecordSession:
         assert stored["continuation"]["handoff"]["recorded_at"] == stored["session"]["last_date"]
         assert stored["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 2"
         assert stored["continuation"]["handoff"]["resume_file"] == "next-step.md"
+        assert stored["continuation"]["handoff"]["recorded_by"] == "state_record_session"
         assert stored["continuation"]["machine"]["recorded_at"] == stored["session"]["last_date"]
         assert stored["continuation"]["machine"]["hostname"] == stored["session"]["hostname"]
         assert stored["continuation"]["machine"]["platform"] == stored["session"]["platform"]

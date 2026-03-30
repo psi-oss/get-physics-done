@@ -514,6 +514,8 @@ def test_help_prompt_session_management_keeps_pause_before_leave_and_resume_on_r
 
     assert "**`/gpd:resume-work`**" in help_workflow
     assert "**`/gpd:pause-work`**" in help_workflow
+    assert "`state.json.continuation` is the durable authority" in help_workflow
+    assert "`session.resume_file` remains the compatibility mirror" in help_workflow
     assert_recovery_ladder_contract(
         help_workflow,
         resume_work_fragments=("/gpd:resume-work",),

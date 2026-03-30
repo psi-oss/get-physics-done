@@ -20,6 +20,8 @@ Restore complete research context and resume work seamlessly from the latest can
 
 This is the runtime recovery command for the selected project. Use `gpd resume` for the current-workspace read-only recovery snapshot, `gpd resume --recent` when you need the explicit multi-project picker, then run `/gpd:resume-work` in the reopened project. The recent-project list is advisory and machine-local; once you choose a workspace, `/gpd:resume-work` reloads that project's canonical state. If `gpd resume --recent` finds exactly one recoverable project, that can become the fast re-entry path; otherwise the project choice stays explicit. After resuming, `/gpd:suggest-next` is the fastest next command when you only need the next action.
 
+`state.json.continuation` is the durable continuation authority; the raw `session` mirror and legacy `session_*` resume fields remain compatibility surfaces only.
+
 Routes to the resume-work workflow which handles:
 
 - STATE.md loading (or reconstruction if missing)
