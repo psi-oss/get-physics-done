@@ -2330,6 +2330,92 @@ def test_result_upsert_without_explicit_id(mock_upsert, tmp_path: Path):
     assert kwargs["depends_on"] == ["R-01"]
 
 
+@patch("gpd.cli._resolve_derived_result_id")
+@patch("gpd.core.results.result_upsert", create=True)
+def test_result_persist_derived_forwards_parsed_options_and_derivation_slug(mock_upsert, mock_resolve):
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {
+        "status": "persisted",
+        "result": {
+            "id": "R-02",
+            "equation": "a = b + c",
+            "description": "Canonical quantity",
+            "phase": "2",
+            "depends_on": ["R-01"],
+            "verified": False,
+        },
+        "updated_fields": ["equation", "description"],
+    }
+    mock_upsert.return_value = mock_result
+    mock_resolve.return_value = "R-02-effective-mass"
+
+    result = runner.invoke(
+        app,
+        [
+            "result",
+            "persist-derived",
+            "--equation",
+            "a = b + c",
+            "--description",
+            "Canonical quantity",
+            "--phase",
+            "2",
+            "--depends-on",
+            "R-01",
+            "--derivation-slug",
+            "effective-mass",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    mock_resolve.assert_called_once()
+    _, resolve_kwargs = mock_resolve.call_args
+    assert resolve_kwargs["result_id"] is None
+    assert resolve_kwargs["derivation_slug"] == "effective-mass"
+    assert resolve_kwargs["equation"] == "a = b + c"
+    assert resolve_kwargs["description"] == "Canonical quantity"
+    assert resolve_kwargs["phase"] == "2"
+
+    mock_upsert.assert_called_once()
+    _, kwargs = mock_upsert.call_args
+    assert kwargs["result_id"] == "R-02-effective-mass"
+    assert kwargs["equation"] == "a = b + c"
+    assert kwargs["description"] == "Canonical quantity"
+    assert kwargs["phase"] == "2"
+    assert kwargs["depends_on"] == ["R-01"]
+
+
+def test_result_persist_derived_raw_skips_cleanly_without_project_state(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "--raw",
+            "--cwd",
+            str(tmp_path),
+            "result",
+            "persist-derived",
+            "--equation",
+            "a = b + c",
+            "--description",
+            "Canonical quantity",
+            "--phase",
+            "2",
+            "--derivation-slug",
+            "effective-mass",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "skipped"
+    assert payload["reason"] == "no_recoverable_project_state"
+    assert payload["state_exists"] is False
+    assert payload["recoverable_state_exists"] is False
+    assert not (tmp_path / "GPD" / "state.json").exists()
+
+
 # ─── query subcommands ──────────────────────────────────────────────────────
 
 
