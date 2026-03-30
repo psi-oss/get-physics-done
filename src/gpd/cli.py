@@ -1123,6 +1123,24 @@ def _resume_candidate_source_label(source: object) -> str:
     return labels.get(source_text, source_text or "Unknown")
 
 
+def _resume_candidate_kind_label(candidate: dict[str, object]) -> str:
+    """Map one resume candidate to a user-facing kind label."""
+    kind = candidate.get("kind")
+    labels = {
+        "bounded_segment": "Bounded segment",
+        "handoff": "Continuity handoff",
+        "continuity_handoff": "Continuity handoff",
+        "missing_handoff": "Missing continuity handoff",
+        "missing_continuity_handoff": "Missing continuity handoff",
+        "interrupted_agent": "Interrupted agent",
+    }
+    if isinstance(kind, str):
+        kind_text = kind.strip()
+        if kind_text:
+            return labels.get(kind_text, kind_text.replace("_", " "))
+    return _resume_candidate_source_label(candidate.get("source"))
+
+
 def _resume_candidate_kind(source: object, *, status: object) -> str:
     """Return a stable machine label for the candidate concept."""
     source_text = str(source).strip() if source is not None else ""
@@ -1138,6 +1156,18 @@ def _resume_candidate_kind(source: object, *, status: object) -> str:
     return "unknown"
 
 
+def _resume_origin_label(origin: object) -> str:
+    """Map one canonical resume origin to a user-facing label."""
+    labels = {
+        "canonical_continuation": "canonical continuation",
+        "derived_execution_head": "derived execution head",
+        "legacy_session": "legacy session mirror",
+        "interrupted_agent": "interrupted agent",
+    }
+    origin_text = str(origin).strip() if origin is not None else ""
+    return labels.get(origin_text, origin_text.replace("_", " ") if origin_text else "Unknown")
+
+
 def _resume_candidate_phase_plan(candidate: dict[str, object]) -> str:
     """Format phase/plan context for one resume candidate."""
     phase = candidate.get("phase")
@@ -1151,6 +1181,81 @@ def _resume_candidate_phase_plan(candidate: dict[str, object]) -> str:
     if plan_text:
         return plan_text
     return "—"
+
+
+_RESUME_COMPATIBILITY_KEYS = (
+    "active_execution_segment",
+    "current_execution",
+    "current_execution_resume_file",
+    "execution_resume_file",
+    "execution_resume_file_source",
+    "missing_session_resume_file",
+    "recorded_session_resume_file",
+    "resume_mode",
+    "segment_candidates",
+    "session_resume_file",
+)
+
+
+def _resume_compat_surface(payload: dict[str, object]) -> dict[str, object] | None:
+    """Return the nested compatibility resume block when it exists or can be synthesized."""
+    compat_surface = payload.get("compat_resume_surface")
+    if isinstance(compat_surface, dict):
+        compat_surface = dict(compat_surface)
+    else:
+        for alias in ("legacy_resume_surface", "compatibility_resume_surface"):
+            alias_surface = payload.get(alias)
+            if isinstance(alias_surface, dict):
+                compat_surface = dict(alias_surface)
+                break
+        else:
+            compat_surface = {}
+
+    for key in _RESUME_COMPATIBILITY_KEYS:
+        if key in compat_surface:
+            continue
+        value = payload.get(key)
+        if value is not None:
+            compat_surface[key] = value
+
+    return compat_surface or None
+
+
+def _resume_surface_value(
+    payload: dict[str, object],
+    compat_surface: dict[str, object] | None,
+    key: str,
+) -> object | None:
+    """Return one resume field from canonical payload data or the compatibility block."""
+    for source in (payload, compat_surface or {}):
+        if key not in source:
+            continue
+        value = source[key]
+        if isinstance(value, str) and not value.strip():
+            continue
+        if value is None:
+            continue
+        return value
+    return None
+
+
+def _resume_visible_candidates(payload: dict[str, object], compat_surface: dict[str, object] | None) -> list[dict[str, object]]:
+    """Return the candidate list to render, preferring canonical resume candidates."""
+    for source in (payload, compat_surface or {}):
+        if "resume_candidates" in source:
+            candidates = source.get("resume_candidates")
+            if isinstance(candidates, list):
+                return [item for item in candidates if isinstance(item, dict)]
+            return []
+
+    for source in (payload, compat_surface or {}):
+        if "segment_candidates" in source:
+            candidates = source.get("segment_candidates")
+            if isinstance(candidates, list):
+                return [item for item in candidates if isinstance(item, dict)]
+            return []
+
+    return []
 
 
 def _resume_candidate_target(candidate: dict[str, object]) -> str:
@@ -1173,6 +1278,10 @@ def _resume_candidate_origin(
     current_execution: dict[str, object] | None,
 ) -> tuple[str, str]:
     """Return a machine label and human summary for one candidate origin."""
+    origin = candidate.get("origin")
+    if isinstance(origin, str) and origin.strip():
+        origin_text = origin.strip()
+        return origin_text, _resume_origin_label(origin_text)
     source = str(candidate.get("source") or "").strip()
     status = str(candidate.get("status") or "").strip()
     if source == "current_execution":
@@ -1347,9 +1456,12 @@ def _resume_candidate_projection(
         current_execution=current_execution,
     )
     status = str(candidate.get("status") or "unknown").strip() or "unknown"
+    kind = candidate.get("kind")
+    if not isinstance(kind, str) or not kind.strip():
+        kind = _resume_candidate_kind(candidate.get("source"), status=status)
     return {
-        "kind": _resume_candidate_kind(candidate.get("source"), status=status),
-        "kind_label": _resume_candidate_source_label(candidate.get("source")),
+        "kind": kind,
+        "kind_label": _resume_candidate_kind_label(candidate),
         "status": status,
         "status_label": status.replace("_", " "),
         "origin": origin,
@@ -1651,10 +1763,10 @@ def _recent_project_recovery_view(row: dict[str, object]) -> dict[str, str] | No
         "recovery_status_label": _resume_status_label(advice.status),
         "recovery_note": _resume_status_message(payload, recovery_advice=advice),
     }
-    primary_resume_file = payload.get("execution_resume_file")
+    primary_resume_file = payload.get("active_resume_pointer") or payload.get("execution_resume_file")
     if isinstance(primary_resume_file, str) and primary_resume_file.strip():
         view["recovery_target"] = _format_display_path(primary_resume_file.strip())
-    execution_source = payload.get("execution_resume_file_source")
+    execution_source = payload.get("active_resume_origin") or payload.get("execution_resume_file_source")
     if isinstance(execution_source, str) and execution_source.strip():
         view["recovery_origin"] = execution_source.strip()
     return view
@@ -1685,12 +1797,14 @@ def _resume_augmented_payload(payload: dict[str, object], *, cwd: Path | None = 
     """Augment the raw resume payload with canonical recovery projections."""
     recovery_advice = _resume_recovery_advice(resume_payload=payload, recent_rows=[], cwd=cwd)
     augmented = dict(payload)
-    active_execution_raw = payload.get("active_execution_segment")
+    compat_surface = _resume_compat_surface(payload)
+    active_bounded_segment = _resume_surface_value(payload, compat_surface, "active_bounded_segment")
+    derived_execution_head = _resume_surface_value(payload, compat_surface, "derived_execution_head")
+    active_execution_raw = active_bounded_segment or derived_execution_head or _resume_surface_value(payload, compat_surface, "active_execution_segment")
     active_execution = active_execution_raw if isinstance(active_execution_raw, dict) else None
-    current_execution_raw = payload.get("current_execution")
+    current_execution_raw = _resume_surface_value(payload, compat_surface, "current_execution")
     current_execution = current_execution_raw if isinstance(current_execution_raw, dict) else None
-    candidates = payload.get("segment_candidates")
-    segment_candidates = [item for item in candidates if isinstance(item, dict)] if isinstance(candidates, list) else []
+    segment_candidates = _resume_visible_candidates(payload, compat_surface)
     projected_candidates = [
         _resume_candidate_projection(
             candidate,
@@ -1702,9 +1816,11 @@ def _resume_augmented_payload(payload: dict[str, object], *, cwd: Path | None = 
     augmented["recovery_status"] = recovery_advice.status
     augmented["recovery_status_label"] = _resume_status_label(recovery_advice.status)
     augmented["recovery_summary"] = _resume_status_message(payload, recovery_advice=recovery_advice)
-    augmented["resume_mode_label"] = _resume_mode_label(payload.get("resume_mode"))
+    augmented["resume_mode_label"] = _resume_mode_label(_resume_surface_value(payload, compat_surface, "resume_mode"))
     augmented["recovery_advice"] = recovery_advice.model_dump(mode="json")
     augmented["recovery_candidates"] = projected_candidates
+    if compat_surface is not None:
+        augmented["compat_resume_surface"] = compat_surface
     if projected_candidates:
         augmented["primary_recovery_target"] = projected_candidates[0]
     return augmented
@@ -1760,11 +1876,15 @@ def _render_recent_resume_summary(rows: list[dict[str, object]]) -> None:
 
 def _render_resume_summary(payload: dict[str, object]) -> None:
     """Render a read-only local recovery summary for humans."""
-    candidates = payload.get("segment_candidates")
-    segment_candidates = [item for item in candidates if isinstance(item, dict)] if isinstance(candidates, list) else []
-    active_execution_raw = payload.get("active_execution_segment")
+    compat_surface = _resume_compat_surface(payload)
+    segment_candidates = _resume_visible_candidates(payload, compat_surface)
+    active_execution_raw = _resume_surface_value(payload, compat_surface, "active_bounded_segment")
+    if not isinstance(active_execution_raw, dict):
+        active_execution_raw = _resume_surface_value(payload, compat_surface, "derived_execution_head")
+    if not isinstance(active_execution_raw, dict):
+        active_execution_raw = _resume_surface_value(payload, compat_surface, "active_execution_segment")
     active_execution = active_execution_raw if isinstance(active_execution_raw, dict) else None
-    current_execution_raw = payload.get("current_execution")
+    current_execution_raw = _resume_surface_value(payload, compat_surface, "current_execution")
     current_execution = current_execution_raw if isinstance(current_execution_raw, dict) else None
     recovery_advice = _resume_recovery_advice(resume_payload=payload, recent_rows=[])
 
@@ -1798,7 +1918,7 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
         )
     summary.add_row("Status", _resume_status_message(payload, recovery_advice=recovery_advice))
     summary.add_row("Recovery", _resume_status_label(recovery_advice.status))
-    summary.add_row("Resume mode", _resume_mode_label(payload.get("resume_mode")))
+    summary.add_row("Resume mode", _resume_mode_label(_resume_surface_value(payload, compat_surface, "resume_mode")))
     summary.add_row("Candidates", str(len(segment_candidates)))
     summary.add_row("Live execution", "yes" if bool(payload.get("has_live_execution")) else "no")
     summary.add_row("Autonomy", str(payload.get("autonomy") or "unknown"))
@@ -1808,7 +1928,9 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
     if isinstance(paused_at, str) and paused_at.strip():
         summary.add_row("Paused at", paused_at.strip())
 
-    primary_resume_file = payload.get("execution_resume_file")
+    primary_resume_file = _resume_surface_value(payload, compat_surface, "active_resume_pointer")
+    if not isinstance(primary_resume_file, str) or not primary_resume_file.strip():
+        primary_resume_file = _resume_surface_value(payload, compat_surface, "execution_resume_file")
     if isinstance(primary_resume_file, str) and primary_resume_file.strip():
         summary.add_row("Primary pointer", _format_display_path(primary_resume_file.strip()))
 
@@ -1831,7 +1953,9 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
         blocked_reason = active_execution.get("blocked_reason")
         if isinstance(blocked_reason, str) and blocked_reason.strip():
             notices.append(f"Execution is blocked: {blocked_reason.strip()}")
-    missing_session_resume_file = payload.get("missing_session_resume_file")
+    missing_session_resume_file = _resume_surface_value(payload, compat_surface, "missing_continuity_handoff_file")
+    if not isinstance(missing_session_resume_file, str) or not missing_session_resume_file.strip():
+        missing_session_resume_file = _resume_surface_value(payload, compat_surface, "missing_session_resume_file")
     if isinstance(missing_session_resume_file, str) and missing_session_resume_file.strip():
         notices.append(
             "Projected continuity handoff is missing: "
@@ -1866,7 +1990,7 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
             status = str(candidate.get("status") or "unknown").strip().replace("_", " ")
             table.add_row(
                 str(idx),
-                _resume_candidate_source_label(candidate.get("source")),
+                _resume_candidate_kind_label(candidate),
                 status or "unknown",
                 _resume_candidate_phase_plan(candidate),
                 _resume_candidate_target(candidate),

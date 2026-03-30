@@ -1495,15 +1495,34 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
             "state_exists": True,
             "roadmap_exists": True,
             "project_exists": True,
-            "segment_candidates": [
+            "resume_candidates": [
                 {
                     "source": "session_resume_file",
                     "status": "handoff",
                     "resume_file": "GPD/phases/01/.continue-here.md",
                     "resumable": False,
+                    "kind": "handoff",
+                    "origin": "canonical_continuation",
+                    "resume_pointer": "GPD/phases/01/.continue-here.md",
                 }
             ],
+                "compat_resume_surface": {
+                    "execution_resume_file": "GPD/phases/01/.continue-here.md",
+                    "execution_resume_file_source": "session_resume_file",
+                    "session_resume_file": "GPD/phases/01/.continue-here.md",
+                    "segment_candidates": [
+                        {
+                            "source": "session_resume_file",
+                            "status": "handoff",
+                            "resume_file": "GPD/phases/01/.continue-here.md",
+                        "resumable": False,
+                    }
+                ],
+            },
             "has_live_execution": False,
+            "active_resume_kind": "handoff",
+            "active_resume_origin": "canonical_continuation",
+            "active_resume_pointer": "GPD/phases/01/.continue-here.md",
             "resume_mode": None,
             "execution_resume_file": "GPD/phases/01/.continue-here.md",
             "execution_resume_file_source": "session_resume_file",
@@ -1525,9 +1544,12 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
         "A continuity handoff is available, but no resumable bounded segment is currently active."
     )
     assert payload["resume_mode_label"] == "none"
-    assert payload["recovery_candidates"][0]["kind"] == "continuity_handoff"
+    assert payload["compat_resume_surface"]["execution_resume_file"] == "GPD/phases/01/.continue-here.md"
+    assert payload["compat_resume_surface"]["execution_resume_file_source"] == "session_resume_file"
+    assert payload["compat_resume_surface"]["segment_candidates"][0]["source"] == "session_resume_file"
+    assert payload["recovery_candidates"][0]["kind"] == "handoff"
     assert payload["recovery_candidates"][0]["kind_label"] == "Continuity handoff"
-    assert payload["recovery_candidates"][0]["origin"] == "continuation_metadata"
+    assert payload["recovery_candidates"][0]["origin"] == "canonical_continuation"
     assert payload["primary_recovery_target"]["target"] == "./GPD/phases/01/.continue-here.md"
 
 
