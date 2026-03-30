@@ -1506,15 +1506,15 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
                     "resume_pointer": "GPD/phases/01/.continue-here.md",
                 }
             ],
-                "compat_resume_surface": {
-                    "execution_resume_file": "GPD/phases/01/.continue-here.md",
-                    "execution_resume_file_source": "session_resume_file",
-                    "session_resume_file": "GPD/phases/01/.continue-here.md",
-                    "segment_candidates": [
-                        {
-                            "source": "session_resume_file",
-                            "status": "handoff",
-                            "resume_file": "GPD/phases/01/.continue-here.md",
+            "compat_resume_surface": {
+                "execution_resume_file": "GPD/phases/01/.continue-here.md",
+                "execution_resume_file_source": "session_resume_file",
+                "session_resume_file": "GPD/phases/01/.continue-here.md",
+                "segment_candidates": [
+                    {
+                        "source": "session_resume_file",
+                        "status": "handoff",
+                        "resume_file": "GPD/phases/01/.continue-here.md",
                         "resumable": False,
                     }
                 ],
@@ -1543,10 +1543,18 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
     assert payload["recovery_summary"] == (
         "A continuity handoff is available, but no resumable bounded segment is currently active."
     )
-    assert payload["resume_mode_label"] == "none"
+    assert payload["active_resume_kind_label"] == "Continuity handoff"
+    assert payload["resume_candidates"][0]["kind"] == "handoff"
+    assert payload["resume_candidates"][0]["origin"] == "canonical_continuation"
+    assert "resume_mode_label" not in payload
+    assert "resume_mode" not in payload
     assert "execution_resume_file" not in payload
+    assert "execution_resume_file_source" not in payload
+    assert "segment_candidates" not in payload
+    assert "session_resume_file" not in payload
     assert payload["compat_resume_surface"]["execution_resume_file"] == "GPD/phases/01/.continue-here.md"
     assert payload["compat_resume_surface"]["execution_resume_file_source"] == "session_resume_file"
+    assert payload["compat_resume_surface"]["resume_mode"] is None
     assert payload["compat_resume_surface"]["segment_candidates"][0]["source"] == "session_resume_file"
     assert payload["recovery_candidates"][0]["kind"] == "handoff"
     assert payload["recovery_candidates"][0]["kind_label"] == "Continuity handoff"
