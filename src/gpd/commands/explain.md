@@ -24,6 +24,7 @@ Produce a rigorous, well-scoped explanation of a concept, method, notation, resu
 **Orchestrator role:** Clarify scope when necessary, gather local project/process context, spawn a `gpd-explainer` agent, optionally run `gpd-bibliographer` to verify cited papers, and present the finished explanation plus reading path.
 
 **Why subagent:** A good explanation has to hold together local project state, notation, nearby derivations, and literature context. Fresh context lets the explainer stay rigorous without dropping the active process.
+When available, the explainer should also use the derived citation-source catalog so literature guides can prefer stable `reference_id` anchors and openable URLs instead of reconstructing papers from prose.
 </objective>
 
 <execution_context>
@@ -70,7 +71,7 @@ Follow the explain workflow from `@{GPD_INSTALL_DIR}/workflows/explain.md` end-t
 
 ## 4. Return Results
 
-Show the explanation summary, report path, citation-audit status, and the best papers to open next.
+Show the explanation summary, report path, citation-audit status, and the best papers to open next. If derived citation-source context is available, prefer it when naming follow-up papers or links.
 </process>
 
 <success_criteria>
