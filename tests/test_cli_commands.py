@@ -955,6 +955,9 @@ class TestResultCommands:
     def test_list(self) -> None:
         _invoke("result", "list")
 
+    def test_search(self) -> None:
+        _invoke("result", "search")
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Approximation commands

@@ -67,7 +67,7 @@ Identify the target quantity and the parameters to analyze.
 
 Determine what output quantity f we are analyzing the sensitivity of:
 
-- Load project state via `gpd CLI init progress --include state,config` and check `intermediate_results` for computed quantities
+- Load project state via `gpd CLI init progress --include state,config` and check `intermediate_results` for computed quantities. If you need to locate the canonical target or one of its upstream results first, use `gpd result search`; keep `gpd query search` for SUMMARY/frontmatter lookup.
 - Read from phase SUMMARY.md files for key results
 - If `--target` is specified, use that quantity directly
 

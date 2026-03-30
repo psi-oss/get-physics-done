@@ -9,10 +9,12 @@ from gpd.core.results import (
     IntermediateResult,
     MissingDep,
     ResultDeps,
+    ResultSearchResult,
     _int_to_base36,
     result_add,
     result_deps,
     result_list,
+    result_search,
     result_update,
     result_verify,
 )
@@ -140,6 +142,142 @@ def test_result_list_filter_unverified_ignores_results_with_verification_records
     results = result_list(state, unverified=True)
     assert len(results) == 1
     assert results[0].id == "R-02"
+
+
+# ─── result_search ───────────────────────────────────────────────────────────
+
+
+def test_result_search_empty_state_returns_empty_list():
+    result = result_search({})
+    assert isinstance(result, ResultSearchResult)
+    assert result.matches == []
+    assert result.total == 0
+
+
+def test_result_search_missing_registry_returns_empty_list():
+    result = result_search({"position": {"current_phase": "1"}})
+    assert result.matches == []
+    assert result.total == 0
+
+
+def test_result_search_ignores_string_entries():
+    state: dict = {
+        "intermediate_results": [
+            "legacy markdown bullet",
+            {"id": "R-01", "equation": "E = mc^2", "description": "energy", "phase": "1"},
+        ]
+    }
+
+    results = result_search(state, text="legacy markdown bullet")
+
+    assert results.matches == []
+    assert results.total == 0
+
+
+def test_result_search_matches_text_and_equation_fields():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "equation": "E = mc^2", "description": "rest energy", "phase": "1"},
+            {"id": "R-02", "equation": "p^2/2m", "description": "kinetic energy", "phase": "2"},
+        ]
+    }
+
+    equation_matches = result_search(state, equation="p^2/2m")
+    text_matches = result_search(state, text="kinetic")
+
+    assert [result.id for result in equation_matches.matches] == ["R-02"]
+    assert equation_matches.total == 1
+    assert [result.id for result in text_matches.matches] == ["R-02"]
+    assert text_matches.total == 1
+
+
+def test_result_search_matches_exact_ids():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "equation": "E = mc^2", "phase": "1"},
+            {"id": "R-02", "equation": "F = ma", "phase": "2"},
+        ]
+    }
+
+    matches = result_search(state, id="r 01")
+
+    assert [result.id for result in matches.matches] == ["R-01"]
+    assert matches.total == 1
+
+
+def test_result_search_normalizes_phase_filters():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "equation": "E = mc^2", "phase": "1"},
+            {"id": "R-02", "equation": "F = ma", "phase": "02"},
+        ]
+    }
+
+    one_phase = result_search(state, phase="01")
+    two_phase = result_search(state, phase="2")
+
+    assert [result.id for result in one_phase.matches] == ["R-01"]
+    assert one_phase.total == 1
+    assert [result.id for result in two_phase.matches] == ["R-02"]
+    assert two_phase.total == 1
+
+
+def test_result_search_filters_verified_state():
+    state: dict = {
+        "intermediate_results": [
+            {
+                "id": "R-01",
+                "equation": "E = mc^2",
+                "phase": "1",
+                "verified": False,
+                "verification_records": [{"verifier": "auditor", "method": "manual", "confidence": "high"}],
+            },
+            {"id": "R-02", "equation": "F = ma", "phase": "2", "verified": False, "verification_records": []},
+        ]
+    }
+
+    verified = result_search(state, verified=True)
+    unverified = result_search(state, unverified=True)
+
+    assert [result.id for result in verified.matches] == ["R-01"]
+    assert verified.total == 1
+    assert [result.id for result in unverified.matches] == ["R-02"]
+    assert unverified.total == 1
+
+
+def test_result_search_rejects_conflicting_verification_filters():
+    with pytest.raises(ResultError, match="Cannot filter by both verified=True and unverified=True"):
+        result_search({}, verified=True, unverified=True)
+
+
+def test_result_search_matches_depends_on_exact_identifiers():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "equation": "A", "phase": "1", "depends_on": []},
+            {"id": "R-02", "equation": "B", "phase": "2", "depends_on": ["R-01"]},
+            {"id": "R-03", "equation": "C", "phase": "3", "depends_on": ["R-01", "R-02"]},
+        ]
+    }
+
+    matches = result_search(state, depends_on="r 01")
+
+    assert [result.id for result in matches.matches] == ["R-02", "R-03"]
+    assert matches.total == 2
+
+
+def test_result_search_preserves_registry_order():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-02", "equation": "shared term", "phase": "2"},
+            {"id": "R-01", "equation": "shared term", "phase": "1"},
+            {"id": "R-03", "equation": "shared term", "phase": "3"},
+        ]
+    }
+
+    results = result_search(state, text="shared term")
+
+    assert [result.id for result in results.matches] == ["R-02", "R-01", "R-03"]
+    assert results.total == 3
 
 
 # ─── result_deps ─────────────────────────────────────────────────────────────

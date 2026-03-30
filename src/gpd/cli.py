@@ -2243,6 +2243,35 @@ def result_deps(
     _output(result_deps(_load_state_dict(), result_id))
 
 
+@result_app.command("search")
+def result_search(
+    id: str | None = typer.Option(None, "--id", help="Exact result ID"),
+    text: str | None = typer.Option(None, "--text", help="Search id, equation, and description"),
+    equation: str | None = typer.Option(None, "--equation", help="Search by equation"),
+    phase: str | None = typer.Option(None, "--phase", help="Filter by phase"),
+    depends_on: str | None = typer.Option(None, "--depends-on", help="Match results that depend on this result ID"),
+    verified: bool = typer.Option(False, "--verified", help="Show only verified"),
+    unverified: bool = typer.Option(False, "--unverified", help="Show only unverified"),
+) -> None:
+    """Search intermediate results in the canonical registry."""
+    from gpd.core.results import result_search
+
+    if verified and unverified:
+        _error("--verified and --unverified are mutually exclusive")
+
+    _output(
+        result_search(
+            _load_state_dict(),
+            id=id,
+            text=text,
+            equation=equation,
+            phase=phase,
+            depends_on=depends_on,
+            verified=verified if verified else None,
+            unverified=unverified if unverified else None,
+        )
+    )
+
 @result_app.command("verify")
 def result_verify(
     result_id: str = typer.Argument(..., help="Result ID to mark verified"),

@@ -2054,6 +2054,85 @@ def test_convention_list(mock_list):
     mock_list.assert_called_once()
 
 
+# ─── result subcommands ──────────────────────────────────────────────────────
+
+
+@patch("gpd.core.results.result_search", create=True)
+def test_result_search(mock_search):
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {
+        "matches": [
+            {
+                "id": "R-01",
+                "equation": "E = mc^2",
+                "description": "Energy-mass equivalence",
+                "phase": "1",
+                "depends_on": [],
+                "verified": True,
+            }
+        ],
+        "total": 1,
+    }
+    mock_search.return_value = mock_result
+
+    result = runner.invoke(
+        app,
+        ["result", "search", "--equation", "E = mc^2", "--phase", "1", "--verified"],
+    )
+
+    assert result.exit_code == 0
+    mock_search.assert_called_once()
+    _, kwargs = mock_search.call_args
+    assert kwargs["equation"] == "E = mc^2"
+    assert kwargs["phase"] == "1"
+    assert kwargs["verified"] is True
+    assert kwargs.get("unverified") in (False, None)
+
+
+@patch("gpd.core.results.result_search", create=True)
+def test_result_search_raw_outputs_json_list(mock_search):
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {
+        "matches": [
+            {
+                "id": "R-02",
+                "equation": "a = b + c",
+                "description": "Derived quantity",
+                "phase": "2",
+                "depends_on": ["R-01"],
+                "verified": False,
+            }
+        ],
+        "total": 1,
+    }
+    mock_search.return_value = mock_result
+
+    result = runner.invoke(
+        app,
+        ["--raw", "result", "search", "--text", "derived", "--unverified"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload == {
+        "matches": [
+            {
+                "id": "R-02",
+                "equation": "a = b + c",
+                "description": "Derived quantity",
+                "phase": "2",
+                "depends_on": ["R-01"],
+                "verified": False,
+            }
+        ],
+        "total": 1,
+    }
+    mock_search.assert_called_once()
+    _, kwargs = mock_search.call_args
+    assert kwargs["text"] == "derived"
+    assert kwargs["unverified"] is True
+
+
 # ─── query subcommands ──────────────────────────────────────────────────────
 
 

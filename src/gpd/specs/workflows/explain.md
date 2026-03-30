@@ -53,6 +53,7 @@ Use the init payload to extract:
 - Whether work is paused or currently executing
 - Research mode, autonomy mode, and model profile
 - Any structured citation-source catalog fields such as `citation_source_files`, `citation_source_count`, and `derived_citation_sources`
+- Any canonical result metadata you can recover through `gpd result search` when the concept maps to a derived equation, result, or quantity already stored in `intermediate_results`
 
 Search the local workspace for relevant mentions of the requested concept:
 
@@ -67,6 +68,7 @@ Also check for nearby high-value context when present:
 - `paper/`, `manuscript/`, or `GPD/paper/`
 - Existing `GPD/literature/*REVIEW.md`
 - Existing `GPD/literature/*-CITATION-SOURCES.json`
+- Existing canonical result entries surfaced by `gpd result search --text "{concept}"` or `gpd result search --equation "{concept}"`
 
 If no project context exists, gather only the user request plus any relevant local files in the current working directory.
 

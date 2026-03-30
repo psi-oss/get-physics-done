@@ -71,7 +71,7 @@ Read STATE.md to identify:
 - The phase range containing the derivation chain
 - Any existing `propagated_uncertainties` entries
 
-If the target is not found in STATE.md intermediate_results, check SUMMARY.md files across phases for the quantity name.
+If the target is not found in `STATE.md` `intermediate_results`, first use `gpd result search` to look for the canonical result by identifier, equation, or description. If it still is not found, check SUMMARY.md files across phases for the quantity name.
 </step>
 
 <step name="trace_derivation_chain">

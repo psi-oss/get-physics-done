@@ -394,6 +394,11 @@ gpd query deps <identifier>
 gpd query search --provides <term>
 gpd query search --requires <term>
 gpd query search --affects <term>
+
+# Search the canonical result registry for equations and prior derived quantities
+gpd result search --equation "E = mc^2"
+gpd result search --text "effective mass"
+gpd result search --phase <phase>
 ```
 
 ---
@@ -435,8 +440,8 @@ gpd query search --requires "Hamiltonian"
 # Find phases that affect a specific area
 gpd query search --affects "phase boundary"
 
-# Search by equation content
-gpd query search --equation "E = mc^2"
+# Search canonical equations and derived results
+gpd result search --equation "E = mc^2"
 
 # Trace dependencies for a specific identifier
 gpd query deps <identifier>
