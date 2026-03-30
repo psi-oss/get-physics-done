@@ -3964,7 +3964,7 @@ def state_record_session(
         desired_last_result_id = (
             requested_last_result_id
             if last_result_id is not None
-            else _optional_state_text(existing_handoff.last_result_id) or bounded_segment_last_result_id
+            else bounded_segment_last_result_id or _optional_state_text(existing_handoff.last_result_id)
         )
         if desired_stopped_at != existing_handoff.stopped_at:
             updated.append("Stopped at")
