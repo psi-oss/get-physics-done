@@ -1054,9 +1054,12 @@ def test_resume_recent_human_output_surfaces_command_and_missing_projects(
     result = runner.invoke(app, ["resume", "--recent"])
 
     assert result.exit_code == 0
+    normalized = " ".join(result.output.split())
     assert "Recent Projects" in result.output
     assert "Next here" in result.output
+    assert "Resume:" in result.output
     assert "gpd --cwd" in result.output
+    assert "continue in the selected workspace" in normalized
     assert "resume-work" in result.output
     assert "suggest-next" in result.output
     assert "Label: Alpha project" in result.output
@@ -1064,6 +1067,8 @@ def test_resume_recent_human_output_surfaces_command_and_missing_projects(
     assert "Current: phase 04 (Verification) · paused · 75% complete" in result.output
     assert "Why shown: shown because it still has a usable handoff target" in result.output
     assert "ready to reopen" in result.output
+    assert "Inspect:" not in result.output
+    assert "inspect the selected workspace" not in normalized
     assert "project root missing" in result.output or "project unavailable on this machine" in result.output
 
 

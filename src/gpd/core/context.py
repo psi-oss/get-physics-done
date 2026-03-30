@@ -2066,7 +2066,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None) -> dict:
         "project_root_auto_selected": reentry_metadata["project_root_auto_selected"],
         "project_reentry_mode": reentry_metadata["project_reentry_mode"],
         "project_reentry_requires_selection": reentry_metadata["project_reentry_requires_selection"],
-        "project_reentry_selected_candidate": reentry_metadata["project_reentry_selected_candidate"],
+        "project_reentry_selected_candidate": reentry_metadata.get("project_reentry_selected_candidate"),
         "project_reentry_candidates": reentry_metadata["project_reentry_candidates"],
         # File existence
         "state_exists": _state_exists(effective_cwd),
@@ -2434,7 +2434,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None, *, data_root: Pat
         "project_root_auto_selected": reentry_metadata["project_root_auto_selected"],
         "project_reentry_mode": reentry_metadata["project_reentry_mode"],
         "project_reentry_requires_selection": reentry_metadata["project_reentry_requires_selection"],
-        "project_reentry_selected_candidate": reentry_metadata["project_reentry_selected_candidate"],
+        "project_reentry_selected_candidate": reentry_metadata.get("project_reentry_selected_candidate"),
         "project_reentry_candidates": reentry_metadata["project_reentry_candidates"],
         # Models
         "executor_model": _resolve_model(effective_cwd, "gpd-executor", config),

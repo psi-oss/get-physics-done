@@ -1673,7 +1673,7 @@ def _load_recent_projects_rows() -> list[dict[str, object]]:
 
 
 def _resume_recent_project_command(row: dict[str, object]) -> str:
-    """Return the exact command to inspect one recent project."""
+    """Return the exact command to reopen one recent project."""
     project_root = row.get("project_root")
     if not isinstance(project_root, str) or not project_root.strip():
         return "unavailable"
@@ -1696,7 +1696,7 @@ def _resume_recent_project_notes(row: dict[str, object]) -> str:
     reason = row.get("resume_file_reason")
     if isinstance(reason, str) and reason.strip():
         return reason.strip()
-    return "inspect local recovery state"
+    return "continue from local recovery state"
 
 
 def _recent_project_recovery_view(row: dict[str, object]) -> dict[str, str] | None:
@@ -1850,11 +1850,11 @@ def _render_recent_resume_summary(rows: list[dict[str, object]]) -> None:
         console.print(f"   Resumable: {'yes' if bool(row.get('resumable')) else 'no'}")
         console.print(f"   Why shown: {_recent_project_selection_reason(row)}")
         console.print(f"   Notes: {_resume_recent_project_notes(row)}")
-        console.print(f"   Inspect: {_resume_recent_project_command(row)}")
+        console.print(f"   Resume: {_resume_recent_project_command(row)}")
         console.print()
     console.print()
     console.print("[bold]Next here[/]")
-    console.print("- Run the exact `gpd --cwd ... resume` command from the table to inspect the selected workspace.")
+    console.print("- Run the exact `gpd --cwd ... resume` command from the table to continue in the selected workspace.")
     for line in _resume_follow_up_actions(recovery_advice):
         console.print(f"- {line}")
 
