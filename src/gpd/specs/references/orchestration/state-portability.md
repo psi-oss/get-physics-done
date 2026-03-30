@@ -10,7 +10,7 @@ The current continuation architecture separates execution provenance from bounde
 
 Public resume vocabulary centers on `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`.
 Legacy raw-intake aliases stay nested under compatibility mirrors only.
-They are not part of the public top-level resume vocabulary.
+Those legacy raw-intake aliases are not part of the public top-level resume vocabulary.
 
 | Surface | Current Role | Authority |
 |---------|--------------|-----------|

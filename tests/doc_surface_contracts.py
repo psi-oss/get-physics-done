@@ -837,8 +837,8 @@ def assert_resume_authority_contract(
     _assert_contains_any(
         content,
         (
-            "they are not part of the public top-level resume vocabulary",
-            "They are not part of the public top-level resume vocabulary.",
+            "Legacy raw-intake aliases stay nested under compatibility mirrors only; they are not part of the public top-level resume vocabulary",
+            "Those legacy raw-intake aliases are not part of the public top-level resume vocabulary.",
         ),
         label="resume top-level boundary",
     )

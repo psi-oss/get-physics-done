@@ -40,7 +40,7 @@ Parse JSON once and read it semantically:
 Compatibility note: the current raw envelope can still surface nested compatibility cues such as `session_resume_file` inside `compat_resume_surface.segment_candidates`. Treat those cues as machine-intake names, not the top-level human vocabulary for continuation.
 
 Public resume vocabulary centers on `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`.
-They are not part of the public top-level resume vocabulary.
+Those legacy raw-intake aliases are not part of the public top-level resume vocabulary.
 
 `state_exists` means INIT could recover usable state from `GPD/state.json`, `GPD/state.json.bak`, or `GPD/STATE.md`. A stray unreadable file path by itself does not count as recoverable state.
 
