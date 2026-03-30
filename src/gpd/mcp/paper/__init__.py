@@ -39,6 +39,7 @@ from gpd.mcp.paper.models import (
     ReviewSupportStatus,
     Section,
     StageReviewReport,
+    derive_output_filename,
 )
 from gpd.mcp.paper.review_artifacts import (
     read_claim_index,
@@ -75,6 +76,7 @@ __all__ = [
     "ReviewSupportStatus",
     "Section",
     "StageReviewReport",
+    "derive_output_filename",
     "build_bibliography",
     "build_bibliography_with_audit",
     "build_paper",

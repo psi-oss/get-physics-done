@@ -28,9 +28,9 @@ This graph therefore includes:
 
 - `src/gpd/commands/*.md`: `65`
 - `src/gpd/agents/*.md`: `23`
-- `src/gpd/specs/workflows/*.md`: `66`
+- `src/gpd/specs/workflows/*.md`: `68`
 - `src/gpd/specs/templates/**/*.md`: `71`
-- `src/gpd/specs/references/**/*.md`: `162`
+- `src/gpd/specs/references/**/*.md`: `164`
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `10`
 - `src/gpd/mcp/servers/*.py`: `8`
@@ -729,12 +729,8 @@ flowchart TD
 - `src/gpd/specs/workflows/execute-phase.md -> selector tree {phase classification, force-sequential, YOLO restrictions, inter-wave verification gates}`
   `selector-input`
 
-<<<<<<< HEAD
-=======
 - `src/gpd/specs/workflows/execute-phase.md -> src/gpd/specs/{references/orchestration/meta-orchestration.md,references/orchestration/checkpoints.md,references/orchestration/continuous-execution.md,references/verification/core/verification-core.md,templates/summary.md,templates/continuation-prompt.md,templates/paper/figure-tracker.md,templates/paper/experimental-comparison.md,templates/recovery-plan.md}`
   `include`
-
->>>>>>> origin/feature/continuous-run-checkpoints
 - `src/gpd/specs/workflows/execute-plan.md -> src/gpd/specs/references/protocols/error-propagation-protocol.md`
   `include`
 

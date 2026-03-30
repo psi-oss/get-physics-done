@@ -29,7 +29,14 @@ from gpd.mcp.paper.bibliography import (
 )
 from gpd.mcp.paper.figures import _prepare_figures_with_sources
 from gpd.mcp.paper.journal_map import get_journal_spec
-from gpd.mcp.paper.models import FigureRef, JournalSpec, PaperConfig, PaperOutput, PaperToolchainCapability
+from gpd.mcp.paper.models import (
+    FigureRef,
+    JournalSpec,
+    PaperConfig,
+    PaperOutput,
+    PaperToolchainCapability,
+    derive_output_filename,
+)
 from gpd.mcp.paper.template_registry import render_paper
 
 logger = logging.getLogger(__name__)
@@ -616,8 +623,12 @@ async def build_paper(
     if bib_stem != config.bib_file:
         config = config.model_copy(update={"bib_file": bib_stem})
     tex_content = render_paper(config)
-    tex_path = output_dir / "main.tex"
+    output_stem = derive_output_filename(config)
+    tex_path = output_dir / f"{output_stem}.tex"
     await asyncio.to_thread(tex_path.write_text, tex_content, encoding="utf-8")
+    canonical_tex_path = output_dir / "main.tex"
+    if canonical_tex_path != tex_path:
+        await asyncio.to_thread(canonical_tex_path.write_text, tex_content, encoding="utf-8")
 
     manifest = build_artifact_manifest(
         config,
@@ -652,6 +663,10 @@ async def build_paper(
 
     # 5. Compile
     result = await compile_paper(tex_path, output_dir, compiler=spec.compiler)
+    if result.pdf_path is not None and result.pdf_path.exists() and output_stem != "main":
+        canonical_pdf_path = (output_dir / "main.pdf").resolve(strict=False)
+        if result.pdf_path.resolve(strict=False) != canonical_pdf_path:
+            await asyncio.to_thread(shutil.copyfile, result.pdf_path, canonical_pdf_path)
 
     if not result.success and result.error:
         errors.append(result.error)
