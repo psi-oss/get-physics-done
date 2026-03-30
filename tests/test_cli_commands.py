@@ -958,11 +958,11 @@ class TestResultCommands:
     def test_search(self) -> None:
         _invoke("result", "search")
 
-    def test_upsert(self) -> None:
+    def test_upsert_by_equation(self) -> None:
         _invoke("result", "upsert", "--equation", "E = mc^2", "--description", "Mass-energy relation")
 
-    def test_upsert(self) -> None:
-        _invoke("result", "upsert", "--equation", "E = mc^2", "--description", "Energy relation")
+    def test_upsert_by_description(self) -> None:
+        _invoke("result", "upsert", "--description", "Energy relation")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

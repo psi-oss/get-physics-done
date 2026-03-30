@@ -456,9 +456,9 @@ If no stable `result_id` is available yet, use the equation-matching form instea
 gpd result upsert --equation "{final_equation}" --description "{short description}" --phase "{phase}" --validity "{validity}" [--depends-on "{comma-separated ids}"]
 ```
 
-This updates the existing canonical entry when `result_id` is already present, reuses a unique exact equation match in the same phase when `result_id` is absent, and only adds a new registry entry when no safe match exists.
+This updates the existing canonical entry when `result_id` is already present, reuses a unique exact equation match in the same phase when `result_id` is absent, falls back to a unique exact description match when the equation is not yet stable, and only adds a new registry entry when no safe match exists.
 
-If `gpd result upsert` reports multiple matches for the same equation, STOP and disambiguate with an explicit `result_id` or narrower `phase`. Do not guess which registry entry should be canonical.
+If `gpd result upsert` reports multiple matches for the same equation or description, STOP and disambiguate with an explicit `result_id` or narrower `phase`. Do not guess which registry entry should be canonical.
 
 If the upsert path is unavailable, fall back to the existing add/update pair:
 

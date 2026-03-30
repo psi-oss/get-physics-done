@@ -28,7 +28,8 @@ def test_derive_equation_workflow_reuses_prior_results_and_persists_final_equati
     assert "**Step 6: Persist Canonical Result**" in text
     assert "gpd result upsert --id \"{result_id}\"" in text
     assert "gpd result upsert --equation \"{final_equation}\"" in text
-    assert "If `gpd result upsert` reports multiple matches" in text
+    assert "falls back to a unique exact description match" in text
+    assert "If `gpd result upsert` reports multiple matches for the same equation or description" in text
     assert "gpd result add --id \"{result_id}\"" in text
     assert "gpd result update \"{result_id}\"" in text
     assert "Keep `verified=false` unless the derivation also produced verification evidence" in text
