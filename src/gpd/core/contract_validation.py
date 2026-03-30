@@ -6,6 +6,7 @@ import copy
 import re
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
 from pydantic import ValidationError as PydanticValidationError
@@ -218,6 +219,9 @@ def _format_schema_error(error: dict[str, object]) -> str:
     if "valid dictionary" in message.lower():
         actual_type = type(input_value).__name__
         return f"{location} must be an object, not {actual_type}"
+
+    if message == "Value error, must not be blank":
+        return f"{location} must not be blank"
 
     if message in {"Value error, must be a non-empty string", "Value error, value must not be blank"}:
         return f"{location} must be a non-empty string"
@@ -536,6 +540,8 @@ def _collect_list_shape_drift_errors(contract: dict[str, object]) -> list[str]:
             raw_value = mapping.get(field_name)
             if isinstance(raw_value, list):
                 continue
+            if isinstance(raw_value, str) and not raw_value.strip():
+                continue
             location = f"{path_prefix}.{field_name}" if path_prefix else field_name
             errors.append(f"{location} must be a list, not {type(raw_value).__name__}")
 
@@ -640,13 +646,49 @@ def _light_contract_consistency_errors(contract: ResearchContract) -> list[str]:
 
     return errors
 
-def _is_project_artifact_path(value: str) -> bool:
+def _resolve_project_artifact_path(value: str, *, project_root: Path | None) -> Path | None:
+    """Resolve *value* to an existing project-local artifact path when possible."""
+
+    candidate = value.strip()
+    if not candidate or project_root is None:
+        return None
+    root = project_root.expanduser().resolve(strict=False)
+    path = Path(candidate).expanduser()
+    resolved = (path if path.is_absolute() else root / path).resolve(strict=False)
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        return None
+    if not resolved.is_file():
+        return None
+    return resolved
+
+
+def _is_concrete_external_http_locator(
+    value: str,
+    *,
+    reference_kind: str,
+) -> bool:
+    """Return whether *value* is a concrete external URL for the requested kind."""
+
+    if reference_kind not in {"dataset", "spec", "prior_artifact"}:
+        return False
+
+    parsed = urlparse(value.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return False
+    return (parsed.path not in {"", "/"}) or bool(parsed.query or parsed.fragment)
+
+
+def _is_project_artifact_path(value: str, *, project_root: Path | None = None) -> bool:
     """Return whether *value* names a concrete prior-output artifact path."""
 
     candidate = value.strip()
     if not candidate:
         return False
-    return any(pattern.search(candidate) for pattern in _PROJECT_ARTIFACT_PATH_PATTERNS)
+    if not any(pattern.search(candidate) for pattern in _PROJECT_ARTIFACT_PATH_PATTERNS):
+        return False
+    return _resolve_project_artifact_path(candidate, project_root=project_root) is not None
 
 
 def _is_concrete_text_grounding(value: str) -> bool:
@@ -672,11 +714,18 @@ def _is_concrete_text_grounding(value: str) -> bool:
     return any(pattern.search(lowered) for pattern in _CONCRETE_TEXT_ANCHOR_PATTERNS)
 
 
-def _is_concrete_reference_locator(value: str) -> bool:
+def _is_concrete_reference_locator(
+    value: str,
+    *,
+    reference_kind: str = "paper",
+    project_root: Path | None = None,
+) -> bool:
     """Return whether *value* names a concrete reference locator rather than a placeholder."""
 
     lowered = value.casefold().strip()
     if not lowered:
+        return False
+    if any(pattern.search(lowered) for pattern in _REFERENCE_LOCATOR_PLACEHOLDER_PATTERNS):
         return False
     if any(pattern.search(lowered) for pattern in _REFERENCE_LOCATOR_CONCRETE_PATTERNS):
         return True
@@ -684,10 +733,13 @@ def _is_concrete_reference_locator(value: str) -> bool:
         r"\b\d+\b", lowered
     ):
         return True
+    if _is_concrete_external_http_locator(value, reference_kind=reference_kind):
+        return True
+    if reference_kind == "user_anchor":
+        return _is_concrete_text_grounding(value)
     if any(pattern.search(lowered) for pattern in _PROJECT_ARTIFACT_PATH_PATTERNS):
-        candidate = Path(value.strip()).expanduser()
-        if not candidate.is_absolute() and len(candidate.parts) > 1 and ".." not in candidate.parts:
-            return True
+        if reference_kind in {"dataset", "prior_artifact", "spec"}:
+            return _is_project_artifact_path(value, project_root=project_root)
         return False
     return False
 
@@ -701,26 +753,43 @@ def _is_placeholder_reference_locator(value: str) -> bool:
     return any(pattern.search(lowered) for pattern in _REFERENCE_LOCATOR_PLACEHOLDER_PATTERNS)
 
 
-def _has_concrete_grounding_entries(values: list[str], *, field_name: str) -> bool:
+def _has_concrete_grounding_entries(
+    values: list[str],
+    *,
+    field_name: str,
+    project_root: Path | None = None,
+) -> bool:
     """Return whether any grounding entry is concrete for the requested field."""
 
     if field_name == "must_include_prior_outputs":
-        return any(_is_project_artifact_path(value) for value in values)
+        return any(_is_project_artifact_path(value, project_root=project_root) for value in values)
     if field_name in {"user_asserted_anchors", "known_good_baselines"}:
         return any(_is_concrete_text_grounding(value) for value in values)
     raise ValueError(f"Unsupported grounding field {field_name!r}")
 
 
-def _has_concrete_must_surface_reference(contract: ResearchContract) -> bool:
+def _has_concrete_must_surface_reference(
+    contract: ResearchContract,
+    *,
+    project_root: Path | None = None,
+) -> bool:
     """Return whether the contract includes a concrete must_surface reference."""
 
     for reference in contract.references:
-        if reference.must_surface and _is_concrete_reference_locator(reference.locator):
+        if reference.must_surface and _is_concrete_reference_locator(
+            reference.locator,
+            reference_kind=reference.kind,
+            project_root=project_root,
+        ):
             return True
     return False
 
 
-def _has_approved_grounding_signal(contract: ResearchContract) -> bool:
+def _has_approved_grounding_signal(
+    contract: ResearchContract,
+    *,
+    project_root: Path | None = None,
+) -> bool:
     """Return whether approved-mode grounding is explicitly captured.
 
     Prior outputs count here because the new-project scoping gate allows a
@@ -730,24 +799,31 @@ def _has_approved_grounding_signal(contract: ResearchContract) -> bool:
 
     return any(
         (
-            _has_concrete_must_surface_reference(contract),
+            _has_concrete_must_surface_reference(contract, project_root=project_root),
             _has_concrete_grounding_entries(
                 contract.context_intake.must_include_prior_outputs,
                 field_name="must_include_prior_outputs",
+                project_root=project_root,
             ),
             _has_concrete_grounding_entries(
                 contract.context_intake.user_asserted_anchors,
                 field_name="user_asserted_anchors",
+                project_root=project_root,
             ),
             _has_concrete_grounding_entries(
                 contract.context_intake.known_good_baselines,
                 field_name="known_good_baselines",
+                project_root=project_root,
             ),
         )
     )
 
 
-def _has_non_reference_grounding_signal(contract: ResearchContract) -> bool:
+def _has_non_reference_grounding_signal(
+    contract: ResearchContract,
+    *,
+    project_root: Path | None = None,
+) -> bool:
     """Return whether grounding is explicitly supplied outside references."""
 
     return any(
@@ -755,14 +831,17 @@ def _has_non_reference_grounding_signal(contract: ResearchContract) -> bool:
             _has_concrete_grounding_entries(
                 contract.context_intake.must_include_prior_outputs,
                 field_name="must_include_prior_outputs",
+                project_root=project_root,
             ),
             _has_concrete_grounding_entries(
                 contract.context_intake.user_asserted_anchors,
                 field_name="user_asserted_anchors",
+                project_root=project_root,
             ),
             _has_concrete_grounding_entries(
                 contract.context_intake.known_good_baselines,
                 field_name="known_good_baselines",
+                project_root=project_root,
             ),
         )
     )
@@ -772,6 +851,7 @@ def validate_project_contract(
     contract: ResearchContract | dict[str, object],
     *,
     mode: Literal["draft", "approved"] = "draft",
+    project_root: Path | None = None,
 ) -> ProjectContractValidationResult:
     """Validate that a project-level contract is strong enough to guide planning.
 
@@ -839,7 +919,7 @@ def validate_project_contract(
 
     errors.extend(_light_contract_consistency_errors(parsed))
 
-    has_non_reference_grounding = _has_non_reference_grounding_signal(parsed)
+    has_non_reference_grounding = _has_non_reference_grounding_signal(parsed, project_root=project_root)
 
     if parsed.references and not any(reference.must_surface for reference in parsed.references):
         finding = "references must include at least one must_surface=true anchor"
@@ -848,7 +928,10 @@ def validate_project_contract(
         else:
             warnings.append(finding)
 
-    if mode == "approved" and decisive_target_count > 0 and not _has_approved_grounding_signal(parsed):
+    if mode == "approved" and decisive_target_count > 0 and not _has_approved_grounding_signal(
+        parsed,
+        project_root=project_root,
+    ):
         errors.append(
             "approved project contract requires at least one concrete anchor/reference/prior-output/baseline; explicit missing-anchor notes preserve uncertainty but do not satisfy approval on their own"
         )

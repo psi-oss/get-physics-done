@@ -17,6 +17,7 @@ import logging
 import os
 import re
 import shutil
+from collections.abc import Mapping
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
@@ -130,6 +131,37 @@ def convert_tool_name(tool_name: str) -> str:
     """
     mapped = translate_for_runtime(tool_name, _TOOL_NAME_MAP)
     return mapped if mapped is not None else tool_name
+
+
+def _project_managed_mcp_servers(env: Mapping[str, str] | None = None) -> dict[str, dict[str, object]]:
+    """Project shared optional integrations into OpenCode's neutral MCP shape."""
+    from gpd.mcp.managed_integrations import list_managed_integrations
+
+    managed_servers: dict[str, dict[str, object]] = {}
+    for integration in list_managed_integrations().values():
+        if not integration.is_configured(env):
+            continue
+
+        entry: dict[str, object] = {
+            "command": integration.bridge_command,
+            "args": [],
+        }
+        endpoint = integration.resolved_endpoint(env)
+        if endpoint and endpoint != integration.default_endpoint:
+            entry["env"] = {integration.endpoint_env_var: endpoint}
+
+        managed_servers[integration.managed_server_key] = entry
+
+    return managed_servers
+
+
+def _managed_mcp_server_keys() -> frozenset[str]:
+    """Return GPD-managed OpenCode MCP server keys, including optional integrations."""
+    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+    from gpd.mcp.managed_integrations import list_managed_integrations
+
+    managed_keys = {integration.managed_server_key for integration in list_managed_integrations().values()}
+    return frozenset({*GPD_MCP_SERVER_KEYS, *managed_keys})
 
 
 # ---------------------------------------------------------------------------
@@ -477,6 +509,20 @@ def _write_opencode_config(config_dir: Path, config: dict[str, object]) -> None:
     (config_dir / "opencode.json").write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 
 
+def _read_opencode_config_state(config_dir: Path) -> tuple[dict[str, object] | None, str | None]:
+    """Return parsed OpenCode config and a malformed marker when parsing fails."""
+    config_path = config_dir / "opencode.json"
+    if not config_path.exists():
+        return None, None
+    try:
+        parsed = parse_jsonc(config_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, ValueError):
+        return None, "malformed"
+    if not isinstance(parsed, dict):
+        return None, "malformed"
+    return parsed, None
+
+
 def _clone_json_value(value: object) -> object:
     """Deep-copy JSON-compatible values."""
     return json.loads(json.dumps(value))
@@ -788,9 +834,7 @@ def uninstall_opencode(target_dir: Path, *, config_dir: Path) -> dict[str, int]:
         except (json.JSONDecodeError, OSError):
             oc_mcp = None
         if isinstance(oc_mcp, dict) and isinstance(oc_mcp.get("mcp"), dict):
-            from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
-            gpd_keys = [k for k in oc_mcp["mcp"] if k in GPD_MCP_SERVER_KEYS]
+            gpd_keys = [k for k in oc_mcp["mcp"] if k in _managed_mcp_server_keys()]
             for k in gpd_keys:
                 del oc_mcp["mcp"][k]
             if gpd_keys:
@@ -1040,6 +1084,9 @@ class OpenCodeAdapter(RuntimeAdapter):
         from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
         mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+        managed_mcp_servers = _project_managed_mcp_servers()
+        if managed_mcp_servers:
+            mcp_servers.update(managed_mcp_servers)
         mcp_count = 0
         if mcp_servers:
             mcp_count = _write_mcp_servers_opencode(target_dir, mcp_servers)
@@ -1054,20 +1101,32 @@ class OpenCodeAdapter(RuntimeAdapter):
     def runtime_permissions_status(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
         """Report whether OpenCode permissions are aligned with GPD autonomy."""
         config_path = target_dir / "opencode.json"
-        config = _read_opencode_config(target_dir)
+        config, config_parse_error = _read_opencode_config_state(target_dir)
+        config_valid = config_parse_error is None
+        config = config or {}
         permission_value = config.get("permission")
         desired_mode = "yolo" if autonomy == "yolo" else "default"
         managed_state = self._runtime_permissions_manifest_state(target_dir) or {}
         managed_by_gpd = managed_state.get("mode") == "yolo"
-        configured_mode = "yolo" if _opencode_permission_is_yolo(permission_value) else "default"
+        configured_mode = "malformed" if not config_valid else "yolo" if _opencode_permission_is_yolo(permission_value) else "default"
+        requires_relaunch = False
+        next_step: str | None = None
 
-        if desired_mode == "yolo":
+        if not config_valid:
+            config_aligned = False
+            message = "OpenCode opencode.json is malformed; GPD will not treat it as a defaulted permission state."
+        elif desired_mode == "yolo":
             config_aligned = configured_mode == "yolo"
+            requires_relaunch = config_aligned
             message = (
                 "OpenCode is configured for prompt-free permissions on the next session."
                 if config_aligned
                 else 'OpenCode is not yet configured for prompt-free execution; set `permission` to `"allow"`.'
             )
+            if config_aligned:
+                next_step = (
+                    "Restart OpenCode so the current session picks up the prompt-free permission setting."
+                )
         else:
             config_aligned = not managed_by_gpd
             if managed_by_gpd:
@@ -1085,14 +1144,28 @@ class OpenCodeAdapter(RuntimeAdapter):
             "desired_mode": desired_mode,
             "configured_mode": configured_mode,
             "config_aligned": config_aligned,
+            "requires_relaunch": requires_relaunch,
             "managed_by_gpd": managed_by_gpd,
             "settings_path": str(config_path),
+            "config_valid": config_valid,
+            "config_parse_error": config_parse_error,
             "message": message,
+            "next_step": next_step,
         }
 
     def sync_runtime_permissions(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
         """Align OpenCode permissions with the requested autonomy mode."""
-        config = _read_opencode_config(target_dir)
+        config, config_parse_error = _read_opencode_config_state(target_dir)
+        if config_parse_error is not None:
+            status = self.runtime_permissions_status(target_dir, autonomy=autonomy)
+            return {
+                **status,
+                "changed": False,
+                "sync_applied": False,
+                "requires_relaunch": False,
+                "warning": "OpenCode opencode.json is malformed; GPD will not overwrite it.",
+            }
+        config = config or {}
         changed = False
 
         if autonomy == "yolo":

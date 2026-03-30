@@ -319,7 +319,7 @@ None yet.
     assert result["pending_todos"] == existing["pending_todos"]
 
 
-def test_sync_state_json_core_placeholder_fields_clear_stale_json_values(tmp_path: Path) -> None:
+def test_sync_state_json_core_placeholder_fields_preserve_existing_session_continuity(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
     planning = cwd / "GPD"
 
@@ -344,9 +344,9 @@ def test_sync_state_json_core_placeholder_fields_clear_stale_json_values(tmp_pat
 
     assert result["project_reference"]["core_research_question"] is None
     assert result["project_reference"]["current_focus"] is None
-    assert result["session"]["last_date"] is None
-    assert result["session"]["stopped_at"] is None
-    assert result["session"]["resume_file"] is None
+    assert result["session"]["last_date"] == "2026-03-01T10:00:00+00:00"
+    assert result["session"]["stopped_at"] == "Old stop"
+    assert result["session"]["resume_file"] == "resume.md"
     assert result["performance_metrics"]["rows"] == []
 
 

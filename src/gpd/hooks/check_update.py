@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from gpd.adapters.install_utils import CACHE_DIR_NAME, GPD_INSTALL_DIR_NAME, UPDATE_CACHE_FILENAME
-from gpd.core.constants import ENV_GPD_DEBUG, PLANNING_DIR_NAME
+from gpd.core.constants import ENV_GPD_DEBUG
 from gpd.hooks.install_metadata import config_dir_has_complete_install
 
 SECONDS_PER_HOUR = 3600
@@ -256,12 +256,12 @@ def main(argv: list[str] | None = None) -> None:
 
     from gpd.hooks.runtime_detect import (
         ALL_RUNTIMES,
-        RUNTIME_UNKNOWN,
         UpdateCacheCandidate,
-        detect_active_runtime_with_gpd_install,
-        detect_runtime_for_gpd_use,
-        get_update_cache_candidates,
-        should_consider_update_cache_candidate,
+    )
+    from gpd.hooks.update_resolution import (
+        ordered_update_cache_candidates,
+        primary_update_cache_file,
+        resolve_update_cache_inputs,
     )
 
     resolved_cwd = Path.cwd()
@@ -271,41 +271,17 @@ def main(argv: list[str] | None = None) -> None:
         cache_file = self_config_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME
         relevant_candidates = [UpdateCacheCandidate(path=cache_file)]
     else:
-        cache_candidates = get_update_cache_candidates(cwd=resolved_cwd, home=resolved_home)
-        active_installed_runtime = detect_active_runtime_with_gpd_install(cwd=resolved_cwd, home=resolved_home)
-        preferred_runtime = detect_runtime_for_gpd_use(cwd=resolved_cwd, home=resolved_home)
-        relevant_candidates = [
-            candidate
-            for candidate in cache_candidates
-            if should_consider_update_cache_candidate(
-                candidate,
-                active_installed_runtime=active_installed_runtime,
-                cwd=resolved_cwd,
-                home=resolved_home,
-            )
-        ]
-        if active_installed_runtime in (None, "", RUNTIME_UNKNOWN) and preferred_runtime in ALL_RUNTIMES:
-            preferred_candidates = [candidate for candidate in cache_candidates if candidate.runtime == preferred_runtime]
-            fallback_candidates = [candidate for candidate in relevant_candidates if candidate.runtime is None]
-            if preferred_candidates:
-                seen_paths: set[Path] = set()
-                preferred_first: list[UpdateCacheCandidate] = []
-                for candidate in [*preferred_candidates, *fallback_candidates]:
-                    if candidate.path in seen_paths:
-                        continue
-                    seen_paths.add(candidate.path)
-                    preferred_first.append(candidate)
-                relevant_candidates = preferred_first
-            relevant_candidates = [
-                candidate
-                for candidate in relevant_candidates
-                if candidate.runtime in (None, preferred_runtime)
-            ]
-        cache_file = (
-            relevant_candidates[0].path
-            if relevant_candidates
-            else (resolved_home / PLANNING_DIR_NAME / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
+        workspace_path, resolved_home, active_installed_runtime, preferred_runtime = resolve_update_cache_inputs(
+            cwd=resolved_cwd,
+            home=resolved_home,
         )
+        relevant_candidates = ordered_update_cache_candidates(
+            cwd=workspace_path,
+            home=resolved_home,
+            active_installed_runtime=active_installed_runtime,
+            preferred_runtime=preferred_runtime,
+        )
+        cache_file = primary_update_cache_file(relevant_candidates, home=resolved_home)
 
     # Throttle: skip only when the preferred runtime/home cache set is still fresh.
     has_runtime_specific_candidate = any(candidate.runtime in ALL_RUNTIMES for candidate in relevant_candidates)

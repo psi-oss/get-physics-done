@@ -79,7 +79,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `phases`, `current_phase`, `next_phase`, `milestone_version`, `completed_count`, `phase_count`, `paused_at`, `autonomy`, `research_mode`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`.
+Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `phases`, `current_phase`, `next_phase`, `milestone_version`, `completed_count`, `phase_count`, `paused_at`, `autonomy`, `research_mode`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `derived_convention_lock`, `derived_convention_lock_count`, `derived_intermediate_results`, `derived_intermediate_result_count`, `derived_approximations`, `derived_approximation_count`.
 
 **File contents (from --include):** `state_content`, `roadmap_content`, `project_content`, `config_content`. These are null if files don't exist.
 
@@ -310,7 +310,7 @@ Read its `<objective>` section.
 
 `/gpd:execute-phase {phase}`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:execute-phase {phase}`</sub>
 
 ---
 ```
@@ -333,7 +333,7 @@ Check if `{phase}-CONTEXT.md` exists in phase directory.
 
 `/gpd:plan-phase {phase-number}`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:plan-phase {phase-number}`</sub>
 
 ---
 ```
@@ -349,7 +349,7 @@ Check if `{phase}-CONTEXT.md` exists in phase directory.
 
 `/gpd:discuss-phase {phase}` — gather context and clarify approach
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:discuss-phase {phase}`</sub>
 
 ---
 
@@ -377,7 +377,7 @@ Examples: [e.g., "Dimension mismatch in eq. 14", "Wrong sign in g -> 0 limit"]
 
 `/gpd:plan-phase {phase} --gaps`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:plan-phase {phase} --gaps`</sub>
 
 ---
 
@@ -403,7 +403,7 @@ Gap-closure plans were created by `/gpd:plan-phase --gaps` but have not been exe
 
 `/gpd:execute-phase {phase} --gaps-only`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:execute-phase {phase} --gaps-only`</sub>
 
 ---
 
@@ -451,7 +451,7 @@ Read ROADMAP.md to get the next phase's name and goal.
 
 `/gpd:discuss-phase {Z+1}` — gather context and clarify approach
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:discuss-phase {Z+1}`</sub>
 
 ---
 
@@ -479,7 +479,7 @@ All {N} phases finished!
 
 `/gpd:complete-milestone`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:complete-milestone`</sub>
 
 ---
 
@@ -510,7 +510,7 @@ Ready to plan the next research direction.
 
 `/gpd:new-milestone`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:new-milestone`</sub>
 
 ---
 ```

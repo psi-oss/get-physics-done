@@ -18,6 +18,8 @@ Parse the returned JSON.
 - If `project_exists=true`, operate in project-context mode.
 - If `project_exists=false`, require an explicit concept/topic from `$ARGUMENTS` and operate in standalone mode.
 - If the request is empty or too vague to explain meaningfully, ask one clarifying question.
+- If structured citation-source fields are present in init payloads, treat them as the preferred paper catalog for follow-up links and reference IDs.
+- If the concept maps to a canonical stored result and the `result_id` is already known, prefer `gpd result show "{result_id}"` for the direct stored result view before dependency tracing.
 </step>
 
 <step name="scope_request">
@@ -33,6 +35,8 @@ Determine what kind of explanation is needed.
    - Brief operational clarification if the request is narrow and local
    - Full conceptual + formal explanation if the request is broader or foundational
 4. Generate a slug for the output file from the concept.
+5. If structured citation-source metadata is available, prefer it over prose-only reference reconstruction when selecting papers to mention or link.
+6. If a canonical `result_id` is already known, use `gpd result show "{result_id}"` before `gpd result deps "{result_id}"` when the explanation needs the direct stored result view.
 
 **Important:** Do not default to a generic textbook exposition. The explanation must answer why this matters in the user's current workflow or requested standalone task.
 </step>
@@ -50,6 +54,11 @@ Use the init payload to extract:
 - Current phase and next phase
 - Whether work is paused or currently executing
 - Research mode, autonomy mode, and model profile
+- Any structured citation-source catalog fields such as `citation_source_files`, `citation_source_count`, and `derived_citation_sources`
+- Any manuscript-local reference status surfaced as `derived_manuscript_reference_status` when the explanation is about the active paper or manuscript
+- Any canonical result metadata you can recover through `gpd result search` when the concept maps to a derived equation, result, or quantity already stored in `intermediate_results`
+- When a canonical `result_id` is already known, use `gpd result show "{result_id}"` before `gpd result deps "{result_id}"` so the explainer can ground the explanation on the stored result directly
+- Any upstream dependency context you can recover through `gpd result deps "{result_id}"` once a canonical result has been identified and the explanation needs to show where it comes from
 
 Search the local workspace for relevant mentions of the requested concept:
 
@@ -63,6 +72,10 @@ Also check for nearby high-value context when present:
 - Current phase `PLAN.md`, `SUMMARY.md`, `RESEARCH.md`, `VERIFICATION.md`
 - `paper/`, `manuscript/`, or `GPD/paper/`
 - Existing `GPD/literature/*REVIEW.md`
+- Existing `GPD/literature/*-CITATION-SOURCES.json`
+- Existing manuscript-local `BIBLIOGRAPHY-AUDIT.json` when available
+- Existing canonical result entries surfaced by `gpd result search --text "{concept}"` or `gpd result search --equation "{concept}"`
+- The recorded dependency chain from `gpd result deps "{result_id}"` when a canonical stored result is central to the explanation
 
 If no project context exists, gather only the user request plus any relevant local files in the current working directory.
 
@@ -106,9 +119,11 @@ Explain the following concept rigorously and in context: {concept}
 4. Give the rigorous core: definition, physical meaning, assumptions, limits, and equations/derivation where needed.
 5. Connect the concept to this project's files, conventions, current phase, or manuscript claims when available.
 6. Distinguish established literature facts from project-specific assumptions or interpretations.
-7. Include a literature guide with papers the user can open directly. Prefer arXiv abstract links when available; otherwise use DOI or INSPIRE links.
-8. Never fabricate citations. If a reference is uncertain, mark it clearly as unverified instead of guessing.
-9. Close with common confusions, failure modes, and the next questions the user should ask.
+7. If structured citation-source metadata is available, use it to keep the literature guide tied to stable `reference_id` entries and openable URLs.
+8. If a canonical `result_id` is already known, use `gpd result show "{result_id}"` before `gpd result deps "{result_id}"` when the direct stored result view is relevant.
+9. Include a literature guide with papers the user can open directly. Prefer arXiv abstract links when available; otherwise use DOI or INSPIRE links.
+10. Never fabricate citations. If a reference is uncertain, mark it clearly as unverified instead of guessing.
+11. Close with common confusions, failure modes, and the next questions the user should ask.
 </requirements>
 
 <output>

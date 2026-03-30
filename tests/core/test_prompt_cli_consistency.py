@@ -5,7 +5,26 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from gpd.core.public_surface_contract import resume_authority_fields
 from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter
+from tests.doc_surface_contracts import (
+    DOCTOR_RUNTIME_SCOPE_RE,
+    assert_beginner_startup_routing_contract,
+    assert_cost_advisory_contract,
+    assert_cost_surface_discoverability,
+    assert_help_command_quick_start_extract_contract,
+    assert_help_workflow_quick_start_taxonomy_contract,
+    assert_help_workflow_runtime_reference_contract,
+    assert_recovery_ladder_contract,
+    assert_resume_authority_contract,
+    assert_runtime_reset_rediscovery_contract,
+    assert_start_workflow_router_contract,
+    assert_tour_command_surface_contract,
+    assert_unattended_readiness_contract,
+    assert_wolfram_plan_boundary_contract,
+    assert_workflow_preset_surface_contract,
+    resume_compat_alias_fields,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CLI_PATH = REPO_ROOT / "src/gpd/cli.py"
@@ -19,13 +38,18 @@ PROMPT_ROOTS = (
     REPO_ROOT / "src/gpd/specs/templates",
 )
 GRAPH_PATH = REPO_ROOT / "tests" / "README.md"
-
 ROOT_COMMAND_RE = re.compile(r"@app\.command\(\s*\"([a-z0-9-]+)\"(?:,|\))", re.MULTILINE)
 TYPER_GROUP_RE = re.compile(r"app\.add_typer\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*name=\"([a-z0-9-]+)\"", re.MULTILINE)
 GROUP_COMMAND_RE = re.compile(r"@{group}\.command\(\s*\"([a-z0-9-]+)\"(?:,|\))", re.MULTILINE)
 NON_CANONICAL_GPD_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9_./}])(?:\$gpd-[A-Za-z0-9{}-]+|/gpd-[A-Za-z0-9{}-]+)(?!\.md)")
 RAW_AFTER_SUBCOMMAND_RE = re.compile(r"\bgpd\s+(?!--raw\b)[^`\n]*\s+--raw\b")
 SUMMARY_EXTRACT_FIELDS_RE = re.compile(r"\bgpd\s+summary-extract\b[^\n`]*\s--fields\b")
+
+
+def _extract_between(content: str, start_marker: str, end_marker: str) -> str:
+    start = content.index(start_marker) + len(start_marker)
+    end = content.index(end_marker, start)
+    return content[start:end]
 
 
 def _iter_prompt_sources() -> list[Path]:
@@ -128,31 +152,203 @@ def test_prompt_sources_use_canonical_gpd_command_syntax() -> None:
     assert invalid == []
 
 
-def test_help_prompt_command_count_matches_live_inventory() -> None:
-    command_count = len(list(COMMANDS_DIR.glob("*.md")))
+def test_help_prompt_delegates_full_reference_to_workflow() -> None:
     help_prompt = (REPO_ROOT / "src/gpd/commands/help.md").read_text(encoding="utf-8")
 
-    assert f"Run `/gpd:help --all` for all {command_count} commands." in help_prompt
+    assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_prompt
+    assert "workflow-owned help surface" in help_prompt
+    assert "Output the complete `<reference>` block from the loaded workflow help file verbatim." in help_prompt
+
+
+def test_help_prompt_default_quick_start_extracts_workflow_owned_sections() -> None:
+    help_prompt = (COMMANDS_DIR / "help.md").read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    quick_start = _extract_between(
+        help_prompt,
+        "## Step 2: Quick Start Extract (Default Output)",
+        "## Step 3: Full Command Reference (--all)",
+    )
+
+    assert_help_command_quick_start_extract_contract(quick_start)
+    assert_help_workflow_runtime_reference_contract(help_workflow)
+    quick_start_reference = _extract_between(help_workflow, "## Quick Start", "## Core Workflow")
+    assert_help_workflow_quick_start_taxonomy_contract(quick_start_reference)
+    assert_beginner_startup_routing_contract(quick_start_reference)
+    assert "Usage: `/gpd:start`" not in quick_start_reference
+    assert "## Core Workflow" in help_workflow
+    assert "/gpd:new-project -> /gpd:discuss-phase -> /gpd:plan-phase -> /gpd:execute-phase -> /gpd:verify-work -> repeat" in help_workflow
+    assert "gpd init new-project" not in help_workflow
+    later_capabilities = help_workflow.split("## What comes later after startup", 1)[1]
+    for token in ("/gpd:discuss-phase", "/gpd:write-paper", "/gpd:tangent", "/gpd:settings"):
+        assert token in later_capabilities
+
+
+def test_help_prompt_keeps_workflow_preset_readiness_on_local_cli_surface() -> None:
+    help_command = (COMMANDS_DIR / "help.md").read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    quick_start = _extract_between(
+        help_command,
+        "## Step 2: Quick Start Extract (Default Output)",
+        "## Step 3: Full Command Reference (--all)",
+    )
+
+    assert "Include the workflow-owned `## Invocation Surfaces` section." in quick_start
+    assert "Include the workflow-owned `## Quick Start` section." in quick_start
+    assert "Append this one wrapper-owned line" in quick_start
+    assert_help_workflow_runtime_reference_contract(help_workflow)
+    assert "executable probes" in help_workflow
+    assert "pdflatex" in help_workflow
+    assert "wolframscript" in help_workflow
+    assert DOCTOR_RUNTIME_SCOPE_RE.search(help_workflow) is not None
+    assert_wolfram_plan_boundary_contract(help_workflow)
+    assert_workflow_preset_surface_contract(help_workflow)
+    assert "Workflow preset tooling is layered on top of the base install; it does not change runtime permission alignment." in help_workflow
+
+
+def test_start_prompt_delegates_routing_to_workflow_only() -> None:
+    start_command = (COMMANDS_DIR / "start.md").read_text(encoding="utf-8")
+    start_workflow = (WORKFLOWS_DIR / "start.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/workflows/start.md" in start_command
+    assert "first-stop chooser" in start_command
+    assert "read-only walkthrough when the user wants orientation before choosing a path" in start_command
+    assert "explain them the first time they appear" in start_command
+    assert "/gpd:tour" in start_command
+    assert_start_workflow_router_contract(start_workflow)
+    assert "gpd resume --recent" in start_workflow
+    assert "in your normal terminal to find the project first" in start_workflow
+    assert "The recent-project picker is advisory; choose the workspace there" in start_workflow
+    assert "reloads canonical state for that project." in start_workflow
+    assert "GPD may auto-select it" in start_workflow
+    assert "recent-project picker" in start_workflow
+    assert "Then open that project folder in the runtime and run" in start_workflow
+    assert "`/gpd:resume-work`." in start_workflow
+    assert "the in-runtime continuation step once the recovery ladder has identified the right project" in start_workflow
+    assert "reopened its workspace" in start_workflow
+    assert "Read `{GPD_INSTALL_DIR}/workflows/new-project.md` with the file-read tool." not in start_workflow
+    assert "Read `{GPD_INSTALL_DIR}/workflows/help.md` with the file-read tool." not in start_workflow
+    assert "Read `{GPD_INSTALL_DIR}/workflows/tour.md` with the file-read tool." not in start_workflow
+    assert "{GPD_INSTALL_DIR}/commands/suggest-next.md" not in start_workflow
+
+
+def test_tour_prompt_delegates_routing_to_workflow_only() -> None:
+    tour_command = (COMMANDS_DIR / "tour.md").read_text(encoding="utf-8")
+    tour_workflow = (WORKFLOWS_DIR / "tour.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/workflows/tour.md" in tour_command
+    assert "teaching surface, not a chooser" in tour_command
+    assert "safe beginner walkthrough of the core GPD command paths" in tour_command
+    assert "/gpd:settings" in tour_command
+    assert_tour_command_surface_contract(tour_workflow)
+    assert "$ARGUMENTS" in tour_workflow
+    assert "Do not narrow the command list, select a path, or route based on it." in tour_workflow
+    assert "the runtime, where you use the GPD command prefix provided for that runtime" in tour_workflow
+    assert "Normal terminal vs runtime" in tour_workflow
+
+
+def test_help_workflow_surfaces_start_as_first_run_router() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    quick_start_reference = _extract_between(help_workflow, "## Quick Start", "## Core Workflow")
+
+    assert "/gpd:start" in help_workflow
+    assert "Guided first-run router" in help_workflow
+    assert "/gpd:tour" in help_workflow
+    assert "guided tour" in help_workflow.lower()
+    assert_beginner_startup_routing_contract(quick_start_reference)
+
+
+def test_prompt_docs_keep_wolfram_as_shared_capability_not_runtime_config_surface() -> None:
+    help_command = (COMMANDS_DIR / "help.md").read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    settings_workflow = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+    tooling_ref = (REPO_ROOT / "src/gpd/specs/references/tooling/tool-integration.md").read_text(encoding="utf-8")
+
+    forbidden_tokens = (
+        "gpd-wolfram",
+        "gpd-mcp-wolfram",
+        "GPD_WOLFRAM_MCP_API_KEY",
+        "GPD_WOLFRAM_MCP_ENDPOINT",
+        "WOLFRAM_MCP_SERVICE_API_KEY",
+    )
+    for content in (help_command, help_workflow, settings_workflow):
+        for token in forbidden_tokens:
+            assert token not in content
+
+    assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
+    assert_unattended_readiness_contract(help_workflow)
+    assert_wolfram_plan_boundary_contract(help_workflow)
+    assert "gpd integrations enable wolfram" in help_workflow
+    assert "gpd integrations disable wolfram" in help_workflow
+    assert_workflow_preset_surface_contract(help_workflow)
+
+    assert "Mathematica / Wolfram Language" in tooling_ref
+    assert "declare it as `tool: wolfram` in `tool_requirements`" in tooling_ref
+    assert "gpd validate plan-preflight" in tooling_ref
 
 
 def test_suggest_next_prompt_uses_real_cli_subcommand() -> None:
     suggest_prompt = (REPO_ROOT / "src/gpd/commands/suggest-next.md").read_text(encoding="utf-8")
 
+    assert_runtime_reset_rediscovery_contract(suggest_prompt)
     assert "Uses `gpd --raw suggest`" in suggest_prompt
     assert "Local CLI fallback: `gpd --raw suggest`" in suggest_prompt
+    assert (
+        "If you still need to rediscover the project first, do that in your normal terminal with `gpd resume` for the current workspace or `gpd resume --recent` for the explicit multi-project picker before reopening the runtime."
+        in suggest_prompt
+    )
+    assert "Keep `/clear` as a fresh-context reset, not as a recovery step." in suggest_prompt
+    assert "`/clear` first -> fresh context window, then `{command}`." in suggest_prompt
+    assert (
+        "If you still need to rediscover the project first, do that in your normal terminal with `gpd resume` for the current workspace or `gpd resume --recent` for a different project before reopening the runtime."
+        in suggest_prompt
+    )
+    assert (
+        "`/clear` first -> fresh context window, then `{command}`; if you still need to rediscover the project, use `gpd resume --recent` before reopening the runtime"
+        not in suggest_prompt
+    )
     assert "gpd suggest-next to scan" not in suggest_prompt
+
+
+def test_tangent_prompt_routes_into_existing_workflows() -> None:
+    tangent_command = (COMMANDS_DIR / "tangent.md").read_text(encoding="utf-8")
+    tangent_workflow = (WORKFLOWS_DIR / "tangent.md").read_text(encoding="utf-8")
+
+    assert "name: gpd:tangent" in tangent_command
+    assert "@{GPD_INSTALL_DIR}/workflows/tangent.md" in tangent_command
+    assert "/gpd:quick" in tangent_command
+    assert "/gpd:add-todo" in tangent_command
+    assert "/gpd:branch-hypothesis" in tangent_command
+
+    for token in (
+        "Stay on the main path",
+        "Run a bounded quick check now",
+        "Capture and defer",
+        "Open a hypothesis branch",
+        "live execution review stop surfaces a tangent proposal",
+        "{GPD_INSTALL_DIR}/workflows/quick.md",
+        "{GPD_INSTALL_DIR}/workflows/add-todo.md",
+        "{GPD_INSTALL_DIR}/workflows/branch-hypothesis.md",
+    ):
+        assert token in tangent_workflow
 
 
 def test_progress_prompt_runs_preflight_after_init_context() -> None:
     command = (REPO_ROOT / "src/gpd/commands/progress.md").read_text(encoding="utf-8")
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/progress.md").read_text(encoding="utf-8")
 
-    for content in (command, workflow):
-        assert "INIT=$(gpd init progress --include state,roadmap,project,config)" in content
-        assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" in content
-        assert content.index("INIT=$(gpd init progress --include state,roadmap,project,config)") < content.index(
-            "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")"
-        )
+    assert "INIT=$(gpd init progress --include state,roadmap,project,config)" in command
+    assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" in command
+    assert command.index("INIT=$(gpd init progress --include state,roadmap,project,config)") < command.index(
+        "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")"
+    )
+    assert "The recent-project picker is advisory" in command
+    assert "reloads canonical state for that project" in command
+
+    assert "INIT=$(gpd init progress --include state,roadmap,project,config)" in workflow
+    assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" in workflow
+    assert workflow.index("INIT=$(gpd init progress --include state,roadmap,project,config)") < workflow.index(
+        "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")"
+    )
 
 
 def test_progress_prompt_requires_project_not_roadmap() -> None:
@@ -240,6 +436,44 @@ def test_compare_branches_prompt_keeps_branch_summary_extraction_in_memory() -> 
     assert "do not use `GPD/tmp/`, `/tmp`, or another temp root for this step." in workflow
 
 
+def test_help_prompts_surface_tangent_command_for_side_investigations() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert "/gpd:tangent" in help_workflow
+    assert re.search(r"/gpd:tangent[^\n]*?(?:tangent|side investigation|alternative direction|parallel)", help_workflow, re.I)
+
+
+def test_settings_and_research_mode_docs_keep_tangent_branch_taxonomy_strict() -> None:
+    settings = (WORKFLOWS_DIR / "settings.md").read_text(encoding="utf-8")
+    new_project = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
+    research_modes = (
+        REPO_ROOT / "src/gpd/specs/references/research/research-modes.md"
+    ).read_text(encoding="utf-8")
+
+    assert "Which starting workflow preset should GPD use for `GPD/config.json`?" in new_project
+    assert "offer a preset choice before individual questions" in new_project
+    assert "preset bundle over the existing config knobs" in new_project
+    assert "preview" in new_project
+    assert "writing `GPD/config.json`" in new_project
+    assert "Do not persist a separate preset key." in new_project
+    assert '"Core research (Recommended)"' in new_project
+    assert '"Theory"' in new_project
+    assert '"Numerics"' in new_project
+    assert '"Publication / manuscript"' in new_project
+    assert '"Full research"' in new_project
+    assert "multiple hypothesis branches" not in settings
+    assert "Minimal branching, fast convergence." not in settings
+    assert "auto-switch to exploit once approach is validated" not in settings
+    assert "does **not** by itself authorize git-backed hypothesis branches" in settings
+    assert "surface tangent decisions explicitly" in settings
+    assert "Suppress optional tangents unless the user explicitly requests them" in settings
+    assert "preview" in settings
+    assert "explicit apply or customize choice" in settings
+    assert "do **not** silently create git-backed hypothesis branches" in research_modes
+    assert "only explicit tangent decisions become hypothesis branches or parallel plans" in research_modes
+    assert "Flag complementary approaches as tangent candidates for optional parallel investigation" in research_modes
+
+
 def test_regression_check_prompt_examples_include_optional_phase_before_quick_flag() -> None:
     verifier = (REPO_ROOT / "src/gpd/agents/gpd-verifier.md").read_text(encoding="utf-8")
     infra = (REPO_ROOT / "src/gpd/specs/references/orchestration/agent-infrastructure.md").read_text(encoding="utf-8")
@@ -256,29 +490,93 @@ def test_verifier_prompt_does_not_claim_regression_check_spawns_verifier() -> No
 
 
 def test_help_prompt_workflow_modes_match_current_settings_vocabulary() -> None:
-    help_command = (COMMANDS_DIR / "help.md").read_text(encoding="utf-8")
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
 
-    for content in (help_command, help_workflow):
-        assert "Interactive Mode" not in content
-        assert "YOLO Mode" not in content
-        assert "Change anytime by editing `GPD/config.json`" not in content
-        assert "Supervised" in content
-        assert "Balanced (Recommended)" in content
-        assert "YOLO" in content
-        assert "/gpd:settings" in content
-        assert "/gpd:discuss-phase" in content
-        assert "execution.review_cadence" in content
-        assert "planning.commit_docs" in content
-        assert "git.branching_strategy" in content
+    assert "Interactive Mode" not in help_workflow
+    assert "YOLO Mode" not in help_workflow
+    assert "Change anytime by editing `GPD/config.json`" not in help_workflow
+    assert "Supervised" in help_workflow
+    assert "Max quality" in help_workflow
+    assert "Balanced" in help_workflow
+    assert "Budget-aware" in help_workflow
+    assert "runtime defaults" in help_workflow
+    assert "tier-1" in help_workflow
+    assert "tier-2" in help_workflow
+    assert "tier-3" in help_workflow
+    assert "YOLO" in help_workflow
+    assert "/gpd:settings" in help_workflow
+    assert "/gpd:discuss-phase" in help_workflow
+    assert "execution.review_cadence" in help_workflow
+    assert "planning.commit_docs" in help_workflow
+    assert "git.branching_strategy" in help_workflow
+    assert "gpd observe execution" in help_workflow
+    assert_cost_surface_discoverability(help_workflow)
 
 
-def test_new_project_prompt_surfaces_discuss_phase_before_planning() -> None:
+def test_help_prompt_surfaces_workflow_presets_on_the_local_cli_surface() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert "**Workflow presets**" in help_workflow
+    assert "Paper/manuscript workflows" in help_workflow
+    assert DOCTOR_RUNTIME_SCOPE_RE.search(help_workflow) is not None
+    assert "executable probes" in help_workflow
+    assert_workflow_preset_surface_contract(help_workflow)
+    assert "paper-toolchain readiness" in help_workflow
+    assert "degrade `write-paper`" in help_workflow
+    assert "`paper-build` remains the build contract" in help_workflow
+    assert "`arxiv-submission` requires the built manuscript" in help_workflow
+    assert "/gpd:settings" in help_workflow
+    assert "/gpd:set-profile" in help_workflow
+
+
+def test_help_prompt_keeps_cost_surface_on_local_cli_not_runtime_slash_command() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert "gpd cost" in help_workflow
+    assert "/gpd:cost" not in help_workflow
+    assert_cost_advisory_contract(help_workflow)
+
+
+def test_help_prompt_session_management_keeps_pause_before_leave_and_resume_on_return() -> None:
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+
+    assert_runtime_reset_rediscovery_contract(
+        help_workflow,
+        extra_reset_fragments=("then run gpd resume in your normal terminal",),
+        extra_reset_not_recovery_fragments=("then run gpd resume in your normal terminal",),
+    )
+    assert "**`/gpd:resume-work`**" in help_workflow
+    assert "**`/gpd:pause-work`**" in help_workflow
+    assert_resume_authority_contract(
+        help_workflow,
+        allow_explicit_alias_examples=False,
+        require_generic_compatibility_note=True,
+    )
+    assert "`state.json.continuation.handoff.resume_file` is canonical" in help_workflow
+    assert "The raw compatibility fields remain intake names only under `compat_resume_surface`" in help_workflow
+    assert resume_authority_fields() == (
+        "active_resume_kind",
+        "active_resume_origin",
+        "active_resume_pointer",
+        "continuity_handoff_file",
+        "recorded_continuity_handoff_file",
+        "missing_continuity_handoff_file",
+        "resume_candidates",
+    )
+    assert not any(alias in resume_authority_fields() for alias in resume_compat_alias_fields())
+    assert_recovery_ladder_contract(
+        help_workflow,
+        resume_work_fragments=("/gpd:resume-work",),
+        suggest_next_fragments=("/gpd:suggest-next",),
+        pause_work_fragments=("/gpd:pause-work",),
+    )
+
+
+def test_new_project_prompt_surfaces_discuss_phase_before_planning_in_command_and_workflow() -> None:
     command = (REPO_ROOT / "src/gpd/commands/new-project.md").read_text(encoding="utf-8")
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/new-project.md").read_text(encoding="utf-8")
-    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 
-    for content in (command, workflow, readme):
+    for content in (command, workflow):
         assert "/gpd:discuss-phase 1" in content
 
     assert "Discuss phase 1 now?" in command

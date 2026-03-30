@@ -25,6 +25,7 @@ const {
   gpdPythonVersion: rawPythonPackageVersion,
 } = require("../package.json");
 const RUNTIME_CATALOG = require("../src/gpd/adapters/runtime_catalog.json");
+const PUBLIC_SURFACE_CONTRACT = require("../src/gpd/core/public_surface_contract.json");
 
 const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPythonPackageVersion.trim() : "";
 const GPD_HOME_ENV = "GPD_HOME";
@@ -90,6 +91,172 @@ function runtimeSelectionFlagList(runtime) {
 
 function runtimeSelectionAliases(runtime) {
   return runtimeRecord(runtime).selection_aliases || [];
+}
+
+function runtimeCommandPrefix(runtime) {
+  return runtimeRecord(runtime).command_prefix || "";
+}
+
+function runtimeSurfaceCommand(runtime, commandName) {
+  return `${runtimeCommandPrefix(runtime)}${commandName}`;
+}
+
+function runtimeLaunchCommand(runtime) {
+  return runtimeRecord(runtime).launch_command;
+}
+
+function loadSharedPublicSurfaceText() {
+  const contract = PUBLIC_SURFACE_CONTRACT && typeof PUBLIC_SURFACE_CONTRACT === "object"
+    ? PUBLIC_SURFACE_CONTRACT
+    : null;
+  if (!contract) {
+    throw new Error("public surface contract payload is missing");
+  }
+  const beginnerPayload = contract.beginner_onboarding;
+  if (!beginnerPayload || typeof beginnerPayload !== "object") {
+    throw new Error("public surface contract is missing beginner_onboarding");
+  }
+  const beginnerHubUrl = typeof beginnerPayload.hub_url === "string" ? beginnerPayload.hub_url.trim() : "";
+  const beginnerStartupLadder = Array.isArray(beginnerPayload.startup_ladder)
+    ? beginnerPayload
+      .startup_ladder
+      .filter((item) => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean)
+    : [];
+  if (!beginnerHubUrl || beginnerStartupLadder.length === 0) {
+    throw new Error("public surface contract beginner_onboarding is incomplete");
+  }
+  const localCliBridge = contract.local_cli_bridge;
+  if (!localCliBridge || typeof localCliBridge !== "object") {
+    throw new Error("public surface contract is missing local_cli_bridge");
+  }
+  const localCliBridgeCommands = Array.isArray(localCliBridge.commands)
+    ? localCliBridge.commands
+      .filter((item) => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean)
+    : [];
+  if (localCliBridgeCommands.length === 0) {
+    throw new Error("public surface contract local_cli_bridge is incomplete");
+  }
+  const recoveryLadder = contract.recovery_ladder;
+  if (!recoveryLadder || typeof recoveryLadder !== "object") {
+    throw new Error("public surface contract is missing recovery_ladder");
+  }
+  const recoveryTitle = typeof recoveryLadder.title === "string" ? recoveryLadder.title.trim() : "";
+  const recoveryLocalSnapshotCommand = typeof recoveryLadder.local_snapshot_command === "string"
+    ? recoveryLadder.local_snapshot_command.trim()
+    : "";
+  const recoveryLocalSnapshotPhrase = typeof recoveryLadder.local_snapshot_phrase === "string"
+    ? recoveryLadder.local_snapshot_phrase.trim()
+    : "";
+  const recoveryCrossWorkspaceCommand = typeof recoveryLadder.cross_workspace_command === "string"
+    ? recoveryLadder.cross_workspace_command.trim()
+    : "";
+  const recoveryCrossWorkspacePhrase = typeof recoveryLadder.cross_workspace_phrase === "string"
+    ? recoveryLadder.cross_workspace_phrase.trim()
+    : "";
+  const recoveryResumePhrase = typeof recoveryLadder.resume_phrase === "string"
+    ? recoveryLadder.resume_phrase.trim()
+    : "";
+  const recoveryNextPhrase = typeof recoveryLadder.next_phrase === "string"
+    ? recoveryLadder.next_phrase.trim()
+    : "";
+  const recoveryPausePhrase = typeof recoveryLadder.pause_phrase === "string"
+    ? recoveryLadder.pause_phrase.trim()
+    : "";
+  if (
+    !recoveryTitle
+    || !recoveryLocalSnapshotCommand
+    || !recoveryLocalSnapshotPhrase
+    || !recoveryCrossWorkspaceCommand
+    || !recoveryCrossWorkspacePhrase
+    || !recoveryResumePhrase
+    || !recoveryNextPhrase
+    || !recoveryPausePhrase
+  ) {
+    throw new Error("public surface contract recovery_ladder is incomplete");
+  }
+  const payload = contract.post_start_settings;
+  if (!payload || typeof payload !== "object") {
+    throw new Error("public surface contract is missing post_start_settings");
+  }
+  const settingsCommandSentence = typeof payload.primary_sentence === "string" ? payload.primary_sentence.trim() : "";
+  const settingsRecommendationSentence = typeof payload.default_sentence === "string" ? payload.default_sentence.trim() : "";
+  if (!settingsCommandSentence || !settingsRecommendationSentence) {
+    throw new Error("public surface contract post_start_settings is incomplete");
+  }
+  return {
+    beginnerHubUrl,
+    beginnerStartupLadder,
+    localCliBridgeCommands,
+    recoveryLadder: {
+      title: recoveryTitle,
+      localSnapshotCommand: recoveryLocalSnapshotCommand,
+      localSnapshotPhrase: recoveryLocalSnapshotPhrase,
+      crossWorkspaceCommand: recoveryCrossWorkspaceCommand,
+      crossWorkspacePhrase: recoveryCrossWorkspacePhrase,
+      resumePhrase: recoveryResumePhrase,
+      nextPhrase: recoveryNextPhrase,
+      pausePhrase: recoveryPausePhrase,
+    },
+    settingsCommandSentence,
+    settingsRecommendationSentence,
+  };
+}
+
+const SHARED_PUBLIC_SURFACE_TEXT = loadSharedPublicSurfaceText();
+const SETTINGS_COMMAND_PREFIX = "After your first successful start or later, use the runtime `settings` command ";
+
+function beginnerStartupLadderText() {
+  return `\`${SHARED_PUBLIC_SURFACE_TEXT.beginnerStartupLadder.join(" -> ")}\``;
+}
+
+function settingsCommandTail() {
+  const { settingsCommandSentence } = SHARED_PUBLIC_SURFACE_TEXT;
+  if (settingsCommandSentence.startsWith(SETTINGS_COMMAND_PREFIX)) {
+    return settingsCommandSentence.slice(SETTINGS_COMMAND_PREFIX.length);
+  }
+  return "to review autonomy, workflow defaults, and model-cost posture.";
+}
+
+function sharedLocalCliCommand(prefix, fallback) {
+  const match = SHARED_PUBLIC_SURFACE_TEXT.localCliBridgeCommands.find((command) => command.startsWith(prefix));
+  return match || fallback;
+}
+
+function sharedLocalCliHelpCommand() {
+  return sharedLocalCliCommand("gpd --help", "gpd --help");
+}
+
+function sharedUnattendedReadinessCommand() {
+  return sharedLocalCliCommand(
+    "gpd validate unattended-readiness",
+    "gpd validate unattended-readiness --runtime <runtime> --autonomy balanced"
+  );
+}
+
+function sharedPermissionsSyncCommand() {
+  return sharedLocalCliCommand(
+    "gpd permissions sync",
+    "gpd permissions sync --runtime <runtime> --autonomy balanced"
+  );
+}
+
+function localCliDiagnosticsFollowUpLine() {
+  return `Use \`${sharedLocalCliHelpCommand()}\` for local install, readiness, validation, permissions, observability, and diagnostics.`;
+}
+
+function recoveryLadderNote({ resumeWorkPhrase, suggestNextPhrase, pauseWorkPhrase }) {
+  const recovery = SHARED_PUBLIC_SURFACE_TEXT.recoveryLadder;
+  return (
+    `${recovery.title}: use \`${recovery.localSnapshotCommand}\` for ${recovery.localSnapshotPhrase}. `
+    + `If that is the wrong workspace, use \`${recovery.crossWorkspaceCommand}\` to ${recovery.crossWorkspacePhrase}, `
+    + `then ${recovery.resumePhrase} with ${resumeWorkPhrase}. After resuming, `
+    + `${suggestNextPhrase} is ${recovery.nextPhrase}. Before stepping away mid-phase, `
+    + `run ${pauseWorkPhrase} so that ladder has ${recovery.pausePhrase}.`
+  );
 }
 
 function log(msg) {
@@ -773,6 +940,339 @@ function formatLocationExample(runtimes, scope) {
   return `./${runtimeConfigDirName(runtime)}`;
 }
 
+function stripAnsi(text) {
+  return String(text || "").replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
+}
+
+function parseJsonText(text) {
+  const cleaned = stripAnsi(text).trim();
+  if (!cleaned) {
+    return null;
+  }
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    return null;
+  }
+}
+
+function shellQuote(arg) {
+  const text = String(arg);
+  if (text === "") {
+    return "''";
+  }
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(text)) {
+    return text;
+  }
+  return `'${text.replace(/'/g, `'\\''`)}'`;
+}
+
+function formatShellCommand(argv) {
+  return argv.map((arg) => shellQuote(arg)).join(" ");
+}
+
+function runtimeDoctorHint(runtime, scope, targetDir = null) {
+  const parts = ["gpd", "doctor", "--runtime", runtime, `--${scope}`];
+  if (targetDir) {
+    parts.push("--target-dir", targetDir);
+  }
+  return formatShellCommand(parts);
+}
+
+function runtimePermissionsHint(action, runtime, autonomy = "balanced", targetDir = null) {
+  const parts = ["gpd", "permissions", action, "--runtime", runtime, "--autonomy", autonomy];
+  if (targetDir) {
+    parts.push("--target-dir", targetDir);
+  }
+  return formatShellCommand(parts);
+}
+
+function runtimeUnattendedReadinessHint(runtime, autonomy = "balanced", targetDir = null) {
+  const parts = ["gpd", "validate", "unattended-readiness", "--runtime", runtime, "--autonomy", autonomy];
+  if (targetDir) {
+    parts.push("--target-dir", targetDir);
+  }
+  return formatShellCommand(parts);
+}
+
+function buildRuntimeDoctorArgs(runtime, scope, targetDir = null) {
+  const args = ["-m", "gpd.cli", "--raw", "doctor", "--runtime", runtime, `--${scope}`];
+  if (targetDir) {
+    args.push("--target-dir", targetDir);
+  }
+  return args;
+}
+
+function doctorCheckMessages(check, field) {
+  if (!check || typeof check !== "object") {
+    return [];
+  }
+  const messages = Array.isArray(check[field]) ? check[field] : [];
+  const label = typeof check.label === "string" && check.label.trim() ? check.label.trim() : "Readiness Check";
+  return messages
+    .filter((message) => typeof message === "string" && message.trim())
+    .map((message) => `${label}: ${message.trim()}`);
+}
+
+function collectDoctorAdvisories(report) {
+  const advisories = [];
+  const seen = new Set();
+  const checks = Array.isArray(report && report.checks) ? report.checks : [];
+
+  for (const check of checks) {
+    for (const message of doctorCheckMessages(check, "warnings")) {
+      if (!seen.has(message)) {
+        seen.add(message);
+        advisories.push(message);
+      }
+    }
+    if ((check && check.status) === "warn") {
+      for (const message of doctorCheckMessages(check, "issues")) {
+        if (!seen.has(message)) {
+          seen.add(message);
+          advisories.push(message);
+        }
+      }
+    }
+  }
+
+  return advisories;
+}
+
+function collectDoctorBlockers(report) {
+  const blockers = [];
+  const seen = new Set();
+  const checks = Array.isArray(report && report.checks) ? report.checks : [];
+
+  for (const check of checks) {
+    if ((check && check.status) !== "fail") {
+      continue;
+    }
+    const messages = [
+      ...doctorCheckMessages(check, "issues"),
+      ...doctorCheckMessages(check, "warnings"),
+    ];
+    if (messages.length === 0) {
+      const label = typeof check.label === "string" && check.label.trim() ? check.label.trim() : "Readiness Check";
+      messages.push(`${label}: readiness check failed.`);
+    }
+    for (const message of messages) {
+      if (!seen.has(message)) {
+        seen.add(message);
+        blockers.push(message);
+      }
+    }
+  }
+
+  return blockers;
+}
+
+function extractDoctorErrorMessage(result) {
+  const stderrJson = parseJsonText(result.stderr);
+  if (stderrJson && typeof stderrJson.error === "string" && stderrJson.error.trim()) {
+    return stderrJson.error.trim();
+  }
+
+  const stdoutJson = parseJsonText(result.stdout);
+  if (stdoutJson && typeof stdoutJson.error === "string" && stdoutJson.error.trim()) {
+    return stdoutJson.error.trim();
+  }
+
+  const stderrText = stripAnsi(result.stderr).trim();
+  if (stderrText) {
+    return stderrText;
+  }
+
+  const stdoutText = stripAnsi(result.stdout).trim();
+  if (stdoutText) {
+    return stdoutText;
+  }
+
+  return `managed doctor exited with status ${result.status}`;
+}
+
+function runManagedDoctorReadinessCheck(managedPython, runtime, scope, targetDir = null) {
+  const result = spawnSync(managedPython, buildRuntimeDoctorArgs(runtime, scope, targetDir), {
+    encoding: "utf-8",
+    env: process.env,
+  });
+
+  if (result.error) {
+    return {
+      ok: false,
+      errorMessage: result.error.message,
+    };
+  }
+
+  if (result.status !== 0) {
+    return {
+      ok: false,
+      errorMessage: extractDoctorErrorMessage(result),
+    };
+  }
+
+  const report = parseJsonText(result.stdout);
+  if (!report || typeof report !== "object" || !Array.isArray(report.checks)) {
+    return {
+      ok: false,
+      errorMessage: "managed doctor did not return a valid readiness report.",
+    };
+  }
+
+  return {
+    ok: true,
+    report,
+  };
+}
+
+function runInstallReadinessPreflight(managedPython, runtimes, scope, targetDir = null) {
+  console.log(` ${bold}${brandTitle}Runtime launcher/target preflight${reset}`);
+  console.log("");
+
+  const blockers = [];
+
+  for (const runtime of runtimes) {
+    const displayName = runtimeDisplayName(runtime);
+    const doctorCheck = runManagedDoctorReadinessCheck(managedPython, runtime, scope, targetDir);
+    if (!doctorCheck.ok) {
+      blockers.push(`${displayName}: ${doctorCheck.errorMessage}`);
+      continue;
+    }
+
+    const report = doctorCheck.report;
+    const reportBlockers = collectDoctorBlockers(report);
+    if (reportBlockers.length > 0 || report.overall === "fail") {
+      const messages = reportBlockers.length > 0
+        ? reportBlockers
+        : ["Runtime readiness reported a failure without blocking details."];
+      blockers.push(...messages.map((message) => `${displayName}: ${message}`));
+      continue;
+    }
+
+    const advisories = collectDoctorAdvisories(report);
+    success(`${displayName}: launcher/target preflight passed${advisories.length > 0 ? " with advisories" : ""}.`);
+    advisories.forEach((message) => warn(`${displayName}: ${message}`));
+  }
+
+  if (blockers.length > 0) {
+    console.log("");
+    error("Runtime launcher/target preflight failed.");
+    [...new Set(blockers)].forEach((message) => error(message));
+    const doctorHints = runtimes.map((runtime) => `\`${runtimeDoctorHint(runtime, scope, targetDir)}\``).join(", ");
+    log(`Fix the blocking readiness issue(s) above, then rerun the bootstrap installer. Inspect directly with ${doctorHints}.`);
+    return false;
+  }
+
+  console.log("");
+  success(`Runtime launcher/target preflight passed for ${formatRuntimeList(runtimes)}.`);
+  const doctorHints = runtimes.map((runtime) => `\`${runtimeDoctorHint(runtime, scope, targetDir)}\``).join(", ");
+  log(`For the full runtime-target doctor report after install, use ${doctorHints}.`);
+  log(
+    `Use \`gpd doctor\` for install and runtime-local readiness, `
+    + `\`${sharedUnattendedReadinessCommand().replace(/\s+--runtime\b[\s\S]*$/u, "")}\` `
+    + "for the unattended or overnight verdict, and `gpd permissions ...` for runtime-owned permission alignment and sync."
+  );
+  log(
+    "Workflow presets: if you plan paper/manuscript workflows, rerun "
+    + `${doctorHints} after install and check whether \`Workflow Presets\` is \`ready\` or \`degraded\`. `
+    + "Without LaTeX, the paper/manuscript and full research presets remain usable for `write-paper` and `peer-review`, but `paper-build` and "
+    + "`arxiv-submission` require the `LaTeX Toolchain`."
+  );
+  console.log("");
+  return true;
+}
+
+function printUnattendedConfigurationReminder(runtimes, targetDir = null) {
+  console.log("");
+  console.log(` ${bold}${brandTitle}Startup checklist${reset}`);
+  console.log("");
+  log(`Beginner Onboarding Hub: ${SHARED_PUBLIC_SURFACE_TEXT.beginnerHubUrl}`);
+  log(`First-run order: ${beginnerStartupLadderText()}`);
+  if (runtimes.length === 1) {
+    const runtime = runtimes[0];
+    log(
+      `1. Open ${runtimeDisplayName(runtime)} from your system terminal `
+      + `(${runtimeLaunchCommand(runtime)}).`
+    );
+    log(`2. Run \`${runtimeSurfaceCommand(runtime, "help")}\` for the command list.`);
+    log(
+      `3. Run \`${runtimeSurfaceCommand(runtime, "start")}\` if you're not sure what fits this folder yet. `
+      + `Run \`${runtimeSurfaceCommand(runtime, "tour")}\` if you want a read-only overview of the broader command surface first.`
+    );
+    log(
+      `4. Then use \`${runtimeSurfaceCommand(runtime, "new-project")}\` for a new project or `
+      + `\`${runtimeSurfaceCommand(runtime, "map-research")}\` for existing work.`
+    );
+    log(
+      `5. Fast bootstrap: use \`${runtimeSurfaceCommand(runtime, "new-project")} --minimal\` `
+      + "for the shortest onboarding path."
+    );
+    const resumeWorkCommand = runtimeSurfaceCommand(runtime, "resume-work");
+    const suggestNextCommand = runtimeSurfaceCommand(runtime, "suggest-next");
+    const pauseWorkCommand = runtimeSurfaceCommand(runtime, "pause-work");
+    log(
+      `6. When you return later, use \`${resumeWorkCommand}\` after reopening the right workspace. `
+      + recoveryLadderNote({
+        resumeWorkPhrase: `\`${resumeWorkCommand}\``,
+        suggestNextPhrase: `\`${suggestNextCommand}\``,
+        pauseWorkPhrase: `\`${pauseWorkCommand}\``,
+      })
+    );
+    log(`7. ${localCliDiagnosticsFollowUpLine()}`);
+  } else {
+    log("For multiple runtimes, follow the same order in each one.");
+    for (const runtime of runtimes) {
+      log(
+        `- ${runtimeDisplayName(runtime)} (${runtimeLaunchCommand(runtime)}): `
+        + `\`${runtimeSurfaceCommand(runtime, "help")}\`, then `
+        + `\`${runtimeSurfaceCommand(runtime, "start")}\`, then `
+        + `\`${runtimeSurfaceCommand(runtime, "tour")}\`, then `
+        + `\`${runtimeSurfaceCommand(runtime, "new-project")}\` for new work or `
+        + `\`${runtimeSurfaceCommand(runtime, "map-research")}\` for existing work, then `
+        + `\`${runtimeSurfaceCommand(runtime, "resume-work")}\` when you return later.`
+      );
+    }
+    log(
+      `Fast bootstrap: use \`${runtimeSurfaceCommand(runtimes[0], "new-project")} --minimal\` for the shortest onboarding path.`
+    );
+    log(
+      recoveryLadderNote({
+        resumeWorkPhrase: "your runtime-specific `resume-work` command",
+        suggestNextPhrase: "your runtime-specific `suggest-next` command",
+        pauseWorkPhrase: "your runtime-specific `pause-work` command",
+      })
+    );
+    log(localCliDiagnosticsFollowUpLine());
+  }
+  console.log("");
+  console.log(` ${bold}${brandTitle}Secondary follow-up${reset}`);
+  console.log("");
+  log("Recommended unattended default: Balanced autonomy (`balanced`).");
+  if (runtimes.length === 1) {
+    const runtime = runtimes[0];
+    log(
+      `Inside ${runtimeDisplayName(runtime)}, use \`${runtimeSurfaceCommand(runtime, "settings")}\` `
+      + settingsCommandTail()
+    );
+    log(SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence);
+    log(`Check the unattended or overnight verdict with \`${runtimeUnattendedReadinessHint(runtime, "balanced", targetDir)}\`.`);
+    log(`If it reports \`not-ready\`, run \`${runtimePermissionsHint("sync", runtime, "balanced", targetDir)}\`.`);
+    warn("If it reports `relaunch-required`, the runtime is not ready for unattended use until you exit and relaunch it.");
+  } else {
+    log(`Inside each runtime, use \`settings\` ${settingsCommandTail()}`);
+    log(SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence);
+    for (const runtime of runtimes) {
+      log(
+        `${runtimeDisplayName(runtime)}: \`${runtimeSurfaceCommand(runtime, "settings")}\`, then `
+        + `\`${runtimeUnattendedReadinessHint(runtime)}\`.`
+      );
+    }
+    log("If any runtime reports `not-ready`, rerun the matching `gpd permissions sync --runtime <runtime> --autonomy balanced` command.");
+    warn("If any runtime reports `relaunch-required`, treat its unattended readiness as not ready until that runtime is relaunched.");
+  }
+  console.log("");
+}
+
 function formatMenuOption(index, label, details = [], options = {}) {
   const { labelWidth = label.length } = options;
   const filteredDetails = details.filter(Boolean);
@@ -865,6 +1365,32 @@ function printHelp() {
   console.log("");
   console.log(` ${dim}# Equivalent uninstall subcommand form${reset}`);
   console.log(` ${installCommand} uninstall ${primaryRuntime} --local`);
+  console.log("");
+  console.log(` ${yellow}After install:${reset}`);
+  console.log(` ${dim}# Beginner startup checklist${reset}`);
+  console.log(" Bootstrap preflight checks runtime launcher/target blockers only; do the first successful startup before changing unattended behavior.");
+  console.log(` Beginner Onboarding Hub: ${SHARED_PUBLIC_SURFACE_TEXT.beginnerHubUrl}`);
+  console.log(` First-run order: ${beginnerStartupLadderText()}`);
+  console.log(" Open your runtime, run its help command first, use `start` if you are not sure what fits this folder, and use `tour` if you want a read-only overview of the broader command surface before choosing.");
+  console.log(" Then use your runtime's `new-project` command for new work or `map-research` for existing work. When you come back later, use `gpd resume` for the current-workspace read-only recovery snapshot or `gpd resume --recent` to find a different workspace first, then continue in the runtime with `resume-work`.");
+  console.log(` Later, use the runtime-specific \`settings\` command after your first successful start or later ${settingsCommandTail()}`);
+  console.log(` Recommended unattended default: Balanced autonomy (\`balanced\`). ${SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence}`);
+  console.log(
+    ` ${recoveryLadderNote({
+      resumeWorkPhrase: "your runtime-specific `resume-work` command",
+      suggestNextPhrase: "your runtime-specific `suggest-next` command",
+      pauseWorkPhrase: "your runtime-specific `pause-work` command",
+    })}`
+  );
+  console.log(` ${localCliDiagnosticsFollowUpLine()}`);
+  console.log(
+    " Workflow presets: if you plan paper/manuscript workflows, rerun `gpd doctor --runtime <runtime> --local|--global` "
+    + "and check whether `Workflow Presets` is `ready` or `degraded`. Without LaTeX, the paper/manuscript and full research presets remain usable for `write-paper` and `peer-review`, "
+    + "but `paper-build` and `arxiv-submission` require the `LaTeX Toolchain`."
+  );
+  console.log(` Then run \`${sharedUnattendedReadinessCommand()}\`.`);
+  console.log(` If it reports \`not-ready\`, run \`${sharedPermissionsSyncCommand()}\`.`);
+  console.log(" If it reports `relaunch-required`, exit and relaunch the runtime before unattended use.");
   console.log("");
 }
 
@@ -1171,6 +1697,13 @@ async function main() {
     process.exit(1);
   }
 
+  if (!isUninstall) {
+    const readinessOk = runInstallReadinessPreflight(managedEnv.python, selectedRuntimes, scope, targetDir);
+    if (!readinessOk) {
+      process.exit(1);
+    }
+  }
+
   if (isUninstall) {
     log(`Uninstalling GPD from ${formatRuntimeList(selectedRuntimes)} (${scope})...`);
   }
@@ -1184,6 +1717,9 @@ async function main() {
   });
 
   if (result.status === 0) {
+    if (!isUninstall) {
+      printUnattendedConfigurationReminder(selectedRuntimes, targetDir);
+    }
     return;
   } else {
     error(`${isUninstall ? "Uninstall" : "Installation"} failed. Check the output above for details.`);

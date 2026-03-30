@@ -217,7 +217,7 @@ class TestUnknownExtraFields:
     def test_project_contract_self_heals_malformed_context_intake(self) -> None:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["context_intake"] = {
-            "must_read_refs": "not-a-list",
+            "must_read_refs": "ref-benchmark",
             "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
         }
 
@@ -226,7 +226,7 @@ class TestUnknownExtraFields:
         assert result["project_contract"] is not None
         assert result["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
         assert result["project_contract"]["context_intake"] == {
-            "must_read_refs": ["not-a-list"],
+            "must_read_refs": ["ref-benchmark"],
             "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
             "user_asserted_anchors": [],
             "known_good_baselines": [],
@@ -237,14 +237,14 @@ class TestUnknownExtraFields:
     def test_project_contract_context_intake_integrity_issue_mentions_nested_field(self) -> None:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["context_intake"] = {
-            "must_read_refs": "not-a-list",
+            "must_read_refs": "ref-benchmark",
             "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
         }
 
         normalized, integrity_issues = _normalize_state_schema({"project_contract": contract})
 
         assert normalized["project_contract"] is not None
-        assert normalized["project_contract"]["context_intake"]["must_read_refs"] == ["not-a-list"]
+        assert normalized["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
         assert any("project_contract.context_intake.must_read_refs" in issue for issue in integrity_issues)
 
     def test_project_contract_self_heals_malformed_uncertainty_markers(self) -> None:

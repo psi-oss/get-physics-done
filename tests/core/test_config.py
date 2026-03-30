@@ -1,5 +1,6 @@
 """Tests for gpd.core.config."""
 
+import builtins
 import json
 import re
 from pathlib import Path
@@ -107,6 +108,8 @@ class TestGPDProjectConfigDefaults:
         assert cfg.checkpoint_after_n_tasks == 3
         assert cfg.checkpoint_after_first_load_bearing_result is True
         assert cfg.checkpoint_before_downstream_dependent_tasks is True
+        assert cfg.project_usd_budget is None
+        assert cfg.session_usd_budget is None
         assert cfg.branching_strategy == BranchingStrategy.NONE
         assert cfg.model_overrides is None
 
@@ -135,6 +138,10 @@ class TestLoadConfig:
                     "review_cadence": "dense",
                     "research_mode": "explore",
                     "commit_docs": False,
+                    "execution": {
+                        "project_usd_budget": 12.5,
+                        "session_usd_budget": 2.25,
+                    },
                 }
             )
         )
@@ -144,6 +151,8 @@ class TestLoadConfig:
         assert cfg.review_cadence == ReviewCadence.DENSE
         assert cfg.research_mode == ResearchMode.EXPLORE
         assert cfg.commit_docs is False
+        assert cfg.project_usd_budget == 12.5
+        assert cfg.session_usd_budget == 2.25
 
     @pytest.mark.parametrize(
         "invalid_value",
@@ -156,6 +165,20 @@ class TestLoadConfig:
     ) -> None:
         (tmp_path / "GPD").mkdir()
         (tmp_path / "GPD" / "config.json").write_text(json.dumps({"autonomy": invalid_value}))
+
+        with pytest.raises(ConfigError, match="Invalid config.json values"):
+            load_config(tmp_path)
+
+    @pytest.mark.parametrize("invalid_budget", [0, -1, -0.5])
+    def test_invalid_budget_values_raise_config_error(
+        self,
+        tmp_path: Path,
+        invalid_budget: float,
+    ) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            json.dumps({"execution": {"project_usd_budget": invalid_budget}}),
+        )
 
         with pytest.raises(ConfigError, match="Invalid config.json values"):
             load_config(tmp_path)
@@ -266,7 +289,6 @@ class TestLoadConfig:
             load_config(tmp_path)
 
         _valid_runtime_names.cache_clear()
-
 # ─── resolve_agent_tier ─────────────────────────────────────────────────────────
 
 
@@ -295,6 +317,34 @@ class TestResolveAgentTier:
         tier = resolve_agent_tier("gpd-registry-only", "review")
 
         assert tier == ModelTier.TIER_2
+
+    def test_registry_import_failure_falls_back_to_default_agent_names(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        original_import = builtins.__import__
+
+        def _missing_registry(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "gpd.registry":
+                raise ModuleNotFoundError("No module named 'gpd.registry'")
+            return original_import(name, globals, locals, fromlist, level)
+
+        monkeypatch.setattr(builtins, "__import__", _missing_registry)
+
+        tier = resolve_agent_tier("gpd-planner", "review")
+
+        assert tier == ModelTier.TIER_1
+
+    def test_registry_runtime_failure_surfaces_config_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import gpd.registry as content_registry
+
+        monkeypatch.setattr(content_registry, "list_agents", lambda: (_ for _ in ()).throw(RuntimeError("registry boom")))
+
+        with pytest.raises(ConfigError, match="Unable to resolve known agent names from registry"):
+            resolve_agent_tier("gpd-planner", "review")
 
 
 # ─── resolve_model ──────────────────────────────────────────────────────────────

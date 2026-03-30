@@ -23,7 +23,8 @@ from typer.testing import CliRunner
 from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors, list_runtime_names
 from gpd.cli import app
-from gpd.core.state import default_state_dict, generate_state_markdown
+from gpd.core.recent_projects import record_recent_project
+from gpd.core.state import StateUpdateResult, default_state_dict, generate_state_markdown
 
 runner = CliRunner()
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "stage0"
@@ -525,7 +526,7 @@ class TestStateCommands:
         assert payload["valid"] is False
         assert any("weakest_anchors" in error for error in payload["errors"])
 
-    def test_set_project_contract_accepts_singleton_list_drift(self, gpd_project: Path) -> None:
+    def test_set_project_contract_rejects_singleton_list_drift(self, gpd_project: Path) -> None:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["context_intake"]["must_read_refs"] = "ref-benchmark"
         contract_path = gpd_project / "invalid-contract.json"
@@ -537,12 +538,74 @@ class TestStateCommands:
             catch_exceptions=False,
         )
 
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["updated"] is False
+        assert "context_intake.must_read_refs must be a list, not str" in payload["reason"]
+        assert payload["warnings"] == []
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
+        assert state["project_contract"] is None
+
+    def test_set_project_contract_exits_nonzero_on_hard_backend_rejection(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        contract_path = gpd_project / "contract.json"
+        contract_path.write_text(
+            (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+        def _reject_contract(cwd: Path, contract_data: object) -> StateUpdateResult:
+            return StateUpdateResult(
+                updated=False,
+                reason="Backend rejected project contract: missing required anchor",
+            )
+
+        monkeypatch.setattr("gpd.core.state.state_set_project_contract", _reject_contract)
+
+        result = runner.invoke(
+            app,
+            ["--cwd", str(gpd_project), "--raw", "state", "set-project-contract", str(contract_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["updated"] is False
+        assert payload["reason"] == "Backend rejected project contract: missing required anchor"
+
+    def test_set_project_contract_keeps_benign_noop_exit_zero(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        contract_path = gpd_project / "contract.json"
+        contract_path.write_text(
+            (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+
+        def _noop_contract(cwd: Path, contract_data: object) -> StateUpdateResult:
+            return StateUpdateResult(
+                updated=False,
+                unchanged=True,
+                reason="Project contract already matches requested value",
+            )
+
+        monkeypatch.setattr("gpd.core.state.state_set_project_contract", _noop_contract)
+
+        result = runner.invoke(
+            app,
+            ["--cwd", str(gpd_project), "--raw", "state", "set-project-contract", str(contract_path)],
+            catch_exceptions=False,
+        )
+
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
-        assert payload["updated"] is True
-        assert any("must_read_refs" in warning for warning in payload["warnings"])
-        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
-        assert state["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert payload["updated"] is False
+        assert payload["reason"] == "Project contract already matches requested value"
 
     def test_set_project_contract_raw_accepts_schema_valid_contract_with_approval_blockers(
         self,
@@ -620,6 +683,49 @@ class TestInitCommands:
             "Unknown --include value(s) for gpd init progress: bogus. "
             "Allowed values: config, project, roadmap, state."
         )
+
+    def test_init_resume_resolves_ancestor_project_root_from_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "init", "resume"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["planning_exists"] is True
+        assert payload["project_exists"] is True
+        assert payload["roadmap_exists"] is True
+        assert payload["state_exists"] is True
+
+    def test_init_progress_resolves_ancestor_project_root_from_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "init", "progress"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["project_exists"] is True
+        assert payload["roadmap_exists"] is True
+        assert payload["state_exists"] is True
 
     def test_plan_phase_surfaces_artifact_derived_reference_context(self, gpd_project: Path) -> None:
         literature_dir = gpd_project / "GPD" / "literature"
@@ -806,6 +912,30 @@ class TestProgressCommand:
         _invoke("progress")
 
 
+class TestRecoveryStatusCommands:
+    def test_resume_resolves_ancestor_project_root_from_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "resume"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["planning_exists"] is True
+        assert payload["project_exists"] is True
+        assert payload["roadmap_exists"] is True
+        assert payload["state_exists"] is True
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Verify commands
 # ═══════════════════════════════════════════════════════════════════════════
@@ -824,6 +954,15 @@ class TestVerifyCommands:
 class TestResultCommands:
     def test_list(self) -> None:
         _invoke("result", "list")
+
+    def test_search(self) -> None:
+        _invoke("result", "search")
+
+    def test_upsert_by_equation(self) -> None:
+        _invoke("result", "upsert", "--equation", "E = mc^2", "--description", "Mass-energy relation")
+
+    def test_upsert_by_description(self) -> None:
+        _invoke("result", "upsert", "--description", "Energy relation")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -911,6 +1050,21 @@ class TestUtilityCommands:
 
 
 class TestReviewValidationCommands:
+    def test_validate_unattended_readiness_surface_smoke(self) -> None:
+        validate_help = runner.invoke(app, ["validate", "--help"], catch_exceptions=False)
+
+        assert validate_help.exit_code == 0, validate_help.output
+        assert "unattended-readiness" in validate_help.output
+
+        result = runner.invoke(
+            app,
+            ["validate", "unattended-readiness", "--help"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "unattended" in result.output.lower()
+
     def test_review_contract_uses_typed_registry_surface(self) -> None:
         result = runner.invoke(
             app,
@@ -1049,13 +1203,14 @@ class TestReviewValidationCommands:
     def test_command_context_project_required_fails_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, codex_command_prefix: str
     ) -> None:
-        empty_dir = tmp_path / "empty-context"
-        empty_dir.mkdir()
-        monkeypatch.chdir(empty_dir)
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-outside"
+        outside_dir.mkdir()
+        monkeypatch.setenv("GPD_DATA_DIR", str(tmp_path / "data"))
+        monkeypatch.chdir(outside_dir)
 
         result = runner.invoke(
             app,
-            ["--raw", "--cwd", str(empty_dir), "validate", "command-context", "progress"],
+            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", "progress"],
             catch_exceptions=False,
         )
 
@@ -1065,9 +1220,214 @@ class TestReviewValidationCommands:
         assert payload["context_mode"] == "project-required"
         assert payload["passed"] is False
         assert payload["guidance"] == (
-            "This command requires an initialized GPD project. "
-            f"Use `{codex_command_prefix}new-project` in the runtime surface or `gpd init new-project` in the local CLI."
+            "This command requires a recoverable GPD workspace. "
+            "Open the right project, use `gpd resume --recent` to rediscover it, or initialize a new project with "
+            f"`{codex_command_prefix}new-project` in the runtime surface or `gpd init new-project` in the local CLI."
         )
+
+    def test_command_context_progress_resolves_ancestor_project_root_for_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "validate", "command-context", "progress"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:progress"
+        assert payload["context_mode"] == "project-required"
+        assert payload["passed"] is True
+        assert payload["project_exists"] is True
+        assert checks["project_exists"]["passed"] is True
+        assert "GPD/PROJECT.md" in checks["project_exists"]["detail"]
+
+    def test_command_context_resume_work_resolves_ancestor_project_root_for_nested_workspace(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "validate", "command-context", "resume-work"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:resume-work"
+        assert payload["context_mode"] == "project-required"
+        assert payload["passed"] is True
+        assert checks["project_exists"]["passed"] is True
+
+    def test_command_context_recovery_surfaces_accept_partial_recoverable_workspace(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        project = tmp_path / "recoverable-project"
+        nested = project / "workspace" / "notes"
+        gpd_dir = project / "GPD"
+        nested.mkdir(parents=True)
+        gpd_dir.mkdir()
+        (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        (gpd_dir / "STATE.md").write_text("# Research State\n", encoding="utf-8")
+        monkeypatch.chdir(nested)
+
+        for command_name in ("progress", "resume-work"):
+            result = runner.invoke(
+                app,
+                ["--raw", "--cwd", str(nested), "validate", "command-context", command_name],
+                catch_exceptions=False,
+            )
+
+            assert result.exit_code == 0, result.output
+            payload = json.loads(result.output)
+            checks = {check["name"]: check for check in payload["checks"]}
+            assert payload["passed"] is True
+            assert payload["project_exists"] is False
+            assert checks["state_exists"]["passed"] is True
+            assert checks["roadmap_exists"]["passed"] is True
+            assert checks["project_exists"]["passed"] is False
+
+    def test_command_context_progress_auto_selects_unique_recoverable_recent_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = tmp_path.parent / f"{tmp_path.name}-outside-unique"
+        workspace.mkdir()
+        project = tmp_path / "recoverable-project"
+        gpd_dir = project / "GPD"
+        gpd_dir.mkdir(parents=True)
+        (gpd_dir / "STATE.md").write_text("# Research State\n", encoding="utf-8")
+        (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        (gpd_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        resume_file = gpd_dir / "phases" / "01" / ".continue-here.md"
+        resume_file.parent.mkdir(parents=True, exist_ok=True)
+        resume_file.write_text("resume\n", encoding="utf-8")
+        data_root = tmp_path / "data"
+        monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
+        record_recent_project(
+            project,
+            session_data={
+                "last_date": "2026-03-29T12:00:00+00:00",
+                "stopped_at": "Phase 01",
+                "resume_file": "GPD/phases/01/.continue-here.md",
+            },
+            store_root=data_root,
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "progress"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert checks["project_reentry"]["passed"] is True
+        assert "auto-selected recoverable recent project" in checks["project_reentry"]["detail"]
+
+    def test_command_context_resume_work_auto_selects_unique_recoverable_recent_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = tmp_path.parent / f"{tmp_path.name}-outside-unique-resume"
+        workspace.mkdir()
+        project = tmp_path / "recoverable-resume-project"
+        gpd_dir = project / "GPD"
+        gpd_dir.mkdir(parents=True)
+        (gpd_dir / "STATE.md").write_text("# Research State\n", encoding="utf-8")
+        (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+        (gpd_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        resume_file = gpd_dir / "phases" / "02" / ".continue-here.md"
+        resume_file.parent.mkdir(parents=True, exist_ok=True)
+        resume_file.write_text("resume\n", encoding="utf-8")
+        data_root = tmp_path / "data"
+        monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
+        record_recent_project(
+            project,
+            session_data={
+                "last_date": "2026-03-29T12:00:00+00:00",
+                "stopped_at": "Phase 02",
+                "resume_file": "GPD/phases/02/.continue-here.md",
+            },
+            store_root=data_root,
+        )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "resume-work"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is True
+        assert checks["project_reentry"]["passed"] is True
+        assert "auto-selected recoverable recent project" in checks["project_reentry"]["detail"]
+
+    def test_command_context_resume_work_requires_explicit_selection_when_recent_projects_are_ambiguous(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = tmp_path.parent / f"{tmp_path.name}-outside-ambiguous"
+        workspace.mkdir()
+        data_root = tmp_path / "data"
+        monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
+
+        for name, stopped_at in (("project-a", "Phase 01"), ("project-b", "Phase 02")):
+            project = tmp_path / name
+            gpd_dir = project / "GPD"
+            gpd_dir.mkdir(parents=True)
+            (gpd_dir / "STATE.md").write_text("# Research State\n", encoding="utf-8")
+            (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+            (gpd_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+            phase_number = stopped_at.removeprefix("Phase ").strip() or "01"
+            resume_file = gpd_dir / "phases" / phase_number / ".continue-here.md"
+            resume_file.parent.mkdir(parents=True, exist_ok=True)
+            resume_file.write_text("resume\n", encoding="utf-8")
+            record_recent_project(
+                project,
+                session_data={
+                    "last_date": "2026-03-29T12:00:00+00:00",
+                    "stopped_at": stopped_at,
+                    "resume_file": f"GPD/phases/{phase_number}/.continue-here.md",
+                },
+                store_root=data_root,
+            )
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(workspace), "validate", "command-context", "resume-work"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["passed"] is False
+        assert checks["project_reentry"]["passed"] is False
+        assert "multiple recoverable recent GPD projects" in payload["guidance"]
 
     def test_command_context_projectless_passes_without_project(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, codex_command_prefix: str
@@ -1086,6 +1446,60 @@ class TestReviewValidationCommands:
         assert payload["context_mode"] == "projectless"
         assert payload["passed"] is True
         assert f"public `{codex_command_prefix}*` runtime command surface" in payload["dispatch_note"]
+
+    def test_command_context_start_passes_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, codex_command_prefix: str
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "command-context", "start"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:start"
+        assert payload["context_mode"] == "projectless"
+        assert payload["passed"] is True
+        assert f"public `{codex_command_prefix}*` runtime command surface" in payload["dispatch_note"]
+
+    def test_command_context_tour_passes_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, codex_command_prefix: str
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "command-context", "tour"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:tour"
+        assert payload["context_mode"] == "projectless"
+        assert payload["passed"] is True
+        assert f"public `{codex_command_prefix}*` runtime command surface" in payload["dispatch_note"]
+
+    @pytest.mark.parametrize("command_name", ["health", "suggest-next"])
+    def test_command_context_projectless_recovery_commands_pass_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, command_name: str
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "command-context", command_name],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == f"gpd:{command_name}"
+        assert payload["context_mode"] == "projectless"
+        assert payload["passed"] is True
 
     def test_command_context_surfaces_runtime_command_dispatch_note(self, codex_command_prefix: str) -> None:
         result = runner.invoke(
@@ -1454,6 +1868,50 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         checks = {check["name"]: check for check in payload["checks"]}
         assert payload["command"] == "gpd:new-project"
+        assert payload["context_mode"] == "projectless"
+        assert payload["passed"] is True
+        assert checks["project_context"]["passed"] is True
+
+    def test_command_context_start_command_passes_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        empty_dir = tmp_path / "empty-context"
+        empty_dir.mkdir()
+        monkeypatch.chdir(empty_dir)
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(empty_dir), "validate", "command-context", "start"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:start"
+        assert payload["context_mode"] == "projectless"
+        assert payload["passed"] is True
+        assert checks["project_context"]["passed"] is True
+
+    def test_command_context_tour_command_passes_without_project(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        empty_dir = tmp_path / "empty-context"
+        empty_dir.mkdir()
+        monkeypatch.chdir(empty_dir)
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(empty_dir), "validate", "command-context", "tour"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:tour"
         assert payload["context_mode"] == "projectless"
         assert payload["passed"] is True
         assert checks["project_context"]["passed"] is True
@@ -3081,6 +3539,97 @@ class TestReviewValidationCommands:
             "target resolution is ambiguous" in error
             for error in payload["errors"]
         )
+
+    def test_validate_plan_preflight_command_blocks_missing_required_wolfram(self, gpd_project: Path, monkeypatch) -> None:
+        phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        plan_path = phase_dir / "01-01-PLAN.md"
+        plan_path.write_text(
+            (FIXTURES_DIR / "plan_with_contract.md")
+            .read_text(encoding="utf-8")
+            .replace(
+                "interactive: false\n",
+                "interactive: false\n"
+                "tool_requirements:\n"
+                "  - id: wolfram-cas\n"
+                "    tool: wolfram\n"
+                "    purpose: Symbolic tensor reduction\n",
+                1,
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("gpd.core.tool_preflight.shutil.which", lambda binary: None)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "plan-preflight", str(plan_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["validation_passed"] is True
+        assert payload["passed"] is False
+        assert payload["requirements"][0]["tool"] == "wolfram"
+        assert payload["requirements"][0]["blocking"] is True
+
+    def test_validate_plan_preflight_command_allows_missing_optional_wolfram_with_fallback(
+        self,
+        gpd_project: Path,
+        monkeypatch,
+    ) -> None:
+        phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        plan_path = phase_dir / "01-01-PLAN.md"
+        plan_path.write_text(
+            (FIXTURES_DIR / "plan_with_contract.md")
+            .read_text(encoding="utf-8")
+            .replace(
+                "interactive: false\n",
+                "interactive: false\n"
+                "tool_requirements:\n"
+                "  - id: wolfram-cas\n"
+                "    tool: mathematica\n"
+                "    purpose: Symbolic tensor reduction\n"
+                "    required: false\n"
+                "    fallback: Use SymPy instead\n",
+                1,
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("gpd.core.tool_preflight.shutil.which", lambda binary: None)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "plan-preflight", str(plan_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["validation_passed"] is True
+        assert payload["passed"] is True
+        assert payload["requirements"][0]["tool"] == "wolfram"
+        assert payload["requirements"][0]["blocking"] is False
+        assert "license state are not proven" in payload["warnings"][0]
+
+    @pytest.mark.parametrize(
+        ("command_args"),
+        [
+            ("integrations", "status", "wolfram"),
+            ("integrations", "enable", "wolfram"),
+            ("integrations", "disable", "wolfram"),
+        ],
+    )
+    def test_integrations_surface_smoke(self, command_args: tuple[str, ...]) -> None:
+        _invoke(*command_args)
+
+    def test_doctor_help_smoke_retains_runtime_scoping_and_probe_slot(self) -> None:
+        result = runner.invoke(app, ["doctor", "--help"], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        assert "Check GPD installation and environment health" in result.output
+        assert "inspect runtime readiness" in result.output
 
     def test_validate_summary_contract_command_rejects_unknown_contract_ids(self, gpd_project: Path) -> None:
         phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"

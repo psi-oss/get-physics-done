@@ -24,7 +24,7 @@ allowed-tools:
 <objective>
 Initialize a new physics research project through unified flow: questioning or structured intake → scoping contract approval → literature survey (optional) → requirements → roadmap.
 
-If no project config exists yet, the workflow opens with the physics-questioning pass, then asks for workflow preferences only after scope approval and before the first project-artifact commit.
+If no project config exists yet, the workflow opens with the physics-questioning pass, then surfaces a preset choice before writing workflow preferences, and only asks the detailed config questions after scope approval and before the first project-artifact commit.
 
 **Creates:**
 
@@ -70,7 +70,7 @@ Check `$ARGUMENTS` for flags:
 - **`--minimal`** → Minimal mode (fast bootstrapping path with scope approval)
 - **`--minimal @file.md`** → Minimal mode with input file
 
-**If `--minimal` detected:** After Setup, route to the **minimal initialization path** in the workflow. This compresses questioning and research, but still requires a scoping contract with decisive outputs, anchors, and explicit approval before downstream artifacts.
+**If `--minimal` detected:** After Setup, route to the **minimal initialization path** in the workflow. This compresses questioning and research, keeps the quick intake to one response, and still requires a scoping contract with decisive outputs, anchors, and explicit approval before downstream artifacts.
 
 **If `--auto` detected:** After Setup, synthesize context from the provided document, repair only blocking gaps, present the scoping contract for approval, then run research → requirements → roadmap automatically with smart defaults.
 </process>

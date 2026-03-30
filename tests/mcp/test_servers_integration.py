@@ -657,7 +657,8 @@ class TestSkillsServerIntegration:
         assert "error" not in result
         assert result["name"] == "gpd-help"
         assert "gpd command reference" in result["content"].lower()
-        assert "`/gpd:*`" in result["content"]
+        assert "/gpd:" not in result["content"]
+        assert "gpd-help" in result["content"]
         assert "gpd validate command-context gpd:<name>" in result["content"]
         assert "gpd-new-project" in result["content"]
         assert result["file_count"] == 1
@@ -694,6 +695,19 @@ class TestSkillsServerIntegration:
         assert result["review_contract"] is not None
         assert result["review_contract"]["review_mode"] == "publication"
         assert result["context_mode"] == "project-required"
+        assert result["project_reentry_capable"] is False
+        assert "## Review Contract" in result["content"]
+        assert "review_contract:" in result["content"]
+        assert "inject `review_contract` alongside `content`" in result["loading_hint"]
+
+    def test_get_skill_resume_work_surfaces_project_reentry_metadata(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-resume-work")
+
+        assert "error" not in result
+        assert result["context_mode"] == "project-required"
+        assert result["project_reentry_capable"] is True
 
     @pytest.mark.parametrize(
         ("skill_name", "expected_schema_docs", "expected_contract_docs", "expected_review_mode"),

@@ -10,13 +10,14 @@ import pytest
 
 from gpd.hooks.install_context import detect_self_owned_install
 from gpd.hooks.install_metadata import (
+    assess_install_target,
     config_dir_has_complete_install,
+    config_dir_has_managed_install_markers,
     installed_update_command,
     load_install_manifest_runtime_status,
     load_install_manifest_state,
 )
 from gpd.hooks.runtime_detect import _manifest_runtime_status as runtime_detect_manifest_runtime_status
-from gpd.runtime_cli import _manifest_runtime_status as runtime_cli_manifest_runtime_status
 
 
 def _seed_anonymous_install_tree(config_dir: Path, *, hook_filename: str) -> Path:
@@ -68,6 +69,87 @@ def test_load_install_manifest_state_classifies_manifest_payloads(
     assert load_install_manifest_state(config_dir) == (expected_state, expected_payload)
 
 
+def test_config_dir_has_managed_install_markers_detects_install_surfaces(tmp_path: Path) -> None:
+    config_dir = tmp_path / ".codex"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
+
+    assert config_dir_has_managed_install_markers(config_dir) is True
+
+
+def test_assess_install_target_distinguishes_absent_and_clean_targets(tmp_path: Path) -> None:
+    absent = tmp_path / ".codex"
+    clean = tmp_path / ".codex-clean"
+    clean.mkdir(parents=True, exist_ok=True)
+
+    absent_assessment = assess_install_target(absent)
+    clean_assessment = assess_install_target(clean)
+
+    assert absent_assessment.state == "absent"
+    assert absent_assessment.has_managed_markers is False
+    assert clean_assessment.state == "clean"
+    assert clean_assessment.has_managed_markers is False
+
+
+def test_assess_install_target_classifies_owned_complete_and_incomplete_install(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_dir = tmp_path / ".codex"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local", "runtime": "codex"}),
+        encoding="utf-8",
+    )
+
+    class _FakeAdapter:
+        def __init__(self, missing_install_artifacts: tuple[str, ...]) -> None:
+            self._missing_install_artifacts = missing_install_artifacts
+
+        def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
+            return self._missing_install_artifacts
+
+    monkeypatch.setattr("gpd.hooks.install_metadata.get_adapter", lambda runtime: _FakeAdapter(()))
+    complete = assess_install_target(config_dir)
+
+    monkeypatch.setattr(
+        "gpd.hooks.install_metadata.get_adapter",
+        lambda runtime: _FakeAdapter(("agents/gpd-help/SKILL.md",)),
+    )
+    incomplete = assess_install_target(config_dir)
+
+    assert complete.state == "owned_complete"
+    assert complete.has_managed_markers is True
+    assert incomplete.state == "owned_incomplete"
+    assert incomplete.missing_install_artifacts == ("agents/gpd-help/SKILL.md",)
+
+
+def test_assess_install_target_classifies_foreign_and_untrusted_manifests(
+    tmp_path: Path,
+) -> None:
+    foreign_dir = tmp_path / ".codex-foreign"
+    foreign_dir.mkdir(parents=True, exist_ok=True)
+    (foreign_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local", "runtime": "codex"}),
+        encoding="utf-8",
+    )
+
+    untrusted_dir = tmp_path / ".codex-untrusted"
+    untrusted_dir.mkdir(parents=True, exist_ok=True)
+    (untrusted_dir / "gpd-file-manifest.json").write_text(
+        json.dumps({"install_scope": "local"}),
+        encoding="utf-8",
+    )
+
+    foreign = assess_install_target(foreign_dir, expected_runtime="claude-code")
+    untrusted = assess_install_target(untrusted_dir)
+
+    assert foreign.state == "foreign_runtime"
+    assert foreign.manifest_runtime == "codex"
+    assert untrusted.state == "untrusted_manifest"
+    assert untrusted.manifest_state == "missing_runtime"
+
+
 @pytest.mark.parametrize(
     ("manifest_content", "expected_state", "expected_runtime"),
     [
@@ -96,14 +178,11 @@ def test_install_manifest_runtime_status_is_shared_across_surfaces(
 
     metadata_state, metadata_payload, metadata_runtime = load_install_manifest_runtime_status(config_dir)
     detect_state, detect_runtime = runtime_detect_manifest_runtime_status(config_dir)
-    cli_runtime, cli_state = runtime_cli_manifest_runtime_status(config_dir)
 
     assert metadata_state == expected_state
     assert metadata_runtime == expected_runtime
     assert detect_state == expected_state
     assert detect_runtime == expected_runtime
-    assert cli_state == expected_state
-    assert cli_runtime == expected_runtime
     if expected_state in {"ok", "missing_runtime", "malformed_runtime"}:
         assert metadata_payload == json.loads(manifest_path.read_text(encoding="utf-8"))
     else:
@@ -170,3 +249,14 @@ def test_runtime_detect_uses_shared_manifest_scope_helper() -> None:
 
     assert "install_scope_from_manifest" in source
     assert "_manifest_install_scope" not in source
+
+
+def test_runtime_cli_uses_shared_manifest_runtime_helper() -> None:
+    import gpd.runtime_cli as runtime_cli
+
+    source = inspect.getsource(runtime_cli)
+
+    assert "load_install_manifest_runtime_status" in source
+    assert "config_dir_has_managed_install_markers" in source
+    assert "def _manifest_runtime_status" not in source
+    assert "def _has_managed_install_markers" not in source

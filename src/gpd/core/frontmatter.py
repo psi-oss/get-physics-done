@@ -20,10 +20,13 @@ from pydantic import ValidationError as PydanticValidationError
 from gpd.contracts import (
     ComparisonVerdict,
     ContractResults,
+    ProjectContractParseResult,
     ResearchContract,
     SuggestedContractCheck,
-    collect_contract_integrity_errors,
+    collect_plan_contract_integrity_errors,
+    contract_has_explicit_context_intake,
     normalize_contract_results_input,
+    parse_project_contract_data_strict,
 )
 from gpd.core.constants import (
     PLAN_SUFFIX,
@@ -33,12 +36,11 @@ from gpd.core.constants import (
 )
 from gpd.core.contract_validation import (
     _format_schema_error,
-    _sanitize_contract_scalars,
-    _split_project_contract_schema_findings,
-    salvage_project_contract,
 )
 from gpd.core.errors import GPDError
-from gpd.core.observability import instrument_gpd_function, resolve_project_root
+from gpd.core.observability import instrument_gpd_function
+from gpd.core.root_resolution import resolve_project_root
+from gpd.core.tool_preflight import PlanToolPreflightError, parse_plan_tool_requirements
 from gpd.core.utils import matching_phase_artifact_count, phase_artifact_display_name, phase_artifact_id, safe_read_file
 
 # ---------------------------------------------------------------------------
@@ -240,42 +242,31 @@ def _validate_contract_mapping(
     *,
     enforce_plan_semantics: bool,
 ) -> _PlanContractResolution:
-    """Return validated contract data plus explicit scalar/schema/semantic errors."""
+    """Return validated contract data plus explicit strict/semantic errors."""
 
     if not isinstance(contract_data, dict):
         return _PlanContractResolution(errors=["expected an object"])
 
-    scalar_errors: list[str] = []
-    sanitized_contract_data = _sanitize_contract_scalars(contract_data, errors=scalar_errors)
-    if not isinstance(sanitized_contract_data, dict):
-        return _PlanContractResolution(errors=["expected an object"])
-    if scalar_errors:
-        return _PlanContractResolution(errors=list(dict.fromkeys(scalar_errors)))
+    strict_result: ProjectContractParseResult = parse_project_contract_data_strict(contract_data)
+    if strict_result.errors:
+        return _PlanContractResolution(errors=list(dict.fromkeys(strict_result.errors)))
 
-    normalized_contract, schema_findings = salvage_project_contract(sanitized_contract_data)
-    schema_warnings, schema_errors = _split_project_contract_schema_findings(
-        schema_findings,
-        allow_singleton_defaults=False,
-    )
-    if schema_errors:
-        return _PlanContractResolution(errors=list(dict.fromkeys(schema_errors)))
-    try:
-        contract = normalized_contract or ResearchContract.model_validate(sanitized_contract_data)
-    except PydanticValidationError as exc:
-        return _PlanContractResolution(errors=_format_pydantic_validation_errors(exc))
+    contract = strict_result.contract
+    if contract is None:
+        return _PlanContractResolution(errors=["contract could not be normalized"])
 
     if not enforce_plan_semantics:
         return _PlanContractResolution(contract=contract)
 
     semantic_errors: list[str] = []
-    if "context_intake" not in sanitized_contract_data:
+    if "context_intake" not in contract_data:
         semantic_errors.append("missing context_intake")
-    elif not _has_explicit_context_intake(contract):
+    elif not contract_has_explicit_context_intake(contract):
         semantic_errors.append("context_intake must not be empty")
-    for error in _collect_plan_contract_explicit_field_errors(sanitized_contract_data):
+    for error in _collect_plan_contract_explicit_field_errors(contract_data):
         if error not in semantic_errors:
             semantic_errors.append(error)
-    for error in (*collect_contract_integrity_errors(contract), *_validate_plan_contract(contract)):
+    for error in collect_plan_contract_integrity_errors(contract):
         if error not in semantic_errors:
             semantic_errors.append(error)
     if semantic_errors:
@@ -384,186 +375,6 @@ def _collect_plan_contract_explicit_field_errors(contract_data: dict[str, object
             if field_name not in item:
                 errors.append(f"{collection_name}.{index}.{field_name} must be explicit in plan contracts")
     return errors
-
-
-def _has_contract_grounding_context(contract: ResearchContract) -> bool:
-    """Return whether the contract carries explicit grounding outside references."""
-
-    return any(
-        (
-            contract.context_intake.must_include_prior_outputs,
-            contract.context_intake.user_asserted_anchors,
-            contract.context_intake.known_good_baselines,
-            contract.context_intake.context_gaps,
-            contract.context_intake.crucial_inputs,
-            contract.approach_policy.formulations,
-            contract.approach_policy.stop_and_rethink_conditions,
-        )
-    )
-
-
-def _has_explicit_context_intake(contract: ResearchContract) -> bool:
-    """Return whether context_intake carries any explicit non-empty field."""
-
-    return any(
-        (
-            contract.context_intake.must_read_refs,
-            contract.context_intake.must_include_prior_outputs,
-            contract.context_intake.user_asserted_anchors,
-            contract.context_intake.known_good_baselines,
-            contract.context_intake.context_gaps,
-            contract.context_intake.crucial_inputs,
-        )
-    )
-
-
-def _is_scoping_contract(contract: ResearchContract) -> bool:
-    """Return whether the contract is still framing the work rather than proving it."""
-
-    return (
-        not contract.claims
-        and not contract.acceptance_tests
-        and (
-            bool(contract.observables)
-            or bool(contract.deliverables)
-            or bool(contract.scope.unresolved_questions)
-            or _has_contract_grounding_context(contract)
-        )
-    )
-
-
-def _is_exploratory_contract(contract: ResearchContract) -> bool:
-    """Return whether the contract semantics describe setup/exploratory work."""
-
-    exploratory_test_kinds = {
-        "existence",
-        "schema",
-        "human_review",
-        "consistency",
-        "limiting_case",
-        "symmetry",
-        "dimensional_analysis",
-        "convergence",
-        "other",
-    }
-    exploratory_deliverable_kinds = {"code", "note", "report", "derivation", "figure", "table", "dataset", "data", "other"}
-
-    return (
-        not _is_scoping_contract(contract)
-        and (bool(contract.acceptance_tests) or _has_contract_grounding_context(contract))
-        and all(test.kind in exploratory_test_kinds for test in contract.acceptance_tests)
-        and all(deliverable.kind in exploratory_deliverable_kinds for deliverable in contract.deliverables)
-    )
-
-
-def _validate_plan_contract(contract: ResearchContract) -> list[str]:
-    """Return completeness issues for contract-backed PLAN.md frontmatter."""
-    issues: list[str] = []
-    scoping_contract = _is_scoping_contract(contract)
-    exploratory_contract = _is_exploratory_contract(contract)
-
-    if not contract.claims and not scoping_contract:
-        issues.append("missing claims")
-    if not contract.deliverables and not scoping_contract:
-        issues.append("missing deliverables")
-    if not contract.acceptance_tests and not scoping_contract:
-        issues.append("missing acceptance_tests")
-    if not contract.references and not (_has_contract_grounding_context(contract) or exploratory_contract or scoping_contract):
-        issues.append("missing references or explicit grounding context")
-    if not contract.forbidden_proxies and not (exploratory_contract or scoping_contract):
-        issues.append("missing forbidden_proxies")
-    if not contract.uncertainty_markers.weakest_anchors:
-        issues.append("missing uncertainty_markers.weakest_anchors")
-    if not contract.uncertainty_markers.disconfirming_observations:
-        issues.append("missing uncertainty_markers.disconfirming_observations")
-    if scoping_contract and not (
-        contract.observables
-        or contract.deliverables
-        or contract.scope.unresolved_questions
-        or _has_contract_grounding_context(contract)
-    ):
-        issues.append("scoping contracts must preserve at least one target, open question, or carry-forward input")
-
-    def _append_duplicate_ids(kind: str, ids: list[str]) -> None:
-        seen: set[str] = set()
-        duplicates: set[str] = set()
-        for item_id in ids:
-            if item_id in seen:
-                duplicates.add(item_id)
-            seen.add(item_id)
-        for duplicate in sorted(duplicates):
-            issues.append(f"duplicate {kind} id {duplicate}")
-
-    _append_duplicate_ids("claim", [claim.id for claim in contract.claims])
-    _append_duplicate_ids("deliverable", [deliverable.id for deliverable in contract.deliverables])
-    _append_duplicate_ids("acceptance_test", [test.id for test in contract.acceptance_tests])
-    _append_duplicate_ids("reference", [reference.id for reference in contract.references])
-    _append_duplicate_ids("forbidden_proxy", [proxy.id for proxy in contract.forbidden_proxies])
-    _append_duplicate_ids("link", [link.id for link in contract.links])
-
-    observable_ids = {observable.id for observable in contract.observables}
-    claim_ids = {claim.id for claim in contract.claims}
-    deliverable_ids = {deliverable.id for deliverable in contract.deliverables}
-    acceptance_test_ids = {test.id for test in contract.acceptance_tests}
-    reference_ids = {reference.id for reference in contract.references}
-    known_ids = claim_ids | deliverable_ids | acceptance_test_ids | reference_ids
-
-    if contract.references and not any(reference.must_surface for reference in contract.references):
-        issues.append("references must include at least one must_surface=true anchor")
-    for must_read_ref in contract.context_intake.must_read_refs:
-        if must_read_ref not in reference_ids:
-            issues.append(f"context_intake.must_read_refs references unknown reference {must_read_ref}")
-
-    for claim in contract.claims:
-        if not claim.deliverables:
-            issues.append(f"claim {claim.id} missing deliverables")
-        if not claim.acceptance_tests:
-            issues.append(f"claim {claim.id} missing acceptance_tests")
-        for observable_id in claim.observables:
-            if observable_id not in observable_ids:
-                issues.append(f"claim {claim.id} references unknown observable {observable_id}")
-        for deliverable_id in claim.deliverables:
-            if deliverable_id not in deliverable_ids:
-                issues.append(f"claim {claim.id} references unknown deliverable {deliverable_id}")
-        for test_id in claim.acceptance_tests:
-            if test_id not in acceptance_test_ids:
-                issues.append(f"claim {claim.id} references unknown acceptance test {test_id}")
-        for reference_id in claim.references:
-            if reference_id not in reference_ids:
-                issues.append(f"claim {claim.id} references unknown reference {reference_id}")
-
-    for test in contract.acceptance_tests:
-        if test.subject not in claim_ids and test.subject not in deliverable_ids:
-            issues.append(f"acceptance test {test.id} targets unknown subject {test.subject}")
-        for evidence_id in test.evidence_required:
-            if evidence_id not in known_ids:
-                issues.append(f"acceptance test {test.id} references unknown evidence {evidence_id}")
-
-    for reference in contract.references:
-        if reference.must_surface and not reference.required_actions:
-            issues.append(f"reference {reference.id} is must_surface but missing required_actions")
-        if reference.must_surface and not reference.applies_to:
-            issues.append(f"reference {reference.id} is must_surface but missing applies_to")
-        for applies_to_id in reference.applies_to:
-            if applies_to_id not in claim_ids and applies_to_id not in deliverable_ids:
-                issues.append(f"reference {reference.id} applies_to unknown target {applies_to_id}")
-
-    for forbidden_proxy in contract.forbidden_proxies:
-        if forbidden_proxy.subject not in claim_ids and forbidden_proxy.subject not in deliverable_ids:
-            issues.append(
-                f"forbidden proxy {forbidden_proxy.id} targets unknown subject {forbidden_proxy.subject}"
-            )
-
-    for link in contract.links:
-        if link.source not in known_ids:
-            issues.append(f"link {link.id} references unknown source {link.source}")
-        if link.target not in known_ids:
-            issues.append(f"link {link.id} references unknown target {link.target}")
-        for verification_id in link.verified_by:
-            if verification_id not in acceptance_test_ids:
-                issues.append(f"link {link.id} references unknown acceptance test {verification_id}")
-
-    return issues
 
 
 def _parse_contract_results(meta: dict) -> ContractResults | None:
@@ -1174,6 +985,12 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
     elif "contract" in meta:
         errors.append("contract: expected an object")
 
+    if schema_name == "plan" and "tool_requirements" in meta:
+        try:
+            parse_plan_tool_requirements(meta.get("tool_requirements"))
+        except PlanToolPreflightError as exc:
+            errors.append(f"tool_requirements: {exc}")
+
     if schema_name in {"summary", "verification"}:
         plan_contract_ref = meta.get("plan_contract_ref")
         plan_contract_ref_fragment_error: str | None = None
@@ -1532,6 +1349,12 @@ def verify_plan_structure(cwd: Path, file_path: Path) -> PlanValidation:
         errors.extend(f"Invalid contract: {issue}" for issue in resolution.errors)
     elif "contract" in meta:
         errors.append("Invalid contract: expected an object")
+
+    if "tool_requirements" in meta:
+        try:
+            parse_plan_tool_requirements(meta.get("tool_requirements"))
+        except PlanToolPreflightError as exc:
+            errors.append(f"Invalid tool_requirements: {exc}")
 
     # Parse task elements
     tasks: list[TaskInfo] = []

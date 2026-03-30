@@ -203,9 +203,19 @@ _LOCAL_CLI_INIT_COMMANDS: dict[str, str] = {
     "verify-work": "verify-work",
 }
 
+_LOCAL_CLI_PUBLIC_COMMANDS: dict[str, str] = {
+    # Resume is a user-facing recovery command even when the local CLI still
+    # routes most workflow assembly through `gpd init ...`.
+    "resume": "gpd resume",
+    "resume-work": "gpd resume",
+}
+
 
 def _format_local_cli_command(action: str) -> str:
     """Format the best available local CLI equivalent for a workflow action."""
+    public_command = _LOCAL_CLI_PUBLIC_COMMANDS.get(action)
+    if public_command is not None:
+        return public_command
     init_action = _LOCAL_CLI_INIT_COMMANDS.get(action)
     if init_action is not None:
         return f"gpd init {init_action}"

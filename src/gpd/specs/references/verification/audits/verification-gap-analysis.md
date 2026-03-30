@@ -40,7 +40,7 @@ The machine-readable `ERROR_CLASS_COVERAGE` currently maps a focused subset of 2
 | L0 | Plan-checker 16 dimensions | Catches bad plans before execution starts | Structural only; does not prove results are correct |
 | L1 | Convention lock + convention assertions | Prevents convention drift and runtime mismatch | Only catches convention-trackable failures |
 | L2 | Executor post-step guards | Catches setup, identity, BC, computation-type, and domain-level mistakes early | Best-effort; still not a substitute for verifier evidence |
-| L3 | Pre-commit check | Blocks malformed frontmatter plus NaN/Inf markers in committed artifacts | Intentionally shallow; not a physics verifier |
+| L3 | Pre-commit check | Blocks malformed frontmatter, NaN/Inf markers, and missing/mismatched ASSERT_CONVENTION coverage on changed derivation and phase verification artifacts | Still changed-file structural gating only; not a physics verifier |
 | L4 | Inter-wave gates | Phase-class-aware between-wave checks such as convention, dimensional, identity, convergence, plausibility, and LaTeX compile checks | Selected by review cadence and phase class; still not a full verification pass |
 | L5 | Live verifier registry | Main within-phase result verification surface | Must still be scoped correctly to the phase and contract; execute-phase skips it entirely when `workflow.verifier` is false |
 | L6 | Consistency checker | Cross-phase convention and dependency consistency | Limited to things visible across phase boundaries |

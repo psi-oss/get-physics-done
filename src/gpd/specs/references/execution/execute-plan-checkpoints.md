@@ -90,11 +90,11 @@ See references/orchestration/checkpoints.md for details.
 
 When spawned via task and hitting checkpoint: return structured state (cannot interact with user directly).
 
-**Required return:** 1) Completed Tasks table (hashes + files) 2) Current task (what's blocking) 3) Checkpoint Details (user-facing content) 4) Awaiting (what's needed from user) 5) `execution_segment` payload with cursor, checkpoint cause, completed tasks, resume preconditions, and any first-result or pre-fanout gate state.
+**Required return:** 1) Completed Tasks table (hashes + files) 2) Current task (what's blocking) 3) Checkpoint Details (user-facing content) 4) Awaiting (what's needed from user) 5) `execution_segment` runtime handoff payload with cursor, checkpoint cause, completed tasks, resume preconditions, and any first-result or pre-fanout gate state. If the stop is durably recorded, the same payload is what later persists as `continuation.bounded_segment`.
 
 If the stop is tied to first-result, skeptical, or pre-fanout review, the `execution_segment` must say which gate is still pending. A gate clear must name the specific reason being retired, and `fanout unlock` never substitutes for that clear. For `pre_fanout`, return `pre_fanout_review_cleared: true` when the review outcome is known but downstream unlock is still outstanding.
 
-Orchestrator parses -> presents to user -> spawns fresh continuation with your completed tasks state plus the `execution_segment` payload. You will NOT be resumed. In main context: use checkpoint protocol above.
+Orchestrator parses -> presents to user -> spawns fresh continuation with your completed tasks state plus the `execution_segment` payload. The fresh continuation uses that payload as transport state; the persisted `continuation.bounded_segment` copy is what survives if the pause is recorded durably. You will NOT be resumed. In main context: use checkpoint protocol above.
 
 ## Cleanup Checkpoint
 

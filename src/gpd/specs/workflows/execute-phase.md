@@ -7,7 +7,7 @@ Orchestrator coordinates, not executes. Each subagent loads the full execute-pla
 </core_principle>
 
 <required_reading>
-Read STATE.md before any operation to load project context.
+Load the structured init-state payload first; reopen STATE.md only if the payload is missing, stale, or flagged by `state_load_source` / `state_integrity_issues`.
 For agent selection strategy and verification failure routing, see `@{GPD_INSTALL_DIR}/references/orchestration/meta-orchestration.md`.
 For artifact class definitions and review priority rules, see `@{GPD_INSTALL_DIR}/references/orchestration/artifact-surfacing.md`.
 </required_reading>
@@ -25,7 +25,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `review_cadence`, `research_mode`, `parallelization`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`.
+Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `review_cadence`, `research_mode`, `parallelization`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `state_load_source`, `state_integrity_issues`, `convention_lock`, `convention_lock_count`, `intermediate_results`, `intermediate_result_count`, `approximations`, `approximation_count`, `propagated_uncertainties`, `propagated_uncertainty_count`, `derived_convention_lock`, `derived_convention_lock_count`, `derived_intermediate_results`, `derived_intermediate_result_count`, `derived_approximations`, `derived_approximation_count`, `selected_protocol_bundle_ids`, `protocol_bundle_context`.
 
 **If `phase_found` is false:** Error -- phase directory not found.
 **If `plan_count` is 0:** Error -- no plans found in phase.
@@ -38,6 +38,7 @@ If `project_contract_validation.valid` is false, STOP and show the explicit `pro
 Treat `project_contract` as the authoritative machine-readable execution contract only when it is present and `project_contract_validation.valid` is true.
 Treat `effective_reference_intake` as the carry-forward anchor ledger for refs, baselines, prior outputs, and unresolved context gaps.
 Use `active_reference_context` and `reference_artifacts_content` to interpret that ledger, not to replace it with markdown-only guesses.
+Before launching any plan, require that the selected `PLAN.md` passes `gpd validate plan-preflight <PLAN.md>` when specialized tool requirements are declared.
 
 When `parallelization` is false, plans within a wave execute sequentially.
 
@@ -46,7 +47,7 @@ When `parallelization` is false, plans within a wave execute sequentially.
 - `autonomy=balanced` (default): Execute waves automatically and pause only if errors, ambiguities, or scope-changing decisions arise at a wave boundary.
 - `autonomy=yolo`: Execute all waves without user prompts on clean passes. Do NOT skip required correctness gates, first-result sanity checks, skeptical review stops, or anchor-gated fanout reviews. A clean pass may auto-continue only after the gate is explicitly cleared.
 - `research_mode=explore`: Favor thoroughness — always run verification, expand context budget.
-- `research_mode=exploit`: Favor speed — skip optional research steps, tighter context budget, but never skip required first-result, skeptical, or pre-fanout review gates.
+- `research_mode=exploit`: Favor speed — skip optional research steps, tighter context budget, suppress optional tangents unless the user explicitly requested them, but never skip required first-result, skeptical, or pre-fanout review gates.
 - `research_mode=adaptive`: Start with explore-style coverage, then narrow only after prior decisive `contract_results`, decisive `comparison_verdicts`, or an explicit approach lock show that the method family is stable. Do NOT narrow just because a wave advanced or one proxy passed.
 - Model profile and research mode may change depth, task granularity, or prose volume. They do NOT waive first-result, skeptical, or pre-fanout review gates.
 - `review_cadence`: Controls when bounded review gates appear. `autonomy` controls who must approve or inspect those gates. These are separate axes.
@@ -364,6 +365,7 @@ Translate cadence config plus wave risk into concrete execution boundaries befor
 
 ```bash
 REVIEW_CADENCE=$(echo "$INIT" | gpd json get .review_cadence --default adaptive)
+RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 MAX_UNATTENDED_MINUTES_PER_PLAN=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_plan --default 45)
 MAX_UNATTENDED_MINUTES_PER_WAVE=$(echo "$INIT" | gpd json get .max_unattended_minutes_per_wave --default 90)
 CHECKPOINT_AFTER_N_TASKS=$(echo "$INIT" | gpd json get .checkpoint_after_n_tasks --default 3)
@@ -402,6 +404,17 @@ When a wave is not risky:
 - what still looks assumed rather than verified
 - the disconfirming observation that would most quickly break the current path
 - which downstream plans would become wasted work if that decisive evidence failed
+
+**Proposal-first tangent control:** if an unexpected but non-blocking alternative path appears during execution, do not silently pursue it. Treat it as a tangent proposal and classify it using exactly one of these four decisions at the existing review stop:
+
+- `ignore` — not a real tangent; continue the approved mainline plan
+- `defer` — record it briefly in the wave report / SUMMARY as future follow-up, then continue the mainline plan
+- `branch_later` — recommend `/gpd:tangent ...` or `/gpd:branch-hypothesis ...` for explicit follow-up, but do not create new side work during this execution pass
+- `pursue_now` — only when the user explicitly requested tangent exploration or the approved contract already includes that alternative path
+
+This is proposal-first, not a new execution state machine. Tangent proposals ride on the existing first-result / skeptical / pre-fanout review stops.
+
+When `RESEARCH_MODE=exploit`, suppress optional tangents by default: classify them as `ignore` or `defer` unless the prompt or the user explicitly asked for tangent exploration.
 </step>
 
 <step name="execute_waves">
@@ -453,6 +466,8 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
    - First launch each risky plan only to its first-result gate or bounded segment boundary
    - Collect first-result sanity outcomes, decisive-evidence status, and anchor status
+   - If an executor surfaces an unexpected but non-blocking alternative path, treat it as a tangent proposal, not permission for silent side exploration
+   - Resolve tangent proposals with the four-way decision model (`ignore | defer | branch_later | pursue_now`) before any extra side work, branch work, or follow-on fanout is allowed
    - Only unlock the remainder of the wave when those gates pass with decisive evidence or the remaining work is explicitly independent of the unresolved comparison
    - If any plan fails the gate or requires re-questioning, STOP the wave before spawning more downstream work
 
@@ -478,6 +493,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
        <context_hint>{EXECUTOR_CONTEXT_HINT}</context_hint>
        <phase_class>{PHASE_CLASSES}</phase_class>
+       <research_mode>{RESEARCH_MODE}</research_mode>
        <protocol_bundles>{selected_protocol_bundle_ids}</protocol_bundles>
        <protocol_bundle_context>{protocol_bundle_context}</protocol_bundle_context>
        <review_cadence>{REVIEW_CADENCE}</review_cadence>
@@ -487,6 +503,12 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
        <first_result_gate>{FIRST_RESULT_GATE_REQUIRED}</first_result_gate>
        <checkpoint_before_downstream>{CHECKPOINT_BEFORE_DOWNSTREAM}</checkpoint_before_downstream>
        <bounded_execution>{true}</bounded_execution>
+       <tangent_control>
+       Proposal-first. If an unexpected but non-blocking alternative path appears, classify it as `ignore`, `defer`, `branch_later`, or `pursue_now`.
+       Do not silently pursue optional tangents.
+       `pursue_now` requires explicit user request or existing approved scope.
+       If `research_mode=exploit`, suppress optional tangents unless tangent exploration was explicitly requested.
+       </tangent_control>
 
        <files_to_read>
        Read these files at execution start using the file_read tool:
@@ -615,12 +637,27 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    - `last_result_label` or `last_artifact_path` for the first load-bearing output being reviewed
    - `skeptical_requestioning_required: true` when the first result still looks proxy-only, anchor-thin, or otherwise short of the decisive evidence the contract still owes
    - `skeptical_requestioning_summary`, `weakest_unchecked_anchor`, and `disconfirming_observation` whenever skeptical re-questioning is required
+   - optional `tangent_summary` and `tangent_decision` when the same bounded stop surfaced an unexpected but non-blocking alternative path that still needs explicit handling
 
    If the runtime or agent only emits a fanout-lock event, normalize it into the same live review stop: treat the lock as `checkpoint_reason=pre_fanout`, mark `waiting_for_review=true`, and keep downstream locked until the review is explicitly cleared.
 
    Gate clears are reason-scoped: clearing `first_result` must not erase `pre_fanout` or skeptical review flags, and skeptical re-questioning should be cleared explicitly when it is resolved.
 
    For `pre_fanout`, the matching gate-clear and `fanout unlock` are separate transitions: the clear records the review outcome, the unlock releases downstream work. Keep the segment live on status, notify, and resume surfaces until both have been observed. Do not silently continue on "looks fine" prose alone.
+
+   **Tangent proposals at the same stop:** if the first result suggests an unexpected but non-blocking alternative path, keep it inside the same review conversation rather than spawning extra work. Resolve it with one of:
+
+   - `ignore` — continue mainline execution unchanged
+   - `defer` — note it in outputs as future work and continue
+   - `branch_later` — recommend an explicit `/gpd:tangent ...` or `/gpd:branch-hypothesis ...` follow-up after the bounded stop
+   - `pursue_now` — only if the user explicitly asked for tangent exploration or the approved contract already covers it
+
+   **Machine-state bridge for tangent proposals:** when a tangent proposal is relevant at this stop, keep it inside the same live execution payload instead of inventing a new tangent state machine. Emit:
+
+   - `tangent_summary` — one short description of the alternative path
+   - `tangent_decision` — one of `ignore | defer | branch_later | pursue_now` once classified
+
+   Do not create a new branch, child plan, or side subagent from executor initiative alone. In `research_mode=exploit`, treat optional tangent proposals as suppressed unless explicit request overrides that default.
 
 10. **Inter-wave verification gate (if more waves remain):**
 
@@ -1427,9 +1464,8 @@ task(prompt="First, read {GPD_AGENTS_DIR}/gpd-consistency-checker.md for your ro
 <phase>{PHASE_NUMBER}</phase>
 
 Check phase {PHASE_NUMBER} results against the full conventions ledger and all accumulated project state.
-Read conventions from state.json via: gpd convention list
-And from SUMMARY.md frontmatter convention fields.
-file_read: GPD/STATE.md, GPD/state.json
+Use the structured init-state payload (`convention_lock` / `derived_convention_lock`) and SUMMARY.md frontmatter convention fields first.
+Use `gpd convention list` and `file_read: GPD/STATE.md, GPD/state.json` only if the payload is missing or inconsistent.
 file_read: All SUMMARY.md files from phase {PHASE_NUMBER}
 
 Return consistency_status with any issues found.
@@ -1476,7 +1512,8 @@ Resolve convention inconsistencies found by consistency checker after phase {PHA
 </issues>
 
 <project_context>
-file_read: GPD/STATE.md, GPD/state.json, GPD/CONVENTIONS.md
+file_read: GPD/STATE.md, GPD/state.json, GPD/CONVENTIONS.md only if the structured payload is missing or inconsistent
+Prefer the structured init-state payload (`convention_lock` / `derived_convention_lock`) first; only reopen `STATE.md` / `state.json` if the payload is missing or inconsistent.
 file_read: All SUMMARY.md files from phase {PHASE_NUMBER}
 Load conventions: gpd convention list
 </project_context>
@@ -1557,6 +1594,10 @@ fi
 </step>
 
 <step name="offer_next">
+
+<continuation_routing>
+After phase completion, check the project's autonomy mode. If yolo or balanced with no pending checkpoint, auto-route to the next phase. If supervised, or if a checkpoint requires review, pause with a clear status message showing: current phase completed, why execution paused, exact next command to continue, and key artifacts to review. See `{GPD_INSTALL_DIR}/references/orchestration/continuous-execution.md` for the standard checkpoint protocol.
+</continuation_routing>
 
 **If more phases:**
 

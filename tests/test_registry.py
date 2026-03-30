@@ -304,6 +304,7 @@ class TestParseCommandFile:
         assert cmd.description == "Debug command"
         assert cmd.argument_hint == "<error>"
         assert cmd.context_mode == "project-required"
+        assert cmd.project_reentry_capable is False
         assert cmd.requires == {"project": True}
         assert cmd.allowed_tools == ["file_read", "shell"]
         assert cmd.content == "Command body."
@@ -316,6 +317,7 @@ class TestParseCommandFile:
         assert cmd.description == ""
         assert cmd.argument_hint == ""
         assert cmd.context_mode == "project-required"
+        assert cmd.project_reentry_capable is False
         assert cmd.requires == {}
         assert cmd.allowed_tools == []
 
@@ -354,6 +356,55 @@ class TestParseCommandFile:
         cmd = _parse_command_file(f, source="commands")
 
         assert cmd.context_mode == "global"
+
+    def test_command_parses_project_reentry_capable_for_project_required_commands(self, tmp_path: Path) -> None:
+        f = tmp_path / "resume-work.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:resume-work\n"
+            "context_mode: project-required\n"
+            "project_reentry_capable: true\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        cmd = _parse_command_file(f, source="commands")
+
+        assert cmd.context_mode == "project-required"
+        assert cmd.project_reentry_capable is True
+
+    def test_command_project_reentry_capable_rejects_non_boolean_values(self, tmp_path: Path) -> None:
+        f = tmp_path / "resume-work.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:resume-work\n"
+            "project_reentry_capable: maybe\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="project_reentry_capable for gpd:resume-work must be a boolean"):
+            _parse_command_file(f, source="commands")
+
+    def test_command_project_reentry_capable_requires_project_required_context_mode(self, tmp_path: Path) -> None:
+        f = tmp_path / "start.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:start\n"
+            "context_mode: projectless\n"
+            "project_reentry_capable: true\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="project_reentry_capable for gpd:start requires context_mode 'project-required'",
+        ):
+            _parse_command_file(f, source="commands")
 
     def test_command_invalid_context_mode_raises(self, tmp_path: Path) -> None:
         f = tmp_path / "help.md"
@@ -405,6 +456,7 @@ class TestParseCommandFile:
 
         assert cmd.review_contract is None
         assert cmd.context_mode == "project-required"
+        assert cmd.project_reentry_capable is False
 
     def test_command_review_contract_parses_false_string_for_fresh_context(self, tmp_path: Path) -> None:
         f = tmp_path / "review-contract-false.md"
@@ -1205,6 +1257,20 @@ class TestPublicAPI:
             "find_files",
             "ask_user",
         ]
+
+    def test_real_recovery_commands_expose_project_reentry_metadata(self) -> None:
+        registry.invalidate_cache()
+
+        progress = registry.get_command("progress")
+        resume_work = registry.get_command("resume-work")
+        quick = registry.get_command("quick")
+
+        assert progress.context_mode == "project-required"
+        assert progress.project_reentry_capable is True
+        assert resume_work.context_mode == "project-required"
+        assert resume_work.project_reentry_capable is True
+        assert quick.context_mode == "project-required"
+        assert quick.project_reentry_capable is False
 
     def test_real_slides_skill_uses_output_category(self) -> None:
         registry.invalidate_cache()

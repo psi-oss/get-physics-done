@@ -71,7 +71,7 @@ Read STATE.md to identify:
 - The phase range containing the derivation chain
 - Any existing `propagated_uncertainties` entries
 
-If the target is not found in STATE.md intermediate_results, check SUMMARY.md files across phases for the quantity name.
+If the target is not found in `STATE.md` `intermediate_results`, first use `gpd result search` to look for the canonical result by identifier, equation, or description. Once you have the canonical `result_id`, use `gpd result show "{result_id}"` for the direct stored-result view before `gpd result deps "{result_id}"` to recover the recorded dependency tree before reconstructing it manually. If the target still is not found, check SUMMARY.md files across phases for the quantity name.
 </step>
 
 <step name="trace_derivation_chain">
@@ -81,7 +81,7 @@ Build the complete dependency tree from inputs to the target quantity.
 
 **From state.json:**
 
-Read `intermediate_results` and follow `depends_on` chains backward from the target:
+If the target has a canonical `result_id`, run `gpd result show "{result_id}"` first for the direct stored-result view, then run `gpd result deps "{result_id}"` and use that direct/transitive chain as the authoritative starting point. Then read `intermediate_results` to confirm details and fill any missing mathematical expressions or uncertainty annotations. If no canonical `result_id` is available, read `intermediate_results` and follow `depends_on` chains backward from the target manually:
 
 ```
 target_quantity

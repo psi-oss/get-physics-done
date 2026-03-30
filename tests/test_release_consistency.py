@@ -14,6 +14,12 @@ from pathlib import Path
 
 import pytest
 
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.core.onboarding_surfaces import (
+    beginner_onboarding_hub_url,
+    beginner_runtime_surfaces,
+    beginner_startup_ladder_text,
+)
 from scripts.release_workflow import (
     ReleaseError,
     bump_version,
@@ -21,10 +27,50 @@ from scripts.release_workflow import (
     prepare_release,
     stamp_publish_date,
 )
+from tests.doc_surface_contracts import (
+    DOCTOR_RUNTIME_SCOPE_RE,
+    WOLFRAM_STATUS_SURFACE,
+    assert_beginner_caveat_follow_up_contract,
+    assert_beginner_help_bridge_contract,
+    assert_beginner_hub_preflight_contract,
+    assert_beginner_preflight_notice_contract,
+    assert_beginner_router_bridge_contract,
+    assert_beginner_startup_routing_contract,
+    assert_cost_advisory_contract,
+    assert_help_command_quick_start_extract_contract,
+    assert_help_workflow_quick_start_taxonomy_contract,
+    assert_help_workflow_runtime_reference_contract,
+    assert_optional_paper_workflow_guidance_contract,
+    assert_post_start_settings_bridge_contract,
+    assert_publication_toolchain_boundary_contract,
+    assert_recovery_ladder_contract,
+    assert_runtime_readiness_handoff_contract,
+    assert_settings_local_terminal_follow_up_contract,
+    assert_unattended_readiness_contract,
+    assert_wolfram_plan_boundary_contract,
+)
 
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
+
+
+_RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
+
+
+def _documented_runtime_flags() -> tuple[str, ...]:
+    flags: set[str] = set()
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        flags.update(descriptor.selection_flags)
+    return tuple(sorted(flags))
+
+
+def _runtime_note_heading_regex(descriptor) -> re.Pattern[str]:
+    display_name = re.escape(descriptor.display_name)
+    short_name = re.escape(descriptor.display_name.split()[0])
+    if display_name == short_name:
+        return re.compile(rf"{display_name}-specific note:")
+    return re.compile(rf"(?:{display_name}|{short_name})-specific note:")
 
 
 def _project_script_lines(repo_root: Path) -> list[str]:
@@ -132,7 +178,7 @@ def _expected_wheel_dependency_names() -> set[str]:
 
 
 HELP_COMMAND_HEADING_RE = re.compile(r"^\*\*`/gpd:([a-z0-9-]+)(?:[^`]*)`\*\*$", re.MULTILINE)
-README_COMMAND_ROW_RE = re.compile(r"^\| `/gpd:([a-z0-9-]+)(?:[^`]*)` \| (.*?) \|$", re.MULTILINE)
+BEGINNER_ONBOARDING_HUB_URL = beginner_onboarding_hub_url()
 
 
 def _normalized_requirement_name(requirement: str) -> str:
@@ -165,9 +211,29 @@ def _command_inventory_stems(repo_root: Path) -> set[str]:
 def _help_heading_stems(content: str) -> set[str]:
     return set(HELP_COMMAND_HEADING_RE.findall(content))
 
+def _markdown_section(content: str, heading: str) -> str:
+    lines = content.splitlines()
+    collected: list[str] = []
+    in_section = False
+    for line in lines:
+        if line == heading:
+            in_section = True
+        elif in_section and line.startswith("## "):
+            break
+        if in_section:
+            collected.append(line)
+    assert collected, f"expected section {heading!r}"
+    return "\n".join(collected)
 
-def _readme_command_rows(content: str) -> dict[str, str]:
-    return {stem: description.strip() for stem, description in README_COMMAND_ROW_RE.findall(content)}
+
+def _extract_between(content: str, start_marker: str, end_marker: str) -> str:
+    start = content.index(start_marker)
+    end = content.index(end_marker, start)
+    return content[start:end]
+
+
+def _readme_key_commands_section(content: str) -> str:
+    return _markdown_section(content, "## Key GPD Paths")
 
 
 def test_required_public_release_artifacts_exist() -> None:
@@ -260,6 +326,7 @@ def test_public_bootstrap_package_exposes_npx_installer() -> None:
     assert package_json["name"] == "get-physics-done"
     assert package_json.get("bin", {}).get("get-physics-done") == "bin/install.js"
     assert "bin/" in package_json.get("files", [])
+    assert "src/gpd/core/public_surface_contract.json" in package_json.get("files", [])
     assert (repo_root / "bin" / "install.js").is_file()
 
 
@@ -276,6 +343,7 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
 
     assert 'require("../package.json")' in content
+    assert 'require("../src/gpd/core/public_surface_contract.json")' in content
     assert "gpdPythonVersion" in content
     assert '["-m", "venv", "--help"]' in content
     assert "managed environment" in content
@@ -297,12 +365,8 @@ def test_public_bootstrap_installer_documents_public_flags_and_runtime_aliases()
     content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
 
     assert "npx -y get-physics-done" in readme
-    assert "`--claude`" in readme
-    assert "`--claude-code`" in readme
-    assert "`--gemini`" in readme
-    assert "`--gemini-cli`" in readme
-    assert "`--codex`" in readme
-    assert "`--opencode`" in readme
+    for flag in _documented_runtime_flags():
+        assert f"`{flag}`" in readme
     assert "`--all`" in readme
     assert "`--global`" in readme
     assert "`--local`" in readme
@@ -518,11 +582,6 @@ def test_public_docs_keep_runtime_surface_first() -> None:
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
 
     assert "## Quick Start" in readme
-    assert "**Next steps after install**" in readme
-    assert "it does not launch the runtime for you" in readme
-    assert "Open your chosen runtime from your normal system terminal" in readme
-    assert "`claude` for Claude Code" in readme
-    assert "`gemini` for Gemini CLI" in readme
     assert "## Supported Runtimes" in readme
     assert "## Advanced CLI Utilities" in readme
     assert readme.index("## Supported Runtimes") < readme.index("## Advanced CLI Utilities")
@@ -534,16 +593,337 @@ def test_public_docs_keep_runtime_surface_first() -> None:
     assert "does not fabricate opaque provider internals" in readme
 
 
+def test_public_supported_runtime_rows_follow_runtime_catalog_commands() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+    supported_runtimes = _markdown_section(readme, "## Supported Runtimes")
+
+    for surface in beginner_runtime_surfaces():
+        expected_row = (
+            f"| {surface.display_name} | `{surface.install_flag}` | "
+            f"`{surface.help_command}` | `{surface.start_command}` | "
+            f"`{surface.tour_command}` | `{surface.new_project_minimal_command}` | "
+            f"`{surface.map_research_command}` | `{surface.resume_work_command}` |"
+        )
+        assert expected_row in supported_runtimes
+
+    assert "Common first commands by runtime:" not in supported_runtimes
+    assert_post_start_settings_bridge_contract(supported_runtimes)
+
+
+def test_public_readme_quick_start_keeps_runtime_first_next_steps() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+    quick_start = _markdown_section(readme, "## Quick Start")
+
+    assert_beginner_help_bridge_contract(quick_start)
+
+
+def test_public_help_default_quick_start_keeps_runtime_surface_readiness_path() -> None:
+    help_command = (_repo_root() / "src/gpd/commands/help.md").read_text(encoding="utf-8")
+    help_workflow = (_repo_root() / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
+    quick_start = _extract_between(
+        help_command,
+        "## Step 2: Quick Start Extract (Default Output)",
+        "## Step 3: Full Command Reference (--all)",
+    )
+    quick_start_reference = _extract_between(help_workflow, "## Quick Start", "## Core Workflow")
+
+    assert_help_command_quick_start_extract_contract(quick_start)
+    assert_help_workflow_runtime_reference_contract(help_workflow)
+    assert_help_workflow_quick_start_taxonomy_contract(quick_start_reference)
+
+
+def test_public_help_surfaces_keep_publication_workflows_visible_for_optional_add_ons() -> None:
+    repo_root = _repo_root()
+    help_command = (repo_root / "src/gpd/commands/help.md").read_text(encoding="utf-8")
+    help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
+    assert "## Core Workflow" in help_workflow
+    assert "**`/gpd:write-paper [title or topic] [--from-phases 1,2,3]`**" in help_workflow
+    assert "**`/gpd:arxiv-submission`**" in help_workflow
+    assert_optional_paper_workflow_guidance_contract(help_workflow)
+    assert_publication_toolchain_boundary_contract(help_workflow)
+
+
+def test_public_readme_quick_start_surfaces_step_one_entry_points() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+    quick_start = _markdown_section(readme, "## Quick Start")
+
+    assert "Then choose the path that matches your starting point:" in quick_start
+    assert_beginner_router_bridge_contract(quick_start)
+
+
+def test_public_readme_start_here_surfaces_beginner_hub_links_and_order() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+    start_here = _markdown_section(readme, "## Start Here")
+
+    assert "[Beginner Onboarding Hub](./docs/README.md)" in start_here
+    assert "Use the hub as the single beginner path." in start_here
+    assert "There are two places you type commands:" in start_here
+    assert "In your normal system terminal:" in start_here
+    assert "Inside your AI runtime:" in start_here
+
+
+def test_public_beginner_hub_keeps_top_level_and_help_surfaces_aligned() -> None:
+    repo_root = _repo_root()
+    hub = (repo_root / "docs" / "README.md").read_text(encoding="utf-8")
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    help_command = (repo_root / "src" / "gpd" / "commands" / "help.md").read_text(encoding="utf-8")
+    help_workflow = (repo_root / "src" / "gpd" / "specs" / "workflows" / "help.md").read_text(encoding="utf-8")
+    cli_content = (repo_root / "src" / "gpd" / "cli.py").read_text(encoding="utf-8")
+    install_js = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+
+    assert beginner_startup_ladder_text() in hub
+    assert "Then choose `new-project`, `map-research`, or `resume-work`." in hub
+    assert (
+        "If you already have a GPD project, `gpd resume` is the normal-terminal,\n"
+        "current-workspace read-only recovery snapshot, and `resume-work` is the\n"
+        "in-runtime continue command after you open the right folder. If you need to\n"
+        "reopen a different workspace first, use `gpd resume --recent`, then come back\n"
+        "into the runtime."
+    ) in hub or (
+        "If you already have a GPD project, `gpd resume` is the normal-terminal,\n"
+        "projected recovery snapshot, and `resume-work` is the in-runtime continue\n"
+        "command after you reopen the right workspace. If you need to rediscover a\n"
+        "different workspace first, use `gpd resume --recent`." in hub
+    )
+    assert_beginner_hub_preflight_contract(hub)
+
+    start_here = _markdown_section(readme, "## Start Here")
+    quick_start = _markdown_section(readme, "## Quick Start")
+
+    assert "[Beginner Onboarding Hub](./docs/README.md)" in start_here
+    assert_beginner_router_bridge_contract(quick_start)
+
+    assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
+    assert "beginner_onboarding_hub_url()" in cli_content
+    assert "Beginner Onboarding Hub:" in install_js
+    assert "beginnerHubUrl" in install_js
+    assert "First-run order:" in install_js
+    assert install_js.index("Beginner Onboarding Hub:") < install_js.index("First-run order:")
+    assert cli_content.index("Beginner Onboarding Hub:") < cli_content.index("First-run order:")
+    assert "Getting started:" in help_workflow
+
+
+def test_public_readme_quick_start_routes_into_settings_and_local_cli_follow_up_surfaces() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+    quick_start = _markdown_section(readme, "## Quick Start")
+
+    assert_beginner_router_bridge_contract(quick_start)
+
+
+def test_public_readme_and_bootstrap_surface_optional_workflow_add_on_guidance() -> None:
+    repo_root = _repo_root()
+    installer = (repo_root / "bin/install.js").read_text(encoding="utf-8")
+
+    assert_runtime_readiness_handoff_contract(installer)
+    assert_beginner_caveat_follow_up_contract(installer)
+
+
+def test_public_paper_toolchain_capability_model_stays_consistent_across_help_and_installer_surfaces() -> None:
+    repo_root = _repo_root()
+    help_command = (repo_root / "src/gpd/commands/help.md").read_text(encoding="utf-8")
+    help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
+    installer = (repo_root / "bin/install.js").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
+    assert_unattended_readiness_contract(help_workflow)
+    assert_wolfram_plan_boundary_contract(help_workflow)
+    assert_optional_paper_workflow_guidance_contract(help_workflow)
+    assert_publication_toolchain_boundary_contract(help_workflow)
+    assert_runtime_readiness_handoff_contract(installer)
+    assert_beginner_caveat_follow_up_contract(installer)
+    assert "Local Mathematica installs are separate from the shared optional Wolfram integration config." in help_workflow
+    assert DOCTOR_RUNTIME_SCOPE_RE.search(help_workflow) is not None
+    assert WOLFRAM_STATUS_SURFACE in help_workflow
+
+
+def test_public_readme_quick_start_stays_router_not_full_readiness_checklist_owner() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+    quick_start = _markdown_section(readme, "## Quick Start")
+
+    assert_beginner_router_bridge_contract(quick_start)
+    assert "[Start Here](#start-here)" in quick_start
+    assert "[Beginner Onboarding Hub](./docs/README.md)" in quick_start
+
+
+def test_public_help_surface_keeps_start_tour_new_project_and_map_research_ordered() -> None:
+    repo_root = _repo_root()
+    help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
+
+    assert "Getting started:" in help_workflow
+    assert "`state.json.continuation` is the durable authority" in help_workflow
+    assert_beginner_startup_routing_contract(help_workflow)
+
+
+def test_js_bootstrap_after_install_surface_keeps_beginner_order() -> None:
+    install_js = (_repo_root() / "bin/install.js").read_text(encoding="utf-8")
+
+    hub_line = "Beginner Onboarding Hub: ${SHARED_PUBLIC_SURFACE_TEXT.beginnerHubUrl}"
+    order_line = "First-run order: ${beginnerStartupLadderText()}"
+    onboarding_line = (
+        "Open your runtime, run its help command first, use `start` if you are not sure what fits this folder, "
+        "and use `tour` if you want a read-only overview of the broader command surface before choosing."
+    )
+
+    assert hub_line in install_js
+    assert order_line in install_js
+    assert onboarding_line in install_js
+    assert (
+        "Open your runtime, run its help command first, use `start` if you are not sure what fits this folder, "
+        "and use `tour` if you want a read-only overview of the broader command surface before choosing."
+    ) in install_js
+    assert (
+        "Then use your runtime's `new-project` command for new work or `map-research` for existing work. "
+        "When you come back later, use `gpd resume` for the current-workspace read-only recovery snapshot or "
+        "`gpd resume --recent` to find a different workspace first, then continue in the runtime with `resume-work`."
+    ) in install_js or (
+        "Then use your runtime's `new-project` command for new work or `map-research` for existing work. "
+        "When you come back later, use `gpd resume` for the projected recovery snapshot or "
+        "`gpd resume --recent` to find a different workspace first, then continue in the runtime with `resume-work`."
+    ) in install_js
+    assert install_js.index(hub_line) < install_js.index(order_line)
+    assert install_js.index(order_line) < install_js.index(onboarding_line)
+    assert install_js.index("help command first") < install_js.index("use `start`")
+    assert install_js.index("use `start`") < install_js.index("use `tour`")
+
+
+def test_public_readme_recovery_surfaces_keep_runtime_pause_and_resume_roles_distinct() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+    quick_start = _markdown_section(readme, "## Quick Start")
+    key_commands = _readme_key_commands_section(readme)
+
+    assert "gpd resume" in quick_start
+    assert "gpd resume --recent" in quick_start
+    assert "resume-work" in quick_start
+    assert "| Returning to an existing GPD project | `pause-work` |" not in quick_start
+    assert "Current-workspace recovery snapshot" in quick_start
+    assert_recovery_ladder_contract(
+        key_commands,
+        resume_work_fragments=("runtime `resume-work` command", "`/gpd:resume-work`"),
+        suggest_next_fragments=("runtime `suggest-next` command", "`suggest-next`"),
+        pause_work_fragments=("runtime-specific `pause-work` command", "`/gpd:pause-work`"),
+    )
+    assert "Leave / return path:" in key_commands
+    assert "`/gpd:pause-work`" in key_commands
+    assert "`/gpd:resume-work`" in key_commands
+    assert "`/gpd:suggest-next`" in key_commands
+
+
+def test_public_readme_and_help_surfaces_keep_tangent_discoverable() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
+
+    assert "#### Tangents & Hypothesis Branches" in readme
+    assert re.search(r"\| `/gpd:tangent(?: [^`]*)?` \| .*?(?:tangent|side investigation|alternative direction|parallel)", readme, re.I)
+    assert re.search(r"\*\*`/gpd:tangent(?: [^`]*)?`\*\*", help_workflow)
+    assert "Chooser for stay / quick / defer / branch" in help_workflow
+
+
+def test_public_readme_and_help_keep_tangent_vs_branch_taxonomy_explicit() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
+
+    assert "Use the matching `branch-hypothesis` command only when you want the explicit git-backed alternative path" in readme
+    assert "route it through the runtime `tangent` command first" in readme
+    assert "If `gpd observe execution` surfaces an alternative-path follow-up" in help_workflow
+    assert "Chooser for stay / quick / defer / branch" in help_workflow
+    assert "Explicit git-backed alternative path" in help_workflow
+
+
+def test_public_help_surfaces_keep_settings_as_guided_post_startup_path() -> None:
+    repo_root = _repo_root()
+    help_command = (repo_root / "src/gpd/commands/help.md").read_text(encoding="utf-8")
+    help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
+    assert "**Post-startup settings**" in help_workflow
+    assert_help_workflow_runtime_reference_contract(help_workflow)
+    assert "The bootstrap installer owns Node.js / Python / `venv` prerequisites." in help_workflow
+
+
+def test_public_settings_workflow_keeps_balanced_recommendation_and_relaunch_guidance() -> None:
+    settings_workflow = (_repo_root() / "src/gpd/specs/workflows/settings.md").read_text(encoding="utf-8")
+
+    assert '`autonomy` -- human-in-the-loop level: `"supervised"`, `"balanced"` (default), `"yolo"`' in settings_workflow
+    assert (
+        '{ label: "Balanced (Recommended)", description: "Best default for most unattended runs. '
+        'AI handles routine work and pauses on important physics decisions, ambiguities, blockers, or scope changes." }'
+    ) in settings_workflow
+    assert 'gpd --raw permissions sync --autonomy "$SELECTED_AUTONOMY"' in settings_workflow
+    assert "If `requires_relaunch` is `true`, surface `next_step` verbatim" in settings_workflow
+    assert "Runtime permissions sync attempted after autonomy is written, with relaunch guidance surfaced when required" in settings_workflow
+    assert "This sync only updates runtime-owned permission settings; it does not validate install health or workflow/tool readiness." in settings_workflow
+    assert_settings_local_terminal_follow_up_contract(settings_workflow)
+    assert "What model-cost posture should GPD optimize for?" in settings_workflow
+    assert "Use runtime defaults" in settings_workflow
+    assert_cost_advisory_contract(settings_workflow)
+
+
+def test_public_bootstrap_help_examples_cover_install_and_readiness_handoff() -> None:
+    content = (_repo_root() / "bin/install.js").read_text(encoding="utf-8")
+
+    assert "[install|uninstall] [options]" in content
+    assert "# Interactive install" in content
+    assert "# Install for all runtimes globally" in content
+    assert "# Install into an explicit local target directory" in content
+    assert "# Reinstall the matching managed GitHub source" in content
+    assert "# Upgrade to the latest GitHub main source" in content
+    assert "# Interactive uninstall" in content
+    assert "# Uninstall from all runtimes globally" in content
+    assert "# Equivalent uninstall subcommand form" in content
+    assert "settingsCommandTail()" in content
+    assert "SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence" in content
+    assert_beginner_preflight_notice_contract(content)
+    assert_beginner_caveat_follow_up_contract(content)
+
+
+def test_public_readme_observability_surface_keeps_execution_guidance_in_command_space() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+
+    assert "Observability and trace inspection" in readme
+    assert "| `gpd observe sessions [--status ...] [--command ...] [--last N]` | List recorded observability sessions |" in readme
+    assert "| `gpd observe show [--session ...] [--category ...] [--name ...] [--action ...] [--status ...] [--command ...] [--phase ...] [--plan ...] [--last N]` | Show logged observability events with filters |" in readme
+    assert "| `gpd observe event <category> <name> [--action ...] [--status ...] [--command ...] [--phase ...] [--plan ...] [--session ...] [--data <json>]` | Append an explicit observability event with optional structured metadata |" in readme
+    assert (
+        "| `gpd observe execution` | Show read-only live execution status for the current workspace, including progress / waiting state, "
+        "conservative `possibly stalled` wording, and the next read-only checks to run |"
+    ) in readme
+    assert "gpd observe execution" in readme
+    assert "For read-only long-run visibility from your normal system terminal, use `gpd observe execution`." in readme
+    assert "Start with `gpd observe show --last 20` when you need the recent event trail" in readme
+    assert "route it through the runtime `tangent` command first" in readme
+    assert_cost_advisory_contract(readme)
+
+
+def test_public_local_cli_help_and_install_summary_keep_readiness_diagnostics_emphasis() -> None:
+    cli = (_repo_root() / "src/gpd/cli.py").read_text(encoding="utf-8")
+
+    assert "local install, readiness, validation, permissions, observability, and diagnostics CLI" in cli
+    assert "Use the local CLI for install, readiness checks, permissions, observability, validation, and diagnostics." in cli
+    assert "gpd doctor --runtime <runtime> --local" in cli
+    assert "gpd observe execution" in cli
+    assert "gpd cost" in cli
+    assert "gpd resume --recent" in cli
+    assert "post_start_settings_note()" in cli
+    assert "post_start_settings_recommendation()" in cli
+
+
 def test_public_runtime_docs_explain_runtime_specific_command_syntax() -> None:
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
 
     assert "## Supported Runtimes" in readme
-    assert "| Claude Code | `--claude` | `/gpd:help` | `/gpd:new-project` |" in readme
-    assert "| Gemini CLI | `--gemini` | `/gpd:help` | `/gpd:new-project` |" in readme
-    assert "| Codex | `--codex` | `$gpd-help` | `$gpd-new-project` |" in readme
-    assert "| OpenCode | `--opencode` | `/gpd-help` | `/gpd-new-project` |" in readme
+    for surface in beginner_runtime_surfaces():
+        assert (
+            f"| {surface.display_name} | `{surface.install_flag}` | "
+            f"`{surface.help_command}` | `{surface.start_command}` | `{surface.tour_command}` | "
+            f"`{surface.new_project_minimal_command}` | `{surface.map_research_command}` | `{surface.resume_work_command}` |"
+        ) in readme
     assert "Each runtime uses its own command prefix" in readme
+    assert "Common first commands by runtime:" not in readme
 
 
 def test_codex_runtime_docs_distinguish_public_skills_from_full_agent_install() -> None:
@@ -559,10 +939,8 @@ def test_public_runtime_notes_cover_all_runtime_specific_install_surfaces() -> N
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
 
-    assert "Claude Code-specific note:" in readme
-    assert "Gemini-specific note:" in readme
-    assert "Codex-specific note:" in readme
-    assert "OpenCode-specific note:" in readme
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        assert _runtime_note_heading_regex(descriptor).search(readme) is not None
     assert "`policies/gpd-auto-edit.toml`" in readme
     assert "`CODEX_SKILLS_DIR`" in readme
 
@@ -570,24 +948,24 @@ def test_public_runtime_notes_cover_all_runtime_specific_install_surfaces() -> N
 def test_public_cli_docs_cover_project_contract_comparison_and_paper_build() -> None:
     repo_root = _repo_root()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
 
     assert "`gpd validate project-contract <file.json or -> [--mode approved|draft]`" in readme
-    assert "| `/gpd:compare-results [phase, artifact, or comparison target]` |" in readme
     assert "`gpd paper-build [PAPER-CONFIG.json] [--output-dir <dir>]`" in readme
+    assert "**`/gpd:compare-results [phase, artifact, or comparison target]`**" in help_workflow
 
 
-def test_public_readme_command_table_matches_command_inventory_and_regression_check_wording() -> None:
-    repo_root = _repo_root()
-    readme = (repo_root / "README.md").read_text(encoding="utf-8")
-    inventory = _command_inventory_stems(repo_root)
-    readme_rows = _readme_command_rows(readme)
+def test_public_readme_points_to_runtime_and_local_cli_help_for_full_command_surfaces() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+    quick_start = _markdown_section(readme, "## Quick Start")
+    key_commands = _readme_key_commands_section(readme)
 
-    assert readme_rows, "expected README command table entries"
-    assert set(readme_rows) == inventory
-    assert (
-        readme_rows["regression-check"]
-        == "Scan-only audit for convention conflicts and verification-state regressions in completed phase summaries and verifications"
-    )
+    assert_beginner_router_bridge_contract(quick_start)
+    assert "This README is the onboarding and orientation surface, not the complete in-runtime command manual." in key_commands
+    assert "gpd --help" in key_commands
+    assert "normal system terminal" in key_commands
+    for help_command in {f"{surface.help_command} --all" for surface in beginner_runtime_surfaces()}:
+        assert help_command in key_commands
 
 
 def test_public_readme_typical_new_project_loop_includes_discuss_phase_before_planning() -> None:
@@ -602,48 +980,35 @@ def test_help_reference_surfaces_clarify_runtime_slash_commands_vs_local_cli() -
     help_command = (repo_root / "src/gpd/commands/help.md").read_text(encoding="utf-8")
     help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
 
-    required_snippets = (
-        "`/gpd:*`",
-        "in-runtime",
-        "slash-command",
-        "local `gpd` CLI",
-        "gpd --help",
-        "gpd validate command-context gpd:<name>",
-    )
-
-    for snippet in required_snippets:
-        assert snippet in help_command
-        assert snippet in help_workflow
+    assert "workflow-owned help surface" in help_command
+    assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
+    assert_help_workflow_runtime_reference_contract(help_workflow)
+    assert "gpd validate command-context gpd:<name>" in help_workflow
 
 
 def test_help_reference_surfaces_keep_regression_check_wording_aligned_with_implementation() -> None:
     repo_root = _repo_root()
-    help_command = (repo_root / "src/gpd/commands/help.md").read_text(encoding="utf-8")
     help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
 
-    for content in (help_command, help_workflow):
-        assert "Scan-only" in content
-        assert "SUMMARY" in content
-        assert "frontmatter" in content
-        assert "convention conflicts" in content
-        assert "VERIFICATION" in content
-        assert "canonical statuses" in content
-        assert "re-runs dimensional analysis" not in content
-        assert "re-runs limiting cases" not in content
-        assert "re-runs numerical checks" not in content
-        assert "re-verify" not in content
+    assert "Scan-only audit for regressions in already-recorded verification state." in help_workflow
+    assert "SUMMARY" in help_workflow
+    assert "frontmatter" in help_workflow
+    assert "convention conflicts" in help_workflow
+    assert "VERIFICATION" in help_workflow
+    assert "canonical statuses" in help_workflow
+    assert "re-runs dimensional analysis" not in help_workflow
+    assert "re-runs limiting cases" not in help_workflow
+    assert "re-runs numerical checks" not in help_workflow
+    assert "re-verify" not in help_workflow
 
 
 def test_help_reference_surfaces_match_command_inventory() -> None:
     repo_root = _repo_root()
     inventory = _command_inventory_stems(repo_root)
-    help_command = (repo_root / "src/gpd/commands/help.md").read_text(encoding="utf-8")
     help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
 
-    command_help_stems = _help_heading_stems(help_command)
     workflow_help_stems = _help_heading_stems(help_workflow)
 
-    assert command_help_stems == inventory
     assert workflow_help_stems == inventory
 
 
@@ -675,25 +1040,14 @@ def test_regression_check_canonical_surfaces_match_scan_only_implementation() ->
     assert "frontmatter" in verify_work
 
 
-def test_public_runtime_command_table_has_unique_entries() -> None:
-    repo_root = _repo_root()
-    lines = (repo_root / "README.md").read_text(encoding="utf-8").splitlines()
+def test_public_runtime_path_table_has_unique_entries() -> None:
+    readme = (_repo_root() / "README.md").read_text(encoding="utf-8")
+    key_commands = _readme_key_commands_section(readme)
 
-    in_table = False
-    commands: list[str] = []
-    for line in lines:
-        if line == "## Key In-Runtime Commands":
-            in_table = True
-            continue
-        if in_table and line.startswith("## "):
-            break
-        if not in_table or not line.startswith("| `"):
-            continue
-        command = line.split("`", 2)[1]
-        commands.append(command)
+    path_labels = re.findall(r"^\| ([A-Za-z /-]+) \| `", key_commands, re.MULTILINE)
 
-    assert commands, "expected README key-command table entries"
-    assert len(commands) == len(set(commands))
+    assert path_labels, "expected README runtime path table entries"
+    assert len(path_labels) == len(set(path_labels))
 
 
 def test_claude_sdk_is_not_shipped_in_public_install() -> None:
@@ -808,6 +1162,7 @@ def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
     assert pack["version"] == _python_release_version(repo_root)
     assert "bin/install.js" in packed_paths
     assert "src/gpd/adapters/runtime_catalog.json" in packed_paths
+    assert "src/gpd/core/public_surface_contract.json" in packed_paths
     assert (tmp_path / "npm-cache").is_dir()
 
     if existed_before:
@@ -830,6 +1185,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
     with zipfile.ZipFile(wheel) as wheel_zip:
         wheel_names = set(wheel_zip.namelist())
         assert "gpd/cli.py" in wheel_names
+        assert "gpd/core/public_surface_contract.json" in wheel_names
         assert "gpd/mcp/viewer/cli.py" not in wheel_names
         for template_path in wheel_template_paths:
             assert template_path in wheel_names
@@ -845,6 +1201,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         assert f"{sdist_prefix}docs/USER-GUIDE.md" not in sdist_names
         assert f"{sdist_prefix}bin/install.js" in sdist_names
         assert f"{sdist_prefix}package.json" in sdist_names
+        assert f"{sdist_prefix}src/gpd/core/public_surface_contract.json" in sdist_names
         assert f"{sdist_prefix}MANUAL-TEST-PLAN.md" not in sdist_names
         for template_path in sdist_template_paths:
             assert f"{sdist_prefix}{template_path}" in sdist_names
@@ -853,6 +1210,7 @@ def test_fresh_built_release_artifacts_match_public_bootstrap_and_docs(tmp_path:
         assert install_js is not None
         install_content = install_js.read().decode("utf-8")
         assert 'require("../package.json")' in install_content
+        assert 'require("../src/gpd/core/public_surface_contract.json")' in install_content
         assert "gpdPythonVersion" in install_content
         assert 'const GITHUB_MAIN_BRANCH = "main"' in install_content
         assert '"-m", "venv"' in install_content

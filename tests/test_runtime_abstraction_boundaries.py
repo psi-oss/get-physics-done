@@ -108,6 +108,15 @@ _ALLOWED_RUNTIME_FILES = {
 _ALLOWED_SHARED_PYTHON_RUNTIME_FILES = {
     "src/gpd/hooks/runtime_detect.py",
 }
+_WOLFRAM_INTEGRATION_BOUNDARY_FILES = {
+    "src/gpd/core/tool_preflight.py",
+    "src/gpd/cli.py",
+    "src/gpd/mcp/managed_integrations.py",
+}
+_WOLFRAM_INTEGRATION_BOUNDARY_PREFIXES = (
+    "src/gpd/adapters/",
+    "src/gpd/mcp/integrations/",
+)
 _SHARED_ADAPTER_INFRA_FILES = {
     "src/gpd/adapters/__init__.py",
     "src/gpd/adapters/base.py",
@@ -158,13 +167,26 @@ def _shared_runtime_facing_test_paths() -> tuple[Path, ...]:
             continue
         if rel_path.parts[:2] in {("tests", "adapters"), ("tests", "hooks")}:
             continue
-        if rel_path.parts[:2] == ("tests", "core") or (len(rel_path.parts) == 2 and rel_path.name.startswith("test_")):
+        if rel_path.parts[:2] in {("tests", "core"), ("tests", "mcp")} or (
+            len(rel_path.parts) == 2 and rel_path.name.startswith("test_")
+        ):
             paths.append(path)
     return tuple(paths)
 
 
 _SHARED_TEST_RUNTIME_SURFACE_PATHS = _shared_runtime_facing_test_paths()
 _TEXT_SURFACE_SUFFIXES = {".json", ".md", ".py"}
+_SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS = (
+    REPO_ROOT / "tests/core/test_health.py",
+    REPO_ROOT / "tests/core/test_runtime_hints.py",
+    REPO_ROOT / "tests/core/test_costs.py",
+    REPO_ROOT / "tests/core/test_cli.py",
+    REPO_ROOT / "tests/hooks/test_notify.py",
+    REPO_ROOT / "tests/hooks/test_statusline.py",
+)
+_SHARED_GENERIC_PROVIDER_MODEL_LITERAL_PATTERN = re.compile(
+    r"""["'](?:openai|anthropic|google|gpt-[^"']+|claude-(?!code)[^"']+|gemini-(?!cli)[^"']+)["']"""
+)
 
 
 def _git_grep(pattern: str) -> list[tuple[Path, int, str]]:
@@ -241,6 +263,58 @@ def _scan_paths_for_pattern(paths: tuple[Path, ...], pattern: re.Pattern[str]) -
 def _runtime_literal_sequence_pattern(values: tuple[str, ...]) -> re.Pattern[str]:
     quoted_values = [rf'["\']{re.escape(value)}["\']' for value in values]
     return re.compile(r"[\[(]\s*" + r"\s*,\s*".join(quoted_values) + r"\s*[\])]", re.DOTALL)
+
+
+def _runtime_fixture_values() -> tuple[str, ...]:
+    values: set[str] = set()
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        for value in (
+            descriptor.runtime_name,
+            descriptor.display_name,
+            descriptor.config_dir_name,
+            descriptor.launch_command,
+            descriptor.install_flag,
+            descriptor.command_prefix,
+            *descriptor.selection_aliases,
+            *descriptor.selection_flags,
+        ):
+            if value:
+                values.add(value)
+    return tuple(sorted(values))
+
+
+def _runtime_fixture_literal_findings(content: str) -> list[str]:
+    fixture_values = _runtime_fixture_values()
+    block_pattern = re.compile(r"(?s)(\[[^\[\]]*\]|\{[^\{\}]*\}|\([^\(\)]*\))")
+    findings: list[str] = []
+    seen_blocks: set[str] = set()
+    for match in block_pattern.finditer(content):
+        block = match.group(0)
+        if block in seen_blocks:
+            continue
+        seen_blocks.add(block)
+        matched_values = {
+            value
+            for value in fixture_values
+            if re.search(rf'["\']{re.escape(value)}["\']', block)
+        }
+        # Flag partial runtime fixture blocks once they contain more than one
+        # catalog token, even if the test does not mirror the full runtime list.
+        if len(matched_values) >= 2:
+            findings.append(block.replace("\n", " "))
+    return findings
+
+
+def _readme_optional_terminal_reference() -> str:
+    content = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    match = re.search(
+        r"<summary><strong>Optional Terminal-Side Readiness And Troubleshooting Reference</strong></summary>\n\n(?P<body>.*?)\n</details>",
+        content,
+        re.DOTALL,
+    )
+    if match is None:
+        raise AssertionError("README optional terminal-side reference block not found")
+    return match.group("body")
 
 
 def test_runtime_specific_terms_are_confined_to_explicit_boundary_files() -> None:
@@ -344,21 +418,55 @@ def test_shared_builtin_server_descriptors_do_not_hardcode_bootstrap_commands() 
     )
 
 
-def test_shared_runtime_facing_tests_do_not_duplicate_runtime_catalog_literals() -> None:
-    runtime_names = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
-    install_flags = tuple(descriptor.install_flag for descriptor in _RUNTIME_DESCRIPTORS)
-    name_pattern = _runtime_literal_sequence_pattern(runtime_names)
-    flag_pattern = _runtime_literal_sequence_pattern(install_flags)
+def test_shared_python_modules_keep_wolfram_integration_tokens_out_of_non_boundary_files() -> None:
+    wolfram_pattern = re.compile(
+        r"(gpd-wolfram|gpd-mcp-wolfram|GPD_WOLFRAM_MCP_API_KEY|GPD_WOLFRAM_MCP_ENDPOINT|WOLFRAM_MCP_SERVICE_API_KEY)"
+    )
+    leaks = [
+        (path, line_no, snippet)
+        for path, line_no, snippet in _git_grep(wolfram_pattern.pattern)
+        if path.suffix == ".py"
+        and path.parts[:2] == ("src", "gpd")
+        and not any(path.as_posix().startswith(prefix) for prefix in _WOLFRAM_INTEGRATION_BOUNDARY_PREFIXES)
+        and path.as_posix() not in _WOLFRAM_INTEGRATION_BOUNDARY_FILES
+    ]
 
+    assert leaks == [], (
+        "Shared Python modules should keep Wolfram integration keys inside explicit boundary files:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_shared_runtime_facing_tests_do_not_duplicate_runtime_catalog_literals() -> None:
     leaks: list[tuple[Path, int, str]] = []
     for path in _SHARED_TEST_RUNTIME_SURFACE_PATHS:
         content = path.read_text(encoding="utf-8")
-        if name_pattern.search(content):
-            leaks.append((path, 0, "hard-coded supported runtime name tuple/list literal"))
-        if flag_pattern.search(content):
-            leaks.append((path, 0, "hard-coded supported runtime flag tuple/list literal"))
+        for block in _runtime_fixture_literal_findings(content):
+            leaks.append((path, 0, f"hard-coded runtime fixture block: {block[:160]}"))
 
     assert leaks == [], (
         "Shared runtime-facing tests should derive supported runtime sets from the runtime catalog:\n"
         f"{_format_failures(leaks)}"
     )
+
+
+def test_shared_generic_tests_do_not_hardcode_provider_or_model_literals() -> None:
+    leaks = _scan_paths_for_pattern(
+        _SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS,
+        _SHARED_GENERIC_PROVIDER_MODEL_LITERAL_PATTERN,
+    )
+
+    assert leaks == [], (
+        "Shared generic tests should use catalog-driven or placeholder runtime/provider/model fixtures:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_readme_optional_terminal_reference_uses_runtime_placeholders() -> None:
+    block = _readme_optional_terminal_reference()
+
+    assert "--codex" not in block
+    assert "--runtime codex" not in block
+    assert "relaunch Codex" not in block
+    assert "--<runtime-flag>" in block
+    assert "--runtime <runtime>" in block

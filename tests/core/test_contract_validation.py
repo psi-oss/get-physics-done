@@ -11,9 +11,11 @@ from pydantic import ValidationError
 
 from gpd.contracts import (
     ContractResults,
+    ProjectContractParseResult,
     ResearchContract,
     contract_from_data,
     normalize_contract_results_input,
+    parse_project_contract_data_strict,
 )
 from gpd.core.contract_validation import validate_project_contract
 
@@ -83,6 +85,33 @@ def test_contract_from_data_rejects_blank_observable_regime_and_units() -> None:
     contract["observables"][0]["units"] = " "
 
     assert contract_from_data(contract) is None
+
+
+def test_contract_from_data_rejects_blank_scalar_to_list_drift() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["references"] = "   "
+
+    assert contract_from_data(contract) is None
+
+
+def test_parse_project_contract_data_strict_rejects_singleton_list_drift() -> None:
+    contract = _load_contract_fixture()
+    contract["context_intake"]["must_read_refs"] = "ref-benchmark"
+
+    result: ProjectContractParseResult = parse_project_contract_data_strict(contract)
+
+    assert result.contract is None
+    assert result.errors == ["context_intake.must_read_refs must be a list, not str"]
+
+
+def test_parse_project_contract_data_strict_rejects_recoverable_nested_extra_keys() -> None:
+    contract = _load_contract_fixture()
+    contract["scope"]["legacy_notes"] = "nested extra field"
+
+    result: ProjectContractParseResult = parse_project_contract_data_strict(contract)
+
+    assert result.contract is None
+    assert result.errors == ["scope.legacy_notes: Extra inputs are not permitted"]
 
 
 def test_validate_project_contract_rejects_missing_decisive_targets_and_skepticism() -> None:
@@ -201,24 +230,36 @@ def test_validate_project_contract_approved_mode_rejects_anchor_unknown_in_weake
     assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
 
 
-def test_validate_project_contract_approved_mode_accepts_prior_output_grounding() -> None:
+def test_validate_project_contract_approved_mode_accepts_prior_output_grounding(tmp_path: Path) -> None:
     contract = _load_contract_fixture()
     contract["references"] = []
     _remove_incidental_grounding(contract)
+    prior_output = tmp_path / "GPD" / "phases" / "00-baseline" / "00-01-SUMMARY.md"
+    prior_output.parent.mkdir(parents=True)
+    prior_output.write_text("# Summary\n", encoding="utf-8")
     contract["context_intake"]["must_include_prior_outputs"] = ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
     contract["scope"]["unresolved_questions"] = []
 
-    result = validate_project_contract(contract, mode="approved")
+    result = validate_project_contract(contract, mode="approved", project_root=tmp_path)
 
     assert result.valid is True
     assert result.mode == "approved"
 
 
 @pytest.mark.parametrize(
-    "locator",
-    ["doi:10.1234/example", "arXiv:2401.12345", "Table 2", "Fig. 3", "artifacts/benchmark/report.json"],
+    ("reference_kind", "locator"),
+    [
+        ("paper", "doi:10.1234/example"),
+        ("paper", "arXiv:2401.12345"),
+        ("paper", "Table 2"),
+        ("paper", "Fig. 3"),
+        ("dataset", "https://huggingface.co/datasets/org/sample"),
+        ("spec", "https://docs.example.org/specs/solver-v2"),
+        ("prior_artifact", "https://github.com/org/repo/blob/main/artifacts/report.json"),
+    ],
 )
 def test_validate_project_contract_approved_mode_accepts_concrete_reference_locator_grounding(
+    reference_kind: str,
     locator: str,
 ) -> None:
     contract = _load_contract_fixture()
@@ -226,7 +267,7 @@ def test_validate_project_contract_approved_mode_accepts_concrete_reference_loca
     contract["references"] = [
         {
             "id": "ref-anchor",
-            "kind": "paper",
+            "kind": reference_kind,
             "locator": locator,
             "aliases": [],
             "role": "background",
@@ -240,6 +281,34 @@ def test_validate_project_contract_approved_mode_accepts_concrete_reference_loca
     contract["scope"]["unresolved_questions"] = []
 
     result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is True
+    assert result.mode == "approved"
+
+
+def test_validate_project_contract_approved_mode_accepts_project_local_prior_artifact_locator(tmp_path: Path) -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    artifact = tmp_path / "artifacts" / "benchmark" / "report.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("{}", encoding="utf-8")
+    contract["references"] = [
+        {
+            "id": "ref-anchor",
+            "kind": "prior_artifact",
+            "locator": "artifacts/benchmark/report.json",
+            "aliases": [],
+            "role": "background",
+            "why_it_matters": "Concrete prior artifact should ground approved mode.",
+            "applies_to": ["claim-benchmark"],
+            "carry_forward_to": [],
+            "must_surface": True,
+            "required_actions": ["read"],
+        }
+    ]
+    contract["scope"]["unresolved_questions"] = []
+
+    result = validate_project_contract(contract, mode="approved", project_root=tmp_path)
 
     assert result.valid is True
     assert result.mode == "approved"
@@ -388,17 +457,35 @@ def test_validate_project_contract_approved_mode_rejects_placeholder_reference_l
     assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
 
 
-def test_validate_project_contract_approved_mode_accepts_non_reference_grounding_when_must_surface_is_missing() -> None:
+def test_validate_project_contract_approved_mode_accepts_non_reference_grounding_when_must_surface_is_missing(
+    tmp_path: Path,
+) -> None:
     contract = _load_contract_fixture()
     contract["references"][0]["must_surface"] = False
+    prior_output = tmp_path / "GPD" / "phases" / "00-baseline" / "00-01-SUMMARY.md"
+    prior_output.parent.mkdir(parents=True)
+    prior_output.write_text("# Summary\n", encoding="utf-8")
     contract["context_intake"]["must_include_prior_outputs"] = ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
     contract["scope"]["unresolved_questions"] = []
 
-    result = validate_project_contract(contract, mode="approved")
+    result = validate_project_contract(contract, mode="approved", project_root=tmp_path)
 
     assert result.valid is True
     assert result.mode == "approved"
     assert "references must include at least one must_surface=true anchor" in result.warnings
+
+
+def test_validate_project_contract_approved_mode_rejects_nonexistent_prior_output_grounding(tmp_path: Path) -> None:
+    contract = _load_contract_fixture()
+    contract["references"] = []
+    _remove_incidental_grounding(contract)
+    contract["context_intake"]["must_include_prior_outputs"] = ["fake/path"]
+    contract["scope"]["unresolved_questions"] = []
+
+    result = validate_project_contract(contract, mode="approved", project_root=tmp_path)
+
+    assert result.valid is False
+    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
 
 
 @pytest.mark.parametrize("field_name", ["must_include_prior_outputs", "known_good_baselines"])
@@ -608,6 +695,32 @@ def test_validate_project_contract_accepts_singleton_list_string_drift_at_valida
     assert parsed.references[0].required_actions == ["read", "compare", "cite"]
     assert result.valid is True
     assert result.errors == []
+
+
+@pytest.mark.parametrize(
+    ("mutator", "expected_error"),
+    [
+        (
+            lambda contract: contract["claims"][0].__setitem__("references", "   "),
+            "claims.0.references must not be blank",
+        ),
+        (
+            lambda contract: contract["scope"].__setitem__("in_scope", "   "),
+            "scope.in_scope must not be blank",
+        ),
+    ],
+)
+def test_validate_project_contract_rejects_blank_scalar_to_list_drift(
+    mutator,
+    expected_error: str,
+) -> None:
+    contract = _load_contract_fixture()
+    mutator(contract)
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert expected_error in result.errors
 
 
 def test_validate_project_contract_rejects_coercive_reference_must_surface_scalar() -> None:

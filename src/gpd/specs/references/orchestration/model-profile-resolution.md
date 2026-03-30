@@ -2,6 +2,8 @@
 
 Resolve model profile once at the start of orchestration, then resolve each agent's tier and optional runtime-specific model override before spawning Task calls.
 
+The default posture should remain `review` plus runtime defaults unless the user explicitly chooses otherwise in `/gpd:settings`. Treat explicit runtime-specific tier IDs as an advanced override path, not the default onboarding path.
+
 Do not scrape `GPD/config.json` directly in workflows. Runtime selection, defaults, and runtime-specific model overrides are owned by the canonical CLI helpers:
 
 - `gpd resolve-tier`

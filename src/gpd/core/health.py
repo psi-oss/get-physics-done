@@ -7,9 +7,13 @@ report with auto-fix capability.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
+import os
 import re
+import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -56,6 +60,8 @@ from gpd.core.utils import (
     safe_parse_int,
     safe_read_file,
 )
+from gpd.core.workflow_presets import resolve_workflow_preset_readiness
+from gpd.hooks.install_metadata import InstallTargetAssessment, assess_install_target
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +203,10 @@ def _peek_normalized_state_for_health(cwd: Path) -> tuple[dict[str, object] | No
         return None, state_source
 
     project_contract = state_obj.get("project_contract")
-    if project_contract is not None and contract_from_data(project_contract) is None:
+    if (
+        project_contract is not None
+        and contract_from_data(project_contract, require_draft_validity=True, project_root=cwd) is None
+    ):
         state_obj = dict(state_obj)
         state_obj["project_contract"] = None
     return state_obj, state_source
@@ -214,7 +223,11 @@ def check_state_validity(cwd: Path) -> HealthCheck:
 
     state_obj, state_source = _peek_normalized_state_for_health(cwd)
     if isinstance(state_obj, dict) and state_obj.get("project_contract") is not None:
-        approval_validation = validate_project_contract(state_obj["project_contract"], mode="approved")
+        approval_validation = validate_project_contract(
+            state_obj["project_contract"],
+            mode="approved",
+            project_root=cwd,
+        )
         if not approval_validation.valid:
             for error in approval_validation.errors:
                 issue = f"project_contract: {error}"
@@ -975,11 +988,856 @@ class DoctorReport(BaseModel):
 
     overall: CheckStatus
     version: str | None = None
+    mode: str = "installation"
+    runtime: str | None = None
+    install_scope: str | None = None
+    target: str | None = None
+    live_executable_probes: bool = False
     summary: HealthSummary
     checks: list[HealthCheck] = Field(default_factory=list)
 
 
-def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> DoctorReport:
+class DoctorRuntimeReadinessContext(BaseModel):
+    """Normalized runtime-scoped readiness inputs used by doctor/install flows."""
+
+    runtime: str
+    install_scope: str | None = None
+    target: Path
+    launch_command: str
+
+
+@dataclasses.dataclass(frozen=True)
+class UnattendedReadinessCheck:
+    """One composed check contributing to unattended-readiness."""
+
+    name: str
+    passed: bool
+    blocking: bool
+    detail: str
+
+
+@dataclasses.dataclass(frozen=True)
+class UnattendedReadinessResult:
+    """Summary of whether one runtime surface is ready for unattended use."""
+
+    runtime: str
+    autonomy: str
+    install_scope: str
+    target: str | None
+    readiness: str
+    ready: bool
+    passed: bool
+    readiness_message: str
+    live_executable_probes: bool
+    checks: list[UnattendedReadinessCheck]
+    blocking_conditions: list[str]
+    warnings: list[str]
+    next_step: str = ""
+    status_scope: str = "unknown"
+    current_session_verified: bool = False
+    validated_surface: str = "public_runtime_command_surface"
+
+
+def _permissions_capability_payload(runtime_name: object) -> dict[str, object]:
+    """Return the structured runtime capability contract for permissions surfaces."""
+    if isinstance(runtime_name, str) and runtime_name:
+        try:
+            from gpd.adapters.runtime_catalog import get_runtime_capabilities
+
+            capabilities = get_runtime_capabilities(runtime_name)
+        except Exception:
+            pass
+        else:
+            return {
+                "contract_source": "runtime-catalog",
+                "permissions_surface": capabilities.permissions_surface,
+                "statusline_surface": capabilities.statusline_surface,
+                "notify_surface": capabilities.notify_surface,
+                "telemetry_source": capabilities.telemetry_source,
+                "telemetry_completeness": capabilities.telemetry_completeness,
+            }
+    return {
+        "contract_source": "generic-fallback",
+        "permissions_surface": "adapter-defined",
+        "statusline_surface": "unknown",
+        "notify_surface": "unknown",
+        "telemetry_source": "unknown",
+        "telemetry_completeness": "unknown",
+    }
+
+
+def _permissions_requested_surface(payload: dict[str, object]) -> str:
+    """Return the requested user-facing permissions surface."""
+    desired_mode = payload.get("desired_mode")
+    if isinstance(desired_mode, str) and desired_mode == "yolo":
+        return "prompt-free"
+    return "ordinary-unattended"
+
+
+def _permissions_status_scope(payload: dict[str, object]) -> str:
+    """Return what the local CLI can actually attest to for this payload."""
+    capabilities = payload.get("capabilities")
+    if not isinstance(capabilities, dict):
+        return "adapter-defined"
+
+    permissions_surface = capabilities.get("permissions_surface")
+    requested_surface = _permissions_requested_surface(payload)
+    if requested_surface == "prompt-free" and permissions_surface == "launch-wrapper":
+        return "next-launch"
+    if bool(payload.get("requires_relaunch", False)):
+        return "next-launch"
+    if permissions_surface == "config-file":
+        return "config-only"
+    if permissions_surface == "launch-wrapper":
+        return "launcher-available"
+    if permissions_surface == "unsupported":
+        return "unsupported"
+    return "adapter-defined"
+
+
+def _permissions_more_permissive_than_requested(payload: dict[str, object]) -> bool:
+    """Return whether local config is clearly more permissive than the requested autonomy."""
+    if _permissions_requested_surface(payload) != "ordinary-unattended":
+        return False
+
+    capabilities = payload.get("capabilities")
+    if not isinstance(capabilities, dict) or capabilities.get("permissions_surface") != "config-file":
+        return False
+
+    configured_mode = payload.get("configured_mode")
+    if configured_mode in {"yolo", "bypassPermissions"}:
+        return True
+
+    approval_policy = payload.get("approval_policy")
+    sandbox_mode = payload.get("sandbox_mode")
+    return approval_policy == "never" and sandbox_mode == "danger-full-access"
+
+
+def annotate_permissions_payload(
+    payload: dict[str, object],
+    *,
+    requested_runtime: str | None = None,
+) -> dict[str, object]:
+    """Attach structured capability and evidence metadata to a permissions payload."""
+
+    annotated = dict(payload)
+    runtime_name = annotated.get("runtime")
+    if not isinstance(annotated.get("capabilities"), dict):
+        annotated["capabilities"] = _permissions_capability_payload(
+            runtime_name if isinstance(runtime_name, str) and runtime_name else requested_runtime
+        )
+    annotated["requested_surface"] = _permissions_requested_surface(annotated)
+    if not isinstance(annotated.get("status_scope"), str) or not str(annotated.get("status_scope")).strip():
+        annotated["status_scope"] = _permissions_status_scope(annotated)
+    if "current_session_verified" not in annotated:
+        annotated["current_session_verified"] = False
+    if "more_permissive_than_requested" not in annotated:
+        annotated["more_permissive_than_requested"] = _permissions_more_permissive_than_requested(annotated)
+    return annotated
+
+
+def normalize_permissions_readiness_payload(
+    payload: dict[str, object],
+    *,
+    requested_runtime: str | None,
+    requested_autonomy: str | None,
+) -> dict[str, object]:
+    """Normalize runtime-permissions status into unattended-readiness verdict fields.
+
+    The returned payload preserves the public field names currently consumed by the
+    CLI and unattended-readiness surfaces: ``readiness``, ``ready``,
+    ``readiness_message``, ``next_step``, ``status_scope``,
+    ``current_session_verified``, and ``more_permissive_than_requested``.
+    """
+
+    normalized = annotate_permissions_payload(payload, requested_runtime=requested_runtime)
+    runtime_name = normalized.get("runtime")
+
+    explicit_readiness = (
+        isinstance(normalized.get("readiness"), str)
+        and str(normalized.get("readiness")).strip()
+        and isinstance(normalized.get("ready"), bool)
+        and isinstance(normalized.get("readiness_message"), str)
+        and str(normalized.get("readiness_message")).strip()
+    )
+
+    more_permissive_than_requested = bool(normalized.get("more_permissive_than_requested", False))
+    if not explicit_readiness:
+        ready = (
+            bool(normalized.get("runtime"))
+            and bool(normalized.get("target"))
+            and bool(normalized.get("config_aligned", False))
+            and not bool(normalized.get("requires_relaunch", False))
+            and not more_permissive_than_requested
+        )
+
+        if ready:
+            readiness = "ready"
+            readiness_message = "Runtime permissions are ready for unattended use."
+        elif bool(normalized.get("requires_relaunch", False)):
+            readiness = "relaunch-required"
+            readiness_message = "Runtime permissions are aligned, but the runtime must be relaunched before unattended use."
+        elif more_permissive_than_requested:
+            readiness = "not-ready"
+            readiness_message = (
+                "Runtime permissions are more permissive than the requested autonomy, so unattended readiness is not confirmed."
+            )
+        elif "config_aligned" in normalized:
+            readiness = "not-ready"
+            readiness_message = "Runtime permissions are not ready for unattended use under the requested autonomy."
+        else:
+            readiness = "unresolved"
+            readiness_message = str(normalized.get("message") or "Runtime permissions are not ready for unattended use.")
+
+        next_step = normalized.get("next_step")
+        if not isinstance(next_step, str) or not next_step.strip():
+            next_step = None
+        capability_payload = normalized.get("capabilities")
+        permissions_surface = (
+            capability_payload.get("permissions_surface")
+            if isinstance(capability_payload, dict) and isinstance(capability_payload.get("permissions_surface"), str)
+            else None
+        )
+
+        if next_step is None:
+            autonomy_value = normalized.get("autonomy")
+            if readiness == "relaunch-required" and isinstance(runtime_name, str) and runtime_name:
+                if permissions_surface == "launch-wrapper":
+                    next_step = f"Exit and relaunch {runtime_name} through the GPD-managed launcher before treating unattended use as ready."
+                else:
+                    next_step = f"Exit and relaunch {runtime_name} before treating unattended use as ready."
+            elif (
+                readiness == "not-ready"
+                and isinstance(runtime_name, str)
+                and runtime_name
+                and isinstance(autonomy_value, str)
+                and autonomy_value
+            ):
+                if permissions_surface == "launch-wrapper":
+                    next_step = (
+                        "Use `gpd:settings` inside the runtime for guided changes, or run "
+                        f"`gpd permissions sync --runtime {runtime_name} --autonomy {autonomy_value}` "
+                        "from your normal system terminal to generate the launcher needed for the next session."
+                    )
+                else:
+                    next_step = (
+                        "Use `gpd:settings` inside the runtime for guided changes, or run "
+                        f"`gpd permissions sync --runtime {runtime_name} --autonomy {autonomy_value}` "
+                        "from your normal system terminal."
+                    )
+            elif readiness == "unresolved" and requested_runtime is None:
+                next_step = "Pass `--runtime <name>` to inspect a specific installed runtime."
+
+        normalized["readiness"] = readiness
+        normalized["ready"] = ready
+        normalized["readiness_message"] = readiness_message
+        normalized["next_step"] = next_step
+    return normalized
+
+
+def _doctor_active_virtualenv() -> bool:
+    """Return whether the active interpreter is running inside a virtualenv."""
+    return bool(
+        getattr(sys, "real_prefix", None) is not None
+        or getattr(sys, "base_prefix", sys.prefix) != sys.prefix
+        or os.environ.get("VIRTUAL_ENV")
+    )
+
+
+def _doctor_check_python_runtime() -> HealthCheck:
+    """Check the active Python interpreter and stdlib venv availability."""
+    issues: list[str] = []
+    warnings: list[str] = []
+    active_virtualenv = _doctor_active_virtualenv()
+    details = {
+        "version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        "venv_available": True,
+        "active_virtualenv": active_virtualenv,
+        "python_executable": sys.executable,
+    }
+
+    if sys.version_info < (MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR):
+        issues.append(f"Python {sys.version_info.major}.{sys.version_info.minor} < {MIN_PYTHON_MAJOR}.{MIN_PYTHON_MINOR}")
+    elif sys.version_info < RECOMMENDED_PYTHON_VERSION:
+        warnings.append(f"Python >= {RECOMMENDED_PYTHON_VERSION[0]}.{RECOMMENDED_PYTHON_VERSION[1]} recommended")
+
+    try:
+        import venv as _venv  # noqa: F401
+    except Exception as exc:  # pragma: no cover - stdlib import failure is rare
+        details["venv_available"] = False
+        issues.append(f"Standard library venv module unavailable: {exc}")
+
+    return HealthCheck(
+        status=CheckStatus.FAIL if issues else CheckStatus.WARN if warnings else CheckStatus.OK,
+        label="Python Runtime",
+        details=details,
+        issues=issues,
+        warnings=warnings,
+    )
+
+
+def _doctor_check_package_imports() -> HealthCheck:
+    """Verify core package modules import correctly."""
+    import_issues: list[str] = []
+    for module in ("gpd.core.utils", "gpd.core.config", "gpd.core.state", "gpd.core.conventions"):
+        try:
+            __import__(module)
+        except ImportError as exc:
+            import_issues.append(f"Cannot import {module}: {exc}")
+    return HealthCheck(
+        status=CheckStatus.FAIL if import_issues else CheckStatus.OK,
+        label="Package Imports",
+        details={"modules_checked": 4},
+        issues=import_issues,
+    )
+
+
+_DOCTOR_LIVE_EXECUTABLE_PROBE_TIMEOUT_SECONDS = 5
+_DOCTOR_LIVE_EXECUTABLE_OPTIONAL_COMMANDS = ("pdflatex", "bibtex", "latexmk", "kpsewhich", "wolframscript")
+
+
+def _doctor_run_executable_probe(argv: list[str], *, timeout_seconds: int) -> dict[str, object]:
+    """Run one short-lived executable probe and capture its output."""
+    started_at = time.perf_counter()
+    try:
+        completed = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        elapsed_seconds = round(time.perf_counter() - started_at, 3)
+        return {
+            "command": argv,
+            "status": "missing",
+            "elapsed_seconds": elapsed_seconds,
+            "error": str(exc),
+        }
+    except subprocess.TimeoutExpired:
+        elapsed_seconds = round(time.perf_counter() - started_at, 3)
+        return {
+            "command": argv,
+            "status": "timeout",
+            "elapsed_seconds": elapsed_seconds,
+            "error": f"timed out after {timeout_seconds}s",
+        }
+
+    elapsed_seconds = round(time.perf_counter() - started_at, 3)
+    stdout = (completed.stdout or "").strip()
+    stderr = (completed.stderr or "").strip()
+    output = stdout or stderr
+    return {
+        "command": argv,
+        "status": "ok" if completed.returncode == 0 else "failed",
+        "elapsed_seconds": elapsed_seconds,
+        "returncode": completed.returncode,
+        "stdout": stdout,
+        "stderr": stderr,
+        "output": output,
+    }
+
+
+def _doctor_gpd_cli_probe_command() -> list[str]:
+    """Return the local command used to prove the GPD CLI can execute."""
+    return [sys.executable, "-m", "gpd.cli", "--help"]
+
+
+def _doctor_check_live_executable_probes() -> HealthCheck:
+    """Optionally run harmless local executable probes for live doctor feedback."""
+    probe_results: list[dict[str, object]] = []
+    issues: list[str] = []
+    warnings: list[str] = []
+    skipped: list[str] = []
+
+    gpd_probe = _doctor_run_executable_probe(
+        _doctor_gpd_cli_probe_command(),
+        timeout_seconds=_DOCTOR_LIVE_EXECUTABLE_PROBE_TIMEOUT_SECONDS,
+    )
+    gpd_probe["label"] = "gpd-cli"
+    probe_results.append(gpd_probe)
+    if gpd_probe["status"] != "ok":
+        issues.append(
+            f"gpd-cli probe failed: {gpd_probe.get('error') or gpd_probe.get('output') or 'no output captured'}"
+        )
+
+    for executable in _DOCTOR_LIVE_EXECUTABLE_OPTIONAL_COMMANDS:
+        resolved = shutil.which(executable)
+        if resolved is None:
+            skipped.append(executable)
+            probe_results.append(
+                {
+                    "label": executable,
+                    "command": [executable, "--version"],
+                    "status": "skipped",
+                    "reason": "not found on PATH",
+                }
+            )
+            warnings.append(f"{executable} not found on PATH")
+            continue
+
+        probe = _doctor_run_executable_probe([resolved, "--version"], timeout_seconds=_DOCTOR_LIVE_EXECUTABLE_PROBE_TIMEOUT_SECONDS)
+        probe["label"] = executable
+        probe["resolved_path"] = resolved
+        probe_results.append(probe)
+        if probe["status"] != "ok":
+            warnings.append(
+                f"{executable} probe failed: {probe.get('error') or probe.get('output') or 'no output captured'}"
+            )
+
+    details: dict[str, object] = {
+        "enabled": True,
+        "timeout_seconds": _DOCTOR_LIVE_EXECUTABLE_PROBE_TIMEOUT_SECONDS,
+        "mandatory_probe": "python -m gpd.cli --help",
+        "optional_commands": list(_DOCTOR_LIVE_EXECUTABLE_OPTIONAL_COMMANDS),
+        "probe_count": len(probe_results),
+        "probed": probe_results,
+        "skipped": skipped,
+    }
+    return HealthCheck(
+        status=CheckStatus.FAIL if issues else CheckStatus.WARN if warnings else CheckStatus.OK,
+        label="Live Executable Probes",
+        details=details,
+        issues=issues,
+        warnings=warnings,
+    )
+
+
+def _nearest_existing_ancestor(path: Path) -> Path:
+    """Return the nearest existing ancestor for *path* or the filesystem root."""
+    candidate = path.expanduser().resolve(strict=False)
+    while not candidate.exists() and candidate != candidate.parent:
+        candidate = candidate.parent
+    return candidate
+
+
+def _doctor_normalize_runtime(runtime: str) -> str:
+    """Resolve a runtime alias to its canonical runtime id."""
+    from gpd.hooks.runtime_detect import normalize_runtime_name
+
+    normalized = normalize_runtime_name(runtime)
+    if normalized is None:
+        raise ValidationError(f"Unknown runtime {runtime!r}")
+    return normalized
+
+
+def _doctor_check_runtime_launcher(runtime: str) -> HealthCheck:
+    """Verify the selected runtime launcher is available on PATH."""
+    from gpd.adapters.runtime_catalog import get_runtime_descriptor
+
+    descriptor = get_runtime_descriptor(runtime)
+    try:
+        launch_argv = shlex.split(descriptor.launch_command)
+    except ValueError:
+        launch_argv = []
+    launch_executable = launch_argv[0] if launch_argv else descriptor.launch_command.strip()
+    launch_path = shutil.which(launch_executable) if launch_executable else None
+    issues = [] if launch_path else [f"{launch_executable or descriptor.launch_command} not found on PATH"]
+    return HealthCheck(
+        status=CheckStatus.OK if launch_path else CheckStatus.FAIL,
+        label="Runtime Launcher",
+        details={
+            "runtime": descriptor.runtime_name,
+            "display_name": descriptor.display_name,
+            "launch_command": descriptor.launch_command,
+            "launch_executable": launch_executable or None,
+            "launcher_path": launch_path,
+        },
+        issues=issues,
+        warnings=[] if launch_path else [f"Install or expose {descriptor.display_name} before running GPD there."],
+    )
+
+
+def _doctor_runtime_install_issue(assessment: InstallTargetAssessment, runtime: str | None) -> str | None:
+    """Return a user-facing issue for a non-ready install assessment."""
+    if assessment.state == "owned_incomplete":
+        missing = ", ".join(f"`{item}`" for item in assessment.missing_install_artifacts) or "required install artifacts"
+        return f"{assessment.config_dir} has an incomplete GPD install; missing artifacts: {missing}."
+    if assessment.state == "foreign_runtime":
+        owner = f"`{assessment.manifest_runtime}`" if assessment.manifest_runtime else "another runtime"
+        runtime_label = f"`{runtime}`" if runtime else "the selected runtime"
+        return f"{assessment.config_dir} belongs to {owner}, not {runtime_label}."
+    if assessment.state == "untrusted_manifest":
+        return f"{assessment.config_dir} has an untrusted GPD manifest and cannot be treated as a ready install target."
+    return None
+
+
+def _doctor_check_runtime_target(target_dir: Path, *, runtime: str | None = None) -> HealthCheck:
+    """Verify the selected install target can be created or written."""
+    resolved = target_dir.expanduser().resolve(strict=False)
+    details: dict[str, object] = {
+        "target": str(resolved),
+        "exists": resolved.exists(),
+    }
+    issues: list[str] = []
+    warnings: list[str] = []
+
+    if resolved.exists() and not resolved.is_dir():
+        issues.append(f"{resolved} exists but is not a directory")
+        details["probe_dir"] = str(resolved)
+        return HealthCheck(status=CheckStatus.FAIL, label="Runtime Config Target", details=details, issues=issues)
+
+    probe_dir = resolved if resolved.exists() else _nearest_existing_ancestor(resolved.parent)
+    details["probe_dir"] = str(probe_dir)
+    if not probe_dir.exists():
+        issues.append(f"No existing parent directory found for {resolved}")
+    elif not probe_dir.is_dir():
+        issues.append(f"{probe_dir} is not a directory")
+    elif not os.access(probe_dir, os.W_OK | os.X_OK):
+        issues.append(f"{probe_dir} is not writable")
+    elif not resolved.exists():
+        warnings.append(f"{resolved} does not exist yet; GPD will create it during install.")
+
+    assessment = assess_install_target(resolved, expected_runtime=runtime)
+    details.update(
+        {
+            "install_state": assessment.state,
+            "manifest_state": assessment.manifest_state,
+            "manifest_runtime": assessment.manifest_runtime,
+            "has_managed_markers": assessment.has_managed_markers,
+            "missing_install_artifacts": list(assessment.missing_install_artifacts),
+        }
+    )
+
+    install_issue = _doctor_runtime_install_issue(assessment, runtime)
+    if install_issue is not None:
+        issues.append(install_issue)
+
+    return HealthCheck(
+        status=CheckStatus.FAIL if issues else CheckStatus.OK,
+        label="Runtime Config Target",
+        details=details,
+        issues=issues,
+        warnings=warnings,
+    )
+
+
+def _doctor_check_bootstrap_network_access() -> HealthCheck:
+    """Provide manual guidance for bootstrap/update network readiness."""
+    return HealthCheck(
+        status=CheckStatus.OK,
+        label="Bootstrap Network Access",
+        details={
+            "verification": "manual",
+            "note": "doctor does not perform live outbound network probes",
+        },
+        warnings=[
+            "Bootstrap/update network reachability is not verified automatically; confirm outbound access if installs or updates fail."
+        ],
+    )
+
+
+def _doctor_check_provider_auth(runtime: str, launch_command: str, target_dir: Path) -> HealthCheck:
+    """Provide non-blocking guidance for provider authentication readiness."""
+    return HealthCheck(
+        status=CheckStatus.OK,
+        label="Provider/Auth Guidance",
+        details={
+            "runtime": runtime,
+            "launch_command": launch_command,
+            "target": str(target_dir.expanduser().resolve(strict=False)),
+            "verification": "manual",
+        },
+        warnings=[
+            (
+                f"GPD does not verify provider credentials automatically for {runtime}. "
+                f"Launch `{launch_command}` once and confirm your account or API provider is configured."
+            )
+        ],
+    )
+
+
+def _doctor_check_latex_toolchain() -> HealthCheck:
+    """Report LaTeX toolchain availability as an advisory capability check."""
+    try:
+        from gpd.mcp.paper.compiler import detect_latex_toolchain
+    except Exception as exc:  # pragma: no cover - import failure is environment specific
+        return HealthCheck(
+            status=CheckStatus.WARN,
+            label="LaTeX Toolchain",
+            details={
+                "available": False,
+                "compiler_available": False,
+                "compiler_path": None,
+                "distribution": None,
+                "latexmk_available": None,
+                "bibtex_available": None,
+                "kpsewhich_available": None,
+                "paper_build_ready": False,
+                "arxiv_submission_ready": False,
+                "missing_components": [],
+            },
+            warnings=[f"Could not load LaTeX detection helpers: {exc}"],
+        )
+
+    latex_status = detect_latex_toolchain()
+    compiler_available = bool(latex_status.available)
+    latexmk_available = shutil.which("latexmk") is not None
+    bibtex_available = shutil.which("bibtex") is not None
+    kpsewhich_available = shutil.which("kpsewhich") is not None
+    paper_build_ready = compiler_available and bibtex_available
+    arxiv_submission_ready = paper_build_ready and kpsewhich_available
+    full_toolchain_available = compiler_available and latexmk_available and bibtex_available and kpsewhich_available
+    missing_components: list[str] = []
+    if not compiler_available:
+        missing_components.append("pdflatex")
+    if compiler_available and not latexmk_available:
+        missing_components.append("latexmk")
+    if compiler_available and not bibtex_available:
+        missing_components.append("bibtex")
+    if compiler_available and not kpsewhich_available:
+        missing_components.append("kpsewhich")
+
+    warnings: list[str] = []
+    if not compiler_available:
+        warnings.append(latex_status.message or "No LaTeX compiler found.")
+    elif missing_components:
+        missing_text = ", ".join(f"`{component}`" for component in missing_components)
+        warnings.append(
+            "LaTeX compiler found, but the toolchain is partial: "
+            f"missing {missing_text}. Generic doctor only reports `OK` when the full toolchain is present."
+        )
+
+    return HealthCheck(
+        status=CheckStatus.OK if full_toolchain_available else CheckStatus.WARN,
+        label="LaTeX Toolchain",
+        details={
+            "available": full_toolchain_available,
+            "compiler_available": compiler_available,
+            "compiler_path": latex_status.compiler_path,
+            "distribution": latex_status.distribution,
+            "latexmk_available": latexmk_available,
+            "bibtex_available": bibtex_available,
+            "kpsewhich_available": kpsewhich_available,
+            "paper_build_ready": paper_build_ready,
+            "arxiv_submission_ready": arxiv_submission_ready,
+            "missing_components": missing_components,
+        },
+        warnings=warnings,
+    )
+
+
+def _doctor_check_workflow_presets(*, latex_check: HealthCheck, base_ready: bool) -> HealthCheck:
+    """Report readiness for workflow presets backed by known checks."""
+    latex_capability = dict(latex_check.details)
+    if "compiler_available" not in latex_capability:
+        legacy_available = latex_capability.get("paper_build_ready")
+        if legacy_available is None:
+            legacy_available = latex_capability.get("available")
+        if legacy_available is None:
+            legacy_available = latex_check.status == CheckStatus.OK
+        legacy_available_bool = bool(legacy_available)
+        latex_capability.setdefault("available", legacy_available_bool)
+        latex_capability.setdefault("compiler_available", legacy_available_bool)
+        latex_capability.setdefault("bibtex_available", legacy_available_bool)
+        latex_capability.setdefault("paper_build_ready", legacy_available_bool)
+        latex_capability.setdefault("arxiv_submission_ready", legacy_available_bool)
+        latex_capability.setdefault("latexmk_available", None)
+        latex_capability.setdefault("kpsewhich_available", None)
+        latex_capability.setdefault("warnings", list(latex_check.warnings))
+
+    latex_available = bool(
+        latex_capability.get("paper_build_ready", latex_capability.get("available", latex_check.status == CheckStatus.OK))
+    )
+
+    details = resolve_workflow_preset_readiness(base_ready=base_ready, latex_capability=latex_capability)
+    warnings: list[str] = []
+    if not base_ready:
+        warnings.append("Workflow preset readiness is blocked until the base runtime-readiness failures are fixed.")
+    elif not latex_available:
+        warnings.append(
+            "Publication / manuscript and full research presets are degraded without a paper-build-ready LaTeX toolchain: "
+            "`write-paper` and `peer-review` remain usable, but `paper-build` and `arxiv-submission` need compiler and bibliography support."
+        )
+
+    status = CheckStatus.OK if details["degraded"] == 0 and details["blocked"] == 0 else CheckStatus.WARN
+    return HealthCheck(
+        status=status,
+        label="Workflow Presets",
+        details=details,
+        warnings=warnings,
+    )
+
+
+def resolve_doctor_runtime_readiness(
+    runtime: str,
+    *,
+    install_scope: str | None = None,
+    target_dir: str | Path | None = None,
+    cwd: Path | None = None,
+) -> DoctorRuntimeReadinessContext:
+    """Normalize runtime readiness inputs to one canonical runtime/scope/target tuple."""
+    from gpd.adapters import get_adapter
+
+    normalized_runtime = _doctor_normalize_runtime(runtime)
+    normalized_scope_input = install_scope.lower() if isinstance(install_scope, str) else None
+    if normalized_scope_input not in {None, "local", "global"}:
+        raise ValidationError(
+            f"Unsupported install_scope {install_scope!r}; expected 'local' or 'global'."
+        )
+
+    adapter = get_adapter(normalized_runtime)
+    workspace_root = cwd or Path.cwd()
+    normalized_scope = normalized_scope_input
+    if target_dir is not None:
+        explicit_target = Path(target_dir).expanduser()
+        if explicit_target.is_absolute():
+            resolved_target = explicit_target.resolve(strict=False)
+        else:
+            resolved_target = (workspace_root / explicit_target).resolve(strict=False)
+    else:
+        resolved_target = adapter.resolve_target_dir(normalized_scope == "global", workspace_root)
+    if normalized_scope is None and target_dir is None:
+        normalized_scope = "local"
+
+    return DoctorRuntimeReadinessContext(
+        runtime=normalized_runtime,
+        install_scope=normalized_scope,
+        target=resolved_target,
+        launch_command=adapter.launch_command,
+    )
+
+
+def extract_doctor_blockers(report: DoctorReport) -> list[HealthCheck]:
+    """Return the blocking doctor checks for install-gating decisions."""
+    return [check for check in report.checks if check.status == CheckStatus.FAIL]
+
+
+def extract_doctor_advisories(report: DoctorReport) -> list[str]:
+    """Return unique warning/issue messages from non-blocking doctor checks."""
+    advisories: list[str] = []
+    seen: set[str] = set()
+    for check in report.checks:
+        if check.status == CheckStatus.FAIL:
+            continue
+        for message in [*check.issues, *check.warnings]:
+            if message not in seen:
+                seen.add(message)
+                advisories.append(message)
+    return advisories
+
+
+def runtime_doctor_hint(runtime_name: str, *, install_scope: str, target_dir: Path | None) -> str:
+    """Build the exact doctor command that inspects one install target."""
+    parts = ["gpd", "doctor", "--runtime", runtime_name, f"--{install_scope}"]
+    if target_dir is not None:
+        parts.extend(["--target-dir", str(target_dir)])
+    return " ".join(shlex.quote(part) for part in parts)
+
+
+def build_unattended_readiness_result(
+    *,
+    runtime: str,
+    autonomy: str | None,
+    install_scope: str,
+    target_dir: Path | None,
+    doctor_report: DoctorReport,
+    permissions_payload: dict[str, object],
+    live_executable_probes: bool,
+    validated_surface: str = "public_runtime_command_surface",
+) -> UnattendedReadinessResult:
+    """Compose doctor and permissions status into one unattended-readiness verdict."""
+    normalized_permissions = normalize_permissions_readiness_payload(
+        permissions_payload,
+        requested_runtime=runtime,
+        requested_autonomy=autonomy,
+    )
+    blocker_messages: list[str] = []
+    seen_blockers: set[str] = set()
+    for check in extract_doctor_blockers(doctor_report):
+        messages = [*check.issues, *check.warnings]
+        if not messages:
+            messages = [f"{check.label}: readiness check failed."]
+        for message in messages:
+            if message not in seen_blockers:
+                seen_blockers.add(message)
+                blocker_messages.append(message)
+
+    advisory_messages = extract_doctor_advisories(doctor_report)
+    readiness = str(normalized_permissions.get("readiness") or "unresolved")
+    permissions_ready = bool(normalized_permissions.get("ready", False))
+    readiness_message = str(
+        normalized_permissions.get("readiness_message") or "Runtime permissions are not ready for unattended use."
+    )
+
+    doctor_detail = "Runtime readiness checks passed."
+    if blocker_messages:
+        doctor_detail = "; ".join(blocker_messages[:3])
+    elif advisory_messages:
+        doctor_detail = f"Runtime readiness checks passed with {len(advisory_messages)} advisory(s)."
+
+    checks = [
+        UnattendedReadinessCheck(
+            name="permissions",
+            passed=permissions_ready,
+            blocking=not permissions_ready,
+            detail=readiness_message,
+        ),
+        UnattendedReadinessCheck(
+            name="doctor",
+            passed=not blocker_messages,
+            blocking=bool(blocker_messages),
+            detail=doctor_detail,
+        ),
+    ]
+
+    blocking_conditions: list[str] = []
+    if not permissions_ready and readiness_message not in blocking_conditions:
+        blocking_conditions.append(readiness_message)
+    for message in blocker_messages:
+        if message not in blocking_conditions:
+            blocking_conditions.append(message)
+
+    warnings: list[str] = []
+    for message in advisory_messages:
+        if message not in warnings:
+            warnings.append(message)
+
+    next_step = str(normalized_permissions.get("next_step") or "").strip()
+    if not next_step and blocker_messages:
+        next_step = (
+            f"Run `{runtime_doctor_hint(runtime, install_scope=install_scope, target_dir=target_dir)}` "
+            "to inspect and clear the blocking runtime-readiness issues."
+        )
+
+    target = normalized_permissions.get("target")
+    if not isinstance(target, str) or not target.strip():
+        target = str(target_dir) if target_dir is not None else getattr(doctor_report, "target", None)
+
+    resolved_autonomy = normalized_permissions.get("autonomy")
+    autonomy_value = str(resolved_autonomy) if isinstance(resolved_autonomy, str) and resolved_autonomy else (autonomy or "")
+    passed = permissions_ready and not blocker_messages
+    return UnattendedReadinessResult(
+        runtime=runtime,
+        autonomy=autonomy_value,
+        install_scope=install_scope,
+        target=target,
+        readiness=readiness,
+        ready=permissions_ready,
+        passed=passed,
+        readiness_message=readiness_message,
+        live_executable_probes=live_executable_probes,
+        checks=checks,
+        blocking_conditions=blocking_conditions,
+        warnings=warnings,
+        next_step=next_step,
+        status_scope=str(normalized_permissions.get("status_scope") or "unknown"),
+        current_session_verified=bool(normalized_permissions.get("current_session_verified", False)),
+        validated_surface=validated_surface,
+    )
+
+
+def run_doctor(
+    specs_dir: Path | None = None,
+    version: str | None = None,
+    *,
+    runtime: str | None = None,
+    install_scope: str | None = None,
+    target_dir: str | Path | None = None,
+    cwd: Path | None = None,
+    live_executable_probes: bool = False,
+) -> DoctorReport:
     """Cross-runtime installation verification.
 
     Checks that the bundled specs content is correctly installed: references,
@@ -995,6 +1853,8 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
             "specs_dir is required. Pass the specs directory explicitly "
             "(e.g., from SPECS_DIR in gpd or via CLI argument)."
         )
+    if runtime is None and (install_scope is not None or target_dir is not None):
+        raise ValidationError("install_scope and target_dir require runtime to be set.")
     if version is None:
         import importlib.metadata
 
@@ -1061,40 +1921,43 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
         # 5. Bundle registry and asset paths
         checks.append(_doctor_check_protocol_bundles(sd))
 
-        # 6. Python version
-        py_issues: list[str] = []
-        py_warnings: list[str] = []
-        if sys.version_info < (MIN_PYTHON_MAJOR, MIN_PYTHON_MINOR):
-            py_issues.append(
-                f"Python {sys.version_info.major}.{sys.version_info.minor} < {MIN_PYTHON_MAJOR}.{MIN_PYTHON_MINOR}"
-            )
-        elif sys.version_info < RECOMMENDED_PYTHON_VERSION:
-            py_warnings.append(f"Python >= {RECOMMENDED_PYTHON_VERSION[0]}.{RECOMMENDED_PYTHON_VERSION[1]} recommended")
-        checks.append(
-            HealthCheck(
-                status=CheckStatus.FAIL if py_issues else CheckStatus.WARN if py_warnings else CheckStatus.OK,
-                label="Python Version",
-                details={"version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"},
-                issues=py_issues,
-                warnings=py_warnings,
-            )
-        )
+        # 6. Python runtime + venv
+        checks.append(_doctor_check_python_runtime())
 
         # 7. Package importability
-        import_issues: list[str] = []
-        for module in ("gpd.core.utils", "gpd.core.config", "gpd.core.state", "gpd.core.conventions"):
-            try:
-                __import__(module)
-            except ImportError as e:
-                import_issues.append(f"Cannot import {module}: {e}")
-        checks.append(
-            HealthCheck(
-                status=CheckStatus.FAIL if import_issues else CheckStatus.OK,
-                label="Package Imports",
-                details={"modules_checked": 4},
-                issues=import_issues,
+        checks.append(_doctor_check_package_imports())
+
+        if live_executable_probes:
+            checks.append(_doctor_check_live_executable_probes())
+
+        resolved_target_str: str | None = None
+        normalized_scope: str | None = None
+        normalized_runtime: str | None = None
+        if runtime is not None:
+            runtime_context = resolve_doctor_runtime_readiness(
+                runtime,
+                install_scope=install_scope,
+                target_dir=target_dir,
+                cwd=cwd,
             )
-        )
+            normalized_runtime = runtime_context.runtime
+            normalized_scope = runtime_context.install_scope
+            resolved_target = runtime_context.target
+            resolved_target_str = str(resolved_target)
+            checks.append(_doctor_check_runtime_launcher(normalized_runtime))
+            checks.append(_doctor_check_runtime_target(resolved_target, runtime=normalized_runtime))
+            checks.append(_doctor_check_bootstrap_network_access())
+            checks.append(
+                _doctor_check_provider_auth(
+                    normalized_runtime,
+                    runtime_context.launch_command,
+                    resolved_target,
+                )
+            )
+            latex_check = _doctor_check_latex_toolchain()
+            checks.append(latex_check)
+            base_ready = not any(check.status == CheckStatus.FAIL for check in checks)
+            checks.append(_doctor_check_workflow_presets(latex_check=latex_check, base_ready=base_ready))
 
         # Version (passed as parameter, no gpd import needed)
 
@@ -1108,6 +1971,11 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
         return DoctorReport(
             overall=overall,
             version=version,
+            mode="runtime-readiness" if runtime is not None else "installation",
+            runtime=normalized_runtime,
+            install_scope=normalized_scope,
+            target=resolved_target_str,
+            live_executable_probes=live_executable_probes,
             summary=HealthSummary(ok=ok_count, warn=warn_count, fail=fail_count, total=len(checks)),
             checks=checks,
         )
@@ -1116,9 +1984,19 @@ def run_doctor(specs_dir: Path | None = None, version: str | None = None) -> Doc
 __all__ = [
     "CheckStatus",
     "DoctorReport",
+    "DoctorRuntimeReadinessContext",
     "HealthCheck",
     "HealthReport",
     "HealthSummary",
+    "annotate_permissions_payload",
+    "normalize_permissions_readiness_payload",
+    "UnattendedReadinessCheck",
+    "UnattendedReadinessResult",
+    "build_unattended_readiness_result",
+    "extract_doctor_advisories",
+    "extract_doctor_blockers",
+    "resolve_doctor_runtime_readiness",
+    "runtime_doctor_hint",
     "check_compaction_needed",
     "check_config",
     "check_convention_lock",

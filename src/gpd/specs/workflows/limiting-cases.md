@@ -22,7 +22,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-- **If init succeeds** (non-empty JSON with `state_exists: true`): Extract `convention_lock` for unit system and sign conventions. Extract `intermediate_results` from state for previously verified expressions. Extract active approximations and their validity ranges — these define the limits to check.
+- **If init succeeds** (non-empty JSON with `state_exists: true`): Extract `convention_lock` for unit system and sign conventions. Extract `intermediate_results` from state for previously verified expressions. If you need to find the canonical expression first, use `gpd result search` by identifier, equation, or description; once a canonical `result_id` is known, use `gpd result show "{result_id}"` for the direct stored-result view before checking limits. Keep `gpd query search` for SUMMARY/frontmatter lookup. Extract active approximations and their validity ranges — these define the limits to check.
 - **If init fails or `state_exists` is false** (standalone usage): Proceed with explicit convention declarations required from user via ask_user.
 
 Active approximations from the project state directly inform which limits are most important to verify (e.g., if a perturbative approximation is active, the free-theory limit g→0 is mandatory).

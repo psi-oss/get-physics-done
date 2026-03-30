@@ -53,6 +53,15 @@ from gpd.adapters.tool_names import build_runtime_alias_map, reference_translati
 from gpd.core.observability import gpd_span
 from gpd.registry import AgentDef, load_agents_from_dir
 
+try:
+    from gpd.mcp.managed_integrations import (
+        WOLFRAM_MANAGED_INTEGRATION,
+        WOLFRAM_MANAGED_SERVER_KEY,
+    )
+except ImportError:  # pragma: no cover - partial checkout fallback
+    WOLFRAM_MANAGED_INTEGRATION = None
+    WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
+
 logger = logging.getLogger(__name__)
 
 _TOOL_NAME_MAP: dict[str, str] = {
@@ -89,6 +98,21 @@ _MANIFEST_CODEX_GENERATED_SKILL_DIRS_KEY = "codex_generated_skill_dirs"
 _CODEX_DEFAULT_SANDBOX_MODE = "workspace-write"
 _CODEX_YOLO_APPROVAL_POLICY = "never"
 _CODEX_YOLO_SANDBOX_MODE = "danger-full-access"
+
+
+def _read_codex_runtime_config(config_path: Path) -> tuple[dict[str, object] | None, str | None]:
+    """Return the parsed Codex config and a malformed marker when parsing fails."""
+    if not config_path.exists():
+        return None, None
+    try:
+        parsed = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return None, "malformed"
+    if not isinstance(parsed, dict):
+        return None, "malformed"
+    return parsed, None
+
+
 _TOOL_REFERENCE_MAP = reference_translation_map(
     _TOOL_NAME_MAP,
     alias_map=_TOOL_ALIAS_MAP,
@@ -99,11 +123,11 @@ _SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _CODEX_COMMAND_RUNTIME_NOTE = (
     "<codex_runtime_notes>\n"
     "Codex shell compatibility:\n"
+    "- Keep user-facing command names canonical in prose: `gpd ...` for your normal terminal and `$gpd-...` for Codex commands.\n"
     "- When shell steps call the GPD CLI, use {launcher} instead of the ambient `gpd` on PATH.\n"
     "- The bridge already pins Codex and validates the install contract, so keep using it for normal CLI execution.\n"
     "</codex_runtime_notes>\n\n"
 )
-_INLINE_GPD_COMMAND_RE = re.compile(r"`(?P<command>gpd(?=\s)[^`]*?)`")
 _CODEX_QUESTION_MARKERS = (
     "Use ask_user",
     "ask_user(",
@@ -399,7 +423,7 @@ def _inject_codex_command_runtime_note(content: str, launcher: str) -> str:
 
 
 def _rewrite_codex_gpd_cli_invocations(content: str, launcher: str) -> str:
-    """Rewrite direct shell ``gpd`` calls to the shared runtime CLI bridge."""
+    """Rewrite shell-executable ``gpd`` calls to the shared runtime CLI bridge."""
     rewritten: list[str] = []
     in_shell_fence = False
 
@@ -418,14 +442,9 @@ def _rewrite_codex_gpd_cli_invocations(content: str, launcher: str) -> str:
             rewritten.append(_rewrite_codex_shell_line(line, launcher))
             continue
 
-        rewritten.append(_rewrite_codex_inline_gpd_commands(line, launcher))
+        rewritten.append(line)
 
     return "".join(rewritten)
-
-
-def _rewrite_codex_inline_gpd_commands(content: str, launcher: str) -> str:
-    """Rewrite inline markdown code spans that execute ``gpd`` commands."""
-    return _INLINE_GPD_COMMAND_RE.sub(lambda match: f"`{launcher}{match.group('command')[3:]}`", content)
 
 
 def _normalize_codex_questioning(content: str) -> str:
@@ -732,6 +751,7 @@ class CodexAdapter(RuntimeAdapter):
         from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
         mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+        mcp_servers.update(_build_managed_optional_mcp_servers())
         mcp_count = 0
         if mcp_servers:
             mcp_count = _write_mcp_servers_codex_toml(target_dir, mcp_servers)
@@ -749,20 +769,24 @@ class CodexAdapter(RuntimeAdapter):
         """Report whether Codex approvals/sandbox are aligned with GPD autonomy."""
         config_path = target_dir / "config.toml"
         approval_policy: str | None = None
-        sandbox_mode: str = _CODEX_DEFAULT_SANDBOX_MODE
+        sandbox_mode: str | None = _CODEX_DEFAULT_SANDBOX_MODE
         root_managed = False
+        config_valid = True
+        config_parse_error: str | None = None
         if config_path.exists():
             content = config_path.read_text(encoding="utf-8")
-            try:
-                parsed = tomllib.loads(content)
-            except tomllib.TOMLDecodeError:
-                parsed = {}
-            approval_value = parsed.get("approval_policy")
-            sandbox_value = parsed.get("sandbox_mode")
-            if isinstance(approval_value, str):
-                approval_policy = approval_value
-            if isinstance(sandbox_value, str):
-                sandbox_mode = sandbox_value
+            parsed, config_parse_error = _read_codex_runtime_config(config_path)
+            if parsed is not None:
+                approval_value = parsed.get("approval_policy")
+                sandbox_value = parsed.get("sandbox_mode")
+                if isinstance(approval_value, str):
+                    approval_policy = approval_value
+                if isinstance(sandbox_value, str):
+                    sandbox_mode = sandbox_value
+            else:
+                config_valid = False
+                approval_policy = None
+                sandbox_mode = None
             root_managed = _root_assignment_has_gpd_marker(
                 content,
                 _GPD_APPROVAL_POLICY_COMMENT,
@@ -779,8 +803,13 @@ class CodexAdapter(RuntimeAdapter):
         desired_mode = "yolo" if autonomy == "yolo" else "default"
         managed_state = self._runtime_permissions_manifest_state(target_dir) or {}
         managed_by_gpd = managed_state.get("mode") == "yolo" or root_managed
+        requires_relaunch = False
 
-        if desired_mode == "yolo":
+        next_step: str | None = None
+        if not config_valid:
+            config_aligned = False
+            message = "Codex config.toml is malformed; GPD will not treat it as a defaulted permission state."
+        elif desired_mode == "yolo":
             root_aligned = (
                 approval_policy == _CODEX_YOLO_APPROVAL_POLICY
                 and sandbox_mode == _CODEX_YOLO_SANDBOX_MODE
@@ -793,10 +822,14 @@ class CodexAdapter(RuntimeAdapter):
                 )
             )
             config_aligned = root_aligned and roles_aligned
+            requires_relaunch = config_aligned
             if config_aligned:
                 message = (
                     "Codex is configured for prompt-free approvals and danger-full-access sandboxing "
                     "for the next session."
+                )
+                next_step = (
+                    "Restart Codex so the current session picks up the persisted yolo approval and sandbox settings."
                 )
             elif not root_aligned and not roles_aligned:
                 message = (
@@ -808,6 +841,7 @@ class CodexAdapter(RuntimeAdapter):
                 message = "Codex GPD-managed role files are not yet configured for yolo approval and sandbox settings."
         else:
             config_aligned = not managed_by_gpd
+            requires_relaunch = False
             if managed_by_gpd:
                 message = (
                     "Codex is still pinned to GPD-managed never/danger-full-access defaults from an earlier yolo sync."
@@ -822,27 +856,41 @@ class CodexAdapter(RuntimeAdapter):
 
         configured_mode = (
             "yolo"
-            if approval_policy == _CODEX_YOLO_APPROVAL_POLICY and sandbox_mode == _CODEX_YOLO_SANDBOX_MODE
-            else f"{approval_policy or 'unset'}/{sandbox_mode}"
+            if config_valid and approval_policy == _CODEX_YOLO_APPROVAL_POLICY and sandbox_mode == _CODEX_YOLO_SANDBOX_MODE
+            else "malformed" if not config_valid else f"{approval_policy or 'unset'}/{sandbox_mode or 'unset'}"
         )
         return {
             "runtime": self.runtime_name,
             "desired_mode": desired_mode,
             "configured_mode": configured_mode,
             "config_aligned": config_aligned,
+            "requires_relaunch": requires_relaunch,
             "managed_by_gpd": managed_by_gpd,
             "settings_path": str(config_path),
-            "approval_policy": approval_policy or "unset",
+            "approval_policy": approval_policy,
             "sandbox_mode": sandbox_mode,
             "agent_role_approval_policy": role_approval_policy or "unset",
             "agent_role_sandbox_mode": role_sandbox_mode or "mixed",
+            "config_valid": config_valid,
+            "config_parse_error": config_parse_error,
             "message": message,
+            "next_step": next_step,
         }
 
     def sync_runtime_permissions(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
         """Align Codex approvals/sandbox settings with the requested autonomy."""
         config_path = target_dir / "config.toml"
         toml_content = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+        _, parse_error = _read_codex_runtime_config(config_path)
+        if parse_error is not None:
+            status = self.runtime_permissions_status(target_dir, autonomy=autonomy)
+            return {
+                **status,
+                "changed": False,
+                "sync_applied": False,
+                "requires_relaunch": False,
+                "warning": "Codex config.toml is malformed; GPD will not overwrite it.",
+            }
         changed = False
         if autonomy == "yolo":
             updated = toml_content
@@ -1071,7 +1119,10 @@ class CodexAdapter(RuntimeAdapter):
             config_toml_mcp = target_dir / "config.toml"
             if config_toml_mcp.exists():
                 toml_mcp = config_toml_mcp.read_text(encoding="utf-8")
-                cleaned_mcp = _remove_gpd_mcp_toml_sections(toml_mcp)
+                cleaned_mcp = _remove_gpd_mcp_toml_sections(
+                    toml_mcp,
+                    extra_keys=_managed_optional_mcp_server_keys(),
+                )
                 if cleaned_mcp != toml_mcp:
                     config_toml_mcp.write_text(cleaned_mcp, encoding="utf-8")
                     removed.append("config.toml MCP servers")
@@ -1575,7 +1626,7 @@ def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str,
     existing_content = content
 
     # Remove existing GPD MCP sections before rewriting.
-    content = _remove_gpd_mcp_toml_sections(content)
+    content = _remove_gpd_mcp_toml_sections(content, extra_keys=set(servers))
 
     # Append new MCP server sections.
     lines: list[str] = []
@@ -1633,13 +1684,35 @@ def _write_codex_agent_roles_toml(target_dir: Path) -> int:
     return len(installed_agents)
 
 
-def _remove_gpd_mcp_toml_sections(content: str) -> str:
+def _build_managed_optional_mcp_servers() -> dict[str, dict[str, object]]:
+    """Return optional managed MCP servers that are currently configured."""
+    if WOLFRAM_MANAGED_INTEGRATION is None:
+        return {}
+    if not WOLFRAM_MANAGED_INTEGRATION.is_configured():
+        return {}
+    return {
+        WOLFRAM_MANAGED_SERVER_KEY: {
+            "command": WOLFRAM_MANAGED_INTEGRATION.bridge_command,
+            "args": [],
+        }
+    }
+
+
+def _managed_optional_mcp_server_keys() -> frozenset[str]:
+    """Return optional managed MCP server keys removed during uninstall."""
+    return frozenset({WOLFRAM_MANAGED_SERVER_KEY})
+
+
+def _remove_gpd_mcp_toml_sections(content: str, *, extra_keys: set[str] | None = None) -> str:
     """Remove GPD MCP server sections from TOML content."""
     from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
 
     # Remove the header comment and all [mcp_serversGPD-*] sections.
     content = re.sub(r"^# GPD MCP servers\n", "", content, flags=re.MULTILINE)
-    for key in GPD_MCP_SERVER_KEYS:
+    managed_keys = set(GPD_MCP_SERVER_KEYS)
+    if extra_keys:
+        managed_keys.update(extra_keys)
+    for key in managed_keys:
         escaped = re.escape(key)
         # Remove [mcp_servers.key] and [mcp_servers.key.env] sections until the next section.
         content = re.sub(

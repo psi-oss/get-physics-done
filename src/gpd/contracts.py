@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
@@ -32,6 +33,10 @@ __all__ = [
     "ContractLink",
     "ContractUncertaintyMarkers",
     "ResearchContract",
+    "collect_plan_contract_integrity_errors",
+    "contract_has_explicit_context_intake",
+    "ProjectContractParseResult",
+    "parse_project_contract_data_strict",
     "collect_contract_integrity_errors",
     "contract_from_data",
 ]
@@ -66,7 +71,9 @@ def _normalize_required_str(value: object) -> object:
 def _normalize_string_list(value: object) -> object:
     if isinstance(value, str):
         stripped = value.strip()
-        return [stripped] if stripped else []
+        if not stripped:
+            raise ValueError("must not be blank")
+        return [stripped]
     if not isinstance(value, list):
         return value
     normalized: list[str] = []
@@ -192,45 +199,6 @@ def _collect_strict_contract_results_errors(value: _StrictContractResultsInput) 
             )
 
     return errors
-
-
-def _collect_contract_scalar_errors(
-    value: object,
-    *,
-    path_prefix: str = "",
-    errors: list[str] | None = None,
-) -> list[str]:
-    """Return explicit scalar drift that strict contract loaders must reject."""
-
-    sink = errors if errors is not None else []
-
-    if isinstance(value, dict):
-        for raw_key, raw_item in value.items():
-            key = str(raw_key)
-            location = f"{path_prefix}.{key}" if path_prefix else key
-
-            if key == "schema_version":
-                if type(raw_item) is not int:
-                    sink.append("schema_version must be the integer 1")
-                    continue
-                if raw_item != 1:
-                    sink.append("schema_version: Input should be 1")
-                    continue
-
-            if key == "must_surface":
-                if type(raw_item) is not bool:
-                    sink.append(f"{location} must be a boolean")
-                    continue
-
-            _collect_contract_scalar_errors(raw_item, path_prefix=location, errors=sink)
-        return sink
-
-    if isinstance(value, list):
-        for index, item in enumerate(value):
-            child_prefix = f"{path_prefix}.{index}" if path_prefix else str(index)
-            _collect_contract_scalar_errors(item, path_prefix=child_prefix, errors=sink)
-
-    return sink
 
 
 class ConventionLock(BaseModel):
@@ -935,16 +903,253 @@ def collect_contract_integrity_errors(contract: ResearchContract) -> list[str]:
     return errors
 
 
-def contract_from_data(data: object) -> ResearchContract | None:
+def _has_contract_grounding_context(contract: ResearchContract) -> bool:
+    """Return whether the contract carries explicit grounding outside references."""
+
+    return any(
+        (
+            contract.context_intake.must_include_prior_outputs,
+            contract.context_intake.user_asserted_anchors,
+            contract.context_intake.known_good_baselines,
+            contract.context_intake.context_gaps,
+            contract.context_intake.crucial_inputs,
+            contract.approach_policy.formulations,
+            contract.approach_policy.stop_and_rethink_conditions,
+        )
+    )
+
+
+def contract_has_explicit_context_intake(contract: ResearchContract) -> bool:
+    """Return whether ``context_intake`` carries any explicit non-empty field."""
+
+    return any(
+        (
+            contract.context_intake.must_read_refs,
+            contract.context_intake.must_include_prior_outputs,
+            contract.context_intake.user_asserted_anchors,
+            contract.context_intake.known_good_baselines,
+            contract.context_intake.context_gaps,
+            contract.context_intake.crucial_inputs,
+        )
+    )
+
+
+def _is_scoping_contract(contract: ResearchContract) -> bool:
+    """Return whether the contract is still framing the work rather than proving it."""
+
+    return (
+        not contract.claims
+        and not contract.acceptance_tests
+        and (
+            bool(contract.observables)
+            or bool(contract.deliverables)
+            or bool(contract.scope.unresolved_questions)
+            or _has_contract_grounding_context(contract)
+        )
+    )
+
+
+def _is_exploratory_contract(contract: ResearchContract) -> bool:
+    """Return whether the contract semantics describe setup/exploratory work."""
+
+    exploratory_test_kinds = {
+        "existence",
+        "schema",
+        "human_review",
+        "consistency",
+        "limiting_case",
+        "symmetry",
+        "dimensional_analysis",
+        "convergence",
+        "other",
+    }
+    exploratory_deliverable_kinds = {"code", "note", "report", "derivation", "figure", "table", "dataset", "data", "other"}
+
+    return (
+        not _is_scoping_contract(contract)
+        and (bool(contract.acceptance_tests) or _has_contract_grounding_context(contract))
+        and all(test.kind in exploratory_test_kinds for test in contract.acceptance_tests)
+        and all(deliverable.kind in exploratory_deliverable_kinds for deliverable in contract.deliverables)
+    )
+
+
+def collect_plan_contract_integrity_errors(contract: ResearchContract) -> list[str]:
+    """Return the full semantic integrity error set for plan-style contracts."""
+
+    issues = list(collect_contract_integrity_errors(contract))
+    scoping_contract = _is_scoping_contract(contract)
+    exploratory_contract = _is_exploratory_contract(contract)
+
+    if not contract.claims and not scoping_contract:
+        issues.append("missing claims")
+    if not contract.deliverables and not scoping_contract:
+        issues.append("missing deliverables")
+    if not contract.acceptance_tests and not scoping_contract:
+        issues.append("missing acceptance_tests")
+    if not contract.references and not (_has_contract_grounding_context(contract) or exploratory_contract or scoping_contract):
+        issues.append("missing references or explicit grounding context")
+    if not contract.forbidden_proxies and not (exploratory_contract or scoping_contract):
+        issues.append("missing forbidden_proxies")
+    if not contract.uncertainty_markers.weakest_anchors:
+        issues.append("missing uncertainty_markers.weakest_anchors")
+    if not contract.uncertainty_markers.disconfirming_observations:
+        issues.append("missing uncertainty_markers.disconfirming_observations")
+    if scoping_contract and not (
+        contract.observables
+        or contract.deliverables
+        or contract.scope.unresolved_questions
+        or _has_contract_grounding_context(contract)
+    ):
+        issues.append("scoping contracts must preserve at least one target, open question, or carry-forward input")
+
+    observable_ids = {observable.id for observable in contract.observables}
+    claim_ids = {claim.id for claim in contract.claims}
+    deliverable_ids = {deliverable.id for deliverable in contract.deliverables}
+    acceptance_test_ids = {test.id for test in contract.acceptance_tests}
+    reference_ids = {reference.id for reference in contract.references}
+    known_ids = claim_ids | deliverable_ids | acceptance_test_ids | reference_ids
+
+    if contract.references and not any(reference.must_surface for reference in contract.references):
+        issues.append("references must include at least one must_surface=true anchor")
+    for must_read_ref in contract.context_intake.must_read_refs:
+        if must_read_ref not in reference_ids:
+            issues.append(f"context_intake.must_read_refs references unknown reference {must_read_ref}")
+
+    for claim in contract.claims:
+        if not claim.deliverables:
+            issues.append(f"claim {claim.id} missing deliverables")
+        if not claim.acceptance_tests:
+            issues.append(f"claim {claim.id} missing acceptance_tests")
+        for observable_id in claim.observables:
+            if observable_id not in observable_ids:
+                issues.append(f"claim {claim.id} references unknown observable {observable_id}")
+        for deliverable_id in claim.deliverables:
+            if deliverable_id not in deliverable_ids:
+                issues.append(f"claim {claim.id} references unknown deliverable {deliverable_id}")
+        for test_id in claim.acceptance_tests:
+            if test_id not in acceptance_test_ids:
+                issues.append(f"claim {claim.id} references unknown acceptance test {test_id}")
+        for reference_id in claim.references:
+            if reference_id not in reference_ids:
+                issues.append(f"claim {claim.id} references unknown reference {reference_id}")
+
+    for test in contract.acceptance_tests:
+        if test.subject not in claim_ids and test.subject not in deliverable_ids:
+            issues.append(f"acceptance test {test.id} targets unknown subject {test.subject}")
+        for evidence_id in test.evidence_required:
+            if evidence_id not in known_ids:
+                issues.append(f"acceptance test {test.id} references unknown evidence {evidence_id}")
+
+    for reference in contract.references:
+        if reference.must_surface and not reference.required_actions:
+            issues.append(f"reference {reference.id} is must_surface but missing required_actions")
+        if reference.must_surface and not reference.applies_to:
+            issues.append(f"reference {reference.id} is must_surface but missing applies_to")
+        for applies_to_id in reference.applies_to:
+            if applies_to_id not in claim_ids and applies_to_id not in deliverable_ids:
+                issues.append(f"reference {reference.id} applies_to unknown target {applies_to_id}")
+
+    for forbidden_proxy in contract.forbidden_proxies:
+        if forbidden_proxy.subject not in claim_ids and forbidden_proxy.subject not in deliverable_ids:
+            issues.append(
+                f"forbidden proxy {forbidden_proxy.id} targets unknown subject {forbidden_proxy.subject}"
+            )
+
+    for link in contract.links:
+        if link.source not in known_ids:
+            issues.append(f"link {link.id} references unknown source {link.source}")
+        if link.target not in known_ids:
+            issues.append(f"link {link.id} references unknown target {link.target}")
+        for verification_id in link.verified_by:
+            if verification_id not in acceptance_test_ids:
+                issues.append(f"link {link.id} references unknown acceptance test {verification_id}")
+
+    return issues
+
+
+class ProjectContractParseResult(BaseModel):
+    """Structured result for project-contract payload parsing boundaries."""
+
+    model_config = ConfigDict(frozen=True)
+
+    contract: ResearchContract | None = None
+    errors: list[str] = Field(default_factory=list)
+
+
+def parse_project_contract_data_strict(data: object) -> ProjectContractParseResult:
+    """Strictly parse an authored project-contract payload.
+
+    This entrypoint is for model-facing or authoring boundaries where recoverable
+    salvage is undesirable. Inputs that would require schema normalization
+    (singleton list drift, extra keys, defaulted singleton sections, coercive
+    scalars) are rejected explicitly instead of being silently canonicalized.
+    Read/repair flows should continue to use ``contract_from_data()`` or the
+    lower-level salvage helpers.
+    """
+
+    if not isinstance(data, dict):
+        return ProjectContractParseResult(errors=["project contract must be a JSON object"])
+
+    from gpd.core.contract_validation import (
+        _collect_list_shape_drift_errors,
+        _split_project_contract_schema_findings,
+        salvage_project_contract,
+    )
+
+    list_shape_drift_errors = _collect_list_shape_drift_errors(data)
+    contract, schema_findings = salvage_project_contract(data)
+    schema_warnings, schema_errors = _split_project_contract_schema_findings(
+        schema_findings,
+        allow_singleton_defaults=False,
+    )
+
+    errors: list[str] = []
+    for error in (*schema_errors, *schema_warnings, *list_shape_drift_errors):
+        if error not in errors:
+            errors.append(error)
+
+    if contract is None:
+        if not errors and schema_findings:
+            for error in schema_findings:
+                if error not in errors:
+                    errors.append(error)
+        if not errors:
+            errors.append("project contract could not be normalized")
+        return ProjectContractParseResult(errors=errors)
+
+    integrity_errors = collect_contract_integrity_errors(contract)
+    for error in integrity_errors:
+        if error not in errors:
+            errors.append(error)
+    if errors:
+        return ProjectContractParseResult(errors=errors)
+    return ProjectContractParseResult(contract=contract)
+
+
+def contract_from_data(
+    data: object,
+    *,
+    allow_recoverable_warnings: bool = True,
+    require_draft_validity: bool = False,
+    project_root: Path | None = None,
+) -> ResearchContract | None:
     """Return a validated :class:`ResearchContract` when *data* is a mapping.
 
     Malformed mappings degrade to ``None`` so callers can treat this helper as a
-    safe probe instead of an exception boundary.
+    safe salvage-aware probe instead of an exception boundary. Callers that need
+    strict authored-input rejection should use
+    :func:`parse_project_contract_data_strict` instead. Callers that preserve
+    contracts back into state can additionally require draft-level scoping
+    validity.
     """
 
     if not isinstance(data, dict):
         return None
-    from gpd.core.contract_validation import _split_project_contract_schema_findings, salvage_project_contract
+    from gpd.core.contract_validation import (
+        _split_project_contract_schema_findings,
+        salvage_project_contract,
+        validate_project_contract,
+    )
 
     contract, schema_findings = salvage_project_contract(data)
     _schema_warnings, schema_errors = _split_project_contract_schema_findings(
@@ -953,6 +1158,12 @@ def contract_from_data(data: object) -> ResearchContract | None:
     )
     if schema_errors or contract is None:
         return None
+    if not allow_recoverable_warnings and _schema_warnings:
+        return None
     if collect_contract_integrity_errors(contract):
         return None
+    if require_draft_validity:
+        draft_validation = validate_project_contract(contract, mode="draft", project_root=project_root)
+        if not draft_validation.valid:
+            return None
     return contract

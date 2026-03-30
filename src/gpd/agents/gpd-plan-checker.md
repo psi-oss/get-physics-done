@@ -772,7 +772,7 @@ issue:
 - Plan assumes internet access for downloading data or packages during execution
 - Code requires specific OS features (Linux-only system calls, Windows COM objects)
 
-**Key principle:** The executor agent runs in a computational environment with Python, standard scientific packages, and file I/O. Plans should not assume anything beyond this without explicit justification. When specialized tools are genuinely needed, the plan must either (a) confirm availability, (b) provide installation instructions as a permission-gated prerequisite task, or (c) offer a fallback using standard tools.
+**Key principle:** The executor agent runs in a computational environment with Python, standard scientific packages, and file I/O. Plans should not assume anything beyond this without explicit justification. When specialized tools are genuinely needed, the plan must declare them in `tool_requirements`, keep `researcher_setup` for human-only credentials/setup, and then either (a) confirm availability, (b) provide installation instructions as a permission-gated prerequisite task, or (c) offer a fallback using standard tools.
 
 **Example — licensed software:**
 
@@ -783,7 +783,7 @@ issue:
   description: "Task 3 requires Mathematica for symbolic Groebner basis computation but availability is not confirmed"
   plan: "04-02"
   task: 3
-  fix_hint: "Use sympy.polys.groebnertools as alternative, or add prerequisite confirming Mathematica access via Wolfram Engine"
+  fix_hint: "Declare `tool_requirements: [{id: wolfram-cas, tool: wolfram, purpose: ..., fallback: ...}]`, use sympy.polys.groebnertools as alternative, or add prerequisite confirming Mathematica access via Wolfram Engine"
 ```
 
 **Example — hardware assumption:**

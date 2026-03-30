@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from gpd.adapters.install_utils import build_runtime_cli_bridge_command
+from gpd.adapters.install_utils import build_runtime_cli_bridge_command, compile_markdown_for_runtime
 from gpd.adapters.opencode import (
     OpenCodeAdapter,
     configure_opencode_permissions,
@@ -139,6 +139,30 @@ class TestConvertFrontmatter:
         assert "description: before --- after" in result
         assert "read_file: true" in result
         assert result.rstrip().endswith("Body")
+
+    def test_review_contract_is_prepended_to_prompt_body(self) -> None:
+        content = compile_markdown_for_runtime(
+            (
+                "---\n"
+                "description: D\n"
+                "review-contract:\n"
+                "  review_mode: publication\n"
+                "  schema_version: 1\n"
+                "  required_outputs:\n"
+                "    - GPD/review/REFEREE-DECISION{round_suffix}.json\n"
+                "---\n"
+                "Prompt body"
+            ),
+            runtime="opencode",
+            path_prefix="/prefix/",
+        )
+
+        result = convert_claude_to_opencode_frontmatter(content)
+
+        assert "## Review Contract" in result
+        assert "review-contract:" in result
+        assert "review_mode: publication" in result
+        assert result.index("## Review Contract") < result.index("Prompt body")
 
 
 class TestCopyFlattenedCommands:
@@ -510,8 +534,98 @@ class TestInstall:
         assert server["environment"]["EXTRA_FLAG"] == "1"
         assert config["mcp"]["custom-server"] == {"type": "local", "command": ["node", "custom.js"]}
 
+    def test_install_projects_managed_wolfram_mcp_without_secrets(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        monkeypatch.setenv("GPD_WOLFRAM_MCP_API_KEY", "super-secret-token")
+        monkeypatch.setenv("GPD_WOLFRAM_MCP_ENDPOINT", "https://example.invalid/api/mcp")
+
+        adapter.install(gpd_root, target)
+
+        config = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
+        wolfram = config["mcp"]["gpd-wolfram"]
+        assert wolfram["type"] == "local"
+        assert wolfram["command"] == ["gpd-mcp-wolfram"]
+        assert wolfram["enabled"] is True
+        assert wolfram["environment"] == {"GPD_WOLFRAM_MCP_ENDPOINT": "https://example.invalid/api/mcp"}
+        assert "super-secret-token" not in json.dumps(wolfram)
+        assert "GPD_WOLFRAM_MCP_API_KEY" not in json.dumps(wolfram)
+
+    def test_install_preserves_existing_managed_wolfram_overrides(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        monkeypatch.setenv("GPD_WOLFRAM_MCP_API_KEY", "super-secret-token")
+        monkeypatch.setenv("GPD_WOLFRAM_MCP_ENDPOINT", "https://example.invalid/api/mcp")
+        (target / "opencode.json").write_text(
+            json.dumps(
+                {
+                    "mcp": {
+                        "gpd-wolfram": {
+                            "type": "local",
+                            "command": ["legacy-wolfram-bridge", "--legacy"],
+                            "enabled": False,
+                            "timeout": 12000,
+                            "environment": {
+                                "GPD_WOLFRAM_MCP_ENDPOINT": "https://custom.invalid/api/mcp",
+                                "EXTRA_FLAG": "1",
+                            },
+                        },
+                        "custom-server": {
+                            "type": "local",
+                            "command": ["node", "custom.js"],
+                        },
+                    }
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        adapter.install(gpd_root, target)
+
+        config = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
+        wolfram = config["mcp"]["gpd-wolfram"]
+        assert wolfram["type"] == "local"
+        assert wolfram["command"] == ["gpd-mcp-wolfram"]
+        assert wolfram["enabled"] is False
+        assert wolfram["timeout"] == 12000
+        assert wolfram["environment"]["GPD_WOLFRAM_MCP_ENDPOINT"] == "https://custom.invalid/api/mcp"
+        assert wolfram["environment"]["EXTRA_FLAG"] == "1"
+        assert "super-secret-token" not in json.dumps(wolfram)
+        assert config["mcp"]["custom-server"] == {"type": "local", "command": ["node", "custom.js"]}
+
 
 class TestRuntimePermissions:
+    def test_runtime_permissions_status_marks_yolo_as_relaunch_required(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+
+        status = adapter.runtime_permissions_status(target, autonomy="yolo")
+
+        assert status["config_aligned"] is True
+        assert status["requires_relaunch"] is True
+        assert "Restart OpenCode" in str(status["next_step"])
+
     def test_sync_runtime_permissions_yolo_sets_global_allow(
         self,
         adapter: OpenCodeAdapter,
@@ -553,6 +667,34 @@ class TestRuntimePermissions:
         assert any("get-physics-done" in key for key in config["permission"]["external_directory"])
         assert "gpd_runtime_permissions" not in manifest
         assert result["sync_applied"] is True
+
+    def test_malformed_opencode_json_fails_closed_for_status_and_sync(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        config_path = target / "opencode.json"
+        config_path.write_text('{"permission": [\n', encoding="utf-8")
+        before = config_path.read_text(encoding="utf-8")
+
+        status = adapter.runtime_permissions_status(target, autonomy="yolo")
+        result = adapter.sync_runtime_permissions(target, autonomy="yolo")
+
+        assert status["config_valid"] is False
+        assert status["configured_mode"] == "malformed"
+        assert status["config_aligned"] is False
+        assert "malformed" in str(status["message"]).lower()
+        assert result["config_valid"] is False
+        assert result["changed"] is False
+        assert result["sync_applied"] is False
+        assert result["requires_relaunch"] is False
+        assert "malformed" in str(result["warning"]).lower()
+        assert config_path.read_text(encoding="utf-8") == before
 
 
 class TestUninstall:
@@ -602,6 +744,12 @@ class TestUninstall:
         config_path = target / "opencode.json"
         config = json.loads(config_path.read_text(encoding="utf-8"))
         config["permission"]["read"]["/tmp/custom/*"] = "allow"
+        config["mcp"]["gpd-wolfram"] = {
+            "type": "local",
+            "command": ["gpd-mcp-wolfram"],
+            "environment": {"GPD_WOLFRAM_MCP_ENDPOINT": "https://example.invalid/api/mcp"},
+        }
+        config["mcp"]["custom-server"] = {"type": "local", "command": ["node", "custom.js"]}
         config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 
         adapter.uninstall(target)
@@ -609,9 +757,12 @@ class TestUninstall:
         cleaned = json.loads(config_path.read_text(encoding="utf-8"))
         read_permissions = cleaned.get("permission", {}).get("read", {})
         external_permissions = cleaned.get("permission", {}).get("external_directory", {})
+        mcp_servers = cleaned.get("mcp", {})
         assert "/tmp/custom/*" in read_permissions
         assert not any("get-physics-done" in key for key in read_permissions)
         assert not any("get-physics-done" in key for key in external_permissions)
+        assert "gpd-wolfram" not in mcp_servers
+        assert mcp_servers == {"custom-server": {"type": "local", "command": ["node", "custom.js"]}}
 
     def test_uninstall_removes_commands(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"

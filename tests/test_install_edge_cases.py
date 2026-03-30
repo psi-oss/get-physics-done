@@ -24,7 +24,7 @@ from unittest.mock import patch
 import pytest
 
 from gpd import registry
-from gpd.adapters import get_adapter
+from gpd.adapters import get_adapter, iter_runtime_descriptors
 from gpd.adapters.install_utils import (
     MANIFEST_NAME,
     expand_at_includes,
@@ -36,6 +36,13 @@ from gpd.registry import _parse_agent_file, _parse_frontmatter
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+
+_RUNTIME_DESCRIPTORS = tuple(iter_runtime_descriptors())
+_ALL_RUNTIMES = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
+_RUNTIMES_WITH_MANIFEST_FILE_PREFIXES = tuple(
+    descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if descriptor.manifest_file_prefixes
+)
 
 
 def _make_gpd_root(tmp_path: Path) -> Path:
@@ -96,12 +103,9 @@ def _install_gemini_for_tests(gpd_root: Path, target: Path) -> None:
     result = adapter.install(gpd_root, target, is_global=True)
     adapter.finalize_install(result)
 
-
 _FOREIGN_RUNTIME_BY_RUNTIME = {
-    "claude-code": "gemini",
-    "codex": "claude-code",
-    "gemini": "opencode",
-    "opencode": "claude-code",
+    descriptor.runtime_name: _ALL_RUNTIMES[(index + 1) % len(_ALL_RUNTIMES)]
+    for index, descriptor in enumerate(_RUNTIME_DESCRIPTORS)
 }
 
 
@@ -289,7 +293,7 @@ class TestNonGpdFilesPreserved:
 class TestCrossRuntimeManifestOwnershipRefusal:
     """Foreign manifests should block explicit installs and most uninstalls."""
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    @pytest.mark.parametrize("runtime", _ALL_RUNTIMES)
     def test_install_refuses_foreign_manifest_on_explicit_target(self, tmp_path: Path, runtime: str) -> None:
         gpd_root = _make_gpd_root(tmp_path)
         adapter = get_adapter(runtime)
@@ -317,7 +321,7 @@ class TestCrossRuntimeManifestOwnershipRefusal:
         assert preserved.read_text(encoding="utf-8") == "keep\n"
         assert json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))["runtime"] == foreign_runtime
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    @pytest.mark.parametrize("runtime", _ALL_RUNTIMES)
     def test_install_refuses_corrupt_manifest_on_explicit_target_named_like_runtime_default(
         self, tmp_path: Path, runtime: str
     ) -> None:
@@ -364,7 +368,7 @@ class TestCrossRuntimeManifestOwnershipRefusal:
         assert (target / "commands" / "gpd" / "help.md").exists()
         assert (target / "get-physics-done" / "VERSION").exists()
 
-    @pytest.mark.parametrize("runtime", ["codex", "opencode"])
+    @pytest.mark.parametrize("runtime", _RUNTIMES_WITH_MANIFEST_FILE_PREFIXES)
     def test_install_refuses_manifest_with_runtime_file_prefixes_but_no_runtime(
         self, tmp_path: Path, runtime: str
     ) -> None:
@@ -409,7 +413,7 @@ class TestCrossRuntimeManifestOwnershipRefusal:
         assert (target / "commands" / "gpd" / "help.md").exists()
         assert (target / "get-physics-done" / "VERSION").exists()
 
-    @pytest.mark.parametrize("runtime", ["codex", "opencode"])
+    @pytest.mark.parametrize("runtime", _RUNTIMES_WITH_MANIFEST_FILE_PREFIXES)
     def test_uninstall_refuses_manifest_with_runtime_file_prefixes_but_no_runtime(
         self, tmp_path: Path, runtime: str
     ) -> None:
@@ -434,7 +438,7 @@ class TestCrossRuntimeManifestOwnershipRefusal:
         assert f"Refusing to uninstall from `{target}`" in message
         assert "manifest cannot be trusted" in message
 
-    @pytest.mark.parametrize("runtime", ["claude-code", "codex", "gemini", "opencode"])
+    @pytest.mark.parametrize("runtime", _ALL_RUNTIMES)
     def test_uninstall_refuses_foreign_manifest(self, tmp_path: Path, runtime: str) -> None:
         adapter = get_adapter(runtime)
         target = tmp_path / f"{runtime}-target"

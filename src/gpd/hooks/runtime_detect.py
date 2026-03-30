@@ -32,6 +32,7 @@ SOURCE_ENV = "env"
 SOURCE_LOCAL = "local"
 SOURCE_GLOBAL = "global"
 SOURCE_UNKNOWN = "unknown"
+RUNTIME_NEUTRAL_UPDATE_COMMAND = "npx -y get-physics-done"
 
 ALL_RUNTIMES = list_runtimes()
 
@@ -666,9 +667,9 @@ def update_command_for_runtime(runtime: str, scope: str | None = None) -> str:
     """Return the public update command for a given runtime install.
 
     When the runtime cannot be identified, fall back to the canonical
-    runtime-neutral command id instead of a hard-coded bootstrap runtime.
+    runtime-neutral bootstrap command instead of an invalid runtime surface.
     """
-    base = "gpd-update"
+    base = RUNTIME_NEUTRAL_UPDATE_COMMAND
     try:
         command = get_adapter(runtime).update_command
     except KeyError:

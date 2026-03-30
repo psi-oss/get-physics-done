@@ -343,6 +343,32 @@ class TestQuery:
         result = query(empty_project, provides="anything")
         assert result.total == 0
 
+    def test_query_does_not_search_intermediate_results_registry(self, tmp_path: Path) -> None:
+        planning_dir = tmp_path / "GPD"
+        planning_dir.mkdir()
+        (planning_dir / "state.json").write_text(
+            dedent("""\
+            {
+              "intermediate_results": [
+                {
+                  "id": "R-01",
+                  "equation": "E = mc^2",
+                  "description": "registry-only result",
+                  "phase": "1",
+                  "depends_on": [],
+                  "verified": false,
+                  "verification_records": []
+                }
+              ]
+            }
+            """),
+            encoding="utf-8",
+        )
+
+        result = query(tmp_path, equation="E = mc^2")
+
+        assert result.total == 0
+
     def test_query_phase_range(self, project_dir: Path) -> None:
         result = query(project_dir, phase_range="1-2")
         # Should only return phases 1 and 2

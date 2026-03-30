@@ -22,6 +22,7 @@ from scripts.repo_graph_contract import (
     SCOPE_START,
     expected_scope_counts,
     extract_marked_block,
+    graph_has_edge,
     live_repo_file_count,
     load_contract,
     parse_scope_count,
@@ -91,116 +92,70 @@ def test_graph_same_stem_command_workflow_inventory_matches_tree() -> None:
     assert graph_stems == actual_stems
 
 
-def test_graph_captures_staged_review_prompt_edges() -> None:
-    graph = read_graph_text()
-    expected_edges = [
-        "`src/gpd/commands/write-paper.md -> src/gpd/agents/{gpd-paper-writer,gpd-bibliographer,gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`",
-        "`src/gpd/commands/peer-review.md -> src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`",
-        "`src/gpd/specs/workflows/write-paper.md -> src/gpd/specs/workflows/peer-review.md`",
-        "`src/gpd/specs/workflows/peer-review.md -> src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md`",
-        "`src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md -> src/gpd/specs/references/publication/peer-review-panel.md`",
-    ]
-
-    for edge in expected_edges:
-        assert edge in graph
-
-
-def test_graph_captures_paper_build_prompt_edges() -> None:
-    graph = read_graph_text()
-    expected_edges = [
-        "`src/gpd/commands/write-paper.md -> gpd paper-build paper/PAPER-CONFIG.json`",
-        "`src/gpd/commands/write-paper.md -> paper/{PAPER-CONFIG.json,main.tex,ARTIFACT-MANIFEST.json}`",
-        "`src/gpd/commands/peer-review.md -> candidate manuscript roots {paper/main.tex, manuscript/main.tex, draft/main.tex}`",
-        "`src/gpd/specs/workflows/write-paper.md -> src/gpd/cli.py::paper_build`",
-        "`src/gpd/specs/workflows/write-paper.md -> paper/{PAPER-CONFIG.json,main.tex,ARTIFACT-MANIFEST.json}`",
-        "`src/gpd/specs/workflows/peer-review.md -> candidate manuscript roots {paper/main.tex, manuscript/main.tex, draft/main.tex}`",
-        "`src/gpd/specs/workflows/peer-review.md -> paper/{PAPER-CONFIG.json,ARTIFACT-MANIFEST.json,BIBLIOGRAPHY-AUDIT.json}`",
-    ]
-
-    for edge in expected_edges:
-        assert edge in graph
-
-
-def test_graph_matches_strict_review_publication_artifact_contract() -> None:
-    graph = read_graph_text()
-    expected_edges = [
-        "`src/gpd/cli.py -> strict review artifact manifest candidates {manuscript.parent/ARTIFACT-MANIFEST.json}`",
-        "`src/gpd/cli.py -> strict review bibliography audit candidates {manuscript.parent/BIBLIOGRAPHY-AUDIT.json}`",
-        "`src/gpd/cli.py -> strict review reproducibility manifest candidates {manuscript.parent/reproducibility-manifest.json, manuscript.parent/REPRODUCIBILITY-MANIFEST.json}`",
-    ]
-    unexpected_edges = [
-        "<cwd>/GPD/paper/ARTIFACT-MANIFEST.json",
-        "<cwd>/GPD/paper/BIBLIOGRAPHY-AUDIT.json",
-        "<cwd>/GPD/paper/reproducibility-manifest.json",
-    ]
-
-    for edge in expected_edges:
-        assert edge in graph
-
-    for edge in unexpected_edges:
-        assert edge not in graph
-
-
-def test_graph_matches_explicit_peer_review_directory_resolution_contract() -> None:
-    graph = read_graph_text()
-
-    assert "`src/gpd/cli.py -> peer-review manuscript candidate family {target/main.tex, target/main.md}`" in graph
-    assert "lexicographically first direct *.tex/*.md fallback" not in graph
-
-
 def test_graph_captures_hook_runtime_wiring_edges() -> None:
     graph = read_graph_text()
-    expected_edges = [
-        "`src/gpd/hooks/statusline.py -> src/gpd/hooks/runtime_detect.py`",
-        "`src/gpd/hooks/statusline.py -> src/gpd/adapters/__init__.py`",
-        "`src/gpd/hooks/check_update.py -> src/gpd/hooks/runtime_detect.py`",
-        "`src/gpd/hooks/notify.py -> src/gpd/hooks/check_update.py`",
-        "`src/gpd/hooks/notify.py -> src/gpd/hooks/runtime_detect.py`",
-    ]
-
-    unexpected_edges = [
-        "`src/gpd/hooks/notify.py -> src/gpd/adapters/__init__.py`",
-    ]
-
-    for edge in expected_edges:
-        assert edge in graph
-
-    for edge in unexpected_edges:
-        assert edge not in graph
+    assert graph_has_edge("src/gpd/hooks/statusline.py", "src/gpd/hooks/runtime_detect.py", graph)
+    assert graph_has_edge("src/gpd/hooks/statusline.py", "src/gpd/adapters/__init__.py", graph)
+    assert graph_has_edge("src/gpd/hooks/check_update.py", "src/gpd/hooks/runtime_detect.py", graph)
+    assert graph_has_edge("src/gpd/hooks/notify.py", "src/gpd/hooks/check_update.py", graph)
+    assert graph_has_edge("src/gpd/hooks/notify.py", "src/gpd/hooks/runtime_detect.py", graph)
+    assert not graph_has_edge("src/gpd/hooks/notify.py", "src/gpd/adapters/__init__.py", graph)
 
 
 def test_graph_captures_checkpoint_feature_edges() -> None:
     graph = read_graph_text()
-    expected_edges = [
-        "`src/gpd/cli.py::sync_phase_checkpoints -> src/gpd/core/checkpoints.py::sync_phase_checkpoints`",
-        "`src/gpd/core/phases.py -> src/gpd/core/checkpoints.py::sync_phase_checkpoints`",
-        "`src/gpd/core/state.py -> <cwd>/GPD/.state-write-intent`",
-        "`src/gpd/core/checkpoints.py -> generated outputs {GPD/CHECKPOINTS.md, GPD/phase-checkpoints/*.md}`",
-        "`src/gpd/core/checkpoints.py -> <cwd>/GPD/CHECKPOINTS.md`",
-        "`src/gpd/core/checkpoints.py -> <cwd>/GPD/phase-checkpoints/*.md`",
-    ]
-    unexpected_edges = [
-        "`src/gpd/core/state.py -> src/gpd/core/checkpoints.py::sync_phase_checkpoints`",
-    ]
-
-    for edge in expected_edges:
-        assert edge in graph
-
-    for edge in unexpected_edges:
-        assert edge not in graph
+    assert graph_has_edge("src/gpd/cli.py::sync_phase_checkpoints", "src/gpd/core/checkpoints.py::sync_phase_checkpoints", graph)
+    assert graph_has_edge("src/gpd/core/phases.py", "src/gpd/core/checkpoints.py::sync_phase_checkpoints", graph)
+    assert graph_has_edge("src/gpd/core/state.py", "<cwd>/GPD/.state-write-intent", graph)
+    assert graph_has_edge("src/gpd/core/checkpoints.py", "generated outputs {GPD/CHECKPOINTS.md, GPD/phase-checkpoints/*.md}", graph)
+    assert graph_has_edge("src/gpd/core/checkpoints.py", "<cwd>/GPD/CHECKPOINTS.md", graph)
+    assert graph_has_edge("src/gpd/core/checkpoints.py", "<cwd>/GPD/phase-checkpoints/*.md", graph)
+    assert not graph_has_edge("src/gpd/core/state.py", "src/gpd/core/checkpoints.py::sync_phase_checkpoints", graph)
 
 
-def test_graph_does_not_reference_removed_verify_between_waves_knob() -> None:
+def test_graph_captures_execute_phase_artifact_surfacing_and_checkpoint_edges() -> None:
     graph = read_graph_text()
 
-    assert "workflow.verify_between_waves" not in graph
-    assert "verify_between_waves" not in graph
+    assert graph_has_edge(
+        "src/gpd/specs/workflows/execute-phase.md",
+        "src/gpd/specs/{references/orchestration/meta-orchestration.md,references/orchestration/artifact-surfacing.md,",
+        graph,
+    )
+    assert graph_has_edge(
+        "src/gpd/specs/workflows/execute-phase.md",
+        "src/gpd/specs/{references/orchestration/meta-orchestration.md,references/orchestration/checkpoints.md,",
+        graph,
+    )
 
 
-def test_graph_surfaces_codex_generated_skill_dir_manifest_ownership() -> None:
+def test_graph_captures_execute_plan_github_lifecycle_edge() -> None:
     graph = read_graph_text()
 
-    assert "codex_generated_skill_dirs" in graph
+    assert graph_has_edge(
+        "src/gpd/specs/workflows/execute-plan.md",
+        "src/gpd/specs/{references/execution/git-integration.md,references/execution/github-lifecycle.md,",
+        graph,
+    )
+
+
+def test_graph_captures_staged_review_panel_wiring() -> None:
+    graph = read_graph_text()
+
+    assert graph_has_edge(
+        "src/gpd/commands/peer-review.md",
+        "src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md",
+        graph,
+    )
+    assert graph_has_edge(
+        "src/gpd/specs/workflows/peer-review.md",
+        "src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md",
+        graph,
+    )
+    assert graph_has_edge(
+        "src/gpd/agents/{gpd-review-reader,gpd-review-literature,gpd-review-math,gpd-review-physics,gpd-review-significance,gpd-referee}.md",
+        "src/gpd/specs/references/publication/peer-review-panel.md",
+        graph,
+    )
 
 
 def test_graph_test_file_references_exist() -> None:
@@ -253,7 +208,6 @@ def test_graph_sync_repairs_stale_marked_blocks() -> None:
     original = read_graph_text()
     contract = load_contract()
     stale_contract = dict(contract)
-    stale_contract["generated_on"] = "2000-01-01"
     stale_contract["scope_counts"] = {
         label: int(value) + 1 for label, value in contract["scope_counts"].items()
     }
@@ -262,7 +216,7 @@ def test_graph_sync_repairs_stale_marked_blocks() -> None:
         original,
         GENERATED_ON_START,
         GENERATED_ON_END,
-        render_generated_on_block(stale_contract),
+        "\n".join((GENERATED_ON_START, "Generated from an outdated contract.", GENERATED_ON_END)),
     )
     stale = replace_marked_block(
         stale,

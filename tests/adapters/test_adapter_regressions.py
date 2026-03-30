@@ -121,6 +121,35 @@ def test_write_mcp_servers_opencode_recovers_from_non_dict_mcp_key(tmp_path: Pat
 
 
 @pytest.mark.parametrize(
+    ("module_name", "helper_name"),
+    [
+        ("gpd.adapters.gemini", "_project_managed_mcp_servers"),
+        ("gpd.adapters.opencode", "_project_managed_mcp_servers"),
+    ],
+)
+def test_managed_wolfram_projection_helpers_hide_api_key_and_preserve_endpoint(
+    module_name: str,
+    helper_name: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module(module_name)
+    helper = getattr(module, helper_name)
+
+    monkeypatch.setenv("GPD_WOLFRAM_MCP_API_KEY", "super-secret-token")
+    monkeypatch.setenv("GPD_WOLFRAM_MCP_ENDPOINT", "https://example.invalid/api/mcp")
+
+    servers = helper()
+    wolfram = servers["gpd-wolfram"]
+    payload = json.dumps(wolfram)
+
+    assert wolfram["command"] == "gpd-mcp-wolfram"
+    assert wolfram["args"] == []
+    assert "super-secret-token" not in payload
+    assert "GPD_WOLFRAM_MCP_API_KEY" not in payload
+    assert "https://example.invalid/api/mcp" in payload
+
+
+@pytest.mark.parametrize(
     ("module_name", "function_name"),
     [
         ("gpd.adapters.claude_code", "_rewrite_gpd_cli_invocations"),

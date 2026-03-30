@@ -28,6 +28,12 @@ depends_on: []
 files_modified: []
 interactive: false
 researcher_setup: [] # Optional. Omit if empty.
+# tool_requirements: # Optional machine-checkable specialized tools. Omit entirely if none.
+#   - id: "wolfram-cas"
+#     tool: "wolfram"
+#     purpose: "[Why this specialized tool is needed]"
+#     required: false
+#     fallback: "[Standard-tool fallback when feasible]"
 
 conventions:
   units: "natural"
@@ -49,7 +55,7 @@ contract:
     question: "[The decisive question this plan advances]"
   context_intake:
     must_read_refs: [ref-main]
-    must_include_prior_outputs: ["Phase 00 benchmark table"]
+    must_include_prior_outputs: ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
     user_asserted_anchors: ["Use the lattice normalization from the user notes"]
     known_good_baselines: ["Published large-N curve from Smith et al."]
     context_gaps: ["Comparison source still undecided before planning"]
@@ -193,6 +199,15 @@ Do not omit the `contract`, conventions, or approximation validity just because 
 The `contract` block is still required in light mode, including `context_intake` and any `links` needed to make downstream handoffs explicit.
 If the plan is intentionally scoping-only, keep that limited shape explicit and preserve at least one target, open question, or carry-forward input instead of emitting a half-empty execution contract.
 
+## Contract Shape Classifier
+
+- Reduced contract: legal only when the plan is explicitly scoping or exploratory.
+- Full contract: required when the plan will execute, verify, or publish a concrete result.
+- A reduced contract still needs `scope`, `context_intake`, and `uncertainty_markers` explicit, plus at least one target, open question, or carry-forward input.
+- Light mode changes the body only; it does not change the contract classifier above.
+
+When a plan genuinely depends on specialized tooling outside the guaranteed Python/SymPy baseline, declare it in `tool_requirements` instead of hiding it in task prose. Use canonical tool keys such as `wolfram` for Mathematica / Wolfram Language capability, include a stable `id`, keep `purpose` specific, and add a fallback when one exists.
+
 ---
 
 ## Worked Example Snippet
@@ -220,7 +235,7 @@ contract:
     question: What benchmark must this plan recover?
   context_intake:
     must_read_refs: [ref-textbook]
-    must_include_prior_outputs: ["Phase 01 benchmark table"]
+    must_include_prior_outputs: ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
     user_asserted_anchors: ["Use the normalization from the user notes"]
     known_good_baselines: ["Accepted reference curve from the milestone review"]
     context_gaps: ["Need the exact comparison source before planning"]

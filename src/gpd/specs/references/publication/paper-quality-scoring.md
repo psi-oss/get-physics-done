@@ -41,7 +41,7 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 | Check | Points | How to verify |
 |-------|--------|---------------|
 | Convention lock complete (all relevant fields set) | 5 | `gpd convention check` returns complete: true |
-| ASSERT_CONVENTION in all derivation files | 5 | Search derivation files for `ASSERT_CONVENTION:` and compare against the convention lock; `gpd pre-commit-check` does not currently validate these assertions |
+| ASSERT_CONVENTION in all derivation files | 5 | Check project-wide derivation coverage against the convention lock. `gpd pre-commit-check` blocks changed derivation and phase verification artifacts, but the paper-readiness audit still needs the full-project count |
 | Notation consistent across all sections | 5 | Same symbol = same meaning throughout |
 
 ### 5. Verification (20 points)

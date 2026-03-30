@@ -46,6 +46,8 @@ Not all verification sections apply to every project. Select based on physics do
 ## File Template
 
 Use `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` as the schema source of truth for `plan_contract_ref`, `contract_results`, `comparison_verdicts`, and verification-side `suggested_contract_checks`.
+If the project has an active convention lock, include a machine-readable `ASSERT_CONVENTION` comment immediately after the YAML frontmatter using canonical lock keys and exact lock values.
+For phase verification artifacts, changed files now fail `gpd pre-commit-check` when this required header is missing or mismatched against the active lock.
 For exploratory or partial phases, keep the report honest without inventing certainty: leave affected contract targets at `partial` when decisive work remains open, and use explicit `comparison_verdicts` entries such as `inconclusive` or `tension` when a decisive comparison was attempted but not resolved.
 If a decisive benchmark / cross-method check remains `partial`, `not_attempted`, or still lacks its decisive verdict, add structured `suggested_contract_checks` entries before final validation.
 The same structured suggestion is required when a benchmark-style reference anchors the subject or a reference with `required_actions` including `compare` is still incomplete.
@@ -134,6 +136,8 @@ suggested_contract_checks:
     suggested_subject_id: acceptance-test-id
     evidence_path: GPD/phases/01-benchmark/benchmark-comparison.csv
 ---
+
+<!-- ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-minus, fourier_convention=physics -->
 
 # Phase {X}: {Name} Verification Report
 

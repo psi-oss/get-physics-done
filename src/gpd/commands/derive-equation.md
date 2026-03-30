@@ -42,9 +42,9 @@ Execute the derive-equation workflow from @{GPD_INSTALL_DIR}/workflows/derive-eq
 Preserve all workflow gates (assumption statement, notation, step-by-step derivation, verification, documentation).
 
 The workflow will:
-1. Set up the derivation context (conventions, starting point, target)
+1. Set up the derivation context (conventions, starting point, target), including canonical result lookup via `gpd result search` and direct stored-result inspection via `gpd result show "{result_id}"` when the target already has a known registry entry
 2. Guide you through a step-by-step derivation with checkpoints
 3. Verify dimensional consistency at each step
 4. Check limiting cases of the final result
-5. Record the derived equation in the project's results
+5. Record the derived equation in the project's `intermediate_results` registry through the executable `gpd result persist-derived` bridge when project state is available; the workflow reuses or carries forward a stable `result_id` request on reruns, preserves the actual canonical `result_id` when the bridge reuses an existing entry, and seeds continuity automatically through the canonical continuation path when an active continuation context exists. standalone runs stop after writing the derivation document and do not write project registry state
 </process>

@@ -19,7 +19,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Extract: `state_exists`, `roadmap_exists`, `phases`, `current_phase`.
+Extract: `state_exists`, `roadmap_exists`, `phases`, `current_phase`, `derived_convention_lock`.
 
 **Read mode settings:**
 
@@ -50,13 +50,13 @@ No project state found. Run /gpd:new-project first.
 
 Exit.
 
-**Load convention lock from state.json:**
+**Load convention lock from structured init state:**
 
 ```bash
 CONVENTIONS=$(gpd convention list)
 ```
 
-Parse JSON for all locked convention fields and their values. The convention lock is the project-level source of truth.
+Parse JSON for all locked convention fields and their values. The convention lock surfaced by init as `derived_convention_lock` is the prompt-visible snapshot of the project-level source of truth.
 
 **Load CONVENTIONS.md if it exists:**
 
@@ -64,7 +64,7 @@ Parse JSON for all locked convention fields and their values. The convention loc
 cat GPD/CONVENTIONS.md 2>/dev/null
 ```
 
-CONVENTIONS.md is the human-readable convention reference. Convention lock (in state.json) is the machine-readable enforced version.
+CONVENTIONS.md is the human-readable convention reference. The machine-readable enforced version is the convention lock surfaced in init and by `gpd convention list`.
 </step>
 
 <step name="check_convention_lock_drift">
@@ -88,7 +88,7 @@ For each drift:
 CRITICAL: Convention drift detected
 
 Field: {field}
-Convention lock (state.json): {lock_value}
+Convention lock (`derived_convention_lock` / state.json): {lock_value}
 CONVENTIONS.md: {conventions_value}
 
 The convention lock is authoritative. If CONVENTIONS.md is correct,
@@ -192,7 +192,7 @@ task(
     <scope>all-phases</scope>
 
     Validate convention consistency across the entire project.
-    Read conventions from state.json via: gpd convention list
+    Read conventions from the structured init payload and via: gpd convention list
     Read all summary artifacts (`SUMMARY.md` and `*-SUMMARY.md`) from all completed phases.
     file_read: GPD/STATE.md, GPD/state.json, GPD/CONVENTIONS.md
 
@@ -343,13 +343,13 @@ All conventions consistent across {count} phases. No issues found.
 - **No convention lock:** Report that no conventions are locked. Suggest running `/gpd:execute-phase` which locks conventions before parallel execution.
 - **No summary artifacts:** Cannot validate — no phase data to check. Report and exit.
 - **Consistency checker agent fails:** Fall back to the static analysis from steps 2-4 (convention lock drift + phase scan + cross-reference). Report that deep consistency check was skipped.
-- **CONVENTIONS.md missing:** Skip the drift check (step 2). Rely on convention lock in state.json as sole authority.
+- **CONVENTIONS.md missing:** Skip the drift check (step 2). Rely on the convention lock surfaced in init / state.json as sole authority.
 
 </failure_handling>
 
 <success_criteria>
 
-- [ ] Convention lock loaded from state.json
+- [ ] Convention lock loaded from structured init state
 - [ ] CONVENTIONS.md compared against lock (if exists)
 - [ ] All completed phase summary artifacts scanned for convention fields
 - [ ] Cross-reference performed: each phase convention vs project lock

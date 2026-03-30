@@ -145,7 +145,7 @@ Plans should be sized to fit within context budget. Segment when a plan would ex
 
 **After /clear:**
 
-1. `/gpd:resume-work` restores full context from STATE.md and .continue-here.md
+1. `/gpd:resume-work` reloads the project's canonical continuation state, then uses any handoff artifact or derivation history only as supporting context
 2. Re-read only the files needed for the next unit of work
 3. Do NOT re-read files from completed work unless needed for reference
 

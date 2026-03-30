@@ -7,6 +7,7 @@ import json
 import pytest
 from PIL import Image
 from pybtex.database import BibliographyData, Entry
+from pydantic import ConfigDict
 
 from gpd.mcp.paper.bibliography import CitationSource
 from gpd.mcp.paper.compiler import CompilationResult, _get_tlmgr_package, check_class_file
@@ -16,6 +17,13 @@ from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
 def _allow_journal_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep happy-path build tests focused on build orchestration, not TeX setup."""
     monkeypatch.setattr("gpd.mcp.paper.compiler.check_journal_dependencies", lambda spec: (True, []))
+
+
+class CitationSourceWithReferenceId(CitationSource):
+    """Test helper that carries a stable project reference ID through the pipeline."""
+
+    model_config = ConfigDict(extra="allow")
+    reference_id: str | None = None
 
 
 # ---- Compiler wrapper tests ----
@@ -84,6 +92,10 @@ class TestBuildPaper:
         assert output.tex_content != ""
         assert output.pdf_path == pdf_path
         assert output.success is True
+        assert output.bibliography_audit_path == tmp_path / "BIBLIOGRAPHY-AUDIT.json"
+        assert output.bibliography_audit is not None
+        assert output.bibliography_audit.total_sources == 1
+        assert output.reference_bibtex_keys == {}
         assert output.manifest_path == tmp_path / "ARTIFACT-MANIFEST.json"
         assert output.manifest is not None
         manifest_content = json.loads(output.manifest_path.read_text(encoding="utf-8"))
@@ -91,8 +103,11 @@ class TestBuildPaper:
         assert "tex-paper" in artifact_ids
         assert "bib-references" in artifact_ids
         assert "pdf-main" in artifact_ids
+        assert "audit-bibliography" in artifact_ids
         bib_artifact = next(artifact for artifact in manifest_content["artifacts"] if artifact["artifact_id"] == "bib-references")
         assert bib_artifact["metadata"]["entry_source"] == "bib_data"
+        audit_artifact = next(artifact for artifact in manifest_content["artifacts"] if artifact["artifact_id"] == "audit-bibliography")
+        assert audit_artifact["path"] == "BIBLIOGRAPHY-AUDIT.json"
 
     @pytest.mark.asyncio
     async def test_build_paper_merges_bib_data_and_citation_sources(self, tmp_path, monkeypatch):
@@ -126,12 +141,13 @@ class TestBuildPaper:
             tmp_path,
             bib_data=explicit_bib,
             citation_sources=[
-                CitationSource(
+                CitationSourceWithReferenceId(
                     source_type="paper",
                     title="Relativity Follow-up",
                     authors=["N. Bohr"],
                     year="1913",
                     doi="10.1000/bohr1913",
+                    reference_id="lit-ref-bohr-1913",
                 )
             ],
             enrich_bibliography=False,
@@ -142,11 +158,16 @@ class TestBuildPaper:
         assert "bohr1913" in bib_content
         assert output.success is True
         assert output.pdf_path == pdf_path
+        assert output.bibliography_audit_path == tmp_path / "BIBLIOGRAPHY-AUDIT.json"
         assert output.bibliography_audit is not None
-        assert output.bibliography_audit.entries[0].key == "bohr1913"
+        assert output.bibliography_audit.total_sources == 2
+        assert {entry.key for entry in output.bibliography_audit.entries} == {"einstein1905", "bohr1913"}
+        assert output.reference_bibtex_keys == {"lit-ref-bohr-1913": "bohr1913"}
         assert output.manifest is not None
         bib_artifact = next(artifact for artifact in output.manifest.artifacts if artifact.artifact_id == "bib-references")
         assert bib_artifact.metadata["entry_source"] == "bib_data+citation_sources"
+        audit_artifact = next(artifact for artifact in output.manifest.artifacts if artifact.artifact_id == "audit-bibliography")
+        assert audit_artifact.path == "BIBLIOGRAPHY-AUDIT.json"
 
     @pytest.mark.asyncio
     async def test_build_paper_prepares_config_figures(self, tmp_path, monkeypatch):
@@ -212,12 +233,13 @@ class TestBuildPaper:
             config,
             tmp_path,
             citation_sources=[
-                CitationSource(
+                CitationSourceWithReferenceId(
                     source_type="paper",
                     title="Relativity",
                     authors=["A. Einstein"],
                     year="1905",
                     doi="10.1002/andp.19053221004",
+                    reference_id="lit-ref-einstein-1905",
                 )
             ],
             enrich_bibliography=False,
@@ -227,10 +249,120 @@ class TestBuildPaper:
         assert output.bibliography_audit_path == tmp_path / "BIBLIOGRAPHY-AUDIT.json"
         assert output.bibliography_audit is not None
         assert output.bibliography_audit.total_sources == 1
+        assert (tmp_path / "BIBLIOGRAPHY-AUDIT.json").exists()
+        assert output.reference_bibtex_keys == {"lit-ref-einstein-1905": "einstein1905"}
         manifest_ids = {artifact.artifact_id for artifact in output.manifest.artifacts}
         assert "audit-bibliography" in manifest_ids
         bib_artifact = next(artifact for artifact in output.manifest.artifacts if artifact.artifact_id == "bib-references")
         assert bib_artifact.metadata["entry_source"] == "citation_sources"
+
+    @pytest.mark.asyncio
+    async def test_build_paper_surfaces_preferred_bibtex_key_mapping(self, tmp_path, monkeypatch):
+        from gpd.mcp.paper import bibliography as paper_bibliography
+        from gpd.mcp.paper.compiler import build_paper
+
+        config = PaperConfig(
+            title="Preferred Key Paper",
+            authors=[Author(name="A. Einstein", affiliation="ETH Zurich")],
+            abstract="A test abstract.",
+            sections=[Section(title="Introduction", content="Hello world.")],
+        )
+
+        source = CitationSourceWithReferenceId(
+            source_type="paper",
+            title="Relativity",
+            authors=["A. Einstein"],
+            year="1905",
+            doi="10.1002/andp.19053221004",
+            reference_id="lit-ref-einstein-1905",
+        )
+
+        pdf_path = tmp_path / "main.pdf"
+        mock_result = CompilationResult(success=True, pdf_path=pdf_path)
+        pdf_path.write_bytes(b"%PDF-fake")
+
+        async def mock_compile(tex_path, output_dir, compiler="pdflatex"):
+            return mock_result
+
+        real_create_bib_key = paper_bibliography._create_bib_key
+
+        def mock_create_bib_key(source, existing_keys):
+            if source.title == "Relativity":
+                return "preferred1905"
+            return real_create_bib_key(source, existing_keys)
+
+        _allow_journal_dependencies(monkeypatch)
+        monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", mock_compile)
+        monkeypatch.setattr("gpd.mcp.paper.bibliography._create_bib_key", mock_create_bib_key)
+
+        output = await build_paper(
+            config,
+            tmp_path,
+            citation_sources=[source],
+            enrich_bibliography=False,
+        )
+
+        assert output.success is True
+        assert output.bibliography_audit is not None
+        assert output.bibliography_audit.entries[0].key == "preferred1905"
+        assert output.reference_bibtex_keys == {"lit-ref-einstein-1905": "preferred1905"}
+        bib_content = (tmp_path / "references.bib").read_text(encoding="utf-8")
+        assert "@article{preferred1905" in bib_content
+
+    @pytest.mark.asyncio
+    async def test_build_paper_preserves_stable_reference_ids_in_bibliography_hook(
+        self, tmp_path, monkeypatch
+    ):
+        from gpd.mcp.paper import compiler as paper_compiler
+        from gpd.mcp.paper.compiler import build_paper
+
+        config = PaperConfig(
+            title="Reference ID Paper",
+            authors=[Author(name="A. Einstein", affiliation="ETH Zurich")],
+            abstract="A test abstract.",
+            sections=[Section(title="Introduction", content="Hello world.")],
+        )
+
+        source = CitationSourceWithReferenceId(
+            source_type="paper",
+            title="Relativity",
+            authors=["A. Einstein"],
+            year="1905",
+            doi="10.1002/andp.19053221004",
+            reference_id="lit-ref-einstein-1905",
+        )
+
+        pdf_path = tmp_path / "main.pdf"
+        mock_result = CompilationResult(success=True, pdf_path=pdf_path)
+        pdf_path.write_bytes(b"%PDF-fake")
+
+        async def mock_compile(tex_path, output_dir, compiler="pdflatex"):
+            return mock_result
+
+        observed_reference_ids: list[str | None] = []
+        real_build_bibliography_with_audit = paper_compiler.build_bibliography_with_audit
+
+        def spy_build_bibliography_with_audit(sources, enrich, reserved_bib_keys=None):
+            observed_reference_ids.extend(getattr(item, "reference_id", None) for item in sources)
+            return real_build_bibliography_with_audit(sources, enrich, reserved_bib_keys)
+
+        _allow_journal_dependencies(monkeypatch)
+        monkeypatch.setattr("gpd.mcp.paper.compiler.compile_paper", mock_compile)
+        monkeypatch.setattr("gpd.mcp.paper.compiler.build_bibliography_with_audit", spy_build_bibliography_with_audit)
+
+        output = await build_paper(
+            config,
+            tmp_path,
+            citation_sources=[source],
+            enrich_bibliography=False,
+        )
+
+        assert output.success is True
+        assert observed_reference_ids == ["lit-ref-einstein-1905"]
+        assert output.bibliography_audit is not None
+        assert output.bibliography_audit.entries[0].key == "einstein1905"
+        assert output.reference_bibtex_keys == {"lit-ref-einstein-1905": "einstein1905"}
+        assert "einstein1905" in (tmp_path / "references.bib").read_text(encoding="utf-8")
 
     @pytest.mark.asyncio
     async def test_build_paper_manifest_keeps_figure_source_alignment_when_some_figures_are_skipped(

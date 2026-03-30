@@ -12,11 +12,13 @@ context_cost: medium
 
 GPD adapts its research strategy along an explore↔exploit spectrum. The research mode controls how broadly the system searches for approaches vs how deeply it executes a known methodology.
 
+Explore and adaptive modes widen comparison and tangent surfacing, but they do **not** silently create git-backed hypothesis branches. Alternatives become branches only after an explicit tangent decision.
+
 ## Mode Definitions
 
 | Mode | Philosophy | When to Use |
 |---|---|---|
-| **explore** | Search the solution space. Cast a wide net. Multiple hypotheses, broad literature, diverse approaches. Prefer breadth over depth. | New problem domain, uncertain methodology, multiple viable approaches, early-stage research, literature survey |
+| **explore** | Search the solution space. Cast a wide net. Multiple viable approaches, broad literature, diverse formalisms. Prefer breadth over depth. | New problem domain, uncertain methodology, multiple viable approaches, early-stage research, literature survey |
 | **balanced** (default) | Standard research flow. Plan one approach based on researcher recommendation, execute, verify, iterate if needed. | Most physics research — known domain, moderately established methodology, single focused investigation |
 | **exploit** | Execute efficiently. Known methodology, tight scope, fast convergence. Minimize overhead, maximize execution speed. | Established calculation technique, reproduction of known results, parameter sweep of a validated method, writing up completed work |
 | **adaptive** | Start broad enough to compare viable approaches, then narrow only after prior decisive evidence or an explicit approach lock shows the method family is stable. | Multi-phase projects where methodology should stay evidence-driven instead of phase-count-driven |
@@ -36,7 +38,7 @@ GPD adapts its research strategy along an explore↔exploit spectrum. The resear
 
 | Mode | Behavior |
 |---|---|
-| **explore** | Plans include comparison tasks. Multiple derivation pathways planned in parallel (via hypothesis branches or parallel plans within a wave). Each plan variant has its own validation criteria. Include a "decision plan" that compares results and selects the best approach. 5-8 tasks per plan. |
+| **explore** | Plans include comparison tasks when the user has chosen to compare approaches or the contract requires a decisive selection. Multiple derivation pathways should be surfaced as tangent candidates first; only explicit tangent decisions become hypothesis branches or parallel plans within a wave. Each approved variant has its own validation criteria. Include a "decision plan" that compares results and selects the best approach. 5-8 tasks per plan. |
 | **balanced** | Standard planning. Single approach, 3-5 tasks per plan with verification at key steps. Follows researcher recommendation. |
 | **exploit** | Minimal plans. 2-3 tasks per plan. No exploration tasks, no comparison tasks. Focus on execution efficiency. Larger tasks (up to 90 min) to reduce plan overhead. |
 | **adaptive** | Keep explore-style comparison tasks until prior decisive evidence or an explicit approach lock makes one method family dominant; only then collapse to exploit-style focused plans. |
@@ -63,7 +65,7 @@ GPD adapts its research strategy along an explore↔exploit spectrum. The resear
 
 | Mode | Behavior |
 |---|---|
-| **explore** | Multiple parallel derivation attempts when plan includes variants. Lighter self-critique (focus on feasibility, not polish). Accept "back of envelope" calculations to test approach viability. Larger deviation tolerance before escalating. Document which approaches work and which don't — failure is data. |
+| **explore** | Multiple derivation attempts only when the approved plan already includes explicit variants from a tangent or comparison decision. Lighter self-critique (focus on feasibility, not polish). Accept "back of envelope" calculations to test approach viability. Larger deviation tolerance before escalating. Document which approaches work and which don't — failure is data. |
 | **balanced** | Standard execution. Full self-critique protocol. Deviation rules apply normally. |
 | **exploit** | Maximum rigor execution. Extra self-critique checkpoints (every 2 steps, not 3-4). Zero deviation tolerance — any unexpected difficulty escalates immediately. The approach is known to work; execution must be flawless. |
 | **adaptive** | Execute in explore style while the approach is still being falsified. Once a decisive benchmark or anchor confirms the method family, switch to exploit-style rigor for follow-on work. |
@@ -117,7 +119,7 @@ GPD adapts its research strategy along an explore↔exploit spectrum. The resear
 
 | Mode | Behavior |
 |---|---|
-| **explore** | Multi-approach synthesis. Present all viable methods with tradeoffs without picking a winner. Cross-validation matrix includes ALL pairwise comparisons. Flag complementary approaches for parallel investigation. |
+| **explore** | Multi-approach synthesis. Present all viable methods with tradeoffs without picking a winner. Cross-validation matrix includes ALL pairwise comparisons. Flag complementary approaches as tangent candidates for optional parallel investigation rather than assuming new branches. |
 | **balanced** | Standard synthesis. Recommend a single approach based on evidence weight. Present alternatives briefly. Standard cross-validation matrix. |
 | **exploit** | Focused synthesis. Distill the single recommended approach with maximum implementation detail. Skip alternative comparison — extract every actionable detail for the executor. |
 | **adaptive** | Stay multi-approach until decisive evidence or an explicit approach lock exists, then focus synthesis on the locked method. |
@@ -126,10 +128,10 @@ GPD adapts its research strategy along an explore↔exploit spectrum. The resear
 
 | Mode | Behavior |
 |---|---|
-| **explore** | Branching roadmap. Plan parallel investigation of 2-3 approaches with comparison phases. Include decision phases that compare branch results. Larger total phase count (8-15). |
+| **explore** | Alternative-aware roadmap. Surface 2-3 approaches with comparison phases and decision points. Only create explicit branch-backed workstreams after a tangent decision approves them. Larger total phase count (8-15). |
 | **balanced** | Standard roadmap. Linear phase sequence with verification checkpoints. Single approach. 5-10 phases. |
 | **exploit** | Minimal roadmap. Shortest path from problem to result. 3-6 phases. No exploratory or comparison phases. Pure execution. |
-| **adaptive** | Keep branching only while approach choice remains open; collapse to a lean exploit-style roadmap once the method family is locked. |
+| **adaptive** | Keep alternative paths visible only while approach choice remains open; collapse to a lean exploit-style roadmap once the method family is locked, and keep branch-backed workstreams explicit rather than implicit. |
 
 ### gpd-research-mapper
 
@@ -204,6 +206,6 @@ gpd state snapshot
 
 - `../planning/planning-config.md` — Full config schema documentation
 - `references/orchestration/model-profiles.md` — Profile definitions (orthogonal to research mode)
-- `../../workflows/branch-hypothesis.md` — Hypothesis branching (used in explore mode)
-- `../../workflows/compare-branches.md` — Branch comparison (used in explore mode)
+- `../../workflows/branch-hypothesis.md` — Hypothesis branching (explicit tangent outcome when a git-backed alternative path is actually desired)
+- `../../workflows/compare-branches.md` — Branch comparison (used after explicit branch-backed alternatives exist)
 - `references/orchestration/agent-infrastructure.md` — Context pressure management (affected by research mode)

@@ -6,18 +6,11 @@ logic, background spawn failure, and graceful degradation.
 
 from __future__ import annotations
 
-import inspect
 import json
-import os
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-import gpd.hooks.check_update as check_update
-from gpd.adapters import get_adapter
-from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.hooks.check_update import (
     UPDATE_CHECK_TTL_SECONDS,
     _do_check,
@@ -27,74 +20,11 @@ from gpd.hooks.check_update import (
     main,
 )
 from gpd.hooks.runtime_detect import UpdateCacheCandidate
-
-_RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
-
-
-def _runtime_env_prefixes() -> tuple[str, ...]:
-    prefixes: set[str] = set()
-    for descriptor in _RUNTIME_DESCRIPTORS:
-        for env_var in descriptor.activation_env_vars:
-            prefixes.add(env_var)
-            prefixes.add(env_var.rsplit("_", 1)[0] if "_" in env_var else env_var)
-    return tuple(sorted(prefixes, key=len, reverse=True))
-
-
-_RUNTIME_ENV_PREFIXES = _runtime_env_prefixes()
-
-
-def _runtime_env_vars_to_clear() -> set[str]:
-    env_vars = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"}
-    for descriptor in _RUNTIME_DESCRIPTORS:
-        global_config = descriptor.global_config
-        for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var):
-            if env_var:
-                env_vars.add(env_var)
-    return env_vars
-
-
-_RUNTIME_ENV_VARS_TO_CLEAR = _runtime_env_vars_to_clear()
-
-
-@pytest.fixture(autouse=True)
-def _reset_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep update-hook tests isolated from prior runtime env overrides."""
-    for key in list(os.environ):
-        if key.startswith(_RUNTIME_ENV_PREFIXES) or key in _RUNTIME_ENV_VARS_TO_CLEAR:
-            monkeypatch.delenv(key, raising=False)
+from tests.hooks.helpers import mark_complete_install as _mark_complete_install
 
 
 def _cache_candidate(path: Path) -> UpdateCacheCandidate:
     return UpdateCacheCandidate(path=path)
-
-
-def _mark_complete_install(config_dir: Path, *, runtime: str, install_scope: str = "local") -> None:
-    adapter = get_adapter(runtime)
-    config_dir.mkdir(parents=True, exist_ok=True)
-    for relpath in adapter.install_completeness_relpaths():
-        if relpath == "gpd-file-manifest.json":
-            continue
-        artifact = config_dir / relpath
-        artifact.parent.mkdir(parents=True, exist_ok=True)
-        if artifact.suffix:
-            artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
-        else:
-            artifact.mkdir(parents=True, exist_ok=True)
-    explicit_target = config_dir.name != adapter.config_dir_name
-    manifest: dict[str, object] = {
-        "install_scope": install_scope,
-        "runtime": runtime,
-        "explicit_target": explicit_target,
-        "install_target_dir": str(config_dir),
-    }
-    if runtime == "codex":
-        skills_dir = config_dir.parent / ".agents" / "skills"
-        help_skill_dir = skills_dir / "gpd-help"
-        help_skill_dir.mkdir(parents=True, exist_ok=True)
-        (help_skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
-        manifest["codex_skills_dir"] = str(skills_dir)
-        manifest["codex_generated_skill_dirs"] = ["gpd-help"]
-    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 # ─── _is_older_than ────────────────────────────────────────────────────────
 
@@ -138,10 +68,8 @@ class TestIsOlderThan:
 
 
 def test_version_comparison_does_not_depend_on_packaging_modules() -> None:
-    source = inspect.getsource(check_update)
-
-    assert "packaging.version" not in source
-    assert "pip._vendor.packaging" not in source
+    assert _is_older_than("1.0.0rc1", "1.0.0") is True
+    assert _is_older_than("1.0.0.post1", "1.0.0") is False
 
 
 # ─── _read_installed_version ───────────────────────────────────────────────
@@ -281,12 +209,26 @@ class TestReadInstalledVersion:
             assert _read_installed_version() == "7.7.7"
 
     def test_version_files_use_public_runtime_detect_surface(self) -> None:
-        source = inspect.getsource(_version_files)
+        from gpd.adapters.install_utils import GPD_INSTALL_DIR_NAME
 
-        assert "_detect_runtime_install_target" not in source
-        assert "_local_runtime_dir" not in source
-        assert "_global_runtime_dir" not in source
-        assert "get_gpd_install_dirs" in source
+        install_dirs = [
+            Path(".codex") / GPD_INSTALL_DIR_NAME,
+            Path(".claude") / GPD_INSTALL_DIR_NAME,
+        ]
+
+        with (
+            patch("gpd.hooks.check_update._self_config_dir", return_value=None),
+            patch("gpd.hooks.runtime_detect.get_gpd_install_dirs", return_value=install_dirs) as mock_get_dirs,
+            patch(
+                "gpd.hooks.check_update.config_dir_has_complete_install",
+                side_effect=lambda config_dir: config_dir.name == ".claude",
+            ) as mock_complete,
+        ):
+            version_files = _version_files()
+
+        mock_get_dirs.assert_called_once_with(prefer_active=True)
+        assert mock_complete.call_count == 2
+        assert version_files == [Path(".claude") / GPD_INSTALL_DIR_NAME / "VERSION"]
 
 
 def test_worker_cache_file_arg_runs_do_check_directly(tmp_path: Path) -> None:
@@ -529,9 +471,16 @@ class TestMainThrottle:
         )
 
         with (
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[UpdateCacheCandidate(path=local_cache / "gpd-update-check.json", runtime="codex", scope="local")],
+            ),
+            patch("gpd.hooks.runtime_detect.should_consider_update_cache_candidate", return_value=True),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
+            patch("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", return_value="codex"),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+            patch("gpd.hooks.check_update.Path.home", return_value=home),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
-            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="codex"),
             patch("subprocess.Popen") as mock_popen,
         ):
             main()
@@ -556,10 +505,19 @@ class TestMainThrottle:
         )
 
         with (
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[
+                    UpdateCacheCandidate(path=stale_codex_cache / "gpd-update-check.json", runtime="codex", scope="local"),
+                    UpdateCacheCandidate(path=fresh_claude_cache / "gpd-update-check.json", runtime="claude-code", scope="global"),
+                ],
+            ),
+            patch("gpd.hooks.runtime_detect.should_consider_update_cache_candidate", return_value=True),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
+            patch("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", return_value="codex"),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.check_update.Path.home", return_value=home),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
-            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="codex"),
             patch("subprocess.Popen") as mock_popen,
         ):
             main()
@@ -584,10 +542,19 @@ class TestMainThrottle:
         )
 
         with (
+            patch(
+                "gpd.hooks.runtime_detect.get_update_cache_candidates",
+                return_value=[
+                    UpdateCacheCandidate(path=fresh_codex_cache / "gpd-update-check.json", runtime="codex", scope="global"),
+                    UpdateCacheCandidate(path=stale_claude_cache / "gpd-update-check.json", runtime="claude-code", scope="global"),
+                ],
+            ),
+            patch("gpd.hooks.runtime_detect.should_consider_update_cache_candidate", return_value=True),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
+            patch("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", return_value="codex"),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
             patch("gpd.hooks.check_update.Path.home", return_value=home),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
-            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="codex"),
             patch("subprocess.Popen") as mock_popen,
         ):
             main()
@@ -619,6 +586,7 @@ class TestMainThrottle:
                     UpdateCacheCandidate(path=fallback_cache, runtime=None, scope=None),
                 ],
             ),
+            patch("gpd.hooks.runtime_detect.should_consider_update_cache_candidate", return_value=True),
             patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
             patch("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", return_value="codex"),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),

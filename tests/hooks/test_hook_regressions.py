@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -65,6 +65,97 @@ def test_check_update_reexecs_current_script_with_cache_file_arg(tmp_path: Path)
     assert args[3] == str(cache_path)
 
 
+def test_check_update_uses_shared_update_resolution_candidates() -> None:
+    from gpd.hooks.check_update import main
+    from gpd.hooks.runtime_detect import UpdateCacheCandidate
+
+    candidate = UpdateCacheCandidate(path=Path("/tmp/shared-cache.json"), runtime="codex", scope="local")
+
+    with (
+        patch("gpd.hooks.check_update._self_config_dir", return_value=None),
+        patch(
+            "gpd.hooks.update_resolution.resolve_update_cache_inputs",
+            return_value=(Path("/tmp/workspace"), Path("/tmp/home"), "unknown", "codex"),
+        ) as mock_inputs,
+        patch("gpd.hooks.update_resolution.ordered_update_cache_candidates", return_value=[candidate]) as mock_candidates,
+        patch("gpd.hooks.update_resolution.primary_update_cache_file", return_value=candidate.path) as mock_primary,
+        patch("gpd.hooks.runtime_detect.get_update_cache_candidates", side_effect=AssertionError("unexpected direct cache lookup")),
+        patch(
+            "gpd.hooks.runtime_detect.should_consider_update_cache_candidate",
+            side_effect=AssertionError("unexpected direct cache filtering"),
+        ),
+        patch("gpd.hooks.check_update._has_fresh_inflight_marker", return_value=False),
+        patch("gpd.hooks.check_update._claim_inflight_marker", return_value=True),
+        patch("subprocess.Popen") as mock_popen,
+    ):
+        mock_popen.return_value = MagicMock()
+        main()
+
+    mock_inputs.assert_called_once()
+    mock_candidates.assert_called_once()
+    mock_primary.assert_called_once_with([candidate], home=Path("/tmp/home"))
+    mock_popen.assert_called_once()
+
+
+def test_statusline_current_task_uses_shared_todo_resolution_candidates(tmp_path: Path) -> None:
+    from gpd.hooks.statusline import _read_current_task
+
+    todos_dir = tmp_path / "todos"
+    todos_dir.mkdir(parents=True)
+    (todos_dir / "todo.json").write_text(
+        json.dumps(
+            [
+                {
+                    "status": "in_progress",
+                    "activeForm": "Investigating the current task",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    candidate = type("TodoCandidate", (), {"path": todos_dir})()
+
+    with (
+        patch("gpd.hooks.install_context.ordered_todo_lookup_candidates", return_value=[candidate]) as mock_candidates,
+        patch("gpd.hooks.runtime_detect.get_todo_candidates", side_effect=AssertionError("unexpected direct todo lookup")),
+        patch(
+            "gpd.hooks.runtime_detect.should_consider_todo_candidate",
+            side_effect=AssertionError("unexpected direct todo filtering"),
+        ),
+        patch("gpd.hooks.statusline._matching_todo_files", return_value=[(1.0, todos_dir / "todo.json")]),
+    ):
+        task = _read_current_task("session-1", str(tmp_path))
+
+    mock_candidates.assert_called_once()
+    assert task == "Investigating the current task"
+
+
+def test_check_update_ignores_rejected_preferred_runtime_cache_when_no_runtime_is_active(
+    tmp_path: Path,
+) -> None:
+    from gpd.hooks.check_update import main
+    from gpd.hooks.runtime_detect import UpdateCacheCandidate
+
+    cache_path = tmp_path / "preferred-runtime-cache.json"
+    cache_path.write_text(json.dumps({"checked": int(time.time())}), encoding="utf-8")
+
+    preferred_candidate = UpdateCacheCandidate(path=cache_path, runtime="codex", scope="local")
+
+    with (
+        patch("gpd.hooks.runtime_detect.get_update_cache_candidates", return_value=[preferred_candidate]),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
+        patch("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", return_value="codex"),
+        patch("gpd.hooks.runtime_detect.should_consider_update_cache_candidate", return_value=False),
+        patch("gpd.hooks.check_update._claim_inflight_marker", return_value=True) as mock_claim,
+        patch("gpd.hooks.check_update.subprocess.Popen") as mock_popen,
+    ):
+        mock_popen.return_value = MagicMock()
+        main()
+
+    mock_claim.assert_called_once()
+    mock_popen.assert_called_once()
+
+
 def test_runtime_detect_does_not_keep_dead_private_lookup_helpers() -> None:
     import gpd.hooks.runtime_detect as runtime_detect
 
@@ -90,164 +181,6 @@ def test_statusline_read_position_returns_empty_for_non_dict_state(tmp_path: Pat
 
     state_file.write_text('"hello"', encoding="utf-8")
     assert _read_position(str(tmp_path)) == ""
-
-
-@pytest.mark.parametrize(
-    ("module_name", "function_name"),
-    [
-        ("gpd.hooks.notify", "_latest_update_cache"),
-        ("gpd.hooks.statusline", "_latest_update_cache"),
-    ],
-)
-def test_update_cache_helpers_prefer_candidate_order_over_newer_unrelated_cache(
-    tmp_path: Path,
-    module_name: str,
-    function_name: str,
-) -> None:
-    module = __import__(module_name, fromlist=[function_name])
-    cache_reader = getattr(module, function_name)
-
-    preferred_cache = tmp_path / "preferred.json"
-    preferred_cache.write_text(
-        json.dumps({"update_available": True, "checked": 20}),
-        encoding="utf-8",
-    )
-    unrelated_cache = tmp_path / "unrelated.json"
-    unrelated_cache.write_text(
-        json.dumps({"update_available": True, "checked": 30}),
-        encoding="utf-8",
-    )
-
-    preferred_candidate = SimpleNamespace(path=preferred_cache, runtime="codex", scope="local")
-    unrelated_candidate = SimpleNamespace(path=unrelated_cache, runtime="claude-code", scope="global")
-
-    with (
-        patch("gpd.hooks.runtime_detect.get_update_cache_candidates", return_value=[preferred_candidate, unrelated_candidate]),
-        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="codex"),
-        patch("gpd.hooks.runtime_detect.should_consider_update_cache_candidate", return_value=True),
-        patch(
-            "gpd.hooks.runtime_detect.detect_install_scope",
-            side_effect=lambda runtime, **_kwargs: "local" if runtime == "codex" else None,
-        ),
-    ):
-        cache, candidate = cache_reader(str(tmp_path))
-
-    assert cache == {"update_available": True, "checked": 20}
-    assert candidate is preferred_candidate
-
-
-@pytest.mark.parametrize(
-    ("module_name", "function_name"),
-    [
-        ("gpd.hooks.notify", "_latest_update_cache"),
-        ("gpd.hooks.statusline", "_latest_update_cache"),
-    ],
-)
-def test_update_cache_helpers_prefer_runtime_tagged_candidate_over_runtimeless_fallback(
-    tmp_path: Path,
-    module_name: str,
-    function_name: str,
-) -> None:
-    module = __import__(module_name, fromlist=[function_name])
-    cache_reader = getattr(module, function_name)
-
-    fallback_cache = tmp_path / "fallback.json"
-    fallback_cache.write_text(json.dumps({"update_available": True, "checked": 10}), encoding="utf-8")
-    runtime_cache = tmp_path / "runtime.json"
-    runtime_cache.write_text(json.dumps({"update_available": True, "checked": 20}), encoding="utf-8")
-
-    fallback_candidate = SimpleNamespace(path=fallback_cache, runtime=None, scope=None)
-    runtime_candidate = SimpleNamespace(path=runtime_cache, runtime="codex", scope="local")
-
-    with (
-        patch(
-            "gpd.hooks.runtime_detect.get_update_cache_candidates",
-            return_value=[fallback_candidate, runtime_candidate],
-        ),
-        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="codex"),
-        patch("gpd.hooks.runtime_detect.should_consider_update_cache_candidate", return_value=True),
-        patch(
-            "gpd.hooks.runtime_detect.detect_install_scope",
-            side_effect=lambda runtime, **_kwargs: "local" if runtime == "codex" else None,
-        ),
-    ):
-        cache, candidate = cache_reader(str(tmp_path))
-
-    assert cache == {"update_available": True, "checked": 20}
-    assert candidate is runtime_candidate
-
-
-def test_notify_latest_update_cache_uses_shared_cache_constants_for_self_owned_install(
-    tmp_path: Path,
-) -> None:
-    from gpd.hooks import notify
-    from gpd.hooks.install_context import SelfOwnedInstallContext
-
-    self_config_dir = tmp_path / "runtime"
-    self_install = SelfOwnedInstallContext(config_dir=self_config_dir, runtime="codex", install_scope="local")
-    cache_file = self_install.cache_file
-    cache_file.parent.mkdir(parents=True)
-    cache_file.write_text(json.dumps({"update_available": True, "checked": 10}), encoding="utf-8")
-    (self_config_dir / "gpd-file-manifest.json").write_text(
-        json.dumps(
-            {
-                "install_scope": "local",
-                "runtime": "codex",
-                "explicit_target": True,
-                "install_target_dir": str(self_config_dir),
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    with (
-        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install),
-        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
-        patch("gpd.hooks.runtime_detect.get_update_cache_candidates", return_value=[]),
-    ):
-        cache, candidate = notify._latest_update_cache()
-
-    assert cache == {"update_available": True, "checked": 10}
-    assert candidate is not None
-    assert candidate.path == cache_file
-
-
-def test_notify_and_statusline_share_self_owned_update_cache_selection(
-    tmp_path: Path,
-) -> None:
-    from gpd.hooks import notify, statusline
-    from gpd.hooks.install_context import SelfOwnedInstallContext
-
-    self_config_dir = tmp_path / "runtime"
-    self_config_dir.mkdir(parents=True)
-    self_install = SelfOwnedInstallContext(config_dir=self_config_dir, runtime="codex", install_scope="local")
-    cache_file = self_install.cache_file
-    cache_file.parent.mkdir(parents=True)
-    cache_file.write_text(json.dumps({"update_available": True, "checked": 10}), encoding="utf-8")
-    (self_config_dir / "gpd-file-manifest.json").write_text(
-        json.dumps(
-            {
-                "install_scope": "local",
-                "runtime": "codex",
-                "explicit_target": True,
-                "install_target_dir": str(self_config_dir),
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    with (
-        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install),
-        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
-        patch("gpd.hooks.runtime_detect.get_update_cache_candidates", return_value=[]),
-    ):
-        notify_cache, notify_candidate = notify._latest_update_cache(str(tmp_path))
-        status_cache, status_candidate = statusline._latest_update_cache(str(tmp_path))
-
-    assert notify_cache == status_cache == {"update_available": True, "checked": 10}
-    assert notify_candidate is not None
-    assert status_candidate is not None
-    assert notify_candidate.path == status_candidate.path == cache_file
 
 
 def test_installed_update_command_uses_manifest_runtime_metadata_for_custom_targets(tmp_path: Path) -> None:

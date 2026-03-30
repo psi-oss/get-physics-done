@@ -28,8 +28,9 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `project_exists`, `state_exists`, `commit_docs`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`.
+Parse JSON for: `project_exists`, `state_exists`, `commit_docs`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`.
 Treat `project_contract_load_info` and `project_contract_validation` as the authoritative contract gate state. Treat `project_contract` and `contract_intake` as approved contract scope only when that gate is clean and passing. Treat `effective_reference_intake`, `reference_artifacts_content`, and `active_reference_context` as binding carry-forward evidence context even when the structured contract is blocked. Stage 1 stays manuscript-first, but later adjudication must not ignore either the approved contract or the active anchor ledger.
+If `derived_manuscript_reference_status` is present, use it as a first-pass manuscript-local summary of reference coverage, citation readiness, and audit freshness. Keep the manuscript-root publication artifacts authoritative for strict decisions: `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the reproducibility manifest still decide pass/fail.
 
 Run centralized context preflight before continuing:
 
@@ -102,7 +103,7 @@ gpd validate review-preflight peer-review "$ARGUMENTS" --strict
 If preflight exits nonzero because of missing project state, missing manuscript, degraded review integrity, or missing review-grade paper artifacts, STOP and show the blocking issues.
 If preflight reports blocked contract/state integrity, surface `project_contract_load_info` and `project_contract_validation` details in the stop message and repair the blocked contract before retrying.
 
-In strict peer-review mode, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are required inputs. If the manuscript bibliography changed after the last audit, refresh `BIBLIOGRAPHY_AUDIT_PATH` before proceeding. Peer review is expected to fail closed when those review-support artifacts are absent, stale, or not review-ready.
+In strict peer-review mode, `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and a reproducibility manifest are required inputs. `gpd paper-build` is the step that regenerates `BIBLIOGRAPHY-AUDIT.json` for the current bibliography; rerun it before proceeding whenever the manuscript bibliography or citation set has changed. If `derived_manuscript_reference_status` is available from init, use it as a quick read on what is likely stale or complete, but do not let it override the manuscript-root publication artifacts. Peer review is expected to fail closed when those review-support artifacts are absent, stale, or not review-ready.
 Passing preflight still does not establish scientific support. Complete manifests and audits cannot rescue missing decisive comparisons, overclaimed conclusions, or absent contract-backed evidence.
 </step>
 
@@ -276,6 +277,8 @@ Project Contract Validation:
 {project_contract_validation}
 Active References:
 {active_reference_context}
+Derived Manuscript Reference Status:
+{derived_manuscript_reference_status}
 Contract Intake:
 {contract_intake}
 Effective Reference Intake:
@@ -322,6 +325,8 @@ Project Contract Validation:
 {project_contract_validation}
 Active References:
 {active_reference_context}
+Derived Manuscript Reference Status:
+{derived_manuscript_reference_status}
 Contract Intake:
 {contract_intake}
 Effective Reference Intake:
@@ -401,6 +406,8 @@ Project Contract Validation:
 {project_contract_validation}
 Active References:
 {active_reference_context}
+Derived Manuscript Reference Status:
+{derived_manuscript_reference_status}
 Contract Intake:
 {contract_intake}
 Effective Reference Intake:
@@ -483,6 +490,8 @@ Project Contract Validation:
 {project_contract_validation}
 Active References:
 {active_reference_context}
+Derived Manuscript Reference Status:
+{derived_manuscript_reference_status}
 Contract Intake:
 {contract_intake}
 Effective Reference Intake:
@@ -563,6 +572,8 @@ Project Contract Validation:
 {project_contract_validation}
 Active References:
 {active_reference_context}
+Derived Manuscript Reference Status:
+{derived_manuscript_reference_status}
 Contract Intake:
 {contract_intake}
 Effective Reference Intake:

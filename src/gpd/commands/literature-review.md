@@ -19,7 +19,7 @@ allowed-tools:
 <!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
-Conduct a systematic literature review for a physics research topic. Identifies key papers, maps citation networks, catalogs methods and results, finds open questions, and produces a structured LITERATURE-REVIEW.md.
+Conduct a systematic literature review for a physics research topic. Identifies key papers, maps citation networks, catalogs methods and results, finds open questions, and produces a structured LITERATURE-REVIEW.md plus a machine-readable `CITATION-SOURCES.json` sidecar for manuscript reuse.
 
 **Orchestrator role:** Scope the review, spawn gpd-literature-reviewer agent, handle checkpoints, present results.
 
@@ -170,6 +170,7 @@ Structure:
 - Active Anchor Registry (must-read papers, decisive benchmarks, and prior artifacts to carry forward)
 - Recommended Reading Path (ordered list for someone entering the field)
 - Full Reference List (formatted citations)
+- Citation Source Sidecar (`GPD/literature/{slug}-CITATION-SOURCES.json`, `CitationSource[]`-compatible records keyed by stable `reference_id`)
   </output>
 ```
 
@@ -193,7 +194,7 @@ task(
   - "Deep dive on subtopic" -- focus on one aspect found during review
   - "Start research" -- use review to plan a research phase
   - "Find gaps" -- identify what's missing for a specific calculation
-  - "Export references" -- format for BibTeX / manuscript
+  - "Export references" -- format for BibTeX / manuscript and refresh `GPD/literature/{slug}-CITATION-SOURCES.json`
 
 **If `## CHECKPOINT REACHED`:**
 

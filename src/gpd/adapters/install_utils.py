@@ -19,6 +19,7 @@ from pathlib import Path, PurePosixPath
 from gpd.adapters.runtime_catalog import get_runtime_descriptor, resolve_global_config_dir
 from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES
 from gpd.core.constants import HOME_DATA_DIR_NAME
+from gpd.core.review_contract_prompt import extract_frontmatter_block, prepend_review_contract_prompt
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -441,6 +442,22 @@ def render_markdown_frontmatter(preamble: str, frontmatter: str, separator: str,
     return rendered + body
 
 
+def _inject_review_contract_prompt_from_frontmatter(content: str) -> str:
+    """Front-load any review-contract block into the model-visible body once."""
+
+    preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
+    if not frontmatter:
+        return content
+    if body.lstrip().startswith("## Review Contract"):
+        return content
+    return render_markdown_frontmatter(
+        preamble,
+        frontmatter,
+        separator,
+        prepend_review_contract_prompt(body, extract_frontmatter_block(frontmatter, "review-contract")),
+    )
+
+
 def _default_markdown_transform(runtime: str) -> Callable[[str, str, str | None], str]:
     """Resolve the adapter-owned shared-markdown transform for *runtime*."""
     from gpd.adapters import get_adapter
@@ -829,7 +846,7 @@ def compile_markdown_for_runtime(
             install_scope=install_scope,
         )
 
-    return content
+    return _inject_review_contract_prompt_from_frontmatter(content)
 
 
 def expand_at_includes(
@@ -1138,6 +1155,7 @@ def _copy_dir_contents(
                     runtime=runtime,
                     install_scope=install_scope,
                 )
+            content = _inject_review_contract_prompt_from_frontmatter(content)
             dest.write_text(content, encoding="utf-8")
         else:
             # Binary copy

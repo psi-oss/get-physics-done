@@ -224,6 +224,38 @@ def test_validate_project_contract_command_blocks_background_must_read_ref_witho
     assert any("approved project contract requires at least one concrete anchor" in error for error in payload["errors"])
 
 
+def test_validate_project_contract_command_blocks_nonexistent_prior_output_in_approved_mode(tmp_path: Path) -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["references"] = []
+    contract["context_intake"] = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": ["fake/path"],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+    for claim in contract.get("claims", []):
+        claim["references"] = []
+    for target in contract.get("acceptance_tests", []):
+        target["evidence_required"] = [item for item in target.get("evidence_required", []) if item != "ref-benchmark"]
+    contract["scope"]["unresolved_questions"] = []
+    contract_path = tmp_path / "project-contract.json"
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["--raw", "validate", "project-contract", str(contract_path), "--mode", "approved"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["valid"] is False
+    assert payload["mode"] == "approved"
+    assert any("approved project contract requires at least one concrete anchor" in error for error in payload["errors"])
+
+
 def test_validate_project_contract_command_reports_shape_errors_without_traceback(tmp_path: Path) -> None:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["references"] = ["ref-benchmark"]

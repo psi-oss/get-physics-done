@@ -901,6 +901,31 @@ status: completed | checkpoint | blocked | failed
 
 {Formatted citations, organized by topic or chronologically, with confidence scores}
 
+## Citation Sources Sidecar
+
+Write a machine-readable sidecar at `GPD/literature/{slug}-CITATION-SOURCES.json`.
+
+This file must be a UTF-8 JSON array whose entries are compatible with the `CitationSource` shape used by `gpd paper-build --citation-sources`, with one additional stable `reference_id` field per entry for project-local reuse.
+When a manuscript key is already known and stable, include `bibtex_key` as an optional preferred key so the downstream build can preserve the same citation identity. Do not guess or invent it.
+
+Each entry should include, at minimum:
+
+- `reference_id`: stable project-local identifier for the canonical reference
+- `source_type`: `paper`, `tool`, `data`, or `website`
+- `title`
+- `authors` when available
+- `year` when available
+- `arxiv_id`, `doi`, `url`, `journal`, `volume`, and `pages` when available
+
+Rules:
+
+- Keep `reference_id` stable across reruns for the same canonical reference.
+- Keep `bibtex_key` stable across reruns when present, but omit it unless it is verified.
+- Preserve the ordering from the Full Reference List.
+- Do not fabricate identifiers or metadata. If a field cannot be verified, omit it rather than guessing.
+- Prefer one record per canonical reference, even if the paper is mentioned under multiple aliases in the prose review.
+- Emit valid JSON only; do not wrap the sidecar in markdown fences.
+
 ## Machine-Readable Summary (for downstream agents)
 
 At the end of each REVIEW.md, include a structured summary block:

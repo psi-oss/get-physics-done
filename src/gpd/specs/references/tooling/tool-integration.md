@@ -49,6 +49,14 @@ Mathematica excels at:
 - Computations involving special functions, hypergeometric identities, or combinatorics
 - Visualization of complex mathematical objects
 
+Use a local Mathematica install when you need notebooks, local kernels, or `wolframscript` on the machine itself. Use the shared optional Wolfram integration when you want the runtime-agnostic remote MCP path managed through GPD config.
+
+### Shared optional Wolfram integration
+
+The shared integration is config-only. Enable it with `gpd integrations enable wolfram` and inspect it with `gpd integrations status wolfram`. This does not install Mathematica, does not prove local `wolframscript` availability, and does not replace `gpd validate plan-preflight <PLAN.md>` for plan readiness.
+
+When a PLAN depends on this capability, declare it as `tool: wolfram` in `tool_requirements` so `gpd validate plan-preflight` can check availability before execution. Keep fallback paths explicit when SymPy or another standard tool can cover the same scientific goal.
+
 ---
 
 ## Julia

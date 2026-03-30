@@ -3,6 +3,7 @@ name: gpd:progress
 description: Check research progress, show context, and route to next action (execute or plan)
 argument-hint: "[--brief] [--full] [--reconcile]"
 context_mode: project-required
+project_reentry_capable: true
 requires:
   files: ["GPD/PROJECT.md"]
 allowed-tools:
@@ -19,6 +20,7 @@ allowed-tools:
 Check physics research progress, summarize recent work and what's ahead, then intelligently route to the next action — either executing an existing plan or creating the next one.
 
 Provides situational awareness before continuing research work.
+Use `--brief` when returning and you only need a quick orientation snapshot, or `--reconcile` when state may have drifted from disk reality.
 </objective>
 
 <execution_context>
@@ -57,6 +59,8 @@ If `project_exists` is false (no `GPD/` directory):
 
 ```
 No planning structure found.
+
+If you are trying to reopen existing work, use `gpd resume --recent` first so you can rediscover the project explicitly. The recent-project picker is advisory: choose the workspace there, then continue in that workspace with `/gpd:resume-work`, which reloads canonical state for that project.
 
 Run /gpd:new-project to start a new research project.
 ```
@@ -472,7 +476,8 @@ Ready to plan the next phase of investigation.
 - Phase complete but next phase not planned → offer `/gpd:plan-phase [next]`
 - All work complete → offer milestone completion
 - Blockers present → highlight before offering to continue
-- Handoff file exists → mention it, offer `/gpd:resume-work`
+- Projected handoff file exists → mention it as a recovery pointer, offer `/gpd:resume-work`
+- If the user may be outside the project entirely → mention `gpd resume --recent` as the explicit rediscovery step before `/gpd:resume-work`
 
 </process>
 
@@ -483,5 +488,5 @@ Ready to plan the next phase of investigation.
 - [ ] What's next clearly explained
 - [ ] Smart routing: /gpd:execute-phase if plans exist, /gpd:plan-phase if not
 - [ ] User confirms before any action
-- [ ] Seamless handoff to appropriate gpd command
+- [ ] Seamless transition to appropriate gpd command
       </success_criteria>

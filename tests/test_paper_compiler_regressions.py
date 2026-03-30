@@ -266,16 +266,3 @@ def test_figureref_is_importable_from_compiler_module() -> None:
     assert hasattr(compiler_mod, "FigureRef"), (
         "FigureRef should be importable from compiler module"
     )
-
-
-def test_no_original_figures_dead_code() -> None:
-    """The local variable ``original_figures`` was assigned but never used.
-    Verify it no longer appears in the build_paper source (Issue 2)."""
-    import inspect
-
-    from gpd.mcp.paper.compiler import build_paper
-
-    source = inspect.getsource(build_paper)
-    assert "original_figures" not in source, (
-        "Dead-code variable 'original_figures' should have been removed"
-    )

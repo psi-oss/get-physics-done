@@ -325,6 +325,7 @@ class TestGeminiRoundtrip:
             'description: Check research progress\n'
             'argument-hint: "[--brief] [--full] [--reconcile]"\n'
             "context_mode: project-required\n"
+            "project_reentry_capable: true\n"
             "requires:\n"
             '  files: ["GPD/ROADMAP.md"]\n'
             "allowed-tools:\n"
@@ -344,6 +345,7 @@ class TestGeminiRoundtrip:
         assert "# Source frontmatter preserved for parity:" in content
         assert '# name: gpd:progress' in content
         assert '# argument-hint: "[--brief] [--full] [--reconcile]"' in content
+        assert "# project_reentry_capable: true" in content
         assert "# requires:" in content
         assert '#   files: ["GPD/ROADMAP.md"]' in content
         assert "# allowed-tools:" not in content
@@ -564,6 +566,25 @@ class TestCodexRoundtrip:
         assert "```bash\ngpd config ensure-section\n" not in workflow
         assert 'if ! gpd verify plan "$plan"; then' not in execute_phase
         assert 'INIT=$(gpd init plan-phase "${PHASE}")' not in agent
+
+    def test_help_like_skills_keep_canonical_local_cli_language(self, tmp_path: Path) -> None:
+        """Codex skills keep canonical local CLI names in prose even when shell steps bridge."""
+        _install_real_repo_for_runtime(tmp_path, "codex")
+        skills = tmp_path / "skills"
+        help_skill = (skills / "gpd-help" / "SKILL.md").read_text(encoding="utf-8")
+        tour_skill = (skills / "gpd-tour" / "SKILL.md").read_text(encoding="utf-8")
+        settings_skill = (skills / "gpd-settings" / "SKILL.md").read_text(encoding="utf-8")
+
+        assert "Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly." in help_skill
+        assert "For a normal-terminal, current-workspace read-only recovery snapshot without launching the runtime, use `gpd resume`." in help_skill
+        assert "For a normal-terminal, read-only machine-local usage / cost summary, use `gpd cost`." in help_skill
+        assert "The normal terminal is where you install GPD, run `gpd --help`, and run" in tour_skill
+        assert "`gpd resume` is the normal-terminal recovery step for reopening the right" in tour_skill
+        assert "use `gpd --help` when you need the broader local CLI entrypoint" in settings_skill
+        assert "use `gpd cost` after runs for advisory local usage / cost, optional USD budget guardrails, and the current profile tier mix" in settings_skill
+        assert re.search(r"`[^`\n]*gpd\.runtime_cli[^`\n]*(?:--help|resume|cost)[^`\n]*`", help_skill) is None
+        assert re.search(r"`[^`\n]*gpd\.runtime_cli[^`\n]*(?:--help|resume|cost)[^`\n]*`", tour_skill) is None
+        assert re.search(r"`[^`\n]*gpd\.runtime_cli[^`\n]*(?:--help|resume|cost)[^`\n]*`", settings_skill) is None
 
     def test_slash_commands_converted(self, installed: tuple[Path, Path]) -> None:
         """Content replaces /gpd: with $gpd- for Codex invocation syntax."""
@@ -964,6 +985,8 @@ def test_real_installed_contract_and_review_surfaces_keep_required_schema_bodies
     assert "\nsubject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]" not in verify_work
     assert "check_subject_kind: [claim | deliverable | acceptance_test | reference | forbidden_proxy | suggested_contract_check]" not in verify_work
     assert "# state.json Schema" in sync_state
+    assert "## Review Contract" in write_paper
+    assert write_paper.index("## Review Contract") < write_paper.index("Reproducibility Manifest Template")
     assert "Reproducibility Manifest Template" in write_paper
     assert "Peer Review Panel Protocol" in review_literature
     assert '"stage_id": "reader | literature | math | physics | interestingness"' in review_literature

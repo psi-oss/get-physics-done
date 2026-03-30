@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -12,6 +13,17 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters import get_adapter, iter_runtime_descriptors
+from gpd.core.surface_phrases import (
+    post_start_settings_note,
+    post_start_settings_recommendation,
+    recovery_ladder_note,
+)
+from tests.doc_surface_contracts import (
+    assert_beginner_caveat_follow_up_contract,
+    assert_install_summary_runtime_follow_up_contract,
+    assert_recovery_ladder_contract,
+)
+from tests.runtime_test_support import PRIMARY_RUNTIME, runtime_install_flag, runtime_with_multiword_alias
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_JSON = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
@@ -35,26 +47,137 @@ _RUNTIME_NAMES = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRI
 _RUNTIME_INSTALL_FLAGS = tuple(descriptor.install_flag for descriptor in _RUNTIME_DESCRIPTORS)
 _RUNTIME_DISPLAY_NAMES = {name: adapter.display_name for name, adapter in _RUNTIME_ADAPTERS.items()}
 _RUNTIME_LAUNCH_COMMANDS = {name: adapter.launch_command for name, adapter in _RUNTIME_ADAPTERS.items()}
+_RUNTIME_CONFIG_DIR_NAMES = {name: adapter.config_dir_name for name, adapter in _RUNTIME_ADAPTERS.items()}
 _RUNTIME_HELP_COMMANDS = {name: adapter.help_command for name, adapter in _RUNTIME_ADAPTERS.items()}
+_RUNTIME_START_COMMANDS = {name: adapter.format_command("start") for name, adapter in _RUNTIME_ADAPTERS.items()}
+_RUNTIME_TOUR_COMMANDS = {name: adapter.format_command("tour") for name, adapter in _RUNTIME_ADAPTERS.items()}
 _RUNTIME_NEW_PROJECT_COMMANDS = {name: adapter.new_project_command for name, adapter in _RUNTIME_ADAPTERS.items()}
 _RUNTIME_MAP_RESEARCH_COMMANDS = {name: adapter.map_research_command for name, adapter in _RUNTIME_ADAPTERS.items()}
-_CODEX_RUNTIME_NAME = next(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if "skills/" in descriptor.manifest_file_prefixes)
-_CLAUDE_RUNTIME_NAME = next(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if descriptor.launch_command == "claude")
-_OPENCODE_RUNTIME_NAME = next(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if descriptor.launch_command == "opencode")
-_CODEX_INSTALL_FLAG = _RUNTIME_ADAPTERS[_CODEX_RUNTIME_NAME].install_flag
-_CLAUDE_INSTALL_FLAG = _RUNTIME_ADAPTERS[_CLAUDE_RUNTIME_NAME].install_flag
-_CLAUDE_RUNTIME_ALIAS = _RUNTIME_ADAPTERS[_CLAUDE_RUNTIME_NAME].display_name.lower()
-_OPENCODE_RUNTIME_ALIAS = next(
-    alias for alias in _RUNTIME_ADAPTERS[_OPENCODE_RUNTIME_NAME].selection_aliases if " " in alias
+_RUNTIME_RESUME_WORK_COMMANDS = {name: adapter.format_command("resume-work") for name, adapter in _RUNTIME_ADAPTERS.items()}
+_RUNTIME_SUGGEST_NEXT_COMMANDS = {name: adapter.format_command("suggest-next") for name, adapter in _RUNTIME_ADAPTERS.items()}
+_RUNTIME_PAUSE_WORK_COMMANDS = {name: adapter.format_command("pause-work") for name, adapter in _RUNTIME_ADAPTERS.items()}
+_CODEX_RUNTIME_NAME = PRIMARY_RUNTIME
+_CLAUDE_RUNTIME_NAME, _CLAUDE_RUNTIME_ALIAS = runtime_with_multiword_alias(exclude=(_CODEX_RUNTIME_NAME,))
+_OPENCODE_RUNTIME_NAME, _OPENCODE_RUNTIME_ALIAS = runtime_with_multiword_alias(
+    exclude=(_CODEX_RUNTIME_NAME, _CLAUDE_RUNTIME_NAME)
+)
+_BEGINNER_ONBOARDING_HUB_URL = "https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md"
+_CODEX_INSTALL_FLAG = runtime_install_flag(_CODEX_RUNTIME_NAME)
+_CLAUDE_INSTALL_FLAG = runtime_install_flag(_CLAUDE_RUNTIME_NAME)
+_GENERIC_RECOVERY_LADDER_NOTE = recovery_ladder_note(
+    resume_work_phrase="your runtime-specific `resume-work` command",
+    suggest_next_phrase="your runtime-specific `suggest-next` command",
+    pause_work_phrase="your runtime-specific `pause-work` command",
+)
+_POST_START_SETTINGS_NOTE = post_start_settings_note()
+_POST_START_SETTINGS_RECOMMENDATION = post_start_settings_recommendation()
+_RUNTIME_RECOVERY_LADDER_TEMPLATE = recovery_ladder_note(
+    resume_work_phrase="{resume_work}",
+    suggest_next_phrase="{suggest_next}",
+    pause_work_phrase="{pause_work}",
 )
 
 
-def _next_step_line(runtime: str) -> str:
-    return (
-        f"- {_RUNTIME_DISPLAY_NAMES[runtime]} ({_RUNTIME_LAUNCH_COMMANDS[runtime]}), then "
-        f"{_RUNTIME_HELP_COMMANDS[runtime]}, then "
-        f"{_RUNTIME_NEW_PROJECT_COMMANDS[runtime]} or {_RUNTIME_MAP_RESEARCH_COMMANDS[runtime]}"
+def _render_runtime_recovery_ladder(runtime: str) -> str:
+    return _RUNTIME_RECOVERY_LADDER_TEMPLATE.format(
+        resume_work=f"`{_RUNTIME_RESUME_WORK_COMMANDS[runtime]}`",
+        suggest_next=f"`{_RUNTIME_SUGGEST_NEXT_COMMANDS[runtime]}`",
+        pause_work=f"`{_RUNTIME_PAUSE_WORK_COMMANDS[runtime]}`",
     )
+
+
+def _assert_single_runtime_next_steps(output: str, runtime: str) -> None:
+    resume_work_command = _RUNTIME_RESUME_WORK_COMMANDS[runtime]
+    suggest_next_command = _RUNTIME_SUGGEST_NEXT_COMMANDS[runtime]
+    pause_work_command = _RUNTIME_PAUSE_WORK_COMMANDS[runtime]
+    ordered_patterns = (
+        re.escape("Startup checklist"),
+        re.escape(f"Beginner Onboarding Hub: {_BEGINNER_ONBOARDING_HUB_URL}"),
+        re.escape("First-run order: `help -> start -> tour -> new-project / map-research -> resume-work`"),
+        re.escape(
+            f"1. Open {_RUNTIME_DISPLAY_NAMES[runtime]} from your system terminal ({_RUNTIME_LAUNCH_COMMANDS[runtime]})."
+        ),
+        re.escape(f"2. Run {_RUNTIME_HELP_COMMANDS[runtime]} for the command list."),
+        re.escape(
+            "3. Run "
+            f"{_RUNTIME_START_COMMANDS[runtime]} if you're not sure what fits this folder yet. "
+            "Run "
+            f"{_RUNTIME_TOUR_COMMANDS[runtime]} if you want a read-only overview of the broader command surface first."
+        ),
+        re.escape(
+            "4. Then use "
+            f"{_RUNTIME_NEW_PROJECT_COMMANDS[runtime]} for a new project or "
+            f"{_RUNTIME_MAP_RESEARCH_COMMANDS[runtime]} for existing work."
+        ),
+        re.escape(
+            f"5. Fast bootstrap: use {_RUNTIME_NEW_PROJECT_COMMANDS[runtime]} --minimal for the shortest onboarding path."
+        ),
+        re.escape(
+            f"6. When you return later, use {resume_work_command} after reopening the right workspace. "
+        ),
+        re.escape(
+            recovery_ladder_note(
+                resume_work_phrase=f"`{resume_work_command}`",
+                suggest_next_phrase=f"`{suggest_next_command}`",
+                pause_work_phrase=f"`{pause_work_command}`",
+            )
+        ),
+        re.escape("Secondary follow-up"),
+        re.escape("7. Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics."),
+        re.escape("8. Run gpd doctor --runtime"),
+        re.escape(f"9. {_POST_START_SETTINGS_NOTE} {_POST_START_SETTINGS_RECOMMENDATION}"),
+        re.escape("10. If you plan to use paper/manuscript workflows, rerun"),
+        re.escape("Use `gpd presets list` to inspect the workflow preset"),
+    )
+    cursor = 0
+    for pattern in ordered_patterns:
+        match = re.search(pattern, output[cursor:], re.S)
+        assert match, output
+        cursor += match.end()
+
+    _assert_install_summary_semantic_contract(
+        output,
+        runtime_help_fragments=(
+            f"Run {_RUNTIME_HELP_COMMANDS[runtime]} for the command list.",
+        ),
+        resume_work_fragments=(f"`{_RUNTIME_RESUME_WORK_COMMANDS[runtime]}`",),
+        suggest_next_fragments=(f"`{_RUNTIME_SUGGEST_NEXT_COMMANDS[runtime]}`",),
+        pause_work_fragments=(f"`{_RUNTIME_PAUSE_WORK_COMMANDS[runtime]}`",),
+    )
+
+
+def _assert_multi_runtime_next_steps_line(output: str, runtime: str) -> None:
+    pattern = re.compile(
+        rf"- {re.escape(_RUNTIME_DISPLAY_NAMES[runtime])}.*?"
+        rf"{re.escape(_RUNTIME_LAUNCH_COMMANDS[runtime])}.*?"
+        rf"{re.escape(_RUNTIME_HELP_COMMANDS[runtime])}.*?"
+        rf"{re.escape(_RUNTIME_START_COMMANDS[runtime])}.*?"
+        rf"{re.escape(_RUNTIME_TOUR_COMMANDS[runtime])}.*?"
+        rf"{re.escape(_RUNTIME_NEW_PROJECT_COMMANDS[runtime])}.*?"
+        rf"{re.escape(_RUNTIME_MAP_RESEARCH_COMMANDS[runtime])}.*?"
+        rf"{re.escape(_RUNTIME_RESUME_WORK_COMMANDS[runtime])}.*?"
+        rf"Fast bootstrap: use .*? --minimal",
+        re.S,
+    )
+    assert pattern.search(output), output
+
+
+def _assert_install_summary_semantic_contract(
+    output: str,
+    *,
+    runtime_help_fragments: tuple[str, ...],
+    resume_work_fragments: tuple[str, ...],
+    suggest_next_fragments: tuple[str, ...],
+    pause_work_fragments: tuple[str, ...],
+) -> None:
+    assert_recovery_ladder_contract(
+        output,
+        resume_work_fragments=resume_work_fragments,
+        suggest_next_fragments=suggest_next_fragments,
+        pause_work_fragments=pause_work_fragments,
+    )
+    assert_install_summary_runtime_follow_up_contract(output, runtime_help_fragments=runtime_help_fragments)
+    assert_beginner_caveat_follow_up_contract(output)
 
 
 def test_version_consistency():
@@ -62,11 +185,43 @@ def test_version_consistency():
     assert PACKAGE_VERSION == PYTHON_PACKAGE_VERSION == str(PYPROJECT["project"]["version"])
 
 
+def test_runtime_recovery_ladder_template_stays_in_sync_with_shared_surface_phrase() -> None:
+    for runtime in _RUNTIME_NAMES:
+        ladder_note = _render_runtime_recovery_ladder(runtime)
+
+        assert ladder_note == recovery_ladder_note(
+            resume_work_phrase=f"`{_RUNTIME_RESUME_WORK_COMMANDS[runtime]}`",
+            suggest_next_phrase=f"`{_RUNTIME_SUGGEST_NEXT_COMMANDS[runtime]}`",
+            pause_work_phrase=f"`{_RUNTIME_PAUSE_WORK_COMMANDS[runtime]}`",
+        )
+        assert_recovery_ladder_contract(
+            ladder_note,
+            resume_work_fragments=(f"`{_RUNTIME_RESUME_WORK_COMMANDS[runtime]}`",),
+            suggest_next_fragments=(f"`{_RUNTIME_SUGGEST_NEXT_COMMANDS[runtime]}`",),
+            pause_work_fragments=(f"`{_RUNTIME_PAUSE_WORK_COMMANDS[runtime]}`",),
+        )
+
+
+def _write_fake_launcher(script_path: Path, command_name: str) -> None:
+    script = f"""#!{sys.executable}
+import sys
+
+if sys.argv[1:] == ["--version"]:
+    print({command_name!r} + " 1.0.0")
+
+raise SystemExit(0)
+"""
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    script_path.write_text(script, encoding="utf-8")
+    script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
 def _write_fake_python(script_path: Path, log_path: Path, version_text: str = "Python 3.13.2") -> None:
     script = f"""#!{sys.executable}
 import json
 import os
 import pathlib
+import shutil
 import stat
 import sys
 
@@ -84,9 +239,15 @@ TAG_HTTPS_GIT_SPEC = {TAG_HTTPS_GIT_SPEC!r}
 MAIN_HTTPS_GIT_SPEC = {MAIN_HTTPS_GIT_SPEC!r}
 RUNTIME_LABELS = {_RUNTIME_DISPLAY_NAMES!r}
 LAUNCH_COMMANDS = {_RUNTIME_LAUNCH_COMMANDS!r}
+CONFIG_DIR_NAMES = {_RUNTIME_CONFIG_DIR_NAMES!r}
 HELP_COMMANDS = {_RUNTIME_HELP_COMMANDS!r}
+START_COMMANDS = {_RUNTIME_START_COMMANDS!r}
+TOUR_COMMANDS = {_RUNTIME_TOUR_COMMANDS!r}
 NEW_PROJECT_COMMANDS = {_RUNTIME_NEW_PROJECT_COMMANDS!r}
 MAP_RESEARCH_COMMANDS = {_RUNTIME_MAP_RESEARCH_COMMANDS!r}
+RESUME_WORK_COMMANDS = {_RUNTIME_RESUME_WORK_COMMANDS!r}
+SUGGEST_NEXT_COMMANDS = {_RUNTIME_SUGGEST_NEXT_COMMANDS!r}
+PAUSE_WORK_COMMANDS = {_RUNTIME_PAUSE_WORK_COMMANDS!r}
 ALL_RUNTIMES = {_RUNTIME_NAMES!r}
 
 
@@ -104,11 +265,186 @@ def format_runtime_list(runtimes: list[str]) -> str:
 def selected_runtimes(argv: list[str]) -> list[str]:
     if "--all" in argv:
         return list(ALL_RUNTIMES)
-    return [arg for arg in argv[3:] if arg in RUNTIME_LABELS]
+    runtimes = [arg for arg in argv if arg in RUNTIME_LABELS]
+    runtime_override = option_value(argv, "--runtime")
+    if runtime_override and runtime_override in RUNTIME_LABELS:
+        runtimes.append(runtime_override)
+    return list(dict.fromkeys(runtimes))
 
 
 def selected_scope(argv: list[str]) -> str:
     return "global" if "--global" in argv else "local"
+
+
+def recovery_ladder_for_runtime(runtime: str) -> str:
+    return {_RUNTIME_RECOVERY_LADDER_TEMPLATE!r}.format(
+        resume_work=f"`{{RESUME_WORK_COMMANDS[runtime]}}`",
+        suggest_next=f"`{{SUGGEST_NEXT_COMMANDS[runtime]}}`",
+        pause_work=f"`{{PAUSE_WORK_COMMANDS[runtime]}}`",
+    )
+
+
+def option_value(argv: list[str], flag: str) -> str | None:
+    try:
+        index = argv.index(flag)
+    except ValueError:
+        return None
+    if index + 1 >= len(argv):
+        return None
+    return argv[index + 1]
+
+
+def nearest_existing_ancestor(path: pathlib.Path) -> pathlib.Path:
+    candidate = path.expanduser().resolve()
+    while not candidate.exists() and candidate != candidate.parent:
+        candidate = candidate.parent
+    return candidate
+
+
+def doctor_target(runtime: str, scope: str, explicit_target: str | None) -> pathlib.Path:
+    if explicit_target:
+        return pathlib.Path(explicit_target).expanduser().resolve()
+    if scope == "global":
+        return pathlib.Path(os.path.expanduser("~")).resolve() / CONFIG_DIR_NAMES[runtime]
+    return pathlib.Path.cwd().resolve() / CONFIG_DIR_NAMES[runtime]
+
+
+def doctor_check_runtime_launcher(runtime: str) -> dict[str, object]:
+    launch_command = LAUNCH_COMMANDS[runtime]
+    launch_executable = launch_command.split()[0] if launch_command.split() else launch_command
+    launcher_path = shutil.which(launch_executable) if launch_executable else None
+    issues = [] if launcher_path else [f"{{launch_executable or launch_command}} not found on PATH"]
+    warnings = [] if launcher_path else [f"Install or expose {{RUNTIME_LABELS[runtime]}} before running GPD there."]
+    return {{
+        "status": "ok" if launcher_path else "fail",
+        "label": "Runtime Launcher",
+        "details": {{
+            "runtime": runtime,
+            "display_name": RUNTIME_LABELS[runtime],
+            "launch_command": launch_command,
+            "launch_executable": launch_executable or None,
+            "launcher_path": launcher_path,
+        }},
+        "issues": issues,
+        "warnings": warnings,
+    }}
+
+
+def doctor_check_runtime_target(target: pathlib.Path) -> dict[str, object]:
+    resolved = target.expanduser().resolve()
+    details: dict[str, object] = {{
+        "target": str(resolved),
+        "exists": resolved.exists(),
+    }}
+    issues: list[str] = []
+    warnings: list[str] = []
+
+    if resolved.exists() and not resolved.is_dir():
+        issues.append(f"{{resolved}} exists but is not a directory")
+        details["probe_dir"] = str(resolved)
+        return {{
+            "status": "fail",
+            "label": "Runtime Config Target",
+            "details": details,
+            "issues": issues,
+            "warnings": warnings,
+        }}
+
+    probe_dir = resolved if resolved.exists() else nearest_existing_ancestor(resolved.parent)
+    details["probe_dir"] = str(probe_dir)
+    if not probe_dir.exists():
+        issues.append(f"No existing parent directory found for {{resolved}}")
+    elif not probe_dir.is_dir():
+        issues.append(f"{{probe_dir}} is not a directory")
+    elif not os.access(probe_dir, os.W_OK | os.X_OK):
+        issues.append(f"{{probe_dir}} is not writable")
+    elif not resolved.exists():
+        warnings.append(f"{{resolved}} does not exist yet; GPD will create it during install.")
+
+    return {{
+        "status": "fail" if issues else "ok",
+        "label": "Runtime Config Target",
+        "details": details,
+        "issues": issues,
+        "warnings": warnings,
+    }}
+
+
+def doctor_check_provider_auth(runtime: str, target: pathlib.Path) -> dict[str, object]:
+    launch_command = LAUNCH_COMMANDS[runtime]
+    return {{
+        "status": "ok",
+        "label": "Provider/Auth Guidance",
+        "details": {{
+            "runtime": runtime,
+            "launch_command": launch_command,
+            "target": str(target.expanduser().resolve()),
+            "verification": "manual",
+        }},
+        "issues": [],
+        "warnings": [
+            (
+                f"GPD does not verify provider credentials automatically for {{runtime}}. "
+                f"Launch `{{launch_command}}` once and confirm your account or API provider is configured."
+            )
+        ],
+    }}
+
+
+def doctor_report(argv: list[str]) -> dict[str, object]:
+    runtime = option_value(argv, "--runtime")
+    scope = selected_scope(argv)
+    target = doctor_target(runtime, scope, option_value(argv, "--target-dir"))
+    checks = [
+        {{
+            "status": "ok",
+            "label": "Python Runtime",
+            "details": {{
+                "version": {version_text!r}.replace("Python ", ""),
+                "venv_available": True,
+                "active_virtualenv": "venv" in pathlib.Path(sys.argv[0]).parts,
+                "python_executable": sys.executable,
+            }},
+            "issues": [],
+            "warnings": [],
+        }},
+        {{
+            "status": "ok",
+            "label": "Package Imports",
+            "details": {{"modules_checked": 4}},
+            "issues": [],
+            "warnings": [],
+        }},
+        doctor_check_runtime_launcher(runtime),
+        doctor_check_runtime_target(target),
+        {{
+            "status": "ok",
+            "label": "Bootstrap Network Access",
+            "details": {{"skipped": True, "reason": "disabled by GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES"}},
+            "issues": [],
+            "warnings": [],
+        }},
+        doctor_check_provider_auth(runtime, target),
+    ]
+    ok_count = sum(1 for check in checks if check["status"] == "ok")
+    warn_count = sum(1 for check in checks if check["status"] == "warn")
+    fail_count = sum(1 for check in checks if check["status"] == "fail")
+    overall = "fail" if fail_count > 0 else "warn" if warn_count > 0 else "ok"
+    return {{
+        "overall": overall,
+        "version": {PYTHON_PACKAGE_VERSION!r},
+        "mode": "runtime-readiness",
+        "runtime": runtime,
+        "install_scope": scope,
+        "target": str(target),
+        "summary": {{
+            "ok": ok_count,
+            "warn": warn_count,
+            "fail": fail_count,
+            "total": len(checks),
+        }},
+        "checks": checks,
+    }}
 
 
 def record() -> None:
@@ -188,6 +524,11 @@ if args[:4] == ["-m", "pip", "install", "--upgrade"]:
     record()
     raise SystemExit(0)
 
+if args[:4] == ["-m", "gpd.cli", "--raw", "doctor"]:
+    print(json.dumps(doctor_report(args)))
+    record()
+    raise SystemExit(0)
+
 if args[:3] == ["-m", "gpd.cli", "install"]:
     runtimes = selected_runtimes(args)
     scope = selected_scope(args)
@@ -195,7 +536,9 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
     for runtime in runtimes:
         print(f"✓ {{RUNTIME_LABELS[runtime]}}")
     print("Install Summary")
-    print("Next steps")
+    print("Startup checklist")
+    print(f"Beginner Onboarding Hub: {_BEGINNER_ONBOARDING_HUB_URL}")
+    print("First-run order: `help -> start -> tour -> new-project / map-research -> resume-work`")
     if len(runtimes) == 1:
         runtime = runtimes[0]
         print(
@@ -204,17 +547,66 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
         )
         print(f"2. Run {{HELP_COMMANDS[runtime]}} for the command list.")
         print(
-            "3. Start with "
+            "3. Run "
+            f"{{START_COMMANDS[runtime]}} if you're not sure what fits this folder yet. "
+            "Run "
+            f"{{TOUR_COMMANDS[runtime]}} if you want a read-only overview of the broader command surface first."
+        )
+        print(
+            "4. Then use "
             f"{{NEW_PROJECT_COMMANDS[runtime]}} for a new project or "
             f"{{MAP_RESEARCH_COMMANDS[runtime]}} for existing work."
+        )
+        print(
+            "5. Fast bootstrap: use "
+            f"{{NEW_PROJECT_COMMANDS[runtime]}} --minimal for the shortest onboarding path."
+        )
+        print(
+            f"6. When you return later, use {{RESUME_WORK_COMMANDS[runtime]}} after reopening the right workspace. "
+            f"{{recovery_ladder_for_runtime(runtime)}}"
+        )
+        print("")
+        print("Secondary follow-up")
+        print("7. Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics.")
+        print(f"8. Run gpd doctor --runtime {{runtime}} --{{scope}} for a focused readiness check.")
+        print(f"9. {_POST_START_SETTINGS_NOTE} {_POST_START_SETTINGS_RECOMMENDATION}")
+        print(
+            "10. If you plan to use paper/manuscript workflows, rerun "
+            f"gpd doctor --runtime {{runtime}} --{{scope}} "
+            "and check the `Workflow Presets` and `LaTeX Toolchain` rows before publication work."
+        )
+        print(
+            "Use `gpd presets list` to inspect the workflow preset surface: "
+            "Core research, Theory, Numerics, Publication / manuscript, Full research."
         )
     else:
         for runtime in runtimes:
             print(
-                f"- {{RUNTIME_LABELS[runtime]}} ({{LAUNCH_COMMANDS[runtime]}}), then "
+                f"- {{RUNTIME_LABELS[runtime]}} ({{LAUNCH_COMMANDS[runtime]}}): "
                 f"{{HELP_COMMANDS[runtime]}}, then "
-                f"{{NEW_PROJECT_COMMANDS[runtime]}} or {{MAP_RESEARCH_COMMANDS[runtime]}}"
+                f"{{START_COMMANDS[runtime]}}, then "
+                f"{{TOUR_COMMANDS[runtime]}}, then "
+                f"{{NEW_PROJECT_COMMANDS[runtime]}} for new work or "
+                f"{{MAP_RESEARCH_COMMANDS[runtime]}} for existing work, then "
+                f"{{RESUME_WORK_COMMANDS[runtime]}} when you return later."
             )
+        print(
+            f"Fast bootstrap: use {{NEW_PROJECT_COMMANDS[runtimes[0]]}} --minimal for the shortest onboarding path."
+        )
+        print({_GENERIC_RECOVERY_LADDER_NOTE!r})
+        print("Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics.")
+        print("Run gpd doctor --runtime <runtime> --local|--global for a focused readiness check.")
+        print(
+            f"{_POST_START_SETTINGS_NOTE} {_POST_START_SETTINGS_RECOMMENDATION}"
+        )
+        print(
+            "For paper/manuscript workflows, rerun gpd doctor --runtime <runtime> --local|--global "
+            "and check the `Workflow Presets` and `LaTeX Toolchain` rows before publication work."
+        )
+        print(
+            "Use `gpd presets list` to inspect the workflow preset surface: "
+            "Core research, Theory, Numerics, Publication / manuscript, Full research."
+        )
     record()
     raise SystemExit(0)
 
@@ -239,6 +631,10 @@ def _run_bootstrap_with_fake_python(
     python_versions: dict[str, str] | None = None,
     precreate_managed_version: str | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
+    node_path = shutil.which("node")
+    if node_path is None:
+        raise RuntimeError("node is required for bootstrap installer tests")
+
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir(parents=True)
@@ -258,6 +654,17 @@ def _run_bootstrap_with_fake_python(
     for name, version_text in versions.items():
         _write_fake_python(fake_bin / name, log_path, version_text)
 
+    missing_launchers = {
+        token.strip().lower()
+        for token in (extra_env or {}).get("FAKE_MISSING_LAUNCHERS", "").split(",")
+        if token.strip()
+    }
+    for runtime in _RUNTIME_NAMES:
+        launch_command = _RUNTIME_LAUNCH_COMMANDS[runtime]
+        if runtime.lower() in missing_launchers or launch_command.lower() in missing_launchers:
+            continue
+        _write_fake_launcher(fake_bin / launch_command, launch_command)
+
     if precreate_managed_version is not None:
         managed_bin = home / "GPD" / "venv" / "bin"
         for name in ("python", "python3"):
@@ -267,12 +674,12 @@ def _run_bootstrap_with_fake_python(
     env["HOME"] = str(home)
     env["GPD_HOME"] = str(home / "GPD")
     env["GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES"] = "1"
-    env["PATH"] = os.pathsep.join([str(local_bin), str(fake_bin), env.get("PATH", "")])
+    env["PATH"] = os.pathsep.join([str(local_bin), str(fake_bin)])
     if extra_env:
         env.update(extra_env)
 
     result = subprocess.run(
-        ["node", "bin/install.js", *(installer_args or [_CODEX_INSTALL_FLAG, "--local"])],
+        [node_path, "bin/install.js", *(installer_args or [_CODEX_INSTALL_FLAG, "--local"])],
         cwd=REPO_ROOT,
         env=env,
         capture_output=True,
@@ -312,20 +719,37 @@ def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) ->
         entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", _CODEX_RUNTIME_NAME, "--local"]
     ]
     assert len(managed_runtime_installs) == 1
+    managed_runtime_doctor = [
+        entry
+        for entry in entries
+        if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "--raw", "doctor", "--runtime", _CODEX_RUNTIME_NAME, "--local"]
+    ]
+    assert len(managed_runtime_doctor) == 1
+    doctor_index = next(
+        index
+        for index, entry in enumerate(entries)
+        if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "--raw", "doctor", "--runtime", _CODEX_RUNTIME_NAME, "--local"]
+    )
+    install_index = next(
+        index
+        for index, entry in enumerate(entries)
+        if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "install", _CODEX_RUNTIME_NAME, "--local"]
+    )
+    assert doctor_index < install_index
 
     assert (home / "GPD" / "venv" / "bin" / "python").exists()
     assert f"GPD v{PACKAGE_VERSION} - Get Physics Done" in result.stdout
     assert "© 2026 Physical Superintelligence PBC (PSI)" in result.stdout
     assert f"Installing GPD (local) for: {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}" in result.stdout
+    assert "Runtime launcher/target preflight" in result.stdout
+    assert f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: launcher/target preflight passed" in result.stdout
+    assert "GPD does not verify provider credentials automatically" in result.stdout
+    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in result.stdout
     assert "Install Summary" in result.stdout
-    assert "Next steps" in result.stdout
-    assert f"1. Open {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} from your system terminal ({_CODEX_RUNTIME_NAME})." in result.stdout
-    assert f"2. Run {_RUNTIME_HELP_COMMANDS[_CODEX_RUNTIME_NAME]} for the command list." in result.stdout
-    assert (
-        f"3. Start with {_RUNTIME_NEW_PROJECT_COMMANDS[_CODEX_RUNTIME_NAME]} for a new project or "
-        f"{_RUNTIME_MAP_RESEARCH_COMMANDS[_CODEX_RUNTIME_NAME]} for existing work."
-        in result.stdout
-    )
+    assert "Startup checklist" in result.stdout
+    assert "Beginner Onboarding Hub:" in result.stdout
+    assert _BEGINNER_ONBOARDING_HUB_URL in result.stdout
+    _assert_single_runtime_next_steps(result.stdout, _CODEX_RUNTIME_NAME)
     assert f"Installing GPD for {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)..." not in result.stdout
     assert f"Installed GPD for {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)." not in result.stdout
 
@@ -358,9 +782,14 @@ def test_bootstrap_uninstall_routes_to_runtime_uninstall(tmp_path: Path) -> None
         entry for entry in entries if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "uninstall", _CODEX_RUNTIME_NAME, "--local"]
     ]
     assert len(managed_runtime_uninstalls) == 1
+    managed_runtime_doctor = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "gpd.cli", "--raw", "doctor"]
+    ]
+    assert managed_runtime_doctor == []
 
     assert (home / "GPD" / "venv" / "bin" / "python").exists()
     assert f"Preparing managed GPD CLI from PyPI (get-physics-done=={PYTHON_PACKAGE_VERSION}) into the managed environment..." in result.stdout
+    assert "Runtime launcher/target preflight" not in result.stdout
     assert f"Uninstalling GPD from {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]} (local)..." in result.stdout
     assert "runtime uninstall ok" in result.stdout
 
@@ -404,6 +833,7 @@ def test_bootstrap_install_subcommand_accepts_positional_runtime_alias(tmp_path:
     assert len(managed_runtime_installs) == 1
     assert f"Installing GPD (local) for: {_RUNTIME_DISPLAY_NAMES[_CLAUDE_RUNTIME_NAME]}" in result.stdout
     assert "Install Summary" in result.stdout
+    _assert_single_runtime_next_steps(result.stdout, _CLAUDE_RUNTIME_NAME)
     assert f"Installed GPD for {_RUNTIME_DISPLAY_NAMES[_CLAUDE_RUNTIME_NAME]} (local)." not in result.stdout
 
 
@@ -474,6 +904,92 @@ def test_bootstrap_install_requires_explicit_scope_non_interactively(tmp_path: P
     assert result.returncode == 1
     assert "Specify --global or --local when running non-interactively." in result.stderr
     assert not log_path.exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_install_blocks_when_selected_runtime_launcher_is_missing(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        extra_env={"FAKE_MISSING_LAUNCHERS": _CODEX_RUNTIME_NAME},
+    )
+
+    assert result.returncode == 1
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+    assert len(managed_pip_installs) == 1
+
+    managed_runtime_doctor = [
+        entry
+        for entry in entries
+        if entry["managed"] and entry["argv"] == ["-m", "gpd.cli", "--raw", "doctor", "--runtime", _CODEX_RUNTIME_NAME, "--local"]
+    ]
+    assert len(managed_runtime_doctor) == 1
+    managed_runtime_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:3] == ["-m", "gpd.cli", "install"]
+    ]
+    assert managed_runtime_installs == []
+    assert "Runtime launcher/target preflight failed." in result.stderr
+    assert (
+        f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: Runtime Launcher: "
+        f"{_RUNTIME_LAUNCH_COMMANDS[_CODEX_RUNTIME_NAME]} not found on PATH"
+    ) in result.stderr
+    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_install_blocks_when_target_dir_is_not_writable(tmp_path: Path) -> None:
+    protected_parent = tmp_path / "protected"
+    protected_parent.mkdir()
+    protected_parent.chmod(0o555)
+    target_dir = protected_parent / _RUNTIME_ADAPTERS[_CODEX_RUNTIME_NAME].config_dir_name
+
+    try:
+        result, _, log_path = _run_bootstrap_with_fake_python(
+            tmp_path,
+            installer_args=[_CODEX_INSTALL_FLAG, "--local", "--target-dir", str(target_dir)],
+        )
+    finally:
+        protected_parent.chmod(0o755)
+
+    assert result.returncode == 1
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+    assert len(managed_pip_installs) == 1
+
+    managed_runtime_doctor = [
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "--raw",
+            "doctor",
+            "--runtime",
+            _CODEX_RUNTIME_NAME,
+            "--local",
+            "--target-dir",
+            str(target_dir),
+        ]
+    ]
+    assert len(managed_runtime_doctor) == 1
+    managed_runtime_installs = [
+        entry for entry in entries if entry["managed"] and entry["argv"][:3] == ["-m", "gpd.cli", "install"]
+    ]
+    assert managed_runtime_installs == []
+    assert "Runtime launcher/target preflight failed." in result.stderr
+    assert f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: Runtime Config Target:" in result.stderr
+    assert "is not writable" in result.stderr
+    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local --target-dir " in result.stdout
+    assert f"{_RUNTIME_ADAPTERS[_CODEX_RUNTIME_NAME].config_dir_name}`" in result.stdout
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -560,6 +1076,23 @@ def test_bootstrap_forwards_target_dir_to_runtime_install(tmp_path: Path) -> Non
         and entry["argv"] == ["-m", "gpd.cli", "install", _CODEX_RUNTIME_NAME, "--local", "--target-dir", str(target_dir)]
     ]
     assert len(managed_runtime_installs) == 1
+    managed_runtime_doctor = [
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "--raw",
+            "doctor",
+            "--runtime",
+            _CODEX_RUNTIME_NAME,
+            "--local",
+            "--target-dir",
+            str(target_dir),
+        ]
+    ]
+    assert len(managed_runtime_doctor) == 1
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -583,6 +1116,23 @@ def test_bootstrap_preserves_global_scope_for_canonical_global_target_dir(tmp_pa
     ]
 
     assert len(managed_runtime_installs) == 1
+    managed_runtime_doctor = [
+        entry
+        for entry in entries
+        if entry["managed"]
+        and entry["argv"] == [
+            "-m",
+            "gpd.cli",
+            "--raw",
+            "doctor",
+            "--runtime",
+            _CODEX_RUNTIME_NAME,
+            "--global",
+            "--target-dir",
+            str(target_dir),
+        ]
+    ]
+    assert len(managed_runtime_doctor) == 1
     assert f"Installing GPD (global) for: {_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}" in result.stdout
 
 
@@ -749,8 +1299,7 @@ def test_bootstrap_upgrade_fails_closed_without_falling_back_to_release_sources(
     assert TAG_ARCHIVE_SPEC not in managed_pip_targets
     assert TAG_HTTPS_GIT_SPEC not in managed_pip_targets
     assert managed_runtime_installs == []
-    assert "GitHub main upgrade failed across all main-branch candidates." in result.stdout
-    assert "broader GitHub source candidate set" not in result.stdout
+    assert "git checkout could not resolve branch main" in result.stderr
     assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
 
 
@@ -770,9 +1319,18 @@ def test_bootstrap_supports_all_runtime_install_in_one_pass(tmp_path: Path) -> N
     for runtime in _RUNTIME_NAMES:
         assert _RUNTIME_DISPLAY_NAMES[runtime] in result.stdout
     assert "Install Summary" in result.stdout
-    assert "Next steps" in result.stdout
+    assert "Startup checklist" in result.stdout
+    assert "Beginner Onboarding Hub:" in result.stdout
+    assert _BEGINNER_ONBOARDING_HUB_URL in result.stdout
     for runtime in _RUNTIME_NAMES:
-        assert _next_step_line(runtime) in result.stdout
+        _assert_multi_runtime_next_steps_line(result.stdout, runtime)
+    _assert_install_summary_semantic_contract(
+        result.stdout,
+        runtime_help_fragments=tuple(_RUNTIME_HELP_COMMANDS[runtime] for runtime in _RUNTIME_NAMES),
+        resume_work_fragments=("your runtime-specific `resume-work` command",),
+        suggest_next_fragments=("your runtime-specific `suggest-next` command",),
+        pause_work_fragments=("your runtime-specific `pause-work` command",),
+    )
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -832,9 +1390,10 @@ def test_bootstrap_prefers_preflighted_tag_git_candidate_when_tag_archive_is_ina
     ]
 
     assert managed_pip_targets == [PYPI_SPEC, TAG_HTTPS_GIT_SPEC]
-    assert "PyPI install failed. Falling back to GitHub source..." in result.stdout
-    assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable: HTTP 404." in result.stdout
-    assert f"Installing GPD from HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} into the managed environment..." in result.stdout
+    combined_output = result.stdout + result.stderr
+    assert "PyPI install failed. Falling back to GitHub source..." in combined_output
+    assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable: HTTP 404." in combined_output
+    assert f"Installing GPD from HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} into the managed environment..." in combined_output
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -866,15 +1425,13 @@ def test_bootstrap_release_install_fails_closed_without_falling_back_to_main_sou
     assert result.returncode == 1
 
     entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
-    managed_pip_installs = [
-        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    managed_pip_targets = [
+        entry["argv"][-1]
+        for entry in entries
+        if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
     ]
 
-    assert len(managed_pip_installs) == 1  # PyPI attempted but failed
-    assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable: HTTP 404." in result.stdout
-    assert f"Detected that HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} is unavailable: tag v{PYTHON_PACKAGE_VERSION} is not published." in result.stdout
-    assert "No accessible tagged GitHub release source candidate was detected." in result.stdout
-    assert "main branch" not in result.stdout
+    assert managed_pip_targets == [PYPI_SPEC]
     assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION} from GitHub sources." in result.stderr
 
 
@@ -907,15 +1464,13 @@ def test_bootstrap_fails_closed_when_probes_mark_all_public_sources_unavailable(
     assert result.returncode == 1
 
     entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
-    managed_pip_installs = [
-        entry for entry in entries if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    managed_pip_targets = [
+        entry["argv"][-1]
+        for entry in entries
+        if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
     ]
 
-    assert len(managed_pip_installs) == 1  # PyPI attempted but failed
-    assert f"Detected that GitHub source archive for v{PYTHON_PACKAGE_VERSION} is unavailable: HTTP 404." in result.stdout
-    assert f"Detected that HTTPS git checkout for v{PYTHON_PACKAGE_VERSION} is unavailable: git exit 2." in result.stdout
-    assert "No accessible tagged GitHub release source candidate was detected." in result.stdout
-    assert "main branch" not in result.stdout
+    assert managed_pip_targets == [PYPI_SPEC]
     assert f"Failed to install GPD v{PYTHON_PACKAGE_VERSION}" in result.stderr
 
 

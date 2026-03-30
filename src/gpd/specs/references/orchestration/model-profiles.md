@@ -2,6 +2,8 @@
 
 Model profiles control which model tier each GPD agent uses. This allows balancing quality vs token spend.
 
+For first-touch setup, treat `review` plus runtime defaults as the recommended starting point. If a user wants to think in plain language instead of tiers, frame the choice as `Max quality`, `Balanced`, or `Budget-aware`, then let `/gpd:settings` map that posture onto the existing profile and runtime-specific tier override machinery. Keep explicit tier IDs as the advanced path.
+
 ## Tier System
 
 GPD uses capability tiers instead of platform-specific model names:

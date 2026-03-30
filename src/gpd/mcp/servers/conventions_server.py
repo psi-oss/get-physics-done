@@ -29,7 +29,6 @@ from gpd.core.conventions import (
     convention_list,
     normalize_key,
     normalize_value,
-    validate_assertions,
 )
 from gpd.core.conventions import (
     convention_check as _convention_check,
@@ -500,24 +499,32 @@ def assert_convention_validate(file_content: str, lock: dict) -> dict:
 
     Returns mismatches and missing assertions.
     """
-    from gpd.core.conventions import parse_assert_conventions
+    from gpd.core.conventions import check_assertions, parse_assert_conventions, required_assertion_keys
 
     with gpd_span("mcp.conventions.assert_validate"):
         try:
             parsed_lock = ConventionLock(**lock)
             assertions = parse_assert_conventions(file_content)
-            mismatches = validate_assertions(file_content, parsed_lock, filename="<mcp_input>")
+            result = check_assertions(
+                file_content,
+                parsed_lock,
+                filename="<mcp_input>",
+                require_assertions=True,
+                required_keys=required_assertion_keys(parsed_lock),
+            )
         except (ConventionError, OSError, ValueError, TimeoutError) as exc:
             return stable_mcp_error(exc)
         except Exception as exc:  # pragma: no cover - defensive envelope
             return stable_mcp_error(exc)
 
-    if not assertions:
+    if result.missing_required_assertions:
         return stable_mcp_response(
             {
                 "valid": False,
-                "assertions_found": 0,
+                "assertions_found": result.assertion_count,
                 "message": "No ASSERT_CONVENTION lines found. Every derivation file must include at least one.",
+                "required_keys": result.required_keys,
+                "missing_required_keys": result.missing_required_keys,
                 "mismatches": [],
                 "assertions": [],
             }
@@ -525,9 +532,11 @@ def assert_convention_validate(file_content: str, lock: dict) -> dict:
 
     return stable_mcp_response(
         {
-            "valid": len(mismatches) == 0,
-            "assertions_found": len(assertions),
+            "valid": result.passed,
+            "assertions_found": result.assertion_count,
             "assertions": [{"key": k, "value": v} for k, v in assertions],
+            "required_keys": result.required_keys,
+            "missing_required_keys": result.missing_required_keys,
             "mismatches": [
                 {
                     "key": m.key,
@@ -538,7 +547,7 @@ def assert_convention_validate(file_content: str, lock: dict) -> dict:
                         f"but lock has {m.key}={m.lock_value}"
                     ),
                 }
-                for m in mismatches
+                for m in result.mismatches
             ],
         }
     )

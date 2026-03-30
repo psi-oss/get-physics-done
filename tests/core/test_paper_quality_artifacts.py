@@ -15,6 +15,29 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def _full_convention_lock() -> dict[str, str]:
+    return {
+        "metric_signature": "mostly-plus",
+        "fourier_convention": "physics",
+        "natural_units": "natural",
+        "gauge_choice": "Lorenz",
+        "regularization_scheme": "dim-reg",
+        "renormalization_scheme": "MS-bar",
+        "coordinate_system": "spherical",
+        "spin_basis": "helicity",
+        "state_normalization": "relativistic",
+        "coupling_convention": "alpha",
+        "index_positioning": "NW-SE",
+        "time_ordering": "T-product",
+        "commutation_convention": "canonical",
+        "levi_civita_sign": "+1",
+        "generator_normalization": "standard",
+        "covariant_derivative_sign": "+",
+        "gamma_matrix_convention": "Dirac",
+        "creation_annihilation_order": "normal",
+    }
+
+
 def test_build_paper_quality_input_reads_contract_and_comparison_artifacts(tmp_path: Path) -> None:
     _write(
         tmp_path / "paper" / "main.tex",
@@ -294,11 +317,101 @@ def test_build_paper_quality_input_is_conservative_when_artifacts_are_missing(tm
     assert result.journal == "generic"
     assert result.verification.report_passed.passed is False
     assert result.verification.contract_targets_verified.not_applicable is True
+    assert result.conventions.assert_convention_coverage.not_applicable is True
     assert result.results.decisive_artifacts_with_explicit_verdicts.not_applicable is True
     assert result.completeness.required_sections_present.satisfied == 1
 
     report = score_paper_quality(result)
     assert report.categories["verification"].checks["contract_targets_verified"] == 5.0
+
+
+def test_build_paper_quality_input_surfaces_convention_lock_and_derivation_assertion_coverage(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        "\\documentclass{article}\\begin{document}\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
+    )
+    _write(
+        tmp_path / "GPD" / "state.json",
+        json.dumps({"convention_lock": _full_convention_lock()}, indent=2),
+    )
+    _write(
+        tmp_path / "GPD" / "analysis" / "derivation-dispersion.md",
+        "<!-- ASSERT_CONVENTION: metric_signature=mostly-plus, fourier_convention=physics -->\n\n# Derivation\n",
+    )
+    _write(
+        tmp_path / "GPD" / "phases" / "01-benchmark" / "derivation-threshold.md",
+        "<!-- ASSERT_CONVENTION: metric_signature=mostly-plus, fourier_convention=physics -->\n\n# Derivation\n",
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.conventions.convention_lock_complete.passed is True
+    assert result.conventions.assert_convention_coverage.satisfied == 2
+    assert result.conventions.assert_convention_coverage.total == 2
+
+
+def test_build_paper_quality_input_counts_only_matching_derivation_assertions(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        "\\documentclass{article}\\begin{document}\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
+    )
+    _write(
+        tmp_path / "GPD" / "state.json",
+        json.dumps({"convention_lock": _full_convention_lock()}, indent=2),
+    )
+    _write(
+        tmp_path / "GPD" / "analysis" / "derivation-valid.md",
+        "<!-- ASSERT_CONVENTION: metric_signature=mostly-plus, fourier_convention=physics -->\n\n# Derivation\n",
+    )
+    _write(
+        tmp_path / "GPD" / "analysis" / "derivation-mismatch.md",
+        "<!-- ASSERT_CONVENTION: metric_signature=mostly-minus, fourier_convention=physics -->\n\n# Derivation\n",
+    )
+    _write(
+        tmp_path / "GPD" / "phases" / "01-benchmark" / "derivation-missing.md",
+        "# Derivation\n",
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.conventions.convention_lock_complete.passed is True
+    assert result.conventions.assert_convention_coverage.satisfied == 1
+    assert result.conventions.assert_convention_coverage.total == 3
+
+
+def test_build_paper_quality_input_counts_python_and_tex_derivation_artifacts(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        "\\documentclass{article}\\begin{document}\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
+    )
+    _write(
+        tmp_path / "GPD" / "state.json",
+        json.dumps({"convention_lock": _full_convention_lock()}, indent=2),
+    )
+    _write(
+        tmp_path / "GPD" / "analysis" / "derivation-shell.py",
+        "# ASSERT_CONVENTION: metric_signature=mostly-plus, fourier_convention=physics\n\nprint('ok')\n",
+    )
+    _write(
+        tmp_path / "GPD" / "analysis" / "derivation-notes.tex",
+        "% ASSERT_CONVENTION: metric_signature=mostly-plus, fourier_convention=physics\n\n\\section{Derivation}\n",
+    )
+    _write(
+        tmp_path / "GPD" / "analysis" / "derivation-outline.md",
+        "<!-- ASSERT_CONVENTION: metric_signature=mostly-plus, fourier_convention=physics -->\n\n# Derivation\n",
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.conventions.convention_lock_complete.passed is True
+    assert result.conventions.assert_convention_coverage.satisfied == 3
+    assert result.conventions.assert_convention_coverage.total == 3
 
 
 def test_build_paper_quality_input_ignores_invalid_artifact_manifest_and_falls_back_to_config(tmp_path: Path) -> None:
@@ -456,6 +569,56 @@ Done.
     assert result.journal == "jhep"
     assert result.citations.citation_keys_resolve.satisfied == 1
     assert result.citations.citation_keys_resolve.total == 1
+
+
+def test_build_paper_quality_input_surfaces_current_manuscript_reference_status(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "main.tex",
+        r"""
+\documentclass{article}
+\begin{document}
+\begin{abstract}
+Reference bridge test.
+\end{abstract}
+\section{Introduction}
+See \cite{bench2026}.
+\section{Conclusion}
+Done.
+\end{document}
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "paper" / "BIBLIOGRAPHY-AUDIT.json",
+        json.dumps(
+            {
+                "generated_at": "2026-03-13T00:00:00+00:00",
+                "total_sources": 1,
+                "resolved_sources": 1,
+                "partial_sources": 0,
+                "unverified_sources": 0,
+                "failed_sources": 0,
+                "entries": [
+                    {
+                        "key": "bench2026",
+                        "reference_id": "ref-benchmark",
+                        "source_type": "paper",
+                        "title": "Benchmark",
+                        "resolution_status": "provided",
+                        "verification_status": "verified",
+                    }
+                ],
+            }
+        ),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.journal_extra_checks["manuscript_reference_status_present"] is True
+    assert result.journal_extra_checks["manuscript_reference_bridge_complete"] is True
+    assert result.citations.citation_keys_resolve.satisfied == 1
+    assert result.citations.citation_keys_resolve.total == 1
+    assert result.citations.hallucination_free.passed is True
 
 
 def test_build_paper_quality_input_checks_cited_keys_against_available_bibliography(tmp_path: Path) -> None:

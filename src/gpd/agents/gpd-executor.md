@@ -59,6 +59,21 @@ In both modes, stay inside the assigned write scope, produce the requested artif
 
 </execution_modes>
 
+<tool_preflight>
+
+## Specialized Tool Preflight
+
+When executing a real `PLAN.md`, inspect its frontmatter for optional `tool_requirements` before substantive work begins.
+
+- Run `gpd validate plan-preflight <PLAN.md path>` from the local CLI.
+- If preflight exits nonzero because a required specialized tool is unavailable, STOP and surface the blocking check instead of attempting the task blindly.
+- A declared fallback does not override a blocking `required: true` requirement. Only use a fallback automatically when preflight passes with warnings for a preferred (`required: false`) tool, the fallback preserves the plan's scientific intent, and the switch is recorded in `SUMMARY.md`.
+- Warnings alone do not force a fallback; they are caveats to keep visible during execution.
+- Keep `researcher_setup` separate: it is for human credentials or manual environment actions, not the machine-checkable tool-capability contract.
+- Treat canonical tool keys as runtime-agnostic capability labels. For Mathematica / Wolfram Language capability, use `wolfram`; do not hardcode runtime-specific MCP assumptions here.
+
+</tool_preflight>
+
 <self_critique_checkpoint>
 
 ## Self-Critique Checkpoint
@@ -181,10 +196,29 @@ RESEARCH_MODE=$(echo "$INIT" | python3 -c "import json,sys; print(json.load(sys.
 
 | Mode | Execution Style |
 |---|---|
-| **explore** | Document alternative approaches when encountered. If a calculation reveals an unexpected branch (different regime, sign change, additional solution), note it in the research log as a candidate for a hypothesis branch. Wider tolerance for "interesting but unplanned" results — flag them rather than treating as deviations. |
-| **balanced** (default) | Standard execution. Follow the plan. Document deviations per deviation rules. |
-| **exploit** | Strict plan adherence. No tangents. If an unexpected result appears, apply deviation rules immediately (don't explore it). Optimize for speed to the planned result. Skip optional elaboration even if context budget allows. |
-| **adaptive** | Start in explore style. When the plan's approach is validated (first limiting case passes, first benchmark matches), automatically switch to exploit style for the remainder. Document the transition point in the research log. |
+| **explore** | Surface interesting alternative paths when they appear, but keep them proposal-first. Use the 4-way tangent decision model below instead of silently exploring side work. |
+| **balanced** (default) | Standard execution. Follow the plan. If a non-blocking alternative path appears, classify it with the 4-way tangent decision model and continue only within approved scope. |
+| **exploit** | Strict plan adherence. Suppress optional tangents unless the user explicitly requested them. Default to `ignore` or `defer`; do not silently explore side work. Optimize for speed to the planned result. |
+| **adaptive** | Start in explore style for tangent proposals, then switch to exploit-style suppression once the plan's approach is validated (first limiting case passes, first benchmark matches, or the decisive path is otherwise locked). Document the transition point in the research log. |
+
+### Proposal-First Tangent Control
+
+A tangent is an unexpected but non-blocking alternative path: a different method family worth trying, an extra regime, an additional solution branch, or a side benchmark that looks interesting but is not yet required to complete the assigned plan.
+
+When a tangent appears, do not silently pursue it. Resolve it with exactly one of these four decisions:
+
+1. `ignore` — not materially useful; continue the mainline plan.
+2. `defer` — useful but not for now; record it in the research log / SUMMARY and continue the mainline plan.
+3. `branch_later` — strong enough to recommend an explicit follow-up such as `/gpd:tangent ...` or `/gpd:branch-hypothesis ...`, but do not create that branch or any side subagent yourself.
+4. `pursue_now` — only when the user explicitly requested tangent exploration or the approved contract already covers this alternative path.
+
+Operational rules:
+
+- If the tangent would change scope, consume nontrivial time, or create extra artifacts outside the assigned mainline, treat it as a proposal, not permission.
+- If the tangent is actually a blocker or a sign the current framing is wrong, this is not an optional tangent. Apply the normal deviation rules, skeptical review, or pre-fanout gates instead.
+- In `research_mode=exploit`, optional tangents are suppressed by default. Use `ignore` or `defer` unless the prompt or user explicitly asked to explore side paths.
+- Record the classification and one-line rationale in the research log and `SUMMARY.md`.
+- In spawned mode, surface tangent proposals through existing return channels: mention the classification in `gpd_return.issues` and any follow-up command in `gpd_return.next_actions`. Do not invent new shared-state fields or a new persistent tangent state machine.
 
 </autonomy_modes>
 
@@ -1067,6 +1101,12 @@ gpd_return:
 ```
 
 Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
+
+If a tangent proposal was encountered, keep it inside the existing return structure:
+
+- Put the classification and rationale in `issues`
+- Put any suggested follow-up such as `/gpd:tangent ...`, `/gpd:branch-hypothesis ...`, or "revisit after Wave N" in `next_actions`
+- Do not add new top-level return keys or shared-state fields for tangent handling
 
 </structured_returns>
 

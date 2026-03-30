@@ -5,7 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from gpd.core.state import state_add_decision, state_record_metric, state_record_session
+from gpd.core.state import (
+    default_state_dict,
+    load_state_json,
+    save_state_json,
+    state_add_decision,
+    state_clear_continuation_bounded_segment,
+    state_record_metric,
+    state_record_session,
+    state_set_continuation_bounded_segment,
+)
 
 
 class TestStateAddDecision:
@@ -214,6 +223,13 @@ class TestStateRecordSession:
         assert stored["session"]["stopped_at"] == "Phase 03 Plan 2"
         assert stored["session"]["resume_file"] == "next-step.md"
         assert stored["session"]["last_date"] is not None
+        assert stored["continuation"]["handoff"]["recorded_at"] == stored["session"]["last_date"]
+        assert stored["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 2"
+        assert stored["continuation"]["handoff"]["resume_file"] == "next-step.md"
+        assert stored["continuation"]["handoff"]["recorded_by"] == "state_record_session"
+        assert stored["continuation"]["machine"]["recorded_at"] == stored["session"]["last_date"]
+        assert stored["continuation"]["machine"]["hostname"] == stored["session"]["hostname"]
+        assert stored["continuation"]["machine"]["platform"] == stored["session"]["platform"]
 
     def test_record_session_preserves_resume_file_when_omitted(
         self, tmp_path: Path, session_state_project_factory
@@ -230,6 +246,7 @@ class TestStateRecordSession:
         assert "Done" in markdown
         assert "**Resume file:** resume.md" in markdown
         assert stored["session"]["resume_file"] == "resume.md"
+        assert stored["continuation"]["handoff"]["resume_file"] == "resume.md"
 
     @pytest.mark.parametrize("clear_value", ["", "  ", "—", "None", "null"])
     def test_record_session_clears_resume_file_when_placeholder_is_passed(
@@ -247,6 +264,7 @@ class TestStateRecordSession:
         markdown = (cwd / "GPD" / "STATE.md").read_text(encoding="utf-8")
 
         assert stored["session"]["resume_file"] is None
+        assert stored["continuation"]["handoff"]["resume_file"] is None
         assert "**Resume file:** —" in markdown
 
     def test_record_session_missing_state_file(self, tmp_path: Path) -> None:
@@ -254,3 +272,103 @@ class TestStateRecordSession:
 
         assert result.recorded is False
         assert "not found" in (result.error or "").lower()
+
+
+class TestStateContinuationBoundedSegment:
+    def test_set_continuation_bounded_segment_persists_json_only_and_preserves_session(
+        self, tmp_path: Path
+    ) -> None:
+        state = default_state_dict()
+        state["session"]["last_date"] = "2026-03-29T00:00:00+00:00"
+        state["session"]["stopped_at"] = "Phase 03 Plan 2"
+        state["session"]["resume_file"] = "resume.md"
+        save_state_json(tmp_path, state)
+
+        layout = tmp_path / "GPD"
+        before_markdown = (layout / "STATE.md").read_text(encoding="utf-8")
+        resume_path = layout / "phases" / "03-analysis" / ".continue-here.md"
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("continue", encoding="utf-8")
+
+        result = state_set_continuation_bounded_segment(
+            tmp_path,
+            {
+                "resume_file": str(resume_path),
+                "phase": 3,
+                "plan": "02",
+                "segment_id": "segment-03-02",
+                "segment_status": "blocked",
+                "waiting_for_review": True,
+            },
+        )
+
+        stored = load_state_json(tmp_path)
+        after_markdown = (layout / "STATE.md").read_text(encoding="utf-8")
+
+        assert result.updated is True
+        assert stored is not None
+        assert stored["session"]["resume_file"] == "resume.md"
+        assert stored["continuation"]["handoff"]["resume_file"] == "resume.md"
+        assert stored["continuation"]["bounded_segment"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
+        assert stored["continuation"]["bounded_segment"]["phase"] == "03"
+        assert stored["continuation"]["bounded_segment"]["plan"] == "02"
+        assert stored["continuation"]["bounded_segment"]["segment_id"] == "segment-03-02"
+        assert stored["continuation"]["bounded_segment"]["segment_status"] == "blocked"
+        assert stored["continuation"]["bounded_segment"]["waiting_for_review"] is True
+        assert after_markdown == before_markdown
+
+    def test_clear_continuation_bounded_segment_is_idempotent(self, tmp_path: Path) -> None:
+        state = default_state_dict()
+        state["session"]["resume_file"] = "resume.md"
+        state["continuation"]["bounded_segment"] = {
+            "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+            "phase": "03",
+            "plan": "02",
+            "segment_id": "segment-03-02",
+            "segment_status": "blocked",
+            "waiting_for_review": True,
+        }
+        save_state_json(tmp_path, state)
+
+        result = state_clear_continuation_bounded_segment(tmp_path)
+        stored = load_state_json(tmp_path)
+        second = state_clear_continuation_bounded_segment(tmp_path)
+
+        assert result.updated is True
+        assert stored is not None
+        assert stored["continuation"]["bounded_segment"] is None
+        assert stored["continuation"]["handoff"]["resume_file"] == "resume.md"
+        assert stored["session"]["resume_file"] == "resume.md"
+        assert second.updated is False
+        assert second.reason == "Continuation bounded_segment already clear"
+
+    def test_clear_continuation_bounded_segment_recovers_backup_after_primary_corruption(
+        self, tmp_path: Path
+    ) -> None:
+        state = default_state_dict()
+        state["session"]["last_date"] = "2026-03-29T12:00:00+00:00"
+        state["session"]["stopped_at"] = "Phase 03 Plan 2"
+        state["session"]["resume_file"] = "resume.md"
+        state["continuation"]["handoff"]["recorded_at"] = "2026-03-29T12:00:00+00:00"
+        state["continuation"]["handoff"]["stopped_at"] = "Phase 03 Plan 2"
+        state["continuation"]["bounded_segment"] = {
+            "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+            "phase": "03",
+            "plan": "02",
+            "segment_id": "segment-03-02",
+            "segment_status": "blocked",
+            "waiting_for_review": True,
+        }
+        save_state_json(tmp_path, state)
+
+        layout = tmp_path / "GPD"
+        (layout / "state.json").write_text("{\"broken\":", encoding="utf-8")
+
+        result = state_clear_continuation_bounded_segment(tmp_path)
+        stored = load_state_json(tmp_path)
+
+        assert result.updated is True
+        assert stored is not None
+        assert stored["continuation"]["handoff"]["resume_file"] == "resume.md"
+        assert stored["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 2"
+        assert stored["continuation"]["bounded_segment"] is None

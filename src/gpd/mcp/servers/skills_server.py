@@ -44,6 +44,7 @@ _CONTRACT_REFERENCE_NAMES = {
 _SPEC_ROOT = content_registry.SPECS_DIR.resolve()
 _AGENT_ROOT = content_registry.AGENTS_DIR.resolve()
 _COMMAND_ROOT = content_registry.COMMANDS_DIR.resolve()
+_WORKFLOW_ROOT = (_SPEC_ROOT / "workflows").resolve()
 _REPO_ROOT = _SPEC_ROOT.parents[2]
 _SPEC_RELATIVE_REFERENCE_PREFIXES = (
     "references/",
@@ -61,6 +62,8 @@ _SPEC_RELATIVE_REFERENCE_PREFIXES = (
     "subfields/",
     "orchestration/",
 )
+_RUNTIME_SLASH_PREFIX = "/" + "gpd:"
+_SKILL_COMMAND_PREFIX = "gpd-"
 _MARKDOWN_REFERENCE_RE = re.compile(
     r"(?P<path>(?:@?\{GPD_(?:INSTALL|AGENTS)_DIR\}/|(?:\.\./|\.\/)?"
     r"(?:references|workflows|templates|agents|commands|bundles|shared|domains|execution|verification|conventions|research|publication|protocols|subfields|orchestration|GPD|src/gpd)/)"
@@ -96,7 +99,11 @@ def _skill_index_label(skill: content_registry.SkillDef) -> str:
 
 def _canonicalize_command_surface(content: str) -> str:
     """Rewrite runtime-facing command examples to canonical ``gpd-*`` names."""
-    return rewrite_runtime_command_surfaces(content, canonical="skill")
+    content = rewrite_runtime_command_surfaces(content, canonical="skill")
+    return content.replace(f"`{_RUNTIME_SLASH_PREFIX}*`", f"`{_SKILL_COMMAND_PREFIX}*`").replace(
+        f"{_RUNTIME_SLASH_PREFIX}*",
+        f"{_SKILL_COMMAND_PREFIX}*",
+    )
 
 
 def _portable_skill_content(content: str) -> str:
@@ -106,6 +113,19 @@ def _portable_skill_content(content: str) -> str:
     content = re.sub(r"(?<!@)\{GPD_INSTALL_DIR\}(?=[^\s/`\"')])", "@{GPD_INSTALL_DIR}/", content)
     content = re.sub(r"(?<!@)\{GPD_AGENTS_DIR\}(?=[^\s/`\"')])", "@{GPD_AGENTS_DIR}/", content)
     return _canonicalize_command_surface(content)
+
+
+def _canonical_skill_content(skill: content_registry.SkillDef) -> tuple[str, Path]:
+    """Return the canonical content body and source path for a skill."""
+    source_path = Path(skill.path)
+    content = skill.content
+
+    if skill.source_kind == "command" and skill.registry_name == "help":
+        workflow_path = (_WORKFLOW_ROOT / "help.md").resolve()
+        content = workflow_path.read_text(encoding="utf-8")
+        source_path = workflow_path
+
+    return _portable_skill_content(content), source_path
 
 
 def _normalize_allowed_tools(tools: list[str]) -> list[str]:
@@ -360,8 +380,8 @@ def get_skill(name: str) -> dict:
                     error=f"Skill {name!r} not found",
                 )
 
-            content = _portable_skill_content(skill.content)
-            referenced_files = _extract_referenced_files(content, source_path=Path(skill.path))
+            content, source_path = _canonical_skill_content(skill)
+            referenced_files = _extract_referenced_files(content, source_path=source_path)
             template_references = [entry["path"] for entry in referenced_files if entry["kind"] == "template"]
             schema_references, schema_documents = _expanded_reference_documents(
                 referenced_files,
@@ -370,6 +390,11 @@ def get_skill(name: str) -> dict:
             contract_references, contract_documents = _expanded_reference_documents(
                 referenced_files,
                 predicate=_is_contract_reference,
+            )
+            loading_hint = (
+                "schema_documents and contract_documents already include the expanded canonical bodies. Use referenced_files for any additional workflow/context docs."
+                if referenced_files
+                else "No external markdown dependencies detected in the canonical skill body."
             )
             payload = {
                 "name": skill.name,
@@ -383,19 +408,23 @@ def get_skill(name: str) -> dict:
                 "schema_documents": schema_documents,
                 "contract_references": contract_references,
                 "contract_documents": contract_documents,
-                "loading_hint": (
-                    "schema_documents and contract_documents already include the expanded canonical bodies. Use referenced_files for any additional workflow/context docs."
-                    if referenced_files
-                    else "No external markdown dependencies detected in the canonical skill body."
-                ),
+                "loading_hint": loading_hint,
             }
             if skill.source_kind == "command":
                 command = content_registry.get_command(skill.registry_name)
                 allowed_tools = _normalize_allowed_tools(command.allowed_tools)
+                command_loading_hint = loading_hint
+                if command.review_contract is not None:
+                    command_loading_hint += (
+                        " The content field already includes a model-visible `Review Contract` section; "
+                        "if you also pass structured metadata, inject `review_contract` alongside `content`."
+                    )
                 payload.update(
                     {
                         "context_mode": command.context_mode,
+                        "project_reentry_capable": command.project_reentry_capable,
                         "argument_hint": command.argument_hint,
+                        "loading_hint": command_loading_hint,
                         "review_contract": (
                             dataclasses.asdict(command.review_contract) if command.review_contract is not None else None
                         ),

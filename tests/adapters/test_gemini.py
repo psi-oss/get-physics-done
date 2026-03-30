@@ -18,7 +18,7 @@ from gpd.adapters.gemini import (
     _render_gemini_policy_toml,
     _rewrite_gpd_cli_invocations,
 )
-from gpd.adapters.install_utils import build_runtime_cli_bridge_command
+from gpd.adapters.install_utils import build_runtime_cli_bridge_command, compile_markdown_for_runtime
 
 
 def expected_gemini_bridge(target: Path) -> str:
@@ -224,6 +224,47 @@ class TestConvertToGeminiToml:
         content = "---\nname: test\ncontext_mode: project-aware\n---\nPrompt body"
         result = _convert_to_gemini_toml(content)
         assert 'context_mode = "project-aware"' in result
+
+    def test_preserves_project_reentry_capable_as_source_metadata_comment(self) -> None:
+        content = (
+            "---\n"
+            "name: gpd:resume-work\n"
+            "context_mode: project-required\n"
+            "project_reentry_capable: true\n"
+            "---\n"
+            "Prompt body"
+        )
+
+        result = _convert_to_gemini_toml(content)
+
+        assert 'context_mode = "project-required"' in result
+        assert "# project_reentry_capable: true" in result
+        assert "project_reentry_capable =" not in result
+
+    def test_prepends_review_contract_to_prompt(self) -> None:
+        content = compile_markdown_for_runtime(
+            (
+                "---\n"
+                "name: gpd:peer-review\n"
+                "review-contract:\n"
+                "  review_mode: publication\n"
+                "  schema_version: 1\n"
+                "  required_outputs:\n"
+                "    - GPD/review/REFEREE-DECISION{round_suffix}.json\n"
+                "---\n"
+                "Prompt body"
+            ),
+            runtime="gemini",
+            path_prefix="/prefix/",
+        )
+
+        result = _convert_to_gemini_toml(content)
+
+        assert "## Review Contract" in result
+        assert "review-contract:" in result
+        assert "review_mode: publication" in result
+        assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in result
+        assert result.index("## Review Contract") < result.index("Prompt body")
 
     def test_uses_multiline_literal_string(self) -> None:
         content = "---\ndescription: D\n---\nMultiline\nprompt"
@@ -550,6 +591,80 @@ class TestInstall:
         assert server["trust"] is True
         assert settings["mcpServers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
 
+    def test_install_projects_managed_wolfram_mcp_without_secrets(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        monkeypatch.setenv("GPD_WOLFRAM_MCP_API_KEY", "super-secret-token")
+        monkeypatch.setenv("GPD_WOLFRAM_MCP_ENDPOINT", "https://example.invalid/api/mcp")
+
+        result = adapter.install(gpd_root, target)
+        adapter.finalize_install(result)
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        wolfram = settings["mcpServers"]["gpd-wolfram"]
+        assert wolfram["command"] == "gpd-mcp-wolfram"
+        assert wolfram["args"] == []
+        assert wolfram["env"] == {"GPD_WOLFRAM_MCP_ENDPOINT": "https://example.invalid/api/mcp"}
+        assert wolfram["trust"] is True
+        assert "super-secret-token" not in json.dumps(wolfram)
+        assert "GPD_WOLFRAM_MCP_API_KEY" not in json.dumps(wolfram)
+
+    def test_install_preserves_existing_managed_wolfram_overrides(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        monkeypatch.setenv("GPD_WOLFRAM_MCP_API_KEY", "super-secret-token")
+        monkeypatch.setenv("GPD_WOLFRAM_MCP_ENDPOINT", "https://example.invalid/api/mcp")
+        (target / "settings.json").write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "gpd-wolfram": {
+                            "command": "legacy-wolfram-bridge",
+                            "args": ["--legacy"],
+                            "env": {
+                                "GPD_WOLFRAM_MCP_ENDPOINT": "https://custom.invalid/api/mcp",
+                                "EXTRA_FLAG": "1",
+                            },
+                            "cwd": "/tmp/custom-wolfram",
+                            "timeout": 15000,
+                            "trust": False,
+                        },
+                        "custom-server": {"command": "node", "args": ["custom.js"]},
+                    }
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = adapter.install(gpd_root, target)
+        adapter.finalize_install(result)
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        wolfram = settings["mcpServers"]["gpd-wolfram"]
+        assert wolfram["command"] == "gpd-mcp-wolfram"
+        assert wolfram["args"] == []
+        assert wolfram["env"]["GPD_WOLFRAM_MCP_ENDPOINT"] == "https://custom.invalid/api/mcp"
+        assert wolfram["env"]["EXTRA_FLAG"] == "1"
+        assert wolfram["cwd"] == "/tmp/custom-wolfram"
+        assert wolfram["timeout"] == 15000
+        assert wolfram["trust"] is False
+        assert "super-secret-token" not in json.dumps(wolfram)
+        assert settings["mcpServers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
+
     def test_install_adds_policy_path_shell_sentinel_and_policy_file(
         self,
         adapter: GeminiAdapter,
@@ -852,6 +967,23 @@ class TestInstall:
 
 
 class TestRuntimePermissions:
+    def test_runtime_permissions_status_marks_yolo_launcher_as_relaunch_required(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+
+        status = adapter.runtime_permissions_status(target, autonomy="yolo")
+
+        assert status["config_aligned"] is True
+        assert status["requires_relaunch"] is True
+        assert "gemini-gpd-yolo" in str(status["next_step"])
+
     def test_sync_runtime_permissions_yolo_creates_launcher_wrapper(
         self,
         adapter: GeminiAdapter,
@@ -957,6 +1089,11 @@ class TestUninstall:
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         settings["mcpServers"]["custom-server"] = {"command": "node", "args": ["custom.js"]}
+        settings["mcpServers"]["gpd-wolfram"] = {
+            "command": "gpd-mcp-wolfram",
+            "args": [],
+            "env": {"GPD_WOLFRAM_MCP_ENDPOINT": "https://example.invalid/api/mcp"},
+        }
         (target / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
 
         adapter.uninstall(target)
@@ -993,6 +1130,38 @@ class TestUninstall:
         assert "tools" not in cleaned
         assert not (target / "bin" / "gpd").exists()
         assert not (target / "policies" / "gpd-auto-edit.toml").exists()
+
+    def test_uninstall_removes_legacy_tools_allowed_entries(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        adapter.finish_install(
+            result["settingsPath"],
+            result["settings"],
+            result["statuslineCommand"],
+            True,
+        )
+
+        settings_path = target / "settings.json"
+        manifest_path = target / "gpd-file-manifest.json"
+
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        settings["tools"] = {"allowed": ["read_file", "custom_tool"]}
+        settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.setdefault("managed_config", {})["tools.allowed"] = ["read_file"]
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        adapter.uninstall(target)
+
+        cleaned = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert cleaned["tools"]["allowed"] == ["custom_tool"]
 
     def test_uninstall_preserves_non_gpd_sessionstart_statusline_hook(
         self,

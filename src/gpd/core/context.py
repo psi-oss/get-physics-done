@@ -8,9 +8,9 @@ resolution so that defaults and model profiles are defined in exactly one place.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,7 +18,8 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.adapters.install_utils import AGENTS_DIR_NAME, FLAT_COMMANDS_DIR_NAME, GPD_INSTALL_DIR_NAME, HOOKS_DIR_NAME
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
-from gpd.contracts import ResearchContract, collect_contract_integrity_errors
+from gpd.contracts import ConventionLock, ResearchContract
+from gpd.core import state as _state_module
 from gpd.core.config import GPDProjectConfig
 from gpd.core.config import load_config as _load_config_structured
 from gpd.core.config import resolve_model as _resolve_model_canonical
@@ -45,17 +46,28 @@ from gpd.core.constants import (
     VERIFICATION_SUFFIX,
     ProjectLayout,
 )
-from gpd.core.contract_validation import (
-    _collect_list_shape_drift_errors,
-    _split_project_contract_schema_findings,
-    salvage_project_contract,
-    validate_project_contract,
-)
+from gpd.core.continuation import ContinuationResumeSource, resolve_continuation
 from gpd.core.errors import ValidationError
+from gpd.core.extras import approximation_list
 from gpd.core.phases import _milestone_completion_snapshot
+from gpd.core.project_reentry import resolve_project_reentry
 from gpd.core.protocol_bundles import render_protocol_bundle_context, select_protocol_bundles
-from gpd.core.reference_ingestion import ingest_reference_artifacts
-from gpd.core.state import EM_DASH, _current_machine_identity, _load_state_json_with_integrity_issues
+from gpd.core.reference_ingestion import ingest_manuscript_reference_status, ingest_reference_artifacts
+from gpd.core.results import result_list
+from gpd.core.resume_surface import (
+    build_resume_candidate,
+    build_resume_compat_surface,
+    build_resume_segment_candidate,
+    canonicalize_resume_public_payload,
+    resume_origin_for_bounded_segment,
+    resume_origin_for_handoff,
+    resume_origin_for_interrupted_agent,
+)
+from gpd.core.state import (
+    EM_DASH,
+    _current_machine_identity,
+    _finalize_project_contract_gate,
+)
 from gpd.core.state import peek_state_json as _peek_state_json
 from gpd.core.utils import (
     generate_slug as _generate_slug_impl,
@@ -87,6 +99,7 @@ _REFERENCE_ROLE_PRIORITY = {
 }
 
 _RESUME_FILE_CLEAR_VALUES = frozenset({"[not set]", "none", "null"})
+_RESUME_SURFACE_SCHEMA_VERSION = 1
 
 # Directories to skip when scanning for research files.
 _RUNTIME_IGNORED_SCAN_PATHS = frozenset(
@@ -152,6 +165,74 @@ def _state_exists(cwd: Path) -> bool:
     return isinstance(state, dict)
 
 
+def _structured_state_objects(value: object) -> list[dict[str, object]]:
+    """Return only structured mapping entries from a state section."""
+    if not isinstance(value, list):
+        return []
+    structured: list[dict[str, object]] = []
+    for item in value:
+        if isinstance(item, Mapping):
+            structured.append(dict(item))
+    return structured
+
+
+def _build_structured_state_runtime_context(cwd: Path) -> dict[str, object]:
+    """Build structured canonical state slices for init payloads."""
+    state, state_issues, state_source = _peek_state_json(cwd)
+    source = state_source.as_posix() if isinstance(state_source, Path) else str(state_source) if state_source else None
+    if not isinstance(state, dict):
+        return {
+            "state_load_source": source,
+            "state_integrity_issues": list(state_issues or []),
+            "convention_lock": {},
+            "intermediate_results": [],
+            "intermediate_result_count": 0,
+            "approximations": [],
+            "approximation_count": 0,
+            "propagated_uncertainties": [],
+            "propagated_uncertainty_count": 0,
+        }
+
+    convention_lock = state.get("convention_lock")
+    intermediate_results = _structured_state_objects(state.get("intermediate_results"))
+    approximations = _structured_state_objects(state.get("approximations"))
+    propagated_uncertainties = _structured_state_objects(state.get("propagated_uncertainties"))
+    return {
+        "state_load_source": source,
+        "state_integrity_issues": list(state_issues or []),
+        "convention_lock": dict(convention_lock) if isinstance(convention_lock, Mapping) else {},
+        "intermediate_results": intermediate_results,
+        "intermediate_result_count": len(intermediate_results),
+        "approximations": approximations,
+        "approximation_count": len(approximations),
+        "propagated_uncertainties": propagated_uncertainties,
+        "propagated_uncertainty_count": len(propagated_uncertainties),
+    }
+
+
+def _resolve_reentry_context(cwd: Path, *, data_root: Path | None = None) -> tuple[Path, dict[str, object]]:
+    """Return the effective project root plus shared re-entry metadata."""
+
+    resolution = resolve_project_reentry(cwd, data_root=data_root)
+    selected_project_root = resolution.resolved_project_root
+    effective_cwd = selected_project_root or cwd.expanduser().resolve(strict=False)
+    metadata: dict[str, object] = {
+        "workspace_root": resolution.workspace_root,
+        "project_root": selected_project_root.as_posix() if selected_project_root is not None else None,
+        "project_root_source": resolution.source or "workspace",
+        "project_root_auto_selected": resolution.auto_selected,
+        "project_reentry_mode": resolution.mode,
+        "project_reentry_requires_selection": resolution.requires_user_selection,
+        "project_reentry_selected_candidate": (
+            resolution.selected_candidate.model_dump(mode="json")
+            if resolution.selected_candidate is not None
+            else None
+        ),
+        "project_reentry_candidates": [candidate.model_dump(mode="json") for candidate in resolution.candidates],
+    }
+    return effective_cwd, metadata
+
+
 def _generate_slug(text: str | None) -> str | None:
     """Generate a URL-friendly slug from text.
 
@@ -212,200 +293,9 @@ def _extract_frontmatter_field(content: str, field: str) -> str | None:
     return val or None
 
 
-def _load_raw_project_contract_payload(cwd: Path) -> tuple[Path, object] | None:
-    """Return the raw project_contract payload from state storage."""
-    layout = ProjectLayout(cwd)
-
-    def _backup_project_contract(reason: str) -> tuple[Path, object] | None:
-        try:
-            raw_backup = json.loads(layout.state_json_backup.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
-            return None
-        if not isinstance(raw_backup, dict):
-            return None
-        logger.warning(
-            "Using project_contract from %s because %s",
-            layout.state_json_backup,
-            reason,
-        )
-        return layout.state_json_backup, raw_backup.get("project_contract")
-
-    def _read_state_payload(path: Path) -> object:
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
-            return None
-
-    if layout.state_intent.exists():
-        _load_state_json_with_integrity_issues(cwd, persist_recovery=True)
-
-    raw_state = _read_state_payload(layout.state_json)
-    source_path = layout.state_json
-
-    if raw_state is None:
-        logger.warning(
-            "Using project_contract from %s because the primary state.json was unavailable or unreadable",
-            layout.state_json_backup,
-        )
-        backup_payload = _backup_project_contract("the primary state.json was unavailable or unreadable")
-        if backup_payload is not None:
-            return backup_payload
-        return None
-
-    if not isinstance(raw_state, dict):
-        backup_payload = _backup_project_contract("the primary state.json content was not a JSON object")
-        if backup_payload is not None:
-            return backup_payload
-        return None
-
-    raw_contract = raw_state.get("project_contract")
-    if raw_contract is None:
-        return source_path, None
-    if not isinstance(raw_contract, dict):
-        return source_path, raw_contract
-    return source_path, raw_contract
-
-
-def _project_contract_source_path(cwd: Path, source_path: Path) -> str:
-    """Return a stable display path for project-contract diagnostics."""
-
-    try:
-        return source_path.relative_to(cwd).as_posix()
-    except ValueError:
-        return str(source_path)
-
-
-def _project_contract_load_payload(
-    *,
-    status: str,
-    source_path: str,
-    errors: list[str] | None = None,
-    warnings: list[str] | None = None,
-) -> dict[str, object]:
-    """Build structured project-contract load diagnostics for init payloads."""
-
-    return {
-        "status": status,
-        "source_path": source_path,
-        "errors": list(errors or []),
-        "warnings": list(warnings or []),
-    }
-
-
-def _classify_project_contract_payload(
-    *,
-    cwd: Path,
-    source_path: Path,
-    raw_contract: object,
-) -> tuple[ResearchContract | None, dict[str, object]]:
-    """Classify a raw project contract payload into a load result."""
-
-    source_label = _project_contract_source_path(cwd, source_path)
-    if raw_contract is None:
-        return None, _project_contract_load_payload(status="missing", source_path=source_label)
-    if not isinstance(raw_contract, dict):
-        logger.warning("Skipping project_contract from %s because it is not a JSON object", source_path)
-        return None, _project_contract_load_payload(
-            status="blocked_type",
-            source_path=source_label,
-            errors=["project contract must be a JSON object"],
-        )
-
-    list_shape_drift_errors = _collect_list_shape_drift_errors(raw_contract)
-    normalized_contract, schema_findings = salvage_project_contract(raw_contract)
-    schema_warnings, schema_errors = _split_project_contract_schema_findings(
-        schema_findings,
-        allow_singleton_defaults=False,
-    )
-    schema_warnings = list(dict.fromkeys([*schema_warnings, *list_shape_drift_errors]))
-    if schema_errors or normalized_contract is None:
-        logger.warning(
-            "Skipping project_contract from %s because blocking schema normalization would be required: %s",
-            source_path,
-            "; ".join(schema_errors) if schema_errors else "validation failed",
-        )
-        return None, _project_contract_load_payload(
-            status="blocked_schema",
-            source_path=source_label,
-            errors=schema_errors or ["blocking schema normalization would be required"],
-            warnings=schema_warnings,
-        )
-
-    integrity_errors = collect_contract_integrity_errors(normalized_contract)
-    if integrity_errors:
-        logger.warning(
-            "Skipping project_contract from %s because semantic integrity checks failed: %s",
-            source_path,
-            "; ".join(integrity_errors),
-        )
-        return None, _project_contract_load_payload(
-            status="blocked_integrity",
-            source_path=source_label,
-            errors=integrity_errors,
-            warnings=schema_warnings,
-        )
-
-    if schema_warnings:
-        logger.warning(
-            "Loaded project_contract from %s after recoverable schema normalization: %s",
-            source_path,
-            "; ".join(schema_warnings),
-        )
-    contract = normalized_contract
-    load_info = _project_contract_load_payload(
-        status="loaded",
-        source_path=source_label,
-        warnings=schema_warnings,
-    )
-    approval_validation = validate_project_contract(contract, mode="approved")
-    if not approval_validation.valid:
-        logger.warning(
-            "Loaded project_contract from %s with approval blockers: %s",
-            source_path,
-            "; ".join(approval_validation.errors) if approval_validation.errors else "validation failed",
-        )
-        load_info["status"] = "loaded_with_approval_blockers"
-    return contract, load_info
-
-
 def _load_project_contract(cwd: Path) -> tuple[ResearchContract | None, dict[str, object]]:
     """Load the canonical project contract and return load diagnostics."""
-    layout = ProjectLayout(cwd)
-    raw_payload = _load_raw_project_contract_payload(cwd)
-    if raw_payload is not None:
-        source_path, raw_contract = raw_payload
-        contract, load_info = _classify_project_contract_payload(
-            cwd=cwd,
-            source_path=source_path,
-            raw_contract=raw_contract,
-        )
-    else:
-        state, _state_issues, state_source = _peek_state_json(cwd)
-        default_source = _project_contract_source_path(cwd, layout.state_json)
-        if not isinstance(state, dict):
-            return None, _project_contract_load_payload(status="missing", source_path=default_source)
-
-        source_path = (
-            layout.state_json
-            if state_source in (None, "state.json")
-            else layout.state_json_backup
-            if state_source == "state.json.bak"
-            else layout.state_md
-        )
-        contract, load_info = _classify_project_contract_payload(
-            cwd=cwd,
-            source_path=source_path,
-            raw_contract=state.get("project_contract"),
-        )
-    return contract, load_info
-
-
-def _project_contract_validation_payload(contract: ResearchContract | None) -> dict[str, object] | None:
-    """Return approval-mode validation metadata for a loaded project contract."""
-
-    if contract is None:
-        return None
-    return validate_project_contract(contract, mode="approved").model_dump(mode="json")
+    return _state_module._load_project_contract_for_runtime_context(cwd)
 
 
 def _sorted_markdown_files(directory: Path) -> list[Path]:
@@ -965,14 +855,20 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
         literature_review_files=list(artifact_payload["literature_review_files"]),
         research_map_reference_files=list(artifact_payload["research_map_reference_files"]),
     )
+    manuscript_reference_status = ingest_manuscript_reference_status(cwd)
     derived_references = [ref.to_context_dict() for ref in artifact_ingestion.references]
+    derived_citation_sources = [item.to_context_dict() for item in artifact_ingestion.citation_sources]
+    derived_manuscript_reference_status = {
+        record.reference_id: record.to_context_dict()
+        for record in manuscript_reference_status.reference_status
+    }
     active_references = _merge_active_references(_serialize_active_references(contract), derived_references)
     effective_reference_intake = _merge_reference_intake(
         contract,
         artifact_ingestion.intake.to_dict(),
         active_references,
     )
-    canonical_contract, canonicalization_warnings = _canonicalize_project_contract(
+    visible_contract, canonicalization_warnings = _canonicalize_project_contract(
         contract,
         active_references=active_references,
         effective_reference_intake=effective_reference_intake,
@@ -982,9 +878,13 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
             **project_contract_load_info,
             "warnings": [*list(project_contract_load_info.get("warnings") or []), *canonicalization_warnings],
         }
-    project_contract_validation = _project_contract_validation_payload(canonical_contract)
+    project_contract_load_info, project_contract_validation, project_contract_gate = _finalize_project_contract_gate(
+        cwd,
+        visible_contract,
+        project_contract_load_info,
+    )
     project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
-    selected_protocol_bundles = select_protocol_bundles(project_text, canonical_contract)
+    selected_protocol_bundles = select_protocol_bundles(project_text, visible_contract)
 
     bundle_verifier_extensions: list[dict[str, object]] = []
     for bundle in selected_protocol_bundles:
@@ -998,13 +898,21 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
             )
 
     return {
-        "project_contract": canonical_contract.model_dump(mode="json") if canonical_contract is not None else None,
+        "project_contract": visible_contract.model_dump(mode="json") if visible_contract is not None else None,
         "project_contract_validation": project_contract_validation,
         "project_contract_load_info": project_contract_load_info,
-        "contract_intake": canonical_contract.context_intake.model_dump(mode="json") if canonical_contract is not None else None,
+        "project_contract_gate": project_contract_gate,
+        "contract_intake": visible_contract.context_intake.model_dump(mode="json") if visible_contract is not None else None,
         "effective_reference_intake": effective_reference_intake,
         "derived_active_references": derived_references,
         "derived_active_reference_count": len(derived_references),
+        "citation_source_files": list(artifact_ingestion.citation_source_files),
+        "citation_source_count": len(artifact_ingestion.citation_source_files),
+        "citation_source_warnings": list(artifact_ingestion.citation_source_warnings),
+        "derived_citation_sources": derived_citation_sources,
+        "derived_citation_source_count": len(derived_citation_sources),
+        "derived_manuscript_reference_status": derived_manuscript_reference_status,
+        "derived_manuscript_reference_status_count": len(derived_manuscript_reference_status),
         "active_references": active_references,
         "active_reference_count": len(active_references),
         "selected_protocol_bundle_ids": [bundle.bundle_id for bundle in selected_protocol_bundles],
@@ -1023,6 +931,54 @@ def _build_reference_runtime_context(cwd: Path) -> dict[str, object]:
     }
 
 
+def _has_structured_state_value(value: object) -> bool:
+    """Return whether a derived state value should be surfaced."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set, dict)):
+        return bool(value)
+    return True
+
+
+def _build_state_memory_runtime_context(cwd: Path) -> dict[str, object]:
+    """Build shared structured state-memory context for init surfaces."""
+    state, _state_issues, _state_source = _peek_state_json(cwd)
+    if not isinstance(state, dict):
+        return {
+            "derived_convention_lock": {},
+            "derived_convention_lock_count": 0,
+            "derived_intermediate_results": [],
+            "derived_intermediate_result_count": 0,
+            "derived_approximations": [],
+            "derived_approximation_count": 0,
+        }
+
+    raw_lock = state.get("convention_lock")
+    derived_convention_lock: dict[str, object] = {}
+    if isinstance(raw_lock, Mapping):
+        try:
+            normalized_lock = ConventionLock(**raw_lock).model_dump(mode="json", exclude_none=True)
+        except PydanticValidationError:
+            normalized_lock = {}
+        derived_convention_lock = {
+            key: value for key, value in normalized_lock.items() if _has_structured_state_value(value)
+        }
+
+    derived_results = [result.model_dump(mode="json") for result in result_list(state)]
+    derived_approximations = [approx.model_dump(mode="json") for approx in approximation_list(state)]
+
+    return {
+        "derived_convention_lock": derived_convention_lock,
+        "derived_convention_lock_count": len(derived_convention_lock),
+        "derived_intermediate_results": derived_results,
+        "derived_intermediate_result_count": len(derived_results),
+        "derived_approximations": derived_approximations,
+        "derived_approximation_count": len(derived_approximations),
+    }
+
+
 def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
     """Build shared live execution-state context for orchestration surfaces."""
     from gpd.core.observability import get_current_execution
@@ -1036,10 +992,8 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
     current_platform = machine.get("platform")
     session_hostname = session.get("hostname") if isinstance(session, dict) else None
     session_platform = session.get("platform") if isinstance(session, dict) else None
-    session_resume_file = _normalize_runtime_resume_file(
-        cwd,
-        session.get("resume_file") if isinstance(session, dict) else None,
-    )
+    session_last_date = session.get("last_date") if isinstance(session, dict) else None
+    session_stopped_at = session.get("stopped_at") if isinstance(session, dict) else None
     current_execution_resume_file = _normalize_runtime_resume_file(
         cwd,
         snapshot.resume_file if snapshot is not None else None,
@@ -1048,25 +1002,26 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
     current_execution_payload = snapshot.model_dump(mode="json") if snapshot is not None else None
     if isinstance(current_execution_payload, dict):
         current_execution_payload["resume_file"] = current_execution_resume_file
-    execution_resume_file_source = (
-        "current_execution"
-        if current_execution_resume_file
-        else ("session_resume_file" if session_resume_file else None)
+    resume_projection = _resolve_resume_projection(
+        cwd,
+        state=state,
+        current_execution=current_execution_payload,
     )
+    execution_resume_file_source = None
+    if resume_projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT:
+        execution_resume_file_source = "current_execution"
+    elif resume_projection.active_resume_source == ContinuationResumeSource.HANDOFF:
+        execution_resume_file_source = "session_resume_file"
 
     paused_states = {"paused", "awaiting_user", "ready_to_continue", "waiting_review", "blocked"}
     segment_status = (snapshot.segment_status or "").lower() if snapshot is not None else ""
-    is_resumable = bool(snapshot and segment_status in paused_states and current_execution_resume_file)
+    is_resumable = bool(resume_projection.resumable)
     paused_at = (
         snapshot.updated_at
         if snapshot is not None and segment_status in paused_states
         else (position.get("paused_at") if isinstance(position, dict) else None)
     )
-    resume_file = (
-        current_execution_resume_file
-        if current_execution_resume_file
-        else session_resume_file
-    )
+    resume_file = resume_projection.active_resume_file
     machine_change_detected = bool(
         session_hostname
         and session_platform
@@ -1081,7 +1036,8 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
             "Machine change detected: "
             f"last active on {session_hostname} ({session_platform}); "
             f"current machine {current_hostname} ({current_platform}). "
-            "The project state is portable and does not require repair."
+            "The project state is portable and does not require repair. "
+            "Rerun the installer if runtime-local config may be stale on this machine."
         )
 
     return {
@@ -1105,16 +1061,21 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
         "execution_resumable": is_resumable,
         "execution_paused_at": paused_at,
         "current_execution_resume_file": current_execution_resume_file,
-        "session_resume_file": session_resume_file,
+        "session_resume_file": resume_projection.handoff_resume_file,
+        "recorded_session_resume_file": resume_projection.recorded_handoff_resume_file,
+        "missing_session_resume_file": resume_projection.missing_handoff_resume_file,
         "execution_resume_file": resume_file,
         "execution_resume_file_source": execution_resume_file_source,
+        "resume_projection": resume_projection,
         "current_hostname": current_hostname,
         "current_platform": current_platform,
         "session_hostname": session_hostname,
         "session_platform": session_platform,
+        "session_last_date": session_last_date,
+        "session_stopped_at": session_stopped_at,
         "machine_change_detected": machine_change_detected,
         "machine_change_notice": machine_change_notice,
-}
+    }
 
 
 def _normalize_runtime_resume_file(
@@ -1155,6 +1116,663 @@ def _normalize_runtime_resume_file(
     return candidate.as_posix()
 
 
+def _resolve_resume_projection(
+    cwd: Path,
+    *,
+    state: dict[str, object] | None,
+    current_execution: dict[str, object] | None,
+):
+    try:
+        return resolve_continuation(cwd, state=state, current_execution=current_execution)
+    except Exception as exc:
+        logger.warning(
+            "Canonical continuation resolution failed; falling back to legacy session continuity: %s",
+            exc,
+        )
+        legacy_state = {"session": state.get("session")} if isinstance(state, dict) else {}
+        return resolve_continuation(cwd, state=legacy_state, current_execution=current_execution)
+
+
+def _resume_projection_source_name(resume_projection: object) -> str | None:
+    source = getattr(resume_projection, "source", None)
+    if hasattr(source, "value"):
+        source = source.value
+    if not isinstance(source, str):
+        return None
+    stripped = source.strip()
+    return stripped or None
+
+
+def _bounded_segment_resume_origin(resume_projection: object) -> str:
+    continuation = getattr(resume_projection, "continuation", None)
+    segment = getattr(continuation, "bounded_segment", None)
+    recorded_by = getattr(segment, "recorded_by", None)
+    return resume_origin_for_bounded_segment(
+        recorded_by=recorded_by if isinstance(recorded_by, str) else None,
+        source=_resume_projection_source_name(resume_projection),
+    )
+
+
+def _handoff_resume_origin(resume_projection: object) -> str:
+    continuation = getattr(resume_projection, "continuation", None)
+    handoff = getattr(continuation, "handoff", None)
+    recorded_by = getattr(handoff, "recorded_by", None)
+    return resume_origin_for_handoff(
+        recorded_by=recorded_by if isinstance(recorded_by, str) else None,
+        source=_resume_projection_source_name(resume_projection),
+    )
+
+
+def _handoff_last_result_id(resume_projection: object) -> str | None:
+    continuation = getattr(resume_projection, "continuation", None)
+    handoff = getattr(continuation, "handoff", None)
+    last_result_id = getattr(handoff, "last_result_id", None)
+    if not isinstance(last_result_id, str):
+        return None
+    stripped = last_result_id.strip()
+    return stripped or None
+
+
+def _build_resume_result_lookup(cwd: Path) -> dict[str, dict[str, object]]:
+    """Return canonical results keyed by ID for resume hydration."""
+    state, _state_issues, _state_source = _peek_state_json(cwd)
+    if not isinstance(state, dict):
+        return {}
+    try:
+        return {
+            result.id: result.model_dump(mode="json")
+            for result in result_list(state)
+            if isinstance(result.id, str) and result.id.strip()
+        }
+    except (PydanticValidationError, TypeError, ValueError) as exc:
+        logger.warning("Resume result hydration unavailable: %s", exc)
+        return {}
+
+
+def _hydrate_resume_result(
+    candidate: Mapping[str, object],
+    result_lookup_by_id: Mapping[str, dict[str, object]],
+) -> dict[str, object]:
+    """Attach the canonical result payload when a candidate carries `last_result_id`."""
+    hydrated = dict(candidate)
+    last_result_id = hydrated.get("last_result_id")
+    if not isinstance(last_result_id, str):
+        return hydrated
+    lookup_key = last_result_id.strip()
+    if not lookup_key:
+        return hydrated
+    last_result = result_lookup_by_id.get(lookup_key)
+    if isinstance(last_result, Mapping):
+        hydrated["last_result"] = dict(last_result)
+    return hydrated
+
+
+def _select_active_resume_candidate(
+    resume_candidates: list[dict[str, object]],
+    *,
+    active_resume_kind: str | None,
+    active_resume_pointer: str | None,
+) -> dict[str, object] | None:
+    """Return the candidate currently selected as the active resume target."""
+    if not isinstance(active_resume_kind, str):
+        return None
+    active_kind = active_resume_kind.strip()
+    if not active_kind:
+        return None
+    active_pointer = active_resume_pointer.strip() if isinstance(active_resume_pointer, str) and active_resume_pointer.strip() else None
+
+    if active_pointer is not None:
+        for candidate in resume_candidates:
+            if str(candidate.get("kind") or "").strip() != active_kind:
+                continue
+            if candidate.get("resume_pointer") != active_pointer:
+                continue
+            return candidate
+
+    for candidate in resume_candidates:
+        if str(candidate.get("kind") or "").strip() == active_kind:
+            return candidate
+    return None
+
+
+def _interrupted_agent_resume_origin() -> str:
+    return resume_origin_for_interrupted_agent()
+
+
+def _resume_candidate_from_segment(segment: dict[str, object]) -> dict[str, object]:
+    return build_resume_segment_candidate(segment)
+
+
+def _canonical_resume_candidate(
+    candidate: dict[str, object],
+    *,
+    kind: str,
+    origin: str,
+    resume_pointer: str | None = None,
+) -> dict[str, object]:
+    return build_resume_candidate(
+        candidate,
+        kind=kind,
+        origin=origin,
+        resume_pointer=resume_pointer,
+    )
+
+
+def _has_candidate(
+    segment_candidates: list[dict[str, object]],
+    *,
+    source: str,
+    resume_file: str | None = None,
+    agent_id: str | None = None,
+) -> bool:
+    for candidate in segment_candidates:
+        if str(candidate.get("source") or "").strip() != source:
+            continue
+        if resume_file is not None and candidate.get("resume_file") != resume_file:
+            continue
+        if agent_id is not None and candidate.get("agent_id") != agent_id:
+            continue
+        return True
+    return False
+
+
+def _has_resume_candidate(
+    resume_candidates: list[dict[str, object]],
+    *,
+    kind: str,
+    resume_pointer: str | None = None,
+    agent_id: str | None = None,
+) -> bool:
+    for candidate in resume_candidates:
+        if str(candidate.get("kind") or "").strip() != kind:
+            continue
+        if resume_pointer is not None and candidate.get("resume_pointer") != resume_pointer:
+            continue
+        if agent_id is not None and candidate.get("agent_id") != agent_id:
+            continue
+        return True
+    return False
+
+
+def _build_legacy_resume_state(
+    execution_context: dict[str, object],
+    *,
+    interrupted_agent_id: str | None,
+    result_lookup_by_id: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    segment_candidates: list[dict[str, object]] = []
+    current_execution = execution_context.get("current_execution")
+    active_bounded_segment = current_execution if execution_context.get("execution_resumable") and isinstance(current_execution, dict) else None
+    resume_candidates: list[dict[str, object]] = []
+    if isinstance(active_bounded_segment, dict):
+        current_candidate = _resume_candidate_from_segment(active_bounded_segment)
+        segment_candidates.append(current_candidate)
+        resume_candidates.append(
+            _canonical_resume_candidate(
+                current_candidate,
+                kind="bounded_segment",
+                origin="compat.current_execution",
+                resume_pointer=current_candidate.get("resume_file")
+                if isinstance(current_candidate.get("resume_file"), str)
+                else None,
+            )
+        )
+
+    session_resume_file = execution_context.get("session_resume_file")
+    if isinstance(session_resume_file, str) and session_resume_file:
+        session_candidate = {
+            "source": "session_resume_file",
+            "status": "handoff",
+            "resume_file": session_resume_file,
+            "resumable": False,
+        }
+        if not any(
+            candidate.get("resume_file") == session_candidate["resume_file"]
+            for candidate in segment_candidates
+        ):
+            segment_candidates.append(session_candidate)
+            resume_candidates.append(
+                _canonical_resume_candidate(
+                    session_candidate,
+                    kind="continuity_handoff",
+                    origin="compat.session_resume_file",
+                    resume_pointer=session_resume_file,
+                )
+            )
+
+    missing_session_resume_file = execution_context.get("missing_session_resume_file")
+    if isinstance(missing_session_resume_file, str) and missing_session_resume_file:
+        missing_session_candidate = {
+            "source": "session_resume_file",
+            "status": "missing",
+            "resume_file": missing_session_resume_file,
+            "resumable": False,
+            "advisory": True,
+        }
+        if not any(
+            candidate.get("resume_file") == missing_session_candidate["resume_file"]
+            and candidate.get("source") == missing_session_candidate["source"]
+            for candidate in segment_candidates
+        ):
+            segment_candidates.append(missing_session_candidate)
+            resume_candidates.append(
+                _canonical_resume_candidate(
+                    missing_session_candidate,
+                    kind="continuity_handoff",
+                    origin="compat.session_resume_file",
+                    resume_pointer=missing_session_resume_file,
+                )
+            )
+
+    if interrupted_agent_id is not None:
+        interrupted_candidate = {
+            "source": "interrupted_agent",
+            "status": "interrupted",
+            "agent_id": interrupted_agent_id,
+        }
+        segment_candidates.append(interrupted_candidate)
+        resume_candidates.append(
+            _canonical_resume_candidate(
+                interrupted_candidate,
+                kind="interrupted_agent",
+                origin="interrupted_agent_marker",
+                resume_pointer=interrupted_agent_id,
+            )
+        )
+
+    if execution_context.get("execution_resumable") and isinstance(current_execution, dict):
+        resume_mode = "bounded_segment"
+    elif interrupted_agent_id is not None:
+        resume_mode = "interrupted_agent"
+    else:
+        resume_mode = None
+
+    if execution_context.get("execution_resumable") and isinstance(current_execution, dict):
+        active_resume_kind = "bounded_segment"
+        active_resume_origin = "compat.current_execution"
+        active_resume_pointer = current_execution.get("resume_file")
+    elif isinstance(session_resume_file, str) and session_resume_file:
+        active_resume_kind = "continuity_handoff"
+        active_resume_origin = "compat.session_resume_file"
+        active_resume_pointer = session_resume_file
+    elif interrupted_agent_id is not None:
+        active_resume_kind = "interrupted_agent"
+        active_resume_origin = "interrupted_agent_marker"
+        active_resume_pointer = interrupted_agent_id
+    else:
+        active_resume_kind = None
+        active_resume_origin = None
+        active_resume_pointer = None
+
+    hydrated_resume_candidates = [_hydrate_resume_result(candidate, result_lookup_by_id) for candidate in resume_candidates]
+    active_resume_candidate = _select_active_resume_candidate(
+        hydrated_resume_candidates,
+        active_resume_kind=active_resume_kind,
+        active_resume_pointer=active_resume_pointer,
+    )
+
+    result = {
+        "resume_surface_schema_version": _RESUME_SURFACE_SCHEMA_VERSION,
+        "active_bounded_segment": active_bounded_segment if isinstance(active_bounded_segment, dict) else None,
+        "derived_execution_head": current_execution if isinstance(current_execution, dict) else None,
+        "continuity_handoff_file": session_resume_file if isinstance(session_resume_file, str) and session_resume_file else None,
+        "recorded_continuity_handoff_file": (
+            session_resume_file if isinstance(session_resume_file, str) and session_resume_file else missing_session_resume_file
+        ),
+        "missing_continuity_handoff_file": (
+            missing_session_resume_file
+            if isinstance(missing_session_resume_file, str) and missing_session_resume_file
+            else None
+        ),
+        "has_continuity_handoff": bool(
+            (isinstance(session_resume_file, str) and session_resume_file)
+            or (isinstance(missing_session_resume_file, str) and missing_session_resume_file)
+        ),
+        "resume_candidates": hydrated_resume_candidates,
+        "active_resume_kind": active_resume_kind,
+        "active_resume_origin": active_resume_origin,
+        "active_resume_pointer": active_resume_pointer,
+        "active_execution_segment": current_execution if isinstance(current_execution, dict) else None,
+        "segment_candidates": segment_candidates,
+        "resume_mode": resume_mode,
+        "has_interrupted_agent": interrupted_agent_id is not None,
+        "interrupted_agent_id": interrupted_agent_id,
+    }
+    if isinstance(active_resume_candidate, dict):
+        active_resume_result = active_resume_candidate.get("last_result")
+        if isinstance(active_resume_result, Mapping):
+            result["active_resume_result"] = dict(active_resume_result)
+    result["compat_resume_surface"] = build_resume_compat_surface(result) or {}
+    return result
+
+
+def _build_resume_read_state(
+    execution_context: dict[str, object],
+    *,
+    interrupted_agent_id: str | None,
+    result_lookup_by_id: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    resume_projection = execution_context.get("resume_projection")
+    if hasattr(resume_projection, "continuation"):
+        current_execution_raw = execution_context.get("current_execution")
+        current_execution = current_execution_raw if isinstance(current_execution_raw, dict) else None
+        bounded_segment = getattr(resume_projection.continuation, "bounded_segment", None)
+        bounded_segment_origin = _bounded_segment_resume_origin(resume_projection)
+        handoff_origin = _handoff_resume_origin(resume_projection)
+        handoff_last_result_id = _handoff_last_result_id(resume_projection)
+        active_execution_segment = None
+        active_bounded_segment = None
+        if bounded_segment is not None:
+            active_bounded_segment = bounded_segment.model_dump(mode="json")
+            active_execution_segment = active_bounded_segment
+        elif current_execution is not None:
+            active_execution_segment = current_execution
+
+        segment_candidates: list[dict[str, object]] = []
+        resume_candidates: list[dict[str, object]] = []
+        if resume_projection.resumable and isinstance(active_execution_segment, dict):
+            candidate_payload = dict(active_execution_segment)
+            candidate_payload["resume_file"] = resume_projection.bounded_segment_resume_file
+            candidate = _resume_candidate_from_segment(candidate_payload)
+            segment_candidates.append(candidate)
+            resume_candidates.append(
+                _canonical_resume_candidate(
+                    candidate,
+                    kind="bounded_segment",
+                    origin=bounded_segment_origin,
+                    resume_pointer=resume_projection.bounded_segment_resume_file,
+                )
+            )
+
+        if isinstance(resume_projection.handoff_resume_file, str) and resume_projection.handoff_resume_file:
+            if not any(
+                candidate.get("resume_file") == resume_projection.handoff_resume_file
+                for candidate in segment_candidates
+            ):
+                candidate = {
+                    "source": "session_resume_file",
+                    "status": "handoff",
+                    "resume_file": resume_projection.handoff_resume_file,
+                    "resumable": False,
+                }
+                if handoff_last_result_id is not None:
+                    candidate["last_result_id"] = handoff_last_result_id
+                segment_candidates.append(candidate)
+                resume_candidates.append(
+                    _canonical_resume_candidate(
+                        candidate,
+                        kind="continuity_handoff",
+                        origin=handoff_origin,
+                        resume_pointer=resume_projection.handoff_resume_file,
+                    )
+                )
+
+        if isinstance(resume_projection.missing_handoff_resume_file, str) and resume_projection.missing_handoff_resume_file:
+            if not _has_candidate(
+                segment_candidates,
+                source="session_resume_file",
+                resume_file=resume_projection.missing_handoff_resume_file,
+            ):
+                candidate = {
+                    "source": "session_resume_file",
+                    "status": "missing",
+                    "resume_file": resume_projection.missing_handoff_resume_file,
+                    "resumable": False,
+                    "advisory": True,
+                }
+                if handoff_last_result_id is not None:
+                    candidate["last_result_id"] = handoff_last_result_id
+                segment_candidates.append(candidate)
+                resume_candidates.append(
+                    _canonical_resume_candidate(
+                        candidate,
+                        kind="continuity_handoff",
+                        origin=handoff_origin,
+                        resume_pointer=resume_projection.missing_handoff_resume_file,
+                    )
+                )
+
+        if interrupted_agent_id is not None and not _has_candidate(
+            segment_candidates,
+            source="interrupted_agent",
+            agent_id=interrupted_agent_id,
+        ):
+            candidate = {
+                "source": "interrupted_agent",
+                "status": "interrupted",
+                "agent_id": interrupted_agent_id,
+            }
+            segment_candidates.append(candidate)
+            if not _has_resume_candidate(
+                resume_candidates,
+                kind="interrupted_agent",
+                agent_id=interrupted_agent_id,
+            ):
+                resume_candidates.append(
+                    _canonical_resume_candidate(
+                        candidate,
+                        kind="interrupted_agent",
+                        origin=_interrupted_agent_resume_origin(),
+                        resume_pointer=interrupted_agent_id,
+                    )
+                )
+
+        hydrated_resume_candidates = [_hydrate_resume_result(candidate, result_lookup_by_id) for candidate in resume_candidates]
+
+        if resume_projection.resumable:
+            resume_mode = "bounded_segment"
+        elif interrupted_agent_id is not None:
+            resume_mode = "interrupted_agent"
+        else:
+            resume_mode = None
+
+        if resume_projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT:
+            active_resume_kind = "bounded_segment"
+            active_resume_origin = bounded_segment_origin
+            active_resume_pointer = resume_projection.active_resume_file
+        elif resume_projection.active_resume_source == ContinuationResumeSource.HANDOFF:
+            active_resume_kind = "continuity_handoff"
+            active_resume_origin = handoff_origin
+            active_resume_pointer = resume_projection.active_resume_file
+        elif interrupted_agent_id is not None:
+            active_resume_kind = "interrupted_agent"
+            active_resume_origin = _interrupted_agent_resume_origin()
+            active_resume_pointer = interrupted_agent_id
+        else:
+            active_resume_kind = None
+            active_resume_origin = None
+            active_resume_pointer = None
+
+        active_resume_candidate = _select_active_resume_candidate(
+            hydrated_resume_candidates,
+            active_resume_kind=active_resume_kind,
+            active_resume_pointer=active_resume_pointer,
+        )
+
+        result = {
+            "resume_surface_schema_version": _RESUME_SURFACE_SCHEMA_VERSION,
+            "active_bounded_segment": active_bounded_segment,
+            "derived_execution_head": current_execution,
+            "continuity_handoff_file": resume_projection.handoff_resume_file,
+            "recorded_continuity_handoff_file": resume_projection.recorded_handoff_resume_file,
+            "missing_continuity_handoff_file": resume_projection.missing_handoff_resume_file,
+            "has_continuity_handoff": resume_projection.recorded_handoff_resume_file is not None,
+            "resume_candidates": hydrated_resume_candidates,
+            "active_resume_kind": active_resume_kind,
+            "active_resume_origin": active_resume_origin,
+            "active_resume_pointer": active_resume_pointer,
+            "active_execution_segment": active_execution_segment,
+            "segment_candidates": segment_candidates,
+            "resume_mode": resume_mode,
+            "has_interrupted_agent": interrupted_agent_id is not None,
+            "interrupted_agent_id": interrupted_agent_id,
+        }
+        if isinstance(active_resume_candidate, dict):
+            active_resume_result = active_resume_candidate.get("last_result")
+            if isinstance(active_resume_result, Mapping):
+                result["active_resume_result"] = dict(active_resume_result)
+        result["compat_resume_surface"] = build_resume_compat_surface(result) or {}
+        return result
+
+    try:
+        return _build_legacy_resume_state(
+            execution_context,
+            interrupted_agent_id=interrupted_agent_id,
+            result_lookup_by_id=result_lookup_by_id,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Legacy resume synthesis failed; returning empty resume state: %s",
+            exc,
+        )
+        result = {
+            "resume_surface_schema_version": _RESUME_SURFACE_SCHEMA_VERSION,
+            "active_bounded_segment": None,
+            "derived_execution_head": execution_context.get("current_execution")
+            if isinstance(execution_context.get("current_execution"), dict)
+            else None,
+            "continuity_handoff_file": None,
+            "recorded_continuity_handoff_file": None,
+            "missing_continuity_handoff_file": None,
+            "has_continuity_handoff": False,
+            "resume_candidates": [],
+            "active_resume_kind": "interrupted_agent" if interrupted_agent_id is not None else None,
+            "active_resume_origin": _interrupted_agent_resume_origin() if interrupted_agent_id is not None else None,
+            "active_resume_pointer": interrupted_agent_id,
+            "active_execution_segment": execution_context.get("current_execution")
+            if isinstance(execution_context.get("current_execution"), dict)
+            else None,
+            "segment_candidates": [],
+            "resume_mode": None,
+            "has_interrupted_agent": interrupted_agent_id is not None,
+            "interrupted_agent_id": interrupted_agent_id,
+        }
+        result["compat_resume_surface"] = build_resume_compat_surface(result) or {}
+        return result
+
+
+def _mapping_text(value: Mapping[str, object] | None, key: str) -> str | None:
+    if not isinstance(value, Mapping):
+        return None
+    candidate = value.get(key)
+    if not isinstance(candidate, str):
+        return None
+    stripped = candidate.strip()
+    return stripped or None
+
+
+def _promote_auto_selected_recent_bounded_segment(
+    continuation_state: dict[str, object],
+    *,
+    reentry_metadata: Mapping[str, object],
+) -> tuple[dict[str, object], bool]:
+    """Promote a stronger auto-selected recent bounded segment over a same-pointer handoff."""
+
+    selected_candidate = reentry_metadata.get("project_reentry_selected_candidate")
+    if not isinstance(selected_candidate, Mapping):
+        return continuation_state, False
+    if not bool(reentry_metadata.get("project_root_auto_selected")):
+        return continuation_state, False
+    if _mapping_text(selected_candidate, "source") != "recent_project":
+        return continuation_state, False
+    if _mapping_text(selected_candidate, "resume_target_kind") != "bounded_segment":
+        return continuation_state, False
+    if not bool(selected_candidate.get("resumable", False)):
+        return continuation_state, False
+
+    resume_file = _mapping_text(selected_candidate, "resume_file")
+    if resume_file is None:
+        return continuation_state, False
+
+    active_resume_kind = _mapping_text(continuation_state, "active_resume_kind")
+    active_resume_pointer = _mapping_text(continuation_state, "active_resume_pointer")
+    if active_resume_kind == "bounded_segment":
+        return continuation_state, False
+    if active_resume_kind not in {None, "continuity_handoff"}:
+        return continuation_state, False
+    if active_resume_pointer is not None and active_resume_pointer != resume_file:
+        return continuation_state, False
+
+    active_bounded_segment = continuation_state.get("active_bounded_segment")
+    if isinstance(active_bounded_segment, dict) and _mapping_text(active_bounded_segment, "resume_file") not in {
+        None,
+        resume_file,
+    }:
+        return continuation_state, False
+
+    recorded_by = _mapping_text(selected_candidate, "source_kind")
+    bounded_segment = {
+        "segment_status": "paused",
+        "resume_file": resume_file,
+        "phase": _mapping_text(selected_candidate, "recovery_phase"),
+        "plan": _mapping_text(selected_candidate, "recovery_plan"),
+        "segment_id": _mapping_text(selected_candidate, "source_segment_id"),
+        "transition_id": _mapping_text(selected_candidate, "source_transition_id"),
+        "updated_at": (
+            _mapping_text(selected_candidate, "resume_target_recorded_at")
+            or _mapping_text(selected_candidate, "source_recorded_at")
+        ),
+    }
+    bounded_segment = {
+        key: value
+        for key, value in bounded_segment.items()
+        if not isinstance(value, str) or value.strip()
+    }
+
+    raw_candidate = build_resume_segment_candidate(bounded_segment, source="recent_project")
+    raw_candidate["resumable"] = True
+    canonical_candidate = build_resume_candidate(
+        raw_candidate,
+        kind="bounded_segment",
+        origin=resume_origin_for_bounded_segment(recorded_by=recorded_by),
+        resume_pointer=resume_file,
+    )
+
+    def _replace_matching_candidate(
+        candidates: object,
+        replacement: dict[str, object],
+        *,
+        canonical: bool,
+    ) -> list[dict[str, object]]:
+        normalized = [item for item in candidates if isinstance(item, dict)] if isinstance(candidates, list) else []
+        updated: list[dict[str, object]] = []
+        replaced = False
+        for item in normalized:
+            item_resume_file = _mapping_text(item, "resume_file")
+            item_kind = _mapping_text(item, "kind") if canonical else None
+            item_status = str(item.get("status") or "").strip() if not canonical else None
+            if item_resume_file == resume_file and (
+                item_kind in {None, "continuity_handoff"} if canonical else item_status in {"handoff", "missing"}
+            ):
+                if not replaced:
+                    updated.append(dict(replacement))
+                    replaced = True
+                continue
+            updated.append(item)
+        if not replaced:
+            updated.insert(0, dict(replacement))
+        return updated
+
+    promoted = dict(continuation_state)
+    promoted["active_bounded_segment"] = bounded_segment
+    promoted["active_execution_segment"] = bounded_segment
+    promoted["active_resume_kind"] = "bounded_segment"
+    promoted["active_resume_origin"] = resume_origin_for_bounded_segment(recorded_by=recorded_by)
+    promoted["active_resume_pointer"] = resume_file
+    promoted["resume_mode"] = "bounded_segment"
+    promoted["resume_candidates"] = _replace_matching_candidate(
+        promoted.get("resume_candidates"),
+        canonical_candidate,
+        canonical=True,
+    )
+    promoted["segment_candidates"] = _replace_matching_candidate(
+        promoted.get("segment_candidates"),
+        raw_candidate,
+        canonical=False,
+    )
+    return promoted, True
+
+
 # ─── Config Loader ────────────────────────────────────────────────────────────
 
 
@@ -1179,6 +1797,8 @@ def _config_to_dict(cfg: GPDProjectConfig) -> dict:
         "parallelization": cfg.parallelization,
         "max_unattended_minutes_per_plan": cfg.max_unattended_minutes_per_plan,
         "max_unattended_minutes_per_wave": cfg.max_unattended_minutes_per_wave,
+        "project_usd_budget": cfg.project_usd_budget,
+        "session_usd_budget": cfg.session_usd_budget,
         "checkpoint_after_n_tasks": cfg.checkpoint_after_n_tasks,
         "checkpoint_after_first_load_bearing_result": cfg.checkpoint_after_first_load_bearing_result,
         "checkpoint_before_downstream_dependent_tasks": cfg.checkpoint_before_downstream_dependent_tasks,
@@ -1369,12 +1989,14 @@ def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None =
         "platform": _detect_platform(cwd),
     }
     result.update(_build_reference_runtime_context(cwd))
+    result.update(_build_state_memory_runtime_context(cwd))
     result.update(_build_execution_runtime_context(cwd))
 
     # Include file contents if requested
     planning = cwd / PLANNING_DIR_NAME
     if "state" in includes:
         result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
+        result.update(_build_structured_state_runtime_context(cwd))
     if "config" in includes:
         result["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
     if "roadmap" in includes:
@@ -1432,11 +2054,13 @@ def init_plan_phase(cwd: Path, phase: str | None, includes: set[str] | None = No
         "platform": _detect_platform(cwd),
     }
     result.update(_build_reference_runtime_context(cwd))
+    result.update(_build_state_memory_runtime_context(cwd))
 
     # Include file contents
     planning = cwd / PLANNING_DIR_NAME
     if "state" in includes:
         result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
+        result.update(_build_structured_state_runtime_context(cwd))
     if "roadmap" in includes:
         result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
     if "requirements" in includes:
@@ -1546,6 +2170,7 @@ def init_new_milestone(cwd: Path) -> dict:
         "platform": _detect_platform(cwd),
     }
     result.update(_build_reference_runtime_context(cwd))
+    result.update(_build_state_memory_runtime_context(cwd))
     return result
 
 
@@ -1599,99 +2224,135 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
         "platform": _detect_platform(cwd),
     }
     result.update(_build_reference_runtime_context(cwd))
+    result.update(_build_state_memory_runtime_context(cwd))
     return result
 
 
-def init_resume(cwd: Path) -> dict:
+def init_resume(cwd: Path, *, data_root: Path | None = None) -> dict:
     """Assemble context for resuming work."""
-    config = load_config(cwd)
-    execution_context = _build_execution_runtime_context(cwd)
+    requested_cwd = cwd.expanduser().resolve(strict=False)
+    effective_cwd, reentry_metadata = _resolve_reentry_context(requested_cwd, data_root=data_root)
+    config = load_config(effective_cwd)
+    execution_context = _build_execution_runtime_context(effective_cwd)
+    result_lookup_by_id = _build_resume_result_lookup(effective_cwd)
 
     # Check for interrupted agent
     interrupted_agent_id = None
-    agent_id_file = cwd / PLANNING_DIR_NAME / AGENT_ID_FILENAME
+    agent_id_file = effective_cwd / PLANNING_DIR_NAME / AGENT_ID_FILENAME
     try:
         interrupted_agent_id = agent_id_file.read_text(encoding="utf-8").strip() or None
     except (FileNotFoundError, OSError):
         pass
 
-    segment_candidates: list[dict[str, object]] = []
-    current_execution = execution_context.get("current_execution")
-    if execution_context.get("execution_resumable") and isinstance(current_execution, dict):
-        current_candidate = {
-            "source": "current_execution",
-            "status": current_execution.get("segment_status"),
-            "phase": current_execution.get("phase"),
-            "plan": current_execution.get("plan"),
-            "segment_id": current_execution.get("segment_id"),
-            "resume_file": current_execution.get("resume_file"),
-            "checkpoint_reason": current_execution.get("checkpoint_reason"),
-            "first_result_gate_pending": current_execution.get("first_result_gate_pending"),
-            "pre_fanout_review_pending": current_execution.get("pre_fanout_review_pending"),
-            "pre_fanout_review_cleared": current_execution.get("pre_fanout_review_cleared"),
-            "skeptical_requestioning_required": current_execution.get("skeptical_requestioning_required"),
-            "skeptical_requestioning_summary": current_execution.get("skeptical_requestioning_summary"),
-            "weakest_unchecked_anchor": current_execution.get("weakest_unchecked_anchor"),
-            "disconfirming_observation": current_execution.get("disconfirming_observation"),
-            "downstream_locked": current_execution.get("downstream_locked"),
-            "waiting_reason": current_execution.get("waiting_reason"),
-            "blocked_reason": current_execution.get("blocked_reason"),
-            "last_result_label": current_execution.get("last_result_label"),
-            "updated_at": current_execution.get("updated_at"),
-        }
-        segment_candidates.append(current_candidate)
+    continuation_state = _build_resume_read_state(
+        execution_context,
+        interrupted_agent_id=interrupted_agent_id,
+        result_lookup_by_id=result_lookup_by_id,
+    )
+    continuation_state, recent_bounded_segment_promoted = _promote_auto_selected_recent_bounded_segment(
+        continuation_state,
+        reentry_metadata=reentry_metadata,
+    )
+    active_bounded_segment = continuation_state.get("active_bounded_segment")
+    if not isinstance(active_bounded_segment, dict):
+        active_bounded_segment = None
+    has_interrupted_agent = bool(continuation_state.get("has_interrupted_agent"))
+    normalized_interrupted_agent_id = continuation_state.get("interrupted_agent_id")
+    if not isinstance(normalized_interrupted_agent_id, str) or not normalized_interrupted_agent_id.strip():
+        normalized_interrupted_agent_id = interrupted_agent_id
 
-    session_resume_file = execution_context.get("session_resume_file")
-    if isinstance(session_resume_file, str) and session_resume_file:
-        session_candidate = {
-            "source": "session_resume_file",
-            "status": "handoff",
-            "resume_file": session_resume_file,
-            "resumable": False,
-        }
-        if not any(
-            candidate.get("resume_file") == session_candidate["resume_file"]
-            for candidate in segment_candidates
-        ):
-            segment_candidates.append(session_candidate)
-    if interrupted_agent_id is not None:
-        segment_candidates.append(
-            {
-                "source": "interrupted_agent",
-                "status": "interrupted",
-                "agent_id": interrupted_agent_id,
-            }
-        )
-    if execution_context.get("execution_resumable") and isinstance(current_execution, dict):
-        resume_mode = "bounded_segment"
-    elif interrupted_agent_id is not None:
-        resume_mode = "interrupted_agent"
-    else:
+    continuity_handoff_file = continuation_state.get("continuity_handoff_file")
+    if not isinstance(continuity_handoff_file, str) or not continuity_handoff_file.strip():
+        continuity_handoff_file = None
+    recorded_continuity_handoff_file = continuation_state.get("recorded_continuity_handoff_file")
+    if not isinstance(recorded_continuity_handoff_file, str) or not recorded_continuity_handoff_file.strip():
+        recorded_continuity_handoff_file = None
+    missing_continuity_handoff_file = continuation_state.get("missing_continuity_handoff_file")
+    if not isinstance(missing_continuity_handoff_file, str) or not missing_continuity_handoff_file.strip():
+        missing_continuity_handoff_file = None
+    current_execution = continuation_state.get("active_execution_segment")
+    segment_candidates = continuation_state.get("segment_candidates")
+    if not isinstance(segment_candidates, list):
+        segment_candidates = []
+    derived_execution_head = continuation_state.get("derived_execution_head")
+    if not isinstance(derived_execution_head, dict):
+        derived_execution_head = execution_context.get("current_execution") if isinstance(execution_context.get("current_execution"), dict) else None
+    resume_candidates = continuation_state.get("resume_candidates")
+    if not isinstance(resume_candidates, list):
+        resume_candidates = segment_candidates
+    active_resume_kind = continuation_state.get("active_resume_kind")
+    if not isinstance(active_resume_kind, str) or not active_resume_kind.strip():
+        active_resume_kind = None
+    active_resume_origin = continuation_state.get("active_resume_origin")
+    if not isinstance(active_resume_origin, str) or not active_resume_origin.strip():
+        active_resume_origin = None
+    active_resume_pointer = continuation_state.get("active_resume_pointer")
+    if not isinstance(active_resume_pointer, str) or not active_resume_pointer.strip():
+        active_resume_pointer = None
+    resume_mode = continuation_state.get("resume_mode")
+    if not isinstance(resume_mode, str) or not resume_mode.strip():
         resume_mode = None
+    active_resume_result = continuation_state.get("active_resume_result")
+    if not isinstance(active_resume_result, dict):
+        active_resume_result = None
 
     result = {
+        "workspace_root": reentry_metadata["workspace_root"],
+        "project_root": reentry_metadata["project_root"],
+        "project_root_source": reentry_metadata["project_root_source"],
+        "project_root_auto_selected": reentry_metadata["project_root_auto_selected"],
+        "project_reentry_mode": reentry_metadata["project_reentry_mode"],
+        "project_reentry_requires_selection": reentry_metadata["project_reentry_requires_selection"],
+        "project_reentry_selected_candidate": reentry_metadata.get("project_reentry_selected_candidate"),
+        "project_reentry_candidates": reentry_metadata["project_reentry_candidates"],
         # File existence
-        "state_exists": _state_exists(cwd),
-        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
-        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
+        "state_exists": _state_exists(effective_cwd),
+        "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "planning_exists": _path_exists(effective_cwd, PLANNING_DIR_NAME),
         # Agent state
-        "has_interrupted_agent": interrupted_agent_id is not None,
-        "interrupted_agent_id": interrupted_agent_id,
+        "has_interrupted_agent": has_interrupted_agent,
+        "interrupted_agent_id": normalized_interrupted_agent_id,
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
         "review_cadence": config["review_cadence"],
         "research_mode": config["research_mode"],
+        "resume_surface_schema_version": continuation_state.get(
+            "resume_surface_schema_version",
+            _RESUME_SURFACE_SCHEMA_VERSION,
+        ),
+        "active_bounded_segment": active_bounded_segment,
+        "derived_execution_head": derived_execution_head,
+        "derived_execution_head_resume_file": execution_context.get("current_execution_resume_file"),
+        "continuity_handoff_file": continuity_handoff_file if isinstance(continuity_handoff_file, str) else None,
+        "recorded_continuity_handoff_file": (
+            recorded_continuity_handoff_file if isinstance(recorded_continuity_handoff_file, str) else None
+        ),
+        "missing_continuity_handoff_file": (
+            missing_continuity_handoff_file if isinstance(missing_continuity_handoff_file, str) else None
+        ),
+        "has_continuity_handoff": bool(continuation_state.get("has_continuity_handoff")),
+        "active_resume_kind": active_resume_kind,
+        "active_resume_origin": active_resume_origin,
+        "active_resume_pointer": active_resume_pointer,
+        "active_resume_result": active_resume_result,
+        "resume_candidates": resume_candidates,
         "active_execution_segment": current_execution,
         "segment_candidates": segment_candidates,
         "resume_mode": resume_mode,
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
-    result.update(_build_reference_runtime_context(cwd))
-    result.update(execution_context)
-    return result
+    result.update(_build_reference_runtime_context(effective_cwd))
+    execution_public = {
+        key: value for key, value in execution_context.items() if key != "resume_projection"
+    }
+    result.update(execution_public)
+    if recent_bounded_segment_promoted and not bool(result.get("execution_resumable")):
+        result["execution_resumable"] = True
+    result["compat_resume_surface"] = build_resume_compat_surface(result, continuation_state, execution_context) or {}
+    return canonicalize_resume_public_payload(result)
 
 
 def init_verify_work(cwd: Path, phase: str | None) -> dict:
@@ -1772,11 +2433,13 @@ def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None
         "platform": _detect_platform(cwd),
     }
     result.update(_build_reference_runtime_context(cwd))
+    result.update(_build_state_memory_runtime_context(cwd))
     result.update(_build_execution_runtime_context(cwd))
 
     planning = cwd / PLANNING_DIR_NAME
     if "state" in includes:
         result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
+        result.update(_build_structured_state_runtime_context(cwd))
     if "config" in includes:
         result["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
     if "roadmap" in includes:
@@ -1929,7 +2592,7 @@ def init_map_research(cwd: Path) -> dict:
     return result
 
 
-def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
+def init_progress(cwd: Path, includes: set[str] | None = None, *, data_root: Path | None = None) -> dict:
     """Assemble context for progress checking.
 
     Args:
@@ -1937,11 +2600,13 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
         includes: Optional set of file sections to embed (state, roadmap, project, config).
     """
     includes = includes or set()
-    config = load_config(cwd)
-    milestone = _try_get_milestone_info(cwd)
+    requested_cwd = cwd.expanduser().resolve(strict=False)
+    effective_cwd, reentry_metadata = _resolve_reentry_context(requested_cwd, data_root=data_root)
+    config = load_config(effective_cwd)
+    milestone = _try_get_milestone_info(effective_cwd)
 
     # Analyze phases
-    layout = ProjectLayout(cwd)
+    layout = ProjectLayout(effective_cwd)
     phases_dir = layout.phases_dir
     phases: list[dict[str, object]] = []
     current_phase: dict[str, object] | None = None
@@ -1995,7 +2660,7 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
 
     # Check for paused work
     paused_at: str | None = None
-    state_content = _safe_read_file(cwd / PLANNING_DIR_NAME / STATE_MD_FILENAME)
+    state_content = _safe_read_file(effective_cwd / PLANNING_DIR_NAME / STATE_MD_FILENAME)
     if state_content:
         status_match = re.search(r"\*\*Status:\*\*\s*(.+)", state_content)
         if status_match and status_match.group(1).strip().lower() == "paused":
@@ -2003,9 +2668,17 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
             paused_at = stopped_match.group(1).strip() if stopped_match else "true"
 
     result: dict[str, object] = {
+        "workspace_root": reentry_metadata["workspace_root"],
+        "project_root": reentry_metadata["project_root"],
+        "project_root_source": reentry_metadata["project_root_source"],
+        "project_root_auto_selected": reentry_metadata["project_root_auto_selected"],
+        "project_reentry_mode": reentry_metadata["project_reentry_mode"],
+        "project_reentry_requires_selection": reentry_metadata["project_reentry_requires_selection"],
+        "project_reentry_selected_candidate": reentry_metadata.get("project_reentry_selected_candidate"),
+        "project_reentry_candidates": reentry_metadata["project_reentry_candidates"],
         # Models
-        "executor_model": _resolve_model(cwd, "gpd-executor", config),
-        "planner_model": _resolve_model(cwd, "gpd-planner", config),
+        "executor_model": _resolve_model(effective_cwd, "gpd-executor", config),
+        "planner_model": _resolve_model(effective_cwd, "gpd-planner", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -2025,14 +2698,15 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
         "paused_at": paused_at,
         "has_work_in_progress": current_phase is not None,
         # File existence
-        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
-        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
-        "state_exists": _state_exists(cwd),
+        "project_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "roadmap_exists": _path_exists(effective_cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "state_exists": _state_exists(effective_cwd),
         # Platform
-        "platform": _detect_platform(cwd),
+        "platform": _detect_platform(effective_cwd),
     }
-    result.update(_build_reference_runtime_context(cwd))
-    result.update(_build_execution_runtime_context(cwd))
+    result.update(_build_reference_runtime_context(effective_cwd))
+    result.update(_build_state_memory_runtime_context(effective_cwd))
+    result.update(_build_execution_runtime_context(effective_cwd))
     if result.get("execution_paused_at"):
         result["paused_at"] = result["execution_paused_at"]
     if result.get("current_execution") and result["current_phase"] is None:
@@ -2050,9 +2724,10 @@ def init_progress(cwd: Path, includes: set[str] | None = None) -> dict:
         result["has_work_in_progress"] = True
 
     # Include file contents
-    planning = cwd / PLANNING_DIR_NAME
+    planning = effective_cwd / PLANNING_DIR_NAME
     if "state" in includes:
         result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
+        result.update(_build_structured_state_runtime_context(effective_cwd))
     if "roadmap" in includes:
         result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
     if "project" in includes:

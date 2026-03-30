@@ -1,6 +1,8 @@
 <purpose>
 Conduct a systematic literature review for a physics research topic. Map the intellectual landscape: foundational works, methodological approaches, key results, controversies, and open questions. Produce LITERATURE-REVIEW.md consumed by planning and paper-writing workflows.
 
+Also emit a machine-readable `GPD/literature/{slug}-CITATION-SOURCES.json` sidecar containing `CitationSource[]`-compatible records keyed by stable `reference_id` values so paper-writing can reuse the discovered references without manual transcription.
+
 Called from /gpd:literature-review command.
 </purpose>
 
@@ -384,6 +386,8 @@ For someone entering this area, read in this order:
 {Formatted citations, organized by topic/method}
 ```
 
+Then write `GPD/literature/{slug}-CITATION-SOURCES.json` as a JSON array of `CitationSource`-compatible objects for the same references. Keep one stable `reference_id` per entry, include `bibtex_key` only when it is already known and verified, preserve canonical citation fields, and keep the sidecar synchronized with the review's Full Reference List so downstream `gpd paper-build --citation-sources` can consume it directly and project the final `reference_id -> bibtex_key` bridge into `BIBLIOGRAPHY-AUDIT.json`.
+
 </step>
 
 <step name="verify_citations">
@@ -430,6 +434,7 @@ Return BIBLIOGRAPHY UPDATED or CITATION ISSUES FOUND."
 - Read the audit report
 - Fix or remove hallucinated citations from the review document
 - Update corrected metadata in the reference list
+- Refresh `GPD/literature/{slug}-CITATION-SOURCES.json` so the sidecar stays aligned with the corrected review and reference keys.
 - Note unresolvable citations in the return summary
 
 **If BIBLIOGRAPHY UPDATED:**
@@ -466,6 +471,8 @@ Format:
 **Recommended starting point:** {key reference}
 **Citation verification:** {all verified | N issues found -- see GPD/literature/{slug}-CITATION-AUDIT.md}
 ```
+
+If the review also emitted `GPD/literature/{slug}-CITATION-SOURCES.json`, note that path in the return summary so downstream manuscript drafting can reuse it directly.
 
 If the review is incomplete (too broad, need user guidance):
 

@@ -13,11 +13,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import pytest
-
-from gpd.adapters import get_adapter
-from gpd.adapters.install_utils import build_runtime_install_repair_command
-from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.hooks.runtime_detect import TodoCandidate, update_command_for_runtime
 from gpd.hooks.statusline import (
     _check_update,
@@ -25,92 +20,75 @@ from gpd.hooks.statusline import (
     _execution_badge,
     _format_context_window_size,
     _read_current_task,
+    _read_execution_state,
     _read_model_label,
     _read_position,
     _read_workspace_label,
-    _workspace_from_payload,
-    _workspace_root_from_payload,
     main,
 )
+from tests.hooks.helpers import mark_complete_install as _mark_complete_install
+from tests.hooks.helpers import repair_command as _repair_command
 
-_RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
-
-
-def _runtime_env_prefixes() -> tuple[str, ...]:
-    prefixes: set[str] = set()
-    for descriptor in _RUNTIME_DESCRIPTORS:
-        for env_var in descriptor.activation_env_vars:
-            prefixes.add(env_var)
-            prefixes.add(env_var.rsplit("_", 1)[0] if "_" in env_var else env_var)
-    return tuple(sorted(prefixes, key=len, reverse=True))
-
-
-def _repair_command(runtime: str, *, install_scope: str, target_dir: Path, explicit_target: bool) -> str:
-    return build_runtime_install_repair_command(
-        runtime,
-        install_scope=install_scope,
-        target_dir=target_dir,
-        explicit_target=explicit_target,
-    )
-
-
-_RUNTIME_ENV_PREFIXES = _runtime_env_prefixes()
-
-
-def _runtime_env_vars_to_clear() -> set[str]:
-    env_vars = {"GPD_ACTIVE_RUNTIME", "XDG_CONFIG_HOME"}
-    for descriptor in _RUNTIME_DESCRIPTORS:
-        global_config = descriptor.global_config
-        for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var):
-            if env_var:
-                env_vars.add(env_var)
-    return env_vars
-
-
-_RUNTIME_ENV_VARS_TO_CLEAR = _runtime_env_vars_to_clear()
-
-
-@pytest.fixture(autouse=True)
-def _reset_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep statusline-hook tests isolated from prior runtime env overrides."""
-    for key in list(os.environ):
-        if key.startswith(_RUNTIME_ENV_PREFIXES) or key in _RUNTIME_ENV_VARS_TO_CLEAR:
-            monkeypatch.delenv(key, raising=False)
+_TEST_MODEL = "model-under-test"
 
 
 def _todo_candidates(*paths: Path) -> list[TodoCandidate]:
     return [TodoCandidate(path) for path in paths]
 
 
-def _mark_complete_install(config_dir: Path, *, runtime: str | None = None, install_scope: str = "local") -> None:
-    config_dir.mkdir(parents=True, exist_ok=True)
-    if runtime is not None:
-        adapter = get_adapter(runtime)
-        for relpath in adapter.install_completeness_relpaths():
-            if relpath == "gpd-file-manifest.json":
-                continue
-            artifact = config_dir / relpath
-            artifact.parent.mkdir(parents=True, exist_ok=True)
-            if artifact.suffix:
-                artifact.write_text("{}\n" if artifact.suffix == ".json" else "# test\n", encoding="utf-8")
-            else:
-                artifact.mkdir(parents=True, exist_ok=True)
-        if runtime == "codex":
-            help_skill_dir = config_dir.parent / ".agents" / "skills" / "gpd-help"
-            help_skill_dir.mkdir(parents=True, exist_ok=True)
-            (help_skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
-    else:
-        (config_dir / "get-physics-done").mkdir(parents=True, exist_ok=True)
-    manifest: dict[str, object] = {"install_scope": install_scope}
-    if runtime is not None:
-        explicit_target = config_dir.name != adapter.config_dir_name
-        manifest["runtime"] = runtime
-        manifest["explicit_target"] = explicit_target
-        manifest["install_target_dir"] = str(config_dir)
-        if runtime == "codex":
-            manifest["codex_skills_dir"] = str(config_dir.parent / ".agents" / "skills")
-            manifest["codex_generated_skill_dirs"] = ["gpd-help"]
-    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+def _visibility_state(**overrides: object) -> SimpleNamespace:
+    """Build a minimal execution-visibility stand-in for statusline tests."""
+    current_execution = overrides.pop("current_execution", None)
+    payload: dict[str, object] = {
+        "workspace_root": "/tmp/project",
+        "has_live_execution": False,
+        "status_classification": "idle",
+        "assessment": "idle",
+        "possibly_stalled": False,
+        "stale_after_minutes": 30,
+        "last_updated_at": None,
+        "last_updated_age_label": None,
+        "last_updated_age_minutes": None,
+        "phase": None,
+        "plan": None,
+        "wave": None,
+        "segment_status": None,
+        "current_task": None,
+        "current_task_index": None,
+        "current_task_total": None,
+        "current_task_progress": None,
+        "segment_reason": None,
+        "checkpoint_reason": None,
+        "waiting_reason": None,
+        "blocked_reason": None,
+        "review_reason": None,
+        "last_result_label": None,
+        "last_artifact_path": None,
+        "resume_file": None,
+        "current_execution": current_execution,
+        "suggested_next_steps": [],
+    }
+    payload.update(overrides)
+    return SimpleNamespace(**payload)
+
+
+def _runtime_hints_payload(
+    visibility: SimpleNamespace | None = None,
+    *,
+    cost: dict[str, object] | None = None,
+) -> dict[str, object]:
+    return {
+        "execution": vars(visibility) if visibility is not None else None,
+        "cost": cost or {},
+    }
+
+
+class _ExecutionSnapshot(SimpleNamespace):
+    def model_dump(self, mode: str = "json") -> dict[str, object]:
+        return dict(self.__dict__)
+
+    def __getattr__(self, name: str) -> object:
+        return None
 
 # ─── _context_bar edge cases ───────────────────────────────────────────────
 
@@ -190,45 +168,20 @@ class TestStatusMetadata:
         label = _read_workspace_label({"workspace": {"project_dir": str(project)}}, str(current))
         assert label == "[project/src/gpd]"
 
+    def test_read_workspace_label_prefers_resolved_project_root_argument(self, tmp_path: Path) -> None:
+        project = tmp_path / "project"
+        current = project / "src" / "gpd"
+        current.mkdir(parents=True)
+
+        label = _read_workspace_label({}, str(current), project_root=str(project))
+        assert label == "[project/src/gpd]"
+
     def test_read_workspace_label_falls_back_to_directory_name(self, tmp_path: Path) -> None:
         current = tmp_path / "workspace"
         current.mkdir()
 
         label = _read_workspace_label({}, str(current))
         assert label == "[workspace]"
-
-
-def test_read_current_task_uses_shared_todo_directory_constant_for_self_owned_install(
-    tmp_path: Path,
-) -> None:
-    from gpd.hooks.install_context import SelfOwnedInstallContext
-
-    self_config_dir = tmp_path / "runtime"
-    todo_dir = self_config_dir / "todos"
-    todo_dir.mkdir(parents=True)
-    todo_file = todo_dir / "session-agent-1.json"
-    todo_file.write_text(
-        json.dumps(
-            [
-                {
-                    "status": "in_progress",
-                    "activeForm": "working from shared todos",
-                }
-            ]
-        ),
-        encoding="utf-8",
-    )
-    self_install = SelfOwnedInstallContext(config_dir=self_config_dir, runtime="codex", install_scope="local")
-
-    with (
-        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install),
-        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
-        patch("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", return_value="unknown"),
-        patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=[]),
-        patch("gpd.hooks.runtime_detect.should_consider_todo_candidate", return_value=True),
-    ):
-        assert _read_current_task("session") == "working from shared todos"
-
 
 class TestExecutionBadge:
     def test_first_result_gate_badge_wins(self) -> None:
@@ -252,6 +205,39 @@ class TestExecutionBadge:
     def test_resume_badge_surfaces_resume_state(self) -> None:
         badge = _execution_badge({"segment_status": "paused", "resume_file": "GPD/phases/02/.continue-here.md"})
         assert badge == "RESUME"
+
+    def test_visibility_paused_or_resumable_with_resume_file_uses_resume_badge(self) -> None:
+        badge = _execution_badge(
+            {"segment_status": "active"},
+            _visibility_state(
+                has_live_execution=True,
+                status_classification="paused-or-resumable",
+                assessment="paused-or-resumable",
+                current_execution={
+                    "segment_status": "paused",
+                    "resume_file": "GPD/phases/02/.continue-here.md",
+                },
+                resume_file="GPD/phases/02/.continue-here.md",
+            ),
+        )
+        assert badge == "RESUME"
+
+    def test_visibility_active_possibly_stalled_uses_stall_badge(self) -> None:
+        badge = _execution_badge(
+            {"segment_status": "active"},
+            _visibility_state(
+                has_live_execution=True,
+                status_classification="active",
+                assessment="possibly stalled",
+                possibly_stalled=True,
+                last_updated_age_label="45m ago",
+                current_execution={
+                    "segment_status": "active",
+                    "updated_at": "2026-03-10T00:45:00+00:00",
+                },
+            ),
+        )
+        assert "STALL?" in badge
 
     def test_review_badge_wins_over_resume_for_bounded_gate_state(self) -> None:
         badge = _execution_badge(
@@ -300,6 +286,47 @@ class TestExecutionBadge:
             }
         )
         assert "REVIEW:pre-fanout" in badge
+
+
+def test_read_execution_state_prefers_lineage_head_over_legacy_current_execution_snapshot(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    observability = workspace / "GPD" / "observability"
+    observability.mkdir(parents=True, exist_ok=True)
+    (observability / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "legacy-session",
+                "phase": "06",
+                "plan": "03",
+                "segment_status": "paused",
+                "current_task": "Legacy snapshot task",
+                "updated_at": "2026-03-27T12:01:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    head_snapshot = _ExecutionSnapshot(
+        session_id="lineage-session",
+        phase="06",
+        plan="03",
+        segment_status="waiting_review",
+        waiting_for_review=True,
+        checkpoint_reason="pre_fanout",
+        pre_fanout_review_pending=True,
+        current_task="Lineage head task",
+        updated_at="2026-03-27T12:03:00+00:00",
+    )
+
+    with patch("gpd.core.observability.get_current_execution", return_value=head_snapshot):
+        execution = _read_execution_state(str(workspace))
+
+    assert execution["current_task"] == "Lineage head task"
+    assert execution["checkpoint_reason"] == "pre_fanout"
+    assert execution["segment_status"] == "waiting_review"
+    assert execution["current_task"] != "Legacy snapshot task"
 
 
 # ─── _read_position edge cases ─────────────────────────────────────────────
@@ -393,7 +420,7 @@ class TestReadCurrentTask:
     def test_no_matching_todo_files(self, tmp_path: Path) -> None:
         todo_dir = tmp_path / "todos"
         todo_dir.mkdir()
-        with patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=_todo_candidates(todo_dir)):
+        with patch("gpd.hooks.install_context.ordered_todo_lookup_candidates", return_value=_todo_candidates(todo_dir)):
             assert _read_current_task("session-123") == ""
 
     def test_matching_file_with_in_progress_task(self, tmp_path: Path) -> None:
@@ -401,7 +428,7 @@ class TestReadCurrentTask:
         todo_dir.mkdir()
         todos = [{"status": "in_progress", "activeForm": "Running tests"}]
         (todo_dir / "session-123-agent-abc.json").write_text(json.dumps(todos))
-        with patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=_todo_candidates(todo_dir)):
+        with patch("gpd.hooks.install_context.ordered_todo_lookup_candidates", return_value=_todo_candidates(todo_dir)):
             assert _read_current_task("session-123") == "Running tests"
 
     def test_matching_file_no_in_progress_task(self, tmp_path: Path) -> None:
@@ -409,149 +436,8 @@ class TestReadCurrentTask:
         todo_dir.mkdir()
         todos = [{"status": "completed", "activeForm": "Done"}]
         (todo_dir / "session-123-agent-abc.json").write_text(json.dumps(todos))
-        with patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=_todo_candidates(todo_dir)):
+        with patch("gpd.hooks.install_context.ordered_todo_lookup_candidates", return_value=_todo_candidates(todo_dir)):
             assert _read_current_task("session-123") == ""
-
-    def test_local_runtime_todo_file_is_discovered(self, tmp_path: Path) -> None:
-        home = tmp_path / "home"
-        _mark_complete_install(tmp_path / ".codex", runtime="codex")
-        local_todo_dir = tmp_path / ".codex" / "todos"
-        local_todo_dir.mkdir(parents=True)
-        todos = [{"status": "in_progress", "activeForm": "Inspect local runtime"}]
-        (local_todo_dir / "session-123-agent-local.json").write_text(json.dumps(todos))
-
-        with (
-            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
-            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
-        ):
-            assert _read_current_task("session-123") == "Inspect local runtime"
-
-    def test_workspace_dir_overrides_process_cwd_for_local_todos(self, tmp_path: Path) -> None:
-        workspace = tmp_path / "workspace"
-        home = tmp_path / "home"
-        _mark_complete_install(workspace / ".codex", runtime="codex")
-        local_todo_dir = workspace / ".codex" / "todos"
-        local_todo_dir.mkdir(parents=True)
-        todos = [{"status": "in_progress", "activeForm": "Workspace-scoped task"}]
-        (local_todo_dir / "session-123-agent-local.json").write_text(json.dumps(todos))
-
-        elsewhere = tmp_path / "elsewhere"
-        elsewhere.mkdir()
-
-        with (
-            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=elsewhere),
-            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
-        ):
-            assert _read_current_task("session-123", str(workspace)) == "Workspace-scoped task"
-
-    def test_workspace_from_payload_uses_runtime_aware_payload_policy(self, tmp_path: Path) -> None:
-        process_cwd = tmp_path / "process-cwd"
-        process_cwd.mkdir()
-        workspace = tmp_path / "workspace"
-        workspace.mkdir()
-        payload = {"payload_workspace": str(workspace)}
-        hook_payload = SimpleNamespace(workspace_keys=("payload_workspace",), project_dir_keys=("project_root",))
-
-        with patch("gpd.hooks.statusline._hook_payload_policy", return_value=hook_payload) as mock_policy:
-            result = _workspace_from_payload(payload, cwd=str(process_cwd))
-
-        mock_policy.assert_called_once_with(str(process_cwd))
-        assert result == str(workspace.resolve(strict=False))
-
-    def test_workspace_root_from_payload_uses_runtime_aware_payload_policy(self, tmp_path: Path) -> None:
-        process_cwd = tmp_path / "process-cwd"
-        process_cwd.mkdir()
-        workspace = tmp_path / "workspace"
-        workspace.mkdir()
-        project = tmp_path / "project"
-        project.mkdir()
-        payload = {"workspace": str(workspace), "project_root": str(project)}
-        hook_payload = SimpleNamespace(workspace_keys=("workspace",), project_dir_keys=("project_root",))
-
-        with patch("gpd.hooks.statusline._hook_payload_policy", return_value=hook_payload) as mock_policy:
-            result = _workspace_root_from_payload(payload, str(workspace), cwd=str(process_cwd))
-
-        mock_policy.assert_called_once_with(str(process_cwd))
-        assert result == str(project.resolve(strict=False))
-
-    def test_runtime_less_explicit_target_hook_todo_dir_is_ignored_for_task_lookup(self, tmp_path: Path) -> None:
-        explicit_target = tmp_path / "custom-runtime-dir"
-        hook_path = explicit_target / "hooks" / "statusline.py"
-        hook_path.parent.mkdir(parents=True)
-        hook_path.write_text("# hook\n", encoding="utf-8")
-        _mark_complete_install(explicit_target)
-        explicit_todo_dir = explicit_target / "todos"
-        explicit_todo_dir.mkdir(parents=True)
-        (explicit_todo_dir / "session-123-agent-explicit.json").write_text(
-            json.dumps([{"status": "in_progress", "activeForm": "Explicit target task"}]),
-            encoding="utf-8",
-        )
-
-        with (
-            patch("gpd.hooks.statusline.__file__", str(hook_path)),
-            patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=[]),
-        ):
-            assert _read_current_task("session-123") == ""
-
-    def test_unrelated_self_config_todo_dir_does_not_override_workspace_install(self, tmp_path: Path) -> None:
-        workspace = tmp_path / "workspace"
-        workspace.mkdir()
-        home = tmp_path / "home"
-
-        workspace_runtime_dir = workspace / ".codex"
-        workspace_todo_dir = workspace_runtime_dir / "todos"
-        workspace_todo_dir.mkdir(parents=True)
-        _mark_complete_install(workspace_runtime_dir, runtime="codex")
-        (workspace_todo_dir / "session-123-agent-workspace.json").write_text(
-            json.dumps([{"status": "in_progress", "activeForm": "Workspace task"}]),
-            encoding="utf-8",
-        )
-
-        unrelated_runtime_dir = tmp_path / "custom-runtime-dir"
-        hook_path = unrelated_runtime_dir / "hooks" / "statusline.py"
-        unrelated_todo_dir = unrelated_runtime_dir / "todos"
-        hook_path.parent.mkdir(parents=True)
-        unrelated_todo_dir.mkdir(parents=True)
-        hook_path.write_text("# hook\n", encoding="utf-8")
-        _mark_complete_install(unrelated_runtime_dir, runtime="codex")
-        (unrelated_todo_dir / "session-123-agent-self.json").write_text(
-            json.dumps([{"status": "in_progress", "activeForm": "Self task"}]),
-            encoding="utf-8",
-        )
-
-        with (
-            patch("gpd.hooks.statusline.__file__", str(hook_path)),
-            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
-        ):
-            assert _read_current_task("session-123", str(workspace)) == "Workspace task"
-
-    def test_active_runtime_todo_dir_beats_other_runtime_with_same_session_id(self, tmp_path: Path) -> None:
-        home = tmp_path / "home"
-        claude_todo_dir = tmp_path / ".claude" / "todos"
-        codex_todo_dir = tmp_path / ".codex" / "todos"
-        claude_todo_dir.mkdir(parents=True)
-        codex_todo_dir.mkdir(parents=True)
-        _mark_complete_install(tmp_path / ".codex", runtime="codex")
-
-        claude_file = claude_todo_dir / "session-123-agent-claude.json"
-        codex_file = codex_todo_dir / "session-123-agent-codex.json"
-        claude_file.write_text(
-            json.dumps([{"status": "in_progress", "activeForm": "Claude task"}]),
-            encoding="utf-8",
-        )
-        codex_file.write_text(
-            json.dumps([{"status": "in_progress", "activeForm": "Codex task"}]),
-            encoding="utf-8",
-        )
-        claude_file.touch()
-
-        env = {key: value for key, value in os.environ.items() if key != "CODEX_SESSION"}
-        env["CODEX_SESSION"] = "1"
-        with (
-            patch.dict(os.environ, env, clear=True),
-            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
-        ):
-            assert _read_current_task("session-123", str(tmp_path)) == "Codex task"
 
     def test_newest_allowed_todo_file_wins_across_candidate_dirs(self, tmp_path: Path) -> None:
         local_todo_dir = tmp_path / ".codex" / "todos"
@@ -572,7 +458,7 @@ class TestReadCurrentTask:
         global_file.touch()
 
         with patch(
-            "gpd.hooks.runtime_detect.get_todo_candidates",
+            "gpd.hooks.install_context.ordered_todo_lookup_candidates",
             return_value=_todo_candidates(local_todo_dir, global_todo_dir),
         ):
             assert _read_current_task("session-123") == "Do not prefer global"
@@ -581,12 +467,12 @@ class TestReadCurrentTask:
         todo_dir = tmp_path / "todos"
         todo_dir.mkdir()
         (todo_dir / "session-123-agent-abc.json").write_text("not json!")
-        with patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=_todo_candidates(todo_dir)):
+        with patch("gpd.hooks.install_context.ordered_todo_lookup_candidates", return_value=_todo_candidates(todo_dir)):
             assert _read_current_task("session-123") == ""
 
     def test_nonexistent_todo_dirs(self) -> None:
         with patch(
-            "gpd.hooks.runtime_detect.get_todo_candidates",
+            "gpd.hooks.install_context.ordered_todo_lookup_candidates",
             return_value=_todo_candidates(Path("/nonexistent/todos")),
         ):
             assert _read_current_task("session-123") == ""
@@ -603,7 +489,7 @@ class TestReadCurrentTask:
             encoding="utf-8",
         )
 
-        with patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=_todo_candidates(todo_dir)):
+        with patch("gpd.hooks.install_context.ordered_todo_lookup_candidates", return_value=_todo_candidates(todo_dir)):
             assert _read_current_task("session-1") == "Correct task"
 
 
@@ -1009,20 +895,8 @@ class TestCheckUpdateHook:
         ):
             result = _check_update()
 
-        assert "gpd-update" in result
-
-    def test_read_current_task_uses_runtime_unknown_constant_not_literal(self, tmp_path: Path) -> None:
-        runtime_unknown = "runtime-unknown"
-
-        with (
-            patch("gpd.hooks.install_context.detect_self_owned_install", return_value=None),
-            patch("gpd.hooks.runtime_detect.RUNTIME_UNKNOWN", runtime_unknown),
-            patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value=runtime_unknown),
-            patch("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", return_value=runtime_unknown),
-            patch("gpd.hooks.runtime_detect.get_todo_candidates", return_value=[]),
-            patch("gpd.hooks.runtime_detect.detect_runtime_install_target", side_effect=AssertionError("unexpected lookup")),
-        ):
-            assert _read_current_task("session-1", str(tmp_path)) == ""
+        assert update_command_for_runtime("unknown") in result
+        assert "gpd-update" not in result
 
     def test_known_runtime_resolves_scope_for_bootstrap_update_command(self, tmp_path: Path) -> None:
         """Known runtimes should still resolve scope before rendering the bootstrap command."""
@@ -1054,6 +928,7 @@ class TestMain:
         with (
             patch("sys.stdin", io.StringIO(json.dumps(input_data))),
             patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())),
             patch("gpd.hooks.statusline._read_position", return_value=""),
             patch("gpd.hooks.statusline._read_current_task", return_value=""),
             patch("gpd.hooks.statusline._read_execution_state", return_value={}),
@@ -1128,24 +1003,41 @@ class TestMain:
 
         assert "[workspace]" in captured.getvalue()
 
-    def test_workspace_from_payload_uses_merged_policy_before_workspace_resolution(self, tmp_path: Path) -> None:
+    def test_main_resolves_alias_only_workspace_payload_before_ambient_runtime_policy(self, tmp_path: Path) -> None:
         process_cwd = tmp_path / "process-cwd"
         process_cwd.mkdir()
         _mark_complete_install(process_cwd / ".codex", runtime="codex")
 
-        workspace = tmp_path / "workspace"
-        workspace.mkdir()
-        _mark_complete_install(workspace / ".claude", runtime="claude-code")
-
+        project = tmp_path / "project"
+        nested = project / "src" / "notes"
+        nested.mkdir(parents=True)
         home = tmp_path / "home"
         home.mkdir()
 
-        payload = {"workspace": {"current_dir": str(workspace)}}
+        captured = io.StringIO()
         with (
+            patch(
+                "sys.stdin",
+                io.StringIO(json.dumps({"workspace": {"current_dir": str(nested), "project_dir": str(project)}})),
+            ),
+            patch("sys.stdout", captured),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=process_cwd),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+            patch("gpd.hooks.payload_roots.os.getcwd", return_value=str(process_cwd)),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())) as mock_hints,
+            patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
+            patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}) as mock_execution,
+            patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
         ):
-            assert _workspace_from_payload(payload) == str(workspace)
+            main()
+
+        mock_hints.assert_called_once_with(str(project))
+        mock_position.assert_called_once_with(str(project))
+        mock_task.assert_called_once_with("", str(project))
+        mock_execution.assert_called_once_with(str(project))
+        mock_update.assert_called_once_with(str(project))
+        assert "[project/src/notes]" in captured.getvalue()
 
     def test_main_uses_project_root_for_project_state_helpers_when_workspace_is_nested_mapping(self, tmp_path: Path) -> None:
         project = tmp_path / "project"
@@ -1156,6 +1048,7 @@ class TestMain:
         with (
             patch("sys.stdin", io.StringIO(json.dumps({"workspace": {"cwd": str(nested), "project_dir": str(project)}}))),
             patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())) as mock_hints,
             patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
             patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
             patch("gpd.hooks.statusline._read_execution_state", return_value={}) as mock_execution,
@@ -1163,6 +1056,56 @@ class TestMain:
         ):
             main()
 
+        mock_hints.assert_called_once_with(str(project))
+        mock_position.assert_called_once_with(str(project))
+        mock_task.assert_called_once_with("", str(project))
+        mock_execution.assert_called_once_with(str(project))
+        mock_update.assert_called_once_with(str(project))
+        assert "[project/src/notes]" in captured.getvalue()
+
+    def test_main_uses_project_root_for_top_level_aliases_and_keeps_nested_workspace_label(self, tmp_path: Path) -> None:
+        project = tmp_path / "project"
+        nested = project / "src" / "notes"
+        nested.mkdir(parents=True)
+        (project / "GPD").mkdir(parents=True, exist_ok=True)
+
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({"cwd": str(nested)}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())) as mock_hints,
+            patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
+            patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}) as mock_execution,
+            patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
+        ):
+            main()
+
+        mock_hints.assert_called_once_with(str(project))
+        mock_position.assert_called_once_with(str(project))
+        mock_task.assert_called_once_with("", str(project))
+        mock_execution.assert_called_once_with(str(project))
+        mock_update.assert_called_once_with(str(project))
+        assert "[project/src/notes]" in captured.getvalue()
+
+    def test_main_uses_project_root_for_top_level_project_dir_aliases(self, tmp_path: Path) -> None:
+        project = tmp_path / "project"
+        nested = project / "src" / "notes"
+        nested.mkdir(parents=True)
+
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({"cwd": str(nested), "project_dir": str(project)}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())) as mock_hints,
+            patch("gpd.hooks.statusline._read_position", return_value="") as mock_position,
+            patch("gpd.hooks.statusline._read_current_task", return_value="") as mock_task,
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}) as mock_execution,
+            patch("gpd.hooks.statusline._check_update", return_value="") as mock_update,
+        ):
+            main()
+
+        mock_hints.assert_called_once_with(str(project))
         mock_position.assert_called_once_with(str(project))
         mock_task.assert_called_once_with("", str(project))
         mock_execution.assert_called_once_with(str(project))
@@ -1174,15 +1117,24 @@ class TestMain:
         with (
             patch("sys.stdin", io.StringIO(json.dumps({"workspace": "/tmp/project"}))),
             patch("sys.stdout", captured),
+            patch(
+                "gpd.hooks.statusline._read_runtime_hints",
+                return_value=_runtime_hints_payload(
+                    _visibility_state(
+                        has_live_execution=True,
+                        status_classification="waiting",
+                        assessment="waiting",
+                        current_task="Live execution task",
+                        current_execution={
+                            "segment_status": "waiting_review",
+                            "current_task": "Live execution task",
+                        },
+                    )
+                ),
+            ),
             patch("gpd.hooks.statusline._read_position", return_value=""),
             patch("gpd.hooks.statusline._read_current_task", return_value="Todo task"),
-            patch(
-                "gpd.hooks.statusline._read_execution_state",
-                return_value={
-                    "segment_status": "waiting_review",
-                    "current_task": "Live execution task",
-                },
-            ),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
             patch("gpd.hooks.statusline._check_update", return_value=""),
         ):
             main()
@@ -1212,13 +1164,13 @@ class TestMain:
     def test_string_model_workspace_and_context_payloads_do_not_crash(self) -> None:
         output = self._run_main(
             {
-                "model": "gpt-5",
+                "model": _TEST_MODEL,
                 "workspace": "/tmp/research-project",
                 "context_window": "not-a-mapping",
             }
         )
         assert "GPD" in output
-        assert "gpt-5" in output
+        assert _TEST_MODEL in output
         assert "[research-project]" in output
 
     def test_string_workspace_is_forwarded_to_helpers(self) -> None:
@@ -1318,17 +1270,26 @@ class TestMain:
         with (
             patch("sys.stdin", io.StringIO(json.dumps({}))),
             patch("sys.stdout", captured),
+            patch(
+                "gpd.hooks.statusline._read_runtime_hints",
+                return_value=_runtime_hints_payload(
+                    _visibility_state(
+                        has_live_execution=True,
+                        status_classification="waiting",
+                        assessment="waiting",
+                        current_execution={
+                            "segment_status": "waiting_review",
+                            "first_result_gate_pending": True,
+                            "review_cadence": "adaptive",
+                            "last_result_label": "Benchmark reproduction",
+                            "last_result_id": "R-bridge-01",
+                        },
+                    )
+                ),
+            ),
             patch("gpd.hooks.statusline._read_position", return_value="P3/10"),
             patch("gpd.hooks.statusline._read_current_task", return_value="Routine task"),
-            patch(
-                "gpd.hooks.statusline._read_execution_state",
-                return_value={
-                    "segment_status": "waiting_review",
-                    "first_result_gate_pending": True,
-                    "review_cadence": "adaptive",
-                    "last_result_label": "Benchmark reproduction",
-                },
-            ),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
             patch("gpd.hooks.statusline._check_update", return_value=""),
         ):
             main()
@@ -1337,26 +1298,69 @@ class TestMain:
         assert "REVIEW:first-result adaptive" in output
         assert "Routine task" not in output
         assert "Benchmark reproduction" in output
+        assert "rerun anchor: R-bridge-01" not in output
+
+    def test_first_result_gate_renders_last_result_id_when_label_missing(self) -> None:
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({}))),
+            patch("sys.stdout", captured),
+            patch(
+                "gpd.hooks.statusline._read_runtime_hints",
+                return_value=_runtime_hints_payload(
+                    _visibility_state(
+                        has_live_execution=True,
+                        status_classification="waiting",
+                        assessment="waiting",
+                        current_execution={
+                            "segment_status": "waiting_review",
+                            "first_result_gate_pending": True,
+                            "review_cadence": "adaptive",
+                            "last_result_id": "R-bridge-01",
+                        },
+                    )
+                ),
+            ),
+            patch("gpd.hooks.statusline._read_position", return_value="P3/10"),
+            patch("gpd.hooks.statusline._read_current_task", return_value="Routine task"),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
+            patch("gpd.hooks.statusline._check_update", return_value=""),
+        ):
+            main()
+
+        output = captured.getvalue()
+        assert "REVIEW:first-result adaptive" in output
+        assert "Routine task" not in output
+        assert "rerun anchor: R-bridge-01" in output
 
     def test_skeptical_review_prefers_anchor_label_over_result_label(self) -> None:
         captured = io.StringIO()
         with (
             patch("sys.stdin", io.StringIO(json.dumps({}))),
             patch("sys.stdout", captured),
+            patch(
+                "gpd.hooks.statusline._read_runtime_hints",
+                return_value=_runtime_hints_payload(
+                    _visibility_state(
+                        has_live_execution=True,
+                        status_classification="waiting",
+                        assessment="waiting",
+                        current_execution={
+                            "segment_status": "waiting_review",
+                            "waiting_for_review": True,
+                            "checkpoint_reason": "pre_fanout",
+                            "pre_fanout_review_pending": True,
+                            "skeptical_requestioning_required": True,
+                            "weakest_unchecked_anchor": "Direct observable benchmark",
+                            "last_result_label": "Proxy fit",
+                            "last_result_id": "R-bridge-01",
+                        },
+                    )
+                ),
+            ),
             patch("gpd.hooks.statusline._read_position", return_value="P4/10"),
             patch("gpd.hooks.statusline._read_current_task", return_value="Routine task"),
-            patch(
-                "gpd.hooks.statusline._read_execution_state",
-                return_value={
-                    "segment_status": "waiting_review",
-                    "waiting_for_review": True,
-                    "checkpoint_reason": "pre_fanout",
-                    "pre_fanout_review_pending": True,
-                    "skeptical_requestioning_required": True,
-                    "weakest_unchecked_anchor": "Direct observable benchmark",
-                    "last_result_label": "Proxy fit",
-                },
-            ),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
             patch("gpd.hooks.statusline._check_update", return_value=""),
         ):
             main()
@@ -1365,3 +1369,105 @@ class TestMain:
         assert "REVIEW:skeptical" in output
         assert "Direct observable benchmark" in output
         assert "Proxy fit" not in output
+        assert "rerun anchor: R-bridge-01" not in output
+
+    def test_execution_state_rendering_does_not_claim_stuck(self) -> None:
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({}))),
+            patch("sys.stdout", captured),
+            patch(
+                "gpd.hooks.statusline._read_runtime_hints",
+                return_value=_runtime_hints_payload(
+                    _visibility_state(
+                        has_live_execution=True,
+                        status_classification="waiting",
+                        assessment="waiting",
+                        current_execution={
+                            "segment_status": "waiting_review",
+                            "waiting_for_review": True,
+                            "waiting_reason": "time_budget_exceeded",
+                            "segment_started_at": "2026-03-10T00:00:00+00:00",
+                            "updated_at": "2026-03-10T00:45:00+00:00",
+                        },
+                    )
+                ),
+            ),
+            patch("gpd.hooks.statusline._read_position", return_value="P4/10"),
+            patch("gpd.hooks.statusline._read_current_task", return_value="Routine task"),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
+            patch("gpd.hooks.statusline._check_update", return_value=""),
+        ):
+            main()
+
+        output = captured.getvalue().lower()
+        assert "stuck" not in output
+        assert "wait:budget" in output or "review" in output
+
+    def test_main_uses_visibility_stall_badge_without_raw_snapshot_heuristics(self) -> None:
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({}))),
+            patch("sys.stdout", captured),
+            patch(
+                "gpd.hooks.statusline._read_runtime_hints",
+                return_value=_runtime_hints_payload(
+                    _visibility_state(
+                        has_live_execution=True,
+                        status_classification="active",
+                        assessment="possibly stalled",
+                        possibly_stalled=True,
+                        last_updated_age_label="45m ago",
+                        current_task="Benchmark reproduction",
+                        current_execution={
+                            "segment_status": "active",
+                            "current_task": "Benchmark reproduction",
+                            "updated_at": "2026-03-10T00:45:00+00:00",
+                        },
+                    )
+                ),
+            ),
+            patch("gpd.hooks.statusline._read_position", return_value=""),
+            patch("gpd.hooks.statusline._read_current_task", return_value="Todo task"),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
+            patch("gpd.hooks.statusline._check_update", return_value=""),
+        ):
+            main()
+
+        output = captured.getvalue()
+        assert "STALL?" in output
+        assert "Todo task" not in output
+
+    def test_main_keeps_review_badge_and_surfaces_tangent_summary_in_detail_slot(self) -> None:
+        captured = io.StringIO()
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({}))),
+            patch("sys.stdout", captured),
+            patch(
+                "gpd.hooks.statusline._read_runtime_hints",
+                return_value=_runtime_hints_payload(
+                    _visibility_state(
+                        has_live_execution=True,
+                        status_classification="waiting",
+                        assessment="waiting",
+                        current_task="Review benchmark",
+                        current_execution={
+                            "segment_status": "waiting_review",
+                            "waiting_for_review": True,
+                            "tangent_summary": "Check whether the 2D case is degenerate",
+                            "tangent_decision": "branch_later",
+                            "updated_at": "2026-03-10T00:45:00+00:00",
+                        },
+                    )
+                ),
+            ),
+            patch("gpd.hooks.statusline._read_position", return_value=""),
+            patch("gpd.hooks.statusline._read_current_task", return_value="Todo task"),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
+            patch("gpd.hooks.statusline._check_update", return_value=""),
+        ):
+            main()
+
+        output = captured.getvalue().lower()
+        assert "review" in output
+        assert "branch later: check whether the 2d case is degenerate" in output

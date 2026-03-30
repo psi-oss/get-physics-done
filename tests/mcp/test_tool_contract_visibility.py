@@ -424,10 +424,12 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
 
     contract_schema = _schema_anyof_object(run_request["properties"]["contract"])
     _assert_contract_schema_sections_closed(contract_schema)
+    assert set(contract_schema["required"]) == {"scope", "context_intake"}
 
     suggest_schema = _tool_input_schema(mcp, "suggest_contract_checks")
     contract_schema = _schema_anyof_object(suggest_schema["properties"]["contract"])
     _assert_contract_schema_sections_closed(contract_schema)
+    assert set(contract_schema["required"]) == {"scope", "context_intake"}
     active_checks = suggest_schema["properties"]["active_checks"]
     assert active_checks["anyOf"][0]["type"] == "array"
     assert active_checks["anyOf"][0]["items"]["type"] == "string"

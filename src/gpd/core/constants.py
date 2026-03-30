@@ -20,6 +20,9 @@ __all__ = [
     "CONFIG_FILENAME",
     "CONTEXT_SUFFIX",
     "CONVENTIONS_FILENAME",
+    "COST_LEDGER_DIR_NAME",
+    "COST_LEDGER_RECORDS_FILENAME",
+    "COST_PRICING_SNAPSHOT_FILENAME",
     "DECISION_THRESHOLD",
     "DEFAULT_MAX_INCLUDE_CHARS",
     "ENV_DATA_DIR",
@@ -28,6 +31,10 @@ __all__ = [
     "ENV_GPD_DEBUG",
     "ENV_MAX_INCLUDE_CHARS",
     "ENV_PATTERNS_ROOT",
+    "EXECUTION_LINEAGE_HEAD_FILENAME",
+    "EXECUTION_LINEAGE_LEDGER_FILENAME",
+    "EXECUTION_LINEAGE_REDUCER_VERSION",
+    "EXECUTION_LINEAGE_SCHEMA_VERSION",
     "HOME_DATA_DIR_NAME",
     "LITERATURE_DIR_NAME",
     "MILESTONES_DIR_NAME",
@@ -43,6 +50,7 @@ __all__ = [
     "PATTERNS_INDEX_FILENAME",
     "PHASES_DIR_NAME",
     "PHASE_CHECKPOINTS_DIR_NAME",
+    "LINEAGE_DIR_NAME",
     "PLANNING_DIR_NAME",
     "PLAN_SUFFIX",
     "PROJECT_FILENAME",
@@ -54,6 +62,8 @@ __all__ = [
     "REQUIRED_SPECS_SUBDIRS",
     "REQUIREMENTS_FILENAME",
     "RESEARCH_MAP_DIR_NAME",
+    "RECENT_PROJECTS_DIR_NAME",
+    "RECENT_PROJECTS_INDEX_FILENAME",
     "RESEARCH_SUFFIX",
     "ROADMAP_FILENAME",
     "SCRATCH_DIR_NAME",
@@ -146,6 +156,21 @@ OBSERVABILITY_CURRENT_EXECUTION_FILENAME = "current-execution.json"
 OBSERVABILITY_LAST_NOTIFY_FILENAME = "last-notify.json"
 """Marker used by notify hooks to suppress duplicate execution notifications."""
 
+LINEAGE_DIR_NAME = "lineage"
+"""Subdirectory under GPD/ containing append-only lineage projections."""
+
+EXECUTION_LINEAGE_LEDGER_FILENAME = "execution-lineage.jsonl"
+"""Append-only JSONL ledger for execution lineage events."""
+
+EXECUTION_LINEAGE_HEAD_FILENAME = "execution-head.json"
+"""Derived JSON cache for the latest execution head projection."""
+
+EXECUTION_LINEAGE_SCHEMA_VERSION = 1
+"""Schema version for execution lineage records and head projections."""
+
+EXECUTION_LINEAGE_REDUCER_VERSION = "1"
+"""Reducer version for the execution lineage projector."""
+
 MILESTONES_DIR_NAME = "milestones"
 """Subdirectory under GPD/ for archived milestone snapshots."""
 
@@ -157,6 +182,21 @@ LITERATURE_DIR_NAME = "literature"
 
 RESEARCH_MAP_DIR_NAME = "research-map"
 """Subdirectory under GPD/ for theory/research map files."""
+
+RECENT_PROJECTS_DIR_NAME = "recent-projects"
+"""Subdirectory under the home GPD data root for recent-project discovery state."""
+
+RECENT_PROJECTS_INDEX_FILENAME = "index.json"
+"""Index filename for the machine-local recent-project advisory cache."""
+
+COST_LEDGER_DIR_NAME = "cost"
+"""Subdirectory under the home GPD data root for machine-local usage/cost records."""
+
+COST_LEDGER_RECORDS_FILENAME = "usage.jsonl"
+"""Append-only JSONL ledger filename for measured usage/cost records."""
+
+COST_PRICING_SNAPSHOT_FILENAME = "pricing-snapshot.json"
+"""Optional machine-local pricing snapshot used for conservative USD estimates."""
 
 SCRATCH_DIR_NAME = "tmp"
 """Subdirectory under GPD/ for transient scratch files."""
@@ -435,6 +475,10 @@ class ProjectLayout:
         return self.gpd / OBSERVABILITY_DIR_NAME
 
     @property
+    def lineage_dir(self) -> Path:
+        return self.gpd / LINEAGE_DIR_NAME
+
+    @property
     def observability_sessions_dir(self) -> Path:
         return self.observability_dir / OBSERVABILITY_SESSIONS_DIR_NAME
 
@@ -449,6 +493,14 @@ class ProjectLayout:
     @property
     def last_observability_notification(self) -> Path:
         return self.observability_dir / OBSERVABILITY_LAST_NOTIFY_FILENAME
+
+    @property
+    def execution_lineage_ledger(self) -> Path:
+        return self.lineage_dir / EXECUTION_LINEAGE_LEDGER_FILENAME
+
+    @property
+    def execution_lineage_head(self) -> Path:
+        return self.lineage_dir / EXECUTION_LINEAGE_HEAD_FILENAME
 
     @property
     def milestones_dir(self) -> Path:

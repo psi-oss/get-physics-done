@@ -38,6 +38,22 @@ def test_review_grade_commands_surface_registry_contract_requirements_in_source(
             assert f"required_state: {contract.required_state}" in source
 
 
+def test_review_grade_commands_prepend_model_visible_review_contract_to_registry_content() -> None:
+    command_names = ("write-paper", "respond-to-referees", "verify-work", "arxiv-submission", "peer-review")
+
+    for command_name in command_names:
+        command = registry.get_command(command_name)
+        contract = command.review_contract
+
+        assert contract is not None
+        assert command.content.startswith("## Review Contract\n")
+        assert "## Review Contract" in command.content
+        assert "review_contract:" in command.content
+        assert f"review_mode: {contract.review_mode}" in command.content
+        for output in contract.required_outputs:
+            assert output in command.content
+
+
 def test_verify_work_review_contract_uses_phase_scoped_output_path() -> None:
     contract = registry.get_command("verify-work").review_contract
 
@@ -190,7 +206,12 @@ def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary
     assert "disconfirming_observations: [observation-1]" in summary_template
     assert "uncertainty_markers.weakest_anchors" in state_schema
     assert "uncertainty_markers.disconfirming_observations" in state_schema
-    assert "`GPD/phases/.../*-SUMMARY.md` or `paper/main.tex`" in state_schema
+    assert (
+        "`must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames that already exist inside the current project root."
+        in state_schema
+    )
+    assert '"must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"]' in state_schema
+    assert "`GPD/phases/.../*-SUMMARY.md`" not in state_schema
     assert "`GPD/phases/.../SUMMARY.md`" not in state_schema
 
 

@@ -1057,7 +1057,7 @@ Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 - **Do NOT add unverified citations to the .bib file.** Put them in `references-pending.md`.
 - **Do NOT silently correct citations.** Always report corrections so the researcher knows.
 - **Do NOT remove citations without reporting.** Even orphaned entries may be intentional (future sections).
-- **Do NOT change citation keys.** Other files may reference them. Report key issues instead.
+- **Do NOT change citation keys without reporting.** Other files may reference them. If a sidecar already carries a preferred `bibtex_key`, treat it as the manuscript bridge candidate and report any mismatch instead of silently rewriting keys.
 - **Do NOT guess arXiv IDs or DOIs.** Verify them.
 
 </downstream_consumers>

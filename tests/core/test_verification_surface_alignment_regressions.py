@@ -57,7 +57,7 @@ def test_verification_guidance_surfaces_the_same_canonical_suggestion_contract()
     assert "frontmatter contract compatible with `@{GPD_INSTALL_DIR}/templates/verification-report.md`" in verify_workflow
 
 
-def test_verify_work_scaffold_uses_yaml_strings_for_scalar_placeholders() -> None:
+def test_verify_work_scaffold_uses_yaml_strings_for_scalar_examples_without_blank_id_placeholders() -> None:
     verify_workflow = _read("src/gpd/specs/workflows/verify-work.md")
 
     assert 'summary: "verification not started yet"' in verify_workflow
@@ -67,7 +67,8 @@ def test_verify_work_scaffold_uses_yaml_strings_for_scalar_placeholders() -> Non
     assert 'source: ["list of phase-summary files"]' in verify_workflow
     assert 'started: "ISO timestamp"' in verify_workflow
     assert 'updated: "ISO timestamp"' in verify_workflow
-    assert 'subject_id: "contract id or \\"\\""' in verify_workflow
+    assert "Omit unused `subject_id`, `claim_id`, `deliverable_id`, `acceptance_test_id`," in verify_workflow
+    assert 'subject_id: "claim-main"' in verify_workflow
     assert 'expected: "verifiable physics outcome"' in verify_workflow
     assert 'computation: "specific numerical test performed"' in verify_workflow
     assert 'result: "pending"' in verify_workflow
@@ -76,6 +77,7 @@ def test_verify_work_scaffold_uses_yaml_strings_for_scalar_placeholders() -> Non
     assert 'check: [missing decisive check]' not in verify_workflow
     assert 'reason: [why the missing check matters]' not in verify_workflow
     assert 'evidence_path: [artifact path or expected evidence path]' not in verify_workflow
+    assert 'subject_id: "contract id or \\"\\""' not in verify_workflow
     assert 'subject_id: [contract id or ""]' not in verify_workflow
     assert 'expected: [verifiable physics outcome]' not in verify_workflow
     assert 'computation: [specific numerical test performed]' not in verify_workflow
@@ -111,7 +113,7 @@ def test_research_verification_template_keeps_source_as_yaml_list() -> None:
     assert "source: 03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md" not in research_verification
 
 
-def test_research_verification_template_keeps_contract_results_and_scalar_placeholders_copy_safe() -> None:
+def test_research_verification_template_keeps_contract_results_and_scalar_examples_copy_safe() -> None:
     research_verification = _read("src/gpd/specs/templates/research-verification.md")
 
     assert "linked_ids: [deliverable-main, acceptance-test-main, reference-main]" in research_verification
@@ -122,9 +124,11 @@ def test_research_verification_template_keeps_contract_results_and_scalar_placeh
     assert 'evidence_path: "[artifact path or expected evidence path]"' in research_verification
     assert 'started: "ISO timestamp"' in research_verification
     assert 'updated: "ISO timestamp"' in research_verification
-    assert 'subject_id: "contract id or \\"\\""' in research_verification
+    assert "Omit unused `subject_id`, `claim_id`, `deliverable_id`, `acceptance_test_id`," in research_verification
+    assert 'subject_id: "claim-main"' in research_verification
     assert ".gpd/phases/" not in research_verification
     assert 'evidence_path: [artifact path or expected evidence path]' not in research_verification
     assert 'started: [ISO timestamp]' not in research_verification
     assert 'updated: [ISO timestamp]' not in research_verification
+    assert 'subject_id: "contract id or \\"\\""' not in research_verification
     assert 'subject_id: [contract id or ""]' not in research_verification

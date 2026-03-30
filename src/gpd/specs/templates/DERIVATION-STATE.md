@@ -6,11 +6,13 @@ template_version: 1
 
 Template for `GPD/DERIVATION-STATE.md` — cumulative record of equations, conventions, and intermediate results across all sessions.
 
-**Purpose:** Survive context resets. Each session appends its key equations, conventions, and results here via the pause-work workflow. This file is append-only (except pruning) and is read by resume-work to restore derivation context.
+**Purpose:** Survive context resets. Each session appends its key equations, conventions, and results here via the pause-work workflow. This file is append-only (except pruning) and is read by resume-work to restore derivation context. It is supporting context for canonical continuation, not a competing authority for project position or resume ranking.
+
+Result IDs are continuity anchors as well as history entries. When a session ends with a persisted canonical derivation, the active rerun anchor should be called out explicitly as `last_result_id` so the next session can reuse it without rediscovering it from prose.
 
 **Relationship to other files:**
 
-- `continue-here.md` is ephemeral (deleted on resume) — its `<persistent_state>` section is extracted and appended here
+- `continue-here.md` is ephemeral (deleted on resume) — its `<persistent_state>` section is extracted and appended here as a projection
 - `STATE.md` tracks position and accumulated context — DERIVATION-STATE.md tracks equations and derivation progress
 - `CONVENTIONS.md` is the authoritative convention catalog — DERIVATION-STATE.md records which conventions were active per session
 
@@ -28,7 +30,7 @@ total_equations: 0
 # Derivation State
 
 Cumulative record of equations, conventions, and intermediate results across all sessions.
-This file is append-only. Pruning rules apply (see bottom).
+This file is append-only. Pruning rules apply (see bottom). It is a human- and tooling-readable projection of derivation lineage, not the source of truth for resume authority.
 
 ---
 
@@ -54,6 +56,10 @@ This file is append-only. Pruning rules apply (see bottom).
 
 - {result_id}: {description} — {value_or_expression} (units: {units}, valid: {validity_range})
 - {result_id}: {description} — {value_or_expression} (units: {units}, valid: {validity_range})
+
+### Continuity Anchor
+
+- `last_result_id`: {result_id} (canonical rerun anchor for the most recent persisted derivation)
 
 ### Parameter Values
 
@@ -107,11 +113,11 @@ This file is append-only. Pruning rules apply (see bottom).
 
 - Every equation must have explicit units (even "dimensionless") and validity range
 - Convention snapshots must match the convention_lock in state.json at the time of the session
-- Result IDs should match those in state.json intermediate_results
+- Result IDs should match those in state.json intermediate_results, and the active derivation rerun anchor should be repeated explicitly as `last_result_id`
 - Parameter values should include how they were determined (analytical, numerical, from literature)
 
 **Why this matters:**
 
-Physics derivations are stateful — you cannot "rerun" them like code. An equation derived in session 1 is needed in session 5, but the context window between sessions is empty. This file is the bridge.
+Physics derivations are stateful — you cannot "rerun" them like code. An equation derived in session 1 is needed in session 5, but the context window between sessions is empty. This file is the bridge. Canonical continuation and execution lineage still own the actual resumable state; this file only preserves derivation context.
 
 </guidelines>

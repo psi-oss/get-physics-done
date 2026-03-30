@@ -8,11 +8,14 @@ import warnings
 from pathlib import Path
 
 from gpd.contracts import ResearchContract
+from gpd.core import state as state_module
 from gpd.core.constants import STATE_JSON_BACKUP_FILENAME, ProjectLayout
 from gpd.core.state import (
     VALID_STATUSES,
     ResearchState,
+    _load_recent_projects_index,
     _normalize_state_schema,
+    _recent_projects_index_path,
     default_state_dict,
     ensure_state_schema,
     generate_state_markdown,
@@ -94,6 +97,12 @@ def _project_contract_with_question(question: str) -> dict[str, object]:
     contract["scope"]["question"] = question
     return contract
 
+
+def _draft_invalid_project_contract() -> dict[str, object]:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["claims"][0]["references"] = ["missing-ref"]
+    return contract
+
 # ─── default_state_dict ──────────────────────────────────────────────────────
 
 
@@ -103,6 +112,7 @@ def test_default_state_dict_has_required_keys():
     assert "decisions" in s
     assert "blockers" in s
     assert "session" in s
+    assert "continuation" in s
     assert "convention_lock" in s
     assert "approximations" in s
     assert "propagated_uncertainties" in s
@@ -115,6 +125,7 @@ def test_default_state_dict_position_defaults():
     assert pos["current_phase"] is None
     assert pos["status"] is None
     assert pos["progress_percent"] == 0
+    assert s["continuation"]["handoff"]["resume_file"] is None
     assert s["project_contract"] is None
 
 
@@ -434,7 +445,7 @@ def test_ensure_state_schema_drops_project_contract_for_malformed_list_item():
 def test_ensure_state_schema_malformed_project_contract_singleton_field_preserves_valid_siblings():
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["context_intake"] = {
-        "must_read_refs": "not-a-list",
+        "must_read_refs": "ref-benchmark",
         "known_good_baselines": ["baseline-A"],
         "crucial_inputs": ["normalize with published convention"],
     }
@@ -442,7 +453,7 @@ def test_ensure_state_schema_malformed_project_contract_singleton_field_preserve
     result = ensure_state_schema({"project_contract": contract})
 
     assert result["project_contract"] is not None
-    assert result["project_contract"]["context_intake"]["must_read_refs"] == ["not-a-list"]
+    assert result["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
     assert result["project_contract"]["context_intake"]["known_good_baselines"] == ["baseline-A"]
     assert result["project_contract"]["context_intake"]["crucial_inputs"] == [
         "normalize with published convention"
@@ -524,6 +535,18 @@ def test_normalize_state_schema_reports_coercive_project_contract_scalars():
         in issue
         for issue in issues
     )
+
+
+def test_normalize_state_schema_drops_project_contract_that_fails_draft_scoping_validation():
+    normalized, issues = _normalize_state_schema({"project_contract": _draft_invalid_project_contract()})
+
+    assert normalized["project_contract"] is None
+    assert any(
+        'schema normalization: dropped "project_contract" because contract failed draft scoping validation'
+        in issue
+        for issue in issues
+    )
+    assert any("project_contract: claim claim-benchmark references unknown reference missing-ref" in issue for issue in issues)
 
 
 def test_ensure_state_schema_strips_claim_extra_keys_without_dropping_claim():
@@ -632,22 +655,21 @@ def test_state_set_project_contract_rejects_contract_missing_skeptical_fields(tm
     assert saved["project_contract"] is None
 
 
-def test_state_set_project_contract_accepts_singleton_list_drift(tmp_path: Path):
+def test_state_set_project_contract_rejects_singleton_list_drift(tmp_path: Path):
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["context_intake"]["must_read_refs"] = "ref-benchmark"
     save_state_json(tmp_path, default_state_dict())
 
     result = state_set_project_contract(tmp_path, contract)
 
-    assert result.updated is True
-    assert result.reason is None or "already matches requested value" not in result.reason
+    assert result.updated is False
+    assert result.reason == "Invalid project contract schema: context_intake.must_read_refs must be a list, not str"
     saved = load_state_json(tmp_path)
     assert saved is not None
-    assert saved["project_contract"] is not None
-    assert saved["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
+    assert saved["project_contract"] is None
 
 
-def test_state_set_project_contract_accepts_research_contract_instance_singleton_list_drift(
+def test_state_set_project_contract_rejects_research_contract_instance_singleton_list_drift(
     tmp_path: Path,
 ):
     contract = ResearchContract.model_validate(
@@ -662,14 +684,14 @@ def test_state_set_project_contract_accepts_research_contract_instance_singleton
 
     result = state_set_project_contract(tmp_path, contract)
 
-    assert result.updated is True
-    assert result.reason is None or "already matches requested value" not in result.reason
+    assert result.updated is False
+    assert (
+        result.reason
+        == "Invalid project contract schema: context_intake.must_include_prior_outputs must be a list, not str"
+    )
     saved = load_state_json(tmp_path)
     assert saved is not None
-    assert saved["project_contract"] is not None
-    assert saved["project_contract"]["context_intake"]["must_include_prior_outputs"] == [
-        "GPD/phases/00-baseline/00-01-SUMMARY.md"
-    ]
+    assert saved["project_contract"] is None
 
 
 def test_state_set_project_contract_suppresses_serializer_warning_for_invalid_research_contract_instance(
@@ -692,20 +714,18 @@ def test_state_set_project_contract_suppresses_serializer_warning_for_invalid_re
     assert saved["project_contract"] is None
 
 
-def test_state_set_project_contract_accepts_recoverable_schema_normalization(tmp_path: Path):
+def test_state_set_project_contract_rejects_recoverable_schema_normalization(tmp_path: Path):
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["notes"] = "harmless"
     save_state_json(tmp_path, default_state_dict())
 
     result = state_set_project_contract(tmp_path, contract)
 
-    assert result.updated is True
-    assert result.warnings == ["claims.0.notes: Extra inputs are not permitted"]
+    assert result.updated is False
+    assert result.reason == "Invalid project contract schema: claims.0.notes: Extra inputs are not permitted"
     saved = load_state_json(tmp_path)
     assert saved is not None
-    assert saved["project_contract"] is not None
-    assert saved["project_contract"]["claims"][0]["id"] == "claim-benchmark"
-    assert "notes" not in saved["project_contract"]["claims"][0]
+    assert saved["project_contract"] is None
 
 
 def test_state_set_project_contract_surfaces_approved_mode_warnings_on_success(tmp_path: Path):
@@ -836,6 +856,38 @@ def test_save_state_json_preserves_recoverable_warning_only_project_contract_dri
     persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
     assert persisted["project_contract"] is not None
     assert "notes" not in persisted["project_contract"]["claims"][0]
+
+
+def test_save_state_json_drops_project_contract_that_fails_draft_scoping_validation(tmp_path: Path) -> None:
+    state = default_state_dict()
+    state["position"]["status"] = "Executing"
+    state["project_contract"] = _draft_invalid_project_contract()
+
+    save_state_json(tmp_path, state)
+
+    layout = ProjectLayout(tmp_path)
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    assert persisted["project_contract"] is None
+
+
+def test_load_state_json_preserves_draft_invalid_project_contract_visibility(tmp_path: Path) -> None:
+    state = default_state_dict()
+    state["position"]["status"] = "Executing"
+    save_state_json(tmp_path, state)
+
+    layout = ProjectLayout(tmp_path)
+    raw_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    raw_state["project_contract"] = _draft_invalid_project_contract()
+    layout.state_json.write_text(json.dumps(raw_state, indent=2) + "\n", encoding="utf-8")
+
+    loaded = load_state_json(tmp_path)
+
+    assert loaded is not None
+    assert loaded["project_contract"] is not None
+    assert loaded["project_contract"]["claims"][0]["references"] == ["missing-ref"]
+    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["project_contract"]["claims"][0][
+        "references"
+    ] == ["missing-ref"]
 
 
 def test_save_state_markdown_preserves_project_contract_when_singleton_list_drift_is_salvageable(
@@ -973,6 +1025,29 @@ def test_save_state_markdown_does_not_promote_backup_project_contract_when_prima
     assert backup["position"]["status"] == "Paused"
 
 
+def test_save_state_markdown_does_not_preserve_draft_invalid_primary_project_contract(tmp_path: Path) -> None:
+    baseline = default_state_dict()
+    baseline["position"]["status"] = "Executing"
+    save_state_json(tmp_path, baseline)
+    save_state_markdown(tmp_path, generate_state_markdown(baseline))
+    layout = ProjectLayout(tmp_path)
+
+    broken_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    broken_state["project_contract"] = _draft_invalid_project_contract()
+    layout.state_json.write_text(json.dumps(broken_state, indent=2) + "\n", encoding="utf-8")
+
+    md_content = layout.state_md.read_text(encoding="utf-8").replace("**Status:** Executing", "**Status:** Paused", 1)
+    result = save_state_markdown(tmp_path, md_content)
+
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    backup = json.loads(layout.state_json_backup.read_text(encoding="utf-8"))
+
+    assert result["project_contract"] is None
+    assert persisted["project_contract"] is None
+    assert persisted["position"]["status"] == "Paused"
+    assert backup["project_contract"] is None
+
+
 def test_load_state_json_backup_restore_preserves_project_contract_when_backup_requires_salvage(
     tmp_path: Path,
 ):
@@ -1025,6 +1100,87 @@ def test_load_state_json_recovers_backup_only_state_when_primary_json_is_missing
     assert json.loads(layout.state_json.read_text(encoding="utf-8"))["project_contract"]["scope"]["question"] == (
         "Recovered from backup state"
     )
+
+
+def test_load_state_json_recovers_backup_continuation_when_primary_json_is_corrupted(tmp_path: Path) -> None:
+    primary_state = default_state_dict()
+    primary_state["session"]["last_date"] = "2026-03-29T12:00:00+00:00"
+    primary_state["session"]["stopped_at"] = "Phase 03 Plan 2"
+    primary_state["session"]["resume_file"] = "resume.md"
+    primary_state["continuation"]["handoff"]["recorded_at"] = "2026-03-29T12:00:00+00:00"
+    primary_state["continuation"]["handoff"]["stopped_at"] = "Phase 03 Plan 2"
+    backup_state = json.loads(json.dumps(primary_state))
+    backup_state["continuation"]["bounded_segment"] = {
+        "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        "phase": "03",
+        "plan": "02",
+        "segment_id": "segment-03-02",
+        "segment_status": "blocked",
+        "waiting_for_review": True,
+    }
+    layout = _write_backup_only_state(tmp_path, primary_state, backup_state=backup_state)
+    layout.state_json.write_text("{not-json", encoding="utf-8")
+
+    loaded = load_state_json(tmp_path)
+
+    assert loaded is not None
+    assert loaded["session"]["resume_file"] == "resume.md"
+    assert loaded["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 2"
+    assert loaded["continuation"]["bounded_segment"]["segment_id"] == "segment-03-02"
+    assert loaded["continuation"]["bounded_segment"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
+    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["continuation"]["bounded_segment"]["segment_id"] == (
+        "segment-03-02"
+    )
+
+
+def test_load_state_json_recovers_backup_continuation_when_primary_continuation_section_is_invalid(tmp_path: Path) -> None:
+    primary_state = default_state_dict()
+    primary_state["session"]["last_date"] = "2026-03-29T12:00:00+00:00"
+    primary_state["session"]["stopped_at"] = "Legacy stop"
+    primary_state["session"]["resume_file"] = "legacy.md"
+    primary_state["continuation"] = []
+
+    backup_state = default_state_dict()
+    backup_state["continuation"]["handoff"].update(
+        {
+            "recorded_at": "2026-03-29T12:00:00+00:00",
+            "stopped_at": "Phase 03 Plan 2",
+            "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        }
+    )
+    backup_state["continuation"]["machine"].update(
+        {
+            "recorded_at": "2026-03-29T12:00:00+00:00",
+            "hostname": "builder-01",
+            "platform": "Linux 6.1 x86_64",
+        }
+    )
+    backup_state["continuation"]["bounded_segment"] = {
+        "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        "phase": "03",
+        "plan": "02",
+        "segment_id": "segment-03-02",
+        "segment_status": "paused",
+    }
+    layout = _write_backup_only_state(tmp_path, primary_state, backup_state=backup_state)
+    layout.state_json.write_text(json.dumps(primary_state, indent=2) + "\n", encoding="utf-8")
+
+    loaded = load_state_json(tmp_path)
+
+    assert loaded is not None
+    assert loaded["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 2"
+    assert loaded["continuation"]["bounded_segment"]["segment_id"] == "segment-03-02"
+    assert loaded["session"] == {
+        "last_date": "2026-03-29T12:00:00+00:00",
+        "stopped_at": "Phase 03 Plan 2",
+        "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        "hostname": "builder-01",
+        "platform": "Linux 6.1 x86_64",
+        "last_result_id": None,
+    }
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    assert persisted["continuation"]["bounded_segment"]["segment_id"] == "segment-03-02"
+    assert persisted["session"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
 
 
 def test_load_state_json_primary_file_preserves_project_contract_when_singleton_list_drift_is_salvageable(
@@ -1100,6 +1256,15 @@ def test_state_load_matches_context_progress_for_recoverably_normalized_project_
     ctx = init_progress(tmp_path)
 
     assert loaded.state["project_contract"] == ctx["project_contract"]
+    assert loaded.project_contract_gate == ctx["project_contract_gate"]
+    assert loaded.project_contract_load_info["status"] == "loaded"
+    assert ctx["project_contract_load_info"]["status"] == "loaded"
+    assert loaded.project_contract_load_info["source_path"] == ctx["project_contract_load_info"]["source_path"]
+    assert {
+        *loaded.project_contract_load_info["warnings"],
+        *ctx["project_contract_load_info"]["warnings"],
+    } == {"claims.0.notes: Extra inputs are not permitted"}
+    assert loaded.project_contract_validation == ctx["project_contract_validation"]
     assert "notes" not in loaded.state["project_contract"]["claims"][0]
 
 
@@ -1164,6 +1329,178 @@ def test_ensure_state_schema_list_for_session():
     """session as a list is corrected at the top-level type check."""
     result = ensure_state_schema({"session": ["bad"]})
     assert isinstance(result["session"], dict)
+
+
+def test_ensure_state_schema_mirrors_session_into_canonical_continuation():
+    result = ensure_state_schema({
+        "session": {
+            "last_date": "2026-03-02T12:00:00+00:00",
+            "stopped_at": "Phase 3 P2",
+            "resume_file": "resume.md",
+            "hostname": "builder-01",
+            "platform": "Linux x86_64",
+        }
+    })
+
+    assert result["continuation"]["handoff"] == {
+        "recorded_at": "2026-03-02T12:00:00+00:00",
+        "stopped_at": "Phase 3 P2",
+        "resume_file": "resume.md",
+        "recorded_by": None,
+        "last_result_id": None,
+    }
+    assert result["continuation"]["machine"] == {
+        "recorded_at": "2026-03-02T12:00:00+00:00",
+        "hostname": "builder-01",
+        "platform": "Linux x86_64",
+    }
+
+
+def test_ensure_state_schema_backfills_session_from_canonical_continuation():
+    result = ensure_state_schema({
+        "continuation": {
+            "schema_version": 1,
+            "handoff": {
+                "recorded_at": "2026-03-02T12:00:00+00:00",
+                "stopped_at": "Phase 4 P1",
+                "resume_file": "continue.md",
+            },
+            "machine": {
+                "recorded_at": "2026-03-02T12:00:00+00:00",
+                "hostname": "builder-02",
+                "platform": "macOS arm64",
+            },
+        }
+    })
+
+    assert result["session"] == {
+        "last_date": "2026-03-02T12:00:00+00:00",
+        "stopped_at": "Phase 4 P1",
+        "resume_file": "continue.md",
+        "hostname": "builder-02",
+        "platform": "macOS arm64",
+        "last_result_id": None,
+    }
+
+
+def test_ensure_state_schema_backfills_missing_canonical_machine_fields_from_session():
+    result = ensure_state_schema(
+        {
+            "session": {
+                "last_date": "2026-03-02T12:00:00+00:00",
+                "stopped_at": "Legacy stop",
+                "resume_file": "legacy.md",
+                "hostname": "builder-03",
+                "platform": "Linux arm64",
+            },
+            "continuation": {
+                "schema_version": 1,
+                "handoff": {
+                    "recorded_at": "2026-03-04T09:15:00+00:00",
+                    "stopped_at": "Canonical stop",
+                    "resume_file": "canonical.md",
+                },
+                "machine": {},
+            },
+        }
+    )
+
+    assert result["continuation"]["handoff"] == {
+        "recorded_at": "2026-03-04T09:15:00+00:00",
+        "stopped_at": "Canonical stop",
+        "resume_file": "canonical.md",
+        "recorded_by": None,
+        "last_result_id": None,
+    }
+    assert result["continuation"]["machine"] == {
+        "recorded_at": "2026-03-02T12:00:00+00:00",
+        "hostname": "builder-03",
+        "platform": "Linux arm64",
+    }
+    assert result["session"] == {
+        "last_date": "2026-03-04T09:15:00+00:00",
+        "stopped_at": "Canonical stop",
+        "resume_file": "canonical.md",
+        "hostname": "builder-03",
+        "platform": "Linux arm64",
+        "last_result_id": None,
+    }
+
+
+def test_ensure_state_schema_does_not_let_session_override_canonical_continuation():
+    result = ensure_state_schema(
+        {
+            "session": {
+                "last_date": "2026-03-02T12:00:00+00:00",
+                "stopped_at": "Legacy stop",
+                "resume_file": "legacy.md",
+                "hostname": "legacy-host",
+                "platform": "LegacyOS",
+            },
+            "continuation": {
+                "schema_version": 1,
+                "handoff": {
+                    "recorded_at": "2026-03-04T09:15:00+00:00",
+                    "stopped_at": "Canonical stop",
+                    "resume_file": "canonical.md",
+                },
+                "machine": {
+                    "recorded_at": "2026-03-04T09:15:00+00:00",
+                    "hostname": "canonical-host",
+                    "platform": "CanonicalOS",
+                },
+            },
+        }
+    )
+
+    assert result["continuation"]["handoff"]["resume_file"] == "canonical.md"
+    assert result["continuation"]["machine"]["hostname"] == "canonical-host"
+    assert result["session"] == {
+        "last_date": "2026-03-04T09:15:00+00:00",
+        "stopped_at": "Canonical stop",
+        "resume_file": "canonical.md",
+        "hostname": "canonical-host",
+        "platform": "CanonicalOS",
+        "last_result_id": None,
+    }
+
+
+def test_ensure_state_schema_prefers_canonical_continuation_over_conflicting_session():
+    result = ensure_state_schema(
+        {
+            "session": {
+                "last_date": "2026-03-01T09:00:00+00:00",
+                "stopped_at": "Legacy stop",
+                "resume_file": "legacy.md",
+                "hostname": "legacy-host",
+                "platform": "Legacy OS",
+            },
+            "continuation": {
+                "schema_version": 1,
+                "handoff": {
+                    "recorded_at": "2026-03-02T12:00:00+00:00",
+                    "stopped_at": "Phase 4 P1",
+                    "resume_file": "continue.md",
+                },
+                "machine": {
+                    "recorded_at": "2026-03-02T12:00:00+00:00",
+                    "hostname": "builder-02",
+                    "platform": "macOS arm64",
+                },
+            },
+        }
+    )
+
+    assert result["continuation"]["handoff"]["resume_file"] == "continue.md"
+    assert result["continuation"]["machine"]["hostname"] == "builder-02"
+    assert result["session"] == {
+        "last_date": "2026-03-02T12:00:00+00:00",
+        "stopped_at": "Phase 4 P1",
+        "resume_file": "continue.md",
+        "hostname": "builder-02",
+        "platform": "macOS arm64",
+        "last_result_id": None,
+    }
 
 
 # ─── integrity mode / provenance ─────────────────────────────────────────────
@@ -1579,6 +1916,11 @@ def test_state_validate_standard_warns_for_project_contract_approval_blockers(tm
         "project_contract: references must include at least one must_surface=true anchor" in warning
         for warning in result.warnings
     )
+    assert any(
+        "project_contract: approved project contract requires at least one concrete anchor/reference/prior-output/baseline"
+        in warning
+        for warning in result.warnings
+    )
 
 
 def test_state_validate_review_blocks_project_contract_without_non_reference_grounding(tmp_path):
@@ -1603,6 +1945,11 @@ def test_state_validate_review_blocks_project_contract_without_non_reference_gro
     assert result.integrity_status == "blocked"
     assert any(
         "project_contract: references must include at least one must_surface=true anchor" in issue
+        for issue in result.issues
+    )
+    assert any(
+        "project_contract: approved project contract requires at least one concrete anchor/reference/prior-output/baseline"
+        in issue
         for issue in result.issues
     )
 
@@ -2071,6 +2418,10 @@ def test_parse_state_to_json_structure():
     assert result["position"]["current_phase"] == "3"
     assert result["position"]["status"] == "Executing"
     assert result["session"]["last_date"] is not None
+    assert result["continuation"]["handoff"]["recorded_at"] == result["session"]["last_date"]
+    assert result["continuation"]["handoff"]["stopped_at"] == result["session"]["stopped_at"]
+    assert result["continuation"]["handoff"]["resume_file"] is None
+    assert result["continuation"]["machine"]["recorded_at"] == result["session"]["last_date"]
     assert result["performance_metrics"]["rows"][0]["label"] == "Phase 1 P1"
     assert len(result["decisions"]) == 1
     assert len(result["blockers"]) == 1
@@ -2098,6 +2449,270 @@ def test_state_record_session_does_not_emit_local_observability_events(tmp_path,
     assert not observability_dir.exists()
 
 
+def test_state_record_session_updates_recent_project_index(
+    tmp_path: Path, state_project_factory, monkeypatch
+) -> None:
+    monkeypatch.setenv("GPD_DATA_DIR", str(tmp_path / "gpd-data"))
+    monkeypatch.setattr(
+        state_module,
+        "_current_machine_identity",
+        lambda: {"hostname": "builder-01", "platform": "Linux 6.1 x86_64"},
+    )
+
+    cwd = state_project_factory(tmp_path)
+    result = state_record_session(cwd, stopped_at="Phase 4 P2", resume_file="NEXT.md")
+
+    index = _load_recent_projects_index()
+    row = index.rows[0]
+
+    assert result.recorded is True
+    assert _recent_projects_index_path().exists()
+    assert len(index.rows) == 1
+    assert row.project_root == cwd.resolve(strict=False).as_posix()
+    assert row.last_session_at is not None
+    assert row.last_seen_at is not None
+    assert row.stopped_at == "Phase 4 P2"
+    assert row.resume_file == "NEXT.md"
+    assert row.resume_target_kind == "handoff"
+    assert row.resume_target_recorded_at == row.last_session_at
+    assert row.hostname == "builder-01"
+    assert row.platform == "Linux 6.1 x86_64"
+    assert row.source_kind == "continuation.handoff"
+    assert row.source_session_id is None
+    assert row.source_segment_id is None
+    assert row.source_transition_id is None
+    assert row.available is True
+
+
+def test_save_state_markdown_backfills_missing_canonical_machine_from_session_surface(tmp_path: Path) -> None:
+    baseline = default_state_dict()
+    baseline["position"]["status"] = "Executing"
+    baseline["continuation"]["handoff"].update(
+        {
+            "recorded_at": "2026-03-29T12:00:00+00:00",
+            "stopped_at": "Phase 03 Plan 2",
+            "resume_file": "resume.md",
+            "recorded_by": "state_record_session",
+        }
+    )
+    save_state_json(tmp_path, baseline)
+
+    md_content = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
+    md_content = md_content.replace("**Hostname:** —", "**Hostname:** builder-02")
+    md_content = md_content.replace("**Platform:** —", "**Platform:** Linux x86_64")
+
+    result = save_state_markdown(tmp_path, md_content)
+
+    assert result["session"]["stopped_at"] == "Phase 03 Plan 2"
+    assert result["session"]["resume_file"] == "resume.md"
+    assert result["session"]["hostname"] == "builder-02"
+    assert result["session"]["platform"] == "Linux x86_64"
+    assert result["continuation"]["handoff"]["stopped_at"] == "Phase 03 Plan 2"
+    assert result["continuation"]["handoff"]["resume_file"] == "resume.md"
+    assert result["continuation"]["machine"]["hostname"] == "builder-02"
+    assert result["continuation"]["machine"]["platform"] == "Linux x86_64"
+
+
+def test_save_state_json_projects_recent_project_resume_file_from_canonical_continuation(
+    tmp_path: Path, state_project_factory, monkeypatch
+) -> None:
+    monkeypatch.setenv("GPD_DATA_DIR", str(tmp_path / "gpd-data"))
+
+    cwd = state_project_factory(tmp_path)
+    resume_path = cwd / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
+    resume_path.parent.mkdir(parents=True, exist_ok=True)
+    resume_path.write_text("resume\n", encoding="utf-8")
+
+    state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
+    state["session"].update(
+        {
+            "last_date": "2026-03-29T12:00:00+00:00",
+            "stopped_at": "Phase 4 P2",
+            "resume_file": "session.md",
+        }
+    )
+    state["continuation"]["handoff"].update(
+        {
+            "recorded_at": "2026-03-29T12:00:00+00:00",
+            "stopped_at": "Phase 4 P2",
+            "resume_file": "session.md",
+        }
+    )
+    state["continuation"]["bounded_segment"] = {
+        "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        "phase": "03",
+        "plan": "02",
+        "segment_id": "segment-03-02",
+        "segment_status": "paused",
+        "transition_id": "transition-03-02",
+        "last_result_id": "result-03-02",
+        "source_session_id": "session-03",
+        "updated_at": "2026-03-29T12:30:00+00:00",
+    }
+
+    save_state_json(cwd, state)
+
+    index = _load_recent_projects_index()
+    assert len(index.rows) == 1
+    row = index.rows[0]
+    assert row.project_root == cwd.resolve(strict=False).as_posix()
+    assert row.resume_file == "GPD/phases/03-analysis/.continue-here.md"
+    assert row.resume_target_kind == "bounded_segment"
+    assert row.resume_target_recorded_at == "2026-03-29T12:30:00+00:00"
+    assert row.resume_file_available is True
+    assert row.resumable is True
+    assert row.stopped_at == "Phase 03 Plan 02"
+    assert row.source_kind == "continuation.bounded_segment"
+    assert row.source_session_id == "session-03"
+    assert row.source_segment_id == "segment-03-02"
+    assert row.source_transition_id == "transition-03-02"
+    assert row.source_recorded_at == "2026-03-29T12:30:00+00:00"
+    assert row.recovery_phase == "03"
+    assert row.recovery_plan == "02"
+
+
+def test_save_state_json_preserves_canonical_continuation_when_session_conflicts(
+    tmp_path: Path, state_project_factory
+) -> None:
+    cwd = state_project_factory(tmp_path)
+    state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
+    state["session"].update(
+        {
+            "last_date": "2026-03-29T12:00:00+00:00",
+            "stopped_at": "Legacy session stop",
+            "resume_file": "legacy-session.md",
+        }
+    )
+    state["continuation"]["handoff"].update(
+        {
+            "recorded_at": "2026-03-30T09:15:00+00:00",
+            "stopped_at": "Canonical handoff stop",
+            "resume_file": "canonical-handoff.md",
+            "recorded_by": "test",
+        }
+    )
+
+    save_state_json(cwd, state)
+
+    stored = load_state_json(cwd)
+    assert stored is not None
+    assert stored["continuation"]["handoff"]["resume_file"] == "canonical-handoff.md"
+    assert stored["continuation"]["handoff"]["stopped_at"] == "Canonical handoff stop"
+    assert stored["session"]["resume_file"] == "canonical-handoff.md"
+    assert stored["session"]["stopped_at"] == "Canonical handoff stop"
+
+
+def test_save_state_markdown_does_not_override_canonical_continuation_session_mirror(
+    tmp_path: Path, state_project_factory, monkeypatch
+) -> None:
+    monkeypatch.setenv("GPD_DATA_DIR", str(tmp_path / "gpd-data"))
+    cwd = state_project_factory(tmp_path)
+    state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
+    state["continuation"]["handoff"].update(
+        {
+            "recorded_at": "2026-03-30T09:15:00+00:00",
+            "stopped_at": "Canonical handoff stop",
+            "resume_file": "canonical-handoff.md",
+            "recorded_by": "test",
+        }
+    )
+    save_state_json(cwd, state)
+
+    markdown = (cwd / "GPD" / "STATE.md").read_text(encoding="utf-8")
+    edited_markdown = (
+        markdown.replace("**Stopped at:** Canonical handoff stop", "**Stopped at:** Edited in markdown", 1)
+        .replace("**Resume file:** canonical-handoff.md", "**Resume file:** edited-in-markdown.md", 1)
+    )
+
+    save_state_markdown(cwd, edited_markdown)
+
+    stored = load_state_json(cwd)
+    assert stored is not None
+    assert stored["continuation"]["handoff"]["resume_file"] == "canonical-handoff.md"
+    assert stored["continuation"]["handoff"]["stopped_at"] == "Canonical handoff stop"
+    assert stored["session"]["resume_file"] == "canonical-handoff.md"
+    assert stored["session"]["stopped_at"] == "Canonical handoff stop"
+
+    cleared_state = json.loads((cwd / "GPD" / "state.json").read_text(encoding="utf-8"))
+    cleared_state["session"]["resume_file"] = None
+    cleared_state["continuation"]["handoff"]["resume_file"] = None
+    cleared_state["continuation"]["bounded_segment"] = None
+    save_state_json(cwd, cleared_state)
+
+    cleared_index = _load_recent_projects_index(tmp_path / "gpd-data")
+    assert len(cleared_index.rows) == 1
+    assert cleared_index.rows[0].project_root == cwd.resolve(strict=False).as_posix()
+    assert cleared_index.rows[0].resume_file is None
+    assert cleared_index.rows[0].resume_target_kind is None
+    assert cleared_index.rows[0].resume_target_recorded_at is None
+    assert cleared_index.rows[0].resume_file_available is None
+    assert cleared_index.rows[0].resumable is False
+
+
+def test_state_record_session_preserves_existing_recent_project_rows(
+    tmp_path: Path, state_project_factory, monkeypatch
+) -> None:
+    monkeypatch.setenv("GPD_DATA_DIR", str(tmp_path / "gpd-data"))
+    monkeypatch.setattr(
+        state_module,
+        "_current_machine_identity",
+        lambda: {"hostname": "builder-02", "platform": "Linux 6.2 x86_64"},
+    )
+
+    cwd = state_project_factory(tmp_path)
+    current_root = cwd.resolve(strict=False).as_posix()
+    stale_root = (tmp_path / "missing-project").as_posix()
+
+    index_path = _recent_projects_index_path()
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "project_root": current_root,
+                        "last_session_at": "2026-03-01T00:00:00+00:00",
+                        "last_seen_at": "2026-03-01T00:00:00+00:00",
+                        "stopped_at": "Phase 1 P1",
+                        "resume_file": "old.md",
+                        "hostname": "builder-01",
+                        "platform": "Linux 6.1 x86_64",
+                        "available": True,
+                    },
+                    {
+                        "project_root": stale_root,
+                        "last_session_at": "2026-02-01T00:00:00+00:00",
+                        "last_seen_at": "2026-02-01T00:00:00+00:00",
+                        "stopped_at": "Phase 0 P1",
+                        "resume_file": "stale.md",
+                        "hostname": "builder-old",
+                        "platform": "Linux 5.15 x86_64",
+                        "available": False,
+                    },
+                ]
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    state_record_session(cwd, stopped_at="Phase 4 P2", resume_file="NEXT.md")
+
+    index = _load_recent_projects_index()
+    row_roots = [row.project_root for row in index.rows]
+
+    assert row_roots == [current_root, stale_root]
+    assert len(index.rows) == 2
+    assert index.rows[0].stopped_at == "Phase 4 P2"
+    assert index.rows[0].resume_file == "NEXT.md"
+    assert index.rows[0].resume_target_kind == "handoff"
+    assert index.rows[0].hostname == "builder-02"
+    assert index.rows[0].platform == "Linux 6.2 x86_64"
+    assert index.rows[1].available is False
+    assert index.rows[1].stopped_at == "Phase 0 P1"
+
+
 # ─── model types ─────────────────────────────────────────────────────────────
 
 
@@ -2106,6 +2721,7 @@ def test_research_state_model():
     dumped = state.model_dump()
     assert "position" in dumped
     assert "decisions" in dumped
+    assert "continuation" in dumped
     assert isinstance(dumped["decisions"], list)
 
 

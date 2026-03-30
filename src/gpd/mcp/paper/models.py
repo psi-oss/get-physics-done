@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from gpd.mcp.paper.bibliography import BibliographyAudit
 
@@ -282,6 +283,49 @@ class JournalSpec(BaseModel):
     install_hint: str = ""
 
 
+class PaperToolchainCapability(BaseModel):
+    """Machine-local paper toolchain capability summary.
+
+    This is intentionally scoped to the shared build environment.  It covers
+    the compiler and helper binaries that influence paper generation, but not
+    journal-specific class/package readiness.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    compiler: str = "pdflatex"
+    compiler_available: bool = False
+    compiler_path: str | None = None
+    distribution: str | None = None
+    bibtex_available: bool = False
+    latexmk_available: bool = False
+    kpsewhich_available: bool = False
+    readiness_state: Literal["blocked", "degraded", "ready"] = "blocked"
+    message: str = ""
+    warnings: list[str] = Field(default_factory=list)
+
+    @computed_field
+    @property
+    def available(self) -> bool:
+        """Backward-compatible alias for compiler availability."""
+
+        return self.compiler_available
+
+    @computed_field
+    @property
+    def paper_build_ready(self) -> bool:
+        """Whether the basic paper build toolchain is usable."""
+
+        return self.compiler_available
+
+    @computed_field
+    @property
+    def arxiv_submission_ready(self) -> bool:
+        """Whether the build environment can produce bibliography-resolved PDFs."""
+
+        return self.compiler_available and self.bibtex_available
+
+
 class PaperConfig(BaseModel):
     """Complete configuration for generating a paper."""
 
@@ -297,6 +341,51 @@ class PaperConfig(BaseModel):
     journal: Literal["prl", "apj", "mnras", "nature", "jhep", "jfm"] = "prl"
     appendix_sections: list[Section] = Field(default_factory=list)
     attribution_footer: str = "Generated with Get Physics Done"
+    output_filename: str | None = None
+
+    @field_validator("output_filename")
+    @classmethod
+    def _validate_output_filename(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if normalized in {".", ".."} or "/" in normalized or "\\" in normalized:
+            raise ValueError("output_filename must be a filename stem, not a path")
+        return normalized
+
+
+_MAX_FILENAME_LENGTH = 60
+_SANITIZE_RE = re.compile(r"[^a-z0-9\-]+")
+_COLLAPSE_HYPHENS_RE = re.compile(r"-{2,}")
+
+
+def derive_output_filename(config: PaperConfig) -> str:
+    """Derive a filesystem-safe output filename (without extension) from *config*.
+
+    Resolution order:
+    1. ``config.output_filename`` if explicitly provided.
+    2. Sanitized ``config.title``: lowercased, special characters stripped,
+       spaces replaced with hyphens, truncated to 60 characters.
+    3. ``"main"`` as the ultimate fallback when the title is empty.
+    """
+    if config.output_filename:
+        return config.output_filename
+
+    title = config.title.strip()
+    if not title:
+        return "main"
+
+    slug = title.lower().replace(" ", "-")
+    slug = _SANITIZE_RE.sub("", slug)
+    slug = _COLLAPSE_HYPHENS_RE.sub("-", slug)
+    slug = slug.strip("-")
+
+    if not slug:
+        return "main"
+
+    return slug[:_MAX_FILENAME_LENGTH]
 
 
 SUPPORTED_PAPER_JOURNALS = frozenset(get_args(PaperConfig.model_fields["journal"].annotation))
@@ -317,6 +406,7 @@ class PaperOutput(BaseModel):
     pdf_path: Path | None = None
     bibliography_audit_path: Path | None = None
     bibliography_audit: BibliographyAudit | None = None
+    reference_bibtex_keys: dict[str, str] = Field(default_factory=dict)
     manifest_path: Path | None = None
     manifest: ArtifactManifest | None = None
     success: bool

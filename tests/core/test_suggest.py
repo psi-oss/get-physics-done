@@ -215,7 +215,7 @@ def test_paused_work_highest_priority(tmp_path: Path) -> None:
     result = suggest_next(root)
     assert result.top_action is not None
     assert result.top_action.action == "resume"
-    assert result.top_action.command == "gpd init resume"
+    assert result.top_action.command == "gpd resume"
     assert result.top_action.priority == 1
     assert "2026-01-15" in result.top_action.reason
 

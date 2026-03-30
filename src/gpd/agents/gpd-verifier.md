@@ -3819,7 +3819,13 @@ Canonical frontmatter/schema includes to load immediately before writing:
 
 Before writing the frontmatter, load and follow `@{GPD_INSTALL_DIR}/templates/verification-report.md` and `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md`. Those files are the canonical schema source of truth for `plan_contract_ref`, `contract_results`, `comparison_verdicts`, and `suggested_contract_checks`.
 
+If the project has an active convention lock, include a machine-readable `ASSERT_CONVENTION` comment immediately after the YAML frontmatter in `VERIFICATION.md`. Use canonical lock keys and exact lock values. Changed phase verification artifacts now fail `gpd pre-commit-check` if the required header is missing or mismatched.
+
 Do not finish the report until the frontmatter satisfies the validator-visible rules above: contract-backed verification requires `plan_contract_ref` plus `contract_results`; any emitted `contract_results` or `comparison_verdicts` requires `plan_contract_ref`; decisive comparison gaps must stay explicit in `comparison_verdicts` and, when still missing decisive work, in structured `suggested_contract_checks`.
+
+After the closing frontmatter `---`, add the machine-readable header before the report body, for example:
+
+<!-- ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-minus, fourier_convention=physics -->
 
 ### Frontmatter Schema (YAML)
 

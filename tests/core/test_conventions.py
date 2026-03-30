@@ -13,6 +13,7 @@ from gpd.core.conventions import (
     ConventionEntry,
     ConventionListResult,
     ConventionSetResult,
+    check_assertions,
     convention_check,
     convention_diff,
     convention_list,
@@ -21,6 +22,7 @@ from gpd.core.conventions import (
     normalize_key,
     normalize_value,
     parse_assert_conventions,
+    required_assertion_keys,
     sanitize_value,
     validate_assertions,
 )
@@ -281,6 +283,65 @@ def test_validate_assertions_unset_convention_skipped():
     content = "<!-- ASSERT_CONVENTION: metric=mostly-plus -->"
     mismatches = validate_assertions(content, lock, filename="test.md")
     assert mismatches == []
+
+
+def test_validate_assertions_custom_convention_match():
+    lock = ConventionLock()
+    lock.custom_conventions["my_custom_convention"] = "enabled"
+    content = "<!-- ASSERT_CONVENTION: my_custom_convention=enabled -->"
+    mismatches = validate_assertions(content, lock, filename="test.md")
+    assert mismatches == []
+
+
+def test_validate_assertions_no_assertions_is_no_op():
+    lock = ConventionLock(metric_signature="mostly-plus")
+    content = "Just regular text with no assertions."
+    mismatches = validate_assertions(content, lock, filename="test.md")
+    assert mismatches == []
+
+
+def test_required_assertion_keys_only_returns_active_critical_fields():
+    lock = ConventionLock(
+        metric_signature="mostly-plus",
+        fourier_convention="physics",
+        gauge_choice="Lorenz",
+    )
+
+    assert required_assertion_keys(lock) == ["metric_signature", "fourier_convention"]
+
+
+def test_check_assertions_missing_required_key_fails():
+    lock = ConventionLock(metric_signature="mostly-plus", fourier_convention="physics")
+    content = "<!-- ASSERT_CONVENTION: metric=mostly-plus -->"
+
+    result = check_assertions(
+        content,
+        lock,
+        filename="test.md",
+        require_assertions=True,
+        required_keys=required_assertion_keys(lock),
+    )
+
+    assert result.passed is False
+    assert result.missing_required_assertions == []
+    assert result.missing_required_keys == ["fourier_convention"]
+
+
+def test_check_assertions_missing_custom_required_key_fails():
+    lock = ConventionLock(metric_signature="mostly-plus")
+    lock.custom_conventions["my_custom_convention"] = "enabled"
+    content = "<!-- ASSERT_CONVENTION: metric=mostly-plus -->"
+
+    result = check_assertions(
+        content,
+        lock,
+        filename="test.md",
+        require_assertions=True,
+        required_keys=["my_custom_convention"],
+    )
+
+    assert result.passed is False
+    assert result.missing_required_keys == ["my_custom_convention"]
 
 
 # ─── Edge cases: empty/unicode/long values ────────────────────────────────

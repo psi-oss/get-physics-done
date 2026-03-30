@@ -11,7 +11,32 @@ from gpd.cli import app
 from gpd.core.state import default_state_dict, generate_state_markdown
 from gpd.core.storage_paths import ProjectStorageLayout, StoragePathError
 
-runner = CliRunner()
+
+class _StableCliRunner(CliRunner):
+    def invoke(self, *args, **kwargs):
+        kwargs.setdefault("color", False)
+        return super().invoke(*args, **kwargs)
+
+
+runner = _StableCliRunner()
+
+
+@pytest.fixture(autouse=True)
+def _mock_paper_toolchain_payload() -> None:
+    with patch(
+        "gpd.cli._paper_build_toolchain_payload",
+        return_value={
+            "compiler": "pdflatex",
+            "available": True,
+            "compiler_path": "/usr/bin/pdflatex",
+            "distribution": "texlive",
+            "latexmk_available": True,
+            "bibtex_available": True,
+            "kpsewhich_available": True,
+            "warnings": [],
+        },
+    ):
+        yield
 
 
 def _write_basic_paper_config(project_root: Path) -> Path:

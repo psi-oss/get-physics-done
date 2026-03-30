@@ -23,6 +23,18 @@ def _setup_project(tmp_path: Path) -> None:
     (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
 
 
+def _draft_invalid_project_contract() -> dict[str, object]:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["claims"][0]["references"] = ["missing-ref"]
+    return contract
+
+
+def _write_stage0_project_contract_state(tmp_path: Path) -> None:
+    state = default_state_dict()
+    state["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+
 def test_load_state_json_uses_backup_when_primary_root_is_not_an_object(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     save_state_json(tmp_path, default_state_dict())
@@ -69,6 +81,9 @@ def test_state_and_context_keep_primary_state_when_primary_root_is_dict_but_sche
     assert loaded.integrity_status == "warning"
     assert any("position" in issue for issue in loaded.integrity_issues)
     assert loaded.state.get("project_contract") is None
+    assert loaded.project_contract_gate is not None
+    assert loaded.project_contract_gate["visible"] is False
+    assert loaded.project_contract_gate["status"] == "missing"
     assert ctx["project_contract"] is None
     assert ctx["project_contract_load_info"]["status"] == "missing"
     assert ctx["project_contract_load_info"]["source_path"].endswith("GPD/state.json")
@@ -97,6 +112,9 @@ def test_state_and_context_surface_blocked_primary_project_contract_when_primary
     loaded = state_load(tmp_path)
 
     assert loaded.state["project_contract"] is None
+    assert loaded.project_contract_gate is not None
+    assert loaded.project_contract_gate["status"] == "blocked_schema"
+    assert loaded.project_contract_gate["visible"] is False
     assert ctx["project_contract"] is None
     assert ctx["project_contract_load_info"]["status"] == "blocked_schema"
     assert ctx["project_contract_load_info"]["source_path"].endswith("GPD/state.json")
@@ -125,6 +143,9 @@ def test_state_and_context_surface_blocked_primary_project_contract_when_primary
     loaded = state_load(tmp_path)
 
     assert loaded.state["project_contract"] is None
+    assert loaded.project_contract_gate is not None
+    assert loaded.project_contract_gate["status"] == "blocked_type"
+    assert loaded.project_contract_gate["visible"] is False
     assert ctx["project_contract"] is None
     assert ctx["project_contract_load_info"]["status"] == "blocked_type"
     assert ctx["project_contract_load_info"]["source_path"].endswith("GPD/state.json")
@@ -160,7 +181,7 @@ def test_state_and_context_restore_backup_project_contract_when_primary_state_is
     assert ctx["project_contract"] is not None
     assert ctx["project_contract"]["scope"]["question"] == "Recovered from backup-only state"
     assert ctx["project_contract_load_info"]["source_path"].endswith(STATE_JSON_BACKUP_FILENAME)
-    assert ctx["project_contract_load_info"]["status"].startswith("loaded")
+    assert ctx["project_contract_load_info"]["status"] == "loaded"
     assert any(
         "the primary state.json was unavailable or unreadable" in record.message
         for record in caplog.records
@@ -192,13 +213,13 @@ def test_project_contract_loader_recovers_intent_backed_state_and_persists_it(tm
 
     assert contract is not None
     assert contract.model_dump(mode="json")["scope"]["question"] == "Recovered from intent-backed write"
-    assert load_info["status"].startswith("loaded")
+    assert load_info["status"] == "loaded"
     assert load_info["source_path"].endswith("state.json")
     assert not layout.state_intent.exists()
     assert json.loads(layout.state_json.read_text(encoding="utf-8"))["project_contract"]["scope"]["question"] == "Recovered from intent-backed write"
 
 
-def test_state_and_context_drop_integrity_invalid_backup_project_contract(tmp_path: Path) -> None:
+def test_state_and_context_surface_visible_blocked_integrity_backup_project_contract(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     save_state_json(tmp_path, default_state_dict())
 
@@ -214,10 +235,48 @@ def test_state_and_context_drop_integrity_invalid_backup_project_contract(tmp_pa
     ctx = init_progress(tmp_path)
     loaded = state_load(tmp_path)
 
-    assert ctx["project_contract"] is None
+    assert ctx["project_contract"] is not None
+    assert ctx["project_contract"]["claims"][1]["id"] == "claim-benchmark"
     assert ctx["project_contract_load_info"]["status"] == "blocked_integrity"
-    assert loaded.state["project_contract"] is None
-    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["project_contract"] is None
+    assert loaded.project_contract_gate is not None
+    assert ctx["project_contract_gate"] is not None
+    assert {
+        key: value for key, value in loaded.project_contract_gate.items() if key != "source_path"
+    } == {
+        key: value for key, value in ctx["project_contract_gate"].items() if key != "source_path"
+    }
+    assert loaded.project_contract_gate["source_path"] == "GPD/state.json.bak"
+    assert ctx["project_contract_gate"]["source_path"] == "GPD/state.json.bak"
+    assert loaded.state["project_contract"] is not None
+    assert loaded.state["project_contract"]["claims"][1]["id"] == "claim-benchmark"
+    assert json.loads(layout.state_json.read_text(encoding="utf-8"))["project_contract"]["claims"][1][
+        "id"
+    ] == "claim-benchmark"
+
+
+def test_state_and_context_surface_draft_invalid_primary_project_contract_after_state_load(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    save_state_json(tmp_path, default_state_dict())
+
+    layout = ProjectLayout(tmp_path)
+    raw_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    raw_state["project_contract"] = _draft_invalid_project_contract()
+    layout.state_json.write_text(json.dumps(raw_state, indent=2) + "\n", encoding="utf-8")
+
+    loaded = state_load(tmp_path)
+    ctx = init_progress(tmp_path)
+
+    assert loaded.state["project_contract"] is not None
+    assert loaded.state["project_contract"]["claims"][0]["references"] == ["missing-ref"]
+    assert any("unknown reference missing-ref" in issue for issue in loaded.integrity_issues)
+    assert ctx["project_contract"] is not None
+    assert ctx["project_contract"]["claims"][0]["references"] == ["missing-ref"]
+    assert ctx["project_contract_load_info"]["status"] == "blocked_integrity"
+    assert loaded.project_contract_gate == ctx["project_contract_gate"]
+    assert any(
+        "unknown reference missing-ref" in error
+        for error in ctx["project_contract_load_info"]["errors"]
+    )
 
 
 def test_state_and_context_hide_project_contract_when_raw_singleton_section_is_invalid(tmp_path: Path) -> None:
@@ -235,6 +294,8 @@ def test_state_and_context_hide_project_contract_when_raw_singleton_section_is_i
     loaded = state_load(tmp_path)
 
     assert loaded.state["project_contract"] is None
+    assert loaded.project_contract_gate is not None
+    assert loaded.project_contract_gate["status"] == "blocked_schema"
     assert ctx["project_contract"] is None
     assert ctx["project_contract_load_info"]["status"] == "blocked_schema"
     assert any("context_intake" in error for error in ctx["project_contract_load_info"]["errors"])
@@ -271,4 +332,32 @@ def test_state_contract_remains_visible_in_runtime_context_with_approval_blocker
     assert ctx["project_contract"]["references"][0]["role"] == "background"
     assert ctx["project_contract_load_info"]["status"] == "loaded_with_approval_blockers"
     assert ctx["project_contract_validation"]["valid"] is False
+    assert loaded.project_contract_gate == ctx["project_contract_gate"]
+    assert loaded.project_contract_gate["status"] == "loaded_with_approval_blockers"
+    assert loaded.project_contract_gate["load_blocked"] is False
+    assert loaded.project_contract_gate["approval_blocked"] is True
+    assert loaded.project_contract_gate["authoritative"] is False
     assert "Approval status: blocked" in ctx["active_reference_context"]
+
+
+def test_state_and_context_canonicalize_reference_aliases_before_final_contract_gate(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _write_stage0_project_contract_state(tmp_path)
+
+    state_path = tmp_path / "GPD" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["project_contract"]["references"][0]["aliases"] = ["benchmark-paper"]
+    state["project_contract"]["context_intake"]["must_read_refs"] = ["benchmark-paper"]
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    loaded = state_load(tmp_path)
+    ctx = init_progress(tmp_path)
+
+    assert loaded.project_contract_load_info == ctx["project_contract_load_info"]
+    assert loaded.project_contract_validation == ctx["project_contract_validation"]
+    assert loaded.project_contract_gate == ctx["project_contract_gate"]
+    assert loaded.project_contract_load_info["status"] == "loaded"
+    assert loaded.project_contract_validation["valid"] is True
+    assert loaded.project_contract_gate["status"] == "loaded"
+    assert loaded.project_contract_gate["authoritative"] is True
+    assert ctx["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]

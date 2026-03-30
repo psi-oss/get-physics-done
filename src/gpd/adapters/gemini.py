@@ -15,6 +15,7 @@ import logging
 import re
 import shlex
 import shutil
+from collections.abc import Mapping
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
@@ -206,6 +207,37 @@ def _gemini_policy_command_prefixes(bridge_command: str) -> tuple[str, ...]:
         bridge_command,
         *_GEMINI_STATIC_POLICY_COMMAND_PREFIXES,
     )
+
+
+def _project_managed_mcp_servers(env: Mapping[str, str] | None = None) -> dict[str, dict[str, object]]:
+    """Project shared optional integrations into Gemini's ``mcpServers`` shape."""
+    from gpd.mcp.managed_integrations import list_managed_integrations
+
+    managed_servers: dict[str, dict[str, object]] = {}
+    for integration in list_managed_integrations().values():
+        if not integration.is_configured(env):
+            continue
+
+        entry: dict[str, object] = {
+            "command": integration.bridge_command,
+            "args": [],
+        }
+        endpoint = integration.resolved_endpoint(env)
+        if endpoint and endpoint != integration.default_endpoint:
+            entry["env"] = {integration.endpoint_env_var: endpoint}
+
+        managed_servers[integration.managed_server_key] = entry
+
+    return managed_servers
+
+
+def _managed_mcp_server_keys() -> frozenset[str]:
+    """Return GPD-managed Gemini MCP server keys, including optional integrations."""
+    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+    from gpd.mcp.managed_integrations import list_managed_integrations
+
+    managed_keys = {integration.managed_server_key for integration in list_managed_integrations().values()}
+    return frozenset({*GPD_MCP_SERVER_KEYS, *managed_keys})
 
 
 def _rewrite_gpd_cli_invocations(content: str, bridge_command: str) -> str:
@@ -778,8 +810,6 @@ def _convert_to_gemini_toml(content: str) -> str:
         toml += f"prompt = '''\n{body}\n'''\n"
 
     return toml
-
-
 def _render_preserved_frontmatter_comments(frontmatter: str) -> str:
     """Render non-runtime frontmatter metadata as TOML comments.
 
@@ -1145,6 +1175,9 @@ class GeminiAdapter(RuntimeAdapter):
         from gpd.mcp.builtin_servers import build_mcp_servers_dict, merge_managed_mcp_servers
 
         mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+        managed_mcp_servers = _project_managed_mcp_servers()
+        if managed_mcp_servers:
+            mcp_servers.update(managed_mcp_servers)
         if mcp_servers:
             existing_mcp = settings.get("mcpServers", {})
             merged_mcp = merge_managed_mcp_servers(existing_mcp, mcp_servers)
@@ -1166,11 +1199,16 @@ class GeminiAdapter(RuntimeAdapter):
         wrapper_path = _managed_gemini_yolo_wrapper_path(target_dir)
         wrapper_exists = wrapper_path.is_file()
         desired_mode = "yolo" if autonomy == "yolo" else "default"
+        next_step: str | None = None
         message = "Gemini is using its normal approval-mode defaults."
         if desired_mode == "yolo":
             if wrapper_exists:
                 message = (
                     "Gemini only supports yolo at launch time. The GPD launcher is ready for the next session."
+                )
+                next_step = (
+                    "Exit the current Gemini session and relaunch with "
+                    f"{shlex.quote(str(wrapper_path))} so the runtime itself starts in yolo mode."
                 )
             else:
                 message = (
@@ -1182,9 +1220,11 @@ class GeminiAdapter(RuntimeAdapter):
             "desired_mode": desired_mode,
             "configured_mode": "launch-wrapper" if wrapper_exists else "default",
             "config_aligned": wrapper_exists if desired_mode == "yolo" else True,
+            "requires_relaunch": wrapper_exists if desired_mode == "yolo" else False,
             "managed_by_gpd": wrapper_exists,
             "launch_command": shlex.quote(str(wrapper_path)) if wrapper_exists else None,
             "message": message,
+            "next_step": next_step,
         }
 
     def sync_runtime_permissions(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
@@ -1396,9 +1436,7 @@ class GeminiAdapter(RuntimeAdapter):
             # Remove GPD MCP servers
             mcp_servers = settings.get("mcpServers")
             if isinstance(mcp_servers, dict):
-                from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
-                removed_keys = [key for key in list(mcp_servers) if key in GPD_MCP_SERVER_KEYS]
+                removed_keys = [key for key in list(mcp_servers) if key in _managed_mcp_server_keys()]
                 if removed_keys:
                     for key in removed_keys:
                         del mcp_servers[key]

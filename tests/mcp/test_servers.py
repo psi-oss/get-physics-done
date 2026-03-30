@@ -30,6 +30,10 @@ def _multi_claim_contract_fixture() -> dict[str, object]:
             "question": "Which benchmark and asymptotic regime does each claim recover?",
             "in_scope": ["claim-specific benchmark recovery"],
         },
+        "context_intake": {
+            "must_read_refs": ["ref-a", "ref-b"],
+            "crucial_inputs": ["Use the claim-specific benchmark anchor and regime for each check."],
+        },
         "observables": [
             {
                 "id": "obs-a",
@@ -51,6 +55,7 @@ def _multi_claim_contract_fixture() -> dict[str, object]:
                 "id": "claim-a",
                 "statement": "Recover benchmark A",
                 "observables": ["obs-a"],
+                "deliverables": ["deliv-a"],
                 "acceptance_tests": ["test-a"],
                 "references": ["ref-a"],
             },
@@ -58,11 +63,25 @@ def _multi_claim_contract_fixture() -> dict[str, object]:
                 "id": "claim-b",
                 "statement": "Recover benchmark B",
                 "observables": ["obs-b"],
+                "deliverables": ["deliv-b"],
                 "acceptance_tests": ["test-b"],
                 "references": ["ref-b"],
             },
         ],
-        "deliverables": [],
+        "deliverables": [
+            {
+                "id": "deliv-a",
+                "description": "Benchmark A recovery note",
+                "kind": "report",
+                "must_contain": ["claim-a", "ref-a"],
+            },
+            {
+                "id": "deliv-b",
+                "description": "Benchmark B recovery note",
+                "kind": "report",
+                "must_contain": ["claim-b", "ref-b"],
+            },
+        ],
         "acceptance_tests": [
             {
                 "id": "test-a",
@@ -89,6 +108,8 @@ def _multi_claim_contract_fixture() -> dict[str, object]:
                 "role": "benchmark",
                 "why_it_matters": "Claim A anchor",
                 "applies_to": ["claim-a"],
+                "must_surface": True,
+                "required_actions": ["compare"],
             },
             {
                 "id": "ref-b",
@@ -97,9 +118,24 @@ def _multi_claim_contract_fixture() -> dict[str, object]:
                 "role": "benchmark",
                 "why_it_matters": "Claim B anchor",
                 "applies_to": ["claim-b"],
+                "must_surface": True,
+                "required_actions": ["compare"],
             },
         ],
-        "forbidden_proxies": [],
+        "forbidden_proxies": [
+            {
+                "id": "fp-a",
+                "subject": "claim-a",
+                "proxy": "qualitative agreement without benchmark anchoring",
+                "reason": "Claim A requires the explicit benchmark anchor.",
+            },
+            {
+                "id": "fp-b",
+                "subject": "claim-b",
+                "proxy": "qualitative agreement without benchmark anchoring",
+                "reason": "Claim B requires the explicit benchmark anchor.",
+            },
+        ],
         "links": [],
         "uncertainty_markers": {
             "weakest_anchors": ["Benchmark interpretation"],
@@ -140,8 +176,8 @@ class TestBuiltinServerDescriptors:
         descriptor = build_public_descriptors()["gpd-state"]
         python_module = descriptor["alternatives"]["python_module"]
 
-        assert str(python_module["command"]) == "python3"
-        assert str(python_module["command"]) != "python"
+        assert python_module["command"] == "python3"
+        assert isinstance(python_module["command"], str)
         assert python_module["notes"] == "Requires gpd package installed and Python >=3.11"
 
     def test_build_mcp_servers_dict_checks_optional_modules_in_target_interpreter(self, monkeypatch):
@@ -288,6 +324,18 @@ class TestConventionsServer:
         result = assert_convention_validate("No assertions here", {})
         assert result["valid"] is False
         assert result["assertions_found"] == 0
+
+    def test_assert_convention_validate_missing_required_key(self):
+        from gpd.mcp.servers.conventions_server import assert_convention_validate
+
+        content = "% ASSERT_CONVENTION: metric_signature=(+,-,-,-)"
+        lock = {
+            "metric_signature": "(+,-,-,-)",
+            "fourier_convention": "physics",
+        }
+        result = assert_convention_validate(content, lock)
+        assert result["valid"] is False
+        assert result["missing_required_keys"] == ["fourier_convention"]
 
     def test_subfield_defaults_qft(self):
         from gpd.mcp.servers.conventions_server import subfield_defaults
@@ -976,11 +1024,51 @@ class TestSkillsServer:
         assert "Referee Decision Schema" in schema_documents["referee-decision-schema.md"]["body"]
         assert "review-ledger-schema.md" in contract_documents
         assert "schema_documents and contract_documents already include" in result["loading_hint"]
+        assert "inject `review_contract` alongside `content`" in result["loading_hint"]
         assert result["context_mode"] == "project-required"
+        assert result["project_reentry_capable"] is False
         assert result["review_contract"] is not None
         assert result["review_contract"]["review_mode"] == "publication"
+        assert "## Review Contract" in result["content"]
+        assert "review_contract:" in result["content"]
         assert all(not entry["path"].startswith("/") for entry in result["schema_documents"])
         assert all(not entry["path"].startswith("/") for entry in result["contract_documents"])
+
+    def test_get_skill_resume_work_surfaces_project_reentry_metadata(self):
+        from gpd.mcp.servers.skills_server import get_skill
+        from gpd.registry import CommandDef, SkillDef
+
+        command = CommandDef(
+            name="gpd:resume-work",
+            description="Resume.",
+            argument_hint="",
+            requires={},
+            allowed_tools=["file_read", "shell"],
+            content="Resume body.",
+            path="/tmp/gpd-resume-work.md",
+            source="commands",
+            context_mode="project-required",
+            project_reentry_capable=True,
+        )
+        skill = SkillDef(
+            name="gpd-resume-work",
+            description="Resume.",
+            content="Resume body.",
+            category="session",
+            path="/tmp/gpd-resume-work.md",
+            source_kind="command",
+            registry_name="resume-work",
+        )
+
+        with (
+            patch("gpd.mcp.servers.skills_server._resolve_skill", return_value=skill),
+            patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
+        ):
+            result = get_skill("gpd-resume-work")
+
+        assert result["context_mode"] == "project-required"
+        assert result["project_reentry_capable"] is True
+        assert result["argument_hint"] == ""
 
     def test_get_skill_agent_uses_primary_agent_content(self):
         from gpd.mcp.servers.skills_server import get_skill
@@ -2174,10 +2262,13 @@ class TestVerificationServer:
             }
         )
 
-        assert result == {
-            "error": "Invalid contract payload: claims.0.notes: Extra inputs are not permitted",
-            "schema_version": 1,
-        }
+        assert result["status"] == "pass"
+        assert result["contract_salvaged"] is True
+        assert result["contract_salvage_findings"] == ["claims.0.notes: Extra inputs are not permitted"]
+        assert (
+            "Contract payload was salvaged before verification: claims.0.notes: Extra inputs are not permitted"
+            in result["automated_issues"]
+        )
 
     def test_suggest_contract_checks_from_contract(self):
         import json
@@ -2230,10 +2321,13 @@ class TestVerificationServer:
 
         result = suggest_contract_checks(contract)
 
-        assert result == {
-            "error": "Invalid contract payload: references.0.notes: Extra inputs are not permitted",
-            "schema_version": 1,
-        }
+        assert result["suggested_count"] > 0
+        assert result["contract_salvaged"] is True
+        assert result["contract_salvage_findings"] == ["references.0.notes: Extra inputs are not permitted"]
+        assert (
+            "Contract payload was salvaged before check suggestion: references.0.notes: Extra inputs are not permitted"
+            in result["contract_warnings"]
+        )
 
     @pytest.mark.parametrize("payload", ["not-a-dict", ["claim-benchmark"], 3])
     def test_suggest_contract_checks_rejects_non_mapping_payloads(self, payload):

@@ -1,6 +1,7 @@
 # Continuation Format
 
 Standard format for presenting next steps after completing a research command or workflow.
+This format is a presentation layer only: the displayed next step is derived from canonical continuation and recovery state, and it does not establish project authority by itself.
 
 ## Core Structure
 
@@ -13,7 +14,7 @@ Standard format for presenting next steps after completing a research command or
 
 `{command to copy-paste}`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `{next command}`</sub>
 
 ---
 
@@ -29,9 +30,10 @@ Standard format for presenting next steps after completing a research command or
 1. **Always show what it is** -- name + description, never just a command path
 2. **Pull context from source** -- ROADMAP.md for phases, PLAN.md `<objective>` for plans
 3. **Command in inline code** -- backticks, easy to copy-paste, renders as clickable link
-4. **`/clear` explanation** -- always include, keeps it concise but explains why
+4. **`/clear` explanation** -- always include, and pair it with the next command instead of leaving it as a dead-end. If project rediscovery is still required, say so explicitly and point to `gpd resume` or `gpd resume --recent` before reopening the runtime instead of implying that `/clear` performs recovery.
 5. **"Also available" not "Other options"** -- sounds more app-like
 6. **Visual separators** -- `---` above and below to make it stand out
+7. **Derived, not authoritative** -- the message is a projection of the current recovery decision, not a competing source of truth
 
 ## Variants
 
@@ -46,7 +48,7 @@ Standard format for presenting next steps after completing a research command or
 
 `/gpd:execute-phase 2`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:execute-phase 2`</sub>
 
 ---
 
@@ -71,7 +73,7 @@ Add note that this is the last plan and what comes after:
 
 `/gpd:execute-phase 2`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:execute-phase 2`</sub>
 
 ---
 
@@ -93,7 +95,7 @@ Add note that this is the last plan and what comes after:
 
 `/gpd:plan-phase 2`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:plan-phase 2`</sub>
 
 ---
 
@@ -122,7 +124,7 @@ Show completion status before next action:
 
 `/gpd:plan-phase 3`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:plan-phase 3`</sub>
 
 ---
 
@@ -151,7 +153,7 @@ When there's no clear primary action:
 
 **To research unknowns:** `/gpd:research-phase 3`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run the chosen command below</sub>
 
 ---
 ```
@@ -171,7 +173,7 @@ All 4 phases completed
 
 `/gpd:new-milestone`
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first, then run `/gpd:new-milestone`</sub>
 
 ---
 ```
@@ -215,7 +217,7 @@ Extract: `**02-03: Perturbative Corrections** -- Compute one-loop self-energy wi
 ```
 ## To Continue
 
-Run `/clear`, then paste:
+Run `/clear`, then paste the concrete next command:
 /gpd:execute-phase 2
 ```
 

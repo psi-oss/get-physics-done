@@ -30,6 +30,8 @@ Routes to the set-profile workflow which handles:
 - Profile update in config.json
 - Confirmation with profile description display
 - Reminder that `/gpd:settings` handles concrete runtime model IDs per tier
+
+This command only changes `model_profile`. If you want a workflow preset bundle, use `/gpd:settings` so the existing knobs are resolved together instead of inventing a separate preset block.
   </objective>
 
 <execution_context>

@@ -272,9 +272,12 @@ def _assert_contract_tools_reject(contract: dict[str, object], expected_error: s
     )
     suggest_result = suggest_contract_checks(contract)
 
-    expected = {"error": f"Invalid contract payload: {expected_error}", "schema_version": 1}
-    assert run_result == expected
-    assert suggest_result == expected
+    for result in (run_result, suggest_result):
+        assert result["schema_version"] == 1
+        assert result["error"].startswith(f"Invalid contract payload: {expected_error}")
+        details = result.get("contract_error_details")
+        if details is not None:
+            assert expected_error in details
 
 
 @pytest.mark.parametrize(
@@ -412,6 +415,20 @@ def test_contract_tools_reject_coercive_contract_scalars() -> None:
     }
     assert run_result == expected
     assert suggest_result == expected
+
+
+def test_contract_tools_reject_missing_context_intake() -> None:
+    contract = _load_project_contract_fixture()
+    contract.pop("context_intake", None)
+
+    _assert_contract_tools_reject(contract, "missing context_intake")
+
+
+def test_contract_tools_reject_empty_context_intake() -> None:
+    contract = _load_project_contract_fixture()
+    contract["context_intake"] = {}
+
+    _assert_contract_tools_reject(contract, "context_intake must not be empty")
 
 
 @pytest.mark.parametrize("field_name", ["regime", "units"])
@@ -1066,7 +1083,7 @@ def test_run_contract_check_keyword_fallback_reaches_warning_when_prose_evidence
     assert "observed.metric_value" in benchmark["missing_inputs"]
 
 
-def test_contract_tools_reject_unknown_nested_contract_fields() -> None:
+def test_contract_tools_salvage_unknown_nested_contract_fields() -> None:
     from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 
     contract = _load_project_contract_fixture()
@@ -1080,15 +1097,18 @@ def test_contract_tools_reject_unknown_nested_contract_fields() -> None:
         "observed": {"metric_value": 0.01, "threshold_value": 0.02},
     }
 
-    expected = {
-        "error": "Invalid contract payload: references.0.notes: Extra inputs are not permitted",
-        "schema_version": 1,
-    }
-    assert run_contract_check(request) == expected
-    assert suggest_contract_checks(contract) == expected
+    run_result = run_contract_check(request)
+    suggest_result = suggest_contract_checks(contract)
+
+    assert run_result["status"] == "pass"
+    assert run_result["contract_salvaged"] is True
+    assert "references.0.notes: Extra inputs are not permitted" in run_result["contract_salvage_findings"]
+    assert suggest_result["suggested_count"] > 0
+    assert suggest_result["contract_salvaged"] is True
+    assert "references.0.notes: Extra inputs are not permitted" in suggest_result["contract_salvage_findings"]
 
 
-def test_suggest_contract_checks_rejects_unknown_nested_contract_fields_at_mcp_boundary() -> None:
+def test_suggest_contract_checks_surfaces_unknown_nested_contract_field_salvage_metadata() -> None:
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 
     contract = _load_project_contract_fixture()
@@ -1096,10 +1116,9 @@ def test_suggest_contract_checks_rejects_unknown_nested_contract_fields_at_mcp_b
 
     result = suggest_contract_checks(contract)
 
-    assert result == {
-        "error": "Invalid contract payload: references.0.notes: Extra inputs are not permitted",
-        "schema_version": 1,
-    }
+    assert result["suggested_count"] > 0
+    assert result["contract_salvaged"] is True
+    assert "references.0.notes: Extra inputs are not permitted" in result["contract_salvage_findings"]
 
 
 def test_contract_from_data_drops_nested_unknown_scope_fields() -> None:
@@ -1113,6 +1132,15 @@ def test_contract_from_data_drops_nested_unknown_scope_fields() -> None:
     assert parsed is not None
     assert parsed.scope.question == contract["scope"]["question"]
     assert "legacy_notes" not in parsed.scope.model_dump()
+
+
+def test_contract_from_data_strict_probe_rejects_nested_unknown_scope_fields() -> None:
+    from gpd.contracts import contract_from_data
+
+    contract = _load_project_contract_fixture()
+    contract["scope"]["legacy_notes"] = "nested extra field"
+
+    assert contract_from_data(contract, allow_recoverable_warnings=False) is None
 
 
 def test_contract_tools_reject_unknown_top_level_contract_fields() -> None:
@@ -1141,30 +1169,62 @@ def test_contract_tools_reject_unknown_top_level_contract_fields() -> None:
 
 
 @pytest.mark.parametrize(
-    ("mutator", "expected_error"),
+    ("mutator", "getter", "expected_value", "expected_salvage_findings"),
     [
         (
             lambda contract: contract["deliverables"][0].__setitem__("kind", "Figure"),
-            "deliverables.0.kind must be one of figure, table, dataset, data, derivation, code, note, report, other",
+            lambda parsed: parsed.deliverables[0].kind,
+            "figure",
+            [],
         ),
         (
             lambda contract: contract["acceptance_tests"][0].__setitem__("automation", "Automated"),
-            "acceptance_tests.0.automation must be one of automated, hybrid, human",
+            lambda parsed: parsed.acceptance_tests[0].automation,
+            "automated",
+            [],
         ),
         (
             lambda contract: contract["references"][0].__setitem__("required_actions", "Read"),
-            "references.0.required_actions must be one of read, use, compare, cite, avoid",
+            lambda parsed: parsed.references[0].required_actions,
+            ["read"],
+            ["references.0.required_actions must be a list, not str"],
         ),
     ],
 )
-def test_contract_tools_reject_non_exact_enum_literals(
+def test_contract_tools_normalize_recoverable_enum_literals(
     mutator,
-    expected_error: str,
+    getter,
+    expected_value,
+    expected_salvage_findings: list[str],
 ) -> None:
+    from gpd.contracts import contract_from_data
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
     contract = _load_project_contract_fixture()
     mutator(contract)
 
-    _assert_contract_tools_reject(contract, expected_error)
+    parsed = contract_from_data(copy.deepcopy(contract))
+
+    assert parsed is not None
+    assert getter(parsed) == expected_value
+
+    run_result = run_contract_check(
+        {
+            "check_key": "contract.benchmark_reproduction",
+            "contract": contract,
+            "binding": {"claim_ids": ["claim-benchmark"]},
+            "metadata": {"source_reference_id": "ref-benchmark"},
+            "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+        }
+    )
+    suggest_result = suggest_contract_checks(contract)
+
+    assert run_result["status"] == "pass"
+    assert run_result["contract_salvaged"] is bool(expected_salvage_findings)
+    assert run_result["contract_salvage_findings"] == expected_salvage_findings
+    assert suggest_result["suggested_count"] > 0
+    assert suggest_result["contract_salvaged"] is bool(expected_salvage_findings)
+    assert suggest_result["contract_salvage_findings"] == expected_salvage_findings
 
 
 @pytest.mark.parametrize("payload", ["not-a-dict", ["claim-benchmark"], 3])
@@ -1525,6 +1585,28 @@ def test_contract_tools_reject_blocking_salvage_schema_drift() -> None:
     assert suggest_result == expected
 
 
+def test_contract_tools_reject_cross_link_invalid_contracts() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _load_project_contract_fixture()
+    contract["claims"][0]["references"] = ["missing-ref"]
+
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "binding": {"claim_ids": ["claim-benchmark"]},
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    expected = {
+        "error": "Invalid contract payload: claim claim-benchmark references unknown reference missing-ref",
+        "schema_version": 1,
+    }
+    assert run_contract_check(request) == expected
+    assert suggest_contract_checks(contract) == expected
+
+
 def test_contract_tools_surface_full_contract_error_details_for_multi_error_payloads() -> None:
     from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 
@@ -1621,7 +1703,7 @@ def test_contract_tools_reject_shared_integrity_errors_after_salvage() -> None:
 
     _assert_contract_tools_reject(
         contract,
-        "references.0.notes: Extra inputs are not permitted",
+        "contract id claim-benchmark is reused across claim, deliverable; target resolution is ambiguous",
     )
 
 
@@ -1670,7 +1752,7 @@ def test_checklist_helpers_return_defensive_copies() -> None:
     assert "poisoned" not in fresh_bundle_checklist["bundle_checks"][0]["check_ids"]
 
 
-def test_run_contract_check_rejects_unknown_nested_contract_fields_before_salvage_metadata() -> None:
+def test_run_contract_check_surfaces_unknown_nested_contract_field_salvage_metadata() -> None:
     from gpd.mcp.servers.verification_server import run_contract_check
 
     contract = _load_project_contract_fixture()
@@ -1686,10 +1768,10 @@ def test_run_contract_check_rejects_unknown_nested_contract_fields_before_salvag
         }
     )
 
-    assert result == {
-        "error": "Invalid contract payload: claims.0.notes: Extra inputs are not permitted",
-        "schema_version": 1,
-    }
+    assert "error" not in result
+    assert result["status"] == "pass"
+    assert result["contract_salvaged"] is True
+    assert "claims.0.notes: Extra inputs are not permitted" in result["contract_salvage_findings"]
 
 
 def test_verification_server_pure_success_tools_return_stable_envelopes() -> None:

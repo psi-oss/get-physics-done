@@ -101,7 +101,7 @@ Agents: project-researcher, phase-researcher, literature-reviewer, roadmapper, p
 **Tier 2 — Convention Enforcer (full tracking protocol, equation-working agents)**
 
 Agents that write or verify equations must actively enforce conventions:
-- Write `ASSERT_CONVENTION` headers in derivation and verification files
+- Write `ASSERT_CONVENTION` headers in derivation files and canonical phase verification reports
 - Verify test values from CONVENTIONS.md against equations they produce or check
 - Apply the 5-point convention checklist (metric, Fourier, normalization, coupling, renormalization) when importing formulas from prior phases or references
 - Flag convention violations as DEVIATION Rule 5 (not just "suspected mismatch")
@@ -144,6 +144,7 @@ gpd commit "<type>(<scope>): <description>" --files <file1> <file2> ...
 
 1. **Markdown frontmatter parse validity** — `.md` files must have syntactically valid YAML frontmatter when frontmatter is present
 2. **NaN/Inf detection** — checked files must not contain NaN/Inf-style values
+3. **ASSERT_CONVENTION coverage on changed derivation / phase verification artifacts** — when a convention lock is active, changed derivation artifacts and `VERIFICATION.md` files must carry a matching machine-readable assertion header with the active critical keys
 
 If validation fails, the commit is blocked with `reason: "pre_commit_check_failed"` and a list of errors. Fix the errors and retry.
 
@@ -159,7 +160,9 @@ gpd pre-commit-check --files GPD/phases/03-foo/03-01-PLAN.md
 
 Some workflows also run an explicit `PRE_CHECK=$(gpd pre-commit-check ... 2>&1) || true` before calling `gpd commit`. Treat that explicit shell step as early visibility only: `gpd commit` re-runs the same validation on the requested commit paths and remains the blocking gate.
 
-For stricter semantic checks, use the dedicated commands alongside `pre-commit-check`: `gpd verify plan`, `gpd verify summary`, `gpd verify artifacts`, and `gpd convention check`.
+`gpd pre-commit-check` now hard-blocks missing or mismatched `ASSERT_CONVENTION` headers on convention-gated artifacts (derivation files and canonical phase verification reports) when an active convention lock exists. Outside that gated set, any explicit `ASSERT_CONVENTION` line in checked Markdown / LaTeX / Python artifacts is still validated against the lock and will fail the check if it is wrong.
+
+For stricter semantic checks, use the dedicated commands alongside `pre-commit-check`: `gpd verify plan`, `gpd verify summary`, `gpd verify artifacts`, `gpd convention check`, and `assert_convention_validate` through the conventions MCP surface when you need direct file-content assertion diagnostics.
 
 ---
 
@@ -387,13 +390,21 @@ For phase dependency graphing, combine `gpd roadmap analyze` with SUMMARY frontm
 # Inspect roadmap structure
 gpd roadmap analyze
 
-# Trace a specific result across phases
+# Trace a specific phase/frontmatter dependency across phases
 gpd query deps <identifier>
 
 # Search SUMMARY frontmatter by provides/requires/affects
 gpd query search --provides <term>
 gpd query search --requires <term>
 gpd query search --affects <term>
+
+# Search the canonical result registry for equations and prior derived quantities
+gpd result search --equation "E = mc^2"
+gpd result search --text "effective mass"
+gpd result search --phase <phase>
+
+# Inspect one canonical result directly
+gpd result show <identifier>
 ```
 
 ---
@@ -435,11 +446,14 @@ gpd query search --requires "Hamiltonian"
 # Find phases that affect a specific area
 gpd query search --affects "phase boundary"
 
-# Search by equation content
-gpd query search --equation "E = mc^2"
+# Search canonical equations and derived results
+gpd result search --equation "E = mc^2"
 
-# Trace dependencies for a specific identifier
-gpd query deps <identifier>
+# Inspect one canonical result directly
+gpd result show <identifier>
+
+# Trace dependencies for a canonical result identifier
+gpd result deps <identifier>
 
 # Query assumptions across phases
 gpd query assumptions "<search term>"

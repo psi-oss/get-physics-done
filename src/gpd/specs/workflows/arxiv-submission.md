@@ -1,5 +1,5 @@
 <purpose>
-Prepare a completed paper for arXiv submission. Handles the full submission pipeline: LaTeX validation, bibliography flattening, figure format checking, \input resolution, metadata verification, ancillary file packaging, and tarball generation. Output: a submission-ready .tar.gz and a checklist of manual steps remaining.
+Prepare a completed paper for arXiv submission. The submission gate requires a successful `gpd paper-build` for the resolved manuscript root, then handles LaTeX validation, bibliography flattening, figure format checking, \input resolution, metadata verification, ancillary file packaging, and tarball generation. Output: a submission-ready .tar.gz and a checklist of manual steps remaining.
 </purpose>
 
 <required_reading>
@@ -19,7 +19,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`.
+Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`.
 
 Run centralized context preflight before continuing:
 
@@ -45,8 +45,9 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-If review preflight exits nonzero because of missing project state, missing manuscript, missing compiled manuscript, unresolved publication blockers, degraded review integrity, or missing conventions, STOP and fix those blockers before packaging.
+If review preflight exits nonzero because of missing project state, missing manuscript, missing compiled manuscript, unresolved publication blockers, degraded review integrity, or missing conventions, STOP and fix those blockers before packaging. If `derived_manuscript_reference_status` is present, use it as a first-pass summary of reference coverage and citation freshness, but keep the resolved manuscript root's `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` authoritative for strict packaging decisions.
 Strict preflight also requires `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` beside the resolved manuscript entry point. If `$ARGUMENTS` resolves to `submission/main.tex`, those review artifacts must come from `submission/`, not from legacy `GPD/paper/` copies or some other manuscript directory.
+Treat `gpd paper-build` as the authoritative step that regenerates `BIBLIOGRAPHY-AUDIT.json` for the resolved manuscript root. Do not package stale audit artifacts, even if the bibliography only changed indirectly through a citation-source handoff.
 If `GPD/review/REVIEW-LEDGER*.json` / `GPD/review/REFEREE-DECISION*.json` exist, strict preflight treats the latest round-specific pair as authoritative submission-gate input. That pair must validate against the active manuscript, and packaging may continue only when the latest recommendation is `accept` or `minor_revision` with no unresolved blocking issues. A latest `major_revision` or `reject` decision is a hard stop for submission packaging.
 
 **Resolve manuscript target from $ARGUMENTS:**
@@ -88,10 +89,16 @@ SUBMISSION_DIR="arxiv-submission"
 ```
 </step>
 
+<step name="paper_build_gate">
+**Require the built manuscript contract before packaging:**
+
+The resolved manuscript must already have been materialized by `gpd paper-build`. If `${PAPER_DIR}/PAPER-CONFIG.json` exists, refresh the manuscript and artifact manifest with `gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"` before packaging. If `derived_manuscript_reference_status` is present, use it as a fast sanity check for whether citation state is likely fresh or stale, but do not package on that basis alone. If the build artifacts are missing, stale, or invalid, STOP and tell the user to run `gpd paper-build` first. Do not treat manual `pdflatex` runs as the source of build truth.
+</step>
+
 <step name="paper_quality_gate">
 **Run the paper-quality submission gate before packaging:**
 
-Use the resolved manuscript root as the scoring source of truth. The same resolved manuscript root is also the strict preflight source of truth for `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the compiled PDF. If `PAPER_DIR` is not already the project's `paper/` directory, create a temporary scratch project root that mirrors `GPD/` and exposes the resolved manuscript directory as `paper/` for scoring, then run:
+Use the resolved manuscript root as the scoring source of truth. The same resolved manuscript root is also the strict preflight source of truth for `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the compiled PDF. Only rely on that strict-preflight source of truth after the paper-build gate above has succeeded. If `PAPER_DIR` is not already the project's `paper/` directory, create a temporary scratch project root that mirrors `GPD/` and exposes the resolved manuscript directory as `paper/` for scoring, then run:
 
 ```bash
 QUALITY_ROOT="."
@@ -118,7 +125,7 @@ If `QUALITY_STATUS == 0`, continue normally and carry the reported score/status 
 </step>
 
 <step name="validate_latex">
-**Check LaTeX compiler availability then compile:**
+**Run an optional local compiler smoke check after the built manuscript is validated:**
 
 ```bash
 # Cross-platform detection: PATH first, then Windows-specific locations
@@ -147,17 +154,9 @@ fi
 **If `PDFLATEX_AVAILABLE` is false:**
 
 ```
-ERROR: pdflatex is required for arXiv submission but was not found.
-
-Install a LaTeX distribution:
-  - Windows: MiKTeX (https://miktex.org/download) or TeX Live
-  - macOS:   brew install --cask mactex
-  - Linux:   sudo apt install texlive-latex-base
-
-After installation, restart your terminal and re-run this command.
+WARNING: pdflatex is not available, so local compilation smoke checks will be skipped.
+The paper-build artifact contract still allows packaging to continue.
 ```
-
-Ask user: "Would you like guidance on installing a LaTeX distribution?" or "Abort?"
 
 **If pdflatex is available, compile:**
 
@@ -484,7 +483,7 @@ If main.tex is not at root level of tarball: repackage.
 
 | Check | Status |
 |-------|--------|
-| LaTeX compilation | {PASS/FAIL} |
+| LaTeX compilation smoke check | {PASS/FAIL/SKIP} |
 | Bibliography (.bbl inlined) | {PASS/FAIL} |
 | Figures (arXiv-compatible) | {PASS/FAIL} |
 | Abstract length (< 1920 chars) | {PASS/WARN} |
@@ -547,7 +546,7 @@ Write `${SUBMISSION_DIR}/SUBMISSION-MANIFEST.md`:
 
 ## Checks Passed
 
-- LaTeX compilation: {PASS/FAIL}
+- LaTeX compilation smoke check: {PASS/FAIL/SKIP}
 - Bibliography flattened: {PASS/FAIL}
 - Figures validated: {PASS/FAIL}
 - Abstract length: {PASS/WARN}
@@ -607,18 +606,14 @@ Upload this file directly to https://arxiv.org/submit
 - **Missing .bbl file:** Re-run bibtex. If bibliography database missing, suggest running `/gpd:write-paper` first.
 - **Figures missing:** List missing figures with their `\includegraphics` paths. Check if they exist elsewhere in the project.
 - **Package too large (> 50MB):** Suggest reducing figure resolution, compressing images, or moving large data to ancillary files.
-- **pdflatex not available:** LaTeX is required for arXiv submission. Suggest installing a distribution:
-  - **Windows:** MiKTeX (https://miktex.org/download) or TeX Live (https://tug.org/texlive/windows.html). After installation, restart the terminal so new PATH entries take effect.
-  - **macOS:** `brew install --cask mactex` or `brew install --cask basictex`
-  - **Linux:** `sudo apt install texlive-latex-base` (Debian/Ubuntu) or `sudo dnf install texlive-scheme-basic` (Fedora)
-  Cannot proceed without a LaTeX installation.
+- **pdflatex not available:** Skip the local smoke check and keep packaging aligned with the `paper-build` contract. Offer installation guidance if the user wants local verification, but do not imply the submission is blocked solely by the missing compiler.
 
 </failure_handling>
 
 <success_criteria>
 
 - [ ] Paper directory located
-- [ ] LaTeX compiles without errors
+- [ ] LaTeX compiles without errors when a local compiler is available; otherwise smoke check is skipped
 - [ ] All \input/\include commands resolved (flattened)
 - [ ] Bibliography flattened from .bib/.bbl to inline .bbl
 - [ ] All figures in arXiv-compatible formats

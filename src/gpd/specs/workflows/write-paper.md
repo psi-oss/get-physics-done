@@ -115,7 +115,7 @@ fi
 If the loop found an existing `main.tex`, the workflow is resuming or revising that manuscript directory. Strict review for that resume path uses `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and `${PAPER_DIR}/reproducibility-manifest.json` from the same directory.
 If no existing manuscript was found, `PAPER_DIR` defaults to `paper` and the workflow bootstraps a fresh scaffold there.
 
-**Check pdflatex availability (cross-platform):**
+**Check optional local LaTeX compiler availability for smoke tests (cross-platform):**
 
 ```bash
 # Check standard PATH first, then platform-specific locations
@@ -145,16 +145,16 @@ fi
 If `PDFLATEX_AVAILABLE` is false, display a warning:
 
 ```
-⚠ pdflatex not found. LaTeX compilation checks will be skipped.
+⚠ pdflatex not found. Local compilation smoke checks will be skipped.
   The paper .tex files will still be generated correctly.
 
-  To enable compilation checks, install a LaTeX distribution:
+  To enable local smoke checks, install a LaTeX distribution:
     - Windows:     MiKTeX (https://miktex.org/download) or TeX Live
     - macOS:       brew install --cask mactex
     - Linux:       sudo apt install texlive-latex-base  (Debian/Ubuntu)
 ```
 
-The workflow continues without compilation checks — .tex file generation does not require pdflatex.
+The workflow continues without local compilation smoke checks — .tex file generation does not require pdflatex, and `gpd paper-build` remains the canonical manuscript scaffold contract.
 
 **Convention verification** — papers must use consistent conventions throughout:
 
@@ -221,7 +221,13 @@ The research digest provides a direct scaffolding for paper organization:
 
 **Step 3 -- Identify digest gaps:**
 
-If the digest is incomplete or missing sections, note which paper sections will need to be built from raw phase data instead:
+If the digest is incomplete or missing sections, note which paper sections will need to be built from raw phase data instead. Prefer the structured init payload first for the canonical state slices already exposed there:
+
+- `derived_convention_lock` and `derived_convention_lock_count`
+- `derived_intermediate_results` and `derived_intermediate_result_count`
+- `derived_approximations` and `derived_approximation_count`
+
+Use raw phase files only for details that are not already surfaced through init.
 
 ```bash
 # Fall back to raw sources if digest is insufficient
@@ -237,7 +243,7 @@ Display a clear warning explaining why and offering alternatives:
 ⚠ No RESEARCH-DIGEST.md found in GPD/milestones/.
 
 Research digests are generated during /gpd:complete-milestone. Without a digest,
-the paper will be built from raw phase data (summary artifacts, STATE.md, state.json).
+the paper will be built from raw phase data when needed, but the structured init payload should be used first for conventions, results, and approximations.
 This works but produces a less structured starting point — the digest provides
 a curated narrative arc, convention timeline, and figure registry.
 
@@ -258,7 +264,7 @@ for PHASE_NUM in $(echo "$FROM_PHASES" | tr ',' ' '); do
 done
 ```
 
-Proceed to establish_scope and catalog_artifacts, which will gather research context from raw phase data, summary artifacts, and state.json directly.
+Proceed to establish_scope and catalog_artifacts, which will gather research context from the init payload first, then summary artifacts, and only the remaining raw phase files directly.
 
 </step>
 
@@ -352,13 +358,13 @@ Read the convention declarations from each phase's summary artifact or derivatio
 2. Fourier convention — must be identical across all phases
 3. Unit system — must be identical (or conversions documented)
 
-Also check `convention_lock` in STATE.md or state.json. If a convention lock exists, verify all phases comply.
+Also check `derived_convention_lock` from the init payload first. If a convention lock exists, verify all phases comply. Fall back to `STATE.md` or `state.json` only if the structured field is unavailable.
 
 **Convention mismatch between phases** → CRITICAL gap (combining results with different conventions produces wrong answers).
 
 ### Check 3: Numerical value stability
 
-For each key result listed in the research digest (or `intermediate_results` in state.json):
+For each key result listed in the research digest (or `derived_intermediate_results` from the init payload):
 
 1. Locate the value in its source phase summary artifact
 2. Compare with any cross-references in other phases
@@ -406,10 +412,13 @@ ls GPD/literature/*-REVIEW.md 2>/dev/null
 1. Does a project bibliography exist (`references/references.bib` or `${PAPER_DIR}/references.bib`)?
 2. Does at least one `GPD/literature/*-REVIEW.md` or phase `RESEARCH.md` exist?
 3. Are key prior works identified (the research digest's "Prior Work" or literature review)?
-4. If the bibliography changed after the last audit, refresh `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` before strict review. The JSON audit is the review contract artifact; `${PAPER_DIR}/CITATION-AUDIT.md` is only the human-readable report.
-   For the default bootstrap path, this means: `If the bibliography changed after the last audit, refresh `paper/BIBLIOGRAPHY-AUDIT.json` before strict review.`
+4. If `GPD/literature/*-CITATION-SOURCES.json` exists for the current topic, treat it as the citation-source handoff from literature-review and pass it through `gpd paper-build --citation-sources` instead of reconstructing the list manually.
+5. If `derived_manuscript_reference_status` is present in the init/context payload, use it as the manuscript-local status summary for the active manuscript instead of reconstructing read/verified/cited state from prose or source ordering.
+6. `gpd paper-build` is the authoritative step that regenerates `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` for the emitted bibliography and the derived `reference_id -> bibtex_key` bridge. Rerun it whenever the bibliography or citation set changes before strict review. The JSON audit is the review contract artifact; `${PAPER_DIR}/CITATION-AUDIT.md` is only the human-readable report.
+   The manuscript-root build artifacts remain authoritative for final review, packaging, and any cross-check that needs the current on-disk bibliography state.
+   For the default bootstrap path, this means: rerun `paper-build` so `paper/BIBLIOGRAPHY-AUDIT.json` reflects the current bibliography before strict review.
 
-**No bibliography file and no literature review** → WARNING (citations will need to be built from scratch).
+**No bibliography file, no literature review, and no citation-source sidecar** → WARNING (citations will need to be built from scratch).
 
 ### Check 6: Decisive comparison continuity
 
@@ -526,7 +535,7 @@ mkdir -p "${PAPER_DIR}"
 gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"
 ```
 
-This emits `${PAPER_DIR}/main.tex`, writes the artifact manifest, and keeps the manuscript scaffold aligned with the tested `gpd.mcp.paper` package. If no JSON spec exists yet, create `${PAPER_DIR}/PAPER-CONFIG.json` first using `{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md` as the schema source of truth, and then run `gpd paper-build` before proceeding. The compilation checks in `draft_sections` require `main.tex` to exist.
+This emits `${PAPER_DIR}/main.tex`, writes the artifact manifest, and keeps the manuscript scaffold aligned with the tested `gpd.mcp.paper` package. `gpd paper-build` defines the build truth for the manuscript; local compiler runs are only smoke checks. If no JSON spec exists yet, create `${PAPER_DIR}/PAPER-CONFIG.json` first using `{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md` as the schema source of truth, and then run `gpd paper-build` before proceeding. The compilation checks in `draft_sections` require `main.tex` to exist.
 
 When authoring `${PAPER_DIR}/PAPER-CONFIG.json`:
 
@@ -588,9 +597,9 @@ Spawn gpd-paper-writer agents for section drafting.
 5. **Wave 5:** Abstract -- distill everything into 150-300 words (write LAST)
 6. **Wave 6:** Appendices -- technical details moved from main text
 
-**LaTeX compilation check after each wave (if pdflatex available):**
+**Optional local compilation smoke check after each wave (if a compiler is available):**
 
-Skip this check if `PDFLATEX_AVAILABLE` is false (set in init step).
+Skip this check if `PDFLATEX_AVAILABLE` is false (set in init step). `gpd paper-build` remains the source of build truth either way.
 
 After each drafting wave completes, verify the document compiles:
 
@@ -828,6 +837,7 @@ Mode: Audit bibliography + Audit manuscript
 
 Paper directory: ${PAPER_DIR}/
 Bibliography: `references/references.bib` (preferred) or `${PAPER_DIR}/references.bib` if the manuscript keeps a local copy
+Citation sources: `GPD/literature/*-CITATION-SOURCES.json` when literature-review has already assembled a machine-readable citation list for the current topic
 Manuscript files: ${PAPER_DIR}/*.tex
 Target journal: {target_journal}
 
@@ -838,6 +848,7 @@ Tasks:
 4. Scan for uncited named results, theorems, or methods that should have citations
 5. Verify BibTeX formatting matches {target_journal} requirements
 6. Check arXiv preprints for published versions (update stale preprint-only entries)
+7. Preserve `GPD/literature/*-CITATION-SOURCES.json` as the source artifact that seeded the bibliography; do not treat it as a competing registry
 
 Write audit report to ${PAPER_DIR}/CITATION-AUDIT.md
 
@@ -850,18 +861,23 @@ Return BIBLIOGRAPHY UPDATED or CITATION ISSUES FOUND."
 **If CITATION ISSUES FOUND:**
 
 - Read the audit report and `GPD/references-status.json`
+- If `derived_manuscript_reference_status` is present, use it as the first-pass manuscript-local citation-status summary instead of reconstructing citation state manually from `.tex` or `.bib` files.
+- If a citation-source sidecar exists, keep it aligned with the bibliography output so `gpd paper-build --citation-sources` can continue to consume the same stable reference IDs and regenerate the authoritative bibliography audit in lockstep
+- Prefer the `reference_id -> bibtex_key` mapping surfaced by `gpd paper-build` over reconstructing manuscript keys manually from prose or source ordering
 - Replace resolved `MISSING:` markers: for each entry in `resolved_markers`, find-and-replace `\cite{MISSING:X}` → `\cite{resolved_key}` in all .tex files and remove the associated `% MISSING CITATION:` comment
 - Fix hallucinated entries (remove from .bib, update \cite commands)
 - Apply metadata corrections to .bib entries
 - Add missing citations identified by the bibliographer
 - Re-run the audit if substantial changes were made
-- Refresh `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` after the bibliography changes before entering strict review or `pre_submission_review`.
-  Default bootstrap wording: `Refresh `paper/BIBLIOGRAPHY-AUDIT.json` after the bibliography changes before entering strict review or `pre_submission_review`.`
+- Re-run `gpd paper-build` after bibliography changes so `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` and the derived reference bridge are regenerated before entering strict review or `pre_submission_review`.
+  Default bootstrap wording: rerun `paper-build` so `paper/BIBLIOGRAPHY-AUDIT.json` is current before strict review or `pre_submission_review`.
 
 **If BIBLIOGRAPHY UPDATED:**
 
 - Corrections already applied to .bib by bibliographer
-- Refresh `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` so downstream strict review reads the current bibliography state.
+- Re-run `gpd paper-build` so `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` reflects the current bibliography state and the derived reference bridge stays current for downstream strict review.
+- If `derived_manuscript_reference_status` is present, use it to confirm which manuscript-local references still need attention, but let the refreshed manuscript-root build artifacts decide the final state.
+- If the bibliography was seeded from `GPD/literature/*-CITATION-SOURCES.json`, keep that handoff artifact visible for reruns of `gpd paper-build --citation-sources`.
 - Review the changes summary, proceed to final review
   </step>
 
@@ -883,12 +899,12 @@ Create or update:
 Minimum required inputs:
 
 - `${PAPER_DIR}/ARTIFACT-MANIFEST.json`
-- `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`
+- `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` produced by the latest `gpd paper-build`
 - `GPD/paper/FIGURE_TRACKER.md`
 - contract-backed summary-artifact / `VERIFICATION.md` evidence for decisive claims, figures, and comparisons
 
-If the manuscript bibliography or citation set changed after the last audit, refresh `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` before building the reproducibility manifest. Stale bibliography audits are not acceptable review inputs.
-Default bootstrap wording: `If the manuscript bibliography or citation set changed after the last audit, refresh `paper/BIBLIOGRAPHY-AUDIT.json` before building the reproducibility manifest.`
+`gpd paper-build` must have regenerated `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json` for the current bibliography before building the reproducibility manifest. Stale bibliography audits are not acceptable review inputs.
+Default bootstrap wording: rerun `paper-build` so `paper/BIBLIOGRAPHY-AUDIT.json` is current before building the reproducibility manifest.
 
 Validate it before entering strict review:
 
@@ -1041,7 +1057,7 @@ Options:
 <success_criteria>
 
 - [ ] Project context loaded via init (commit_docs, state_exists)
-- [ ] pdflatex availability checked (compilation tests skipped if unavailable)
+- [ ] Local compilation smoke check run when available (skipped otherwise)
 - [ ] Research digest checked and loaded (if available from milestone completion)
 - [ ] Paper scope established (journal, type, key result, audience)
 - [ ] Research artifacts cataloged and mapped to sections
@@ -1058,7 +1074,7 @@ Options:
 - [ ] Internal consistency verified (notation, cross-references, conventions)
 - [ ] Notation audit includes NOTATION_GLOSSARY.md cross-reference (if glossary exists)
 - [ ] Narrative arc flows from motivation through result to significance
-- [ ] Paper directory created with buildable LaTeX (if pdflatex available)
+- [ ] Paper directory created with buildable LaTeX scaffold via `gpd paper-build`
 - [ ] Abstract accurately reflects paper content
 - [ ] Word/page count within journal limits
 </success_criteria>

@@ -7,7 +7,7 @@ The final section of this README keeps the full checked-in repository interdepen
 ## Repository Interdependency Graph
 
 <!-- repo-graph-generated-on:start -->
-Generated on `2026-03-26` from the current worktree.
+Generated from the current worktree via `python scripts/sync_repo_graph_contract.py`.
 <!-- repo-graph-generated-on:end -->
 
 ## Status
@@ -26,17 +26,14 @@ This graph therefore includes:
 
 <!-- repo-graph-scope:start -->
 
-- Live repo files analyzed in the current tree: `681`
-- Python files under `src/` and `tests/`: `241`
-- `src/gpd/commands/*.md`: `61`
+- `src/gpd/commands/*.md`: `65`
 - `src/gpd/agents/*.md`: `23`
-- `src/gpd/specs/workflows/*.md`: `62`
+- `src/gpd/specs/workflows/*.md`: `66`
 - `src/gpd/specs/templates/**/*.md`: `71`
-- `src/gpd/specs/references/**/*.md`: `160`
+- `src/gpd/specs/references/**/*.md`: `163`
 - `src/gpd/adapters/*.py`: `9`
-- `src/gpd/hooks/*.py`: `7`
+- `src/gpd/hooks/*.py`: `10`
 - `src/gpd/mcp/servers/*.py`: `8`
-- `tests/**` files: `170`
 - `infra/gpd-*.json`: `8`
 
 Excluded as noise from node counting, but still modeled where contractually relevant:
@@ -474,7 +471,7 @@ flowchart TD
   Canonical parser for agent prompt definitions.
 
 <!-- repo-graph-same-stem-command-workflow:start -->
-- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,compare-results,complete-milestone,debug,decisions,derive-equation,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,explain,export,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-research,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,revise-phase,sensitivity-analysis,set-profile,settings,show-phase,slides,sync-state,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
+- `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,compare-results,complete-milestone,debug,decisions,derive-equation,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,explain,export,export-logs,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-research,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,revise-phase,sensitivity-analysis,set-profile,settings,show-phase,slides,start,sync-state,tangent,tour,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
 <!-- repo-graph-same-stem-command-workflow:end -->
   `include`
   Explicit same-stem command-to-workflow includes are node-level edges, not just an aggregate count.
@@ -732,6 +729,8 @@ flowchart TD
 - `src/gpd/specs/workflows/execute-phase.md -> selector tree {phase classification, force-sequential, YOLO restrictions, inter-wave verification gates}`
   `selector-input`
 
+- `src/gpd/specs/workflows/execute-phase.md -> src/gpd/specs/{references/orchestration/meta-orchestration.md,references/orchestration/checkpoints.md,references/orchestration/continuous-execution.md,references/verification/core/verification-core.md,templates/summary.md,templates/continuation-prompt.md,templates/paper/figure-tracker.md,templates/paper/experimental-comparison.md,templates/recovery-plan.md}`
+  `include`
 - `src/gpd/specs/workflows/execute-plan.md -> src/gpd/specs/references/protocols/error-propagation-protocol.md`
   `include`
 

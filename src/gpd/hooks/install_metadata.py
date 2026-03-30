@@ -3,10 +3,32 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from gpd.adapters import get_adapter
-from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_install_repair_command
+from gpd.adapters.install_utils import (
+    AGENTS_DIR_NAME,
+    COMMANDS_DIR_NAME,
+    FLAT_COMMANDS_DIR_NAME,
+    GPD_INSTALL_DIR_NAME,
+    HOOKS_DIR_NAME,
+    MANIFEST_NAME,
+    build_runtime_install_repair_command,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class InstallTargetAssessment:
+    """Shared classification of a runtime config dir's GPD install state."""
+
+    config_dir: Path
+    expected_runtime: str | None
+    state: str
+    manifest_state: str
+    manifest_runtime: str | None
+    has_managed_markers: bool
+    missing_install_artifacts: tuple[str, ...] = ()
 
 
 def _load_manifest_payload(config_dir: Path) -> dict[str, object] | None:
@@ -18,11 +40,17 @@ def _load_manifest_payload(config_dir: Path) -> dict[str, object] | None:
     return payload
 
 
-def load_install_manifest(config_dir: Path) -> dict[str, object]:
-    """Return the parsed install manifest for *config_dir* when available."""
-
-    payload = _load_manifest_payload(config_dir)
-    return payload if payload is not None else {}
+def config_dir_has_managed_install_markers(config_dir: Path) -> bool:
+    """Return whether *config_dir* carries any managed GPD install markers."""
+    return any(
+        (
+            (config_dir / GPD_INSTALL_DIR_NAME).exists(),
+            (config_dir / COMMANDS_DIR_NAME / "gpd").exists(),
+            (config_dir / FLAT_COMMANDS_DIR_NAME).exists(),
+            (config_dir / AGENTS_DIR_NAME).exists(),
+            (config_dir / HOOKS_DIR_NAME).exists(),
+        )
+    )
 
 
 def load_install_manifest_state(config_dir: Path) -> tuple[str, dict[str, object]]:
@@ -77,6 +105,69 @@ def load_install_manifest_runtime_status(config_dir: Path) -> tuple[str, dict[st
     return "ok", payload, canonical_runtime
 
 
+def assess_install_target(
+    config_dir: Path,
+    *,
+    expected_runtime: str | None = None,
+) -> InstallTargetAssessment:
+    """Classify the GPD install state for *config_dir*.
+
+    States:
+    - ``absent``: target path does not exist and has no managed markers
+    - ``clean``: target path exists but contains no managed GPD surface
+    - ``owned_complete``: valid manifest for the owning runtime and complete install
+    - ``owned_incomplete``: valid manifest for the owning runtime but missing install artifacts
+    - ``foreign_runtime``: valid manifest, but ownership belongs to another runtime
+    - ``untrusted_manifest``: manifest missing/corrupt/malformed on a managed surface
+    """
+
+    resolved = config_dir.expanduser().resolve(strict=False)
+    manifest_state, _payload, manifest_runtime = load_install_manifest_runtime_status(resolved)
+    has_managed_markers = config_dir_has_managed_install_markers(resolved)
+    missing_install_artifacts: tuple[str, ...] = ()
+
+    if manifest_state == "ok" and manifest_runtime is not None:
+        if expected_runtime is not None and manifest_runtime != expected_runtime:
+            return InstallTargetAssessment(
+                config_dir=resolved,
+                expected_runtime=expected_runtime,
+                state="foreign_runtime",
+                manifest_state=manifest_state,
+                manifest_runtime=manifest_runtime,
+                has_managed_markers=True,
+            )
+        try:
+            adapter = get_adapter(manifest_runtime)
+        except KeyError:
+            state = "untrusted_manifest"
+        else:
+            missing_install_artifacts = adapter.missing_install_artifacts(resolved)
+            state = "owned_complete" if not missing_install_artifacts else "owned_incomplete"
+        return InstallTargetAssessment(
+            config_dir=resolved,
+            expected_runtime=expected_runtime,
+            state=state,
+            manifest_state=manifest_state,
+            manifest_runtime=manifest_runtime,
+            has_managed_markers=True,
+            missing_install_artifacts=missing_install_artifacts,
+        )
+
+    if manifest_state == "missing" and not has_managed_markers:
+        state = "absent" if not resolved.exists() else "clean"
+    else:
+        state = "untrusted_manifest"
+
+    return InstallTargetAssessment(
+        config_dir=resolved,
+        expected_runtime=expected_runtime,
+        state=state,
+        manifest_state=manifest_state,
+        manifest_runtime=manifest_runtime,
+        has_managed_markers=has_managed_markers,
+    )
+
+
 def install_scope_from_manifest(config_dir: Path) -> str | None:
     """Return the persisted install scope for *config_dir*."""
 
@@ -101,13 +192,7 @@ def installed_runtime(config_dir: Path) -> str | None:
 
 def config_dir_has_complete_install(config_dir: Path) -> bool:
     """Return whether *config_dir* is a complete install with authoritative runtime identity."""
-    runtime = _manifest_runtime(config_dir)
-    if runtime is not None:
-        try:
-            return get_adapter(runtime).has_complete_install(config_dir)
-        except KeyError:
-            return False
-    return False
+    return assess_install_target(config_dir).state == "owned_complete"
 
 
 def installed_update_command(config_dir: Path) -> str | None:

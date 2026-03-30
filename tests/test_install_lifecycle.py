@@ -1,6 +1,6 @@
 """Install → uninstall → reinstall lifecycle tests for each runtime adapter.
 
-Exercises the full lifecycle for claude-code, gemini, codex, and opencode:
+Exercises the full lifecycle for every supported runtime:
 1. Install to a temp directory
 2. Verify expected files exist
 3. Uninstall
@@ -25,7 +25,21 @@ from gpd.cli import app
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 _ALL_RUNTIMES = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
-runner = CliRunner()
+_CLAUDE_CODE_DESCRIPTOR = next(descriptor for descriptor in iter_runtime_descriptors() if descriptor.runtime_name == "claude-code")
+_CLAUDE_MANIFEST_RUNTIME_COMPAT_VALUES = tuple(
+    value
+    for value in (_CLAUDE_CODE_DESCRIPTOR.display_name, *_CLAUDE_CODE_DESCRIPTOR.selection_aliases)
+    if value != _CLAUDE_CODE_DESCRIPTOR.runtime_name
+)
+
+
+class _StableCliRunner(CliRunner):
+    def invoke(self, *args, **kwargs):
+        kwargs.setdefault("color", False)
+        return super().invoke(*args, **kwargs)
+
+
+runner = _StableCliRunner()
 
 
 def _install_kwargs_for_runtime(tmp_path: Path, runtime: str, *, is_global: bool, explicit_target: bool = False) -> dict[str, object]:
@@ -128,6 +142,26 @@ class TestClaudeCodeLifecycle:
         assert result["runtime"] == "claude-code"
         assert result["commands"] > 0
         assert result["agents"] > 0
+
+    def test_start_command_installed(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("claude-code")
+        target = tmp_path / ".claude"
+        target.mkdir()
+
+        _install_and_finalize(adapter, gpd_root, target, is_global=True)
+
+        start_md = target / "commands" / "gpd" / "start.md"
+        assert start_md.exists()
+
+    def test_tour_command_installed(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("claude-code")
+        target = tmp_path / ".claude"
+        target.mkdir()
+
+        _install_and_finalize(adapter, gpd_root, target, is_global=True)
+
+        tour_md = target / "commands" / "gpd" / "tour.md"
+        assert tour_md.exists()
 
     def test_uninstall_removes_gpd_artifacts(self, tmp_path: Path, gpd_root: Path) -> None:
         adapter = get_adapter("claude-code")
@@ -256,6 +290,26 @@ class TestGeminiLifecycle:
         # Result dict
         assert result["runtime"] == "gemini"
         assert result["commands"] > 0
+
+    def test_start_command_installed(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("gemini")
+        target = tmp_path / ".gemini"
+        target.mkdir()
+
+        _install_and_finalize(adapter, gpd_root, target, is_global=True)
+
+        start_toml = target / "commands" / "gpd" / "start.toml"
+        assert start_toml.exists()
+
+    def test_tour_command_installed(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("gemini")
+        target = tmp_path / ".gemini"
+        target.mkdir()
+
+        _install_and_finalize(adapter, gpd_root, target, is_global=True)
+
+        tour_toml = target / "commands" / "gpd" / "tour.toml"
+        assert tour_toml.exists()
 
     def test_gemini_agents_have_tools_not_allowed_tools(self, tmp_path: Path, gpd_root: Path) -> None:
         """Gemini agents should use `tools:` not `allowed-tools:` in frontmatter."""
@@ -507,6 +561,30 @@ class TestCodexLifecycle:
         skill_entries = [k for k in manifest["files"] if k.startswith("skills/")]
         assert len(skill_entries) > 0, "Manifest missing skill entries"
 
+    def test_start_skill_installed(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("codex")
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills_dir = tmp_path / ".agents" / "skills"
+        skills_dir.mkdir(parents=True)
+
+        _install_and_finalize(adapter, gpd_root, target, is_global=True, skills_dir=skills_dir)
+
+        start_skill = skills_dir / "gpd-start" / "SKILL.md"
+        assert start_skill.exists()
+
+    def test_tour_skill_installed(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("codex")
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills_dir = tmp_path / ".agents" / "skills"
+        skills_dir.mkdir(parents=True)
+
+        _install_and_finalize(adapter, gpd_root, target, is_global=True, skills_dir=skills_dir)
+
+        tour_skill = skills_dir / "gpd-tour" / "SKILL.md"
+        assert tour_skill.exists()
+
     def test_slides_skill_installed(self, tmp_path: Path, gpd_root: Path) -> None:
         adapter = get_adapter("codex")
         target = tmp_path / ".codex"
@@ -522,7 +600,11 @@ class TestCodexLifecycle:
         assert "context_mode: projectless" in content
         assert "<!-- [included: slides.md] -->" in content
 
-    def test_inline_gpd_commands_are_rewritten_to_the_bridge(self, tmp_path: Path, gpd_root: Path) -> None:
+    def test_shell_gpd_calls_use_the_bridge_but_inline_local_cli_language_stays_canonical(
+        self,
+        tmp_path: Path,
+        gpd_root: Path,
+    ) -> None:
         adapter = get_adapter("codex")
         target = tmp_path / ".codex"
         target.mkdir()
@@ -534,8 +616,10 @@ class TestCodexLifecycle:
         bridge_command = _expected_bridge_for_install(adapter, target, is_global=True)
         content = (skills_dir / "gpd-suggest-next" / "SKILL.md").read_text(encoding="utf-8")
         assert bridge_command in content
-        assert "Uses `gpd --raw suggest`" not in content
-        assert "`gpd --raw suggest`" not in content
+        assert f"SUGGESTIONS=$({bridge_command} --raw suggest)" in content
+        assert "Uses `gpd --raw suggest`" in content
+        assert "Local CLI fallback: `gpd --raw suggest`" in content
+        assert f"`{bridge_command} --raw suggest`" not in content
 
 
 # ---------------------------------------------------------------------------
@@ -590,6 +674,26 @@ class TestOpenCodeLifecycle:
         assert slides_md.exists()
         content = slides_md.read_text(encoding="utf-8")
         assert "PRESENTATION-BRIEF.md" in content
+
+    def test_start_command_installed(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("opencode")
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        _install_and_finalize(adapter, gpd_root, target)
+
+        start_md = target / "command" / "gpd-start.md"
+        assert start_md.exists()
+
+    def test_tour_command_installed(self, tmp_path: Path, gpd_root: Path) -> None:
+        adapter = get_adapter("opencode")
+        target = tmp_path / ".opencode"
+        target.mkdir()
+
+        _install_and_finalize(adapter, gpd_root, target)
+
+        tour_md = target / "command" / "gpd-tour.md"
+        assert tour_md.exists()
 
     def test_opencode_commands_are_flat(self, tmp_path: Path, gpd_root: Path) -> None:
         """OpenCode uses flat command structure: command/gpd-help.md not commands/gpd/help.md."""
@@ -796,7 +900,7 @@ class TestManifestConsistency:
         assert manifest["install_target_dir"] == str(target)
         assert manifest["explicit_target"] is True
 
-    @pytest.mark.parametrize("manifest_runtime", ["Claude Code", "claude"])
+    @pytest.mark.parametrize("manifest_runtime", _CLAUDE_MANIFEST_RUNTIME_COMPAT_VALUES)
     def test_uninstall_accepts_display_name_and_alias_manifest_runtime(
         self,
         manifest_runtime: str,
@@ -832,7 +936,10 @@ class TestManifestConsistency:
         fake_home = tmp_path / "_fake_home"
         fake_home.mkdir()
 
-        with patch("pathlib.Path.home", return_value=fake_home):
+        with (
+            patch("pathlib.Path.home", return_value=fake_home),
+            patch("gpd.cli._run_install_readiness_preflight", return_value=([], {})),
+        ):
             target_dir = adapter.resolve_target_dir(True, tmp_path)
             result = runner.invoke(
                 app,

@@ -91,7 +91,7 @@ Rules:
 ```yaml
 context_intake:
   must_read_refs: [ref-main]
-  must_include_prior_outputs: ["Phase 00 benchmark table"]
+  must_include_prior_outputs: ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
   user_asserted_anchors: ["Use the lattice normalization from the user notes"]
   known_good_baselines: ["Published large-N curve from Smith et al."]
   context_gaps: ["Comparison source still undecided before planning"]
@@ -252,6 +252,10 @@ Rules:
 
 ## Contract Alignment Rules
 
+- Reduced contracts are legal only when the plan is explicitly scoping or exploratory.
+- If the plan will execute, verify, or publish a concrete result, use the full non-scoping shape.
+- A reduced contract still needs a real decision surface: preserve at least one target, open question, or carry-forward input instead of emitting a hollow scaffold.
+- If you are unsure, classify the plan as non-scoping and use the full shape.
 - The schema still exposes the semantic fields `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation`; their default is `other`. Omit them only when `other` is genuinely intended, and set the specific value explicitly when the semantics are already known.
 - For non-scoping plans, `claims[]`, `deliverables[]`, `acceptance_tests[]`, and `forbidden_proxies[]` are all required.
 - The defaultable semantic fields above do not relax the hard requirements on `context_intake` or `uncertainty_markers`, and they do not replace required contract targets for non-scoping plans.

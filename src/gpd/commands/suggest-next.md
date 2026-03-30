@@ -1,7 +1,7 @@
 ---
 name: gpd:suggest-next
 description: Suggest the most impactful next action based on current project state
-context_mode: project-required
+context_mode: projectless
 allowed-tools:
   - file_read
   - shell
@@ -18,6 +18,7 @@ Analyze current project state and suggest the most impactful next action. Uses `
 Local CLI fallback: `gpd --raw suggest` when the installed runtime surface is unavailable.
 
 This is the fastest way to answer "what should I do next?" without reading through progress reports.
+Use it after `/gpd:resume-work` when you want the next recommended command without reading the broader project snapshot. If you still need to rediscover the project first, do that in your normal terminal with `gpd resume` for the current workspace or `gpd resume --recent` for the explicit multi-project picker before reopening the runtime. Keep `/clear` as a fresh-context reset, not as a recovery step.
 </objective>
 
 <context>
@@ -71,7 +72,7 @@ If there's only one suggestion, present it as the clear next step:
 **{command}**
 {reason}
 
-<sub>`/clear` first -> fresh context window</sub>
+<sub>`/clear` first -> fresh context window, then `{command}`. If you still need to rediscover the project first, do that in your normal terminal with `gpd resume` for the current workspace or `gpd resume --recent` for a different project before reopening the runtime.</sub>
 ```
 
 If there are blockers, highlight them before suggestions:

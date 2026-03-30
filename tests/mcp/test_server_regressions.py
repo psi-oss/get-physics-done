@@ -184,6 +184,15 @@ def test_verification_suggest_contract_checks_returns_error_envelope_on_backend_
     contract = {
         "schema_version": 1,
         "scope": {"question": "Q?", "in_scope": ["benchmark recovery"]},
+        "context_intake": {"crucial_inputs": ["Use the benchmark anchor defined in the contract."]},
+        "deliverables": [
+            {
+                "id": "deliverable-main",
+                "description": "Benchmark recovery note",
+                "kind": "report",
+                "must_contain": ["claim-main", "ref-benchmark"],
+            }
+        ],
         "acceptance_tests": [
             {
                 "id": "test-benchmark",
@@ -193,7 +202,35 @@ def test_verification_suggest_contract_checks_returns_error_envelope_on_backend_
                 "pass_condition": "Agreement",
             }
         ],
-        "claims": [{"id": "claim-main", "statement": "Recover the benchmark"}],
+        "claims": [
+            {
+                "id": "claim-main",
+                "statement": "Recover the benchmark",
+                "deliverables": ["deliverable-main"],
+                "acceptance_tests": ["test-benchmark"],
+                "references": ["ref-benchmark"],
+            }
+        ],
+        "references": [
+            {
+                "id": "ref-benchmark",
+                "kind": "paper",
+                "locator": "Benchmark reference",
+                "role": "benchmark",
+                "why_it_matters": "Primary benchmark anchor",
+                "applies_to": ["claim-main"],
+                "must_surface": True,
+                "required_actions": ["compare"],
+            }
+        ],
+        "forbidden_proxies": [
+            {
+                "id": "fp-main",
+                "subject": "claim-main",
+                "proxy": "qualitative agreement only",
+                "reason": "Need explicit benchmark reproduction.",
+            }
+        ],
         "uncertainty_markers": {
             "weakest_anchors": ["benchmark meaning"],
             "disconfirming_observations": ["benchmark mismatch"],

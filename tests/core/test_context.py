@@ -29,6 +29,7 @@ from gpd.core.context import (
     load_config,
 )
 from gpd.core.errors import ConfigError, ValidationError
+from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_KEYS
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
@@ -108,6 +109,67 @@ def _write_recoverable_project_contract_state(tmp_path: Path) -> None:
     contract["claims"][0]["notes"] = "harmless"
     state["project_contract"] = contract
     (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+
+def _write_structured_state_payload(tmp_path: Path) -> None:
+    """Persist a representative structured state payload into state.json."""
+    from gpd.core.state import default_state_dict
+
+    state = default_state_dict()
+    state["convention_lock"].update(
+        {
+            "metric_signature": "(-,+,+,+)",
+            "fourier_convention": "physics",
+            "natural_units": "SI",
+        }
+    )
+    state["intermediate_results"] = [
+        {
+            "id": "R-01",
+            "equation": "E = mc^2",
+            "description": "Rest energy",
+            "phase": "01",
+            "depends_on": [],
+            "verified": True,
+            "verification_records": [{"verifier": "auditor", "method": "manual", "confidence": "high"}],
+        },
+        "legacy markdown bullet",
+    ]
+    state["approximations"] = [
+        {
+            "name": "weak coupling",
+            "validity_range": "g << 1",
+            "controlling_param": "g",
+            "current_value": "0.1",
+            "status": "valid",
+        }
+    ]
+    state["propagated_uncertainties"] = [
+        {
+            "quantity": "m_eff",
+            "value": "1.2",
+            "uncertainty": "0.1",
+            "phase": "03",
+            "method": "bootstrap",
+        }
+    ]
+    (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+
+def _assert_structured_state_context(ctx: dict[str, object], tmp_path: Path) -> None:
+    """Assert the shared structured-state init payload contract."""
+    assert ctx["state_load_source"] == "state.json"
+    assert ctx["state_integrity_issues"] == []
+    assert ctx["convention_lock"]["metric_signature"] == "(-,+,+,+)"
+    assert ctx["convention_lock"]["fourier_convention"] == "physics"
+    assert ctx["convention_lock"]["natural_units"] == "SI"
+    assert ctx["intermediate_result_count"] == 1
+    assert ctx["intermediate_results"][0]["id"] == "R-01"
+    assert ctx["intermediate_results"][0]["verified"] is True
+    assert ctx["approximation_count"] == 1
+    assert ctx["approximations"][0]["name"] == "weak coupling"
+    assert ctx["propagated_uncertainty_count"] == 1
+    assert ctx["propagated_uncertainties"][0]["quantity"] == "m_eff"
 
 
 def _write_stat_mech_project(tmp_path: Path) -> None:
@@ -202,6 +264,11 @@ def _write_bundle_ready_contract_state(tmp_path: Path) -> None:
     (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
+def _assert_no_resume_compat_aliases(payload: dict[str, object]) -> None:
+    for key in RESUME_COMPATIBILITY_ALIAS_KEYS:
+        assert key not in payload
+
+
 def _write_numerical_relativity_project(tmp_path: Path) -> None:
     project = tmp_path / "GPD" / "PROJECT.md"
     project.write_text(
@@ -294,6 +361,40 @@ def _write_numerical_relativity_contract_state(tmp_path: Path) -> None:
     (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
+def _write_structured_state_memory(tmp_path: Path) -> None:
+    """Persist conventions, canonical results, and approximations into state.json."""
+    from gpd.core.state import default_state_dict
+
+    state = default_state_dict()
+    state["convention_lock"].update(
+        {
+            "metric_signature": "mostly-plus",
+            "coordinate_system": "Cartesian",
+        }
+    )
+    state["intermediate_results"] = [
+        {
+            "id": "R-01",
+            "equation": "E = mc^2",
+            "description": "Mass-energy relation",
+            "phase": "1",
+            "depends_on": [],
+            "verified": True,
+            "verification_records": [],
+        }
+    ]
+    state["approximations"] = [
+        {
+            "name": "weak coupling",
+            "validity_range": "g << 1",
+            "controlling_param": "g",
+            "current_value": "0.1",
+            "status": "valid",
+        }
+    ]
+    (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+
 def _write_current_execution(tmp_path: Path, payload: dict[str, object]) -> None:
     observability = tmp_path / "GPD" / "observability"
     observability.mkdir(parents=True, exist_ok=True)
@@ -340,6 +441,65 @@ review_summary:
 ---
 ```
 """,
+        encoding="utf-8",
+    )
+
+
+def _write_literature_citation_source_file(tmp_path: Path) -> None:
+    literature_dir = tmp_path / "GPD" / "literature"
+    literature_dir.mkdir(parents=True, exist_ok=True)
+    (literature_dir / "benchmark-CITATION-SOURCES.json").write_text(
+        json.dumps(
+            [
+                {
+                    "reference_id": "ref-benchmark",
+                    "source_type": "paper",
+                    "title": "Benchmark Ref 2024",
+                    "authors": ["A. Author", "B. Benchmarker"],
+                    "year": "2024",
+                    "bibtex_key": "benchmark2024",
+                    "doi": "10.1000/benchmark.2024",
+                    "arxiv_id": "2401.01234",
+                    "url": "https://example.org/benchmark",
+                    "journal": "J. Benchmarks",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_manuscript_bibliography_audit(tmp_path: Path) -> None:
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir(exist_ok=True)
+    (paper_dir / "BIBLIOGRAPHY-AUDIT.json").write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-03-30T00:00:00+00:00",
+                "total_sources": 1,
+                "resolved_sources": 1,
+                "partial_sources": 0,
+                "unverified_sources": 0,
+                "failed_sources": 0,
+                "entries": [
+                    {
+                        "key": "benchmark2024",
+                        "source_type": "paper",
+                        "reference_id": "ref-benchmark",
+                        "title": "Benchmark Paper",
+                        "resolution_status": "provided",
+                        "verification_status": "verified",
+                        "verification_sources": ["manual"],
+                        "canonical_identifiers": ["doi:10.1000/example"],
+                        "missing_core_fields": [],
+                        "enriched_fields": [],
+                        "warnings": [],
+                        "errors": [],
+                    }
+                ],
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -424,6 +584,8 @@ class TestLoadConfig:
         assert config["parallelization"] is True
         assert config["verifier"] is True
         assert config["checkpoint_after_first_load_bearing_result"] is True
+        assert config["project_usd_budget"] is None
+        assert config["session_usd_budget"] is None
 
     def test_custom_config(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -435,10 +597,18 @@ class TestLoadConfig:
 
     def test_nested_config(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
-        _create_config(tmp_path, {"workflow": {"research": False, "plan_checker": False}})
+        _create_config(
+            tmp_path,
+            {
+                "workflow": {"research": False, "plan_checker": False},
+                "execution": {"project_usd_budget": 12.5, "session_usd_budget": 2.5},
+            },
+        )
         config = load_config(tmp_path)
         assert config["research"] is False
         assert config["plan_checker"] is False
+        assert config["project_usd_budget"] == 12.5
+        assert config["session_usd_budget"] == 2.5
 
     def test_parallelization_bool(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -485,6 +655,15 @@ class TestInitExecutePhase:
         ctx = init_execute_phase(tmp_path, "1", includes={"state"})
         assert ctx["state_content"] == "# State\nstuff"
 
+    def test_includes_structured_state_context(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-setup")
+        _write_structured_state_payload(tmp_path)
+
+        ctx = init_execute_phase(tmp_path, "1", includes={"state"})
+
+        _assert_structured_state_context(ctx, tmp_path)
+
     def test_json_only_state_counts_as_existing(self, tmp_path: Path) -> None:
         from gpd.core.state import default_state_dict
 
@@ -496,6 +675,23 @@ class TestInitExecutePhase:
         ctx = init_execute_phase(tmp_path, "1")
 
         assert ctx["state_exists"] is True
+
+    def test_surfaces_derived_state_memory(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "01-setup")
+        (phase_dir / "a-PLAN.md").write_text("plan")
+        _write_structured_state_memory(tmp_path)
+
+        ctx = init_execute_phase(tmp_path, "1")
+
+        assert ctx["derived_convention_lock"]["metric_signature"] == "mostly-plus"
+        assert ctx["derived_convention_lock"]["coordinate_system"] == "Cartesian"
+        assert ctx["derived_convention_lock_count"] == 2
+        assert ctx["derived_intermediate_result_count"] == 1
+        assert ctx["derived_intermediate_results"][0]["id"] == "R-01"
+        assert ctx["derived_intermediate_results"][0]["equation"] == "E = mc^2"
+        assert ctx["derived_approximation_count"] == 1
+        assert ctx["derived_approximations"][0]["name"] == "weak coupling"
 
     def test_state_exists_uses_recoverable_backup_without_persisting_repair(
         self,
@@ -662,6 +858,15 @@ class TestInitPlanPhase:
         ctx = init_plan_phase(tmp_path, "2", includes={"research"})
         assert ctx["research_content"] == "findings here"
 
+    def test_includes_structured_state_context_when_state_is_requested(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_structured_state_payload(tmp_path)
+
+        ctx = init_plan_phase(tmp_path, "2", includes={"state"})
+
+        _assert_structured_state_context(ctx, tmp_path)
+
     def test_surfaces_active_reference_context_and_reference_artifacts(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "02-analysis")
@@ -685,6 +890,61 @@ class TestInitPlanPhase:
         assert "GPD/research-map/VALIDATION.md" in ctx["reference_artifact_files"]
         assert "benchmark details" in ctx["reference_artifacts_content"]
         assert "anchor registry" in ctx["reference_artifacts_content"]
+
+    def test_surfaces_derived_citation_sources_without_changing_reference_artifact_fields(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_project_contract_state(tmp_path)
+        _write_literature_review_anchor_file(tmp_path)
+        _write_literature_citation_source_file(tmp_path)
+        _write_research_map_anchor_files(tmp_path)
+
+        ctx = init_plan_phase(tmp_path, "2")
+
+        assert "GPD/literature/benchmark-CITATION-SOURCES.json" in ctx["citation_source_files"]
+        assert ctx["citation_source_count"] == 1
+        assert ctx["citation_source_warnings"] == []
+        assert ctx["derived_citation_source_count"] == 1
+        assert ctx["derived_citation_sources"][0]["reference_id"] == "ref-benchmark"
+        assert ctx["derived_citation_sources"][0]["title"] == "Benchmark Ref 2024"
+        assert ctx["derived_citation_sources"][0]["bibtex_key"] == "benchmark2024"
+        assert ctx["derived_citation_sources"][0]["doi"] == "10.1000/benchmark.2024"
+        assert ctx["derived_citation_sources"][0]["arxiv_id"] == "2401.01234"
+        assert "GPD/literature/benchmark-CITATION-SOURCES.json" not in ctx["reference_artifact_files"]
+        assert "Benchmark Survey" in ctx["reference_artifacts_content"]
+        assert "Active Anchor Registry" in ctx["reference_artifacts_content"]
+
+    def test_surfaces_derived_manuscript_reference_status_from_bibliography_audit(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_manuscript_bibliography_audit(tmp_path)
+
+        ctx = init_plan_phase(tmp_path, "2")
+
+        assert ctx["derived_manuscript_reference_status_count"] == 1
+        assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["bibtex_key"] == "benchmark2024"
+        assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["title"] == "Benchmark Paper"
+        assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["resolution_status"] == "provided"
+        assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["verification_status"] == "verified"
+        assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["manuscript_root"] == "paper"
+        assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["bibliography_audit_path"] == "paper/BIBLIOGRAPHY-AUDIT.json"
+        assert ctx["derived_manuscript_reference_status"]["ref-benchmark"]["source_artifacts"] == [
+            "paper/BIBLIOGRAPHY-AUDIT.json"
+        ]
+
+    def test_surfaces_derived_state_memory_without_including_state_markdown(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_structured_state_memory(tmp_path)
+
+        ctx = init_plan_phase(tmp_path, "2")
+
+        assert "state_content" not in ctx
+        assert ctx["derived_convention_lock"]["metric_signature"] == "mostly-plus"
+        assert ctx["derived_intermediate_result_count"] == 1
+        assert ctx["derived_intermediate_results"][0]["description"] == "Mass-energy relation"
+        assert ctx["derived_approximation_count"] == 1
+        assert ctx["derived_approximations"][0]["controlling_param"] == "g"
 
     def test_merges_contract_and_artifact_reference_intake(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -888,10 +1148,11 @@ class TestInitNewProject:
 
         assert ctx["project_contract"] is not None
         assert ctx["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
-        assert ctx["project_contract_load_info"]["status"] in {"loaded", "loaded_with_approval_blockers"}
+        assert ctx["project_contract_load_info"]["status"] == "loaded"
         assert ctx["project_contract_load_info"]["source_path"].endswith("state.json")
         assert ctx["project_contract_validation"] is not None
-        assert "valid" in ctx["project_contract_validation"]
+        assert ctx["project_contract_validation"]["valid"] is True
+        assert ctx["project_contract_gate"]["authoritative"] is True
 
 
 # ─── init_new_milestone ───────────────────────────────────────────────────────
@@ -1022,6 +1283,20 @@ class TestInitResume:
         ctx = init_resume(tmp_path)
         assert ctx["has_interrupted_agent"] is True
         assert ctx["interrupted_agent_id"] == "agent-123"
+        assert ctx["active_resume_kind"] == "interrupted_agent"
+        assert ctx["active_resume_origin"] == "interrupted_agent_marker"
+        assert ctx["active_resume_pointer"] == "agent-123"
+        assert ctx["resume_candidates"] == [
+            {
+                "status": "interrupted",
+                "agent_id": "agent-123",
+                "kind": "interrupted_agent",
+                "origin": "interrupted_agent_marker",
+                "resume_pointer": "agent-123",
+            }
+        ]
+        assert "source" not in ctx["resume_candidates"][0]
+        assert ctx["compat_resume_surface"]["segment_candidates"][0]["source"] == "interrupted_agent"
 
     def test_json_only_state_counts_as_existing(self, tmp_path: Path) -> None:
         from gpd.core.state import default_state_dict
@@ -1050,9 +1325,66 @@ class TestInitResume:
 
         ctx = init_resume(tmp_path)
 
-        assert ctx["resume_mode"] == "bounded_segment"
-        assert ctx["active_execution_segment"]["segment_id"] == "seg-4"
-        assert ctx["segment_candidates"][0]["source"] == "current_execution"
+        assert ctx["resume_surface_schema_version"] == 1
+        assert "resume_mode" not in ctx
+        assert ctx["active_resume_kind"] == "bounded_segment"
+        assert ctx["active_resume_origin"] == "compat.current_execution"
+        assert ctx["active_resume_pointer"] == "GPD/phases/03-analysis/.continue-here.md"
+        assert ctx["active_bounded_segment"]["segment_id"] == "seg-4"
+        assert ctx["derived_execution_head"]["segment_id"] == "seg-4"
+        assert ctx["compat_resume_surface"]["current_execution"]["segment_id"] == "seg-4"
+        assert ctx["compat_resume_surface"]["execution_resume_file_source"] == "current_execution"
+        assert ctx["compat_resume_surface"]["active_execution_segment"]["segment_id"] == "seg-4"
+        assert ctx["compat_resume_surface"]["segment_candidates"][0]["source"] == "current_execution"
+        assert ctx["compat_resume_surface"]["resume_mode"] == "bounded_segment"
+        _assert_no_resume_compat_aliases(ctx)
+        assert set(ctx["compat_resume_surface"]) == set(RESUME_COMPATIBILITY_ALIAS_KEYS)
+        assert "segment_candidates" not in ctx
+        assert ctx["resume_candidates"][0]["kind"] == "bounded_segment"
+        assert ctx["resume_candidates"][0]["origin"] == "compat.current_execution"
+        assert ctx["resume_candidates"][0]["resume_pointer"] == "GPD/phases/03-analysis/.continue-here.md"
+        assert "source" not in ctx["resume_candidates"][0]
+
+    def test_canonical_bounded_segment_carries_last_result_id_and_hydrates_result(
+        self, tmp_path: Path
+    ) -> None:
+        _setup_project(tmp_path)
+        from gpd.core.state import default_state_dict
+
+        state = default_state_dict()
+        state["continuation"]["bounded_segment"] = {
+            "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+            "phase": "03",
+            "plan": "02",
+            "segment_id": "seg-canonical",
+            "segment_status": "paused",
+            "last_result_id": "result-canonical",
+        }
+        state["intermediate_results"] = [
+            {
+                "id": "result-canonical",
+                "equation": "R = A + B",
+                "description": "Canonical bridge result",
+                "phase": "03",
+                "depends_on": [],
+                "verified": True,
+                "verification_records": [],
+            }
+        ]
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        resume_path = tmp_path / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("resume\n", encoding="utf-8")
+
+        ctx = init_resume(tmp_path)
+
+        assert ctx["active_resume_kind"] == "bounded_segment"
+        assert ctx["active_resume_origin"] == "continuation.bounded_segment"
+        assert ctx["active_bounded_segment"]["last_result_id"] == "result-canonical"
+        assert ctx["resume_candidates"][0]["last_result_id"] == "result-canonical"
+        assert ctx["resume_candidates"][0]["last_result"]["id"] == "result-canonical"
+        assert ctx["active_resume_result"]["id"] == "result-canonical"
+        assert ctx["compat_resume_surface"]["active_execution_segment"]["last_result_id"] == "result-canonical"
 
     def test_normalizes_live_execution_phase_plan_and_checkpoint_reason(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -1073,13 +1405,15 @@ class TestInitResume:
 
         ctx = init_resume(tmp_path)
 
-        assert ctx["active_execution_segment"]["phase"] == "03"
-        assert ctx["active_execution_segment"]["plan"] == "02"
-        assert ctx["active_execution_segment"]["checkpoint_reason"] == "pre_fanout"
-        candidate = ctx["segment_candidates"][0]
+        assert ctx["active_bounded_segment"]["phase"] == "03"
+        assert ctx["active_bounded_segment"]["plan"] == "02"
+        assert ctx["active_bounded_segment"]["checkpoint_reason"] == "pre_fanout"
+        candidate = ctx["resume_candidates"][0]
         assert candidate["phase"] == "03"
         assert candidate["plan"] == "02"
         assert candidate["checkpoint_reason"] == "pre_fanout"
+        assert candidate["origin"] == "compat.current_execution"
+        assert "source" not in candidate
 
     def test_resume_candidate_carries_pre_fanout_and_skeptical_review_fields(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -1106,16 +1440,18 @@ class TestInitResume:
 
         ctx = init_resume(tmp_path)
 
-        assert ctx["resume_mode"] == "bounded_segment"
+        assert "resume_mode" not in ctx
         assert ctx["execution_pre_fanout_review_pending"] is True
         assert ctx["execution_skeptical_requestioning_required"] is True
-        candidate = ctx["segment_candidates"][0]
+        candidate = ctx["resume_candidates"][0]
         assert candidate["checkpoint_reason"] == "pre_fanout"
         assert candidate["pre_fanout_review_pending"] is True
         assert candidate["skeptical_requestioning_required"] is True
         assert candidate["weakest_unchecked_anchor"] == "Ref-01 benchmark figure"
         assert candidate["disconfirming_observation"] == "Direct observable misses the literature band."
         assert candidate["downstream_locked"] is True
+        assert candidate["origin"] == "compat.current_execution"
+        assert "source" not in candidate
 
     def test_resume_candidate_keeps_clear_without_unlock_as_bounded_segment_state(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -1138,12 +1474,14 @@ class TestInitResume:
 
         ctx = init_resume(tmp_path)
 
-        assert ctx["resume_mode"] == "bounded_segment"
+        assert "resume_mode" not in ctx
         assert ctx["execution_pre_fanout_review_pending"] is True
         assert ctx["execution_downstream_locked"] is True
-        assert ctx["active_execution_segment"]["pre_fanout_review_cleared"] is True
-        assert ctx["segment_candidates"][0]["checkpoint_reason"] == "pre_fanout"
-        assert ctx["segment_candidates"][0]["pre_fanout_review_cleared"] is True
+        assert ctx["active_bounded_segment"]["pre_fanout_review_cleared"] is True
+        assert ctx["resume_candidates"][0]["checkpoint_reason"] == "pre_fanout"
+        assert ctx["resume_candidates"][0]["pre_fanout_review_cleared"] is True
+        assert ctx["resume_candidates"][0]["origin"] == "compat.current_execution"
+        assert "source" not in ctx["resume_candidates"][0]
 
     def test_non_resumable_live_execution_does_not_create_resume_candidate(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -1162,10 +1500,54 @@ class TestInitResume:
 
         ctx = init_resume(tmp_path)
 
-        assert ctx["resume_mode"] is None
-        assert ctx["segment_candidates"] == []
-        assert ctx["active_execution_segment"]["segment_id"] == "seg-4"
+        assert "resume_mode" not in ctx
+        assert ctx["active_bounded_segment"] is None
+        assert ctx["derived_execution_head"]["segment_id"] == "seg-4"
+        assert ctx["active_resume_kind"] is None
+        assert ctx["compat_resume_surface"]["current_execution"]["segment_id"] == "seg-4"
+        assert ctx["compat_resume_surface"]["active_execution_segment"]["segment_id"] == "seg-4"
+        assert ctx["compat_resume_surface"]["segment_candidates"] == []
+        assert ctx["compat_resume_surface"].get("resume_mode") is None
+        _assert_no_resume_compat_aliases(ctx)
+        assert "segment_candidates" not in ctx
+        assert ctx["resume_candidates"] == []
+        assert "active_execution_segment" not in ctx
 
+    def test_with_legacy_session_resume_file_uses_canonical_handoff_kind(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        from gpd.core.state import default_state_dict
+
+        state = default_state_dict()
+        state["session"]["resume_file"] = "GPD/phases/03-analysis/.continue-here.md"
+        state["session"]["stopped_at"] = "2026-03-10T12:00:00+00:00"
+        state["session"]["hostname"] = "legacy-host"
+        state["session"]["platform"] = "legacy-platform"
+        resume_path = tmp_path / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+        resume_path.write_text("resume\n", encoding="utf-8")
+        (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        ctx = init_resume(tmp_path)
+
+        assert ctx["active_resume_kind"] == "continuity_handoff"
+        assert ctx["active_resume_origin"] == "continuation.handoff"
+        assert ctx["active_resume_pointer"] == "GPD/phases/03-analysis/.continue-here.md"
+        assert ctx["continuity_handoff_file"] == "GPD/phases/03-analysis/.continue-here.md"
+        assert ctx["recorded_continuity_handoff_file"] == "GPD/phases/03-analysis/.continue-here.md"
+        assert ctx["resume_candidates"] == [
+            {
+                "status": "handoff",
+                "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+                "resumable": False,
+                "kind": "continuity_handoff",
+                "origin": "continuation.handoff",
+                "resume_pointer": "GPD/phases/03-analysis/.continue-here.md",
+            }
+        ]
+        assert set(ctx["compat_resume_surface"]) == set(RESUME_COMPATIBILITY_ALIAS_KEYS)
+        assert "source" not in ctx["resume_candidates"][0]
+        assert ctx["compat_resume_surface"]["segment_candidates"][0]["source"] == "session_resume_file"
+        assert ctx["compat_resume_surface"]["execution_resume_file_source"] == "session_resume_file"
 
 # ─── init_verify_work ─────────────────────────────────────────────────────────
 
@@ -1315,9 +1697,12 @@ class TestInitMilestoneOp:
 
         assert ctx["project_contract"] is not None
         assert ctx["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
-        assert ctx["project_contract_load_info"]["status"] in {"loaded", "loaded_with_approval_blockers"}
+        assert ctx["project_contract_load_info"]["status"] == "loaded"
         assert ctx["project_contract_validation"] is not None
-        assert "valid" in ctx["project_contract_validation"]
+        assert ctx["project_contract_gate"]["visible"] is True
+        assert ctx["project_contract_gate"]["status"] == ctx["project_contract_load_info"]["status"]
+        assert ctx["project_contract_gate"]["authoritative"] is True
+        assert ctx["project_contract_validation"]["valid"] is True
         assert "[ref-benchmark]" in ctx["active_reference_context"]
 
 
@@ -1474,6 +1859,14 @@ class TestInitProgress:
         ctx = init_progress(tmp_path, includes={"project"})
         assert ctx["project_content"] == "# My Project"
 
+    def test_progress_includes_structured_state_context_when_state_is_requested(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_structured_state_payload(tmp_path)
+
+        ctx = init_progress(tmp_path, includes={"state"})
+
+        _assert_structured_state_context(ctx, tmp_path)
+
     def test_progress_exposes_reference_registry(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _write_project_contract_state(tmp_path)
@@ -1482,6 +1875,20 @@ class TestInitProgress:
 
         assert ctx["project_contract"]["references"][0]["must_surface"] is True
         assert "Recover known limiting behavior" in ctx["active_reference_context"]
+
+    def test_progress_surfaces_derived_state_memory(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_structured_state_memory(tmp_path)
+
+        ctx = init_progress(tmp_path)
+
+        assert ctx["state_exists"] is True
+        assert ctx["derived_convention_lock"]["metric_signature"] == "mostly-plus"
+        assert ctx["derived_convention_lock_count"] == 2
+        assert ctx["derived_intermediate_result_count"] == 1
+        assert ctx["derived_intermediate_results"][0]["verified"] is True
+        assert ctx["derived_approximation_count"] == 1
+        assert ctx["derived_approximations"][0]["status"] == "valid"
 
     def test_progress_hides_project_contract_when_raw_state_requires_contract_scalar_normalization(
         self, tmp_path: Path
@@ -1579,9 +1986,19 @@ class TestInitProgress:
         assert load_info["status"] == "blocked_schema"
         assert ctx["project_contract"] is None
         assert ctx["project_contract_load_info"]["status"] == "blocked_schema"
+        assert ctx["project_contract_gate"] == {
+            "status": "blocked_schema",
+            "visible": False,
+            "blocked": True,
+            "load_blocked": True,
+            "approval_blocked": False,
+            "authoritative": False,
+            "repair_required": True,
+            "source_path": ctx["project_contract_load_info"]["source_path"],
+        }
         assert ctx["project_contract_load_info"]["source_path"].endswith("state.json")
 
-    def test_load_project_contract_accepts_list_shape_drift_from_raw_state(self, tmp_path: Path) -> None:
+    def test_load_project_contract_accepts_list_shape_drift_from_raw_state_as_loaded(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
 
         from gpd.core.state import default_state_dict
@@ -1595,7 +2012,7 @@ class TestInitProgress:
         loaded, load_info = _load_project_contract(tmp_path)
 
         assert loaded is not None
-        assert load_info["status"] in {"loaded", "loaded_with_approval_blockers"}
+        assert load_info["status"] == "loaded"
         assert load_info["errors"] == []
 
     def test_load_project_contract_fallback_salvages_nested_metadata_must_surface(
@@ -1611,8 +2028,8 @@ class TestInitProgress:
         from gpd.core.state import ensure_state_schema
 
         normalized_state = ensure_state_schema({"project_contract": contract})
-        monkeypatch.setattr("gpd.core.context._peek_state_json", lambda cwd: (normalized_state, [], "state.json"))
-        monkeypatch.setattr("gpd.core.context._load_raw_project_contract_payload", lambda cwd: None)
+        monkeypatch.setattr("gpd.core.state.peek_state_json", lambda cwd: (normalized_state, [], "state.json"))
+        monkeypatch.setattr("gpd.core.state._load_raw_project_contract_payload", lambda cwd: None)
 
         loaded, load_info = _load_project_contract(tmp_path)
 
@@ -1621,7 +2038,9 @@ class TestInitProgress:
         assert loaded.references[0].id == "ref-benchmark"
         assert loaded.references[0].must_surface is True
 
-    def test_load_project_contract_rejects_duplicate_contract_ids_from_raw_state(self, tmp_path: Path) -> None:
+    def test_load_project_contract_surfaces_duplicate_contract_ids_as_visible_blocked_integrity(
+        self, tmp_path: Path
+    ) -> None:
         _setup_project(tmp_path)
 
         from gpd.core.state import default_state_dict
@@ -1633,9 +2052,18 @@ class TestInitProgress:
         (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         loaded, load_info = _load_project_contract(tmp_path)
+        ctx = init_progress(tmp_path)
 
-        assert loaded is None
+        assert loaded is not None
         assert load_info["status"] == "blocked_integrity"
+        assert any("duplicate" in error for error in load_info["errors"])
+        assert ctx["project_contract"] is not None
+        assert ctx["project_contract_load_info"]["status"] == "blocked_integrity"
+        assert ctx["project_contract_gate"]["visible"] is True
+        assert ctx["project_contract_gate"]["blocked"] is True
+        assert ctx["project_contract_gate"]["authoritative"] is False
+        assert ctx["project_contract_gate"]["status"] == "blocked_integrity"
+        assert any("duplicate" in error for error in load_info["errors"])
 
     def test_load_project_contract_rejects_whole_singleton_defaulting_from_raw_state(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -1719,3 +2147,15 @@ class TestInitPhaseOp:
         # Phase should be found since we created the directory
         if result.get("phase_found"):
             assert "01" in str(result.get("phase_number", ""))
+
+    def test_includes_structured_state_context_when_state_is_requested(self, tmp_path):
+        """init_phase_op should surface canonical state slices when state is included."""
+        from gpd.core.context import init_phase_op
+
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-test")
+        _write_structured_state_payload(tmp_path)
+
+        result = init_phase_op(tmp_path, phase="1", includes={"state"})
+
+        _assert_structured_state_context(result, tmp_path)

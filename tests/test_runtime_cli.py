@@ -640,6 +640,41 @@ def test_runtime_cli_preserves_root_global_flags_before_subcommand(
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_preserves_forwarded_nested_cwd_for_init_resume(
+    monkeypatch,
+    tmp_path: Path,
+    descriptor,
+) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    forwarded_cwd = tmp_path / "workspace" / "nested"
+    forwarded_cwd.mkdir(parents=True)
+
+    exit_code, observed = _run_runtime_cli_with_recording(
+        monkeypatch,
+        cwd=tmp_path,
+        argv=[
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            str(config_dir),
+            "--install-scope",
+            "local",
+            "--raw",
+            "--cwd",
+            str(forwarded_cwd),
+            "init",
+            "resume",
+        ],
+        runtime=descriptor.runtime_name,
+    )
+
+    assert exit_code == 0
+    assert observed["argv"] == ["gpd", "--raw", "--cwd", str(forwarded_cwd), "init", "resume"]
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_keeps_double_dash_passthrough_arguments_verbatim(
     monkeypatch,
     tmp_path: Path,
@@ -861,7 +896,6 @@ def test_runtime_cli_rejects_local_candidate_with_file_prefixes_but_no_runtime(
     assert runtime_cli._is_matching_local_install_candidate(
         candidate,
         runtime=descriptor.runtime_name,
-        cli_cwd=tmp_path,
     ) is False
 
 

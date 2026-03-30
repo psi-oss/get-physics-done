@@ -37,7 +37,16 @@ from gpd.adapters.install_utils import (
     write_manifest,
     write_settings,
 )
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.core.constants import HOME_DATA_DIR_NAME
+
+_RUNTIME_DESCRIPTORS = tuple(iter_runtime_descriptors())
+_DOLLAR_TEMPLATE_RUNTIMES = tuple(
+    descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if descriptor.agent_prompt_uses_dollar_templates
+)
+_NON_DOLLAR_TEMPLATE_RUNTIMES = tuple(
+    descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if not descriptor.agent_prompt_uses_dollar_templates
+)
 
 
 def _bundled_hook_text(name: str) -> str:
@@ -291,7 +300,7 @@ class TestProtectRuntimeAgentPrompt:
             "Inline math examples like `$sin(x)$` stay intact.\n"
         )
 
-        for runtime in ("gemini", "opencode"):
+        for runtime in _DOLLAR_TEMPLATE_RUNTIMES:
             result = protect_runtime_agent_prompt(content, runtime)
             assert "${PHASE_ARG}" not in result
             assert "${PHASE_ARG:-plan}" not in result
@@ -328,7 +337,7 @@ class TestProtectRuntimeAgentPrompt:
             "```\n"
         )
 
-        for runtime in ("claude-code", "codex"):
+        for runtime in _NON_DOLLAR_TEMPLATE_RUNTIMES:
             assert protect_runtime_agent_prompt(content, runtime) == content
 
 
@@ -356,7 +365,7 @@ class TestTranslateFrontmatterToolNames:
     def test_frontmatter_with_literal_delimiter_text_keeps_frontmatter_vars_intact(self) -> None:
         content = "---\nname: gpd:test\ndescription: keep --- and $HOME literal\n---\nBody uses $USER.\n"
 
-        for runtime in ("gemini", "opencode"):
+        for runtime in _DOLLAR_TEMPLATE_RUNTIMES:
             result = protect_runtime_agent_prompt(content, runtime)
             assert "description: keep --- and $HOME literal" in result
             assert "Body uses <USER>." in result

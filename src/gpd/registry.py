@@ -15,6 +15,7 @@ from pathlib import Path
 import yaml
 
 from gpd.command_labels import canonical_command_label, canonical_skill_label, command_slug_from_label
+from gpd.core.review_contract_prompt import render_review_contract_prompt
 
 # ─── Package layout ──────────────────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ class CommandDef:
     path: str
     source: str  # "commands"
     context_mode: str = "project-required"
+    project_reentry_capable: bool = False
     review_contract: ReviewCommandContract | None = None
 
 
@@ -273,6 +275,21 @@ def _parse_bool_field(raw: object, *, field_name: str, command_name: str, defaul
     raise ValueError(f"{field_name} for {command_name} must be a boolean")
 
 
+def _parse_project_reentry_capable(raw: object, *, command_name: str, context_mode: str) -> bool:
+    """Normalize project re-entry metadata and reject invalid command-mode pairings."""
+    value = _parse_bool_field(
+        raw,
+        field_name="project_reentry_capable",
+        command_name=command_name,
+        default=False,
+    )
+    if value and context_mode != "project-required":
+        raise ValueError(
+            f"project_reentry_capable for {command_name} requires context_mode 'project-required'"
+        )
+    return value
+
+
 def _parse_non_negative_int_field(raw: object, *, field_name: str, command_name: str, default: int = 0) -> int:
     """Normalize integer-like review-contract fields with explicit validation."""
     if raw is None:
@@ -450,7 +467,51 @@ def _parse_review_contract_schema_version(raw: object, *, command_name: str) -> 
     return raw
 
 
-def _parse_review_contract(raw: object, command_name: str, requires: dict[str, object]) -> ReviewCommandContract | None:
+def _review_contract_payload(review_contract: ReviewCommandContract) -> dict[str, object]:
+    """Return a stable mapping for model-visible review-contract rendering."""
+
+    return {
+        "schema_version": review_contract.schema_version,
+        "review_mode": review_contract.review_mode,
+        "required_outputs": list(review_contract.required_outputs),
+        "required_evidence": list(review_contract.required_evidence),
+        "blocking_conditions": list(review_contract.blocking_conditions),
+        "preflight_checks": list(review_contract.preflight_checks),
+        "stage_ids": list(review_contract.stage_ids),
+        "stage_artifacts": list(review_contract.stage_artifacts),
+        "final_decision_output": review_contract.final_decision_output,
+        "requires_fresh_context_per_stage": review_contract.requires_fresh_context_per_stage,
+        "max_review_rounds": review_contract.max_review_rounds,
+        "required_state": review_contract.required_state,
+    }
+
+
+def render_review_contract_section(review_contract: ReviewCommandContract | None) -> str:
+    """Render a model-visible review-contract block for command prompt bodies."""
+
+    if review_contract is None:
+        return ""
+    return render_review_contract_prompt(
+        yaml.safe_dump(
+            {"review_contract": _review_contract_payload(review_contract)},
+            sort_keys=False,
+            allow_unicode=False,
+        )
+    )
+
+
+def _command_model_content(body: str, review_contract: ReviewCommandContract | None) -> str:
+    """Return the model-visible command body, including enforced review contracts."""
+
+    review_section = render_review_contract_section(review_contract)
+    if not review_section:
+        return body
+    if not body:
+        return review_section
+    return f"{review_section}\n\n{body}"
+
+
+def _parse_review_contract(raw: object, command_name: str) -> ReviewCommandContract | None:
     """Parse review-contract frontmatter into a typed contract with no hidden defaults."""
     merged = dict(_DEFAULT_REVIEW_CONTRACTS.get(command_name, {}))
     if raw is not None and not isinstance(raw, dict):
@@ -613,9 +674,17 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
     allowed_tools = _parse_allowed_tools(meta.get("allowed-tools"), command_name=command_name)
 
     try:
-        review_contract = _parse_review_contract(meta.get("review-contract"), command_name, requires)
+        review_contract = _parse_review_contract(meta.get("review-contract"), command_name)
     except ValueError as exc:
         raise ValueError(f"Invalid review-contract in {path}: {exc}") from exc
+
+    body = body.strip()
+    context_mode = _parse_context_mode(meta.get("context_mode"), command_name=command_name)
+    project_reentry_capable = _parse_project_reentry_capable(
+        meta.get("project_reentry_capable"),
+        command_name=command_name,
+        context_mode=context_mode,
+    )
 
     return CommandDef(
         name=command_name,
@@ -629,11 +698,12 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
             field_name="argument-hint",
             owner_name=command_name,
         ),
-        context_mode=_parse_context_mode(meta.get("context_mode"), command_name=command_name),
+        context_mode=context_mode,
+        project_reentry_capable=project_reentry_capable,
         requires=requires,
         allowed_tools=allowed_tools,
         review_contract=review_contract,
-        content=body.strip(),
+        content=_command_model_content(body, review_contract),
         path=str(path),
         source=source,
     )
@@ -967,4 +1037,5 @@ __all__ = [
     "list_commands",
     "list_review_commands",
     "list_skills",
+    "render_review_contract_section",
 ]

@@ -30,10 +30,32 @@ from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
 
+try:
+    from gpd.mcp.managed_integrations import (
+        WOLFRAM_MANAGED_INTEGRATION,
+        WOLFRAM_MANAGED_SERVER_KEY,
+    )
+except ImportError:  # pragma: no cover - partial checkout fallback
+    WOLFRAM_MANAGED_INTEGRATION = None
+    WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
+
 logger = logging.getLogger(__name__)
 
 _SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _INLINE_GPD_COMMAND_RE = re.compile(r"`(?P<command>gpd(?=\s)[^`]*?)`")
+
+
+def _read_claude_settings_state(settings_path: Path) -> tuple[dict[str, object] | None, str | None]:
+    """Return parsed Claude settings and a malformed marker when parsing fails."""
+    if not settings_path.exists():
+        return None, None
+    try:
+        parsed = parse_jsonc(settings_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None, "malformed"
+    if not isinstance(parsed, dict):
+        return None, "malformed"
+    return parsed, None
 
 _TOOL_NAME_MAP: dict[str, str] = {
     "file_read": "Read",
@@ -177,9 +199,9 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         #   Project: .mcp.json (in project root, parent of .claude/)
         import json as _json
 
-        from gpd.mcp.builtin_servers import build_mcp_servers_dict, merge_managed_mcp_servers
+        from gpd.mcp.builtin_servers import merge_managed_mcp_servers
 
-        mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+        mcp_servers = _build_managed_mcp_servers()
         mcp_count = 0
         if mcp_servers:
             mcp_config_path = _mcp_config_path(target_dir, is_global=is_global)
@@ -209,7 +231,9 @@ class ClaudeCodeAdapter(RuntimeAdapter):
     def runtime_permissions_status(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
         """Report whether Claude Code is configured for GPD autonomy alignment."""
         settings_path = target_dir / "settings.json"
-        settings = read_settings(settings_path)
+        settings, settings_parse_error = _read_claude_settings_state(settings_path)
+        config_valid = settings_parse_error is None
+        settings = settings or {}
         permissions = settings.get("permissions")
         permissions_dict = permissions if isinstance(permissions, dict) else {}
         default_mode = permissions_dict.get("defaultMode") if isinstance(permissions_dict.get("defaultMode"), str) else None
@@ -217,17 +241,26 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         desired_mode = "yolo" if autonomy == "yolo" else "default"
         managed_state = self._runtime_permissions_manifest_state(target_dir) or {}
         managed_by_gpd = managed_state.get("mode") == "yolo"
-        config_aligned = default_mode == "bypassPermissions" if desired_mode == "yolo" else not managed_by_gpd
+        config_aligned = False if not config_valid else default_mode == "bypassPermissions" if desired_mode == "yolo" else not managed_by_gpd
+        requires_relaunch = desired_mode == "yolo" and config_aligned
+        next_step: str | None = None
         message = "Claude Code is using its normal permission mode."
-        if desired_mode == "yolo":
+        if not config_valid:
+            message = "Claude Code settings.json is malformed; GPD will not treat it as a defaulted permission state."
+        elif desired_mode == "yolo":
             if bypass_disabled:
                 config_aligned = False
+                requires_relaunch = False
                 message = (
                     "Claude Code bypassPermissions is disabled by managed settings, so GPD cannot enable "
                     "prompt-free runtime mode automatically."
                 )
             elif default_mode == "bypassPermissions":
                 message = "Claude Code will open in bypassPermissions mode on the next launch."
+                next_step = (
+                    "Restart the Claude Code session, or switch the current session to bypassPermissions, "
+                    "before expecting uninterrupted yolo execution."
+                )
             else:
                 message = "Claude Code is not yet configured to open in bypassPermissions mode."
         elif managed_by_gpd:
@@ -235,17 +268,31 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         return {
             "runtime": self.runtime_name,
             "desired_mode": desired_mode,
-            "configured_mode": default_mode or "default",
+            "configured_mode": "malformed" if not config_valid else default_mode or "default",
             "config_aligned": config_aligned,
+            "requires_relaunch": requires_relaunch,
             "managed_by_gpd": managed_by_gpd,
             "settings_path": str(settings_path),
+            "config_valid": config_valid,
+            "config_parse_error": settings_parse_error,
             "message": message,
+            "next_step": next_step,
         }
 
     def sync_runtime_permissions(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
         """Align Claude Code defaultMode with GPD autonomy."""
         settings_path = target_dir / "settings.json"
-        settings = read_settings(settings_path)
+        settings, settings_parse_error = _read_claude_settings_state(settings_path)
+        if settings_parse_error is not None:
+            status = self.runtime_permissions_status(target_dir, autonomy=autonomy)
+            return {
+                **status,
+                "changed": False,
+                "sync_applied": False,
+                "requires_relaunch": False,
+                "warning": "Claude Code settings.json is malformed; GPD will not overwrite it.",
+            }
+        settings = settings or {}
         permissions = settings.get("permissions")
         permissions_dict = dict(permissions) if isinstance(permissions, dict) else {}
         settings_had_permissions = isinstance(permissions, dict)
@@ -451,9 +498,9 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                 except (ValueError, OSError):
                     mcp_config = None
                 if isinstance(mcp_config, dict) and isinstance(mcp_config.get("mcpServers"), dict):
-                    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
-                    removed_keys = [key for key in list(mcp_config["mcpServers"]) if key in GPD_MCP_SERVER_KEYS]
+                    removed_keys = [
+                        key for key in list(mcp_config["mcpServers"]) if key in _managed_mcp_server_keys()
+                    ]
                     if removed_keys:
                         for key in removed_keys:
                             del mcp_config["mcpServers"][key]
@@ -487,14 +534,12 @@ class ClaudeCodeAdapter(RuntimeAdapter):
 
         import json as _json
 
-        from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
         mcp_config = read_settings(mcp_config_path)
         mcp_servers = mcp_config.get("mcpServers")
         if not isinstance(mcp_servers, dict):
             return result
 
-        removed_keys = [key for key in list(mcp_servers) if key in GPD_MCP_SERVER_KEYS]
+        removed_keys = [key for key in list(mcp_servers) if key in _managed_mcp_server_keys()]
         if not removed_keys:
             for path in (
                 target_dir / "commands",
@@ -712,6 +757,36 @@ def _entry_has_gpd_hook(
         )
         for hook in entry_hooks
     )
+
+
+def _build_managed_mcp_servers() -> dict[str, dict[str, object]]:
+    """Return shared MCP servers plus configured optional integrations."""
+    from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+    servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
+    servers.update(_build_managed_optional_mcp_servers())
+    return servers
+
+
+def _build_managed_optional_mcp_servers() -> dict[str, dict[str, object]]:
+    """Return optional managed MCP servers that are currently configured."""
+    if WOLFRAM_MANAGED_INTEGRATION is None:
+        return {}
+    if not WOLFRAM_MANAGED_INTEGRATION.is_configured():
+        return {}
+    return {
+        WOLFRAM_MANAGED_SERVER_KEY: {
+            "command": WOLFRAM_MANAGED_INTEGRATION.bridge_command,
+            "args": [],
+        }
+    }
+
+
+def _managed_mcp_server_keys() -> frozenset[str]:
+    """Return MCP server keys owned by GPD or managed optional integrations."""
+    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+    return frozenset(set(GPD_MCP_SERVER_KEYS) | {WOLFRAM_MANAGED_SERVER_KEY})
 
 
 __all__ = ["ClaudeCodeAdapter"]

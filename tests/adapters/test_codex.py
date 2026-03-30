@@ -17,8 +17,11 @@ from gpd.adapters.codex import (
     _convert_to_codex_skill,
     _normalize_codex_questioning,
 )
-from gpd.adapters.install_utils import build_runtime_cli_bridge_command
+from gpd.adapters.install_utils import build_runtime_cli_bridge_command, compile_markdown_for_runtime
 from gpd.registry import load_agents_from_dir
+
+WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
+WOLFRAM_MCP_API_KEY_ENV_VAR = "GPD_WOLFRAM_MCP_API_KEY"
 
 
 @pytest.fixture()
@@ -167,6 +170,31 @@ class TestConvertToCodexSkill:
         fm = result.split("---")[1]
         tool_entries = [line.strip()[2:] for line in fm.splitlines() if line.strip().startswith("- ")]
         assert tool_entries == ["read_file", "shell"]
+
+    def test_review_contract_is_prepended_to_skill_body(self) -> None:
+        content = compile_markdown_for_runtime(
+            (
+                "---\n"
+                "name: test\n"
+                "description: D\n"
+                "review-contract:\n"
+                "  review_mode: publication\n"
+                "  schema_version: 1\n"
+                "  required_outputs:\n"
+                "    - GPD/review/REFEREE-DECISION{round_suffix}.json\n"
+                "---\n"
+                "Prompt body"
+            ),
+            runtime="codex",
+            path_prefix="/prefix/",
+        )
+
+        result = _convert_to_codex_skill(content, "gpd-test")
+
+        assert "## Review Contract" in result
+        assert "review-contract:" in result
+        assert "review_mode: publication" in result
+        assert result.index("## Review Contract") < result.index("Prompt body")
 
 
 class TestInstall:
@@ -324,6 +352,34 @@ class TestInstall:
         assert 'if ! gpd verify plan "$plan"; then' not in execute_phase
         assert 'INIT=$(gpd init plan-phase "${PHASE}")' not in agent
 
+    def test_install_keeps_canonical_local_cli_language_in_skill_prose(
+        self,
+        adapter: CodexAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".codex"
+        target.mkdir()
+        adapter.install(gpd_root, target, is_global=False)
+        local_skills = tmp_path / ".agents" / "skills"
+
+        help_skill = (local_skills / "gpd-help" / "SKILL.md").read_text(encoding="utf-8")
+        tour_skill = (local_skills / "gpd-tour" / "SKILL.md").read_text(encoding="utf-8")
+        settings_skill = (local_skills / "gpd-settings" / "SKILL.md").read_text(encoding="utf-8")
+
+        assert "Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly." in help_skill
+        assert "For a normal-terminal, current-workspace read-only recovery snapshot without launching the runtime, use `gpd resume`." in help_skill
+        assert "For a normal-terminal, read-only machine-local usage / cost summary, use `gpd cost`." in help_skill
+        assert "The normal terminal is where you install GPD, run `gpd --help`, and run" in tour_skill
+        assert "`gpd resume` is the normal-terminal recovery step for reopening the right" in tour_skill
+        assert "use `gpd --help` when you need the broader local CLI entrypoint" in settings_skill
+        assert "use `gpd cost` after runs for advisory local usage / cost, optional USD budget guardrails, and the current profile tier mix" in settings_skill
+        assert re.search(r"`[^`\n]*gpd\.runtime_cli[^`\n]*--help`", help_skill) is None
+        assert re.search(r"`[^`\n]*gpd\.runtime_cli[^`\n]*resume(?:\s|`)", help_skill) is None
+        assert re.search(r"`[^`\n]*gpd\.runtime_cli[^`\n]*cost`", help_skill) is None
+        assert re.search(r"`[^`\n]*gpd\.runtime_cli[^`\n]*--help`", settings_skill) is None
+        assert re.search(r"`[^`\n]*gpd\.runtime_cli[^`\n]*cost`", settings_skill) is None
+
     def test_install_does_not_expose_agents_as_skills(
         self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path
     ) -> None:
@@ -467,6 +523,47 @@ class TestInstall:
         parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
         assert parsed["mcp_servers"]["gpd-state"]["startup_timeout_sec"] == 30
 
+    def test_install_projects_wolfram_mcp_server_and_preserves_overrides(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (target / "config.toml").write_text(
+            '[mcp_servers.gpd-wolfram]\n'
+            'command = "python3"\n'
+            'args = ["-m", "legacy.wolfram"]\n'
+            'cwd = "/tmp/custom-wolfram"\n'
+            '\n'
+            '[mcp_servers.gpd-wolfram.env]\n'
+            'EXTRA_FLAG = "1"\n'
+            '\n'
+            '[mcp_servers.custom-server]\n'
+            'command = "node"\n'
+            'args = ["custom.js"]\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "codex-test-key")
+
+        result = adapter.install(gpd_root, target, skills_dir=skills)
+
+        parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
+        server = parsed["mcp_servers"][WOLFRAM_MANAGED_SERVER_KEY]
+        assert server["command"] == "gpd-mcp-wolfram"
+        assert server["args"] == []
+        assert server["cwd"] == "/tmp/custom-wolfram"
+        assert server["env"] == {"EXTRA_FLAG": "1"}
+        assert parsed["mcp_servers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
+        assert "codex-test-key" not in (target / "config.toml").read_text(encoding="utf-8")
+        assert result["mcpServers"] == len(build_mcp_servers_dict(python_path=sys.executable)) + 1
+
     def test_install_notify_not_inside_existing_section(
         self,
         adapter: CodexAdapter,
@@ -516,6 +613,25 @@ class TestInstall:
 
 
 class TestRuntimePermissions:
+    def test_runtime_permissions_status_marks_yolo_as_relaunch_required(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.install(gpd_root, target, skills_dir=skills)
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+
+        status = adapter.runtime_permissions_status(target, autonomy="yolo")
+
+        assert status["config_aligned"] is True
+        assert status["requires_relaunch"] is True
+        assert "Restart Codex" in str(status["next_step"])
+
     def test_sync_runtime_permissions_yolo_updates_codex_root_and_role_configs(
         self,
         adapter: CodexAdapter,
@@ -560,7 +676,7 @@ class TestRuntimePermissions:
         adapter.install(gpd_root, target, skills_dir=skills)
 
         adapter.sync_runtime_permissions(target, autonomy="yolo")
-        result = adapter.sync_runtime_permissions(target, autonomy="balanced")
+        adapter.sync_runtime_permissions(target, autonomy="balanced")
 
         parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
         role = tomllib.loads((target / "agents" / "gpd-executor.toml").read_text(encoding="utf-8"))
@@ -574,7 +690,36 @@ class TestRuntimePermissions:
         assert "GPD runtime approval policy" not in content
         assert "GPD runtime sandbox mode" not in content
         assert "gpd_runtime_permissions" not in manifest
-        assert result["sync_applied"] is True
+
+    def test_malformed_config_toml_fails_closed_for_status_and_sync(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        config_path = target / "config.toml"
+        config_path.write_text('approval_policy = [\n', encoding="utf-8")
+        before = config_path.read_text(encoding="utf-8")
+
+        status = adapter.runtime_permissions_status(target, autonomy="yolo")
+        result = adapter.sync_runtime_permissions(target, autonomy="yolo")
+
+        assert status["config_valid"] is False
+        assert status["configured_mode"] == "malformed"
+        assert status["config_aligned"] is False
+        assert "malformed" in str(status["message"]).lower()
+        assert result["config_valid"] is False
+        assert result["changed"] is False
+        assert result["sync_applied"] is False
+        assert result["requires_relaunch"] is False
+        assert "malformed" in str(result["warning"]).lower()
+        assert config_path.read_text(encoding="utf-8") == before
 
     def test_reinstall_rewrites_stale_managed_notify_interpreter(
         self,
@@ -964,6 +1109,37 @@ class TestUninstall:
             assert "gpd-" not in content
             assert "notify.py" not in content
             assert "multi_agent" not in content
+
+    def test_uninstall_removes_wolfram_mcp_server_from_config_toml(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (target / "config.toml").write_text(
+            '[mcp_servers.gpd-wolfram]\n'
+            'command = "python3"\n'
+            'args = ["-m", "legacy.wolfram"]\n'
+            '\n'
+            '[mcp_servers.custom-server]\n'
+            'command = "node"\n'
+            'args = ["custom.js"]\n',
+            encoding="utf-8",
+        )
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "codex-test-key")
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+        adapter.uninstall(target, skills_dir=skills)
+
+        content = (target / "config.toml").read_text(encoding="utf-8")
+        parsed = tomllib.loads(content)
+        assert WOLFRAM_MANAGED_SERVER_KEY not in parsed["mcp_servers"]
+        assert parsed["mcp_servers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
 
     def test_uninstall_on_empty_dir(self, adapter: CodexAdapter, tmp_path: Path) -> None:
         target = tmp_path / "empty"

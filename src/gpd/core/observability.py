@@ -1,9 +1,12 @@
 """Session-focused local observability helpers for GPD.
 
-Observability is written to the project-local ``GPD/observability/`` tree:
+Observability is written to the project-local telemetry and lineage surfaces:
 
 - ``sessions/<session-id>.jsonl`` stores the full event stream for one session
 - ``current-session.json`` points at the latest observed session summary
+- ``GPD/lineage/execution-lineage.jsonl`` stores append-only execution lineage
+- ``GPD/lineage/execution-head.json`` stores the derived execution head cache
+- ``current-execution.json`` remains the compatibility mirror for legacy readers
 
 Automatic low-level function/span logging is intentionally disabled. Only
 explicit session/workflow events should be recorded here.
@@ -26,11 +29,29 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from gpd.core import continuation as _continuation_module
 from gpd.core.constants import ProjectLayout
+from gpd.core.continuation import ContinuationBoundedSegment
+from gpd.core.execution_lineage import (
+    ExecutionHeadEffect,
+    ExecutionLineageHead,
+    build_execution_lineage_entry,
+    clear_execution_lineage_head,
+    execution_lineage_ledger_path,
+    load_execution_lineage_entries,
+    load_execution_lineage_head,
+    project_execution_lineage_head,
+    write_execution_lineage_head,
+)
+from gpd.core.root_resolution import normalize_workspace_hint as _normalize_workspace_path
+from gpd.core.root_resolution import resolve_project_root as _shared_resolve_project_root
 from gpd.core.utils import atomic_write, file_lock, phase_normalize, safe_read_file
 
 __all__ = [
     "CurrentExecutionState",
+    "ExecutionVisibilitySuggestion",
+    "ExecutionVisibilityState",
+    "ExportLogsResult",
     "LocalSpan",
     "ObservabilityEvent",
     "ObservabilitySession",
@@ -39,10 +60,13 @@ __all__ = [
     "ObservabilityShowResult",
     "ensure_session",
     "ensure_observability_session",
+    "derive_execution_visibility",
+    "export_logs",
     "get_current_execution",
     "get_current_session",
     "get_current_session_id",
     "gpd_span",
+    "humanize_execution_reason",
     "instrument_gpd_function",
     "list_sessions",
     "log_event",
@@ -50,6 +74,7 @@ __all__ = [
     "record_event",
     "resolve_project_root",
     "show_events",
+    "sync_execution_visibility_from_canonical_continuation",
 ]
 
 
@@ -131,6 +156,8 @@ class CurrentExecutionState(BaseModel):
     skeptical_requestioning_summary: str | None = None
     weakest_unchecked_anchor: str | None = None
     disconfirming_observation: str | None = None
+    tangent_summary: str | None = None
+    tangent_decision: str | None = None
     last_result_id: str | None = None
     last_result_label: str | None = None
     last_artifact_path: str | None = None
@@ -153,6 +180,61 @@ class CurrentExecutionState(BaseModel):
     @classmethod
     def _normalize_checkpoint_reason_field(cls, value: object) -> object:
         return _normalized_checkpoint_reason(value)
+
+    @field_validator("tangent_decision", mode="before")
+    @classmethod
+    def _normalize_tangent_decision_field(cls, value: object) -> object:
+        return _normalized_tangent_decision(value)
+
+
+class ExecutionVisibilityState(BaseModel):
+    """Normalized read-only execution visibility payload for local status surfaces."""
+
+    model_config = ConfigDict(frozen=True)
+
+    workspace_root: str | None = None
+    has_live_execution: bool = False
+    status_classification: str = "idle"
+    assessment: str = "idle"
+    possibly_stalled: bool = False
+    stale_after_minutes: int = 30
+    last_updated_at: str | None = None
+    last_updated_age_label: str | None = None
+    last_updated_age_minutes: float | None = None
+    phase: str | None = None
+    plan: str | None = None
+    wave: int | str | None = None
+    segment_status: str | None = None
+    current_task: str | None = None
+    current_task_index: int | None = None
+    current_task_total: int | None = None
+    current_task_progress: str | None = None
+    segment_reason: str | None = None
+    checkpoint_reason: str | None = None
+    waiting_reason: str | None = None
+    waiting_reason_label: str | None = None
+    blocked_reason: str | None = None
+    blocked_reason_label: str | None = None
+    review_reason: str | None = None
+    tangent_summary: str | None = None
+    tangent_decision: str | None = None
+    tangent_decision_label: str | None = None
+    tangent_pending: bool = False
+    last_result_label: str | None = None
+    last_artifact_path: str | None = None
+    resume_file: str | None = None
+    current_execution: dict[str, object] | None = None
+    suggested_next_commands: list[ExecutionVisibilitySuggestion] = Field(default_factory=list)
+    suggested_next_steps: list[str] = Field(default_factory=list)
+
+
+class ExecutionVisibilitySuggestion(BaseModel):
+    """One prioritized follow-up command for the current execution snapshot."""
+
+    model_config = ConfigDict(frozen=True)
+
+    command: str
+    reason: str
 
 
 class ObserveEventResult(BaseModel):
@@ -232,40 +314,13 @@ def _extract_cwd(value: object | None) -> Path | None:
     return None
 
 
-def _normalize_workspace_path(value: object | None) -> Path | None:
-    path = _extract_cwd(value)
-    if path is None:
-        return None
-    expanded = path.expanduser()
-    try:
-        return expanded.resolve(strict=False)
-    except OSError:
-        return expanded
-
-
-def _walk_project_root(candidate: Path | None) -> Path | None:
-    if candidate is None:
-        return None
-    for path in (candidate, *candidate.parents):
-        if ProjectLayout(path).gpd.exists():
-            return path
-    return None
-
-
 def resolve_project_root(
     cwd: Path | str | None = None,
     *,
     project_dir: Path | str | None = None,
 ) -> Path | None:
-    """Return the best project-root candidate for one workspace hint."""
-    explicit_project = _normalize_workspace_path(project_dir)
-    if explicit_project is not None:
-        return _walk_project_root(explicit_project) or explicit_project
-
-    candidate = _normalize_workspace_path(cwd)
-    if candidate is None:
-        return None
-    return _walk_project_root(candidate) or candidate
+    """Compatibility wrapper around the canonical shared root resolver."""
+    return _shared_resolve_project_root(cwd, project_dir=project_dir)
 
 
 def _project_root(cwd: Path | None = None) -> Path | None:
@@ -295,6 +350,7 @@ def _layout(cwd: Path | None = None) -> ProjectLayout | None:
 def _ensure_dirs(layout: ProjectLayout) -> None:
     layout.observability_dir.mkdir(parents=True, exist_ok=True)
     layout.observability_sessions_dir.mkdir(parents=True, exist_ok=True)
+    layout.lineage_dir.mkdir(parents=True, exist_ok=True)
 
 
 def _read_json(path: Path) -> dict[str, object] | None:
@@ -314,6 +370,13 @@ def _append_event(path: Path, payload: dict[str, object]) -> None:
     with file_lock(path):
         with open(path, "a", encoding="utf-8") as handle:
             handle.write(line + "\n")
+
+
+def _append_event_locked(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(payload, default=str)
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
 
 
 def _save_current_session(layout: ProjectLayout, session: ObservabilitySession) -> None:
@@ -337,10 +400,13 @@ def _read_current_execution_raw(layout: ProjectLayout) -> dict[str, object] | No
     return _read_json(layout.current_observability_execution)
 
 
-def get_current_execution(cwd: Path | None = None) -> CurrentExecutionState | None:
-    layout = _layout(cwd)
-    if layout is None:
-        return None
+def _current_execution_snapshot(layout: ProjectLayout) -> CurrentExecutionState | None:
+    head_snapshot = load_execution_lineage_head(layout.root)
+    if head_snapshot is not None and isinstance(head_snapshot.execution, dict):
+        try:
+            return CurrentExecutionState.model_validate(head_snapshot.execution)
+        except Exception:
+            pass
     raw = _read_current_execution_raw(layout)
     if raw is None:
         return None
@@ -348,6 +414,637 @@ def get_current_execution(cwd: Path | None = None) -> CurrentExecutionState | No
         return CurrentExecutionState.model_validate(raw)
     except Exception:
         return None
+
+
+def _normalized_execution_snapshot(snapshot: CurrentExecutionState | None) -> dict[str, object]:
+    if snapshot is None:
+        return {}
+    return snapshot.model_dump(mode="json")
+
+
+def _phase_like_or_none(value: object) -> str | None:
+    if isinstance(value, int):
+        return phase_normalize(str(value))
+    if isinstance(value, str):
+        stripped = value.strip()
+        return phase_normalize(stripped) if stripped else None
+    return None
+
+
+def _execution_identity_value(field_name: str, value: object) -> str | None:
+    if field_name in {"phase", "plan"}:
+        return _phase_like_or_none(value)
+    return _str_or_none(value)
+
+
+def _execution_lane_field_value(payload: object, field: str) -> str | None:
+    if isinstance(payload, dict):
+        return _execution_identity_value(field, payload.get(field))
+    if hasattr(payload, field):
+        return _execution_identity_value(field, getattr(payload, field))
+    return None
+
+
+def _execution_lanes_compatible(left: object, right: object) -> bool:
+    comparisons = 0
+    for field in ("resume_file", "segment_id", "phase", "plan", "transition_id"):
+        left_value = _execution_lane_field_value(left, field)
+        right_value = _execution_lane_field_value(right, field)
+        if left_value is None or right_value is None:
+            continue
+        comparisons += 1
+        if left_value != right_value:
+            return False
+    return comparisons > 0
+
+
+def _canonical_result_payload(state_obj: dict[str, object], result_id: str) -> dict[str, object] | None:
+    results = state_obj.get("intermediate_results")
+    if not isinstance(results, list):
+        return None
+    for result in results:
+        if isinstance(result, dict) and _str_or_none(result.get("id")) == result_id:
+            return result
+    return None
+
+
+def _canonical_result_label(result: object) -> str | None:
+    if not isinstance(result, dict):
+        return None
+    description = _str_or_none(result.get("description"))
+    if description is not None:
+        return description
+    equation = _str_or_none(result.get("equation"))
+    if equation is not None:
+        return equation
+    return None
+
+
+def _sync_execution_visibility_anchors_from_canonical_continuation(
+    layout: ProjectLayout | Path,
+    *,
+    state_obj: dict[str, object] | None = None,
+) -> bool:
+    """Project canonical continuity anchors into existing live execution caches."""
+
+    layout = layout if isinstance(layout, ProjectLayout) else ProjectLayout(Path(layout).expanduser().resolve(strict=False))
+    current_exists = layout.current_observability_execution.exists()
+    head_exists = layout.execution_lineage_head.exists()
+    if not current_exists and not head_exists:
+        return False
+
+    if state_obj is None:
+        from gpd.core.state import peek_state_json
+
+        loaded_state_obj, _issues, _source = peek_state_json(layout.root, recover_intent=False)
+        state_obj = loaded_state_obj
+
+    if not isinstance(state_obj, dict):
+        return False
+
+    canonical_continuation = state_obj.get("continuation")
+    if not isinstance(canonical_continuation, dict):
+        return False
+
+    canonical_bounded_segment = canonical_continuation.get("bounded_segment")
+    if not isinstance(canonical_bounded_segment, dict):
+        return False
+
+    canonical_last_result_id = _str_or_none(canonical_bounded_segment.get("last_result_id"))
+    if canonical_last_result_id is None:
+        return False
+    canonical_result = _canonical_result_payload(state_obj, canonical_last_result_id)
+
+    current_snapshot: CurrentExecutionState | None = None
+    current_raw: dict[str, object] | None = None
+    if current_exists:
+        current_raw = _read_current_execution_raw(layout)
+        if isinstance(current_raw, dict):
+            try:
+                current_snapshot = CurrentExecutionState.model_validate(current_raw)
+            except Exception:
+                current_snapshot = None
+
+    head_snapshot: CurrentExecutionState | None = None
+    head_payload: ExecutionLineageHead | None = None
+    head_raw: dict[str, object] | None = None
+    if head_exists:
+        head_raw = _read_json(layout.execution_lineage_head)
+        if isinstance(head_raw, dict):
+            try:
+                head_payload = ExecutionLineageHead.model_validate(head_raw)
+            except Exception:
+                head_payload = None
+            else:
+                if isinstance(head_payload.execution, dict):
+                    try:
+                        head_snapshot = CurrentExecutionState.model_validate(head_payload.execution)
+                    except Exception:
+                        head_snapshot = None
+
+    live_snapshot = head_snapshot or current_snapshot
+    if live_snapshot is None:
+        return False
+
+    if current_snapshot is not None and head_snapshot is not None and not _execution_lanes_compatible(current_snapshot, head_snapshot):
+        return False
+    if not _execution_lanes_compatible(live_snapshot, canonical_bounded_segment):
+        return False
+
+    updated_fields = {
+        "last_result_id": canonical_last_result_id,
+        "last_result_label": _canonical_result_label(canonical_result),
+    }
+    updated_snapshot = live_snapshot.model_copy(update=updated_fields)
+    wrote = False
+    lock_target = layout.execution_lineage_head if head_exists else layout.current_observability_execution
+
+    with file_lock(lock_target):
+        if current_exists:
+            current_updated = (
+                updated_snapshot if head_snapshot is not None else current_snapshot.model_copy(update=updated_fields)
+                if current_snapshot is not None
+                else updated_snapshot
+            )
+            if current_raw != current_updated.model_dump(mode="json"):
+                _save_current_execution(layout, current_updated)
+                wrote = True
+
+        if head_exists:
+            head_bounded_segment = None
+            if head_payload is not None and head_payload.bounded_segment is not None:
+                head_bounded_segment = head_payload.bounded_segment.model_copy(
+                    update={"last_result_id": canonical_last_result_id}
+                )
+            elif isinstance(head_raw, dict) and isinstance(head_raw.get("bounded_segment"), dict):
+                head_bounded_segment = {
+                    **head_raw["bounded_segment"],
+                    "last_result_id": canonical_last_result_id,
+                }
+
+            next_head = project_execution_lineage_head(
+                updated_snapshot.model_dump(mode="json"),
+                bounded_segment=head_bounded_segment,
+                last_applied_seq=(
+                    head_payload.last_applied_seq
+                    if head_payload is not None
+                    else head_raw.get("last_applied_seq")
+                    if isinstance(head_raw, dict)
+                    else None
+                ),
+                last_applied_event_id=(
+                    head_payload.last_applied_event_id
+                    if head_payload is not None
+                    else head_raw.get("last_applied_event_id")
+                    if isinstance(head_raw, dict)
+                    else None
+                ),
+                recorded_at=(
+                    head_payload.recorded_at
+                    if head_payload is not None
+                    else head_raw.get("recorded_at")
+                    if isinstance(head_raw, dict)
+                    else None
+                ),
+                reducer_version=(
+                    head_payload.reducer_version
+                    if head_payload is not None
+                    else head_raw.get("reducer_version")
+                    if isinstance(head_raw, dict)
+                    else None
+                ),
+            )
+            if not isinstance(head_raw, dict) or head_raw != next_head.model_dump(mode="json"):
+                write_execution_lineage_head(layout.root, next_head)
+                wrote = True
+
+    return wrote
+
+
+def _sync_execution_visibility_from_canonical_continuation(
+    layout: ProjectLayout | Path,
+    *,
+    state_obj: dict[str, object] | None = None,
+) -> bool:
+    """Compatibility alias for the canonical-continuation visibility sync helper."""
+
+    return _sync_execution_visibility_anchors_from_canonical_continuation(layout, state_obj=state_obj)
+
+
+sync_execution_visibility_from_canonical_continuation = _sync_execution_visibility_from_canonical_continuation
+
+
+def _bounded_segment_helper() -> Callable | None:
+    for helper_name in (
+        "canonical_bounded_segment_from_execution_snapshot",
+        "bounded_segment_from_normalized_execution_snapshot",
+        "derive_bounded_segment_from_normalized_execution_snapshot",
+        "build_bounded_segment_from_normalized_execution_snapshot",
+        "bounded_segment_from_current_execution",
+        "_bounded_segment_from_current_execution",
+    ):
+        helper = getattr(_continuation_module, helper_name, None)
+        if callable(helper):
+            return helper
+    return None
+
+
+def _bounded_segment_from_normalized_execution_snapshot(
+    cwd: Path,
+    snapshot: CurrentExecutionState | None,
+) -> ContinuationBoundedSegment | None:
+    if snapshot is None:
+        return None
+
+    helper = _bounded_segment_helper()
+    if helper is None:
+        return None
+
+    payload = _normalized_execution_snapshot(snapshot)
+    for candidate in (payload, snapshot):
+        try:
+            derived = helper(cwd, candidate)
+        except TypeError:
+            continue
+        except Exception:
+            return None
+        if derived is None:
+            return None
+        if isinstance(derived, ContinuationBoundedSegment):
+            return derived
+        try:
+            return ContinuationBoundedSegment.model_validate(derived)
+        except Exception:
+            return None
+    return None
+
+
+def _persist_durable_bounded_segment(layout: ProjectLayout, next_execution: CurrentExecutionState | None) -> None:
+    """Best-effort durable continuation write for the normalized execution snapshot."""
+    from gpd.core.state import (
+        state_clear_continuation_bounded_segment,
+        state_set_continuation_bounded_segment,
+    )
+
+    desired_bounded_segment = _bounded_segment_from_normalized_execution_snapshot(layout.root, next_execution)
+    if desired_bounded_segment is None:
+        state_clear_continuation_bounded_segment(layout.root)
+        return
+    state_set_continuation_bounded_segment(layout.root, desired_bounded_segment)
+
+
+def get_current_execution(cwd: Path | None = None) -> CurrentExecutionState | None:
+    layout = _layout(cwd)
+    if layout is None:
+        return None
+    return _current_execution_snapshot(layout)
+
+
+def _execution_visibility_age_minutes(updated_at: str | None) -> float | None:
+    if not isinstance(updated_at, str) or not updated_at.strip():
+        return None
+    observed_at = _parse_iso_datetime(updated_at)
+    if observed_at is None:
+        return None
+    age_minutes = (datetime.now(UTC) - observed_at).total_seconds() / 60.0
+    return round(max(0.0, age_minutes), 1)
+
+
+def _execution_visibility_age_label(updated_at: str | None) -> str | None:
+    """Return a compact human label like ``12m ago`` for one update timestamp."""
+    if not isinstance(updated_at, str) or not updated_at.strip():
+        return None
+    observed_at = _parse_iso_datetime(updated_at)
+    if observed_at is None:
+        return None
+    elapsed_seconds = max(0, int((datetime.now(UTC) - observed_at).total_seconds()))
+    if elapsed_seconds < 60:
+        return f"{elapsed_seconds}s ago"
+    if elapsed_seconds < 3600:
+        return f"{elapsed_seconds // 60}m ago"
+    return f"{elapsed_seconds // 3600}h ago"
+
+
+def _execution_visibility_review_reason(snapshot: CurrentExecutionState | None) -> str | None:
+    """Return the most relevant review-stop reason for one execution snapshot."""
+    if snapshot is None:
+        return None
+    checkpoint = _str_or_none(snapshot.checkpoint_reason)
+    if snapshot.first_result_gate_pending:
+        return "first-result review pending"
+    if snapshot.pre_fanout_review_pending:
+        return "pre-fanout review pending"
+    if snapshot.skeptical_requestioning_required:
+        return "skeptical re-questioning required"
+    if snapshot.waiting_for_review:
+        if checkpoint == "first_result":
+            return "first-result review pending"
+        if checkpoint == "pre_fanout":
+            return "pre-fanout review pending"
+        if checkpoint == "skeptical_requestioning":
+            return "skeptical re-questioning required"
+        if checkpoint is not None:
+            return checkpoint.replace("_", " ")
+        return "review checkpoint pending"
+    return None
+
+
+def _execution_visibility_classification(snapshot: CurrentExecutionState | None) -> str:
+    if snapshot is None:
+        return "idle"
+
+    blocked_reason = _str_or_none(snapshot.blocked_reason)
+    if blocked_reason:
+        return "blocked"
+
+    waiting_markers = (
+        snapshot.waiting_for_review,
+        snapshot.review_required,
+        snapshot.first_result_gate_pending,
+        snapshot.pre_fanout_review_pending,
+        snapshot.skeptical_requestioning_required,
+        snapshot.downstream_locked,
+        _str_or_none(snapshot.waiting_reason),
+    )
+    segment_status = (snapshot.segment_status or "").strip().lower()
+    if any(bool(marker) for marker in waiting_markers) or segment_status == "waiting_review":
+        return "waiting"
+
+    paused_states = {"paused", "awaiting_user", "ready_to_continue"}
+    if segment_status in paused_states:
+        return "paused-or-resumable"
+    if segment_status == "blocked":
+        return "blocked"
+    if segment_status in {"completed", "complete", "done", "finished"}:
+        return "idle"
+    if _str_or_none(snapshot.resume_file):
+        return "paused-or-resumable"
+    return "active"
+
+
+_EXECUTION_REASON_LABELS = {
+    "first_result": "first-result",
+    "pre_fanout": "pre-fanout",
+    "first_result_review_required": "first-result review required",
+    "skeptical_requestioning": "skeptical re-questioning",
+    "skeptical_requestioning_required": "skeptical re-questioning required",
+    "task_budget_reached": "task budget reached",
+    "time_budget_exceeded": "time budget exceeded",
+    "segment_boundary": "segment boundary reached",
+    "awaiting_user": "awaiting user input",
+    "ready_to_continue": "ready to continue",
+}
+
+_TANGENT_DECISION_LABELS = {
+    "ignore": "stay on main path",
+    "defer": "capture and defer",
+    "branch_later": "branch later",
+    "pursue_now": "pursue now",
+}
+
+
+def humanize_execution_reason(reason: str | None) -> str | None:
+    """Return one human-readable label for an execution checkpoint or wait reason."""
+    normalized = _normalized_checkpoint_reason(reason)
+    if normalized is None:
+        return None
+    return _EXECUTION_REASON_LABELS.get(normalized, normalized.replace("_", " "))
+
+
+def _humanize_tangent_decision(decision: str | None) -> str | None:
+    normalized = _normalized_tangent_decision(decision)
+    if normalized is None:
+        return None
+    return _TANGENT_DECISION_LABELS.get(normalized, normalized.replace("_", " "))
+
+
+def _execution_visibility_tangent_steps(snapshot: CurrentExecutionState | None) -> list[str]:
+    if snapshot is None:
+        return []
+
+    tangent_summary = _str_or_none(snapshot.tangent_summary)
+    if tangent_summary is None:
+        return []
+
+    from gpd.core.surface_phrases import tangent_branch_later_action, tangent_chooser_action
+
+    decision = _normalized_tangent_decision(snapshot.tangent_decision)
+    decision_label = _humanize_tangent_decision(decision)
+    if decision is None:
+        return [
+            f"Tangent proposal pending at this review stop: {tangent_summary}.",
+            tangent_chooser_action(),
+        ]
+    if decision == "branch_later":
+        return [
+            f"Tangent proposal recorded: {tangent_summary}. Recommendation: {decision_label}.",
+            tangent_branch_later_action(),
+        ]
+    if decision == "defer":
+        return [f"Tangent proposal recorded: {tangent_summary}. Recommendation: {decision_label}."]
+    if decision == "pursue_now":
+        return [
+            f"Tangent proposal recorded: {tangent_summary}. Recommendation: {decision_label} within the current bounded stop."
+        ]
+    return [f"Tangent proposal recorded: {tangent_summary}. Recommendation: {decision_label}."]
+
+
+def _execution_visibility_next_commands(
+    *,
+    classification: str,
+    snapshot: CurrentExecutionState | None,
+    possibly_stalled: bool,
+) -> list[ExecutionVisibilitySuggestion]:
+    suggestions: list[ExecutionVisibilitySuggestion] = []
+    if snapshot is None:
+        return [
+            ExecutionVisibilitySuggestion(
+                command="gpd observe sessions --last 5",
+                reason="inspect recent local observability sessions",
+            ),
+            ExecutionVisibilitySuggestion(
+                command="gpd progress --brief",
+                reason="inspect the workspace state separately from live execution telemetry",
+            ),
+        ]
+
+    phase_plan = "-".join(part for part in (snapshot.phase, snapshot.plan) if part) or "current execution"
+    session_scope = f" --session {snapshot.session_id}" if snapshot.session_id else ""
+    observe_command = f"gpd observe show{session_scope} --last 20"
+
+    if classification == "blocked":
+        suggestions.append(
+            ExecutionVisibilitySuggestion(
+                command="gpd resume",
+                reason="inspect the current recovery snapshot and blocker context",
+            )
+        )
+        suggestions.append(
+            ExecutionVisibilitySuggestion(
+                command=observe_command,
+                reason=f"inspect the recent execution event trail for {phase_plan}",
+            )
+        )
+    elif classification == "waiting":
+        suggestions.append(
+            ExecutionVisibilitySuggestion(
+                command="gpd resume",
+                reason="inspect the resumable checkpoint and review context",
+            )
+        )
+        suggestions.append(
+            ExecutionVisibilitySuggestion(
+                command=observe_command,
+                reason=f"inspect the recent execution event trail for {phase_plan}",
+            )
+        )
+    elif classification == "paused-or-resumable":
+        suggestions.append(
+            ExecutionVisibilitySuggestion(
+                command="gpd resume",
+                reason="inspect the ranked recovery candidates before continuing inside the runtime",
+            )
+        )
+        suggestions.append(
+            ExecutionVisibilitySuggestion(
+                command=observe_command,
+                reason=f"inspect the recent execution event trail for {phase_plan}",
+            )
+        )
+    elif classification == "active":
+        if possibly_stalled:
+            suggestions.append(
+                ExecutionVisibilitySuggestion(
+                    command=observe_command,
+                    reason=f"inspect the recent execution event trail for {phase_plan} before assuming the run has stalled",
+                )
+            )
+            suggestions.append(
+                ExecutionVisibilitySuggestion(
+                    command="gpd resume",
+                    reason="inspect the latest recovery snapshot if the run should already have paused",
+                )
+            )
+            suggestions.append(
+                ExecutionVisibilitySuggestion(
+                    command="gpd progress --brief",
+                    reason="cross-check broader workspace progress separately from the live execution state",
+                )
+            )
+        else:
+            suggestions.append(
+                ExecutionVisibilitySuggestion(
+                    command=observe_command,
+                    reason=f"inspect the recent observability event trail for {phase_plan} when you want more detail",
+                )
+            )
+            suggestions.append(
+                ExecutionVisibilitySuggestion(
+                    command="gpd progress --brief",
+                    reason="check a compact workspace-level summary separately from the live execution state",
+                )
+            )
+    else:
+        suggestions.append(
+            ExecutionVisibilitySuggestion(
+                command="gpd observe sessions --last 5",
+                reason="inspect recent local observability sessions",
+            )
+        )
+        suggestions.append(
+            ExecutionVisibilitySuggestion(
+                command="gpd progress --brief",
+                reason="inspect the current workspace state",
+            )
+        )
+    return suggestions
+
+
+def _execution_visibility_next_steps(
+    suggestions: list[ExecutionVisibilitySuggestion],
+) -> list[str]:
+    from gpd.core.surface_phrases import command_follow_up_action
+
+    return [
+        command_follow_up_action(command=suggestion.command, reason=suggestion.reason)
+        for suggestion in suggestions
+    ]
+
+
+def derive_execution_visibility(cwd: Path | None = None) -> ExecutionVisibilityState | None:
+    """Derive a normalized local execution visibility payload from the current snapshot."""
+    layout = _layout(cwd)
+    if layout is None:
+        return None
+
+    snapshot = get_current_execution(layout.root)
+    if snapshot is None:
+        suggestions = _execution_visibility_next_commands(
+            classification="idle",
+            snapshot=None,
+            possibly_stalled=False,
+        )
+        return ExecutionVisibilityState(
+            workspace_root=str(layout.root),
+            has_live_execution=False,
+            status_classification="idle",
+            assessment="idle",
+            suggested_next_commands=suggestions,
+            suggested_next_steps=_execution_visibility_next_steps(suggestions),
+        )
+
+    classification = _execution_visibility_classification(snapshot)
+    age_minutes = _execution_visibility_age_minutes(snapshot.updated_at)
+    age_label = _execution_visibility_age_label(snapshot.updated_at)
+    possibly_stalled = classification == "active" and age_minutes is not None and age_minutes >= 30.0
+    assessment = "possibly stalled" if possibly_stalled else classification
+    current_task_progress: str | None = None
+    if snapshot.current_task_index is not None and snapshot.current_task_total is not None:
+        current_task_progress = f"{snapshot.current_task_index}/{snapshot.current_task_total}"
+
+    suggestions = _execution_visibility_next_commands(
+        classification=classification,
+        snapshot=snapshot,
+        possibly_stalled=possibly_stalled,
+    )
+    tangent_steps = _execution_visibility_tangent_steps(snapshot)
+
+    return ExecutionVisibilityState(
+        workspace_root=str(layout.root),
+        has_live_execution=True,
+        status_classification=classification,
+        assessment=assessment,
+        possibly_stalled=possibly_stalled,
+        stale_after_minutes=30,
+        last_updated_at=snapshot.updated_at,
+        last_updated_age_label=age_label,
+        last_updated_age_minutes=age_minutes,
+        phase=snapshot.phase,
+        plan=snapshot.plan,
+        wave=snapshot.wave,
+        segment_status=snapshot.segment_status,
+        current_task=snapshot.current_task,
+        current_task_index=snapshot.current_task_index,
+        current_task_total=snapshot.current_task_total,
+        current_task_progress=current_task_progress,
+        segment_reason=snapshot.segment_reason,
+        checkpoint_reason=snapshot.checkpoint_reason,
+        waiting_reason=snapshot.waiting_reason,
+        waiting_reason_label=humanize_execution_reason(snapshot.waiting_reason),
+        blocked_reason=snapshot.blocked_reason,
+        blocked_reason_label=humanize_execution_reason(snapshot.blocked_reason),
+        review_reason=_execution_visibility_review_reason(snapshot),
+        tangent_summary=snapshot.tangent_summary,
+        tangent_decision=snapshot.tangent_decision,
+        tangent_decision_label=_humanize_tangent_decision(snapshot.tangent_decision),
+        tangent_pending=bool(snapshot.tangent_summary) and not bool(snapshot.tangent_decision),
+        last_result_label=snapshot.last_result_label,
+        last_artifact_path=snapshot.last_artifact_path,
+        resume_file=snapshot.resume_file,
+        current_execution=snapshot.model_dump(mode="json"),
+        suggested_next_commands=suggestions,
+        suggested_next_steps=[*_execution_visibility_next_steps(suggestions), *tangent_steps],
+    )
 
 
 def _execution_data(data: dict[str, object]) -> dict[str, object]:
@@ -374,6 +1071,13 @@ def _normalized_checkpoint_reason(value: object) -> str | None:
     if reason is None:
         return None
     return reason.strip().replace("-", "_")
+
+
+def _normalized_tangent_decision(value: object) -> str | None:
+    decision = _str_or_none(value)
+    if decision is None:
+        return None
+    return decision.strip().replace("-", "_")
 
 
 _EXECUTION_REVIEW_REASONS = frozenset({"first_result", "pre_fanout", "skeptical_requestioning"})
@@ -406,6 +1110,50 @@ def _clear_skeptical_review(current: dict[str, object]) -> None:
     current["skeptical_requestioning_summary"] = None
     current["weakest_unchecked_anchor"] = None
     current["disconfirming_observation"] = None
+
+
+def _clear_tangent_state(current: dict[str, object]) -> None:
+    current["tangent_summary"] = None
+    current["tangent_decision"] = None
+
+
+def _clear_execution_hold_state(current: dict[str, object], *, clear_first_result_ready: bool = False) -> None:
+    """Clear transient waiting/review/blocked state from one execution snapshot."""
+
+    current["waiting_for_review"] = False
+    current["review_required"] = False
+    current["checkpoint_reason"] = None
+    current["waiting_reason"] = None
+    current["blocked_reason"] = None
+    current["first_result_gate_pending"] = False
+    current["pre_fanout_review_pending"] = False
+    current["pre_fanout_review_cleared"] = False
+    current["downstream_locked"] = False
+    if clear_first_result_ready:
+        current["first_result_ready"] = False
+    _clear_skeptical_review(current)
+    _clear_tangent_state(current)
+
+
+def _reset_execution_segment_state(current: dict[str, object]) -> None:
+    """Reset one execution snapshot for the start of a fresh segment."""
+
+    _clear_execution_hold_state(current, clear_first_result_ready=True)
+    for key in (
+        "segment_id",
+        "segment_status",
+        "segment_reason",
+        "current_task",
+        "current_task_index",
+        "current_task_total",
+        "last_result_id",
+        "last_result_label",
+        "last_artifact_path",
+        "resume_file",
+        "segment_started_at",
+        "transition_id",
+    ):
+        current[key] = None
 
 
 def _refresh_checkpoint_reason(current: dict[str, object]) -> None:
@@ -579,6 +1327,70 @@ def _clear_execution_after_event(snapshot: CurrentExecutionState, payload: Obser
     return payload.action in {"finish", "stop"} or snapshot.segment_status == "completed"
 
 
+def _execution_head_effect(
+    previous: CurrentExecutionState | None,
+    next_execution: CurrentExecutionState | None,
+) -> ExecutionHeadEffect:
+    if next_execution is None:
+        return ExecutionHeadEffect.CLEAR
+    if previous is None:
+        return ExecutionHeadEffect.SEED
+    if previous.model_dump(mode="json") == next_execution.model_dump(mode="json"):
+        return ExecutionHeadEffect.NOOP
+    return ExecutionHeadEffect.REPLACE
+
+
+def _persist_execution_lineage_transition(
+    layout: ProjectLayout,
+    payload: ObservabilityEvent,
+    *,
+    previous_execution: CurrentExecutionState | None,
+    next_execution: CurrentExecutionState | None,
+) -> None:
+    lineage_entries = load_execution_lineage_entries(layout.root)
+    previous_record = lineage_entries[-1] if lineage_entries else None
+    execution = _execution_data(payload.data)
+    segment_id = _str_or_none(execution.get("segment_id"))
+    bounded_segment = _bounded_segment_from_normalized_execution_snapshot(layout.root, next_execution)
+    record = build_execution_lineage_entry(
+        kind=f"{payload.name}.{payload.action}",
+        event_id=payload.event_id,
+        recorded_at=payload.timestamp,
+        session_id=payload.session_id,
+        phase=payload.phase,
+        plan=payload.plan,
+        segment_id=segment_id or (next_execution.segment_id if next_execution is not None else None),
+        parent_segment_id=previous_execution.segment_id
+        if payload.name == "segment" and payload.action == "start" and previous_execution is not None
+        else None,
+        prev_event_id=previous_record.event_id if previous_record is not None else None,
+        causation_event_id=payload.event_id,
+        source_category=payload.category,
+        source_name=payload.name,
+        source_action=payload.action,
+        head_effect=_execution_head_effect(previous_execution, next_execution),
+        head_after=next_execution,
+        bounded_segment_after=bounded_segment,
+        data=payload.data,
+        seq=(previous_record.seq + 1) if previous_record is not None else 1,
+    )
+    _append_event_locked(execution_lineage_ledger_path(layout.root), record.model_dump(mode="json"))
+
+    if next_execution is None:
+        clear_execution_lineage_head(layout.root)
+        _clear_current_execution(layout)
+    else:
+        head = project_execution_lineage_head(
+            next_execution,
+            bounded_segment=bounded_segment,
+            last_applied_seq=record.seq,
+            last_applied_event_id=record.event_id,
+            recorded_at=payload.timestamp,
+        )
+        write_execution_lineage_head(layout.root, head)
+        _save_current_execution(layout, next_execution)
+
+
 def _matches_active_execution(
     existing: CurrentExecutionState | None,
     payload: ObservabilityEvent,
@@ -625,6 +1437,12 @@ def _updated_execution_state(
     current["plan"] = payload.plan or current.get("plan")
     current["updated_at"] = payload.timestamp
 
+    segment_action = payload.action if payload.name == "segment" else None
+    if segment_action == "start":
+        _reset_execution_segment_state(current)
+    elif segment_action in {"pause", "finish", "stop"}:
+        _clear_execution_hold_state(current)
+
     workflow = _str_or_none(execution.get("workflow"))
     if workflow:
         current["workflow"] = workflow
@@ -647,6 +1465,7 @@ def _updated_execution_state(
         "skeptical_requestioning_summary",
         "weakest_unchecked_anchor",
         "disconfirming_observation",
+        "tangent_summary",
         "last_result_id",
         "last_result_label",
         "last_artifact_path",
@@ -660,6 +1479,9 @@ def _updated_execution_state(
     checkpoint_reason = _normalized_checkpoint_reason(execution.get("checkpoint_reason"))
     if checkpoint_reason is not None:
         current["checkpoint_reason"] = checkpoint_reason
+    tangent_decision = _normalized_tangent_decision(execution.get("tangent_decision"))
+    if tangent_decision is not None:
+        current["tangent_decision"] = tangent_decision
 
     for key in ("current_task_index", "current_task_total"):
         value = _int_or_none(execution.get(key))
@@ -685,12 +1507,13 @@ def _updated_execution_state(
         current["pre_fanout_review_cleared"] = False
 
     if payload.name == "segment" and payload.action == "start":
-        current.setdefault("segment_started_at", payload.timestamp)
-        current.setdefault("segment_status", "active")
+        current["segment_started_at"] = payload.timestamp
+        current["segment_status"] = "active"
     elif payload.name == "segment" and payload.action == "pause":
-        current["segment_status"] = current.get("segment_status") or "paused"
+        pause_status = (current.get("segment_status") or "").strip().lower()
+        current["segment_status"] = pause_status if pause_status in {"paused", "awaiting_user", "ready_to_continue"} else "paused"
     elif payload.name == "segment" and payload.action in {"finish", "stop"}:
-        current["segment_status"] = current.get("segment_status") or "completed"
+        current["segment_status"] = "completed"
 
     if payload.name == "gate" and payload.action == "enter":
         current["review_required"] = True
@@ -731,14 +1554,20 @@ def _updated_execution_state(
             current["waiting_reason"] = None
             if "pre_fanout" not in clear_targets and not _review_gate_pending(current):
                 current["downstream_locked"] = False
+            if not _review_gate_pending(current):
+                current["waiting_for_review"] = False
+                current["review_required"] = False
             if current.get("segment_status") == "waiting_review" and not _review_gate_pending(current):
                 current["segment_status"] = "active"
+            if not _review_gate_pending(current):
+                _clear_tangent_state(current)
         elif not _review_gate_pending(current):
             current["waiting_for_review"] = False
             current["review_required"] = False
             current["waiting_reason"] = None
             if current.get("segment_status") == "waiting_review":
                 current["segment_status"] = "active"
+            _clear_tangent_state(current)
 
     if payload.name == "fanout" and payload.action == "lock":
         current["downstream_locked"] = True
@@ -759,12 +1588,14 @@ def _updated_execution_state(
             current["review_required"] = False
             if current.get("segment_status") == "waiting_review":
                 current["segment_status"] = "active"
+            _clear_tangent_state(current)
 
     if payload.name == "result" and payload.action in {"produce", "log"}:
         if current.get("checkpoint_reason") == "first_result" or _bool_or_none(execution.get("load_bearing")):
             current["first_result_ready"] = True
 
-    _apply_automatic_execution_guards(current, payload, execution, cwd=cwd)
+    if payload.name != "segment" or payload.action not in {"pause", "finish", "stop"}:
+        _apply_automatic_execution_guards(current, payload, execution, cwd=cwd)
 
     _refresh_checkpoint_reason(current)
     if current.get("skeptical_requestioning_required") and not current.get("waiting_for_review"):
@@ -787,6 +1618,14 @@ def _updated_execution_state(
         current["segment_status"] = "waiting_review"
     elif current.get("waiting_reason"):
         current["segment_status"] = current.get("segment_status") or "awaiting_user"
+
+    if payload.name == "segment" and payload.action == "start":
+        current["segment_status"] = "active"
+    elif payload.name == "segment" and payload.action == "pause":
+        pause_status = (current.get("segment_status") or "").strip().lower()
+        current["segment_status"] = pause_status if pause_status in {"paused", "awaiting_user", "ready_to_continue"} else "paused"
+    elif payload.name == "segment" and payload.action in {"finish", "stop"}:
+        current["segment_status"] = "completed"
 
     snapshot = CurrentExecutionState.model_validate(current)
     if _clear_execution_after_event(snapshot, payload, execution):
@@ -1137,12 +1976,28 @@ def observe_event(
         parent_span_id=parent_span_id,
         data=data or {},
     )
-    _append_event(_session_log(layout, session.session_id), payload.model_dump(mode="json"))
-    next_execution = _updated_execution_state(get_current_execution(layout.root), payload, cwd=layout.root)
-    if next_execution is None:
-        _clear_current_execution(layout)
+    session_log = _session_log(layout, session.session_id)
+    if payload.category == "execution":
+        lineage_path = execution_lineage_ledger_path(layout.root)
+        with file_lock(lineage_path):
+            _append_event_locked(session_log, payload.model_dump(mode="json"))
+            previous_execution = _current_execution_snapshot(layout)
+            next_execution = _updated_execution_state(previous_execution, payload, cwd=layout.root)
+            _persist_execution_lineage_transition(
+                layout,
+                payload,
+                previous_execution=previous_execution,
+                next_execution=next_execution,
+            )
+            _persist_durable_bounded_segment(layout, next_execution)
     else:
-        _save_current_execution(layout, next_execution)
+        _append_event(session_log, payload.model_dump(mode="json"))
+        next_execution = _updated_execution_state(get_current_execution(layout.root), payload, cwd=layout.root)
+        if next_execution is None:
+            _clear_current_execution(layout)
+        else:
+            _save_current_execution(layout, next_execution)
+        _persist_durable_bounded_segment(layout, next_execution)
 
     updated = _updated_session(
         session,
@@ -1383,3 +2238,212 @@ def show_events(
         )
 
     return ObservabilityShowResult(count=len(events), events=events)
+
+
+class ExportLogsResult(BaseModel):
+    """Return value for ``export_logs``."""
+
+    model_config = ConfigDict(frozen=True)
+
+    exported: bool
+    output_dir: str
+    sessions_exported: int = 0
+    events_exported: int = 0
+    traces_exported: int = 0
+    files_written: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+
+def export_logs(
+    cwd: Path | None = None,
+    *,
+    output_dir: str | None = None,
+    session: str | None = None,
+    category: str | None = None,
+    command: str | None = None,
+    phase: str | None = None,
+    last: int | None = None,
+    include_traces: bool = True,
+    format: str = "jsonl",
+) -> ExportLogsResult:
+    """Export session logs and traces to files.
+
+    Reads observability sessions and optionally traces, applies filters,
+    and writes the results to the specified output directory.
+
+    Supported formats: ``jsonl`` (raw, one JSON object per line),
+    ``json`` (pretty-printed array), ``markdown`` (human-readable report).
+    """
+    layout = _layout(cwd)
+    if layout is None:
+        return ExportLogsResult(
+            exported=False,
+            output_dir=output_dir or "",
+            reason="No GPD project found in working directory",
+        )
+
+    dest = Path(output_dir) if output_dir else layout.root / "GPD" / "exports" / "logs"
+    dest.mkdir(parents=True, exist_ok=True)
+
+    if format not in {"jsonl", "json", "markdown"}:
+        return ExportLogsResult(
+            exported=False,
+            output_dir=str(dest),
+            reason=f"Unsupported format: {format}. Use jsonl, json, or markdown.",
+        )
+
+    files_written: list[str] = []
+    sessions_exported = 0
+    events_exported = 0
+    traces_exported = 0
+
+    sessions = _iter_session_meta(layout)
+    if command:
+        sessions = [s for s in sessions if s.command == command]
+    if session:
+        sessions = [s for s in sessions if s.session_id == session]
+    if last and last > 0:
+        sessions = sessions[:last]
+
+    sessions_exported = len(sessions)
+
+    all_events: list[dict[str, object]] = []
+    for sess in sessions:
+        events = _filter_events(
+            _read_events(_session_log(layout, sess.session_id)),
+            category=category,
+            phase=phase,
+        )
+        all_events.extend(events)
+    all_events.sort(key=lambda e: str(e.get("timestamp", "")))
+    events_exported = len(all_events)
+
+    timestamp_slug = _now_iso().replace(":", "").replace("-", "")[:15]
+
+    if format == "jsonl":
+        sessions_path = dest / f"sessions-{timestamp_slug}.jsonl"
+        lines = [json.dumps(s.model_dump(mode="json")) for s in sessions]
+        atomic_write(sessions_path, "\n".join(lines) + "\n" if lines else "")
+        files_written.append(str(sessions_path))
+
+        events_path = dest / f"events-{timestamp_slug}.jsonl"
+        event_lines = [json.dumps(e) for e in all_events]
+        atomic_write(events_path, "\n".join(event_lines) + "\n" if event_lines else "")
+        files_written.append(str(events_path))
+
+    elif format == "json":
+        sessions_path = dest / f"sessions-{timestamp_slug}.json"
+        atomic_write(
+            sessions_path,
+            json.dumps([s.model_dump(mode="json") for s in sessions], indent=2) + "\n",
+        )
+        files_written.append(str(sessions_path))
+
+        events_path = dest / f"events-{timestamp_slug}.json"
+        atomic_write(events_path, json.dumps(all_events, indent=2) + "\n")
+        files_written.append(str(events_path))
+
+    elif format == "markdown":
+        report_path = dest / f"log-report-{timestamp_slug}.md"
+        md_lines = [
+            "# GPD Session Log Export",
+            "",
+            f"**Exported:** {_now_iso()}",
+            f"**Sessions:** {sessions_exported}",
+            f"**Events:** {events_exported}",
+            "",
+            "## Sessions",
+            "",
+            "| Session ID | Started | Last Event | Command | Status |",
+            "|------------|---------|------------|---------|--------|",
+        ]
+        for sess in sessions:
+            md_lines.append(
+                f"| `{sess.session_id}` | {sess.started_at} | {sess.last_event_at} "
+                f"| {sess.command or '—'} | {sess.status} |"
+            )
+        md_lines.extend(["", "## Events", ""])
+        for evt in all_events:
+            ts = evt.get("timestamp", "?")
+            cat = evt.get("category", "?")
+            nm = evt.get("name", "?")
+            act = evt.get("action", "?")
+            st = evt.get("status", "?")
+            md_lines.append(f"- **{ts}** [{cat}/{nm}] action={act} status={st}")
+            if evt.get("phase"):
+                md_lines.append(f"  - Phase: {evt['phase']}")
+            if evt.get("data"):
+                md_lines.append(f"  - Data: `{json.dumps(evt['data'])}`")
+        md_lines.append("")
+        atomic_write(report_path, "\n".join(md_lines))
+        files_written.append(str(report_path))
+
+    if include_traces and layout.traces_dir.is_dir():
+        trace_files = sorted(layout.traces_dir.glob("*.jsonl"))
+        if trace_files:
+            if format == "jsonl":
+                traces_path = dest / f"traces-{timestamp_slug}.jsonl"
+                trace_lines: list[str] = []
+                for tf in trace_files:
+                    content = safe_read_file(tf)
+                    if content:
+                        trace_lines.extend(line for line in content.splitlines() if line.strip())
+                atomic_write(traces_path, "\n".join(trace_lines) + "\n" if trace_lines else "")
+                files_written.append(str(traces_path))
+                traces_exported = len(trace_lines)
+
+            elif format == "json":
+                traces_path = dest / f"traces-{timestamp_slug}.json"
+                all_traces: list[dict[str, object]] = []
+                for tf in trace_files:
+                    content = safe_read_file(tf)
+                    if content:
+                        for line in content.splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                all_traces.append(json.loads(line))
+                            except Exception:
+                                continue
+                atomic_write(traces_path, json.dumps(all_traces, indent=2) + "\n")
+                files_written.append(str(traces_path))
+                traces_exported = len(all_traces)
+
+            elif format == "markdown":
+                trace_section: list[str] = ["", "## Traces", ""]
+                trace_count = 0
+                for tf in trace_files:
+                    trace_section.append(f"### {tf.stem}")
+                    trace_section.append("")
+                    content = safe_read_file(tf)
+                    if content:
+                        for line in content.splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                obj = json.loads(line)
+                            except Exception:
+                                continue
+                            trace_count += 1
+                            ts = obj.get("timestamp", "?")
+                            etype = obj.get("type", obj.get("event_type", "?"))
+                            trace_section.append(f"- **{ts}** [{etype}]")
+                            if obj.get("summary"):
+                                trace_section.append(f"  - {obj['summary']}")
+                    trace_section.append("")
+                traces_exported = trace_count
+
+                report_path_obj = Path(files_written[-1]) if files_written else dest / f"log-report-{timestamp_slug}.md"
+                existing = safe_read_file(report_path_obj) or ""
+                atomic_write(report_path_obj, existing + "\n".join(trace_section))
+
+    return ExportLogsResult(
+        exported=True,
+        output_dir=str(dest),
+        sessions_exported=sessions_exported,
+        events_exported=events_exported,
+        traces_exported=traces_exported,
+        files_written=files_written,
+    )

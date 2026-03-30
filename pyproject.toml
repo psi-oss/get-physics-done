@@ -54,6 +54,7 @@ gpd = "gpd.cli:entrypoint"
 "gpd-mcp-protocols" = "gpd.mcp.servers.protocols_server:main"
 "gpd-mcp-errors" = "gpd.mcp.servers.errors_mcp:main"
 "gpd-mcp-patterns" = "gpd.mcp.servers.patterns_server:main"
+"gpd-mcp-wolfram" = "gpd.mcp.integrations.wolfram_bridge:main"
 "gpd-mcp-state" = "gpd.mcp.servers.state_server:main"
 "gpd-mcp-skills" = "gpd.mcp.servers.skills_server:main"
 

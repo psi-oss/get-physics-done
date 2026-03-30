@@ -165,7 +165,7 @@ When a phase consumes results from a prior phase, uncertainties must be tracked 
 
 ### Machine-Readable Convention Assertions
 
-Every derivation file, computation script, and notebook must include a parseable assertion line declaring which conventions are in effect. This enables automated verification by the consistency checker and verifier agent.
+Every derivation file must include a parseable assertion line declaring which conventions are in effect. Convention-sensitive computation scripts and notebooks should also include one when they are meant to be reused or audited later. This enables automated verification by the consistency checker, verifier, and pre-commit gate.
 
 **Syntax:**
 
@@ -211,9 +211,9 @@ For LaTeX files, use `%` comment prefix. For Python, use `#`. For Markdown, use 
 **Verification protocol:**
 
 1. The executor writes an `ASSERT_CONVENTION` line at the top of every derivation file it creates or modifies
-2. The verifier scans for `ASSERT_CONVENTION` lines in all phase artifacts and compares each declared value against the project convention lock in `state.json`
+2. `gpd pre-commit-check` blocks changed derivation artifacts and canonical phase verification reports when their `ASSERT_CONVENTION` header is missing or mismatched against the active project convention lock
 3. A mismatch between an assertion and the lock is a **blocker** — it means the file was written under different conventions than the project standard
-4. A missing assertion in a file that contains equations is a **warning** — conventions should be declared explicitly
+4. A missing assertion in a convention-gated artifact is a **blocker**; outside that gated set, any explicit `ASSERT_CONVENTION` line is still checked against the lock and a mismatch remains a **blocker**
 
 ## Source Hierarchy
 

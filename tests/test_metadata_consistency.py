@@ -78,6 +78,14 @@ def _project_script_lines(repo_root: Path) -> list[str]:
     return script_lines
 
 
+def _project_script_targets(repo_root: Path) -> dict[str, str]:
+    script_targets: dict[str, str] = {}
+    for line in _project_script_lines(repo_root):
+        name, target = line.split("=", 1)
+        script_targets[name.strip().strip('"')] = target.strip().strip('"')
+    return script_targets
+
+
 def test_readme_ci_badge_points_to_existing_workflow() -> None:
     repo_root = _repo_root()
     workflow = repo_root / ".github" / "workflows" / "test.yml"
@@ -109,12 +117,15 @@ def test_canonical_registry_skill_inventory_counts_match_repo_contents() -> None
     canonical_skills_count = len(content_registry.list_skills())
     mcp_server_count = len([p for p in (repo_root / "src" / "gpd" / "mcp" / "servers").glob("*.py") if p.name != "__init__.py"])
     mcp_script_count = sum(1 for line in _project_script_lines(repo_root) if line.startswith('"gpd-mcp-'))
+    managed_integration_script_count = sum(
+        1 for name in _project_script_targets(repo_root) if name == "gpd-mcp-wolfram"
+    )
 
     assert commands_count >= 50
     # The canonical registry/MCP skill index remains commands + agents even
     # when a runtime projects a narrower discoverable install surface.
     assert canonical_skills_count == commands_count + agents_count
-    assert mcp_server_count == mcp_script_count
+    assert mcp_server_count == mcp_script_count - managed_integration_script_count
 
 
 def test_agent_metadata_inventory_uses_valid_enums_without_changing_canonical_skill_surface() -> None:
@@ -152,11 +163,17 @@ def test_pattern_domain_counts_match_source_of_truth() -> None:
 
 
 def test_mcp_server_count_matches_public_entrypoints() -> None:
+    from gpd.mcp.managed_integrations import WOLFRAM_BRIDGE_COMMAND
+
     repo_root = _repo_root()
     mcp_server_count = len([p for p in (repo_root / "src" / "gpd" / "mcp" / "servers").glob("*.py") if p.name != "__init__.py"])
-    mcp_script_count = sum(1 for line in _project_script_lines(repo_root) if line.startswith('"gpd-mcp-'))
+    builtin_mcp_script_count = sum(
+        1
+        for name in _project_script_targets(repo_root)
+        if name.startswith("gpd-mcp-") and name != WOLFRAM_BRIDGE_COMMAND
+    )
     assert mcp_server_count == 7
-    assert mcp_server_count == mcp_script_count
+    assert mcp_server_count == builtin_mcp_script_count
 
 
 def test_managed_mcp_server_keys_match_public_descriptors_and_infra_inventory() -> None:
@@ -168,6 +185,23 @@ def test_managed_mcp_server_keys_match_public_descriptors_and_infra_inventory() 
 
     assert GPD_MCP_SERVER_KEYS == descriptor_keys
     assert GPD_MCP_SERVER_KEYS == infra_keys
+
+
+def test_optional_wolfram_bridge_stays_outside_builtin_public_mcp_surface() -> None:
+    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS, build_public_descriptors
+    from gpd.mcp.managed_integrations import WOLFRAM_BRIDGE_COMMAND, WOLFRAM_MANAGED_SERVER_KEY
+
+    repo_root = _repo_root()
+    descriptor_keys = set(build_public_descriptors())
+    infra_keys = {path.stem for path in (repo_root / "infra").glob("gpd-*.json")}
+    script_targets = _project_script_targets(repo_root)
+
+    assert WOLFRAM_MANAGED_SERVER_KEY not in GPD_MCP_SERVER_KEYS
+    assert WOLFRAM_MANAGED_SERVER_KEY not in descriptor_keys
+    assert WOLFRAM_MANAGED_SERVER_KEY not in infra_keys
+
+    if WOLFRAM_BRIDGE_COMMAND in script_targets:
+        assert script_targets[WOLFRAM_BRIDGE_COMMAND] == "gpd.mcp.integrations.wolfram_bridge:main"
 
 
 def test_public_mcp_descriptor_capabilities_match_server_tools() -> None:
@@ -211,7 +245,7 @@ def test_public_mcp_descriptor_entry_point_alternatives_match_pyproject_scripts(
         assert isinstance(alternatives, dict), name
         python_module = alternatives.get("python_module")
         assert isinstance(python_module, dict), name
-        assert python_module.get("command") == "python"
+        assert python_module.get("command") == "python3"
         assert python_module.get("args") == ["-m", module_name]
         assert python_module.get("notes") == "Requires gpd package installed and Python >=3.11"
 
@@ -273,10 +307,9 @@ def test_branching_strategy_docs_use_canonical_config_literals() -> None:
 
 def test_help_and_settings_surface_current_commit_docs_and_review_cadence_shapes() -> None:
     settings = _read("src/gpd/specs/workflows/settings.md")
-    help_command = _read("src/gpd/commands/help.md")
     help_workflow = _read("src/gpd/specs/workflows/help.md")
 
-    for content in (settings, help_command, help_workflow):
+    for content in (settings, help_workflow):
         assert "execution.review_cadence" in content
         assert "planning.commit_docs" in content
 

@@ -140,10 +140,10 @@ Autonomy mode combines with research mode (explore/exploit) to form a 2D behavio
 
 | | Explore | Balanced | Exploit |
 |---|---------|----------|---------|
-| **Supervised** | User approves each branch | Standard + checkpoints | Focused + verified at each step |
-| **Balanced** | Broad search, user picks best | Default research flow | Efficient execution, key checkpoints |
-| **YOLO** | System explores freely and reports only hard blockers | Fast auto research loop | Fast convergent execution |
-| **YOLO** | Maximum exploration budget | Maximum speed | Laser-focused sprint |
+| **Supervised** | User approves each tangent decision before it becomes a branch or side investigation | Standard + checkpoints | Focused + verified at each step |
+| **Balanced** | Broad search, but tangent choices are still surfaced explicitly instead of branching silently | Default research flow | Efficient execution, key checkpoints |
+| **YOLO** | Broad search inside the approved scope; tangent choices still stay explicit instead of silently creating git-backed branches | Fast auto research loop | Fast convergent execution |
+| **YOLO** | Maximum exploration budget inside the approved scope; no silent branch creation | Maximum speed | Laser-focused sprint |
 
 </autonomy_modes>
 
@@ -155,25 +155,45 @@ The research mode (from `GPD/config.json` field `research_mode`, default: `"bala
 
 **Key principle:** Research mode affects STRATEGY, not CORRECTNESS. All modes produce verified results — the difference is how many alternatives are explored before committing.
 
+### Tangent Control Model
+
+When multiple viable approaches or optional side questions appear, do NOT silently widen scope, create branch-like alternative plans, or assume that every alternative should be explored now.
+
+Use this 4-way decision model:
+
+1. `Branch as alternative hypothesis` -> route through `/gpd:tangent` or `/gpd:branch-hypothesis`
+2. `Run a bounded side investigation now` -> route through `/gpd:quick`
+3. `Capture and defer` -> route through `/gpd:add-todo`
+4. `Stay on the main line` -> create plans only for the selected primary approach
+
+If the context does not already contain an explicit tangent choice and more than one viable path remains live, return `## CHECKPOINT REACHED` with the four options above instead of silently branching.
+
+Explore mode widens analysis and comparison, not branch creation. Hypothesis branches remain an explicit tangent outcome, not the default consequence of finding alternatives.
+
+If the user is already on an active hypothesis branch, continue serving that branch. Only re-open the tangent decision model if a new independent tangent appears and the user has not chosen how to handle it.
+
 ### Explore Mode (`research_mode: "explore"`)
 
 **When to use:** New problem domain, unknown best approach, multiple viable methods, early-stage research.
 
 **Planner behavior:**
-- **Plans:** Create 2-3 ALTERNATIVE plans for the phase, each using a different approach (e.g., perturbative vs variational vs numerical). Mark as `type: explore` with `branch: true`.
+- **Plans:** Identify 2-3 viable approaches during planning analysis, but do NOT silently emit branch-like alternative plans. Explore mode alone does not authorize git-backed branches, `branch: true` plans, or side-work detours. If the user has not explicitly chosen a tangent path, create the recommended main-line plan only and return `## CHECKPOINT REACHED` when multiple live alternatives still matter.
 - **Researcher depth:** Request COMPREHENSIVE research — explore multiple methods, compare tradeoffs, identify which approaches have worked for similar problems.
 - **Literature:** Broad search — survey 10+ papers across multiple methods. Include "failed approaches" from literature to avoid repeating them.
-- **Scope:** Wider — include validation-intensive tasks. Each alternative plan should have its own independent validation.
-- **Branching:** Recommend `/gpd:branch-hypothesis` for truly independent alternatives. Plans within a single branch can share infrastructure.
-- **Success criteria:** Must include COMPARISON criteria — not just "did this approach work?" but "which approach works best and why?"
-- **Phase structure:** Add an explicit comparison task at the end that evaluates all alternatives against the same metrics.
+- **Scope:** Wider — include validation-intensive tasks, but keep optional tangents out of the main-line plan until the user explicitly chooses how to handle them.
+- **Branching:** For truly independent alternatives, route explicit branch choices through `/gpd:tangent` or `/gpd:branch-hypothesis`. Do not silently fork by setting `branch: true` on unapproved alternative plans.
+- **Success criteria:** If the user explicitly chooses a side investigation or comparison path, include COMPARISON criteria. Otherwise optimize the main-line plan around the recommended approach and record the other alternatives as tangent candidates.
+- **Phase structure:** Add an explicit comparison task only when the user has already chosen to compare approaches inside this phase or through a quick side investigation.
 
-**Example plan structure in explore mode:**
+**Example outcome in explore mode when alternatives remain live:**
 ```
-Phase 2: Compute Ground State Energy
-  Plan 2-1 (wave 1): Perturbative approach (weak-coupling expansion to 2nd order)
-  Plan 2-2 (wave 1): Variational approach (Gaussian ansatz, optimize parameters)
-  Plan 2-3 (wave 2): Comparison — evaluate both against exact diag for N=4 benchmark
+## CHECKPOINT REACHED
+
+Multiple viable approaches remain:
+1. Branch as alternative hypothesis -> /gpd:tangent or /gpd:branch-hypothesis
+2. Run a bounded side investigation now -> /gpd:quick
+3. Capture and defer -> /gpd:add-todo
+4. Stay on the main line -> plan the recommended perturbative approach only
 ```
 
 ### Balanced Mode (`research_mode: "balanced"`) — DEFAULT
@@ -185,7 +205,7 @@ Phase 2: Compute Ground State Energy
 - **Researcher depth:** Standard — survey the field, identify the best approach, document known difficulties.
 - **Literature:** Targeted — 5-7 key papers on the specific method being used.
 - **Scope:** Standard — include standard cross-checks (limiting cases, dimensional analysis) but don't create separate validation plans.
-- **Branching:** Only if the primary approach fails (deviation rule 5).
+- **Branching:** Only if the primary approach fails or a tangent is explicitly requested. Route the choice through the tangent control model rather than silently creating a branch.
 - **Success criteria:** Standard physics criteria — convergence, known limits, dimensional consistency.
 
 ### Exploit Mode (`research_mode: "exploit"`)
@@ -197,7 +217,7 @@ Phase 2: Compute Ground State Energy
 - **Researcher depth:** MINIMAL — skip researcher if the method is well-established and referenced in CONTEXT.md or prior phases. If researcher runs, request only method-specific details (parameters, convergence criteria), not broad survey.
 - **Literature:** Narrow — only papers directly relevant to the specific computation (the exact process, the exact method, at the exact order).
 - **Scope:** Tight — exclude exploratory tasks. Focus on core computation + minimal validation.
-- **Branching:** Never in exploit mode. If the approach fails, escalate rather than explore alternatives.
+- **Branching:** Never for optional tangents in exploit mode. Suppress optional tangent surfacing unless the user explicitly requests it or the current approach is blocked by contract, anchor, or physics-validity failure. If the approach fails, escalate rather than explore alternatives by default.
 - **Success criteria:** Tighter convergence requirements with a narrower surface, but still keep decisive acceptance tests, required anchors, forbidden-proxy handling, and the PRIMARY observable explicit.
 - **Plan checker:** Do not assume checker bypass. Template reuse can reduce novelty, but the workflow or config decides whether the checker runs.
 
@@ -215,7 +235,7 @@ Phase 4: Compute NLO Cross Section (exploit — method validated in Phase 3)
 **When to use:** Multi-phase projects where the approach may need iteration. The system starts broad and narrows automatically.
 
 **Planner behavior:**
-- **Phases 1-2:** Plan in explore mode — broad research, multiple alternatives considered, comparison tasks.
+- **Phases 1-2:** Plan in explore mode — broad research, multiple alternatives considered, but unresolved alternatives still go through the tangent control model before they become separate workstreams.
 - **Phase 3+:** Transition to exploit mode once SUMMARY.md from Phase 2 identifies the best approach. Read prior phase results to inform the transition.
 - **Transition trigger:** When a phase SUMMARY contains `approach_validated: true` or equivalent confidence marker, subsequent phases switch to exploit.
 - **Override:** If a later phase hits a deviation rule 5 (physics redirect), temporarily revert to explore mode for that phase.
@@ -826,6 +846,12 @@ depends_on: [] # Plan IDs this plan requires
 files_modified: [] # Files this plan touches
 interactive: false # true if plan has checkpoints
 researcher_setup: [] # Human-required setup (omit if empty)
+# tool_requirements: # Machine-checkable specialized tools (omit entirely if none)
+#   - id: "wolfram-cas"
+#     tool: "wolfram"
+#     purpose: "Symbolic tensor reduction"
+#     required: false
+#     fallback: "Use SymPy if unavailable"
 
 conventions: # Physics conventions for this plan
   units: "natural"
@@ -949,6 +975,7 @@ After completion, create `GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md`
 | `dimensional_check`| If any   | Expected dimensions of key results (e.g., `{E_0: '[energy]', sigma: '[area]'}`) — executor verifies at completion, verifier gets independent expectation |
 | `approximations`   | If any   | Active approximation schemes              |
 | `researcher_setup` | No       | Human-required setup items                |
+| `tool_requirements` | No       | Machine-checkable specialized tool requirements |
 
 Wave numbers are pre-computed during planning. Execute-phase reads `wave` directly from frontmatter.
 
@@ -982,6 +1009,21 @@ researcher_setup:
 ```
 
 Only include what the assistant literally cannot do.
+
+## Tool Requirements Frontmatter
+
+Use `tool_requirements` when the plan depends on specialized tooling outside the guaranteed Python scientific baseline and the dependency should be machine-checkable before execution.
+
+```yaml
+tool_requirements:
+  - id: wolfram-cas
+    tool: wolfram
+    purpose: "Symbolic tensor reduction for Task 2"
+    required: true
+    fallback: "Use SymPy plus manual simplification if Wolfram is unavailable"
+```
+
+Keep `researcher_setup` for human credentials, licensed access, or manual environment work. Keep `tool_requirements` for the actual tool capability the executor must preflight. Do not hide specialized tool assumptions only in task prose.
 
 </plan_format>
 
@@ -2894,6 +2936,7 @@ Phase planning complete when:
 - [ ] PLAN file(s) exist with XML structure
 - [ ] Each plan: depends_on, files_modified, interactive, conventions, and contract in frontmatter
 - [ ] Each plan: researcher_setup declared if external resources involved
+- [ ] Each plan: tool_requirements declared when specialized tool availability should be machine-checkable before execution
 - [ ] Each plan: Objective, context, tasks, verification, success criteria, output
 - [ ] Each plan: 2-3 tasks (~50% context)
 - [ ] Each task: Type, Files (if auto), Action, Verify, Done

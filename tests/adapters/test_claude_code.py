@@ -12,6 +12,9 @@ from gpd.adapters.claude_code import ClaudeCodeAdapter
 from gpd.adapters.install_utils import build_runtime_cli_bridge_command
 from gpd.version import __version__, version_for_gpd_root
 
+WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
+WOLFRAM_MCP_API_KEY_ENV_VAR = "GPD_WOLFRAM_MCP_API_KEY"
+
 
 @pytest.fixture()
 def adapter() -> ClaudeCodeAdapter:
@@ -394,6 +397,50 @@ class TestInstall:
         assert server["type"] == "stdio"
         assert parsed["mcpServers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
 
+    def test_install_projects_wolfram_mcp_server_and_preserves_overrides(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gpd.mcp.builtin_servers import build_mcp_servers_dict
+
+        target = tmp_path / "workspace" / ".claude"
+        target.mkdir(parents=True)
+        mcp_config = target.parent / ".mcp.json"
+        mcp_config.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        WOLFRAM_MANAGED_SERVER_KEY: {
+                            "command": "python3",
+                            "args": ["-m", "legacy.wolfram"],
+                            "cwd": "/tmp/custom-wolfram",
+                            "type": "stdio",
+                        },
+                        "custom-server": {"command": "node", "args": ["custom.js"]},
+                    }
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "claude-test-key")
+
+        result = adapter.install(gpd_root, target)
+
+        parsed = json.loads(mcp_config.read_text(encoding="utf-8"))
+        server = parsed["mcpServers"][WOLFRAM_MANAGED_SERVER_KEY]
+        assert server["command"] == "gpd-mcp-wolfram"
+        assert server["args"] == []
+        assert server["cwd"] == "/tmp/custom-wolfram"
+        assert server["type"] == "stdio"
+        assert parsed["mcpServers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
+        assert "claude-test-key" not in mcp_config.read_text(encoding="utf-8")
+        assert result["mcpServers"] == len(build_mcp_servers_dict(python_path=sys.executable)) + 1
+
     def test_global_install_scopes_claude_json_to_target_parent(
         self,
         adapter: ClaudeCodeAdapter,
@@ -515,6 +562,23 @@ class TestInstall:
 
 
 class TestRuntimePermissions:
+    def test_runtime_permissions_status_marks_yolo_as_relaunch_required(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+        adapter.sync_runtime_permissions(target, autonomy="yolo")
+
+        status = adapter.runtime_permissions_status(target, autonomy="yolo")
+
+        assert status["config_aligned"] is True
+        assert status["requires_relaunch"] is True
+        assert "Restart the Claude Code session" in str(status["next_step"])
+
     def test_sync_runtime_permissions_yolo_sets_bypass_permissions(
         self,
         adapter: ClaudeCodeAdapter,
@@ -558,6 +622,34 @@ class TestRuntimePermissions:
         assert settings["permissions"]["defaultMode"] == "acceptEdits"
         assert "gpd_runtime_permissions" not in manifest
         assert result["sync_applied"] is True
+
+    def test_malformed_settings_json_fails_closed_for_status_and_sync(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        settings_path = target / "settings.json"
+        settings_path.write_text('{"permissions": [\n', encoding="utf-8")
+        before = settings_path.read_text(encoding="utf-8")
+
+        status = adapter.runtime_permissions_status(target, autonomy="yolo")
+        result = adapter.sync_runtime_permissions(target, autonomy="yolo")
+
+        assert status["config_valid"] is False
+        assert status["configured_mode"] == "malformed"
+        assert status["config_aligned"] is False
+        assert "malformed" in str(status["message"]).lower()
+        assert result["config_valid"] is False
+        assert result["changed"] is False
+        assert result["sync_applied"] is False
+        assert result["requires_relaunch"] is False
+        assert "malformed" in str(result["warning"]).lower()
+        assert settings_path.read_text(encoding="utf-8") == before
 
 
 class TestUninstall:
@@ -677,6 +769,43 @@ class TestUninstall:
 
         cleaned = json.loads(mcp_config.read_text(encoding="utf-8"))
         assert "gpd-state" not in cleaned["mcpServers"]
+        assert cleaned["mcpServers"] == {"custom-server": {"command": "node", "args": ["custom.js"]}}
+        assert "MCP servers from .mcp.json" in result["removed"]
+
+    def test_local_uninstall_removes_wolfram_mcp_server_from_workspace_mcp_config(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / "workspace" / ".claude"
+        target.mkdir(parents=True)
+        mcp_config = target.parent / ".mcp.json"
+        mcp_config.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        WOLFRAM_MANAGED_SERVER_KEY: {
+                            "command": "python3",
+                            "args": ["-m", "legacy.wolfram"],
+                            "cwd": "/tmp/custom-wolfram",
+                        },
+                        "custom-server": {"command": "node", "args": ["custom.js"]},
+                    }
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "claude-test-key")
+
+        adapter.install(gpd_root, target)
+        result = adapter.uninstall(target)
+
+        cleaned = json.loads(mcp_config.read_text(encoding="utf-8"))
+        assert WOLFRAM_MANAGED_SERVER_KEY not in cleaned["mcpServers"]
         assert cleaned["mcpServers"] == {"custom-server": {"command": "node", "args": ["custom.js"]}}
         assert "MCP servers from .mcp.json" in result["removed"]
 

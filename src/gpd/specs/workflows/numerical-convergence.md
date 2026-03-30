@@ -34,7 +34,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-- **If init succeeds** (non-empty JSON with `state_exists: true`): Extract `convention_lock` for unit system (needed to verify dimensional consistency of benchmarks). Extract active approximations and their validity ranges (informs which convergence tests are most critical). Extract `intermediate_results` for previously computed quantities to validate.
+- **If init succeeds** (non-empty JSON with `state_exists: true`): Extract `convention_lock` for unit system (needed to verify dimensional consistency of benchmarks). Extract active approximations and their validity ranges (informs which convergence tests are most critical). Extract `intermediate_results` for previously computed quantities to validate. If you need to find a canonical prior result first, use `gpd result search`; once a canonical `result_id` is known, use `gpd result show "{result_id}"` for the direct stored-result view before reading supporting artifacts. Keep `gpd query search` for SUMMARY/frontmatter lookup.
 - **If init fails or `state_exists` is false** (standalone usage): Proceed with explicit specification of the computation to validate. The user must provide the unit system and computation details directly.
 
 Convention context is important for numerical validation: unit system determines what "reasonable" values are, and approximation validity ranges determine the expected convergence behavior.

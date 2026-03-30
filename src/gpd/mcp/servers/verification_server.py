@@ -21,8 +21,13 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.contracts import ResearchContract, collect_contract_integrity_errors
+from gpd.contracts import (
+    ResearchContract,
+    collect_plan_contract_integrity_errors,
+    contract_has_explicit_context_intake,
+)
 from gpd.core.contract_validation import (
+    _collect_list_shape_drift_errors,
     _sanitize_contract_scalars,
     _split_project_contract_schema_findings,
     salvage_project_contract,
@@ -626,7 +631,7 @@ _CONTRACT_PAYLOAD_INPUT_SCHEMA: dict[str, object] = _object_schema(
         },
         "uncertainty_markers": dict(_CONTRACT_UNCERTAINTY_MARKERS_INPUT_SCHEMA),
     },
-    required=("scope",),
+    required=("scope", "context_intake"),
     additional_properties=False,
 )
 
@@ -980,75 +985,6 @@ def _schema_branch_for_value(schema_fragment: dict[str, object], value: object) 
         if branch_type == "number" and isinstance(value, (int, float)) and not isinstance(value, bool):
             return branch
     return schema_fragment
-
-
-def _collect_contract_schema_alignment_errors(
-    value: object,
-    schema_fragment: dict[str, object],
-    *,
-    path_prefix: str = "",
-) -> list[str]:
-    schema = _schema_branch_for_value(schema_fragment, value)
-    errors: list[str] = []
-
-    if schema.get("type") == "object" and isinstance(value, dict):
-        properties = schema.get("properties", {})
-        if schema.get("additionalProperties") is False:
-            for key in value:
-                if key in properties:
-                    continue
-                location = f"{path_prefix}.{key}" if path_prefix else str(key)
-                errors.append(f"{location}: Extra inputs are not permitted")
-        for key, child_schema in properties.items():
-            if key not in value or not isinstance(child_schema, dict):
-                continue
-            child_prefix = f"{path_prefix}.{key}" if path_prefix else key
-            if (
-                path_prefix.startswith("observables.")
-                and key in {"regime", "units"}
-                and isinstance(value[key], str)
-                and not value[key].strip()
-            ):
-                errors.append(f"{child_prefix} must be a non-empty string")
-                continue
-            errors.extend(
-                _collect_contract_schema_alignment_errors(
-                    value[key],
-                    child_schema,
-                    path_prefix=child_prefix,
-                )
-            )
-        return errors
-
-    if schema.get("type") == "array" and isinstance(value, list):
-        item_schema = schema.get("items")
-        if not isinstance(item_schema, dict):
-            return errors
-        for index, item in enumerate(value):
-            item_prefix = f"{path_prefix}.{index}" if path_prefix else str(index)
-            errors.extend(
-                _collect_contract_schema_alignment_errors(
-                    item,
-                    item_schema,
-                    path_prefix=item_prefix,
-                )
-            )
-        return errors
-
-    enum_values = schema.get("enum")
-    if isinstance(enum_values, list) and isinstance(value, str) and value not in enum_values:
-        enum_text = ", ".join(str(entry) for entry in enum_values)
-        errors.append(f"{path_prefix} must be one of {enum_text}")
-    return errors
-
-
-def _validate_contract_schema_alignment(contract_raw: dict[str, object]) -> dict[str, object] | None:
-    """Reject contract payload drift that the published closed schema does not advertise."""
-
-    errors = _collect_contract_schema_alignment_errors(contract_raw, _CONTRACT_PAYLOAD_INPUT_SCHEMA)
-    if not errors:
-        return None
-    return _contract_payload_error(errors)
 
 
 def _validate_optional_string(value: object, *, field_name: str) -> tuple[str | None, str | None]:
@@ -2529,10 +2465,21 @@ def _validate_contract_list_members(contract_raw: dict[str, object]) -> dict[str
     return _contract_payload_error(errors)
 
 
-def _validate_contract_integrity(contract: ResearchContract) -> dict[str, object] | None:
-    """Reject semantically ambiguous contracts after structural validation."""
+def _validate_contract_integrity(
+    contract: ResearchContract,
+    *,
+    contract_raw: dict[str, object],
+) -> dict[str, object] | None:
+    """Reject plan-contract semantic mismatches after structural validation."""
 
-    errors = collect_contract_integrity_errors(contract)
+    errors: list[str] = []
+    if "context_intake" not in contract_raw:
+        errors.append("missing context_intake")
+    elif not contract_has_explicit_context_intake(contract):
+        errors.append("context_intake must not be empty")
+    for error in collect_plan_contract_integrity_errors(contract):
+        if error not in errors:
+            errors.append(error)
     if not errors:
         return None
     return _contract_payload_error(errors)
@@ -2548,31 +2495,23 @@ def _parse_contract_payload(contract_raw: dict[str, object]) -> tuple[ResearchCo
     list_member_error = _validate_contract_list_members(contract_raw)
     if list_member_error is not None:
         return None, [], list_member_error
-    schema_alignment_error = _validate_contract_schema_alignment(contract_raw)
-    if schema_alignment_error is not None:
-        return None, [], schema_alignment_error
-    try:
-        contract = ResearchContract.model_validate(contract_raw)
-        integrity_error = _validate_contract_integrity(contract)
-        if integrity_error is not None:
-            return None, [], integrity_error
-        return contract, [], None
-    except PydanticValidationError as exc:
-        contract, salvage_errors = salvage_project_contract(contract_raw)
-        if contract is not None:
-            recoverable, blocking = _split_project_contract_schema_findings(
-                salvage_errors,
-                allow_singleton_defaults=False,
-            )
-            if not blocking:
-                integrity_error = _validate_contract_integrity(contract)
-                if integrity_error is not None:
-                    return None, [], integrity_error
-                return contract, recoverable, None
-            return None, [], _contract_payload_error(blocking)
+    list_shape_drift_errors = _collect_list_shape_drift_errors(contract_raw)
+    contract, salvage_errors = salvage_project_contract(contract_raw)
+    if contract is None:
         if salvage_errors:
             return None, [], _contract_payload_error(salvage_errors)
-        return None, [], _error_result(f"Invalid contract payload: {exc}")
+        return None, [], _error_result("Invalid contract payload")
+    recoverable, blocking = _split_project_contract_schema_findings(
+        salvage_errors,
+        allow_singleton_defaults=False,
+    )
+    if blocking:
+        return None, [], _contract_payload_error(blocking)
+    integrity_error = _validate_contract_integrity(contract, contract_raw=contract_raw)
+    if integrity_error is not None:
+        return None, [], integrity_error
+    salvage_findings = list(dict.fromkeys([*recoverable, *list_shape_drift_errors]))
+    return contract, salvage_findings, None
 
 
 def _validate_benchmark_reference_binding(
@@ -2878,7 +2817,7 @@ def run_contract_check(request: RunContractCheckPayload) -> dict:
     resolution ambiguous, and ``references[].carry_forward_to`` is only for
     workflow scope labels, never contract IDs. contract context must stay consistent with metadata defaults and explicit metadata
     fields, so benchmark anchors, regime labels, and family selections cannot
-    contradict the resolved binding. Limited recoverable structural drift may
+    contradict the resolved binding. For plan-style contract payloads, ``context_intake`` must be present and non-empty, and the contract must satisfy the same plan semantic requirements GPD enforces in plan frontmatter. Limited recoverable structural drift may
     still be salvaged, and any such recovery is surfaced back as structured
     salvage findings.
 
@@ -3344,7 +3283,7 @@ def suggest_contract_checks(contract: SuggestContractPayload, active_checks: Str
     ``references[].carry_forward_to`` is only for workflow scope labels, never
     contract IDs. contract context must stay consistent with metadata defaults and explicit metadata fields, so benchmark anchors,
     regime labels, and family selections cannot contradict the resolved
-    binding. Limited recoverable structural drift may still be salvaged, and
+    binding. For plan-style contract payloads, ``context_intake`` must be present and non-empty, and the contract must satisfy the same plan semantic requirements GPD enforces in plan frontmatter. Limited recoverable structural drift may still be salvaged, and
     any such recovery is carried through the suggestion metadata.
 
     ``active_checks`` is optional and must be ``list[str]`` with non-empty

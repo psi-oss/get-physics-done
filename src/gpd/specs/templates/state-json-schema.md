@@ -30,7 +30,8 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 | `propagated_uncertainties` | `UncertaintyObject[]` | `[]` | Uncertainty propagation tracking | **Authoritative** (JSON-only, from `uncertainty add`) |
 | `pending_todos` | `string[]` | `[]` | Ideas captured via /gpd:add-todo | Synced from todos/ |
 | `blockers` | `string[]` | `[]` | Active blockers/concerns | Synced from STATE.md |
-| `session` | `SessionObject` | see below | Session continuity for resumption | Synced from STATE.md |
+| `continuation` | `ContinuationObject` | see below | Durable canonical continuation authority; compatibility mirrors derive from it | **Authoritative** (JSON-only) |
+| `session` | `SessionObject` | see below | Markdown-compatible compatibility mirror of canonical continuation for STATE.md rendering; not part of the public top-level resume vocabulary | Synced from canonical continuation / STATE.md |
 
 ### Authoritative vs Derived
 
@@ -69,7 +70,7 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
   },
   "context_intake": {
     "must_read_refs": ["Ref-01"],
-    "must_include_prior_outputs": ["GPD/phases/01-setup/01-01-SUMMARY.md"],
+    "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
     "user_asserted_anchors": ["Recover known asymptotic limit from the accepted benchmark curve"],
     "known_good_baselines": ["Baseline derivation in notebook X"],
     "context_gaps": ["Need grounding; decisive target not yet chosen before planning"],
@@ -178,7 +179,7 @@ The `project_contract` value itself must be a JSON object. Do not replace it wit
 
 `schema_version` must be `1`. Unsupported schema versions are invalid.
 
-Approved project contracts must include at least one observable, claim, or deliverable.
+Project contracts must include at least one observable, claim, or deliverable.
 
 `uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty.
 
@@ -205,8 +206,9 @@ If a project-contract reference sets `must_surface: true`, `applies_to[]` must n
 
 Approved-mode grounding is field-specific:
 
-- `must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames, such as `GPD/phases/.../*-SUMMARY.md` or `paper/main.tex`.
-- `user_asserted_anchors[]` and `known_good_baselines[]` should name a concrete benchmark, baseline, reference, notebook, figure, dataset, or comparable anchor phrase. Single-token filler does not count.
+- `must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames that already exist inside the current project root.
+- `user_asserted_anchors[]` and `known_good_baselines[]` should use at least three words and name a concrete benchmark, baseline, reference, paper, notebook, figure, table, dataset, curve, result, derivation, observable, limit, comparison, or comparable anchor phrase. Single-token filler does not count.
+- If a `references[].locator` uses a project-local artifact path instead of an external paper locator, it only counts as approved grounding when the referenced file already exists inside the current project root.
 - `Placeholder`, `TBD`, `TODO`, `unknown`, `unclear`, `none`, `n/a`, and `placeholder` remain non-grounding unless they are part of a genuinely missing-anchor blocker phrase.
 
 #### Approved-Mode Grounding Rule
@@ -462,7 +464,53 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 
 **Written by:** `gpd state record-session`, `/gpd:pause-work`
 
-`session` stores the last session timestamp, advisory machine identity, stop location, and handoff resume file. Keep `resume_file` project-relative when it points inside the repository; `gpd state record-session` normalizes project-local absolute paths back to that form before persisting them. Omitting `--resume-file` preserves the current handoff pointer, while explicit placeholders such as `—`, `None`, or `null` clear it. `gpd init resume` surfaces `session.resume_file` as `execution_resume_file`, may rank it as a non-resumable `session_resume_file` candidate, and compares `hostname`/`platform` with the current machine to emit a non-blocking `machine_change_notice`.
+`session` stores the markdown-compatible session timestamp, advisory machine identity, stop location, and handoff resume file as a compatibility mirror of canonical continuation. Keep `resume_file` project-relative when it points inside the repository; `gpd state record-session` normalizes project-local absolute paths back to that form before persisting them. Omitting `--resume-file` preserves the current handoff pointer, while explicit placeholders such as `—`, `None`, or `null` clear it. `gpd resume` is the public local read-only recovery surface, while `gpd init resume` remains the machine-readable backend. That backend treats `continuation` as primary and only consults nested compatibility projections when canonical bounded-segment or handoff data is missing or incomplete. It also compares `hostname`/`platform` with the current machine to emit a non-blocking `machine_change_notice` that recommends rerunning the installer when runtime-local config may be stale.
+
+`session` remains the markdown-compatible continuity mirror that STATE.md can render directly. The durable JSON-only `continuation` object below is authoritative for machine-readable recovery. State normalization re-derives `session` from canonical continuation. When older projects only have legacy `session` data, GPD may hydrate missing canonical handoff or machine fields from that legacy payload during explicit legacy migration or recovery paths so the project can move forward without losing continuity. Ordinary persistence does not let stale `session` data overwrite populated canonical continuation. `gpd init resume` treats this canonical object first and only falls back to the derived execution head compatibility mirror when the canonical continuation is missing or incomplete, including legacy projects without persisted bounded-segment state. Raw compatibility cues remain nested under `compat_resume_surface` rather than primary resume fields.
+
+### `ContinuationObject`
+
+```json
+{
+  "schema_version": 1,
+  "handoff": {
+    "recorded_at": "2026-03-15T14:30:00.000Z",
+    "stopped_at": "Phase 3, Plan 2, Task 4: MC thermalization",
+    "resume_file": "GPD/phases/03-analysis/.continue-here.md"
+  },
+  "bounded_segment": null,
+  "machine": {
+    "recorded_at": "2026-03-15T14:30:00.000Z",
+    "hostname": "builder-01",
+    "platform": "Linux 6.1 x86_64"
+  }
+}
+```
+
+**Written by:** `gpd state record-session`, `save_state_markdown()`, `save_state_json()`
+
+`continuation` is the durable canonical continuation payload in `state.json`. It is JSON-only and does not render as a separate markdown section. STATE.md and the legacy `session` object are projections of this authority, with one compatibility exception:
+
+- `continuation -> session`: normal state persistence backfills `session` from canonical continuation so STATE.md generation and existing readers stay aligned.
+- `session -> continuation`: allowed only to fill missing canonical handoff or machine fields during explicit legacy migration or recovery. A populated canonical continuation field must not be overwritten by stale `session` data during ordinary normalization, and manual edits to the rendered STATE.md Session Continuity block do not supersede canonical continuation when that authority already exists.
+
+`continuation.handoff` is the canonical handoff block:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `recorded_at` | `string \| null` | Timestamp of the recorded handoff |
+| `stopped_at` | `string \| null` | Human-readable stop location |
+| `resume_file` | `string \| null` | Project-relative handoff artifact when available |
+
+`state.json.continuation.bounded_segment` is the durable authoritative bounded-segment state stored in `state.json`. When present, it is the canonical bounded-segment resume source. The live execution head is derived from execution lineage and may be mirrored into `GPD/observability/current-execution.json` for compatibility, but that mirror does not replace the persisted canonical state. When the canonical continuation is missing or incomplete, `gpd init resume` may project a bounded-segment candidate from that compatibility mirror for legacy recovery only. The mirror is advisory; it is not a second authority. Nested compatibility aliases stay subordinate to the canonical bounded-segment fields.
+
+`continuation.machine` is the canonical recorded machine state:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `recorded_at` | `string \| null` | Timestamp when the machine identity was recorded |
+| `hostname` | `string \| null` | Advisory host identity from the last session |
+| `platform` | `string \| null` | Advisory platform string from the last session |
 
 ---
 
@@ -517,4 +565,4 @@ For position/decisions/blockers: STATE.md is the primary edit surface; state.jso
 | **gpd-consistency-checker** | `convention_lock`, `intermediate_results` | (reads only) |
 | **gpd-notation-coordinator** | `convention_lock` | `convention set` |
 | **gpd-paper-writer** | `convention_lock`, `intermediate_results`, `decisions` | (reads only) |
-| **Orchestrators** | `position`, `session` | `state update`, `state patch`, `state advance`, `state record-session`, `state record-metric` |
+| **Orchestrators** | `position`, `continuation`, `session` | `state update`, `state patch`, `state advance`, `state record-session`, `state record-metric` |

@@ -17,6 +17,8 @@ def test_verifier_prompt_points_to_canonical_verification_schema_sources() -> No
     assert "`@{GPD_INSTALL_DIR}/templates/verification-report.md` is the canonical `VERIFICATION.md` frontmatter/body surface." in verifier
     assert "`@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` is the canonical source of truth for `plan_contract_ref`, `contract_results`, `comparison_verdicts`, and verification-side `suggested_contract_checks`." in verifier
     assert "Do not invent a verifier-local schema, relax required ledgers, or treat body prose as a substitute for frontmatter consumed by validation and downstream tooling." in verifier
+    assert "include a machine-readable `ASSERT_CONVENTION` comment immediately after the YAML frontmatter in `VERIFICATION.md`." in verifier
+    assert "Changed phase verification artifacts now fail `gpd pre-commit-check` if the required header is missing or mismatched." in verifier
     assert "@{GPD_INSTALL_DIR}/templates/verification-report.md" in verifier_lines
     assert "@{GPD_INSTALL_DIR}/templates/contract-results-schema.md" in verifier_lines
 
@@ -50,5 +52,6 @@ def test_verifier_prompt_frontmatter_example_includes_contract_ledgers() -> None
     assert "comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other" in verifier
     assert "weakest_anchors: [anchor-1]" in verifier
     assert "disconfirming_observations: [observation-1]" in verifier
+    assert "<!-- ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-minus, fourier_convention=physics -->" in verifier
     assert "weakest_anchors: []" not in verifier
     assert "disconfirming_observations: []" not in verifier

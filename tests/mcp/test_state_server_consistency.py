@@ -1,133 +1,87 @@
-"""Consistency test: all state_server MCP tools must have error handling."""
-import ast
+"""Behavioral consistency checks for the state MCP server."""
+
+from __future__ import annotations
+
 import json
 from pathlib import Path
 
+import anyio
+import pytest
+
+from gpd.core.errors import GPDError
 from gpd.core.state import default_state_dict
-from gpd.mcp.servers.state_server import get_progress
+from gpd.mcp.servers.state_server import (
+    advance_plan,
+    get_config,
+    get_phase_info,
+    get_progress,
+    get_state,
+    mcp,
+    run_health_check,
+    validate_state,
+)
 
 
-def _get_except_handler_names(handler: ast.ExceptHandler) -> set[str]:
-    """Extract exception class names from an except handler.
-
-    Handles both single exceptions (``except FooError``) and tuples
-    (``except (FooError, BarError)``).
-    """
-    names: set[str] = set()
-    if handler.type is None:
-        # bare except — catches everything
-        return {"*"}
-    if isinstance(handler.type, ast.Name):
-        names.add(handler.type.id)
-    elif isinstance(handler.type, ast.Tuple):
-        for elt in handler.type.elts:
-            if isinstance(elt, ast.Name):
-                names.add(elt.id)
-    return names
+async def _tool_names() -> list[str]:
+    tools = await mcp.list_tools()
+    return [tool.name for tool in tools]
 
 
-def _is_mcp_tool_decorator(node: ast.expr) -> bool:
-    """Return True if *node* represents ``@mcp.tool()``."""
-    # @mcp.tool()  ->  Call(func=Attribute(value=Name(id='mcp'), attr='tool'))
-    if isinstance(node, ast.Call):
-        func = node.func
-        if (
-            isinstance(func, ast.Attribute)
-            and isinstance(func.value, ast.Name)
-            and func.value.id == "mcp"
-            and func.attr == "tool"
-        ):
-            return True
-    return False
+def test_state_server_exposes_expected_tool_names() -> None:
+    names = anyio.run(_tool_names)
+
+    assert {
+        "get_state",
+        "get_phase_info",
+        "advance_plan",
+        "get_progress",
+        "validate_state",
+        "run_health_check",
+        "get_config",
+    } <= set(names)
 
 
-REQUIRED_EXCEPTIONS = {"GPDError", "OSError", "ValueError"}
+@pytest.mark.parametrize(
+    ("tool_fn", "kwargs"),
+    [
+        (get_state, {"project_dir": "relative/project"}),
+        (get_phase_info, {"project_dir": "relative/project", "phase": "01"}),
+        (advance_plan, {"project_dir": "relative/project"}),
+        (get_progress, {"project_dir": "relative/project"}),
+        (validate_state, {"project_dir": "relative/project"}),
+        (run_health_check, {"project_dir": "relative/project", "fix": False}),
+        (get_config, {"project_dir": "relative/project"}),
+    ],
+)
+def test_state_server_tools_reject_non_absolute_project_dirs(tool_fn, kwargs: dict[str, object]) -> None:
+    result = tool_fn(**kwargs)
+
+    assert result == {"error": "project_dir must be an absolute path", "schema_version": 1}
 
 
-def test_all_state_server_tools_have_error_handling():
-    """Every @mcp.tool() in state_server.py must catch GPDError, OSError, ValueError."""
-    source_path = (
-        Path(__file__).resolve().parents[2]
-        / "src"
-        / "gpd"
-        / "mcp"
-        / "servers"
-        / "state_server.py"
-    )
-    source = source_path.read_text()
-    tree = ast.parse(source, filename=str(source_path))
-
-    tool_functions: list[ast.FunctionDef] = []
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            for deco in node.decorator_list:
-                if _is_mcp_tool_decorator(deco):
-                    tool_functions.append(node)
-                    break
-
-    # Sanity: the server must expose at least one tool
-    assert tool_functions, "No @mcp.tool() functions found — parser may be broken"
-
-    missing_try: list[str] = []
-    missing_exceptions: dict[str, set[str]] = {}
-
-    for func in tool_functions:
-        # Look for at least one Try node anywhere in the function body
-        try_nodes = [n for n in ast.walk(func) if isinstance(n, ast.Try)]
-        if not try_nodes:
-            missing_try.append(func.name)
-            continue
-
-        # Collect all exception names caught across every handler in every
-        # try/except inside the function.
-        caught: set[str] = set()
-        for try_node in try_nodes:
-            for handler in try_node.handlers:
-                caught |= _get_except_handler_names(handler)
-
-        missing = REQUIRED_EXCEPTIONS - caught
-        if missing:
-            missing_exceptions[func.name] = missing
-
-    errors: list[str] = []
-    for name in missing_try:
-        errors.append(f"  {name}(): missing try/except entirely")
-    for name, missing in sorted(missing_exceptions.items()):
-        errors.append(
-            f"  {name}(): except handler does not catch {', '.join(sorted(missing))}"
-        )
-
-    assert not errors, (
-        "MCP tool functions in state_server.py lack required error handling:\n"
-        + "\n".join(errors)
+@pytest.mark.parametrize(
+    ("tool_fn", "patch_target", "kwargs"),
+    [
+        (get_state, "gpd.mcp.servers.state_server.load_state_json", {"project_dir": "/tmp/fake"}),
+        (get_phase_info, "gpd.core.phases.find_phase", {"project_dir": "/tmp/fake", "phase": "01"}),
+        (advance_plan, "gpd.mcp.servers.state_server.state_advance_plan", {"project_dir": "/tmp/fake"}),
+        (get_progress, "gpd.mcp.servers.state_server.progress_render", {"project_dir": "/tmp/fake"}),
+        (validate_state, "gpd.mcp.servers.state_server.state_validate", {"project_dir": "/tmp/fake"}),
+        (run_health_check, "gpd.mcp.servers.state_server.run_health", {"project_dir": "/tmp/fake", "fix": False}),
+        (get_config, "gpd.mcp.servers.state_server.load_config", {"project_dir": "/tmp/fake"}),
+    ],
+)
+@pytest.mark.parametrize("error_factory", [lambda: GPDError("boom"), lambda: OSError("missing"), lambda: ValueError("bad")])
+def test_state_server_tools_return_stable_error_envelopes(tool_fn, patch_target: str, kwargs: dict[str, object], error_factory, monkeypatch) -> None:
+    monkeypatch.setattr(
+        patch_target,
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(error_factory()),
     )
 
+    result = tool_fn(**kwargs)
 
-def test_state_server_has_expected_tool_count():
-    """Guard against accidentally removing tools — expect at least 7."""
-    source_path = (
-        Path(__file__).resolve().parents[2]
-        / "src"
-        / "gpd"
-        / "mcp"
-        / "servers"
-        / "state_server.py"
-    )
-    source = source_path.read_text()
-    tree = ast.parse(source, filename=str(source_path))
-
-    tool_count = 0
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            for deco in node.decorator_list:
-                if _is_mcp_tool_decorator(deco):
-                    tool_count += 1
-                    break
-
-    assert tool_count >= 7, (
-        f"Expected at least 7 @mcp.tool() functions, found {tool_count}. "
-        "Was a tool accidentally removed?"
-    )
+    assert result["schema_version"] == 1
+    assert result["error"] in {"boom", "missing", "bad"}
 
 
 def test_get_progress_does_not_mutate_checkpoint_shelf_artifacts(tmp_path: Path) -> None:
