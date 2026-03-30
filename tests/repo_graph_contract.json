@@ -17,11 +17,11 @@
     "dist"
   ],
   "scope_counts": {
-    "`src/gpd/commands/*.md`": 64,
+    "`src/gpd/commands/*.md`": 65,
     "`src/gpd/agents/*.md`": 23,
-    "`src/gpd/specs/workflows/*.md`": 65,
+    "`src/gpd/specs/workflows/*.md`": 66,
     "`src/gpd/specs/templates/**/*.md`": 71,
-    "`src/gpd/specs/references/**/*.md`": 160,
+    "`src/gpd/specs/references/**/*.md`": 161,
     "`src/gpd/adapters/*.py`": 9,
     "`src/gpd/hooks/*.py`": 10,
     "`src/gpd/mcp/servers/*.py`": 8,
