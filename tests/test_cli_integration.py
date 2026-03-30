@@ -470,6 +470,46 @@ def test_result_persist_derived_bridge_seeds_canonical_continuity_for_later_reco
     segment_resume = planning / "phases" / "01-test-phase" / ".continue-here.md"
     segment_resume.parent.mkdir(parents=True, exist_ok=True)
     segment_resume.write_text("resume\n", encoding="utf-8")
+    _write_live_execution_caches(
+        planning,
+        current_execution={
+            "session_id": "sess-live",
+            "phase": "01",
+            "plan": "01",
+            "segment_id": "seg-test",
+            "segment_status": "paused",
+            "resume_file": "GPD/phases/01-test-phase/.continue-here.md",
+            "last_result_id": "R-stale",
+            "last_result_label": "Stale label",
+            "updated_at": "2026-03-10T12:00:00+00:00",
+        },
+        execution_head={
+            "schema_version": 1,
+            "reducer_version": "1",
+            "last_applied_seq": 17,
+            "last_applied_event_id": "evt-17",
+            "recorded_at": "2026-03-10T12:00:00+00:00",
+            "execution": {
+                "session_id": "sess-live",
+                "phase": "01",
+                "plan": "01",
+                "segment_id": "seg-test",
+                "segment_status": "paused",
+                "resume_file": "GPD/phases/01-test-phase/.continue-here.md",
+                "last_result_id": "R-stale",
+                "last_result_label": "Stale label",
+                "updated_at": "2026-03-10T12:00:00+00:00",
+            },
+            "bounded_segment": {
+                "resume_file": "GPD/phases/01-test-phase/.continue-here.md",
+                "phase": "01",
+                "plan": "01",
+                "segment_id": "seg-test",
+                "segment_status": "paused",
+                "last_result_id": "R-stale",
+            },
+        },
+    )
 
     result = _invoke_result_persist_derived_bridge(
         gpd_project,
@@ -521,8 +561,169 @@ def test_result_persist_derived_bridge_seeds_canonical_continuity_for_later_reco
     reread = json.loads(state_path.read_text(encoding="utf-8"))
     assert reread["session"]["last_result_id"] == "R-01"
     assert reread["continuation"]["handoff"]["last_result_id"] == "R-01"
+    current_execution = json.loads((planning / "observability" / "current-execution.json").read_text(encoding="utf-8"))
+    assert current_execution["last_result_id"] == "R-01"
+    assert current_execution["last_result_label"] == "Canonical description"
+    assert current_execution["updated_at"] == "2026-03-10T12:00:00+00:00"
+    execution_head = json.loads((planning / "lineage" / "execution-head.json").read_text(encoding="utf-8"))
+    assert execution_head["last_applied_seq"] == 17
+    assert execution_head["last_applied_event_id"] == "evt-17"
+    assert execution_head["recorded_at"] == "2026-03-10T12:00:00+00:00"
+    assert execution_head["execution"]["last_result_id"] == "R-01"
+    assert execution_head["execution"]["last_result_label"] == "Canonical description"
     state_md = (planning / "STATE.md").read_text(encoding="utf-8")
     assert "**Last result ID:** R-01" in state_md
+
+
+def test_result_persist_derived_bridge_does_not_fabricate_live_execution_caches_without_existing_live_lane(
+    gpd_project: Path,
+) -> None:
+    planning = gpd_project / "GPD"
+    state_path = planning / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["intermediate_results"] = [
+        {
+            "id": "R-01",
+            "equation": "E = mc^2",
+            "description": "Original description",
+            "phase": "01",
+            "depends_on": [],
+            "verified": False,
+            "verification_records": [],
+        }
+    ]
+    state["continuation"]["bounded_segment"] = {
+        "resume_file": "GPD/phases/01-test-phase/.continue-here.md",
+        "phase": "01",
+        "plan": "01",
+        "segment_id": "seg-test",
+        "segment_status": "paused",
+    }
+    state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    segment_resume = planning / "phases" / "01-test-phase" / ".continue-here.md"
+    segment_resume.parent.mkdir(parents=True, exist_ok=True)
+    segment_resume.write_text("resume\n", encoding="utf-8")
+
+    result = _invoke_result_persist_derived_bridge(
+        gpd_project,
+        "--id",
+        "R-new",
+        "--equation",
+        "E=mc^2",
+        "--description",
+        "Canonical description",
+        "--phase",
+        "01",
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["result_id"] == "R-01"
+    assert payload["continuity_last_result_id"] == "R-01"
+    assert payload["continuity_recorded"] is True
+    assert not (planning / "observability" / "current-execution.json").exists()
+    assert not (planning / "lineage" / "execution-head.json").exists()
+
+
+def test_result_persist_derived_bridge_leaves_conflicting_live_execution_caches_unchanged(
+    gpd_project: Path,
+) -> None:
+    planning = gpd_project / "GPD"
+    state_path = planning / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["intermediate_results"] = [
+        {
+            "id": "R-01",
+            "equation": "E = mc^2",
+            "description": "Original description",
+            "phase": "01",
+            "depends_on": [],
+            "verified": False,
+            "verification_records": [],
+        }
+    ]
+    state["continuation"]["bounded_segment"] = {
+        "resume_file": "GPD/phases/01-test-phase/.continue-here.md",
+        "phase": "01",
+        "plan": "01",
+        "segment_id": "seg-test",
+        "segment_status": "paused",
+    }
+    state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    segment_resume = planning / "phases" / "01-test-phase" / ".continue-here.md"
+    segment_resume.parent.mkdir(parents=True, exist_ok=True)
+    segment_resume.write_text("resume\n", encoding="utf-8")
+    _write_live_execution_caches(
+        planning,
+        current_execution={
+            "session_id": "sess-overlay",
+            "phase": "01",
+            "plan": "01",
+            "segment_id": "seg-overlay",
+            "segment_status": "paused",
+            "resume_file": "GPD/phases/01-test-phase/overlay.md",
+            "last_result_id": "R-stale",
+            "last_result_label": "Stale label",
+            "updated_at": "2026-03-10T12:00:00+00:00",
+        },
+        execution_head={
+            "schema_version": 1,
+            "reducer_version": "1",
+            "last_applied_seq": 17,
+            "last_applied_event_id": "evt-17",
+            "recorded_at": "2026-03-10T12:00:00+00:00",
+            "execution": {
+                "session_id": "sess-overlay",
+                "phase": "01",
+                "plan": "01",
+                "segment_id": "seg-overlay",
+                "segment_status": "paused",
+                "resume_file": "GPD/phases/01-test-phase/overlay.md",
+                "last_result_id": "R-stale",
+                "last_result_label": "Stale label",
+                "updated_at": "2026-03-10T12:00:00+00:00",
+            },
+            "bounded_segment": {
+                "resume_file": "GPD/phases/01-test-phase/overlay.md",
+                "phase": "01",
+                "plan": "01",
+                "segment_id": "seg-overlay",
+                "segment_status": "paused",
+                "last_result_id": "R-stale",
+            },
+        },
+    )
+
+    result = _invoke_result_persist_derived_bridge(
+        gpd_project,
+        "--id",
+        "R-new",
+        "--equation",
+        "E=mc^2",
+        "--description",
+        "Canonical description",
+        "--phase",
+        "01",
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["result_id"] == "R-01"
+    assert payload["continuity_last_result_id"] == "R-01"
+
+    current_execution = json.loads((planning / "observability" / "current-execution.json").read_text(encoding="utf-8"))
+    assert current_execution["resume_file"] == "GPD/phases/01-test-phase/overlay.md"
+    assert current_execution["segment_id"] == "seg-overlay"
+    assert current_execution["last_result_id"] == "R-stale"
+    assert current_execution["last_result_label"] == "Stale label"
+
+    execution_head = json.loads((planning / "lineage" / "execution-head.json").read_text(encoding="utf-8"))
+    assert execution_head["execution"]["resume_file"] == "GPD/phases/01-test-phase/overlay.md"
+    assert execution_head["execution"]["segment_id"] == "seg-overlay"
+    assert execution_head["execution"]["last_result_id"] == "R-stale"
+    assert execution_head["execution"]["last_result_label"] == "Stale label"
+    assert execution_head["last_applied_seq"] == 17
+    assert execution_head["last_applied_event_id"] == "evt-17"
 
 
 def test_result_persist_derived_bridge_surfaces_persisted_result_in_init_progress(gpd_project: Path) -> None:
@@ -869,6 +1070,28 @@ def _invoke_result_persist_derived_bridge(cwd: Path, *args: str) -> object:
         ["--raw", "--cwd", str(cwd), "result", "persist-derived", *args],
         catch_exceptions=False,
     )
+
+
+def _write_live_execution_caches(
+    planning: Path,
+    *,
+    current_execution: dict[str, object] | None = None,
+    execution_head: dict[str, object] | None = None,
+) -> None:
+    observability = planning / "observability"
+    lineage = planning / "lineage"
+    observability.mkdir(parents=True, exist_ok=True)
+    lineage.mkdir(parents=True, exist_ok=True)
+    if current_execution is not None:
+        (observability / "current-execution.json").write_text(
+            json.dumps(current_execution, indent=2),
+            encoding="utf-8",
+        )
+    if execution_head is not None:
+        (lineage / "execution-head.json").write_text(
+            json.dumps(execution_head, indent=2),
+            encoding="utf-8",
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════

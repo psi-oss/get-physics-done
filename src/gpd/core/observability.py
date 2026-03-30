@@ -72,6 +72,7 @@ __all__ = [
     "record_event",
     "resolve_project_root",
     "show_events",
+    "sync_execution_visibility_from_canonical_continuation",
 ]
 
 
@@ -419,6 +420,21 @@ def _normalized_execution_snapshot(snapshot: CurrentExecutionState | None) -> di
     return snapshot.model_dump(mode="json")
 
 
+def _phase_like_or_none(value: object) -> str | None:
+    if isinstance(value, int):
+        return phase_normalize(str(value))
+    if isinstance(value, str):
+        stripped = value.strip()
+        return phase_normalize(stripped) if stripped else None
+    return None
+
+
+def _execution_identity_value(field_name: str, value: object) -> str | None:
+    if field_name in {"phase", "plan"}:
+        return _phase_like_or_none(value)
+    return _str_or_none(value)
+
+
 def _existing_current_execution_snapshot(layout: ProjectLayout) -> CurrentExecutionState | None:
     head_raw = _read_json(layout.execution_lineage_head)
     if head_raw is not None:
@@ -444,9 +460,9 @@ def _existing_current_execution_snapshot(layout: ProjectLayout) -> CurrentExecut
 
 def _execution_lane_field_value(payload: object, field: str) -> str | None:
     if isinstance(payload, dict):
-        return _str_or_none(payload.get(field))
+        return _execution_identity_value(field, payload.get(field))
     if hasattr(payload, field):
-        return _str_or_none(getattr(payload, field))
+        return _execution_identity_value(field, getattr(payload, field))
     return None
 
 
@@ -519,36 +535,33 @@ def _sync_execution_visibility_anchors_from_canonical_continuation(
     if canonical_last_result_id is None:
         return False
     canonical_result = _canonical_result_payload(state_obj, canonical_last_result_id)
-    if canonical_result is None:
-        return False
 
     current_snapshot: CurrentExecutionState | None = None
     current_raw: dict[str, object] | None = None
     if current_exists:
         current_raw = _read_current_execution_raw(layout)
-        if current_raw is None:
-            return False
-        try:
-            current_snapshot = CurrentExecutionState.model_validate(current_raw)
-        except Exception:
-            return False
+        if isinstance(current_raw, dict):
+            try:
+                current_snapshot = CurrentExecutionState.model_validate(current_raw)
+            except Exception:
+                current_snapshot = None
 
     head_snapshot: CurrentExecutionState | None = None
     head_payload: ExecutionLineageHead | None = None
+    head_raw: dict[str, object] | None = None
     if head_exists:
         head_raw = _read_json(layout.execution_lineage_head)
-        if head_raw is None:
-            return False
-        try:
-            head_payload = ExecutionLineageHead.model_validate(head_raw)
-        except Exception:
-            return False
-        if not isinstance(head_payload.execution, dict):
-            return False
-        try:
-            head_snapshot = CurrentExecutionState.model_validate(head_payload.execution)
-        except Exception:
-            return False
+        if isinstance(head_raw, dict):
+            try:
+                head_payload = ExecutionLineageHead.model_validate(head_raw)
+            except Exception:
+                head_payload = None
+            else:
+                if isinstance(head_payload.execution, dict):
+                    try:
+                        head_snapshot = CurrentExecutionState.model_validate(head_payload.execution)
+                    except Exception:
+                        head_snapshot = None
 
     live_snapshot = head_snapshot or current_snapshot
     if live_snapshot is None:
@@ -565,33 +578,66 @@ def _sync_execution_visibility_anchors_from_canonical_continuation(
     }
     updated_snapshot = live_snapshot.model_copy(update=updated_fields)
     wrote = False
+    lock_target = layout.execution_lineage_head if head_exists else layout.current_observability_execution
 
-    if current_snapshot is not None:
-        current_updated = (
-            updated_snapshot if head_payload is not None else current_snapshot.model_copy(update=updated_fields)
-        )
-        if current_exists and current_raw != current_updated.model_dump(mode="json"):
-            _save_current_execution(layout, current_updated)
-            wrote = True
-    elif current_exists:
-        _save_current_execution(layout, updated_snapshot)
-        wrote = True
+    with file_lock(lock_target):
+        if current_exists:
+            current_updated = (
+                updated_snapshot if head_snapshot is not None else current_snapshot.model_copy(update=updated_fields)
+                if current_snapshot is not None
+                else updated_snapshot
+            )
+            if current_raw != current_updated.model_dump(mode="json"):
+                _save_current_execution(layout, current_updated)
+                wrote = True
 
-    if head_payload is not None:
-        updated_bounded_segment = (
-            head_payload.bounded_segment.model_copy(update={"last_result_id": canonical_last_result_id})
-            if head_payload.bounded_segment is not None
-            else None
-        )
-        updated_head = head_payload.model_copy(
-            update={
-                "execution": updated_snapshot.model_dump(mode="json"),
-                "bounded_segment": updated_bounded_segment,
-            }
-        )
-        if head_exists and updated_head.model_dump(mode="json") != _read_json(layout.execution_lineage_head):
-            write_execution_lineage_head(layout.root, updated_head)
-            wrote = True
+        if head_exists:
+            head_bounded_segment = None
+            if head_payload is not None and head_payload.bounded_segment is not None:
+                head_bounded_segment = head_payload.bounded_segment.model_copy(
+                    update={"last_result_id": canonical_last_result_id}
+                )
+            elif isinstance(head_raw, dict) and isinstance(head_raw.get("bounded_segment"), dict):
+                head_bounded_segment = {
+                    **head_raw["bounded_segment"],
+                    "last_result_id": canonical_last_result_id,
+                }
+
+            next_head = project_execution_lineage_head(
+                updated_snapshot.model_dump(mode="json"),
+                bounded_segment=head_bounded_segment,
+                last_applied_seq=(
+                    head_payload.last_applied_seq
+                    if head_payload is not None
+                    else head_raw.get("last_applied_seq")
+                    if isinstance(head_raw, dict)
+                    else None
+                ),
+                last_applied_event_id=(
+                    head_payload.last_applied_event_id
+                    if head_payload is not None
+                    else head_raw.get("last_applied_event_id")
+                    if isinstance(head_raw, dict)
+                    else None
+                ),
+                recorded_at=(
+                    head_payload.recorded_at
+                    if head_payload is not None
+                    else head_raw.get("recorded_at")
+                    if isinstance(head_raw, dict)
+                    else None
+                ),
+                reducer_version=(
+                    head_payload.reducer_version
+                    if head_payload is not None
+                    else head_raw.get("reducer_version")
+                    if isinstance(head_raw, dict)
+                    else None
+                ),
+            )
+            if not isinstance(head_raw, dict) or head_raw != next_head.model_dump(mode="json"):
+                write_execution_lineage_head(layout.root, next_head)
+                wrote = True
 
     return wrote
 
@@ -672,9 +718,6 @@ def get_current_execution(cwd: Path | None = None) -> CurrentExecutionState | No
     layout = _layout(cwd)
     if layout is None:
         return None
-    if layout.current_observability_execution.exists() or layout.execution_lineage_head.exists():
-        _sync_execution_visibility_anchors_from_canonical_continuation(layout)
-        return _existing_current_execution_snapshot(layout)
     return _current_execution_snapshot(layout)
 
 

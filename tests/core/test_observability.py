@@ -22,6 +22,29 @@ def _read_state_json(project: Path) -> dict[str, object]:
     return json.loads((project / "GPD" / "state.json").read_text(encoding="utf-8"))
 
 
+def _write_json(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _observability_sync_helper():
+    import gpd.core.observability as observability
+
+    for helper_name in (
+        "sync_execution_visibility_from_canonical_continuation",
+        "sync_current_execution_from_canonical_continuation",
+        "sync_current_execution_visibility_from_canonical_continuation",
+        "sync_live_execution_visibility_from_canonical_continuation",
+        "sync_execution_visibility_cache_from_continuation",
+        "sync_execution_cache_from_canonical_continuation",
+        "_sync_execution_visibility_from_canonical_continuation",
+    ):
+        helper = getattr(observability, helper_name, None)
+        if callable(helper):
+            return helper
+    raise AssertionError("Expected a canonical-continuation observability sync helper to be available")
+
+
 def _iso_minutes_ago(minutes: int) -> str:
     return (datetime.now(UTC) - timedelta(minutes=minutes)).isoformat()
 
@@ -308,6 +331,250 @@ def test_execution_events_clear_durable_bounded_segment_when_execution_becomes_n
     assert get_current_execution(project) is None
     state = _read_state_json(project)
     assert state["continuation"]["bounded_segment"] is None
+
+
+def test_sync_execution_visibility_from_canonical_continuation_updates_live_caches_and_preserves_provenance(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    resume_file = project / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("", encoding="utf-8")
+
+    state = {
+        "intermediate_results": [
+            {
+                "id": "R-canonical",
+                "equation": "F = ma",
+                "description": "Canonical benchmark reproduction",
+                "phase": "03",
+            }
+        ],
+        "continuation": {
+            "handoff": {"last_result_id": "R-canonical"},
+            "bounded_segment": {
+                "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+                "phase": "03",
+                "plan": "01",
+                "segment_id": "seg-7",
+                "segment_status": "paused",
+                "transition_id": "transition-7",
+                "last_result_id": "R-canonical",
+                "updated_at": "2026-03-29T12:00:00+00:00",
+                "source_session_id": "sess-7",
+                "recorded_by": "state_record_session",
+            },
+        },
+    }
+    _write_json(project / "GPD" / "state.json", state)
+
+    current_execution = {
+        "session_id": "sess-live",
+        "phase": "03",
+        "plan": "01",
+        "segment_id": "seg-7",
+        "segment_status": "paused",
+        "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        "transition_id": "transition-7",
+        "current_task": "Keep working",
+        "last_result_id": "R-old",
+        "last_result_label": "Old label",
+        "updated_at": "2026-03-29T12:05:00+00:00",
+    }
+    observability_dir = project / "GPD" / "observability"
+    _write_json(observability_dir / "current-execution.json", current_execution)
+
+    head = {
+        "execution": {
+            **current_execution,
+            "last_result_id": "R-old",
+            "last_result_label": "Old label",
+        },
+        "bounded_segment": {
+            "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+            "phase": "03",
+            "plan": "01",
+            "segment_id": "seg-7",
+            "segment_status": "paused",
+            "transition_id": "transition-7",
+            "last_result_id": "R-old",
+            "updated_at": "2026-03-29T12:05:00+00:00",
+        },
+        "last_applied_seq": 11,
+        "last_applied_event_id": "evt-head-11",
+        "recorded_at": "2026-03-29T12:05:00+00:00",
+    }
+    from gpd.core.execution_lineage import project_execution_lineage_head, write_execution_lineage_head
+
+    write_execution_lineage_head(
+        project,
+        project_execution_lineage_head(
+            head["execution"],
+            bounded_segment=head["bounded_segment"],
+            last_applied_seq=head["last_applied_seq"],
+            last_applied_event_id=head["last_applied_event_id"],
+            recorded_at=head["recorded_at"],
+        ),
+    )
+
+    from gpd.core.observability import get_current_execution
+
+    _observability_sync_helper()(project)
+
+    reloaded_current = json.loads((observability_dir / "current-execution.json").read_text(encoding="utf-8"))
+    reloaded_head = json.loads((project / "GPD" / "lineage" / "execution-head.json").read_text(encoding="utf-8"))
+    snapshot = get_current_execution(project)
+
+    assert reloaded_current["last_result_id"] == "R-canonical"
+    assert reloaded_current["last_result_label"] == "Canonical benchmark reproduction"
+    assert reloaded_current["updated_at"] == "2026-03-29T12:05:00+00:00"
+    assert reloaded_current["segment_id"] == "seg-7"
+    assert reloaded_current["transition_id"] == "transition-7"
+
+    assert reloaded_head["execution"]["last_result_id"] == "R-canonical"
+    assert reloaded_head["execution"]["last_result_label"] == "Canonical benchmark reproduction"
+    assert reloaded_head["execution"]["updated_at"] == "2026-03-29T12:05:00+00:00"
+    assert reloaded_head["bounded_segment"]["last_result_id"] == "R-canonical"
+    assert reloaded_head["last_applied_seq"] == 11
+    assert reloaded_head["last_applied_event_id"] == "evt-head-11"
+    assert reloaded_head["recorded_at"] == "2026-03-29T12:05:00+00:00"
+
+    assert snapshot is not None
+    assert snapshot.last_result_id == "R-canonical"
+    assert snapshot.last_result_label == "Canonical benchmark reproduction"
+
+
+def test_sync_execution_visibility_from_canonical_continuation_noops_without_live_execution(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    resume_file = project / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("", encoding="utf-8")
+
+    _write_json(
+        project / "GPD" / "state.json",
+        {
+            "intermediate_results": [
+                {
+                    "id": "R-canonical",
+                    "equation": "F = ma",
+                    "description": "Canonical benchmark reproduction",
+                    "phase": "03",
+                }
+            ],
+            "continuation": {
+                "handoff": {"last_result_id": "R-canonical"},
+                "bounded_segment": {
+                    "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+                    "phase": "03",
+                    "plan": "01",
+                    "segment_id": "seg-7",
+                    "segment_status": "paused",
+                    "transition_id": "transition-7",
+                    "last_result_id": "R-canonical",
+                    "updated_at": "2026-03-29T12:00:00+00:00",
+                },
+            },
+        },
+    )
+
+    _observability_sync_helper()(project)
+
+    observability_dir = project / "GPD" / "observability"
+    assert not (observability_dir / "current-execution.json").exists()
+    assert not (project / "GPD" / "lineage" / "execution-head.json").exists()
+
+
+def test_sync_execution_visibility_from_canonical_continuation_noops_on_conflicting_lane_identity(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    resume_file = project / "GPD" / "phases" / "03-analysis" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("", encoding="utf-8")
+
+    _write_json(
+        project / "GPD" / "state.json",
+        {
+            "intermediate_results": [
+                {
+                    "id": "R-canonical",
+                    "equation": "F = ma",
+                    "description": "Canonical benchmark reproduction",
+                    "phase": "03",
+                }
+            ],
+            "continuation": {
+                "handoff": {"last_result_id": "R-canonical"},
+                "bounded_segment": {
+                    "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+                    "phase": "03",
+                    "plan": "01",
+                    "segment_id": "seg-7",
+                    "segment_status": "paused",
+                    "transition_id": "transition-7",
+                    "last_result_id": "R-canonical",
+                    "updated_at": "2026-03-29T12:00:00+00:00",
+                },
+            },
+        },
+    )
+
+    observability_dir = project / "GPD" / "observability"
+    stale_current_execution = {
+        "session_id": "sess-live",
+        "phase": "03",
+        "plan": "01",
+        "segment_id": "seg-other",
+        "segment_status": "paused",
+        "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+        "transition_id": "transition-7",
+        "current_task": "Keep working",
+        "last_result_id": "R-old",
+        "last_result_label": "Old label",
+        "updated_at": "2026-03-29T12:05:00+00:00",
+    }
+    _write_json(observability_dir / "current-execution.json", stale_current_execution)
+
+    from gpd.core.execution_lineage import project_execution_lineage_head, write_execution_lineage_head
+
+    write_execution_lineage_head(
+        project,
+        project_execution_lineage_head(
+            stale_current_execution,
+            bounded_segment={
+                "resume_file": "GPD/phases/03-analysis/.continue-here.md",
+                "phase": "03",
+                "plan": "01",
+                "segment_id": "seg-other",
+                "segment_status": "paused",
+                "transition_id": "transition-7",
+                "last_result_id": "R-old",
+                "updated_at": "2026-03-29T12:05:00+00:00",
+            },
+            last_applied_seq=11,
+            last_applied_event_id="evt-head-11",
+            recorded_at="2026-03-29T12:05:00+00:00",
+        ),
+    )
+
+    before_current = json.loads((observability_dir / "current-execution.json").read_text(encoding="utf-8"))
+    before_head = json.loads((project / "GPD" / "lineage" / "execution-head.json").read_text(encoding="utf-8"))
+
+    _observability_sync_helper()(project)
+
+    after_current = json.loads((observability_dir / "current-execution.json").read_text(encoding="utf-8"))
+    after_head = json.loads((project / "GPD" / "lineage" / "execution-head.json").read_text(encoding="utf-8"))
+
+    assert after_current == before_current
+    assert after_head == before_head
 
 
 def test_derive_execution_visibility_marks_old_active_segment_as_possibly_stalled(tmp_path: Path, monkeypatch) -> None:
