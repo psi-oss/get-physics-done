@@ -333,14 +333,14 @@ This returns per-phase summaries with one-liners, provides/requires, and depende
 # All summary artifacts from this milestone's phases
 cat GPD/phases/*/*SUMMARY.md
 
-# Research state
-cat GPD/state.json
+# Structured research state from init payloads
+INIT=$(gpd init milestone-op)
 
 # Convention catalog (full reference)
 cat GPD/CONVENTIONS.md
 
-# Convention lock (machine-readable, from state.json)
-gpd --raw convention list
+# Convention lock and derived state are already present in the init payload
+# when available; fall back to raw state views only if a field is missing.
 
 # Original objectives
 cat GPD/REQUIREMENTS.md
@@ -371,7 +371,9 @@ to a paper's Introduction -> Methods -> Results flow.]
 | [N]   | [Description] | [Equation or numerical value from intermediate_results] | [Parameter regime] | [From verification] |
 | ...   | ...           | ...                                                     | ...                | ...                 |
 
-Source: state.json intermediate_results, organized by phase ordering.
+Source: prefer the structured init payload fields for derived intermediate
+results and related state; use raw `state.json` only as a fallback when a
+specific value is not present in the structured snapshot.
 
 ## Methods Employed
 
@@ -384,9 +386,9 @@ Listed in the order they were introduced, noting which phase introduced each met
 
 ## Convention Evolution
 
-[Timeline of convention changes extracted from `gpd --raw convention list`, showing
-when each convention was established or modified. This ensures the paper writer uses the
-final, settled notation consistently.]
+[Timeline of convention changes extracted from the structured init payload
+when available, with raw convention-state queries used only as fallback. This
+ensures the paper writer uses the final, settled notation consistently.]
 
 | Date / Phase | Convention        | Description     | Status              |
 | ------------ | ----------------- | --------------- | ------------------- |
@@ -405,8 +407,9 @@ Extracted from phase directories and SUMMARY.md artifacts sections.]
 
 ## Open Questions
 
-[From state.json open_questions field. These become the "Future Work" section of a
-paper or motivate the next milestone.]
+[Prefer the structured init payload's projected open questions or summary
+artifacts when available; fall back to raw state only if necessary. These
+become the "Future Work" section of a paper or motivate the next milestone.]
 
 1. [Open question 1]
 2. [Open question 2]
@@ -441,11 +444,13 @@ were fulfilled by which phases/results.]
 Before proceeding, confirm:
 
 - [ ] Narrative arc covers the full research trajectory (not just the last phase)
-- [ ] All intermediate_results from state.json appear in the Key Results table
+- [ ] All available intermediate_results from the structured init payload appear
+      in the Key Results table; raw state is used only to fill gaps
 - [ ] Methods list is complete (cross-check with SUMMARY frontmatter)
-- [ ] Convention timeline includes all entries from `gpd convention list`
+- [ ] Convention timeline includes all available entries from the structured
+      init payload, cross-checked against raw convention state if needed
 - [ ] Figures/data registry includes all artifacts from phase directories
-- [ ] Open questions match state.json
+- [ ] Open questions match the structured payload or, if necessary, raw state
 - [ ] Dependency graph matches history-digest output
 - [ ] Requirements mapping covers all REQUIREMENTS.md items
 
