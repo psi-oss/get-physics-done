@@ -17,6 +17,7 @@ from gpd.core.results import (
     result_list,
     result_search,
     result_upsert,
+    result_upsert_derived,
     result_update,
     result_verify,
 )
@@ -346,6 +347,153 @@ def test_result_upsert_raises_for_ambiguous_description_match():
 
     with pytest.raises(ResultError, match="Multiple existing results match this description"):
         result_upsert(state, description="critical coupling")
+
+
+# ─── result_upsert_derived ──────────────────────────────────────────────────
+
+
+def test_result_upsert_derived_reuses_explicit_result_id_when_present():
+    state: dict = {}
+
+    result = result_upsert_derived(
+        state,
+        result_id="R-keep",
+        derivation_slug="effective-mass",
+        phase="3",
+        description="Mass-energy relation",
+    )
+
+    assert result.action == "added"
+    assert result.result.id == "R-keep"
+    assert len(state["intermediate_results"]) == 1
+    assert state["intermediate_results"][0]["id"] == "R-keep"
+
+
+def test_result_upsert_derived_uses_stable_slug_based_result_id():
+    state_a: dict = {"position": {"current_phase": "3"}}
+    state_b: dict = {"position": {"current_phase": "3"}}
+    state_c: dict = {"position": {"current_phase": "3"}}
+
+    first = result_upsert_derived(state_a, derivation_slug="Effective mass from self-energy")
+    second = result_upsert_derived(state_b, derivation_slug="Effective mass from self-energy")
+    third = result_upsert_derived(state_c, derivation_slug="Different derivation")
+
+    assert first.result.id == "R-03-effective-mass-from-self-energy"
+    assert second.result.id == first.result.id
+    assert third.result.id != first.result.id
+
+
+@pytest.mark.parametrize(
+    "seed_result, call_kwargs, expected_matched_by",
+    [
+        (
+            {
+                "id": "R-01",
+                "equation": "E = mc^2",
+                "description": "Original description",
+                "phase": "1",
+                "depends_on": [],
+                "verified": False,
+                "verification_records": [],
+            },
+            {
+                "equation": "E=mc^2",
+                "description": "Canonical description",
+                "phase": "1",
+            },
+            "equation",
+        ),
+        (
+            {
+                "id": "R-01",
+                "description": "critical coupling",
+                "phase": "1",
+                "depends_on": [],
+                "verified": False,
+                "verification_records": [],
+            },
+            {
+                "description": "Critical coupling",
+                "validity": "g << 1",
+                "phase": "1",
+            },
+            "description",
+        ),
+    ],
+)
+def test_result_upsert_derived_reuses_unique_existing_matches(
+    seed_result: dict[str, object],
+    call_kwargs: dict[str, object],
+    expected_matched_by: str,
+):
+    state: dict = {"intermediate_results": [seed_result]}
+
+    result = result_upsert_derived(state, derivation_slug="fresh-derivation", **call_kwargs)
+
+    assert result.action == "updated"
+    assert result.matched_by == expected_matched_by
+    assert result.result.id == "R-01"
+    assert len(state["intermediate_results"]) == 1
+
+
+@pytest.mark.parametrize(
+    "seed_results, call_kwargs, expected_match_phrase",
+    [
+        (
+            [
+                {
+                    "id": "R-01",
+                    "equation": "E = mc^2",
+                    "phase": "1",
+                    "depends_on": [],
+                    "verified": False,
+                    "verification_records": [],
+                },
+                {
+                    "id": "R-02",
+                    "equation": "E=mc^2",
+                    "phase": "2",
+                    "depends_on": [],
+                    "verified": False,
+                    "verification_records": [],
+                },
+            ],
+            {"equation": "E = mc^2"},
+            "equation",
+        ),
+        (
+            [
+                {
+                    "id": "R-01",
+                    "description": "critical coupling",
+                    "phase": "1",
+                    "depends_on": [],
+                    "verified": False,
+                    "verification_records": [],
+                },
+                {
+                    "id": "R-02",
+                    "description": "Critical coupling",
+                    "phase": "2",
+                    "depends_on": [],
+                    "verified": False,
+                    "verification_records": [],
+                },
+            ],
+            {"description": "critical coupling"},
+            "description",
+        ),
+    ],
+)
+def test_result_upsert_derived_raises_for_ambiguous_matches(
+    seed_results: list[dict[str, object]],
+    call_kwargs: dict[str, object],
+    expected_match_phrase: str,
+):
+    state: dict = {"intermediate_results": seed_results}
+
+    with pytest.raises(ResultError, match=f"Multiple existing results match this {expected_match_phrase}"):
+        result_upsert_derived(state, derivation_slug="ambiguous-derivation", **call_kwargs)
 
 
 def test_result_search_normalizes_phase_filters():
