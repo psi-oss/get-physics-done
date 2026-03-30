@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from gpd.core.patterns import (
     _BOOTSTRAP_PATTERNS,
     VALID_CATEGORIES,
@@ -104,6 +102,7 @@ class TestWarpContainerTemplate:
 
     def test_run_script_is_executable(self) -> None:
         import os
+
         run_sh = SPECS_DIR / "templates" / "compute" / "warp" / "run.sh"
         assert os.access(run_sh, os.X_OK)
 

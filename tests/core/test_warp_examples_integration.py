@@ -48,13 +48,17 @@ def _run_example(example_name: str) -> tuple[dict, Path]:
     image = f"gpd-integ-{example_name}"
     build = subprocess.run(
         ["docker", "build", "-t", image, "-f", str(project / "Dockerfile.cpu"), str(project)],
-        capture_output=True, text=True, timeout=300,
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
     assert build.returncode == 0, f"Build failed: {build.stderr[-300:]}"
 
     run = subprocess.run(
         ["docker", "run", "--rm", "-v", f"{project / 'output'}:/app/output", image],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     assert run.returncode == 0, f"Run failed: {run.stderr[-300:]}\nstdout: {run.stdout[-300:]}"
 
