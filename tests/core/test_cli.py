@@ -1488,6 +1488,27 @@ def test_resume_plain_output_surfaces_missing_handoff_status(tmp_path: Path, mon
 
 def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
+    resume_file = "GPD/phases/01/.continue-here.md"
+    segment_candidates = [
+        {
+            "source": "session_resume_file",
+            "status": "handoff",
+            "resume_file": resume_file,
+            "resumable": False,
+        }
+    ]
+    compat_resume_surface = {
+        "execution_resume_file": resume_file,
+        "execution_resume_file_source": "session_resume_file",
+        "session_resume_file": resume_file,
+        "segment_candidates": segment_candidates,
+    }
+    legacy_resume_surface = {
+        "execution_resume_file": resume_file,
+        "execution_resume_file_source": "session_resume_file",
+        "session_resume_file": resume_file,
+        "segment_candidates": segment_candidates,
+    }
     monkeypatch.setattr(
         "gpd.core.context.init_resume",
         lambda _cwd: {
@@ -1499,32 +1520,22 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
                 {
                     "source": "session_resume_file",
                     "status": "handoff",
-                    "resume_file": "GPD/phases/01/.continue-here.md",
+                    "resume_file": resume_file,
                     "resumable": False,
                     "kind": "handoff",
                     "origin": "canonical_continuation",
-                    "resume_pointer": "GPD/phases/01/.continue-here.md",
+                    "resume_pointer": resume_file,
                 }
             ],
-                "compat_resume_surface": {
-                    "execution_resume_file": "GPD/phases/01/.continue-here.md",
-                    "execution_resume_file_source": "session_resume_file",
-                    "session_resume_file": "GPD/phases/01/.continue-here.md",
-                    "segment_candidates": [
-                        {
-                            "source": "session_resume_file",
-                            "status": "handoff",
-                            "resume_file": "GPD/phases/01/.continue-here.md",
-                        "resumable": False,
-                    }
-                ],
-            },
+            "legacy_resume_surface": legacy_resume_surface,
+            "compatibility_resume_surface": legacy_resume_surface,
+            "compat_resume_surface": compat_resume_surface,
             "has_live_execution": False,
             "active_resume_kind": "handoff",
             "active_resume_origin": "canonical_continuation",
-            "active_resume_pointer": "GPD/phases/01/.continue-here.md",
+            "active_resume_pointer": resume_file,
             "resume_mode": None,
-            "execution_resume_file": "GPD/phases/01/.continue-here.md",
+            "execution_resume_file": resume_file,
             "execution_resume_file_source": "session_resume_file",
             "execution_paused_at": None,
             "autonomy": None,
@@ -1537,13 +1548,19 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
-    assert payload["execution_resume_file"] == "GPD/phases/01/.continue-here.md"
+    assert payload["active_resume_kind"] == "handoff"
+    assert payload["active_resume_origin"] == "canonical_continuation"
+    assert payload["active_resume_pointer"] == resume_file
     assert payload["recovery_status"] == "session-handoff"
     assert payload["recovery_status_label"] == "Continuity handoff"
     assert payload["recovery_summary"] == (
         "A continuity handoff is available, but no resumable bounded segment is currently active."
     )
     assert payload["resume_mode_label"] == "none"
+    assert "execution_resume_file" not in payload
+    assert "execution_resume_file_source" not in payload
+    assert "legacy_resume_surface" not in payload
+    assert "compatibility_resume_surface" not in payload
     assert payload["compat_resume_surface"]["execution_resume_file"] == "GPD/phases/01/.continue-here.md"
     assert payload["compat_resume_surface"]["execution_resume_file_source"] == "session_resume_file"
     assert payload["compat_resume_surface"]["segment_candidates"][0]["source"] == "session_resume_file"
@@ -1551,6 +1568,7 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
     assert payload["recovery_candidates"][0]["kind_label"] == "Continuity handoff"
     assert payload["recovery_candidates"][0]["origin"] == "canonical_continuation"
     assert payload["primary_recovery_target"]["target"] == "./GPD/phases/01/.continue-here.md"
+    assert list(payload)[-1] == "compat_resume_surface"
 
 
 def test_command_supports_project_reentry_prefers_explicit_metadata() -> None:
@@ -3470,6 +3488,131 @@ def test_paper_build_without_bibliography_does_not_import_pybtex(tmp_path: Path,
     payload = json.loads(result.output)
     assert payload["bibliography_source"] == ""
     assert mock_build.await_args.kwargs["bib_data"] is None
+
+
+def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(tmp_path: Path) -> None:
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Configured Paper",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    literature_dir = tmp_path / "GPD" / "literature"
+    literature_dir.mkdir(parents=True)
+    (literature_dir / "topic-CITATION-SOURCES.json").write_text(
+        json.dumps(
+            [
+                {
+                    "source_type": "paper",
+                    "title": "Auto Reference",
+                    "authors": ["A. Author"],
+                    "year": "2024",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = paper_dir / "main.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with (
+        patch("gpd.cli.shutil.which", side_effect=lambda binary: {
+            "latexmk": "/usr/bin/latexmk",
+            "bibtex": "/usr/bin/bibtex",
+            "kpsewhich": "/usr/bin/kpsewhich",
+        }.get(binary)),
+        patch("gpd.mcp.paper.compiler.detect_latex_toolchain") as mock_detect,
+        patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build,
+    ):
+        mock_detect.return_value.available = True
+        mock_detect.return_value.compiler_path = "/usr/bin/pdflatex"
+        mock_detect.return_value.distribution = "TeX Live"
+        mock_detect.return_value.message = "pdflatex found (TeX Live): /usr/bin/pdflatex"
+        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["bibliography_source"] == ""
+    assert payload["citation_sources_path"] == "./GPD/literature/topic-CITATION-SOURCES.json"
+    assert any("temporary directory" in warning for warning in payload["warnings"])
+    assert mock_build.await_args.kwargs["citation_sources"] is not None
+    assert mock_build.await_args.kwargs["citation_sources"][0].title == "Auto Reference"
+
+
+def test_paper_build_warns_when_multiple_literature_citation_sidecars_exist(tmp_path: Path) -> None:
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Configured Paper",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    literature_dir = tmp_path / "GPD" / "literature"
+    literature_dir.mkdir(parents=True)
+    for name in ("alpha-CITATION-SOURCES.json", "beta-CITATION-SOURCES.json"):
+        (literature_dir / name).write_text(
+            json.dumps(
+                [
+                    {
+                        "source_type": "paper",
+                        "title": f"Reference {name}",
+                        "authors": ["A. Author"],
+                        "year": "2024",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = paper_dir / "main.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with (
+        patch("gpd.cli.shutil.which", side_effect=lambda binary: {
+            "latexmk": "/usr/bin/latexmk",
+            "bibtex": "/usr/bin/bibtex",
+            "kpsewhich": "/usr/bin/kpsewhich",
+        }.get(binary)),
+        patch("gpd.mcp.paper.compiler.detect_latex_toolchain") as mock_detect,
+        patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build,
+    ):
+        mock_detect.return_value.available = True
+        mock_detect.return_value.compiler_path = "/usr/bin/pdflatex"
+        mock_detect.return_value.distribution = "TeX Live"
+        mock_detect.return_value.message = "pdflatex found (TeX Live): /usr/bin/pdflatex"
+        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["citation_sources_path"] == ""
+    assert any("Multiple literature-review citation-source sidecars found" in warning for warning in payload["warnings"])
+    assert mock_build.await_args.kwargs["citation_sources"] is None
 
 
 def test_paper_build_surfaces_toolchain_failure_details(tmp_path: Path) -> None:
