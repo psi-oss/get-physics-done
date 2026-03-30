@@ -44,6 +44,8 @@ __all__ = [
     "resume_origin_for_handoff",
     "resume_origin_for_interrupted_agent",
     "resume_source_from_origin",
+    "resume_payload_has_local_target",
+    "resume_payload_has_local_recovery_target",
     "resolve_resume_compat_surface",
 ]
 
@@ -497,6 +499,128 @@ def resume_source_from_origin(origin: str | None) -> str | None:
     if not normalized:
         return None
     return _RESUME_CANDIDATE_ORIGIN_TO_COMPAT_SOURCE.get(normalized)
+
+
+def _resume_candidate_exposes_local_target(candidate: Mapping[str, object]) -> bool:
+    kind = resume_candidate_kind(candidate)
+    status = str(candidate.get("status") or "").strip()
+    if status == "missing":
+        return False
+    if kind == RESUME_CANDIDATE_KIND_INTERRUPTED_AGENT:
+        agent_id = candidate.get("agent_id")
+        return isinstance(agent_id, str) and bool(agent_id.strip())
+    if kind not in {
+        RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT,
+        RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF,
+    }:
+        return False
+    resume_file = candidate.get("resume_file")
+    return isinstance(resume_file, str) and bool(resume_file.strip())
+
+
+def resume_payload_has_local_recovery_target(
+    payload: Mapping[str, object] | None,
+    *,
+    compat_surface: Mapping[str, object] | None = None,
+) -> bool:
+    """Return whether one resume payload already exposes a local recovery target."""
+    if not isinstance(payload, Mapping):
+        return False
+    compat_surface = compat_surface if isinstance(compat_surface, Mapping) else resolve_resume_compat_surface(payload)
+
+    if bool(
+        lookup_resume_surface_value(
+            payload,
+            "execution_resumable",
+            compat_surface=compat_surface,
+            prefer_compat=False,
+        )
+    ):
+        return True
+    if bool(
+        lookup_resume_surface_value(
+            payload,
+            "has_interrupted_agent",
+            compat_surface=compat_surface,
+            prefer_compat=False,
+        )
+    ):
+        return True
+
+    has_continuity_handoff = bool(
+        lookup_resume_surface_value(
+            payload,
+            "has_continuity_handoff",
+            compat_surface=compat_surface,
+            prefer_compat=False,
+        )
+    )
+    missing_continuity_handoff = bool(
+        lookup_resume_surface_value(
+            payload,
+            "missing_continuity_handoff",
+            compat_surface=compat_surface,
+            prefer_compat=False,
+        )
+    )
+    if lookup_resume_surface_text(
+        payload,
+        "missing_continuity_handoff_file",
+        compat_surface=compat_surface,
+        compat_key="missing_session_resume_file",
+    ) is not None:
+        missing_continuity_handoff = True
+    if has_continuity_handoff and not missing_continuity_handoff:
+        return True
+
+    active_resume_kind = lookup_resume_surface_text(
+        payload,
+        "active_resume_kind",
+        compat_surface=compat_surface,
+    )
+    active_resume_pointer = lookup_resume_surface_text(
+        payload,
+        "active_resume_pointer",
+        compat_surface=compat_surface,
+        compat_key="execution_resume_file",
+    )
+    if (
+        active_resume_kind in {RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT, RESUME_CANDIDATE_KIND_INTERRUPTED_AGENT}
+        and active_resume_pointer is not None
+    ):
+        return True
+    if lookup_resume_surface_text(
+        payload,
+        "continuity_handoff_file",
+        compat_surface=compat_surface,
+        compat_key="session_resume_file",
+    ) is not None:
+        return True
+
+    candidates = lookup_resume_surface_list(
+        payload,
+        "resume_candidates",
+        compat_surface=compat_surface,
+        compat_key="segment_candidates",
+    )
+    if not isinstance(candidates, list):
+        return False
+    return any(
+        isinstance(candidate, Mapping) and _resume_candidate_exposes_local_target(candidate)
+        for candidate in candidates
+    )
+
+
+def resume_payload_has_local_target(
+    payload: Mapping[str, object] | None,
+    *,
+    compat_surface: Mapping[str, object] | None = None,
+) -> bool:
+    """Backward-compatible alias for the shared local-target predicate."""
+    return resume_payload_has_local_recovery_target(
+        payload,
+        compat_surface=compat_surface,
+    )
 
 
 def canonicalize_resume_public_payload(

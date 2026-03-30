@@ -23,6 +23,13 @@ from gpd.core.recovery_advice import (
     build_recovery_advice,
     serialize_recovery_orientation,
 )
+from gpd.core.resume_surface import (
+    RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF,
+    RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF,
+    build_resume_candidate,
+    build_resume_static_candidate,
+    resume_payload_has_local_target,
+)
 from gpd.core.root_resolution import normalize_workspace_hint, resolve_project_roots
 from gpd.core.surface_phrases import (
     command_follow_up_action,
@@ -204,24 +211,7 @@ def _resume_context(cwd: Path, *, data_root: Path | None = None) -> dict[str, ob
 
 def _resume_context_has_local_target(payload: dict[str, object]) -> bool:
     """Return whether one resume payload already exposes a local recovery target."""
-    if bool(payload.get("has_continuity_handoff")):
-        return True
-    if bool(payload.get("execution_resumable")):
-        return True
-    if bool(payload.get("has_interrupted_agent")):
-        return True
-    candidates = payload.get("resume_candidates")
-    if isinstance(candidates, list):
-        for candidate in candidates:
-            if not isinstance(candidate, dict):
-                continue
-            status = str(candidate.get("status") or "").strip()
-            kind = str(candidate.get("kind") or "").strip()
-            if status == "missing":
-                continue
-            if kind in {"bounded_segment", "handoff", "continuity_handoff", "interrupted_agent"}:
-                return True
-    return False
+    return resume_payload_has_local_target(payload)
 
 
 def _hydrate_resume_context_from_recent_project(
@@ -250,24 +240,35 @@ def _hydrate_resume_context_from_recent_project(
     hydrated.setdefault("project_root_source", "recent_project")
     hydrated.setdefault("project_root_auto_selected", True)
     hydrated.setdefault("project_reentry_mode", getattr(reentry, "mode", None))
-    hydrated.setdefault("active_resume_kind", "continuity_handoff")
-    hydrated.setdefault("active_resume_origin", "continuation.handoff")
-    hydrated.setdefault("active_resume_pointer", resume_file)
     if resume_file_available:
-        hydrated.setdefault("continuity_handoff_file", resume_file)
-    hydrated.setdefault("recorded_continuity_handoff_file", resume_file)
+        if not str(hydrated.get("active_resume_kind") or "").strip():
+            hydrated["active_resume_kind"] = RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF
+        if not str(hydrated.get("active_resume_origin") or "").strip():
+            hydrated["active_resume_origin"] = RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF
+        if not str(hydrated.get("active_resume_pointer") or "").strip():
+            hydrated["active_resume_pointer"] = resume_file
+        if not str(hydrated.get("continuity_handoff_file") or "").strip():
+            hydrated["continuity_handoff_file"] = resume_file
+        hydrated["has_continuity_handoff"] = True
+    if not str(hydrated.get("recorded_continuity_handoff_file") or "").strip():
+        hydrated["recorded_continuity_handoff_file"] = resume_file
     if not resume_file_available:
-        hydrated.setdefault("missing_continuity_handoff_file", resume_file)
-    hydrated.setdefault("has_continuity_handoff", True)
+        if not str(hydrated.get("missing_continuity_handoff_file") or "").strip():
+            hydrated["missing_continuity_handoff_file"] = resume_file
 
     resume_candidates = hydrated.get("resume_candidates")
-    candidate = {
-        "kind": "continuity_handoff",
-        "origin": "continuation.handoff",
-        "status": candidate_status,
-        "resume_file": resume_file,
-        "resume_pointer": resume_file,
-    }
+    candidate = build_resume_candidate(
+        build_resume_static_candidate(
+            source="session_resume_file",
+            status=candidate_status,
+            resume_file=resume_file,
+            resumable=False,
+            advisory=not resume_file_available,
+        ),
+        kind=RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF,
+        origin=RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF,
+        resume_pointer=resume_file,
+    )
     if isinstance(resume_candidates, list):
         if not any(
             isinstance(existing, dict)
@@ -278,6 +279,8 @@ def _hydrate_resume_context_from_recent_project(
     else:
         hydrated["resume_candidates"] = [candidate]
     return hydrated
+
+
 def _recovery_next_actions(
     advice: RecoveryAdvice,
     *,

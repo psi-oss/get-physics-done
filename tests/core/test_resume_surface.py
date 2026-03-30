@@ -16,6 +16,7 @@ from gpd.core.resume_surface import (
     resolve_resume_compat_surface,
     resume_candidate_kind,
     resume_candidate_origin,
+    resume_payload_has_local_target,
     resume_source_from_origin,
 )
 
@@ -207,6 +208,118 @@ def test_resume_candidate_helpers_normalize_legacy_and_canonical_shapes() -> Non
     assert resume_candidate_origin(canonical_candidate) == "continuation.handoff"
     assert resume_source_from_origin("compat.current_execution") == "current_execution"
     assert resume_source_from_origin("continuation.handoff") is None
+
+
+def test_resume_payload_has_local_target_recognizes_bounded_segment_handoff_and_interrupted_agent() -> None:
+    bounded_payload = {
+        "active_resume_kind": "bounded_segment",
+        "active_resume_pointer": "GPD/phases/03/.continue-here.md",
+    }
+    handoff_payload = {
+        "continuity_handoff_file": "GPD/phases/04/.continue-here.md",
+        "resume_candidates": [
+            {
+                "kind": "continuity_handoff",
+                "origin": "continuation.handoff",
+                "status": "handoff",
+                "resume_file": "GPD/phases/04/.continue-here.md",
+            }
+        ],
+    }
+    interrupted_payload = {
+        "has_interrupted_agent": True,
+        "resume_candidates": [
+            {
+                "kind": "interrupted_agent",
+                "origin": "interrupted_agent_marker",
+                "status": "interrupted",
+                "agent_id": "agent-42",
+            }
+        ],
+    }
+
+    assert resume_payload_has_local_target(bounded_payload) is True
+    assert resume_payload_has_local_target(handoff_payload) is True
+    assert resume_payload_has_local_target(interrupted_payload) is True
+
+
+def test_resume_payload_has_local_target_rejects_missing_handoff_only_state() -> None:
+    payload = {
+        "has_continuity_handoff": True,
+        "recorded_continuity_handoff_file": "GPD/phases/05/.continue-here.md",
+        "missing_continuity_handoff_file": "GPD/phases/05/.continue-here.md",
+        "resume_candidates": [
+            {
+                "kind": "continuity_handoff",
+                "origin": "continuation.handoff",
+                "status": "missing",
+                "resume_file": "GPD/phases/05/.continue-here.md",
+            }
+        ],
+    }
+
+    assert resume_payload_has_local_target(payload) is False
+
+
+@pytest.mark.parametrize(
+    ("resume_payload", "expected"),
+    [
+        (
+            {
+                "resume_candidates": [
+                    {
+                        "kind": "bounded_segment",
+                        "status": "paused",
+                        "resume_file": "GPD/phases/03/.continue-here.md",
+                    }
+                ]
+            },
+            True,
+        ),
+        (
+            {
+                "resume_candidates": [
+                    {
+                        "kind": "continuity_handoff",
+                        "status": "handoff",
+                        "resume_file": "GPD/phases/04/.continue-here.md",
+                    }
+                ]
+            },
+            True,
+        ),
+        (
+            {
+                "resume_candidates": [
+                    {
+                        "kind": "interrupted_agent",
+                        "status": "interrupted",
+                        "agent_id": "agent-77",
+                    }
+                ]
+            },
+            True,
+        ),
+        (
+            {
+                "resume_candidates": [
+                    {
+                        "kind": "continuity_handoff",
+                        "status": "missing",
+                        "resume_file": "GPD/phases/05/.continue-here.md",
+                    }
+                ],
+                "missing_continuity_handoff_file": "GPD/phases/05/.continue-here.md",
+            },
+            False,
+        ),
+    ],
+)
+def test_resume_payload_has_local_target_classifies_supported_resume_families(
+    resume_payload: dict[str, object],
+    expected: bool,
+) -> None:
+    assert resume_payload_has_local_target(resume_payload) is expected
 
 
 def test_build_resume_segment_candidate_projects_segment_fields_into_raw_resume_shape() -> None:
