@@ -1697,6 +1697,7 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
         "execution_resume_file_source": "session_resume_file",
         "session_resume_file": resume_file,
         "segment_candidates": segment_candidates,
+        "resume_mode": "continuity_handoff",
     }
     legacy_resume_surface = {
         "execution_resume_file": resume_file,
@@ -1729,7 +1730,7 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
             "active_resume_kind": "continuity_handoff",
             "active_resume_origin": "canonical_continuation",
             "active_resume_pointer": resume_file,
-            "resume_mode": None,
+            "resume_mode": "continuity_handoff",
             "execution_resume_file": resume_file,
             "execution_resume_file_source": "session_resume_file",
             "execution_paused_at": None,
@@ -1758,6 +1759,7 @@ def test_resume_raw_adds_canonical_recovery_projection_fields(tmp_path: Path, mo
     assert "compatibility_resume_surface" not in payload
     assert payload["compat_resume_surface"]["execution_resume_file"] == "GPD/phases/01/.continue-here.md"
     assert payload["compat_resume_surface"]["execution_resume_file_source"] == "session_resume_file"
+    assert payload["compat_resume_surface"]["resume_mode"] == "continuity_handoff"
     assert payload["compat_resume_surface"]["segment_candidates"][0]["source"] == "session_resume_file"
     assert payload["recovery_candidates"][0]["kind"] == "continuity_handoff"
     assert payload["recovery_candidates"][0]["kind_label"] == "Continuity handoff"
@@ -1818,6 +1820,35 @@ def test_validate_command_context_help_surfaces_registry_argument_name() -> None
     assert result.exit_code == 0
     assert "Run centralized command-context preflight based on command metadata." in result.output
     assert "Command registry key or gpd:name" in result.output
+
+
+@patch("gpd.core.contract_validation.validate_project_contract")
+def test_validate_project_contract_uses_ancestor_project_root_from_nested_cwd(
+    mock_validate_contract,
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "workspace" / "nested"
+    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    nested_cwd.mkdir(parents=True, exist_ok=True)
+    contract_path = nested_cwd / "contract.json"
+    contract_path.write_text("{}", encoding="utf-8")
+
+    validation_result = MagicMock()
+    validation_result.valid = True
+    validation_result.model_dump.return_value = {"valid": True}
+    mock_validate_contract.return_value = validation_result
+
+    result = runner.invoke(
+        app,
+        ["--cwd", str(nested_cwd), "validate", "project-contract", contract_path.name],
+    )
+
+    assert result.exit_code == 0
+    mock_validate_contract.assert_called_once()
+    _, validate_kwargs = mock_validate_contract.call_args
+    assert validate_kwargs["project_root"] == project_root.resolve()
+    assert validate_kwargs["mode"] == "approved"
 
 
 def _plan_with_tool_requirements(tool_requirements_block: str) -> str:
@@ -1947,6 +1978,23 @@ def test_state_load(mock_load):
     mock_load.assert_called_once()
 
 
+@patch("gpd.core.state.state_load")
+def test_state_load_uses_ancestor_project_root_from_nested_cwd(mock_load, tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "workspace" / "nested"
+    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    nested_cwd.mkdir(parents=True, exist_ok=True)
+
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"position": {"current_phase": "42"}}
+    mock_load.return_value = mock_result
+
+    result = runner.invoke(app, ["--cwd", str(nested_cwd), "state", "load"])
+
+    assert result.exit_code == 0
+    mock_load.assert_called_once_with(project_root.resolve())
+
+
 @patch("gpd.core.state.state_get")
 def test_state_get_section(mock_get):
     mock_result = MagicMock()
@@ -1965,6 +2013,44 @@ def test_state_update(mock_update):
     result = runner.invoke(app, ["state", "update", "status", "executing"])
     assert result.exit_code == 0
     mock_update.assert_called_once()
+
+
+@patch("gpd.core.state.state_set_project_contract")
+@patch("gpd.core.contract_validation.validate_project_contract")
+def test_state_set_project_contract_uses_ancestor_project_root_from_nested_cwd(
+    mock_validate_contract,
+    mock_set_project_contract,
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "workspace" / "nested"
+    (project_root / "GPD").mkdir(parents=True, exist_ok=True)
+    nested_cwd.mkdir(parents=True, exist_ok=True)
+    contract_path = nested_cwd / "contract.json"
+    contract_path.write_text("{}", encoding="utf-8")
+
+    validation_result = MagicMock()
+    validation_result.valid = True
+    validation_result.model_dump.return_value = {"valid": True}
+    mock_validate_contract.return_value = validation_result
+
+    write_result = MagicMock()
+    write_result.updated = True
+    write_result.unchanged = False
+    write_result.model_dump.return_value = {"updated": True}
+    mock_set_project_contract.return_value = write_result
+
+    result = runner.invoke(
+        app,
+        ["--cwd", str(nested_cwd), "state", "set-project-contract", contract_path.name],
+    )
+
+    assert result.exit_code == 0
+    mock_validate_contract.assert_called_once()
+    _, validate_kwargs = mock_validate_contract.call_args
+    assert validate_kwargs["project_root"] == project_root.resolve()
+    assert validate_kwargs["mode"] == "draft"
+    mock_set_project_contract.assert_called_once_with(project_root.resolve(), {})
 
 
 @patch("gpd.core.state.state_record_session")

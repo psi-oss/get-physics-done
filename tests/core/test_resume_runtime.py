@@ -348,7 +348,7 @@ def test_init_resume_surfaces_machine_change_and_session_resume_candidate(
     assert ctx["compat_resume_surface"]["session_resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
     assert ctx["compat_resume_surface"]["execution_resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
     assert ctx["compat_resume_surface"]["execution_resume_file_source"] == "session_resume_file"
-    assert ctx["compat_resume_surface"].get("resume_mode") is None
+    assert ctx["compat_resume_surface"]["resume_mode"] == "continuity_handoff"
     assert ctx["resume_candidates"] == [
         {
             "status": "handoff",
@@ -439,6 +439,7 @@ def test_init_resume_uses_canonical_continuation_when_legacy_session_conflicts(
     assert ctx["compat_resume_surface"]["session_resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
     assert ctx["compat_resume_surface"]["execution_resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
     assert ctx["compat_resume_surface"]["execution_resume_file_source"] == "session_resume_file"
+    assert ctx["compat_resume_surface"]["resume_mode"] == "continuity_handoff"
     assert set(ctx["compat_resume_surface"]) == set(RESUME_COMPATIBILITY_ALIAS_KEYS)
     assert len(ctx["resume_candidates"]) == 1
     assert ctx["resume_candidates"][0]["status"] == "handoff"
@@ -753,6 +754,20 @@ def test_init_resume_reads_canonical_continuation_from_state_json(
             "last_result_id": "result-canonical",
         }
     ]
+
+
+def test_init_resume_propagates_unexpected_continuation_projection_errors(
+    tmp_path: Path, state_project_factory, monkeypatch
+) -> None:
+    cwd = state_project_factory(tmp_path)
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("canonical resolution exploded")
+
+    monkeypatch.setattr(context_module, "resolve_continuation", _boom)
+
+    with pytest.raises(RuntimeError, match="canonical resolution exploded"):
+        init_resume(cwd)
 
 
 def test_init_resume_prefers_canonical_bounded_segment_over_lineage_head_snapshot(

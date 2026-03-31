@@ -185,6 +185,11 @@ def _status_command_cwd(cwd: Path | None = None) -> Path:
     return workspace_cwd
 
 
+def _state_command_cwd(cwd: Path | None = None) -> Path:
+    """Resolve the effective cwd for state and project-contract commands."""
+    return _status_command_cwd(cwd)
+
+
 def _split_global_cli_options(argv: list[str]) -> tuple[list[str], list[str]]:
     """Partition root-global CLI options from the rest of the argv stream."""
     return _split_root_global_cli_options(argv)
@@ -692,7 +697,7 @@ def state_load() -> None:
     """Load and display current research state."""
     from gpd.core.state import state_load
 
-    _output(state_load(_get_cwd()))
+    _output(state_load(_state_command_cwd()))
 
 
 @state_app.command("get")
@@ -702,7 +707,7 @@ def state_get(
     """Get a specific state section or the full state."""
     from gpd.core.state import state_get
 
-    _output(state_get(_get_cwd(), section))
+    _output(state_get(_state_command_cwd(), section))
 
 
 @state_app.command("patch")
@@ -720,7 +725,7 @@ def state_patch(
         if not key:
             _error(f"Invalid empty key after stripping dashes: {patches[i]!r}")
         patch_dict[key] = patches[i + 1]
-    _output(state_patch(_get_cwd(), patch_dict))
+    _output(state_patch(_state_command_cwd(), patch_dict))
 
 
 @state_app.command("set-project-contract")
@@ -732,13 +737,14 @@ def state_set_project_contract_cmd(
     from gpd.core.state import state_set_project_contract
 
     contract_data = _load_json_document(source)
+    project_root = _state_command_cwd()
 
-    validation = validate_project_contract(contract_data, mode="draft", project_root=_get_cwd())
+    validation = validate_project_contract(contract_data, mode="draft", project_root=project_root)
     if not validation.valid:
         _output(validation)
         raise typer.Exit(code=1)
 
-    result = state_set_project_contract(_get_cwd(), contract_data)
+    result = state_set_project_contract(project_root, contract_data)
     _output(result)
     if not result.updated and not result.unchanged:
         raise typer.Exit(code=1)
@@ -752,7 +758,7 @@ def state_update(
     """Update a single state field."""
     from gpd.core.state import state_update
 
-    _output(state_update(_get_cwd(), field, value))
+    _output(state_update(_state_command_cwd(), field, value))
 
 
 @state_app.command("advance")
@@ -760,7 +766,7 @@ def state_advance() -> None:
     """Advance to the next plan in current phase."""
     from gpd.core.state import state_advance_plan
 
-    _output(state_advance_plan(_get_cwd()))
+    _output(state_advance_plan(_state_command_cwd()))
 
 
 @state_app.command("compact")
@@ -768,7 +774,7 @@ def state_compact() -> None:
     """Archive old state entries to keep STATE.md concise."""
     from gpd.core.state import state_compact
 
-    _output(state_compact(_get_cwd()))
+    _output(state_compact(_state_command_cwd()))
 
 
 @state_app.command("snapshot")
@@ -776,7 +782,7 @@ def state_snapshot() -> None:
     """Return a fast read-only snapshot of current state for progress and routing."""
     from gpd.core.state import state_snapshot
 
-    _output(state_snapshot(_get_cwd()))
+    _output(state_snapshot(_state_command_cwd()))
 
 
 @state_app.command("validate")
@@ -784,7 +790,7 @@ def state_validate() -> None:
     """Validate state consistency and schema compliance."""
     from gpd.core.state import state_validate
 
-    result = state_validate(_get_cwd())
+    result = state_validate(_state_command_cwd())
     _output(result)
     if hasattr(result, "valid") and not result.valid:
         raise typer.Exit(code=1)
@@ -801,7 +807,7 @@ def state_record_metric(
     """Record execution metric for a phase/plan."""
     from gpd.core.state import state_record_metric
 
-    _output(state_record_metric(_get_cwd(), phase=phase, plan=plan, duration=duration, tasks=tasks, files=files))
+    _output(state_record_metric(_state_command_cwd(), phase=phase, plan=plan, duration=duration, tasks=tasks, files=files))
 
 
 @state_app.command("update-progress")
@@ -809,7 +815,7 @@ def state_update_progress() -> None:
     """Recalculate progress percentage from phase completion."""
     from gpd.core.state import state_update_progress
 
-    _output(state_update_progress(_get_cwd()))
+    _output(state_update_progress(_state_command_cwd()))
 
 
 @state_app.command("add-decision")
@@ -821,7 +827,7 @@ def state_add_decision(
     """Record a research decision."""
     from gpd.core.state import state_add_decision
 
-    _output(state_add_decision(_get_cwd(), phase=phase, summary=summary, rationale=rationale))
+    _output(state_add_decision(_state_command_cwd(), phase=phase, summary=summary, rationale=rationale))
 
 
 @state_app.command("add-blocker")
@@ -831,7 +837,7 @@ def state_add_blocker(
     """Record a blocker."""
     from gpd.core.state import state_add_blocker
 
-    _output(state_add_blocker(_get_cwd(), text))
+    _output(state_add_blocker(_state_command_cwd(), text))
 
 
 @state_app.command("resolve-blocker")
@@ -841,7 +847,7 @@ def state_resolve_blocker(
     """Mark a blocker as resolved."""
     from gpd.core.state import state_resolve_blocker
 
-    _output(state_resolve_blocker(_get_cwd(), text))
+    _output(state_resolve_blocker(_state_command_cwd(), text))
 
 
 @state_app.command("record-session")
@@ -854,7 +860,7 @@ def state_record_session(
     from gpd.core.state import state_record_session
 
     result = state_record_session(
-        _get_cwd(),
+        _state_command_cwd(),
         stopped_at=stopped_at,
         resume_file=resume_file,
         last_result_id=last_result_id,
@@ -5445,10 +5451,7 @@ def _project_root_for_json_input(input_path: str) -> Path:
         return cwd
 
     target = Path(input_path)
-    if not target.is_absolute():
-        return cwd
-
-    resolved = target.expanduser().resolve(strict=False)
+    resolved = target.expanduser().resolve(strict=False) if target.is_absolute() else (cwd / target).resolve(strict=False)
     for base in (resolved.parent, *resolved.parent.parents):
         if (base / "GPD").is_dir():
             return base
@@ -6624,7 +6627,7 @@ def validate_project_contract_cmd(
         raise GPDError(f"Invalid --mode {mode!r}. Expected 'draft' or 'approved'.")
 
     payload = _load_json_document(input_path)
-    project_root = _get_cwd() if input_path == "-" else Path(input_path).expanduser().resolve(strict=False).parent
+    project_root = _state_command_cwd() if input_path == "-" else _project_root_for_json_input(input_path)
     result = validate_project_contract(payload, mode=normalized_mode, project_root=project_root)
     _output(result)
     if not result.valid:

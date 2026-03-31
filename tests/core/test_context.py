@@ -1548,6 +1548,18 @@ class TestInitResume:
         assert "source" not in ctx["resume_candidates"][0]
         assert ctx["compat_resume_surface"]["segment_candidates"][0]["source"] == "session_resume_file"
         assert ctx["compat_resume_surface"]["execution_resume_file_source"] == "session_resume_file"
+        assert ctx["compat_resume_surface"]["resume_mode"] == "continuity_handoff"
+
+    def test_init_resume_propagates_unexpected_continuation_errors(self, tmp_path: Path, monkeypatch) -> None:
+        _setup_project(tmp_path)
+
+        def _boom(*_args, **_kwargs):
+            raise RuntimeError("canonical resolution exploded")
+
+        monkeypatch.setattr("gpd.core.context.resolve_continuation", _boom)
+
+        with pytest.raises(RuntimeError, match="canonical resolution exploded"):
+            init_resume(tmp_path)
 
 # ─── init_verify_work ─────────────────────────────────────────────────────────
 

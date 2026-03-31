@@ -1124,13 +1124,19 @@ def _resolve_resume_projection(
 ):
     try:
         return resolve_continuation(cwd, state=state, current_execution=current_execution)
-    except Exception as exc:
+    except PydanticValidationError as exc:
         logger.warning(
             "Canonical continuation resolution failed; falling back to legacy session continuity: %s",
             exc,
         )
         legacy_state = {"session": state.get("session")} if isinstance(state, dict) else {}
         return resolve_continuation(cwd, state=legacy_state, current_execution=current_execution)
+
+
+def _resume_mode_for_kind(active_resume_kind: str | None) -> str | None:
+    if active_resume_kind in {"bounded_segment", "continuity_handoff", "interrupted_agent"}:
+        return active_resume_kind
+    return None
 
 
 def _resume_projection_source_name(resume_projection: object) -> str | None:
@@ -1381,13 +1387,6 @@ def _build_legacy_resume_state(
         )
 
     if execution_context.get("execution_resumable") and isinstance(current_execution, dict):
-        resume_mode = "bounded_segment"
-    elif interrupted_agent_id is not None:
-        resume_mode = "interrupted_agent"
-    else:
-        resume_mode = None
-
-    if execution_context.get("execution_resumable") and isinstance(current_execution, dict):
         active_resume_kind = "bounded_segment"
         active_resume_origin = "compat.current_execution"
         active_resume_pointer = current_execution.get("resume_file")
@@ -1403,6 +1402,8 @@ def _build_legacy_resume_state(
         active_resume_kind = None
         active_resume_origin = None
         active_resume_pointer = None
+
+    resume_mode = _resume_mode_for_kind(active_resume_kind)
 
     hydrated_resume_candidates = [_hydrate_resume_result(candidate, result_lookup_by_id) for candidate in resume_candidates]
     active_resume_candidate = _select_active_resume_candidate(
@@ -1559,13 +1560,6 @@ def _build_resume_read_state(
 
         hydrated_resume_candidates = [_hydrate_resume_result(candidate, result_lookup_by_id) for candidate in resume_candidates]
 
-        if resume_projection.resumable:
-            resume_mode = "bounded_segment"
-        elif interrupted_agent_id is not None:
-            resume_mode = "interrupted_agent"
-        else:
-            resume_mode = None
-
         if resume_projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT:
             active_resume_kind = "bounded_segment"
             active_resume_origin = bounded_segment_origin
@@ -1582,6 +1576,8 @@ def _build_resume_read_state(
             active_resume_kind = None
             active_resume_origin = None
             active_resume_pointer = None
+
+        resume_mode = _resume_mode_for_kind(active_resume_kind)
 
         active_resume_candidate = _select_active_resume_candidate(
             hydrated_resume_candidates,
