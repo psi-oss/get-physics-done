@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import json
+from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
+
+import pytest
 
 import gpd.adapters.runtime_catalog as runtime_catalog
 from gpd.adapters.runtime_catalog import (
@@ -14,6 +18,24 @@ from gpd.adapters.runtime_catalog import (
     list_runtime_names,
     resolve_global_config_dir,
 )
+
+_RUNTIME_CATALOG_PATH = Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog.json"
+
+
+def _iter_runtime_descriptors_from_payload(
+    payload: list[dict[str, object]],
+    *,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    catalog_path = tmp_path / "runtime_catalog.json"
+    catalog_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_catalog_path", lambda: catalog_path)
+    runtime_catalog._load_catalog.cache_clear()
+    try:
+        return runtime_catalog.iter_runtime_descriptors()
+    finally:
+        runtime_catalog._load_catalog.cache_clear()
 
 
 def test_resolve_global_config_dir_env_or_home_respects_explicit_empty_environ(monkeypatch) -> None:
@@ -70,6 +92,36 @@ def test_runtime_catalog_runtime_keys_are_unique() -> None:
     assert len(set(selection_flags)) == len(selection_flags)
     assert len(set(selection_aliases)) == len(selection_aliases)
     assert len(set(activation_env_vars)) == len(activation_env_vars)
+
+
+def test_runtime_catalog_rejects_unknown_top_level_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["legacy_note"] = "unexpected"
+
+    with pytest.raises(ValueError, match=r"runtime catalog entry 0 contains unknown key\(s\): legacy_note"):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_blank_selection_aliases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["selection_aliases"] = [payload[0]["selection_aliases"][0], " "]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 0\.selection_aliases\[1\] must be a non-empty string",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_non_boolean_native_include_support(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["native_include_support"] = "true"
+
+    with pytest.raises(ValueError, match=r"runtime catalog entry 0\.native_include_support must be a boolean"):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
 def test_hook_payload_policy_uses_runtime_specific_overrides_and_merged_fallback() -> None:

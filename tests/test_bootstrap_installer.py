@@ -735,6 +735,41 @@ assert.throws(
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
 
 
+def test_bootstrap_runtime_catalog_validator_rejects_malformed_records() -> None:
+    result = _run_node_contract_validation(
+        r"""
+const assert = require("node:assert/strict");
+const { validateRuntimeCatalog } = require("./bin/install.js");
+const catalog = require("./src/gpd/adapters/runtime_catalog.json");
+
+assert.doesNotThrow(() => validateRuntimeCatalog(catalog));
+
+const unknownKeyCatalog = JSON.parse(JSON.stringify(catalog));
+unknownKeyCatalog[0].legacy_note = "unexpected";
+assert.throws(
+  () => validateRuntimeCatalog(unknownKeyCatalog),
+  /runtime catalog entry 0 contains unknown key\(s\): legacy_note/
+);
+
+const blankAliasCatalog = JSON.parse(JSON.stringify(catalog));
+blankAliasCatalog[0].selection_aliases = [blankAliasCatalog[0].selection_aliases[0], " "];
+assert.throws(
+  () => validateRuntimeCatalog(blankAliasCatalog),
+  /runtime catalog entry 0\.selection_aliases\[1\] must be a non-empty string/
+);
+
+const badFlagCatalog = JSON.parse(JSON.stringify(catalog));
+badFlagCatalog[0].native_include_support = "true";
+assert.throws(
+  () => validateRuntimeCatalog(badFlagCatalog),
+  /runtime catalog entry 0\.native_include_support must be a boolean/
+);
+"""
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_uses_managed_virtualenv_and_skips_host_pip(tmp_path: Path) -> None:

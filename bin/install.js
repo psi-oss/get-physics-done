@@ -24,7 +24,6 @@ const {
   repository,
   gpdPythonVersion: rawPythonPackageVersion,
 } = require("../package.json");
-const RUNTIME_CATALOG = require("../src/gpd/adapters/runtime_catalog.json");
 const PUBLIC_SURFACE_CONTRACT = require("../src/gpd/core/public_surface_contract.json");
 
 const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPythonPackageVersion.trim() : "";
@@ -58,8 +57,9 @@ const productPositioning = "Open-source AI copilot for physics research";
 
 let bootstrapProbeOverridesCache = undefined;
 
-const ALL_RUNTIMES = RUNTIME_CATALOG.map((runtime) => runtime.runtime_name);
-const RUNTIME_BY_NAME = Object.fromEntries(RUNTIME_CATALOG.map((runtime) => [runtime.runtime_name, runtime]));
+let RUNTIME_CATALOG;
+let ALL_RUNTIMES = [];
+let RUNTIME_BY_NAME = {};
 
 function runtimeRecord(runtime) {
   const record = RUNTIME_BY_NAME[runtime];
@@ -137,10 +137,80 @@ const PUBLIC_SURFACE_CONTRACT_SECTION_KEYS = {
     "pause_phrase",
   ],
 };
+const RUNTIME_CATALOG_ENTRY_KEYS = {
+  required: [
+    "runtime_name",
+    "display_name",
+    "priority",
+    "config_dir_name",
+    "install_flag",
+    "launch_command",
+    "command_prefix",
+    "activation_env_vars",
+    "selection_flags",
+    "selection_aliases",
+    "global_config",
+    "capabilities",
+    "hook_payload",
+  ],
+  optional: ["manifest_file_prefixes", "native_include_support", "agent_prompt_uses_dollar_templates"],
+};
+const RUNTIME_CATALOG_ALLOWED_KEYS = new Set([
+  ...RUNTIME_CATALOG_ENTRY_KEYS.required,
+  ...RUNTIME_CATALOG_ENTRY_KEYS.optional,
+]);
+const RUNTIME_CATALOG_GLOBAL_CONFIG_KEYS = {
+  env_or_home: new Set(["strategy", "env_var", "home_subpath"]),
+  xdg_app: new Set(["strategy", "env_dir_var", "env_file_var", "xdg_subdir", "home_subpath"]),
+};
+const RUNTIME_CATALOG_CAPABILITY_KEYS = new Set([
+  "permissions_surface",
+  "permission_surface_kind",
+  "prompt_free_mode_value",
+  "supports_runtime_permission_sync",
+  "supports_prompt_free_mode",
+  "prompt_free_requires_relaunch",
+  "statusline_surface",
+  "statusline_config_surface",
+  "notify_surface",
+  "notify_config_surface",
+  "telemetry_source",
+  "telemetry_completeness",
+  "supports_usage_tokens",
+  "supports_cost_usd",
+  "supports_context_meter",
+]);
+const RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS = new Set([
+  "notify_event_types",
+  "workspace_keys",
+  "project_dir_keys",
+  "runtime_session_id_keys",
+  "model_keys",
+  "provider_keys",
+  "usage_keys",
+  "input_tokens_keys",
+  "output_tokens_keys",
+  "total_tokens_keys",
+  "cached_input_tokens_keys",
+  "cache_write_input_tokens_keys",
+  "cost_usd_keys",
+  "agent_id_keys",
+  "agent_name_keys",
+  "agent_scope_keys",
+  "context_window_size_keys",
+  "context_remaining_keys",
+]);
 
 function requireJsonObject(payload, label) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error(`${label} must be a JSON object`);
+  }
+  return payload;
+}
+
+function requireJsonArray(payload, label) {
+  if (!Array.isArray(payload)) {
+    throw new Error(`${label} must be a JSON array`);
   }
   return payload;
 }
@@ -185,6 +255,241 @@ function requireNonEmptyStringList(payload, key, label) {
   }
   return items;
 }
+
+function requireStrictString(value, label) {
+  if (typeof value !== "string" || !value || value.trim() !== value) {
+    throw new Error(`${label} must be a non-empty string`);
+  }
+  return value;
+}
+
+function requireStrictBoolean(value, label) {
+  if (typeof value !== "boolean") {
+    throw new Error(`${label} must be a boolean`);
+  }
+  return value;
+}
+
+function requireStrictInteger(value, label) {
+  if (!Number.isInteger(value)) {
+    throw new Error(`${label} must be an integer`);
+  }
+  return value;
+}
+
+function requireKnownKeys(payload, allowedKeys, label) {
+  const unknownKeys = Object.keys(payload).filter((key) => !allowedKeys.has(key));
+  if (unknownKeys.length > 0) {
+    throw new Error(`${label} contains unknown key(s): ${unknownKeys.join(", ")}`);
+  }
+}
+
+function requirePresentKeys(payload, requiredKeys, label) {
+  const missingKeys = [...requiredKeys].filter((key) => !Object.prototype.hasOwnProperty.call(payload, key));
+  if (missingKeys.length > 0) {
+    throw new Error(`${label} is missing required key(s): ${missingKeys.join(", ")}`);
+  }
+}
+
+function requireStrictStringList(value, label, { allowEmpty = false } = {}) {
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be a list of strings`);
+  }
+  if (value.length === 0 && !allowEmpty) {
+    throw new Error(`${label} must contain at least one string`);
+  }
+
+  const seen = new Set();
+  const items = [];
+  for (const [index, item] of value.entries()) {
+    const normalized = requireStrictString(item, `${label}[${index}]`);
+    if (seen.has(normalized)) {
+      throw new Error(`${label} must not contain duplicate values`);
+    }
+    seen.add(normalized);
+    items.push(normalized);
+  }
+  return items;
+}
+
+function validateRuntimeCatalogGlobalConfig(globalConfig, label) {
+  const payload = requireJsonObject(globalConfig, label);
+  const strategy = requireStrictString(payload.strategy, `${label}.strategy`);
+  if (!Object.prototype.hasOwnProperty.call(RUNTIME_CATALOG_GLOBAL_CONFIG_KEYS, strategy)) {
+    throw new Error(`${label}.strategy must be one of: env_or_home, xdg_app`);
+  }
+
+  const requiredKeys = RUNTIME_CATALOG_GLOBAL_CONFIG_KEYS[strategy];
+  requireKnownKeys(payload, requiredKeys, label);
+  requirePresentKeys(payload, requiredKeys, label);
+
+  if (strategy === "env_or_home") {
+    return {
+      strategy,
+      env_var: requireStrictString(payload.env_var, `${label}.env_var`),
+      home_subpath: requireStrictString(payload.home_subpath, `${label}.home_subpath`),
+    };
+  }
+
+  return {
+    strategy,
+    env_dir_var: requireStrictString(payload.env_dir_var, `${label}.env_dir_var`),
+    env_file_var: requireStrictString(payload.env_file_var, `${label}.env_file_var`),
+    xdg_subdir: requireStrictString(payload.xdg_subdir, `${label}.xdg_subdir`),
+    home_subpath: requireStrictString(payload.home_subpath, `${label}.home_subpath`),
+  };
+}
+
+function validateRuntimeCatalogCapabilities(capabilities, label) {
+  const payload = requireJsonObject(capabilities, label);
+  requireKnownKeys(payload, RUNTIME_CATALOG_CAPABILITY_KEYS, label);
+  requirePresentKeys(payload, RUNTIME_CATALOG_CAPABILITY_KEYS, label);
+
+  return {
+    permissions_surface: requireStrictString(payload.permissions_surface, `${label}.permissions_surface`),
+    permission_surface_kind: requireStrictString(
+      payload.permission_surface_kind,
+      `${label}.permission_surface_kind`
+    ),
+    prompt_free_mode_value: requireStrictString(payload.prompt_free_mode_value, `${label}.prompt_free_mode_value`),
+    supports_runtime_permission_sync: requireStrictBoolean(
+      payload.supports_runtime_permission_sync,
+      `${label}.supports_runtime_permission_sync`
+    ),
+    supports_prompt_free_mode: requireStrictBoolean(
+      payload.supports_prompt_free_mode,
+      `${label}.supports_prompt_free_mode`
+    ),
+    prompt_free_requires_relaunch: requireStrictBoolean(
+      payload.prompt_free_requires_relaunch,
+      `${label}.prompt_free_requires_relaunch`
+    ),
+    statusline_surface: requireStrictString(payload.statusline_surface, `${label}.statusline_surface`),
+    statusline_config_surface: requireStrictString(
+      payload.statusline_config_surface,
+      `${label}.statusline_config_surface`
+    ),
+    notify_surface: requireStrictString(payload.notify_surface, `${label}.notify_surface`),
+    notify_config_surface: requireStrictString(payload.notify_config_surface, `${label}.notify_config_surface`),
+    telemetry_source: requireStrictString(payload.telemetry_source, `${label}.telemetry_source`),
+    telemetry_completeness: requireStrictString(payload.telemetry_completeness, `${label}.telemetry_completeness`),
+    supports_usage_tokens: requireStrictBoolean(payload.supports_usage_tokens, `${label}.supports_usage_tokens`),
+    supports_cost_usd: requireStrictBoolean(payload.supports_cost_usd, `${label}.supports_cost_usd`),
+    supports_context_meter: requireStrictBoolean(payload.supports_context_meter, `${label}.supports_context_meter`),
+  };
+}
+
+function validateRuntimeCatalogHookPayload(hookPayload, label) {
+  const payload = requireJsonObject(hookPayload, label);
+  requireKnownKeys(payload, RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS, label);
+  requirePresentKeys(payload, RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS, label);
+
+  return {
+    notify_event_types: requireStrictStringList(payload.notify_event_types, `${label}.notify_event_types`, {
+      allowEmpty: true,
+    }),
+    workspace_keys: requireStrictStringList(payload.workspace_keys, `${label}.workspace_keys`, { allowEmpty: true }),
+    project_dir_keys: requireStrictStringList(payload.project_dir_keys, `${label}.project_dir_keys`, {
+      allowEmpty: true,
+    }),
+    runtime_session_id_keys: requireStrictStringList(
+      payload.runtime_session_id_keys,
+      `${label}.runtime_session_id_keys`,
+      { allowEmpty: true }
+    ),
+    model_keys: requireStrictStringList(payload.model_keys, `${label}.model_keys`, { allowEmpty: true }),
+    provider_keys: requireStrictStringList(payload.provider_keys, `${label}.provider_keys`, { allowEmpty: true }),
+    usage_keys: requireStrictStringList(payload.usage_keys, `${label}.usage_keys`, { allowEmpty: true }),
+    input_tokens_keys: requireStrictStringList(payload.input_tokens_keys, `${label}.input_tokens_keys`, {
+      allowEmpty: true,
+    }),
+    output_tokens_keys: requireStrictStringList(payload.output_tokens_keys, `${label}.output_tokens_keys`, {
+      allowEmpty: true,
+    }),
+    total_tokens_keys: requireStrictStringList(payload.total_tokens_keys, `${label}.total_tokens_keys`, {
+      allowEmpty: true,
+    }),
+    cached_input_tokens_keys: requireStrictStringList(
+      payload.cached_input_tokens_keys,
+      `${label}.cached_input_tokens_keys`,
+      { allowEmpty: true }
+    ),
+    cache_write_input_tokens_keys: requireStrictStringList(
+      payload.cache_write_input_tokens_keys,
+      `${label}.cache_write_input_tokens_keys`,
+      { allowEmpty: true }
+    ),
+    cost_usd_keys: requireStrictStringList(payload.cost_usd_keys, `${label}.cost_usd_keys`, { allowEmpty: true }),
+    agent_id_keys: requireStrictStringList(payload.agent_id_keys, `${label}.agent_id_keys`, { allowEmpty: true }),
+    agent_name_keys: requireStrictStringList(payload.agent_name_keys, `${label}.agent_name_keys`, { allowEmpty: true }),
+    agent_scope_keys: requireStrictStringList(payload.agent_scope_keys, `${label}.agent_scope_keys`, {
+      allowEmpty: true,
+    }),
+    context_window_size_keys: requireStrictStringList(
+      payload.context_window_size_keys,
+      `${label}.context_window_size_keys`,
+      { allowEmpty: true }
+    ),
+    context_remaining_keys: requireStrictStringList(
+      payload.context_remaining_keys,
+      `${label}.context_remaining_keys`,
+      { allowEmpty: true }
+    ),
+  };
+}
+
+function validateRuntimeCatalogEntry(entry, index) {
+  const label = `runtime catalog entry ${index}`;
+  const payload = requireJsonObject(entry, label);
+  requireKnownKeys(payload, RUNTIME_CATALOG_ALLOWED_KEYS, label);
+  requirePresentKeys(payload, RUNTIME_CATALOG_ENTRY_KEYS.required, label);
+
+  const globalConfig = validateRuntimeCatalogGlobalConfig(payload.global_config, `${label}.global_config`);
+  const capabilities = validateRuntimeCatalogCapabilities(payload.capabilities, `${label}.capabilities`);
+  const hookPayload = validateRuntimeCatalogHookPayload(payload.hook_payload, `${label}.hook_payload`);
+
+  return {
+    runtime_name: requireStrictString(payload.runtime_name, `${label}.runtime_name`),
+    display_name: requireStrictString(payload.display_name, `${label}.display_name`),
+    priority: requireStrictInteger(payload.priority, `${label}.priority`),
+    config_dir_name: requireStrictString(payload.config_dir_name, `${label}.config_dir_name`),
+    install_flag: requireStrictString(payload.install_flag, `${label}.install_flag`),
+    launch_command: requireStrictString(payload.launch_command, `${label}.launch_command`),
+    command_prefix: requireStrictString(payload.command_prefix, `${label}.command_prefix`),
+    activation_env_vars: requireStrictStringList(payload.activation_env_vars, `${label}.activation_env_vars`),
+    selection_flags: requireStrictStringList(payload.selection_flags, `${label}.selection_flags`),
+    selection_aliases: requireStrictStringList(payload.selection_aliases, `${label}.selection_aliases`),
+    global_config: globalConfig,
+    capabilities,
+    hook_payload: hookPayload,
+    manifest_file_prefixes: Object.prototype.hasOwnProperty.call(payload, "manifest_file_prefixes")
+      ? requireStrictStringList(payload.manifest_file_prefixes, `${label}.manifest_file_prefixes`, {
+          allowEmpty: true,
+        })
+      : [],
+    native_include_support: requireStrictBoolean(
+      Object.prototype.hasOwnProperty.call(payload, "native_include_support")
+        ? payload.native_include_support
+        : false,
+      `${label}.native_include_support`
+    ),
+    agent_prompt_uses_dollar_templates: requireStrictBoolean(
+      Object.prototype.hasOwnProperty.call(payload, "agent_prompt_uses_dollar_templates")
+        ? payload.agent_prompt_uses_dollar_templates
+        : false,
+      `${label}.agent_prompt_uses_dollar_templates`
+    ),
+  };
+}
+
+function validateRuntimeCatalog(catalogPayload) {
+  const payload = requireJsonArray(catalogPayload, "runtime catalog");
+  return payload.map((entry, index) => validateRuntimeCatalogEntry(entry, index));
+}
+
+RUNTIME_CATALOG = validateRuntimeCatalog(require("../src/gpd/adapters/runtime_catalog.json"));
+ALL_RUNTIMES = RUNTIME_CATALOG.map((runtime) => runtime.runtime_name);
+RUNTIME_BY_NAME = Object.fromEntries(RUNTIME_CATALOG.map((runtime) => [runtime.runtime_name, runtime]));
 
 function validateSharedPublicSurfaceContract(contractPayload) {
   const contract = requireJsonObject(contractPayload, "public surface contract");
@@ -1842,5 +2147,6 @@ if (require.main === module) {
 
 module.exports = {
   loadSharedPublicSurfaceText,
+  validateRuntimeCatalog,
   validateSharedPublicSurfaceContract,
 };
