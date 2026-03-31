@@ -203,7 +203,7 @@ flowchart TD
 
 - `.github/workflows/test.yml -> tests/**`
   `authority`
-  Runs `uv run pytest tests/ -v` across the whole test tree.
+  Runs `uv run pytest tests/ -q -n auto` across the whole test tree.
 
 - `.github/workflows/test.yml -> pyproject.toml`
   `authority`

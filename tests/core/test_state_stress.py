@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from pathlib import Path
 
+from gpd.core import state as state_module
 from gpd.core.state import (
     ResearchState,
     _normalize_state_schema,
@@ -329,6 +331,45 @@ class TestConcurrentAccess:
         json_path = cwd / "GPD" / "state.json"
         loaded = json.loads(json_path.read_text(encoding="utf-8"))
         assert "position" in loaded
+
+    def test_concurrent_save_waits_out_realistic_lock_contention(self, tmp_path: Path, monkeypatch) -> None:
+        """A second state writer should wait through a slow in-flight write instead of timing out."""
+        cwd = _bootstrap_project(tmp_path)
+        original_save_locked = state_module.save_state_json_locked
+        first_writer_entered = threading.Event()
+        release_first_writer = threading.Event()
+        errors: list[str] = []
+
+        def slow_save_locked(cwd_arg: Path, state_obj: dict) -> None:
+            if not first_writer_entered.is_set():
+                first_writer_entered.set()
+                assert release_first_writer.wait(timeout=10), "first writer never released"
+            original_save_locked(cwd_arg, state_obj)
+
+        def _writer(phase: str) -> None:
+            try:
+                state = default_state_dict()
+                state["position"]["current_phase"] = phase
+                state["position"]["status"] = "Executing"
+                state["position"]["current_plan"] = "1"
+                state["position"]["total_plans_in_phase"] = 3
+                save_state_json(cwd, state)
+            except Exception as exc:
+                errors.append(f"Phase {phase}: {exc}")
+
+        monkeypatch.setattr(state_module, "save_state_json_locked", slow_save_locked)
+
+        first = threading.Thread(target=_writer, args=("01",))
+        second = threading.Thread(target=_writer, args=("02",))
+        first.start()
+        assert first_writer_entered.wait(timeout=2), "first writer never acquired the state lock"
+        second.start()
+        time.sleep(6.0)
+        release_first_writer.set()
+        first.join(timeout=10)
+        second.join(timeout=10)
+
+        assert not errors, f"Contended writes should queue instead of timing out: {errors}"
 
 
 # ---------------------------------------------------------------------------

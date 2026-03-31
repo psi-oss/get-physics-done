@@ -518,7 +518,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert 'python-version: "3.11"' in workflow
     assert "astral-sh/setup-uv@v7" in workflow
     assert "uv sync --dev" in workflow
-    assert "uv run pytest tests/ -v" in workflow
+    assert "uv run pytest tests/ -q -n auto" in workflow
 
 
 def test_prepare_release_workflow_creates_release_pr_without_publishing() -> None:

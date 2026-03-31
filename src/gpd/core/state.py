@@ -2419,7 +2419,10 @@ def _intent_path(cwd: Path) -> Path:
     return ProjectLayout(cwd).state_intent
 
 
-def _state_lock(cwd: Path, timeout: float = 5.0):
+_STATE_LOCK_TIMEOUT_SECONDS = 15.0
+
+
+def _state_lock(cwd: Path, timeout: float = _STATE_LOCK_TIMEOUT_SECONDS):
     """Return the canonical lock for all dual-file state operations."""
     return file_lock(_state_json_path(cwd), timeout=timeout)
 

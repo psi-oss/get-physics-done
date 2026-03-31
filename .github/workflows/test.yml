@@ -60,4 +60,4 @@ jobs:
         run: uv sync --dev
 
       - name: Run test suite
-        run: uv run pytest tests/ -v
+        run: uv run pytest tests/ -q -n auto
