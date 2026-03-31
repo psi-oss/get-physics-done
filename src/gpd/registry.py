@@ -15,7 +15,10 @@ from pathlib import Path
 import yaml
 
 from gpd.command_labels import canonical_command_label, canonical_skill_label, command_slug_from_label
-from gpd.core.review_contract_prompt import render_review_contract_prompt
+from gpd.core.review_contract_prompt import (
+    _load_review_contract_payload,
+    render_review_contract_prompt,
+)
 
 # ─── Package layout ──────────────────────────────────────────────────────────
 
@@ -328,6 +331,7 @@ VALID_REVIEW_PREFLIGHT_CHECKS: tuple[str, ...] = (
     "phase_artifacts",
 )
 VALID_REVIEW_REQUIRED_STATES: tuple[str, ...] = ("phase_executed",)
+_DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {}
 
 
 def _parse_context_mode(raw: object, *, command_name: str) -> str:
@@ -436,26 +440,6 @@ def _parse_review_contract_required_state(raw: object, *, command_name: str) -> 
     return value
 
 
-_DEFAULT_REVIEW_CONTRACTS: dict[str, dict[str, object]] = {}
-
-_VALID_REVIEW_CONTRACT_KEYS: frozenset[str] = frozenset(
-    {
-        "review_mode",
-        "required_outputs",
-        "required_evidence",
-        "blocking_conditions",
-        "preflight_checks",
-        "stage_ids",
-        "stage_artifacts",
-        "final_decision_output",
-        "requires_fresh_context_per_stage",
-        "max_review_rounds",
-        "required_state",
-        "schema_version",
-    }
-)
-
-
 def _parse_review_contract_schema_version(raw: object, *, command_name: str) -> int:
     """Validate explicit review-contract schema_version without coercing unsupported values."""
     if raw is None:
@@ -507,23 +491,26 @@ def _command_model_content(body: str, review_contract: ReviewCommandContract | N
 
 def _parse_review_contract(raw: object, command_name: str) -> ReviewCommandContract | None:
     """Parse review-contract frontmatter into a typed contract with no hidden defaults."""
-    merged = dict(_DEFAULT_REVIEW_CONTRACTS.get(command_name, {}))
     if raw is not None and not isinstance(raw, dict):
         raise ValueError(f"review-contract for {command_name} must be a mapping")
-    if isinstance(raw, dict):
-        unknown_keys = sorted(str(key) for key in raw if str(key) not in _VALID_REVIEW_CONTRACT_KEYS)
-        if unknown_keys:
-            formatted = ", ".join(unknown_keys)
-            raise ValueError(f"Unknown review-contract field(s) for {command_name}: {formatted}")
-        merged.update(raw)
+    if raw is None:
+        return None
 
+    try:
+        merged, wrapped = _load_review_contract_payload(raw)
+    except ValueError as exc:
+        message = str(exc)
+        if message.startswith("Unknown review-contract field(s): "):
+            fields = message.removeprefix("Unknown review-contract field(s): ")
+            raise ValueError(f"Unknown review-contract field(s) for {command_name}: {fields}") from exc
+        raise ValueError(f"review-contract for {command_name}: {message}") from exc
     if not merged:
+        if wrapped:
+            raise ValueError(f"review-contract for {command_name} must set schema_version, review_mode")
         return None
 
     raw_review_mode = merged.get("review_mode")
     if raw_review_mode is None:
-        if raw is None:
-            return None
         raise ValueError(f"review-contract for {command_name} must set review_mode")
     review_mode = _parse_review_contract_enum_field(
         raw_review_mode,

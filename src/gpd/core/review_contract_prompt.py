@@ -6,7 +6,7 @@ from collections.abc import Mapping
 
 import yaml
 
-_REVIEW_CONTRACT_FIELD_ORDER = (
+REVIEW_CONTRACT_FIELD_ORDER = (
     "schema_version",
     "review_mode",
     "required_outputs",
@@ -20,8 +20,9 @@ _REVIEW_CONTRACT_FIELD_ORDER = (
     "max_review_rounds",
     "required_state",
 )
-_REVIEW_CONTRACT_WRAPPER_KEYS = ("review_contract", "review-contract")
-_REVIEW_CONTRACT_DEFAULTS: dict[str, object] = {
+REVIEW_CONTRACT_WRAPPER_KEYS = ("review_contract", "review-contract")
+REVIEW_CONTRACT_KEYS = frozenset(REVIEW_CONTRACT_FIELD_ORDER)
+REVIEW_CONTRACT_DEFAULTS = {
     "required_outputs": [],
     "required_evidence": [],
     "blocking_conditions": [],
@@ -60,15 +61,15 @@ def extract_frontmatter_block(frontmatter: str, field_name: str) -> str:
     return "\n".join(collected)
 
 
-def _normalize_review_contract_payload(review_contract: object) -> dict[str, object]:
-    """Return a canonical typed payload for rendering a review contract section."""
+def _load_review_contract_payload(review_contract: object) -> tuple[dict[str, object], bool]:
+    """Return a strict review-contract mapping and whether it was wrapped."""
 
     if review_contract is None:
-        return {}
+        return {}, False
     if isinstance(review_contract, str):
         block = review_contract.strip()
         if not block:
-            return {}
+            return {}, False
         loaded = yaml.safe_load(block)
     elif isinstance(review_contract, Mapping):
         loaded = dict(review_contract)
@@ -76,32 +77,62 @@ def _normalize_review_contract_payload(review_contract: object) -> dict[str, obj
         raise ValueError("review contract must be provided as YAML text or a mapping")
 
     if loaded is None:
-        return {}
+        return {}, False
     if not isinstance(loaded, dict):
         raise ValueError(f"review contract must parse to a mapping, got {type(loaded).__name__}")
 
-    for key in _REVIEW_CONTRACT_WRAPPER_KEYS:
-        wrapped = loaded.get(key)
-        if isinstance(wrapped, Mapping):
-            loaded = dict(wrapped)
+    wrapped = None
+    for key in REVIEW_CONTRACT_WRAPPER_KEYS:
+        candidate = loaded.get(key)
+        if isinstance(candidate, Mapping):
+            wrapped = dict(candidate)
             break
 
+    if wrapped is not None:
+        unknown_top_level_keys = sorted(
+            str(key) for key in loaded if key not in REVIEW_CONTRACT_WRAPPER_KEYS
+        )
+        if unknown_top_level_keys:
+            formatted = ", ".join(unknown_top_level_keys)
+            raise ValueError(f"Unknown review-contract field(s): {formatted}")
+        return wrapped, True
+
+    unknown_keys = sorted(str(key) for key in loaded if str(key) not in REVIEW_CONTRACT_KEYS)
+    if unknown_keys:
+        formatted = ", ".join(unknown_keys)
+        raise ValueError(f"Unknown review-contract field(s): {formatted}")
+
+    return loaded, False
+
+
+def normalize_review_contract_payload(review_contract: object) -> dict[str, object]:
+    """Return a canonical typed payload for rendering a review contract section."""
+
+    loaded, wrapped = _load_review_contract_payload(review_contract)
+    if not loaded:
+        if wrapped:
+            raise ValueError("review contract must set schema_version, review_mode")
+        return {}
+
+    if "schema_version" not in loaded or "review_mode" not in loaded:
+        missing = [field for field in ("schema_version", "review_mode") if field not in loaded]
+        formatted = ", ".join(missing)
+        raise ValueError(f"review contract must set {formatted}")
+
     payload: dict[str, object] = {}
-    for key in _REVIEW_CONTRACT_FIELD_ORDER:
+    for key in REVIEW_CONTRACT_FIELD_ORDER:
         if key in loaded:
             payload[key] = loaded[key]
-        elif key in _REVIEW_CONTRACT_DEFAULTS:
-            payload[key] = _REVIEW_CONTRACT_DEFAULTS[key]
-    for key, value in loaded.items():
-        if key not in payload:
-            payload[key] = value
+        elif key in REVIEW_CONTRACT_DEFAULTS:
+            default = REVIEW_CONTRACT_DEFAULTS[key]
+            payload[key] = list(default) if isinstance(default, list) else default
     return payload
 
 
 def render_review_contract_prompt(review_contract: object) -> str:
     """Render a canonical model-visible review-contract section."""
 
-    payload = _normalize_review_contract_payload(review_contract)
+    payload = normalize_review_contract_payload(review_contract)
     if not payload:
         return ""
     rendered = yaml.safe_dump(
@@ -115,14 +146,3 @@ def render_review_contract_prompt(review_contract: object) -> str:
         "Satisfy it directly in the generated artifacts.\n\n"
         f"```yaml\n{rendered}\n```"
     )
-
-
-def prepend_review_contract_prompt(body: str, yaml_block: str) -> str:
-    """Front-load a review contract ahead of the substantive prompt body."""
-
-    section = render_review_contract_prompt(yaml_block)
-    if not section:
-        return body
-    if not body:
-        return section
-    return f"{section}\n\n{body}"

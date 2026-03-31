@@ -3,6 +3,8 @@ from __future__ import annotations
 import dataclasses
 from pathlib import Path
 
+import pytest
+
 from gpd import registry
 from gpd.core.review_contract_prompt import render_review_contract_prompt
 
@@ -57,6 +59,39 @@ def test_review_grade_commands_prepend_model_visible_review_contract_to_registry
         assert expected_section == command.content[: len(expected_section)]
         for output in contract.required_outputs:
             assert output in expected_section
+
+
+def test_review_contract_renderer_rejects_unknown_keys() -> None:
+    contract = dataclasses.asdict(registry.get_command("write-paper").review_contract)
+    contract["unknown_field"] = "legacy drift"
+
+    with pytest.raises(ValueError, match="Unknown review-contract field"):
+        render_review_contract_prompt(contract)
+
+
+def test_review_contract_renderer_rejects_incomplete_payloads() -> None:
+    with pytest.raises(ValueError, match="review contract must set schema_version"):
+        render_review_contract_prompt({"review_mode": "review"})
+
+
+def test_review_contract_renderer_rejects_empty_wrapped_payloads() -> None:
+    with pytest.raises(ValueError, match="review contract must set schema_version, review_mode"):
+        render_review_contract_prompt({"review_contract": {}})
+
+
+def test_review_contract_renderer_fills_canonical_defaults_for_minimal_payload() -> None:
+    section = render_review_contract_prompt({"schema_version": 1, "review_mode": "review"})
+
+    assert "required_outputs: []" in section
+    assert "required_evidence: []" in section
+    assert "blocking_conditions: []" in section
+    assert "preflight_checks: []" in section
+    assert "stage_ids: []" in section
+    assert "stage_artifacts: []" in section
+    assert "final_decision_output: ''" in section
+    assert "requires_fresh_context_per_stage: false" in section
+    assert "max_review_rounds: 0" in section
+    assert "required_state: ''" in section
 
 
 def test_verify_work_review_contract_uses_phase_scoped_output_path() -> None:

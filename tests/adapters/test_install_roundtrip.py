@@ -998,6 +998,13 @@ def test_real_installed_contract_and_review_surfaces_keep_required_schema_bodies
     assert "review-contract:" not in write_paper_section
     assert write_paper.index("## Review Contract") < write_paper.index("Reproducibility Manifest Template")
     assert "Reproducibility Manifest Template" in write_paper
+    for command_name in ("write-paper", "respond-to-referees", "verify-work", "arxiv-submission", "peer-review"):
+        installed_content = _read_runtime_command_prompt(tmp_path, target, runtime, command_name)
+        installed_section = _review_contract_section(installed_content)
+        registry_section = _review_contract_section(get_command(command_name).content)
+        assert installed_section == registry_section
+        assert installed_content.count("## Review Contract") == 1
+        assert installed_section.count("## Review Contract") == 1
     assert "Peer Review Panel Protocol" in review_literature
     assert '"stage_id": "reader | literature | math | physics | interestingness"' in review_literature
     assert '"stage_kind": "reader | literature | math | physics | interestingness"' in review_literature

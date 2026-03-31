@@ -18,6 +18,7 @@ import pytest
 
 from gpd.adapters.install_utils import (
     _is_hook_command_for_script,
+    _inject_review_contract_prompt_from_frontmatter,
     build_hook_command,
     convert_tool_references_in_body,
     copy_with_path_replacement,
@@ -339,6 +340,41 @@ class TestProtectRuntimeAgentPrompt:
 
         for runtime in _NON_DOLLAR_TEMPLATE_RUNTIMES:
             assert protect_runtime_agent_prompt(content, runtime) == content
+
+
+class TestReviewContractInjection:
+    def test_existing_review_contract_section_is_not_duplicated(self) -> None:
+        content = (
+            "---\n"
+            "review-contract:\n"
+            "  schema_version: 1\n"
+            "  review_mode: review\n"
+            "  required_outputs:\n"
+            "    - GPD/review/output.md\n"
+            "  required_evidence:\n"
+            "    - GPD/review/evidence.md\n"
+            "  blocking_conditions:\n"
+            "    - missing evidence\n"
+            "  preflight_checks:\n"
+            "    - manuscript\n"
+            "  stage_ids:\n"
+            "    - stage-1\n"
+            "  stage_artifacts:\n"
+            "    - artifact.md\n"
+            "  final_decision_output: GPD/review/output.md\n"
+            "  requires_fresh_context_per_stage: false\n"
+            "  max_review_rounds: 1\n"
+            "  required_state: phase_executed\n"
+            "---\n"
+            "Prose before the existing section.\n\n"
+            "## Review Contract\n\n"
+            "Already present in the body.\n"
+        )
+
+        result = _inject_review_contract_prompt_from_frontmatter(content)
+
+        assert result == content
+        assert result.count("## Review Contract") == 1
 
 
 class TestTranslateFrontmatterToolNames:

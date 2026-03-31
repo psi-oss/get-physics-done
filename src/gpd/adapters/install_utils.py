@@ -442,13 +442,17 @@ def render_markdown_frontmatter(preamble: str, frontmatter: str, separator: str,
     return rendered + body
 
 
+def _body_has_review_contract_section(body: str) -> bool:
+    return bool(re.search(r"(?m)^## Review Contract(?:\s*$|\s)", body))
+
+
 def _inject_review_contract_prompt_from_frontmatter(content: str) -> str:
     """Front-load any review-contract block into the model-visible body once."""
 
     preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
     if not frontmatter:
         return content
-    if body.lstrip().startswith("## Review Contract"):
+    if _body_has_review_contract_section(body):
         return content
     section = render_review_contract_prompt(extract_frontmatter_block(frontmatter, "review-contract"))
     if not section:
