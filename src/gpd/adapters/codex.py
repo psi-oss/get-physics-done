@@ -1697,12 +1697,7 @@ def _build_managed_optional_mcp_servers() -> dict[str, dict[str, object]]:
         return {}
     if not WOLFRAM_MANAGED_INTEGRATION.is_configured():
         return {}
-    return {
-        WOLFRAM_MANAGED_SERVER_KEY: {
-            "command": WOLFRAM_MANAGED_INTEGRATION.bridge_command,
-            "args": [],
-        }
-    }
+    return {WOLFRAM_MANAGED_SERVER_KEY: WOLFRAM_MANAGED_INTEGRATION.projected_server_entry()}
 
 
 def _managed_optional_mcp_server_keys() -> frozenset[str]:

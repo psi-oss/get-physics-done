@@ -74,7 +74,7 @@ If review preflight exits nonzero because of missing project state, missing manu
 
 ```bash
 for DIR in paper manuscript draft; do
-  if [ -f "${DIR}/main.tex" ]; then
+  if [ -f "${DIR}/main.tex" ] || [ -f "${DIR}/main.md" ]; then
     PAPER_DIR="$DIR"
     break
   fi
@@ -84,7 +84,7 @@ done
 **If no paper found:**
 
 ```
-No paper directory found. Searched: paper/, manuscript/, draft/
+No paper directory found. Searched: paper/, manuscript/, draft/ for `main.tex` or `main.md`
 
 Run /gpd:write-paper first to generate a manuscript from research results.
 ```

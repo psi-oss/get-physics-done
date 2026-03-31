@@ -114,7 +114,7 @@ Output consumed by /gpd:execute-phase. Plans need:
 
 - [ ] PLAN.md files created in phase directory
 - [ ] Each plan has valid frontmatter
-- [ ] Each plan includes a contract block with claims, deliverables, references, acceptance tests, forbidden proxies, and uncertainty markers
+- [ ] Each plan includes a contract block with claims, deliverables, acceptance tests, forbidden proxies, uncertainty markers, and references whenever explicit grounding is not already carried elsewhere in the contract
 - [ ] Tasks are specific and actionable with clear mathematical deliverables
 - [ ] Dependencies correctly identified
 - [ ] Waves assigned for parallel execution

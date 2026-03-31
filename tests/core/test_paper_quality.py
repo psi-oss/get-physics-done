@@ -153,6 +153,66 @@ def test_score_paper_quality_flags_blockers():
     assert "no_unreliable_results" in blocking_checks
 
 
+def test_score_paper_quality_blocks_invalid_contract_and_comparison_ledgers() -> None:
+    report = score_paper_quality(
+        PaperQualityInput(
+            title="Ledger drift paper",
+            journal="generic",
+            equations=EquationsQualityInput(
+                labeled=_full_metric(2),
+                symbols_defined=_full_metric(2),
+                dimensionally_verified=_full_metric(2),
+                limiting_cases_verified=_full_metric(2),
+            ),
+            figures=FiguresQualityInput(
+                axes_labeled_with_units=_full_metric(1),
+                error_bars_present=_full_metric(1),
+                referenced_in_text=_full_metric(1),
+                captions_self_contained=_full_metric(1),
+                colorblind_safe=_full_metric(1),
+            ),
+            citations=CitationsQualityInput(
+                citation_keys_resolve=_full_metric(2),
+                missing_placeholders=BinaryCheck(passed=True),
+                key_prior_work_cited=BinaryCheck(passed=True),
+                hallucination_free=BinaryCheck(passed=True),
+            ),
+            conventions=ConventionsQualityInput(
+                convention_lock_complete=BinaryCheck(passed=True),
+                assert_convention_coverage=_full_metric(1),
+                notation_consistent=BinaryCheck(passed=True),
+            ),
+            verification=VerificationQualityInput(
+                report_passed=BinaryCheck(passed=True),
+                contract_targets_verified=_full_metric(1),
+                key_result_confidences=[VerificationConfidence.independently_confirmed],
+            ),
+            completeness=CompletenessQualityInput(
+                abstract_written_last=BinaryCheck(passed=True),
+                required_sections_present=_full_metric(2),
+                placeholders_cleared=BinaryCheck(passed=True),
+                supplemental_cross_referenced=BinaryCheck(passed=True),
+            ),
+            results=ResultsQualityInput(
+                uncertainties_present=_full_metric(1),
+                comparison_with_prior_work_present=BinaryCheck(passed=True),
+                physical_interpretation_present=BinaryCheck(passed=True),
+            ),
+            journal_extra_checks={
+                "contract_results_parse_ok": False,
+                "contract_results_alignment_ok": False,
+                "comparison_verdicts_valid": False,
+            },
+        )
+    )
+
+    assert report.ready_for_submission is False
+    blocking_checks = {issue.check for issue in report.blocking_issues}
+    assert "contract_results_parse_ok" in blocking_checks
+    assert "contract_results_alignment_ok" in blocking_checks
+    assert "comparison_verdicts_valid" in blocking_checks
+
+
 def test_score_paper_quality_applies_journal_adjustments():
     common_input = PaperQualityInput(
         title="Accessible Paper",

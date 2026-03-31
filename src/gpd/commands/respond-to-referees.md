@@ -4,7 +4,7 @@ description: Structure a point-by-point response to referee reports and update t
 argument-hint: "[path to referee report or 'paste']"
 context_mode: project-required
 requires:
-  files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]
+  files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]
 review-contract:
   review_mode: publication
   schema_version: 1
@@ -71,7 +71,7 @@ Referee report source: $ARGUMENTS (file path or "paste" for inline input)
 Check for existing paper and prior response files:
 
 ```bash
-ls paper/main.tex manuscript/main.tex draft/main.tex 2>/dev/null
+ls paper/main.tex paper/main.md manuscript/main.tex manuscript/main.md draft/main.tex draft/main.md 2>/dev/null
 ls GPD/AUTHOR-RESPONSE*.md 2>/dev/null
 ls GPD/paper/REFEREE_RESPONSE*.md 2>/dev/null
 ls GPD/review/REVIEW-LEDGER*.json GPD/review/REFEREE-DECISION*.json 2>/dev/null

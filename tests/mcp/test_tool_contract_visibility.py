@@ -395,19 +395,23 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     assert {"check_key", "check_id", "contract", "binding", "metadata", "observed", "artifact_content"} <= set(
         run_request["properties"]
     )
-    assert run_request["properties"]["check_key"]["enum"] == [
-        "contract.limit_recovery",
-        "5.15",
-        "contract.benchmark_reproduction",
-        "5.16",
-        "contract.direct_proxy_consistency",
-        "5.17",
-        "contract.fit_family_mismatch",
-        "5.18",
-        "contract.estimator_family_mismatch",
-        "5.19",
-    ]
-    assert run_request["properties"]["check_id"]["enum"] == run_request["properties"]["check_key"]["enum"]
+    check_key = _schema_anyof_string(run_request["properties"]["check_key"])
+    assert check_key["minLength"] == 1
+    assert check_key["pattern"] == r"\S"
+    assert "enum" not in check_key
+    assert any(
+        isinstance(branch, dict) and branch.get("type") == "null"
+        for branch in run_request["properties"]["check_key"]["anyOf"]
+    )
+
+    check_id = _schema_anyof_string(run_request["properties"]["check_id"])
+    assert check_id["minLength"] == 1
+    assert check_id["pattern"] == r"\S"
+    assert "enum" not in check_id
+    assert any(
+        isinstance(branch, dict) and branch.get("type") == "null"
+        for branch in run_request["properties"]["check_id"]["anyOf"]
+    )
 
     binding = _schema_anyof_object(run_request["properties"]["binding"])
     assert binding["additionalProperties"] is False

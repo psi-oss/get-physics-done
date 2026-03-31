@@ -595,7 +595,7 @@ Each plan MUST include:
 - **Consistency checks:** Cross-checks between independent methods or approaches where possible
 - **Tangent discipline:** Independent alternatives and optional side questions require an explicit tangent decision before they become separate workstreams
 - **Anchor discipline:** If a benchmark, paper, dataset, or prior artifact is contract-critical, surface it in the plan instead of treating it as optional background
-- **Contract completeness:** Every plan must include claims, deliverables, references, acceptance tests, forbidden proxies, and uncertainty markers in frontmatter
+- **Contract completeness:** Every plan must include claims, deliverables, acceptance tests, forbidden proxies, and uncertainty markers in frontmatter, plus `references[]` whenever explicit grounding is not already carried elsewhere in the contract
 - **Protocol bundle coverage:** If protocol bundles are selected, carry their estimator policies, decisive artifact guidance, and verifier extensions into the plan explicitly
 </physics_planning_requirements>
 
@@ -603,7 +603,7 @@ Each plan MUST include:
 Planning requires `project_contract`:
 
 - If `project_contract` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED` instead of writing a weak or guessed plan.
-- Every PLAN.md must include a `contract` frontmatter block with exact IDs for claims, deliverables, acceptance tests, and forbidden proxies. Include `references` only when the plan needs explicit external grounding.
+- Every PLAN.md must include a `contract` frontmatter block with exact IDs for claims, deliverables, acceptance tests, and forbidden proxies. Include `references[]` only when the plan needs explicit grounding that is not already carried through `contract.context_intake`, `approach_policy`, or preserved scoping inputs.
 - Every PLAN.md must carry forward required context from the contract: must-read refs, prior outputs, baselines, and user anchors when execution depends on them. That context lives under `contract.context_intake`, not as a separate top-level block.
 - Every PLAN.md must include uncertainty markers from the contract when they constrain interpretation or verification.
 - Every PLAN.md should express result wiring through `contract.links` or explicit task/verification handoffs, not through a second ad hoc success schema.

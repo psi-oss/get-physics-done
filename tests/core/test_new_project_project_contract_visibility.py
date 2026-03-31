@@ -19,8 +19,14 @@ def test_new_project_prompt_surfaces_the_canonical_state_schema_for_project_cont
     assert "the contract schema is closed: do not add invented top-level or nested keys" in new_project_text
     assert "list fields must stay lists even for single-item values" in new_project_text
     assert "blank or duplicate list entries are invalid after trimming whitespace" in new_project_text
+    assert "Before you show the approval gate, build the raw contract as a literal JSON object that follows `templates/state-json-schema.md` exactly:" in new_project_text
+    assert "`context_intake`, `approach_policy`, and `uncertainty_markers` are objects, not strings or lists" in new_project_text
+    assert "`schema_version` must be the integer `1`" in new_project_text
+    assert "`references[].must_surface` must be a boolean `true` or `false`" in new_project_text
     assert "project_contract_load_info" in new_project_text
     assert "project_contract_validation" in new_project_text
+    assert "`context_intake`, `approach_policy`, and `uncertainty_markers` must each stay as objects, not strings or lists." in new_project_text
+    assert "`schema_version` must be the integer `1`, and `references[].must_surface` must be a boolean `true` or `false`, not a quoted synonym." in new_project_text
     assert "Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `has_research_map`, `planning_exists`, `has_research_files`, `has_project_manifest`, `has_existing_project`, `needs_research_map`, `has_git`, `project_contract`, `project_contract_load_info`, `project_contract_validation`." in new_project_text
     assert "If `project_contract` is present in the init JSON, keep `project_contract`, `project_contract_load_info`, and `project_contract_validation` visible while deciding whether this is fresh work or a continuation." in new_project_text
     assert "If the init JSON already contains `project_contract`, `project_contract_load_info`, or `project_contract_validation`, preserve that state in the approval gate and continuation decision." in new_project_text
@@ -46,6 +52,9 @@ def test_state_schema_surfaces_the_exact_approved_mode_grounding_rule() -> None:
         in state_schema_text
     )
     assert "gpd --raw validate project-contract - --mode approved" in state_schema_text
+    assert "`context_intake`, `approach_policy`, and `uncertainty_markers` are JSON objects when present; do not collapse them to strings or lists." in state_schema_text
+    assert "`schema_version` must be the integer `1`." in state_schema_text
+    assert "`must_surface` is a boolean scalar. Use the JSON literals `true` and `false`;" in state_schema_text
     assert "`context_intake` must not be empty." in state_schema_text
     assert "already exists inside the current project root" in state_schema_text
     assert "already exists inside the current project root" in state_schema_text
@@ -62,6 +71,7 @@ def test_new_project_and_questioning_gate_do_not_treat_missing_anchor_notes_as_a
     assert "Missing-anchor notes preserve uncertainty, but they do not satisfy approval on their own." in new_project_text
     assert "do not offer approval yet" in new_project_text
     assert "must ground approval or be carried forward" in new_project_text
+    assert "gpd --raw validate project-contract - --mode approved" in new_project_text
     assert "do not invent extra keys or collapse list fields into scalars" in questioning_text
     assert "Array fields stay arrays, even for singletons" in questioning_text
     assert "blank or duplicate list items are invalid after trimming whitespace" in questioning_text

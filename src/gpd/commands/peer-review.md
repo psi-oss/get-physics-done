@@ -4,7 +4,7 @@ description: Conduct a staged six-pass peer review of a manuscript and supportin
 argument-hint: "[paper directory or manuscript path]"
 context_mode: project-required
 requires:
-  files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]
+  files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]
 review-contract:
   review_mode: publication
   schema_version: 1
@@ -98,7 +98,7 @@ Review target: $ARGUMENTS (optional paper directory or manuscript path)
 Check canonical candidate manuscript roots in order:
 
 ```bash
-ls paper/main.tex manuscript/main.tex draft/main.tex 2>/dev/null
+ls paper/main.tex paper/main.md manuscript/main.tex manuscript/main.md draft/main.tex draft/main.md 2>/dev/null
 ```
 
 If none of those roots exist, pass an explicit manuscript path or paper directory and let centralized preflight reject anything outside the supported target family.

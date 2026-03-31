@@ -29,6 +29,7 @@ from gpd.core.constants import (
     TODOS_DIR_NAME,
     VERIFICATION_SUFFIX,
 )
+from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
 from gpd.core.phases import _milestone_completion_snapshot
 from gpd.core.utils import (
     is_phase_complete as _is_phase_complete,
@@ -53,9 +54,7 @@ __all__ = [
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 CORE_CONVENTIONS = ("metric_signature", "natural_units", "coordinate_system")
-
-# Paper search paths relative to cwd
-PAPER_PATHS = ("paper/main.tex", "manuscript/main.tex", "draft/main.tex")
+_REFEREE_DECISION_FILENAME_RE = re.compile(r"^REFEREE-DECISION(?P<round_suffix>-R(?P<round>\d+))?\.json$")
 
 
 # ─── Data Models ──────────────────────────────────────────────────────────────
@@ -371,18 +370,57 @@ def _has_literature_review(cwd: Path) -> bool:
     return any(f.name.endswith("-REVIEW.md") for f in lit_dir.iterdir() if f.is_file())
 
 
+def _review_artifact_round(path: Path, *, pattern: re.Pattern[str]) -> tuple[int, str] | None:
+    match = pattern.fullmatch(path.name)
+    if match is None:
+        return None
+    round_text = match.group("round")
+    round_number = int(round_text) if round_text else 1
+    return round_number, match.group("round_suffix") or ""
+
+
+def _has_author_response(cwd: Path) -> bool:
+    responses_dir = _planning_dir(cwd)
+    if not responses_dir.is_dir():
+        return False
+    return any(path.is_file() for path in responses_dir.glob("AUTHOR-RESPONSE*.md"))
+
+
+def _latest_referee_decision_recommendation(cwd: Path) -> str | None:
+    review_dir = _planning_dir(cwd) / "review"
+    if not review_dir.is_dir():
+        return None
+
+    decision_by_round: dict[int, Path] = {}
+    for path in sorted(review_dir.glob("REFEREE-DECISION*.json")):
+        details = _review_artifact_round(path, pattern=_REFEREE_DECISION_FILENAME_RE)
+        if details is not None:
+            decision_by_round[details[0]] = path
+
+    if not decision_by_round:
+        return None
+
+    latest_round = max(decision_by_round)
+    try:
+        payload = json.loads(decision_by_round[latest_round].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    recommendation = payload.get("final_recommendation")
+    if not isinstance(recommendation, str):
+        return None
+    normalized = recommendation.strip().lower()
+    return normalized or None
+
+
 def _has_referee_report(cwd: Path) -> bool:
     """Check for canonical referee report files in `GPD/` only."""
 
     reports_dir = _planning_dir(cwd)
     if not reports_dir.is_dir():
         return False
+    if _has_author_response(cwd) and _latest_referee_decision_recommendation(cwd) == "accept":
+        return False
     return any(f.is_file() for f in reports_dir.glob("REFEREE-REPORT*.md"))
-
-
-def _has_paper(cwd: Path) -> bool:
-    """Check if a paper draft exists at any known path."""
-    return any((cwd / p).exists() for p in PAPER_PATHS)
 
 
 def _has_adaptive_lock_signal(cwd: Path) -> bool:
@@ -484,8 +522,9 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     # ── 0. Check project existence ──────────────────────────────────────
     project_exists = _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}")
     roadmap_exists = _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}")
+    manuscript_entrypoint = resolve_current_manuscript_entrypoint(cwd, allow_markdown=True)
 
-    if not project_exists:
+    if not project_exists and manuscript_entrypoint is None:
         only = Recommendation(
             action="new-project",
             priority=1,
@@ -729,7 +768,8 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
         )
 
     # ── 13. Paper pipeline awareness ────────────────────────────────────
-    has_paper_flag = _has_paper(cwd)
+    has_paper_flag = manuscript_entrypoint is not None
+    has_latex_manuscript = manuscript_entrypoint is not None and manuscript_entrypoint.suffix == ".tex"
     has_lit_review = _has_literature_review(cwd)
     has_referee = _has_referee_report(cwd)
 
@@ -781,17 +821,18 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
                     reason="Paper draft exists — run standalone peer review before submission packaging",
                 )
             )
-            suggestions.append(
-                _MutableRecommendation(
-                    action="arxiv-submission",
-                    priority=5,
-                    command=format_command("arxiv-submission"),
-                    reason=(
-                        "Paper draft exists — prepare for arXiv submission "
-                        "(validates LaTeX, flattens bibliography, packages)"
-                    ),
+            if has_latex_manuscript:
+                suggestions.append(
+                    _MutableRecommendation(
+                        action="arxiv-submission",
+                        priority=5,
+                        command=format_command("arxiv-submission"),
+                        reason=(
+                            "LaTeX paper draft exists — prepare for arXiv submission "
+                            "(validates LaTeX, flattens bibliography, packages)"
+                        ),
+                    )
                 )
-            )
 
     # ── 14. No phases at all → need to plan ─────────────────────────────
     if not phase_analysis and roadmap_exists:

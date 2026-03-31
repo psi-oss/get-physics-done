@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import struct
 from pathlib import Path
 
 import pytest
@@ -35,6 +36,40 @@ class TestFormatDetection:
 # ---- Normalization ----
 
 
+def _write_minimal_rgb_tiff(path: Path) -> None:
+    """Write a deterministic 1x1 RGB TIFF without relying on Pillow's TIFF encoder."""
+    entries: list[bytes] = []
+
+    def _entry(tag: int, value_type: int, count: int, value: int) -> None:
+        entries.append(struct.pack("<HHII", tag, value_type, count, value))
+
+    bits_per_sample_offset = 8 + 2 + (10 * 12) + 4
+    pixel_offset = bits_per_sample_offset + 6
+
+    _entry(256, 4, 1, 1)  # ImageWidth
+    _entry(257, 4, 1, 1)  # ImageLength
+    _entry(258, 3, 3, bits_per_sample_offset)  # BitsPerSample
+    _entry(259, 3, 1, 1)  # Compression = none
+    _entry(262, 3, 1, 2)  # PhotometricInterpretation = RGB
+    _entry(273, 4, 1, pixel_offset)  # StripOffsets
+    _entry(277, 3, 1, 3)  # SamplesPerPixel
+    _entry(278, 4, 1, 1)  # RowsPerStrip
+    _entry(279, 4, 1, 3)  # StripByteCounts
+    _entry(284, 3, 1, 1)  # PlanarConfiguration = chunky
+
+    payload = bytearray()
+    payload += b"II"
+    payload += struct.pack("<H", 42)
+    payload += struct.pack("<I", 8)
+    payload += struct.pack("<H", len(entries))
+    for entry in entries:
+        payload += entry
+    payload += struct.pack("<I", 0)
+    payload += struct.pack("<HHH", 8, 8, 8)
+    payload += b"\x00\x00\xff"
+    path.write_bytes(payload)
+
+
 class TestNormalization:
     def test_normalize_png_passthrough(self, tmp_path):
         # Create a real 10x10 PNG
@@ -50,7 +85,7 @@ class TestNormalization:
     def test_normalize_tiff_to_png(self, tmp_path):
         src = tmp_path / "input" / "fig.tiff"
         src.parent.mkdir()
-        Image.new("RGB", (10, 10), color="blue").save(src, "TIFF")
+        _write_minimal_rgb_tiff(src)
 
         out = tmp_path / "output"
         result = normalize_figure(src, out)

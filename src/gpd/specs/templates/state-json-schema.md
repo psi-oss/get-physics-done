@@ -177,7 +177,7 @@ The stdin path is canonical because it keeps the exact approved JSON payload in-
 
 The `project_contract` value itself must be a JSON object. Do not replace it with prose, a list, or a string.
 
-`schema_version` must be `1`. Unsupported schema versions are invalid.
+`schema_version` must be the integer `1`. Unsupported schema versions are invalid.
 
 Project contracts must include at least one observable, claim, or deliverable.
 
@@ -188,6 +188,7 @@ Canonical IDs and other required string fields are trimmed before validation. Bl
 `scope.in_scope` must name at least one project boundary or objective.
 
 `context_intake` must not be empty. At least one of `must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, `known_good_baselines`, `context_gaps`, or `crucial_inputs` must carry a non-empty item.
+`context_intake`, `approach_policy`, and `uncertainty_markers` are JSON objects when present; do not collapse them to strings or lists.
 
 #### Closed Schema And List Shape
 
@@ -203,12 +204,13 @@ The following fields always store arrays of objects, never arrays of plain strin
 - `claims[]` — `{ "id", "statement", "observables[]", "deliverables[]", "acceptance_tests[]", "references[]" }`
 - `deliverables[]` — `{ "id", "kind", "path?", "description", "must_contain[]" }`
 - `acceptance_tests[]` — `{ "id", "subject", "kind", "procedure", "pass_condition", "evidence_required[]", "automation" }`
-- `references[]` — `{ "id", "kind", "locator", "aliases[]", "role", "why_it_matters", "applies_to[]", "carry_forward_to[]", "must_surface", "required_actions[]" }`
+- `references[]` — `{ "id", "kind", "locator", "aliases[]", "role", "why_it_matters", "applies_to[]", "carry_forward_to[]", "must_surface": true|false, "required_actions[]" }`
 - `forbidden_proxies[]` — `{ "id", "subject", "proxy", "reason" }`
 - `links[]` — `{ "id", "source", "target", "relation", "verified_by[]" }`
 
 If a project-contract reference sets `must_surface: true`, `required_actions[]` must not be empty.
 `required_actions[]` uses the same closed action vocabulary enforced downstream in contract ledgers: `read`, `use`, `compare`, `cite`, `avoid`.
+`must_surface` is a boolean scalar. Use the JSON literals `true` and `false`; do not quote them or replace them with synonyms such as `yes`, `no`, `required`, or `optional`.
 
 If a project contract has any `references[]` and does not already carry concrete prior-output, user-anchor, or baseline grounding, at least one reference must set `must_surface: true`. When that other grounding exists, a missing `must_surface: true` reference is still a warning that should be repaired, not a silent ignore.
 

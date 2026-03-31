@@ -148,6 +148,9 @@ Before you show the approval gate, build the raw contract as a literal JSON obje
 - `project_contract` is a JSON object, not prose
 - `observables`, `claims`, `deliverables`, `acceptance_tests`, `references`, `forbidden_proxies`, and `links` are arrays of objects, not strings
 - every object in those arrays must declare a stable `id`
+- `context_intake`, `approach_policy`, and `uncertainty_markers` are objects, not strings or lists
+- `schema_version` must be the integer `1`
+- `references[].must_surface` must be a boolean `true` or `false`, not a quoted synonym
 - `context_intake.must_read_refs` must contain only `references[].id` values
 - `claims[].observables`, `claims[].deliverables`, `claims[].acceptance_tests`, and `claims[].references` must point only to declared IDs
 - `acceptance_tests[].subject`, `references[].applies_to`, and `forbidden_proxies[].subject` must point to a claim ID or deliverable ID, never an observable label or free text
@@ -181,7 +184,7 @@ Then present a concise scoping summary and require explicit approval:
 After approval, validate the contract before persisting it:
 
 ```bash
-printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -
+printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - --mode approved
 ```
 
 If validation fails, show the errors, revise the scoping contract, and do NOT continue to downstream artifact generation.
@@ -791,6 +794,8 @@ Before writing `PROJECT.md`, synthesize a canonical project contract with at lea
 - `uncertainty_markers.unvalidated_assumptions`
 - `uncertainty_markers.competing_explanations`
 - `uncertainty_markers.disconfirming_observations`
+`context_intake`, `approach_policy`, and `uncertainty_markers` must each stay as objects, not strings or lists.
+`schema_version` must be the integer `1`, and `references[].must_surface` must be a boolean `true` or `false`, not a quoted synonym.
 
 If no must-read references are confirmed yet, record that explicitly in the contract rather than inventing one.
 If the user does not know the anchor yet, record that explicitly as an unresolved question or context gap rather than fabricating a paper, dataset, benchmark, or baseline.
@@ -806,6 +811,9 @@ Before you ask for approval, build the raw contract as a literal JSON object tha
 - `project_contract` is a JSON object, not prose
 - `observables`, `claims`, `deliverables`, `acceptance_tests`, `references`, `forbidden_proxies`, and `links` are arrays of objects, not strings
 - every object in those arrays must declare a stable `id`
+- `context_intake`, `approach_policy`, and `uncertainty_markers` are objects, not strings or lists
+- `schema_version` must be the integer `1`
+- `references[].must_surface` must be a boolean `true` or `false`, not a quoted synonym
 - `context_intake.must_read_refs` must contain only `references[].id` values
 - `claims[].observables`, `claims[].deliverables`, `claims[].acceptance_tests`, and `claims[].references` must point only to declared IDs
 - `acceptance_tests[].subject`, `references[].applies_to`, and `forbidden_proxies[].subject` must point to a claim ID or deliverable ID, never an observable label or free text
@@ -825,7 +833,7 @@ Present a concise scoping summary and require explicit approval before downstrea
 Validate the approved contract before persisting it:
 
 ```bash
-printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -
+printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - --mode approved
 ```
 
 If validation fails, show the errors, revise the scoping contract, and do NOT continue.

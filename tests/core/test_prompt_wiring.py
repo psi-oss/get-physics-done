@@ -651,8 +651,9 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
     respond = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
     arxiv = (COMMANDS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
 
-    for content in (peer_review, respond, arxiv):
-        assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]' in content
+    for content in (peer_review, respond):
+        assert 'files: ["paper/*.tex", "paper/*.md", "manuscript/*.tex", "manuscript/*.md", "draft/*.tex", "draft/*.md"]' in content
+    assert 'files: ["paper/*.tex", "manuscript/*.tex", "draft/*.tex"]' in arxiv
 
     assert "peer-review review ledger when available" in arxiv
     assert "peer-review referee decision when available" in arxiv
@@ -742,7 +743,7 @@ def test_new_project_wiring_mentions_contract_persistence_and_contract_first_dow
     command_text = (COMMANDS_DIR / "new-project.md").read_text(encoding="utf-8")
 
     assert "gpd state set-project-contract" in workflow_text
-    assert "gpd --raw validate project-contract -" in workflow_text
+    assert "gpd --raw validate project-contract - --mode approved" in workflow_text
     assert "gpd state set-project-contract -" in workflow_text
     assert "/tmp/gpd-project-contract.json" not in workflow_text
     assert "temporary JSON file if needed" not in workflow_text
@@ -1620,7 +1621,10 @@ def test_peer_review_prompt_includes_concise_stage_map_for_users() -> None:
 def test_peer_review_command_limits_default_manuscript_targets_to_canonical_roots() -> None:
     peer_review_command = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
-    assert "ls paper/main.tex manuscript/main.tex draft/main.tex 2>/dev/null" in peer_review_command
+    assert (
+        "ls paper/main.tex paper/main.md manuscript/main.tex manuscript/main.md draft/main.tex draft/main.md 2>/dev/null"
+        in peer_review_command
+    )
     assert "find . -maxdepth 3" not in peer_review_command
     assert "pass an explicit manuscript path or paper directory" in peer_review_command
 
@@ -1889,7 +1893,7 @@ def test_state_json_schema_surfaces_stdin_contract_persistence_and_model_normali
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -' in state_schema
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -' in state_schema
     assert "temporary file" in state_schema
-    assert "`schema_version` must be `1`." in state_schema
+    assert "`schema_version` must be the integer `1`." in state_schema
     assert "Project contracts must include at least one observable, claim, or deliverable." in state_schema
     assert "`uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty." in state_schema
     assert "`scope.in_scope` must name at least one project boundary or objective." in state_schema
@@ -1917,7 +1921,7 @@ def test_phase_prompt_surfaces_validation_critical_plan_contract_rules() -> None
     phase_prompt = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
 
     assert "the contract must carry non-empty claims, deliverables, acceptance tests, forbidden proxies" in phase_prompt
-    assert "references must be present and at least one must set `must_surface: true`" in phase_prompt
+    assert "If the contract does not already carry explicit grounding elsewhere, references must be present and at least one must set `must_surface: true`." in phase_prompt
     assert "Semantic enum fields with schema defaults may be omitted when `other` is actually intended." in phase_prompt
     assert "If the plan is intentionally scoping-only" in phase_prompt
 

@@ -13,6 +13,7 @@ from gpd.adapters.install_utils import (
     _is_hook_command_for_script,
     build_hook_command,
     compile_markdown_for_runtime,
+    convert_tool_references_in_body,
     copy_with_path_replacement,
     ensure_update_hook,
     hook_python_interpreter,
@@ -129,6 +130,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             self._current_install_scope_flag(),
             translate_tool_name=self.translate_frontmatter_tool_name,
             content_transform=lambda content: _rewrite_gpd_cli_invocations(content, bridge_command),
+            body_tool_reference_map=self.tool_reference_translation_map(),
         )
         if verify_installed(agents_dest, "agents"):
             logger.info("Installed agents")
@@ -585,6 +587,7 @@ def _copy_agents_native(
     install_scope: str | None = None,
     translate_tool_name: Callable[[str], str | None] | None = None,
     content_transform: Callable[[str], str] | None = None,
+    body_tool_reference_map: dict[str, str] | None = None,
 ) -> None:
     """Copy agent .md files with placeholder replacement and tool-name translation.
 
@@ -612,6 +615,11 @@ def _copy_agents_native(
         content = materialize_first_round_review_schema_headings(content)
         if content_transform is not None:
             content = content_transform(content)
+        if body_tool_reference_map is None:
+            from gpd.adapters import get_adapter
+
+            body_tool_reference_map = get_adapter(runtime).tool_reference_translation_map()
+        content = convert_tool_references_in_body(content, body_tool_reference_map)
         (agents_dest / agent_md.name).write_text(content, encoding="utf-8")
         new_agent_names.add(agent_md.name)
 
@@ -775,12 +783,7 @@ def _build_managed_optional_mcp_servers() -> dict[str, dict[str, object]]:
         return {}
     if not WOLFRAM_MANAGED_INTEGRATION.is_configured():
         return {}
-    return {
-        WOLFRAM_MANAGED_SERVER_KEY: {
-            "command": WOLFRAM_MANAGED_INTEGRATION.bridge_command,
-            "args": [],
-        }
-    }
+    return {WOLFRAM_MANAGED_SERVER_KEY: WOLFRAM_MANAGED_INTEGRATION.projected_server_entry()}
 
 
 def _managed_mcp_server_keys() -> frozenset[str]:

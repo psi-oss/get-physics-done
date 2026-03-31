@@ -1762,6 +1762,26 @@ class TestReviewValidationCommands:
         assert "reproducibility_manifest" not in checks
         assert "reproducibility_ready" not in checks
 
+    def test_review_preflight_write_paper_strict_recognizes_markdown_resume_directory(self, gpd_project: Path) -> None:
+        paper_dir = gpd_project / "paper"
+        (paper_dir / "main.tex").unlink()
+        (paper_dir / "main.md").write_text("# Markdown manuscript\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "write-paper", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is True
+        assert "paper/main.md" in checks["manuscript"]["detail"]
+        assert checks["artifact_manifest"]["passed"] is True
+        assert checks["bibliography_audit"]["passed"] is True
+        assert checks["reproducibility_manifest"]["passed"] is True
+
     @pytest.mark.parametrize("resume_dir_name", ["manuscript", "draft"])
     def test_review_preflight_write_paper_strict_uses_resolved_resume_directory(
         self,
@@ -1986,6 +2006,30 @@ class TestReviewValidationCommands:
         assert checks["reproducibility_manifest"]["passed"] is True
         assert checks["reproducibility_ready"]["passed"] is True
 
+    def test_review_preflight_peer_review_without_subject_accepts_markdown_entrypoint(
+        self, gpd_project: Path
+    ) -> None:
+        paper_dir = gpd_project / "paper"
+        (paper_dir / "main.tex").unlink()
+        (paper_dir / "main.md").write_text("# Markdown manuscript\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "peer-review", "--strict"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["command"] == "gpd:peer-review"
+        assert payload["passed"] is True
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is True
+        assert "paper/main.md" in checks["manuscript"]["detail"]
+        assert checks["artifact_manifest"]["passed"] is True
+        assert checks["bibliography_audit"]["passed"] is True
+        assert checks["reproducibility_manifest"]["passed"] is True
+
     def test_review_preflight_strict_blocks_review_integrity_failures(self, gpd_project: Path) -> None:
         planning = gpd_project / "GPD"
         state = json.loads((planning / "state.json").read_text(encoding="utf-8"))
@@ -2123,6 +2167,23 @@ class TestReviewValidationCommands:
         assert checks["referee_report_source"]["passed"] is True
         assert "artifact_manifest" not in checks
         assert "bibliography_audit" not in checks
+
+    def test_review_preflight_respond_to_referees_accepts_markdown_manuscript(self, gpd_project: Path) -> None:
+        paper_dir = gpd_project / "paper"
+        (paper_dir / "main.tex").unlink()
+        (paper_dir / "main.md").write_text("# Markdown manuscript\n", encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "validate", "review-preflight", "respond-to-referees", "reports/referee-report.md"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is True
+        assert "paper/main.md" in checks["manuscript"]["detail"]
 
     def test_review_preflight_peer_review_fails_without_manuscript(self, gpd_project: Path) -> None:
         (gpd_project / "paper" / "main.tex").unlink()
@@ -2817,6 +2878,37 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         assert payload["ready_for_submission"] is False
+
+    def test_validate_paper_quality_command_blocks_invalid_ledger_integrity_flags(self, gpd_project: Path) -> None:
+        quality_path = gpd_project / "paper-quality-ledger-blocked.json"
+        quality_path.write_text(
+            json.dumps(
+                {
+                    "title": "Ledger blocked paper",
+                    "journal": "generic",
+                    "verification": {
+                        "report_passed": {"passed": True},
+                        "contract_targets_verified": {"satisfied": 1, "total": 1},
+                        "key_result_confidences": ["INDEPENDENTLY CONFIRMED"],
+                    },
+                    "journal_extra_checks": {
+                        "contract_results_parse_ok": False,
+                        "contract_results_alignment_ok": False,
+                        "comparison_verdicts_valid": False,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(app, ["--raw", "validate", "paper-quality", str(quality_path)], catch_exceptions=False)
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        blocker_checks = {issue["check"] for issue in payload["blocking_issues"]}
+        assert "contract_results_parse_ok" in blocker_checks
+        assert "contract_results_alignment_ok" in blocker_checks
+        assert "comparison_verdicts_valid" in blocker_checks
 
     def test_validate_paper_quality_command_blocks_missing_decisive_verdicts(self, gpd_project: Path) -> None:
         quality_path = gpd_project / "paper-quality-decisive-blocked.json"

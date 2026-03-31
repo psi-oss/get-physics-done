@@ -776,7 +776,13 @@ def _run_contract_identifier_pairing_condition_schema() -> dict[str, object] | N
     if not options:
         return None
     return {
-        "if": {"required": ["check_key", "check_id"]},
+        "if": {
+            "required": ["check_key", "check_id"],
+            "properties": {
+                "check_key": {"type": "string"},
+                "check_id": {"type": "string"},
+            },
+        },
         "then": {"anyOf": options},
     }
 
@@ -851,8 +857,14 @@ def _run_contract_request_requirement_condition_schema(check_key: str, hint: dic
     return {
         "if": {
             "anyOf": [
-                {"required": ["check_key"], "properties": {"check_key": {"enum": list(identifiers)}}},
-                {"required": ["check_id"], "properties": {"check_id": {"enum": list(identifiers)}}},
+                {
+                    "required": ["check_key"],
+                    "properties": {"check_key": {"type": "string", "enum": list(identifiers)}},
+                },
+                {
+                    "required": ["check_id"],
+                    "properties": {"check_id": {"type": "string", "enum": list(identifiers)}},
+                },
             ]
         },
         "then": then_schema,
@@ -874,8 +886,8 @@ _RUN_CONTRACT_CHECK_REQUEST_SCHEMA: dict[str, object] = {
         {"required": ["check_id"]},
     ],
     "properties": {
-        "check_key": _enum_string_schema(_CONTRACT_CHECK_IDENTIFIER_VALUES),
-        "check_id": _enum_string_schema(_CONTRACT_CHECK_IDENTIFIER_VALUES),
+        "check_key": _non_empty_string_or_null_schema(),
+        "check_id": _non_empty_string_or_null_schema(),
         "contract": {"anyOf": [dict(_CONTRACT_PAYLOAD_INPUT_SCHEMA), {"type": "null"}]},
         "binding": {"anyOf": [dict(_CONTRACT_BINDING_INPUT_SCHEMA), {"type": "null"}]},
         "metadata": {"anyOf": [dict(_CONTRACT_METADATA_INPUT_SCHEMA), {"type": "null"}]},
@@ -1961,6 +1973,14 @@ def _decisive_contract_impacts(
             binding_supplied=binding_supplied,
         )
         return candidates
+
+    if check_key in {"contract.fit_family_mismatch", "contract.estimator_family_mismatch"}:
+        declared_family = _normalize_optional_scalar_str(metadata.get("declared_family"))
+        if declared_family:
+            return [declared_family]
+        selected_family = _normalize_optional_scalar_str(metadata.get("selected_family"))
+        if selected_family:
+            return [selected_family]
 
     return []
 

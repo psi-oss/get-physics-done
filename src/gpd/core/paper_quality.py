@@ -572,6 +572,23 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
             )
         )
 
+    integrity_blockers = {
+        "contract_results_parse_ok": "Contract-results ledger could not be parsed cleanly.",
+        "contract_results_alignment_ok": "Contract-results ledger is not aligned with the active contract.",
+        "comparison_verdicts_valid": "Comparison verdict ledgers are malformed or inconsistent.",
+    }
+    for check_name, summary in integrity_blockers.items():
+        if check_name in data.journal_extra_checks and not data.journal_extra_checks[check_name]:
+            blockers.append(
+                PaperQualityIssue(
+                    category="results",
+                    check=check_name,
+                    severity=Severity.blocker,
+                    summary=summary,
+                    blocking=True,
+                )
+            )
+
     base_score = round(sum(category.score for category in categories.values()), 2)
 
     journal_key = data.journal.lower().replace(" ", "_")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -16,9 +17,24 @@ from mcp.server.stdio import stdio_server
 
 from gpd.version import __version__ as GPD_VERSION
 
-DEFAULT_WOLFRAM_MCP_ENDPOINT = "https://services.wolfram.com/api/mcp"
-GPD_WOLFRAM_MCP_API_KEY_ENV = "GPD_WOLFRAM_MCP_API_KEY"
-WOLFRAM_MCP_SERVICE_API_KEY_ENV = "WOLFRAM_MCP_SERVICE_API_KEY"
+try:
+    from gpd.mcp.managed_integrations import (
+        WOLFRAM_MANAGED_INTEGRATION,
+        WOLFRAM_MCP_API_KEY_ENV_VAR,
+        WOLFRAM_MCP_DEFAULT_ENDPOINT,
+        WOLFRAM_MCP_ENDPOINT_ENV_VAR,
+        WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR,
+    )
+except ImportError:  # pragma: no cover - partial checkout fallback
+    WOLFRAM_MANAGED_INTEGRATION = None
+    WOLFRAM_MCP_API_KEY_ENV_VAR = "GPD_WOLFRAM_MCP_API_KEY"
+    WOLFRAM_MCP_DEFAULT_ENDPOINT = "https://services.wolfram.com/api/mcp"
+    WOLFRAM_MCP_ENDPOINT_ENV_VAR = "GPD_WOLFRAM_MCP_ENDPOINT"
+    WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR = "WOLFRAM_MCP_SERVICE_API_KEY"
+
+DEFAULT_WOLFRAM_MCP_ENDPOINT = WOLFRAM_MCP_DEFAULT_ENDPOINT
+GPD_WOLFRAM_MCP_API_KEY_ENV = WOLFRAM_MCP_API_KEY_ENV_VAR
+WOLFRAM_MCP_SERVICE_API_KEY_ENV = WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR
 
 _CONNECT_TIMEOUT_SECONDS = 10.0
 _READ_TIMEOUT_SECONDS = 300.0
@@ -35,8 +51,10 @@ def _env_value(env: Mapping[str, str], key: str) -> str | None:
 
 def resolve_endpoint(env: Mapping[str, str] | None = None) -> str:
     """Return the Wolfram MCP endpoint URL, defaulting to the official service."""
-    source = env or {}
-    endpoint = _env_value(source, "GPD_WOLFRAM_MCP_ENDPOINT")
+    source = os.environ if env is None else env
+    if WOLFRAM_MANAGED_INTEGRATION is not None:
+        return WOLFRAM_MANAGED_INTEGRATION.resolved_endpoint(source)
+    endpoint = _env_value(source, WOLFRAM_MCP_ENDPOINT_ENV_VAR)
     return endpoint or DEFAULT_WOLFRAM_MCP_ENDPOINT
 
 
@@ -46,7 +64,9 @@ def resolve_api_key(env: Mapping[str, str] | None = None) -> str:
     The canonical env var is checked first. The compatibility alias is only
     accepted as a fallback inside this bridge.
     """
-    source = env or {}
+    source = os.environ if env is None else env
+    if WOLFRAM_MANAGED_INTEGRATION is not None:
+        return WOLFRAM_MANAGED_INTEGRATION.resolve_api_key(source)
     canonical = _env_value(source, GPD_WOLFRAM_MCP_API_KEY_ENV)
     if canonical is not None:
         return canonical
@@ -74,7 +94,7 @@ class WolframBridgeConfig:
 
 def load_settings(env: Mapping[str, str] | None = None) -> WolframBridgeConfig:
     """Load bridge settings from the environment without persisting secrets."""
-    source = env or {}
+    source = os.environ if env is None else env
     return WolframBridgeConfig(endpoint=resolve_endpoint(source), api_key=resolve_api_key(source))
 
 

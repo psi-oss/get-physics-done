@@ -15,7 +15,7 @@ Use this file whenever you author, revise, or validate a PLAN contract. Do not i
 
 The PLAN `contract` value must be a YAML object with these top-level sections:
 
-- `schema_version` (optional, defaults to `1`; no other value is supported)
+- `schema_version` (optional, defaults to the integer `1`; no other value is supported)
 - `scope`
 - `context_intake`
 - `claims`
@@ -32,6 +32,7 @@ Optional sections:
 - `links`
 
 Every list named above must contain objects, not strings.
+`context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections, not strings or lists.
 
 ---
 
@@ -45,7 +46,7 @@ schema_version: 1
 
 Rules:
 
-- `schema_version` is optional in the YAML frontmatter only because it defaults to `1`.
+- `schema_version` is optional in the YAML frontmatter only because it defaults to the integer `1`.
 - No other value is supported.
 
 ### `scope`
@@ -119,7 +120,7 @@ approach_policy:
 
 Rules:
 
-- `approach_policy` must be an object, not a string or list.
+- `approach_policy` must be a YAML object, not a string or list.
 - Every field above is optional, but when present it must be an array of non-empty strings.
 - `allowed_*` and `forbidden_*` lists are closed-world guardrails for downstream check selection; do not bury them in prose.
 
@@ -194,6 +195,7 @@ Rules:
 - `applies_to[]` may only reference declared claim or deliverable IDs.
 - `carry_forward_to[]` is optional free-text workflow scope (for example `planning`, `verification`, `writing`); do not overload it with contract IDs.
 - `required_actions[]` values must use the closed action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`.
+- `must_surface` is a boolean scalar. Use the YAML literals `true` and `false`; do not quote them or replace them with synonyms such as `yes`, `no`, `required`, or `optional`.
 - If `must_surface: true`, `required_actions` must not be empty.
 - If `must_surface: true`, `applies_to[]` must not be empty.
 
@@ -246,6 +248,7 @@ Rules:
 
 - `weakest_anchors` must not be empty.
 - `disconfirming_observations` must not be empty.
+- `uncertainty_markers` must be a YAML object, not a string or list.
 - `unvalidated_assumptions` and `competing_explanations` are optional arrays of non-empty strings, but when present they must stay explicit in the contract.
 
 ---

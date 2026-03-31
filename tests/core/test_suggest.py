@@ -485,6 +485,21 @@ def test_missing_conventions_suggest_set(tmp_path: Path) -> None:
 # ─── Paper Pipeline ────────────────────────────────────────────────────────────
 
 
+def test_markdown_manuscript_is_not_treated_as_new_project(tmp_path: Path) -> None:
+    """A markdown manuscript should be recognized without PROJECT.md."""
+    (tmp_path / "paper").mkdir()
+    (tmp_path / "paper" / "main.md").write_text("# Markdown manuscript\n", encoding="utf-8")
+
+    result = suggest_next(tmp_path)
+    actions = [s.action for s in result.suggestions]
+
+    assert "new-project" not in actions
+    assert "new-milestone" in actions
+    assert "peer-review" in actions
+    assert "arxiv-submission" not in actions
+    assert result.context.has_paper is True
+
+
 def test_paper_exists_suggests_peer_review_before_submission(tmp_path: Path) -> None:
     """Paper draft suggests peer review before arXiv submission."""
     root = _setup_project(tmp_path)
@@ -527,6 +542,40 @@ def test_referee_report_in_canonical_gpd_root_suggests_response(tmp_path: Path) 
 
     assert "respond-to-referees" in actions
     assert "peer-review" not in actions
+
+
+def test_markdown_referee_report_suggests_response_without_arxiv_submission(tmp_path: Path) -> None:
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    (root / "paper").mkdir()
+    (root / "paper" / "main.md").write_text("# Markdown manuscript\n", encoding="utf-8")
+    (root / "GPD" / "REFEREE-REPORT.md").write_text("Major revision needed.\n", encoding="utf-8")
+
+    result = suggest_next(root)
+    actions = [s.action for s in result.suggestions]
+
+    assert "respond-to-referees" in actions
+    assert "peer-review" not in actions
+    assert "arxiv-submission" not in actions
+
+
+def test_author_response_and_accepted_decision_clear_referee_response_suggestion(tmp_path: Path) -> None:
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    (root / "paper").mkdir()
+    (root / "paper" / "main.tex").write_text("\\documentclass{article}\n", encoding="utf-8")
+    (root / "GPD" / "REFEREE-REPORT.md").write_text("Accepted after revision.\n", encoding="utf-8")
+    (root / "GPD" / "AUTHOR-RESPONSE.md").write_text("Responses incorporated.\n", encoding="utf-8")
+    review_dir = root / "GPD" / "review"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    (review_dir / "REFEREE-DECISION.json").write_text('{"final_recommendation":"accept"}\n', encoding="utf-8")
+
+    result = suggest_next(root)
+    actions = [s.action for s in result.suggestions]
+
+    assert "respond-to-referees" not in actions
+    assert "peer-review" in actions
+    assert "arxiv-submission" in actions
 
 
 def test_milestone_referee_report_namespace_does_not_trigger_response(tmp_path: Path) -> None:

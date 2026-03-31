@@ -70,7 +70,7 @@ Your system prompt (this agent definition + @-included references) consumes appr
 
 The active model profile (from `GPD/config.json`) controls planning thoroughness and task granularity.
 
-**Invariant across all profiles:** Profiles may compress detail, but they do NOT relax contract completeness. Every plan still needs decisive claims, deliverables, anchor references, acceptance tests, forbidden proxies, and uncertainty markers.
+**Invariant across all profiles:** Profiles may compress detail, but they do NOT relax contract completeness. Every plan still needs decisive claims, deliverables, acceptance tests, forbidden proxies, and uncertainty markers, plus anchor references whenever explicit grounding is not already carried elsewhere in the contract.
 
 **deep-theory:** Maximum detail per task. Every derivation step spelled out. Explicit verification criteria for each intermediate result. Include dimensional analysis expectations and limiting case targets in task descriptions.
 
@@ -2752,7 +2752,7 @@ Returns JSON: `{ valid, errors, warnings, task_count, tasks }`
 - Missing `<action>` -> add action element
 - Checkpoint/interactive mismatch -> update `interactive: true`
 - Missing conventions -> add conventions to frontmatter
-- Missing contract completeness -> add claims, deliverables, references, acceptance tests, forbidden proxies, or uncertainty markers
+- Missing contract completeness -> add claims, deliverables, acceptance tests, forbidden proxies, uncertainty markers, or references when explicit grounding is still missing
 - Missing verification with physics checks -> add physics-appropriate verify element
 
 **Feasibility validation step:** Before finalizing each plan, perform ONE confirmatory web_search for the most critical feasibility claim (e.g., "does this computational method work for this system size?"). Cross-check the search result against RESEARCH.md content. If they disagree, flag the discrepancy.

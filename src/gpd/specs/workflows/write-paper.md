@@ -102,7 +102,7 @@ For any resumed manuscript, strict preflight reads `ARTIFACT-MANIFEST.json`, `BI
 
 ```bash
 for DIR in paper manuscript draft; do
-  if [ -f "${DIR}/main.tex" ]; then
+  if [ -f "${DIR}/main.tex" ] || [ -f "${DIR}/main.md" ]; then
     PAPER_DIR="$DIR"
     break
   fi
@@ -112,7 +112,7 @@ if [ -z "${PAPER_DIR}" ]; then
 fi
 ```
 
-If the loop found an existing `main.tex`, the workflow is resuming or revising that manuscript directory. Strict review for that resume path uses `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and `${PAPER_DIR}/reproducibility-manifest.json` from the same directory.
+If the loop found an existing `main.tex` or `main.md`, the workflow is resuming or revising that manuscript directory. Strict review for that resume path uses `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and `${PAPER_DIR}/reproducibility-manifest.json` from the same directory.
 If no existing manuscript was found, `PAPER_DIR` defaults to `paper` and the workflow bootstraps a fresh scaffold there.
 
 **Check optional local LaTeX compiler availability for smoke tests (cross-platform):**

@@ -843,7 +843,7 @@ contract_results:
     assert result.verification.key_result_confidences == []
 
 
-def test_build_paper_quality_input_ignores_mixed_contract_results_ledger_for_coverage_and_confidence(
+def test_build_paper_quality_input_marks_mixed_contract_results_ledger_alignment_failure(
     tmp_path: Path,
 ) -> None:
     plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
@@ -866,9 +866,11 @@ def test_build_paper_quality_input_ignores_mixed_contract_results_ledger_for_cov
     assert result.verification.contract_targets_verified.satisfied == 0
     assert result.verification.contract_targets_verified.total == 3
     assert result.verification.key_result_confidences == []
+    assert result.journal_extra_checks["contract_results_parse_ok"] is True
+    assert result.journal_extra_checks["contract_results_alignment_ok"] is False
 
 
-def test_build_paper_quality_input_ignores_invalid_contract_results_ledger_for_coverage_and_confidence(
+def test_build_paper_quality_input_marks_invalid_contract_results_ledger_parse_failure(
     tmp_path: Path,
 ) -> None:
     plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
@@ -887,6 +889,8 @@ def test_build_paper_quality_input_ignores_invalid_contract_results_ledger_for_c
     assert result.verification.contract_targets_verified.satisfied == 0
     assert result.verification.contract_targets_verified.total == 3
     assert result.verification.key_result_confidences == []
+    assert result.journal_extra_checks["contract_results_parse_ok"] is False
+    assert result.journal_extra_checks["contract_results_alignment_ok"] is False
 
 
 def test_build_paper_quality_input_ignores_mixed_comparison_verdict_ledger_for_coverage_and_confidence(
@@ -922,7 +926,7 @@ def test_build_paper_quality_input_ignores_mixed_comparison_verdict_ledger_for_c
     assert result.journal_extra_checks["comparison_verdicts_valid"] is False
 
 
-def test_build_paper_quality_input_ignores_invalid_verification_ledger_for_report_passed(tmp_path: Path) -> None:
+def test_build_paper_quality_input_marks_invalid_verification_ledger_alignment_failure(tmp_path: Path) -> None:
     plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
     _write(
@@ -949,9 +953,13 @@ contract_results:
     assert result.verification.report_passed.passed is False
     assert result.verification.contract_targets_verified.satisfied == 0
     assert result.verification.contract_targets_verified.total == 3
+    assert result.journal_extra_checks["contract_results_parse_ok"] is False
+    assert result.journal_extra_checks["contract_results_alignment_ok"] is False
 
 
-def test_build_paper_quality_input_ignores_unresolved_summary_contract_ledger_for_coverage(tmp_path: Path) -> None:
+def test_build_paper_quality_input_marks_unresolved_summary_contract_ledger_alignment_failure(
+    tmp_path: Path,
+) -> None:
     plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
     _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
     _write(
@@ -978,6 +986,8 @@ contract_results:
 
     assert result.verification.contract_targets_verified.satisfied == 0
     assert result.verification.contract_targets_verified.total == 3
+    assert result.journal_extra_checks["contract_results_parse_ok"] is False
+    assert result.journal_extra_checks["contract_results_alignment_ok"] is False
 
 
 def test_publication_review_surfaces_keep_protocol_bundle_guidance_additive() -> None:

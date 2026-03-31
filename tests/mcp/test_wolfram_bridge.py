@@ -46,6 +46,18 @@ def test_load_settings_requires_a_nonempty_api_key() -> None:
         load_settings({})
 
 
+def test_load_settings_uses_process_environment_when_no_mapping_is_passed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gpd.mcp.integrations.wolfram_bridge import GPD_WOLFRAM_MCP_API_KEY_ENV, load_settings
+
+    monkeypatch.setenv(GPD_WOLFRAM_MCP_API_KEY_ENV, "process-secret")
+
+    config = load_settings()
+
+    assert config.api_key == "process-secret"
+
+
 @pytest.mark.asyncio
 async def test_bridge_open_uses_bearer_token_and_initializes_session(monkeypatch) -> None:
     from gpd.mcp.integrations import wolfram_bridge as module

@@ -49,6 +49,7 @@ from gpd.core.constants import (
     HOME_DATA_DIR_NAME,
 )
 from gpd.core.errors import ConfigError, GPDError
+from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
 from gpd.core.onboarding_surfaces import (
     beginner_onboarding_hub_url,
     beginner_startup_ladder_text,
@@ -4940,13 +4941,9 @@ validate_app = typer.Typer(help="Validation checks")
 app.add_typer(validate_app, name="validate")
 
 
-def _find_manuscript_main(cwd: Path) -> Path | None:
+def _find_manuscript_main(cwd: Path, *, allow_markdown: bool = False) -> Path | None:
     """Locate the primary manuscript entry point if one exists."""
-    for rel_path in ("paper/main.tex", "manuscript/main.tex", "draft/main.tex"):
-        candidate = cwd / rel_path
-        if candidate.exists():
-            return candidate
-    return None
+    return resolve_current_manuscript_entrypoint(cwd, allow_markdown=allow_markdown)
 
 
 def _resolve_review_preflight_manuscript(
@@ -4983,12 +4980,14 @@ def _resolve_review_preflight_manuscript(
                     None,
                     f"expected main.tex under {_format_display_path(target)} for LaTeX-only submission "
                     f"(found {_format_display_path(target / 'main.md')})",
-                )
+            )
             return None, f"no manuscript entry point found under {_format_display_path(target)}"
 
-    manuscript = _find_manuscript_main(cwd)
+    manuscript = resolve_current_manuscript_entrypoint(cwd, allow_markdown=allow_markdown)
     if manuscript is not None:
         return manuscript, f"{_format_display_path(manuscript)} present"
+    if allow_markdown:
+        return None, "no paper/main.tex, paper/main.md, manuscript/main.tex, manuscript/main.md, draft/main.tex, or draft/main.md found"
     return None, "no paper/main.tex, manuscript/main.tex, or draft/main.tex found"
 
 
@@ -6092,22 +6091,20 @@ def _build_review_preflight(
                 )
 
     if "manuscript" in contract.preflight_checks:
-        manuscript, manuscript_detail = (
-            _resolve_review_preflight_manuscript(
+        if command.name in {"gpd:peer-review", "gpd:arxiv-submission"}:
+            manuscript, manuscript_detail = _resolve_review_preflight_manuscript(
                 cwd,
                 subject,
                 allow_markdown=command.name != "gpd:arxiv-submission",
             )
-            if command.name in {"gpd:peer-review", "gpd:arxiv-submission"}
-            else (
-                _find_manuscript_main(cwd),
-                "",
-            )
-        )
+        elif command.name in {"gpd:write-paper", "gpd:respond-to-referees"}:
+            manuscript, manuscript_detail = _resolve_review_preflight_manuscript(cwd, None, allow_markdown=True)
+        else:
+            manuscript, manuscript_detail = _find_manuscript_main(cwd), ""
         if command.name == "gpd:write-paper" and manuscript is None:
             manuscript_passed = True
             manuscript_detail = (
-                "no paper/main.tex, manuscript/main.tex, or draft/main.tex found; "
+                "no paper/main.tex, paper/main.md, manuscript/main.tex, manuscript/main.md, draft/main.tex, or draft/main.md found; "
                 "fresh bootstrap is allowed and will scaffold ./paper/main.tex"
             )
         else:
@@ -6123,7 +6120,7 @@ def _build_review_preflight(
                 else (
                     f"{_format_display_path(manuscript)} present"
                     if manuscript is not None
-                    else "no paper/main.tex, manuscript/main.tex, or draft/main.tex found"
+                    else "no paper/main.tex, paper/main.md, manuscript/main.tex, manuscript/main.md, draft/main.tex, or draft/main.md found"
                 )
             ),
         )

@@ -33,6 +33,17 @@ def _call_verification_tool(tool_name: str, arguments: dict[str, object]) -> dic
     return anyio.run(_call)
 
 
+def _run_contract_check_input_schema() -> dict[str, object]:
+    from gpd.mcp.servers.verification_server import mcp
+
+    async def _load() -> dict[str, object]:
+        tools = await mcp.list_tools()
+        tool = next(tool for tool in tools if tool.name == "run_contract_check")
+        return tool.inputSchema
+
+    return anyio.run(_load)
+
+
 def _derived_template_contract() -> dict[str, object]:
     contract = copy.deepcopy(_load_project_contract_fixture())
     contract["observables"][0]["regime"] = "large-k"
@@ -762,6 +773,27 @@ def test_run_contract_check_backfills_contract_impacts_for_decisive_passes_witho
             "observed": {"direct_available": True},
         }
     )
+    fit = run_contract_check(
+        {
+            "check_key": "contract.fit_family_mismatch",
+            "contract": contract,
+            "observed": {
+                "selected_family": "power_law",
+                "competing_family_checked": True,
+            },
+        }
+    )
+    estimator = run_contract_check(
+        {
+            "check_key": "contract.estimator_family_mismatch",
+            "contract": contract,
+            "observed": {
+                "selected_family": "bootstrap",
+                "bias_checked": True,
+                "calibration_checked": True,
+            },
+        }
+    )
 
     assert benchmark["status"] == "pass"
     assert benchmark["contract_impacts"] == ["ref-benchmark"]
@@ -771,6 +803,12 @@ def test_run_contract_check_backfills_contract_impacts_for_decisive_passes_witho
 
     assert direct_proxy["status"] == "pass"
     assert direct_proxy["contract_impacts"] == ["fp-01"]
+
+    assert fit["status"] == "pass"
+    assert fit["contract_impacts"] == ["power_law"]
+
+    assert estimator["status"] == "pass"
+    assert estimator["contract_impacts"] == ["bootstrap"]
 
 
 def test_run_contract_check_limit_recovery_uses_bound_acceptance_test_pass_condition() -> None:
@@ -888,6 +926,26 @@ def test_suggest_contract_checks_leaves_ambiguous_subject_bindings_unresolved() 
     assert limit["binding"] == {}
     assert limit["metadata"]["regime_label"] is None
     assert limit["metadata"]["expected_behavior"] is None
+
+
+def test_suggest_contract_checks_request_templates_validate_against_advertised_run_contract_schema() -> None:
+    from jsonschema import Draft202012Validator
+
+    from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+    schema = _run_contract_check_input_schema()
+    validator = Draft202012Validator(schema)
+
+    result = suggest_contract_checks(_derived_template_contract())
+
+    for entry in result["suggested_checks"]:
+        request = {"request": entry["request_template"]}
+        assert list(validator.iter_errors(request)) == []
+
+    nullable_alias_request = copy.deepcopy(result["suggested_checks"][0]["request_template"])
+    nullable_alias_request["check_key"] = None
+    nullable_alias_request["check_id"] = result["suggested_checks"][0]["check_key"]
+    assert list(validator.iter_errors({"request": nullable_alias_request})) == []
 
 
 def test_suggest_contract_checks_unique_context_drops_redundant_selector_metadata_without_policy_defaults() -> None:

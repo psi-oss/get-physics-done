@@ -20,6 +20,9 @@ def test_plan_contract_schema_surfaces_defaultable_semantic_fields_and_hard_cons
     assert "references[].role" in plan_schema
     assert "links[].relation" in plan_schema
     assert "their default is `other`" in plan_schema
+    assert "`context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections, not strings or lists." in plan_schema
+    assert "defaults to the integer `1`" in plan_schema
+    assert "`must_surface` is a boolean scalar. Use the YAML literals `true` and `false`;" in plan_schema
     assert "The defaultable semantic fields above do not relax the hard requirements on `context_intake` or `uncertainty_markers`" in plan_schema
     assert "`contract.context_intake` is required and must be a non-empty object, not a string or list." in plan_schema
     assert "`references[]` are mandatory only when the contract does not already expose enough grounding through `context_intake`, `approach_policy`, or preserved scoping inputs." in plan_schema
@@ -54,4 +57,4 @@ def test_phase_prompt_surfaces_default_salvage_and_hard_plan_requirements() -> N
     assert "links[].relation" in phase_prompt
     assert "They default to `other`, but the more specific value remains mandatory when the plan already knows it." in phase_prompt
     assert "The validator is strict here: for ordinary execution plans, the contract must carry non-empty claims, deliverables, acceptance tests, forbidden proxies, and a non-empty `contract.context_intake`" in phase_prompt
-    assert "references must be present and at least one must set `must_surface: true`" in phase_prompt
+    assert "If the contract does not already carry explicit grounding elsewhere, references must be present and at least one must set `must_surface: true`." in phase_prompt

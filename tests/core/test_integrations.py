@@ -8,6 +8,7 @@ from gpd.mcp.managed_integrations import (
     WOLFRAM_MCP_API_KEY_ENV_VAR,
     WOLFRAM_MCP_DEFAULT_ENDPOINT,
     WOLFRAM_MCP_ENDPOINT_ENV_VAR,
+    WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR,
     get_managed_integration,
     list_managed_integrations,
 )
@@ -30,6 +31,10 @@ def test_wolfram_descriptor_exposes_shared_contract() -> None:
     assert descriptor.api_key_env_var == WOLFRAM_MCP_API_KEY_ENV_VAR
     assert descriptor.endpoint_env_var == WOLFRAM_MCP_ENDPOINT_ENV_VAR
     assert descriptor.default_endpoint == WOLFRAM_MCP_DEFAULT_ENDPOINT
+    assert descriptor.api_key_env_vars == (
+        WOLFRAM_MCP_API_KEY_ENV_VAR,
+        WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR,
+    )
 
 
 def test_wolfram_descriptor_uses_env_vars_for_configuration(monkeypatch) -> None:
@@ -38,10 +43,20 @@ def test_wolfram_descriptor_uses_env_vars_for_configuration(monkeypatch) -> None
 
     assert descriptor.is_configured({}) is False
     assert descriptor.is_configured({WOLFRAM_MCP_API_KEY_ENV_VAR: "secret"}) is True
+    assert descriptor.is_configured({WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR: "legacy-secret"}) is True
     assert descriptor.resolved_endpoint({}) == WOLFRAM_MCP_DEFAULT_ENDPOINT
     assert descriptor.resolved_endpoint({WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid"}) == (
         "https://example.invalid"
     )
+    assert descriptor.projected_environment({}) == {}
+    assert descriptor.projected_environment({WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid"}) == {
+        WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid"
+    }
+    assert descriptor.projected_server_entry({WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid"}) == {
+        "command": WOLFRAM_BRIDGE_COMMAND,
+        "args": [],
+        "env": {WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid"},
+    }
 
 
 def test_get_managed_integration_rejects_malformed_ids() -> None:

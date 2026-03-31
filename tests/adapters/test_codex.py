@@ -17,11 +17,13 @@ from gpd.adapters.codex import (
     _convert_to_codex_skill,
     _normalize_codex_questioning,
 )
-from gpd.adapters.install_utils import build_runtime_cli_bridge_command, compile_markdown_for_runtime
+from gpd.adapters.install_utils import build_runtime_cli_bridge_command, compile_markdown_for_runtime, file_hash
 from gpd.registry import load_agents_from_dir
 
 WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
 WOLFRAM_MCP_API_KEY_ENV_VAR = "GPD_WOLFRAM_MCP_API_KEY"
+WOLFRAM_MCP_ENDPOINT_ENV_VAR = "GPD_WOLFRAM_MCP_ENDPOINT"
+WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR = "WOLFRAM_MCP_SERVICE_API_KEY"
 
 
 @pytest.fixture()
@@ -37,6 +39,48 @@ def expected_codex_bridge(target: Path, *, is_global: bool = False, explicit_tar
         is_global=is_global,
         explicit_target=explicit_target,
     )
+
+
+def _make_checkout(tmp_path: Path, version: str) -> Path:
+    """Create a minimal GPD source checkout with an explicit version."""
+    repo_root = tmp_path / "checkout"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    (repo_root / "package.json").write_text(
+        json.dumps(
+            {
+                "name": "get-physics-done",
+                "version": version,
+                "gpdPythonVersion": version,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (repo_root / "pyproject.toml").write_text(
+        f'[project]\nname = "get-physics-done"\nversion = "{version}"\n',
+        encoding="utf-8",
+    )
+
+    gpd_root = repo_root / "src" / "gpd"
+    (gpd_root / "commands").mkdir(parents=True, exist_ok=True)
+    (gpd_root / "agents").mkdir(parents=True, exist_ok=True)
+    (gpd_root / "hooks").mkdir(parents=True, exist_ok=True)
+    for subdir in ("references", "templates", "workflows"):
+        (gpd_root / "specs" / subdir).mkdir(parents=True, exist_ok=True)
+
+    (gpd_root / "commands" / "help.md").write_text(
+        "---\nname: gpd:help\ndescription: Help\n---\nHelp body.\n",
+        encoding="utf-8",
+    )
+    (gpd_root / "agents" / "gpd-verifier.md").write_text(
+        "---\nname: gpd-verifier\ndescription: Verify\n---\nVerifier body.\n",
+        encoding="utf-8",
+    )
+    (gpd_root / "hooks" / "statusline.py").write_text("print('ok')\n", encoding="utf-8")
+    (gpd_root / "hooks" / "check_update.py").write_text("print('ok')\n", encoding="utf-8")
+    (gpd_root / "specs" / "references" / "ref.md").write_text("# references\n", encoding="utf-8")
+    (gpd_root / "specs" / "templates" / "tpl.md").write_text("# templates\n", encoding="utf-8")
+    (gpd_root / "specs" / "workflows" / "flow.md").write_text("# workflows\n", encoding="utf-8")
+    return gpd_root
 
 
 class TestProperties:
@@ -552,7 +596,8 @@ class TestInstall:
             'args = ["custom.js"]\n',
             encoding="utf-8",
         )
-        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "codex-test-key")
+        monkeypatch.setenv(WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR, "codex-test-key")
+        monkeypatch.setenv(WOLFRAM_MCP_ENDPOINT_ENV_VAR, "https://example.invalid/api/mcp")
 
         result = adapter.install(gpd_root, target, skills_dir=skills)
 
@@ -561,10 +606,50 @@ class TestInstall:
         assert server["command"] == "gpd-mcp-wolfram"
         assert server["args"] == []
         assert server["cwd"] == "/tmp/custom-wolfram"
-        assert server["env"] == {"EXTRA_FLAG": "1"}
+        assert server["env"] == {
+            "EXTRA_FLAG": "1",
+            WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid/api/mcp",
+        }
         assert parsed["mcp_servers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
         assert "codex-test-key" not in (target / "config.toml").read_text(encoding="utf-8")
         assert result["mcpServers"] == len(build_mcp_servers_dict(python_path=sys.executable)) + 1
+
+    def test_install_translates_tool_references_in_skill_body(self, adapter: CodexAdapter, tmp_path: Path) -> None:
+        gpd_root = _make_checkout(tmp_path, "9.9.9")
+        (gpd_root / "commands" / "body-check.md").write_text(
+            "---\n"
+            "name: gpd:body-check\n"
+            "description: Check body translation\n"
+            "allowed-tools:\n"
+            "  - file_read\n"
+            "  - search_files\n"
+            "  - find_files\n"
+            "  - file_edit\n"
+            "  - file_write\n"
+            "---\n"
+            "Use `file_read` to inspect the repo, then `search_files` and `find_files` to locate the target.\n"
+            "If needed, call `file_edit` before `file_write` to update the result.\n",
+            encoding="utf-8",
+        )
+
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        body = (skills / "gpd-body-check" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
+
+        assert "file_read" not in body
+        assert "search_files" not in body
+        assert "find_files" not in body
+        assert "file_edit" not in body
+        assert "file_write" not in body
+        assert "read_file" in body
+        assert "grep" in body
+        assert "glob" in body
+        assert "apply_patch" in body
+        assert "write_file" in body
 
     def test_install_notify_not_inside_existing_section(
         self,
@@ -777,6 +862,23 @@ class TestRuntimePermissions:
         assert manifest["codex_skills_dir"] == str(skills)
         assert manifest["codex_generated_skill_dirs"]
         assert all(name.startswith("gpd-") for name in manifest["codex_generated_skill_dirs"])
+
+    def test_manifest_hashes_external_skill_entries(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        manifest = json.loads((target / "gpd-file-manifest.json").read_text(encoding="utf-8"))
+        skill_md = skills / "gpd-help" / "SKILL.md"
+
+        assert manifest["files"]["skills/gpd-help/SKILL.md"] == file_hash(skill_md)
 
     def test_install_returns_counts(self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".codex"

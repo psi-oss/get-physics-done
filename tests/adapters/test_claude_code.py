@@ -14,6 +14,8 @@ from gpd.version import __version__, version_for_gpd_root
 
 WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
 WOLFRAM_MCP_API_KEY_ENV_VAR = "GPD_WOLFRAM_MCP_API_KEY"
+WOLFRAM_MCP_ENDPOINT_ENV_VAR = "GPD_WOLFRAM_MCP_ENDPOINT"
+WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR = "WOLFRAM_MCP_SERVICE_API_KEY"
 
 
 @pytest.fixture()
@@ -418,6 +420,7 @@ class TestInstall:
                             "args": ["-m", "legacy.wolfram"],
                             "cwd": "/tmp/custom-wolfram",
                             "type": "stdio",
+                            "env": {"EXTRA_FLAG": "1"},
                         },
                         "custom-server": {"command": "node", "args": ["custom.js"]},
                     }
@@ -427,7 +430,8 @@ class TestInstall:
             + "\n",
             encoding="utf-8",
         )
-        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "claude-test-key")
+        monkeypatch.setenv(WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR, "claude-test-key")
+        monkeypatch.setenv(WOLFRAM_MCP_ENDPOINT_ENV_VAR, "https://example.invalid/api/mcp")
 
         result = adapter.install(gpd_root, target)
 
@@ -437,9 +441,47 @@ class TestInstall:
         assert server["args"] == []
         assert server["cwd"] == "/tmp/custom-wolfram"
         assert server["type"] == "stdio"
+        assert server["env"] == {
+            "EXTRA_FLAG": "1",
+            WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid/api/mcp",
+        }
         assert parsed["mcpServers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
         assert "claude-test-key" not in mcp_config.read_text(encoding="utf-8")
         assert result["mcpServers"] == len(build_mcp_servers_dict(python_path=sys.executable)) + 1
+
+    def test_install_translates_tool_references_in_agent_body(
+        self,
+        adapter: ClaudeCodeAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = _make_checkout(tmp_path, "9.9.9")
+        (gpd_root / "agents" / "gpd-body-checker.md").write_text(
+            "---\n"
+            "name: gpd-body-checker\n"
+            "description: Check body translation\n"
+            "allowed-tools:\n"
+            "  - file_read\n"
+            "  - shell\n"
+            "---\n"
+            "Use `file_read` to inspect the repo, then `shell` to run `gpd status`.\n"
+            "If needed, ask_user and web_search before finishing.\n",
+            encoding="utf-8",
+        )
+
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        adapter.install(gpd_root, target)
+
+        body = (target / "agents" / "gpd-body-checker.md").read_text(encoding="utf-8").split("---", 2)[2]
+
+        assert "file_read" not in body
+        assert "shell" not in body
+        assert "ask_user" not in body
+        assert "web_search" not in body
+        assert "Read" in body
+        assert "Bash" in body
+        assert "AskUserQuestion" in body
+        assert "WebSearch" in body
 
     def test_global_install_scopes_claude_json_to_target_parent(
         self,

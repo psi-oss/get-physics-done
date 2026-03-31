@@ -88,6 +88,9 @@ class _ContractCoverage(BaseModel):
     latest_report_passed: bool = False
     requires_decisive_comparison: bool = False
     comparison_verdicts_valid: bool = True
+    contract_results_seen: bool = False
+    contract_results_parse_ok: bool = True
+    contract_results_alignment_ok: bool = True
 
 
 class _ManuscriptReferenceStatus(BaseModel):
@@ -420,6 +423,9 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
     latest_report_passed = False
     requires_decisive_comparison = False
     comparison_verdicts_valid = True
+    contract_results_seen = False
+    contract_results_parse_ok = True
+    contract_results_alignment_ok = True
 
     phases_root = project_root / "GPD" / "phases"
     if not phases_root.exists():
@@ -443,69 +449,83 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
         raw_results = meta.get("contract_results")
         contract_alignment_errors: list[str] = []
         contract_results: ContractResults | None = None
-        if isinstance(raw_results, dict) and plan_contract is not None:
-            try:
-                contract_results = ContractResults.model_validate(
-                    normalize_contract_results_input(raw_results, strict=True)
-                )
-            except PydanticValidationError:
-                contract_results = None
-            if contract_results is not None:
-                comparison_verdicts: list[ComparisonVerdict] = []
+        if raw_results is not None:
+            contract_results_seen = True
+            if not isinstance(raw_results, dict):
+                contract_results_parse_ok = False
+                contract_results_alignment_ok = False
+            else:
                 try:
-                    comparison_verdicts = _parse_comparison_verdicts(meta)
-                except (PydanticValidationError, TypeError, ValueError) as exc:
-                    contract_alignment_errors.append(f"comparison_verdicts: {exc}")
-                if not contract_alignment_errors:
-                    contract_alignment_errors = _summary_contract_errors(
-                        plan_contract,
-                        contract_results,
-                        comparison_verdicts,
+                    contract_results = ContractResults.model_validate(
+                        normalize_contract_results_input(raw_results, strict=True)
                     )
-                if comparison_verdicts and contract_alignment_errors:
-                    comparison_verdicts_valid = False
+                except (PydanticValidationError, TypeError, ValueError):
+                    contract_results = None
+                    contract_results_parse_ok = False
+                    contract_results_alignment_ok = False
+                else:
+                    if plan_contract is None:
+                        contract_results_alignment_ok = False
+                    else:
+                        comparison_verdicts: list[ComparisonVerdict] = []
+                        try:
+                            comparison_verdicts = _parse_comparison_verdicts(meta)
+                        except (PydanticValidationError, TypeError, ValueError) as exc:
+                            contract_alignment_errors.append(f"comparison_verdicts: {exc}")
+                        if not contract_alignment_errors:
+                            contract_alignment_errors = _summary_contract_errors(
+                                plan_contract,
+                                contract_results,
+                                comparison_verdicts,
+                            )
+                        if comparison_verdicts and contract_alignment_errors:
+                            comparison_verdicts_valid = False
 
-                if not contract_alignment_errors:
-                    expected_claim_ids = {claim.id for claim in plan_contract.claims}
-                    expected_deliverable_ids = {deliverable.id for deliverable in plan_contract.deliverables}
-                    expected_test_ids = {test.id for test in plan_contract.acceptance_tests}
-                    passed_claims.update(
-                        claim_id
-                        for claim_id, entry in contract_results.claims.items()
-                        if claim_id in expected_claim_ids and entry.status == "passed"
-                    )
-                    passed_deliverables.update(
-                        deliverable_id
-                        for deliverable_id, entry in contract_results.deliverables.items()
-                        if deliverable_id in expected_deliverable_ids and entry.status == "passed"
-                    )
-                    passed_tests.update(
-                        test_id
-                        for test_id, entry in contract_results.acceptance_tests.items()
-                        if test_id in expected_test_ids and entry.status == "passed"
-                    )
-                    for expected_ids, entries in (
-                        (expected_claim_ids, contract_results.claims),
-                        (expected_deliverable_ids, contract_results.deliverables),
-                        (expected_test_ids, contract_results.acceptance_tests),
-                    ):
-                        for entry_id, entry in entries.items():
-                            if entry_id not in expected_ids:
-                                continue
-                            for evidence in entry.evidence:
-                                if evidence.confidence == "high":
-                                    confidences.append(VerificationConfidence.independently_confirmed)
-                                elif evidence.confidence == "medium":
-                                    confidences.append(VerificationConfidence.structurally_present)
-                                elif evidence.confidence == "low":
-                                    confidences.append(VerificationConfidence.unable_to_verify)
-                                else:
-                                    confidences.append(VerificationConfidence.unreliable)
+                        if not contract_alignment_errors:
+                            expected_claim_ids = {claim.id for claim in plan_contract.claims}
+                            expected_deliverable_ids = {deliverable.id for deliverable in plan_contract.deliverables}
+                            expected_test_ids = {test.id for test in plan_contract.acceptance_tests}
+                            passed_claims.update(
+                                claim_id
+                                for claim_id, entry in contract_results.claims.items()
+                                if claim_id in expected_claim_ids and entry.status == "passed"
+                            )
+                            passed_deliverables.update(
+                                deliverable_id
+                                for deliverable_id, entry in contract_results.deliverables.items()
+                                if deliverable_id in expected_deliverable_ids and entry.status == "passed"
+                            )
+                            passed_tests.update(
+                                test_id
+                                for test_id, entry in contract_results.acceptance_tests.items()
+                                if test_id in expected_test_ids and entry.status == "passed"
+                            )
+                            for expected_ids, entries in (
+                                (expected_claim_ids, contract_results.claims),
+                                (expected_deliverable_ids, contract_results.deliverables),
+                                (expected_test_ids, contract_results.acceptance_tests),
+                            ):
+                                for entry_id, entry in entries.items():
+                                    if entry_id not in expected_ids:
+                                        continue
+                                    for evidence in entry.evidence:
+                                        if evidence.confidence == "high":
+                                            confidences.append(VerificationConfidence.independently_confirmed)
+                                        elif evidence.confidence == "medium":
+                                            confidences.append(VerificationConfidence.structurally_present)
+                                        elif evidence.confidence == "low":
+                                            confidences.append(VerificationConfidence.unable_to_verify)
+                                        else:
+                                            confidences.append(VerificationConfidence.unreliable)
+                        else:
+                            contract_results_alignment_ok = False
 
         verified_at = str(meta.get("verified") or meta.get("completed") or "")
         status = str(meta.get("status") or "")
         is_verification_report = path.name.endswith("VERIFICATION.md")
-        report_has_valid_contract_ledger = contract_results is not None and not contract_alignment_errors
+        report_has_valid_contract_ledger = (
+            plan_contract is not None and contract_results is not None and not contract_alignment_errors
+        )
         if is_verification_report and verified_at >= latest_verified_at:
             latest_verified_at = verified_at
             latest_report_passed = status == "passed" and report_has_valid_contract_ledger
@@ -519,6 +539,9 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
         latest_report_passed=latest_report_passed,
         requires_decisive_comparison=requires_decisive_comparison,
         comparison_verdicts_valid=comparison_verdicts_valid,
+        contract_results_seen=contract_results_seen,
+        contract_results_parse_ok=contract_results_parse_ok,
+        contract_results_alignment_ok=contract_results_alignment_ok,
     )
 
 
@@ -709,6 +732,9 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
         journal_extra_checks.update(raw_journal_extra_checks)
     journal_extra_checks["manuscript_reference_status_present"] = bool(manuscript_reference_status)
     journal_extra_checks["manuscript_reference_bridge_complete"] = manuscript_reference_bridge_complete
+    if contract_coverage.contract_results_seen:
+        journal_extra_checks["contract_results_parse_ok"] = contract_coverage.contract_results_parse_ok
+        journal_extra_checks["contract_results_alignment_ok"] = contract_coverage.contract_results_alignment_ok
     journal_extra_checks["comparison_verdicts_valid"] = verdicts_parse_ok and contract_coverage.comparison_verdicts_valid
 
     citations = CitationsQualityInput(

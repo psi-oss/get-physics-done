@@ -411,7 +411,7 @@ def test_prompt_sources_use_summary_extract_field_flag_not_fields() -> None:
 def test_new_project_prompt_uses_stdin_for_contract_validation_and_persistence() -> None:
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/new-project.md").read_text(encoding="utf-8")
 
-    assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -' in workflow
+    assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - --mode approved' in workflow
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -' in workflow
     assert "/tmp/gpd-project-contract.json" not in workflow
     assert "temporary JSON file if needed" not in workflow
