@@ -1846,8 +1846,6 @@ def _resume_follow_up_actions(recovery_advice: RecoveryAdvice) -> list[str]:
 def _resume_augmented_payload(payload: dict[str, object], *, cwd: Path | None = None) -> dict[str, object]:
     """Augment the raw resume payload with canonical recovery projections."""
     public_payload = canonicalize_resume_public_payload(payload)
-    for key in ("legacy_resume_surface", "compatibility_resume_surface"):
-        public_payload.pop(key, None)
 
     recovery_advice = _resume_recovery_advice(resume_payload=public_payload, recent_rows=[], cwd=cwd)
     compat_surface = _resume_compat_surface(public_payload)
