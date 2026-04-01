@@ -17,6 +17,7 @@ All contributors must sign a CLA before their pull requests can be merged.
 - Search existing issues and pull requests before opening a new one.
 - For non-trivial changes, open an issue or discussion first so the implementation direction is clear.
 - Keep changes tightly scoped. Small, reviewable pull requests are strongly preferred.
+- If you are contributing from a fork, push your branch to your fork and open the pull request back to `psi-oss/get-physics-done`.
 
 ## Development Setup
 
