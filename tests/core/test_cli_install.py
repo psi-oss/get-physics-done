@@ -150,8 +150,8 @@ def _mock_install_preflight_doctor(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("gpd.core.health.run_doctor", _fake_run_doctor)
 
 
-def _assert_complete_install(target: Path, *, adapter) -> None:
-    for relpath in adapter.install_completeness_relpaths():
+def _assert_install_return_state(target: Path, *, adapter) -> None:
+    for relpath in adapter.install_verification_relpaths():
         assert (target / relpath).exists()
 
 
@@ -205,7 +205,7 @@ def _assert_single_runtime_next_steps(
             "7. Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics. "
             f"Local CLI bridge: {local_cli_bridge_note()}"
         ),
-        re.escape("8. Run gpd doctor --runtime"),
+        re.escape(f"8. Run gpd doctor --runtime {descriptor.runtime_name} --{doctor_scope} for a focused readiness check."),
         re.escape(f"9. {post_start_settings_note()} {post_start_settings_recommendation()}"),
         re.escape("10. If you plan to use paper/manuscript workflows, rerun"),
         re.escape("gpd presets list"),
@@ -215,6 +215,7 @@ def _assert_single_runtime_next_steps(
         match = re.search(pattern, output[cursor:], re.S)
         assert match, output
         cursor += match.end()
+    assert "--local|--global" not in output
     assert beginner_startup_ladder_text() in output
     assert_install_summary_runtime_follow_up_contract(
         output,
@@ -326,7 +327,7 @@ def test_install_creates_nonexistent_target_dir(gpd_root: Path, tmp_path: Path):
     adapter = _install_adapter()
     result = adapter.install(gpd_root, target)
     assert target.exists()
-    _assert_complete_install(target, adapter=adapter)
+    _assert_install_return_state(target, adapter=adapter)
     assert result["commands"] >= 1
 
 

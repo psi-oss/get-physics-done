@@ -8,22 +8,22 @@ import pytest
 def test_resolve_api_key_prefers_canonical_env_over_alias() -> None:
     from gpd.mcp.integrations.wolfram_bridge import (
         GPD_WOLFRAM_MCP_API_KEY_ENV,
-        WOLFRAM_MCP_SERVICE_API_KEY_ENV,
         resolve_api_key,
     )
 
     env = {
         GPD_WOLFRAM_MCP_API_KEY_ENV: "canonical-token",
-        WOLFRAM_MCP_SERVICE_API_KEY_ENV: "legacy-token",
+        "WOLFRAM_MCP_SERVICE_API_KEY": "legacy-token",
     }
 
     assert resolve_api_key(env) == "canonical-token"
 
 
-def test_resolve_api_key_accepts_compatibility_alias() -> None:
-    from gpd.mcp.integrations.wolfram_bridge import WOLFRAM_MCP_SERVICE_API_KEY_ENV, resolve_api_key
+def test_resolve_api_key_rejects_compatibility_alias() -> None:
+    from gpd.mcp.integrations.wolfram_bridge import resolve_api_key
 
-    assert resolve_api_key({WOLFRAM_MCP_SERVICE_API_KEY_ENV: "legacy-token"}) == "legacy-token"
+    with pytest.raises(RuntimeError, match="GPD_WOLFRAM_MCP_API_KEY"):
+        resolve_api_key({"WOLFRAM_MCP_SERVICE_API_KEY": "legacy-token"})
 
 
 def test_load_settings_uses_default_endpoint_and_hides_secret_in_repr() -> None:
@@ -42,8 +42,24 @@ def test_load_settings_uses_default_endpoint_and_hides_secret_in_repr() -> None:
 def test_load_settings_requires_a_nonempty_api_key() -> None:
     from gpd.mcp.integrations.wolfram_bridge import load_settings
 
-    with pytest.raises(RuntimeError, match="GPD_WOLFRAM_MCP_API_KEY|WOLFRAM_MCP_SERVICE_API_KEY"):
+    with pytest.raises(RuntimeError, match="GPD_WOLFRAM_MCP_API_KEY"):
         load_settings({})
+
+
+def test_load_settings_rejects_an_empty_endpoint_override() -> None:
+    from gpd.mcp.integrations.wolfram_bridge import (
+        GPD_WOLFRAM_MCP_API_KEY_ENV,
+        WOLFRAM_MCP_ENDPOINT_ENV_VAR,
+        load_settings,
+    )
+
+    with pytest.raises(RuntimeError, match="GPD_WOLFRAM_MCP_ENDPOINT is set but empty"):
+        load_settings(
+            {
+                GPD_WOLFRAM_MCP_API_KEY_ENV: "secret-token",
+                WOLFRAM_MCP_ENDPOINT_ENV_VAR: "   ",
+            }
+        )
 
 
 def test_load_settings_uses_process_environment_when_no_mapping_is_passed(
@@ -155,8 +171,8 @@ async def test_bridge_proxies_remote_results_without_rewriting(monkeypatch) -> N
         async def get_prompt(self, name, arguments=None):
             return GetPromptResult(description=name, messages=[prompt_message])
 
-        async def list_resource_templates(self):
-            return ListResourceTemplatesResult(resourceTemplates=[template], nextCursor=None)
+        async def list_resource_templates(self, cursor=None):
+            return ListResourceTemplatesResult(resourceTemplates=[template], nextCursor=cursor)
 
     bridge = WolframBridge(WolframBridgeConfig(api_key="bridge-token", endpoint="https://example.invalid/mcp"))
     bridge._session = FakeSession()  # type: ignore[assignment]
@@ -167,7 +183,7 @@ async def test_bridge_proxies_remote_results_without_rewriting(monkeypatch) -> N
     read_result = await bridge.read_resource("https://example.invalid/resource")
     prompts_result = await bridge.list_prompts()
     prompt_result = await bridge.get_prompt("wolf-prompt", {"x": "1"})
-    templates_result = await bridge.list_resource_templates()
+    templates_result = await bridge.list_resource_templates("cursor-1")
 
     assert tools_result.tools == [tool]
     assert call_result.structuredContent == {"name": "wolf-tool", "arguments": {"x": 3}}
@@ -177,6 +193,31 @@ async def test_bridge_proxies_remote_results_without_rewriting(monkeypatch) -> N
     assert prompt_result.description == "wolf-prompt"
     assert prompt_result.messages == [prompt_message]
     assert templates_result.resourceTemplates == [template]
+    assert templates_result.nextCursor == "cursor-1"
+
+
+@pytest.mark.asyncio
+async def test_bridge_list_resource_templates_preserves_cursor_and_next_cursor() -> None:
+    from mcp.types import ListResourceTemplatesResult, ResourceTemplate
+
+    from gpd.mcp.integrations.wolfram_bridge import WolframBridge, WolframBridgeConfig
+
+    observed: dict[str, object] = {}
+    template = ResourceTemplate(name="wolf-template", uriTemplate="wolfram://{name}")
+
+    class FakeSession:
+        async def list_resource_templates(self, cursor=None):
+            observed["cursor"] = cursor
+            return ListResourceTemplatesResult(resourceTemplates=[template], nextCursor="cursor-2")
+
+    bridge = WolframBridge(WolframBridgeConfig(api_key="bridge-token", endpoint="https://example.invalid/mcp"))
+    bridge._session = FakeSession()  # type: ignore[assignment]
+
+    result = await bridge.list_resource_templates("cursor-1")
+
+    assert observed["cursor"] == "cursor-1"
+    assert result.resourceTemplates == [template]
+    assert result.nextCursor == "cursor-2"
 
 
 def test_build_server_registers_expected_server_name() -> None:

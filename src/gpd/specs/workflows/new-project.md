@@ -148,6 +148,7 @@ Before you show the approval gate, build the raw contract as a literal JSON obje
 - `project_contract` is a JSON object, not prose
 - `observables`, `claims`, `deliverables`, `acceptance_tests`, `references`, `forbidden_proxies`, and `links` are arrays of objects, not strings
 - every object in those arrays must declare a stable `id`
+- same-kind IDs must be unique within each section; do not repeat an `id` inside `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, `references[]`, `forbidden_proxies[]`, or `links[]`
 - `context_intake`, `approach_policy`, and `uncertainty_markers` are objects, not strings or lists
 - `schema_version` must be the integer `1`
 - `references[].must_surface` must be a boolean `true` or `false`, not a quoted synonym
@@ -163,7 +164,7 @@ Before you show the approval gate, build the raw contract as a literal JSON obje
   - `references[].kind`: `paper | dataset | prior_artifact | spec | user_anchor | other`
   - `references[].role`: `definition | benchmark | method | must_consider | background | other`
   - `links[].relation`: `supports | computes | visualizes | benchmarks | depends_on | evaluated_by | other`
-- `references[].carry_forward_to[]` is free-text workflow scope such as `planning`, `execution`, `verification`, or `writing`; it is not an enum and must not be reused for IDs or relation names
+- `references[].carry_forward_to[]` is free-text workflow scope such as `planning`, `execution`, `verification`, or `writing`; it is not an enum and must not match any declared contract ID from `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, `references[]`, `forbidden_proxies[]`, or `links[]`
 - do **not** invent near-miss enum values such as `anchor`, `manual`, `content-check`, `benchmark-record`, or `anchors`; rewrite them to the exact schema term before approval
 - the contract schema is closed: do not add invented top-level or nested keys, and do not use scalar shortcuts for list fields
 - list fields must stay lists even for single-item values, and blank or duplicate list entries are invalid after trimming whitespace
@@ -811,10 +812,12 @@ Before you ask for approval, build the raw contract as a literal JSON object tha
 - `project_contract` is a JSON object, not prose
 - `observables`, `claims`, `deliverables`, `acceptance_tests`, `references`, `forbidden_proxies`, and `links` are arrays of objects, not strings
 - every object in those arrays must declare a stable `id`
+- same-kind IDs must be unique within each section; do not repeat an `id` inside `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, `references[]`, `forbidden_proxies[]`, or `links[]`
 - `context_intake`, `approach_policy`, and `uncertainty_markers` are objects, not strings or lists
 - `schema_version` must be the integer `1`
 - `references[].must_surface` must be a boolean `true` or `false`, not a quoted synonym
 - `context_intake.must_read_refs` must contain only `references[].id` values
+- `references[].carry_forward_to[]` is free-text workflow scope such as `planning`, `execution`, `verification`, or `writing`; it is not an enum and must not match any declared contract ID from `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, `references[]`, `forbidden_proxies[]`, or `links[]`
 - `claims[].observables`, `claims[].deliverables`, `claims[].acceptance_tests`, and `claims[].references` must point only to declared IDs
 - `acceptance_tests[].subject`, `references[].applies_to`, and `forbidden_proxies[].subject` must point to a claim ID or deliverable ID, never an observable label or free text
 - `acceptance_tests[].evidence_required`, `links[].source`, and `links[].target` may only point to declared claim, deliverable, acceptance-test, or reference IDs

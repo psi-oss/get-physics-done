@@ -42,7 +42,12 @@ from gpd.core.conventions import (
 )
 from gpd.core.errors import ConventionError
 from gpd.core.observability import gpd_span
-from gpd.mcp.servers import stable_mcp_error, stable_mcp_response
+from gpd.mcp.servers import (
+    ABSOLUTE_PROJECT_DIR_SCHEMA,
+    resolve_absolute_project_dir,
+    stable_mcp_error,
+    stable_mcp_response,
+)
 
 T = TypeVar("T")
 
@@ -51,6 +56,8 @@ logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(le
 logger = logging.getLogger("gpd-conventions")
 
 mcp = FastMCP("gpd-conventions")
+
+AbsoluteProjectDirInput = Annotated[str, WithJsonSchema(ABSOLUTE_PROJECT_DIR_SCHEMA)]
 
 # ─── Convention Field Metadata (for MCP tool responses) ──────────────────────
 
@@ -296,15 +303,18 @@ def _update_lock_in_project(
 
 
 @mcp.tool()
-def convention_lock_status(project_dir: str) -> dict:
+def convention_lock_status(project_dir: AbsoluteProjectDirInput) -> dict:
     """Get the current convention lock state for a GPD project.
 
     Returns all set conventions and lists which of the 18 standard
     fields are still unset.
     """
+    cwd = resolve_absolute_project_dir(project_dir)
+    if cwd is None:
+        return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.conventions.lock_status"):
         try:
-            lock = _load_lock_from_project(project_dir)
+            lock = _load_lock_from_project(str(cwd))
             result = convention_list(lock)
 
             set_fields = [k for k, e in result.conventions.items() if e.is_set and e.canonical]
@@ -330,7 +340,7 @@ def convention_lock_status(project_dir: str) -> dict:
 
 @mcp.tool()
 def convention_set(
-    project_dir: str,
+    project_dir: AbsoluteProjectDirInput,
     key: ConventionKeyInput,
     value: ConventionValueInput,
     force: bool = False,
@@ -346,6 +356,9 @@ def convention_set(
     ``custom:my_convention``).
     Value must be non-empty and must not be a blank or placeholder string.
     """
+    cwd = resolve_absolute_project_dir(project_dir)
+    if cwd is None:
+        return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.conventions.set", convention_key=key):
         try:
             # Validate custom key eagerly (before acquiring the file lock).
@@ -364,7 +377,7 @@ def convention_set(
                 return _convention_set(lock, key, value, force=force)
 
             # Atomic read-modify-write under file lock to prevent TOCTOU races.
-            _lock, result = _update_lock_in_project(project_dir, _mutate)
+            _lock, result = _update_lock_in_project(str(cwd), _mutate)
         except (ConventionError, OSError, ValueError, TimeoutError) as exc:
             return stable_mcp_error(exc)
         except Exception as exc:  # pragma: no cover - defensive envelope

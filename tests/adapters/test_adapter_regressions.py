@@ -82,42 +82,40 @@ def test_codex_install_restores_skills_dir_after_success(gpd_root: Path, tmp_pat
     assert adapter._skills_dir == sentinel
 
 
-def test_configure_opencode_permissions_recovers_from_non_dict_json(tmp_path: Path) -> None:
+def test_configure_opencode_permissions_fails_closed_for_non_dict_json(tmp_path: Path) -> None:
     from gpd.adapters.opencode import configure_opencode_permissions
 
     config_dir = tmp_path / "opencode"
     config_dir.mkdir()
     (config_dir / "opencode.json").write_text(json.dumps([1, 2, 3]), encoding="utf-8")
+    before = (config_dir / "opencode.json").read_text(encoding="utf-8")
 
-    modified = configure_opencode_permissions(config_dir)
-    written = json.loads((config_dir / "opencode.json").read_text(encoding="utf-8"))
+    with pytest.raises(RuntimeError, match="malformed"):
+        configure_opencode_permissions(config_dir)
 
-    assert modified is True
-    assert isinstance(written, dict)
-    assert isinstance(written["permission"], dict)
+    assert (config_dir / "opencode.json").read_text(encoding="utf-8") == before
 
 
-def test_write_mcp_servers_opencode_recovers_from_non_dict_mcp_key(tmp_path: Path) -> None:
+def test_write_mcp_servers_opencode_fails_closed_for_non_dict_mcp_key(tmp_path: Path) -> None:
     from gpd.adapters.opencode import _write_mcp_servers_opencode
 
     config_dir = tmp_path / "opencode"
     config_dir.mkdir()
     (config_dir / "opencode.json").write_text(json.dumps({"mcp": "not a dict"}), encoding="utf-8")
+    before = (config_dir / "opencode.json").read_text(encoding="utf-8")
 
-    count = _write_mcp_servers_opencode(
-        config_dir,
-        {
-            "gpd-errors": {
-                "command": "python",
-                "args": ["-m", "gpd.mcp.servers.errors_mcp"],
-            }
-        },
-    )
-    written = json.loads((config_dir / "opencode.json").read_text(encoding="utf-8"))
+    with pytest.raises(RuntimeError, match="malformed"):
+        _write_mcp_servers_opencode(
+            config_dir,
+            {
+                "gpd-errors": {
+                    "command": "python",
+                    "args": ["-m", "gpd.mcp.servers.errors_mcp"],
+                }
+            },
+        )
 
-    assert count == 1
-    assert isinstance(written["mcp"], dict)
-    assert "gpd-errors" in written["mcp"]
+    assert (config_dir / "opencode.json").read_text(encoding="utf-8") == before
 
 
 @pytest.mark.parametrize(

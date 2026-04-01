@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import argparse
+import os
 from collections.abc import Mapping
+from pathlib import Path
 
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 
 MCP_SCHEMA_VERSION = 1
+
+ABSOLUTE_PROJECT_DIR_SCHEMA = {
+    "type": "string",
+    "minLength": 1,
+    "pattern": r"^(?:[A-Za-z]:[\\/](?:.*)?|\\\\[^\\/]+[\\/][^\\/]+(?:[\\/].*)?)" if os.name == "nt" else r"^/",
+    "description": "Absolute filesystem path to the project root directory on the current host OS.",
+}
 
 
 class StableMCPEnvelope(dict[str, object]):
@@ -36,16 +45,32 @@ def stable_mcp_error(error: object) -> StableMCPEnvelope:
     return stable_mcp_response(error=error)
 
 
+def resolve_absolute_project_dir(project_dir: str) -> Path | None:
+    """Return an absolute project root path or ``None`` when the contract is violated."""
+
+    cwd = Path(project_dir)
+    if not cwd.is_absolute():
+        return None
+    return cwd
+
+
+def parse_frontmatter_with_error(text: str) -> tuple[dict[str, object], str, str | None]:
+    """Split YAML frontmatter from markdown body and surface parse failures."""
+    try:
+        meta, body = extract_frontmatter(text)
+    except FrontmatterParseError as exc:
+        return {}, text, str(exc)
+    return meta, body, None
+
+
 def parse_frontmatter_safe(text: str) -> tuple[dict[str, object], str]:
     """Split YAML frontmatter from markdown body, returning ({}, text) on parse error.
 
     Shared helper for MCP servers that bulk-load markdown files and need
     graceful handling of malformed YAML.
     """
-    try:
-        return extract_frontmatter(text)
-    except FrontmatterParseError:
-        return {}, text
+    meta, body, _error = parse_frontmatter_with_error(text)
+    return meta, body
 
 
 def run_mcp_server(mcp: object, description: str) -> None:
@@ -71,9 +96,12 @@ def run_mcp_server(mcp: object, description: str) -> None:
 
 
 __all__ = [
+    "ABSOLUTE_PROJECT_DIR_SCHEMA",
     "MCP_SCHEMA_VERSION",
     "StableMCPEnvelope",
     "parse_frontmatter_safe",
+    "parse_frontmatter_with_error",
+    "resolve_absolute_project_dir",
     "run_mcp_server",
     "stable_mcp_error",
     "stable_mcp_response",

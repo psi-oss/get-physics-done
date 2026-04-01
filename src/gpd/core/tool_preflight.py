@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -155,10 +156,14 @@ def parse_plan_tool_requirements(raw: object) -> list[PlanToolRequirement]:
         raise PlanToolPreflightError(str(exc)) from exc
 
 
-def _probe_tool(requirement: PlanToolRequirement) -> tuple[bool, str, str, list[str]]:
+def _probe_tool(requirement: PlanToolRequirement, *, cwd: Path | None = None) -> tuple[bool, str, str, list[str]]:
     if requirement.tool == "command":
         command = requirement.command or ""
-        executable = command.split()[0] if command else ""
+        try:
+            argv = shlex.split(command) if command else []
+        except ValueError as exc:
+            return False, f"could not parse command requirement: {exc}", "command", []
+        executable = argv[0] if argv else ""
         path = shutil.which(executable) if executable else None
         if path:
             return True, f"{executable} found at {Path(path).resolve(strict=False)}", "command", []
@@ -176,8 +181,8 @@ def _probe_tool(requirement: PlanToolRequirement) -> tuple[bool, str, str, list[
             )
 
         integration = get_managed_integration("wolfram")
-        if integration is not None and integration.is_configured():
-            endpoint = integration.resolved_endpoint()
+        if integration is not None and integration.is_configured(cwd=cwd, strict=True):
+            endpoint = integration.resolved_endpoint(cwd=cwd, strict=True)
             return (
                 True,
                 (
@@ -292,7 +297,13 @@ def build_plan_tool_preflight(
     warnings: list[str] = []
     blocking_missing = False
     for requirement in active_requirements:
-        available, detail, provider, probe_warnings = _probe_tool(requirement)
+        try:
+            available, detail, provider, probe_warnings = _probe_tool(requirement, cwd=resolved_path.parent)
+        except RuntimeError as exc:
+            available = False
+            detail = str(exc)
+            provider = WOLFRAM_MANAGED_SERVER_KEY if requirement.tool == "wolfram" else requirement.tool
+            probe_warnings = []
         status = "available" if available else "missing"
         check = PlanToolCheck(
             id=requirement.id,

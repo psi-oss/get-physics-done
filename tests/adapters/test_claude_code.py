@@ -15,7 +15,6 @@ from gpd.version import __version__, version_for_gpd_root
 WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
 WOLFRAM_MCP_API_KEY_ENV_VAR = "GPD_WOLFRAM_MCP_API_KEY"
 WOLFRAM_MCP_ENDPOINT_ENV_VAR = "GPD_WOLFRAM_MCP_ENDPOINT"
-WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR = "WOLFRAM_MCP_SERVICE_API_KEY"
 
 
 @pytest.fixture()
@@ -106,6 +105,88 @@ class TestInstall:
         assert (target / "gpd-file-manifest.json").exists()
         # settings.json is written by finish_install(), not install()
         # install() returns the settings dict for the caller to pass to finish_install()
+
+    def test_install_completeness_requires_settings_json_after_finalize(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+
+        adapter.install(gpd_root, target)
+
+        assert adapter.missing_install_artifacts(target) == ("settings.json",)
+        assert adapter.missing_install_verification_artifacts(target) == ()
+
+    def test_install_fails_closed_for_malformed_settings_json(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        settings_path = target / "settings.json"
+        settings_path.write_text('{"hooks": [\n', encoding="utf-8")
+        before = settings_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.install(gpd_root, target)
+
+        assert settings_path.read_text(encoding="utf-8") == before
+
+    def test_install_fails_closed_for_structurally_invalid_settings_json(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        settings_path = target / "settings.json"
+        settings_path.write_text(json.dumps({"hooks": []}), encoding="utf-8")
+        before = settings_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.install(gpd_root, target)
+
+        assert settings_path.read_text(encoding="utf-8") == before
+
+    def test_install_fails_closed_for_malformed_managed_mcp_config(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        mcp_config_path = target.parent / ".mcp.json"
+        mcp_config_path.write_text('{"mcpServers": [\n', encoding="utf-8")
+        before = mcp_config_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.install(gpd_root, target)
+
+        assert mcp_config_path.read_text(encoding="utf-8") == before
+
+    def test_install_fails_closed_for_structurally_invalid_managed_mcp_config(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / "target" / ".claude"
+        target.mkdir(parents=True)
+        mcp_config_path = target.parent / ".mcp.json"
+        mcp_config_path.write_text(json.dumps({"mcpServers": []}), encoding="utf-8")
+        before = mcp_config_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.install(gpd_root, target)
+
+        assert mcp_config_path.read_text(encoding="utf-8") == before
 
     def test_install_commands_have_placeholder_replacement(
         self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path
@@ -430,7 +511,7 @@ class TestInstall:
             + "\n",
             encoding="utf-8",
         )
-        monkeypatch.setenv(WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR, "claude-test-key")
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "claude-test-key")
         monkeypatch.setenv(WOLFRAM_MCP_ENDPOINT_ENV_VAR, "https://example.invalid/api/mcp")
 
         result = adapter.install(gpd_root, target)
@@ -448,6 +529,24 @@ class TestInstall:
         assert parsed["mcpServers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
         assert "claude-test-key" not in mcp_config.read_text(encoding="utf-8")
         assert result["mcpServers"] == len(build_mcp_servers_dict(python_path=sys.executable)) + 1
+
+    def test_install_omits_managed_wolfram_when_project_override_disables_it(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "integrations.json").write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "claude-test-key")
+
+        adapter.install(gpd_root, target)
+
+        parsed = json.loads((tmp_path / ".mcp.json").read_text(encoding="utf-8"))
+        assert WOLFRAM_MANAGED_SERVER_KEY not in parsed.get("mcpServers", {})
 
     def test_install_translates_tool_references_in_agent_body(
         self,
@@ -691,6 +790,44 @@ class TestRuntimePermissions:
         assert result["sync_applied"] is False
         assert result["requires_relaunch"] is False
         assert "malformed" in str(result["warning"]).lower()
+        assert settings_path.read_text(encoding="utf-8") == before
+
+    def test_finalize_install_fails_closed_for_malformed_settings_json(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+
+        settings_path = target / "settings.json"
+        settings_path.write_text('{"permissions": [\n', encoding="utf-8")
+        before = settings_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.finalize_install(result)
+
+        assert settings_path.read_text(encoding="utf-8") == before
+
+    def test_finalize_install_fails_closed_for_structurally_invalid_settings_json(
+        self,
+        adapter: ClaudeCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".claude"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+
+        settings_path = target / "settings.json"
+        settings_path.write_text(json.dumps({"permissions": []}), encoding="utf-8")
+        before = settings_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.finalize_install(result)
+
         assert settings_path.read_text(encoding="utf-8") == before
 
 

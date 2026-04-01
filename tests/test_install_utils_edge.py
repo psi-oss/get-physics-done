@@ -398,6 +398,48 @@ class TestReviewContractInjection:
         assert "review_contract:" in result
         assert "review-contract:" not in result[result.index("## Review Contract") :]
 
+    def test_review_contract_injection_preserves_crlf_line_endings(self) -> None:
+        content = (
+            "---\r\n"
+            "review-contract:\r\n"
+            "  schema_version: 1\r\n"
+            "  review_mode: review\r\n"
+            "  required_outputs:\r\n"
+            "    - GPD/review/output.md\r\n"
+            "---\r\n"
+            "Body.\r\n"
+        )
+
+        result = _inject_review_contract_prompt_from_frontmatter(content)
+
+        assert "\r\n" in result
+        assert "---\r\n" in result
+        assert "Body.\r\n" in result
+        assert "Body.\r" not in result.replace("Body.\r\n", "")
+
+    def test_review_contract_injection_ignores_fenced_review_contract_heading_markers(self) -> None:
+        content = (
+            "---\n"
+            "review-contract:\n"
+            "  schema_version: 1\n"
+            "  review_mode: review\n"
+            "  required_outputs:\n"
+            "    - GPD/review/output.md\n"
+            "---\n"
+            "```md\n"
+            "## Review Contract\n"
+            "example heading inside a fenced code block\n"
+            "```\n"
+            "\n"
+            "Body.\n"
+        )
+
+        result = _inject_review_contract_prompt_from_frontmatter(content)
+
+        assert result.count("## Review Contract") == 2
+        assert "example heading inside a fenced code block" in result
+        assert result.index("```md") < result.rindex("## Review Contract")
+
     def test_review_contract_frontmatter_alias_is_rejected_by_install_injection(self) -> None:
         content = (
             "---\n"

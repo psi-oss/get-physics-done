@@ -47,6 +47,50 @@ class HookLookupContext:
     preferred_runtime: str | None
 
 
+def _prefer_runtime_lookup_cwd(
+    *,
+    resolved_cwd: Path | None,
+    resolved_home: Path,
+    runtime_hint: str | None = None,
+) -> Path | None:
+    """Choose the cwd used for runtime-owned hook lookups.
+
+    Nested workspaces should honor a concrete local runtime install in the
+    actual current directory. When there is no such install, project-root
+    fallback preserves ancestor-local installs for existing GPD projects.
+    """
+    if resolved_cwd is None:
+        return None
+
+    project_root = resolve_project_root(resolved_cwd)
+    if project_root is None or project_root == resolved_cwd:
+        return resolved_cwd
+
+    from gpd.hooks.runtime_detect import ALL_RUNTIMES, SCOPE_LOCAL, detect_runtime_install_target
+
+    if runtime_hint in ALL_RUNTIMES:
+        install_target = detect_runtime_install_target(runtime_hint, cwd=resolved_cwd, home=resolved_home)
+        if install_target is not None and install_target.install_scope == SCOPE_LOCAL:
+            return resolved_cwd
+        project_target = detect_runtime_install_target(runtime_hint, cwd=project_root, home=resolved_home)
+        if project_target is not None and project_target.install_scope == SCOPE_LOCAL:
+            return project_root
+        for runtime in ALL_RUNTIMES:
+            if runtime == runtime_hint:
+                continue
+            install_target = detect_runtime_install_target(runtime, cwd=resolved_cwd, home=resolved_home)
+            if install_target is not None and install_target.install_scope == SCOPE_LOCAL:
+                return resolved_cwd
+        return project_root
+
+    for runtime in ALL_RUNTIMES:
+        install_target = detect_runtime_install_target(runtime, cwd=resolved_cwd, home=resolved_home)
+        if install_target is not None and install_target.install_scope == SCOPE_LOCAL:
+            return resolved_cwd
+
+    return project_root
+
+
 def detect_self_owned_install(hook_file: str | Path) -> SelfOwnedInstallContext | None:
     """Return the installed config-dir context for a hook file when it is self-owned."""
     hook_path = Path(hook_file).resolve(strict=False)
@@ -64,6 +108,7 @@ def should_prefer_self_owned_install(
     self_install: SelfOwnedInstallContext | None,
     *,
     active_install_target,
+    active_runtime: str | None = None,
     workspace_path: Path | None,
 ) -> bool:
     """Return whether self-owned hook layout should win over detected runtime layout."""
@@ -71,7 +116,11 @@ def should_prefer_self_owned_install(
         return False
     if active_install_target is None or self_install.config_dir == active_install_target.config_dir:
         return True
-    return not (workspace_path is not None and getattr(active_install_target, "install_scope", None) == "local")
+    if workspace_path is None or getattr(active_install_target, "install_scope", None) != "local":
+        return True
+    if self_install.runtime is None:
+        return False
+    return active_runtime not in (None, "", self_install.runtime)
 
 
 def resolve_hook_lookup_context(
@@ -82,14 +131,26 @@ def resolve_hook_lookup_context(
     preferred_runtime: str | None = None,
 ) -> HookLookupContext:
     """Resolve the shared cwd/home/runtime preference context for hook lookups."""
-    from gpd.hooks.runtime_detect import detect_active_runtime_with_gpd_install, detect_runtime_for_gpd_use
+    from gpd.hooks.runtime_detect import (
+        RUNTIME_UNKNOWN,
+        detect_active_runtime,
+        detect_active_runtime_with_gpd_install,
+        detect_runtime_for_gpd_use,
+    )
 
     resolved_cwd = Path(cwd).expanduser().resolve(strict=False) if cwd is not None else None
-    lookup_cwd = resolve_project_root(resolved_cwd) if resolved_cwd is not None else None
-    if lookup_cwd is None:
-        lookup_cwd = resolved_cwd
-
     resolved_home = Path.home() if home is None else Path(home)
+    active_runtime_hint = (
+        active_installed_runtime
+        if active_installed_runtime is not None
+        else detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
+    )
+    runtime_hint = active_runtime_hint if active_runtime_hint not in (None, "", RUNTIME_UNKNOWN) else preferred_runtime
+    lookup_cwd = _prefer_runtime_lookup_cwd(
+        resolved_cwd=resolved_cwd,
+        resolved_home=resolved_home,
+        runtime_hint=runtime_hint,
+    )
     active_runtime = (
         active_installed_runtime
         if active_installed_runtime is not None
@@ -158,6 +219,7 @@ def ordered_todo_lookup_candidates(
         preferred_runtime=lookup.preferred_runtime,
     )
     self_install = detect_self_owned_install(hook_file)
+    self_candidate_path: Path | None = None
     active_install_target = (
         detect_runtime_install_target(lookup.active_runtime, cwd=lookup.lookup_cwd, home=lookup.resolved_home)
         if lookup.active_runtime not in (None, "", RUNTIME_UNKNOWN)
@@ -166,17 +228,20 @@ def ordered_todo_lookup_candidates(
     if should_prefer_self_owned_install(
         self_install,
         active_install_target=active_install_target,
+        active_runtime=lookup.active_runtime,
         workspace_path=lookup.lookup_cwd,
     ):
         if self_install is not None:
             self_candidate = self_owned_todo_candidate(self_install)
             todo_candidates = [candidate for candidate in todo_candidates if candidate.path != self_candidate.path]
             todo_candidates = [self_candidate, *todo_candidates]
+            self_candidate_path = self_candidate.path
 
     return [
         candidate
         for candidate in todo_candidates
-        if should_consider_todo_candidate(
+        if candidate.path == self_candidate_path
+        or should_consider_todo_candidate(
             candidate,
             active_installed_runtime=lookup.active_runtime,
             cwd=lookup.lookup_cwd,

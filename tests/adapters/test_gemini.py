@@ -667,6 +667,25 @@ class TestInstall:
         assert "super-secret-token" not in json.dumps(wolfram)
         assert settings["mcpServers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
 
+    def test_install_omits_managed_wolfram_when_project_override_disables_it(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "integrations.json").write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
+        monkeypatch.setenv("GPD_WOLFRAM_MCP_API_KEY", "super-secret-token")
+
+        result = adapter.install(gpd_root, target)
+        adapter.finalize_install(result)
+
+        settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
+        assert "gpd-wolfram" not in settings.get("mcpServers", {})
+
     def test_install_adds_policy_path_shell_sentinel_and_policy_file(
         self,
         adapter: GeminiAdapter,
@@ -691,6 +710,27 @@ class TestInstall:
         assert "allow_redirection = true" in policy
         assert expected_gemini_bridge(target) in policy
         assert '"git init"' in policy
+
+    def test_install_surfaces_shell_prefix_allowlist_in_model_facing_content(
+        self,
+        adapter: GeminiAdapter,
+        tmp_path: Path,
+    ) -> None:
+        gpd_root = Path(__file__).resolve().parents[2] / "src" / "gpd"
+        target = tmp_path / ".gemini"
+        target.mkdir()
+
+        result = adapter.install(gpd_root, target)
+        adapter.finalize_install(result)
+
+        command = (target / "commands" / "gpd" / "new-project.toml").read_text(encoding="utf-8")
+        expected_bridge = expected_gemini_bridge(target)
+
+        assert "enforced shell-prefix allowlist" in command
+        assert f"`{expected_bridge}`" in command
+        assert "`git init`" in command
+        assert "`mkdir -p GPD`" in command
+        assert "`printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"`" in command
 
     def test_install_preserves_existing_policy_paths_and_mcp_trust_choice(
         self,
@@ -880,6 +920,79 @@ class TestInstall:
         assert missing == ("settings.json",)
         assert adapter.missing_install_verification_artifacts(target) == ()
 
+    def test_install_fails_closed_for_malformed_settings_json(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        settings_path = target / "settings.json"
+        settings_path.write_text('{"hooks": [\n', encoding="utf-8")
+        before = settings_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.install(gpd_root, target)
+
+        assert settings_path.read_text(encoding="utf-8") == before
+
+    def test_install_fails_closed_for_structurally_invalid_settings_json(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        settings_path = target / "settings.json"
+        settings_path.write_text(json.dumps({"mcpServers": []}), encoding="utf-8")
+        before = settings_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.install(gpd_root, target)
+
+        assert settings_path.read_text(encoding="utf-8") == before
+
+    def test_install_fails_closed_for_structurally_invalid_mcp_server_entry(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        settings_path = target / "settings.json"
+        settings_path.write_text(json.dumps({"mcpServers": {"custom-server": []}}), encoding="utf-8")
+        before = settings_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.install(gpd_root, target)
+
+        assert settings_path.read_text(encoding="utf-8") == before
+
+    def test_reinstall_fails_closed_for_malformed_managed_config_manifest(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+        adapter.finalize_install(result)
+
+        manifest_path = target / "gpd-file-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["managed_config"] = ["broken"]
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        before = manifest_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="managed_config"):
+            adapter.install(gpd_root, target)
+
+        assert manifest_path.read_text(encoding="utf-8") == before
+
     def test_force_statusline_forwarded_through_finalize(
         self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path
     ) -> None:
@@ -912,6 +1025,44 @@ class TestInstall:
         adapter.finalize_install(result, force_statusline=True)
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         assert "statusline.py" in settings["statusLine"]["command"]
+
+    def test_finalize_install_fails_closed_for_malformed_settings_json(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+
+        settings_path = target / "settings.json"
+        settings_path.write_text('{"hooks": [\n', encoding="utf-8")
+        before = settings_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.finalize_install(result)
+
+        assert settings_path.read_text(encoding="utf-8") == before
+
+    def test_finalize_install_fails_closed_for_structurally_invalid_settings_json(
+        self,
+        adapter: GeminiAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".gemini"
+        target.mkdir()
+        result = adapter.install(gpd_root, target)
+
+        settings_path = target / "settings.json"
+        settings_path.write_text(json.dumps({"policyPaths": {}}), encoding="utf-8")
+        before = settings_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.finalize_install(result)
+
+        assert settings_path.read_text(encoding="utf-8") == before
 
     def test_install_agents_at_includes_receive_runtime(
         self, adapter: GeminiAdapter, gpd_root: Path, tmp_path: Path

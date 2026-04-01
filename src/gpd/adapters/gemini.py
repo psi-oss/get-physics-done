@@ -29,6 +29,7 @@ from gpd.adapters.install_utils import (
     ensure_update_hook,
     hook_python_interpreter,
     materialize_first_round_review_schema_headings,
+    parse_jsonc,
     process_attribution,
     protect_runtime_agent_prompt,
     prune_empty_ancestors,
@@ -111,6 +112,7 @@ _GEMINI_COMMAND_RUNTIME_NOTE = (
     "<gemini_runtime_notes>\n"
     "Gemini shell compatibility:\n"
     "- When shell steps call the GPD CLI, use {launcher} instead of the ambient `gpd` on PATH.\n"
+    "- Gemini's enforced shell-prefix allowlist for GPD auto-edit mode is:\n{allowlist}\n"
     "- Gemini policy checks are syntactic in headless auto-edit mode. Prefer direct commands and reason over stdout instead of wrapping approved commands in shell variables, `$(...)`, heredocs, or extra chained blocks.\n"
     "- Any remaining `VAR=$(...)` examples in rendered workflow guidance are non-runnable shorthand; do not copy them into Gemini auto-edit mode.\n"
     "- Keep contract JSON in-memory or under `GPD/`. Do not write approved contracts to `/tmp`.\n"
@@ -201,6 +203,47 @@ def _convert_gemini_tool_name(tool_name: str) -> str | None:
     )
 
 
+def _gemini_settings_shape_is_valid(settings: dict[str, object]) -> bool:
+    hooks = settings.get("hooks")
+    if hooks is not None and not isinstance(hooks, dict):
+        return False
+    if isinstance(hooks, dict):
+        session_start = hooks.get("SessionStart")
+        if session_start is not None and not isinstance(session_start, list):
+            return False
+
+    experimental = settings.get("experimental")
+    if experimental is not None and not isinstance(experimental, dict):
+        return False
+
+    policy_paths = settings.get("policyPaths")
+    if policy_paths is not None and not isinstance(policy_paths, list):
+        return False
+
+    mcp_servers = settings.get("mcpServers")
+    if mcp_servers is not None and not isinstance(mcp_servers, dict):
+        return False
+    if isinstance(mcp_servers, dict) and any(not isinstance(entry, dict) for entry in mcp_servers.values()):
+        return False
+
+    return True
+
+
+def _read_gemini_settings_state(settings_path: Path) -> tuple[dict[str, object] | None, str | None]:
+    """Return parsed Gemini settings and a malformed marker when parsing fails."""
+    if not settings_path.exists():
+        return None, None
+    try:
+        parsed = parse_jsonc(settings_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None, "malformed"
+    if not isinstance(parsed, dict):
+        return None, "malformed"
+    if not _gemini_settings_shape_is_valid(parsed):
+        return None, "malformed"
+    return parsed, None
+
+
 def _gemini_policy_command_prefixes(bridge_command: str) -> tuple[str, ...]:
     """Return the narrow shell prefixes GPD auto-approves for Gemini."""
     return (
@@ -209,20 +252,32 @@ def _gemini_policy_command_prefixes(bridge_command: str) -> tuple[str, ...]:
     )
 
 
-def _project_managed_mcp_servers(env: Mapping[str, str] | None = None) -> dict[str, dict[str, object]]:
+def _render_gemini_shell_allowlist(bridge_command: str) -> str:
+    """Render the enforced Gemini shell-prefix allowlist for model-facing content."""
+    return "\n".join(
+        f"  - `{prefix}`"
+        for prefix in _gemini_policy_command_prefixes(bridge_command)
+    )
+
+
+def _project_managed_mcp_servers(
+    env: Mapping[str, str] | None = None,
+    *,
+    cwd: Path | None = None,
+) -> dict[str, dict[str, object]]:
     """Project shared optional integrations into Gemini's ``mcpServers`` shape."""
     from gpd.mcp.managed_integrations import list_managed_integrations
 
     managed_servers: dict[str, dict[str, object]] = {}
     for integration in list_managed_integrations().values():
-        if not integration.is_configured(env):
+        if not integration.is_configured(env, cwd=cwd, strict=True):
             continue
 
         entry: dict[str, object] = {
             "command": integration.bridge_command,
             "args": [],
         }
-        endpoint = integration.resolved_endpoint(env)
+        endpoint = integration.resolved_endpoint(env, cwd=cwd, strict=True)
         if endpoint and endpoint != integration.default_endpoint:
             entry["env"] = {integration.endpoint_env_var: endpoint}
 
@@ -342,11 +397,48 @@ def _is_gpd_token_end(line: str, end_index: int) -> bool:
 
 def _inject_gemini_command_runtime_note(content: str, bridge_command: str) -> str:
     """Prepend Gemini-specific shell guidance to installed top-level commands."""
-    note = _GEMINI_COMMAND_RUNTIME_NOTE.format(launcher=bridge_command)
+    note = _GEMINI_COMMAND_RUNTIME_NOTE.format(
+        launcher=bridge_command,
+        allowlist=_render_gemini_shell_allowlist(bridge_command),
+    )
     preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
     if not frontmatter:
         return note + content
     return render_markdown_frontmatter(preamble, frontmatter, separator, note + body)
+
+
+def _validate_existing_gemini_managed_state(target_dir: Path) -> None:
+    """Fail closed when the prior Gemini manifest tracks managed config with the wrong shape."""
+    manifest_path = target_dir / MANIFEST_NAME
+    if not manifest_path.exists():
+        return
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError("Gemini install manifest is malformed; refusing to overwrite managed config state.") from exc
+    if not isinstance(manifest, dict):
+        raise RuntimeError("Gemini install manifest is malformed; refusing to overwrite managed config state.")
+
+    managed_config = manifest.get("managed_config")
+    if managed_config is not None:
+        if not isinstance(managed_config, dict):
+            raise RuntimeError("Gemini managed_config is malformed; refusing to overwrite managed config state.")
+        enable_agents = managed_config.get("experimental.enableAgents")
+        if enable_agents is not None and not isinstance(enable_agents, bool):
+            raise RuntimeError("Gemini managed_config.experimental.enableAgents is malformed.")
+        policy_paths = managed_config.get("policyPaths")
+        if policy_paths is not None and not (
+            isinstance(policy_paths, list) and all(isinstance(path, str) and path for path in policy_paths)
+        ):
+            raise RuntimeError("Gemini managed_config.policyPaths is malformed.")
+
+    managed_runtime_files = manifest.get("managed_runtime_files")
+    if managed_runtime_files is not None and not (
+        isinstance(managed_runtime_files, list)
+        and all(isinstance(path, str) and path for path in managed_runtime_files)
+    ):
+        raise RuntimeError("Gemini managed_runtime_files is malformed.")
 
 
 def _rewrite_gemini_shell_workflow_guidance(content: str) -> str:
@@ -1022,6 +1114,13 @@ class GeminiAdapter(RuntimeAdapter):
         """Return Gemini artifacts that appear only after finalize_install()."""
         return ("settings.json",)
 
+    def runtime_install_required_relpaths(self) -> tuple[str, ...]:
+        """Return Gemini-owned files required for a complete install."""
+        return (
+            f"{_GEMINI_POLICY_DIR_NAME}/{_GEMINI_POLICY_FILE_NAME}",
+            *self._runtime_bridge_only_relpaths(),
+        )
+
     def install(
         self,
         gpd_root: Path,
@@ -1117,7 +1216,11 @@ class GeminiAdapter(RuntimeAdapter):
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         settings_path = target_dir / "settings.json"
-        settings = read_settings(settings_path)
+        _validate_existing_gemini_managed_state(target_dir)
+        settings_state, settings_parse_error = _read_gemini_settings_state(settings_path)
+        if settings_parse_error is not None:
+            raise RuntimeError("Gemini settings.json is malformed; refusing to overwrite it during install.")
+        settings = settings_state or {}
         self._managed_policy_paths = []
         self._managed_runtime_files = []
 
@@ -1175,7 +1278,8 @@ class GeminiAdapter(RuntimeAdapter):
         from gpd.mcp.builtin_servers import build_mcp_servers_dict, merge_managed_mcp_servers
 
         mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
-        managed_mcp_servers = _project_managed_mcp_servers()
+        project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
+        managed_mcp_servers = _project_managed_mcp_servers(cwd=project_cwd)
         if managed_mcp_servers:
             mcp_servers.update(managed_mcp_servers)
         if mcp_servers:
@@ -1280,18 +1384,10 @@ class GeminiAdapter(RuntimeAdapter):
             explicit_target=getattr(self, "_install_explicit_target", False),
         )
 
-    def install_completeness_relpaths(self) -> tuple[str, ...]:
-        """Return Gemini-specific artifacts required for a usable install."""
-        return (
-            *super().install_completeness_relpaths(),
-            f"{_GEMINI_POLICY_DIR_NAME}/{_GEMINI_POLICY_FILE_NAME}",
-            *self._runtime_bridge_only_relpaths(),
-        )
-
     def install_verification_relpaths(self) -> tuple[str, ...]:
         """Return Gemini artifacts that must exist before ``install()`` returns."""
         return (
-            *super().install_completeness_relpaths(),
+            *self.install_detection_relpaths(),
             f"{_GEMINI_POLICY_DIR_NAME}/{_GEMINI_POLICY_FILE_NAME}",
         )
 
@@ -1327,6 +1423,11 @@ class GeminiAdapter(RuntimeAdapter):
         settings = install_result.get("settings")
         statusline_command = install_result.get("statuslineCommand")
         if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
+            target_dir = Path(settings_path).expanduser().resolve(strict=False).parent
+            _validate_existing_gemini_managed_state(target_dir)
+            _, settings_parse_error = _read_gemini_settings_state(Path(settings_path))
+            if settings_parse_error is not None:
+                raise RuntimeError("Gemini settings.json is malformed; refusing to overwrite it during finalize.")
             self.finish_install(
                 settings_path,
                 settings,

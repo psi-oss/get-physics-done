@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from gpd.core.recovery_advice import build_recovery_advice, serialize_recovery_orientation
 from gpd.core.recent_projects import list_recent_projects, record_recent_project
+from gpd.core.recovery_advice import build_recovery_advice, serialize_recovery_orientation
 
 
 def _project(tmp_path: Path, name: str = "project") -> Path:

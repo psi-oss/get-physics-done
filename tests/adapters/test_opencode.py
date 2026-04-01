@@ -339,6 +339,73 @@ class TestInstall:
         assert "./.opencode/agents" in content
         assert f"{target.as_posix()}/get-physics-done" not in content
 
+    def test_install_completeness_requires_opencode_json(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        adapter.install(gpd_root, target)
+
+        assert adapter.missing_install_artifacts(target) == ()
+
+        (target / "opencode.json").unlink()
+
+        assert adapter.missing_install_artifacts(target) == ("opencode.json",)
+
+    def test_install_fails_closed_for_malformed_opencode_json(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        config_path = target / "opencode.json"
+        config_path.write_text('{"permission": [\n', encoding="utf-8")
+        before = config_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.install(gpd_root, target)
+
+        assert config_path.read_text(encoding="utf-8") == before
+
+    def test_install_fails_closed_for_structurally_invalid_opencode_json(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        config_path = target / "opencode.json"
+        config_path.write_text(json.dumps({"permission": []}), encoding="utf-8")
+        before = config_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.install(gpd_root, target)
+
+        assert config_path.read_text(encoding="utf-8") == before
+
+    def test_install_fails_closed_for_structurally_invalid_opencode_mcp_config(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        config_path = target / "opencode.json"
+        config_path.write_text(json.dumps({"mcp": []}), encoding="utf-8")
+        before = config_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.install(gpd_root, target)
+
+        assert config_path.read_text(encoding="utf-8") == before
+
     def test_install_creates_flattened_commands(self, adapter: OpenCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / ".opencode"
         target.mkdir()
@@ -606,8 +673,25 @@ class TestInstall:
         assert wolfram["timeout"] == 12000
         assert wolfram["environment"]["GPD_WOLFRAM_MCP_ENDPOINT"] == "https://custom.invalid/api/mcp"
         assert wolfram["environment"]["EXTRA_FLAG"] == "1"
-        assert "super-secret-token" not in json.dumps(wolfram)
-        assert config["mcp"]["custom-server"] == {"type": "local", "command": ["node", "custom.js"]}
+
+    def test_install_omits_managed_wolfram_when_project_override_disables_it(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "integrations.json").write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
+        monkeypatch.setenv("GPD_WOLFRAM_MCP_API_KEY", "super-secret-token")
+
+        adapter.install(gpd_root, target)
+
+        config = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
+        assert "gpd-wolfram" not in config.get("mcp", {})
+        assert "super-secret-token" not in json.dumps(config)
 
 
 class TestRuntimePermissions:

@@ -23,7 +23,6 @@ from gpd.registry import load_agents_from_dir
 WOLFRAM_MANAGED_SERVER_KEY = "gpd-wolfram"
 WOLFRAM_MCP_API_KEY_ENV_VAR = "GPD_WOLFRAM_MCP_API_KEY"
 WOLFRAM_MCP_ENDPOINT_ENV_VAR = "GPD_WOLFRAM_MCP_ENDPOINT"
-WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR = "WOLFRAM_MCP_SERVICE_API_KEY"
 
 
 @pytest.fixture()
@@ -255,7 +254,7 @@ class TestInstall:
         skills = tmp_path / "skills"
         skills.mkdir()
 
-        adapter.install(gpd_root, target, skills_dir=skills)
+        adapter.install(gpd_root, target, is_global=False, skills_dir=skills)
 
         content = (skills / "gpd-help" / "SKILL.md").read_text(encoding="utf-8")
         assert "slash-command" not in content
@@ -290,12 +289,62 @@ class TestInstall:
         target.mkdir()
         skills = tmp_path / "skills"
         skills.mkdir()
-        adapter.install(gpd_root, target, skills_dir=skills)
+        adapter.install(gpd_root, target, is_global=False, skills_dir=skills)
 
         gpd_skills = [d for d in skills.iterdir() if d.is_dir() and d.name.startswith("gpd-")]
         assert len(gpd_skills) > 0
         for skill_dir in gpd_skills:
             assert (skill_dir / "SKILL.md").exists()
+
+    def test_reinstall_preserves_untracked_user_owned_gpd_skills(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, is_global=False, skills_dir=skills)
+
+        preserved_skill = skills / "gpd-user-keep"
+        preserved_skill.mkdir()
+        (preserved_skill / "SKILL.md").write_text("keep", encoding="utf-8")
+        (preserved_skill / "notes.txt").write_text("extra", encoding="utf-8")
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert (preserved_skill / "SKILL.md").read_text(encoding="utf-8") == "keep"
+        assert (preserved_skill / "notes.txt").read_text(encoding="utf-8") == "extra"
+
+    def test_reinstall_removes_stale_manifest_tracked_generated_gpd_skills(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        stale_skill = skills / "gpd-stale-command"
+        stale_skill.mkdir()
+        (stale_skill / "SKILL.md").write_text("stale", encoding="utf-8")
+
+        manifest_path = target / "gpd-file-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["codex_generated_skill_dirs"] = sorted({*manifest["codex_generated_skill_dirs"], "gpd-stale-command"})
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert not stale_skill.exists()
+        assert (skills / "gpd-help" / "SKILL.md").exists()
 
     def test_install_failure_preserves_live_skills(
         self,
@@ -596,7 +645,7 @@ class TestInstall:
             'args = ["custom.js"]\n',
             encoding="utf-8",
         )
-        monkeypatch.setenv(WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR, "codex-test-key")
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "codex-test-key")
         monkeypatch.setenv(WOLFRAM_MCP_ENDPOINT_ENV_VAR, "https://example.invalid/api/mcp")
 
         result = adapter.install(gpd_root, target, skills_dir=skills)
@@ -613,6 +662,52 @@ class TestInstall:
         assert parsed["mcp_servers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
         assert "codex-test-key" not in (target / "config.toml").read_text(encoding="utf-8")
         assert result["mcpServers"] == len(build_mcp_servers_dict(python_path=sys.executable)) + 1
+
+    def test_install_omits_managed_wolfram_when_project_override_disables_it(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "integrations.json").write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "codex-test-key")
+
+        adapter.install(gpd_root, target, is_global=False, skills_dir=skills)
+
+        parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
+        assert WOLFRAM_MANAGED_SERVER_KEY not in parsed.get("mcp_servers", {})
+
+    def test_install_fails_closed_for_invalid_project_local_wolfram_override(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "integrations.json").write_text(
+            '{"wolfram":{"enabled":"yes"}}',
+            encoding="utf-8",
+        )
+        config_toml_path = target / "config.toml"
+        config_toml_path.write_text('[model]\nname = "gpt-5"\n', encoding="utf-8")
+        before = config_toml_path.read_text(encoding="utf-8")
+        monkeypatch.setenv(WOLFRAM_MCP_API_KEY_ENV_VAR, "codex-test-key")
+
+        with pytest.raises(RuntimeError, match="enabled must be a boolean"):
+            adapter.install(gpd_root, target, is_global=False, skills_dir=skills)
+
+        assert config_toml_path.read_text(encoding="utf-8") == before
 
     def test_install_translates_tool_references_in_skill_body(self, adapter: CodexAdapter, tmp_path: Path) -> None:
         gpd_root = _make_checkout(tmp_path, "9.9.9")
@@ -807,6 +902,48 @@ class TestRuntimePermissions:
         assert result["requires_relaunch"] is False
         assert "malformed" in str(result["warning"]).lower()
         assert config_path.read_text(encoding="utf-8") == before
+
+    def test_malformed_config_toml_fails_closed_during_install(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        config_path = target / "config.toml"
+        config_path.write_text('approval_policy = [\n', encoding="utf-8")
+        before = config_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert config_path.read_text(encoding="utf-8") == before
+        assert not (target / "gpd-file-manifest.json").exists()
+
+    @pytest.mark.parametrize("config_line", ('mcp_servers = "oops"\n', 'agents = "oops"\n'))
+    def test_wrong_shaped_config_toml_fails_closed_during_install(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        config_line: str,
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        config_path = target / "config.toml"
+        config_path.write_text(config_line, encoding="utf-8")
+        before = config_path.read_text(encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert config_path.read_text(encoding="utf-8") == before
+        assert not (target / "gpd-file-manifest.json").exists()
 
     def test_reinstall_rewrites_stale_managed_notify_interpreter(
         self,

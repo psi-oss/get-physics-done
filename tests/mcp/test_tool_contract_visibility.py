@@ -345,6 +345,8 @@ def test_run_contract_check_tool_description_surfaces_request_requirements() -> 
     description = _tool_description(mcp, "run_contract_check")
 
     assert "``request.check_key`` or ``request.check_id`` is required" in description
+    assert "without leading or trailing" in description
+    assert "whitespace" in description
     assert "``request.contract`` is optional" in description
     assert "``schema_version`` defaults to ``1`` when omitted" in description
     assert "unknown top-level keys" in description
@@ -390,14 +392,28 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     run_request = _schema_object(run_schema, run_schema["properties"]["request"])
 
     assert run_request["additionalProperties"] is False
-    assert {"required": ["check_key"]} in run_request["anyOf"]
-    assert {"required": ["check_id"]} in run_request["anyOf"]
+    check_key_requirement = next(
+        branch
+        for branch in run_request["anyOf"]
+        if isinstance(branch, dict) and branch.get("required") == ["check_key"]
+    )
+    assert check_key_requirement["properties"]["check_key"]["type"] == "string"
+    assert check_key_requirement["properties"]["check_key"]["pattern"] == r"^\S(?:[\s\S]*\S)?$"
+
+    check_id_requirement = next(
+        branch
+        for branch in run_request["anyOf"]
+        if isinstance(branch, dict) and branch.get("required") == ["check_id"]
+    )
+    assert check_id_requirement["properties"]["check_id"]["type"] == "string"
+    assert check_id_requirement["properties"]["check_id"]["pattern"] == r"^\S(?:[\s\S]*\S)?$"
+
     assert {"check_key", "check_id", "contract", "binding", "metadata", "observed", "artifact_content"} <= set(
         run_request["properties"]
     )
     check_key = _schema_anyof_string(run_request["properties"]["check_key"])
     assert check_key["minLength"] == 1
-    assert check_key["pattern"] == r"\S"
+    assert check_key["pattern"] == r"^\S(?:[\s\S]*\S)?$"
     assert "enum" not in check_key
     assert any(
         isinstance(branch, dict) and branch.get("type") == "null"
@@ -406,7 +422,7 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
 
     check_id = _schema_anyof_string(run_request["properties"]["check_id"])
     assert check_id["minLength"] == 1
-    assert check_id["pattern"] == r"\S"
+    assert check_id["pattern"] == r"^\S(?:[\s\S]*\S)?$"
     assert "enum" not in check_id
     assert any(
         isinstance(branch, dict) and branch.get("type") == "null"
@@ -585,6 +601,7 @@ def test_non_verification_tools_publish_closed_input_schemas(mcp_module: str, ex
 
 
 def test_state_server_tools_publish_absolute_project_dir_schema() -> None:
+    from gpd.mcp.servers import ABSOLUTE_PROJECT_DIR_SCHEMA
     from gpd.mcp.servers.state_server import mcp
 
     async def _load() -> dict[str, object]:
@@ -595,10 +612,27 @@ def test_state_server_tools_publish_absolute_project_dir_schema() -> None:
 
     for tool_name in ("get_state", "get_phase_info", "advance_plan", "get_progress", "validate_state", "run_health_check", "get_config"):
         project_dir = schemas[tool_name]["properties"]["project_dir"]
-        assert project_dir["type"] == "string"
-        assert project_dir["minLength"] == 1
-        assert project_dir["pattern"] == r"^(?:/|[A-Za-z]:[\\/]|\\\\)"
-        assert "absolute filesystem path" in project_dir["description"].lower()
+        for key, value in ABSOLUTE_PROJECT_DIR_SCHEMA.items():
+            assert project_dir[key] == value
+
+
+def test_conventions_server_tools_publish_same_absolute_project_dir_schema_as_state_server() -> None:
+    from gpd.mcp.servers.conventions_server import mcp as conventions_mcp
+    from gpd.mcp.servers.state_server import mcp as state_mcp
+
+    async def _load() -> tuple[dict[str, object], dict[str, object]]:
+        conventions_tools = await conventions_mcp.list_tools()
+        state_tools = await state_mcp.list_tools()
+        return (
+            {tool.name: tool.inputSchema for tool in conventions_tools},
+            {tool.name: tool.inputSchema for tool in state_tools},
+        )
+
+    conventions_schemas, state_schemas = anyio.run(_load)
+
+    state_project_dir = state_schemas["get_state"]["properties"]["project_dir"]
+    for tool_name in ("convention_lock_status", "convention_set"):
+        assert conventions_schemas[tool_name]["properties"]["project_dir"] == state_project_dir
 
 
 def test_public_protocols_infra_descriptor_matches_live_catalog_surface() -> None:

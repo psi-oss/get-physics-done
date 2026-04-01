@@ -1793,6 +1793,23 @@ class TestVerificationServer:
         assert result["check_id"] == "5.16"
         assert result["binding"]["claim_ids"] == ["claim-benchmark"]
 
+    def test_run_contract_check_requires_identifier(self):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        result = run_contract_check({})
+
+        assert result == {"error": "Missing check_key or check_id", "schema_version": 1}
+
+    def test_run_contract_check_rejects_padded_identifier(self):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        result = run_contract_check({"check_id": "contract.limit_recovery "})
+
+        assert result == {
+            "error": "check_id must not include leading or trailing whitespace",
+            "schema_version": 1,
+        }
+
     def test_run_contract_check_preserves_scalar_binding_ids(self):
         from gpd.mcp.servers.verification_server import run_contract_check
 

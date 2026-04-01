@@ -24,6 +24,7 @@ import re
 import shutil
 import tempfile
 import tomllib
+from collections.abc import Mapping
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
@@ -101,6 +102,16 @@ _CODEX_YOLO_APPROVAL_POLICY = "never"
 _CODEX_YOLO_SANDBOX_MODE = "danger-full-access"
 
 
+def _codex_runtime_config_shape_is_valid(config: dict[str, object]) -> bool:
+    mcp_servers = config.get("mcp_servers")
+    if mcp_servers is not None and not isinstance(mcp_servers, dict):
+        return False
+    agents = config.get("agents")
+    if agents is not None and not isinstance(agents, dict):
+        return False
+    return True
+
+
 def _read_codex_runtime_config(config_path: Path) -> tuple[dict[str, object] | None, str | None]:
     """Return the parsed Codex config and a malformed marker when parsing fails."""
     if not config_path.exists():
@@ -110,6 +121,8 @@ def _read_codex_runtime_config(config_path: Path) -> tuple[dict[str, object] | N
     except (OSError, tomllib.TOMLDecodeError):
         return None, "malformed"
     if not isinstance(parsed, dict):
+        return None, "malformed"
+    if not _codex_runtime_config_shape_is_valid(parsed):
         return None, "malformed"
     return parsed, None
 
@@ -728,6 +741,8 @@ class CodexAdapter(RuntimeAdapter):
         super()._install_version(target_dir, version, failures)
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
+        project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
+        managed_optional_mcp_servers = _build_managed_optional_mcp_servers(cwd=project_cwd)
         _configure_config_toml(
             target_dir,
             is_global,
@@ -757,7 +772,7 @@ class CodexAdapter(RuntimeAdapter):
         from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
         mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
-        mcp_servers.update(_build_managed_optional_mcp_servers())
+        mcp_servers.update(managed_optional_mcp_servers)
         mcp_count = 0
         if mcp_servers:
             mcp_count = _write_mcp_servers_codex_toml(target_dir, mcp_servers)
@@ -1221,10 +1236,14 @@ def _copy_commands_as_skills(
 
     live_backup: Path | None = None
     generated_skill_dirs: set[str] = set()
+    planned_skill_dirs = _planned_codex_skill_dirs(src_dir, prefix)
+    legacy_generated_skill_dirs = _load_manifest_codex_generated_skill_dirs(workflow_target_dir)
     try:
         if skills_dir.exists():
             for entry in sorted(skills_dir.iterdir()):
-                if entry.name.startswith(f"{prefix}-"):
+                if entry.name in planned_skill_dirs:
+                    continue
+                if entry.name in legacy_generated_skill_dirs:
                     continue
                 _copy_preserved_skill_entry(entry, staged_skills_dir / entry.name)
 
@@ -1262,7 +1281,7 @@ def _copy_commands_as_skills(
 
 
 def _copy_preserved_skill_entry(src: Path, dest: Path) -> None:
-    """Copy a non-GPD skill entry into a staged skills directory."""
+    """Copy a preserved skill entry into a staged skills directory."""
     if src.is_symlink():
         dest.symlink_to(src.readlink())
         return
@@ -1270,6 +1289,18 @@ def _copy_preserved_skill_entry(src: Path, dest: Path) -> None:
         shutil.copytree(src, dest, symlinks=True)
         return
     shutil.copy2(src, dest)
+
+
+def _planned_codex_skill_dirs(src_dir: Path, prefix: str) -> set[str]:
+    """Return the exact Codex skill directory names generated from command sources."""
+    planned: set[str] = set()
+    for entry in sorted(src_dir.iterdir()):
+        if entry.is_dir():
+            planned.update(_planned_codex_skill_dirs(entry, f"{prefix}-{entry.name}"))
+            continue
+        if entry.suffix == ".md":
+            planned.add(f"{prefix}-{entry.stem}")
+    return planned
 
 
 def _render_commands_as_skills(
@@ -1691,13 +1722,17 @@ def _write_codex_agent_roles_toml(target_dir: Path) -> int:
     return len(installed_agents)
 
 
-def _build_managed_optional_mcp_servers() -> dict[str, dict[str, object]]:
+def _build_managed_optional_mcp_servers(
+    *,
+    cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
+) -> dict[str, dict[str, object]]:
     """Return optional managed MCP servers that are currently configured."""
     if WOLFRAM_MANAGED_INTEGRATION is None:
         return {}
-    if not WOLFRAM_MANAGED_INTEGRATION.is_configured():
+    if not WOLFRAM_MANAGED_INTEGRATION.is_configured(env, cwd=cwd, strict=True):
         return {}
-    return {WOLFRAM_MANAGED_SERVER_KEY: WOLFRAM_MANAGED_INTEGRATION.projected_server_entry()}
+    return {WOLFRAM_MANAGED_SERVER_KEY: WOLFRAM_MANAGED_INTEGRATION.projected_server_entry(env, cwd=cwd, strict=True)}
 
 
 def _managed_optional_mcp_server_keys() -> frozenset[str]:
@@ -2061,6 +2096,9 @@ def _configure_config_toml(
     config_toml = target_dir / "config.toml"
     toml_content = ""
     if config_toml.exists():
+        _parsed, config_error = _read_codex_runtime_config(config_toml)
+        if config_error is not None:
+            raise RuntimeError("Codex config.toml is malformed; refusing to overwrite it during install.")
         toml_content = config_toml.read_text(encoding="utf-8")
 
     notify_hook = HOOK_SCRIPTS["notify"]

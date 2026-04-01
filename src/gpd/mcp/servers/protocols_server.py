@@ -21,7 +21,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.core.observability import gpd_span
 from gpd.mcp.servers import (
-    parse_frontmatter_safe,
+    parse_frontmatter_with_error,
     run_mcp_server,
     stable_mcp_error,
     stable_mcp_response,
@@ -95,7 +95,8 @@ def _load_protocol_domain_manifest() -> dict[str, str]:
     if extra_keys:
         raise ValueError(f"Protocol domain manifest has unexpected keys: {', '.join(extra_keys)}")
 
-    if raw.get("schema_version") != 1:
+    schema_version = raw.get("schema_version")
+    if not isinstance(schema_version, int) or isinstance(schema_version, bool) or schema_version != 1:
         raise ValueError(f"Unsupported protocol domain manifest schema_version: {raw.get('schema_version')!r}")
 
     protocol_domains = raw.get("protocol_domains")
@@ -127,6 +128,9 @@ def _protocol_domain(name: str) -> str:
 
 def _normalize_protocol_tier(raw: object, *, protocol_name: str) -> int:
     """Return a safe integer tier for protocol sorting and ranking."""
+    if isinstance(raw, bool):
+        logger.warning("Protocol %s has invalid tier %r; defaulting to 2", protocol_name, raw)
+        return 2
     if isinstance(raw, int):
         return raw
     if isinstance(raw, str):
@@ -139,6 +143,40 @@ def _normalize_protocol_tier(raw: object, *, protocol_name: str) -> int:
 
     logger.warning("Protocol %s has invalid tier %r; defaulting to 2", protocol_name, raw)
     return 2
+
+
+def _normalize_protocol_load_when(raw: object, *, protocol_name: str) -> list[str]:
+    """Return a safe ``load_when`` keyword list for protocol routing."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        logger.warning("Protocol %s has invalid load_when %r; defaulting to []", protocol_name, raw)
+        return []
+
+    cleaned: list[str] = []
+    invalid_item_seen = False
+    for item in raw:
+        if isinstance(item, str):
+            stripped = item.strip()
+            if stripped:
+                cleaned.append(stripped)
+                continue
+        invalid_item_seen = True
+
+    if invalid_item_seen:
+        logger.warning("Protocol %s has invalid load_when entries %r; dropping non-string items", protocol_name, raw)
+    return cleaned
+
+
+def _normalize_protocol_context_cost(raw: object, *, protocol_name: str) -> str:
+    """Return a safe string ``context_cost`` label for protocol metadata."""
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        if stripped:
+            return stripped
+
+    logger.warning("Protocol %s has invalid context_cost %r; defaulting to 'medium'", protocol_name, raw)
+    return "medium"
 
 
 # ---------------------------------------------------------------------------
@@ -172,12 +210,13 @@ class ProtocolStore:
                 logger.warning("Failed to read %s: %s", path, exc)
                 continue
 
-            meta, body = parse_frontmatter_safe(text)
-            load_when = meta.get("load_when", [])
-            if not isinstance(load_when, list):
-                load_when = []
+            meta, body, parse_error = parse_frontmatter_with_error(text)
+            if parse_error is not None:
+                logger.warning("Skipping protocol %s: malformed frontmatter (%s)", path, parse_error)
+                continue
+            load_when = _normalize_protocol_load_when(meta.get("load_when", []), protocol_name=name)
             tier = _normalize_protocol_tier(meta.get("tier", 2), protocol_name=name)
-            context_cost = meta.get("context_cost", "medium")
+            context_cost = _normalize_protocol_context_cost(meta.get("context_cost", "medium"), protocol_name=name)
 
             domain = _protocol_domain(name)
             steps, checkpoints = _extract_steps_and_checkpoints(body)

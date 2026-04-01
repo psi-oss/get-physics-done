@@ -121,7 +121,8 @@ def _install_runtime(
     install_target = target or (project_root / descriptor.config_dir_name)
     install_target.mkdir(parents=True, exist_ok=True)
     gpd_root = Path(__file__).resolve().parents[1] / "src" / "gpd"
-    adapter.install(gpd_root, install_target, is_global=is_global, explicit_target=explicit_target)
+    install_result = adapter.install(gpd_root, install_target, is_global=is_global, explicit_target=explicit_target)
+    adapter.finalize_install(install_result)
     return adapter, install_target
 
 

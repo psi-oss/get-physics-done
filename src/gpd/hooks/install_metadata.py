@@ -245,15 +245,13 @@ def installed_update_command(config_dir: Path) -> str | None:
         return None
 
     explicit_target = manifest.get("explicit_target")
-    if not isinstance(explicit_target, bool):
-        return None
-
-    install_target = config_dir
-    if explicit_target:
-        install_target_value = manifest.get("install_target_dir")
-        if not isinstance(install_target_value, str) or not install_target_value.strip():
+    if explicit_target is None:
+        if scope == "global":
             return None
-        install_target = Path(install_target_value)
+        install_target_dir = manifest.get("install_target_dir")
+        explicit_target = isinstance(install_target_dir, str) and bool(install_target_dir.strip())
+    elif not isinstance(explicit_target, bool):
+        return None
 
     try:
         get_adapter(runtime)
@@ -263,6 +261,8 @@ def installed_update_command(config_dir: Path) -> str | None:
     return build_runtime_install_repair_command(
         runtime,
         install_scope=scope,
-        target_dir=install_target,
+        # The live config dir is the authoritative install location for self-owned hooks.
+        # Using it keeps update guidance stable even when target metadata drifts.
+        target_dir=config_dir,
         explicit_target=explicit_target,
     )

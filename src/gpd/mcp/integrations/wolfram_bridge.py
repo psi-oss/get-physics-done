@@ -23,18 +23,15 @@ try:
         WOLFRAM_MCP_API_KEY_ENV_VAR,
         WOLFRAM_MCP_DEFAULT_ENDPOINT,
         WOLFRAM_MCP_ENDPOINT_ENV_VAR,
-        WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR,
     )
 except ImportError:  # pragma: no cover - partial checkout fallback
     WOLFRAM_MANAGED_INTEGRATION = None
     WOLFRAM_MCP_API_KEY_ENV_VAR = "GPD_WOLFRAM_MCP_API_KEY"
     WOLFRAM_MCP_DEFAULT_ENDPOINT = "https://services.wolfram.com/api/mcp"
     WOLFRAM_MCP_ENDPOINT_ENV_VAR = "GPD_WOLFRAM_MCP_ENDPOINT"
-    WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR = "WOLFRAM_MCP_SERVICE_API_KEY"
 
 DEFAULT_WOLFRAM_MCP_ENDPOINT = WOLFRAM_MCP_DEFAULT_ENDPOINT
 GPD_WOLFRAM_MCP_API_KEY_ENV = WOLFRAM_MCP_API_KEY_ENV_VAR
-WOLFRAM_MCP_SERVICE_API_KEY_ENV = WOLFRAM_MCP_SERVICE_API_KEY_ENV_VAR
 
 _CONNECT_TIMEOUT_SECONDS = 10.0
 _READ_TIMEOUT_SECONDS = 300.0
@@ -53,7 +50,7 @@ def resolve_endpoint(env: Mapping[str, str] | None = None) -> str:
     """Return the Wolfram MCP endpoint URL, defaulting to the official service."""
     source = os.environ if env is None else env
     if WOLFRAM_MANAGED_INTEGRATION is not None:
-        return WOLFRAM_MANAGED_INTEGRATION.resolved_endpoint(source)
+        return WOLFRAM_MANAGED_INTEGRATION.resolved_endpoint(source, strict=True)
     endpoint = _env_value(source, WOLFRAM_MCP_ENDPOINT_ENV_VAR)
     return endpoint or DEFAULT_WOLFRAM_MCP_ENDPOINT
 
@@ -61,8 +58,7 @@ def resolve_endpoint(env: Mapping[str, str] | None = None) -> str:
 def resolve_api_key(env: Mapping[str, str] | None = None) -> str:
     """Return the bearer token for the Wolfram MCP service.
 
-    The canonical env var is checked first. The compatibility alias is only
-    accepted as a fallback inside this bridge.
+    The canonical env var is the only supported auth source.
     """
     source = os.environ if env is None else env
     if WOLFRAM_MANAGED_INTEGRATION is not None:
@@ -70,13 +66,7 @@ def resolve_api_key(env: Mapping[str, str] | None = None) -> str:
     canonical = _env_value(source, GPD_WOLFRAM_MCP_API_KEY_ENV)
     if canonical is not None:
         return canonical
-    alias = _env_value(source, WOLFRAM_MCP_SERVICE_API_KEY_ENV)
-    if alias is not None:
-        return alias
-    raise RuntimeError(
-        "Wolfram MCP auth is not configured. Set GPD_WOLFRAM_MCP_API_KEY "
-        f"or the compatibility alias {WOLFRAM_MCP_SERVICE_API_KEY_ENV}."
-    )
+    raise RuntimeError("Wolfram MCP auth is not configured. Set GPD_WOLFRAM_MCP_API_KEY.")
 
 
 def build_auth_headers(api_key: str) -> dict[str, str]:
@@ -146,8 +136,8 @@ class WolframBridge:
     async def get_prompt(self, name: str, arguments: dict[str, str] | None) -> types.GetPromptResult:
         return await self.session.get_prompt(name, arguments)
 
-    async def list_resource_templates(self) -> types.ListResourceTemplatesResult:
-        return await self.session.list_resource_templates()
+    async def list_resource_templates(self, cursor: str | None = None) -> types.ListResourceTemplatesResult:
+        return await self.session.list_resource_templates(cursor)
 
 
 def build_server(config: WolframBridgeConfig) -> tuple[Server, WolframBridge]:
@@ -189,8 +179,11 @@ def build_server(config: WolframBridgeConfig) -> tuple[Server, WolframBridge]:
         return await bridge.get_prompt(name, arguments)
 
     @server.list_resource_templates()
-    async def _list_resource_templates() -> list[types.ResourceTemplate]:
-        return (await bridge.list_resource_templates()).resourceTemplates
+    async def _list_resource_templates(
+        request: types.ListResourceTemplatesRequest,
+    ) -> types.ListResourceTemplatesResult:
+        cursor = getattr(request.params, "cursor", None)
+        return await bridge.list_resource_templates(cursor)
 
     return server, bridge
 
@@ -221,7 +214,6 @@ def main() -> None:
 __all__ = [
     "DEFAULT_WOLFRAM_MCP_ENDPOINT",
     "GPD_WOLFRAM_MCP_API_KEY_ENV",
-    "WOLFRAM_MCP_SERVICE_API_KEY_ENV",
     "WolframBridge",
     "WolframBridgeConfig",
     "build_auth_headers",

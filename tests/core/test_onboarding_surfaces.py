@@ -116,3 +116,27 @@ def test_public_surface_contract_loader_rejects_shape_drift(monkeypatch, tmp_pat
         load_public_surface_contract()
 
     load_public_surface_contract.cache_clear()
+
+
+def test_public_surface_contract_loader_rejects_boolean_schema_version(monkeypatch, tmp_path: Path) -> None:
+    canonical_path = Path(__file__).resolve().parents[2] / "src" / "gpd" / "core" / "public_surface_contract.json"
+    canonical_payload = json.loads(canonical_path.read_text(encoding="utf-8"))
+
+    class _FakeFiles:
+        def __init__(self, contract_path: Path) -> None:
+            self._contract_path = contract_path
+
+        def joinpath(self, name: str) -> Path:
+            assert name == "public_surface_contract.json"
+            return self._contract_path
+
+    contract_path = tmp_path / "public_surface_contract.json"
+    canonical_payload["schema_version"] = True
+    contract_path.write_text(json.dumps(canonical_payload), encoding="utf-8")
+    monkeypatch.setattr(public_surface_contract_module, "files", lambda package: _FakeFiles(contract_path))
+    load_public_surface_contract.cache_clear()
+
+    with pytest.raises(ValueError, match=r"Unsupported public surface contract schema_version: True"):
+        load_public_surface_contract()
+
+    load_public_surface_contract.cache_clear()

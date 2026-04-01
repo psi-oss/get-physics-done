@@ -167,6 +167,105 @@ def test_resolve_update_cache_inputs_uses_non_project_cwd_for_runtime_preference
     assert mock_preferred.call_args.kwargs["cwd"] == workspace
 
 
+def test_resolve_update_cache_inputs_prefers_nested_workspace_local_install_over_ancestor_project_root(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    (project / "GPD").mkdir(parents=True)
+    nested = project / "src" / "notes"
+    nested.mkdir(parents=True)
+    home = tmp_path / "home"
+    home.mkdir()
+    _mark_complete_install(nested / ".codex", runtime="codex")
+
+    with patch("gpd.hooks.runtime_detect.Path.home", return_value=home):
+        workspace_path, resolved_home, active_runtime, preferred_runtime = resolve_update_cache_inputs(
+            cwd=nested,
+            home=home,
+        )
+
+    assert workspace_path == nested
+    assert resolved_home == home
+    assert active_runtime == "codex"
+    assert preferred_runtime == "codex"
+
+
+def test_resolve_update_cache_inputs_prefers_nested_local_install_when_runtime_hint_is_missing(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    (project / "GPD").mkdir(parents=True)
+    nested = project / "src" / "notes"
+    nested.mkdir(parents=True)
+    home = tmp_path / "home"
+    home.mkdir()
+    _mark_complete_install(nested / ".claude", runtime="claude-code")
+
+    with (
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="codex"),
+    ):
+        workspace_path, resolved_home, active_runtime, preferred_runtime = resolve_update_cache_inputs(
+            cwd=nested,
+            home=home,
+        )
+
+    assert workspace_path == nested
+    assert resolved_home == home
+    assert active_runtime == "claude-code"
+    assert preferred_runtime == "claude-code"
+
+
+def test_resolve_update_cache_inputs_falls_back_to_ancestor_project_root_install_when_nested_cwd_has_none(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    (project / "GPD").mkdir(parents=True)
+    nested = project / "src" / "notes"
+    nested.mkdir(parents=True)
+    home = tmp_path / "home"
+    home.mkdir()
+    _mark_complete_install(project / ".codex", runtime="codex")
+
+    with patch("gpd.hooks.runtime_detect.Path.home", return_value=home):
+        workspace_path, resolved_home, active_runtime, preferred_runtime = resolve_update_cache_inputs(
+            cwd=nested,
+            home=home,
+        )
+
+    assert workspace_path == project
+    assert resolved_home == home
+    assert active_runtime == "codex"
+    assert preferred_runtime == "codex"
+
+
+def test_resolve_update_cache_inputs_does_not_let_nested_other_runtime_hijack_active_runtime_lookup(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    (project / "GPD").mkdir(parents=True)
+    nested = project / "src" / "notes"
+    nested.mkdir(parents=True)
+    home = tmp_path / "home"
+    home.mkdir()
+    _mark_complete_install(project / ".claude", runtime="claude-code")
+    _mark_complete_install(nested / ".codex", runtime="codex")
+
+    with (
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="claude-code"),
+    ):
+        workspace_path, resolved_home, active_runtime, preferred_runtime = resolve_update_cache_inputs(
+            cwd=nested,
+            home=home,
+        )
+
+    assert workspace_path == project
+    assert resolved_home == home
+    assert active_runtime == "claude-code"
+    assert preferred_runtime == "claude-code"
+
+
 def test_primary_update_cache_file_falls_back_to_home_gpd_cache(tmp_path: Path) -> None:
     home = tmp_path / "home"
 
@@ -208,6 +307,92 @@ def test_latest_update_cache_uses_shared_cache_constants_for_self_owned_install(
     assert candidate.path == cache_file
 
 
+def test_latest_update_cache_does_not_fallback_to_workspace_cache_when_preferred_self_owned_cache_is_missing(
+    tmp_path: Path,
+) -> None:
+    from types import SimpleNamespace
+
+    from gpd.hooks.install_context import SelfOwnedInstallContext
+
+    self_config_dir = tmp_path / "runtime"
+    self_config_dir.mkdir(parents=True)
+    self_install = SelfOwnedInstallContext(config_dir=self_config_dir, runtime="codex", install_scope="local")
+    workspace_cache = tmp_path / "workspace-cache.json"
+    workspace_cache.write_text(json.dumps({"update_available": True, "checked": 10}), encoding="utf-8")
+    workspace_candidate = SimpleNamespace(path=workspace_cache, runtime="claude-code", scope="local")
+
+    with (
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
+        patch("gpd.hooks.update_resolution.ordered_update_cache_candidates", return_value=[workspace_candidate]),
+    ):
+        cache, candidate = latest_update_cache(hook_file=__file__, cwd=str(tmp_path), debug=_noop_debug)
+
+    assert cache is None
+    assert candidate is not None
+    assert candidate.path == self_install.cache_file
+
+
+def test_latest_update_cache_does_not_fallback_to_workspace_cache_when_preferred_self_owned_cache_is_malformed(
+    tmp_path: Path,
+) -> None:
+    from types import SimpleNamespace
+
+    from gpd.hooks.install_context import SelfOwnedInstallContext
+
+    self_config_dir = tmp_path / "runtime"
+    self_config_dir.mkdir(parents=True)
+    self_install = SelfOwnedInstallContext(config_dir=self_config_dir, runtime="codex", install_scope="local")
+    self_install.cache_file.parent.mkdir(parents=True)
+    self_install.cache_file.write_text("{broken", encoding="utf-8")
+    workspace_cache = tmp_path / "workspace-cache.json"
+    workspace_cache.write_text(json.dumps({"update_available": True, "checked": 10}), encoding="utf-8")
+    workspace_candidate = SimpleNamespace(path=workspace_cache, runtime="claude-code", scope="local")
+
+    with (
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="unknown"),
+        patch("gpd.hooks.update_resolution.ordered_update_cache_candidates", return_value=[workspace_candidate]),
+    ):
+        cache, candidate = latest_update_cache(hook_file=__file__, cwd=str(tmp_path), debug=_noop_debug)
+
+    assert cache is None
+    assert candidate is not None
+    assert candidate.path == self_install.cache_file
+
+
+def test_latest_update_cache_keeps_self_owned_precedence_over_different_runtime_workspace_install(
+    tmp_path: Path,
+) -> None:
+    from types import SimpleNamespace
+
+    from gpd.hooks.install_context import SelfOwnedInstallContext
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    self_config_dir = tmp_path / "codex-runtime"
+    self_config_dir.mkdir(parents=True)
+    self_install = SelfOwnedInstallContext(config_dir=self_config_dir, runtime="codex", install_scope="local")
+    workspace_cache = workspace / ".claude" / "cache" / "gpd-update-check.json"
+    workspace_cache.parent.mkdir(parents=True)
+    workspace_cache.write_text(json.dumps({"update_available": True, "checked": 10}), encoding="utf-8")
+    workspace_candidate = SimpleNamespace(path=workspace_cache, runtime="claude-code", scope="local")
+    workspace_install = SimpleNamespace(config_dir=workspace / ".claude", install_scope="local")
+
+    with (
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value="claude-code"),
+        patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value="claude-code"),
+        patch("gpd.hooks.runtime_detect.detect_runtime_install_target", return_value=workspace_install),
+        patch("gpd.hooks.update_resolution.ordered_update_cache_candidates", return_value=[workspace_candidate]),
+    ):
+        cache, candidate = latest_update_cache(hook_file=__file__, cwd=str(workspace), debug=_noop_debug)
+
+    assert cache is None
+    assert candidate is not None
+    assert candidate.path == self_install.cache_file
+
+
 def test_latest_update_cache_uses_runtime_unknown_constant_not_literal(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -235,6 +420,33 @@ def test_update_command_for_candidate_prefers_self_owned_install_command(tmp_pat
                 "install_scope": "local",
                 "runtime": "codex",
                 "explicit_target": True,
+                "install_target_dir": str(explicit_target),
+            }
+        ),
+        encoding="utf-8",
+    )
+    self_install = SelfOwnedInstallContext(config_dir=explicit_target, runtime="codex", install_scope="local")
+    candidate = type("Candidate", (), {"path": self_install.cache_file, "runtime": "codex", "scope": "local"})()
+
+    with patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install):
+        command = update_command_for_candidate(candidate, hook_file=__file__, cwd=str(tmp_path))
+
+    expected = _repair_command("codex", install_scope="local", target_dir=explicit_target, explicit_target=True)
+    assert command == expected
+
+
+def test_update_command_for_candidate_recovers_self_owned_command_when_manifest_omits_explicit_target(
+    tmp_path: Path,
+) -> None:
+    from gpd.hooks.install_context import SelfOwnedInstallContext
+
+    explicit_target = tmp_path / "custom-runtime-dir"
+    explicit_target.mkdir(parents=True)
+    (explicit_target / "gpd-file-manifest.json").write_text(
+        json.dumps(
+            {
+                "install_scope": "local",
+                "runtime": "codex",
                 "install_target_dir": str(explicit_target),
             }
         ),

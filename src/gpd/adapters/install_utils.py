@@ -434,11 +434,27 @@ def split_markdown_frontmatter(content: str) -> tuple[str, str, str, str]:
     )
 
 
+def _preferred_markdown_eol(*parts: str) -> str:
+    """Return the dominant markdown line ending across the provided content parts."""
+    for part in parts:
+        if "\r\n" in part:
+            return "\r\n"
+    return "\n"
+
+
+def _normalize_markdown_eol(text: str, *, eol: str) -> str:
+    """Normalize embedded line endings to the target markdown EOL style."""
+    return text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", eol)
+
+
 def render_markdown_frontmatter(preamble: str, frontmatter: str, separator: str, body: str) -> str:
     """Reassemble markdown content after frontmatter mutation."""
-    rendered = f"{preamble}---\n{frontmatter}\n---"
+    eol = _preferred_markdown_eol(preamble, frontmatter, separator, body)
+    normalized_preamble = _normalize_markdown_eol(preamble, eol=eol)
+    normalized_frontmatter = _normalize_markdown_eol(frontmatter, eol=eol)
+    rendered = f"{normalized_preamble}---{eol}{normalized_frontmatter}{eol}---"
     if separator:
-        rendered += separator
+        rendered += _normalize_markdown_eol(separator, eol=eol)
     return rendered + body
 
 
@@ -447,9 +463,16 @@ def _strip_top_level_markdown_section(body: str, *, heading: str) -> str:
 
     lines = body.splitlines(keepends=True)
     start_index: int | None = None
+    in_fence = False
 
     for index, line in enumerate(lines):
-        if line.lstrip().startswith(f"## {heading}"):
+        stripped = line.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if line.startswith(f"## {heading}"):
             start_index = index
             break
 
@@ -458,6 +481,12 @@ def _strip_top_level_markdown_section(body: str, *, heading: str) -> str:
 
     end_index = len(lines)
     for index in range(start_index + 1, len(lines)):
+        stripped = lines[index].lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         if lines[index].startswith("## "):
             end_index = index
             break
@@ -471,15 +500,23 @@ def _inject_review_contract_prompt_from_frontmatter(content: str) -> str:
     preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
     if not frontmatter:
         return content
+    eol = _preferred_markdown_eol(preamble, frontmatter, separator, body)
     section = render_review_contract_section_from_frontmatter(frontmatter, command_name="installed markdown")
     if not section:
         return content
-    body_without_review_contract = _strip_top_level_markdown_section(body, heading="Review Contract").strip("\n")
+    normalized_section = _normalize_markdown_eol(section, eol=eol)
+    body_without_review_contract = _strip_top_level_markdown_section(body, heading="Review Contract").strip("\r\n")
+    trailing_newline = eol if body.endswith(("\r\n", "\n", "\r")) else ""
+    new_body = (
+        f"{normalized_section}{eol}{eol}{body_without_review_contract}" if body_without_review_contract else normalized_section
+    )
+    if trailing_newline and not new_body.endswith(("\r\n", "\n", "\r")):
+        new_body += trailing_newline
     return render_markdown_frontmatter(
         preamble,
         frontmatter,
         separator,
-        f"{section}\n\n{body_without_review_contract}" if body_without_review_contract else section,
+        new_body,
     )
 
 

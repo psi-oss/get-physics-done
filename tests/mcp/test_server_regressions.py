@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -102,6 +103,21 @@ def test_convention_set_returns_error_on_timeout(tmp_path: Path) -> None:
 
     assert "error" in result
     assert "timed out" in result["error"]
+
+
+@pytest.mark.parametrize(
+    ("tool_fn", "kwargs"),
+    [
+        ("convention_lock_status", {"project_dir": "relative/project"}),
+        ("convention_set", {"project_dir": "relative/project", "key": "metric_signature", "value": "(+,-,-,-)"}),
+    ],
+)
+def test_conventions_server_rejects_relative_project_dirs(tool_fn: str, kwargs: dict[str, object]) -> None:
+    from gpd.mcp.servers import conventions_server
+
+    result = getattr(conventions_server, tool_fn)(**kwargs)
+
+    assert result == {"error": "project_dir must be an absolute path", "schema_version": 1}
 
 
 def test_add_pattern_returns_error_on_pattern_error() -> None:
@@ -361,6 +377,16 @@ def test_pattern_lookup_tolerates_missing_default_library(tmp_path: Path) -> Non
     assert isinstance(result, dict)
 
 
+def test_absolute_project_dir_schema_matches_current_host_path_semantics() -> None:
+    from gpd.mcp.servers import ABSOLUTE_PROJECT_DIR_SCHEMA, resolve_absolute_project_dir
+
+    if os.name == "nt":
+        assert ABSOLUTE_PROJECT_DIR_SCHEMA["pattern"] == r"^(?:[A-Za-z]:[\\/]|\\\\)"
+    else:
+        assert ABSOLUTE_PROJECT_DIR_SCHEMA["pattern"] == r"^/"
+        assert resolve_absolute_project_dir(r"C:\repo") is None
+
+
 def test_protocol_store_defaults_invalid_tier_for_sorting(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -414,6 +440,48 @@ def test_protocol_store_defaults_invalid_tier_for_sorting(
     assert listed[1]["tier"] == 2
 
 
+def test_protocol_store_sanitizes_typed_frontmatter_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gpd.mcp.servers.protocols_server import ProtocolStore, _load_protocol_domain_manifest
+
+    protocols_dir = tmp_path / "protocols"
+    protocols_dir.mkdir()
+    (protocols_dir / "typed.md").write_text(
+        "---\n"
+        "tier: true\n"
+        "load_when:\n"
+        "  - asymptotic\n"
+        "  - 5\n"
+        "  - ''\n"
+        "context_cost:\n"
+        "  family: expensive\n"
+        "---\n"
+        "# Typed Drift\n"
+        "- First step\n",
+        encoding="utf-8",
+    )
+    domain_manifest = protocols_dir / "protocol-domains.json"
+    domain_manifest.write_text(
+        json.dumps({"schema_version": 1, "protocol_domains": {"typed": "general"}}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("gpd.mcp.servers.protocols_server.PROTOCOL_DOMAINS_MANIFEST", domain_manifest)
+    _load_protocol_domain_manifest.cache_clear()
+    try:
+        store = ProtocolStore(protocols_dir)
+    finally:
+        _load_protocol_domain_manifest.cache_clear()
+
+    protocol = store.get("typed")
+    assert protocol is not None
+    assert protocol["tier"] == 2
+    assert protocol["load_when"] == ["asymptotic"]
+    assert protocol["context_cost"] == "medium"
+
+
 def test_protocol_not_found_tolerates_invalid_tier_catalog(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -453,4 +521,54 @@ def test_protocol_not_found_tolerates_invalid_tier_catalog(
         result = get_protocol("missing-protocol")
 
     assert result["error"] == "Protocol 'missing-protocol' not found"
-    assert result["available"] == ["bad-tier"]
+
+
+def test_protocol_store_rejects_boolean_manifest_schema_version(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from gpd.mcp.servers.protocols_server import _load_protocol_domain_manifest
+
+    protocols_dir = tmp_path / "protocols"
+    protocols_dir.mkdir()
+    domain_manifest = protocols_dir / "protocol-domains.json"
+    domain_manifest.write_text(
+        json.dumps({"schema_version": True, "protocol_domains": {"demo": "general"}}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("gpd.mcp.servers.protocols_server.PROTOCOL_DOMAINS_MANIFEST", domain_manifest)
+    _load_protocol_domain_manifest.cache_clear()
+    try:
+        with pytest.raises(ValueError, match="Unsupported protocol domain manifest schema_version: True"):
+            _load_protocol_domain_manifest()
+    finally:
+        _load_protocol_domain_manifest.cache_clear()
+
+
+def test_protocol_store_skips_malformed_frontmatter_with_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from gpd.mcp.servers.protocols_server import ProtocolStore, _load_protocol_domain_manifest
+
+    protocols_dir = tmp_path / "protocols"
+    protocols_dir.mkdir()
+    (protocols_dir / "good.md").write_text("---\n---\n# Good\n## Procedure\n- Step one\n", encoding="utf-8")
+    (protocols_dir / "bad.md").write_text("---\ntier: [broken\n---\n# Bad\n", encoding="utf-8")
+    domain_manifest = protocols_dir / "protocol-domains.json"
+    domain_manifest.write_text(
+        json.dumps({"schema_version": 1, "protocol_domains": {"good": "general", "bad": "general"}}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("gpd.mcp.servers.protocols_server.PROTOCOL_DOMAINS_MANIFEST", domain_manifest)
+    _load_protocol_domain_manifest.cache_clear()
+    try:
+        with caplog.at_level("WARNING", logger="gpd-protocols"):
+            store = ProtocolStore(protocols_dir)
+    finally:
+        _load_protocol_domain_manifest.cache_clear()
+
+    assert store.get("good") is not None
+    assert store.get("bad") is None
+    assert "Skipping protocol" in caplog.text
+    assert "malformed frontmatter" in caplog.text

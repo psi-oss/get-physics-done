@@ -427,6 +427,15 @@ def test_state_json_schema_stays_aligned_with_stdin_contract_persistence_flow() 
     assert "Preferred write path: `gpd state set-project-contract <path-to-contract.json>`." not in schema
 
 
+def test_new_project_and_state_schema_surface_contract_id_integrity_rules() -> None:
+    workflow = (REPO_ROOT / "src/gpd/specs/workflows/new-project.md").read_text(encoding="utf-8")
+    schema = (REPO_ROOT / "src/gpd/specs/templates/state-json-schema.md").read_text(encoding="utf-8")
+
+    for content in (workflow, schema):
+        assert "same-kind ids must be unique" in content.lower()
+        assert "must not match any declared contract ID" in content
+
+
 def test_compare_branches_prompt_keeps_branch_summary_extraction_in_memory() -> None:
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/compare-branches.md").read_text(encoding="utf-8")
 

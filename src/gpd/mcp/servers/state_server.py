@@ -12,7 +12,6 @@ Usage:
 
 import logging
 import sys
-from pathlib import Path
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
@@ -30,21 +29,19 @@ from gpd.core.state import (
     state_validate,
 )
 from gpd.core.utils import is_phase_complete
-from gpd.mcp.servers import stable_mcp_error, stable_mcp_response
+from gpd.mcp.servers import (
+    ABSOLUTE_PROJECT_DIR_SCHEMA,
+    resolve_absolute_project_dir,
+    stable_mcp_error,
+    stable_mcp_response,
+)
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s %(levelname)s: %(message)s")
 logger = logging.getLogger("gpd-state")
 
 mcp = FastMCP("gpd-state")
 
-_ABSOLUTE_PROJECT_DIR_SCHEMA = {
-    "type": "string",
-    "minLength": 1,
-    "pattern": r"^(?:/|[A-Za-z]:[\\/]|\\\\)",
-    "description": "Absolute filesystem path to the project root directory.",
-}
-
-AbsoluteProjectDirInput = Annotated[str, WithJsonSchema(_ABSOLUTE_PROJECT_DIR_SCHEMA)]
+AbsoluteProjectDirInput = Annotated[str, WithJsonSchema(ABSOLUTE_PROJECT_DIR_SCHEMA)]
 
 
 def _tighten_registered_tool_contracts() -> None:
@@ -78,14 +75,6 @@ def _tighten_registered_tool_contracts() -> None:
         object.__setattr__(tool.fn_metadata, "call_fn_with_arg_validation", _build_strict_call(original_call, allowed_keys))
 
 
-def _resolve_project_dir(project_dir: str) -> Path | None:
-    """Return an absolute project root path or ``None`` when the contract is violated."""
-    cwd = Path(project_dir)
-    if not cwd.is_absolute():
-        return None
-    return cwd
-
-
 @mcp.tool()
 def get_state(project_dir: AbsoluteProjectDirInput) -> dict:
     """Get the current project state.
@@ -95,7 +84,7 @@ def get_state(project_dir: AbsoluteProjectDirInput) -> dict:
     Args:
         project_dir: Absolute path to the project root directory.
     """
-    cwd = _resolve_project_dir(project_dir)
+    cwd = resolve_absolute_project_dir(project_dir)
     if cwd is None:
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.get", phase=""):
@@ -120,7 +109,7 @@ def get_phase_info(project_dir: AbsoluteProjectDirInput, phase: str) -> dict:
     """
     from gpd.core.phases import find_phase
 
-    cwd = _resolve_project_dir(project_dir)
+    cwd = resolve_absolute_project_dir(project_dir)
     if cwd is None:
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.phase_info", phase=phase):
@@ -156,7 +145,7 @@ def advance_plan(project_dir: AbsoluteProjectDirInput) -> dict:
     Args:
         project_dir: Absolute path to the project root directory.
     """
-    cwd = _resolve_project_dir(project_dir)
+    cwd = resolve_absolute_project_dir(project_dir)
     if cwd is None:
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.advance_plan"):
@@ -178,7 +167,7 @@ def get_progress(project_dir: AbsoluteProjectDirInput) -> dict:
     Args:
         project_dir: Absolute path to the project root directory.
     """
-    cwd = _resolve_project_dir(project_dir)
+    cwd = resolve_absolute_project_dir(project_dir)
     if cwd is None:
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.progress"):
@@ -200,7 +189,7 @@ def validate_state(project_dir: AbsoluteProjectDirInput) -> dict:
     Args:
         project_dir: Absolute path to the project root directory.
     """
-    cwd = _resolve_project_dir(project_dir)
+    cwd = resolve_absolute_project_dir(project_dir)
     if cwd is None:
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.validate"):
@@ -225,7 +214,7 @@ def run_health_check(project_dir: AbsoluteProjectDirInput, fix: bool = False) ->
         project_dir: Absolute path to the project root directory.
         fix: If True, attempt auto-fixes for common issues.
     """
-    cwd = _resolve_project_dir(project_dir)
+    cwd = resolve_absolute_project_dir(project_dir)
     if cwd is None:
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.health", fix=str(fix)):
@@ -248,7 +237,7 @@ def get_config(project_dir: AbsoluteProjectDirInput) -> dict:
     Args:
         project_dir: Absolute path to the project root directory.
     """
-    cwd = _resolve_project_dir(project_dir)
+    cwd = resolve_absolute_project_dir(project_dir)
     if cwd is None:
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.config"):

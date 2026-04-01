@@ -279,7 +279,14 @@ class RuntimeAdapter(abc.ABC):
         Adapters may extend it when their installed surface requires additional
         runtime-owned files.
         """
-        return self.install_detection_relpaths()
+        return (
+            *self.install_detection_relpaths(),
+            *self.runtime_install_required_relpaths(),
+        )
+
+    def runtime_install_required_relpaths(self) -> tuple[str, ...]:
+        """Return runtime-owned artifacts required for a complete install."""
+        return ()
 
     def missing_install_artifacts(self, target_dir: Path) -> tuple[str, ...]:
         """Return missing strict install artifacts relative to *target_dir*."""

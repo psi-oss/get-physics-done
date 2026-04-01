@@ -298,11 +298,17 @@ class ContractObservedRequest(_ContractRequestBase):
 class RunContractCheckRequest(_ContractRequestBase):
     check_key: str | None = Field(
         default=None,
-        description="Canonical contract-aware check key, or a stable numeric id that resolves to the same check.",
+        description=(
+            "Canonical contract-aware check key, or a stable numeric id that resolves to the same check. "
+            "Must be a non-empty string without leading or trailing whitespace when present."
+        ),
     )
     check_id: str | None = Field(
         default=None,
-        description="Compatibility alias for check_key; may use either the canonical key or numeric id.",
+        description=(
+            "Compatibility alias for check_key; may use either the canonical key or numeric id. "
+            "Must be a non-empty string without leading or trailing whitespace when present."
+        ),
     )
     contract: dict[str, object] | ResearchContract | None = Field(
         default=None,
@@ -318,6 +324,14 @@ def _non_empty_string_schema() -> dict[str, object]:
     return {"type": "string", "minLength": 1, "pattern": r"\S"}
 
 
+def _trimmed_non_empty_string_schema() -> dict[str, object]:
+    return {
+        "type": "string",
+        "minLength": 1,
+        "pattern": r"^\S(?:[\s\S]*\S)?$",
+    }
+
+
 def _string_schema() -> dict[str, object]:
     return {"type": "string"}
 
@@ -328,6 +342,10 @@ def _string_or_null_schema() -> dict[str, object]:
 
 def _non_empty_string_or_null_schema() -> dict[str, object]:
     return {"anyOf": [dict(_non_empty_string_schema()), {"type": "null"}]}
+
+
+def _trimmed_non_empty_string_or_null_schema() -> dict[str, object]:
+    return {"anyOf": [dict(_trimmed_non_empty_string_schema()), {"type": "null"}]}
 
 
 def _string_list_schema(*, min_items: int | None = None) -> dict[str, object]:
@@ -882,12 +900,18 @@ _RUN_CONTRACT_CHECK_REQUEST_SCHEMA: dict[str, object] = {
     "type": "object",
     "additionalProperties": False,
     "anyOf": [
-        {"required": ["check_key"]},
-        {"required": ["check_id"]},
+        {
+            "required": ["check_key"],
+            "properties": {"check_key": dict(_trimmed_non_empty_string_schema())},
+        },
+        {
+            "required": ["check_id"],
+            "properties": {"check_id": dict(_trimmed_non_empty_string_schema())},
+        },
     ],
     "properties": {
-        "check_key": _non_empty_string_or_null_schema(),
-        "check_id": _non_empty_string_or_null_schema(),
+        "check_key": _trimmed_non_empty_string_or_null_schema(),
+        "check_id": _trimmed_non_empty_string_or_null_schema(),
         "contract": {"anyOf": [dict(_CONTRACT_PAYLOAD_INPUT_SCHEMA), {"type": "null"}]},
         "binding": {"anyOf": [dict(_CONTRACT_BINDING_INPUT_SCHEMA), {"type": "null"}]},
         "metadata": {"anyOf": [dict(_CONTRACT_METADATA_INPUT_SCHEMA), {"type": "null"}]},
@@ -3027,9 +3051,10 @@ def _validate_limit_expected_behavior_binding(
 def run_contract_check(request: RunContractCheckPayload) -> dict:
     """Run a contract-aware verification check from a single structured ``request`` object.
 
-    ``request.check_key`` or ``request.check_id`` is required and must name a
-    contract-aware verification check such as ``contract.limit_recovery`` or
-    ``contract.benchmark_reproduction``.
+    At least one of ``request.check_key`` or ``request.check_id`` is required.
+    When present, each must be a non-empty string without leading or trailing
+    whitespace and must name a contract-aware verification check such as
+    ``contract.limit_recovery`` or ``contract.benchmark_reproduction``.
 
     ``request.contract`` is optional, but when supplied it must be a project or
     phase contract object. ``schema_version`` defaults to ``1`` when omitted
@@ -3039,18 +3064,13 @@ def run_contract_check(request: RunContractCheckPayload) -> dict:
     instead of being guessed. Recoverable scalar-to-list drift is normalized by
     the shared contract parser before verification, and benchmark prose may
     still surface a warning when direct evidence is incomplete. Contract
-    payloads must also satisfy the shared semantic integrity rules: same-kind IDs must be unique.
-    references[].carry_forward_to uses workflow scope labels, never contract IDs.
-    target IDs must not be reused across claim/deliverable/acceptance-test/reference kinds when that would make resolution ambiguous.
-    contract context must stay consistent with metadata defaults and explicit metadata fields, so benchmark anchors, regime labels, and family selections cannot contradict the resolved binding.
-    payloads must also satisfy the shared semantic integrity rules: same-kind IDs must be unique, target IDs must not be reused across
-    claim/deliverable/acceptance-test/reference kinds when that would make
-    resolution ambiguous, and ``references[].carry_forward_to`` is only for
-    workflow scope labels, never contract IDs. contract context must stay consistent with metadata defaults and explicit metadata
-    fields, so benchmark anchors, regime labels, and family selections cannot
-    contradict the resolved binding. For plan-style contract payloads, ``context_intake`` must be present and non-empty, and the contract must satisfy the same plan semantic requirements GPD enforces in plan frontmatter. Limited recoverable structural drift may
-    still be salvaged, and any such recovery is surfaced back as structured
-    salvage findings.
+    payloads must also satisfy the shared semantic integrity rules: same-kind IDs must be unique; target IDs must not be reused across claim/deliverable/acceptance-test/reference kinds when that would make resolution ambiguous; ``references[].carry_forward_to`` uses workflow scope labels, never contract IDs; and contract context must stay consistent with metadata defaults and explicit metadata fields, so benchmark anchors,
+    regime labels, and family selections cannot contradict the resolved
+    binding. For plan-style contract payloads, ``context_intake`` must be
+    present and non-empty, and the contract must satisfy the same plan semantic
+    requirements GPD enforces in plan frontmatter. Limited recoverable
+    structural drift may still be salvaged, and any such recovery is surfaced
+    back as structured salvage findings.
 
     ``request.binding``, ``request.metadata``, and ``request.observed`` are each
     optional objects. Decisive pass/fail verdicts still require the check-specific

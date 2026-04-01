@@ -188,7 +188,7 @@ def load_public_surface_contract() -> PublicSurfaceContract:
     )
 
     schema_version = payload.get("schema_version")
-    if schema_version != 1:
+    if not isinstance(schema_version, int) or isinstance(schema_version, bool) or schema_version != 1:
         raise ValueError(f"Unsupported public surface contract schema_version: {schema_version!r}")
 
     beginner_payload = _require_object(payload.get("beginner_onboarding"), label="beginner_onboarding")

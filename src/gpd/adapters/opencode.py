@@ -133,20 +133,24 @@ def convert_tool_name(tool_name: str) -> str:
     return mapped if mapped is not None else tool_name
 
 
-def _project_managed_mcp_servers(env: Mapping[str, str] | None = None) -> dict[str, dict[str, object]]:
+def _project_managed_mcp_servers(
+    env: Mapping[str, str] | None = None,
+    *,
+    cwd: Path | None = None,
+) -> dict[str, dict[str, object]]:
     """Project shared optional integrations into OpenCode's neutral MCP shape."""
     from gpd.mcp.managed_integrations import list_managed_integrations
 
     managed_servers: dict[str, dict[str, object]] = {}
     for integration in list_managed_integrations().values():
-        if not integration.is_configured(env):
+        if not integration.is_configured(env, cwd=cwd, strict=True):
             continue
 
         entry: dict[str, object] = {
             "command": integration.bridge_command,
             "args": [],
         }
-        endpoint = integration.resolved_endpoint(env)
+        endpoint = integration.resolved_endpoint(env, cwd=cwd, strict=True)
         if endpoint and endpoint != integration.default_endpoint:
             entry["env"] = {integration.endpoint_env_var: endpoint}
 
@@ -491,18 +495,6 @@ def _opencode_managed_permission_keys(config_dir: Path) -> tuple[str, ...]:
     return (f"{actual_config_dir.as_posix()}/get-physics-done/*",)
 
 
-def _read_opencode_config(config_dir: Path) -> dict[str, object]:
-    """Return parsed OpenCode config or an empty mapping."""
-    config_path = config_dir / "opencode.json"
-    if not config_path.exists():
-        return {}
-    try:
-        parsed = parse_jsonc(config_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError, ValueError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
-
-
 def _write_opencode_config(config_dir: Path, config: dict[str, object]) -> None:
     """Persist OpenCode config as normalized JSON."""
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -520,12 +512,32 @@ def _read_opencode_config_state(config_dir: Path) -> tuple[dict[str, object] | N
         return None, "malformed"
     if not isinstance(parsed, dict):
         return None, "malformed"
+    if not _opencode_permission_shape_is_valid(parsed.get("permission")):
+        return None, "malformed"
+    if not _opencode_mcp_shape_is_valid(parsed.get("mcp")):
+        return None, "malformed"
     return parsed, None
 
 
 def _clone_json_value(value: object) -> object:
     """Deep-copy JSON-compatible values."""
     return json.loads(json.dumps(value))
+
+
+def _opencode_permission_shape_is_valid(permission_value: object) -> bool:
+    if permission_value is None:
+        return True
+    if isinstance(permission_value, dict):
+        return True
+    return isinstance(permission_value, str) and permission_value in _OPENCODE_PERMISSION_DECISIONS
+
+
+def _opencode_mcp_shape_is_valid(mcp_value: object) -> bool:
+    if mcp_value is None:
+        return True
+    if not isinstance(mcp_value, dict):
+        return False
+    return all(isinstance(entry, dict) for entry in mcp_value.values())
 
 
 def _normalize_opencode_permission_value(permission_value: object) -> tuple[dict[str, object], bool]:
@@ -561,7 +573,10 @@ def configure_opencode_permissions(config_dir: Path) -> bool:
     Modifies opencode.json to add permission.read and permission.external_directory
     grants for the GPD path. Returns True if config was modified.
     """
-    config = _read_opencode_config(config_dir)
+    config_state, config_parse_error = _read_opencode_config_state(config_dir)
+    if config_parse_error is not None:
+        raise RuntimeError("OpenCode opencode.json is malformed; refusing to overwrite it during install.")
+    config = config_state or {}
     permission_value = config.get("permission")
     if _opencode_permission_is_yolo(permission_value):
         return False
@@ -915,14 +930,10 @@ def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, o
     config_path = config_dir / "opencode.json"
     config_dir.mkdir(parents=True, exist_ok=True)
 
-    config: dict = {}
-    if config_path.exists():
-        try:
-            config = parse_jsonc(config_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, ValueError):
-            config = {}
-        if not isinstance(config, dict):
-            config = {}
+    config_state, config_parse_error = _read_opencode_config_state(config_dir)
+    if config_parse_error is not None:
+        raise RuntimeError("OpenCode opencode.json is malformed; refusing to overwrite it during install.")
+    config = config_state or {}
 
     existing_mcp = config.get("mcp", {})
     if not isinstance(existing_mcp, dict):
@@ -999,6 +1010,10 @@ class OpenCodeAdapter(RuntimeAdapter):
             is_global=is_global,
             explicit_target=getattr(self, "_install_explicit_target", False),
         )
+
+    def runtime_install_required_relpaths(self) -> tuple[str, ...]:
+        """Return OpenCode-owned files required for a complete install."""
+        return ("opencode.json",)
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:
         commands_src = gpd_root / "commands"
@@ -1079,13 +1094,17 @@ class OpenCodeAdapter(RuntimeAdapter):
                 failures.append(f"hooks: {exc}")
 
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
+        _, config_parse_error = _read_opencode_config_state(target_dir)
+        if config_parse_error is not None:
+            raise RuntimeError("OpenCode opencode.json is malformed; refusing to overwrite it during install.")
         configure_opencode_permissions(target_dir)
 
         # Wire MCP servers into opencode.json.
         from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
         mcp_servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
-        managed_mcp_servers = _project_managed_mcp_servers()
+        project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
+        managed_mcp_servers = _project_managed_mcp_servers(cwd=project_cwd)
         if managed_mcp_servers:
             mcp_servers.update(managed_mcp_servers)
         mcp_count = 0

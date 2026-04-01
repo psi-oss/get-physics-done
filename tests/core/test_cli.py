@@ -245,17 +245,19 @@ def test_workflow_presets_surface_lists_catalog() -> None:
     assert "Core research" in result.output
 
 
-def test_integrations_status_reports_config_only_and_plan_readiness(tmp_path: Path) -> None:
+def test_integrations_status_reports_effective_project_local_state_and_plan_readiness(tmp_path: Path) -> None:
     result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "integrations", "status", "wolfram"])
     assert result.exit_code == 0
     payload = json.loads(result.output)
     assert payload["integration"] == "wolfram"
     assert payload["configured"] is False
-    assert payload["enabled"] is False
-    assert payload["state"] == "disabled"
-    assert payload["scope"] == "config-only"
+    assert payload["enabled"] is True
+    assert payload["ready"] is False
+    assert payload["state"] == "missing-api-key"
+    assert payload["scope"] == "project-local"
     assert payload["plan_readiness_command"] == "gpd validate plan-preflight <PLAN.md>"
-    assert "plan-preflight" in payload["next_step"]
+    assert payload["api_key_env"] == "GPD_WOLFRAM_MCP_API_KEY"
+    assert "GPD_WOLFRAM_MCP_API_KEY" in payload["next_step"]
     assert "Mathematica" in payload["local_mathematica_note"]
 
 
@@ -264,7 +266,7 @@ def test_integrations_enable_and_disable_wolfram_persist_project_local_config(tm
     assert enable_result.exit_code == 0
     enable_payload = json.loads(enable_result.output)
     assert enable_payload["enabled"] is True
-    assert enable_payload["scope"] == "config-only"
+    assert enable_payload["scope"] == "project-local"
 
     config_path = tmp_path / "GPD" / "integrations.json"
     assert config_path.exists()
@@ -281,6 +283,82 @@ def test_integrations_enable_and_disable_wolfram_persist_project_local_config(tm
     status_payload = json.loads(status_result.output)
     assert status_payload["enabled"] is False
     assert status_payload["state"] == "disabled"
+
+
+def test_integrations_commands_use_project_root_config_from_nested_workspace(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    nested_workspace = project_root / "notes" / "scratch"
+    nested_workspace.mkdir(parents=True)
+    config_path = project_root / "GPD" / "integrations.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text('{"wolfram":{"enabled":false}}', encoding="utf-8")
+
+    status_result = runner.invoke(app, ["--cwd", str(nested_workspace), "--raw", "integrations", "status", "wolfram"])
+
+    assert status_result.exit_code == 0
+    status_payload = json.loads(status_result.output)
+    assert status_payload["enabled"] is False
+    assert status_payload["config_path"] == str(config_path)
+
+    enable_result = runner.invoke(app, ["--cwd", str(nested_workspace), "--raw", "integrations", "enable", "wolfram"])
+
+    assert enable_result.exit_code == 0
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    assert saved["wolfram"]["enabled"] is True
+    assert not (nested_workspace / "GPD").exists()
+
+
+def test_integrations_status_normalizes_legacy_api_key_env_field_to_canonical_contract(tmp_path: Path) -> None:
+    config_path = tmp_path / "GPD" / "integrations.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        '{"wolfram":{"enabled":true,"api_key_env":"WOLFRAM_MCP_SERVICE_API_KEY"}}',
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "integrations", "status", "wolfram"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["api_key_env"] == "GPD_WOLFRAM_MCP_API_KEY"
+
+
+@pytest.mark.parametrize(
+    ("raw_config", "expected_error"),
+    (
+        ('{"wolfram":{"enabled":"yes"}}', "integrations.wolfram.enabled must be a boolean"),
+        ('{"wolfram":[\n', "Malformed integrations config:"),
+    ),
+)
+def test_integrations_status_fails_closed_for_invalid_project_config(
+    tmp_path: Path,
+    raw_config: str,
+    expected_error: str,
+) -> None:
+    config_path = tmp_path / "GPD" / "integrations.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(raw_config, encoding="utf-8")
+
+    result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "integrations", "status", "wolfram"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert expected_error in payload["error"]
+
+
+@pytest.mark.parametrize("command", ("enable", "disable"))
+def test_integrations_toggle_fails_closed_for_invalid_project_config(tmp_path: Path, command: str) -> None:
+    config_path = tmp_path / "GPD" / "integrations.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text('{"wolfram":{"enabled":"yes"}}', encoding="utf-8")
+    before = config_path.read_text(encoding="utf-8")
+
+    result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "integrations", command, "wolfram"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["error"] == "integrations.wolfram.enabled must be a boolean"
+    assert config_path.read_text(encoding="utf-8") == before
 
 
 def test_workflow_preset_show_raw_outputs_central_contract() -> None:
@@ -2051,6 +2129,27 @@ def test_state_update(mock_update):
     mock_update.assert_called_once()
 
 
+@patch("gpd.core.state.state_update")
+def test_state_update_uses_workspace_cwd_when_no_project_root_is_verified(mock_update, tmp_path: Path) -> None:
+    workspace_cwd = tmp_path / "wrong-folder"
+    workspace_cwd.mkdir()
+    other_project = tmp_path / "other-project"
+    (other_project / "GPD").mkdir(parents=True)
+
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"updated": True}
+    mock_update.return_value = mock_result
+
+    with (
+        patch("gpd.cli.resolve_project_root", return_value=None),
+        patch("gpd.cli._status_command_cwd", return_value=other_project.resolve(strict=False)),
+    ):
+        result = runner.invoke(app, ["--cwd", str(workspace_cwd), "state", "update", "status", "executing"])
+
+    assert result.exit_code == 0
+    mock_update.assert_called_once_with(workspace_cwd.resolve(), "status", "executing")
+
+
 @patch("gpd.core.state.state_set_project_contract")
 @patch("gpd.core.contract_validation.validate_project_contract")
 def test_state_set_project_contract_uses_ancestor_project_root_from_nested_cwd(
@@ -2326,6 +2425,26 @@ def test_app_call_accepts_trailing_raw_and_cwd(
     captured = capsys.readouterr()
     assert json.loads(captured.out)["bar"] == "ok"
     mock_progress.assert_called_once_with(tmp_path.resolve(), "bar")
+
+
+@patch("gpd.core.phases.progress_render")
+def test_progress_uses_workspace_cwd_when_no_project_root_is_verified(
+    mock_progress,
+    tmp_path: Path,
+) -> None:
+    workspace_cwd = tmp_path / "wrong-folder"
+    workspace_cwd.mkdir()
+    mock_progress.return_value = {"bar": "ok"}
+
+    with (
+        patch("gpd.cli.resolve_project_root", return_value=None),
+        patch("gpd.cli._status_command_cwd", side_effect=AssertionError("unexpected reentry lookup")),
+    ):
+        result = runner.invoke(app, ["--cwd", str(workspace_cwd), "--raw", "progress", "bar"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.output)["bar"] == "ok"
+    mock_progress.assert_called_once_with(workspace_cwd.resolve(), "bar")
 
 
 def test_validate_command_context_accepts_tokenized_standalone_arguments(tmp_path: Path) -> None:
@@ -4307,6 +4426,28 @@ def test_suggest_forwards_limit_and_serializes_raw_output_from_nested_cwd(
     mock_suggest.assert_called_once_with(project_root.resolve(), limit=2)
     mock_result.model_dump.assert_called_once_with(mode="json", by_alias=True)
     assert json.loads(result.output) == payload
+
+
+@patch("gpd.core.suggest.suggest_next")
+def test_suggest_uses_workspace_cwd_when_no_project_root_is_verified(
+    mock_suggest,
+    tmp_path: Path,
+) -> None:
+    workspace_cwd = tmp_path / "wrong-folder"
+    workspace_cwd.mkdir()
+
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"suggestions": []}
+    mock_suggest.return_value = mock_result
+
+    with (
+        patch("gpd.cli.resolve_project_root", return_value=None),
+        patch("gpd.cli._status_command_cwd", side_effect=AssertionError("unexpected reentry lookup")),
+    ):
+        result = runner.invoke(app, ["--cwd", str(workspace_cwd), "suggest"])
+
+    assert result.exit_code == 0
+    mock_suggest.assert_called_once_with(workspace_cwd.resolve())
 
 
 # ─── pattern subcommands ────────────────────────────────────────────────────

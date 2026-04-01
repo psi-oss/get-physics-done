@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
@@ -46,6 +46,30 @@ _SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _INLINE_GPD_COMMAND_RE = re.compile(r"`(?P<command>gpd(?=\s)[^`]*?)`")
 
 
+def _claude_settings_shape_is_valid(settings: dict[str, object]) -> bool:
+    hooks = settings.get("hooks")
+    if hooks is not None and not isinstance(hooks, dict):
+        return False
+    if isinstance(hooks, dict):
+        session_start = hooks.get("SessionStart")
+        if session_start is not None and not isinstance(session_start, list):
+            return False
+
+    permissions = settings.get("permissions")
+    if permissions is not None and not isinstance(permissions, dict):
+        return False
+    return True
+
+
+def _claude_mcp_config_shape_is_valid(config: dict[str, object]) -> bool:
+    mcp_servers = config.get("mcpServers")
+    if mcp_servers is None:
+        return True
+    if not isinstance(mcp_servers, dict):
+        return False
+    return all(isinstance(entry, dict) for entry in mcp_servers.values())
+
+
 def _read_claude_settings_state(settings_path: Path) -> tuple[dict[str, object] | None, str | None]:
     """Return parsed Claude settings and a malformed marker when parsing fails."""
     if not settings_path.exists():
@@ -55,6 +79,8 @@ def _read_claude_settings_state(settings_path: Path) -> tuple[dict[str, object] 
     except (OSError, ValueError):
         return None, "malformed"
     if not isinstance(parsed, dict):
+        return None, "malformed"
+    if not _claude_settings_shape_is_valid(parsed):
         return None, "malformed"
     return parsed, None
 
@@ -171,9 +197,20 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         """Verify the Claude Code install satisfies the shared contract."""
         super()._verify(target_dir)
 
+    def runtime_install_required_relpaths(self) -> tuple[str, ...]:
+        """Return Claude-owned files required for a complete install."""
+        return ("settings.json",)
+
+    def install_verification_relpaths(self) -> tuple[str, ...]:
+        """Defer settings.json validation until finalize_install()."""
+        return self.install_detection_relpaths()
+
     def _configure_runtime(self, target_dir: Path, is_global: bool) -> dict[str, object]:
         settings_path = target_dir / "settings.json"
-        settings = read_settings(settings_path)
+        settings_state, settings_parse_error = _read_claude_settings_state(settings_path)
+        if settings_parse_error is not None:
+            raise RuntimeError("Claude Code settings.json is malformed; refusing to overwrite it during install.")
+        settings = settings_state or {}
         statusline_command = build_hook_command(
             target_dir,
             HOOK_SCRIPTS["statusline"],
@@ -203,7 +240,8 @@ class ClaudeCodeAdapter(RuntimeAdapter):
 
         from gpd.mcp.builtin_servers import merge_managed_mcp_servers
 
-        mcp_servers = _build_managed_mcp_servers()
+        project_cwd = None if is_global or getattr(self, "_install_explicit_target", False) else target_dir.parent
+        mcp_servers = _build_managed_mcp_servers(cwd=project_cwd)
         mcp_count = 0
         if mcp_servers:
             mcp_config_path = _mcp_config_path(target_dir, is_global=is_global)
@@ -212,10 +250,18 @@ class ClaudeCodeAdapter(RuntimeAdapter):
             if mcp_config_path.exists():
                 try:
                     mcp_config = parse_jsonc(mcp_config_path.read_text(encoding="utf-8"))
-                except (ValueError, OSError):
-                    mcp_config = {}
+                except (ValueError, OSError) as exc:
+                    raise RuntimeError(
+                        f"{mcp_config_path.name} is malformed; refusing to overwrite Claude MCP config during install."
+                    ) from exc
             if not isinstance(mcp_config, dict):
-                mcp_config = {}
+                raise RuntimeError(
+                    f"{mcp_config_path.name} is malformed; refusing to overwrite Claude MCP config during install."
+                )
+            if not _claude_mcp_config_shape_is_valid(mcp_config):
+                raise RuntimeError(
+                    f"{mcp_config_path.name} is malformed; refusing to overwrite Claude MCP config during install."
+                )
 
             existing_mcp = mcp_config.get("mcpServers", {})
             mcp_config["mcpServers"] = merge_managed_mcp_servers(existing_mcp, mcp_servers)
@@ -408,6 +454,9 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         settings = install_result.get("settings")
         statusline_command = install_result.get("statuslineCommand")
         if isinstance(settings_path, (str, Path)) and isinstance(settings, dict) and isinstance(statusline_command, str):
+            _, settings_parse_error = _read_claude_settings_state(Path(settings_path))
+            if settings_parse_error is not None:
+                raise RuntimeError("Claude Code settings.json is malformed; refusing to overwrite it during finalize.")
             self.finish_install(
                 settings_path,
                 settings,
@@ -768,22 +817,30 @@ def _entry_has_gpd_hook(
     )
 
 
-def _build_managed_mcp_servers() -> dict[str, dict[str, object]]:
+def _build_managed_mcp_servers(
+    *,
+    cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
+) -> dict[str, dict[str, object]]:
     """Return shared MCP servers plus configured optional integrations."""
     from gpd.mcp.builtin_servers import build_mcp_servers_dict
 
     servers = build_mcp_servers_dict(python_path=hook_python_interpreter())
-    servers.update(_build_managed_optional_mcp_servers())
+    servers.update(_build_managed_optional_mcp_servers(cwd=cwd, env=env))
     return servers
 
 
-def _build_managed_optional_mcp_servers() -> dict[str, dict[str, object]]:
+def _build_managed_optional_mcp_servers(
+    *,
+    cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
+) -> dict[str, dict[str, object]]:
     """Return optional managed MCP servers that are currently configured."""
     if WOLFRAM_MANAGED_INTEGRATION is None:
         return {}
-    if not WOLFRAM_MANAGED_INTEGRATION.is_configured():
+    if not WOLFRAM_MANAGED_INTEGRATION.is_configured(env, cwd=cwd, strict=True):
         return {}
-    return {WOLFRAM_MANAGED_SERVER_KEY: WOLFRAM_MANAGED_INTEGRATION.projected_server_entry()}
+    return {WOLFRAM_MANAGED_SERVER_KEY: WOLFRAM_MANAGED_INTEGRATION.projected_server_entry(env, cwd=cwd, strict=True)}
 
 
 def _managed_mcp_server_keys() -> frozenset[str]:

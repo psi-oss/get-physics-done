@@ -948,6 +948,33 @@ def test_suggest_contract_checks_request_templates_validate_against_advertised_r
     assert list(validator.iter_errors({"request": nullable_alias_request})) == []
 
 
+def test_run_contract_check_schema_requires_one_trimmed_identifier() -> None:
+    from jsonschema import Draft202012Validator
+
+    schema = _run_contract_check_input_schema()
+    validator = Draft202012Validator(schema)
+
+    invalid_requests = (
+        {},
+        {"check_key": None},
+        {"check_id": None},
+        {"check_key": " contract.limit_recovery"},
+        {"check_id": "contract.limit_recovery "},
+    )
+
+    for request in invalid_requests:
+        assert list(validator.iter_errors({"request": request})) != []
+
+    assert (
+        list(
+            validator.iter_errors(
+                {"request": {"check_key": None, "check_id": "contract.direct_proxy_consistency"}}
+            )
+        )
+        == []
+    )
+
+
 def test_suggest_contract_checks_unique_context_drops_redundant_selector_metadata_without_policy_defaults() -> None:
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 
@@ -1381,6 +1408,16 @@ def test_suggest_contract_checks_rejects_non_list_active_checks(active_checks: o
                 }
             },
             {"error": "binding.claim_ids[1] must be a non-empty string", "schema_version": 1},
+        ),
+        (
+            "run_contract_check",
+            {"request": {}},
+            {"error": "Missing check_key or check_id", "schema_version": 1},
+        ),
+        (
+            "run_contract_check",
+            {"request": {"check_key": " contract.limit_recovery"}},
+            {"error": "check_key must not include leading or trailing whitespace", "schema_version": 1},
         ),
         (
             "suggest_contract_checks",

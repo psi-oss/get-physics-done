@@ -3,7 +3,6 @@
 from .wolfram_bridge import (
     DEFAULT_WOLFRAM_MCP_ENDPOINT,
     GPD_WOLFRAM_MCP_API_KEY_ENV,
-    WOLFRAM_MCP_SERVICE_API_KEY_ENV,
     WolframBridge,
     WolframBridgeConfig,
     build_server,
@@ -14,7 +13,6 @@ from .wolfram_bridge import (
 __all__ = [
     "DEFAULT_WOLFRAM_MCP_ENDPOINT",
     "GPD_WOLFRAM_MCP_API_KEY_ENV",
-    "WOLFRAM_MCP_SERVICE_API_KEY_ENV",
     "WolframBridge",
     "WolframBridgeConfig",
     "build_server",

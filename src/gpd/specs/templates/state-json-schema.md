@@ -235,6 +235,7 @@ Placeholder or `TBD` text does not count as concrete grounding. That includes ge
 
 Every ID-like field must point to a declared object ID in the same contract:
 
+- Same-kind IDs must be unique within each section. Do not repeat an `id` inside `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, `references[]`, `forbidden_proxies[]`, or `links[]`.
 - Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
 - `context_intake.must_read_refs[]` must contain `references[].id` values only.
 - `references[].aliases[]` may store stable human-facing labels or citation strings that help canonicalize downstream anchor mentions.
@@ -245,7 +246,7 @@ Every ID-like field must point to a declared object ID in the same contract:
 - `acceptance_tests[].subject` must point to a `claims[].id` or `deliverables[].id`, never an observable ID or prose label.
 - `acceptance_tests[].evidence_required[]` may point only to claim, deliverable, acceptance-test, or reference IDs.
 - `references[].applies_to[]` must point to a claim ID or deliverable ID.
-- `references[].carry_forward_to[]` is free-text workflow scope (for example `planning`, `verification`, `writing`) and must not be overloaded with claim or deliverable IDs.
+- `references[].carry_forward_to[]` is free-text workflow scope (for example `planning`, `verification`, `writing`) and must not match any declared contract ID from `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, `references[]`, `forbidden_proxies[]`, or `links[]`.
 - `forbidden_proxies[].subject` must point to a claim ID or deliverable ID.
 - `links[].source` and `links[].target` may point only to claim, deliverable, acceptance-test, or reference IDs.
 - `links[].verified_by[]` must contain `acceptance_tests[].id` values only.
