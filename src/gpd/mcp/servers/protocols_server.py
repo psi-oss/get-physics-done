@@ -19,8 +19,8 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.core.observability import gpd_span
 from gpd.mcp.servers import (
-    parse_frontmatter_with_error,
     configure_mcp_logging,
+    parse_frontmatter_with_error,
     run_mcp_server,
     stable_mcp_error,
     stable_mcp_response,

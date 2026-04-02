@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import importlib
-import logging
 import json
+import logging
 import os
 import sys
 from pathlib import Path
