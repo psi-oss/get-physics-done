@@ -19,7 +19,7 @@ Include enough detail to be useful as reference. Prioritize practical examples (
 **Document templates:** Mapper agents load templates from `{GPD_INSTALL_DIR}/references/templates/research-mapper/` (FORMALISM.md, CONVENTIONS.md, CONCERNS.md, etc.). These paths are deterministic across runtimes after install; if they are missing, treat that as a broken install and fall back to the agent's built-in structural guidance rather than searching alternate runtime-specific locations.
 
 **Always include file paths:**
-Documents are reference material for the AI when planning/executing. Always include actual file paths formatted with backticks: `src/hamiltonian.py`, `notebooks/convergence_test.ipynb`, `latex/main.tex`.
+Documents are reference material for the AI when planning/executing. Always include actual file paths formatted with backticks: `src/hamiltonian.py`, `notebooks/convergence_test.ipynb`, `latex/topic_stem.tex`.
 
 **Map all project artifacts:**
 A physics research project typically contains:

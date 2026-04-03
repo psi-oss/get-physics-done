@@ -7,7 +7,7 @@ type: paper-config-schema
 
 Canonical source of truth for `${PAPER_DIR}/PAPER-CONFIG.json`, the machine-readable paper build spec consumed by `gpd paper-build`.
 
-Create this JSON before asking the builder to emit `${PAPER_DIR}/main.tex` when no tested paper config already exists. Do not invent extra top-level keys or replace arrays with prose.
+Create this JSON before asking the builder to emit `${PAPER_DIR}/{topic_specific_stem}.tex` when no tested paper config already exists. Do not invent extra top-level keys or replace arrays with prose.
 
 ---
 
@@ -48,6 +48,7 @@ Create this JSON before asking the builder to emit `${PAPER_DIR}/main.tex` when 
   "acknowledgments": "Funding, collaborators, and compute support.",
   "bib_file": "references",
   "journal": "prl",
+  "output_filename": "benchmark_recovery_regime",
   "appendix_sections": [
     {
       "heading": "Supplementary Derivation",
@@ -105,6 +106,7 @@ Rules:
 - `acknowledgments`: string
 - `bib_file`: bibliography stem without `.bib`, default `references`
 - `journal`: journal key, default `prl`
+- `output_filename`: preferred manuscript stem. Use a topic-specific 2-3 word underscore slug such as `benchmark_recovery_regime` or `ads_curvature_flow`; avoid generic names like `main`.
 - `appendix_sections`: array of section objects
 - `attribution_footer`: string footer appended by the builder
 
@@ -131,6 +133,7 @@ favor of a supported `${PAPER_DIR}/PAPER-CONFIG.json` journal instead of letting
 - Do not add undocumented top-level keys.
 - Do not omit `authors` or `sections`, even for minimal drafts.
 - Keep `bib_file` as a stem like `references`, not `references.bib`.
+- Prefer setting `output_filename` explicitly so the manuscript and PDF use a short project-specific stem instead of a generic fallback.
 - If no figures are ready yet, use `"figures": []` rather than prose.
 
 ## Build Command

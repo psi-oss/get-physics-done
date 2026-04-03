@@ -626,9 +626,6 @@ async def build_paper(
     output_stem = derive_output_filename(config)
     tex_path = output_dir / f"{output_stem}.tex"
     await asyncio.to_thread(tex_path.write_text, tex_content, encoding="utf-8")
-    canonical_tex_path = output_dir / "main.tex"
-    if canonical_tex_path != tex_path:
-        await asyncio.to_thread(canonical_tex_path.write_text, tex_content, encoding="utf-8")
 
     manifest = build_artifact_manifest(
         config,
@@ -650,6 +647,7 @@ async def build_paper(
         return PaperOutput(
             tex_content=tex_content,
             bib_content=bib_content,
+            tex_path=tex_path,
             figures_dir=figures_dir,
             pdf_path=None,
             bibliography_audit_path=bibliography_audit_path,
@@ -663,10 +661,6 @@ async def build_paper(
 
     # 5. Compile
     result = await compile_paper(tex_path, output_dir, compiler=spec.compiler)
-    if result.pdf_path is not None and result.pdf_path.exists() and output_stem != "main":
-        canonical_pdf_path = (output_dir / "main.pdf").resolve(strict=False)
-        if result.pdf_path.resolve(strict=False) != canonical_pdf_path:
-            await asyncio.to_thread(shutil.copyfile, result.pdf_path, canonical_pdf_path)
 
     if not result.success and result.error:
         errors.append(result.error)
@@ -689,6 +683,7 @@ async def build_paper(
     return PaperOutput(
         tex_content=tex_content,
         bib_content=bib_content,
+        tex_path=tex_path,
         figures_dir=figures_dir,
         pdf_path=result.pdf_path,
         bibliography_audit_path=bibliography_audit_path,

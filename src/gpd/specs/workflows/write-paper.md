@@ -103,7 +103,7 @@ If the manuscript depends on any theorem-style or `proof_obligation` result, tre
 
 ```bash
 for DIR in paper manuscript draft; do
-  if [ -f "${DIR}/main.tex" ] || [ -f "${DIR}/main.md" ]; then
+  if [ -f "${DIR}/ARTIFACT-MANIFEST.json" ] || [ -f "${DIR}/PAPER-CONFIG.json" ] || ls "${DIR}"/*.tex "${DIR}"/*.md >/dev/null 2>&1; then
     PAPER_DIR="$DIR"
     break
   fi
@@ -113,7 +113,7 @@ if [ -z "${PAPER_DIR}" ]; then
 fi
 ```
 
-If the loop found an existing `main.tex` or `main.md`, the workflow is resuming or revising that manuscript directory. Strict review for that resume path uses `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and `${PAPER_DIR}/reproducibility-manifest.json` from the same directory.
+If the loop found an existing manuscript directory, the workflow is resuming or revising that manuscript directory. Strict review for that resume path uses `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, and `${PAPER_DIR}/reproducibility-manifest.json` from the same directory.
 If no existing manuscript was found, `PAPER_DIR` defaults to `paper` and the workflow bootstraps a fresh scaffold there.
 
 **Check optional local LaTeX compiler availability for smoke tests (cross-platform):**
@@ -527,7 +527,7 @@ Create the paper directory structure under `${PAPER_DIR}/`:
 
 ```
 ${PAPER_DIR}/
-+-- main.tex              # Master document with \input commands
++-- {topic_specific_stem}.tex   # Master document with \input commands
 +-- abstract.tex
 +-- introduction.tex
 +-- model.tex             # or setup.tex
@@ -542,7 +542,7 @@ ${PAPER_DIR}/
 +-- Makefile              # Build: pdflatex + bibtex
 ```
 
-The main.tex should:
+The manuscript entrypoint should:
 
 - Use the target journal's document class
 - Define all custom macros in a preamble block (see `{GPD_INSTALL_DIR}/templates/latex-preamble.md` for standard packages, project-specific macros, equation labeling conventions, and SymPy-to-LaTeX integration)
@@ -558,7 +558,9 @@ mkdir -p "${PAPER_DIR}"
 gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"
 ```
 
-This emits `${PAPER_DIR}/main.tex`, writes the manuscript-root artifact manifest, and keeps the manuscript scaffold aligned with the tested `gpd.mcp.paper` package. `gpd paper-build` defines the build truth for the manuscript; local compiler runs are only smoke checks. If no JSON spec exists yet, create `${PAPER_DIR}/PAPER-CONFIG.json` first using `{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md` as the schema source of truth, and then run `gpd paper-build` before proceeding. The compilation checks in `draft_sections` require `main.tex` to exist.
+This emits `${PAPER_DIR}/{topic_specific_stem}.tex`, writes the manuscript-root artifact manifest, and keeps the manuscript scaffold aligned with the tested `gpd.mcp.paper` package. `gpd paper-build` defines the build truth for the manuscript; local compiler runs are only smoke checks. If no JSON spec exists yet, create `${PAPER_DIR}/PAPER-CONFIG.json` first using `{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md` as the schema source of truth, set `output_filename` to a short topic-specific 2-3 word underscore stem, and then run `gpd paper-build` before proceeding. The compilation checks in `draft_sections` require the emitted manuscript `.tex` file to exist.
+
+After `gpd paper-build` runs, treat the `.tex` artifact recorded in `${PAPER_DIR}/ARTIFACT-MANIFEST.json` as the canonical manuscript entrypoint and refer to its basename as `MANUSCRIPT_BASENAME` in later smoke checks.
 
 When authoring `${PAPER_DIR}/PAPER-CONFIG.json`:
 
@@ -628,7 +630,7 @@ After each drafting wave completes, verify the document compiles:
 
 ```bash
 cd "${PAPER_DIR}"
-pdflatex -interaction=nonstopmode main.tex 2>&1 | tail -20
+pdflatex -interaction=nonstopmode "${MANUSCRIPT_BASENAME}" 2>&1 | tail -20
 ```
 
 **If compilation errors:**
@@ -960,7 +962,7 @@ For theorem-style or `proof_obligation` claims, this stage also carries the mand
 5. `gpd-review-significance`
 6. `gpd-referee` as final adjudicator
 
-For the detailed staging, artifact naming, round handling, `CLAIMS{round_suffix}.json` / `STAGE-*{round_suffix}.json` outputs, `REVIEW-LEDGER{round_suffix}.json`, `REFEREE-DECISION{round_suffix}.json`, and recommendation guardrails, follow `@{GPD_INSTALL_DIR}/workflows/peer-review.md` exactly, using `${PAPER_DIR}/main.tex` as the resolved target and the manuscript-root `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and `reproducibility-manifest.json` as the strict-review dependencies. Keep the current `project_contract`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible throughout that staged review; they remain authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes.
+For the detailed staging, artifact naming, round handling, `CLAIMS{round_suffix}.json` / `STAGE-*{round_suffix}.json` outputs, `REVIEW-LEDGER{round_suffix}.json`, `REFEREE-DECISION{round_suffix}.json`, and recommendation guardrails, follow `@{GPD_INSTALL_DIR}/workflows/peer-review.md` exactly, using the resolved `${PAPER_DIR}/{topic_specific_stem}.tex` target recorded in `ARTIFACT-MANIFEST.json` and the manuscript-root `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and `reproducibility-manifest.json` as the strict-review dependencies. Keep the current `project_contract`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible throughout that staged review; they remain authoritative only when `project_contract_load_info` is clean and `project_contract_validation` passes.
 
 **If the staged panel fails:** Do not silently waive the review. Note the failure and recommend running `/gpd:peer-review` directly after resolving the blocking issue.
 

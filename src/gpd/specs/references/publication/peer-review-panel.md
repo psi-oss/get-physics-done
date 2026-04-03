@@ -141,7 +141,7 @@ Every stage report should be compact and machine-readable, matching the staged-r
   "round": 1,
   "stage_id": "reader | literature | math | physics | interestingness",
   "stage_kind": "reader | literature | math | physics | interestingness",
-  "manuscript_path": "paper/main.tex",
+  "manuscript_path": "paper/topic_stem.tex",
   "manuscript_sha256": "<sha256>",
   "claims_reviewed": ["CLM-001"],
   "summary": "One paragraph synthesis of the stage result",
@@ -153,8 +153,8 @@ Every stage report should be compact and machine-readable, matching the staged-r
       "severity": "critical | major | minor | suggestion",
       "summary": "What is wrong",
       "rationale": "Why it is wrong",
-      "evidence_refs": ["paper/main.tex#Conclusion"],
-      "manuscript_locations": ["paper/main.tex:42"],
+      "evidence_refs": ["paper/topic_stem.tex#Conclusion"],
+      "manuscript_locations": ["paper/topic_stem.tex:42"],
       "support_status": "supported | partially_supported | unsupported | unclear",
       "blocking": true,
       "required_action": "What must change"
@@ -165,7 +165,7 @@ Every stage report should be compact and machine-readable, matching the staged-r
       "claim_id": "CLM-001",
       "theorem_assumptions_checked": ["N is compact"],
       "theorem_parameters_checked": ["r_0"],
-      "proof_locations": ["paper/main.tex:120"],
+      "proof_locations": ["paper/topic_stem.tex:120"],
       "uncovered_assumptions": [],
       "uncovered_parameters": ["r_0"],
       "coverage_gaps": ["Proof specializes to the centered case and never reinstates r_0."],
@@ -209,7 +209,7 @@ Stage 1 `CLAIMS{round_suffix}.json` must follow this compact `ClaimIndex` shape:
 ```json
 {
   "version": 1,
-  "manuscript_path": "paper/main.tex",
+  "manuscript_path": "paper/topic_stem.tex",
   "manuscript_sha256": "<sha256>",
   "claims": [
     {
@@ -217,10 +217,10 @@ Stage 1 `CLAIMS{round_suffix}.json` must follow this compact `ClaimIndex` shape:
       "claim_type": "main_result | novelty | significance | physical_interpretation | generality | method",
       "claim_kind": "theorem | lemma | corollary | proposition | claim | other",
       "text": "Exact manuscript claim text or faithful paraphrase",
-      "artifact_path": "paper/main.tex",
+      "artifact_path": "paper/topic_stem.tex",
       "section": "Conclusion",
-      "equation_refs": ["paper/main.tex#eq:main"],
-      "figure_refs": ["paper/main.tex#fig:main"],
+      "equation_refs": ["paper/topic_stem.tex#eq:main"],
+      "figure_refs": ["paper/topic_stem.tex#fig:main"],
       "supporting_artifacts": ["paper/figures/main-result.pdf"],
       "theorem_assumptions": ["N is compact"],
       "theorem_parameters": ["r_0"]
@@ -252,7 +252,7 @@ Minimal final artifact shapes:
 {
   "version": 1,
   "round": 1,
-  "manuscript_path": "paper/main.tex",
+  "manuscript_path": "paper/topic_stem.tex",
   "issues": [
     {
       "issue_id": "REF-001",
@@ -270,7 +270,7 @@ Minimal final artifact shapes:
 
 ```json
 {
-  "manuscript_path": "paper/main.tex",
+  "manuscript_path": "paper/topic_stem.tex",
   "target_journal": "jhep",
   "final_recommendation": "major_revision",
   "final_confidence": "medium",

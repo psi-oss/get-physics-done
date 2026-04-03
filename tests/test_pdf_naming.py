@@ -30,23 +30,23 @@ class TestDeriveOutputFilename:
 
     def test_title_based_slug(self) -> None:
         config = _minimal_config(title="Quantum Entanglement in Black Holes")
-        assert derive_output_filename(config) == "quantum-entanglement-in-black-holes"
+        assert derive_output_filename(config) == "quantum_entanglement_black"
 
-    def test_empty_title_falls_back_to_main(self) -> None:
+    def test_empty_title_falls_back_to_topic_neutral_default(self) -> None:
         config = _minimal_config(title="")
-        assert derive_output_filename(config) == "main"
+        assert derive_output_filename(config) == "paper_draft"
 
-    def test_whitespace_only_title_falls_back_to_main(self) -> None:
+    def test_whitespace_only_title_falls_back_to_topic_neutral_default(self) -> None:
         config = _minimal_config(title="   ")
-        assert derive_output_filename(config) == "main"
+        assert derive_output_filename(config) == "paper_draft"
 
     def test_special_characters_stripped(self) -> None:
         config = _minimal_config(title="Hello! World? #2024")
-        assert derive_output_filename(config) == "hello-world-2024"
+        assert derive_output_filename(config) == "hello_world_2024"
 
-    def test_consecutive_hyphens_collapsed(self) -> None:
+    def test_stopwords_drop_out_of_short_topic_slug(self) -> None:
         config = _minimal_config(title="A -- B --- C")
-        assert derive_output_filename(config) == "a-b-c"
+        assert derive_output_filename(config) == "b_c"
 
     def test_max_length_truncation(self) -> None:
         long_title = "a " * 100
@@ -55,16 +55,16 @@ class TestDeriveOutputFilename:
         assert len(result) <= 60
 
     def test_unicode_characters_stripped(self) -> None:
-        config = _minimal_config(title="Schrodinger Equation")
-        assert derive_output_filename(config) == "schrodinger-equation"
+        config = _minimal_config(title="Schrödinger Equation")
+        assert derive_output_filename(config) == "schrodinger_equation"
 
-    def test_leading_trailing_hyphens_stripped(self) -> None:
+    def test_leading_trailing_noise_is_ignored(self) -> None:
         config = _minimal_config(title="---Hello World---")
-        assert derive_output_filename(config) == "hello-world"
+        assert derive_output_filename(config) == "hello_world"
 
-    def test_only_special_chars_falls_back_to_main(self) -> None:
+    def test_only_special_chars_falls_back_to_topic_neutral_default(self) -> None:
         config = _minimal_config(title="!@#$%^&*()")
-        assert derive_output_filename(config) == "main"
+        assert derive_output_filename(config) == "paper_draft"
 
     def test_output_filename_takes_precedence_over_title(self) -> None:
         config = _minimal_config(title="Some Title", output_filename="override")
@@ -72,7 +72,7 @@ class TestDeriveOutputFilename:
 
     def test_none_output_filename_uses_title(self) -> None:
         config = _minimal_config(title="Test Title", output_filename=None)
-        assert derive_output_filename(config) == "test-title"
+        assert derive_output_filename(config) == "test_title"
 
     def test_default_output_filename_is_none(self) -> None:
         config = _minimal_config()
@@ -117,8 +117,8 @@ class TestBuildPaperNaming:
             from gpd.mcp.paper.compiler import build_paper
 
             asyncio.run(build_paper(config, tmp_path))
-        assert (tmp_path / "my-great-paper.tex").exists()
-        assert (tmp_path / "main.tex").exists()
+        assert (tmp_path / "my_great_paper.tex").exists()
+        assert not (tmp_path / "main.tex").exists()
 
     def test_build_paper_uses_explicit_output_filename(self, tmp_path: Path) -> None:
         config = _minimal_config(title="Ignored Title", output_filename="custom-output")
@@ -133,9 +133,9 @@ class TestBuildPaperNaming:
 
             asyncio.run(build_paper(config, tmp_path))
         assert (tmp_path / "custom-output.tex").exists()
-        assert (tmp_path / "main.tex").exists()
+        assert not (tmp_path / "main.tex").exists()
 
-    def test_build_paper_empty_title_uses_main(self, tmp_path: Path) -> None:
+    def test_build_paper_empty_title_uses_topic_neutral_default(self, tmp_path: Path) -> None:
         config = _minimal_config(title="")
         with (
             patch("gpd.mcp.paper.compiler.render_paper", return_value="\\documentclass{article}"),
@@ -147,9 +147,9 @@ class TestBuildPaperNaming:
             from gpd.mcp.paper.compiler import build_paper
 
             asyncio.run(build_paper(config, tmp_path))
-        assert (tmp_path / "main.tex").exists()
+        assert (tmp_path / "paper_draft.tex").exists()
 
-    def test_build_paper_writes_main_pdf_compatibility_copy(self, tmp_path: Path) -> None:
+    def test_build_paper_surfaces_actual_output_paths_without_main_compatibility_copies(self, tmp_path: Path) -> None:
         config = _minimal_config(output_filename="custom-output")
         custom_pdf = tmp_path / "custom-output.pdf"
         custom_pdf.write_bytes(b"%PDF-fake")
@@ -171,6 +171,7 @@ class TestBuildPaperNaming:
             output = asyncio.run(build_paper(config, tmp_path))
 
         assert output.pdf_path == custom_pdf
+        assert output.tex_path == tmp_path / "custom-output.tex"
         assert (tmp_path / "custom-output.tex").exists()
-        assert (tmp_path / "main.tex").exists()
-        assert (tmp_path / "main.pdf").exists()
+        assert not (tmp_path / "main.tex").exists()
+        assert not (tmp_path / "main.pdf").exists()

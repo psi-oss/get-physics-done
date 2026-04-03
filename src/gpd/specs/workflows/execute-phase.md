@@ -831,8 +831,16 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
    If `pdflatex` is available, compile the paper after each wave to catch LaTeX errors early:
 
    ```bash
-   if command -v pdflatex &>/dev/null && [ -f paper/main.tex ]; then
-     cd paper && pdflatex -interaction=nonstopmode main.tex 2>&1 | grep -E "^!" | head -5
+   if command -v pdflatex &>/dev/null && [ -f paper/ARTIFACT-MANIFEST.json ]; then
+     MANUSCRIPT_BASENAME="$(python - <<'PY'
+import json
+from pathlib import Path
+manifest = json.loads(Path('paper/ARTIFACT-MANIFEST.json').read_text(encoding='utf-8'))
+tex_path = next(artifact["path"] for artifact in manifest["artifacts"] if artifact["category"] == "tex")
+print(Path(tex_path).name)
+PY
+)"
+     cd paper && pdflatex -interaction=nonstopmode "${MANUSCRIPT_BASENAME}" 2>&1 | grep -E "^!" | head -5
      cd ..
    fi
    ```

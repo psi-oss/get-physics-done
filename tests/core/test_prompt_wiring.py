@@ -783,7 +783,7 @@ def test_write_paper_and_arxiv_submission_keep_the_build_boundary_explicit() -> 
     arxiv = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
 
     assert 'gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"' in write_paper
-    assert "This emits `${PAPER_DIR}/main.tex`, writes the manuscript-root artifact manifest" in write_paper
+    assert "This emits `${PAPER_DIR}/{topic_specific_stem}.tex`, writes the manuscript-root artifact manifest" in write_paper
     assert (
         "The workflow continues without local compilation smoke checks — .tex file generation does not require "
         "pdflatex, and `gpd paper-build` remains the canonical manuscript scaffold contract."
@@ -1748,7 +1748,7 @@ def test_peer_review_command_limits_default_manuscript_targets_to_canonical_root
     peer_review_command = (COMMANDS_DIR / "peer-review.md").read_text(encoding="utf-8")
 
     assert (
-        "ls paper/main.tex paper/main.md manuscript/main.tex manuscript/main.md draft/main.tex draft/main.md 2>/dev/null"
+        'find paper manuscript draft -maxdepth 1 \\( -name "*.tex" -o -name "*.md" -o -name "ARTIFACT-MANIFEST.json" \\) 2>/dev/null'
         in peer_review_command
     )
     assert "find . -maxdepth 3" not in peer_review_command

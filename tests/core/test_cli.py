@@ -23,7 +23,13 @@ import gpd.runtime_cli as runtime_cli
 from gpd.adapters import get_adapter, list_runtimes
 from gpd.cli import app
 from gpd.core import cli_args as cli_args_module
-from gpd.core.costs import CostBudgetThresholdSummary, CostProjectSummary, CostSessionSummary, CostSummary
+from gpd.core.costs import (
+    CostBudgetThresholdSummary,
+    CostProjectSummary,
+    CostSessionSummary,
+    CostSummary,
+    _profile_tier_mix,
+)
 from gpd.core.health import (
     CheckStatus,
     DoctorReport,
@@ -563,7 +569,7 @@ def _sample_cost_summary(workspace: Path) -> CostSummary:
         },
         model_profile="review",
         runtime_model_selection="runtime defaults",
-        profile_tier_mix={"tier-1": 12, "tier-2": 10, "tier-3": 1},
+        profile_tier_mix=_profile_tier_mix("review"),
         current_session_id="session-123",
         project=project,
         current_session=current_session,
@@ -595,7 +601,7 @@ def _assert_cost_posture_semantics(output: str) -> None:
     assert _COST_TEST_RUNTIME in output
     assert "review" in output
     assert "runtime defaults" in output
-    assert "tier-1=12, tier-2=10, tier-3=1" in output
+    assert "tier-1=13, tier-2=10, tier-3=1" in output
     assert "Advisory only; counts profile-to-tier assignments" in output
     assert "tier-model overrides" in output
 
@@ -626,7 +632,7 @@ def test_cost_raw_outputs_summary_payload(tmp_path: Path) -> None:
     assert payload["active_runtime_capabilities"]["telemetry_source"] == "notify-hook"
     assert payload["model_profile"] == "review"
     assert payload["runtime_model_selection"] == "runtime defaults"
-    assert payload["profile_tier_mix"] == {"tier-1": 12, "tier-2": 10, "tier-3": 1}
+    assert payload["profile_tier_mix"] == _profile_tier_mix("review")
     assert payload["profile_tier_mix_interpretation"].startswith("Advisory only; counts profile-to-tier assignments")
     assert payload["budget_thresholds"][0]["scope"] == "project"
     assert payload["budget_thresholds"][0]["config_key"] == "project_usd_budget"
@@ -4610,6 +4616,7 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     )
 
     result_payload = MagicMock()
+    result_payload.tex_path = paper_dir / "configured_paper.tex"
     result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
     result_payload.bibliography_audit_path = None
     result_payload.bibliography_audit = SimpleNamespace(
@@ -4620,7 +4627,7 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
             )
         ]
     )
-    result_payload.pdf_path = paper_dir / "main.pdf"
+    result_payload.pdf_path = paper_dir / "configured_paper.pdf"
     result_payload.success = True
     result_payload.errors = []
 
@@ -4643,11 +4650,11 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
     payload = json.loads(result.output)
     assert payload["config_path"] == "./paper/PAPER-CONFIG.json"
     assert payload["output_dir"] == "./paper"
-    assert payload["tex_path"] == "./paper/main.tex"
+    assert payload["tex_path"] == "./paper/configured_paper.tex"
     assert payload["bibliography_source"] == "./references/references.bib"
     assert payload["reference_bibtex_bridge"] == [{"reference_id": "lit-ref-einstein-1905", "bibtex_key": "einstein1905"}]
     assert payload["manifest_path"] == "./paper/ARTIFACT-MANIFEST.json"
-    assert payload["pdf_path"] == "./paper/main.pdf"
+    assert payload["pdf_path"] == "./paper/configured_paper.pdf"
     assert payload["toolchain"] == {
         "compiler_available": True,
         "compiler_path": "/usr/bin/pdflatex",
@@ -4931,6 +4938,44 @@ def test_resolve_review_preflight_publication_artifacts_bundle(tmp_path: Path) -
     assert bundle.artifact_manifest == manuscript_dir / "ARTIFACT-MANIFEST.json"
     assert bundle.bibliography_audit == manuscript_dir / "BIBLIOGRAPHY-AUDIT.json"
     assert bundle.reproducibility_manifest == manuscript_dir / "reproducibility-manifest.json"
+
+
+def test_resolve_review_preflight_manuscript_directory_uses_manifest_declared_entrypoint(tmp_path: Path) -> None:
+    manuscript_dir = tmp_path / "paper"
+    manuscript_dir.mkdir()
+    manuscript = manuscript_dir / "curvature_flow_bounds.tex"
+    manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
+    (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Curvature Flow Bounds",
+                "journal": "prl",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "curvature_flow_bounds.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    resolved, detail = cli_module._resolve_review_preflight_manuscript(
+        tmp_path,
+        "paper",
+        allow_markdown=True,
+    )
+
+    assert resolved == manuscript
+    assert detail.endswith("/paper resolved to " + str(manuscript))
 
 
 def test_paper_build_without_bibliography_does_not_import_pybtex(tmp_path: Path, monkeypatch) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import Counter
 from enum import StrEnum
 from pathlib import Path
@@ -423,8 +424,52 @@ class PaperConfig(BaseModel):
 
 
 _MAX_FILENAME_LENGTH = 60
-_SANITIZE_RE = re.compile(r"[^a-z0-9\-]+")
-_COLLAPSE_HYPHENS_RE = re.compile(r"-{2,}")
+_FILENAME_TOKEN_RE = re.compile(r"[a-z0-9]+")
+_OUTPUT_FILENAME_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "at",
+        "by",
+        "for",
+        "from",
+        "in",
+        "into",
+        "of",
+        "on",
+        "or",
+        "the",
+        "to",
+        "via",
+        "with",
+    }
+)
+_FALLBACK_OUTPUT_FILENAME = "paper_draft"
+
+
+def _title_filename_tokens(title: str) -> list[str]:
+    normalized = unicodedata.normalize("NFKD", title)
+    ascii_title = normalized.encode("ascii", "ignore").decode("ascii").lower()
+    return [match.group(0) for match in _FILENAME_TOKEN_RE.finditer(ascii_title)]
+
+
+def _select_topic_filename_tokens(tokens: list[str]) -> list[str]:
+    if not tokens:
+        return []
+
+    meaningful = [token for token in tokens if token not in _OUTPUT_FILENAME_STOPWORDS]
+    selected = meaningful[:3]
+    if len(selected) >= 2 or len(tokens) == 1:
+        return selected or tokens[:1]
+
+    for token in tokens:
+        if token in selected:
+            continue
+        selected.append(token)
+        if len(selected) >= min(3, len(tokens)):
+            break
+    return selected[:3] or tokens[:1]
 
 
 def derive_output_filename(config: PaperConfig) -> str:
@@ -432,26 +477,21 @@ def derive_output_filename(config: PaperConfig) -> str:
 
     Resolution order:
     1. ``config.output_filename`` if explicitly provided.
-    2. Sanitized ``config.title``: lowercased, special characters stripped,
-       spaces replaced with hyphens, truncated to 60 characters.
-    3. ``"main"`` as the ultimate fallback when the title is empty.
+    2. Topic-derived short slug from ``config.title`` using 2-3 salient words
+       joined with underscores and truncated to 60 characters.
+    3. ``"paper_draft"`` as the ultimate fallback when the title is empty.
     """
     if config.output_filename:
         return config.output_filename
 
-    title = config.title.strip()
-    if not title:
-        return "main"
-
-    slug = title.lower().replace(" ", "-")
-    slug = _SANITIZE_RE.sub("", slug)
-    slug = _COLLAPSE_HYPHENS_RE.sub("-", slug)
-    slug = slug.strip("-")
+    tokens = _title_filename_tokens(config.title.strip())
+    selected_tokens = _select_topic_filename_tokens(tokens)
+    slug = "_".join(selected_tokens)[:_MAX_FILENAME_LENGTH].strip("_")
 
     if not slug:
-        return "main"
+        return _FALLBACK_OUTPUT_FILENAME
 
-    return slug[:_MAX_FILENAME_LENGTH]
+    return slug
 
 
 SUPPORTED_PAPER_JOURNALS = frozenset(get_args(PaperConfig.model_fields["journal"].annotation))
@@ -468,6 +508,7 @@ class PaperOutput(BaseModel):
 
     tex_content: str
     bib_content: str
+    tex_path: Path
     figures_dir: Path | None = None
     pdf_path: Path | None = None
     bibliography_audit_path: Path | None = None

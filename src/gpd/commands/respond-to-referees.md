@@ -67,7 +67,7 @@ Referee report source: $ARGUMENTS (file path or "paste" for inline input)
 Check for existing paper and prior response files:
 
 ```bash
-ls paper/main.tex paper/main.md manuscript/main.tex manuscript/main.md draft/main.tex draft/main.md 2>/dev/null
+find paper manuscript draft -maxdepth 1 \( -name "*.tex" -o -name "*.md" -o -name "ARTIFACT-MANIFEST.json" \) 2>/dev/null
 ls GPD/AUTHOR-RESPONSE*.md 2>/dev/null
 ls GPD/review/REFEREE_RESPONSE*.md 2>/dev/null
 ls GPD/review/REVIEW-LEDGER*.json GPD/review/REFEREE-DECISION*.json 2>/dev/null

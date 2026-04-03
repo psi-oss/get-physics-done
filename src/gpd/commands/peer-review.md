@@ -105,7 +105,7 @@ Review target: $ARGUMENTS (optional paper directory or manuscript path)
 Check canonical candidate manuscript roots in order:
 
 ```bash
-ls paper/main.tex paper/main.md manuscript/main.tex manuscript/main.md draft/main.tex draft/main.md 2>/dev/null
+find paper manuscript draft -maxdepth 1 \( -name "*.tex" -o -name "*.md" -o -name "ARTIFACT-MANIFEST.json" \) 2>/dev/null
 ```
 
 If none of those roots exist, pass an explicit manuscript path or paper directory and let centralized preflight reject anything outside the supported target family.

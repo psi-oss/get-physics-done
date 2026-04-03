@@ -82,7 +82,7 @@ Paper directory: $ARGUMENTS (optional; when omitted, resolve only from `paper/`,
 Find the paper directory:
 
 ```bash
-ls paper/main.tex manuscript/main.tex draft/main.tex 2>/dev/null
+find paper manuscript draft -maxdepth 1 -name "*.tex" 2>/dev/null
 ```
 
 If no paper found, suggest `/gpd:write-paper` first.
@@ -96,10 +96,10 @@ gpd paper-build "{paper_dir}/PAPER-CONFIG.json" --output-dir "{paper_dir}"
 ```
 
 ```bash
-cd {paper_dir} && pdflatex -interaction=nonstopmode main.tex 2>&1 | tail -20
-bibtex main 2>&1 | tail -10
-pdflatex -interaction=nonstopmode main.tex 2>&1 | tail -5
-pdflatex -interaction=nonstopmode main.tex 2>&1 | tail -5
+cd {paper_dir} && pdflatex -interaction=nonstopmode {manuscript_stem}.tex 2>&1 | tail -20
+bibtex {manuscript_stem} 2>&1 | tail -10
+pdflatex -interaction=nonstopmode {manuscript_stem}.tex 2>&1 | tail -5
+pdflatex -interaction=nonstopmode {manuscript_stem}.tex 2>&1 | tail -5
 ```
 
 Check for:
@@ -138,7 +138,7 @@ Check for:
 # - No TIFF files (arXiv rejects)
 # - EPS files: verify embedded fonts
 # - PNG/JPG: minimum 150 DPI for figures, 300 DPI for text
-# - PDF figures: add \pdfoutput=1 to first line of main.tex
+# - PDF figures: add \pdfoutput=1 to first line of the manuscript entrypoint
 ```
 
 **3d. Metadata checks:**
@@ -167,7 +167,7 @@ Check for:
 Create `00README.XXX` if multi-file:
 
 ```
-main.tex       -- Main LaTeX file
+{topic_specific_stem}.tex -- Main LaTeX file
 figures/       -- Figure files
 ```
 

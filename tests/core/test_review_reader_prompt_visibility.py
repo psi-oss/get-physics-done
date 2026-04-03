@@ -135,7 +135,7 @@ def test_expanded_review_reader_prompt_keeps_claim_index_metadata_visible() -> N
     )
 
     assert "Peer Review Panel Protocol" in expanded
-    assert '"manuscript_path": "paper/main.tex"' in expanded
+    assert '"manuscript_path": "paper/topic_stem.tex"' in expanded
     assert '"manuscript_sha256": "<sha256>"' in expanded
     assert '"supporting_artifacts": ["paper/figures/main-result.pdf"]' in expanded
 

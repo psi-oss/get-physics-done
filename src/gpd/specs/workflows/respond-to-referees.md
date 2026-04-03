@@ -74,7 +74,7 @@ If review preflight exits nonzero because of missing project state, missing manu
 
 ```bash
 for DIR in paper manuscript draft; do
-  if [ -f "${DIR}/main.tex" ] || [ -f "${DIR}/main.md" ]; then
+  if [ -f "${DIR}/ARTIFACT-MANIFEST.json" ] || [ -f "${DIR}/PAPER-CONFIG.json" ] || ls "${DIR}"/*.tex "${DIR}"/*.md >/dev/null 2>&1; then
     PAPER_DIR="$DIR"
     break
   fi
@@ -84,12 +84,14 @@ done
 **If no paper found:**
 
 ```
-No paper directory found. Searched: paper/, manuscript/, draft/ for `main.tex` or `main.md`
+No paper directory found. Searched: paper/, manuscript/, draft/ for a manuscript entrypoint or manifest
 
 Run /gpd:write-paper first to generate a manuscript from research results.
 ```
 
 Exit.
+
+Use `MANUSCRIPT_BASENAME` for the basename of the resolved manuscript entrypoint in `${PAPER_DIR}`. If `${PAPER_DIR}/ARTIFACT-MANIFEST.json` exists, prefer the `.tex` artifact recorded there rather than assuming `main.tex`.
 
 **Convention verification** — referee responses must use the same conventions as the paper:
 
@@ -431,9 +433,9 @@ After all Group B revisions are applied, verify the revised manuscript compiles 
 
 ```bash
 cd "${PAPER_DIR}"
-pdflatex -interaction=nonstopmode main.tex 2>&1 | tail -20
-bibtex main 2>&1 | tail -10
-pdflatex -interaction=nonstopmode main.tex 2>&1 | tail -5
+pdflatex -interaction=nonstopmode "${MANUSCRIPT_BASENAME}" 2>&1 | tail -20
+bibtex "${MANUSCRIPT_BASENAME%.*}" 2>&1 | tail -10
+pdflatex -interaction=nonstopmode "${MANUSCRIPT_BASENAME}" 2>&1 | tail -5
 ```
 
 **If compilation errors:** Fix and retry (does not count as iteration).

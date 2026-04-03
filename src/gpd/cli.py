@@ -51,7 +51,10 @@ from gpd.core.constants import (
     HOME_DATA_DIR_NAME,
 )
 from gpd.core.errors import ConfigError, GPDError
-from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
+from gpd.core.manuscript_artifacts import (
+    resolve_current_manuscript_entrypoint,
+    resolve_manuscript_entrypoint_from_root,
+)
 from gpd.core.onboarding_surfaces import (
     beginner_onboarding_hub_url,
     beginner_startup_ladder_text,
@@ -4973,17 +4976,15 @@ def _resolve_review_preflight_manuscript(
             return None, f"explicit manuscript target must be a .tex or .md file: {_format_display_path(target)}"
 
         if target.is_dir():
-            candidates = [target / "main.tex"]
-            if allow_markdown:
-                candidates.append(target / "main.md")
-            candidate = _first_existing_path(*candidates)
+            candidate = resolve_manuscript_entrypoint_from_root(target, allow_markdown=allow_markdown)
             if candidate is not None:
                 return candidate, f"{_format_display_path(target)} resolved to {_format_display_path(candidate)}"
-            if not allow_markdown and (target / "main.md").exists():
+            legacy_markdown = target / "main.md"
+            if not allow_markdown and legacy_markdown.exists():
                 return (
                     None,
-                    f"expected main.tex under {_format_display_path(target)} for LaTeX-only submission "
-                    f"(found {_format_display_path(target / 'main.md')})",
+                    f"expected a manuscript .tex entrypoint under {_format_display_path(target)} for LaTeX-only submission "
+                    f"(found legacy {_format_display_path(legacy_markdown)})",
                 )
             return None, f"no manuscript entry point found under {_format_display_path(target)}"
 
@@ -4991,8 +4992,12 @@ def _resolve_review_preflight_manuscript(
     if manuscript is not None:
         return manuscript, f"{_format_display_path(manuscript)} present"
     if allow_markdown:
-        return None, "no paper/main.tex, paper/main.md, manuscript/main.tex, manuscript/main.md, draft/main.tex, or draft/main.md found"
-    return None, "no paper/main.tex, manuscript/main.tex, or draft/main.tex found"
+        return (
+            None,
+            "no manuscript entrypoint found under paper/, manuscript/, or draft/ "
+            "(expected ARTIFACT-MANIFEST.json, PAPER-CONFIG.json-derived output, or a legacy main.{tex,md})",
+        )
+    return None, "no LaTeX manuscript entrypoint found under paper/, manuscript/, or draft/"
 
 
 def _resolve_review_preflight_publication_artifact(manuscript: Path, *filenames: str) -> Path | None:
@@ -6417,8 +6422,8 @@ def _build_review_preflight(
         if command.name == "gpd:write-paper" and manuscript is None:
             manuscript_passed = True
             manuscript_detail = (
-                "no paper/main.tex, paper/main.md, manuscript/main.tex, manuscript/main.md, draft/main.tex, or draft/main.md found; "
-                "fresh bootstrap is allowed and will scaffold ./paper/main.tex"
+                "no manuscript entrypoint found under paper/, manuscript/, or draft/; "
+                "fresh bootstrap is allowed and will scaffold a topic-specific manuscript stem under ./paper/"
             )
         else:
             manuscript_passed = manuscript is not None
@@ -6433,7 +6438,7 @@ def _build_review_preflight(
                 else (
                     f"{_format_display_path(manuscript)} present"
                     if manuscript is not None
-                    else "no paper/main.tex, paper/main.md, manuscript/main.tex, manuscript/main.md, draft/main.tex, or draft/main.md found"
+                    else "no manuscript entrypoint found under paper/, manuscript/, or draft/"
                 )
             ),
         )
@@ -7364,6 +7369,7 @@ def paper_build(
 
     from gpd.core.storage_paths import DurableOutputKind, ProjectStorageLayout
     from gpd.mcp.paper.compiler import build_paper
+    from gpd.mcp.paper.models import derive_output_filename
 
     config_file = _resolve_existing_input_path(
         config_path,
@@ -7433,11 +7439,14 @@ def paper_build(
             enrich_bibliography=enrich_bibliography,
         )
     )
+    result_tex_path = result.tex_path if isinstance(result.tex_path, Path) else None
+    if result_tex_path is None:
+        result_tex_path = output_path / f"{derive_output_filename(paper_config)}.tex"
 
     payload = {
         "config_path": _format_display_path(config_file),
         "output_dir": _format_display_path(output_path),
-        "tex_path": _format_display_path(output_path / "main.tex"),
+        "tex_path": _format_display_path(result_tex_path),
         "bibliography_source": _format_display_path(bib_source),
         "citation_sources_path": _format_display_path(citation_source_path),
         "reference_bibtex_bridge": _paper_build_reference_bibtex_bridge(result),

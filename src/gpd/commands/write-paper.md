@@ -7,7 +7,7 @@ review-contract:
   review_mode: publication
   schema_version: 1
   required_outputs:
-    - "${PAPER_DIR}/main.tex"
+    - "${PAPER_DIR}/{topic_specific_stem}.tex"
     - "GPD/REFEREE-REPORT{round_suffix}.md"
     - "GPD/REFEREE-REPORT{round_suffix}.tex"
   required_evidence:
@@ -109,7 +109,7 @@ The workflow handles all logic including:
 4. **Catalog artifacts** — Gather derivations, numerical results, figures, literature, verification results from phases
 5. **Paper-readiness audit** — 5 checks (SUMMARY completeness, convention consistency, numerical stability, figure readiness, citation readiness) with gate decision (0 critical gaps to proceed, or user approval)
 6. **Create outline** — Detailed per-section outline (purpose, key content, equations, figures, citations, dependencies) adapted to journal format. Present for approval.
-7. **Generate files** — Create `${PAPER_DIR}/PAPER-CONFIG.json` using `@{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md`, then materialize the canonical manuscript scaffold with `gpd paper-build` (emits `${PAPER_DIR}/main.tex`, `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, and `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`; local compiler runs are smoke checks only)
+7. **Generate files** — Create `${PAPER_DIR}/PAPER-CONFIG.json` using `@{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md`, set `output_filename` to a short topic-specific 2-3 word underscore stem, then materialize the canonical manuscript scaffold with `gpd paper-build` (emits `${PAPER_DIR}/{topic_specific_stem}.tex`, `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, and `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`; local compiler runs are smoke checks only)
 8. **Generate figures** — Generate matplotlib scripts from phase data, execute to `${PAPER_DIR}/figures/`, update FIGURE_TRACKER.md
 9. **Draft sections** — Wave-parallelized spawning of gpd-paper-writer agents:
    - Wave 1: Results + Methods (no dependency)

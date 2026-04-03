@@ -446,7 +446,7 @@ def test_write_paper_review_contract_uses_round_suffixed_referee_outputs() -> No
 
     assert contract is not None
     assert contract.required_outputs == [
-        "${PAPER_DIR}/main.tex",
+        "${PAPER_DIR}/{topic_specific_stem}.tex",
         "GPD/REFEREE-REPORT{round_suffix}.md",
         "GPD/REFEREE-REPORT{round_suffix}.tex",
     ]

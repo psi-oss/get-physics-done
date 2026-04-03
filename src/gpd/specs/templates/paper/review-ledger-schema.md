@@ -17,7 +17,7 @@ This ledger is the persistent issue tracker shared between staged peer review, f
 {
   "version": 1,
   "round": 1,
-  "manuscript_path": "paper/main.tex",
+  "manuscript_path": "paper/topic_stem.tex",
   "issues": [
     {
       "issue_id": "REF-001",
@@ -27,7 +27,7 @@ This ledger is the persistent issue tracker shared between staged peer review, f
       "claim_ids": ["CLM-001"],
       "summary": "The physical interpretation outruns the evidence.",
       "rationale": "The manuscript extrapolates beyond the tested regime.",
-      "evidence_refs": ["paper/main.tex#discussion"],
+      "evidence_refs": ["paper/topic_stem.tex#discussion"],
       "required_action": "Restrict the claim or add the missing comparison.",
       "status": "open"
     }

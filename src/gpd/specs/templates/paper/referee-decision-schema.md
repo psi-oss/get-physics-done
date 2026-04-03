@@ -15,7 +15,7 @@ This JSON is the machine-readable adjudication summary consumed by `gpd validate
 
 ```json
 {
-  "manuscript_path": "paper/main.tex",
+  "manuscript_path": "paper/topic_stem.tex",
   "target_journal": "jhep",
   "final_recommendation": "major_revision",
   "final_confidence": "medium",

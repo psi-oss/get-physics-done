@@ -46,20 +46,20 @@ fi
 ```
 
 If review preflight exits nonzero because of missing project state, missing manuscript, missing compiled manuscript, unresolved publication blockers, degraded review integrity, missing conventions, missing staged review artifacts, or stale theorem-proof review state, STOP and fix those blockers before packaging. If `derived_manuscript_reference_status` is present, use it as a first-pass summary of reference coverage and citation freshness, but keep the resolved manuscript root's `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` authoritative for strict packaging decisions.
-Strict preflight also requires `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` beside the resolved manuscript entry point. If `$ARGUMENTS` resolves to `submission/main.tex`, those review artifacts must come from `submission/`, not from legacy `GPD/paper/` copies or some other manuscript directory.
+Strict preflight also requires `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` beside the resolved manuscript entry point. If `$ARGUMENTS` resolves to `submission/topic_stem.tex`, those review artifacts must come from `submission/`, not from legacy `GPD/paper/` copies or some other manuscript directory.
 Treat `gpd paper-build` as the authoritative step that regenerates `BIBLIOGRAPHY-AUDIT.json` for the resolved manuscript root. Do not package stale audit artifacts, even if the bibliography only changed indirectly through a citation-source handoff.
 Strict preflight also requires the latest round-specific `GPD/review/REVIEW-LEDGER*.json` / `GPD/review/REFEREE-DECISION*.json` pair as authoritative submission-gate input. Missing either artifact is a hard stop. That pair must validate against the active manuscript, and packaging may continue only when the latest recommendation is `accept` or `minor_revision` with no unresolved blocking issues. A latest `major_revision` or `reject` decision is a hard stop for submission packaging. For theorem-bearing manuscripts, `manuscript_proof_review` must also already be cleared; arXiv packaging is not allowed to repair or waive a stale proof review.
 
 **Resolve manuscript target from $ARGUMENTS:**
 
 1. If `$ARGUMENTS` specifies a `.tex` file, set `resolved_main_tex` to that file and `resolved_dir` to its parent directory.
-2. If `$ARGUMENTS` specifies a directory, resolve `main.tex` under that directory, set `resolved_main_tex` to that entry point, and `resolved_dir` to the directory.
-   If `main.tex` does not exist there, STOP. Do not silently pick an arbitrary `*.tex` file from that directory.
+2. If `$ARGUMENTS` specifies a directory, resolve the canonical manuscript `.tex` entrypoint under that directory (prefer the path recorded in `ARTIFACT-MANIFEST.json`, otherwise the `PAPER-CONFIG.json`-derived stem, and only then legacy `main.tex`), set `resolved_main_tex` to that entry point, and `resolved_dir` to the directory.
+   If no manuscript `.tex` entrypoint exists there, STOP. Do not silently pick an arbitrary `*.tex` file from that directory.
 3. Otherwise, search standard locations:
 
 ```bash
 for DIR in paper manuscript draft; do
-  if [ -f "${DIR}/main.tex" ]; then
+  if [ -f "${DIR}/ARTIFACT-MANIFEST.json" ] || [ -f "${DIR}/PAPER-CONFIG.json" ] || ls "${DIR}"/*.tex >/dev/null 2>&1; then
     PAPER_DIR="$DIR"
     break
   fi
@@ -252,17 +252,17 @@ Read `${MAIN_SOURCE}`. For each `\input{file}` or `\include{file}`:
 4. For `\include{}`: preserve `\clearpage` behavior by wrapping with `\clearpage` before and after
 5. Recurse into inserted content for nested `\input`
 
-Write the flattened result to `${SUBMISSION_DIR}/main.tex`.
+Write the flattened result to `${SUBMISSION_DIR}/${MAIN_BASENAME}`.
 
 **Inline the bibliography:**
 
-1. Find the `\bibliography{...}` command in flattened `main.tex`
+1. Find the `\bibliography{...}` command in flattened `${MAIN_BASENAME}`
 2. Replace it with contents of `${MAIN_STEM}.bbl`
 3. Remove `\bibliographystyle{}` line
 4. Verify: no remaining `\bibliography` commands in the output
 
 ```bash
-grep -c '\\bibliography{' "${SUBMISSION_DIR}/main.tex"
+grep -c '\\bibliography{' "${SUBMISSION_DIR}/${MAIN_BASENAME}"
 # Must be 0
 ```
 </step>
@@ -273,7 +273,7 @@ grep -c '\\bibliography{' "${SUBMISSION_DIR}/main.tex"
 ```bash
 # Extract all \includegraphics paths
 grep -oh '\\includegraphics\[[^]]*\]{[^}]*}\|\\includegraphics{[^}]*}' \
-  "${SUBMISSION_DIR}/main.tex" | sed 's/.*{//;s/}//'
+  "${SUBMISSION_DIR}/${MAIN_BASENAME}" | sed 's/.*{//;s/}//'
 ```
 
 For each figure file:
@@ -293,7 +293,7 @@ For each figure file:
 mkdir -p "${SUBMISSION_DIR}/figures"
 ```
 
-**If PDF figures present:** Verify `\pdfoutput=1` is on line 1 of main.tex. Add if missing.
+**If PDF figures present:** Verify `\pdfoutput=1` is on line 1 of `${MAIN_BASENAME}`. Add if missing.
 
 **Report:**
 
@@ -437,13 +437,13 @@ Also remove:
 Count files in submission directory. If > 1 file (excluding 00README.XXX):
 
 ```
-main.tex       -- Main LaTeX file
+${MAIN_BASENAME} -- Main LaTeX file
 figures/       -- Figure files
 anc/           -- Ancillary files (code, data)
 ```
 
 Only list directories/files that actually exist.
-If the submission directory contains only `main.tex`, skip `00README.XXX` entirely.
+If the submission directory contains only `${MAIN_BASENAME}`, skip `00README.XXX` entirely.
 </step>
 
 <step name="package">
@@ -460,11 +460,11 @@ ls -lh arxiv-submission.tar.gz
 ```bash
 # List contents to verify structure
 tar tzf arxiv-submission.tar.gz | head -30
-# Verify main.tex is at root level (arXiv requirement)
-tar tzf arxiv-submission.tar.gz | grep "^main.tex$"
+# Verify the manuscript entrypoint is at root level (arXiv requirement)
+tar tzf arxiv-submission.tar.gz | grep "^${MAIN_BASENAME}$"
 ```
 
-If main.tex is not at root level of tarball: repackage.
+If `${MAIN_BASENAME}` is not at root level of tarball: repackage.
 </step>
 
 <step name="present_checklist">
@@ -621,7 +621,7 @@ Upload this file directly to https://arxiv.org/submit
 - [ ] File sizes within arXiv limits
 - [ ] Paper-quality gate passed, or the user explicitly forced packaging after seeing the failing report
 - [ ] 00README.XXX generated only for multi-file submissions
-- [ ] Submission tarball created with main.tex at root
+- [ ] Submission tarball created with the manuscript entrypoint at tarball root
 - [ ] Pre-submission checklist presented
 - [ ] No unresolved placeholders (RESULT PENDING, MISSING: citations, TODO/FIXME)
 - [ ] Submission manifest committed (tarball NOT committed — binary artifact)

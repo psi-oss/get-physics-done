@@ -20,7 +20,7 @@ def test_write_paper_workflow_runs_centralized_review_preflight() -> None:
     assert "missing manuscript" not in workflow
     assert 'PAPER_DIR="$DIR"' in workflow
     assert 'PAPER_DIR="paper"' in workflow
-    assert '${PAPER_DIR}/main.tex' in workflow
+    assert '${PAPER_DIR}/{topic_specific_stem}.tex' in workflow
 
 
 def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> None:
@@ -45,7 +45,7 @@ def test_arxiv_submission_workflow_runs_centralized_review_preflight() -> None:
     assert "`manuscript_proof_review` must also already be cleared" in workflow
     assert "The same resolved manuscript root is also the strict preflight source of truth for `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the compiled PDF." in workflow
     assert "If `$ARGUMENTS` specifies a `.tex` file, set `resolved_main_tex` to that file" in workflow
-    assert "main.tex` under that directory" in workflow
+    assert "canonical manuscript `.tex` entrypoint under that directory" in workflow
     assert 'MAIN_SOURCE="${resolved_main_tex}"' in workflow
 
 

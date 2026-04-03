@@ -47,9 +47,9 @@ fi
 1. If `$ARGUMENTS` names a directory, use it as the candidate paper directory.
 2. If `$ARGUMENTS` names a `.tex` or `.md` file, use that file and its parent directory as the review root.
 3. Otherwise search, in order:
-   - the resolved manuscript main file
-   - `manuscript/main.tex`
-   - `draft/main.tex`
+   - the resolved manuscript entrypoint under `paper/`
+   - the resolved manuscript entrypoint under `manuscript/`
+   - the resolved manuscript entrypoint under `draft/`
 
 After resolution, keep all manuscript-local support artifacts rooted at the same explicit manuscript directory:
 

@@ -11,7 +11,7 @@ from pydantic import ConfigDict
 
 from gpd.mcp.paper.bibliography import CitationSource
 from gpd.mcp.paper.compiler import CompilationResult, _get_tlmgr_package, check_class_file
-from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
+from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section, derive_output_filename
 
 
 def _allow_journal_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -69,7 +69,8 @@ class TestBuildPaper:
         bib.entries["einstein1905"] = Entry("article", [("author", "Einstein"), ("title", "SR"), ("year", "1905")])
 
         # Mock compile_paper to avoid needing actual TeX
-        pdf_path = tmp_path / "main.pdf"
+        output_stem = derive_output_filename(config)
+        pdf_path = tmp_path / f"{output_stem}.pdf"
         mock_result = CompilationResult(success=True, pdf_path=pdf_path)
         # Write a fake PDF so the path exists
         pdf_path.write_bytes(b"%PDF-fake")
@@ -82,8 +83,9 @@ class TestBuildPaper:
 
         output = await build_paper(config, tmp_path, bib_data=bib)
 
-        assert (tmp_path / "main.tex").exists()
-        tex_content = (tmp_path / "main.tex").read_text()
+        assert output.tex_path == tmp_path / f"{output_stem}.tex"
+        assert output.tex_path.exists()
+        tex_content = output.tex_path.read_text()
         assert r"\documentclass" in tex_content
         assert "Generated with Get Physics Done" in tex_content
         assert (tmp_path / "references.bib").exists()
@@ -102,7 +104,7 @@ class TestBuildPaper:
         artifact_ids = {artifact["artifact_id"] for artifact in manifest_content["artifacts"]}
         assert "tex-paper" in artifact_ids
         assert "bib-references" in artifact_ids
-        assert "pdf-main" in artifact_ids
+        assert f"pdf-{output_stem}" in artifact_ids
         assert "audit-bibliography" in artifact_ids
         bib_artifact = next(artifact for artifact in manifest_content["artifacts"] if artifact["artifact_id"] == "bib-references")
         assert bib_artifact["metadata"]["entry_source"] == "bib_data"
