@@ -200,12 +200,12 @@ Ask user: "Fix issues and retry?" or "Abort?"
 # Use submission build directory instead of /tmp for intermediate files
 mkdir -p "${SUBMISSION_DIR}/build"
 
-# Extract all \cite{} keys from tex files
-grep -roh '\\cite[tp]*{[^}]*}' "${PAPER_DIR}"/*.tex | \
+# Extract all \cite{} keys from manuscript .tex files recursively
+grep -rho --include='*.tex' '\\cite[tp]*{[^}]*}' "${PAPER_DIR}" | \
   sed 's/\\cite[tp]*{//;s/}//;s/,/\n/g' | sort -u > "${SUBMISSION_DIR}/build/cited_keys.txt"
 
-# Extract all keys from .bib file
-grep '^@' "${PAPER_DIR}"/*.bib 2>/dev/null | \
+# Extract all keys from bibliography files under the manuscript root
+grep -rh '^@' --include='*.bib' "${PAPER_DIR}" 2>/dev/null | \
   sed 's/@[^{]*{//;s/,$//' | sort -u > "${SUBMISSION_DIR}/build/bib_keys.txt"
 
 # Find missing
@@ -237,7 +237,7 @@ If missing: re-run bibtex. If still missing: error — bibliography cannot be fl
 
 Read `${MAIN_SOURCE}`. For each `\input{file}` or `\include{file}`:
 
-1. Resolve path: try `file`, `file.tex`, `${PAPER_DIR}/file`, `${PAPER_DIR}/file.tex`
+1. Resolve path relative to the file containing the `\input`/`\include` first; if that fails, try the same relative path from `${PAPER_DIR}`. Permit nested subdirectories and append `.tex` when the extension is omitted.
 2. Read the referenced file contents
 3. Replace the `\input{}`/`\include{}` line with the file contents
 4. For `\include{}`: preserve `\clearpage` behavior by wrapping with `\clearpage` before and after
@@ -338,21 +338,21 @@ Scan for unresolved placeholders that should not appear in a submission:
 
 ```bash
 # Check for RESULT PENDING markers (incomplete results from paper-writer)
-grep -rn "RESULT PENDING\|\\\\text{\\[PENDING\\]}" "${PAPER_DIR}"/*.tex 2>/dev/null
+grep -rn --include='*.tex' "RESULT PENDING\|\\\\text{\\[PENDING\\]}" "${PAPER_DIR}" 2>/dev/null
 
 # Check for MISSING: citation markers (unresolved bibliographer requests)
-grep -rn "\\\\cite{MISSING:" "${PAPER_DIR}"/*.tex 2>/dev/null
+grep -rn --include='*.tex' "\\\\cite{MISSING:" "${PAPER_DIR}" 2>/dev/null
 
 # Check for TODO/FIXME comments that should be resolved
-grep -rn "TODO\|FIXME\|XXX" "${PAPER_DIR}"/*.tex 2>/dev/null
+grep -rn --include='*.tex' "TODO\|FIXME\|XXX" "${PAPER_DIR}" 2>/dev/null
 ```
 
 **GATE: Unresolved placeholders block submission.**
 
 ```bash
-PENDING=$(grep -rcE "RESULT PENDING|\\\\text\{\\[PENDING\\]\}" "${PAPER_DIR}"/*.tex 2>/dev/null || echo 0)
-MISSING=$(grep -rc "\\\\cite{MISSING:" "${PAPER_DIR}"/*.tex 2>/dev/null || echo 0)
-TODO=$(grep -rcE "TODO|FIXME|XXX" "${PAPER_DIR}"/*.tex 2>/dev/null || echo 0)
+PENDING=$(grep -rcE --include='*.tex' "RESULT PENDING|\\\\text\{\\[PENDING\\]\}" "${PAPER_DIR}" 2>/dev/null || echo 0)
+MISSING=$(grep -rc --include='*.tex' "\\\\cite{MISSING:" "${PAPER_DIR}" 2>/dev/null || echo 0)
+TODO=$(grep -rcE --include='*.tex' "TODO|FIXME|XXX" "${PAPER_DIR}" 2>/dev/null || echo 0)
 BLOCKER_COUNT=$(( PENDING + MISSING ))
 ```
 
@@ -362,10 +362,10 @@ If `BLOCKER_COUNT > 0`:
 ERROR: ${BLOCKER_COUNT} unresolved placeholder(s) block submission.
 
 RESULT PENDING markers (${PENDING}):
-$(grep -rn "RESULT PENDING" "${PAPER_DIR}"/*.tex 2>/dev/null)
+$(grep -rn --include='*.tex' "RESULT PENDING" "${PAPER_DIR}" 2>/dev/null)
 
 MISSING citation markers (${MISSING}):
-$(grep -rn "\\cite{MISSING:" "${PAPER_DIR}"/*.tex 2>/dev/null)
+$(grep -rn --include='*.tex' "\\cite{MISSING:" "${PAPER_DIR}" 2>/dev/null)
 
 A paper with [PENDING] values or \cite{MISSING:...} markers is not submission-ready.
 

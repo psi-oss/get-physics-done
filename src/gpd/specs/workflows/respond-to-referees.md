@@ -399,7 +399,7 @@ task(
 Each revision agent receives:
 
 - The specific referee comments affecting this section (with full quotes)
-- The current section text (read from `${PAPER_DIR}/{section}.tex`)
+- The current section text (read from the resolved section file within the manuscript tree rooted at `${PAPER_DIR}`, allowing nested subdirectories)
 - The planned response strategy for each comment
 - Relevant `GPD/comparisons/*-COMPARISON.md` files and `FIGURE_TRACKER.md` entries for decisive claims mentioned in the section
 - `protocol_bundle_context` and `selected_protocol_bundle_ids` as additive specialized guidance only; they help preserve benchmark anchors, decisive artifacts, and estimator caveats during revision, but do not create new claims or replace the review ledger
@@ -409,7 +409,7 @@ Each revision agent receives:
 **If a revision agent fails to spawn or returns an error:** Note the failure for that section. Continue with other sections. After all agents complete, report which sections failed and offer: 1) Retry failed sections, 2) Apply revisions manually in the main context, 3) Skip failed sections and proceed. Do not block the entire referee response on a single section failure.
 
 After each agent returns, verify the promised artifacts before trusting the handoff text:
-- Re-read the targeted `${PAPER_DIR}/{section}.tex` file and confirm the expected revision markers or substantive edits landed.
+- Re-read the targeted resolved section file under `${PAPER_DIR}` and confirm the expected revision markers or substantive edits landed.
 - Re-open `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` and confirm the affected comment block now contains the updated assessment / changes-made text.
 - If the agent claimed success but the files did not change, treat that section as failed and route it through the retry/manual options above instead of silently proceeding.
 
@@ -537,12 +537,14 @@ raised. Below we provide point-by-point responses.
 **Commit all revision artifacts:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files GPD/review/REFEREE_RESPONSE{round_suffix}.md GPD/AUTHOR-RESPONSE{round_suffix}.md ${PAPER_DIR}/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib 2>&1) || true
+MANUSCRIPT_TEX_FILES=$(find "${PAPER_DIR}" -type f -name '*.tex' -print)
+MANUSCRIPT_BIB_FILES=$(find "${PAPER_DIR}" -type f -name '*.bib' -print)
+PRE_CHECK=$(gpd pre-commit-check --files GPD/review/REFEREE_RESPONSE{round_suffix}.md GPD/AUTHOR-RESPONSE{round_suffix}.md ${PAPER_DIR}/response-letter.tex ${MANUSCRIPT_TEX_FILES} ${MANUSCRIPT_BIB_FILES} 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit \
   "docs: referee response and manuscript revisions" \
-  --files GPD/review/REFEREE_RESPONSE{round_suffix}.md GPD/AUTHOR-RESPONSE{round_suffix}.md ${PAPER_DIR}/response-letter.tex ${PAPER_DIR}/*.tex ${PAPER_DIR}/references.bib
+  --files GPD/review/REFEREE_RESPONSE{round_suffix}.md GPD/AUTHOR-RESPONSE{round_suffix}.md ${PAPER_DIR}/response-letter.tex ${MANUSCRIPT_TEX_FILES} ${MANUSCRIPT_BIB_FILES}
 ```
 
 **Present completion summary:**

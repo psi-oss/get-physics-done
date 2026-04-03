@@ -856,7 +856,7 @@ Mode: Audit bibliography + Audit manuscript
 Paper directory: ${PAPER_DIR}/
 Bibliography: `references/references.bib` (preferred) or `${PAPER_DIR}/references.bib` if the manuscript keeps a local copy
 Citation sources: `GPD/literature/*-CITATION-SOURCES.json` when literature-review has already assembled a machine-readable citation list for the current topic
-Manuscript files: ${PAPER_DIR}/*.tex
+Manuscript tree: all `.tex` files under `${PAPER_DIR}` recursively, rooted at the manifest-resolved manuscript directory
 Target journal: {target_journal}
 
 Tasks:
@@ -1022,7 +1022,7 @@ When revising a paper in response to referee reports:
        "Referee report: GPD/REFEREE-REPORT{round_suffix}.md\n" +
        "Review ledger (if present): GPD/review/REVIEW-LEDGER{round_suffix}.json\n" +
        "Decision artifact (if present): GPD/review/REFEREE-DECISION{round_suffix}.json\n" +
-       "Manuscript: ${PAPER_DIR}/*.tex\n" +
+       "Manuscript tree: all .tex files under ${PAPER_DIR} recursively, rooted at the manifest-resolved manuscript directory\n" +
        "Round: {N}\n\n" +
        "For each REF-xxx issue, classify as fixed/rebutted/acknowledged. Use the JSON artifacts to identify blocking issues and decision-floor reasons, but keep REF-xxx IDs from the report.\n" +
        "Write to GPD/AUTHOR-RESPONSE{round_suffix}.md",

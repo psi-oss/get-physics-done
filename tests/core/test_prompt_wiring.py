@@ -726,7 +726,7 @@ def test_review_workflows_keep_round_suffix_artifacts_visible_and_anchor_respons
     assert "must exactly match the sibling `CLAIMS{round_suffix}.json`" in panel
     assert "Stage 1 `CLAIMS.json` must follow this compact `ClaimIndex` shape:" not in panel
 
-    assert "${PAPER_DIR}/{section}.tex" in respond
+    assert "resolved section file within the manuscript tree rooted at `${PAPER_DIR}`" in respond
     assert "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json" in respond
     assert "${PAPER_DIR}/response-letter.tex" in respond
     assert "GPD/review/REFEREE_RESPONSE{round_suffix}.md" in respond
@@ -1650,11 +1650,27 @@ def test_manuscript_documentation_uses_current_manuscript_root_paths_only() -> N
     explain = (WORKFLOWS_DIR / "explain.md").read_text(encoding="utf-8")
     manuscript_outline = (TEMPLATES_DIR / "paper" / "manuscript-outline.md").read_text(encoding="utf-8")
     execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+    figure_tracker = (TEMPLATES_DIR / "paper" / "figure-tracker.md").read_text(encoding="utf-8")
 
     assert "GPD/paper/" not in explain
     assert "GPD/paper/" not in manuscript_outline
-    assert "${PAPER_DIR}/EXPERIMENTAL_COMPARISON.md" in execute_phase
+    assert "paper/EXPERIMENTAL_COMPARISON.md" in execute_phase
+    assert "${PAPER_DIR}/EXPERIMENTAL_COMPARISON.md" not in execute_phase
     assert "GPD/paper/EXPERIMENTAL_COMPARISON.md" not in execute_phase
+    assert "fig-main.pdf" not in figure_tracker
+
+
+def test_publication_workflows_describe_recursive_manuscript_tree_inputs() -> None:
+    arxiv_submission = (WORKFLOWS_DIR / "arxiv-submission.md").read_text(encoding="utf-8")
+    write_paper = (WORKFLOWS_DIR / "write-paper.md").read_text(encoding="utf-8")
+    respond = (WORKFLOWS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
+
+    assert "grep -rho --include='*.tex'" in arxiv_submission
+    assert "${PAPER_DIR}/*.tex" not in arxiv_submission
+    assert "Resolve path relative to the file containing the `\\input`/`\\include` first" in arxiv_submission
+    assert "Manuscript tree: all `.tex` files under `${PAPER_DIR}` recursively" in write_paper
+    assert "Manuscript tree: all .tex files under ${PAPER_DIR} recursively" in write_paper
+    assert "resolved section file within the manuscript tree rooted at `${PAPER_DIR}`" in respond
 
 
 def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_contract_context() -> None:
