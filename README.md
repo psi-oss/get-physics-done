@@ -26,19 +26,46 @@ https://github.com/user-attachments/assets/e79f8153-c0bd-484f-b69e-da8f142649e0
 
 GPD is not a standalone app. It installs physics-research commands into Claude Code, Codex, Gemini CLI, or OpenCode.
 
+To install GPD, run this in your system terminal:
+```bash
+# Requires Node.js.
+npx -y get-physics-done
+```
+
+<details>
+<summary><strong>Need Node.js?</strong></summary>
+
+`npm` and `npx` come with Node.js, so install Node.js first in your normal
+system terminal, then come back here.
+
+- Windows: Install Node.js LTS with `winget` (includes `npm` and `npx`): `winget install OpenJS.NodeJS.LTS`
+- macOS: Install Node.js with Homebrew (includes `npm` and `npx`): `brew install node`
+- Linux (Debian/Ubuntu example): Install Node.js and `npm` from `apt`: `sudo apt-get update && sudo apt-get install -y nodejs npm`
+
+</details>
+
+<details>
+<summary><strong>New to terminals?</strong></summary>
+
 If you are new to terminals, start with the [Beginner Onboarding Hub](./docs/README.md).
 Use the hub as the single beginner path. It keeps the OS guides, runtime guides,
 and post-install checklist in one place, while this README keeps the reference
 tables and advanced surfaces.
 
-The hub owns the beginner preflight and caveats: prerequisites, runtime/account expectations, and the reminder that GPD does not install your runtime or provide model access, billing, or API credits.
+The hub owns the beginner preflight and caveats: prerequisites, runtime/account
+expectations, and the reminder that GPD does not install your runtime or provide
+model access, billing, or API credits.
 
-Here, "runtime" means the AI terminal app you talk to, such as Claude Code, Codex, Gemini CLI, or OpenCode.
+Here, "runtime" means the AI terminal app you talk to, such as Claude Code,
+Codex, Gemini CLI, or OpenCode.
 
 There are two places you type commands:
 
 - In your normal system terminal: `npx ...`, `gpd ...`, `claude`, `codex`, `gemini`, `opencode`
 - Inside your AI runtime: `/gpd:...`, `$gpd-...`, or `/gpd-...`
+
+</details>
+
 
 ## Who This Is For
 
@@ -60,7 +87,7 @@ Run its help command first: Claude Code / Gemini CLI use `/gpd:help`. Codex uses
 
 Expert fast path:
 
-- From inside the folder where your project should live, install GPD with the matching `npx -y get-physics-done ...` command from [Start Here](#start-here), then launch `claude`, `codex`, `gemini`, or `opencode`.
+- From inside the folder where your project should live, install GPD with the matching `npx -y get-physics-done` bootstrap command from [Start Here](#start-here), then launch `claude`, `codex`, `gemini`, or `opencode`.
 - Run the matching GPD help command shown in [Supported Runtimes](#supported-runtimes).
 - Then use `start` if you are not sure what fits this folder, `tour` for a read-only walkthrough, `new-project --minimal` for new work, `map-research` for existing work, or `resume-work` when you return later.
 - Treat the new-work choice as distinct from the existing-work choice; pick one, then follow it through.
@@ -101,7 +128,7 @@ Use this when you want to verify install health, unattended readiness, paper-too
 - Python 3.11+ with the standard `venv` module is available in that same terminal
 - Your selected runtime is already installed and launchable there (`claude`, `gemini`, `codex`, or `opencode`)
 
-If any of those fail, fix them before troubleshooting GPD itself. These are bootstrap prerequisites for `npx -y get-physics-done`, not a claim that every local `gpd ...` command rechecks them.
+If any of those fail, fix them before troubleshooting GPD itself. These are bootstrap prerequisites for the matching installer command, not a claim that every local `gpd ...` command rechecks them.
 
 **Advisories**
 
@@ -116,7 +143,7 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 
 **Quick verification path**
 
-1. Install with an explicit runtime when possible, for example `npx -y get-physics-done --<runtime-flag> --local`.
+1. Install with an explicit runtime when possible, for example use the matching bootstrap command with `--<runtime-flag> --local`.
 2. From the same terminal, run `gpd doctor --runtime <runtime> --local` and `gpd --help`. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Here, `gpd doctor --runtime ...` is a runtime-readiness check for the selected runtime target. If you plan to use the paper/manuscript workflow preset later, treat the `Workflow Presets` and `LaTeX Toolchain` rows in this doctor report as paper-toolchain readiness signals for local smoke checks; `write-paper` can still proceed degraded, but `paper-build` is the build truth.
 3. Launch your selected runtime and run its GPD help command (`/gpd:help`, `$gpd-help`, or `/gpd-help`).
 4. If you want unattended execution, use your runtime-specific `settings` command as the guided configuration path and keep autonomy at Balanced (`balanced`) unless you intentionally want a more hands-off posture.
@@ -481,7 +508,7 @@ Low-level function and span calls are not recorded automatically. Observability 
 
 ## System Requirements
 
-- Node.js with `npm`/`npx`
+- Node.js with `npm`/`npx` (see the `Don't have npm yet?` note above if `npm` is missing)
 - Python 3.11+ with the standard `venv` module (see the OS guides above for beginner setup steps on macOS, Linux, and Windows)
 - Network access to npm and GitHub for the bootstrap installer
 - One of: Claude Code, Gemini CLI, Codex, or OpenCode
@@ -493,7 +520,7 @@ Low-level function and span calls are not recorded automatically. Observability 
 
 ## Uninstall
 
-Run `npx -y get-physics-done --uninstall` for interactive uninstall. The equivalent subcommand form `npx -y get-physics-done uninstall` also works, and you can add the runtime and scope flags above for a non-interactive uninstall.
+Run the matching uninstall command from [Start Here](#start-here) for interactive uninstall. The equivalent subcommand form also works, and you can add the runtime and scope flags above for a non-interactive uninstall.
 
 Uninstall removes GPD from the selected runtime config only. It does not delete project `GPD/` artifacts or shared files under `~/GPD`; remove `~/GPD/` manually, or `GPD_HOME` if you used it, for a full wipe after uninstalling from all runtimes.
 

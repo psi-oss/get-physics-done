@@ -942,7 +942,7 @@ flowchart TD
 - `src/gpd/adapters/base.py -> src/gpd/adapters/install_utils.py::pre_install_cleanup`
   `spawn`
 
-- `src/gpd/adapters/install_utils.py::pre_install_cleanup -> save_local_patches() -> gpd-file-manifest.json["files"] -> gpd-local-patches/**`
+- `src/gpd/adapters/install_utils.py::pre_install_cleanup -> save_local_patches() -> managed install manifest["files"] -> managed patches/**`
   `manifest-contract`
   The manifest is a control-plane node and selective-backup baseline, not just inventory.
 
@@ -965,7 +965,7 @@ flowchart TD
 - `src/gpd/adapters/install_utils.py -> .claude/get-physics-done/VERSION`
   `materialized`
 
-- `src/gpd/adapters/install_utils.py -> .claude/gpd-file-manifest.json`
+- `src/gpd/adapters/install_utils.py -> .claude/managed install manifest`
   `materialized`
 
 - `src/gpd/hooks/{check_update,statusline,notify,runtime_detect}.py -> .claude/hooks/{check_update,statusline,notify,runtime_detect}.py`
@@ -1037,15 +1037,15 @@ flowchart TD
   `partial-ownership`
   Discoverable Codex command skills live here; agent roles stay under `.codex/agents/`.
 
-- `src/gpd/adapters/codex.py -> gpd-file-manifest.json::codex_skills_dir`
+- `src/gpd/adapters/codex.py -> managed install manifest::codex_skills_dir`
   `manifest-contract`
   Used later by uninstall to locate shared skills.
 
-- `src/gpd/adapters/codex.py -> gpd-file-manifest.json::codex_generated_skill_dirs`
+- `src/gpd/adapters/codex.py -> managed install manifest::codex_generated_skill_dirs`
   `manifest-contract`
   Codex uninstall and completeness checks use these manifest-owned skill directory names as the authoritative skill inventory.
 
-- `src/gpd/adapters/install_utils.py::write_manifest -> gpd-file-manifest.json["files"]["skills/gpd-*/SKILL.md"]`
+- `src/gpd/adapters/install_utils.py::write_manifest -> managed install manifest["files"]["skills/gpd-*/SKILL.md"]`
   `manifest-contract`
 
 - `src/gpd/adapters/opencode.py -> opencode.json`
@@ -1071,7 +1071,7 @@ flowchart TD
   `partial-ownership`
   Backup/reapply semantics are manifest-driven, while hook and runtime-config cleanup follow separate managed-path rules.
 
-- `src/gpd/adapters/opencode.py::write_manifest -> gpd-file-manifest.json["files"]["command/gpd-*.md"]`
+- `src/gpd/adapters/opencode.py::write_manifest -> managed install manifest["files"]["command/gpd-*.md"]`
   `manifest-contract`
 
 - `.claude/settings.json`
@@ -1087,8 +1087,8 @@ Adapters do not own an entire runtime tree. They own only:
 - `get-physics-done/**`
 - bundled hook filenames
 - `VERSION`
-- `gpd-file-manifest.json`
-- `gpd-local-patches/**`
+- `managed install manifest`
+- `managed patches/**`
 - specific config keys or sections
 
 They explicitly preserve:
@@ -1508,11 +1508,11 @@ They explicitly preserve:
 - `tests/test_release_consistency.py -> MANUAL-TEST-PLAN.md`
   `negative-packaging-contract`
 
-- `tests/test_install_lifecycle.py -> gpd-file-manifest.json`
+- `tests/test_install_lifecycle.py -> managed install manifest`
   `manifest-contract`
   Includes `version`, `timestamp`, `file_hash`, stale-file cleanup, Codex discoverable-skill entries, and OpenCode path-shape constraints.
 
-- `tests/adapters/test_install_roundtrip.py -> installed runtime gpd-file-manifest.json families under {.claude,.gemini,.codex,.opencode}`
+- `tests/adapters/test_install_roundtrip.py -> installed runtime managed install manifest families under {.claude,.gemini,.codex,.opencode}`
   `manifest-contract`
 
 - `tests/adapters/test_install_roundtrip.py -> adapter source-command inventory versus Gemini .toml command count and Codex skill count`
@@ -1629,7 +1629,7 @@ They explicitly preserve:
 
 - `.claude/settings.json` is a runtime-shaped config artifact, not a portable config authority.
 
-- `.claude/gpd-file-manifest.json` is both:
+- `.claude/managed install manifest` is both:
   `materialized`
   `manifest-contract`
   It is inventory, backup baseline, and uninstall control-plane data.

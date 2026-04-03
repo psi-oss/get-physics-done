@@ -7,10 +7,12 @@ from pathlib import Path
 
 import pytest
 
+from gpd.adapters.runtime_catalog import get_shared_install_metadata
 from gpd.core.onboarding_surfaces import beginner_runtime_surfaces
 from tests.doc_surface_contracts import assert_beginner_hub_preflight_contract, assert_beginner_startup_routing_contract
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_SHARED_INSTALL = get_shared_install_metadata()
 
 
 def _read(relative_path: str) -> str:
@@ -114,10 +116,10 @@ def test_docs_onboarding_hub_links_os_and_runtime_guides() -> None:
             "./codex.md",
             "./gemini-cli.md",
             "./opencode.md",
-            "npx -y get-physics-done --claude --local",
-            "npx -y get-physics-done --codex --local",
-            "npx -y get-physics-done --gemini --local",
-            "npx -y get-physics-done --opencode --local",
+            f"{_SHARED_INSTALL.bootstrap_command} --claude --local",
+            f"{_SHARED_INSTALL.bootstrap_command} --codex --local",
+            f"{_SHARED_INSTALL.bootstrap_command} --gemini --local",
+            f"{_SHARED_INSTALL.bootstrap_command} --opencode --local",
             "## After the guides",
         ),
     )

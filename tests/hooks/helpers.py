@@ -8,9 +8,10 @@ from pathlib import Path
 
 from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import build_runtime_install_repair_command
-from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
+_SHARED_INSTALL = get_shared_install_metadata()
 
 
 def runtime_env_prefixes() -> tuple[str, ...]:
@@ -53,7 +54,7 @@ def mark_complete_install(config_dir: Path, *, runtime: str | None = None, insta
     if resolved_runtime is not None:
         adapter = get_adapter(resolved_runtime)
         for relpath in adapter.install_completeness_relpaths():
-            if relpath == "gpd-file-manifest.json":
+            if relpath == _SHARED_INSTALL.manifest_name:
                 continue
             artifact = config_dir / relpath
             artifact.parent.mkdir(parents=True, exist_ok=True)
@@ -79,7 +80,7 @@ def mark_complete_install(config_dir: Path, *, runtime: str | None = None, insta
         if resolved_runtime == "codex":
             manifest["codex_skills_dir"] = str(config_dir.parent / ".agents" / "skills")
             manifest["codex_generated_skill_dirs"] = ["gpd-help"]
-    (config_dir / "gpd-file-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (config_dir / _SHARED_INSTALL.manifest_name).write_text(json.dumps(manifest), encoding="utf-8")
 
 
 def repair_command(runtime: str, *, install_scope: str, target_dir: Path, explicit_target: bool) -> str:

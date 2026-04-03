@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from gpd.core.onboarding_surfaces import (
     beginner_onboarding_hub_url,
     beginner_runtime_surfaces,
@@ -56,6 +56,7 @@ def _repo_root() -> Path:
 
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
+_SHARED_INSTALL = get_shared_install_metadata()
 
 
 def _documented_runtime_flags() -> tuple[str, ...]:
@@ -364,7 +365,7 @@ def test_public_bootstrap_installer_documents_public_flags_and_runtime_aliases()
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
     content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
 
-    assert "npx -y get-physics-done" in readme
+    assert _SHARED_INSTALL.bootstrap_command in readme
     for flag in _documented_runtime_flags():
         assert f"`{flag}`" in readme
     assert "`--all`" in readme
@@ -411,7 +412,7 @@ def test_public_bootstrap_installer_documents_uninstall_path() -> None:
     content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
 
     assert "## Uninstall" in readme
-    assert "Run `npx -y get-physics-done --uninstall`" in readme
+    assert "Run the matching uninstall command from [Start Here](#start-here) for interactive uninstall." in readme
     assert "`--uninstall`" in readme
     assert "non-interactive uninstall" in readme
     assert "`--global`" in readme
@@ -475,7 +476,7 @@ def test_public_cli_surface_is_unified() -> None:
 
 def test_install_docs_use_only_public_npx_flow() -> None:
     repo_root = _repo_root()
-    npx_command = "npx -y get-physics-done"
+    npx_command = _SHARED_INSTALL.bootstrap_command
     disallowed_markers = (
         "uv tool install",
         "python3 -m pip install",
@@ -1086,7 +1087,7 @@ def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
         "packages/gpd",
         "uv pip install -e",
         "pip install -e packages/gpd",
-        "npx -y get-physics-done",
+        _SHARED_INSTALL.bootstrap_command,
     )
     expected_descriptors = build_public_descriptors()
 
