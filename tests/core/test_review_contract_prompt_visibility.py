@@ -359,16 +359,7 @@ def test_review_contract_renderer_accepts_publication_artifact_preflight_checks(
     assert "reproducibility_ready" in section
 
 
-def test_review_contract_renderer_rejects_invalid_bool_and_required_state_fields() -> None:
-    with pytest.raises(ValueError, match="requires_fresh_context_per_stage must be a boolean"):
-        render_review_contract_prompt(
-            {
-                "schema_version": 1,
-                "review_mode": "review",
-                "requires_fresh_context_per_stage": "later",
-            }
-        )
-
+def test_review_contract_renderer_rejects_invalid_required_state_field() -> None:
     with pytest.raises(ValueError, match="required_state must be one of: phase_executed"):
         render_review_contract_prompt(
             {
@@ -380,59 +371,35 @@ def test_review_contract_renderer_rejects_invalid_bool_and_required_state_fields
 
 
 @pytest.mark.parametrize(
-    ("field_name", "value", "message"),
+    "field_name",
     [
-        ("requires_fresh_context_per_stage", "false", "requires_fresh_context_per_stage must be a boolean"),
-        ("requires_fresh_context_per_stage", 0, "requires_fresh_context_per_stage must be a boolean"),
-        ("max_review_rounds", "2", "max_review_rounds must be an integer"),
+        "stage_ids",
+        "final_decision_output",
+        "requires_fresh_context_per_stage",
+        "max_review_rounds",
     ],
 )
-def test_review_contract_renderer_rejects_coercive_bool_and_int_forms(
-    field_name: str,
-    value: object,
-    message: str,
-) -> None:
-    with pytest.raises(ValueError, match=message):
+def test_review_contract_renderer_rejects_removed_dead_review_fields(field_name: str) -> None:
+    with pytest.raises(ValueError, match=r"Unknown review-contract field\(s\):"):
         render_review_contract_prompt(
             {
                 "schema_version": 1,
                 "review_mode": "review",
-                field_name: value,
+                field_name: "legacy-value",
             }
         )
 
 
-@pytest.mark.parametrize(
-    ("field_name", "value", "message"),
-    [
-        ("requires_fresh_context_per_stage", "   ", "requires_fresh_context_per_stage must be a boolean"),
-        ("max_review_rounds", "   ", "max_review_rounds must be an integer"),
-    ],
-)
-def test_review_contract_renderer_rejects_blank_explicit_optional_scalars(
-    field_name: str,
-    value: str,
-    message: str,
-) -> None:
-    with pytest.raises(ValueError, match=message):
-        render_review_contract_prompt(
-            {
-                "schema_version": 1,
-                "review_mode": "review",
-                field_name: value,
-            }
-        )
+def test_review_contract_renderer_normalizes_blank_required_state() -> None:
+    section = render_review_contract_prompt(
+        {
+            "schema_version": 1,
+            "review_mode": "review",
+            "required_state": "   ",
+        }
+    )
 
-
-def test_review_contract_renderer_rejects_float_max_review_rounds() -> None:
-    with pytest.raises(ValueError, match="max_review_rounds must be an integer"):
-        render_review_contract_prompt(
-            {
-                "schema_version": 1,
-                "review_mode": "review",
-                "max_review_rounds": 1.5,
-            }
-        )
+    assert "required_state: ''" in section
 
 
 def test_review_contract_renderer_rejects_non_list_and_non_mapping_conditional_shapes() -> None:
@@ -462,13 +429,13 @@ def test_review_contract_renderer_fills_canonical_defaults_for_minimal_payload()
     assert "required_evidence: []" in section
     assert "blocking_conditions: []" in section
     assert "preflight_checks: []" in section
-    assert "stage_ids: []" in section
     assert "stage_artifacts: []" in section
     assert "conditional_requirements: []" in section
-    assert "final_decision_output: ''" in section
-    assert "requires_fresh_context_per_stage: false" in section
-    assert "max_review_rounds: 0" in section
     assert "required_state: ''" in section
+    assert "stage_ids" not in section
+    assert "final_decision_output" not in section
+    assert "requires_fresh_context_per_stage" not in section
+    assert "max_review_rounds" not in section
 
 
 def test_review_contract_renderer_renders_conditional_requirements() -> None:

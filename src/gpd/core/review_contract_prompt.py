@@ -44,12 +44,8 @@ REVIEW_CONTRACT_FIELD_ORDER = (
     "required_evidence",
     "blocking_conditions",
     "preflight_checks",
-    "stage_ids",
     "stage_artifacts",
     "conditional_requirements",
-    "final_decision_output",
-    "requires_fresh_context_per_stage",
-    "max_review_rounds",
     "required_state",
 )
 REVIEW_CONTRACT_CONDITIONAL_FIELD_ORDER = (
@@ -182,26 +178,6 @@ def _normalize_review_contract_choice_list(
         formatted = ", ".join(repr(item) for item in invalid_values)
         raise ValueError(f"{field_name} must contain only: {valid}; got {formatted}")
     return normalized
-
-
-def _normalize_review_contract_bool(value: object, *, field_name: str, default: bool = False) -> bool:
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    raise ValueError(f"{field_name} must be a boolean")
-
-
-def _normalize_review_contract_non_negative_int(value: object, *, field_name: str, default: int = 0) -> int:
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        raise ValueError(f"{field_name} must be an integer")
-    if not isinstance(value, int):
-        raise ValueError(f"{field_name} must be an integer")
-    if value < 0:
-        raise ValueError(f"{field_name} must be >= 0")
-    return value
 
 
 def _normalize_review_contract_conditional_when(value: object, *, field_name: str) -> str:
@@ -356,27 +332,11 @@ def _normalize_review_contract_payload(
             field_name="blocking_conditions",
         ),
         "preflight_checks": preflight_checks,
-        "stage_ids": _normalize_review_contract_string_list(
-            loaded.get("stage_ids"),
-            field_name="stage_ids",
-        ),
         "stage_artifacts": _normalize_review_contract_string_list(
             loaded.get("stage_artifacts"),
             field_name="stage_artifacts",
         ),
         "conditional_requirements": conditional_requirements,
-        "final_decision_output": _normalize_review_contract_optional_str(
-            loaded.get("final_decision_output"),
-            field_name="final_decision_output",
-        ),
-        "requires_fresh_context_per_stage": _normalize_review_contract_bool(
-            loaded.get("requires_fresh_context_per_stage"),
-            field_name="requires_fresh_context_per_stage",
-        ),
-        "max_review_rounds": _normalize_review_contract_non_negative_int(
-            loaded.get("max_review_rounds"),
-            field_name="max_review_rounds",
-        ),
         "required_state": required_state,
     }
 

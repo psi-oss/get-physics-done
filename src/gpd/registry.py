@@ -92,12 +92,8 @@ class ReviewCommandContract:
     required_evidence: list[str]
     blocking_conditions: list[str]
     preflight_checks: list[str]
-    stage_ids: list[str] = field(default_factory=list)
     stage_artifacts: list[str] = field(default_factory=list)
     conditional_requirements: list[ReviewContractConditionalRequirement] = field(default_factory=list)
-    final_decision_output: str = ""
-    requires_fresh_context_per_stage: bool = False
-    max_review_rounds: int = 0
     required_state: str = ""
     schema_version: int = 1
 
@@ -362,7 +358,6 @@ def _review_contract_payload(review_contract: ReviewCommandContract) -> dict[str
         "required_evidence": list(review_contract.required_evidence),
         "blocking_conditions": list(review_contract.blocking_conditions),
         "preflight_checks": list(review_contract.preflight_checks),
-        "stage_ids": list(review_contract.stage_ids),
         "stage_artifacts": list(review_contract.stage_artifacts),
         "conditional_requirements": [
             {
@@ -375,9 +370,6 @@ def _review_contract_payload(review_contract: ReviewCommandContract) -> dict[str
             }
             for requirement in review_contract.conditional_requirements
         ],
-        "final_decision_output": review_contract.final_decision_output,
-        "requires_fresh_context_per_stage": review_contract.requires_fresh_context_per_stage,
-        "max_review_rounds": review_contract.max_review_rounds,
         "required_state": review_contract.required_state,
     }
 
@@ -436,7 +428,6 @@ def _parse_review_contract(raw: object, command_name: str) -> ReviewCommandContr
         required_evidence=list(payload["required_evidence"]),
         blocking_conditions=list(payload["blocking_conditions"]),
         preflight_checks=list(payload["preflight_checks"]),
-        stage_ids=list(payload["stage_ids"]),
         stage_artifacts=list(payload["stage_artifacts"]),
         conditional_requirements=[
             ReviewContractConditionalRequirement(
@@ -449,9 +440,6 @@ def _parse_review_contract(raw: object, command_name: str) -> ReviewCommandContr
             )
             for requirement in payload["conditional_requirements"]
         ],
-        final_decision_output=str(payload["final_decision_output"]),
-        requires_fresh_context_per_stage=bool(payload["requires_fresh_context_per_stage"]),
-        max_review_rounds=int(payload["max_review_rounds"]),
         required_state=str(payload["required_state"]),
         schema_version=int(payload["schema_version"]),
     )

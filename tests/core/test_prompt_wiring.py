@@ -536,15 +536,6 @@ def test_review_commands_expose_typed_contracts() -> None:
     assert "reproducibility_manifest" in peer_review.review_contract.preflight_checks
     assert "reproducibility_ready" in peer_review.review_contract.preflight_checks
     assert "manuscript_proof_review" in peer_review.review_contract.preflight_checks
-    assert peer_review.review_contract.stage_ids == [
-        "reader",
-        "literature",
-        "math",
-        "physics",
-        "interestingness",
-        "meta",
-    ]
-    assert peer_review.review_contract.requires_fresh_context_per_stage is True
     assert peer_review.review_contract.stage_artifacts == [
         "GPD/review/CLAIMS{round_suffix}.json",
         "GPD/review/STAGE-reader{round_suffix}.json",
@@ -575,7 +566,6 @@ def test_review_commands_expose_typed_contracts() -> None:
             "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
         }
     ]
-    assert peer_review.review_contract.final_decision_output == "GPD/review/REFEREE-DECISION{round_suffix}.json"
 
     assert arxiv_submission.review_contract is not None
     assert arxiv_submission.review_contract.review_mode == "publication"
@@ -631,6 +621,13 @@ def test_conditional_review_contract_requirements_do_not_hide_runtime_blockers()
 
     assert peer_review is not None
     assert arxiv_submission is not None
+    for field_name in (
+        "stage_ids",
+        "final_decision_output",
+        "requires_fresh_context_per_stage",
+        "max_review_rounds",
+    ):
+        assert not hasattr(peer_review, field_name)
     assert peer_review.conditional_requirements == [
         registry.ReviewContractConditionalRequirement(
             when="theorem-bearing claims are present",

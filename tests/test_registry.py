@@ -454,43 +454,6 @@ class TestParseCommandFile:
         assert cmd.context_mode == "project-required"
         assert cmd.project_reentry_capable is False
 
-    def test_command_review_contract_rejects_false_string_for_fresh_context(self, tmp_path: Path) -> None:
-        f = tmp_path / "review-contract-false.md"
-        f.write_text(
-            "---\n"
-            "name: gpd:review-contract-false\n"
-            "review-contract:\n"
-            "  review_mode: publication\n"
-            "  schema_version: 1\n"
-            '  requires_fresh_context_per_stage: "false"\n'
-            "---\n"
-            "Body.",
-            encoding="utf-8",
-        )
-
-        with pytest.raises(
-            ValueError,
-            match=r"Invalid review-contract in .*review-contract-false\.md.*requires_fresh_context_per_stage",
-        ):
-            _parse_command_file(f, source="commands")
-
-    def test_command_review_contract_invalid_max_rounds_reports_file_context(self, tmp_path: Path) -> None:
-        f = tmp_path / "review-rounds.md"
-        f.write_text(
-            "---\n"
-            "name: gpd:review-rounds\n"
-            "review-contract:\n"
-            "  review_mode: publication\n"
-            "  schema_version: 1\n"
-            "  max_review_rounds: many\n"
-            "---\n"
-            "Body.",
-            encoding="utf-8",
-        )
-
-        with pytest.raises(ValueError, match=r"Invalid review-contract in .*review-rounds\.md.*max_review_rounds"):
-            _parse_command_file(f, source="commands")
-
     @pytest.mark.parametrize(
         "field_name",
         [
@@ -498,7 +461,6 @@ class TestParseCommandFile:
             "required_evidence",
             "blocking_conditions",
             "preflight_checks",
-            "stage_ids",
             "stage_artifacts",
         ],
     )
@@ -523,7 +485,6 @@ class TestParseCommandFile:
             "required_evidence",
             "blocking_conditions",
             "preflight_checks",
-            "stage_ids",
             "stage_artifacts",
         ],
     )
@@ -572,7 +533,6 @@ class TestParseCommandFile:
             "required_evidence",
             "blocking_conditions",
             "preflight_checks",
-            "stage_ids",
             "stage_artifacts",
         ],
     )
@@ -739,52 +699,27 @@ class TestParseCommandFile:
         ):
             _parse_command_file(f, source="commands")
 
-    def test_command_review_contract_bool_max_rounds_is_rejected(self, tmp_path: Path) -> None:
-        f = _write_review_contract_command(
-            tmp_path,
-            "review-rounds-bool.md",
-            "  max_review_rounds: true\n",
-        )
-
-        with pytest.raises(ValueError, match=r"Invalid review-contract in .*review-rounds-bool\.md.*max_review_rounds"):
-            _parse_command_file(f, source="commands")
-
-    def test_command_review_contract_string_max_rounds_is_rejected(self, tmp_path: Path) -> None:
-        f = _write_review_contract_command(
-            tmp_path,
-            "review-rounds-string.md",
-            '  max_review_rounds: "2"\n',
-        )
-
-        with pytest.raises(
-            ValueError,
-            match=r"Invalid review-contract in .*review-rounds-string\.md.*max_review_rounds",
-        ):
-            _parse_command_file(f, source="commands")
-
-    def test_command_review_contract_float_max_rounds_is_rejected(self, tmp_path: Path) -> None:
-        f = _write_review_contract_command(
-            tmp_path,
-            "review-rounds-float.md",
-            "  max_review_rounds: 1.5\n",
-        )
-
-        with pytest.raises(ValueError, match=r"Invalid review-contract in .*review-rounds-float\.md.*max_review_rounds"):
-            _parse_command_file(f, source="commands")
-
-    @pytest.mark.parametrize("raw_value", ["7", "true"])
-    def test_command_review_contract_final_decision_output_requires_string(
-        self, tmp_path: Path, raw_value: str
+    @pytest.mark.parametrize(
+        "field_name",
+        [
+            "stage_ids",
+            "final_decision_output",
+            "requires_fresh_context_per_stage",
+            "max_review_rounds",
+        ],
+    )
+    def test_command_review_contract_removed_dead_fields_raise_unknown_field_errors(
+        self, tmp_path: Path, field_name: str
     ) -> None:
         f = _write_review_contract_command(
             tmp_path,
-            f"final-decision-output-{raw_value}.md",
-            f"  final_decision_output: {raw_value}\n",
+            f"removed-{field_name}.md",
+            f"  {field_name}: legacy-value\n",
         )
 
         with pytest.raises(
             ValueError,
-            match=rf"Invalid review-contract in .*final-decision-output-{raw_value}\.md.*final_decision_output",
+            match=rf"Invalid review-contract in .*removed-{field_name}\.md.*Unknown review-contract field\(s\):",
         ):
             _parse_command_file(f, source="commands")
 

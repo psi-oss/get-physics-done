@@ -50,13 +50,6 @@ review-contract:
     - "reproducibility_manifest"
     - "reproducibility_ready"
     - "manuscript_proof_review"
-  stage_ids:
-    - "reader"
-    - "literature"
-    - "math"
-    - "physics"
-    - "interestingness"
-    - "meta"
   stage_artifacts:
     - "GPD/review/CLAIMS{round_suffix}.json"
     - "GPD/review/STAGE-reader{round_suffix}.json"
@@ -72,9 +65,6 @@ review-contract:
         - "GPD/review/PROOF-REDTEAM{round_suffix}.md"
       stage_artifacts:
         - "GPD/review/PROOF-REDTEAM{round_suffix}.md"
-  final_decision_output: "GPD/review/REFEREE-DECISION{round_suffix}.json"
-  requires_fresh_context_per_stage: true
-  max_review_rounds: 3
 allowed-tools:
   - file_read
   - file_write

@@ -29,6 +29,7 @@ from gpd.core.reproducibility import compute_sha256
 from gpd.core.state import StateUpdateResult, default_state_dict, generate_state_markdown
 from tests.manuscript_test_support import (
     CANONICAL_MANUSCRIPT_STEM,
+    write_proof_review_package,
 )
 from tests.manuscript_test_support import (
     manuscript_path as canonical_manuscript_path,
@@ -1419,14 +1420,6 @@ class TestReviewValidationCommands:
         assert "manuscript-root artifact manifest" in payload["review_contract"]["required_evidence"]
         assert "manuscript-root reproducibility manifest" in payload["review_contract"]["required_evidence"]
         assert "manuscript-root publication artifacts" in payload["review_contract"]["required_evidence"]
-        assert payload["review_contract"]["stage_ids"] == [
-            "reader",
-            "literature",
-            "math",
-            "physics",
-            "interestingness",
-            "meta",
-        ]
         assert payload["review_contract"]["stage_artifacts"] == [
             "GPD/review/CLAIMS{round_suffix}.json",
             "GPD/review/STAGE-reader{round_suffix}.json",
@@ -1447,8 +1440,10 @@ class TestReviewValidationCommands:
                 "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
             }
         ]
-        assert payload["review_contract"]["final_decision_output"] == "GPD/review/REFEREE-DECISION{round_suffix}.json"
-        assert payload["review_contract"]["requires_fresh_context_per_stage"] is True
+        assert "stage_ids" not in payload["review_contract"]
+        assert "final_decision_output" not in payload["review_contract"]
+        assert "requires_fresh_context_per_stage" not in payload["review_contract"]
+        assert "max_review_rounds" not in payload["review_contract"]
 
     def test_review_contract_accepts_public_command_label(self) -> None:
         result = runner.invoke(
@@ -2175,7 +2170,7 @@ class TestReviewValidationCommands:
     def test_review_preflight_write_paper_strict(self) -> None:
         result = runner.invoke(
             app,
-            ["--raw", "validate", "review-preflight", "write-paper", "--strict"],
+            ["--raw", "--cwd", str(gpd_project), "validate", "review-preflight", "write-paper", "--strict"],
             catch_exceptions=False,
         )
 
@@ -2217,16 +2212,11 @@ class TestReviewValidationCommands:
         self,
         gpd_project: Path,
     ) -> None:
-        _write_review_stage_artifacts(
-            gpd_project,
-            artifact_names=("STAGE-math.json",),
-            proof_bearing=True,
-            write_proof_redteam=False,
-        )
+        write_proof_review_package(gpd_project, theorem_bearing=True, review_report=False)
 
         result = runner.invoke(
             app,
-            ["--raw", "validate", "review-preflight", "write-paper"],
+            ["--raw", "--cwd", str(gpd_project), "validate", "review-preflight", "write-paper"],
             catch_exceptions=False,
         )
 
@@ -2237,6 +2227,10 @@ class TestReviewValidationCommands:
         assert checks["manuscript_proof_review"]["blocking"] is False
         assert "PROOF-REDTEAM.md" in checks["manuscript_proof_review"]["detail"]
         assert "write-paper will run its own staged proof-review loop" in checks["manuscript_proof_review"]["detail"]
+        assert any(
+            requirement["when"] == "theorem-bearing claims are present"
+            for requirement in payload["active_conditional_requirements"]
+        )
 
     def test_review_preflight_write_paper_reports_theorem_bearing_claim_inventory_without_blocking(
         self,
@@ -2443,6 +2437,7 @@ class TestReviewValidationCommands:
         payload = json.loads(result.output)
         assert payload["command"] == "gpd:write-paper"
         assert payload["passed"] is True
+        assert payload["active_conditional_requirements"] == []
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["manuscript"]["passed"] is True
         assert "fresh bootstrap is allowed" in checks["manuscript"]["detail"]
