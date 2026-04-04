@@ -665,7 +665,7 @@ def test_public_descriptors_surface_contract_and_optional_dependency_visibility(
     descriptors = build_public_descriptors()
 
     verification = descriptors["gpd-verification"]
-    assert "structured request objects or schema_version=1 contract payloads" in verification["description"]
+    assert "contract payloads whose `schema_version` is required and must equal `1`" in verification["description"]
     assert "required_request_fields" in verification["description"]
     assert "optional_request_fields" in verification["description"]
     assert "request_template" in verification["description"]
@@ -790,7 +790,7 @@ def test_public_verification_infra_descriptor_surfaces_semantic_contract_rules()
     )
 
     description = descriptor["description"]
-    assert "structured request objects or schema_version=1 contract payloads" in description
+    assert "contract payloads whose `schema_version` is required and must equal `1`" in description
     assert "required_request_fields" in description
     assert "optional_request_fields" in description
     assert "request_template" in description

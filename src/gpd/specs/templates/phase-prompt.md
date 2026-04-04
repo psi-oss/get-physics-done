@@ -63,6 +63,7 @@ approximations:
     check: "verification that guards the approximation"
 
 contract:
+  schema_version: 1
   scope:
     question: "[The decisive question this plan advances]"
   context_intake:
@@ -243,6 +244,7 @@ dimensional_check:
   Pi_munu: "[mass^2]"
 
 contract:
+  schema_version: 1
   scope:
     question: What benchmark must this plan recover?
   context_intake:

@@ -1905,13 +1905,9 @@ def _recent_project_recovery_view(row: dict[str, object]) -> dict[str, str] | No
         "recovery_note": _resume_status_message(public_payload, recovery_advice=advice),
     }
     primary_resume_file = _resume_surface_value(public_payload, "active_resume_pointer")
-    if not isinstance(primary_resume_file, str) or not primary_resume_file.strip():
-        primary_resume_file = _resume_surface_value(public_payload, "execution_resume_file")
     if isinstance(primary_resume_file, str) and primary_resume_file.strip():
         view["recovery_target"] = _format_display_path(primary_resume_file.strip())
     execution_source = _resume_surface_value(public_payload, "active_resume_origin")
-    if not isinstance(execution_source, str) or not execution_source.strip():
-        execution_source = _resume_surface_value(public_payload, "execution_resume_file_source")
     public_origin = _public_resume_origin_family(execution_source, active_execution=None, current_execution=None)
     if public_origin is not None:
         view["recovery_origin"] = _resume_origin_label(public_origin)
@@ -1954,8 +1950,6 @@ def _resume_augmented_payload(payload: dict[str, object], *, cwd: Path | None = 
         current_execution_raw = derived_execution_head or active_execution_segment
     current_execution = current_execution_raw if isinstance(current_execution_raw, dict) else None
     active_resume_kind = public_payload.get("active_resume_kind")
-    if not isinstance(active_resume_kind, str) or not active_resume_kind.strip():
-        active_resume_kind = _resume_surface_value(public_payload, "resume_mode")
     if isinstance(active_resume_kind, str) and active_resume_kind.strip():
         active_resume_kind = _resume_candidate_canonical_kind({"kind": active_resume_kind})
     segment_candidates = _resume_visible_candidates(public_payload)
@@ -1977,7 +1971,6 @@ def _resume_augmented_payload(payload: dict[str, object], *, cwd: Path | None = 
     if isinstance(active_resume_origin, str) and active_resume_origin.strip():
         public_active_origin = _public_resume_origin_family(
             active_resume_origin,
-            source=_resume_surface_value(public_payload, "execution_resume_file_source"),
             active_execution=active_execution,
             current_execution=current_execution,
         )
@@ -2118,8 +2111,6 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
     summary.add_row("Status", _resume_status_message(public_payload, recovery_advice=recovery_advice))
     summary.add_row("Recovery", _resume_status_label(recovery_advice.status))
     active_resume_kind = public_payload.get("active_resume_kind")
-    if not isinstance(active_resume_kind, str) or not active_resume_kind.strip():
-        active_resume_kind = _resume_surface_value(public_payload, "resume_mode")
     if isinstance(active_resume_kind, str) and active_resume_kind.strip():
         active_resume_kind = _resume_candidate_canonical_kind({"kind": active_resume_kind})
     summary.add_row("Primary resume kind", _resume_mode_label(active_resume_kind))
@@ -2133,8 +2124,6 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
         summary.add_row("Paused at", paused_at.strip())
 
     primary_resume_file = _resume_surface_value(public_payload, "active_resume_pointer")
-    if not isinstance(primary_resume_file, str) or not primary_resume_file.strip():
-        primary_resume_file = _resume_surface_value(public_payload, "execution_resume_file")
     if isinstance(primary_resume_file, str) and primary_resume_file.strip():
         summary.add_row("Primary pointer", _format_display_path(primary_resume_file.strip()))
 
@@ -2163,8 +2152,6 @@ def _render_resume_summary(payload: dict[str, object]) -> None:
         if isinstance(blocked_reason, str) and blocked_reason.strip():
             notices.append(f"Execution is blocked: {blocked_reason.strip()}")
     missing_continuity_handoff = _resume_surface_value(public_payload, "missing_continuity_handoff_file")
-    if not isinstance(missing_continuity_handoff, str) or not missing_continuity_handoff.strip():
-        missing_continuity_handoff = _resume_surface_value(public_payload, "missing_session_resume_file")
     if isinstance(missing_continuity_handoff, str) and missing_continuity_handoff.strip():
         notices.append(
             "Projected continuity handoff is missing: "
@@ -6451,6 +6438,8 @@ def _build_review_preflight(
     if phase_subject is None and "phase_artifacts" in contract.preflight_checks:
         phase_subject = _current_review_phase_subject(project_cwd)
     phase_info = find_phase(project_cwd, phase_subject) if phase_subject and "phase_artifacts" in contract.preflight_checks else None
+    manuscript: Path | None = None
+    active_conditional_requirements: list[ReviewContractConditionalRequirement] = []
 
     def add_check(name: str, passed: bool, detail: str, *, blocking: bool | None = None) -> None:
         checks.append(
@@ -7033,14 +7022,6 @@ def _build_review_preflight(
     required_state_check = _evaluate_review_required_state(contract, cwd=cwd, subject=subject, phase_info=phase_info)
     if required_state_check is not None:
         add_check("required_state", required_state_check[0], required_state_check[1], blocking=True)
-
-    active_conditional_requirements: list[ReviewContractConditionalRequirement] = []
-    if manuscript is not None and public_command_name in {"gpd:peer-review", "gpd:write-paper", "gpd:arxiv-submission"}:
-        active_conditional_requirements = _review_contract_active_conditional_requirements(
-            contract,
-            project_cwd=project_cwd,
-            manuscript=manuscript,
-        )
 
     passed = all(check.passed or not check.blocking for check in checks)
     return ReviewPreflightResult(

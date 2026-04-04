@@ -569,6 +569,50 @@ def test_build_runtime_hint_payload_auto_selected_bounded_segment_recent_project
     assert any("suggest-next" in action for action in payload.next_actions)
 
 
+def test_build_runtime_hint_payload_recent_missing_handoff_stays_non_auto_selected_and_does_not_invent_local_pointer(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "outside"
+    workspace.mkdir()
+    project = _bootstrap_recoverable_project(tmp_path / "project-root")
+    data_root = tmp_path / "data"
+
+    record_recent_project(
+        project,
+        session_data={
+            "last_date": "2026-03-27T11:55:00+00:00",
+            "stopped_at": "Phase 05",
+            "resume_file": "GPD/phases/05/.continue-here.md",
+        },
+        store_root=data_root,
+    )
+
+    payload = build_runtime_hint_payload(
+        workspace,
+        data_root=data_root,
+        base_ready=True,
+        latex_capability=_latex_capability(),
+    )
+
+    assert payload.recovery["project_reentry"]["mode"] == "recent-projects"
+    assert payload.recovery["project_reentry"]["auto_selected"] is False
+    assert payload.recovery["project_reentry"]["candidates"][0]["resume_file_available"] is False
+    assert payload.recovery["project_reentry"]["candidates"][0]["resume_file_reason"] == "resume file missing"
+    assert payload.orientation["decision_source"] == "recent-projects"
+    assert payload.orientation["mode"] == "recent-projects"
+    assert payload.orientation["status"] == "recent-projects"
+    assert payload.orientation["active_resume_kind"] is None
+    assert payload.orientation["active_resume_origin"] is None
+    assert payload.orientation["active_resume_pointer"] is None
+    assert payload.orientation["continuity_handoff_file"] is None
+    assert payload.orientation["missing_continuity_handoff_file"] is None
+    assert payload.orientation["has_continuity_handoff"] is False
+    assert payload.orientation["has_local_recovery_target"] is False
+    assert payload.orientation["current_workspace_resumable"] is False
+    assert payload.orientation["primary_command"] == "gpd resume --recent"
+    assert "resume-work" in str(payload.orientation["continue_command"])
+
+
 def test_build_runtime_hint_payload_prefers_selected_project_resume_state_for_auto_selected_recent_project(
     tmp_path: Path,
 ) -> None:

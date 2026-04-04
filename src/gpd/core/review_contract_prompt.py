@@ -372,7 +372,7 @@ def render_review_contract_prompt(review_contract: object) -> str:
     ).rstrip()
     return (
         "## Review Contract\n\n"
-        "This command is enforced against the following hard review contract. "
+        "The model sees the following review contract, and command preflight/validation use the same structure. "
         "Satisfy it directly in the generated artifacts.\n\n"
         f"```yaml\n{rendered}\n```"
     )

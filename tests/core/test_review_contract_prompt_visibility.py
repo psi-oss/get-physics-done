@@ -70,12 +70,18 @@ def test_review_grade_commands_prepend_model_visible_review_contract_to_registry
 
         assert contract is not None
         expected_section = render_review_contract_prompt(dataclasses.asdict(contract))
-        assert command.content.startswith(expected_section)
-        assert command.content.startswith("## Review Contract\n")
+        if command.requires:
+            assert command.content.startswith("## Command Requirements\n")
+            assert "## Command Requirements" in command.content
+            assert "requires:" in command.content
+            assert "The following launch requirements are enforced before this command runs." in command.content
+        else:
+            assert command.content.startswith("## Review Contract\n")
         assert "## Review Contract" in command.content
+        assert expected_section in command.content
         assert "review_contract:" in command.content
+        assert "The model sees the following review contract" in expected_section
         assert f"review_mode: {contract.review_mode}" in expected_section
-        assert expected_section == command.content[: len(expected_section)]
         for output in contract.required_outputs:
             assert output in expected_section
         for artifact in contract.stage_artifacts:
@@ -90,6 +96,14 @@ def test_review_grade_commands_prepend_model_visible_review_contract_to_registry
                 assert blocker in expected_section
             for artifact in conditional.stage_artifacts:
                 assert artifact in expected_section
+        if command.requires:
+            for require_key, require_value in command.requires.items():
+                assert str(require_key) in command.content
+                if isinstance(require_value, list):
+                    for item in require_value:
+                        assert str(item) in command.content
+                else:
+                    assert str(require_value) in command.content
 
 
 def test_review_contract_renderer_rejects_unknown_keys() -> None:

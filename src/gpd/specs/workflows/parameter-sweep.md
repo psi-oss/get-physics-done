@@ -171,6 +171,7 @@ files_modified:
   - ${SWEEP_PHASE_DIR}/sweep-{PADDED_INDEX}-SUMMARY.md
   - ${SWEEP_ARTIFACT_DIR}/results/point-{PADDED_INDEX}.json
 contract:
+  schema_version: 1
   scope:
     question: "What does {observable} evaluate to at {param_name}={p_i}?"
   context_intake:

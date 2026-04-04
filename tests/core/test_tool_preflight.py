@@ -55,6 +55,7 @@ def test_build_plan_tool_preflight_without_requirements_passes(tmp_path: Path) -
         "  metric: (+,-,-,-)\n"
         "  coordinates: Cartesian\n"
         "contract:\n"
+        "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
         "  context_intake:\n"
@@ -139,6 +140,7 @@ def test_build_plan_tool_preflight_reports_missing_wolfram(monkeypatch: pytest.M
         "  metric: (+,-,-,-)\n"
         "  coordinates: Cartesian\n"
         "contract:\n"
+        "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
         "  context_intake:\n"
@@ -218,6 +220,7 @@ def test_build_plan_tool_preflight_reports_configured_shared_wolfram_integration
         "  metric: (+,-,-,-)\n"
         "  coordinates: Cartesian\n"
         "contract:\n"
+        "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
         "  context_intake:\n"
@@ -302,6 +305,7 @@ def test_build_plan_tool_preflight_respects_project_local_wolfram_disable_overri
         "  metric: (+,-,-,-)\n"
         "  coordinates: Cartesian\n"
         "contract:\n"
+        "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
         "  context_intake:\n"
@@ -383,6 +387,7 @@ def test_build_plan_tool_preflight_reports_invalid_project_wolfram_config_as_mis
         "  metric: (+,-,-,-)\n"
         "  coordinates: Cartesian\n"
         "contract:\n"
+        "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
         "  context_intake:\n"
@@ -471,6 +476,7 @@ def test_build_plan_tool_preflight_uses_project_root_integrations_config_for_nes
         "  metric: (+,-,-,-)\n"
         "  coordinates: Cartesian\n"
         "contract:\n"
+        "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
         "  context_intake:\n"
@@ -533,7 +539,7 @@ def test_build_plan_tool_preflight_parses_quoted_command_executables_with_spaces
         lambda name: executable if name == executable else None,
     )
     plan_path = tmp_path / "01-07-PLAN.md"
-    plan_path.write_text("---\nphase: 01-test\nplan: 07\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  scope:\n    question: q\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
+    plan_path.write_text("---\nphase: 01-test\nplan: 07\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
     requirements = parse_plan_tool_requirements(
         [
             {
@@ -577,6 +583,7 @@ def test_build_plan_tool_preflight_optional_missing_tool_without_fallback_stays_
         "  metric: (+,-,-,-)\n"
         "  coordinates: Cartesian\n"
         "contract:\n"
+        "  schema_version: 1\n"
         "  scope:\n"
         "    question: What benchmark must this plan recover?\n"
         "  context_intake:\n"

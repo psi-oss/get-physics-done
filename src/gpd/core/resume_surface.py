@@ -383,15 +383,10 @@ def _resume_candidate_exposes_local_target(candidate: Mapping[str, object]) -> b
     return isinstance(resume_file, str) and bool(resume_file.strip())
 
 
-def resume_payload_has_local_recovery_target(
-    payload: Mapping[str, object] | None,
-    *,
-    compat_surface: Mapping[str, object] | None = None,
-) -> bool:
+def resume_payload_has_local_recovery_target(payload: Mapping[str, object] | None) -> bool:
     """Return whether one resume payload already exposes a local recovery target."""
     if not isinstance(payload, Mapping):
         return False
-    _ = compat_surface
     active_resume_kind = lookup_resume_surface_text(
         payload,
         "active_resume_kind",

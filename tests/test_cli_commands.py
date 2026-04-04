@@ -747,7 +747,7 @@ class TestStateCommands:
         assert payload["valid"] is False
         assert any("weakest_anchors" in error for error in payload["errors"])
 
-    def test_set_project_contract_rejects_singleton_list_drift(self, gpd_project: Path) -> None:
+    def test_set_project_contract_rejects_singleton_list_drift_at_write_boundary(self, gpd_project: Path) -> None:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["context_intake"]["must_read_refs"] = "ref-benchmark"
         contract_path = gpd_project / "invalid-contract.json"
@@ -761,8 +761,11 @@ class TestStateCommands:
 
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
-        assert payload["valid"] is False
-        assert "context_intake.must_read_refs must be a list, not str" in payload["errors"]
+        assert payload["updated"] is False
+        assert (
+            payload["reason"]
+            == "Invalid project contract schema: context_intake.must_read_refs must be a list, not str"
+        )
         assert payload["warnings"] == []
         state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
         assert state["project_contract"] is None

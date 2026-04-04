@@ -12,6 +12,7 @@ from gpd.core.context import (
     _generate_slug,
     _is_phase_complete,
     _load_project_contract,
+    _merge_active_references,
     _merge_reference_intake,
     _normalize_phase_name,
     _should_skip_research_scan_entry,
@@ -1264,6 +1265,45 @@ class TestInitPlanPhase:
         )
 
         assert intake["must_read_refs"] == ["shared-token", "ref-a"]
+
+    def test_merge_active_references_keeps_must_surface_strictly_boolean(self) -> None:
+        contract_references = [
+            {
+                "id": "ref-benchmark",
+                "locator": "Benchmark Ref 2024",
+                "role": "benchmark",
+                "why_it_matters": "Published comparison target",
+                "required_actions": ["read", "compare", "cite"],
+                "applies_to": ["claim-benchmark"],
+                "carry_forward_to": [],
+                "source_artifacts": [],
+                "aliases": [],
+                "must_surface": "optional",
+            }
+        ]
+        derived_references = [
+            {
+                "id": "ref-benchmark",
+                "locator": "Benchmark Ref 2024",
+                "role": "benchmark",
+                "why_it_matters": "Derived metadata",
+                "required_actions": ["read"],
+                "applies_to": ["claim-benchmark"],
+                "carry_forward_to": ["writing"],
+                "source_artifacts": ["GPD/research-map/REFERENCES.md"],
+                "aliases": ["benchmark-paper"],
+                "must_surface": "no",
+            }
+        ]
+
+        merged = _merge_active_references(contract_references, derived_references)
+        ref = next(item for item in merged if item["id"] == "ref-benchmark")
+
+        assert ref["must_surface"] is False
+        assert isinstance(ref["must_surface"], bool)
+        assert ref["required_actions"] == ["read", "compare", "cite"]
+        assert ref["carry_forward_to"] == ["writing"]
+        assert ref["aliases"] == ["benchmark-paper"]
 
     def test_keeps_project_contract_references_raw_and_surfaces_derived_reference_fields(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

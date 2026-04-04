@@ -570,6 +570,7 @@ class TestValidateFrontmatter:
             "  metric: (+,-,-,-)\n"
             "  coordinates: Cartesian\n"
             "contract:\n"
+            "  schema_version: 1\n"
             "  scope:\n"
             "    question: What benchmark must this plan recover?\n"
             "  context_intake:\n"

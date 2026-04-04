@@ -382,6 +382,24 @@ def render_review_contract_section(review_contract: ReviewCommandContract | None
     return render_review_contract_prompt(_review_contract_payload(review_contract))
 
 
+def render_command_requires_section(requires: dict[str, object]) -> str:
+    """Render model-visible launch requirements from command frontmatter."""
+
+    if not requires:
+        return ""
+    rendered = yaml.safe_dump(
+        {"requires": requires},
+        sort_keys=False,
+        allow_unicode=False,
+    ).rstrip()
+    return (
+        "## Command Requirements\n\n"
+        "The following launch requirements are enforced before this command runs. "
+        "Plan around them directly in the work you produce.\n\n"
+        f"```yaml\n{rendered}\n```"
+    )
+
+
 def render_review_contract_section_from_frontmatter(frontmatter: str, *, command_name: str) -> str:
     """Render a canonical review-contract section from raw command frontmatter."""
 
@@ -401,15 +419,20 @@ def render_review_contract_section_from_frontmatter(frontmatter: str, *, command
     return render_review_contract_section(review_contract)
 
 
-def _command_model_content(body: str, review_contract: ReviewCommandContract | None) -> str:
+def _command_model_content(body: str, review_contract: ReviewCommandContract | None, requires: dict[str, object]) -> str:
     """Return the model-visible command body, including enforced review contracts."""
 
+    sections: list[str] = []
+    if review_contract is not None:
+        requires_section = render_command_requires_section(requires)
+        if requires_section:
+            sections.append(requires_section)
     review_section = render_review_contract_section(review_contract)
-    if not review_section:
-        return body
-    if not body:
-        return review_section
-    return f"{review_section}\n\n{body}"
+    if review_section:
+        sections.append(review_section)
+    if body:
+        sections.append(body)
+    return "\n\n".join(sections)
 
 
 def _parse_review_contract(raw: object, command_name: str) -> ReviewCommandContract | None:
@@ -558,7 +581,7 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         requires=requires,
         allowed_tools=allowed_tools,
         review_contract=review_contract,
-        content=_command_model_content(body, review_contract),
+        content=_command_model_content(body, review_contract, requires),
         path=str(path),
         source=source,
     )

@@ -312,7 +312,7 @@ def _hydrate_resume_context_from_recent_project(
         hydrated["active_resume_kind"] = hydration_kind
     if not str(hydrated.get("active_resume_origin") or "").strip():
         hydrated["active_resume_origin"] = hydration_origin
-    if not str(hydrated.get("active_resume_pointer") or "").strip():
+    if resume_file_available and not str(hydrated.get("active_resume_pointer") or "").strip():
         hydrated["active_resume_pointer"] = resume_file
     if hydration_kind == RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF and resume_file_available:
         if not str(hydrated.get("continuity_handoff_file") or "").strip():

@@ -468,6 +468,11 @@ def _resolve_reference_token(
     return token_to_id.get(token_key, token_text)
 
 
+def _must_surface_flag(value: object) -> bool:
+    """Return a strict must-surface flag without truthy string coercion."""
+    return type(value) is bool and value
+
+
 def _merge_reference_record(merged: dict[str, dict[str, object]], ref: dict[str, object]) -> None:
     """Merge one active-reference record into the merged registry."""
     ref_id = str(ref.get("id") or "").strip()
@@ -501,6 +506,7 @@ def _merge_reference_record(merged: dict[str, dict[str, object]], ref: dict[str,
         payload["carry_forward_to"] = list(ref.get("carry_forward_to") or [])
         payload["source_artifacts"] = list(ref.get("source_artifacts") or [])
         payload["aliases"] = list(ref.get("aliases") or [])
+        payload["must_surface"] = _must_surface_flag(ref.get("must_surface"))
         if ref_id:
             merged[ref_id] = payload
         else:
@@ -524,7 +530,9 @@ def _merge_reference_record(merged: dict[str, dict[str, object]], ref: dict[str,
     _append_unique_strings(target.setdefault("carry_forward_to", []), list(ref.get("carry_forward_to") or []))
     _append_unique_strings(target.setdefault("source_artifacts", []), list(ref.get("source_artifacts") or []))
     _append_unique_strings(target.setdefault("aliases", []), list(ref.get("aliases") or []))
-    target["must_surface"] = bool(target.get("must_surface") or ref.get("must_surface"))
+    target["must_surface"] = _must_surface_flag(target.get("must_surface")) or _must_surface_flag(
+        ref.get("must_surface")
+    )
 
 
 def _merge_active_references(
