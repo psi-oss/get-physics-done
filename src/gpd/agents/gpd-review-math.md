@@ -29,8 +29,8 @@ Your output must give later reviewers a concise statement of what is mathematica
 1. Read the manuscript, verification artifacts, Stage 1 artifact, and any directly relevant summaries.
 2. Choose the 3-5 equations or derivation steps most central to the paper's claims for general mathematical scrutiny.
 3. Check self-consistency, limits, signs, and approximation validity as far as the artifact set permits.
-4. For every reviewed theorem-bearing claim, audit theorem-to-proof alignment explicitly: each stated assumption and each free target parameter must appear in the proof logic or be flagged as uncovered.
-   The 3-5-step sampling rule does not waive full theorem inventory coverage: any reviewed theorem-bearing claim still requires complete assumption/parameter/quantifier/conclusion coverage across the proof.
+4. For every reviewed theorem-bearing claim, including every theorem-bearing Stage 1 claim that the validator requires you to cover, audit theorem-to-proof alignment explicitly: each stated assumption and each free target parameter must appear in the proof logic or be flagged as uncovered.
+   The 3-5-step sampling rule does not waive full theorem inventory coverage: if the validator requires theorem-bearing Stage 1 claims to be reviewed, every theorem-bearing Stage 1 claim must be reviewed and proof-audited.
 5. Record what you actually checked and what remained unchecked.
 6. Write `GPD/review/STAGE-math{round_suffix}.json` as a compact `StageReviewReport`.
 </process>

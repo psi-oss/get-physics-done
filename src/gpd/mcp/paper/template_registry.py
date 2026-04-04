@@ -13,7 +13,7 @@ from importlib.resources import files
 
 from jinja2 import BaseLoader, Environment, TemplateNotFound
 
-from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
+from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section, _strip_legacy_label_prefixes
 from gpd.utils.latex import clean_latex_fences, fix_bibliography_conflict, sanitize_latex
 
 logger = logging.getLogger(__name__)
@@ -77,12 +77,18 @@ def _clean_section(section: Section) -> Section:
         update={
             "title": clean_latex_fences(section.title),
             "content": clean_latex_fences(section.content),
+            "label": _strip_legacy_label_prefixes(section.label),
         }
     )
 
 
 def _clean_figure(figure: FigureRef) -> FigureRef:
-    return figure.model_copy(update={"caption": clean_latex_fences(figure.caption)})
+    return figure.model_copy(
+        update={
+            "caption": clean_latex_fences(figure.caption),
+            "label": _strip_legacy_label_prefixes(figure.label),
+        }
+    )
 
 
 def render_paper(config: PaperConfig) -> str:

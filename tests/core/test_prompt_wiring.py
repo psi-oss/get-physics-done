@@ -1614,6 +1614,13 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     assert '"journal": "prl"' in paper_config_schema
     assert '"authors"' in paper_config_schema
     assert '"sections"' in paper_config_schema
+    assert '"content": "State the problem, stakes, and contract-backed claim."' in paper_config_schema
+    assert '"label": "intro"' in paper_config_schema
+    assert '"label": "benchmark"' in paper_config_schema
+    assert '"label": "derivation"' in paper_config_schema
+    assert "`content` is the section body only" in paper_config_schema
+    assert "`label` values are stored bare" in paper_config_schema
+    assert "renderer adds the `sec:` / `fig:` prefix" in paper_config_schema
     assert "XX-YY-SUMMARY.md" in contract_results_schema
     assert "XX-VERIFICATION.md" in contract_results_schema
     assert "Must be the canonical project-root-relative `GPD/phases/XX-name/XX-YY-PLAN.md#/contract` path" in contract_results_schema
@@ -1789,6 +1796,7 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "GPD/review/STAGE-math{round_suffix}.json" in review_math
     assert "GPD/review/STAGE-physics{round_suffix}.json" in review_physics
     assert "GPD/review/STAGE-interestingness{round_suffix}.json" in review_significance
+    assert "every theorem-bearing Stage 1 claim must be reviewed and proof-audited" in review_math
     assert "Required schema for `STAGE-math{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):" in review_math
     assert "Required schema for `STAGE-physics{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):" in review_physics
     assert (

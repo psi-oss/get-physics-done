@@ -690,6 +690,7 @@ def test_referee_schema_and_panel_surface_strict_stage_artifact_naming_and_round
     referee_schema = (TEMPLATES_DIR / "paper" / "referee-decision-schema.md").read_text(encoding="utf-8")
     review_ledger_schema = (TEMPLATES_DIR / "paper" / "review-ledger-schema.md").read_text(encoding="utf-8")
     panel = (REFERENCES_DIR / "publication" / "peer-review-panel.md").read_text(encoding="utf-8")
+    review_math = (AGENTS_DIR / "gpd-review-math.md").read_text(encoding="utf-8")
 
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in referee_schema
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in referee_schema
@@ -709,6 +710,8 @@ def test_referee_schema_and_panel_surface_strict_stage_artifact_naming_and_round
     assert "theorem_parameters" in panel
     assert "Strict-stage specialist artifacts must use canonical names `STAGE-reader`, `STAGE-literature`, `STAGE-math`, `STAGE-physics`, `STAGE-interestingness`." in panel
     assert "all five must share the same optional `-R<round>` suffix." in panel
+    assert "every theorem-bearing Stage 1 claim must be reviewed and proof-audited" in panel
+    assert "every theorem-bearing Stage 1 claim must be reviewed and proof-audited" in review_math
 
 
 def test_executor_completion_reference_requires_loading_contract_schema_before_summary_frontmatter() -> None:

@@ -97,7 +97,7 @@ def test_build_artifact_manifest_captures_tex_and_optional_bib(tmp_path) -> None
     config = PaperConfig(
         title="Test Paper",
         authors=[Author(name="Test Author", affiliation="Test Univ")],
-        abstract="",
+        abstract="Abstract text.",
         sections=[Section(title="Intro", content="Content")],
         journal="mnras",
     )
@@ -194,7 +194,7 @@ def test_build_artifact_manifest_preserves_absolute_source_paths(tmp_path) -> No
     config = PaperConfig(
         title="Portable Manifest",
         authors=[Author(name="Test Author", affiliation="Test Univ")],
-        abstract="",
+        abstract="Abstract text.",
         sections=[Section(title="Intro", content="Content")],
         journal="jhep",
     )

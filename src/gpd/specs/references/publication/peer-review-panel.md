@@ -58,6 +58,7 @@ Agent: `gpd-review-math`
 
 Goal:
 - Check key equations, derivation integrity, theorem-to-proof alignment, self-consistency, limits, sign conventions, and verification coverage.
+- If the validator requires theorem-bearing Stage 1 claims to be reviewed, do not sample only a subset: every theorem-bearing Stage 1 claim must be reviewed and proof-audited.
 
 Output:
 - `GPD/review/STAGE-math{round_suffix}.json`
@@ -200,6 +201,7 @@ Additionally:
 - The filename `STAGE-<stage_id>{round_suffix}.json` and the JSON `round` field must agree: unsuffixed first-round artifacts use `round: 1`, and `-R<round>` filenames must use that same integer in `round`.
 - For Stages 2-5, `manuscript_path` and `manuscript_sha256` must exactly match the sibling `CLAIMS{round_suffix}.json` claim index for the same round.
 - In Stage 3, every reviewed theorem-bearing Stage 1 claim must receive exactly one `proof_audits[]` entry. Treat theorem-bearing status from the full Stage 1 claim record, not only from non-empty `theorem_assumptions` / `theorem_parameters` arrays: theorem-style `claim_kind` values and theorem-like statement text still require proof audits even when extraction is incomplete. Missing proof audits, extra audits for unreviewed claims, or repeated `claim_id` values are contract failures, not soft omissions.
+- If the validator requires theorem-bearing Stage 1 claims to be reviewed, every such claim must appear in `claims_reviewed` before the stage is considered complete.
 - In Stage 3, any uncovered theorem assumption, uncovered theorem parameter, or explicit theorem-to-proof mismatch caps `recommendation_ceiling` at `major_revision` or `reject`.
 - Every nested `ReviewFinding.issue_id` must match `REF-[A-Za-z0-9][A-Za-z0-9_-]*`.
 

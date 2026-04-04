@@ -27,20 +27,20 @@ Create this JSON before asking the builder to emit `${PAPER_DIR}/{topic_specific
   "sections": [
     {
       "heading": "Introduction",
-      "content": "\\\\section{Introduction}\\nState the problem, stakes, and contract-backed claim.",
-      "label": "sec:intro"
+      "content": "State the problem, stakes, and contract-backed claim.",
+      "label": "intro"
     },
     {
       "heading": "Results",
-      "content": "\\\\section{Results}\\nPresent the decisive benchmark comparison and uncertainty bounds.",
-      "label": "sec:results"
+      "content": "Present the decisive benchmark comparison and uncertainty bounds.",
+      "label": "results"
     }
   ],
   "figures": [
     {
       "path": "figures/benchmark.pdf",
       "caption": "Benchmark comparison with uncertainty bands.",
-      "label": "fig:benchmark",
+      "label": "benchmark",
       "width": "\\\\columnwidth",
       "double_column": false
     }
@@ -52,8 +52,8 @@ Create this JSON before asking the builder to emit `${PAPER_DIR}/{topic_specific
   "appendix_sections": [
     {
       "heading": "Supplementary Derivation",
-      "content": "\\\\section{Supplementary Derivation}\\nDetailed algebra moved out of the main text.",
-      "label": "app:derivation"
+      "content": "Detailed algebra moved out of the main text.",
+      "label": "derivation"
     }
   ],
   "attribution_footer": "Generated with Get Physics Done"
@@ -81,6 +81,8 @@ Optional:
 Notes:
 
 - The builder also accepts `title` in place of `heading`, but prefer `heading` in JSON examples and generated specs so the intent is obvious.
+- `content` is the section body only. The renderer adds the surrounding `\\section{...}` heading and any `\\label{sec:...}` prefix.
+- `label` values are stored bare, such as `intro` or `benchmark`; the renderer adds the `sec:` / `fig:` prefix.
 - `content` should already be valid LaTeX prose/equations, not a placeholder like `"TODO"`.
 
 ## Figure Objects
@@ -95,6 +97,10 @@ Optional:
 
 - `width`: LaTeX width string, default `\\columnwidth`
 - `double_column`: boolean, default `false`
+
+Notes:
+
+- `label` values are stored bare, such as `benchmark`; the renderer adds the `fig:` prefix.
 
 Rules:
 

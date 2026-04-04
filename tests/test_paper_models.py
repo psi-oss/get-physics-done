@@ -85,8 +85,8 @@ class TestModels:
             title="Full Paper",
             authors=[Author(name="A", email="a@b.com", affiliation="MIT")],
             abstract="Abstract.",
-            sections=[Section(title="Intro", content="Hello.", label="intro")],
-            figures=[FigureRef(path=Path("fig.png"), caption="Caption", label="fig1")],
+            sections=[Section(title="Intro", content="Hello.", label="sec:intro")],
+            figures=[FigureRef(path=Path("fig.png"), caption="Caption", label="fig:fig1")],
             acknowledgments="Thanks.",
             bib_file="refs",
             journal="apj",
@@ -95,6 +95,8 @@ class TestModels:
         assert config.journal == "apj"
         assert len(config.figures) == 1
         assert len(config.appendix_sections) == 1
+        assert config.sections[0].label == "intro"
+        assert config.figures[0].label == "fig1"
 
     def test_paper_config_rejects_unknown_journal(self):
         with pytest.raises(ValidationError):
@@ -110,6 +112,89 @@ class TestModels:
         fig = FigureRef(path=Path("fig.pdf"), caption="Cap", label="f1")
         assert fig.width == r"\columnwidth"
         assert fig.double_column is False
+
+    @pytest.mark.parametrize(
+        ("payload", "expected_fragment"),
+        [
+            (
+                {
+                    "title": "   ",
+                    "authors": [{"name": "Bob"}],
+                    "abstract": "Abstract.",
+                    "sections": [{"heading": "Intro", "content": "Hello."}],
+                },
+                r"title[\s\S]*non-empty string",
+            ),
+            (
+                {
+                    "title": "Test",
+                    "authors": [{"name": "Bob"}],
+                    "abstract": "   ",
+                    "sections": [{"heading": "Intro", "content": "Hello."}],
+                },
+                r"abstract[\s\S]*non-empty string",
+            ),
+            (
+                {
+                    "title": "Test",
+                    "authors": [{"name": "Bob"}],
+                    "abstract": "Abstract.",
+                    "sections": [{"heading": "Intro", "content": "Hello."}],
+                    "bib_file": "references.bib",
+                },
+                r"bib_file[\s\S]*stem-safe filename",
+            ),
+        ],
+    )
+    def test_paper_config_rejects_blank_required_text_and_legacy_bib_stems(
+        self,
+        payload: dict[str, object],
+        expected_fragment: str,
+    ) -> None:
+        with pytest.raises(ValidationError, match=expected_fragment):
+            PaperConfig.model_validate(payload)
+
+    @pytest.mark.parametrize(
+        ("payload", "expected_fragment"),
+        [
+            (
+                {"heading": "   ", "content": "Hello."},
+                r"title[\s\S]*non-empty string",
+            ),
+            (
+                {"heading": "Intro", "content": "   "},
+                r"content[\s\S]*non-empty string",
+            ),
+        ],
+    )
+    def test_section_rejects_blank_title_and_body(
+        self,
+        payload: dict[str, object],
+        expected_fragment: str,
+    ) -> None:
+        with pytest.raises(ValidationError, match=expected_fragment):
+            Section.model_validate(payload)
+
+    @pytest.mark.parametrize(
+        ("payload", "expected_fragment"),
+        [
+            (
+                {"path": Path("fig.pdf"), "caption": "   ", "label": "velocity"},
+                r"caption[\s\S]*non-empty string",
+            ),
+            (
+                {"path": Path("fig.pdf"), "caption": "Cap", "label": "fig:"},
+                r"label[\s\S]*non-empty string",
+            ),
+        ],
+    )
+    def test_figure_ref_rejects_blank_caption_and_label(
+        self,
+        payload: dict[str, object],
+        expected_fragment: str,
+    ) -> None:
+        with pytest.raises(ValidationError, match=expected_fragment):
+            FigureRef.model_validate(payload)
 
     def test_journal_spec_fields(self):
         spec = JournalSpec(
@@ -195,7 +280,7 @@ class TestTemplates:
             title="Test Paper",
             authors=[Author(name="Test Author", email="test@test.com", affiliation="Test Univ")],
             abstract="This is a test abstract.",
-            sections=[Section(title="Introduction", content="Hello world.")],
+            sections=[Section(title="Introduction", content="Hello world.", label="sec:introduction")],
         )
         tex = render_paper(config)
         assert r"\documentclass" in tex
@@ -204,6 +289,8 @@ class TestTemplates:
         assert r"\author{Test Author}" in tex
         assert r"\begin{abstract}" in tex
         assert r"\section{Introduction}" in tex
+        assert r"\label{sec:introduction}" in tex
+        assert "sec:sec:introduction" not in tex
         assert r"\bibliography{references}" in tex
         assert "Generated with Get Physics Done" in tex
 
@@ -274,12 +361,13 @@ class TestTemplates:
             authors=[Author(name="B")],
             abstract="Abstract.",
             sections=[Section(title="Intro", content="See figure.")],
-            figures=[FigureRef(path=Path("figures/fig01.pdf"), caption="Velocity field.", label="velocity")],
+            figures=[FigureRef(path=Path("figures/fig01.pdf"), caption="Velocity field.", label="fig:velocity")],
         )
         tex = render_paper(config)
         assert r"\includegraphics" in tex
         assert r"\caption{Velocity field.}" in tex
         assert r"\label{fig:velocity}" in tex
+        assert "fig:fig:velocity" not in tex
 
     def test_render_with_appendix(self):
         from gpd.mcp.paper.template_registry import render_paper

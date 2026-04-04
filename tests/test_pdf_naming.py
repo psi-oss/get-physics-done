@@ -23,6 +23,24 @@ def _minimal_config(**overrides) -> PaperConfig:
     return PaperConfig(**defaults)
 
 
+def _minimal_constructed_config(**overrides) -> PaperConfig:
+    defaults = {
+        "title": "Test Paper",
+        "authors": [Author(name="Alice")],
+        "abstract": "An abstract.",
+        "sections": [Section(heading="Intro", content="Content.")],
+        "figures": [],
+        "acknowledgments": "",
+        "bib_file": "references",
+        "journal": "prl",
+        "appendix_sections": [],
+        "attribution_footer": "Generated with Get Physics Done",
+        "output_filename": None,
+    }
+    defaults.update(overrides)
+    return PaperConfig.model_construct(**defaults)
+
+
 class TestDeriveOutputFilename:
     def test_explicit_output_filename_used_verbatim(self) -> None:
         config = _minimal_config(output_filename="my-custom-name")
@@ -33,11 +51,11 @@ class TestDeriveOutputFilename:
         assert derive_output_filename(config) == "quantum_entanglement_black"
 
     def test_empty_title_falls_back_to_topic_neutral_default(self) -> None:
-        config = _minimal_config(title="")
+        config = _minimal_constructed_config(title="")
         assert derive_output_filename(config) == "paper_draft"
 
     def test_whitespace_only_title_falls_back_to_topic_neutral_default(self) -> None:
-        config = _minimal_config(title="   ")
+        config = _minimal_constructed_config(title="   ")
         assert derive_output_filename(config) == "paper_draft"
 
     def test_special_characters_stripped(self) -> None:
@@ -136,7 +154,7 @@ class TestBuildPaperNaming:
         assert not (tmp_path / "main.tex").exists()
 
     def test_build_paper_empty_title_uses_topic_neutral_default(self, tmp_path: Path) -> None:
-        config = _minimal_config(title="")
+        config = _minimal_constructed_config(title="")
         with (
             patch("gpd.mcp.paper.compiler.render_paper", return_value="\\documentclass{article}"),
             patch("gpd.mcp.paper.compiler.get_journal_spec", return_value=_journal_spec()),

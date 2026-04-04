@@ -10,7 +10,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationInfo, field_validator, model_validator
 
 from gpd.contracts import statement_looks_theorem_like
 from gpd.mcp.paper.bibliography import BibliographyAudit
@@ -19,6 +19,27 @@ Sha256Hex = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 ClaimId = Annotated[str, Field(pattern=r"^CLM-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 ReviewIssueId = Annotated[str, Field(pattern=r"^REF-[A-Za-z0-9][A-Za-z0-9_-]*$")]
 BuilderJournalKey = Literal["prl", "apj", "mnras", "nature", "jhep", "jfm"]
+_LEGACY_LABEL_PREFIXES = ("sec:", "fig:", "app:")
+_BIB_FILE_STEM_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+
+
+def _require_nonempty_text(value: str, *, field_name: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return normalized
+
+
+def _strip_legacy_label_prefixes(value: str) -> str:
+    normalized = value.strip()
+    while normalized:
+        for prefix in _LEGACY_LABEL_PREFIXES:
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix) :].strip()
+                break
+        else:
+            return normalized
+    return normalized
 
 
 class Author(BaseModel):
@@ -40,6 +61,16 @@ class Section(BaseModel):
     content: str
     label: str = ""
 
+    @field_validator("title", "content")
+    @classmethod
+    def _validate_nonempty_text(cls, value: str, info: ValidationInfo) -> str:
+        return _require_nonempty_text(value, field_name=info.field_name)
+
+    @field_validator("label")
+    @classmethod
+    def _normalize_label(cls, value: str) -> str:
+        return _strip_legacy_label_prefixes(value)
+
 
 class FigureRef(BaseModel):
     """Reference to a figure file with metadata."""
@@ -51,6 +82,19 @@ class FigureRef(BaseModel):
     label: str
     width: str = r"\columnwidth"
     double_column: bool = False
+
+    @field_validator("caption")
+    @classmethod
+    def _validate_nonempty_caption(cls, value: str) -> str:
+        return _require_nonempty_text(value, field_name="caption")
+
+    @field_validator("label")
+    @classmethod
+    def _normalize_label(cls, value: str) -> str:
+        normalized = _strip_legacy_label_prefixes(value)
+        if not normalized:
+            raise ValueError("label must be a non-empty string")
+        return normalized
 
 
 class ArtifactSourceRef(BaseModel):
@@ -441,6 +485,23 @@ class PaperConfig(BaseModel):
     appendix_sections: list[Section] = Field(default_factory=list)
     attribution_footer: str = "Generated with Get Physics Done"
     output_filename: str | None = None
+
+    @field_validator("title", "abstract")
+    @classmethod
+    def _validate_nonempty_text(cls, value: str, info: ValidationInfo) -> str:
+        return _require_nonempty_text(value, field_name=info.field_name)
+
+    @field_validator("bib_file")
+    @classmethod
+    def _validate_bib_file(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("bib_file must be a non-empty stem")
+        if not _BIB_FILE_STEM_RE.fullmatch(normalized):
+            raise ValueError(
+                "bib_file must be a stem-safe filename without path separators or extensions"
+            )
+        return normalized
 
     @field_validator("output_filename")
     @classmethod
