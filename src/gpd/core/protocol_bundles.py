@@ -407,7 +407,12 @@ def _render_asset_line(role: str, assets: list[BundleAsset]) -> str | None:
         return None
     role_label = role.replace("_", " ")
     rendered = ", ".join(
-        f"{{GPD_INSTALL_DIR}}/{asset.path}{' (required)' if asset.required else ''}" for asset in assets
+        (
+            f"{{GPD_INSTALL_DIR}}/{asset.path}"
+            f"{' (required)' if asset.required else ''}"
+            f"{f' (note: {asset.note})' if asset.note else ''}"
+        )
+        for asset in assets
     )
     return f"- {role_label}: {rendered}"
 

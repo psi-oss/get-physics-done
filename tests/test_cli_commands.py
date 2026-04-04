@@ -2227,10 +2227,32 @@ class TestReviewValidationCommands:
         assert checks["manuscript_proof_review"]["blocking"] is False
         assert "PROOF-REDTEAM.md" in checks["manuscript_proof_review"]["detail"]
         assert "write-paper will run its own staged proof-review loop" in checks["manuscript_proof_review"]["detail"]
-        assert any(
-            requirement["when"] == "theorem-bearing claims are present"
-            for requirement in payload["active_conditional_requirements"]
+        assert payload["active_conditional_requirements"] == []
+
+    def test_review_preflight_peer_review_surfaces_active_conditional_requirements_for_theorem_bearing_manuscript(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        write_proof_review_package(gpd_project, theorem_bearing=True, review_report=False)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(gpd_project), "validate", "review-preflight", "peer-review"],
+            catch_exceptions=False,
         )
+
+        payload = json.loads(result.output)
+        assert payload["active_conditional_requirements"] == payload["conditional_requirements"]
+        assert payload["active_conditional_requirements"] == [
+            {
+                "when": "theorem-bearing claims are present",
+                "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+                "required_evidence": [],
+                "blocking_conditions": [],
+                "blocking_preflight_checks": [],
+                "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+            }
+        ]
 
     def test_review_preflight_write_paper_reports_theorem_bearing_claim_inventory_without_blocking(
         self,

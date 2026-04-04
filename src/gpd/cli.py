@@ -344,6 +344,7 @@ class ReviewPreflightResult:
     required_evidence: list[str]
     blocking_conditions: list[str]
     conditional_requirements: list[ReviewContractConditionalRequirement]
+    active_conditional_requirements: list[ReviewContractConditionalRequirement]
     validated_surface: str = "public_runtime_command_surface"
     public_runtime_command_prefix: str = ""
     local_cli_equivalence_guaranteed: bool = False
@@ -6593,7 +6594,7 @@ def _build_review_preflight(
                     else f"missing {_format_display_path(report_path)}"
                 ),
             )
-        if manuscript is not None and command.name in {
+        if manuscript is not None and public_command_name in {
             "gpd:peer-review",
             "gpd:write-paper",
             "gpd:arxiv-submission",
@@ -7033,6 +7034,14 @@ def _build_review_preflight(
     if required_state_check is not None:
         add_check("required_state", required_state_check[0], required_state_check[1], blocking=True)
 
+    active_conditional_requirements: list[ReviewContractConditionalRequirement] = []
+    if manuscript is not None and public_command_name in {"gpd:peer-review", "gpd:write-paper", "gpd:arxiv-submission"}:
+        active_conditional_requirements = _review_contract_active_conditional_requirements(
+            contract,
+            project_cwd=project_cwd,
+            manuscript=manuscript,
+        )
+
     passed = all(check.passed or not check.blocking for check in checks)
     return ReviewPreflightResult(
         command=public_command_name,
@@ -7044,6 +7053,7 @@ def _build_review_preflight(
         required_evidence=contract.required_evidence,
         blocking_conditions=contract.blocking_conditions,
         conditional_requirements=list(contract.conditional_requirements),
+        active_conditional_requirements=active_conditional_requirements,
         validated_surface=context_preflight.validated_surface,
         public_runtime_command_prefix=context_preflight.public_runtime_command_prefix,
         local_cli_equivalence_guaranteed=context_preflight.local_cli_equivalence_guaranteed,
