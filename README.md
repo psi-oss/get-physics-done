@@ -589,7 +589,7 @@ Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 1.1.0). h
 
 Papers that cite or acknowledge use of GPD. If your paper should be listed here, open a pull request.
 
-- Christian Ferko, James Halverson, Vishnu Jejjala, and Brandon Robinson, *Topological Effects in Neural Network Field Theory* (arXiv [2604.02313](https://arxiv.org/abs/2604.02313), 2026).
+- Christian Ferko, James Halverson, Vishnu Jejjala, and Brandon Robinson, *Topological Effects in Neural Network Field Theory* ([arXiv:2604.02313](https://arxiv.org/abs/2604.02313), 2026).
 
 ## Star History
 
