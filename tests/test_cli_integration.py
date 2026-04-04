@@ -68,12 +68,6 @@ def _assert_no_top_level_resume_aliases(payload: dict[str, object]) -> None:
         assert key not in payload
 
 
-def _assert_resume_compat_surface_inventory(compat_surface: dict[str, object]) -> None:
-    assert set(compat_surface) == set(RESUME_COMPATIBILITY_ALIAS_KEYS)
-    for key in RESUME_COMPATIBILITY_ALIAS_KEYS:
-        assert key in compat_surface
-
-
 @pytest.fixture()
 def dollar_command_prefix(monkeypatch: pytest.MonkeyPatch) -> str:
     """Force the integration preflight surface to resolve the dollar-command runtime."""
@@ -192,6 +186,9 @@ def _expose_runtime_launcher(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, de
 
 
 def test_paper_build_surfaces_reference_bibtex_bridge(tmp_path: Path) -> None:
+    nested_cwd = tmp_path / "notes"
+    nested_cwd.mkdir()
+    (tmp_path / "GPD").mkdir(exist_ok=True)
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
     (paper_dir / "PAPER-CONFIG.json").write_text(
@@ -219,10 +216,12 @@ def test_paper_build_surfaces_reference_bibtex_bridge(tmp_path: Path) -> None:
     result_payload.errors = []
 
     with patch("gpd.mcp.paper.compiler.build_paper", return_value=result_payload):
-        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+        result = runner.invoke(app, ["--raw", "--cwd", str(nested_cwd), "paper-build"], catch_exceptions=False)
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
+    assert payload["config_path"] == "../paper/PAPER-CONFIG.json"
+    assert payload["output_dir"] == "../paper"
     assert payload["reference_bibtex_bridge"] == [{"reference_id": "lit-ref-einstein-1905", "bibtex_key": "einstein1905"}]
 
 
@@ -2288,35 +2287,21 @@ class TestInitIncludeParsing:
         payload = json.loads(result.output)
 
         _assert_no_top_level_resume_aliases(payload)
-        assert payload["active_bounded_segment"]["resume_file"] == "GPD/phases/01-test-phase/.continue-here.md"
-        assert payload["active_bounded_segment"]["segment_id"] == "seg-4"
+        assert payload["active_bounded_segment"] is None
         assert payload["derived_execution_head"]["resume_file"] == "GPD/phases/01-test-phase/.continue-here.md"
-        assert payload["active_resume_kind"] == "bounded_segment"
-        assert payload["active_resume_origin"] == "compat.current_execution"
-        assert payload["active_resume_pointer"] == "GPD/phases/01-test-phase/.continue-here.md"
-        assert payload["execution_resumable"] is True
+        assert payload["active_resume_kind"] == "continuity_handoff"
+        assert payload["active_resume_origin"] == "continuation.handoff"
+        assert payload["active_resume_pointer"] == "GPD/phases/01-test-phase/alternate.md"
+        assert payload["execution_resumable"] is False
         assert payload["has_live_execution"] is True
         assert payload["has_interrupted_agent"] is True
         assert [candidate["kind"] for candidate in payload["resume_candidates"]] == [
-            "bounded_segment",
             "continuity_handoff",
             "interrupted_agent",
         ]
-        assert payload["resume_candidates"][0]["origin"] == "compat.current_execution"
-        assert payload["resume_candidates"][1]["origin"] == "continuation.handoff"
-        assert payload["resume_candidates"][2]["origin"] == "interrupted_agent_marker"
-        assert payload["compat_resume_surface"]["session_resume_file"] == "GPD/phases/01-test-phase/alternate.md"
-        assert payload["compat_resume_surface"]["execution_resume_file"] == "GPD/phases/01-test-phase/.continue-here.md"
-        assert payload["compat_resume_surface"]["execution_resume_file_source"] == "current_execution"
-        assert payload["compat_resume_surface"]["resume_mode"] == "bounded_segment"
-        assert [candidate["source"] for candidate in payload["compat_resume_surface"]["segment_candidates"]] == [
-            "current_execution",
-            "session_resume_file",
-            "interrupted_agent",
-        ]
-        assert payload["compat_resume_surface"]["segment_candidates"][0]["resume_file"] == "GPD/phases/01-test-phase/.continue-here.md"
-        assert payload["compat_resume_surface"]["segment_candidates"][1]["resume_file"] == "GPD/phases/01-test-phase/alternate.md"
-        assert payload["compat_resume_surface"]["segment_candidates"][2]["agent_id"] == "agent-77"
+        assert payload["resume_candidates"][0]["origin"] == "continuation.handoff"
+        assert payload["resume_candidates"][1]["origin"] == "interrupted_agent_marker"
+        assert "compat_resume_surface" not in payload
         assert _target_file_snapshot(planning) == snapshot_before
 
     def test_observe_execution_reports_waiting_without_marking_it_possibly_stalled(self, gpd_project: Path) -> None:

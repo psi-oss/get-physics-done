@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
+
+import pytest
 
 from gpd.core.project_reentry import resolve_project_reentry
 
@@ -121,6 +124,59 @@ def test_resolve_project_reentry_surfaces_partial_recoverable_workspace(tmp_path
     assert resolution.candidates[0].project_exists is False
     assert resolution.candidates[0].roadmap_exists is True
     assert resolution.candidates[0].state_exists is True
+
+
+def test_resolve_project_reentry_does_not_prefer_unrecoverable_state_file_over_recent_project(tmp_path: Path) -> None:
+    workspace = _make_gpd_workspace(tmp_path / "workspace")
+    (workspace / "GPD" / "state.json").write_text("[]\n", encoding="utf-8")
+    recent = _make_gpd_workspace(tmp_path / "recent-project", project=True)
+
+    resolution = resolve_project_reentry(
+        workspace,
+        recent_rows=[_recent_row(recent, last_session_at="2026-03-28T12:00:00+00:00")],
+    )
+
+    assert resolution.mode == "auto-recent-project"
+    assert resolution.source == "recent_project"
+    assert resolution.auto_selected is True
+    assert resolution.has_current_workspace_candidate is False
+    assert resolution.project_root == recent.resolve(strict=False).as_posix()
+
+
+def test_resolve_project_reentry_treats_backup_only_state_as_recoverable_current_workspace(tmp_path: Path) -> None:
+    from gpd.core.state import default_state_dict
+
+    workspace = _make_gpd_workspace(tmp_path / "workspace")
+    backup_state = default_state_dict()
+    backup_state["position"]["current_phase"] = "07"
+    (workspace / "GPD" / "state.json.bak").write_text(json.dumps(backup_state, indent=2) + "\n", encoding="utf-8")
+
+    resolution = resolve_project_reentry(workspace, recent_rows=[])
+
+    assert resolution.mode == "current-workspace"
+    assert resolution.source == "current_workspace"
+    assert resolution.has_current_workspace_candidate is True
+    assert resolution.has_recoverable_current_workspace is True
+    assert resolution.candidates[0].state_exists is True
+
+
+def test_resolve_project_reentry_skips_recent_project_scan_for_recoverable_current_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _make_gpd_workspace(tmp_path / "workspace", project=True)
+
+    def _unexpected_scan(_data_root=None):
+        raise AssertionError("list_recent_projects should not run for a recoverable current workspace")
+
+    monkeypatch.setattr("gpd.core.project_reentry.list_recent_projects", _unexpected_scan)
+
+    resolution = resolve_project_reentry(workspace)
+
+    assert resolution.mode == "current-workspace"
+    assert resolution.source == "current_workspace"
+    assert len(resolution.candidates) == 1
+    assert resolution.candidates[0].source == "current_workspace"
 
 
 def test_resolve_project_reentry_ignores_empty_gpd_workspace_when_unique_recent_project_is_recoverable(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -303,6 +304,97 @@ class TestRecentProjectsIndexPersistence:
         assert row.source_recorded_at == "2026-03-26T12:01:00+00:00"
         assert row.recovery_phase == "03"
         assert row.recovery_plan == "02"
+
+    def test_record_clears_stale_recovery_metadata_when_resume_file_is_explicitly_removed(self, tmp_path: Path) -> None:
+        store_root = tmp_path / "cache"
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+
+        record_recent_project(
+            project_root,
+            session_data={
+                "last_date": "2026-03-26T12:00:00+00:00",
+                "resume_file": "GPD/phases/03/.continue-here.md",
+                "resume_target_kind": "bounded_segment",
+                "resume_target_recorded_at": "2026-03-26T12:01:00+00:00",
+                "source_kind": "continuation.bounded_segment",
+                "source_session_id": "session-123",
+                "source_segment_id": "segment-7",
+                "source_transition_id": "transition-9",
+                "source_event_id": "event-11",
+                "source_recorded_at": "2026-03-26T12:01:00+00:00",
+                "recovery_phase": "03",
+                "recovery_plan": "02",
+            },
+            store_root=store_root,
+        )
+
+        record_recent_project(
+            project_root,
+            session_data={
+                "last_date": "2026-03-26T13:00:00+00:00",
+                "resume_file": "—",
+            },
+            store_root=store_root,
+        )
+
+        row = load_recent_projects_index(store_root).rows[0]
+
+        assert row.resume_file is None
+        assert row.resume_target_kind is None
+        assert row.resume_target_recorded_at is None
+        assert row.source_kind is None
+        assert row.source_session_id is None
+        assert row.source_segment_id is None
+        assert row.source_transition_id is None
+        assert row.source_event_id is None
+        assert row.source_recorded_at is None
+
+    def test_record_recent_project_reads_index_after_lock_acquisition(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        store_root = tmp_path / "cache"
+        current_root = tmp_path / "current-project"
+        current_root.mkdir()
+        injected_root = tmp_path / "injected-project"
+        injected_root.mkdir()
+        index_path = recent_projects_index_path(store_root)
+
+        @contextmanager
+        def _inject_existing_row(path: Path):
+            assert path == index_path
+            index_path.parent.mkdir(parents=True, exist_ok=True)
+            index_path.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "project_root": injected_root.resolve(strict=False).as_posix(),
+                                "last_session_at": "2026-03-26T11:00:00+00:00",
+                                "last_seen_at": "2026-03-26T11:00:00+00:00",
+                                "stopped_at": "Phase 1",
+                            }
+                        ]
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            yield
+
+        monkeypatch.setattr("gpd.core.recent_projects.file_lock", _inject_existing_row)
+
+        record_recent_project(
+            current_root,
+            session_data={"last_date": "2026-03-26T12:00:00+00:00", "stopped_at": "Phase 2"},
+            store_root=store_root,
+        )
+
+        rows = load_recent_projects_index(store_root).rows
+
+        assert [row.project_root for row in rows] == [
+            current_root.resolve(strict=False).as_posix(),
+            injected_root.resolve(strict=False).as_posix(),
+        ]
 
     def test_classify_recent_project_recovery_prioritizes_bounded_segment_targets(self) -> None:
         bounded = classify_recent_project_recovery(

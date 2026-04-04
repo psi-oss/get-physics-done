@@ -32,7 +32,7 @@ from gpd.core.context import (
 from gpd.core.errors import ConfigError, ValidationError
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
-from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_KEYS
+from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
@@ -450,7 +450,7 @@ def _write_bundle_ready_contract_state(tmp_path: Path) -> None:
 
 
 def _assert_no_resume_compat_aliases(payload: dict[str, object]) -> None:
-    for key in RESUME_COMPATIBILITY_ALIAS_KEYS:
+    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
         assert key not in payload
 
 
@@ -1603,7 +1603,7 @@ class TestInitResume:
             }
         ]
         assert "source" not in ctx["resume_candidates"][0]
-        assert ctx["compat_resume_surface"]["segment_candidates"][0]["source"] == "interrupted_agent"
+        assert "compat_resume_surface" not in ctx
 
     def test_json_only_state_counts_as_existing(self, tmp_path: Path) -> None:
         from gpd.core.state import default_state_dict
@@ -1635,20 +1635,15 @@ class TestInitResume:
         assert ctx["resume_surface_schema_version"] == 1
         assert "resume_mode" not in ctx
         assert ctx["active_resume_kind"] == "bounded_segment"
-        assert ctx["active_resume_origin"] == "compat.current_execution"
+        assert ctx["active_resume_origin"] == "continuation.bounded_segment"
         assert ctx["active_resume_pointer"] == "GPD/phases/03-analysis/.continue-here.md"
         assert ctx["active_bounded_segment"]["segment_id"] == "seg-4"
         assert ctx["derived_execution_head"]["segment_id"] == "seg-4"
-        assert ctx["compat_resume_surface"]["current_execution"]["segment_id"] == "seg-4"
-        assert ctx["compat_resume_surface"]["execution_resume_file_source"] == "current_execution"
-        assert ctx["compat_resume_surface"]["active_execution_segment"]["segment_id"] == "seg-4"
-        assert ctx["compat_resume_surface"]["segment_candidates"][0]["source"] == "current_execution"
-        assert ctx["compat_resume_surface"]["resume_mode"] == "bounded_segment"
         _assert_no_resume_compat_aliases(ctx)
-        assert set(ctx["compat_resume_surface"]) == set(RESUME_COMPATIBILITY_ALIAS_KEYS)
+        assert "compat_resume_surface" not in ctx
         assert "segment_candidates" not in ctx
         assert ctx["resume_candidates"][0]["kind"] == "bounded_segment"
-        assert ctx["resume_candidates"][0]["origin"] == "compat.current_execution"
+        assert ctx["resume_candidates"][0]["origin"] == "continuation.bounded_segment"
         assert ctx["resume_candidates"][0]["resume_pointer"] == "GPD/phases/03-analysis/.continue-here.md"
         assert "source" not in ctx["resume_candidates"][0]
 
@@ -1691,7 +1686,7 @@ class TestInitResume:
         assert ctx["resume_candidates"][0]["last_result_id"] == "result-canonical"
         assert ctx["resume_candidates"][0]["last_result"]["id"] == "result-canonical"
         assert ctx["active_resume_result"]["id"] == "result-canonical"
-        assert ctx["compat_resume_surface"]["active_execution_segment"]["last_result_id"] == "result-canonical"
+        assert "compat_resume_surface" not in ctx
 
     def test_normalizes_live_execution_phase_plan_and_checkpoint_reason(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -1719,7 +1714,7 @@ class TestInitResume:
         assert candidate["phase"] == "03"
         assert candidate["plan"] == "02"
         assert candidate["checkpoint_reason"] == "pre_fanout"
-        assert candidate["origin"] == "compat.current_execution"
+        assert candidate["origin"] == "continuation.bounded_segment"
         assert "source" not in candidate
 
     def test_resume_candidate_carries_pre_fanout_and_skeptical_review_fields(self, tmp_path: Path) -> None:
@@ -1757,7 +1752,7 @@ class TestInitResume:
         assert candidate["weakest_unchecked_anchor"] == "Ref-01 benchmark figure"
         assert candidate["disconfirming_observation"] == "Direct observable misses the literature band."
         assert candidate["downstream_locked"] is True
-        assert candidate["origin"] == "compat.current_execution"
+        assert candidate["origin"] == "continuation.bounded_segment"
         assert "source" not in candidate
 
     def test_resume_candidate_keeps_clear_without_unlock_as_bounded_segment_state(self, tmp_path: Path) -> None:
@@ -1787,7 +1782,7 @@ class TestInitResume:
         assert ctx["active_bounded_segment"]["pre_fanout_review_cleared"] is True
         assert ctx["resume_candidates"][0]["checkpoint_reason"] == "pre_fanout"
         assert ctx["resume_candidates"][0]["pre_fanout_review_cleared"] is True
-        assert ctx["resume_candidates"][0]["origin"] == "compat.current_execution"
+        assert ctx["resume_candidates"][0]["origin"] == "continuation.bounded_segment"
         assert "source" not in ctx["resume_candidates"][0]
 
     def test_non_resumable_live_execution_does_not_create_resume_candidate(self, tmp_path: Path) -> None:
@@ -1811,14 +1806,11 @@ class TestInitResume:
         assert ctx["active_bounded_segment"] is None
         assert ctx["derived_execution_head"]["segment_id"] == "seg-4"
         assert ctx["active_resume_kind"] is None
-        assert ctx["compat_resume_surface"]["current_execution"]["segment_id"] == "seg-4"
-        assert ctx["compat_resume_surface"]["active_execution_segment"]["segment_id"] == "seg-4"
-        assert ctx["compat_resume_surface"]["segment_candidates"] == []
-        assert ctx["compat_resume_surface"].get("resume_mode") is None
         _assert_no_resume_compat_aliases(ctx)
         assert "segment_candidates" not in ctx
         assert ctx["resume_candidates"] == []
         assert "active_execution_segment" not in ctx
+        assert "compat_resume_surface" not in ctx
 
     def test_with_legacy_session_resume_file_uses_canonical_handoff_kind(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -1851,11 +1843,8 @@ class TestInitResume:
                 "resume_pointer": "GPD/phases/03-analysis/.continue-here.md",
             }
         ]
-        assert set(ctx["compat_resume_surface"]) == set(RESUME_COMPATIBILITY_ALIAS_KEYS)
         assert "source" not in ctx["resume_candidates"][0]
-        assert ctx["compat_resume_surface"]["segment_candidates"][0]["source"] == "session_resume_file"
-        assert ctx["compat_resume_surface"]["execution_resume_file_source"] == "session_resume_file"
-        assert ctx["compat_resume_surface"]["resume_mode"] == "continuity_handoff"
+        assert "compat_resume_surface" not in ctx
 
     def test_init_resume_propagates_unexpected_continuation_errors(self, tmp_path: Path, monkeypatch) -> None:
         _setup_project(tmp_path)

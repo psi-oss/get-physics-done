@@ -16,7 +16,7 @@ from collections.abc import Iterable
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, create_model
+from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import (
@@ -37,7 +37,12 @@ from gpd.core.verification_checks import (
     get_verification_check,
     list_verification_checks,
 )
-from gpd.mcp.servers import configure_mcp_logging, stable_mcp_error, stable_mcp_response
+from gpd.mcp.servers import (
+    configure_mcp_logging,
+    stable_mcp_error,
+    stable_mcp_response,
+    tighten_registered_tool_contracts,
+)
 
 logger = configure_mcp_logging("gpd-verification")
 
@@ -70,37 +75,6 @@ _CONTRACT_ERROR_FIELD_ORDER = {
     "links": 10,
     "uncertainty_markers": 11,
 }
-
-
-def _tighten_registered_tool_contracts() -> None:
-    def _build_strict_call(original_call, allowed_keys):
-        async def _strict_call_fn_with_arg_validation(fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly):
-            unknown_keys = sorted(str(key) for key in arguments_to_validate if key not in allowed_keys)
-            if unknown_keys:
-                return stable_mcp_error(f"Unsupported arguments: {', '.join(unknown_keys)}")
-            try:
-                return await original_call(fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly)
-            except PydanticValidationError as exc:
-                return stable_mcp_error(exc)
-
-        return _strict_call_fn_with_arg_validation
-
-    for tool in mcp._tool_manager.list_tools():  # type: ignore[attr-defined]
-        arg_model = tool.fn_metadata.arg_model
-        strict_model = create_model(
-            f"{arg_model.__name__}Strict",
-            __base__=arg_model,
-            __config__=ConfigDict(extra="forbid", arbitrary_types_allowed=True),
-        )
-        tool.parameters = strict_model.model_json_schema(by_alias=True)
-        allowed_keys = {
-            key
-            for field_name, field_info in arg_model.model_fields.items()
-            for key in (field_name, field_info.alias)
-            if key is not None
-        }
-        original_call = tool.fn_metadata.call_fn_with_arg_validation
-        object.__setattr__(tool.fn_metadata, "call_fn_with_arg_validation", _build_strict_call(original_call, allowed_keys))
 
 _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
     "contract.limit_recovery": {
@@ -5001,7 +4975,7 @@ def main() -> None:
     run_mcp_server(mcp, "GPD Verification MCP Server")
 
 
-_tighten_registered_tool_contracts()
+tighten_registered_tool_contracts(mcp)
 
 
 if __name__ == "__main__":

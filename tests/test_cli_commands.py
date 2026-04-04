@@ -16,10 +16,12 @@ import importlib
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
 
+import gpd.cli as cli_module
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors, list_runtime_names
 from gpd.cli import app
 from gpd.core.recent_projects import record_recent_project
@@ -2031,8 +2033,30 @@ class TestReviewValidationCommands:
         assert checks["artifact_manifest"]["passed"] is True
         assert checks["bibliography_audit"]["passed"] is True
         assert checks["reproducibility_manifest"]["passed"] is True
-        assert checks["verification_reports"]["passed"] is True
         assert checks["manuscript_proof_review"]["passed"] is True
+
+    def test_review_contract_preflight_helpers_only_follow_explicit_checks(self) -> None:
+        contract = SimpleNamespace(
+            preflight_checks=["artifact_manifest"],
+            required_evidence=[
+                "verification reports",
+                "manuscript-root artifact manifest",
+                "manuscript-root bibliography audit",
+            ],
+            blocking_conditions=[
+                "missing compiled manuscript",
+                "missing latest staged peer-review decision evidence",
+            ],
+        )
+
+        assert cli_module._review_contract_requests_check(contract, "artifact_manifest") is True
+        assert cli_module._review_preflight_check_is_blocking(contract, "artifact_manifest") is True
+        assert cli_module._review_contract_requests_check(contract, "verification_reports") is False
+        assert cli_module._review_preflight_check_is_blocking(contract, "verification_reports") is False
+        assert cli_module._review_contract_requests_check(contract, "compiled_manuscript") is False
+        assert cli_module._review_preflight_check_is_blocking(contract, "compiled_manuscript") is False
+        assert cli_module._review_contract_requests_check(contract, "review_ledger") is False
+        assert cli_module._review_preflight_check_is_blocking(contract, "review_ledger") is False
 
     def test_review_preflight_falls_back_when_runtime_resolution_fails(
         self, monkeypatch: pytest.MonkeyPatch
@@ -2158,7 +2182,6 @@ class TestReviewValidationCommands:
             "roadmap",
             "conventions",
             "research_artifacts",
-            "verification_reports",
         } <= check_names
         assert checks["reproducibility_manifest"]["passed"] is True
         assert checks["reproducibility_ready"]["passed"] is True
@@ -2731,7 +2754,6 @@ class TestReviewValidationCommands:
         assert checks["state_integrity"]["passed"] is True
         assert checks["roadmap"]["passed"] is True
         assert checks["research_artifacts"]["passed"] is True
-        assert checks["verification_reports"]["passed"] is True
         assert checks["manuscript"]["passed"] is True
         assert checks["conventions"]["passed"] is True
         assert checks["artifact_manifest"]["passed"] is True
@@ -3771,6 +3793,34 @@ class TestReviewValidationCommands:
         checks = {check["name"]: check for check in payload["checks"]}
         assert checks["required_files"]["passed"] is False
         assert "explicit manuscript target satisfies command context" not in checks["required_files"]["detail"]
+
+    def test_command_context_peer_review_resolves_relative_manuscript_from_nested_workspace(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        nested = gpd_project / "notes"
+        nested.mkdir()
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(nested),
+                "validate",
+                "command-context",
+                "peer-review",
+                f"../paper/{_CANONICAL_MANUSCRIPT_BASENAME}",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["manuscript"]["passed"] is True
+        assert checks["required_files"]["passed"] is True
+        assert "../paper/" not in checks["manuscript"]["detail"]
 
     def test_review_preflight_arxiv_submission_strict_does_not_fall_back_to_legacy_gpd_paper_artifacts(
         self,

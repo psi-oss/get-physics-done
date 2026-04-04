@@ -54,6 +54,7 @@ from gpd.core.manuscript_artifacts import (
     _resolve_manuscript_entrypoint_from_root_resolution as resolve_manuscript_entrypoint_from_root_resolution,
 )
 from gpd.core.manuscript_artifacts import (
+    locate_publication_artifact,
     resolve_current_manuscript_entrypoint,
     resolve_current_manuscript_resolution,
 )
@@ -80,10 +81,8 @@ from gpd.core.resume_surface import (
     canonicalize_resume_public_payload,
     lookup_resume_surface_list,
     lookup_resume_surface_value,
-    resolve_resume_compat_surface,
     resume_candidate_kind,
     resume_candidate_kind_from_source,
-    resume_source_from_origin,
 )
 from gpd.core.root_resolution import resolve_project_root
 from gpd.core.surface_phrases import (
@@ -292,6 +291,34 @@ def _format_display_path(target: str | Path | None) -> str:
 
     relative_text = relative_to_home.as_posix()
     return "~" if relative_text in ("", ".") else f"~/{relative_text}"
+
+
+def _format_display_path_from_cwd(target: str | Path | None, *, cwd: Path) -> str:
+    """Format a path relative to a specific cwd, even when the path is a sibling or ancestor."""
+    if target is None:
+        return ""
+
+    raw_target = str(target)
+    if not raw_target:
+        return ""
+
+    target_path = Path(raw_target).expanduser()
+    if not target_path.is_absolute():
+        target_path = cwd.expanduser() / target_path
+
+    resolved_target = target_path.resolve(strict=False)
+    resolved_cwd = cwd.expanduser().resolve(strict=False)
+
+    try:
+        relative = resolved_target.relative_to(resolved_cwd)
+    except ValueError:
+        if resolved_target.anchor and resolved_target.anchor == resolved_cwd.anchor:
+            relative_text = os.path.relpath(resolved_target, resolved_cwd)
+            return "." if relative_text in ("", ".") else relative_text
+        return _format_display_path(resolved_target)
+
+    relative_text = relative.as_posix()
+    return "." if relative_text in ("", ".") else f"./{relative_text}"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1234,9 +1261,6 @@ def _public_resume_origin_family(
         return origin_text
 
     normalized_source = str(source).strip() if source is not None else ""
-    if not normalized_source and origin_text:
-        mapped_source = resume_source_from_origin(origin_text)
-        normalized_source = mapped_source or ""
 
     if normalized_source == "current_execution":
         return "canonical_continuation" if isinstance(active_execution, dict) else "derived_execution_head"
@@ -1245,11 +1269,11 @@ def _public_resume_origin_family(
     if normalized_source == "interrupted_agent":
         return "interrupted_agent"
 
-    if origin_text in {"continuation.bounded_segment", "continuation.handoff"}:
-        return "canonical_continuation"
-    if origin_text == "compat.current_execution":
+    if origin_text in {"compat.current_execution", "current_execution"}:
         return "canonical_continuation" if isinstance(active_execution, dict) else "derived_execution_head"
-    if origin_text == "compat.session_resume_file":
+    if origin_text in {"compat.session_resume_file", "session_resume_file"}:
+        return "canonical_continuation"
+    if origin_text in {"continuation.bounded_segment", "continuation.handoff"}:
         return "canonical_continuation"
     if origin_text == "interrupted_agent_marker":
         return "interrupted_agent"
@@ -1290,8 +1314,9 @@ def _resume_candidate_phase_plan(candidate: dict[str, object]) -> str:
 
 
 def _resume_compat_surface(payload: dict[str, object]) -> dict[str, object] | None:
-    """Return the nested compatibility resume block when it exists or can be synthesized."""
-    return resolve_resume_compat_surface(payload)
+    """Compatibility wrapper removed; canonical resume fields are authoritative."""
+    _ = payload
+    return None
 
 
 def _resume_surface_value(
@@ -1299,24 +1324,15 @@ def _resume_surface_value(
     compat_surface: dict[str, object] | None,
     key: str,
 ) -> object | None:
-    """Return one resume field from canonical payload data or the compatibility block."""
-    return lookup_resume_surface_value(
-        payload,
-        key,
-        compat_surface=compat_surface,
-        compat_key=key,
-    )
+    """Return one canonical resume field from the payload."""
+    _ = compat_surface
+    return lookup_resume_surface_value(payload, key)
 
 
 def _resume_visible_candidates(payload: dict[str, object], compat_surface: dict[str, object] | None) -> list[dict[str, object]]:
-    """Return the candidate list to render, preferring canonical resume candidates."""
-    candidates = lookup_resume_surface_list(
-        payload,
-        "resume_candidates",
-        compat_surface=compat_surface,
-        compat_key="resume_candidates",
-        compat_keys=("segment_candidates",),
-    )
+    """Return the canonical candidate list to render."""
+    _ = compat_surface
+    candidates = lookup_resume_surface_list(payload, "resume_candidates")
     if not isinstance(candidates, list):
         return []
     return [item for item in candidates if isinstance(item, dict)]
@@ -2290,17 +2306,41 @@ app.add_typer(convention_app, name="convention")
 
 def _load_lock():  # noqa: ANN202 — returns ConventionLock (imported inside)
     """Load ConventionLock from recoverable project state in the current working directory."""
-    from gpd.contracts import ConventionLock
-    from gpd.core.state import load_state_json
+    from gpd.core.errors import ConventionError
 
-    raw = load_state_json(_get_cwd())
-    if not isinstance(raw, dict):
-        return ConventionLock()
+    cwd = _get_cwd()
+    try:
+        raw = _load_convention_state_snapshot(cwd)
+    except ConventionError as exc:
+        _error(str(exc))
+    try:
+        from gpd.core.conventions import convention_lock_from_state_payload
 
-    lock_data = raw.get("convention_lock", {})
-    if not isinstance(lock_data, dict):
-        return ConventionLock()
-    return ConventionLock(**lock_data)
+        return convention_lock_from_state_payload(raw, source_label="state.json")
+    except ConventionError as exc:
+        _error(str(exc))
+
+
+def _load_convention_state_snapshot(cwd: Path) -> dict[str, object] | None:
+    """Load the state snapshot used by convention CLI surfaces."""
+    from gpd.core.constants import ProjectLayout
+    from gpd.core.errors import ConventionError
+    from gpd.core.state import _load_state_json_with_integrity_issues
+
+    layout = ProjectLayout(cwd)
+    raw_state, _issues, source = _load_state_json_with_integrity_issues(
+        cwd,
+        persist_recovery=False,
+        recover_intent=True,
+        acquire_lock=False,
+    )
+    if raw_state is None:
+        if layout.state_json.exists():
+            raise ConventionError("Malformed state.json: expected a JSON object")
+        return None
+    if layout.state_json.exists() and source != "state.json":
+        raise ConventionError(f"Malformed state.json: recovered snapshot from {source} is not accepted")
+    return raw_state
 
 
 
@@ -2311,10 +2351,10 @@ def convention_set(
     force: bool = typer.Option(False, "--force", help="Overwrite existing convention"),
 ) -> None:
     """Set a convention in the convention lock."""
-    from gpd.contracts import ConventionLock
     from gpd.core.constants import ProjectLayout
-    from gpd.core.conventions import convention_set
-    from gpd.core.state import save_state_json_locked
+    from gpd.core.conventions import convention_lock_from_state_payload, convention_set
+    from gpd.core.errors import ConventionError
+    from gpd.core.state import default_state_dict, save_state_json_locked
     from gpd.core.utils import file_lock
 
     cwd = _get_cwd()
@@ -2323,12 +2363,16 @@ def convention_set(
     # Perform the entire read-modify-write under a single file lock to avoid
     # the TOCTOU race that existed when _load_lock() ran before _save_lock().
     with file_lock(state_path):
-        raw = _load_mutation_state_snapshot(cwd)
-
-        lock_data = raw.get("convention_lock", {})
-        if not isinstance(lock_data, dict):
-            lock_data = {}
-        lock = ConventionLock(**lock_data)
+        try:
+            raw = _load_convention_state_snapshot(cwd)
+        except ConventionError as exc:
+            _error(str(exc))
+        if raw is None:
+            raw = default_state_dict()
+        try:
+            lock = convention_lock_from_state_payload(raw, source_label="state.json")
+        except ConventionError as exc:
+            _error(str(exc))
 
         result = convention_set(lock, key, value, force=force)
         if result.updated:
@@ -4986,24 +5030,28 @@ def _resolve_review_preflight_manuscript(
     *,
     allow_markdown: bool = True,
     restrict_to_supported_roots: bool = False,
+    workspace_cwd: Path | None = None,
 ) -> tuple[Path | None, str]:
     """Resolve a review-preflight manuscript target from an explicit subject or defaults."""
 
+    project_root = cwd.resolve(strict=False)
+    subject_base = (workspace_cwd or cwd).resolve(strict=False)
+
     def _supported_explicit_manuscript_target(target: Path) -> bool:
         try:
-            relative = target.resolve(strict=False).relative_to(cwd.resolve(strict=False))
+            relative = target.resolve(strict=False).relative_to(project_root)
         except ValueError:
             return False
         return bool(relative.parts) and relative.parts[0] in {"paper", "manuscript", "draft"}
 
     def _supported_root_resolution_for_target(target: Path) -> tuple[Path, object] | tuple[None, None]:
         try:
-            relative = target.resolve(strict=False).relative_to(cwd.resolve(strict=False))
+            relative = target.resolve(strict=False).relative_to(project_root)
         except ValueError:
             return None, None
         if not relative.parts or relative.parts[0] not in {"paper", "manuscript", "draft"}:
             return None, None
-        manuscript_root = cwd / relative.parts[0]
+        manuscript_root = project_root / relative.parts[0]
         return manuscript_root, resolve_manuscript_entrypoint_from_root_resolution(
             manuscript_root,
             allow_markdown=allow_markdown,
@@ -5012,10 +5060,11 @@ def _resolve_review_preflight_manuscript(
     if subject:
         target = Path(subject)
         if not target.is_absolute():
-            target = cwd / target
+            target = subject_base / target
 
         if not target.exists():
             return None, f"missing explicit manuscript target {_format_display_path(target)}"
+        target = target.resolve(strict=False)
         target_is_supported_root = _supported_explicit_manuscript_target(target)
         if restrict_to_supported_roots and not target_is_supported_root:
             return (
@@ -5053,7 +5102,7 @@ def _resolve_review_preflight_manuscript(
                 return None, f"no manuscript entry point found under {_format_display_path(target)}"
             return None, f"{_format_display_path(target)} is ambiguous or inconsistent: {resolution.detail}"
 
-    resolution = resolve_current_manuscript_resolution(cwd, allow_markdown=allow_markdown)
+    resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=allow_markdown)
     manuscript = resolution.manuscript_entrypoint
     if manuscript is not None and resolution.status == "resolved":
         return manuscript, f"{_format_display_path(manuscript)} present"
@@ -5075,7 +5124,7 @@ def _resolve_review_preflight_manuscript(
 
 def _resolve_review_preflight_publication_artifact(manuscript: Path, *filenames: str) -> Path | None:
     """Resolve review artifacts only from the active manuscript directory."""
-    return _first_existing_path(*(manuscript.parent / filename for filename in filenames))
+    return locate_publication_artifact(manuscript, *filenames)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -5199,100 +5248,12 @@ def _manuscript_matches_review_artifact_path(artifact_path: str, manuscript: Pat
     return normalized_artifact_path in candidates
 
 
-_REVIEW_PRECHECK_BLOCKING_CONDITIONS: dict[str, tuple[str, ...]] = {
-    "project_state": ("missing project state",),
-    "state_integrity": ("degraded review integrity",),
-    "roadmap": ("missing roadmap",),
-    "conventions": ("missing conventions",),
-    "research_artifacts": ("no research artifacts",),
-    "summary_frontmatter": ("degraded review integrity",),
-    "verification_frontmatter": ("degraded review integrity",),
-    "manuscript": ("missing manuscript",),
-    "compiled_manuscript": ("missing compiled manuscript",),
-    "referee_report_source": ("missing referee report source when provided as a path",),
-    "phase_lookup": ("missing phase artifacts",),
-    "phase_summaries": ("missing phase artifacts",),
-    "publication_blockers": ("unresolved publication blockers",),
-    "publication_review_outcome": (
-        "peer-review recommendation blocks submission",
-        "peer-review recommendation blocks submission when staged review artifacts are present",
-        "latest staged peer-review recommendation blocks submission packaging",
-    ),
-    "manuscript_proof_review": ("missing or stale manuscript proof review for theorem-bearing manuscripts",),
-}
-
-_REVIEW_PRECHECK_REQUIRED_EVIDENCE: dict[str, tuple[str, ...]] = {
-    "research_artifacts": ("phase summaries or milestone digest",),
-    "verification_reports": ("verification reports",),
-    "artifact_manifest": ("artifact manifest", "manuscript-root artifact manifest"),
-    "bibliography_audit": ("bibliography audit", "manuscript-root bibliography audit"),
-    "bibliography_audit_clean": ("bibliography audit", "manuscript-root bibliography audit"),
-    "review_ledger": ("peer-review review ledger", "peer-review review ledger when available"),
-    "review_ledger_valid": ("peer-review review ledger", "peer-review review ledger when available"),
-    "referee_decision": (
-        "peer-review referee decision",
-        "latest peer-review referee decision",
-        "peer-review referee decision when available",
-        "peer-review decision artifacts when available",
-    ),
-    "referee_decision_valid": (
-        "peer-review referee decision",
-        "latest peer-review referee decision",
-        "peer-review referee decision when available",
-        "peer-review decision artifacts when available",
-    ),
-    "referee_report_source": ("referee report source when provided as a path",),
-    "reproducibility_manifest": ("reproducibility manifest", "manuscript-root reproducibility manifest"),
-    "reproducibility_ready": ("reproducibility manifest", "manuscript-root reproducibility manifest"),
-    "manuscript_proof_review": ("cleared manuscript proof review for theorem-bearing manuscripts",),
-}
-
 _PHASE_EXECUTED_STATUSES = {
     "phase complete — ready for verification",
     "verifying",
     "complete",
     "milestone complete",
 }
-
-
-def _normalized_contract_entries(values: list[str]) -> set[str]:
-    """Normalize review-contract strings for case-insensitive membership checks."""
-    return {value.strip().lower() for value in values if value and value.strip()}
-
-
-def _normalized_conditional_contract_entries(
-    contract: object,
-    field_name: str,
-    *,
-    active_condition_whens: set[str] | None = None,
-) -> set[str]:
-    """Return normalized entries from nested conditional review-contract clauses."""
-    normalized: set[str] = set()
-    for requirement in getattr(contract, "conditional_requirements", []):
-        when = str(getattr(requirement, "when", "") or "").strip()
-        if active_condition_whens is not None and when not in active_condition_whens:
-            continue
-        normalized.update(
-            _normalized_contract_entries(list(getattr(requirement, field_name, []) or []))
-        )
-    return normalized
-
-
-def _review_contract_condition_is_active(
-    when: str,
-    *,
-    project_cwd: Path,
-    manuscript: Path | None,
-) -> bool:
-    """Return whether one typed conditional review-contract clause is active."""
-
-    normalized_when = when.strip()
-    if normalized_when in {
-        "theorem-bearing claims are present",
-        "theorem-bearing manuscripts are present",
-    }:
-        return manuscript is not None and manuscript_requires_theorem_bearing_review(project_cwd, manuscript)
-    return False
 
 
 def _requires_theorem_bearing_manuscript_review(
@@ -5304,71 +5265,26 @@ def _requires_theorem_bearing_manuscript_review(
     return manuscript is not None and manuscript_requires_theorem_bearing_review(project_cwd, manuscript)
 
 
-def _active_review_contract_condition_whens(
-    contract: object,
-    *,
-    project_cwd: Path,
-    manuscript: Path | None,
-) -> set[str]:
-    """Return the set of typed conditional review-contract clauses that currently apply."""
+def _review_contract_requests_check(contract: object, check_name: str) -> bool:
+    """Return whether the review contract explicitly asks the CLI to execute one check."""
 
-    active: set[str] = set()
-    for requirement in getattr(contract, "conditional_requirements", []):
-        when = str(getattr(requirement, "when", "") or "").strip()
-        if when and _review_contract_condition_is_active(when, project_cwd=project_cwd, manuscript=manuscript):
-            active.add(when)
-    return active
+    return check_name in list(getattr(contract, "preflight_checks", []) or [])
 
 
-def _review_contract_requests_check(
-    contract: object,
-    check_name: str,
-    *,
-    active_condition_whens: set[str] | None = None,
-) -> bool:
-    """Return whether the review contract asks the CLI to execute one check."""
+def _review_contract_requires_evidence(contract: object, evidence_text: str) -> bool:
+    """Return whether one exact required-evidence item is present in the typed review contract."""
 
-    if check_name in list(getattr(contract, "preflight_checks", []) or []):
-        return True
-    blocking_conditions = _normalized_contract_entries(getattr(contract, "blocking_conditions", []))
-    blocking_conditions.update(
-        _normalized_conditional_contract_entries(
-            contract,
-            "blocking_conditions",
-            active_condition_whens=active_condition_whens,
-        )
-    )
-    required_evidence = _normalized_contract_entries(getattr(contract, "required_evidence", []))
-    required_evidence.update(
-        _normalized_conditional_contract_entries(
-            contract,
-            "required_evidence",
-            active_condition_whens=active_condition_whens,
-        )
-    )
-
-    return (
-        any(alias in blocking_conditions for alias in _REVIEW_PRECHECK_BLOCKING_CONDITIONS.get(check_name, ()))
-        or any(alias in required_evidence for alias in _REVIEW_PRECHECK_REQUIRED_EVIDENCE.get(check_name, ()))
-    )
+    return evidence_text in {
+        str(item).strip()
+        for item in list(getattr(contract, "required_evidence", []) or [])
+        if isinstance(item, str) and item.strip()
+    }
 
 
-def _review_preflight_check_is_blocking(
-    contract: object,
-    check_name: str,
-    *,
-    active_condition_whens: set[str] | None = None,
-) -> bool:
+def _review_preflight_check_is_blocking(contract: object, check_name: str) -> bool:
     """Return True when the typed review contract marks a check as hard-blocking."""
 
-    return (
-        check_name in list(getattr(contract, "preflight_checks", []) or [])
-        or _review_contract_requests_check(
-            contract,
-            check_name,
-            active_condition_whens=active_condition_whens,
-        )
-    )
+    return check_name in list(getattr(contract, "preflight_checks", []) or [])
 
 
 def _evaluate_review_required_state(
@@ -5614,9 +5530,9 @@ def _resolve_existing_input_path(input_path: str | None, *, candidates: tuple[st
     raise GPDError(f"No {label} found. Searched: {searched}")
 
 
-def _resolve_default_paper_config_path() -> Path:
+def _resolve_default_paper_config_path(*, project_root: Path | None = None) -> Path:
     """Resolve the default paper config without silently preferring one supported root over another."""
-    cwd = _get_cwd()
+    cwd = (project_root or _project_scoped_cwd()).expanduser().resolve(strict=False)
     candidates = tuple(cwd / root / "PAPER-CONFIG.json" for root in ("paper", "manuscript", "draft"))
     existing = [path for path in candidates if path.exists()]
     if len(existing) == 1:
@@ -5659,6 +5575,7 @@ def _resolve_bibliography_path(
     config_path: Path,
     output_dir: Path,
     bib_stem: str,
+    project_root: Path,
 ) -> Path | None:
     """Resolve an optional bibliography source path for a paper build."""
     if explicit_path:
@@ -5672,14 +5589,14 @@ def _resolve_bibliography_path(
     candidates = (
         config_path.parent / f"{bib_stem}.bib",
         output_dir / f"{bib_stem}.bib",
-        _get_cwd() / "references" / f"{bib_stem}.bib",
+        project_root / "references" / f"{bib_stem}.bib",
     )
     return _first_existing_path(*candidates)
 
 
-def _discover_literature_review_citation_sources(cwd: Path) -> tuple[Path | None, str | None]:
+def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Path | None, str | None]:
     """Return a single literature-review citation-source sidecar if it is unambiguous."""
-    literature_dir = cwd / "GPD" / "literature"
+    literature_dir = project_root / "GPD" / "literature"
     if not literature_dir.is_dir():
         return None, None
 
@@ -5796,10 +5713,10 @@ def _default_paper_output_dir(config_file: Path) -> Path:
     return config_file.resolve(strict=False).parent
 
 
-def _reject_legacy_paper_config_location(config_file: Path) -> None:
+def _reject_legacy_paper_config_location(config_file: Path, *, project_root: Path | None = None) -> None:
     """Reject removed paper-config locations under internal planning storage."""
     resolved_config = config_file.resolve(strict=False)
-    project_root = _get_cwd().resolve(strict=False)
+    project_root = (project_root or _project_scoped_cwd()).resolve(strict=False)
     for legacy_config_root in (project_root / "GPD" / "paper", project_root / ".gpd" / "paper"):
         try:
             resolved_config.relative_to(legacy_config_root)
@@ -6018,6 +5935,8 @@ def _command_required_files_override_detail(
     project_root: Path,
     command: object,
     arguments: str | None,
+    *,
+    workspace_cwd: Path | None = None,
 ) -> str | None:
     """Return a detail string when explicit review inputs satisfy required-file gating."""
     if not isinstance(arguments, str) or not arguments.strip():
@@ -6034,6 +5953,7 @@ def _command_required_files_override_detail(
         arguments,
         allow_markdown=getattr(command, "name", "") != "gpd:arxiv-submission",
         restrict_to_supported_roots=getattr(command, "name", "") == "gpd:arxiv-submission",
+        workspace_cwd=workspace_cwd,
     )
     if manuscript is None:
         return None
@@ -6051,6 +5971,8 @@ def _command_context_manuscript_check(
     project_root: Path,
     command: object,
     arguments: str | None,
+    *,
+    workspace_cwd: Path | None = None,
 ) -> tuple[bool, str] | None:
     """Return a canonical manuscript-context check for publication commands."""
     if not _command_requires_manuscript_context(command):
@@ -6063,6 +5985,7 @@ def _command_context_manuscript_check(
             arguments,
             allow_markdown=command_name != "gpd:arxiv-submission",
             restrict_to_supported_roots=command_name == "gpd:arxiv-submission",
+            workspace_cwd=workspace_cwd,
         )
         return manuscript is not None, detail
 
@@ -6285,7 +6208,12 @@ def _build_command_context_preflight(
                 )
                 override_detail = None
                 if not required_files_present:
-                    override_detail = _command_required_files_override_detail(selected_root, command, arguments)
+                    override_detail = _command_required_files_override_detail(
+                        selected_root,
+                        command,
+                        arguments,
+                        workspace_cwd=cwd,
+                    )
                     if override_detail is not None:
                         required_files_present = True
                         matched_patterns = [override_detail]
@@ -6302,7 +6230,12 @@ def _build_command_context_preflight(
                     ),
                     blocking=False,
                 )
-            manuscript_context = _command_context_manuscript_check(selected_root, command, arguments)
+            manuscript_context = _command_context_manuscript_check(
+                selected_root,
+                command,
+                arguments,
+                workspace_cwd=cwd,
+            )
             if manuscript_context is not None:
                 manuscript_context_passed, manuscript_context_detail = manuscript_context
                 add_check(
@@ -6356,7 +6289,12 @@ def _build_command_context_preflight(
             ),
         )
         required_file_patterns = _command_required_file_patterns(command)
-        manuscript_context = _command_context_manuscript_check(context_cwd, command, arguments)
+        manuscript_context = _command_context_manuscript_check(
+            context_cwd,
+            command,
+            arguments,
+            workspace_cwd=cwd,
+        )
         if required_file_patterns:
             required_files_present, matched_patterns, missing_patterns = _command_required_files_present(
                 context_cwd,
@@ -6364,7 +6302,12 @@ def _build_command_context_preflight(
             )
             override_detail = None
             if not required_files_present:
-                override_detail = _command_required_files_override_detail(context_cwd, command, arguments)
+                override_detail = _command_required_files_override_detail(
+                    context_cwd,
+                    command,
+                    arguments,
+                    workspace_cwd=cwd,
+                )
                 if override_detail is not None:
                     required_files_present = True
                     matched_patterns = [override_detail]
@@ -6477,7 +6420,6 @@ def _build_review_preflight(
         raise GPDError(f"Command {public_command_name} does not expose a review contract")
 
     checks: list[ReviewPreflightCheck] = []
-    active_condition_whens: set[str] = set()
     phase_subject = subject
     if phase_subject is None and "phase_artifacts" in contract.preflight_checks:
         phase_subject = _current_review_phase_subject(project_cwd)
@@ -6490,13 +6432,7 @@ def _build_review_preflight(
                 passed=passed,
                 detail=detail,
                 blocking=(
-                    _review_preflight_check_is_blocking(
-                        contract,
-                        name,
-                        active_condition_whens=active_condition_whens,
-                    )
-                    if blocking is None
-                    else blocking
+                    _review_preflight_check_is_blocking(contract, name) if blocking is None else blocking
                 ),
             )
         )
@@ -6528,7 +6464,7 @@ def _build_review_preflight(
             detail = f"integrity_status={validation.integrity_status}"
             if validation.issues:
                 detail = f"{detail}; {'; '.join(validation.issues)}"
-            add_check("state_integrity", validation.valid, detail)
+            add_check("state_integrity", validation.valid, detail, blocking=True)
 
     if "roadmap" in contract.preflight_checks:
         add_check(
@@ -6566,12 +6502,12 @@ def _build_review_preflight(
                 "all phase summaries satisfy the summary schema"
                 if not summary_failures
                 else "; ".join(summary_failures[:3]),
+                blocking=True,
             )
         verification_reports_requested = _review_contract_requests_check(
             contract,
             "verification_reports",
-            active_condition_whens=active_condition_whens,
-        )
+        ) or _review_contract_requires_evidence(contract, "verification reports")
         if verification_reports_requested:
             verification_exists = layout.phases_dir.exists() and any(layout.phases_dir.rglob("*VERIFICATION.md"))
             add_check(
@@ -6587,6 +6523,7 @@ def _build_review_preflight(
                     "all verification reports satisfy the verification schema"
                     if not verification_failures
                     else "; ".join(verification_failures[:3]),
+                    blocking=True,
                 )
 
     if "manuscript" in contract.preflight_checks:
@@ -6596,6 +6533,7 @@ def _build_review_preflight(
                 subject,
                 allow_markdown=command.name != "gpd:arxiv-submission",
                 restrict_to_supported_roots=command.name == "gpd:arxiv-submission",
+                workspace_cwd=cwd,
             )
         elif command.name in {"gpd:write-paper", "gpd:respond-to-referees"}:
             manuscript, manuscript_detail = _resolve_review_preflight_manuscript(project_cwd, None, allow_markdown=True)
@@ -6630,12 +6568,6 @@ def _build_review_preflight(
                     else f"missing {_format_display_path(report_path)}"
                 ),
             )
-        if manuscript is not None:
-            active_condition_whens = _active_review_contract_condition_whens(
-                contract,
-                project_cwd=project_cwd,
-                manuscript=manuscript,
-            )
         if manuscript is not None and command.name in {
             "gpd:peer-review",
             "gpd:write-paper",
@@ -6656,11 +6588,7 @@ def _build_review_preflight(
                     "reproducibility_manifest",
                     "manuscript_proof_review",
                 )
-                if _review_contract_requests_check(
-                    contract,
-                    check_name,
-                    active_condition_whens=active_condition_whens,
-                )
+                if _review_contract_requests_check(contract, check_name)
             }
             if requested_publication_checks:
                 publication_artifacts = _resolve_review_preflight_publication_artifacts(manuscript)
@@ -7024,6 +6952,7 @@ def _build_review_preflight(
                     if phase_exists
                     else f'phase "{subject}" not found'
                 ),
+                blocking=True,
             )
             if phase_exists:
                 summary_exists = bool(phase_info.summaries)
@@ -7035,6 +6964,7 @@ def _build_review_preflight(
                         if summary_exists
                         else f'phase "{subject}" has no SUMMARY artifacts'
                     ),
+                    blocking=True,
                 )
         else:
             summary_exists = bool(getattr(phase_info, "summaries", [])) if phase_info is not None else _has_any_phase_summary(layout.phases_dir)
@@ -7050,6 +6980,7 @@ def _build_review_preflight(
                         else ("phase summaries present" if summary_exists else "no phase summaries found")
                     )
                 ),
+                blocking=True,
             )
         if command.name == "gpd:verify-work" and phase_info is not None:
             phase_proof_review = resolve_phase_proof_review_status(
@@ -7573,12 +7504,14 @@ def paper_build(
     from gpd.mcp.paper.compiler import build_paper
     from gpd.mcp.paper.models import derive_output_filename
 
+    cwd = _get_cwd()
+    project_root = _project_scoped_cwd(cwd)
     config_file = (
         _resolve_existing_input_path(config_path, candidates=(), label="paper config")
         if config_path
-        else _resolve_default_paper_config_path()
+        else _resolve_default_paper_config_path(project_root=project_root)
     )
-    _reject_legacy_paper_config_location(config_file)
+    _reject_legacy_paper_config_location(config_file, project_root=project_root)
     raw_config = _load_json_document(str(config_file))
     if not isinstance(raw_config, dict):
         raise GPDError(f"Paper config must be a JSON object: {_format_display_path(config_file)}")
@@ -7586,9 +7519,11 @@ def paper_build(
     paper_config = _resolve_paper_config_paths(raw_config, base_dir=config_file.parent)
     output_path = Path(output_dir) if output_dir else _default_paper_output_dir(config_file)
     if not output_path.is_absolute():
-        output_path = _get_cwd() / output_path
+        output_path = cwd / output_path
     output_path = output_path.resolve(strict=False)
-    storage_layout = ProjectStorageLayout(_get_cwd())
+    resolved_config_root = config_file.resolve(strict=False)
+    storage_root = project_root if resolved_config_root.is_relative_to(project_root) else resolved_config_root.parent
+    storage_layout = ProjectStorageLayout(storage_root)
     storage_layout.validate_final_output(output_path)
     storage_check = storage_layout.check_user_output(
         output_path,
@@ -7604,6 +7539,7 @@ def paper_build(
         config_path=config_file,
         output_dir=output_path,
         bib_stem=paper_config.bib_file.removesuffix(".bib"),
+        project_root=project_root,
     )
     bib_data = None
     if bib_source is not None:
@@ -7624,7 +7560,7 @@ def paper_build(
         except GPDError as exc:
             _error(str(exc))
     else:
-        citation_source_path, citation_source_warning = _discover_literature_review_citation_sources(_get_cwd())
+        citation_source_path, citation_source_warning = _discover_literature_review_citation_sources(project_root)
         if citation_source_path is not None:
             try:
                 citation_payload = _load_citation_sources_payload(citation_source_path)
@@ -7647,15 +7583,15 @@ def paper_build(
         result_tex_path = output_path / f"{derive_output_filename(paper_config)}.tex"
 
     payload = {
-        "config_path": _format_display_path(config_file),
-        "output_dir": _format_display_path(output_path),
-        "tex_path": _format_display_path(result_tex_path),
-        "bibliography_source": _format_display_path(bib_source),
-        "citation_sources_path": _format_display_path(citation_source_path),
+        "config_path": _format_display_path_from_cwd(config_file, cwd=cwd),
+        "output_dir": _format_display_path_from_cwd(output_path, cwd=cwd),
+        "tex_path": _format_display_path_from_cwd(result_tex_path, cwd=cwd),
+        "bibliography_source": _format_display_path_from_cwd(bib_source, cwd=cwd),
+        "citation_sources_path": _format_display_path_from_cwd(citation_source_path, cwd=cwd),
         "reference_bibtex_bridge": _paper_build_reference_bibtex_bridge(result),
-        "manifest_path": _format_display_path(result.manifest_path),
-        "bibliography_audit_path": _format_display_path(result.bibliography_audit_path),
-        "pdf_path": _format_display_path(result.pdf_path),
+        "manifest_path": _format_display_path_from_cwd(result.manifest_path, cwd=cwd),
+        "bibliography_audit_path": _format_display_path_from_cwd(result.bibliography_audit_path, cwd=cwd),
+        "pdf_path": _format_display_path_from_cwd(result.pdf_path, cwd=cwd),
         "success": result.success,
         "error_count": len(result.errors),
         "errors": result.errors,

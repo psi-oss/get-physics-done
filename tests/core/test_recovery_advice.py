@@ -8,7 +8,7 @@ from gpd.core.recovery_advice import (
     serialize_recovery_advice,
     serialize_recovery_orientation,
 )
-from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_KEYS
+from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
 
 
 def _project(tmp_path: Path, name: str = "project") -> Path:
@@ -74,6 +74,29 @@ def test_build_recovery_advice_treats_canonical_bounded_segment_as_authoritative
     assert advice.active_resume_origin == "continuation.bounded_segment"
     assert advice.active_resume_pointer == "GPD/phases/06/.continue-here.md"
     assert advice.resume_candidates_count == 0
+
+
+def test_build_recovery_advice_passes_data_root_to_init_resume(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project = _project(tmp_path)
+    data_root = tmp_path / "data"
+    captured: dict[str, object] = {}
+
+    def _fake_init_resume(cwd: Path, *, data_root: Path | None = None):
+        captured["cwd"] = cwd
+        captured["data_root"] = data_root
+        return {}
+
+    monkeypatch.setattr("gpd.core.recovery_advice.init_resume", _fake_init_resume)
+
+    build_recovery_advice(project, data_root=data_root)
+
+    assert captured == {
+        "cwd": project.resolve(strict=False),
+        "data_root": data_root,
+    }
 
 
 def test_serialize_recovery_orientation_is_canonical_first_and_omits_legacy_resume_aliases(
@@ -172,7 +195,7 @@ def test_serialize_recovery_advice_is_canonical_first_and_omits_legacy_resume_al
     assert public["actions"][0]["command"] == "gpd resume"
     assert public["actions"][-1]["kind"] == "fast-next"
     assert "compat_resume_surface" not in public
-    for key in RESUME_COMPATIBILITY_ALIAS_KEYS:
+    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
         assert key not in public
 
 
@@ -570,6 +593,35 @@ def test_build_recovery_advice_keeps_interrupted_agent_in_current_workspace_mode
     assert advice.has_interrupted_agent is True
 
 
+def test_build_recovery_advice_does_not_treat_interrupted_agent_pointer_as_resume_file(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+
+    advice = build_recovery_advice(
+        project,
+        recent_rows=[],
+        resume_payload={
+            "has_interrupted_agent": True,
+            "active_resume_kind": "interrupted_agent",
+            "active_resume_origin": "interrupted_agent_marker",
+            "active_resume_pointer": "agent-123",
+            "resume_candidates": [
+                {
+                    "kind": "interrupted_agent",
+                    "origin": "interrupted_agent_marker",
+                    "status": "interrupted",
+                    "agent_id": "agent-123",
+                    "resume_pointer": "agent-123",
+                }
+            ],
+        },
+    )
+
+    assert advice.status == "interrupted-agent"
+    assert advice.has_interrupted_agent is True
+    assert advice.current_workspace_has_recovery is True
+    assert advice.current_workspace_has_resume_file is False
+
+
 def test_build_recovery_advice_prefers_continuity_handoff_over_advisory_live_execution(tmp_path: Path) -> None:
     project = _project(tmp_path)
     handoff = project / "GPD" / "phases" / "07" / ".continue-here.md"
@@ -944,3 +996,45 @@ def test_build_recovery_advice_describes_recent_projects_that_are_not_auto_selec
     assert advice.decision_source == "recent-projects"
     assert advice.primary_command == "gpd resume --recent"
     assert advice.project_reentry_reason == "GPD found recent projects on this machine, but none are ready to reopen automatically."
+
+
+def test_build_recovery_advice_force_recent_prefers_explicit_recent_rows_over_workspace_payload(
+    tmp_path: Path,
+) -> None:
+    workspace = _project(tmp_path)
+    candidate = _project(tmp_path, "candidate")
+
+    advice = build_recovery_advice(
+        workspace,
+        recent_rows=[
+            {
+                "project_root": candidate.as_posix(),
+                "available": True,
+                "resumable": True,
+                "resume_file": "GPD/phases/02/.continue-here.md",
+            }
+        ],
+        resume_payload={
+            "workspace_root": workspace.as_posix(),
+            "project_root": workspace.as_posix(),
+            "project_root_source": "current_workspace",
+            "project_reentry_mode": "current-workspace",
+            "project_reentry_candidates": [
+                {
+                    "source": "current_workspace",
+                    "project_root": workspace.as_posix(),
+                    "available": True,
+                    "recoverable": True,
+                }
+            ],
+        },
+        force_recent=True,
+    )
+
+    assert advice.mode == "recent-projects"
+    assert advice.status == "recent-projects"
+    assert advice.decision_source == "forced-recent-projects"
+    assert advice.primary_command == "gpd resume --recent"
+    assert advice.recent_projects_count == 1
+    assert advice.continue_command == "runtime `resume-work`"
+    assert advice.fast_next_command == "runtime `suggest-next`"

@@ -75,49 +75,10 @@ def _load_artifact_manifest(manuscript_root: Path) -> ArtifactManifest | None:
         return None
 
 
-def _load_raw_artifact_manifest_payload(manuscript_root: Path) -> dict[str, object] | None:
-    manifest_path = manuscript_root / "ARTIFACT-MANIFEST.json"
-    if not manifest_path.exists():
-        return None
-    try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return payload if isinstance(payload, dict) else None
-
-
-def _raw_manifest_entrypoints(manuscript_root: Path, *, allow_markdown: bool) -> tuple[Path, ...]:
-    payload = _load_raw_artifact_manifest_payload(manuscript_root)
-    if not payload:
-        return ()
-
-    artifacts = payload.get("artifacts")
-    if not isinstance(artifacts, list):
-        return ()
-
-    allowed_suffixes = {".tex"}
-    if allow_markdown:
-        allowed_suffixes.add(".md")
-
-    candidates: list[Path] = []
-    for artifact in artifacts:
-        if not isinstance(artifact, dict):
-            continue
-        if artifact.get("category") != "tex":
-            continue
-        path = artifact.get("path")
-        if not isinstance(path, str) or not path.strip():
-            continue
-        candidate = manuscript_root / path
-        if candidate.exists() and candidate.suffix.lower() in allowed_suffixes:
-            candidates.append(candidate)
-    return tuple(dict.fromkeys(candidates))
-
-
 def _manifest_entrypoints(manuscript_root: Path, *, allow_markdown: bool) -> tuple[Path, ...]:
     manifest = _load_artifact_manifest(manuscript_root)
     if manifest is None:
-        return _raw_manifest_entrypoints(manuscript_root, allow_markdown=allow_markdown)
+        return ()
 
     allowed_suffixes = {".tex"}
     if allow_markdown:
@@ -126,7 +87,11 @@ def _manifest_entrypoints(manuscript_root: Path, *, allow_markdown: bool) -> tup
     for artifact in manifest.artifacts:
         if artifact.category != "tex":
             continue
-        candidate = manuscript_root / artifact.path
+        candidate = (manuscript_root / artifact.path).resolve(strict=False)
+        try:
+            candidate.relative_to(manuscript_root.resolve(strict=False))
+        except ValueError:
+            continue
         if candidate.exists() and candidate.suffix.lower() in allowed_suffixes:
             candidates.append(candidate)
     return tuple(dict.fromkeys(candidates))
@@ -332,17 +297,19 @@ def resolve_current_manuscript_root(project_root: Path, *, allow_markdown: bool 
     """Return the directory containing the active manuscript entrypoint."""
 
     resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=allow_markdown)
-    if resolution.manuscript_entrypoint is None:
-        return None
-    return resolution.manuscript_entrypoint.parent
+    return resolution.manuscript_root
 
 
 def _normalize_manuscript_base(manuscript_root: Path) -> Path:
-    if manuscript_root.exists() and manuscript_root.is_file():
-        return manuscript_root.parent
-    if manuscript_root.suffix in {".tex", ".md"} and not manuscript_root.is_dir():
-        return manuscript_root.parent
-    return manuscript_root
+    candidate = manuscript_root.resolve(strict=False)
+    for ancestor in (candidate, *candidate.parents):
+        if ancestor.name in _MANUSCRIPT_ROOTS:
+            return ancestor
+    if candidate.exists() and candidate.is_file():
+        return candidate.parent
+    if candidate.suffix in {".tex", ".md"} and not candidate.is_dir():
+        return candidate.parent
+    return candidate
 
 
 def locate_publication_artifact(manuscript_root: Path, *filenames: str) -> Path | None:
@@ -365,7 +332,7 @@ def resolve_current_manuscript_artifacts(
 
     resolution = resolve_current_manuscript_resolution(project_root, allow_markdown=allow_markdown)
     entrypoint = resolution.manuscript_entrypoint
-    manuscript_root = entrypoint.parent if entrypoint is not None else None
+    manuscript_root = resolution.manuscript_root
     if manuscript_root is None:
         return ManuscriptArtifacts(
             project_root=project_root,

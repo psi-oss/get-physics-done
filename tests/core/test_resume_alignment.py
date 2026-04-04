@@ -67,7 +67,8 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "compat_resume_surface" not in resume_doc
     assert "gpd init resume" not in resume_doc
     assert "machine_change_detected" in resume_doc
-    assert "compat_resume_surface" in portability_doc
+    assert "compat_resume_surface" not in portability_doc
+    assert "backend-only compatibility inputs" in portability_doc
     assert "shared resume resolver" in help_doc
     assert "compat_resume_surface" not in help_doc
     assert "Recorded handoff artifact is missing" in resume_doc
@@ -84,10 +85,9 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "bounded-segment resume state" in portability_doc
     assert "advisory continuity context only" in portability_doc
     assert "does not create a resumable bounded-segment candidate" in portability_doc
-    assert "stays nested and advisory only" in portability_doc
+    assert "backend-only inputs" in portability_doc
     assert 'set `active_resume_kind="bounded_segment"`' in portability_doc
     assert "The canonical public resume surface centers on `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`" in portability_doc
-    assert "nested compatibility-only cues" in portability_doc
     assert "public top-level resume vocabulary" in portability_doc
     assert "shared resume resolver" in portability_doc
     assert "shared resume-surface resolver owns the canonical candidate kind/origin semantics" in portability_doc
@@ -177,10 +177,7 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "canonical object first and only falls back to the derived execution head compatibility mirror when the canonical continuation is missing or incomplete" in schema_doc
     assert "That backend treats `continuation` as primary" in schema_doc
     assert schema_doc.index("| `continuation`") < schema_doc.index("| `session`")
-    assert (
-        "Raw compatibility cues remain nested under `compat_resume_surface` on the `gpd init resume` backend rather than primary resume fields"
-        in schema_doc
-    )
+    assert "Raw compatibility cues remain backend-only intake signals rather than primary resume fields" in schema_doc
     assert "state.json.continuation.bounded_segment" in schema_doc
     assert "An append-only execution lineage records what happened." in state_machine_doc
     assert (
@@ -266,15 +263,8 @@ def test_init_resume_surfaces_machine_change_and_continuity_handoff_candidate(
     assert ctx["execution_paused_at"] is None
     assert "resume_mode" not in ctx
     assert "segment_candidates" not in ctx
-    assert ctx["compat_resume_surface"]["segment_candidates"] == [
-        {
-            "source": "session_resume_file",
-            "status": "handoff",
-            "resume_file": "GPD/phases/03-analysis/.continue-here.md",
-            "resumable": False,
-        }
-    ]
     assert "active_execution_segment" not in ctx
+    assert "compat_resume_surface" not in ctx
     assert ctx["has_interrupted_agent"] is False
     assert ctx["session_hostname"] == "old-host"
     assert ctx["session_platform"] == "Linux 5.15 x86_64"

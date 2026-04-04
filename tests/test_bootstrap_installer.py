@@ -805,11 +805,51 @@ const futureSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
 futureSurfaceCatalog[0].validated_command_surface = "public_runtime_semicolon_command";
 assert.equal(validateRuntimeCatalog(futureSurfaceCatalog)[0].validated_command_surface, "public_runtime_semicolon_command");
 
+const reversedCatalog = JSON.parse(JSON.stringify(catalog)).reverse();
+const sortedCatalog = validateRuntimeCatalog(reversedCatalog);
+for (let index = 1; index < sortedCatalog.length; index += 1) {
+  const previous = sortedCatalog[index - 1];
+  const current = sortedCatalog[index];
+  assert.ok(
+    previous.priority < current.priority ||
+      (previous.priority === current.priority && previous.runtime_name <= current.runtime_name),
+    `runtime catalog order drifted at index ${index}`
+  );
+}
+
+const duplicateRuntimeNameCatalog = JSON.parse(JSON.stringify(catalog));
+duplicateRuntimeNameCatalog[1].runtime_name = duplicateRuntimeNameCatalog[0].runtime_name;
+assert.throws(
+  () => validateRuntimeCatalog(duplicateRuntimeNameCatalog),
+  /runtime catalog contains duplicate runtime_name/
+);
+
+const duplicateFlagCatalog = JSON.parse(JSON.stringify(catalog));
+duplicateFlagCatalog[1].selection_flags = [duplicateFlagCatalog[0].selection_flags[0]];
+assert.throws(
+  () => validateRuntimeCatalog(duplicateFlagCatalog),
+  /runtime catalog contains duplicate selection flag/
+);
+
+const duplicateAliasCatalog = JSON.parse(JSON.stringify(catalog));
+duplicateAliasCatalog[1].selection_aliases = [duplicateAliasCatalog[0].selection_aliases[0]];
+assert.throws(
+  () => validateRuntimeCatalog(duplicateAliasCatalog),
+  /runtime catalog contains duplicate runtime selection token/
+);
+
 const badTelemetryCatalog = JSON.parse(JSON.stringify(catalog));
 badTelemetryCatalog[0].capabilities.telemetry_source = "webhook";
 assert.throws(
   () => validateRuntimeCatalog(badTelemetryCatalog),
   /runtime catalog entry 0\.capabilities\.telemetry_source must be one of: none, notify-hook/
+);
+
+const badPermissionKindCatalog = JSON.parse(JSON.stringify(catalog));
+badPermissionKindCatalog[0].capabilities.permission_surface_kind = "approval-toggle";
+assert.throws(
+  () => validateRuntimeCatalog(badPermissionKindCatalog),
+  /runtime catalog entry 0\.capabilities\.permission_surface_kind must be "none", "managed-launcher-wrapper", or a config surface label like file:key/
 );
 
 const badStatuslineCatalog = JSON.parse(JSON.stringify(catalog));

@@ -9,7 +9,7 @@ from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
 
-from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_KEYS
+from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
 from gpd.core.surface_phrases import post_start_settings_note, post_start_settings_recommendation
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -191,7 +191,7 @@ def resume_authority_public_vocabulary_intro() -> str:
 
 
 def resume_compat_alias_fields() -> tuple[str, ...]:
-    return RESUME_COMPATIBILITY_ALIAS_KEYS
+    return RESUME_COMPATIBILITY_ALIAS_FIELDS
 
 
 def assert_unattended_readiness_contract(content: str) -> None:
@@ -918,7 +918,6 @@ def assert_resume_authority_contract(
                 _contract_optional_string(contract, "compatibility_phrase", label="resume_authority")
                 or "Compatibility-only intake fields stay internal and are not part of the public top-level resume vocabulary",
                 "Compatibility-only backend intake (`gpd init resume` only):",
-                "nested compatibility cues",
             ),
             label="resume compatibility phrase",
         )
@@ -926,8 +925,7 @@ def assert_resume_authority_contract(
             content,
             (
                 _contract_optional_string(contract, "session_mirror", label="resume_authority")
-                or "legacy session mirror nested under compat_resume_surface",
-                "compat_resume_surface",
+                or "legacy session mirror for backend-only compatibility intake",
                 "session.resume_file",
                 "session_resume_file",
                 "current_execution",

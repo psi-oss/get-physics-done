@@ -63,7 +63,6 @@ from gpd.core.reference_ingestion import ingest_manuscript_reference_status, ing
 from gpd.core.results import result_list
 from gpd.core.resume_surface import (
     build_resume_candidate,
-    build_resume_compat_surface,
     build_resume_segment_candidate,
     canonicalize_resume_public_payload,
     resume_origin_for_bounded_segment,
@@ -1104,12 +1103,6 @@ def _resolve_resume_projection(
     )
 
 
-def _resume_mode_for_kind(active_resume_kind: str | None) -> str | None:
-    if active_resume_kind in {"bounded_segment", "continuity_handoff", "interrupted_agent"}:
-        return active_resume_kind
-    return None
-
-
 def _resume_projection_source_name(resume_projection: object) -> str | None:
     source = getattr(resume_projection, "source", None)
     if hasattr(source, "value"):
@@ -1287,21 +1280,16 @@ def _build_resume_read_state(
     bounded_segment_origin = _bounded_segment_resume_origin(resume_projection)
     handoff_origin = _handoff_resume_origin(resume_projection)
     handoff_last_result_id = _handoff_last_result_id(resume_projection)
-    active_execution_segment = None
     active_bounded_segment = None
     if bounded_segment is not None:
         active_bounded_segment = bounded_segment.model_dump(mode="json")
-        active_execution_segment = active_bounded_segment
-    elif current_execution is not None:
-        active_execution_segment = current_execution
 
-    segment_candidates: list[dict[str, object]] = []
     resume_candidates: list[dict[str, object]] = []
-    if resume_projection.resumable and isinstance(active_execution_segment, dict):
-        candidate_payload = dict(active_execution_segment)
+    active_resume_segment = active_bounded_segment if isinstance(active_bounded_segment, dict) else current_execution
+    if resume_projection.resumable and isinstance(active_resume_segment, dict):
+        candidate_payload = dict(active_resume_segment)
         candidate_payload["resume_file"] = resume_projection.bounded_segment_resume_file
         candidate = _resume_candidate_from_segment(candidate_payload)
-        segment_candidates.append(candidate)
         resume_candidates.append(
             _canonical_resume_candidate(
                 candidate,
@@ -1313,8 +1301,8 @@ def _build_resume_read_state(
 
     if isinstance(resume_projection.handoff_resume_file, str) and resume_projection.handoff_resume_file:
         if not any(
-            candidate.get("resume_file") == resume_projection.handoff_resume_file
-            for candidate in segment_candidates
+            candidate.get("resume_pointer") == resume_projection.handoff_resume_file
+            for candidate in resume_candidates
         ):
             candidate = {
                 "source": "session_resume_file",
@@ -1324,7 +1312,6 @@ def _build_resume_read_state(
             }
             if handoff_last_result_id is not None:
                 candidate["last_result_id"] = handoff_last_result_id
-            segment_candidates.append(candidate)
             resume_candidates.append(
                 _canonical_resume_candidate(
                     candidate,
@@ -1335,10 +1322,10 @@ def _build_resume_read_state(
             )
 
     if isinstance(resume_projection.missing_handoff_resume_file, str) and resume_projection.missing_handoff_resume_file:
-        if not _has_candidate(
-            segment_candidates,
-            source="session_resume_file",
-            resume_file=resume_projection.missing_handoff_resume_file,
+        if not _has_resume_candidate(
+            resume_candidates,
+            kind="continuity_handoff",
+            resume_pointer=resume_projection.missing_handoff_resume_file,
         ):
             candidate = {
                 "source": "session_resume_file",
@@ -1349,7 +1336,6 @@ def _build_resume_read_state(
             }
             if handoff_last_result_id is not None:
                 candidate["last_result_id"] = handoff_last_result_id
-            segment_candidates.append(candidate)
             resume_candidates.append(
                 _canonical_resume_candidate(
                     candidate,
@@ -1360,7 +1346,7 @@ def _build_resume_read_state(
             )
 
     if interrupted_agent_id is not None and not _has_candidate(
-        segment_candidates,
+        resume_candidates,
         source="interrupted_agent",
         agent_id=interrupted_agent_id,
     ):
@@ -1369,7 +1355,6 @@ def _build_resume_read_state(
             "status": "interrupted",
             "agent_id": interrupted_agent_id,
         }
-        segment_candidates.append(candidate)
         if not _has_resume_candidate(
             resume_candidates,
             kind="interrupted_agent",
@@ -1403,8 +1388,6 @@ def _build_resume_read_state(
         active_resume_origin = None
         active_resume_pointer = None
 
-    resume_mode = _resume_mode_for_kind(active_resume_kind)
-
     active_resume_candidate = _select_active_resume_candidate(
         hydrated_resume_candidates,
         active_resume_kind=active_resume_kind,
@@ -1423,9 +1406,6 @@ def _build_resume_read_state(
         "active_resume_kind": active_resume_kind,
         "active_resume_origin": active_resume_origin,
         "active_resume_pointer": active_resume_pointer,
-        "active_execution_segment": active_execution_segment,
-        "segment_candidates": segment_candidates,
-        "resume_mode": resume_mode,
         "has_interrupted_agent": interrupted_agent_id is not None,
         "interrupted_agent_id": interrupted_agent_id,
     }
@@ -1433,7 +1413,6 @@ def _build_resume_read_state(
         active_resume_result = active_resume_candidate.get("last_result")
         if isinstance(active_resume_result, Mapping):
             result["active_resume_result"] = dict(active_resume_result)
-    result["compat_resume_surface"] = build_resume_compat_surface(result) or {}
     return result
 
 
@@ -1518,32 +1497,26 @@ def _promote_auto_selected_recent_bounded_segment(
     def _replace_matching_candidate(
         candidates: object,
         replacement: dict[str, object],
-        *,
-        canonical: bool,
     ) -> list[dict[str, object]]:
         normalized = [item for item in candidates if isinstance(item, dict)] if isinstance(candidates, list) else []
         updated: list[dict[str, object]] = []
         replaced = False
         for item in normalized:
             item_resume_file = _mapping_text(item, "resume_file")
-            item_kind = _mapping_text(item, "kind") if canonical else None
-            item_status = str(item.get("status") or "").strip() if not canonical else None
-            if item_resume_file == resume_file and (
-                item_kind in {None, "continuity_handoff"} if canonical else item_status in {"handoff", "missing"}
-            ):
+            item_kind = _mapping_text(item, "kind")
+            if item_resume_file == resume_file and item_kind in {None, "continuity_handoff"}:
                 if not replaced:
                     promoted_replacement = dict(replacement)
-                    if canonical:
-                        replacement_last_result_id = _mapping_text(promoted_replacement, "last_result_id")
-                        item_last_result_id = _mapping_text(item, "last_result_id")
-                        item_last_result = item.get("last_result")
-                        if (
-                            replacement_last_result_id is not None
-                            and replacement_last_result_id == item_last_result_id
-                            and isinstance(item_last_result, Mapping)
-                            and "last_result" not in promoted_replacement
-                        ):
-                            promoted_replacement["last_result"] = dict(item_last_result)
+                    replacement_last_result_id = _mapping_text(promoted_replacement, "last_result_id")
+                    item_last_result_id = _mapping_text(item, "last_result_id")
+                    item_last_result = item.get("last_result")
+                    if (
+                        replacement_last_result_id is not None
+                        and replacement_last_result_id == item_last_result_id
+                        and isinstance(item_last_result, Mapping)
+                        and "last_result" not in promoted_replacement
+                    ):
+                        promoted_replacement["last_result"] = dict(item_last_result)
                     updated.append(promoted_replacement)
                     replaced = True
                 continue
@@ -1554,20 +1527,12 @@ def _promote_auto_selected_recent_bounded_segment(
 
     promoted = dict(continuation_state)
     promoted["active_bounded_segment"] = bounded_segment
-    promoted["active_execution_segment"] = bounded_segment
     promoted["active_resume_kind"] = "bounded_segment"
     promoted["active_resume_origin"] = resume_origin_for_bounded_segment(recorded_by=recorded_by)
     promoted["active_resume_pointer"] = resume_file
-    promoted["resume_mode"] = "bounded_segment"
     promoted["resume_candidates"] = _replace_matching_candidate(
         promoted.get("resume_candidates"),
         canonical_candidate,
-        canonical=True,
-    )
-    promoted["segment_candidates"] = _replace_matching_candidate(
-        promoted.get("segment_candidates"),
-        raw_candidate,
-        canonical=False,
     )
     return promoted, True
 
@@ -2081,16 +2046,12 @@ def init_resume(cwd: Path, *, data_root: Path | None = None) -> dict:
     missing_continuity_handoff_file = continuation_state.get("missing_continuity_handoff_file")
     if not isinstance(missing_continuity_handoff_file, str) or not missing_continuity_handoff_file.strip():
         missing_continuity_handoff_file = None
-    current_execution = continuation_state.get("active_execution_segment")
-    segment_candidates = continuation_state.get("segment_candidates")
-    if not isinstance(segment_candidates, list):
-        segment_candidates = []
     derived_execution_head = continuation_state.get("derived_execution_head")
     if not isinstance(derived_execution_head, dict):
         derived_execution_head = execution_context.get("current_execution") if isinstance(execution_context.get("current_execution"), dict) else None
     resume_candidates = continuation_state.get("resume_candidates")
     if not isinstance(resume_candidates, list):
-        resume_candidates = segment_candidates
+        resume_candidates = []
     active_resume_kind = continuation_state.get("active_resume_kind")
     if not isinstance(active_resume_kind, str) or not active_resume_kind.strip():
         active_resume_kind = None
@@ -2100,9 +2061,6 @@ def init_resume(cwd: Path, *, data_root: Path | None = None) -> dict:
     active_resume_pointer = continuation_state.get("active_resume_pointer")
     if not isinstance(active_resume_pointer, str) or not active_resume_pointer.strip():
         active_resume_pointer = None
-    resume_mode = continuation_state.get("resume_mode")
-    if not isinstance(resume_mode, str) or not resume_mode.strip():
-        resume_mode = None
     active_resume_result = continuation_state.get("active_resume_result")
     if not isinstance(active_resume_result, dict):
         active_resume_result = None
@@ -2149,9 +2107,6 @@ def init_resume(cwd: Path, *, data_root: Path | None = None) -> dict:
         "active_resume_pointer": active_resume_pointer,
         "active_resume_result": active_resume_result,
         "resume_candidates": resume_candidates,
-        "active_execution_segment": current_execution,
-        "segment_candidates": segment_candidates,
-        "resume_mode": resume_mode,
         # Platform
         "platform": _detect_platform(effective_cwd),
     }
@@ -2162,7 +2117,6 @@ def init_resume(cwd: Path, *, data_root: Path | None = None) -> dict:
     result.update(execution_public)
     if recent_bounded_segment_promoted and not bool(result.get("execution_resumable")):
         result["execution_resumable"] = True
-    result["compat_resume_surface"] = build_resume_compat_surface(result, continuation_state, execution_context) or {}
     return canonicalize_resume_public_payload(result)
 
 

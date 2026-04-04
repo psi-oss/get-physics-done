@@ -2820,6 +2820,18 @@ def test_convention_list(mock_list):
     mock_list.assert_called_once()
 
 
+def test_convention_list_fails_closed_for_malformed_primary_state(tmp_path: Path) -> None:
+    backup_state = default_state_dict()
+    backup_state["position"]["current_phase"] = "10"
+    _write_recoverable_result_state(tmp_path, backup_state)
+
+    result = runner.invoke(app, ["--cwd", str(tmp_path), "convention", "list"], catch_exceptions=False)
+
+    assert result.exit_code == 1
+    assert "Malformed state.json" in result.output
+    assert "state.json.bak" in result.output
+
+
 # ─── result subcommands ──────────────────────────────────────────────────────
 
 
@@ -3653,7 +3665,7 @@ def test_auxiliary_mutation_commands_recover_from_malformed_primary_state(
 
 
 @patch("gpd.core.state.save_state_json_locked")
-def test_convention_set_recovers_from_malformed_primary_state(
+def test_convention_set_fails_closed_for_malformed_primary_state(
     mock_save_state_json_locked,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -3675,12 +3687,9 @@ def test_convention_set_recovers_from_malformed_primary_state(
         catch_exceptions=False,
     )
 
-    assert result.exit_code == 0, result.output
-    mock_save_state_json_locked.assert_called_once()
-    state_arg = mock_save_state_json_locked.call_args.args[1]
-    assert state_arg["position"]["current_phase"] == "10"
-    assert state_arg["session"]["last_result_id"] == "R-recovered"
-    assert state_arg["convention_lock"]["metric_signature"] == "mostly-plus"
+    assert result.exit_code == 1, result.output
+    assert "Malformed state.json" in result.output
+    mock_save_state_json_locked.assert_not_called()
 
 
 @patch("gpd.core.state.save_state_json_locked")
@@ -5114,6 +5123,9 @@ def test_init_resume(mock_init):
 
 
 def test_paper_build_uses_default_config_surface(tmp_path: Path):
+    nested_cwd = tmp_path / "notes"
+    nested_cwd.mkdir()
+    (tmp_path / "GPD").mkdir()
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
     (paper_dir / "PAPER-CONFIG.json").write_text(
@@ -5155,17 +5167,17 @@ def test_paper_build_uses_default_config_surface(tmp_path: Path):
         patch("gpd.mcp.paper.compiler.detect_latex_toolchain", return_value=_toolchain_capability()),
         patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build,
     ):
-        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+        result = runner.invoke(app, ["--raw", "--cwd", str(nested_cwd), "paper-build"], catch_exceptions=False)
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
-    assert payload["config_path"] == "./paper/PAPER-CONFIG.json"
-    assert payload["output_dir"] == "./paper"
-    assert payload["tex_path"] == "./paper/configured_paper.tex"
-    assert payload["bibliography_source"] == "./references/references.bib"
+    assert payload["config_path"] == "../paper/PAPER-CONFIG.json"
+    assert payload["output_dir"] == "../paper"
+    assert payload["tex_path"] == "../paper/configured_paper.tex"
+    assert payload["bibliography_source"] == "../references/references.bib"
     assert payload["reference_bibtex_bridge"] == [{"reference_id": "lit-ref-einstein-1905", "bibtex_key": "einstein1905"}]
-    assert payload["manifest_path"] == "./paper/ARTIFACT-MANIFEST.json"
-    assert payload["pdf_path"] == "./paper/configured_paper.pdf"
+    assert payload["manifest_path"] == "../paper/ARTIFACT-MANIFEST.json"
+    assert payload["pdf_path"] == "../paper/configured_paper.pdf"
     assert payload["toolchain"] == {
         "compiler": "pdflatex",
         "available": True,
@@ -5434,6 +5446,54 @@ def test_paper_build_rejects_explicit_legacy_hidden_planning_config_path(tmp_pat
     assert "no longer supported" in payload["error"]
 
 
+def test_paper_build_preserves_explicit_relative_config_path_from_nested_cwd(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    nested_cwd = project_root / "notes"
+    nested_cwd.mkdir(parents=True)
+    (project_root / "GPD").mkdir()
+    paper_dir = project_root / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Configured Paper",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.tex_path = paper_dir / "configured_paper.tex"
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = paper_dir / "configured_paper.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build:
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(nested_cwd),
+                "paper-build",
+                "../paper/PAPER-CONFIG.json",
+            ],
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["config_path"] == "../paper/PAPER-CONFIG.json"
+    assert payload["output_dir"] == "../paper"
+    assert mock_build.await_args.args[1] == paper_dir.resolve(strict=False)
+
+
 def test_paper_build_prefers_config_dir_bibliography_before_output_and_references(tmp_path: Path) -> None:
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
@@ -5679,6 +5739,50 @@ def test_resolve_review_preflight_manuscript_explicit_supported_file_requires_ma
     assert "does not resolve to a readable manuscript entrypoint" in detail
 
 
+def test_resolve_review_preflight_manuscript_uses_workspace_cwd_for_relative_targets(
+    tmp_path: Path,
+) -> None:
+    manuscript_dir = tmp_path / "paper"
+    nested_cwd = tmp_path / "notes"
+    nested_cwd.mkdir()
+    manuscript = manuscript_dir / "curvature_flow_bounds.tex"
+    manuscript_dir.mkdir()
+    manuscript.write_text("\\documentclass{article}\\begin{document}Hello\\end{document}", encoding="utf-8")
+    (manuscript_dir / "ARTIFACT-MANIFEST.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "paper_title": "Curvature Flow Bounds",
+                "journal": "prl",
+                "created_at": "2026-04-02T00:00:00+00:00",
+                "artifacts": [
+                    {
+                        "artifact_id": "tex-paper",
+                        "category": "tex",
+                        "path": "curvature_flow_bounds.tex",
+                        "sha256": "0" * 64,
+                        "produced_by": "test",
+                        "sources": [],
+                        "metadata": {},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    resolved, detail = cli_module._resolve_review_preflight_manuscript(
+        tmp_path,
+        "../paper/curvature_flow_bounds.tex",
+        allow_markdown=True,
+        restrict_to_supported_roots=True,
+        workspace_cwd=nested_cwd,
+    )
+
+    assert resolved == manuscript
+    assert detail == f"{manuscript} present"
+
+
 def test_resolve_review_preflight_manuscript_reports_inconsistent_project_state(tmp_path: Path) -> None:
     manuscript_dir = tmp_path / "paper"
     manuscript_dir.mkdir()
@@ -5817,6 +5921,9 @@ def test_paper_build_without_bibliography_does_not_import_pybtex(tmp_path: Path,
 
 
 def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(tmp_path: Path) -> None:
+    nested_cwd = tmp_path / "notes"
+    nested_cwd.mkdir()
+    (tmp_path / "GPD").mkdir()
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
     (paper_dir / "PAPER-CONFIG.json").write_text(
@@ -5860,12 +5967,12 @@ def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(t
         patch("gpd.mcp.paper.compiler.detect_latex_toolchain", return_value=_toolchain_capability()),
         patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build,
     ):
-        result = runner.invoke(app, ["--raw", "--cwd", str(tmp_path), "paper-build"], catch_exceptions=False)
+        result = runner.invoke(app, ["--raw", "--cwd", str(nested_cwd), "paper-build"], catch_exceptions=False)
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
     assert payload["bibliography_source"] == ""
-    assert payload["citation_sources_path"] == "./GPD/literature/topic-CITATION-SOURCES.json"
+    assert payload["citation_sources_path"] == "../GPD/literature/topic-CITATION-SOURCES.json"
     assert any("temporary directory" in warning for warning in payload["warnings"])
     assert mock_build.await_args.kwargs["citation_sources"] is not None
     assert mock_build.await_args.kwargs["citation_sources"][0].title == "Auto Reference"

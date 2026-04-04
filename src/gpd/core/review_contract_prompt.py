@@ -148,8 +148,13 @@ def _normalize_review_contract_string_list(value: object, *, field_name: str) ->
         raise ValueError(f"{field_name} must be a string or list of strings")
 
     normalized: list[str] = []
+    seen: set[str] = set()
     for item in value:
-        normalized.append(_normalize_review_contract_required_str(item, field_name=field_name))
+        entry = _normalize_review_contract_required_str(item, field_name=field_name)
+        if entry in seen:
+            continue
+        seen.add(entry)
+        normalized.append(entry)
     return normalized
 
 

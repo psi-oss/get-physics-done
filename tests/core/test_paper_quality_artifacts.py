@@ -485,7 +485,7 @@ def test_build_paper_quality_input_does_not_fall_back_to_paper_root_when_manuscr
         build_paper_quality_input(tmp_path)
 
 
-def test_build_paper_quality_input_does_not_fall_back_to_paper_root_when_manuscript_resolution_is_invalid(
+def test_build_paper_quality_input_prefers_valid_config_when_manifest_is_invalid(
     tmp_path: Path,
 ) -> None:
     _write(tmp_path / "paper" / "config-entry.tex", "\\documentclass{article}\\begin{document}Config.\\end{document}\n")
@@ -497,7 +497,7 @@ def test_build_paper_quality_input_does_not_fall_back_to_paper_root_when_manuscr
         tmp_path / "paper" / "PAPER-CONFIG.json",
         json.dumps(
             {
-                "title": "Paper Root Title",
+                "title": "Config Title",
                 "output_filename": "config-entry",
                 "authors": [{"name": "A. Researcher"}],
                 "abstract": "Abstract.",
@@ -525,11 +525,12 @@ def test_build_paper_quality_input_does_not_fall_back_to_paper_root_when_manuscr
                     }
                 ],
             }
-        ),
-    )
+            ),
+        )
 
-    with pytest.raises(GPDError, match="paper-quality artifact resolution requires an unambiguous manuscript root"):
-        build_paper_quality_input(tmp_path)
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.title == "Config Title"
 
 
 def test_build_paper_quality_input_ignores_stale_manifest_metadata_when_config_entrypoint_is_active(

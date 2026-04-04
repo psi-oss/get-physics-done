@@ -1,11 +1,9 @@
 """Shared resume-surface normalization helpers.
 
-The canonical public resume surface keeps modern continuation fields at the
-top level and groups legacy raw aliases under ``compat_resume_surface``. This
-module centralizes that projection so ``init_resume()``, CLI raw output, and
-other public surfaces do not each reinvent compatibility handling. The compat
-schema inventory lives here as the single source of truth for alias names and
-wrapper aliases.
+The public resume surface is canonical-only: modern continuation fields stay at
+the top level and legacy raw aliases are stripped before payloads leave the
+backend. This module centralizes that projection so ``init_resume()``, CLI raw
+output, and other public surfaces do not each reinvent resume normalization.
 """
 
 from __future__ import annotations
@@ -20,8 +18,6 @@ __all__ = [
     "RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT",
     "RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF",
     "RESUME_CANDIDATE_KIND_INTERRUPTED_AGENT",
-    "RESUME_CANDIDATE_ORIGIN_COMPAT_CURRENT_EXECUTION",
-    "RESUME_CANDIDATE_ORIGIN_COMPAT_SESSION_RESUME_FILE",
     "RESUME_CANDIDATE_ORIGIN_CONTINUATION_BOUNDED_SEGMENT",
     "RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF",
     "RESUME_CANDIDATE_ORIGIN_INTERRUPTED_AGENT_MARKER",
@@ -41,7 +37,6 @@ __all__ = [
     "resume_origin_for_bounded_segment",
     "resume_origin_for_handoff",
     "resume_origin_for_interrupted_agent",
-    "resume_source_from_origin",
     "resume_payload_has_local_recovery_target",
     "resolve_resume_compat_surface",
 ]
@@ -68,7 +63,6 @@ RESUME_COMPATIBILITY_SCHEMA: dict[str, tuple[str, ...] | str] = {
     "wrapper_aliases": RESUME_COMPATIBILITY_WRAPPER_ALIASES,
 }
 
-# Backward-compatible alias for callers that still import the older constant name.
 RESUME_COMPATIBILITY_ALIAS_KEYS: tuple[str, ...] = RESUME_COMPATIBILITY_ALIAS_FIELDS
 
 RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT = "bounded_segment"
@@ -77,15 +71,7 @@ RESUME_CANDIDATE_KIND_INTERRUPTED_AGENT = "interrupted_agent"
 
 RESUME_CANDIDATE_ORIGIN_CONTINUATION_BOUNDED_SEGMENT = "continuation.bounded_segment"
 RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF = "continuation.handoff"
-RESUME_CANDIDATE_ORIGIN_COMPAT_CURRENT_EXECUTION = "compat.current_execution"
-RESUME_CANDIDATE_ORIGIN_COMPAT_SESSION_RESUME_FILE = "compat.session_resume_file"
 RESUME_CANDIDATE_ORIGIN_INTERRUPTED_AGENT_MARKER = "interrupted_agent_marker"
-
-_RESUME_CANDIDATE_ORIGIN_TO_COMPAT_SOURCE: dict[str, str] = {
-    RESUME_CANDIDATE_ORIGIN_COMPAT_CURRENT_EXECUTION: "current_execution",
-    RESUME_CANDIDATE_ORIGIN_COMPAT_SESSION_RESUME_FILE: "session_resume_file",
-    RESUME_CANDIDATE_ORIGIN_INTERRUPTED_AGENT_MARKER: "interrupted_agent",
-}
 
 _RESUME_CANDIDATE_SEGMENT_FIELDS: tuple[str, ...] = (
     "phase",
@@ -331,9 +317,22 @@ def build_resume_candidate(
     payload = dict(candidate)
     payload.pop("source", None)
     payload["kind"] = kind
-    payload["origin"] = origin
+    payload["origin"] = _canonical_resume_origin(origin)
     payload["resume_pointer"] = resume_pointer
     return payload
+
+
+def _canonical_resume_origin(origin: str | None) -> str | None:
+    normalized = (origin or "").strip()
+    if not normalized:
+        return None
+    if normalized in {"compat.current_execution", "current_execution"}:
+        return RESUME_CANDIDATE_ORIGIN_CONTINUATION_BOUNDED_SEGMENT
+    if normalized in {"compat.session_resume_file", "session_resume_file"}:
+        return RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF
+    return normalized
+
+
 def resume_candidate_kind_from_source(source: str | None) -> str | None:
     """Map a raw resume source label to the canonical candidate kind."""
     normalized = (source or "").strip()
@@ -364,12 +363,10 @@ def resume_candidate_kind(candidate: Mapping[str, object]) -> str | None:
         return RESUME_CANDIDATE_KIND_INTERRUPTED_AGENT
     if origin in {
         RESUME_CANDIDATE_ORIGIN_CONTINUATION_BOUNDED_SEGMENT,
-        RESUME_CANDIDATE_ORIGIN_COMPAT_CURRENT_EXECUTION,
     }:
         return RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT
     if origin in {
         RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF,
-        RESUME_CANDIDATE_ORIGIN_COMPAT_SESSION_RESUME_FILE,
     }:
         return RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF
 
@@ -383,10 +380,8 @@ def resume_origin_for_bounded_segment(
     source: str | None = None,
 ) -> str:
     """Return the canonical origin for a bounded execution candidate."""
-    if (recorded_by or "").strip() == "legacy_current_execution":
-        return RESUME_CANDIDATE_ORIGIN_COMPAT_CURRENT_EXECUTION
-    if (source or "").strip() == "legacy":
-        return RESUME_CANDIDATE_ORIGIN_COMPAT_CURRENT_EXECUTION
+    _ = recorded_by
+    _ = source
     return RESUME_CANDIDATE_ORIGIN_CONTINUATION_BOUNDED_SEGMENT
 
 
@@ -396,10 +391,8 @@ def resume_origin_for_handoff(
     source: str | None = None,
 ) -> str:
     """Return the canonical origin for a recorded handoff candidate."""
-    if (recorded_by or "").strip() == "legacy_session":
-        return RESUME_CANDIDATE_ORIGIN_COMPAT_SESSION_RESUME_FILE
-    if (source or "").strip() == "legacy":
-        return RESUME_CANDIDATE_ORIGIN_COMPAT_SESSION_RESUME_FILE
+    _ = recorded_by
+    _ = source
     return RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF
 
 
@@ -415,10 +408,11 @@ def resume_candidate_origin_from_source(
 ) -> str | None:
     """Map a raw candidate source label to a canonical origin string."""
     normalized = (source or "").strip()
+    _ = recorded_by
     if normalized == "current_execution":
-        return RESUME_CANDIDATE_ORIGIN_COMPAT_CURRENT_EXECUTION
+        return RESUME_CANDIDATE_ORIGIN_CONTINUATION_BOUNDED_SEGMENT
     if normalized == "session_resume_file":
-        return RESUME_CANDIDATE_ORIGIN_COMPAT_SESSION_RESUME_FILE
+        return RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF
     if normalized == "interrupted_agent":
         return resume_origin_for_interrupted_agent()
     return None
@@ -428,20 +422,12 @@ def resume_candidate_origin(candidate: Mapping[str, object]) -> str | None:
     """Return the canonical origin for one resume candidate."""
     origin = candidate.get("origin")
     if isinstance(origin, str) and origin.strip():
-        return origin.strip()
+        return _canonical_resume_origin(origin)
     source = candidate.get("source")
     return resume_candidate_origin_from_source(
         str(source).strip() if isinstance(source, str) else None,
         recorded_by=candidate.get("recorded_by") if isinstance(candidate.get("recorded_by"), str) else None,
     )
-
-
-def resume_source_from_origin(origin: str | None) -> str | None:
-    """Return the compat source label for one canonical candidate origin."""
-    normalized = (origin or "").strip()
-    if not normalized:
-        return None
-    return _RESUME_CANDIDATE_ORIGIN_TO_COMPAT_SOURCE.get(normalized)
 
 
 def _resume_candidate_exposes_local_target(candidate: Mapping[str, object]) -> bool:
@@ -512,18 +498,12 @@ def canonicalize_resume_public_payload(
     *,
     compat_fields: Sequence[str] = RESUME_COMPATIBILITY_ALIAS_FIELDS,
 ) -> dict[str, object]:
-    """Group legacy resume aliases under ``compat_resume_surface`` only."""
+    """Strip legacy resume aliases from one public payload."""
     canonical = dict(payload)
-    compat = build_resume_compat_surface(canonical, fields=compat_fields)
 
-    for key in RESUME_COMPATIBILITY_ALIAS_FIELDS:
+    for key in compat_fields:
         canonical.pop(key, None)
     for key in RESUME_COMPATIBILITY_WRAPPER_ALIASES:
         canonical.pop(key, None)
-
-    if compat is not None:
-        canonical["compat_resume_surface"] = compat
-    else:
-        canonical.pop("compat_resume_surface", None)
 
     return canonical

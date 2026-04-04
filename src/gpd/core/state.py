@@ -339,21 +339,20 @@ def _refresh_recent_project_projection(cwd: Path, state_obj: dict[str, object]) 
     """Project authoritative state into the machine-local recent-project cache."""
 
     try:
-        current = _load_recent_projects_index()
-        resolved_root = cwd.resolve(strict=False).as_posix()
-        existing = next((row for row in current.rows if row.project_root == resolved_root), None)
-        projected = _project_recent_project_entry(cwd, state_obj, existing=existing)
-        if projected is None:
-            return
-
-        rows = [projected if row.project_root == resolved_root else row for row in current.rows]
-        if existing is None:
-            rows.append(projected)
-
-        index = RecentProjectIndex(rows=_sort_recent_project_rows(rows))
         index_path = _recent_projects_index_path()
-        index_path.parent.mkdir(parents=True, exist_ok=True)
         with file_lock(index_path):
+            current = _load_recent_projects_index()
+            resolved_root = cwd.resolve(strict=False).as_posix()
+            existing = next((row for row in current.rows if row.project_root == resolved_root), None)
+            projected = _project_recent_project_entry(cwd, state_obj, existing=existing)
+            if projected is None:
+                return
+
+            rows = [projected if row.project_root == resolved_root else row for row in current.rows]
+            if existing is None:
+                rows.append(projected)
+
+            index = RecentProjectIndex(rows=_sort_recent_project_rows(rows))
             atomic_write(index_path, index.model_dump_json(indent=2) + "\n")
     except Exception:
         logger.debug("Skipping recent-project projection for %s", cwd, exc_info=True)
@@ -3394,14 +3393,20 @@ def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
         surface_blocked_project_contract=True,
     )
     validation = state_validate(cwd, integrity_mode=integrity_mode)
-    integrity_issues: list[str] = []
+    combined_issues: list[str] = []
     for issue in [*load_integrity_issues, *validation.issues]:
-        if issue not in integrity_issues:
-            integrity_issues.append(issue)
+        if issue not in combined_issues:
+            combined_issues.append(issue)
+    integrity_issues = list(combined_issues)
     if integrity_mode == "standard" and validation.warnings:
         for warning in validation.warnings:
             if warning not in integrity_issues:
                 integrity_issues.append(warning)
+    integrity_status = _integrity_status_from(
+        combined_issues if integrity_mode == "review" else validation.issues,
+        [*load_integrity_issues, *validation.warnings] if integrity_mode == "standard" else validation.warnings,
+        integrity_mode,
+    )
 
     layout = ProjectLayout(cwd)
     state_raw = safe_read_file(layout.state_md) or ""
@@ -3422,7 +3427,7 @@ def state_load(cwd: Path, integrity_mode: str = "standard") -> StateLoadResult:
         roadmap_exists=layout.roadmap.exists(),
         config_exists=layout.config_json.exists(),
         integrity_mode=integrity_mode,
-        integrity_status=validation.integrity_status,
+        integrity_status=integrity_status,
         integrity_issues=integrity_issues,
         state_source=state_source,
         project_contract_load_info=project_contract_load_info,

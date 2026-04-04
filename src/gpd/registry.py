@@ -192,20 +192,27 @@ def _parse_tools(raw: object, *, field_name: str = "tools", owner_name: str | No
     """Normalize tools-like frontmatter fields with explicit validation."""
     if raw is None:
         return []
+    values: list[str] = []
+    seen: set[str] = set()
+
+    def _append(value: str) -> None:
+        if value and value not in seen:
+            seen.add(value)
+            values.append(value)
+
     if isinstance(raw, str):
-        return [t.strip() for t in raw.split(",") if t.strip()]
+        for item in raw.split(","):
+            _append(item.strip())
+        return values
     if not isinstance(raw, list):
         subject = _format_frontmatter_field_subject(field_name, owner_name)
         raise ValueError(f"{subject} must be a string or list of strings")
 
-    values: list[str] = []
     for item in raw:
         if not isinstance(item, str):
             subject = _format_frontmatter_field_subject(field_name, owner_name)
             raise ValueError(f"{subject} must contain only strings")
-        value = item.strip()
-        if value:
-            values.append(value)
+        _append(item.strip())
     return values
 
 
@@ -226,11 +233,13 @@ def _parse_allowed_tools(raw: object, *, command_name: str) -> list[str]:
         raise ValueError(f"allowed-tools for {command_name} must be a list of strings")
 
     values: list[str] = []
+    seen: set[str] = set()
     for item in raw:
         if not isinstance(item, str):
             raise ValueError(f"allowed-tools for {command_name} must contain only strings")
         value = item.strip()
-        if value:
+        if value and value not in seen:
+            seen.add(value)
             values.append(value)
     return values
 

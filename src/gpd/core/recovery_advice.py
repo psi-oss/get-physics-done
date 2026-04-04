@@ -18,7 +18,6 @@ from gpd.core.resume_surface import (
     lookup_resume_surface_list,
     lookup_resume_surface_mapping,
     lookup_resume_surface_text,
-    resolve_resume_compat_surface,
     resume_candidate_kind,
     resume_candidate_origin,
     resume_origin_for_bounded_segment,
@@ -140,9 +139,8 @@ def _candidate_text(candidate: Mapping[str, object], field: str) -> str | None:
 
 def _project_reentry_candidates(
     payload: Mapping[str, object],
-    compat_surface: Mapping[str, object] | None,
 ) -> list[Mapping[str, object]] | None:
-    candidates = lookup_resume_surface_list(payload, "project_reentry_candidates", compat_surface=compat_surface)
+    candidates = lookup_resume_surface_list(payload, "project_reentry_candidates")
     if candidates is None:
         return None
     return [candidate for candidate in candidates if isinstance(candidate, Mapping)]
@@ -151,13 +149,8 @@ def _project_reentry_candidates(
 def _selected_project_reentry_candidate(
     payload: Mapping[str, object],
     candidates: Sequence[Mapping[str, object]] | None,
-    compat_surface: Mapping[str, object] | None,
 ) -> Mapping[str, object] | None:
-    selected_candidate = lookup_resume_surface_mapping(
-        payload,
-        "project_reentry_selected_candidate",
-        compat_surface=compat_surface,
-    )
+    selected_candidate = lookup_resume_surface_mapping(payload, "project_reentry_selected_candidate")
     if selected_candidate is not None:
         return selected_candidate
 
@@ -198,9 +191,9 @@ def _candidate_origin(candidate: Mapping[str, object]) -> str | None:
 
 
 def _canonical_resume_origin(origin: str | None) -> str | None:
-    if origin == "compat.current_execution":
+    if origin in {"compat.current_execution", "current_execution"}:
         return "continuation.bounded_segment"
-    if origin == "compat.session_resume_file":
+    if origin in {"compat.session_resume_file", "session_resume_file"}:
         return "continuation.handoff"
     return origin
 
@@ -257,22 +250,21 @@ def _has_usable_candidate_resume_file(segment_candidates: Sequence[Mapping[str, 
 def _derive_active_resume_kind(
     *,
     payload: Mapping[str, object],
-    compat_surface: Mapping[str, object] | None,
     resume_mode: str | None,
     active_resume_pointer: str | None,
     continuity_handoff_file: str | None,
     missing_continuity_handoff_file: str | None,
     resume_candidates: Sequence[Mapping[str, object]],
 ) -> str | None:
-    explicit = lookup_resume_surface_text(payload, "active_resume_kind", compat_surface=compat_surface)
+    explicit = _text_field(payload, "active_resume_kind")
     if explicit is not None:
         return explicit
-    explicit_origin = lookup_resume_surface_text(payload, "active_resume_origin", compat_surface=compat_surface)
+    explicit_origin = _text_field(payload, "active_resume_origin")
     if explicit_origin == "interrupted_agent_marker":
         return "interrupted_agent"
-    if explicit_origin in {"continuation.bounded_segment", "compat.current_execution"}:
+    if explicit_origin in {"continuation.bounded_segment", "compat.current_execution", "current_execution"}:
         return "bounded_segment"
-    if explicit_origin in {"continuation.handoff", "compat.session_resume_file"}:
+    if explicit_origin in {"continuation.handoff", "compat.session_resume_file", "session_resume_file"}:
         return "continuity_handoff"
     if missing_continuity_handoff_file is not None:
         return "continuity_handoff"
@@ -280,13 +272,6 @@ def _derive_active_resume_kind(
         return "continuity_handoff"
     if _has_candidate(resume_candidates, kind="bounded_segment"):
         return "bounded_segment"
-    if active_resume_pointer is not None and lookup_resume_surface_text(
-        payload,
-        "execution_resume_file_source",
-        compat_surface=compat_surface,
-        prefer_compat=True,
-    ) == "session_resume_file":
-        return "continuity_handoff"
     if resume_mode == "bounded_segment" and active_resume_pointer is not None:
         return "bounded_segment"
     if continuity_handoff_file is not None:
@@ -301,33 +286,22 @@ def _derive_active_resume_kind(
 def _derive_active_resume_origin(
     *,
     payload: Mapping[str, object],
-    compat_surface: Mapping[str, object] | None,
     active_resume_kind: str | None,
     continuity_handoff_file: str | None,
     recorded_continuity_handoff_file: str | None,
     missing_continuity_handoff_file: str | None,
     resume_candidates: Sequence[Mapping[str, object]],
 ) -> str | None:
-    explicit = lookup_resume_surface_text(payload, "active_resume_origin", compat_surface=compat_surface)
+    explicit = _text_field(payload, "active_resume_origin")
     if explicit is not None:
         return _canonical_resume_origin(explicit)
 
-    legacy_source = lookup_resume_surface_text(
-        payload,
-        "execution_resume_file_source",
-        compat_surface=compat_surface,
-        prefer_compat=True,
-    )
     if active_resume_kind == "bounded_segment":
         return "continuation.bounded_segment"
     if active_resume_kind == "continuity_handoff":
         return "continuation.handoff"
     if active_resume_kind == "interrupted_agent":
         return "interrupted_agent_marker"
-    if legacy_source == "current_execution":
-        return "continuation.bounded_segment"
-    if legacy_source == "session_resume_file":
-        return "continuation.handoff"
     return None
 
 
@@ -506,101 +480,35 @@ def build_recovery_advice(
     """Build the shared recovery/orientation contract for one workspace."""
 
     normalized_cwd = cwd.expanduser().resolve(strict=False)
-    payload = dict(resume_payload) if resume_payload is not None else init_resume(normalized_cwd)
-    compat_resume_surface = resolve_resume_compat_surface(payload)
+    payload = dict(resume_payload) if resume_payload is not None else init_resume(normalized_cwd, data_root=data_root)
     rows = list(recent_rows) if recent_rows is not None else list_recent_projects(data_root, last=recent_projects_last)
-    project_reentry_candidates = _project_reentry_candidates(payload, compat_resume_surface)
+    project_reentry_candidates = _project_reentry_candidates(payload)
     selected_project_reentry_candidate = _selected_project_reentry_candidate(
         payload,
         project_reentry_candidates,
-        compat_resume_surface,
     )
-    recent_project_rows = (
-        [candidate for candidate in project_reentry_candidates if _row_value(candidate, "source") == "recent_project"]
-        if project_reentry_candidates is not None
-        else rows
-    )
-
+    if recent_rows is not None and rows:
+        recent_project_rows = rows
+    else:
+        recent_project_rows = (
+            [candidate for candidate in project_reentry_candidates if _row_value(candidate, "source") == "recent_project"]
+            if project_reentry_candidates is not None
+            else rows
+        )
     recent_projects_count = len(recent_project_rows)
     resumable_projects_count = sum(1 for row in recent_project_rows if bool(_row_value(row, "resumable", False)))
     available_projects_count = sum(1 for row in recent_project_rows if bool(_row_value(row, "available", False)))
 
-    segment_candidates_raw = lookup_resume_surface_list(
-        payload,
-        "resume_candidates",
-        compat_surface=compat_resume_surface,
-        compat_keys=("segment_candidates",),
-    )
-    if segment_candidates_raw is None:
-        segment_candidates_raw = lookup_resume_surface_list(
-            payload,
-            "segment_candidates",
-            compat_surface=compat_resume_surface,
-            prefer_compat=True,
-        )
+    segment_candidates_raw = lookup_resume_surface_list(payload, "resume_candidates")
     segment_candidates = [item for item in segment_candidates_raw if isinstance(item, Mapping)] if isinstance(segment_candidates_raw, list) else []
 
-    resume_mode = lookup_resume_surface_text(
-        payload,
-        "resume_mode",
-        compat_surface=compat_resume_surface,
-        prefer_compat=True,
-    )
-    continuity_handoff_file = lookup_resume_surface_text(
-        payload,
-        "continuity_handoff_file",
-        compat_surface=compat_resume_surface,
-        compat_keys=("session_resume_file",),
-    )
-    if continuity_handoff_file is None:
-        continuity_handoff_file = lookup_resume_surface_text(
-            payload,
-            "session_resume_file",
-            compat_surface=compat_resume_surface,
-            prefer_compat=True,
-        )
-    recorded_continuity_handoff_file = lookup_resume_surface_text(
-        payload,
-        "recorded_continuity_handoff_file",
-        compat_surface=compat_resume_surface,
-        compat_keys=("recorded_session_resume_file",),
-    )
-    if recorded_continuity_handoff_file is None:
-        recorded_continuity_handoff_file = lookup_resume_surface_text(
-            payload,
-            "recorded_session_resume_file",
-            compat_surface=compat_resume_surface,
-            prefer_compat=True,
-        )
-    missing_continuity_handoff_file = lookup_resume_surface_text(
-        payload,
-        "missing_continuity_handoff_file",
-        compat_surface=compat_resume_surface,
-        compat_keys=("missing_session_resume_file",),
-    )
-    if missing_continuity_handoff_file is None:
-        missing_continuity_handoff_file = lookup_resume_surface_text(
-            payload,
-            "missing_session_resume_file",
-            compat_surface=compat_resume_surface,
-            prefer_compat=True,
-        )
-    active_resume_pointer = lookup_resume_surface_text(
-        payload,
-        "active_resume_pointer",
-        compat_surface=compat_resume_surface,
-        compat_keys=("execution_resume_file",),
-    )
-    if active_resume_pointer is None:
-        active_resume_pointer = lookup_resume_surface_text(
-            payload,
-            "execution_resume_file",
-            compat_surface=compat_resume_surface,
-            prefer_compat=True,
-        )
+    resume_mode = None
+    continuity_handoff_file = lookup_resume_surface_text(payload, "continuity_handoff_file")
+    recorded_continuity_handoff_file = lookup_resume_surface_text(payload, "recorded_continuity_handoff_file")
+    missing_continuity_handoff_file = lookup_resume_surface_text(payload, "missing_continuity_handoff_file")
+    active_resume_pointer = _text_field(payload, "active_resume_pointer")
     active_resume_kind = _derive_active_resume_kind(
         payload=payload,
-        compat_surface=compat_resume_surface,
         resume_mode=resume_mode,
         active_resume_pointer=active_resume_pointer,
         continuity_handoff_file=continuity_handoff_file,
@@ -609,7 +517,6 @@ def build_recovery_advice(
     )
     active_resume_origin = _derive_active_resume_origin(
         payload=payload,
-        compat_surface=compat_resume_surface,
         active_resume_kind=active_resume_kind,
         continuity_handoff_file=continuity_handoff_file,
         recorded_continuity_handoff_file=recorded_continuity_handoff_file,
@@ -634,24 +541,7 @@ def build_recovery_advice(
     workspace_matches_project_root = workspace_root_resolved is None or workspace_root_resolved == (
         project_root_resolved or normalized_cwd.as_posix()
     )
-    legacy_active_execution_segment = lookup_resume_surface_mapping(
-        payload,
-        "active_execution_segment",
-        compat_surface=compat_resume_surface,
-        prefer_compat=True,
-    )
-    derived_execution_head = lookup_resume_surface_mapping(
-        payload,
-        "derived_execution_head",
-        compat_surface=compat_resume_surface,
-    )
-    if derived_execution_head is None:
-        derived_execution_head = lookup_resume_surface_mapping(
-            payload,
-            "current_execution",
-            compat_surface=compat_resume_surface,
-            prefer_compat=True,
-        )
+    derived_execution_head = lookup_resume_surface_mapping(payload, "derived_execution_head")
 
     has_bounded_segment_candidate = _has_usable_candidate(segment_candidates, kind="bounded_segment")
     has_bounded_segment_target = active_resume_pointer is not None or has_bounded_segment_candidate
@@ -676,11 +566,6 @@ def build_recovery_advice(
     has_live_execution = (
         live_execution_flag
         or derived_execution_head is not None
-        or (
-            legacy_active_execution_segment is not None
-            and active_resume_kind != "bounded_segment"
-            and not execution_resumable
-        )
     )
     has_continuity_handoff = (
         continuity_handoff_file is not None
@@ -708,7 +593,7 @@ def build_recovery_advice(
         )
     )
     current_workspace_has_resume_file = (
-        active_resume_pointer is not None
+        (active_resume_kind == "bounded_segment" and active_resume_pointer is not None)
         or continuity_handoff_file is not None
         or _has_usable_candidate_resume_file(segment_candidates)
     )
@@ -782,15 +667,18 @@ def build_recovery_advice(
         decision_source = "no-recovery"
         primary_command = None
 
-    mode = (
-        "idle"
-        if decision_source == "no-recovery"
-        else "current-workspace"
-        if current_workspace_has_recovery
-        else "recent-projects"
-        if auto_selected_recent_project or recent_projects_count > 0
-        else "idle"
-    )
+    if force_recent:
+        mode = "recent-projects" if recent_projects_count > 0 else "idle"
+    else:
+        mode = (
+            "idle"
+            if decision_source == "no-recovery"
+            else "current-workspace"
+            if current_workspace_has_recovery
+            else "recent-projects"
+            if auto_selected_recent_project or recent_projects_count > 0
+            else "idle"
+        )
 
     if decision_source == "no-recovery":
         resolved_continue_command = None

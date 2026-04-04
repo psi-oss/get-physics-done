@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import warnings
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -3207,6 +3208,61 @@ def test_state_record_session_preserves_existing_recent_project_rows(
     assert index.rows[0].platform == "Linux 6.2 x86_64"
     assert index.rows[1].available is False
     assert index.rows[1].stopped_at == "Phase 0 P1"
+
+
+def test_state_record_session_refreshes_recent_projects_after_index_lock_acquisition(
+    tmp_path: Path, state_project_factory, monkeypatch
+) -> None:
+    monkeypatch.setenv("GPD_DATA_DIR", str(tmp_path / "gpd-data"))
+    monkeypatch.setattr(
+        state_module,
+        "_current_machine_identity",
+        lambda: {"hostname": "builder-02", "platform": "Linux 6.2 x86_64"},
+    )
+
+    cwd = state_project_factory(tmp_path)
+    current_root = cwd.resolve(strict=False).as_posix()
+    injected_root = (tmp_path / "missing-project").resolve(strict=False)
+    injected_root.mkdir()
+    index_path = _recent_projects_index_path()
+    original_file_lock = state_module.file_lock
+
+    @contextmanager
+    def _inject_existing_row(path: Path, timeout: float = 5.0):
+        if path == index_path:
+            index_path.parent.mkdir(parents=True, exist_ok=True)
+            index_path.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "project_root": injected_root.as_posix(),
+                                "last_session_at": "2026-03-01T00:00:00+00:00",
+                                "last_seen_at": "2026-03-01T00:00:00+00:00",
+                                "stopped_at": "Phase 1 P1",
+                                "resume_file": "old.md",
+                            }
+                        ]
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            yield
+            return
+        with original_file_lock(path, timeout=timeout):
+            yield
+
+    monkeypatch.setattr(state_module, "file_lock", _inject_existing_row)
+
+    state_record_session(cwd, stopped_at="Phase 4 P2", resume_file="NEXT.md")
+
+    index = _load_recent_projects_index()
+
+    assert [row.project_root for row in index.rows] == [current_root, injected_root.as_posix()]
+    assert index.rows[0].resume_file == "NEXT.md"
+    assert index.rows[1].resume_file == "old.md"
 
 
 # ─── model types ─────────────────────────────────────────────────────────────

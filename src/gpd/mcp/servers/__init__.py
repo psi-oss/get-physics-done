@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import logging
 import os
 import sys
 from collections.abc import Mapping
 from pathlib import Path
+
+from pydantic import ConfigDict, create_model
+from pydantic import ValidationError as PydanticValidationError
 
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 
@@ -128,15 +132,74 @@ def run_mcp_server(mcp: object, description: str) -> None:
     mcp.run(transport=args.transport)  # type: ignore[union-attr]
 
 
+def tighten_registered_tool_contracts(mcp: object) -> None:
+    """Publish strict top-level tool schemas and stable validation envelopes."""
+
+    def _build_strict_call(original_call, allowed_keys):
+        async def _strict_call_fn_with_arg_validation(fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly):
+            unknown_keys = sorted(str(key) for key in arguments_to_validate if key not in allowed_keys)
+            if unknown_keys:
+                return stable_mcp_error(f"Unsupported arguments: {', '.join(unknown_keys)}")
+            try:
+                return await original_call(fn, fn_is_async, arguments_to_validate, arguments_to_pass_directly)
+            except PydanticValidationError as exc:
+                return stable_mcp_error(exc)
+
+        return _strict_call_fn_with_arg_validation
+
+    for tool in mcp._tool_manager.list_tools():  # type: ignore[attr-defined]
+        arg_model = tool.fn_metadata.arg_model
+        strict_model = create_model(
+            f"{arg_model.__name__}Strict",
+            __base__=arg_model,
+            __config__=ConfigDict(extra="forbid", arbitrary_types_allowed=True),
+        )
+        tool.parameters = strict_model.model_json_schema(by_alias=True)
+        allowed_keys = {
+            key
+            for field_name, field_info in arg_model.model_fields.items()
+            for key in (field_name, field_info.alias)
+            if key is not None
+        }
+        original_call = tool.fn_metadata.call_fn_with_arg_validation
+        object.__setattr__(tool.fn_metadata, "call_fn_with_arg_validation", _build_strict_call(original_call, allowed_keys))
+
+
 __all__ = [
     "ABSOLUTE_PROJECT_DIR_SCHEMA",
     "MCP_SCHEMA_VERSION",
     "StableMCPEnvelope",
+    "conventions_server",
     "configure_mcp_logging",
+    "errors_mcp",
     "parse_frontmatter_safe",
     "parse_frontmatter_with_error",
+    "patterns_server",
+    "protocols_server",
     "resolve_absolute_project_dir",
     "run_mcp_server",
+    "skills_server",
+    "state_server",
     "stable_mcp_error",
     "stable_mcp_response",
+    "tighten_registered_tool_contracts",
+    "verification_server",
 ]
+
+_SERVER_MODULE_NAMES = {
+    "conventions_server",
+    "errors_mcp",
+    "patterns_server",
+    "protocols_server",
+    "skills_server",
+    "state_server",
+    "verification_server",
+}
+
+
+def __getattr__(name: str) -> object:
+    if name in _SERVER_MODULE_NAMES:
+        module = importlib.import_module(f"{__name__}.{name}")
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

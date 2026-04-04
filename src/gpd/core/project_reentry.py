@@ -111,14 +111,17 @@ def recoverable_project_context(project_root: Path) -> tuple[bool, bool, bool]:
     """Return whether a project root has enough durable state for recovery."""
 
     layout = ProjectLayout(project_root)
-    state_exists = any(
-        path.exists()
-        for path in (
-            layout.state_json,
-            layout.state_json_backup,
-            layout.state_md,
+    state_files_exist = any(path.exists() for path in (layout.state_json, layout.state_json_backup, layout.state_md))
+    state_exists = False
+    if state_files_exist:
+        from gpd.core.state import peek_state_json
+
+        state_obj, _integrity_issues, _state_source = peek_state_json(
+            project_root,
+            recover_intent=True,
+            surface_blocked_project_contract=True,
         )
-    )
+        state_exists = isinstance(state_obj, dict)
     roadmap_exists = layout.roadmap.exists()
     project_exists = layout.project_md.exists()
     return state_exists, roadmap_exists, project_exists
@@ -374,7 +377,10 @@ def resolve_project_reentry(
         candidates.append(current_candidate)
         seen_roots.add(current_candidate.project_root)
 
-    recent_project_rows = list(recent_rows) if recent_rows is not None else list_recent_projects(data_root)
+    if recent_rows is None:
+        recent_project_rows = [] if current_candidate is not None else list_recent_projects(data_root)
+    else:
+        recent_project_rows = list(recent_rows)
     for row in recent_project_rows:
         row_payload = row.model_dump(mode="json") if hasattr(row, "model_dump") else row
         if not isinstance(row_payload, Mapping):

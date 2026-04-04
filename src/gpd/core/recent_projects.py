@@ -396,6 +396,10 @@ def _annotate_availability(entry: RecentProjectEntry) -> RecentProjectEntry:
 
 def load_recent_projects_index(data_root: Path | None = None) -> RecentProjectIndex:
     index_path = recent_projects_index_path(data_root)
+    return _load_recent_projects_index_from_path(index_path)
+
+
+def _load_recent_projects_index_from_path(index_path: Path) -> RecentProjectIndex:
     content = safe_read_file(index_path)
     if content is None:
         return RecentProjectIndex()
@@ -404,13 +408,6 @@ def load_recent_projects_index(data_root: Path | None = None) -> RecentProjectIn
     except ValueError as exc:
         raise RecentProjectsError(f"Malformed recent-project index at {index_path}: {exc}") from exc
     return index.model_copy(update={"rows": [_annotate_availability(row) for row in _sort_rows(list(index.rows))]})
-
-
-def _save_index(data_root: Path | None, index: RecentProjectIndex) -> None:
-    index_path = recent_projects_index_path(data_root)
-    with file_lock(index_path):
-        atomic_write(index_path, index.model_dump_json(indent=2) + "\n")
-
 
 def record_recent_project(
     project_root: Path,
@@ -421,111 +418,136 @@ def record_recent_project(
     """Insert or update one recent-project row."""
     resolved_root = project_root.expanduser().resolve(strict=False)
     data_root = store_root
-    current = load_recent_projects_index(data_root)
-    existing = next((row for row in current.rows if row.project_root == resolved_root.as_posix()), None)
-    last_session_at = _updated_text(session_data, existing.last_session_at if existing is not None else None, "last_date", "last_session_at")
-    last_seen_at = _updated_text(
-        session_data,
-        existing.last_seen_at if existing is not None else last_session_at,
-        "last_seen_at",
-        "last_date",
-        "last_session_at",
-    )
-    normalized_resume_file = _updated_text(session_data, existing.resume_file if existing is not None else None, "resume_file")
-    normalized_last_result_id = _updated_text(
-        session_data,
-        existing.last_result_id if existing is not None else None,
-        "last_result_id",
-    )
-    resume_target_kind = _updated_text(
-        session_data,
-        existing.resume_target_kind if existing is not None else None,
-        "resume_target_kind",
-    )
-    resume_target_recorded_at = _updated_text(
-        session_data,
-        existing.resume_target_recorded_at if existing is not None else None,
-        "resume_target_recorded_at",
-    )
-    normalized_hostname = _updated_text(session_data, existing.hostname if existing is not None else None, "hostname")
-    normalized_platform = _updated_text(session_data, existing.platform if existing is not None else None, "platform")
-    source_kind = _updated_text(session_data, existing.source_kind if existing is not None else None, "source_kind", "provenance_kind")
-    source_session_id = _updated_text(
-        session_data,
-        existing.source_session_id if existing is not None else None,
-        "source_session_id",
-        "session_id",
-    )
-    source_segment_id = _updated_text(
-        session_data,
-        existing.source_segment_id if existing is not None else None,
-        "source_segment_id",
-        "segment_id",
-    )
-    source_transition_id = _updated_text(
-        session_data,
-        existing.source_transition_id if existing is not None else None,
-        "source_transition_id",
-        "transition_id",
-    )
-    source_event_id = _updated_text(
-        session_data,
-        existing.source_event_id if existing is not None else None,
-        "source_event_id",
-        "event_id",
-    )
-    source_recorded_at = _updated_text(
-        session_data,
-        existing.source_recorded_at if existing is not None else None,
-        "source_recorded_at",
-        "recorded_at",
-        "timestamp",
-    )
-    recovery_phase = _updated_text(
-        session_data,
-        existing.recovery_phase if existing is not None else None,
-        "recovery_phase",
-        "phase",
-    )
-    recovery_plan = _updated_text(
-        session_data,
-        existing.recovery_plan if existing is not None else None,
-        "recovery_plan",
-        "plan",
-    )
-    updated_entry = RecentProjectEntry(
-        project_root=resolved_root.as_posix(),
-        last_session_at=last_session_at,
-        last_seen_at=last_seen_at,
-        stopped_at=_updated_text(session_data, existing.stopped_at if existing is not None else None, "stopped_at"),
-        resume_file=normalized_resume_file,
-        last_result_id=normalized_last_result_id,
-        resume_target_kind=resume_target_kind,
-        resume_target_recorded_at=resume_target_recorded_at,
-        hostname=normalized_hostname,
-        platform=normalized_platform,
-        source_kind=source_kind,
-        source_session_id=source_session_id,
-        source_segment_id=source_segment_id,
-        source_transition_id=source_transition_id,
-        source_event_id=source_event_id,
-        source_recorded_at=source_recorded_at,
-        recovery_phase=recovery_phase,
-        recovery_plan=recovery_plan,
-    )
+    index_path = recent_projects_index_path(data_root)
+    with file_lock(index_path):
+        current = _load_recent_projects_index_from_path(index_path)
+        existing = next((row for row in current.rows if row.project_root == resolved_root.as_posix()), None)
+        last_session_at = _updated_text(
+            session_data,
+            existing.last_session_at if existing is not None else None,
+            "last_date",
+            "last_session_at",
+        )
+        last_seen_at = _updated_text(
+            session_data,
+            existing.last_seen_at if existing is not None else last_session_at,
+            "last_seen_at",
+            "last_date",
+            "last_session_at",
+        )
+        normalized_resume_file = _updated_text(
+            session_data,
+            existing.resume_file if existing is not None else None,
+            "resume_file",
+        )
+        normalized_last_result_id = _updated_text(
+            session_data,
+            existing.last_result_id if existing is not None else None,
+            "last_result_id",
+        )
+        resume_target_kind = _updated_text(
+            session_data,
+            existing.resume_target_kind if existing is not None else None,
+            "resume_target_kind",
+        )
+        resume_target_recorded_at = _updated_text(
+            session_data,
+            existing.resume_target_recorded_at if existing is not None else None,
+            "resume_target_recorded_at",
+        )
+        normalized_hostname = _updated_text(session_data, existing.hostname if existing is not None else None, "hostname")
+        normalized_platform = _updated_text(session_data, existing.platform if existing is not None else None, "platform")
+        source_kind = _updated_text(
+            session_data,
+            existing.source_kind if existing is not None else None,
+            "source_kind",
+            "provenance_kind",
+        )
+        source_session_id = _updated_text(
+            session_data,
+            existing.source_session_id if existing is not None else None,
+            "source_session_id",
+            "session_id",
+        )
+        source_segment_id = _updated_text(
+            session_data,
+            existing.source_segment_id if existing is not None else None,
+            "source_segment_id",
+            "segment_id",
+        )
+        source_transition_id = _updated_text(
+            session_data,
+            existing.source_transition_id if existing is not None else None,
+            "source_transition_id",
+            "transition_id",
+        )
+        source_event_id = _updated_text(
+            session_data,
+            existing.source_event_id if existing is not None else None,
+            "source_event_id",
+            "event_id",
+        )
+        source_recorded_at = _updated_text(
+            session_data,
+            existing.source_recorded_at if existing is not None else None,
+            "source_recorded_at",
+            "recorded_at",
+            "timestamp",
+        )
+        recovery_phase = _updated_text(
+            session_data,
+            existing.recovery_phase if existing is not None else None,
+            "recovery_phase",
+            "phase",
+        )
+        recovery_plan = _updated_text(
+            session_data,
+            existing.recovery_plan if existing is not None else None,
+            "recovery_plan",
+            "plan",
+        )
+        if "resume_file" in session_data and normalized_resume_file is None:
+            resume_target_kind = None
+            resume_target_recorded_at = None
+            source_kind = None
+            source_session_id = None
+            source_segment_id = None
+            source_transition_id = None
+            source_event_id = None
+            source_recorded_at = None
+        updated_entry = RecentProjectEntry(
+            project_root=resolved_root.as_posix(),
+            last_session_at=last_session_at,
+            last_seen_at=last_seen_at,
+            stopped_at=_updated_text(session_data, existing.stopped_at if existing is not None else None, "stopped_at"),
+            resume_file=normalized_resume_file,
+            last_result_id=normalized_last_result_id,
+            resume_target_kind=resume_target_kind,
+            resume_target_recorded_at=resume_target_recorded_at,
+            hostname=normalized_hostname,
+            platform=normalized_platform,
+            source_kind=source_kind,
+            source_session_id=source_session_id,
+            source_segment_id=source_segment_id,
+            source_transition_id=source_transition_id,
+            source_event_id=source_event_id,
+            source_recorded_at=source_recorded_at,
+            recovery_phase=recovery_phase,
+            recovery_plan=recovery_plan,
+        )
 
-    rows: list[RecentProjectEntry] = []
-    replaced = False
-    for current_row in current.rows:
-        if current_row.project_root == updated_entry.project_root:
+        rows: list[RecentProjectEntry] = []
+        replaced = False
+        for current_row in current.rows:
+            if current_row.project_root == updated_entry.project_root:
+                rows.append(updated_entry)
+                replaced = True
+            else:
+                rows.append(current_row)
+        if not replaced:
             rows.append(updated_entry)
-            replaced = True
-        else:
-            rows.append(current_row)
-    if not replaced:
-        rows.append(updated_entry)
 
-    _save_index(data_root, RecentProjectIndex(rows=_dedupe_rows(_sort_rows(rows))))
+        atomic_write(index_path, RecentProjectIndex(rows=_dedupe_rows(_sort_rows(rows))).model_dump_json(indent=2) + "\n")
     return _annotate_availability(updated_entry)
 
 

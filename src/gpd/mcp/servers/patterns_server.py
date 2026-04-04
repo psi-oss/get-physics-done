@@ -28,7 +28,12 @@ from gpd.core.patterns import (
     pattern_seed,
     patterns_root,
 )
-from gpd.mcp.servers import configure_mcp_logging, stable_mcp_error, stable_mcp_response, tighten_registered_tool_contracts
+from gpd.mcp.servers import (
+    configure_mcp_logging,
+    stable_mcp_error,
+    stable_mcp_response,
+    tighten_registered_tool_contracts,
+)
 
 logger = configure_mcp_logging("gpd-patterns")
 

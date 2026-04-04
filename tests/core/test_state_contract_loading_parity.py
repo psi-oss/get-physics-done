@@ -72,14 +72,18 @@ def test_state_and_context_keep_primary_state_when_primary_root_is_dict_but_sche
     backup_contract["scope"]["question"] = "Recovered from schema-corrupt backup state"
     backup_state["project_contract"] = backup_contract
     layout.state_json_backup.write_text(json.dumps(backup_state, indent=2) + "\n", encoding="utf-8")
+    (layout.phases_dir / "09").mkdir(parents=True, exist_ok=True)
 
     ctx = init_progress(tmp_path)
     loaded = state_load(tmp_path)
 
-    assert loaded.state["position"]["current_phase"] is None
-    assert loaded.state["position"]["status"] is None
+    assert loaded.state["position"]["current_phase"] == "09"
+    assert loaded.state["position"]["status"] == "Executing"
     assert loaded.integrity_status == "warning"
-    assert any("position" in issue for issue in loaded.integrity_issues)
+    assert (
+        "state.json position was recovered from state.json.bak after primary position required normalization"
+        in loaded.integrity_issues
+    )
     assert loaded.state.get("project_contract") is None
     assert loaded.project_contract_gate is not None
     assert loaded.project_contract_gate["visible"] is False
@@ -87,6 +91,9 @@ def test_state_and_context_keep_primary_state_when_primary_root_is_dict_but_sche
     assert ctx["project_contract"] is None
     assert ctx["project_contract_load_info"]["status"] == "missing"
     assert ctx["project_contract_load_info"]["source_path"].endswith("GPD/state.json")
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    assert persisted["position"]["current_phase"] == "09"
+    assert persisted["position"]["status"] == "Executing"
 
 
 def test_state_and_context_surface_blocked_primary_project_contract_when_primary_needs_blocking_normalization(

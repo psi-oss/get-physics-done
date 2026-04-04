@@ -284,6 +284,19 @@ function requireStrictInteger(value, label) {
   return value;
 }
 
+function requireRuntimeSurfaceLabel(value, label) {
+  const normalized = requireStrictString(value, label);
+  if (normalized === "none" || normalized === "managed-launcher-wrapper") {
+    return normalized;
+  }
+  if (!/^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$/.test(normalized)) {
+    throw new Error(
+      `${label} must be "none", "managed-launcher-wrapper", or a config surface label like file:key`
+    );
+  }
+  return normalized;
+}
+
 function requireKnownKeys(payload, allowedKeys, label) {
   const unknownKeys = Object.keys(payload).filter((key) => !allowedKeys.has(key));
   if (unknownKeys.length > 0) {
@@ -358,7 +371,10 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
       `${label}.permissions_surface`,
       RUNTIME_CATALOG_CAPABILITY_ENUMS.permissions_surface
     ),
-    permission_surface_kind: requireStrictString(payload.permission_surface_kind, `${label}.permission_surface_kind`),
+    permission_surface_kind: requireRuntimeSurfaceLabel(
+      payload.permission_surface_kind,
+      `${label}.permission_surface_kind`
+    ),
     prompt_free_mode_value: requireStrictString(payload.prompt_free_mode_value, `${label}.prompt_free_mode_value`),
     supports_runtime_permission_sync: requireStrictBoolean(
       payload.supports_runtime_permission_sync,
@@ -551,7 +567,54 @@ function validateRuntimeCatalogEntry(entry, index) {
 
 function validateRuntimeCatalog(catalogPayload) {
   const payload = requireJsonArray(catalogPayload, "runtime catalog");
-  return payload.map((entry, index) => validateRuntimeCatalogEntry(entry, index));
+  const entries = payload.map((entry, index) => validateRuntimeCatalogEntry(entry, index));
+  entries.sort((left, right) => {
+    if (left.priority !== right.priority) {
+      return left.priority - right.priority;
+    }
+    return left.runtime_name.localeCompare(right.runtime_name);
+  });
+
+  const runtimeNames = new Map();
+  const selectionFlags = new Map();
+  const selectionTokens = new Map();
+  for (const entry of entries) {
+    if (runtimeNames.has(entry.runtime_name)) {
+      throw new Error(
+        `runtime catalog contains duplicate runtime_name ${JSON.stringify(entry.runtime_name)}`
+      );
+    }
+    runtimeNames.set(entry.runtime_name, entry.runtime_name);
+
+    for (const flag of entry.selection_flags) {
+      const existingRuntime = selectionFlags.get(flag);
+      if (existingRuntime && existingRuntime !== entry.runtime_name) {
+        throw new Error(
+          `runtime catalog contains duplicate selection flag ${JSON.stringify(flag)} for ${JSON.stringify(existingRuntime)} and ${JSON.stringify(entry.runtime_name)}`
+        );
+      }
+      selectionFlags.set(flag, entry.runtime_name);
+    }
+
+    const tokens = new Set([
+      entry.runtime_name,
+      entry.display_name.toLowerCase(),
+      ...entry.selection_aliases,
+      ...entry.selection_flags.map((flag) => flag.replace(/^--/, "")),
+    ]);
+    for (const token of tokens) {
+      const normalizedToken = token.toLowerCase();
+      const existingRuntime = selectionTokens.get(normalizedToken);
+      if (existingRuntime && existingRuntime !== entry.runtime_name) {
+        throw new Error(
+          `runtime catalog contains duplicate runtime selection token ${JSON.stringify(token)} for ${JSON.stringify(existingRuntime)} and ${JSON.stringify(entry.runtime_name)}`
+        );
+      }
+      selectionTokens.set(normalizedToken, entry.runtime_name);
+    }
+  }
+
+  return entries;
 }
 
 RUNTIME_CATALOG = validateRuntimeCatalog(require("../src/gpd/adapters/runtime_catalog.json"));

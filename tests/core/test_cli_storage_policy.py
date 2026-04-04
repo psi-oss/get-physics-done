@@ -112,6 +112,26 @@ def test_paper_build_default_paper_output_has_no_storage_warnings(tmp_path: Path
     assert payload["warnings"] == []
 
 
+def test_paper_build_nested_cwd_uses_project_root_for_storage_validation(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
+    nested_cwd = tmp_path / "notes"
+    nested_cwd.mkdir()
+    (tmp_path / "GPD").mkdir()
+    _write_basic_paper_config(tmp_path)
+    paper_dir = tmp_path / "paper"
+
+    with patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=_build_result(paper_dir))) as mock_build:
+        result = runner.invoke(app, ["--raw", "--cwd", str(nested_cwd), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["output_dir"] == "../paper"
+    assert payload["warnings"] == []
+    assert mock_build.await_args.args[1] == paper_dir.resolve(strict=False)
+
+
 def test_paper_build_explicit_nonstandard_output_dir_warns_but_builds(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
     _write_basic_paper_config(tmp_path)

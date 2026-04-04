@@ -19,6 +19,7 @@ import re
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import ConventionLock
 from gpd.core.errors import ConventionError
@@ -52,6 +53,8 @@ __all__ = [
     "check_assertions",
     "required_assertion_keys",
     "validate_assertions",
+    "convention_lock_data_from_state_payload",
+    "convention_lock_from_state_payload",
 ]
 
 # --- Canonical Convention Fields (18) ---
@@ -136,6 +139,45 @@ _CRITICAL_ASSERTION_KEYS: tuple[str, ...] = (
     "fourier_convention",
     "natural_units",
 )
+
+
+def convention_lock_data_from_state_payload(
+    raw_state: object,
+    *,
+    source_label: str = "state.json",
+) -> dict[str, object]:
+    """Return validated ``convention_lock`` mapping data from a state payload.
+
+    Missing state or missing ``convention_lock`` is treated as an empty lock.
+    Present-but-malformed payloads fail closed so mutation surfaces do not
+    silently discard corrupted state.
+    """
+
+    if raw_state is None:
+        return {}
+    if not isinstance(raw_state, dict):
+        raise ConventionError(f"{source_label} must be a JSON object")
+
+    lock_data = raw_state.get("convention_lock", {})
+    if lock_data is None:
+        return {}
+    if not isinstance(lock_data, dict):
+        raise ConventionError(f"{source_label}.convention_lock must be a JSON object")
+    return lock_data
+
+
+def convention_lock_from_state_payload(
+    raw_state: object,
+    *,
+    source_label: str = "state.json",
+) -> ConventionLock:
+    """Return a validated :class:`ConventionLock` from a state payload."""
+
+    lock_data = convention_lock_data_from_state_payload(raw_state, source_label=source_label)
+    try:
+        return ConventionLock.model_validate(lock_data)
+    except PydanticValidationError as exc:
+        raise ConventionError(f"Malformed {source_label}.convention_lock: {exc}") from exc
 
 
 # --- Result Types ---

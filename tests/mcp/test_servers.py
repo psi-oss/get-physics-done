@@ -598,38 +598,68 @@ class TestConventionsServer:
         assert "Custom convention keys" in result["error"]
 
 
-    def test_load_lock_non_dict_state_json(self, tmp_path):
-        """If state.json contains a non-dict (e.g. a list), return empty lock."""
+    def test_load_lock_non_dict_state_json_fails_closed(self, tmp_path):
+        """If state exists but is unrecoverable, the helper should fail closed."""
         from gpd.mcp.servers.conventions_server import _load_lock_from_project
 
         planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps([1, 2, 3]))
-        lock = _load_lock_from_project(str(tmp_path))
-        assert lock.metric_signature is None
+        with pytest.raises(ValueError, match="not recoverable"):
+            _load_lock_from_project(str(tmp_path))
 
-    def test_load_lock_string_state_json(self, tmp_path):
-        """If state.json contains a bare string, return empty lock."""
+    def test_load_lock_string_state_json_fails_closed(self, tmp_path):
+        """If state exists but is unrecoverable, the helper should fail closed."""
         from gpd.mcp.servers.conventions_server import _load_lock_from_project
 
         planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps("just a string"))
-        lock = _load_lock_from_project(str(tmp_path))
-        assert lock.metric_signature is None
+        with pytest.raises(ValueError, match="not recoverable"):
+            _load_lock_from_project(str(tmp_path))
 
-    def test_update_lock_non_dict_state_json(self, tmp_path):
-        """If state.json contains a non-dict, _update_lock_in_project resets raw to {}."""
+    def test_update_lock_non_dict_state_json_fails_closed(self, tmp_path):
+        """If state exists but is unrecoverable, mutation should not flatten it to defaults."""
         from gpd.mcp.servers.conventions_server import _update_lock_in_project
 
         planning = tmp_path / "GPD"
         planning.mkdir()
         (planning / "state.json").write_text(json.dumps([1, 2, 3]))
-        lock, result = _update_lock_in_project(
-            str(tmp_path), lambda lk: lk.metric_signature
-        )
-        assert lock.metric_signature is None
-        assert result is None
+        with pytest.raises(ValueError, match="not recoverable"):
+            _update_lock_in_project(str(tmp_path), lambda lk: lk.metric_signature)
+
+    def test_load_lock_recovers_backup_only_convention_state(self, tmp_path):
+        from gpd.core.state import default_state_dict
+        from gpd.mcp.servers.conventions_server import _load_lock_from_project
+
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        state = default_state_dict()
+        state["convention_lock"] = {"metric_signature": "(+,-,-,-)"}
+        (planning / "state.json.bak").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+        lock = _load_lock_from_project(str(tmp_path))
+
+        assert lock.metric_signature == "(+,-,-,-)"
+
+    def test_convention_set_preserves_backup_only_state_when_mutating_lock(self, tmp_path):
+        from gpd.core.state import default_state_dict
+        from gpd.mcp.servers.conventions_server import convention_set
+
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        state = default_state_dict()
+        state["position"]["current_phase"] = "09"
+        state["convention_lock"] = {"metric_signature": "(+,-,-,-)"}
+        (planning / "state.json.bak").write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+        result = convention_set(str(tmp_path), "fourier_convention", "physics")
+
+        assert result["status"] == "set"
+        persisted = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+        assert persisted["position"]["current_phase"] == "09"
+        assert persisted["convention_lock"]["metric_signature"] == "(+,-,-,-)"
+        assert persisted["convention_lock"]["fourier_convention"] == "physics"
 
     def test_convention_set_returns_error_on_malformed_state_json(self, tmp_path):
         """convention_set returns an error dict (not raises) when state.json is malformed."""

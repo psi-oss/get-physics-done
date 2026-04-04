@@ -14,8 +14,7 @@
     "get_progress",
     "validate_state",
     "run_health_check",
-    "get_config",
-    "emit_phase_event"
+    "get_config"
   ],
   "registry_prefix": "gpd_state",
   "prerequisites": [
