@@ -326,10 +326,12 @@ UNSUPPORTED_FRONTMATTER_FIELDS: dict[str, dict[str, str]] = {
     "summary": {
         "verification_inputs": "verification_inputs is not part of the contract-first summary schema; use contract_results and comparison_verdicts instead",
         "contract_evidence": "contract_evidence is not part of the contract-first summary schema; use contract_results instead",
+        "suggested_contract_checks": "suggested_contract_checks is verification-only; summaries use contract_results and comparison_verdicts instead",
     },
     "verification": {
         "verification_inputs": "verification_inputs is not part of the contract-first verification schema; use contract_results and comparison_verdicts instead",
         "contract_evidence": "contract_evidence is not part of the contract-first verification schema; use contract_results instead",
+        "independently_confirmed": "independently_confirmed is not part of the contract-first verification schema; keep aggregate confirmation counts in body prose instead",
     },
 }
 

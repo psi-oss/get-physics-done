@@ -143,7 +143,10 @@ If the init JSON already contains `project_contract`, `project_contract_load_inf
 
 If a blocking field is missing, ask exactly one repair prompt that targets only the missing field. Do not silently continue with placeholders.
 
-Before you show the approval gate, build the raw contract as a literal JSON object that follows `templates/state-json-schema.md` exactly:
+Before you show the approval gate, build the raw contract as a literal JSON object for the `project_contract` subsection of `templates/state-json-schema.md`:
+
+- author only the JSON object that will be stored in `project_contract`, not the surrounding `state.json` envelope
+- follow the `project_contract` object rules in `templates/state-json-schema.md` exactly
 
 - `project_contract` is a JSON object, not prose
 - `observables`, `claims`, `deliverables`, `acceptance_tests`, `references`, `forbidden_proxies`, and `links` are arrays of objects, not strings
@@ -809,7 +812,10 @@ Do not approve a scoping contract that strips decisive outputs, anchors, prior o
 If the only checks captured so far are limiting cases, sanity checks, or qualitative expectations, treat the contract as still underspecified unless the user explicitly states that these are the decisive standard.
 Missing-anchor notes preserve uncertainty, but they do not satisfy approval on their own. Do not offer approval until at least one concrete anchor, reference, prior-output constraint, or baseline is present.
 
-Before you ask for approval, build the raw contract as a literal JSON object that follows `templates/state-json-schema.md` exactly:
+Before you ask for approval, build the raw contract as a literal JSON object for the `project_contract` subsection of `templates/state-json-schema.md`:
+
+- author only the JSON object that will be stored in `project_contract`, not the surrounding `state.json` envelope
+- follow the `project_contract` object rules in `templates/state-json-schema.md` exactly
 
 - `project_contract` is a JSON object, not prose
 - `observables`, `claims`, `deliverables`, `acceptance_tests`, `references`, `forbidden_proxies`, and `links` are arrays of objects, not strings

@@ -364,7 +364,7 @@ If an existing verification artifact is found (e.g., from a prior `/gpd:execute-
 2. Do NOT overwrite — instead, append a `## Researcher Validation` section after the existing content
 3. The new researcher checks go under this section, keeping the automated checks intact
 4. **Status merge rule:** The combined verification `status` uses the MORE RESTRICTIVE verification-report vocabulary (`passed | gaps_found | expert_needed | human_needed`). If automated verification passed but the researcher finds issues, the combined status becomes `gaps_found`. If automated found gaps but the researcher confirms they are acceptable, the combined status stays `gaps_found` unless the researcher explicitly upgrades each gap to `pass`. Keep `session_status` for conversational progress only.
-5. The `independently_confirmed` count in the report should aggregate both automated and researcher-confirmed checks
+5. If you report an aggregate independently confirmed tally, keep it in body prose or tables rather than adding a non-canonical verification frontmatter key
 
 If no existing verification artifact exists, create a new one from scratch.
 

@@ -40,7 +40,7 @@ Even singleton values must stay YAML lists in strict contract-backed ledgers: us
 When evidence is about an explicit proxy guardrail, bind it through `forbidden_proxy_id` instead of inventing a new subject kind.
 Every `comparison_verdicts` entry must declare `subject_role` explicitly. If a decisive external anchor was used, include `reference_id`; if the decisive anchor is itself the compared subject, use `subject_kind: reference`.
 Emit decisive `comparison_verdicts` whenever the PLAN contract includes `benchmark` or `cross_method` acceptance tests, whenever a benchmark/compare-driven reference anchors the subject, or whenever you performed a decisive comparison in practice.
-Do not invent extra keys in `contract_results`, `comparison_verdicts`, or `suggested_contract_checks`; those ledgers are closed schemas.
+Do not invent extra keys in `contract_results` or `comparison_verdicts`; those ledgers are closed schemas. `suggested_contract_checks` is verification-only and does not belong in summaries.
 
 Canonical ledger schema and validator-enforced rules to load before writing frontmatter:
 

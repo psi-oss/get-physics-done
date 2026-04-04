@@ -17,12 +17,14 @@ def test_new_project_prompt_surfaces_the_canonical_state_schema_for_project_cont
     )
 
     assert "templates/state-json-schema.md" in new_project_text
-    assert "Before you ask for approval, build the raw contract as a literal JSON object that follows `templates/state-json-schema.md` exactly:" in new_project_text
+    assert "Before you ask for approval, build the raw contract as a literal JSON object for the `project_contract` subsection of `templates/state-json-schema.md`:" in new_project_text
     assert "Do not approve a scoping contract that strips decisive outputs, anchors, prior outputs, or review/stop triggers down to generic placeholders." in new_project_text
     assert "the contract schema is closed: do not add invented top-level or nested keys" in new_project_text
     assert "list fields must stay lists even for single-item values" in new_project_text
     assert "blank or duplicate list entries are invalid after trimming whitespace" in new_project_text
-    assert "Before you show the approval gate, build the raw contract as a literal JSON object that follows `templates/state-json-schema.md` exactly:" in new_project_text
+    assert "Before you show the approval gate, build the raw contract as a literal JSON object for the `project_contract` subsection of `templates/state-json-schema.md`:" in new_project_text
+    assert "author only the JSON object that will be stored in `project_contract`, not the surrounding `state.json` envelope" in new_project_text
+    assert "follow the `project_contract` object rules in `templates/state-json-schema.md` exactly" in new_project_text
     assert "`context_intake`, `approach_policy`, and `uncertainty_markers` are objects, not strings or lists" in new_project_text
     assert "`schema_version` must be the integer `1`" in new_project_text
     assert "`references[].must_surface` must be a boolean `true` or `false`" in new_project_text

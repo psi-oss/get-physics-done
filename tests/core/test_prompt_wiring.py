@@ -1287,6 +1287,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     assert "gpd validate plan-preflight <PLAN.md>" in plan_phase
     assert "declare it as `tool: wolfram` in `tool_requirements`" in tooling_ref
     assert "verification_inputs" not in summary_template
+    assert "`suggested_contract_checks` is verification-only and does not belong in summaries." in summary_template
     assert "contract_results" in verification_template
     assert "comparison_verdicts" in verification_template
     assert "Subject Role" in verification_template
@@ -1336,8 +1337,12 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     assert "comparison_kind: [benchmark | prior_work | experiment | cross_method | baseline | \"\"]" not in verify_workflow
     assert "suggested_contract_checks:" in verify_workflow
     assert "`suggested_contract_check`" not in verify_workflow
+    assert "independently_confirmed" not in verify_workflow
     assert "Return status (`passed` | `gaps_found` | `expert_needed` | `human_needed`)" in verify_phase
     assert "contract_results including `uncertainty_markers`" in verify_phase
+    assert "frontmatter (phase/verified/status/score/plan_contract_ref/contract_results" in verify_phase
+    assert "frontmatter (phase/timestamp/status/score" not in verify_phase
+    assert "independently_confirmed" not in verify_phase
     assert "`suggested_contract_check`" not in verify_phase
     assert "gap_subject_kind" in verifier_agent
     assert "Each gap has: `gap_subject_kind`" in verifier_agent
@@ -1683,6 +1688,8 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     assert "`contract.context_intake` is required and must be a non-empty object." in plan_phase
     assert "Non-scoping plans keep `claims[]`, `deliverables[]`, `acceptance_tests[]`, and `forbidden_proxies[]` non-empty." in plan_phase
     assert "Include `references[]` only when the plan relies on external grounding" in plan_phase
+    assert "Each plan has a complete contract block (claims, deliverables, acceptance tests, forbidden proxies, uncertainty markers, and `references[]` whenever grounding is not already explicit elsewhere in the contract)" in plan_phase
+    assert "Each plan has a complete contract block (claims, deliverables, references, acceptance tests, forbidden proxies, uncertainty markers)" not in plan_phase
     assert "Light mode changes the body only." in plan_phase
     assert "Keep the full canonical frontmatter, including `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, and `contract`." in plan_phase
     assert "Contract Intake:" in plan_phase

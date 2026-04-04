@@ -81,6 +81,7 @@ def test_verify_work_scaffold_uses_yaml_strings_for_scalar_examples_without_blan
     assert 'subject_id: [contract id or ""]' not in verify_workflow
     assert 'expected: [verifiable physics outcome]' not in verify_workflow
     assert 'computation: [specific numerical test performed]' not in verify_workflow
+    assert "independently_confirmed" not in verify_workflow
 
 
 def test_model_visible_worked_examples_keep_summary_and_verdict_shapes_copy_safe() -> None:

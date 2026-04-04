@@ -593,7 +593,8 @@ def test_summary_template_surfaces_plan_contract_ref_rule_for_contract_ledgers()
     assert "It must not be absolute, parent-traversing, or collapse to a bare sibling reference." in summary_template
     assert "`completed` needs non-empty `completed_actions`" in summary_template
     assert "If a decisive external anchor was used, include `reference_id`" in summary_template
-    assert "Do not invent extra keys in `contract_results`, `comparison_verdicts`, or `suggested_contract_checks`" in summary_template
+    assert "Do not invent extra keys in `contract_results` or `comparison_verdicts`" in summary_template
+    assert "`suggested_contract_checks` is verification-only and does not belong in summaries." in summary_template
 
 
 def test_verification_template_surfaces_strict_passed_and_blocked_semantics() -> None:

@@ -551,7 +551,7 @@ Format each as: Check Name -> What to verify -> Expected result -> Why cannot ve
 **human_needed:** All automated and computational checks pass but non-expert human review or user decision remains.
 
 **Score:** `verified_contract_targets / total_contract_targets`
-**Independently confirmed:** `independently_confirmed_checks / total_applicable_checks`
+If you need an aggregate independently confirmed tally for the narrative, keep it in body prose or tables. Do not add a non-canonical verification frontmatter key for that count.
 </step>
 
 <step name="generate_fix_plans">
@@ -571,7 +571,7 @@ If gaps_found:
 REPORT_PATH="$phase_dir/${phase_number}-VERIFICATION.md"
 ```
 
-Fill template sections: frontmatter (phase/timestamp/status/score/plan_contract_ref/contract_results including `uncertainty_markers`/comparison_verdicts/suggested_contract_checks/independently_confirmed), goal achievement, contract targets table, artifact table, computational verification details (spot-checks, limits re-derived, cross-checks, dimensional analysis traces), physics checks table, requirements coverage, anti-patterns, cross-phase consistency, expert verification, gaps summary with computation evidence, fix plans (if gaps_found), metadata. The contract targets table should read like a user-visible outcome ledger, not a workflow checklist.
+Fill template sections: frontmatter (phase/verified/status/score/plan_contract_ref/contract_results including `uncertainty_markers`/comparison_verdicts/suggested_contract_checks), goal achievement, contract targets table, artifact table, computational verification details (spot-checks, limits re-derived, cross-checks, dimensional analysis traces), physics checks table, requirements coverage, anti-patterns, cross-phase consistency, expert verification, gaps summary with computation evidence, fix plans (if gaps_found), metadata. The contract targets table should read like a user-visible outcome ledger, not a workflow checklist.
 
 If the verifier identifies a decisive check that the contract omitted but downstream work clearly depends on, record it under `suggested_contract_checks` with a reason and recommended evidence path. Do not hide this by marking the parent target VERIFIED; keep the target PARTIAL or FAILED until the missing decisive check is resolved or explicitly re-scoped.
 

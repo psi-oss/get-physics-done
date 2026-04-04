@@ -672,7 +672,7 @@ Output consumed by /gpd:execute-phase. Plans need:
 
 - [ ] PLAN.md files created in phase directory
 - [ ] Each plan has valid frontmatter
-- [ ] Each plan has a complete contract block (claims, deliverables, references, acceptance tests, forbidden proxies, uncertainty markers)
+- [ ] Each plan has a complete contract block (claims, deliverables, acceptance tests, forbidden proxies, uncertainty markers, and `references[]` whenever grounding is not already explicit elsewhere in the contract)
 - [ ] Each plan passes `gpd validate plan-contract <PLAN.md>`
 - [ ] Each plan with `tool_requirements` passes `gpd validate plan-preflight <PLAN.md>` or surfaces an explicit blocker/fallback path
 - [ ] Tasks are specific and actionable with clear mathematical deliverables

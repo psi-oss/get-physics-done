@@ -739,6 +739,37 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any(error.startswith("verification_inputs:") for error in result.errors)
 
+    def test_summary_rejects_verification_only_suggested_contract_checks(self):
+        content = (
+            "---\n"
+            "phase: 01\n"
+            "plan: 01\n"
+            "depth: standard\n"
+            "provides: []\n"
+            "completed: 2025-01-01\n"
+            "suggested_contract_checks:\n"
+            "  - check: Missing decisive benchmark comparison\n"
+            "    reason: Verification-only gap ledger should not appear in summaries\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "summary")
+        assert result.valid is False
+        assert any(error.startswith("suggested_contract_checks:") for error in result.errors)
+
+    def test_verification_rejects_noncanonical_independently_confirmed_field(self):
+        content = (
+            "---\n"
+            "phase: 01\n"
+            "verified: 2025-01-01T00:00:00Z\n"
+            "status: gaps_found\n"
+            "score: 0/0 contract targets verified\n"
+            "independently_confirmed: 0/0\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "verification")
+        assert result.valid is False
+        assert any(error.startswith("independently_confirmed:") for error in result.errors)
+
     def test_verify_summary_enforces_same_summary_schema_contract(self, tmp_path: Path):
         summary_path = tmp_path / "01-01-SUMMARY.md"
         content = (
