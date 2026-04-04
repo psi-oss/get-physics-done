@@ -27,6 +27,7 @@ from gpd.hooks.statusline import (
     _read_position,
     _read_session_id,
     _read_workspace_label,
+    _workspace_mapping_prefers_local_statusline_lookup,
     main,
 )
 from tests.hooks.helpers import mark_complete_install as _mark_complete_install
@@ -1169,6 +1170,17 @@ class TestMain:
         mock_execution.assert_called_once_with(str(nested))
         mock_update.assert_called_once_with(str(nested))
         assert "[project/src/notes]" in captured.getvalue()
+
+    def test_workspace_mapping_prefers_local_lookup_for_project_root_alias(self) -> None:
+        hook_payload = SimpleNamespace(
+            workspace_keys=("cwd", "current_dir"),
+            project_dir_keys=("project_dir", "project_root"),
+        )
+
+        assert _workspace_mapping_prefers_local_statusline_lookup(
+            {"workspace": {"current_dir": "/tmp/project/src/notes", "project_root": "/tmp/project"}},
+            hook_payload=hook_payload,
+        )
 
     def test_main_uses_workspace_local_runtime_lookup_and_runtime_session_id_keys(
         self,
