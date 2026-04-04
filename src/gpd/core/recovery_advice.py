@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from gpd.core.context import init_resume
 from gpd.core.recent_projects import list_recent_projects
 from gpd.core.resume_surface import (
+    RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF,
     lookup_resume_surface_list,
     lookup_resume_surface_mapping,
     lookup_resume_surface_text,
@@ -601,7 +602,11 @@ def build_recovery_advice(
         )
     )
     current_workspace_has_resume_file = (
-        (active_resume_kind == "bounded_segment" and active_resume_pointer is not None)
+        (
+            active_resume_kind
+            in {"bounded_segment", RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF}
+            and active_resume_pointer is not None
+        )
         or continuity_handoff_file is not None
         or _has_usable_candidate_resume_file(segment_candidates)
     )

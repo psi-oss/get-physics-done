@@ -57,6 +57,10 @@ def test_resume_payload_has_local_recovery_target_recognizes_supported_resume_fa
         "active_resume_kind": "bounded_segment",
         "active_resume_pointer": "GPD/phases/03/.continue-here.md",
     }
+    continuity_payload = {
+        "active_resume_kind": "continuity_handoff",
+        "active_resume_pointer": "GPD/phases/04/.continue-here.md",
+    }
     handoff_payload = {
         "continuity_handoff_file": "GPD/phases/04/.continue-here.md",
         "resume_candidates": [
@@ -81,6 +85,7 @@ def test_resume_payload_has_local_recovery_target_recognizes_supported_resume_fa
     }
 
     assert resume_payload_has_local_recovery_target(bounded_payload) is True
+    assert resume_payload_has_local_recovery_target(continuity_payload) is True
     assert resume_payload_has_local_recovery_target(handoff_payload) is True
     assert resume_payload_has_local_recovery_target(interrupted_payload) is True
 

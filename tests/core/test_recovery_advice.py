@@ -86,6 +86,36 @@ def test_build_recovery_advice_treats_canonical_bounded_segment_as_authoritative
     assert advice.resume_candidates_count == 0
 
 
+def test_build_recovery_advice_treats_canonical_continuity_handoff_pointer_as_current_workspace_resume_file(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+
+    advice = build_recovery_advice(
+        project,
+        recent_rows=[],
+        resume_payload={
+            "active_resume_kind": "continuity_handoff",
+            "active_resume_origin": "continuation.handoff",
+            "active_resume_pointer": "GPD/phases/06/.continue-here.md",
+            "has_live_execution": False,
+            "resume_candidates": [],
+        },
+    )
+
+    assert advice.mode == "current-workspace"
+    assert advice.status == "session-handoff"
+    assert advice.decision_source == "current-workspace"
+    assert advice.project_reentry_mode == "current-workspace"
+    assert advice.active_resume_kind == "continuity_handoff"
+    assert advice.active_resume_origin == "continuation.handoff"
+    assert advice.active_resume_pointer == "GPD/phases/06/.continue-here.md"
+    assert advice.has_continuity_handoff is True
+    assert advice.current_workspace_has_recovery is True
+    assert advice.current_workspace_has_resume_file is True
+    assert advice.has_local_recovery_target is True
+
+
 def test_build_recovery_advice_passes_data_root_to_init_resume(
     tmp_path: Path,
     monkeypatch,

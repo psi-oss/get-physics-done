@@ -401,7 +401,12 @@ def resume_payload_has_local_recovery_target(
         "active_resume_pointer",
     )
     if (
-        active_resume_kind in {RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT, RESUME_CANDIDATE_KIND_INTERRUPTED_AGENT}
+        active_resume_kind
+        in {
+            RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT,
+            RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF,
+            RESUME_CANDIDATE_KIND_INTERRUPTED_AGENT,
+        }
         and active_resume_pointer is not None
     ):
         return True

@@ -843,6 +843,68 @@ def test_build_runtime_hint_payload_preserves_existing_local_target_over_recent_
     assert any(action.startswith("Run `gpd resume`") for action in payload.next_actions)
 
 
+def test_build_runtime_hint_payload_does_not_hydrate_over_existing_canonical_continuity_handoff_pointer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = tmp_path / "outside"
+    workspace.mkdir()
+    project = _bootstrap_recoverable_project(tmp_path / "project-root")
+    data_root = tmp_path / "data"
+    resume_file = project / "GPD" / "phases" / "99" / ".continue-here.md"
+    resume_file.parent.mkdir(parents=True, exist_ok=True)
+    resume_file.write_text("resume\n", encoding="utf-8")
+    record_recent_project(
+        project,
+        session_data={
+            "last_date": "2026-03-27T11:55:00+00:00",
+            "stopped_at": "Phase 99",
+            "resume_file": "GPD/phases/99/.continue-here.md",
+        },
+        store_root=data_root,
+    )
+    monkeypatch.setattr(
+        "gpd.core.runtime_hints._resume_context",
+        lambda _cwd, data_root=None: {
+            "planning_exists": True,
+            "state_exists": True,
+            "roadmap_exists": True,
+            "project_exists": True,
+            "project_root": project.resolve(strict=False).as_posix(),
+            "project_root_source": "recent_project",
+            "project_root_auto_selected": True,
+            "project_reentry_mode": "auto-recent-project",
+            "active_resume_kind": "continuity_handoff",
+            "active_resume_origin": "continuation.handoff",
+            "active_resume_pointer": "GPD/phases/04/.continue-here.md",
+            "resume_candidates": [],
+            "has_live_execution": False,
+        },
+    )
+
+    payload = build_runtime_hint_payload(
+        workspace,
+        data_root=data_root,
+        base_ready=True,
+        latex_capability=_latex_capability(),
+    )
+
+    assert payload.source_meta["project_root"] == project.resolve(strict=False).as_posix()
+    assert payload.recovery["current_project"]["project_root"] == project.resolve(strict=False).as_posix()
+    assert payload.recovery["current_project"]["source"] == "recent_project"
+    assert payload.orientation["mode"] == "current-workspace"
+    assert payload.orientation["status"] == "session-handoff"
+    assert payload.orientation["active_resume_kind"] == "continuity_handoff"
+    assert payload.orientation["active_resume_origin"] == "continuation.handoff"
+    assert payload.orientation["active_resume_pointer"] == "GPD/phases/04/.continue-here.md"
+    assert payload.orientation["continuity_handoff_file"] is None
+    assert payload.orientation["recorded_continuity_handoff_file"] is None
+    assert payload.orientation["has_continuity_handoff"] is True
+    assert payload.orientation["current_workspace_has_resume_file"] is True
+    assert payload.orientation["has_local_recovery_target"] is True
+    assert "resume-work" in str(payload.orientation["continue_command"])
+    assert "suggest-next" in str(payload.orientation["fast_next_command"])
+
+
 def test_build_runtime_hint_payload_does_not_treat_missing_handoff_only_state_as_local_target(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
