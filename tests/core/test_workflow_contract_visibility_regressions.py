@@ -147,3 +147,22 @@ def test_paper_quality_scoring_reference_tracks_per_journal_gate_and_generic_fal
     assert "minimum_submission_score" in scoring
     assert "score ≥ 80" not in scoring
     assert "`mnras` and `jfm` currently use the generic weighting profile" in scoring
+
+
+def test_write_paper_and_scoring_docs_distinguish_builder_supported_vs_manual_only_journals() -> None:
+    workflow = _workflow_text("write-paper.md")
+    scoring = (
+        REPO_ROOT / "src/gpd/specs/references/publication/paper-quality-scoring.md"
+    ).read_text(encoding="utf-8")
+
+    assert "These are the only valid `journal` values in `PAPER-CONFIG.json` and `${PAPER_DIR}/ARTIFACT-MANIFEST.json`." in workflow
+    assert "artifact-driven `--from-project` path" in scoring
+    assert "Manual JSON is also the only supported path today for scoring-only profiles" in scoring
+    assert "`prd`, `prb`, `prc`, and `nature_physics`" in scoring
+
+
+def test_settings_publication_manuscript_preset_surfaces_real_latex_readiness_gates() -> None:
+    settings = _workflow_text("settings.md")
+
+    assert "only affects local smoke checks" not in settings
+    assert "can degrade or block `paper-build` / `arxiv-submission`" in settings

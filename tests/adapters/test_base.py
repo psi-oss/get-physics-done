@@ -130,6 +130,18 @@ class TestUninstallBase:
         assert not (target / "commands" / "gpd").exists()
         assert not (target / INSTALL_ROOT_DIR_NAME).exists()
 
+    def test_uninstall_preserves_manifestless_user_flat_commands(self, tmp_path: Path) -> None:
+        adapter = get_adapter("opencode")
+        target = tmp_path / ".opencode"
+        command_dir = target / "command"
+        command_dir.mkdir(parents=True)
+        (command_dir / "custom.md").write_text("keep", encoding="utf-8")
+
+        result = adapter.uninstall(target)
+
+        assert result["removed"] == []
+        assert (command_dir / "custom.md").exists()
+
     def test_removes_manifest_tracked_gpd_hooks(self, tmp_path: Path) -> None:
         adapter = get_adapter("claude-code")
         target = tmp_path / ".claude"

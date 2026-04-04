@@ -320,7 +320,7 @@ def test_integrations_commands_use_project_root_config_from_nested_workspace(tmp
     assert not (nested_workspace / "GPD").exists()
 
 
-def test_integrations_status_normalizes_legacy_api_key_env_field_to_canonical_contract(tmp_path: Path) -> None:
+def test_integrations_status_rejects_legacy_api_key_env_field(tmp_path: Path) -> None:
     config_path = tmp_path / "GPD" / "integrations.json"
     config_path.parent.mkdir(parents=True)
     config_path.write_text(
@@ -330,9 +330,8 @@ def test_integrations_status_normalizes_legacy_api_key_env_field_to_canonical_co
 
     result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "integrations", "status", "wolfram"])
 
-    assert result.exit_code == 0
-    payload = json.loads(result.output)
-    assert payload["api_key_env"] == "GPD_WOLFRAM_MCP_API_KEY"
+    assert result.exit_code != 0
+    assert "integrations.wolfram contains unsupported keys: api_key_env" in _normalize_cli_output(result.output)
 
 
 @pytest.mark.parametrize(

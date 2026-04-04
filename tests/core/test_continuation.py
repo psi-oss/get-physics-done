@@ -165,7 +165,7 @@ def test_resolve_continuation_prefers_canonical_state_over_legacy_inputs(tmp_pat
     assert projection.resumable is True
 
 
-def test_resolve_continuation_uses_live_bounded_segment_when_canonical_state_only_has_handoff(
+def test_resolve_continuation_keeps_canonical_handoff_when_live_bounded_segment_exists(
     tmp_path: Path,
 ) -> None:
     _write_resume(tmp_path, "GPD/phases/03-analysis/.continue-here.md")
@@ -197,14 +197,57 @@ def test_resolve_continuation_uses_live_bounded_segment_when_canonical_state_onl
 
     assert projection.source == ContinuationSource.CANONICAL
     assert projection.continuation.handoff.stopped_at == "Canonical handoff"
-    assert projection.continuation.bounded_segment is not None
-    assert projection.continuation.bounded_segment.phase == "03"
-    assert projection.continuation.bounded_segment.transition_id == "transition-legacy"
-    assert projection.continuation.bounded_segment.last_result_id == "result-legacy"
-    assert projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT
-    assert projection.active_resume_file == "GPD/phases/03-analysis/.continue-here.md"
+    assert projection.continuation.bounded_segment is None
+    assert projection.active_resume_source == ContinuationResumeSource.HANDOFF
+    assert projection.active_resume_file == "GPD/phases/03-analysis/handoff.md"
     assert projection.handoff_resume_file == "GPD/phases/03-analysis/handoff.md"
-    assert projection.resumable is True
+    assert projection.resumable is False
+
+
+def test_resolve_continuation_surfaces_invalid_canonical_resume_pointer_without_falling_back_to_legacy(
+    tmp_path: Path,
+) -> None:
+    external_root = tmp_path.parent / f"{tmp_path.name}-external"
+    external_resume = external_root / ".continue-here.md"
+    external_resume.parent.mkdir(parents=True, exist_ok=True)
+    external_resume.write_text("resume\n", encoding="utf-8")
+    _write_resume(tmp_path, "GPD/phases/03-analysis/legacy.md")
+
+    raw_continuation = {
+        "schema_version": 1,
+        "bounded_segment": {
+            "resume_file": str(external_resume),
+        },
+    }
+
+    continuation, issues = normalize_continuation_with_issues(tmp_path, raw_continuation)
+
+    assert continuation.is_empty is True
+    assert any("continuation.bounded_segment.resume_file" in issue for issue in issues)
+
+    projection = resolve_continuation(
+        tmp_path,
+        state={
+            "continuation": raw_continuation,
+            "session": {
+                "resume_file": "GPD/phases/03-analysis/legacy.md",
+                "stopped_at": "Legacy handoff",
+            },
+        },
+        current_execution={
+            "resume_file": "GPD/phases/03-analysis/legacy.md",
+            "segment_status": "paused",
+            "segment_id": "legacy-seg",
+        },
+    )
+
+    assert projection.source == ContinuationSource.CANONICAL
+    assert projection.continuation.is_empty is True
+    assert projection.recorded_handoff_resume_file is None
+    assert projection.handoff_resume_file is None
+    assert projection.active_resume_file is None
+    assert projection.active_resume_source is None
+    assert projection.resumable is False
 
 
 def test_resolve_continuation_falls_back_to_handoff_when_canonical_bounded_segment_pointer_is_missing(

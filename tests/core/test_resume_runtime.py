@@ -624,7 +624,7 @@ def test_init_resume_promotes_auto_selected_recent_bounded_segment_over_same_poi
     assert ctx["compat_resume_surface"]["segment_candidates"][0]["source"] == "recent_project"
 
 
-def test_init_resume_keeps_current_execution_primary_and_includes_session_resume_file(
+def test_init_resume_prefers_canonical_handoff_over_live_execution_and_keeps_execution_advisory(
     tmp_path: Path, state_project_factory, monkeypatch
 ) -> None:
     cwd = state_project_factory(tmp_path)
@@ -655,37 +655,41 @@ def test_init_resume_keeps_current_execution_primary_and_includes_session_resume
     ctx = init_resume(tmp_path)
 
     assert ctx["machine_change_detected"] is False
-    assert ctx["active_bounded_segment"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
     assert ctx["derived_execution_head"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
     assert ctx["continuity_handoff_file"] == "GPD/phases/03-analysis/alternate-resume.md"
     assert ctx["recorded_continuity_handoff_file"] == "GPD/phases/03-analysis/alternate-resume.md"
     assert ctx["missing_continuity_handoff_file"] is None
     assert ctx["has_continuity_handoff"] is True
-    assert ctx["active_resume_kind"] == "bounded_segment"
-    assert ctx["active_resume_origin"] == "compat.current_execution"
-    assert ctx["active_resume_pointer"] == "GPD/phases/03-analysis/.continue-here.md"
+    assert ctx["active_bounded_segment"] is None
+    assert ctx["active_resume_kind"] == "continuity_handoff"
+    assert ctx["active_resume_origin"] == "continuation.handoff"
+    assert ctx["active_resume_pointer"] == "GPD/phases/03-analysis/alternate-resume.md"
     _assert_no_resume_compat_aliases(ctx)
-    assert ctx["compat_resume_surface"]["execution_resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
-    assert ctx["compat_resume_surface"]["execution_resume_file_source"] == "current_execution"
+    assert ctx["compat_resume_surface"]["current_execution"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
+    assert ctx["compat_resume_surface"]["execution_resume_file"] == "GPD/phases/03-analysis/alternate-resume.md"
+    assert ctx["compat_resume_surface"]["execution_resume_file_source"] == "session_resume_file"
     assert ctx["compat_resume_surface"]["active_execution_segment"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
-    assert ctx["compat_resume_surface"]["segment_candidates"][0]["source"] == "current_execution"
-    assert ctx["compat_resume_surface"]["segment_candidates"][1]["source"] == "session_resume_file"
-    assert ctx["compat_resume_surface"]["segment_candidates"][1]["resume_file"] == "GPD/phases/03-analysis/alternate-resume.md"
-    assert [candidate["kind"] for candidate in ctx["resume_candidates"]] == [
-        "bounded_segment",
-        "continuity_handoff",
+    assert ctx["compat_resume_surface"]["segment_candidates"] == [
+        {
+            "source": "session_resume_file",
+            "status": "handoff",
+            "resume_file": "GPD/phases/03-analysis/alternate-resume.md",
+            "resumable": False,
+        }
     ]
-    assert ctx["resume_candidates"][0]["origin"] == "compat.current_execution"
-    assert ctx["resume_candidates"][0]["resume_pointer"] == "GPD/phases/03-analysis/.continue-here.md"
-    assert ctx["resume_candidates"][0]["first_result_gate_pending"] is False
-    assert ctx["resume_candidates"][0]["pre_fanout_review_pending"] is False
-    assert ctx["resume_candidates"][0]["pre_fanout_review_cleared"] is False
-    assert ctx["resume_candidates"][0]["downstream_locked"] is False
-    assert ctx["resume_candidates"][1]["origin"] == "continuation.handoff"
-    assert ctx["resume_candidates"][1]["resume_pointer"] == "GPD/phases/03-analysis/alternate-resume.md"
+    assert ctx["resume_candidates"] == [
+        {
+            "kind": "continuity_handoff",
+            "origin": "continuation.handoff",
+            "resume_file": "GPD/phases/03-analysis/alternate-resume.md",
+            "resume_pointer": "GPD/phases/03-analysis/alternate-resume.md",
+            "resumable": False,
+            "status": "handoff",
+        }
+    ]
 
 
-def test_init_resume_keeps_current_execution_primary_across_machine_change(
+def test_init_resume_keeps_canonical_handoff_primary_across_machine_change(
     tmp_path: Path, state_project_factory, monkeypatch
 ) -> None:
     cwd = state_project_factory(tmp_path)
@@ -716,16 +720,28 @@ def test_init_resume_keeps_current_execution_primary_across_machine_change(
     ctx = init_resume(tmp_path)
 
     assert ctx["machine_change_detected"] is True
-    assert ctx["active_resume_kind"] == "bounded_segment"
-    assert ctx["active_resume_origin"] == "compat.current_execution"
-    assert ctx["active_resume_pointer"] == "GPD/phases/03-analysis/.continue-here.md"
+    assert ctx["active_resume_kind"] == "continuity_handoff"
+    assert ctx["active_resume_origin"] == "continuation.handoff"
+    assert ctx["active_resume_pointer"] == "GPD/phases/03-analysis/alternate-resume.md"
     _assert_no_resume_compat_aliases(ctx)
-    assert ctx["compat_resume_surface"]["segment_candidates"][0]["source"] == "current_execution"
-    assert ctx["compat_resume_surface"]["segment_candidates"][1]["source"] == "session_resume_file"
-    assert ctx["resume_candidates"][0]["kind"] == "bounded_segment"
-    assert ctx["resume_candidates"][0]["origin"] == "compat.current_execution"
-    assert ctx["resume_candidates"][1]["kind"] == "continuity_handoff"
-    assert ctx["resume_candidates"][1]["origin"] == "continuation.handoff"
+    assert ctx["compat_resume_surface"]["segment_candidates"] == [
+        {
+            "source": "session_resume_file",
+            "status": "handoff",
+            "resume_file": "GPD/phases/03-analysis/alternate-resume.md",
+            "resumable": False,
+        }
+    ]
+    assert ctx["resume_candidates"] == [
+        {
+            "kind": "continuity_handoff",
+            "origin": "continuation.handoff",
+            "resume_file": "GPD/phases/03-analysis/alternate-resume.md",
+            "resume_pointer": "GPD/phases/03-analysis/alternate-resume.md",
+            "resumable": False,
+            "status": "handoff",
+        }
+    ]
 
 
 def test_init_resume_reads_canonical_continuation_from_state_json(
@@ -1016,20 +1032,20 @@ def test_init_resume_deduplicates_matching_session_handoff_and_ranks_interrupted
     assert ctx["recorded_continuity_handoff_file"] == resume_file
     assert ctx["missing_continuity_handoff_file"] is None
     assert ctx["has_continuity_handoff"] is True
-    assert ctx["active_resume_kind"] == "bounded_segment"
-    assert ctx["active_resume_origin"] == "compat.current_execution"
+    assert ctx["active_resume_kind"] == "continuity_handoff"
+    assert ctx["active_resume_origin"] == "continuation.handoff"
     assert ctx["compat_resume_surface"]["session_resume_file"] == resume_file
     assert [candidate["source"] for candidate in ctx["compat_resume_surface"]["segment_candidates"]] == [
-        "current_execution",
+        "session_resume_file",
         "interrupted_agent",
     ]
     assert [candidate["kind"] for candidate in ctx["resume_candidates"]] == [
-        "bounded_segment",
+        "continuity_handoff",
         "interrupted_agent",
     ]
     assert ctx["compat_resume_surface"]["segment_candidates"][0]["resume_file"] == resume_file
     assert ctx["compat_resume_surface"]["segment_candidates"][1]["agent_id"] == "agent-77"
-    assert ctx["resume_candidates"][0]["origin"] == "compat.current_execution"
+    assert ctx["resume_candidates"][0]["origin"] == "continuation.handoff"
     assert ctx["resume_candidates"][1]["origin"] == "interrupted_agent_marker"
 
 

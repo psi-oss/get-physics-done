@@ -125,7 +125,33 @@ def _normalize_continuation_model(
     return model, issues
 
 
+def _normalize_continuation_reference_with_issues(
+    project_root: Path | str,
+    reference: object,
+    *,
+    label: str,
+    require_exists: bool = False,
+) -> tuple[str | None, list[str]]:
+    """Normalize one continuation pointer and surface invalid values as drift."""
+
+    normalized = _normalize_optional_text(reference)
+    if normalized is None:
+        if reference is None:
+            return None, []
+        return None, [f'schema normalization: dropped malformed "{label}" because expected portable repo-local reference']
+
+    normalized_reference = normalize_continuation_reference(
+        project_root,
+        normalized,
+        require_exists=require_exists,
+    )
+    if normalized_reference is None:
+        return None, [f'schema normalization: dropped malformed "{label}" because expected portable repo-local reference']
+    return normalized_reference, []
+
+
 def _normalize_continuation_payload_with_issues(
+    project_root: Path | str | None,
     continuation: object,
 ) -> tuple[ContinuationState, list[str], bool]:
     """Return a normalized continuation payload plus salvage issues."""
@@ -160,6 +186,25 @@ def _normalize_continuation_payload_with_issues(
         label="continuation.bounded_segment",
     )
     issues.extend([*handoff_issues, *machine_issues, *bounded_segment_issues])
+
+    if project_root is not None and isinstance(raw.get("handoff"), Mapping):
+        normalized_resume_file, resume_file_issues = _normalize_continuation_reference_with_issues(
+            project_root,
+            raw["handoff"].get("resume_file"),
+            label="continuation.handoff.resume_file",
+        )
+        if resume_file_issues:
+            issues.extend(resume_file_issues)
+        handoff = handoff.model_copy(update={"resume_file": normalized_resume_file})
+    if project_root is not None and isinstance(raw.get("bounded_segment"), Mapping):
+        normalized_resume_file, resume_file_issues = _normalize_continuation_reference_with_issues(
+            project_root,
+            raw["bounded_segment"].get("resume_file"),
+            label="continuation.bounded_segment.resume_file",
+        )
+        if resume_file_issues:
+            issues.extend(resume_file_issues)
+        bounded_segment = bounded_segment.model_copy(update={"resume_file": normalized_resume_file})
 
     normalized = ContinuationState(
         schema_version=normalized_schema_version,
@@ -409,7 +454,7 @@ def normalize_continuation_with_issues(
 ) -> tuple[ContinuationState, list[str]]:
     """Validate and normalize a canonical continuation payload with drift issues."""
 
-    normalized, issues, _ = _normalize_continuation_payload_with_issues(continuation)
+    normalized, issues, _ = _normalize_continuation_payload_with_issues(project_root, continuation)
     normalized_handoff = normalized.handoff
     if project_root is not None:
         normalized_handoff = normalized_handoff.model_copy(
@@ -596,10 +641,6 @@ def resolve_continuation(
             for issue in (state_issues or [])
         )
         if not continuation.is_empty:
-            if continuation.bounded_segment is None:
-                overlay_segment = canonical_bounded_segment_from_execution_snapshot(project_root, current_execution)
-                if overlay_segment is not None:
-                    continuation = continuation.model_copy(update={"bounded_segment": overlay_segment})
             return _project_continuation(project_root, source=ContinuationSource.CANONICAL, continuation=continuation)
         if has_continuation_drift:
             return _project_continuation(project_root, source=ContinuationSource.CANONICAL, continuation=continuation)

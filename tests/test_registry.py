@@ -454,7 +454,7 @@ class TestParseCommandFile:
         assert cmd.context_mode == "project-required"
         assert cmd.project_reentry_capable is False
 
-    def test_command_review_contract_parses_false_string_for_fresh_context(self, tmp_path: Path) -> None:
+    def test_command_review_contract_rejects_false_string_for_fresh_context(self, tmp_path: Path) -> None:
         f = tmp_path / "review-contract-false.md"
         f.write_text(
             "---\n"
@@ -468,10 +468,11 @@ class TestParseCommandFile:
             encoding="utf-8",
         )
 
-        cmd = _parse_command_file(f, source="commands")
-
-        assert cmd.review_contract is not None
-        assert cmd.review_contract.requires_fresh_context_per_stage is False
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid review-contract in .*review-contract-false\.md.*requires_fresh_context_per_stage",
+        ):
+            _parse_command_file(f, source="commands")
 
     def test_command_review_contract_invalid_max_rounds_reports_file_context(self, tmp_path: Path) -> None:
         f = tmp_path / "review-rounds.md"
@@ -746,6 +747,19 @@ class TestParseCommandFile:
         )
 
         with pytest.raises(ValueError, match=r"Invalid review-contract in .*review-rounds-bool\.md.*max_review_rounds"):
+            _parse_command_file(f, source="commands")
+
+    def test_command_review_contract_string_max_rounds_is_rejected(self, tmp_path: Path) -> None:
+        f = _write_review_contract_command(
+            tmp_path,
+            "review-rounds-string.md",
+            '  max_review_rounds: "2"\n',
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid review-contract in .*review-rounds-string\.md.*max_review_rounds",
+        ):
             _parse_command_file(f, source="commands")
 
     def test_command_review_contract_float_max_rounds_is_rejected(self, tmp_path: Path) -> None:

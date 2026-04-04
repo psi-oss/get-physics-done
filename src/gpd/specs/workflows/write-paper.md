@@ -18,35 +18,25 @@ A physics paper has a narrative arc. It is not a report of everything that was d
 
 <journal_formats>
 
-### Physical Review Letters (PRL)
+### Builder-Supported Manuscript Scaffolds
 
-- **Length:** 4 pages (3750 words including references)
-- **Style:** Impact-focused. The first paragraph must hook the reader. No leisurely introduction.
-- **Equations:** Only the essential ones. Derivations go to Supplemental Material.
-- **Figures:** Maximum 4 (including insets). Each must be publication quality.
-- **References:** ~30-40 citations maximum.
+The manuscript builder and emitted `${PAPER_DIR}/ARTIFACT-MANIFEST.json` currently support only these `PAPER-CONFIG.json` journal keys:
 
-### Physical Review (PRD/PRB/PRA/PRE)
+- `prl` — short, impact-focused letter; only the essential equations stay in the main text
+- `apj` — astrophysics manuscript with data/software citation expectations
+- `mnras` — astronomy manuscript using the shared generic scoring profile for now
+- `nature` — broad-impact scaffold with accessibility emphasis
+- `jhep` — theory-first scaffold with stronger derivation and convention expectations
+- `jfm` — fluids manuscript using the shared generic scoring profile for now
 
-- **Length:** Full-length (8-15 pages typical)
-- **Style:** Detailed and complete. Sufficient for a reader to reproduce the work.
-- **Equations:** Include all essential steps. Move lengthy algebra to appendices.
-- **Figures:** As many as needed. Must be referenced in text.
-- **References:** Comprehensive.
+These are the only valid `journal` values in `PAPER-CONFIG.json` and `${PAPER_DIR}/ARTIFACT-MANIFEST.json`.
 
-### Reviews of Modern Physics (RMP)
+### Manual Paper-Quality Profiles
 
-- **Length:** 30-80+ pages
-- **Style:** Pedagogical review. Should be accessible to non-specialists in the subfield.
-- **Equations:** Include derivations of key results. Pedagogical clarity over brevity.
-- **References:** Exhaustive.
+Manual `PaperQualityInput` JSON can use additional scoring-only profiles such as `prd`, `prb`, `prc`, or `nature_physics`, but those are not supported `PAPER-CONFIG.json` builder keys yet.
 
-### arXiv Preprint
-
-- **Length:** Flexible
-- **Style:** Vary from PRL-like to full detail
-- **Priority:** Establishing priority and getting community feedback
-  </journal_formats>
+When `gpd --raw validate paper-quality --from-project .` runs, the journal is resolved only from supported builder keys surfaced by `${PAPER_DIR}/ARTIFACT-MANIFEST.json` or `${PAPER_DIR}/PAPER-CONFIG.json`. Unsupported values fall back to the `generic` scoring profile rather than being inferred.
+</journal_formats>
 
 <process>
 
@@ -560,6 +550,14 @@ When authoring `${PAPER_DIR}/PAPER-CONFIG.json`:
 - keep `journal` to a supported builder key like `prl`, `apj`, `mnras`, `nature`, `jhep`, or `jfm`
 - do not invent extra keys just because a journal asks for extra prose; put that prose in the section content instead
 
+Canonical schema for `${PAPER_DIR}/ARTIFACT-MANIFEST.json`:
+@{GPD_INSTALL_DIR}/templates/paper/artifact-manifest-schema.md
+
+Canonical schema for `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`:
+@{GPD_INSTALL_DIR}/templates/paper/bibliography-audit-schema.md
+
+Treat both emitted JSON artifacts as strict review inputs. If they need to be recreated or repaired, match those schema surfaces exactly instead of inventing keys from prose memory.
+
 **Supplemental material:** If the paper requires supplemental material (common for PRL and other letter-format journals), use `{GPD_INSTALL_DIR}/templates/paper/supplemental-material.md` for the standard structure (extended derivations, computational details, additional figures, data tables, code availability).
 
 **Experimental comparison:** If the paper compares theoretical predictions with experimental or observational data, use `{GPD_INSTALL_DIR}/templates/paper/experimental-comparison.md` for the systematic comparison structure (data source metadata, unit conversion checklist, pull analysis, chi-squared statistics, discrepancy classification with root cause hierarchy).
@@ -980,7 +978,7 @@ Before declaring the draft complete:
 
 **7. Run paper quality scoring** (see `{GPD_INSTALL_DIR}/references/publication/paper-quality-scoring.md`):
 
-Score the paper across 7 dimensions (equations, figures, citations, conventions, verification, completeness, results presentation) for a total out of 100. Apply journal-specific multipliers for the target journal.
+Score the paper across 7 dimensions (equations, figures, citations, conventions, verification, completeness, results presentation) for a total out of 100. Apply journal-specific multipliers for the resolved journal profile, noting that the artifact-driven path only honors supported builder journals surfaced by `${PAPER_DIR}/ARTIFACT-MANIFEST.json` or `${PAPER_DIR}/PAPER-CONFIG.json`.
 
 ```bash
 QUALITY=$(gpd --raw validate paper-quality --from-project . 2>/dev/null)

@@ -22,6 +22,8 @@ ReviewIssueId = Annotated[str, Field(pattern=r"^REF-[A-Za-z0-9][A-Za-z0-9_-]*$")
 class Author(BaseModel):
     """Paper author with affiliation."""
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str
     email: str = ""
     affiliation: str = ""
@@ -30,7 +32,7 @@ class Author(BaseModel):
 class Section(BaseModel):
     """A paper section with title and LaTeX content."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     title: str = Field(alias="heading")
     content: str
@@ -39,6 +41,8 @@ class Section(BaseModel):
 
 class FigureRef(BaseModel):
     """Reference to a figure file with metadata."""
+
+    model_config = ConfigDict(extra="forbid")
 
     path: Path
     caption: str

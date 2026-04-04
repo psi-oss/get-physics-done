@@ -585,6 +585,43 @@ def test_runtime_cli_preserves_subcommand_runtime_flags(monkeypatch, tmp_path: P
     assert observed["runtime"] == descriptor.runtime_name
 
 
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_restores_process_env_after_dispatch(monkeypatch, tmp_path: Path, descriptor) -> None:
+    config_dir = tmp_path / descriptor.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    observed: dict[str, object] = {}
+
+    def fake_entrypoint() -> int:
+        observed["runtime"] = os.environ.get(ENV_GPD_ACTIVE_RUNTIME)
+        observed["disable_reexec"] = os.environ.get(ENV_GPD_DISABLE_CHECKOUT_REEXEC)
+        return 0
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(ENV_GPD_ACTIVE_RUNTIME, "outer-runtime")
+    monkeypatch.setenv(ENV_GPD_DISABLE_CHECKOUT_REEXEC, "outer-flag")
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("gpd.cli.entrypoint", fake_entrypoint)
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            str(config_dir),
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ]
+    )
+
+    assert exit_code == 0
+    assert observed["runtime"] == descriptor.runtime_name
+    assert observed["disable_reexec"] == "1"
+    assert os.environ[ENV_GPD_ACTIVE_RUNTIME] == "outer-runtime"
+    assert os.environ[ENV_GPD_DISABLE_CHECKOUT_REEXEC] == "outer-flag"
+
+
 def test_runtime_cli_bridge_parse_preserves_passthrough_after_double_dash() -> None:
     descriptor = _RUNTIME_DESCRIPTORS[0]
     options, gpd_args = _parse_args(

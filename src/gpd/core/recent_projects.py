@@ -322,11 +322,6 @@ def _legacy_recent_project_resume_target_kind(row: object) -> str | None:
     if isinstance(source_kind, str) and source_kind.startswith("segment."):
         return "bounded_segment"
 
-    source_segment_id = _normalize_recent_text(_row_value(row, "source_segment_id"))
-    source_transition_id = _normalize_recent_text(_row_value(row, "source_transition_id"))
-    if source_segment_id is not None or source_transition_id is not None:
-        return "bounded_segment"
-
     return "handoff"
 
 

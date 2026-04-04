@@ -12,6 +12,9 @@ QUESTIONING = REPO_ROOT / "src" / "gpd" / "specs" / "references" / "research" / 
 
 def test_new_project_prompt_surfaces_the_canonical_state_schema_for_project_contract_grounding() -> None:
     new_project_text = NEW_PROJECT.read_text(encoding="utf-8")
+    parse_line = next(
+        line for line in new_project_text.splitlines() if line.startswith("Parse JSON for:")
+    )
 
     assert "templates/state-json-schema.md" in new_project_text
     assert "Before you ask for approval, build the raw contract as a literal JSON object that follows `templates/state-json-schema.md` exactly:" in new_project_text
@@ -27,7 +30,27 @@ def test_new_project_prompt_surfaces_the_canonical_state_schema_for_project_cont
     assert "project_contract_validation" in new_project_text
     assert "`context_intake`, `approach_policy`, and `uncertainty_markers` must each stay as objects, not strings or lists." in new_project_text
     assert "`schema_version` must be the integer `1`, and `references[].must_surface` must be a boolean `true` or `false`, not a quoted synonym." in new_project_text
-    assert "Parse JSON for: `researcher_model`, `synthesizer_model`, `roadmapper_model`, `commit_docs`, `autonomy`, `research_mode`, `project_exists`, `has_research_map`, `planning_exists`, `has_research_files`, `has_project_manifest`, `has_existing_project`, `needs_research_map`, `has_git`, `project_contract`, `project_contract_load_info`, `project_contract_validation`." in new_project_text
+    for field in (
+        "researcher_model",
+        "synthesizer_model",
+        "roadmapper_model",
+        "commit_docs",
+        "autonomy",
+        "research_mode",
+        "project_exists",
+        "has_research_map",
+        "planning_exists",
+        "has_research_files",
+        "has_project_manifest",
+        "has_existing_project",
+        "needs_research_map",
+        "has_git",
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+    ):
+        assert f"`{field}`" in parse_line
     assert "If `project_contract` is present in the init JSON, keep `project_contract`, `project_contract_load_info`, and `project_contract_validation` visible while deciding whether this is fresh work or a continuation." in new_project_text
     assert "If the init JSON already contains `project_contract`, `project_contract_load_info`, or `project_contract_validation`, preserve that state in the approval gate and continuation decision." in new_project_text
 

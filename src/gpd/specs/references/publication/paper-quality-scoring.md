@@ -90,7 +90,11 @@ gpd --raw validate paper-quality --from-project .
 
 This path derives the machine-readable `PaperQualityInput` from the manuscript, bibliography audit, figure tracker, comparison artifacts, and contract-backed summary / verification ledgers before scoring it.
 
+For the artifact-driven `--from-project` path, the resolved journal only comes from supported builder keys already surfaced by `${PAPER_DIR}/ARTIFACT-MANIFEST.json` or `${PAPER_DIR}/PAPER-CONFIG.json`. Today those supported keys are `prl`, `apj`, `mnras`, `nature`, `jhep`, and `jfm`. Unsupported artifact journals do not silently select a nearby profile; they fall back to the `generic` scorer.
+
 If you need to provide a manual JSON instead, use `@{GPD_INSTALL_DIR}/templates/paper/paper-quality-input-schema.md` as the schema source of truth.
+
+Manual JSON is also the only supported path today for scoring-only profiles that do not have builder-backed manuscript scaffolds yet, including `prd`, `prb`, `prc`, and `nature_physics`.
 
 The artifact-driven path is intentionally conservative: it can infer many figure, citation, verification, completeness, and comparison checks, but equation and convention evidence may still need explicit manual review. Do not paper over missing evidence by inventing perfect scores.
 
@@ -124,7 +128,7 @@ Different journals emphasize different quality dimensions. Apply these multiplie
 - **Extra check (+5 points):** Does the abstract convey significance to non-specialists?
 - **Minimum for submission:** 85
 
-### PRD/PRB/PRC (Thorough Technical Paper)
+### PRD/PRB/PRC (Manual `PaperQualityInput` Profiles Until Builder Support Exists)
 
 - Equations: **1.2x** (full derivation expected — more equations to check)
 - Verification: **1.3x** (complete error analysis required)
@@ -140,7 +144,7 @@ Different journals emphasize different quality dimensions. Apply these multiplie
 - **Extra check (+5 points):** Are all Feynman diagrams listed at the relevant loop order?
 - **Minimum for submission:** 80
 
-### Nature Physics (Accessibility + Impact)
+### Nature Physics (Manual `PaperQualityInput` Profile Until Builder Support Exists)
 
 - Results Presentation: **1.5x** (physical interpretation is paramount)
 - Completeness: **1.3x** (Methods section must be self-contained)

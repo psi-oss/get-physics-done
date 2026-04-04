@@ -4420,19 +4420,22 @@ def suggest_contract_checks(contract: SuggestContractPayload, active_checks: Str
     provided. The tool keeps authoritative fields strict: non-object
     payloads, unknown top-level keys, coercive scalars, and malformed list
     members are rejected rather than inferred. Recoverable scalar-to-list drift
-    is normalized by the shared contract parser before verification. Contract
-    payloads must also satisfy
-    the shared semantic integrity rules: same-kind IDs must be unique.
-    references[].carry_forward_to uses workflow scope labels, never contract IDs.
-    target IDs must not be reused across claim/deliverable/acceptance-test/reference kinds when that would make resolution ambiguous.
-    contract context must stay consistent with metadata defaults and explicit metadata fields, so benchmark anchors, regime labels, and family selections cannot contradict the resolved binding.
-    the shared semantic integrity rules: same-kind IDs must be unique, target IDs must not be reused across claim/deliverable/acceptance-test/reference
-    kinds when that would make resolution ambiguous, and
-    ``references[].carry_forward_to`` is only for workflow scope labels, never
-    contract IDs. contract context must stay consistent with metadata defaults and explicit metadata fields, so benchmark anchors,
+    is normalized by the shared contract parser before verification.
+
+    Contract payloads must also satisfy the shared semantic integrity rules:
+    same-kind IDs must be unique; target IDs must not be reused across
+    claim/deliverable/acceptance-test/reference kinds when that would make
+    resolution ambiguous; ``references[].carry_forward_to`` uses workflow
+    scope labels, never contract IDs; and contract context must stay consistent
+    with metadata defaults and explicit metadata fields, so benchmark anchors,
     regime labels, and family selections cannot contradict the resolved
-    binding. For plan-style contract payloads, ``context_intake`` must be present and non-empty, and the contract must satisfy the same plan semantic requirements GPD enforces in plan frontmatter. Limited recoverable structural drift may still be salvaged, and
-    any such recovery is carried through the suggestion metadata.
+    binding.
+
+    For plan-style contract payloads, ``context_intake`` must be present and
+    non-empty, and the contract must satisfy the same plan semantic
+    requirements GPD enforces in plan frontmatter. Limited recoverable
+    structural drift may still be salvaged, and any such recovery is carried
+    through the suggestion metadata.
 
     ``active_checks`` is optional and must be ``list[str]`` with non-empty
     entries when provided. Supply already-enabled check ids or check keys so

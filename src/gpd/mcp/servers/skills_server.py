@@ -308,6 +308,7 @@ def _extract_referenced_files(content: str, *, source_path: Path | None = None) 
 def _is_schema_reference(path: str) -> bool:
     name = Path(path).name
     return name.endswith("-schema.md") or name in {
+        "reproducibility-manifest.md",
         "summary.md",
         "verification-report.md",
         "contract-results-schema.md",

@@ -23,7 +23,6 @@ WOLFRAM_MCP_API_KEY_ENV_VAR = "GPD_WOLFRAM_MCP_API_KEY"
 WOLFRAM_MCP_ENDPOINT_ENV_VAR = "GPD_WOLFRAM_MCP_ENDPOINT"
 WOLFRAM_MCP_DEFAULT_ENDPOINT = "https://services.wolfram.com/api/mcp"
 INTEGRATIONS_CONFIG_FILENAME = "integrations.json"
-_LEGACY_RECORD_KEYS = frozenset({"api_key_env"})
 
 
 def _project_integrations_config_path(cwd: Path) -> Path:
@@ -109,17 +108,13 @@ class ManagedIntegrationDescriptor:
                 raise RuntimeError(f"integrations.{self.integration_id} must be a JSON object")
             return None
         if strict:
-            unknown_keys = sorted(str(key) for key in raw if str(key) not in {"enabled", "endpoint", *_LEGACY_RECORD_KEYS})
+            unknown_keys = sorted(str(key) for key in raw if str(key) not in {"enabled", "endpoint"})
             if unknown_keys:
                 raise _strict_unknown_keys_error(
                     section=f"integrations.{self.integration_id}",
                     unknown_keys=unknown_keys,
-                    supported_keys=["enabled", "endpoint", "api_key_env (legacy ignored)"],
+                    supported_keys=["enabled", "endpoint"],
                 )
-            if "api_key_env" in raw:
-                legacy_api_key_env = raw.get("api_key_env")
-                if not isinstance(legacy_api_key_env, str) or not legacy_api_key_env.strip():
-                    raise RuntimeError(f"integrations.{self.integration_id}.api_key_env must be a non-empty string")
 
         record: dict[str, object] = {}
         if "enabled" in raw:

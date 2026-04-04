@@ -351,18 +351,27 @@ def test_review_contract_renderer_rejects_invalid_bool_and_required_state_fields
         )
 
 
-def test_review_contract_renderer_accepts_common_bool_and_int_string_forms() -> None:
-    section = render_review_contract_prompt(
-        {
-            "schema_version": 1,
-            "review_mode": "review",
-            "requires_fresh_context_per_stage": "false",
-            "max_review_rounds": "2",
-        }
-    )
-
-    assert "requires_fresh_context_per_stage: false" in section
-    assert "max_review_rounds: 2" in section
+@pytest.mark.parametrize(
+    ("field_name", "value", "message"),
+    [
+        ("requires_fresh_context_per_stage", "false", "requires_fresh_context_per_stage must be a boolean"),
+        ("requires_fresh_context_per_stage", 0, "requires_fresh_context_per_stage must be a boolean"),
+        ("max_review_rounds", "2", "max_review_rounds must be an integer"),
+    ],
+)
+def test_review_contract_renderer_rejects_coercive_bool_and_int_forms(
+    field_name: str,
+    value: object,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        render_review_contract_prompt(
+            {
+                "schema_version": 1,
+                "review_mode": "review",
+                field_name: value,
+            }
+        )
 
 
 @pytest.mark.parametrize(

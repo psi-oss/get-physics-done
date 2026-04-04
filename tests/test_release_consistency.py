@@ -103,9 +103,14 @@ def _python_release_version(repo_root: Path) -> str:
 
 
 def _build_public_release_artifacts(repo_root: Path, out_dir: Path) -> tuple[Path, Path]:
+    cache_dir = out_dir / "uv-cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    env["UV_CACHE_DIR"] = str(cache_dir)
     result = subprocess.run(
         ["uv", "build", "--out-dir", str(out_dir)],
         cwd=repo_root,
+        env=env,
         capture_output=True,
         text=True,
         check=False,

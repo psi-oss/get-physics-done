@@ -328,6 +328,23 @@ class TestRecentProjectsIndexPersistence:
         assert bounded.candidate_reason(recoverable=True) == "recent project cache entry with confirmed bounded segment resume target"
         assert handoff.candidate_reason(recoverable=True) == "recent project cache entry with projected continuity handoff"
 
+    def test_classify_recent_project_recovery_does_not_promote_stale_source_ids_without_explicit_segment_kind(
+        self,
+    ) -> None:
+        classification = classify_recent_project_recovery(
+            {
+                "available": True,
+                "resume_file": "GPD/phases/03/.continue-here.md",
+                "source_segment_id": "segment-7",
+                "source_transition_id": "transition-9",
+                "resume_file_available": True,
+            }
+        )
+
+        assert classification.resume_target_kind == "handoff"
+        assert classification.target_priority == 1
+        assert classification.candidate_reason(recoverable=True) == "recent project cache entry with projected continuity handoff"
+
 
 class TestRecentProjectsListing:
     def test_list_sorts_newest_first_and_preserves_missing_projects(self, tmp_path: Path) -> None:

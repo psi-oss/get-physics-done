@@ -274,6 +274,23 @@ def test_resume_payload_has_local_recovery_target_rejects_missing_handoff_only_s
 @pytest.mark.parametrize(
     ("resume_payload", "expected"),
     [
+        ({"execution_resumable": True}, False),
+        ({"has_interrupted_agent": True}, False),
+        ({"has_continuity_handoff": True}, False),
+        ({"active_resume_kind": "bounded_segment"}, False),
+        ({"active_resume_kind": "interrupted_agent"}, False),
+    ],
+)
+def test_resume_payload_has_local_recovery_target_requires_concrete_targets(
+    resume_payload: dict[str, object],
+    expected: bool,
+) -> None:
+    assert resume_payload_has_local_recovery_target(resume_payload) is expected
+
+
+@pytest.mark.parametrize(
+    ("resume_payload", "expected"),
+    [
         (
             {
                 "resume_candidates": [

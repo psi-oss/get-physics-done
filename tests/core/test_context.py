@@ -2508,7 +2508,7 @@ class TestInitProgress:
         from gpd.core.state import ensure_state_schema
 
         normalized_state = ensure_state_schema({"project_contract": contract})
-        monkeypatch.setattr("gpd.core.state.peek_state_json", lambda cwd: (normalized_state, [], "state.json"))
+        monkeypatch.setattr("gpd.core.state.peek_state_json", lambda cwd, **kwargs: (normalized_state, [], "state.json"))
         monkeypatch.setattr("gpd.core.state._load_raw_project_contract_payload", lambda cwd: None)
 
         loaded, load_info = _load_project_contract(tmp_path)

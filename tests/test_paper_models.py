@@ -19,6 +19,54 @@ class TestModels:
         assert author.email == ""
         assert author.affiliation == ""
 
+    @pytest.mark.parametrize(
+        ("payload", "expected_fragment"),
+        [
+            (
+                {
+                    "title": "Test",
+                    "authors": [{"name": "Bob", "legacy_note": "stale"}],
+                    "abstract": "Abstract.",
+                    "sections": [{"title": "Intro", "content": "Hello."}],
+                },
+                r"authors\.0\.legacy_note[\s\S]*Extra inputs are not permitted",
+            ),
+            (
+                {
+                    "title": "Test",
+                    "authors": [{"name": "Bob"}],
+                    "abstract": "Abstract.",
+                    "sections": [{"title": "Intro", "content": "Hello.", "legacy_note": "stale"}],
+                },
+                r"sections\.0\.legacy_note[\s\S]*Extra inputs are not permitted",
+            ),
+            (
+                {
+                    "title": "Test",
+                    "authors": [{"name": "Bob"}],
+                    "abstract": "Abstract.",
+                    "sections": [{"title": "Intro", "content": "Hello."}],
+                    "figures": [
+                        {
+                            "path": "figures/fig01.pdf",
+                            "caption": "Caption",
+                            "label": "fig1",
+                            "legacy_note": "stale",
+                        }
+                    ],
+                },
+                r"figures\.0\.legacy_note[\s\S]*Extra inputs are not permitted",
+            ),
+        ],
+    )
+    def test_paper_config_rejects_nested_extra_keys(
+        self,
+        payload: dict[str, object],
+        expected_fragment: str,
+    ) -> None:
+        with pytest.raises(ValidationError, match=expected_fragment):
+            PaperConfig.model_validate(payload)
+
     def test_paper_config_minimal(self):
         config = PaperConfig(
             title="Test",

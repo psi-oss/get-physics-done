@@ -725,7 +725,12 @@ class TestSkillsServerIntegration:
         [
             (
                 "gpd-write-paper",
-                {"paper-config-schema.md": "Paper Config Schema"},
+                {
+                    "paper-config-schema.md": "Paper Config Schema",
+                    "artifact-manifest-schema.md": "Artifact Manifest Schema",
+                    "bibliography-audit-schema.md": "Bibliography Audit Schema",
+                    "reproducibility-manifest.md": "Reproducibility Manifest Template",
+                },
                 {"reproducibility-manifest.md": "Reproducibility Manifest Template"},
                 "publication",
             ),

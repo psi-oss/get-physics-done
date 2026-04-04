@@ -470,52 +470,6 @@ def resume_payload_has_local_recovery_target(
     if not isinstance(payload, Mapping):
         return False
     compat_surface = compat_surface if isinstance(compat_surface, Mapping) else resolve_resume_compat_surface(payload)
-
-    if bool(
-        lookup_resume_surface_value(
-            payload,
-            "execution_resumable",
-            compat_surface=compat_surface,
-            prefer_compat=False,
-        )
-    ):
-        return True
-    if bool(
-        lookup_resume_surface_value(
-            payload,
-            "has_interrupted_agent",
-            compat_surface=compat_surface,
-            prefer_compat=False,
-        )
-    ):
-        return True
-
-    has_continuity_handoff = bool(
-        lookup_resume_surface_value(
-            payload,
-            "has_continuity_handoff",
-            compat_surface=compat_surface,
-            prefer_compat=False,
-        )
-    )
-    missing_continuity_handoff = bool(
-        lookup_resume_surface_value(
-            payload,
-            "missing_continuity_handoff",
-            compat_surface=compat_surface,
-            prefer_compat=False,
-        )
-    )
-    if lookup_resume_surface_text(
-        payload,
-        "missing_continuity_handoff_file",
-        compat_surface=compat_surface,
-        compat_key="missing_session_resume_file",
-    ) is not None:
-        missing_continuity_handoff = True
-    if has_continuity_handoff and not missing_continuity_handoff:
-        return True
-
     active_resume_kind = lookup_resume_surface_text(
         payload,
         "active_resume_kind",

@@ -77,6 +77,8 @@ Routes to the write-paper workflow which handles all logic including:
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/write-paper.md
 @{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md
+@{GPD_INSTALL_DIR}/templates/paper/artifact-manifest-schema.md
+@{GPD_INSTALL_DIR}/templates/paper/bibliography-audit-schema.md
 @{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md
 @{GPD_INSTALL_DIR}/templates/paper/reproducibility-manifest.md
 </execution_context>
@@ -101,7 +103,7 @@ cat GPD/research-map/FORMALISM.md 2>/dev/null
 <process>
 **Follow the write-paper workflow** from `@{GPD_INSTALL_DIR}/workflows/write-paper.md`.
 
-When the workflow asks for constrained artifacts such as `${PAPER_DIR}/PAPER-CONFIG.json`, `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, `${PAPER_DIR}/reproducibility-manifest.json`, or `${PAPER_DIR}/FIGURE_TRACKER.md`, use the canonical schema/template surfaces it loads there rather than inventing keys from memory.
+When the workflow asks for constrained artifacts such as `${PAPER_DIR}/PAPER-CONFIG.json`, `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, `${PAPER_DIR}/reproducibility-manifest.json`, or `${PAPER_DIR}/FIGURE_TRACKER.md`, use the canonical schema/template surfaces it loads there rather than inventing keys from memory. The artifact manifest and bibliography audit are hard review inputs; the loaded schema docs for those JSON files are part of the required model-visible contract.
 If the workflow is resuming an existing manuscript, keep the active manuscript root bound to the canonical manifest/config/entrypoint resolver rather than picking the first matching `*.tex` or `*.md` file by wildcard expansion.
 
 The workflow handles all logic including:
@@ -112,7 +114,7 @@ The workflow handles all logic including:
 4. **Catalog artifacts** — Gather derivations, numerical results, figures, literature, verification results from phases
 5. **Paper-readiness audit** — 5 checks (SUMMARY completeness, convention consistency, numerical stability, figure readiness, citation readiness) with gate decision (0 critical gaps to proceed, or user approval)
 6. **Create outline** — Detailed per-section outline (purpose, key content, equations, figures, citations, dependencies) adapted to journal format. Present for approval.
-7. **Generate files** — Create `${PAPER_DIR}/PAPER-CONFIG.json` using `@{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md`, set `output_filename` to a short topic-specific 2-3 word underscore stem, then materialize the canonical manuscript scaffold with `gpd paper-build` (emits `${PAPER_DIR}/{topic_specific_stem}.tex`, `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, and `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`; local compiler runs are smoke checks only)
+7. **Generate files** — Create `${PAPER_DIR}/PAPER-CONFIG.json` using `@{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md`, set `output_filename` to a short topic-specific 2-3 word underscore stem, then materialize the canonical manuscript scaffold with `gpd paper-build` (emits `${PAPER_DIR}/{topic_specific_stem}.tex`, `${PAPER_DIR}/ARTIFACT-MANIFEST.json`, and `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`; their JSON shapes are defined by `@{GPD_INSTALL_DIR}/templates/paper/artifact-manifest-schema.md` and `@{GPD_INSTALL_DIR}/templates/paper/bibliography-audit-schema.md`; local compiler runs are smoke checks only)
 8. **Generate figures** — Generate matplotlib scripts from phase data, execute to `${PAPER_DIR}/figures/`, update FIGURE_TRACKER.md
 9. **Draft sections** — Wave-parallelized spawning of gpd-paper-writer agents:
    - Wave 1: Results + Methods (no dependency)

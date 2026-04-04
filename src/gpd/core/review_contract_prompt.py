@@ -181,16 +181,6 @@ def _normalize_review_contract_bool(value: object, *, field_name: str, default: 
         return default
     if isinstance(value, bool):
         return value
-    if isinstance(value, int) and value in (0, 1):
-        return bool(value)
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if not normalized:
-            raise ValueError(f"{field_name} must be a boolean")
-        if normalized in {"true", "1", "yes", "y", "on"}:
-            return True
-        if normalized in {"false", "0", "no", "n", "off"}:
-            return False
     raise ValueError(f"{field_name} must be a boolean")
 
 
@@ -199,21 +189,11 @@ def _normalize_review_contract_non_negative_int(value: object, *, field_name: st
         return default
     if isinstance(value, bool):
         raise ValueError(f"{field_name} must be an integer")
-    if isinstance(value, str):
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError(f"{field_name} must be an integer")
-        try:
-            normalized = int(stripped)
-        except ValueError as exc:
-            raise ValueError(f"{field_name} must be an integer") from exc
-    elif isinstance(value, int):
-        normalized = value
-    else:
+    if not isinstance(value, int):
         raise ValueError(f"{field_name} must be an integer")
-    if normalized < 0:
+    if value < 0:
         raise ValueError(f"{field_name} must be >= 0")
-    return normalized
+    return value
 
 
 def _normalize_review_contract_conditional_when(value: object, *, field_name: str) -> str:

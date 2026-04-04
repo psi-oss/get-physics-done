@@ -1584,6 +1584,8 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     scoring = (REFERENCES_DIR / "publication" / "paper-quality-scoring.md").read_text(encoding="utf-8")
     referee_decision_schema = (TEMPLATES_DIR / "paper" / "referee-decision-schema.md").read_text(encoding="utf-8")
     paper_config_schema = (TEMPLATES_DIR / "paper" / "paper-config-schema.md").read_text(encoding="utf-8")
+    artifact_manifest_schema = (TEMPLATES_DIR / "paper" / "artifact-manifest-schema.md").read_text(encoding="utf-8")
+    bibliography_audit_schema = (TEMPLATES_DIR / "paper" / "bibliography-audit-schema.md").read_text(encoding="utf-8")
     reproducibility_template = (TEMPLATES_DIR / "paper" / "reproducibility-manifest.md").read_text(encoding="utf-8")
     reproducibility_protocol = (REFERENCES_DIR / "protocols" / "reproducibility.md").read_text(encoding="utf-8")
     execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
@@ -1642,9 +1644,17 @@ def test_contract_schema_references_stay_wired_into_templates_and_review_docs() 
     assert "Every stochastic `execution_steps[].name` must have a matching `random_seeds[].computation`" in reproducibility_template
     assert "templates/paper/reproducibility-manifest.md" in reproducibility_protocol
     assert "templates/paper/paper-config-schema.md" in write_paper
+    assert "templates/paper/artifact-manifest-schema.md" in write_paper
+    assert "templates/paper/bibliography-audit-schema.md" in write_paper
     assert "templates/paper/figure-tracker.md" in write_paper
     assert "templates/paper/reproducibility-manifest.md" in write_paper
     assert 'gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json"' in paper_config_schema
+    assert '"artifact_id": "tex-paper"' in artifact_manifest_schema
+    assert '"category": "audit"' in artifact_manifest_schema
+    assert "Do not write unsupported scoring-only journal labels" in artifact_manifest_schema
+    assert '"resolution_status": "provided"' in bibliography_audit_schema
+    assert '"verification_status": "partial"' in bibliography_audit_schema
+    assert "Manual JSON is also the only supported path today for scoring-only profiles" in scoring
     assert "${PAPER_DIR}/reproducibility-manifest.json" in write_paper
     assert 'gpd --raw validate reproducibility-manifest "${PAPER_DIR}/reproducibility-manifest.json" --strict' in write_paper
     assert "gpd validate summary-contract" in execute_plan
@@ -1910,10 +1920,15 @@ def test_skill_surface_exposes_contract_references_for_paper_and_review_workflow
     assert "error" not in write_paper
     assert "error" not in peer_review
     assert any(path.endswith("paper-config-schema.md") for path in write_paper["schema_references"])
+    assert any(path.endswith("artifact-manifest-schema.md") for path in write_paper["schema_references"])
+    assert any(path.endswith("bibliography-audit-schema.md") for path in write_paper["schema_references"])
     assert any(path.endswith("reproducibility-manifest.md") for path in write_paper["contract_references"])
     assert any(path.endswith("peer-review-panel.md") for path in write_paper["contract_references"])
     assert any(path.endswith("peer-review-panel.md") for path in peer_review["contract_references"])
     assert "Paper Config Schema" in write_paper_schema_documents["paper-config-schema.md"]["body"]
+    assert "Artifact Manifest Schema" in write_paper_schema_documents["artifact-manifest-schema.md"]["body"]
+    assert "Bibliography Audit Schema" in write_paper_schema_documents["bibliography-audit-schema.md"]["body"]
+    assert "Reproducibility Manifest Template" in write_paper_schema_documents["reproducibility-manifest.md"]["body"]
     assert "Peer Review Panel Protocol" in peer_review_contract_documents["peer-review-panel.md"]["body"]
     assert "schema_documents and contract_documents already include" in write_paper["loading_hint"]
 

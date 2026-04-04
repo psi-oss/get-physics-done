@@ -403,14 +403,20 @@ def test_suggest_contract_checks_tool_description_surfaces_contract_requirements
 
     assert "``schema_version`` defaults to ``1`` when omitted" in description
     assert "same-kind IDs must be unique" in description
-    assert "contract context must stay consistent with metadata defaults" in description
+    assert "contract context must stay" in description
+    assert "consistent with metadata defaults and explicit metadata fields" in description
     assert "metadata defaults and explicit" in description
-    assert "metadata fields, so benchmark anchors" in description
+    assert "metadata fields, so" in description
+    assert "benchmark anchors, regime labels, and family selections" in description
     assert "``active_checks`` is optional and must be ``list[str]``" in description
     assert "``already_active``" in description
     assert "``supported_binding_fields``" in description
-    assert "workflow scope labels, never contract IDs" in description
+    assert "``references[].carry_forward_to`` uses workflow" in description
+    assert "scope labels, never contract IDs" in description
     assert "``run_contract_check(request=...)``" in description
+    assert description.count("same-kind IDs must be unique") == 1
+    assert description.count("never contract IDs") == 1
+    assert description.count("contract context must stay") == 1
 
 
 def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
