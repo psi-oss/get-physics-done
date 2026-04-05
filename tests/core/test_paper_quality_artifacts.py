@@ -200,6 +200,35 @@ comparison_verdicts:
     assert result.results.decisive_artifacts_benchmark_anchored.satisfied == 1
 
 
+def test_build_paper_quality_input_marks_uninferred_checks_not_applicable(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "minimal.tex",
+        r"""
+\documentclass{article}
+\begin{document}
+\begin{abstract}
+Minimal abstract.
+\end{abstract}
+\section{Introduction}
+Intro.
+\section{Conclusion}
+Done.
+\end{document}
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(_paper_config_payload("Minimal Paper", "jhep")),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.conventions.notation_consistent.not_applicable is True
+    assert result.completeness.abstract_written_last.not_applicable is True
+    assert result.results.physical_interpretation_present.not_applicable is True
+
+
 def test_build_paper_quality_input_recurses_into_nested_manuscript_files(tmp_path: Path) -> None:
     _write(
         tmp_path / "paper" / "topic_specific_stem.tex",

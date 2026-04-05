@@ -451,7 +451,6 @@ def validate_reproducibility_manifest(manifest: ReproducibilityManifest | dict) 
         if valid_checksum:
             checksum_ok += 1
         elif approximate_checksum:
-            checksum_ok += 1
             warnings.append(
                 ReproducibilityIssue(
                     severity="warning",

@@ -329,16 +329,16 @@ def test_nonempty_last_verified_without_platform_warns():
     assert "last_verified_platform" in warning_fields
 
 
-# ─── Issue 2: approximate checksum should count toward coverage ──
+# ─── Issue 2: approximate checksums should not count as full coverage ──
 
 
-def test_approximate_checksum_counts_toward_coverage():
+def test_approximate_checksum_does_not_count_as_full_coverage():
     """An output file with approximate_checksum=True and a non-empty checksum
-    should count as covered, yielding 100% checksum_coverage_percent.
+    should still trigger a warning, but it must not be counted as full checksum
+    coverage.
 
-    Before the fix, the elif branch for approximate checksums appended a
-    warning but did not increment checksum_ok, dragging down coverage and
-    potentially blocking ready_for_review.
+    Approximate checksums are lower-confidence evidence and should not satisfy
+    the hard coverage predicate used by validation and kernel verdicts.
     """
     manifest = _manifest().model_copy(
         update={
@@ -354,11 +354,13 @@ def test_approximate_checksum_counts_toward_coverage():
     )
 
     result = validate_reproducibility_manifest(manifest)
+    verdict = build_reproducibility_kernel_verdict(manifest, validation=result)
 
-    assert result.checksum_coverage_percent == 100.0
+    assert result.checksum_coverage_percent < 100.0
     # The informational warning should still be emitted
     approx_warnings = [
         w for w in result.warnings if "approximate checksum" in w.message
     ]
     assert len(approx_warnings) == 1
     assert result.ready_for_review is False
+    assert verdict["results"]["checksum_coverage_complete"]["passed"] is False

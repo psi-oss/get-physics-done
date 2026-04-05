@@ -322,7 +322,7 @@ def _build_conventions_input(project_root: Path) -> ConventionsQualityInput:
     return ConventionsQualityInput(
         convention_lock_complete=BinaryCheck(passed=bool(lock_check and lock_check.complete)),
         assert_convention_coverage=coverage,
-        notation_consistent=BinaryCheck(),
+        notation_consistent=BinaryCheck(not_applicable=True),
     )
 
 
@@ -681,7 +681,8 @@ def _build_figures_input(
             comparison_with_prior_work_present=BinaryCheck(
                 passed=bool(verdicts),
                 not_applicable=not comparison_required,
-            )
+            ),
+            physical_interpretation_present=BinaryCheck(not_applicable=True),
         )
 
     total_figures = len(figure_registry)
@@ -749,7 +750,7 @@ def _build_figures_input(
             passed=bool(verdicts),
             not_applicable=not comparison_required,
         ),
-        physical_interpretation_present=BinaryCheck(),
+        physical_interpretation_present=BinaryCheck(not_applicable=True),
         decisive_artifacts_with_explicit_verdicts=_coverage_metric(
             decisive_with_verdict,
             len(decisive_entries),
@@ -889,7 +890,7 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
         ),
     )
     completeness = CompletenessQualityInput(
-        abstract_written_last=BinaryCheck(),
+        abstract_written_last=BinaryCheck(not_applicable=True),
         required_sections_present=_coverage_metric(present_sections, required_sections)
         if manuscript_files
         else CoverageMetric(),
