@@ -2409,6 +2409,88 @@ def test_collect_plan_contract_integrity_errors_requires_theorem_inventory_for_p
     assert "claim claim-proof missing conclusion_clauses for proof-bearing claim" in errors
 
 
+@pytest.mark.parametrize(
+    ("field_path", "value"),
+    [
+        ("context_intake.must_include_prior_outputs", ["TBD"]),
+        ("context_intake.user_asserted_anchors", ["Nature benchmark"]),
+        ("context_intake.known_good_baselines", ["Science benchmark"]),
+        ("context_intake.crucial_inputs", ["Check the user's finite-volume cutoff choice before proceeding"]),
+        (
+            "approach_policy.stop_and_rethink_conditions",
+            ["Benchmark normalization shifts outside tolerance"],
+        ),
+    ],
+)
+def test_collect_plan_contract_integrity_errors_requires_concrete_grounding_not_carry_forward_fields(
+    field_path: str,
+    value: list[str],
+) -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["references"] = []
+    section_name, nested_field_name = field_path.split(".", 1)
+    if section_name == "context_intake":
+        contract[section_name][nested_field_name] = value
+    else:
+        contract[section_name] = {nested_field_name: value}
+
+    errors = collect_plan_contract_integrity_errors(ResearchContract.model_validate(contract))
+
+    assert "missing references or explicit grounding context" in errors
+
+
+@pytest.mark.parametrize("locator", ["TBD", "Section 4"])
+def test_collect_plan_contract_integrity_errors_rejects_placeholder_must_surface_reference_locators(
+    locator: str,
+) -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["references"] = [
+        {
+            "id": "ref-anchor",
+            "kind": "paper",
+            "locator": locator,
+            "aliases": [],
+            "role": "benchmark",
+            "why_it_matters": "Placeholder locator should not satisfy the hard anchor requirement.",
+            "applies_to": ["claim-benchmark"],
+            "carry_forward_to": [],
+            "must_surface": True,
+            "required_actions": ["read"],
+        }
+    ]
+    contract["context_intake"]["must_read_refs"] = ["ref-anchor"]
+
+    errors = collect_plan_contract_integrity_errors(ResearchContract.model_validate(contract))
+
+    assert "references must include at least one must_surface=true anchor" in errors
+
+
+def test_collect_plan_contract_integrity_errors_accepts_concrete_must_surface_reference_locator() -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["references"] = [
+        {
+            "id": "ref-anchor",
+            "kind": "paper",
+            "locator": "Author et al., Journal, 2024",
+            "aliases": [],
+            "role": "benchmark",
+            "why_it_matters": "Concrete locator should satisfy the hard anchor requirement.",
+            "applies_to": ["claim-benchmark"],
+            "carry_forward_to": [],
+            "must_surface": True,
+            "required_actions": ["read", "compare"],
+        }
+    ]
+    contract["context_intake"]["must_read_refs"] = ["ref-anchor"]
+
+    errors = collect_plan_contract_integrity_errors(ResearchContract.model_validate(contract))
+
+    assert errors == []
+
+
 def test_plan_contract_schema_example_values_validate_against_research_contract_model() -> None:
     contract = {
         "scope": {"question": "What benchmark must this plan recover?"},

@@ -7,6 +7,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 from pydantic import ValidationError as PydanticValidationError
@@ -333,6 +334,186 @@ def statement_looks_theorem_like(statement: str | None) -> bool:
     if not normalized:
         return False
     return any(pattern.search(normalized) for pattern in _THEOREM_STYLE_STATEMENT_PATTERNS)
+
+
+_PLAN_REFERENCE_LOCATOR_PLACEHOLDER_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\s*(?:tbd|todo|unknown|unclear|none|n/?a|placeholder)\s*$"),
+    re.compile(r"\btbd\b"),
+    re.compile(r"\btodo\b"),
+    re.compile(r"\bunknown\b"),
+    re.compile(r"\bunclear\b"),
+    re.compile(r"\bplaceholder\b"),
+    re.compile(r"\bto be determined\b"),
+)
+_PLAN_REFERENCE_LOCATOR_CONCRETE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\b(?:doi\s*[:/]|https?://(?:doi\.org/|arxiv\.org/abs/)|arxiv\s*:)\S+"),
+)
+_PLAN_CITATION_LOCATOR_CONCRETE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bet al\."),
+    re.compile(r"\b(?:19|20)\d{2}\b"),
+)
+_PLAN_GROUNDING_TEXT_DIRECT_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\s*(?:need(?:s)? grounding|grounding needed)\s*$"),
+    re.compile(r"\bunknown\b"),
+    re.compile(r"\bundecided\b"),
+    re.compile(r"\bunclear\b"),
+    re.compile(r"\bmissing\b"),
+    re.compile(r"\bnot (?:yet )?established\b"),
+    re.compile(r"\bnot (?:yet )?selected\b"),
+    re.compile(r"\bstill to identify\b"),
+    re.compile(r"\btbd\b"),
+    re.compile(r"\bto be determined\b"),
+    re.compile(r"\bmust establish\b"),
+    re.compile(r"\bestablish later\b"),
+    re.compile(r"\bno\b.+\byet\b"),
+)
+_PLAN_GROUNDING_TEXT_QUESTION_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\s*(?:which|what)\b"),
+    re.compile(r"\?$"),
+)
+_PLAN_GROUNDING_TEXT_SELECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bserve as\b"),
+    re.compile(r"\btreat as\b"),
+    re.compile(r"\buse as\b"),
+    re.compile(r"\bchoose\b"),
+    re.compile(r"\bselect\b"),
+    re.compile(r"\bpick\b"),
+    re.compile(r"\bdecisive\b"),
+)
+
+
+def _looks_like_project_artifact_path(value: str) -> bool:
+    """Return whether *value* looks like a concrete project-local artifact path."""
+
+    candidate = value.strip()
+    if not candidate:
+        return False
+    return bool(
+        re.search(r"[\\/]+", candidate)
+        or re.search(r"^(?:\.{1,2}|~)(?:[\\/]|$)", candidate)
+    )
+
+
+def _is_citation_like_locator(value: str) -> bool:
+    """Return whether *value* looks like an explicit citation rather than a vague anchor."""
+
+    lowered = value.casefold().strip()
+    if not lowered:
+        return False
+    if not all(pattern.search(lowered) for pattern in _PLAN_CITATION_LOCATOR_CONCRETE_PATTERNS):
+        return False
+    return True
+
+
+def _is_concrete_external_http_locator(value: str, *, reference_kind: str) -> bool:
+    """Return whether *value* is a concrete external URL for the requested kind."""
+
+    parsed = urlparse(value.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return False
+    path = parsed.path.strip()
+    if path in {"", "/"}:
+        return False
+
+    if reference_kind in {"dataset", "prior_artifact", "spec"}:
+        return True
+    if reference_kind not in {"paper", "other"}:
+        return False
+
+    netloc = parsed.netloc.casefold()
+    if netloc.endswith("doi.org"):
+        return True
+    if netloc.endswith("arxiv.org") and path.startswith("/abs/") and len(path) > len("/abs/"):
+        return True
+    lowered = value.casefold()
+    if not re.search(r"\b10\.\d{4,9}/\S+", lowered):
+        return False
+    return any(
+        marker in lowered
+        for marker in (
+            "/abstract/",
+            "/article/",
+            "/articles/",
+            "/doi/",
+            "/full/",
+            "/fulltext/",
+            "/pdf/",
+            "journals.",
+            "journal.",
+            "proceedings",
+            "conference",
+        )
+    )
+
+
+def _is_concrete_text_grounding(value: str) -> bool:
+    """Return whether *value* names locator-grade grounding rather than filler."""
+
+    lowered = value.casefold().strip()
+    if not lowered:
+        return False
+    if any(pattern.search(lowered) for pattern in _PLAN_GROUNDING_TEXT_DIRECT_PATTERNS):
+        return False
+    if any(pattern.search(lowered) for pattern in _PLAN_REFERENCE_LOCATOR_CONCRETE_PATTERNS):
+        return True
+    if _is_citation_like_locator(value):
+        return True
+    if (
+        all(pattern.search(lowered) for pattern in _PLAN_GROUNDING_TEXT_QUESTION_PATTERNS)
+        and any(pattern.search(lowered) for pattern in _PLAN_GROUNDING_TEXT_SELECTION_PATTERNS)
+    ):
+        return False
+    if any(pattern.search(lowered) for pattern in _PLAN_REFERENCE_LOCATOR_PLACEHOLDER_PATTERNS):
+        return False
+    if any(
+        _is_concrete_external_http_locator(value, reference_kind=reference_kind)
+        for reference_kind in ("paper", "dataset", "prior_artifact", "spec")
+    ):
+        return True
+    return _looks_like_project_artifact_path(value)
+
+
+def _is_concrete_reference_locator(value: str, *, reference_kind: str = "paper") -> bool:
+    """Return whether *value* names a concrete reference locator rather than a placeholder."""
+
+    lowered = value.casefold().strip()
+    if not lowered:
+        return False
+    if any(pattern.search(lowered) for pattern in _PLAN_REFERENCE_LOCATOR_CONCRETE_PATTERNS):
+        return True
+    if reference_kind in {"paper", "other"} and _is_citation_like_locator(value):
+        return True
+    if _is_concrete_external_http_locator(value, reference_kind=reference_kind):
+        return True
+    if any(pattern.search(lowered) for pattern in _PLAN_REFERENCE_LOCATOR_PLACEHOLDER_PATTERNS):
+        return False
+    if reference_kind == "user_anchor":
+        return _is_concrete_text_grounding(value)
+    if _looks_like_project_artifact_path(value):
+        return reference_kind in {"dataset", "prior_artifact", "spec"}
+    return False
+
+
+def _has_concrete_grounding_entries(values: list[str], *, field_name: str) -> bool:
+    """Return whether any grounding entry is concrete for the requested field."""
+
+    if field_name == "must_include_prior_outputs":
+        return any(_looks_like_project_artifact_path(value) for value in values)
+    if field_name in {"user_asserted_anchors", "known_good_baselines"}:
+        return any(_is_concrete_text_grounding(value) for value in values)
+    raise ValueError(f"Unsupported grounding field {field_name!r}")
+
+
+def _has_concrete_must_surface_reference(contract: ResearchContract) -> bool:
+    """Return whether the contract includes a concrete must_surface reference."""
+
+    for reference in contract.references:
+        if reference.must_surface and _is_concrete_reference_locator(
+            reference.locator,
+            reference_kind=reference.kind,
+        ):
+            return True
+    return False
 
 
 PROJECT_CONTRACT_MAPPING_LIST_FIELDS: dict[str, tuple[str, ...]] = {
@@ -1864,12 +2045,18 @@ def _has_contract_grounding_context(contract: ResearchContract) -> bool:
 
     return any(
         (
-            contract.context_intake.must_include_prior_outputs,
-            contract.context_intake.user_asserted_anchors,
-            contract.context_intake.known_good_baselines,
-            contract.context_intake.crucial_inputs,
-            contract.approach_policy.formulations,
-            contract.approach_policy.stop_and_rethink_conditions,
+            _has_concrete_grounding_entries(
+                contract.context_intake.must_include_prior_outputs,
+                field_name="must_include_prior_outputs",
+            ),
+            _has_concrete_grounding_entries(
+                contract.context_intake.user_asserted_anchors,
+                field_name="user_asserted_anchors",
+            ),
+            _has_concrete_grounding_entries(
+                contract.context_intake.known_good_baselines,
+                field_name="known_good_baselines",
+            ),
         )
     )
 
@@ -1966,7 +2153,7 @@ def collect_plan_contract_integrity_errors(contract: ResearchContract) -> list[s
     reference_ids = {reference.id for reference in contract.references}
     known_ids = claim_ids | deliverable_ids | acceptance_test_ids | reference_ids
 
-    if contract.references and not any(reference.must_surface for reference in contract.references):
+    if contract.references and not _has_concrete_must_surface_reference(contract):
         issues.append("references must include at least one must_surface=true anchor")
     for must_read_ref in contract.context_intake.must_read_refs:
         if must_read_ref not in reference_ids:

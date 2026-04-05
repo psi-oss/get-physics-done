@@ -2274,6 +2274,11 @@ def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalizat
     assert "known_good_baselines: [\"Published large-N curve from Smith et al.\"]" in plan_schema
     assert "context_gaps: [\"Comparison source still undecided before planning\"]" in plan_schema
     assert "crucial_inputs: [\"Check the user's finite-volume cutoff choice before proceeding\"]" in plan_schema
+    assert "Only concrete anchors count as grounding." in plan_schema
+    assert (
+        "`context_gaps` and `crucial_inputs` preserve uncertainty and workflow visibility, but they do not satisfy the hard grounding/anchor requirement by themselves."
+        in plan_schema
+    )
     assert "approach_policy:" in plan_schema
     assert "allowed_fit_families: [power_law]" in plan_schema
     assert "`observables[]` may only reference declared `observables[].id`." in plan_schema
@@ -2291,6 +2296,10 @@ def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalizat
     assert "### `links[]`" in plan_schema
     assert "unvalidated_assumptions" in plan_schema
     assert "competing_explanations" in plan_schema
+    assert (
+        "If `must_surface: true`, the locator must still be concrete enough to re-find later: a citation, DOI, arXiv identifier, durable external URL, or project-local artifact path."
+        in plan_schema
+    )
     assert "All ID cross-links must resolve to declared IDs." in plan_schema
     assert (
         "Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; "
@@ -2338,7 +2347,8 @@ def test_phase_prompt_surfaces_validation_critical_plan_contract_rules() -> None
     phase_prompt = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
 
     assert "the contract must carry non-empty claims, deliverables, acceptance tests, forbidden proxies" in phase_prompt
-    assert "If the contract does not already carry explicit grounding elsewhere, references must be present and at least one must set `must_surface: true`." in phase_prompt
+    assert "If the contract does not already carry explicit concrete grounding elsewhere, references must be present and at least one must set `must_surface: true`." in phase_prompt
+    assert "The locator still has to be concrete enough to re-find later" in phase_prompt
     assert "Semantic enum fields with schema defaults may be omitted when `other` is actually intended." in phase_prompt
     assert "If the plan is intentionally scoping-only" in phase_prompt
 

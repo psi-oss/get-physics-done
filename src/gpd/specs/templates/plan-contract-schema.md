@@ -65,6 +65,7 @@ Rules:
 - `scope.question` is required and must be non-empty after trimming whitespace.
 - `in_scope`, `out_of_scope`, and `unresolved_questions` are optional arrays of non-empty strings.
 - Use `scope.unresolved_questions` for genuinely undecided anchors; do not hide them in prose or placeholder text.
+- Only concrete anchors count as grounding. `must_include_prior_outputs`, `user_asserted_anchors`, and `known_good_baselines` can ground the plan only when they name a durable path, citation, DOI, arXiv ID, or similarly concrete handle. `context_gaps` and `crucial_inputs` preserve uncertainty and workflow visibility, but they do not satisfy the hard grounding/anchor requirement by themselves.
 
 ### `claims[]`
 
@@ -223,6 +224,7 @@ Rules:
 - `must_surface` is a boolean scalar. Use the YAML literals `true` and `false`; do not quote them or replace them with synonyms such as `yes`, `no`, `required`, or `optional`.
 - If `must_surface: true`, `required_actions` must not be empty.
 - If `must_surface: true`, `applies_to[]` must not be empty.
+- If `must_surface: true`, the locator must still be concrete enough to re-find later: a citation, DOI, arXiv identifier, durable external URL, or project-local artifact path. Placeholder locators such as `TBD`, `unknown`, or bare section/table labels do not count.
 
 ### `acceptance_tests[]`
 
@@ -285,11 +287,11 @@ Rules:
 - If the plan will execute, verify, or publish a concrete result, use the full non-scoping shape.
 - A reduced contract still needs a real decision surface: preserve at least one target, open question, or carry-forward input instead of emitting a hollow scaffold.
 - If you are unsure, classify the plan as non-scoping and use the full shape.
-- `references[]` are mandatory only when the contract does not already expose enough grounding through `context_intake`, `approach_policy`, or preserved scoping inputs. When that grounding already exists, omit `references[]` rather than padding the contract with decorative anchors.
+- `references[]` are mandatory only when the contract does not already expose enough concrete grounding through `context_intake` or preserved scoping inputs. `context_gaps`, `crucial_inputs`, and `stop_and_rethink_conditions` keep uncertainty visible, but they do not satisfy the grounding/anchor requirement by themselves. When concrete grounding already exists, omit `references[]` rather than padding the contract with decorative anchors.
 - The schema still exposes the semantic fields `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation`; their default is `other`. Omit them only when `other` is genuinely intended, and set the specific value explicitly when the semantics are already known.
 - For non-scoping plans, `claims[]`, `deliverables[]`, `acceptance_tests[]`, and `forbidden_proxies[]` are all required.
 - The defaultable semantic fields above do not relax the hard requirements on `context_intake` or `uncertainty_markers`, and they do not replace required contract targets for non-scoping plans.
-- For non-scoping plans, include `references[]` unless explicit grounding context survives elsewhere in the contract (`context_intake`, `approach_policy`, or preserved scoping inputs).
+- For non-scoping plans, include `references[]` unless explicit concrete grounding context survives elsewhere in the contract.
 - When a plan depends on traceable handoffs or decisive comparisons, surface `links[]` explicitly instead of burying the dependency in prose.
 - All ID cross-links must resolve to declared IDs. Unresolved IDs are validation errors, not TODO placeholders.
 - IDs must be unique across each section.
