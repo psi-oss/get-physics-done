@@ -1217,7 +1217,9 @@ Subfield-specific verification checklists for the GPD verifier agent. Load ONLY 
   - CHECK: All hypotheses explicitly stated; boundary/edge cases verified
   - CHECK: Each step follows from previous steps and stated hypotheses (no gaps)
   - CHECK: Quantifiers correct (for-all vs there-exists)
+  - CHECK: Quantified proof claims keep `proof_audit.quantifier_status` explicit; passed quantified claims require `matched`
   - CHECK: Every named theorem parameter or hypothesis is used or explicitly discharged; no theorem symbol may disappear without explanation
+  - CHECK: `proof_audit.proof_artifact_path` matches a declared `proof_deliverables` path and `proof_audit.audit_artifact_path` points to the canonical proof-redteam artifact
   - CHECK: If the proof only establishes a narrower subcase than the stated theorem, downgrade the claim and name the missing hypothesis/parameter coverage
   - CHECK: If the theorem statement or proof artifact changed after the last proof audit, treat the prior proof audit as stale and rerun before marking the target passed
 

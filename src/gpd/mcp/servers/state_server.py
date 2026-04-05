@@ -10,6 +10,7 @@ Usage:
     gpd-mcp-state
 """
 
+from pathlib import Path
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
@@ -42,6 +43,21 @@ mcp = FastMCP("gpd-state")
 AbsoluteProjectDirInput = Annotated[str, WithJsonSchema(ABSOLUTE_PROJECT_DIR_SCHEMA)]
 
 
+def load_state_json(cwd: Path) -> dict | None:
+    """Return visible project state for MCP consumers.
+
+    Keep a module-local loader so tool behavior and test patch points stay
+    stable even when the underlying state read path evolves.
+    """
+
+    state_obj, _issues, _source = peek_state_json(
+        cwd,
+        recover_intent=False,
+        surface_blocked_project_contract=True,
+    )
+    return state_obj
+
+
 @mcp.tool()
 def get_state(project_dir: AbsoluteProjectDirInput) -> dict:
     """Get the current project state.
@@ -56,11 +72,7 @@ def get_state(project_dir: AbsoluteProjectDirInput) -> dict:
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.get", phase=""):
         try:
-            state_obj, _issues, _source = peek_state_json(
-                cwd,
-                recover_intent=False,
-                surface_blocked_project_contract=True,
-            )
+            state_obj = load_state_json(cwd)
             if state_obj is None:
                 return stable_mcp_error("No project state found. Run 'gpd init' to create STATE.md.")
             return stable_mcp_response(state_obj)

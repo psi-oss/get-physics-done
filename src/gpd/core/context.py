@@ -983,14 +983,9 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
     snapshot = get_current_execution(cwd)
     state, state_issues, _state_source = _peek_state_json(cwd)
     position = state.get("position") if isinstance(state, dict) else {}
-    session = state.get("session") if isinstance(state, dict) else {}
     machine = _current_machine_identity()
     current_hostname = machine.get("hostname")
     current_platform = machine.get("platform")
-    session_hostname = session.get("hostname") if isinstance(session, dict) else None
-    session_platform = session.get("platform") if isinstance(session, dict) else None
-    session_last_date = session.get("last_date") if isinstance(session, dict) else None
-    session_stopped_at = session.get("stopped_at") if isinstance(session, dict) else None
     raw_current_execution_resume_file = snapshot.resume_file if snapshot is not None else None
     if (
         isinstance(raw_current_execution_resume_file, str)
@@ -1011,6 +1006,18 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
         current_execution=current_execution_payload,
         state_issues=state_issues,
     )
+    continuation = getattr(resume_projection, "continuation", None)
+    handoff = getattr(continuation, "handoff", None)
+    recorded_machine = getattr(continuation, "machine", None)
+    has_active_resume_target = resume_projection.active_resume_source is not None
+    session_hostname = getattr(recorded_machine, "hostname", None) if has_active_resume_target else None
+    session_platform = getattr(recorded_machine, "platform", None) if has_active_resume_target else None
+    session_last_date = (
+        (getattr(handoff, "recorded_at", None) or getattr(recorded_machine, "recorded_at", None))
+        if has_active_resume_target
+        else None
+    )
+    session_stopped_at = getattr(handoff, "stopped_at", None) if has_active_resume_target else None
     execution_resume_file_source = None
     if resume_projection.active_resume_source == ContinuationResumeSource.BOUNDED_SEGMENT:
         execution_resume_file_source = "current_execution"
@@ -1027,7 +1034,8 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
     )
     resume_file = resume_projection.active_resume_file
     machine_change_detected = bool(
-        session_hostname
+        has_active_resume_target
+        and session_hostname
         and session_platform
         and (
             session_hostname != current_hostname

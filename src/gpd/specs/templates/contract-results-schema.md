@@ -121,7 +121,9 @@ Rules:
 - `proof_audit` belongs on `contract_results.claims.<claim-id>` for theorem/proof claims. Do not move it to `deliverables` or `acceptance_tests`.
 - If a proof-bearing claim is marked `status: passed`, `proof_audit` is mandatory and `proof_audit.completeness` must be explicit.
 - `proof_audit.completeness: complete` is only valid when the audit has `reviewer: gpd-check-proof`, a non-empty `reviewed_at`, no missing hypotheses, no missing parameter symbols, no uncovered quantifiers, no uncovered conclusion clauses, `scope_status: matched`, `counterexample_status: none_found`, and `stale: false`.
+- A quantified proof-bearing claim must keep `proof_audit.quantifier_status` explicit; a passed quantified claim must use `quantifier_status: matched`.
 - A passed proof-bearing claim must carry `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, and a `claim_statement_sha256` that matches the current claim statement so stale theorem text or stale proof-redteam artifacts cannot inherit an old proof audit silently.
+- `proof_audit.proof_artifact_path` must match a declared `proof_deliverables` path, and `proof_audit.audit_artifact_path` must point to a proof-redteam artifact.
 - A passed proof-bearing claim must also have at least one passed proof-specific acceptance test such as `claim_to_proof_alignment`, `proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `lemma_dependency_closure`, or `counterexample_search`.
 - If a PLAN reference has `must_surface: true`, the ledger must include a matching `contract_results.references.<reference-id>` entry.
 - For `must_surface` references, `completed_actions` must cover every `required_actions` item; do not mark the anchor as handled while leaving required actions only in prose.

@@ -8,19 +8,23 @@ from pathlib import Path
 import pytest
 
 import gpd.runtime_cli as runtime_cli
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+
+_BRIDGE_RUNTIME_DESCRIPTOR = iter_runtime_descriptors()[0]
 
 
 def test_runtime_cli_allows_help_passthrough_as_root_flag(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    adapter = runtime_cli.get_adapter("codex")
-    config_dir = tmp_path / ".codex"
+    runtime_name = _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name
+    adapter = runtime_cli.get_adapter(runtime_name)
+    config_dir = tmp_path / _BRIDGE_RUNTIME_DESCRIPTOR.config_dir_name
     config_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / runtime_cli.get_shared_install_metadata().manifest_name).write_text(
         json.dumps(
             {
-                "runtime": "codex",
+                "runtime": runtime_name,
                 "install_scope": "local",
                 "install_target_dir": str(config_dir),
             }
@@ -43,7 +47,7 @@ def test_runtime_cli_allows_help_passthrough_as_root_flag(
     exit_code = runtime_cli.main(
         [
             "--runtime",
-            "codex",
+            runtime_name,
             "--config-dir",
             str(config_dir),
             "--install-scope",
@@ -74,7 +78,7 @@ def test_runtime_cli_rejects_missing_bridge_arguments_without_argparse_abort(
         (
             [
                 "--runtime",
-                "codex",
+                _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name,
                 "--config-dir",
                 "/tmp/GPD",
                 "--install-scope",
@@ -87,7 +91,7 @@ def test_runtime_cli_rejects_missing_bridge_arguments_without_argparse_abort(
         (
             [
                 "--runtime",
-                "codex",
+                _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name,
                 "--config-dir",
                 "/tmp/GPD",
                 "--install-scope",
@@ -97,7 +101,7 @@ def test_runtime_cli_rejects_missing_bridge_arguments_without_argparse_abort(
         (
             [
                 "--runtime",
-                "codex",
+                _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name,
                 "--config-dir",
                 "/tmp/GPD",
                 "--install-scope",
@@ -109,7 +113,7 @@ def test_runtime_cli_rejects_missing_bridge_arguments_without_argparse_abort(
         (
             [
                 "--runtime",
-                "codex",
+                _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name,
                 "--config-dir",
                 "/tmp/GPD",
                 "--install-scope",
@@ -123,7 +127,7 @@ def test_runtime_cli_rejects_missing_bridge_arguments_without_argparse_abort(
         (
             [
                 "--runtime",
-                "codex",
+                _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name,
                 "--config-dir",
                 "/tmp/GPD",
                 "--install-scope",

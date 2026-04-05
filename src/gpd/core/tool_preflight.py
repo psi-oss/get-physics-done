@@ -132,6 +132,8 @@ _TOOL_SPECS: dict[str, _ToolSpec] = {
 
 _WOLFRAM_CAVEAT = "Availability is config-level only; live execution and license state are not proven."
 _ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*$")
+_ENV_FLAG_WITH_VALUE = {"-u", "-S", "-C"}
+_ENV_FLAG_WITHOUT_VALUE = {"-i", "-0", "-v"}
 
 
 def _format_validation_error(exc: PydanticValidationError) -> str:
@@ -176,6 +178,38 @@ def _command_executable(command: str) -> tuple[str | None, str | None]:
 
     if not argv:
         return None, "command requirement must include an executable"
+    if Path(argv[0]).name != "env":
+        return argv[0], None
+
+    index = 1
+    while index < len(argv):
+        token = argv[index]
+        if token == "--":
+            index += 1
+            break
+        if _ENV_ASSIGNMENT_RE.fullmatch(token):
+            index += 1
+            continue
+        if token in _ENV_FLAG_WITHOUT_VALUE:
+            index += 1
+            continue
+        if token in _ENV_FLAG_WITH_VALUE:
+            if index + 1 >= len(argv):
+                return None, f"env option {token} requires a value"
+            if token == "-S":
+                executable, parse_error = _command_executable(argv[index + 1])
+                if parse_error is not None:
+                    return None, parse_error
+                return executable, None
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        return token, None
+
+    if index < len(argv):
+        return argv[index], None
     return argv[0], None
 
 

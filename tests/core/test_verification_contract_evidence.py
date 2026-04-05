@@ -438,6 +438,98 @@ def test_validate_frontmatter_verification_rejects_passed_proof_claim_when_named
     assert any("claim claim-proof proof_audit does not cover required parameter symbols: r_0" in error for error in result.errors)
 
 
+def test_validate_frontmatter_verification_rejects_passed_proof_claim_with_unclear_quantifier_status(
+    tmp_path: Path,
+) -> None:
+    phase_dir, _ = _write_proof_contract_phase(tmp_path)
+    verification_path = phase_dir / "01-VERIFICATION.md"
+    verification_path.write_text(
+        _proof_verification_content(
+            proof_audit_block=_proof_audit_block(
+                phase_dir,
+                quantifier_status="unclear",
+            ),
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(
+        verification_path.read_text(encoding="utf-8"),
+        "verification",
+        source_path=verification_path,
+    )
+
+    assert result.valid is False
+    assert any(
+        "claim claim-proof proof_audit quantifier_status must be explicit for quantified claims" in error
+        for error in result.errors
+    )
+
+
+def test_validate_frontmatter_verification_rejects_passed_proof_claim_with_proof_artifact_path_not_declared_in_contract(
+    tmp_path: Path,
+) -> None:
+    phase_dir, _ = _write_proof_contract_phase(tmp_path)
+    alternate_proof = phase_dir / "derivations" / "alternate-proof.tex"
+    alternate_proof.write_text("% alternate theorem proof artifact\n", encoding="utf-8")
+    verification_path = phase_dir / "01-VERIFICATION.md"
+    verification_path.write_text(
+        _proof_verification_content(
+            proof_audit_block=_proof_audit_block(
+                phase_dir,
+                proof_artifact_path="derivations/alternate-proof.tex",
+                proof_artifact_sha256=_sha256_path(alternate_proof),
+            ),
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(
+        verification_path.read_text(encoding="utf-8"),
+        "verification",
+        source_path=verification_path,
+    )
+
+    assert result.valid is False
+    assert any(
+        "claim claim-proof proof_audit.proof_artifact_path must match a declared proof_deliverables path"
+        in error
+        for error in result.errors
+    )
+
+
+def test_validate_frontmatter_verification_rejects_passed_proof_claim_with_non_redteam_audit_artifact_path(
+    tmp_path: Path,
+) -> None:
+    phase_dir, _ = _write_proof_contract_phase(tmp_path)
+    alternate_audit = phase_dir / "01-01-REVIEW.md"
+    alternate_audit.write_text("# alternate proof review artifact\n", encoding="utf-8")
+    verification_path = phase_dir / "01-VERIFICATION.md"
+    verification_path.write_text(
+        _proof_verification_content(
+            proof_audit_block=_proof_audit_block(
+                phase_dir,
+                audit_artifact_path="01-01-REVIEW.md",
+                audit_artifact_sha256=_sha256_path(alternate_audit),
+            ),
+        ),
+        encoding="utf-8",
+    )
+
+    result = validate_frontmatter(
+        verification_path.read_text(encoding="utf-8"),
+        "verification",
+        source_path=verification_path,
+    )
+
+    assert result.valid is False
+    assert any(
+        "claim claim-proof proof_audit.audit_artifact_path must point to a proof-redteam artifact"
+        in error
+        for error in result.errors
+    )
+
+
 def test_validate_frontmatter_verification_rejects_passed_proof_claim_with_stale_statement_hash(
     tmp_path: Path,
 ) -> None:

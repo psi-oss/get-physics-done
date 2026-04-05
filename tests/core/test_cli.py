@@ -2336,6 +2336,29 @@ def test_validate_project_contract_accepts_proof_obligation_observable_fixture(t
     assert payload["guidance_signal_count"] > 0
 
 
+def test_validate_project_contract_raw_failure_surfaces_schema_reference(tmp_path: Path) -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["context_intake"]["must_include_prior_outputs"] = []
+    contract["context_intake"]["user_asserted_anchors"] = []
+    contract["context_intake"]["known_good_baselines"] = []
+    contract["references"][0]["must_surface"] = False
+
+    contract_path = tmp_path / "project-contract-invalid.json"
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["--raw", "validate", "project-contract", str(contract_path), "--mode", "approved"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["valid"] is False
+    assert payload["schema_reference"].endswith("state-json-schema.md")
+    assert any("approved project contract requires at least one concrete anchor" in error for error in payload["errors"])
+
+
 def _plan_with_tool_requirements(tool_requirements_block: str) -> str:
     fixture = (
         Path(__file__).resolve().parents[1] / "fixtures" / "stage0" / "plan_with_contract.md"

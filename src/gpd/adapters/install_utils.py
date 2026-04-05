@@ -729,9 +729,48 @@ def parse_jsonc(content: str) -> object:
                 i += 1
 
     stripped = "".join(result)
-    # Remove trailing commas before } or ]
-    stripped = re.sub(r",(\s*[}\]])", r"\1", stripped)
-    return json.loads(stripped)
+    return json.loads(_strip_jsonc_trailing_commas(stripped))
+
+
+def _strip_jsonc_trailing_commas(content: str) -> str:
+    """Remove trailing commas before ``}``/``]`` without mutating string literals."""
+
+    result: list[str] = []
+    in_string = False
+    i = 0
+    length = len(content)
+
+    while i < length:
+        char = content[i]
+
+        if in_string:
+            result.append(char)
+            if char == "\\" and i + 1 < length:
+                result.append(content[i + 1])
+                i += 2
+                continue
+            if char == '"':
+                in_string = False
+            i += 1
+            continue
+
+        if char == '"':
+            in_string = True
+            result.append(char)
+            i += 1
+            continue
+
+        if char in "}]":
+            scan = len(result) - 1
+            while scan >= 0 and result[scan].isspace():
+                scan -= 1
+            if scan >= 0 and result[scan] == ",":
+                del result[scan]
+
+        result.append(char)
+        i += 1
+
+    return "".join(result)
 
 
 def read_settings(settings_path: str | Path) -> dict[str, object]:

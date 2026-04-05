@@ -561,6 +561,22 @@ def _raise_pydantic_schema_error(
     _error(message)
 
 
+def _model_dump_with_schema_reference(result: object, *, schema_reference: str) -> dict[str, object]:
+    """Return a JSON-serializable validation payload with schema guidance attached."""
+
+    if hasattr(result, "model_dump"):
+        payload = result.model_dump(mode="json")
+    elif dataclasses.is_dataclass(result):
+        payload = dataclasses.asdict(result)
+    elif isinstance(result, dict):
+        payload = dict(result)
+    else:
+        payload = {"result": result}
+
+    payload["schema_reference"] = schema_reference
+    return payload
+
+
 def _collect_file_option_args(ctx: typer.Context, files: list[str] | None) -> list[str]:
     """Return normalized file args, allowing multiple paths after one ``--files``."""
 
@@ -7235,9 +7251,13 @@ def validate_project_contract_cmd(
         )
     else:
         result = validate_project_contract(strict_result.contract, mode=normalized_mode, project_root=project_root)
-    _output(result)
     if not result.valid:
+        if _raw:
+            _emit_raw_json(_model_dump_with_schema_reference(result, schema_reference="templates/state-json-schema.md"), err=True)
+        else:
+            _output(result)
         raise typer.Exit(code=1)
+    _output(result)
 
 
 @validate_app.command("plan-contract")
@@ -7440,8 +7460,14 @@ def validate_reproducibility_manifest_cmd(
     result = validate_reproducibility_manifest(payload)
     result_payload = result.model_dump(mode="json")
     result_payload["reproducibility_ready"] = result_payload.pop("ready_for_review")
+    failure = not result.valid or (strict and not result.ready_for_review)
     if not kernel_verdict:
-        _output(result_payload if _raw else result)
+        if _raw and failure:
+            failure_payload = dict(result_payload)
+            failure_payload["schema_reference"] = "templates/paper/reproducibility-manifest.md"
+            _emit_raw_json(failure_payload, err=True)
+        else:
+            _output(result_payload if _raw else result)
     else:
         manifest_obj: ReproducibilityManifest | None = None
         if isinstance(payload, dict):
@@ -7457,18 +7483,29 @@ def validate_reproducibility_manifest_cmd(
         )
 
         if _raw:
-            _output(
-                {
-                    "validation": result_payload,
-                    "kernel_verdict": verdict,
-                }
-            )
+            if failure:
+                validation_payload = dict(result_payload)
+                validation_payload["schema_reference"] = "templates/paper/reproducibility-manifest.md"
+                _emit_raw_json(
+                    {
+                        "validation": validation_payload,
+                        "kernel_verdict": verdict,
+                    },
+                    err=True,
+                )
+            else:
+                _output(
+                    {
+                        "validation": result_payload,
+                        "kernel_verdict": verdict,
+                    }
+                )
         else:
             _output(result)
             if verdict is not None:
                 console.print()
                 print_verdict(verdict, domain="Reproducibility")
-    if not result.valid or (strict and not result.ready_for_review):
+    if failure:
         raise typer.Exit(code=1)
 
 

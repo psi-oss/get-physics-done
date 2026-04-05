@@ -828,6 +828,40 @@ def test_init_resume_does_not_fall_back_to_legacy_session_when_canonical_continu
     assert "compat_resume_surface" not in ctx
 
 
+def test_init_resume_ignores_legacy_session_only_identity_without_active_resume_target(
+    tmp_path: Path, state_project_factory, monkeypatch
+) -> None:
+    cwd = state_project_factory(tmp_path)
+    state_path = cwd / "GPD" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["session"] = {
+        "last_date": "2026-03-29T12:00:00+00:00",
+        "hostname": "legacy-host",
+        "platform": "LegacyOS",
+        "stopped_at": "Legacy stop",
+        "resume_file": None,
+    }
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    monkeypatch.setattr(
+        context_module,
+        "_current_machine_identity",
+        lambda: {"hostname": "builder-01", "platform": "Linux 6.1 x86_64"},
+    )
+
+    ctx = init_resume(cwd)
+
+    assert ctx["active_resume_kind"] is None
+    assert ctx["active_resume_origin"] is None
+    assert ctx["active_resume_pointer"] is None
+    assert ctx["machine_change_detected"] is False
+    assert ctx["machine_change_notice"] is None
+    assert ctx["session_hostname"] is None
+    assert ctx["session_platform"] is None
+    assert ctx["session_last_date"] is None
+    assert ctx["session_stopped_at"] is None
+    assert "compat_resume_surface" not in ctx
+
+
 def test_init_resume_propagates_unexpected_continuation_projection_errors(
     tmp_path: Path, state_project_factory, monkeypatch
 ) -> None:

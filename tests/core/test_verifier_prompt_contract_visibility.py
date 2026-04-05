@@ -64,6 +64,7 @@ def test_verifier_prompt_frontmatter_example_includes_contract_ledgers() -> None
 
 def test_verifier_prompt_surfaces_missing_parameter_proof_audit_and_stale_review_gate() -> None:
     verifier = _read_verifier_prompt()
+    contract_results_schema = (TEMPLATES_DIR / "contract-results-schema.md").read_text(encoding="utf-8")
     verification_template = _read_verification_template()
 
     assert "[] Proof structure" in verifier
@@ -79,7 +80,19 @@ def test_verifier_prompt_surfaces_missing_parameter_proof_audit_and_stale_review
         "If the theorem statement or proof artifact changed after the last proof audit, treat the prior proof "
         "audit as stale and rerun before marking the target passed"
     ) in verifier
+    assert (
+        "Quantified proof claims keep `proof_audit.quantifier_status` explicit; passed quantified claims require `matched`"
+    ) in verifier
+    assert (
+        "`proof_audit.proof_artifact_path` matches a declared `proof_deliverables` path and "
+        "`proof_audit.audit_artifact_path` points to the canonical proof-redteam artifact"
+    ) in verifier
+    assert "A quantified proof-bearing claim must keep `proof_audit.quantifier_status` explicit" in contract_results_schema
+    assert "`proof_audit.proof_artifact_path` must match a declared `proof_deliverables` path" in contract_results_schema
+    assert "`proof_audit.audit_artifact_path` must point to a proof-redteam artifact" in contract_results_schema
 
     assert "Proof-backed claims are stricter still" in verification_template
+    assert "Quantified proof claims must keep `proof_audit.quantifier_status` explicit" in verification_template
+    assert "the declared proof artifact path and the canonical proof-redteam artifact path" in verification_template
     assert "proof artifact, or proof-audit deliverable changed after the last adversarial proof review" in verification_template
     assert "A stale proof audit is never compatible with `status: passed`." in verification_template

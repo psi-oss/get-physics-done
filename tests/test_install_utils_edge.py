@@ -688,6 +688,15 @@ class TestParseJsonc:
         result = parse_jsonc(content)
         assert result == {"outer": {"inner": True}}
 
+    def test_trailing_comma_sanitizer_does_not_mutate_string_literals(self) -> None:
+        content = '{\n  "object_marker": ",}",\n  "array_marker": ",]",\n  "nested": [",}", ",]",],\n}'
+        result = parse_jsonc(content)
+        assert result == {
+            "object_marker": ",}",
+            "array_marker": ",]",
+            "nested": [",}", ",]"],
+        }
+
     def test_comment_only_lines(self) -> None:
         content = '// comment\n{"key": 1}\n// trailing'
         result = parse_jsonc(content)
@@ -712,6 +721,15 @@ class TestReadSettings:
         assert read_settings(settings_path) == {
             "theme": "solarized",
             "nested": {"enabled": True},
+        }
+
+    def test_preserves_strings_that_look_like_trailing_comma_markers(self, tmp_path: Path) -> None:
+        settings_path = tmp_path / "settings.json"
+        settings_path.write_text('{"marker": ",}", "markers": [",]",],}', encoding="utf-8")
+
+        assert read_settings(settings_path) == {
+            "marker": ",}",
+            "markers": [",]"],
         }
 
 

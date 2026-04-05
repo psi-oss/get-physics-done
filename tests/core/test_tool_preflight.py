@@ -589,6 +589,90 @@ def test_build_plan_tool_preflight_skips_leading_env_assignments_when_probing_co
     assert result.checks[0].detail == "mycmd found at /usr/local/bin/mycmd"
 
 
+def test_build_plan_tool_preflight_resolves_env_wrapped_command_to_real_executable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "gpd.core.tool_preflight.shutil.which",
+        lambda name: "/usr/bin/env" if name == "env" else None,
+    )
+    plan_path = tmp_path / "01-08b-PLAN.md"
+    plan_path.write_text("---\nphase: 01-test\nplan: 08b\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
+    requirements = parse_plan_tool_requirements(
+        [
+            {
+                "id": "solver",
+                "tool": "command",
+                "command": "env OMP_NUM_THREADS=1 missing-solver --version",
+                "purpose": "Run external solver",
+            }
+        ]
+    )
+
+    result = build_plan_tool_preflight(plan_path, requirements=requirements)
+
+    assert result.passed is False
+    assert result.checks[0].available is False
+    assert result.checks[0].detail == "missing-solver not found on PATH"
+
+
+def test_build_plan_tool_preflight_handles_env_only_invocations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "gpd.core.tool_preflight.shutil.which",
+        lambda name: "/usr/bin/env" if name == "env" else None,
+    )
+    plan_path = tmp_path / "01-08c-PLAN.md"
+    plan_path.write_text("---\nphase: 01-test\nplan: 08c\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
+    requirements = parse_plan_tool_requirements(
+        [
+            {
+                "id": "env-only",
+                "tool": "command",
+                "command": "env -i",
+                "purpose": "Inspect the clean environment",
+            }
+        ]
+    )
+
+    result = build_plan_tool_preflight(plan_path, requirements=requirements)
+
+    assert result.passed is True
+    assert result.checks[0].available is True
+    assert result.checks[0].detail == f"env found at {Path('/usr/bin/env').resolve(strict=False)}"
+
+
+def test_build_plan_tool_preflight_resolves_env_wrapped_command_after_env_flag_with_value(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "gpd.core.tool_preflight.shutil.which",
+        lambda name: "/usr/bin/env" if name == "env" else None,
+    )
+    plan_path = tmp_path / "01-08d-PLAN.md"
+    plan_path.write_text("---\nphase: 01-test\nplan: 08d\ntype: execute\nwave: 1\ndepends_on: []\nfiles_modified: []\ninteractive: false\nconventions:\n  units: natural\n  metric: (+,-,-,-)\n  coordinates: Cartesian\ncontract:\n  schema_version: 1\n  scope:\n    question: q\n  context_intake:\n    must_read_refs: [ref-main]\n    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n  claims:\n    - id: claim-main\n      statement: s\n      deliverables: [deliv-main]\n      acceptance_tests: [test-main]\n      references: [ref-main]\n  deliverables:\n    - id: deliv-main\n      description: d\n  references:\n    - id: ref-main\n      locator: l\n      why_it_matters: w\n  acceptance_tests:\n    - id: test-main\n      subject: claim-main\n      procedure: p\n      pass_condition: c\nuncertainty_markers:\n  disconfirming_observations: [o]\n---\nbody\n", encoding="utf-8")
+    requirements = parse_plan_tool_requirements(
+        [
+            {
+                "id": "solver",
+                "tool": "command",
+                "command": "env -u OMP_NUM_THREADS missing-solver --version",
+                "purpose": "Run external solver",
+            }
+        ]
+    )
+
+    result = build_plan_tool_preflight(plan_path, requirements=requirements)
+
+    assert result.passed is False
+    assert result.checks[0].available is False
+    assert result.checks[0].detail == "missing-solver not found on PATH"
+
+
 def test_build_plan_tool_preflight_parses_quoted_windows_command_executables_with_spaces(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
