@@ -1886,8 +1886,14 @@ class TestInitResume:
         assert ctx["active_resume_kind"] is None
         assert ctx["active_resume_origin"] is None
         assert ctx["active_resume_pointer"] is None
+        assert ctx["machine_change_detected"] is False
+        assert ctx["machine_change_notice"] is None
         assert ctx["continuity_handoff_file"] is None
         assert ctx["recorded_continuity_handoff_file"] is None
+        assert ctx["session_hostname"] is None
+        assert ctx["session_platform"] is None
+        assert ctx["session_last_date"] is None
+        assert ctx["session_stopped_at"] is None
         assert ctx["resume_candidates"] == []
         assert "compat_resume_surface" not in ctx
 

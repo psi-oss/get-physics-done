@@ -690,15 +690,6 @@ def _state_has_canonical_result_id(state_obj: dict[str, object], result_id: str)
     return False
 
 
-def _continuation_bounded_segment_last_result_id(continuation: object) -> str | None:
-    """Return the canonical bounded-segment last-result anchor, if present."""
-    normalized = _normalize_continuation_payload(continuation)
-    bounded_segment = normalized.get("bounded_segment")
-    if not isinstance(bounded_segment, dict):
-        return None
-    return _optional_state_text(bounded_segment.get("last_result_id"))
-
-
 def _blank_session_payload() -> dict[str, str | None]:
     return SessionInfo().model_dump()
 

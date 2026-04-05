@@ -343,7 +343,6 @@ UNSUPPORTED_FRONTMATTER_FIELDS: dict[str, dict[str, str]] = {
     },
 }
 
-_DECISIVE_COMPARISON_KINDS = frozenset({"benchmark", "prior_work", "experiment", "cross_method", "baseline"})
 _DECISIVE_EXTERNAL_COMPARISON_KINDS = frozenset({"benchmark", "prior_work", "experiment", "baseline"})
 _DECISIVE_REFERENCE_COMPARISON_KINDS = frozenset({"benchmark", "prior_work", "experiment", "cross_method", "baseline"})
 _DECISIVE_ACCEPTANCE_TEST_COMPARISON_KINDS: dict[str, frozenset[str]] = {

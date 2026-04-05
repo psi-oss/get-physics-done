@@ -1515,6 +1515,8 @@ def test_verification_prompts_keep_suggested_contract_check_bindings_schema_tigh
     assert "acceptance-test-main" in research_verification
     assert "acceptance-test-id" in verifier_agent
     assert "suggested_contract_checks" in verification_template
+    assert "Quantified proof claims must keep `proof_audit.quantifier_status` explicit" in verification_template
+    assert "proof_artifact_path` matches a declared `proof_deliverables` path" in verifier_agent
     assert "gap_subject_kind" in verifier_agent
     assert "Each gap has: `gap_subject_kind`" in verifier_agent
     assert "Each gap has: `subject_kind`" not in verifier_agent
@@ -2509,6 +2511,7 @@ def test_pause_resume_and_help_wiring_keep_runtime_handoff_and_local_snapshot_bo
     assert "gpd resume --recent" in pause_work
     assert "This is the canonical recorded handoff artifact for the current phase." in pause_work
     assert "continuation handoff artifact" in pause_work or "session continuity" in pause_work
+    assert "session.resume_file" not in pause_work
     assert "Public resume vocabulary centers on" in help_workflow
     assert "Compatibility-only intake fields stay internal" in help_workflow
     assert_recovery_ladder_contract(

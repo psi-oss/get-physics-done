@@ -485,7 +485,14 @@ None yet.
 **Platform:** [current platform]
 ```
 
-Initialize matching continuity fields in `GPD/state.json.session` (`last_session`, `stopped_at`, `resume_file`, `hostname`, `platform`) so `/gpd:resume-work` sees the same state when JSON is healthy.
+Initialize the canonical continuity fields under `GPD/state.json.continuation` so `/gpd:resume-work` sees the same durable state when JSON is healthy:
+
+- `continuation.handoff.recorded_at`: current ISO timestamp
+- `continuation.handoff.stopped_at`: `Project initialized (minimal)`
+- `continuation.handoff.resume_file`: `null`
+- `continuation.machine.recorded_at`: current ISO timestamp
+- `continuation.machine.hostname`: current hostname
+- `continuation.machine.platform`: current platform
 
 **config.json** — Create with sensible defaults (no config questions asked):
 

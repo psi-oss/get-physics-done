@@ -643,7 +643,14 @@ If no DERIVATION-STATE.md was created or updated (step 5 skipped), the commit wi
 <step name="update_session_continuity_after_transition">
 
 Update Session Continuity section in STATE.md to reflect transition completion.
-Update the same values under `GPD/state.json.session`; resume reads JSON first when it is healthy.
+Update the matching canonical continuation fields under `GPD/state.json.continuation`:
+
+- `continuation.handoff.recorded_at`: current ISO timestamp
+- `continuation.handoff.stopped_at`: `Phase [X] complete, ready to plan Phase [X+1]`
+- `continuation.handoff.resume_file`: `null`
+- `continuation.machine.recorded_at`: current ISO timestamp
+- `continuation.machine.hostname`: current hostname
+- `continuation.machine.platform`: current platform
 
 **Format:**
 
@@ -661,7 +668,7 @@ Update the same values under `GPD/state.json.session`; resume reads JSON first w
 - [ ] Stopped at describes phase completion and next phase
 - [ ] Resume file confirmed as `—` (transitions don't use resume files)
 - [ ] Hostname and Platform record the current machine identity
-- [ ] `GPD/state.json.session` matches the rendered Session Continuity block
+- [ ] `GPD/state.json.continuation.{handoff,machine}` matches the rendered Session Continuity block
 
 **Commit the session continuity update** (commit_transition already ran, so this is a follow-up commit):
 

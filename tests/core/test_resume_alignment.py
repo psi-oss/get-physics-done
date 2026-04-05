@@ -67,8 +67,13 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "compat_resume_surface" not in resume_doc
     assert "gpd init resume" not in resume_doc
     assert "machine_change_detected" in resume_doc
+    assert "legacy session mirror" not in resume_doc
+    assert "session.resume_file" not in resume_doc
+    assert "state.json.continuation.machine.hostname" in resume_doc
+    assert "state.json.continuation.handoff" in resume_doc
     assert "compat_resume_surface" not in portability_doc
     assert "backend-only compatibility inputs" in portability_doc
+    assert "session.resume_file" not in portability_doc
     assert "shared resume resolver" in help_doc
     assert "compat_resume_surface" not in help_doc
     assert "Recorded handoff artifact is missing" in resume_doc
@@ -82,6 +87,7 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "machine-change advisory" in portability_doc
     assert "rerunning the installer" in portability_doc
     assert "current-execution.json" in portability_doc
+    assert "state.json.continuation.handoff.resume_file" in portability_doc
     assert "bounded-segment resume state" in portability_doc
     assert "advisory continuity context only" in portability_doc
     assert "does not create a resumable bounded-segment candidate" in portability_doc
@@ -137,7 +143,10 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
         "**Hostname:** [current hostname]\n"
         "**Platform:** [current platform]\n"
     ) in new_project_doc
-    assert "GPD/state.json.session" in new_project_doc
+    assert "GPD/state.json.continuation" in new_project_doc
+    assert "continuation.handoff.recorded_at" in new_project_doc
+    assert "continuation.machine.hostname" in new_project_doc
+    assert "GPD/state.json.session" not in new_project_doc
     assert (
         "**Last session:** [current ISO timestamp]\n"
         "**Stopped at:** Phase [X] complete, ready to plan Phase [X+1]\n"
@@ -145,11 +154,11 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
         "**Hostname:** [current hostname]\n"
         "**Platform:** [current platform]\n"
     ) in transition_doc
-    assert (
-        "Update the same values under `GPD/state.json.session`" in transition_doc
-        or "Project the same values into `GPD/state.json.session`" in transition_doc
-        or "session mirror" in transition_doc
-    )
+    assert "GPD/state.json.continuation" in transition_doc
+    assert "continuation.handoff.stopped_at" in transition_doc
+    assert "continuation.machine.platform" in transition_doc
+    assert "GPD/state.json.session" not in transition_doc
+    assert "session mirror" not in transition_doc
     assert "save_state_markdown" in transition_doc
     assert "gpd --raw state snapshot" not in transition_doc
     assert "**Core research question:** [Current core research question from PROJECT.md]" in transition_doc
@@ -174,6 +183,7 @@ def test_resume_docs_use_canonical_paths_and_no_legacy_resume_command() -> None:
     assert "normalizes project-local absolute paths back to that form" in schema_doc
     assert "recommends rerunning the installer when runtime-local config may be stale" in schema_doc
     assert "Durable canonical continuation authority; compatibility mirrors derive from it" in schema_doc
+    assert "Model-authored continuity updates should target `continuation.handoff` and `continuation.machine`" in schema_doc
     assert "canonical object first and only falls back to the derived execution head compatibility mirror when the canonical continuation is missing or incomplete" in schema_doc
     assert "That backend treats `continuation` as primary" in schema_doc
     assert schema_doc.index("| `continuation`") < schema_doc.index("| `session`")
@@ -222,7 +232,7 @@ def test_generate_state_markdown_surfaces_machine_readable_contract_line() -> No
     assert "**Machine-readable scoping contract:** `GPD/state.json` field `project_contract`" in markdown
 
 
-def test_init_resume_surfaces_machine_change_and_continuity_handoff_candidate(
+def test_init_resume_ignores_session_only_machine_change_metadata_without_canonical_continuation(
     tmp_path: Path, monkeypatch
 ) -> None:
     _setup_project(tmp_path)
@@ -267,11 +277,9 @@ def test_init_resume_surfaces_machine_change_and_continuity_handoff_candidate(
     assert "compat_resume_surface" not in ctx
     assert ctx["resume_candidates"] == []
     assert ctx["has_interrupted_agent"] is False
-    assert ctx["session_hostname"] == "old-host"
-    assert ctx["session_platform"] == "Linux 5.15 x86_64"
+    assert ctx["session_hostname"] is None
+    assert ctx["session_platform"] is None
     assert ctx["current_hostname"] == "new-host"
     assert ctx["current_platform"] == "Linux 6.1 x86_64"
-    assert ctx["machine_change_detected"] is True
-    assert "old-host" in ctx["machine_change_notice"]
-    assert "new-host" in ctx["machine_change_notice"]
-    assert "Rerun the installer" in ctx["machine_change_notice"]
+    assert ctx["machine_change_detected"] is False
+    assert ctx["machine_change_notice"] is None
