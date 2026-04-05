@@ -546,6 +546,38 @@ def _load_manifest_opencode_generated_command_files(target_dir: Path) -> tuple[s
     return tuple(dict.fromkeys(tracked))
 
 
+def _load_manifest_opencode_command_files(target_dir: Path) -> tuple[str, ...]:
+    """Return tracked OpenCode command filenames, falling back to manifest files entries."""
+    generated_command_files = _load_manifest_opencode_generated_command_files(target_dir)
+    if generated_command_files:
+        return generated_command_files
+
+    manifest_path = target_dir / MANIFEST_NAME
+    if not manifest_path.exists():
+        return ()
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return ()
+
+    if not isinstance(manifest, dict):
+        return ()
+
+    manifest_files = manifest.get("files")
+    if not isinstance(manifest_files, dict):
+        return ()
+
+    tracked: list[str] = []
+    for rel_path in manifest_files:
+        if not isinstance(rel_path, str) or not rel_path.startswith("command/"):
+            continue
+        name = rel_path.removeprefix("command/")
+        if name.startswith("gpd-") and name.endswith(".md"):
+            tracked.append(name)
+    return tuple(dict.fromkeys(tracked))
+
+
 def _clone_json_value(value: object) -> object:
     """Deep-copy JSON-compatible values."""
     return json.loads(json.dumps(value))
@@ -828,7 +860,7 @@ def uninstall_opencode(target_dir: Path, *, config_dir: Path, allow_empty_config
     counts: dict[str, int] = {"commands": 0, "agents": 0, "hooks": 0, "dirs": 0, "permissions": 0}
     managed_hooks = managed_hook_paths(target_dir)
     runtime_permission_state: dict[str, object] | None = None
-    tracked_command_files = _load_manifest_opencode_generated_command_files(target_dir)
+    tracked_command_files = _load_manifest_opencode_command_files(target_dir)
 
     # 1. Remove command/gpd-*.md files
     command_dir = target_dir / "command"

@@ -331,6 +331,33 @@ class TestUninstallOwnership:
 
         assert (target / "command" / "gpd-user-keep.md").exists()
 
+    def test_uninstall_falls_back_to_manifest_files_when_generated_command_metadata_is_missing(
+        self,
+        adapter: OpenCodeAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        dest = target / "command"
+        dest.mkdir(parents=True)
+
+        adapter.install(gpd_root, target)
+        (dest / "gpd-user-keep.md").write_text("keep", encoding="utf-8")
+
+        manifest_path = target / MANIFEST_NAME
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.pop("opencode_generated_command_files", None)
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+        from gpd.adapters.opencode import uninstall_opencode
+
+        uninstall_opencode(target, config_dir=target, allow_empty_config_removal=True)
+
+        assert not (dest / "gpd-help.md").exists()
+        assert not (dest / "gpd-start.md").exists()
+        assert (dest / "gpd-user-keep.md").exists()
+        assert not (target / MANIFEST_NAME).exists()
+
 class TestInstall:
     def test_help_command_does_not_describe_opencode_commands_as_slash_commands(
         self,
