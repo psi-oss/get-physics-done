@@ -138,7 +138,7 @@ def test_legacy_local_install_without_install_scope_keeps_local_update_scope(
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
-def test_legacy_default_local_install_without_explicit_target_reuses_embedded_update_command(
+def test_local_install_without_explicit_target_returns_no_trusted_update_command(
     tmp_path: Path,
     descriptor,
 ) -> None:
@@ -159,14 +159,11 @@ def test_legacy_default_local_install_without_explicit_target_reuses_embedded_up
     manifest.pop("explicit_target", None)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    command = installed_update_command(target)
-
-    assert command == f"{adapter.update_command} --local"
-    assert "--target-dir" not in command
+    assert installed_update_command(target) is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
-def test_moved_explicit_target_local_install_without_explicit_target_uses_live_target_dir(
+def test_moved_explicit_target_local_install_without_explicit_target_returns_no_trusted_update_command(
     tmp_path: Path,
     descriptor,
 ) -> None:
@@ -189,17 +186,11 @@ def test_moved_explicit_target_local_install_without_explicit_target_uses_live_t
     manifest.pop("explicit_target", None)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    command = installed_update_command(relocated_target)
-
-    assert command is not None
-    assert "--local" in command
-    assert "--target-dir" in command
-    assert str(relocated_target) in command
-    assert str(original_target) not in command
+    assert installed_update_command(relocated_target) is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
-def test_legacy_default_local_install_without_explicit_target_and_missing_workflow_keeps_implicit_local_command(
+def test_local_install_without_explicit_target_and_missing_workflow_returns_no_trusted_update_command(
     tmp_path: Path,
     descriptor,
 ) -> None:
@@ -221,10 +212,7 @@ def test_legacy_default_local_install_without_explicit_target_and_missing_workfl
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     (target / INSTALL_ROOT_DIR_NAME / "workflows" / "update.md").unlink()
 
-    command = installed_update_command(target)
-
-    assert command == f"{adapter.update_command} --local"
-    assert "--target-dir" not in command
+    assert installed_update_command(target) is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
@@ -334,7 +322,7 @@ def test_explicit_target_global_install_keeps_global_update_scope(tmp_path: Path
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
-def test_legacy_global_install_without_explicit_target_ignores_current_env_override(
+def test_global_install_without_explicit_target_returns_no_trusted_update_command(
     tmp_path: Path,
     descriptor,
     monkeypatch: pytest.MonkeyPatch,
@@ -375,14 +363,11 @@ def test_legacy_global_install_without_explicit_target_ignores_current_env_overr
 
     with monkeypatch.context() as ctx:
         ctx.setattr("gpd.hooks.install_metadata.Path.home", lambda: home_dir)
-        command = installed_update_command(canonical_target)
-
-    assert command == f"{adapter.update_command} --global"
-    assert "--target-dir" not in command
+        assert installed_update_command(canonical_target) is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
-def test_legacy_env_resolved_global_install_without_explicit_target_keeps_global_update_scope_implicit(
+def test_env_resolved_global_install_without_explicit_target_returns_no_trusted_update_command(
     tmp_path: Path,
     descriptor,
     monkeypatch: pytest.MonkeyPatch,
@@ -434,14 +419,11 @@ def test_legacy_env_resolved_global_install_without_explicit_target_keeps_global
         else:
             pytest.fail(f"Unsupported global config strategy: {descriptor.global_config.strategy}")
         ctx.setattr("gpd.hooks.install_metadata.Path.home", lambda: home_dir)
-        command = installed_update_command(override_target)
-
-    assert command == f"{adapter.update_command} --global"
-    assert "--target-dir" not in command
+        assert installed_update_command(override_target) is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
-def test_legacy_noncanonical_global_install_without_explicit_target_keeps_authoritative_target_dir(
+def test_noncanonical_global_install_without_explicit_target_returns_no_trusted_update_command(
     tmp_path: Path,
     descriptor,
     monkeypatch: pytest.MonkeyPatch,
@@ -476,16 +458,11 @@ def test_legacy_noncanonical_global_install_without_explicit_target_keeps_author
     else:
         pytest.fail(f"Unsupported global config strategy: {descriptor.global_config.strategy}")
 
-    command = installed_update_command(explicit_target)
-
-    assert command is not None
-    assert "--global" in command
-    assert "--target-dir" in command
-    assert str(explicit_target) in command
+    assert installed_update_command(explicit_target) is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
-def test_legacy_global_install_without_explicit_target_ignores_env_leak_captured_in_workflow(
+def test_global_install_without_explicit_target_and_env_leak_returns_no_trusted_update_command(
     tmp_path: Path,
     descriptor,
     monkeypatch: pytest.MonkeyPatch,
@@ -525,10 +502,7 @@ def test_legacy_global_install_without_explicit_target_ignores_env_leak_captured
 
     with monkeypatch.context() as ctx:
         ctx.setattr("gpd.hooks.install_metadata.Path.home", lambda: home_dir)
-        command = installed_update_command(canonical_target)
-
-    assert command == f"{adapter.update_command} --global"
-    assert "--target-dir" not in command
+        assert installed_update_command(canonical_target) is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

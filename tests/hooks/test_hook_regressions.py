@@ -500,9 +500,7 @@ def test_installed_update_command_keeps_implicit_local_scope_when_manifest_omits
         encoding="utf-8",
     )
 
-    command = installed_update_command(explicit_target)
-    assert command == "npx -y get-physics-done --codex --local"
-    assert "--target-dir" not in command
+    assert installed_update_command(explicit_target) is None
 
 
 @pytest.mark.parametrize("runtime", list_runtime_names())
@@ -531,10 +529,7 @@ def test_installed_update_command_uses_supplied_home_for_legacy_global_manifest(
     )
 
     monkeypatch.setattr("gpd.hooks.install_metadata.Path.home", lambda: tmp_path / "ambient-home")
-    command = installed_update_command(global_target, home=canonical_home)
-
-    assert command == f"{adapter.update_command} --global"
-    assert "--target-dir" not in command
+    assert installed_update_command(global_target, home=canonical_home) is None
 
 
 @pytest.mark.parametrize(
