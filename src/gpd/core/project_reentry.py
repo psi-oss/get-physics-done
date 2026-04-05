@@ -109,7 +109,12 @@ class ProjectReentryResolution(BaseModel):
 
 
 def recoverable_project_context(project_root: Path) -> tuple[bool, bool, bool]:
-    """Return whether a project root has enough durable state for recovery."""
+    """Return whether a project root has enough durable state for recovery.
+
+    This helper is read-only. It can inspect state snapshots to determine
+    recoverability, but it must not trigger intent recovery or mutate the
+    workspace while discovery is running.
+    """
 
     layout = ProjectLayout(project_root)
     state_files_exist = any(path.exists() for path in (layout.state_json, layout.state_json_backup, layout.state_md))
@@ -119,7 +124,7 @@ def recoverable_project_context(project_root: Path) -> tuple[bool, bool, bool]:
 
         state_obj, _integrity_issues, _state_source = peek_state_json(
             project_root,
-            recover_intent=True,
+            recover_intent=False,
             surface_blocked_project_contract=True,
         )
         state_exists = isinstance(state_obj, dict)

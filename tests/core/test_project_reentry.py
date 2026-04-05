@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from gpd.core.constants import ProjectLayout
 from gpd.core.project_reentry import resolve_project_reentry
+from gpd.core.state import default_state_dict
 
 
 def _make_gpd_workspace(
@@ -24,6 +26,22 @@ def _make_gpd_workspace(
     if state:
         (gpd_dir / "STATE.md").write_text("# State\n", encoding="utf-8")
     return root
+
+
+def _write_intent_recovery_workspace(root: Path) -> ProjectLayout:
+    layout = ProjectLayout(root)
+    layout.state_json.parent.mkdir(parents=True, exist_ok=True)
+    layout.state_json.write_text(json.dumps(default_state_dict(), indent=2) + "\n", encoding="utf-8")
+
+    json_tmp = layout.gpd / ".state-json-tmp"
+    md_tmp = layout.gpd / ".state-md-tmp"
+    recovered_state = default_state_dict()
+    recovered_state["position"]["current_phase"] = "09"
+    recovered_state["position"]["status"] = "Executing"
+    json_tmp.write_text(json.dumps(recovered_state, indent=2) + "\n", encoding="utf-8")
+    md_tmp.write_text("# Recovered State\n", encoding="utf-8")
+    layout.state_intent.write_text(f"{json_tmp}\n{md_tmp}\n", encoding="utf-8")
+    return layout
 
 
 def _recent_row(
@@ -204,6 +222,25 @@ def test_resolve_project_reentry_skips_recent_project_scan_for_recoverable_curre
     assert resolution.source == "current_workspace"
     assert len(resolution.candidates) == 1
     assert resolution.candidates[0].source == "current_workspace"
+
+
+def test_resolve_project_reentry_does_not_recover_intent_during_discovery(tmp_path: Path) -> None:
+    workspace = _make_gpd_workspace(tmp_path / "workspace")
+    layout = _write_intent_recovery_workspace(workspace)
+
+    before_state_json = layout.state_json.read_text(encoding="utf-8")
+    before_state_intent = layout.state_intent.read_text(encoding="utf-8")
+    before_json_tmp = (layout.gpd / ".state-json-tmp").read_text(encoding="utf-8")
+    before_md_tmp = (layout.gpd / ".state-md-tmp").read_text(encoding="utf-8")
+
+    resolution = resolve_project_reentry(workspace, recent_rows=[])
+
+    assert resolution.mode == "current-workspace"
+    assert resolution.source == "current_workspace"
+    assert layout.state_json.read_text(encoding="utf-8") == before_state_json
+    assert layout.state_intent.read_text(encoding="utf-8") == before_state_intent
+    assert (layout.gpd / ".state-json-tmp").read_text(encoding="utf-8") == before_json_tmp
+    assert (layout.gpd / ".state-md-tmp").read_text(encoding="utf-8") == before_md_tmp
 
 
 def test_resolve_project_reentry_ignores_empty_gpd_workspace_when_unique_recent_project_is_recoverable(
