@@ -994,6 +994,7 @@ def test_public_descriptors_surface_contract_and_optional_dependency_visibility(
     assert "optional_request_fields" in verification["description"]
     assert "request_template" in verification["description"]
     assert "supported binding fields" in verification["description"]
+    assert "Proof-oriented checks require an authoritative contract payload." in verification["description"]
     for field in (
         "binding.observable_id(s)",
         "binding.claim_id(s)",

@@ -12,7 +12,7 @@ import re
 import threading
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -32,18 +32,6 @@ logger = configure_mcp_logging("gpd-protocols")
 
 PROTOCOLS_DIR = SPECS_DIR / "references" / "protocols"
 PROTOCOL_DOMAINS_MANIFEST = PROTOCOLS_DIR / "protocol-domains.json"
-_AUTHORITATIVE_PROTOCOL_DOMAINS: tuple[str, ...] = (
-    "computational_methods",
-    "condensed_matter",
-    "core_derivation",
-    "fluid_plasma",
-    "general",
-    "gr_cosmology",
-    "mathematical_methods",
-    "nuclear_particle",
-    "numerical_translation",
-    "quantum_info",
-)
 
 # ---------------------------------------------------------------------------
 # Parsing
@@ -149,7 +137,35 @@ def _protocol_domain(name: str) -> str:
         raise ValueError(f"Protocol {name!r} is missing domain metadata in {PROTOCOL_DOMAINS_MANIFEST.name}") from exc
 
 
-ProtocolDomainFilter = Literal[*_AUTHORITATIVE_PROTOCOL_DOMAINS]
+def _protocol_domain_values() -> tuple[str, ...]:
+    """Return the authoritative protocol-domain enum values."""
+
+    return tuple(sorted(set(_load_protocol_domain_manifest().values())))
+
+
+ProtocolDomainFilter = str
+
+
+def _refresh_protocol_domain_schema() -> None:
+    """Refresh the published domain enum from the live protocol-domain manifest."""
+
+    domain_values = list(_protocol_domain_values())
+    for tool in mcp._tool_manager.list_tools():  # type: ignore[attr-defined]
+        if tool.name != "list_protocols":
+            continue
+        parameters = tool.parameters
+        properties = parameters.get("properties") if isinstance(parameters, dict) else None
+        if not isinstance(properties, dict):
+            return
+        domain_schema = properties.get("domain")
+        if not isinstance(domain_schema, dict):
+            return
+        enum_schema = domain_schema
+        any_of = domain_schema.get("anyOf")
+        if isinstance(any_of, list) and any_of and isinstance(any_of[0], dict):
+            enum_schema = any_of[0]
+        enum_schema["enum"] = domain_values
+        return
 
 
 def _normalize_protocol_tier(raw: object, *, protocol_name: str) -> int:
@@ -537,6 +553,17 @@ def get_protocol_checkpoints(name: Annotated[str, Field(min_length=1, pattern=r"
 def main() -> None:
     """Run the gpd-protocols MCP server."""
     run_mcp_server(mcp, "GPD Protocols MCP Server")
+
+
+_BASE_LIST_TOOLS = mcp.list_tools
+
+
+async def _list_tools_with_fresh_protocol_schema():
+    _refresh_protocol_domain_schema()
+    return await _BASE_LIST_TOOLS()
+
+
+mcp.list_tools = _list_tools_with_fresh_protocol_schema
 
 
 tighten_registered_tool_contracts(mcp)

@@ -16,7 +16,7 @@ import dataclasses
 import re
 from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -80,8 +80,46 @@ def _load_skill_index() -> list[content_registry.SkillDef]:
     return [content_registry.get_skill(name) for name in content_registry.list_skills()]
 
 
-_SKILL_CATEGORIES = content_registry.skill_categories()
-SkillCategoryFilter = Literal[*_SKILL_CATEGORIES]
+def _skill_category_values() -> tuple[str, ...]:
+    """Return the live skill-category enum published by the registry."""
+
+    return tuple(content_registry.skill_categories())
+
+
+SkillCategoryFilter = str
+
+
+def _refresh_skill_category_schema() -> None:
+    """Refresh the published skill category enum from the live registry."""
+
+    category_values = list(_skill_category_values())
+    for tool in mcp._tool_manager.list_tools():  # type: ignore[attr-defined]
+        if tool.name != "list_skills":
+            continue
+        parameters = tool.parameters
+        properties = parameters.get("properties") if isinstance(parameters, dict) else None
+        if not isinstance(properties, dict):
+            return
+        category_schema = properties.get("category")
+        if not isinstance(category_schema, dict):
+            return
+        enum_schema = category_schema
+        any_of = category_schema.get("anyOf")
+        if isinstance(any_of, list) and any_of and isinstance(any_of[0], dict):
+            enum_schema = any_of[0]
+        enum_schema["enum"] = category_values
+        return
+
+
+_BASE_LIST_TOOLS = mcp.list_tools
+
+
+async def _list_tools_with_fresh_skill_schema():
+    _refresh_skill_category_schema()
+    return await _BASE_LIST_TOOLS()
+
+
+mcp.list_tools = _list_tools_with_fresh_skill_schema
 
 
 def _resolve_skill(name: str) -> content_registry.SkillDef | None:

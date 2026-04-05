@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 import anyio
+import pytest
 
 
 def _tool_schema(module_name: str, tool_name: str) -> dict[str, object]:
@@ -108,3 +109,55 @@ def test_catalog_filter_schemas_publish_authoritative_enum_values() -> None:
 
     assert _collect_enum_values(protocol_schema["properties"]["domain"]) == expected_protocol_domains
     assert _collect_enum_values(skill_schema["properties"]["category"]) == expected_skill_categories
+
+
+def test_protocol_catalog_schema_refreshes_from_live_manifest_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gpd.mcp.servers import protocols_server
+
+    monkeypatch.setattr(
+        protocols_server,
+        "_load_protocol_domain_manifest",
+        lambda: {"alpha-protocol": "alpha", "beta-protocol": "beta"},
+    )
+
+    protocol_schema = _tool_schema("gpd.mcp.servers.protocols_server", "list_protocols")
+
+    assert _collect_enum_values(protocol_schema["properties"]["domain"]) == {"alpha", "beta"}
+
+
+def test_skill_catalog_schema_refreshes_from_live_registry_categories(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gpd import registry as content_registry
+    from gpd.mcp.servers import skills_server
+    from gpd.registry import SkillDef
+
+    monkeypatch.setattr(content_registry, "skill_categories", lambda: ("alpha", "beta"))
+    monkeypatch.setattr(
+        skills_server,
+        "_load_skill_index",
+        lambda: [
+            SkillDef(
+                name="gpd-alpha",
+                description="Alpha.",
+                content="Alpha content.",
+                category="alpha",
+                path="/tmp/gpd-alpha.md",
+                source_kind="command",
+                registry_name="alpha",
+            ),
+            SkillDef(
+                name="gpd-beta",
+                description="Beta.",
+                content="Beta content.",
+                category="beta",
+                path="/tmp/gpd-beta.md",
+                source_kind="command",
+                registry_name="beta",
+            ),
+        ],
+    )
+
+    skill_schema = _tool_schema("gpd.mcp.servers.skills_server", "list_skills")
+    result = skills_server.list_skills()
+
+    assert _collect_enum_values(skill_schema["properties"]["category"]) == {"alpha", "beta"}
+    assert result["categories"] == ["alpha", "beta"]

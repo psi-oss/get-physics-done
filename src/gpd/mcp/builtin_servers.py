@@ -197,7 +197,8 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         "description": (
             "GPD physics verification checks. Tools for running contract-aware checks, "
             "dimensional analysis, domain and bundle-specific checklists, limiting case checks, "
-            "symmetry verification, and coverage gap analysis. Contract-aware tools accept "
+            "symmetry verification, and coverage gap analysis. Proof-oriented checks require an "
+            "authoritative contract payload. Contract-aware tools accept "
             "structured request objects or contract payloads whose `schema_version` is required "
             "and must equal `1`, expose the exact "
             "request shape through `required_request_fields`, `schema_required_request_fields`, "
