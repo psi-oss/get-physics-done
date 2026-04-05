@@ -7,6 +7,7 @@ from functools import lru_cache
 
 CANONICAL_COMMAND_PREFIX = "gpd:"
 CANONICAL_SKILL_PREFIX = "gpd-"
+_PATHLIKE_CONTEXT_PREFIXES = ("/", ".", "@")
 
 
 def _prefix_variants(prefix: str) -> tuple[str, ...]:
@@ -79,6 +80,15 @@ def runtime_command_surface_pattern() -> re.Pattern[str]:
     return re.compile(rf"(?<![A-Za-z0-9_-])(?:{escaped_prefixes})(?P<slug>[a-z0-9][a-z0-9-]*)(?!\.md\b)")
 
 
+def runtime_command_surface_is_path_like_context(content: str, match: re.Match[str]) -> bool:
+    """Return whether a command surface appears inside a URL or path-like literal."""
+
+    start = match.start()
+    if start <= 0:
+        return False
+    return content[start - 1] in _PATHLIKE_CONTEXT_PREFIXES
+
+
 def rewrite_runtime_command_surfaces(content: str, *, canonical: str = "skill") -> str:
     """Rewrite runtime-native command surfaces to a canonical shared form."""
 
@@ -88,6 +98,8 @@ def rewrite_runtime_command_surfaces(content: str, *, canonical: str = "skill") 
     replacement_prefix = CANONICAL_COMMAND_PREFIX if canonical == "command" else CANONICAL_SKILL_PREFIX
 
     def _replace(match: re.Match[str]) -> str:
+        if runtime_command_surface_is_path_like_context(content, match):
+            return match.group(0)
         return f"{replacement_prefix}{match.group('slug')}"
 
     return runtime_command_surface_pattern().sub(_replace, content)
@@ -101,5 +113,6 @@ __all__ = [
     "command_slug_from_label",
     "rewrite_runtime_command_surfaces",
     "runtime_command_prefixes",
+    "runtime_command_surface_is_path_like_context",
     "runtime_command_surface_pattern",
 ]

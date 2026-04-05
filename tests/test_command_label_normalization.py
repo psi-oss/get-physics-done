@@ -125,6 +125,23 @@ def test_runtime_command_surface_rewrite_does_not_mutate_markdown_paths() -> Non
     assert rewrite_runtime_command_surfaces(content, canonical="skill") == content
 
 
+def test_runtime_command_surface_rewrite_skips_urls_and_paths_but_keeps_examples() -> None:
+    content = (
+        "Use /gpd:help when you want a real command example.\n"
+        "See https://example.test//gpd:help and /tmp//gpd:help.txt and /tmp/$gpd-help.txt.\n"
+        "Keep ./docs/gpd-help.md and foo$gpd-help/bar untouched.\n"
+    )
+
+    rewritten = rewrite_runtime_command_surfaces(content, canonical="skill")
+
+    assert "Use gpd-help when you want a real command example." in rewritten
+    assert "https://example.test//gpd:help" in rewritten
+    assert "/tmp//gpd:help.txt" in rewritten
+    assert "/tmp/$gpd-help.txt" in rewritten
+    assert "./docs/gpd-help.md" in rewritten
+    assert "foo$gpd-help/bar" in rewritten
+
+
 def test_foreign_bare_slash_command_is_not_canonicalized_into_gpd() -> None:
     assert command_slug_from_label("/help") == "/help"
     assert canonical_command_label("/help") == "gpd:/help"

@@ -85,7 +85,10 @@ def test_route_skill_publishes_non_blank_contract_in_tool_schema() -> None:
 def test_canonicalize_command_surface_rewrites_real_command_examples_only() -> None:
     from gpd.mcp.servers.skills_server import _canonicalize_command_surface
 
-    content = "Use `$gpd-*`, /gpd:*, /tmp/$gpd-*, https://example.test/$gpd-*, and foo$gpd-*bar."
+    content = (
+        "Use `$gpd-*` or /gpd:* for a real command example.\n"
+        "Keep /tmp/$gpd-*, https://example.test/$gpd-*, and foo$gpd-*bar untouched.\n"
+    )
 
     result = _canonicalize_command_surface(content)
 

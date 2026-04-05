@@ -24,7 +24,12 @@ from pydantic import Field
 
 from gpd import registry as content_registry
 from gpd.adapters.tool_names import canonical
-from gpd.command_labels import CANONICAL_SKILL_PREFIX, rewrite_runtime_command_surfaces, runtime_command_prefixes
+from gpd.command_labels import (
+    CANONICAL_SKILL_PREFIX,
+    rewrite_runtime_command_surfaces,
+    runtime_command_prefixes,
+    runtime_command_surface_is_path_like_context,
+)
 from gpd.core.errors import GPDError
 from gpd.core.observability import gpd_span
 from gpd.mcp.servers import (
@@ -165,15 +170,9 @@ def _canonicalize_runtime_command_wildcards(content: str) -> str:
     """Rewrite wildcard command examples without touching path-like substrings."""
 
     pattern = _runtime_command_wildcard_pattern()
+
     def _replace(match: re.Match[str]) -> str:
-        whitespace_start = max(
-            content.rfind("\n", 0, match.start()),
-            content.rfind("\r", 0, match.start()),
-            content.rfind("\t", 0, match.start()),
-            content.rfind(" ", 0, match.start()),
-        ) + 1
-        prefix_context = content[whitespace_start:match.start()]
-        if match.start() != whitespace_start and any(marker in prefix_context for marker in ("/", ":", ".", "@")):
+        if runtime_command_surface_is_path_like_context(content, match):
             return match.group(0)
         return f"{_SKILL_COMMAND_PREFIX}*"
 
