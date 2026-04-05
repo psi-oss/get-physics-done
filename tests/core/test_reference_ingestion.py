@@ -6,7 +6,11 @@ import json
 from pathlib import Path
 
 from gpd.core.context import init_verify_work
-from gpd.core.reference_ingestion import ingest_manuscript_reference_status, ingest_reference_artifacts
+from gpd.core.reference_ingestion import (
+    _extract_section,
+    ingest_manuscript_reference_status,
+    ingest_reference_artifacts,
+)
 from gpd.core.state import default_state_dict
 
 
@@ -491,6 +495,27 @@ def test_ingest_reference_artifacts_accepts_bullet_registries_and_direct_intake_
     assert "Control window from the accepted benchmark run" in result.intake.known_good_baselines
 
 
+def test_extract_section_keeps_nested_subsections_until_the_next_peer_heading() -> None:
+    content = (
+        "# Review\n\n"
+        "## Active References\n\n"
+        "### Benchmarks\n"
+        "- Anchor ID: ref-benchmark\n"
+        "- Source / Locator: Benchmark Ref 2026\n\n"
+        "### Prior Outputs\n"
+        "- GPD/phases/00-baseline/00-01-SUMMARY.md\n\n"
+        "## Other Section\n"
+        "- outside\n"
+    )
+
+    section = _extract_section(content, "Active References")
+
+    assert section is not None
+    assert "ref-benchmark" in section
+    assert "GPD/phases/00-baseline/00-01-SUMMARY.md" in section
+    assert "Other Section" not in section
+
+
 def test_ingest_reference_artifacts_preserves_repeated_bullet_detail_values(tmp_path: Path) -> None:
     _bootstrap_project(tmp_path)
     literature_dir = tmp_path / "GPD" / "literature"
@@ -522,6 +547,32 @@ def test_ingest_reference_artifacts_preserves_repeated_bullet_detail_values(tmp_
     assert ref.required_actions == ["read", "use", "compare"]
     assert ref.carry_forward_to == ["planning", "verification", "writing"]
     assert "ref-benchmark-2026" in result.intake.must_read_refs
+
+
+def test_ingest_reference_artifacts_keeps_shared_alias_references_distinct(tmp_path: Path) -> None:
+    _bootstrap_project(tmp_path)
+    literature_dir = tmp_path / "GPD" / "literature"
+    literature_dir.mkdir(parents=True)
+    (literature_dir / "ALIASES.md").write_text(
+        "# Review\n\n"
+        "## Active References\n\n"
+        "| Anchor ID | Anchor | Type | Source / Locator | Why It Matters | Contract Subject IDs | Required Action | Carry Forward To |\n"
+        "| --------- | ------ | ---- | ---------------- | -------------- | -------------------- | --------------- | ---------------- |\n"
+        "| ref-a | shared-token | benchmark | Doc A | First anchor | claim-a | read | planning |\n"
+        "| ref-b | shared-token | benchmark | Doc B | Second anchor | claim-b | compare | planning |\n",
+        encoding="utf-8",
+    )
+
+    result = ingest_reference_artifacts(
+        tmp_path,
+        literature_review_files=["GPD/literature/ALIASES.md"],
+        research_map_reference_files=[],
+    )
+
+    assert [ref.id for ref in result.references] == ["ref-a", "ref-b"]
+    assert [ref.locator for ref in result.references] == ["Doc A", "Doc B"]
+    assert result.references[0].aliases == ["shared-token"]
+    assert result.references[1].aliases == ["shared-token"]
 
 
 def test_context_discovers_additional_research_map_reference_artifacts(tmp_path: Path) -> None:

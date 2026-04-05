@@ -1309,6 +1309,42 @@ class TestInitPlanPhase:
         assert ref["carry_forward_to"] == ["writing"]
         assert ref["aliases"] == ["benchmark-paper"]
 
+    def test_merge_active_references_does_not_collapse_shared_aliases(self) -> None:
+        contract_references = [
+            {
+                "id": "ref-a",
+                "locator": "Doc A",
+                "role": "benchmark",
+                "why_it_matters": "First anchor",
+                "required_actions": ["read"],
+                "applies_to": ["claim-a"],
+                "carry_forward_to": [],
+                "source_artifacts": [],
+                "aliases": ["shared-token"],
+                "must_surface": True,
+            }
+        ]
+        derived_references = [
+            {
+                "id": "ref-b",
+                "locator": "Doc B",
+                "role": "benchmark",
+                "why_it_matters": "Second anchor",
+                "required_actions": ["compare"],
+                "applies_to": ["claim-b"],
+                "carry_forward_to": [],
+                "source_artifacts": ["GPD/research-map/REFERENCES.md"],
+                "aliases": ["shared-token"],
+                "must_surface": True,
+            }
+        ]
+
+        merged = _merge_active_references(contract_references, derived_references)
+
+        assert [ref["id"] for ref in merged] == ["ref-a", "ref-b"]
+        assert merged[0]["aliases"] == ["shared-token"]
+        assert merged[1]["aliases"] == ["shared-token"]
+
     def test_merge_active_references_upgrades_generic_kind_from_derived_reference(self) -> None:
         contract_references = [
             {

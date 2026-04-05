@@ -247,6 +247,14 @@ class TestSpliceFrontmatter:
         assert result.count("---") == 2
         assert result.startswith("\n\n---\n")
 
+    def test_preserves_bom_when_rewriting_frontmatter(self):
+        content = "\ufeff---\ntitle: Old\n---\n\nBody."
+        result = splice_frontmatter(content, {"title": "New"})
+        meta, body = extract_frontmatter(result)
+        assert result.startswith("\ufeff---\n")
+        assert meta["title"] == "New"
+        assert "Body." in body
+
 
 # ---------------------------------------------------------------------------
 # deep_merge_frontmatter
@@ -260,6 +268,15 @@ class TestDeepMergeFrontmatter:
         meta, _ = extract_frontmatter(result)
         assert meta["methods"]["added"] == ["foo"]
         assert meta["methods"]["patterns"] == ["bar"]
+
+    def test_preserves_bom_when_merging_frontmatter(self):
+        content = "\ufeff\n\n---\nmethods:\n  added:\n    - foo\n---\n\nBody."
+        result = deep_merge_frontmatter(content, {"methods": {"patterns": ["bar"]}})
+        meta, body = extract_frontmatter(result)
+        assert result.startswith("\ufeff\n\n---\n")
+        assert meta["methods"]["added"] == ["foo"]
+        assert meta["methods"]["patterns"] == ["bar"]
+        assert "Body." in body
 
     def test_overwrite_non_dict(self):
         content = "---\ntitle: Old\n---\n\nBody."

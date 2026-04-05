@@ -534,8 +534,11 @@ def _extract_section(content: str, heading: str) -> str | None:
         if _normalize_token(match.group("title")) != target:
             continue
         remainder = content[match.end() :]
-        next_heading = re.search(r"^#{1,6}\s+", remainder, re.MULTILINE)
-        return remainder[: next_heading.start()].strip() if next_heading else remainder.strip()
+        current_depth = len(match.group("marks"))
+        for next_heading in re.finditer(r"^(?P<marks>#{1,6})\s+", remainder, re.MULTILINE):
+            if len(next_heading.group("marks")) <= current_depth:
+                return remainder[: next_heading.start()].strip()
+        return remainder.strip()
     return None
 
 
@@ -730,25 +733,6 @@ def _merge_reference(records: dict[str, ArtifactReference], reference: ArtifactR
             if candidate.locator.casefold() == locator_key:
                 target = candidate
                 break
-        if target is None:
-            incoming_tokens = set(
-                _reference_identity_tokens(
-                    reference.id,
-                    reference.locator,
-                    *reference.aliases,
-                )
-            )
-            for candidate in records.values():
-                candidate_tokens = set(
-                    _reference_identity_tokens(
-                        candidate.id,
-                        candidate.locator,
-                        *candidate.aliases,
-                    )
-                )
-                if incoming_tokens and candidate_tokens and incoming_tokens.intersection(candidate_tokens):
-                    target = candidate
-                    break
     if target is None:
         records[reference.id] = reference
         return

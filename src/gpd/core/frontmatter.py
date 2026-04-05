@@ -116,12 +116,13 @@ _FRONTMATTER_BLOCK_RE = re.compile(r"^---[ \t]*\r?\n(?:[\s\S]*?\r?\n)?---[ \t]*(
 
 
 def _split_frontmatter_rewrite_content(content: str) -> tuple[str, str]:
-    """Return any preserved leading blank-line prefix plus rewriteable content."""
-    clean = content.lstrip("\ufeff")
+    """Return any preserved leading prefix plus rewriteable content."""
+    bom = "\ufeff" if content.startswith("\ufeff") else ""
+    clean = content[len(bom) :]
     prefix_match = _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE.match(clean)
     if prefix_match is None:
-        return "", clean
-    return clean[: prefix_match.end()], clean[prefix_match.end() :]
+        return bom, clean
+    return bom + clean[: prefix_match.end()], clean[prefix_match.end() :]
 
 
 def extract_frontmatter(content: str) -> tuple[dict, str]:

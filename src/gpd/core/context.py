@@ -556,20 +556,6 @@ def _merge_reference_record(merged: dict[str, dict[str, object]], ref: dict[str,
                 target = candidate
                 break
     if target is None:
-        incoming_tokens = _reference_identity_tokens([ref_id, locator, *list(ref.get("aliases") or [])])
-        for candidate in merged.values():
-            candidate_tokens = _reference_identity_tokens(
-                [
-                    candidate.get("id"),
-                    candidate.get("locator"),
-                    *list(candidate.get("aliases") or []),
-                ]
-            )
-            if incoming_tokens and candidate_tokens and incoming_tokens.intersection(candidate_tokens):
-                target = candidate
-                break
-
-    if target is None:
         payload = dict(ref)
         payload["required_actions"] = list(ref.get("required_actions") or [])
         payload["applies_to"] = list(ref.get("applies_to") or [])
