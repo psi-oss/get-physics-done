@@ -12,7 +12,10 @@ from pathlib import Path
 
 import pytest
 
+import gpd.adapters.runtime_catalog as runtime_catalog_module
+import gpd.core.public_surface_contract as public_surface_contract_module
 from gpd.adapters import get_adapter, iter_runtime_descriptors
+from gpd.core.public_surface_contract import beginner_onboarding_hub_url
 from gpd.core.surface_phrases import (
     post_start_settings_note,
     post_start_settings_recommendation,
@@ -61,7 +64,7 @@ _CLAUDE_RUNTIME_NAME, _CLAUDE_RUNTIME_ALIAS = runtime_with_multiword_alias(exclu
 _OPENCODE_RUNTIME_NAME, _OPENCODE_RUNTIME_ALIAS = runtime_with_multiword_alias(
     exclude=(_CODEX_RUNTIME_NAME, _CLAUDE_RUNTIME_NAME)
 )
-_BEGINNER_ONBOARDING_HUB_URL = "https://github.com/psi-oss/get-physics-done/blob/main/docs/README.md"
+_BEGINNER_ONBOARDING_HUB_URL = beginner_onboarding_hub_url()
 _CODEX_INSTALL_FLAG = runtime_install_flag(_CODEX_RUNTIME_NAME)
 _CLAUDE_INSTALL_FLAG = runtime_install_flag(_CLAUDE_RUNTIME_NAME)
 _GENERIC_RECOVERY_LADDER_NOTE = recovery_ladder_note(
@@ -708,6 +711,46 @@ def _run_node_contract_validation(script: str) -> subprocess.CompletedProcess[st
     )
 
 
+def _load_public_surface_contract_from_payload(
+    payload: dict[str, object],
+    *,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class _FakeFiles:
+        def __init__(self, contract_path: Path) -> None:
+            self._contract_path = contract_path
+
+        def joinpath(self, name: str) -> Path:
+            assert name == "public_surface_contract.json"
+            return self._contract_path
+
+    contract_path = tmp_path / "public_surface_contract.json"
+    contract_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(public_surface_contract_module, "files", lambda package: _FakeFiles(contract_path))
+    public_surface_contract_module.load_public_surface_contract.cache_clear()
+    try:
+        return public_surface_contract_module.load_public_surface_contract()
+    finally:
+        public_surface_contract_module.load_public_surface_contract.cache_clear()
+
+
+def _iter_runtime_descriptors_from_payload(
+    payload: list[dict[str, object]],
+    *,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    catalog_path = tmp_path / "runtime_catalog.json"
+    catalog_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog_module, "_catalog_path", lambda: catalog_path)
+    runtime_catalog_module._load_catalog.cache_clear()
+    try:
+        return runtime_catalog_module.iter_runtime_descriptors()
+    finally:
+        runtime_catalog_module._load_catalog.cache_clear()
+
+
 def test_bootstrap_public_surface_contract_validator_rejects_additive_keys_and_missing_required_fields() -> None:
     result = _run_node_contract_validation(
         r"""
@@ -872,6 +915,61 @@ assert.throws(
     )
 
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+
+def test_bootstrap_public_surface_contract_validator_stays_in_parity_with_python_loader(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    canonical_payload = json.loads((REPO_ROOT / "src" / "gpd" / "core" / "public_surface_contract.json").read_text(encoding="utf-8"))
+    python_contract = _load_public_surface_contract_from_payload(canonical_payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+    assert python_contract.beginner_onboarding.hub_url == _BEGINNER_ONBOARDING_HUB_URL
+    assert python_contract.resume_authority.public_fields[0] == "active_resume_kind"
+
+    canonical_result = _run_node_contract_validation(
+        f"""
+const assert = require("node:assert/strict");
+const {{ validateSharedPublicSurfaceContract }} = require("./bin/install.js");
+const payload = {json.dumps(canonical_payload)};
+const normalized = validateSharedPublicSurfaceContract(payload);
+assert.equal(normalized.beginnerHubUrl, payload.beginner_onboarding.hub_url);
+assert.equal(normalized.resumeAuthority.publicVocabularyIntro, payload.resume_authority.public_vocabulary_intro);
+assert.equal(normalized.recoveryLadder.localSnapshotCommand, payload.recovery_ladder.local_snapshot_command);
+"""
+    )
+    assert canonical_result.returncode == 0, f"{canonical_result.stdout}\n{canonical_result.stderr}"
+
+    additive_payload = json.loads((REPO_ROOT / "src" / "gpd" / "core" / "public_surface_contract.json").read_text(encoding="utf-8"))
+    additive_payload["legacy_note"] = "unexpected"
+    with pytest.raises(ValueError, match=r"public_surface_contract contains unknown key\(s\): legacy_note"):
+        _load_public_surface_contract_from_payload(additive_payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    additive_result = _run_node_contract_validation(
+        f"""
+const assert = require("node:assert/strict");
+const {{ validateSharedPublicSurfaceContract }} = require("./bin/install.js");
+const payload = {json.dumps(additive_payload)};
+assert.throws(() => validateSharedPublicSurfaceContract(payload), /public surface contract contains unknown key\\(s\\): legacy_note/);
+"""
+    )
+    assert additive_result.returncode == 0, f"{additive_result.stdout}\n{additive_result.stderr}"
+
+    missing_payload = json.loads((REPO_ROOT / "src" / "gpd" / "core" / "public_surface_contract.json").read_text(encoding="utf-8"))
+    del missing_payload["resume_authority"]["public_vocabulary_intro"]
+    with pytest.raises(ValueError, match=r"resume_authority is missing required key\(s\): public_vocabulary_intro"):
+        _load_public_surface_contract_from_payload(missing_payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    missing_result = _run_node_contract_validation(
+        f"""
+const assert = require("node:assert/strict");
+const {{ validateSharedPublicSurfaceContract }} = require("./bin/install.js");
+const payload = {json.dumps(missing_payload)};
+assert.throws(
+  () => validateSharedPublicSurfaceContract(payload),
+  /resume_authority is missing required key\\(s\\): public_vocabulary_intro/
+);
+"""
+    )
+    assert missing_result.returncode == 0, f"{missing_result.stdout}\n{missing_result.stderr}"
 
 
 def test_bootstrap_runtime_catalog_validator_rejects_malformed_records() -> None:
@@ -1064,6 +1162,60 @@ assert.throws(
     )
 
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+
+def test_bootstrap_runtime_catalog_validator_stays_in_parity_with_python_loader(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    canonical_payload = json.loads((REPO_ROOT / "src" / "gpd" / "adapters" / "runtime_catalog.json").read_text(encoding="utf-8"))
+    python_descriptors = _iter_runtime_descriptors_from_payload(canonical_payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+    assert [descriptor.runtime_name for descriptor in python_descriptors] == [
+        descriptor.runtime_name for descriptor in iter_runtime_descriptors()
+    ]
+    assert python_descriptors[0].install_flag == iter_runtime_descriptors()[0].install_flag
+
+    canonical_result = _run_node_contract_validation(
+        f"""
+const assert = require("node:assert/strict");
+const {{ validateRuntimeCatalog }} = require("./bin/install.js");
+const catalog = {json.dumps(canonical_payload)};
+const normalized = validateRuntimeCatalog(catalog);
+assert.equal(normalized[0].runtime_name, catalog[0].runtime_name);
+assert.equal(normalized[0].install_flag, catalog[0].install_flag);
+assert.equal(normalized[normalized.length - 1].runtime_name, catalog[catalog.length - 1].runtime_name);
+"""
+    )
+    assert canonical_result.returncode == 0, f"{canonical_result.stdout}\n{canonical_result.stderr}"
+
+    additive_payload = json.loads((REPO_ROOT / "src" / "gpd" / "adapters" / "runtime_catalog.json").read_text(encoding="utf-8"))
+    additive_payload[0]["legacy_note"] = "unexpected"
+    with pytest.raises(ValueError, match=r"runtime catalog entry 0 contains unknown key\(s\): legacy_note"):
+        _iter_runtime_descriptors_from_payload(additive_payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    additive_result = _run_node_contract_validation(
+        f"""
+const assert = require("node:assert/strict");
+const {{ validateRuntimeCatalog }} = require("./bin/install.js");
+const catalog = {json.dumps(additive_payload)};
+assert.throws(() => validateRuntimeCatalog(catalog), /runtime catalog entry 0 contains unknown key\\(s\\): legacy_note/);
+"""
+    )
+    assert additive_result.returncode == 0, f"{additive_result.stdout}\n{additive_result.stderr}"
+
+    duplicate_payload = json.loads((REPO_ROOT / "src" / "gpd" / "adapters" / "runtime_catalog.json").read_text(encoding="utf-8"))
+    duplicate_payload[1]["install_flag"] = duplicate_payload[0]["install_flag"]
+    with pytest.raises(ValueError, match=r"runtime catalog contains duplicate install_flag"):
+        _iter_runtime_descriptors_from_payload(duplicate_payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    duplicate_result = _run_node_contract_validation(
+        f"""
+const assert = require("node:assert/strict");
+const {{ validateRuntimeCatalog }} = require("./bin/install.js");
+const catalog = {json.dumps(duplicate_payload)};
+assert.throws(() => validateRuntimeCatalog(catalog), /runtime catalog contains duplicate install_flag/);
+"""
+    )
+    assert duplicate_result.returncode == 0, f"{duplicate_result.stdout}\n{duplicate_result.stderr}"
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

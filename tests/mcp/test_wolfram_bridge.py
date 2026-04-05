@@ -26,6 +26,30 @@ def test_resolve_api_key_rejects_compatibility_alias() -> None:
         resolve_api_key({"WOLFRAM_MCP_SERVICE_API_KEY": "legacy-token"})
 
 
+def test_resolve_endpoint_and_api_key_use_the_managed_descriptor_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gpd.mcp.integrations import wolfram_bridge as module
+
+    observed: dict[str, object] = {}
+
+    class FakeManagedIntegration:
+        def resolved_endpoint(self, source, strict: bool):
+            observed["endpoint_source"] = dict(source)
+            observed["endpoint_strict"] = strict
+            return "https://managed.example.invalid/mcp"
+
+        def resolve_api_key(self, source):
+            observed["api_key_source"] = dict(source)
+            return "managed-token"
+
+    monkeypatch.setattr(module, "WOLFRAM_MANAGED_INTEGRATION", FakeManagedIntegration())
+
+    assert module.resolve_endpoint({"GPD_WOLFRAM_MCP_ENDPOINT": "ignored"}) == "https://managed.example.invalid/mcp"
+    assert module.resolve_api_key({"GPD_WOLFRAM_MCP_API_KEY": "ignored"}) == "managed-token"
+    assert observed["endpoint_strict"] is True
+    assert observed["endpoint_source"] == {"GPD_WOLFRAM_MCP_ENDPOINT": "ignored"}
+    assert observed["api_key_source"] == {"GPD_WOLFRAM_MCP_API_KEY": "ignored"}
+
+
 def test_load_settings_uses_default_endpoint_and_hides_secret_in_repr() -> None:
     from gpd.mcp.integrations.wolfram_bridge import (
         DEFAULT_WOLFRAM_MCP_ENDPOINT,

@@ -30,22 +30,10 @@ _CONNECT_TIMEOUT_SECONDS = 10.0
 _READ_TIMEOUT_SECONDS = 300.0
 
 
-def _env_value(env: Mapping[str, str], key: str) -> str | None:
-    if key not in env:
-        return None
-    value = env[key].strip()
-    if not value:
-        raise RuntimeError(f"{key} is set but empty")
-    return value
-
-
 def resolve_endpoint(env: Mapping[str, str] | None = None) -> str:
     """Return the Wolfram MCP endpoint URL, defaulting to the official service."""
     source = os.environ if env is None else env
-    if WOLFRAM_MANAGED_INTEGRATION is not None:
-        return WOLFRAM_MANAGED_INTEGRATION.resolved_endpoint(source, strict=True)
-    endpoint = _env_value(source, WOLFRAM_MCP_ENDPOINT_ENV_VAR)
-    return endpoint or DEFAULT_WOLFRAM_MCP_ENDPOINT
+    return WOLFRAM_MANAGED_INTEGRATION.resolved_endpoint(source, strict=True)
 
 
 def resolve_api_key(env: Mapping[str, str] | None = None) -> str:
@@ -54,12 +42,7 @@ def resolve_api_key(env: Mapping[str, str] | None = None) -> str:
     The canonical env var is the only supported auth source.
     """
     source = os.environ if env is None else env
-    if WOLFRAM_MANAGED_INTEGRATION is not None:
-        return WOLFRAM_MANAGED_INTEGRATION.resolve_api_key(source)
-    canonical = _env_value(source, GPD_WOLFRAM_MCP_API_KEY_ENV)
-    if canonical is not None:
-        return canonical
-    raise RuntimeError("Wolfram MCP auth is not configured. Set GPD_WOLFRAM_MCP_API_KEY.")
+    return WOLFRAM_MANAGED_INTEGRATION.resolve_api_key(source)
 
 
 def build_auth_headers(api_key: str) -> dict[str, str]:

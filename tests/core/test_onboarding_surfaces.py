@@ -51,7 +51,8 @@ def _load_public_surface_contract_with_payload(
 
 
 def test_beginner_onboarding_surface_contract_exposes_hub_and_ladder() -> None:
-    assert beginner_onboarding_hub_url().endswith("/docs/README.md")
+    assert beginner_onboarding_hub_url() == "./docs/README.md"
+    assert "blob/main" not in beginner_onboarding_hub_url()
     assert beginner_startup_ladder_text() == "`help -> start -> tour -> new-project / map-research -> resume-work`"
     assert beginner_preflight_requirements() == (
         "One supported runtime is already installed and can open from your normal terminal.",
@@ -148,6 +149,27 @@ def test_resume_authority_contract_exposes_full_validated_surface() -> None:
     assert not hasattr(contract, "compat_surface")
     assert not hasattr(contract, "session_mirror")
     assert not hasattr(contract, "compatibility_phrase")
+
+
+def test_resume_authority_helper_rejects_legacy_compatibility_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_section = {
+        "durable_authority_phrase": "`state.json.continuation` is the durable authority",
+        "public_vocabulary_intro": "Public resume vocabulary centers on canonical continuation fields",
+        "public_fields": [
+            "active_resume_kind",
+            "active_resume_origin",
+            "active_resume_pointer",
+        ],
+        "top_level_boundary_phrase": "public top-level resume vocabulary only",
+        "compat_surface": "legacy compatibility surface",
+        "session_mirror": "legacy session mirror",
+        "compatibility_phrase": "legacy compatibility note",
+    }
+
+    monkeypatch.setattr(doc_surface_contracts_module, "_contract_section", lambda name: dict(fake_section))
+
+    with pytest.raises(AssertionError):
+        doc_surface_contracts_module._resume_authority_contract()
 
 
 def test_public_surface_contract_loader_rejects_additive_keys(monkeypatch, tmp_path: Path) -> None:

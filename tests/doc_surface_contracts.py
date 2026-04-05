@@ -166,14 +166,6 @@ def _contract_string(section: dict[str, object], key: str, *, label: str) -> str
     return value.strip()
 
 
-def _contract_optional_string(section: dict[str, object], key: str, *, label: str) -> str | None:
-    value = section.get(key)
-    if value is None:
-        return None
-    assert isinstance(value, str) and value.strip(), f"{label}.{key} must be a non-empty string"
-    return value.strip()
-
-
 def _contract_string_list(section: dict[str, object], key: str, *, label: str) -> tuple[str, ...]:
     value = section[key]
     assert isinstance(value, list) and value, f"{label}.{key} must be a non-empty list"
@@ -216,19 +208,12 @@ def _resume_authority_contract() -> dict[str, object]:
         "public_fields",
         "top_level_boundary_phrase",
     }
-    optional_keys = {
-        "compat_surface",
-        "session_mirror",
-        "compatibility_phrase",
-    }
     assert required_keys.issubset(section)
-    assert not (set(section) - required_keys - optional_keys)
+    assert not (set(section) - required_keys)
     _contract_string(section, "durable_authority_phrase", label="resume_authority")
     _contract_string(section, "public_vocabulary_intro", label="resume_authority")
     _contract_string_list(section, "public_fields", label="resume_authority")
     _contract_string(section, "top_level_boundary_phrase", label="resume_authority")
-    for key in optional_keys & set(section):
-        _contract_string(section, key, label="resume_authority")
     return section
 
 
@@ -947,6 +932,9 @@ def assert_resume_authority_contract(
     require_generic_compatibility_note: bool = False,
 ) -> None:
     contract = _resume_authority_contract()
+    compatibility_note = (
+        "Compatibility-only intake fields stay internal and are not part of the public top-level resume vocabulary"
+    )
     assert _contract_string(contract, "durable_authority_phrase", label="resume_authority") in content
     assert _contract_string(contract, "public_vocabulary_intro", label="resume_authority") in content
     for field in _contract_string_list(contract, "public_fields", label="resume_authority"):
@@ -962,8 +950,7 @@ def assert_resume_authority_contract(
         _assert_contains_any(
             content,
             (
-                _contract_optional_string(contract, "compatibility_phrase", label="resume_authority")
-                or "Compatibility-only intake fields stay internal and are not part of the public top-level resume vocabulary",
+                compatibility_note,
                 "Compatibility-only backend intake (`gpd init resume` only):",
             ),
             label="resume compatibility phrase",
@@ -971,8 +958,6 @@ def assert_resume_authority_contract(
         _assert_contains_any(
             content,
             (
-                _contract_optional_string(contract, "session_mirror", label="resume_authority")
-                or "legacy session mirror for backend-only compatibility intake",
                 "session.resume_file",
                 "session_resume_file",
                 "current_execution",
@@ -989,8 +974,7 @@ def assert_resume_authority_contract(
         _assert_contains_any(
             content,
             (
-                _contract_optional_string(contract, "compatibility_phrase", label="resume_authority")
-                or "Compatibility-only intake fields stay internal and are not part of the public top-level resume vocabulary",
+                compatibility_note,
                 _contract_string(contract, "top_level_boundary_phrase", label="resume_authority"),
             ),
             label="generic compatibility note",

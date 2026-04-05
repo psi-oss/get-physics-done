@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import ast
 import re
+import sys
 import tomllib
 from pathlib import Path
+
+import pytest
 
 from gpd import registry as content_registry
 from gpd.contracts import ConventionLock
@@ -28,7 +31,7 @@ def _decorated_mcp_tools(relative_path: str) -> list[str]:
     tree = ast.parse(_read(relative_path), filename=relative_path)
     tool_names: list[str] = []
     for node in tree.body:
-        if not isinstance(node, ast.FunctionDef):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         for decorator in node.decorator_list:
             if not isinstance(decorator, ast.Call):
@@ -43,6 +46,34 @@ def _decorated_mcp_tools(relative_path: str) -> list[str]:
                 tool_names.append(node.name)
                 break
     return tool_names
+
+
+def test_decorated_mcp_tools_includes_async_function_defs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module_path = tmp_path / "async_mcp_module.py"
+    module_path.write_text(
+        "\n".join(
+            [
+                "mcp = object()",
+                "",
+                "@mcp.tool()",
+                "async def async_tool():",
+                "    return None",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_read",
+        lambda relative_path: module_path.read_text(encoding="utf-8"),
+    )
+
+    assert _decorated_mcp_tools("async_mcp_module.py") == ["async_tool"]
 
 
 def _descriptor_python_module(descriptor: dict[str, object]) -> str | None:
