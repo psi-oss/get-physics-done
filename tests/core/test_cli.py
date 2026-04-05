@@ -41,6 +41,7 @@ from gpd.core.health import (
     UnattendedReadinessCheck,
     UnattendedReadinessResult,
 )
+from gpd.core.project_reentry import resolve_project_reentry
 from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_KEYS
 from gpd.core.state import default_state_dict, generate_state_markdown, save_state_json, save_state_markdown
 from tests.latex_test_support import toolchain_capability as _toolchain_capability
@@ -1521,6 +1522,52 @@ def test_load_recent_projects_rows_prefers_stronger_recovery_over_newer_weaker_t
     assert [Path(str(row["project_root"])).name for row in rows] == ["stronger-project", "weaker-project"]
 
 
+def test_load_recent_projects_rows_matches_canonical_project_reentry_sorting(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    first_project = tmp_path / "recent-alpha"
+    second_project = tmp_path / "recent-beta"
+    for project in (first_project, second_project):
+        handoff = project / "GPD" / "phases" / "01" / ".continue-here.md"
+        handoff.parent.mkdir(parents=True, exist_ok=True)
+        handoff.write_text("resume", encoding="utf-8")
+
+    recent_rows = [
+        {
+            "schema_version": 1,
+            "project_root": first_project.resolve(strict=False).as_posix(),
+            "last_session_at": "2026-03-28T12:00:00+00:00",
+            "source_recorded_at": "2026-03-29T12:00:00+00:00",
+            "resume_file": "GPD/phases/01/.continue-here.md",
+            "resumable": True,
+        },
+        {
+            "schema_version": 1,
+            "project_root": second_project.resolve(strict=False).as_posix(),
+            "last_session_at": "2026-03-29T12:00:00+00:00",
+            "source_recorded_at": "2026-03-28T12:00:00+00:00",
+            "resume_file": "GPD/phases/01/.continue-here.md",
+            "resumable": True,
+        },
+    ]
+    monkeypatch.setattr(
+        "gpd.core.recent_projects.list_recent_projects",
+        lambda store_root=None, last=None: list(recent_rows),
+    )
+
+    cli_rows = cli_module._load_recent_projects_rows()
+    canonical_rows = resolve_project_reentry(workspace, recent_rows=recent_rows).candidates
+
+    assert [Path(str(row["project_root"])).name for row in cli_rows] == [
+        Path(candidate.project_root).name for candidate in canonical_rows
+    ]
+    assert [Path(str(row["project_root"])).name for row in cli_rows] == ["recent-alpha", "recent-beta"]
+
+
 def test_normalize_recent_project_row_preserves_non_directory_unavailability() -> None:
     project_root = Path("/tmp/not-a-project-file")
     row = {
@@ -1539,6 +1586,43 @@ def test_normalize_recent_project_row_preserves_non_directory_unavailability() -
     assert normalized["availability_reason"] == "project root is not a directory"
     assert normalized["resumable"] is False
     assert normalized["status"] == "unavailable"
+
+
+def test_resume_recent_surfaces_recovery_error_annotation_when_introspection_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_root = tmp_path / "recent-error"
+    handoff = project_root / "GPD" / "phases" / "01" / ".continue-here.md"
+    handoff.parent.mkdir(parents=True, exist_ok=True)
+    handoff.write_text("resume", encoding="utf-8")
+    save_state_json(project_root, default_state_dict())
+
+    recent_rows = [
+        {
+            "schema_version": 1,
+            "project_root": project_root.resolve(strict=False).as_posix(),
+            "last_session_at": "2026-03-28T12:00:00+00:00",
+            "source_recorded_at": "2026-03-28T13:00:00+00:00",
+            "resume_file": "GPD/phases/01/.continue-here.md",
+            "resumable": True,
+        }
+    ]
+    monkeypatch.setattr(
+        "gpd.core.recent_projects.list_recent_projects",
+        lambda store_root=None, last=None: list(recent_rows),
+    )
+    monkeypatch.setattr("gpd.core.context.init_resume", lambda _cwd: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    result = runner.invoke(app, ["--raw", "resume", "--recent"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    project = payload["projects"][0]
+    assert project["recovery_status"] == "recovery-error"
+    assert project["recovery_status_label"] == "Recovery error"
+    assert project["recovery_error_type"] == "RuntimeError"
+    assert project["recovery_error"] == "boom"
+    assert "boom" in project["recovery_note"]
 
 
 def test_resume_plain_output_surfaces_session_handoff_status(tmp_path: Path, monkeypatch) -> None:

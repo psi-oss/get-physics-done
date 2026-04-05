@@ -63,6 +63,8 @@ from gpd.core.onboarding_surfaces import (
 )
 from gpd.core.project_reentry import (
     ProjectReentryResolution,
+    _candidate_from_recent_row,
+    _candidate_sort_key,
     recoverable_project_context,
     resolve_project_reentry,
 )
@@ -1269,6 +1271,7 @@ def _resume_status_label(status: object) -> str:
         "live-execution": "Advisory live execution",
         "workspace-recovery": "Recovery context",
         "recent-projects": "Recent projects",
+        "recovery-error": "Recovery error",
         "no-recovery": "No recovery target",
     }
     status_text = str(status).strip() if status is not None else ""
@@ -1891,25 +1894,10 @@ def _normalize_recent_project_row(row: object) -> dict[str, object] | None:
 
 def _recent_project_sort_key(row: dict[str, object]) -> tuple[int, int, int, int, str, str]:
     """Sort recent rows by recovery strength first, then by recency."""
-    from gpd.core.recent_projects import classify_recent_project_recovery
-
-    recovery = classify_recent_project_recovery(row)
-    timestamp = _recent_project_text(
-        row,
-        "resume_target_recorded_at",
-        "last_session_at",
-        "last_seen_at",
-        "source_recorded_at",
-    ) or ""
-    workspace = str(row.get("workspace") or row.get("project_root") or "")
-    return (
-        int(_strict_bool_value(row.get("resumable")) is True),
-        recovery.target_priority,
-        int(recovery.has_concrete_target),
-        int(_strict_bool_value(row.get("available")) is True),
-        timestamp,
-        workspace,
-    )
+    candidate = _candidate_from_recent_row(row)
+    if candidate is None:
+        return (0, 0, 0, 0, "", "")
+    return _candidate_sort_key(candidate)
 
 
 def _load_recent_projects_rows() -> list[dict[str, object]]:
@@ -1963,7 +1951,7 @@ def _resume_recent_project_notes(row: dict[str, object]) -> str:
     return "continue from local recovery state"
 
 
-def _recent_project_recovery_view(row: dict[str, object]) -> dict[str, str] | None:
+def _recent_project_recovery_view(row: dict[str, object]) -> dict[str, object] | None:
     """Return a canonical recovery summary for one recent-project row when available."""
     project_root = row.get("project_root")
     if not isinstance(project_root, str) or not project_root.strip():
@@ -1986,8 +1974,15 @@ def _recent_project_recovery_view(row: dict[str, object]) -> dict[str, str] | No
 
         payload = init_resume(project_path)
         advice = _resume_recovery_advice(resume_payload=payload, recent_rows=[], cwd=project_path)
-    except Exception:
-        return None
+    except Exception as exc:
+        error_message = str(exc).strip() or type(exc).__name__
+        return {
+            "recovery_status": "recovery-error",
+            "recovery_status_label": _resume_status_label("recovery-error"),
+            "recovery_note": f"Recovery metadata could not be inspected: {error_message}",
+            "recovery_error": error_message,
+            "recovery_error_type": type(exc).__name__,
+        }
 
     public_payload = canonicalize_resume_public_payload(payload)
     view: dict[str, str] = {
