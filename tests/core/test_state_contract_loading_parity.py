@@ -524,6 +524,43 @@ def test_state_and_context_canonicalize_reference_aliases_before_final_contract_
     assert ctx["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
 
 
+def test_state_and_context_keep_case_only_project_contract_canonicalization_authoritative(
+    tmp_path: Path,
+) -> None:
+    _setup_project(tmp_path)
+    save_state_json(tmp_path, default_state_dict())
+
+    layout = ProjectLayout(tmp_path)
+    raw_state = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["references"][0]["role"] = "Benchmark"
+    contract["references"][0]["required_actions"] = ["Read", "Compare", "Cite"]
+    raw_state["project_contract"] = contract
+    layout.state_json.write_text(json.dumps(raw_state, indent=2) + "\n", encoding="utf-8")
+
+    loaded = state_load(tmp_path)
+    ctx = init_progress(tmp_path)
+
+    assert loaded.state["project_contract"] is not None
+    assert loaded.state["project_contract"]["references"][0]["role"] == "benchmark"
+    assert loaded.state["project_contract"]["references"][0]["required_actions"] == ["read", "compare", "cite"]
+    assert ctx["project_contract"] is not None
+    assert ctx["project_contract_load_info"]["status"] == "loaded"
+    assert any(
+        "references.0.role must use exact canonical value: benchmark" in warning
+        for warning in ctx["project_contract_load_info"]["warnings"]
+    )
+    assert any(
+        "references.0.required_actions.0 must use exact canonical value: read" in warning
+        for warning in ctx["project_contract_load_info"]["warnings"]
+    )
+    assert loaded.project_contract_gate["status"] == "loaded"
+    assert loaded.project_contract_gate["visible"] is True
+    assert loaded.project_contract_gate["repair_required"] is False
+    assert loaded.project_contract_gate["authoritative"] is True
+    assert ctx["project_contract_gate"] == loaded.project_contract_gate
+
+
 def test_state_and_context_surface_duplicate_and_blank_project_contract_list_members(
     tmp_path: Path,
 ) -> None:

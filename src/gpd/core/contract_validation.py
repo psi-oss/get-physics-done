@@ -50,6 +50,7 @@ __all__ = [
     "ProjectContractValidationResult",
     "is_authoritative_project_contract_schema_finding",
     "is_defaultable_singleton_project_contract_schema_finding",
+    "is_repair_relevant_project_contract_schema_finding",
     "salvage_project_contract",
     "split_project_contract_schema_findings",
     "validate_project_contract",
@@ -101,6 +102,14 @@ _RECOVERABLE_SCHEMA_WARNING_PATTERNS = (
     re.compile(r"^.+: Extra inputs are not permitted$"),
     re.compile(r"^.+\.\d+ must be a valid list member$"),
     re.compile(r"^.+\.\d+: Input should .+$"),
+)
+_LOSSY_LIST_NORMALIZATION_WARNING_PATTERNS = (
+    re.compile(r"^.+ must be a list, not .+$"),
+    re.compile(r"^.+ must be an object, not .+$"),
+    re.compile(r"^.+ must not be blank$"),
+    re.compile(r"^.+ is a duplicate$"),
+    re.compile(r"^.+\.\d+ must not be blank$"),
+    re.compile(r"^.+\.\d+ is a duplicate$"),
 )
 _CASE_DRIFT_SCHEMA_WARNING_PATTERNS = (
     re.compile(r"^.+ must use exact canonical value: .+$"),
@@ -584,6 +593,21 @@ def is_defaultable_singleton_project_contract_schema_finding(error: str) -> bool
     """Return whether one schema finding is the defaultable-singleton drift class."""
 
     return any(pattern.fullmatch(error) for pattern in _DEFAULTABLE_SINGLETON_SCHEMA_WARNING_PATTERNS)
+
+
+def is_repair_relevant_project_contract_schema_finding(error: str) -> bool:
+    """Return whether one recoverable schema finding still requires repair."""
+
+    if any(pattern.fullmatch(error) for pattern in _CASE_DRIFT_SCHEMA_WARNING_PATTERNS):
+        return False
+    return any(
+        pattern.fullmatch(error)
+        for pattern in (
+            *_RECOVERABLE_SCHEMA_WARNING_PATTERNS,
+            *_LOSSY_LIST_NORMALIZATION_WARNING_PATTERNS,
+            *_DEFAULTABLE_SINGLETON_SCHEMA_WARNING_PATTERNS,
+        )
+    )
 
 
 def _has_authoritative_scalar_schema_findings(errors: list[str]) -> bool:

@@ -59,6 +59,7 @@ from gpd.core.contract_validation import (
     _collect_list_shape_drift_errors,
     _has_authoritative_scalar_schema_findings,
     _project_contract_schema_version_missing_error,
+    is_repair_relevant_project_contract_schema_finding,
     salvage_project_contract,
     split_project_contract_schema_findings,
     validate_project_contract,
@@ -951,12 +952,21 @@ def _project_contract_gate_payload(
 
     load_status = str((load_info or {}).get("status") or ("loaded" if contract is not None else "missing"))
     approval_valid = validation.get("valid") if isinstance(validation, dict) else None
-    normalized_load = bool((load_info or {}).get("warnings"))
+    warnings = list((load_info or {}).get("warnings") or [])
+    repair_relevant_schema_warning = any(
+        is_repair_relevant_project_contract_schema_finding(warning) for warning in warnings
+    )
     load_blocked = load_status.startswith("blocked")
     approval_blocked = approval_valid is False
     raw_project_contract_classified = bool((load_info or {}).get("raw_project_contract_classified"))
     visible = contract is not None
-    authoritative = visible and raw_project_contract_classified and not load_blocked and approval_valid is True and not normalized_load
+    authoritative = (
+        visible
+        and raw_project_contract_classified
+        and not load_blocked
+        and approval_valid is True
+        and not repair_relevant_schema_warning
+    )
     blocked = load_blocked or approval_blocked
     return {
         "status": load_status,
@@ -965,7 +975,7 @@ def _project_contract_gate_payload(
         "load_blocked": load_blocked,
         "approval_blocked": approval_blocked,
         "authoritative": authoritative,
-        "repair_required": blocked or normalized_load or not raw_project_contract_classified,
+        "repair_required": blocked or repair_relevant_schema_warning or not raw_project_contract_classified,
         "raw_project_contract_classified": raw_project_contract_classified,
         "provenance": (load_info or {}).get("provenance"),
         "source_path": (load_info or {}).get("source_path"),
@@ -999,11 +1009,13 @@ def _finalize_project_contract_gate(
             mode="json"
         )
         if finalized_load_info["status"] != "blocked_integrity":
+            repair_relevant_schema_warning = any(
+                is_repair_relevant_project_contract_schema_finding(warning)
+                for warning in list(finalized_load_info.get("warnings") or [])
+            )
             if validation_payload.get("valid") is True:
                 finalized_load_info["status"] = (
-                    "loaded_with_schema_normalization"
-                    if finalized_load_info["warnings"]
-                    else "loaded"
+                    "loaded_with_schema_normalization" if repair_relevant_schema_warning else "loaded"
                 )
             else:
                 finalized_load_info["status"] = "loaded_with_approval_blockers"
