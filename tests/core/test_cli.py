@@ -2262,7 +2262,7 @@ def test_validate_project_contract_uses_ancestor_project_root_from_nested_cwd(
     (project_root / "GPD").mkdir(parents=True, exist_ok=True)
     nested_cwd.mkdir(parents=True, exist_ok=True)
     contract_path = nested_cwd / "contract.json"
-    contract_path.write_text("{}", encoding="utf-8")
+    contract_path.write_text((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"), encoding="utf-8")
 
     validation_result = MagicMock()
     validation_result.valid = True

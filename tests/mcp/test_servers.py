@@ -1201,7 +1201,8 @@ class TestSkillsServer:
         from gpd.mcp.servers.skills_server import list_skills
 
         result = list_skills(category="nonexistent")
-        assert result["error"] == "Unknown category 'nonexistent'"
+        assert result["count"] == 0
+        assert result["skills"] == []
         assert "categories" in result
 
     def test_get_skill_found(self):
@@ -1317,12 +1318,26 @@ class TestSkillsServer:
         assert result["argument_hint"] == ""
 
     def test_get_skill_agent_uses_primary_agent_content(self):
+        from gpd import registry
         from gpd.mcp.servers.skills_server import get_skill
 
         result = get_skill("gpd-debugger")
+        agent = registry.get_agent("gpd-debugger")
         # Agent-backed entries remain part of the canonical MCP skill index.
         assert result["name"] == "gpd-debugger"
         assert "Primary debugger agent" in result["content"]
+        assert "## Agent Policy" in result["content"]
+        assert "commit_authority" in result["content"]
+        assert "artifact_write_authority" in result["content"]
+        assert "shared_state_authority" in result["content"]
+        assert result["agent_policy"] == {
+            "commit_authority": agent.commit_authority,
+            "surface": agent.surface,
+            "role_family": agent.role_family,
+            "artifact_write_authority": agent.artifact_write_authority,
+            "shared_state_authority": agent.shared_state_authority,
+            "tools": agent.tools,
+        }
 
     def test_get_skill_canonicalizes_runtime_command_examples(self):
         from gpd.mcp.servers.skills_server import get_skill
@@ -1332,6 +1347,9 @@ class TestSkillsServer:
         assert "/gpd:" not in result["content"]
         assert "gpd-help" in result["content"]
         assert "gpd-execute-phase" in result["content"]
+        assert "## Command Requirements" in result["content"]
+        assert "Try gpd-help or gpd-execute-phase for runtime-installed shells." in result["content"]
+        assert "## Contextual Help" not in result["content"]
 
     def test_get_skill_resolves_install_and_agents_placeholders(self):
         from gpd.mcp.servers.skills_server import get_skill
@@ -1568,7 +1586,7 @@ class TestStateServer:
     def test_get_state_rejects_relative_project_dir(self):
         from gpd.mcp.servers.state_server import get_state
 
-        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=AssertionError("should not run")):
+        with patch("gpd.mcp.servers.state_server.peek_state_json", side_effect=AssertionError("should not run")):
             result = get_state("relative/project")
 
         assert result["error"] == "project_dir must be an absolute path"
@@ -1579,7 +1597,7 @@ class TestStateServer:
 
         mock_state = {"position": {"current_phase": "01"}, "decisions": [], "blockers": []}
 
-        with patch("gpd.mcp.servers.state_server.load_state_json", return_value=mock_state):
+        with patch("gpd.mcp.servers.state_server.peek_state_json", return_value=(mock_state, [], "STATE.md")):
             result = get_state("/fake/project")
         assert "position" in result
         assert result["position"]["current_phase"] == "01"
@@ -1587,7 +1605,7 @@ class TestStateServer:
     def test_get_state_no_state(self):
         from gpd.mcp.servers.state_server import get_state
 
-        with patch("gpd.mcp.servers.state_server.load_state_json", return_value=None):
+        with patch("gpd.mcp.servers.state_server.peek_state_json", return_value=(None, [], None)):
             result = get_state("/fake/project")
         assert "error" in result
 
@@ -1595,21 +1613,21 @@ class TestStateServer:
         from gpd.core.errors import GPDError
         from gpd.mcp.servers.state_server import get_state
 
-        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=GPDError("boom")):
+        with patch("gpd.mcp.servers.state_server.peek_state_json", side_effect=GPDError("boom")):
             result = get_state("/fake/project")
         assert result == {"error": "boom", "schema_version": 1}
 
     def test_get_state_os_error(self):
         from gpd.mcp.servers.state_server import get_state
 
-        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=OSError("permission denied")):
+        with patch("gpd.mcp.servers.state_server.peek_state_json", side_effect=OSError("permission denied")):
             result = get_state("/fake/project")
         assert result == {"error": "permission denied", "schema_version": 1}
 
     def test_get_state_value_error(self):
         from gpd.mcp.servers.state_server import get_state
 
-        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=ValueError("bad json")):
+        with patch("gpd.mcp.servers.state_server.peek_state_json", side_effect=ValueError("bad json")):
             result = get_state("/fake/project")
         assert result == {"error": "bad json", "schema_version": 1}
 

@@ -3402,11 +3402,7 @@ def _parse_contract_payload(contract_raw: dict[str, object]) -> tuple[ResearchCo
         ),
         key=_contract_error_sort_key,
     )
-    recoverable_errors = [
-        error
-        for error in nonblocking_errors
-        if not _recoverable_literal_case_drift_error(error, contract_raw=contract_raw)
-    ]
+    recoverable_errors = list(nonblocking_errors)
     authoritative_errors = [
         error
         for error in normalized_strict_errors

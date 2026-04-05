@@ -1745,6 +1745,19 @@ def test_validate_project_contract_approved_mode_accepts_real_reference_anchor()
     assert result.mode == "approved"
 
 
+def test_validate_project_contract_draft_mode_counts_concrete_must_read_ref_as_guidance() -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["scope"]["unresolved_questions"] = []
+    contract["context_intake"]["must_read_refs"] = ["ref-benchmark"]
+
+    result = validate_project_contract(contract, mode="draft")
+
+    assert result.valid is True
+    assert result.guidance_signal_count == 1
+    assert "context_intake must not be empty" not in result.errors
+
+
 def test_validate_project_contract_approved_mode_rejects_background_must_read_ref_without_real_anchor() -> None:
     contract = _load_contract_fixture()
     _remove_incidental_grounding(contract)
@@ -1766,6 +1779,30 @@ def test_validate_project_contract_approved_mode_rejects_background_must_read_re
 
     assert result.valid is False
     assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+
+
+def test_validate_project_contract_draft_mode_does_not_treat_background_must_read_ref_as_durable_guidance() -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["references"] = [
+        {
+            "id": "ref-background",
+            "kind": "paper",
+            "locator": "Background review article",
+            "role": "background",
+            "why_it_matters": "General context only",
+            "applies_to": [],
+            "required_actions": ["read"],
+        }
+    ]
+    contract["context_intake"]["must_read_refs"] = ["ref-background"]
+    contract["scope"]["unresolved_questions"] = []
+
+    result = validate_project_contract(contract, mode="draft")
+
+    assert result.valid is False
+    assert result.guidance_signal_count == 0
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_preserves_requested_mode_for_schema_errors() -> None:

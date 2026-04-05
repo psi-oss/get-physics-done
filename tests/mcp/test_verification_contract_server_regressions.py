@@ -1116,6 +1116,32 @@ def test_contract_tools_accept_recoverable_mapping_scalar_to_list_contract_drift
     assert expected_finding in suggest_result["contract_salvage_findings"]
 
 
+def test_contract_tools_surface_recoverable_enum_case_drift() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _load_project_contract_fixture()
+    contract["acceptance_tests"][0]["kind"] = "Benchmark"
+
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "binding": {"claim_ids": ["claim-benchmark"]},
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    run_result = run_contract_check(request)
+    suggest_result = suggest_contract_checks(contract)
+
+    expected_finding = "acceptance_tests.0.kind must use exact canonical value: benchmark"
+
+    assert run_result["status"] == "pass"
+    assert run_result["contract_salvaged"] is True
+    assert expected_finding in run_result["contract_salvage_findings"]
+    assert suggest_result["contract_salvaged"] is True
+    assert expected_finding in suggest_result["contract_salvage_findings"]
+
+
 def test_contract_tools_preserve_non_string_list_member_parse_error() -> None:
     contract = _load_project_contract_fixture()
     contract["context_intake"]["must_read_refs"] = [{"id": "ref-benchmark"}]
@@ -2333,14 +2359,14 @@ def test_contract_tools_reject_unknown_top_level_contract_fields() -> None:
             lambda contract: contract["deliverables"][0].__setitem__("kind", "Figure"),
             lambda parsed: parsed.deliverables[0].kind,
             "figure",
-            [],
+            ["deliverables.0.kind must use exact canonical value: figure"],
             None,
         ),
         (
             lambda contract: contract["acceptance_tests"][0].__setitem__("automation", "Automated"),
             lambda parsed: parsed.acceptance_tests[0].automation,
             "automated",
-            [],
+            ["acceptance_tests.0.automation must use exact canonical value: automated"],
             None,
         ),
         (

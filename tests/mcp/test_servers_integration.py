@@ -224,6 +224,23 @@ class TestStateServerIntegration:
         assert "position" in result
         assert "decisions" in result or "blockers" in result
 
+    def test_get_state_does_not_persist_recovery_artifacts(self, tmp_path: Path):
+        from gpd.core.state import default_state_dict, generate_state_markdown
+        from gpd.mcp.servers.state_server import get_state
+
+        project_root = tmp_path / "project"
+        gpd_dir = project_root / "GPD"
+        gpd_dir.mkdir(parents=True, exist_ok=True)
+        (gpd_dir / "STATE.md").write_text(generate_state_markdown(default_state_dict()), encoding="utf-8")
+
+        assert not (gpd_dir / "state.json").exists()
+
+        result = get_state(str(project_root))
+
+        assert isinstance(result, dict)
+        assert "position" in result
+        assert not (gpd_dir / "state.json").exists()
+
     def test_advance_plan_increments(self, gpd_project: Path):
         from gpd.mcp.servers.state_server import advance_plan
 
@@ -659,8 +676,9 @@ class TestSkillsServerIntegration:
         assert "gpd command reference" in result["content"].lower()
         assert "/gpd:" not in result["content"]
         assert "gpd-help" in result["content"]
-        assert "gpd validate command-context gpd:<name>" in result["content"]
-        assert "gpd-new-project" in result["content"]
+        assert "## Command Requirements" in result["content"]
+        assert "Quick Start Extract" in result["content"]
+        assert "## Contextual Help" not in result["content"]
         assert result["file_count"] == 1
         assert result["allowed_tools_surface"] == "command.allowed-tools"
 

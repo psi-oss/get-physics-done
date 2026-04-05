@@ -606,8 +606,10 @@ def test_active_calculations_suggest_continue(tmp_path: Path) -> None:
     _create_roadmap(root)
     _create_state(root, {"active_calculations": ["RG flow computation"]})
     result = suggest_next(root)
-    actions = [s.action for s in result.suggestions]
-    assert "continue-calculations" in actions
+    continue_calculations = next((s for s in result.suggestions if s.action == "continue-calculations"), None)
+
+    assert continue_calculations is not None
+    assert continue_calculations.command == "gpd progress"
     assert result.context.active_calculations == 1
 
 

@@ -974,6 +974,25 @@ def _has_concrete_must_surface_reference(
     return False
 
 
+def _must_read_ref_counts_as_guidance(
+    contract: ResearchContract,
+    reference_id: str,
+    *,
+    project_root: Path | None = None,
+) -> bool:
+    """Return whether one must-read reference is concrete enough to guide planning."""
+
+    for reference in contract.references:
+        if reference.id != reference_id:
+            continue
+        return _is_concrete_reference_locator(
+            reference.locator,
+            reference_kind=reference.kind,
+            project_root=project_root,
+        )
+    return False
+
+
 def _has_approved_grounding_signal(
     contract: ResearchContract,
     *,
@@ -1061,9 +1080,11 @@ def _guidance_signal_flags(
 ) -> dict[str, bool]:
     """Return per-field guidance presence using semantic, not merely non-empty, signals."""
 
-    reference_ids = {reference.id for reference in contract.references}
     return {
-        "must_read_refs": any(reference_id in reference_ids for reference_id in contract.context_intake.must_read_refs),
+        "must_read_refs": any(
+            _must_read_ref_counts_as_guidance(contract, reference_id, project_root=project_root)
+            for reference_id in contract.context_intake.must_read_refs
+        ),
         "must_include_prior_outputs": any(
             _prior_output_counts_as_guidance(value, project_root=project_root)
             for value in contract.context_intake.must_include_prior_outputs

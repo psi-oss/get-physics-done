@@ -272,17 +272,24 @@ def _resume_context(cwd: Path, *, data_root: Path | None = None) -> dict[str, ob
 
 def _recent_project_resume_family(
     current_project: dict[str, object],
-) -> tuple[str, str]:
+) -> tuple[str | None, str | None]:
     resume_target_kind = _normalized_row_text(current_project, "resume_target_kind")
+    if resume_target_kind is None:
+        return (
+            RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF,
+            RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF,
+        )
     if resume_target_kind == "bounded_segment":
         return (
             RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT,
             RESUME_CANDIDATE_ORIGIN_CONTINUATION_BOUNDED_SEGMENT,
         )
-    return (
-        RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF,
-        RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF,
-    )
+    if resume_target_kind == "handoff":
+        return (
+            RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF,
+            RESUME_CANDIDATE_ORIGIN_CONTINUATION_HANDOFF,
+        )
+    return None, None
 
 
 def _resume_context_has_local_target(payload: dict[str, object]) -> bool:
@@ -309,8 +316,10 @@ def _hydrate_resume_context_from_recent_project(
         return payload
     resume_file = resume_file.strip()
     resume_file_available = _strict_bool_value(current_project.get("resume_file_available")) is True
-    candidate_status = "handoff" if resume_file_available else "missing"
     hydration_kind, hydration_origin = _recent_project_resume_family(current_project)
+    if hydration_kind is None or hydration_origin is None:
+        return payload
+    candidate_status = "handoff" if resume_file_available else "missing"
 
     hydrated = dict(payload)
     hydrated.setdefault("project_root", current_project.get("project_root"))
@@ -329,7 +338,7 @@ def _hydrate_resume_context_from_recent_project(
         hydrated["has_continuity_handoff"] = True
         if not str(hydrated.get("recorded_continuity_handoff_file") or "").strip():
             hydrated["recorded_continuity_handoff_file"] = resume_file
-    elif not resume_file_available:
+    elif hydration_kind == RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF and not resume_file_available:
         if not str(hydrated.get("missing_continuity_handoff_file") or "").strip():
             hydrated["missing_continuity_handoff_file"] = resume_file
 

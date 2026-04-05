@@ -672,6 +672,57 @@ def test_hydrate_resume_context_from_recent_project_rejects_string_booleans() ->
     assert hydrated["resume_candidates"][0]["advisory"] is True
 
 
+def test_hydrate_resume_context_from_recent_project_fails_closed_on_unknown_resume_target_kind() -> None:
+    payload = {
+        "resume_candidates": [],
+    }
+    reentry = SimpleNamespace(auto_selected=True, mode="auto-recent-project")
+    current_project = {
+        "project_root": "/tmp/recent-project",
+        "resume_file": "GPD/phases/05/.continue-here.md",
+        "resume_file_available": True,
+        "resume_target_kind": "mystery-kind",
+    }
+
+    hydrated = _hydrate_resume_context_from_recent_project(
+        payload,
+        reentry=reentry,
+        current_project=current_project,
+    )
+
+    assert hydrated == payload
+
+
+def test_hydrate_resume_context_from_recent_project_keeps_bounded_segment_semantics_when_resume_file_is_missing() -> None:
+    payload = {
+        "resume_candidates": [],
+    }
+    reentry = SimpleNamespace(auto_selected=True, mode="auto-recent-project")
+    current_project = {
+        "project_root": "/tmp/recent-project",
+        "resume_file": "GPD/phases/02/.continue-here.md",
+        "resume_file_available": False,
+        "resume_target_kind": "bounded_segment",
+    }
+
+    hydrated = _hydrate_resume_context_from_recent_project(
+        payload,
+        reentry=reentry,
+        current_project=current_project,
+    )
+
+    assert hydrated["active_resume_kind"] == "bounded_segment"
+    assert hydrated["active_resume_origin"] == "continuation.bounded_segment"
+    assert "active_resume_pointer" not in hydrated
+    assert "continuity_handoff_file" not in hydrated
+    assert "recorded_continuity_handoff_file" not in hydrated
+    assert "missing_continuity_handoff_file" not in hydrated
+    assert hydrated["resume_candidates"][0]["kind"] == "bounded_segment"
+    assert hydrated["resume_candidates"][0]["origin"] == "continuation.bounded_segment"
+    assert hydrated["resume_candidates"][0]["status"] == "missing"
+    assert hydrated["resume_candidates"][0]["advisory"] is True
+
+
 def test_build_runtime_hint_payload_prefers_selected_project_resume_state_for_auto_selected_recent_project(
     tmp_path: Path,
 ) -> None:

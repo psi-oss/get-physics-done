@@ -21,7 +21,7 @@ from gpd.core.health import run_health
 from gpd.core.observability import gpd_span
 from gpd.core.phases import progress_render
 from gpd.core.state import (
-    load_state_json,
+    peek_state_json,
     state_advance_plan,
     state_validate,
 )
@@ -56,7 +56,11 @@ def get_state(project_dir: AbsoluteProjectDirInput) -> dict:
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.get", phase=""):
         try:
-            state_obj = load_state_json(cwd)
+            state_obj, _issues, _source = peek_state_json(
+                cwd,
+                recover_intent=False,
+                surface_blocked_project_contract=True,
+            )
             if state_obj is None:
                 return stable_mcp_error("No project state found. Run 'gpd init' to create STATE.md.")
             return stable_mcp_response(state_obj)

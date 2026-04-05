@@ -227,6 +227,7 @@ _LOCAL_CLI_PUBLIC_COMMANDS: dict[str, str] = {
     # routes most workflow assembly through `gpd init ...`.
     "resume": recovery_local_snapshot_command(),
     "resume-work": recovery_local_snapshot_command(),
+    "progress": "gpd progress",
 }
 
 

@@ -50,7 +50,6 @@ _CONTRACT_REFERENCE_NAMES = {
 _SPEC_ROOT = content_registry.SPECS_DIR.resolve()
 _AGENT_ROOT = content_registry.AGENTS_DIR.resolve()
 _COMMAND_ROOT = content_registry.COMMANDS_DIR.resolve()
-_WORKFLOW_ROOT = (_SPEC_ROOT / "workflows").resolve()
 _REPO_ROOT = _SPEC_ROOT.parents[2]
 _SPEC_RELATIVE_REFERENCE_PREFIXES = (
     "references/",
@@ -139,15 +138,43 @@ def _portable_skill_content(content: str) -> str:
     return _canonicalize_command_surface(content)
 
 
+def _agent_policy_payload(agent: content_registry.AgentDef) -> dict[str, object]:
+    return {
+        "commit_authority": agent.commit_authority,
+        "surface": agent.surface,
+        "role_family": agent.role_family,
+        "artifact_write_authority": agent.artifact_write_authority,
+        "shared_state_authority": agent.shared_state_authority,
+        "tools": list(agent.tools),
+    }
+
+
+def _agent_policy_section(agent: content_registry.AgentDef) -> str:
+    rendered = "\n".join(
+        [
+            f"- `commit_authority`: `{agent.commit_authority}`",
+            f"- `surface`: `{agent.surface}`",
+            f"- `role_family`: `{agent.role_family}`",
+            f"- `artifact_write_authority`: `{agent.artifact_write_authority}`",
+            f"- `shared_state_authority`: `{agent.shared_state_authority}`",
+            "- `tools`: " + ", ".join(f"`{tool}`" for tool in agent.tools),
+        ]
+    )
+    return (
+        "## Agent Policy\n\n"
+        "The following agent contract is enforced before this skill runs. Treat it as authoritative and do not weaken it.\n\n"
+        f"{rendered}"
+    )
+
+
 def _canonical_skill_content(skill: content_registry.SkillDef) -> tuple[str, Path]:
     """Return the canonical content body and source path for a skill."""
     source_path = Path(skill.path)
     content = skill.content
 
-    if skill.source_kind == "command" and skill.registry_name == "help":
-        workflow_path = (_WORKFLOW_ROOT / "help.md").resolve()
-        content = workflow_path.read_text(encoding="utf-8")
-        source_path = workflow_path
+    if skill.source_kind == "agent":
+        agent = content_registry.get_agent(skill.registry_name)
+        content = f"{_agent_policy_section(agent)}\n\n{content}"
 
     return _portable_skill_content(content), source_path
 
@@ -419,11 +446,6 @@ def list_skills(
         try:
             skills = [_public_skill(skill) for skill in _load_skill_index()]
             all_categories = sorted({s["category"] for s in skills})
-            if category is not None and category not in all_categories:
-                return stable_mcp_response(
-                    {"categories": all_categories},
-                    error=f"Unknown category {category!r}",
-                )
             if category:
                 skills = [s for s in skills if s["category"] == category]
 
@@ -531,8 +553,18 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
                 payload["allowed_tools"] = allowed_tools
             elif skill.source_kind == "agent":
                 agent = content_registry.get_agent(skill.registry_name)
+                agent_policy = _agent_policy_payload(agent)
                 payload["allowed_tools"] = _normalize_allowed_tools(agent.tools)
                 payload["allowed_tools_surface"] = "agent.tools"
+                payload["agent_policy"] = agent_policy
+                payload["content_authority"] = "canonical"
+                payload["loading_hint"] = (
+                    loading_hint
+                    + " The content field already includes a model-visible `Agent Policy` section for "
+                    + "`commit_authority`, `surface`, `role_family`, `artifact_write_authority`, "
+                    + "`shared_state_authority`, and `tools`; treat `content` as authoritative rather than "
+                    + "injecting mirrored agent metadata separately."
+                )
             return stable_mcp_response(payload)
         except (GPDError, OSError, ValueError, TimeoutError) as e:
             return stable_mcp_error(e)

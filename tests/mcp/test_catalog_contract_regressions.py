@@ -64,7 +64,8 @@ def test_skill_catalog_tools_reject_blank_and_unknown_filters_up_front() -> None
 
     result = list_skills(category="nonexistent")
 
-    assert result["error"] == "Unknown category 'nonexistent'"
+    assert result["count"] == 0
+    assert result["skills"] == []
     assert "categories" in result
 
 
