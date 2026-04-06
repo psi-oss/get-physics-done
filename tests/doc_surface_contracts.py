@@ -332,19 +332,12 @@ def assert_help_command_quick_start_extract_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "Start at `# GPD Command Reference`.",
-            "Start at `# GPD Command Reference`",
+            "Start at the workflow-owned `## Quick Start` section.",
+            "workflow-owned `## Quick Start` section",
         ),
         label="help command quick-start reference anchor",
     )
-    _assert_contains_any(
-        content,
-        (
-            "Include the workflow-owned `## Invocation Surfaces` section.",
-            "`## Invocation Surfaces` section",
-        ),
-        label="help command invocation-surfaces extract boundary",
-    )
+    assert "## Invocation Surfaces" not in content
     _assert_contains_any(
         content,
         (
@@ -1137,57 +1130,17 @@ def assert_install_summary_runtime_follow_up_contract(
     runtime_help_fragments: Iterable[str] = (),
 ) -> None:
     assert "gpd --help" in content
+    assert "Secondary follow-up" not in content
     _assert_contains_any(
         content,
         (
-            "local install, readiness, validation, permissions, observability, and diagnostics",
-            "local install/readiness/permissions/diagnostics surface directly",
-            "local CLI for install, readiness checks, permissions, observability, validation, and diagnostics",
+            "local diagnostics and later setup",
         ),
-        label="local CLI install/readiness follow-up surface",
+        label="install-summary local CLI bridge",
     )
     help_fragments = tuple(fragment for fragment in runtime_help_fragments if fragment)
     if help_fragments:
         _assert_contains_any(content, help_fragments, label="runtime help follow-up surface")
-    assert "gpd doctor" in content
-    _assert_contains_any(
-        content,
-        (
-            "Verify or troubleshoot this machine",
-            "focused readiness check",
-            "gpd doctor --runtime",
-        ),
-        label="doctor follow-up surface",
-    )
-    assert post_start_settings_note() in content
-    assert post_start_settings_recommendation() in content
-    _assert_contains_any(
-        content,
-        (
-            "paper/manuscript workflows",
-            "Paper/manuscript workflows",
-        ),
-        label="paper/manuscript workflow follow-up",
-    )
-    assert "Workflow Presets" in content
-    assert "LaTeX Toolchain" in content
-    _assert_contains_any(
-        content,
-        (
-            "before publication work",
-            "check whether `Workflow Presets` is `ready` or `degraded`",
-        ),
-        label="publication workflow follow-up timing",
-    )
-    assert "gpd presets list" in content
-    _assert_contains_any(
-        content,
-        (
-            "workflow preset surface",
-            "workflow preset catalog",
-        ),
-        label="workflow preset follow-up",
-    )
 
 
 def assert_settings_local_terminal_follow_up_contract(content: str) -> None:

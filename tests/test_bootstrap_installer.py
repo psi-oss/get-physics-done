@@ -16,13 +16,8 @@ import gpd.adapters.runtime_catalog as runtime_catalog_module
 import gpd.core.public_surface_contract as public_surface_contract_module
 from gpd.adapters import get_adapter, iter_runtime_descriptors
 from gpd.core.public_surface_contract import beginner_onboarding_hub_url
-from gpd.core.surface_phrases import (
-    post_start_settings_note,
-    post_start_settings_recommendation,
-    recovery_ladder_note,
-)
+from gpd.core.surface_phrases import recovery_ladder_note
 from tests.doc_surface_contracts import (
-    assert_beginner_caveat_follow_up_contract,
     assert_install_summary_runtime_follow_up_contract,
     assert_recovery_ladder_contract,
 )
@@ -72,8 +67,6 @@ _GENERIC_RECOVERY_LADDER_NOTE = recovery_ladder_note(
     suggest_next_phrase="your runtime-specific `suggest-next` command",
     pause_work_phrase="your runtime-specific `pause-work` command",
 )
-_POST_START_SETTINGS_NOTE = post_start_settings_note()
-_POST_START_SETTINGS_RECOMMENDATION = post_start_settings_recommendation()
 _RUNTIME_RECOVERY_LADDER_TEMPLATE = recovery_ladder_note(
     resume_work_phrase="{resume_work}",
     suggest_next_phrase="{suggest_next}",
@@ -125,12 +118,7 @@ def _assert_single_runtime_next_steps(output: str, runtime: str) -> None:
                 pause_work_phrase=f"`{pause_work_command}`",
             )
         ),
-        re.escape("Secondary follow-up"),
-        re.escape("7. Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics."),
-        re.escape("8. Run gpd doctor --runtime"),
-        re.escape(f"9. {_POST_START_SETTINGS_NOTE} {_POST_START_SETTINGS_RECOMMENDATION}"),
-        re.escape("10. If you plan to use paper/manuscript workflows, rerun"),
-        re.escape("Use `gpd presets list` to inspect the workflow preset"),
+        re.escape("7. Use gpd --help for local diagnostics and later setup."),
     )
     cursor = 0
     for pattern in ordered_patterns:
@@ -180,7 +168,6 @@ def _assert_install_summary_semantic_contract(
         pause_work_fragments=pause_work_fragments,
     )
     assert_install_summary_runtime_follow_up_contract(output, runtime_help_fragments=runtime_help_fragments)
-    assert_beginner_caveat_follow_up_contract(output)
 
 
 def test_version_consistency():
@@ -568,20 +555,7 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
             f"6. When you return later, use {{RESUME_WORK_COMMANDS[runtime]}} after reopening the right workspace. "
             f"{{recovery_ladder_for_runtime(runtime)}}"
         )
-        print("")
-        print("Secondary follow-up")
-        print("7. Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics.")
-        print(f"8. Run gpd doctor --runtime {{runtime}} --{{scope}} for a focused readiness check.")
-        print(f"9. {_POST_START_SETTINGS_NOTE} {_POST_START_SETTINGS_RECOMMENDATION}")
-        print(
-            "10. If you plan to use paper/manuscript workflows, rerun "
-            f"gpd doctor --runtime {{runtime}} --{{scope}} "
-            "and check the `Workflow Presets` and `LaTeX Toolchain` rows before publication work."
-        )
-        print(
-            "Use `gpd presets list` to inspect the workflow preset surface: "
-            "Core research, Theory, Numerics, Publication / manuscript, Full research."
-        )
+        print("7. Use gpd --help for local diagnostics and later setup.")
     else:
         for runtime in runtimes:
             print(
@@ -597,19 +571,7 @@ if args[:3] == ["-m", "gpd.cli", "install"]:
             f"Fast bootstrap: use {{NEW_PROJECT_COMMANDS[runtimes[0]]}} --minimal for the shortest onboarding path."
         )
         print({_GENERIC_RECOVERY_LADDER_NOTE!r})
-        print("Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics.")
-        print("Run gpd doctor --runtime <runtime> --local|--global for a focused readiness check.")
-        print(
-            f"{_POST_START_SETTINGS_NOTE} {_POST_START_SETTINGS_RECOMMENDATION}"
-        )
-        print(
-            "For paper/manuscript workflows, rerun gpd doctor --runtime <runtime> --local|--global "
-            "and check the `Workflow Presets` and `LaTeX Toolchain` rows before publication work."
-        )
-        print(
-            "Use `gpd presets list` to inspect the workflow preset surface: "
-            "Core research, Theory, Numerics, Publication / manuscript, Full research."
-        )
+        print("Use gpd --help for local diagnostics and later setup.")
     record()
     raise SystemExit(0)
 

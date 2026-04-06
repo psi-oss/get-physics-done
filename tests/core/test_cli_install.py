@@ -26,12 +26,7 @@ from gpd.cli import _format_install_header_lines, _render_install_option_line, a
 from gpd.core.health import CheckStatus, DoctorReport, HealthCheck, HealthSummary
 from gpd.core.onboarding_surfaces import beginner_startup_ladder_text
 from gpd.core.public_surface_contract import beginner_onboarding_hub_url
-from gpd.core.surface_phrases import (
-    local_cli_bridge_note,
-    post_start_settings_note,
-    post_start_settings_recommendation,
-    recovery_ladder_note,
-)
+from gpd.core.surface_phrases import recovery_ladder_note
 from tests.doc_surface_contracts import (
     assert_install_summary_runtime_follow_up_contract,
     assert_recovery_ladder_contract,
@@ -182,8 +177,6 @@ def _first_installed_file(target: Path) -> Path:
 def _assert_single_runtime_next_steps(
     output: str,
     descriptor=_PRIMARY_INSTALL_DESCRIPTOR,
-    *,
-    doctor_scope: str = "local",
 ) -> None:
     adapter = _install_adapter(descriptor)
     resume_work_command = adapter.format_command("resume-work")
@@ -220,15 +213,7 @@ def _assert_single_runtime_next_steps(
                 pause_work_phrase=f"`{pause_work_command}`",
             )
         ),
-        re.escape("Secondary follow-up"),
-        re.escape(
-            "7. Use gpd --help for local install, readiness, validation, permissions, observability, and diagnostics. "
-            f"Local CLI bridge: {local_cli_bridge_note()}"
-        ),
-        re.escape(f"8. Run gpd doctor --runtime {descriptor.runtime_name} --{doctor_scope} for a focused readiness check."),
-        re.escape(f"9. {post_start_settings_note()} {post_start_settings_recommendation()}"),
-        re.escape("10. If you plan to use paper/manuscript workflows, rerun"),
-        re.escape("gpd presets list"),
+        re.escape("7. Use gpd --help for local diagnostics and later setup."),
     )
     cursor = 0
     for pattern in ordered_patterns:
