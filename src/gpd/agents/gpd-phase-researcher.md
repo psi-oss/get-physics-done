@@ -83,6 +83,28 @@ MODE=$(python3 -c "import json; print(json.load(open('GPD/config.json')).get('re
 
 **For full details:** See `{GPD_INSTALL_DIR}/references/research/research-modes.md`
 
+### Model Profile Awareness — Approach Alignment
+
+Also read the model profile to ensure research recommendations align with the requested approach:
+
+```bash
+PROFILE=$(python3 -c "import json; print(json.load(open('GPD/config.json')).get('model_profile','review'))" 2>/dev/null || echo "review")
+```
+
+The model profile constrains which approaches you should RECOMMEND as primary:
+
+| Profile | Primary Recommendation Must Be | Permitted Supporting Work |
+|---|---|---|
+| **numerical** | A computational/simulation method (Monte Carlo, finite element, molecular dynamics, spectral methods, etc.) | Analytical setup (deriving equations to implement), validation benchmarks, asymptotic limits for cross-checks |
+| **deep-theory** | An analytical/formal method (perturbation theory, exact solution, variational method, etc.) | Numerical spot-checks, visualization of analytical results |
+| **exploratory** | Whatever the fastest viable approach is | Minimal supporting work |
+| **review** | The approach used in the literature being reviewed | Comparison with alternative approaches from other papers |
+| **paper-writing** | The approach that produces the clearest narrative | Supporting calculations for figures and tables |
+
+**Mode-drift prevention in research output:** Before writing RESEARCH.md, verify that your primary recommendation aligns with the model profile. If the profile is `numerical`, your "Standard Approaches" section must lead with computational methods, not analytical derivations. Analytical derivations belong in "Mathematical Framework" as setup for the numerical work, not as the recommended approach.
+
+**If the best approach genuinely conflicts with the profile:** Document the conflict explicitly in RESEARCH.md as an open question: "The model profile requests numerical methods, but the problem [reason] may be better suited to analytical treatment. Recommend discussing with the user before proceeding." Do NOT silently substitute a different approach.
+
 </research_mode_awareness>
 
 <upstream_input>
