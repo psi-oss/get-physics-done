@@ -1,0 +1,199 @@
+{
+  "name": "GPD Physics Benchmark — Statistical Mechanics",
+  "version": "0.1.0",
+  "description": "Benchmark tasks from statistical mechanics: partition functions, phase transitions, critical phenomena, and exactly solved models.",
+  "tasks": [
+    {
+      "task_id": "sm-001",
+      "title": "Partition function of the 1D Ising model",
+      "description": "Compute the exact partition function of the one-dimensional Ising model using the transfer matrix method.",
+      "subfield": "stat-mech",
+      "task_type": "derivation",
+      "difficulty": "intermediate",
+      "topics": ["Ising model", "transfer matrix", "partition function", "exact solution"],
+      "problem_statement": "For the 1D Ising model with N spins, nearest-neighbor coupling J, and external field h, compute the partition function Z using the transfer matrix method. Take periodic boundary conditions. Show that there is no phase transition at finite temperature.",
+      "given": [
+        "Hamiltonian: H = -J sum_{i=1}^{N} s_i s_{i+1} - h sum_{i=1}^{N} s_i",
+        "s_i = +/- 1",
+        "Periodic boundary conditions: s_{N+1} = s_1",
+        "Transfer matrix: T = [[exp(beta*J + beta*h), exp(-beta*J)], [exp(-beta*J), exp(beta*J - beta*h)]]"
+      ],
+      "assumptions": [
+        "Periodic boundary conditions",
+        "Classical Ising spins"
+      ],
+      "conventions": [
+        "beta = 1/(k_B T)",
+        "k_B = 1 unless otherwise stated"
+      ],
+      "expected_answer": "Z = lambda_+^N + lambda_-^N where lambda_{+/-} = exp(beta*J) * [cosh(beta*h) +/- sqrt(sinh^2(beta*h) + exp(-4*beta*J))]",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "At h=0: Z = (2 cosh(beta*J))^N + (2 sinh(beta*J))^N",
+        "No phase transition at finite T: free energy is analytic for all T > 0",
+        "In the thermodynamic limit N -> inf: Z -> lambda_+^N",
+        "At T=0, h=0: all spins align, ground state energy = -NJ"
+      ],
+      "reference": {
+        "title": "Statistical Mechanics",
+        "authors": ["R. K. Pathria", "P. D. Beale"],
+        "year": 2011,
+        "section": "Chapter 13.2"
+      }
+    },
+    {
+      "task_id": "sm-002",
+      "title": "Mean-field critical exponents for the Ising model",
+      "description": "Derive the critical exponents of the Ising model in mean-field (Landau) theory.",
+      "subfield": "stat-mech",
+      "task_type": "derivation",
+      "difficulty": "intermediate",
+      "topics": ["mean-field theory", "critical exponents", "Landau theory", "phase transitions"],
+      "problem_statement": "Using Landau's free energy expansion F = a_0 + a_2(T) m^2 + a_4 m^4 - h*m with a_2(T) = a(T - T_c), derive the mean-field critical exponents alpha, beta, gamma, and delta for the Ising model.",
+      "given": [
+        "Landau free energy: F(m, T, h) = a_0 + a(T - T_c) m^2 + b m^4 - h m",
+        "a > 0, b > 0",
+        "Equilibrium condition: dF/dm = 0"
+      ],
+      "assumptions": [
+        "Mean-field approximation (neglect fluctuations)",
+        "Analytic free energy expansion (valid near T_c)",
+        "Z_2 symmetry (h = 0 for spontaneous magnetization)"
+      ],
+      "conventions": [
+        "t = (T - T_c)/T_c (reduced temperature)",
+        "Standard critical exponent definitions: C ~ |t|^{-alpha}, m ~ |t|^beta, chi ~ |t|^{-gamma}, m ~ h^{1/delta} at T = T_c"
+      ],
+      "expected_answer": "alpha = 0 (jump discontinuity), beta = 1/2, gamma = 1, delta = 3",
+      "output_format": "symbolic",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "Check the Rushbrooke inequality: alpha + 2*beta + gamma >= 2 (here: 0 + 1 + 1 = 2, saturated)",
+        "Check the Widom relation: gamma = beta*(delta - 1) (here: 1 = (1/2)*2, satisfied)",
+        "These are the exact exponents for d >= 4 (upper critical dimension)",
+        "For the 3D Ising model, the actual exponents differ: beta approx 0.326, gamma approx 1.237"
+      ],
+      "reference": {
+        "title": "Statistical Physics of Particles",
+        "authors": ["M. Kardar"],
+        "year": 2007,
+        "section": "Chapter 6"
+      }
+    },
+    {
+      "task_id": "sm-003",
+      "title": "Specific heat of a 2D Debye solid",
+      "description": "Derive the temperature dependence of the specific heat of a 2D solid in the Debye model at low and high temperatures.",
+      "subfield": "stat-mech",
+      "task_type": "limiting_case",
+      "difficulty": "intermediate",
+      "topics": ["Debye model", "specific heat", "phonons", "limiting behavior"],
+      "problem_statement": "For a two-dimensional Debye solid with N atoms and Debye temperature Theta_D, determine the specific heat C(T) in the limits T >> Theta_D and T << Theta_D.",
+      "given": [
+        "Debye density of states in 2D: g(omega) = 2N omega / omega_D^2 for omega < omega_D",
+        "Debye frequency: omega_D defined by integral of g(omega) = 2N (two polarizations)",
+        "k_B Theta_D = hbar omega_D"
+      ],
+      "assumptions": [
+        "Debye approximation: linear dispersion up to cutoff omega_D",
+        "Bosonic (phonon) statistics",
+        "Harmonic approximation"
+      ],
+      "conventions": [
+        "k_B = 1 in intermediate steps"
+      ],
+      "expected_answer": "High T (T >> Theta_D): C = 2Nk_B (2D equipartition). Low T (T << Theta_D): C ~ T^2 (Debye T^d law in d=2).",
+      "output_format": "symbolic",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "In d dimensions, the Debye low-T specific heat goes as C ~ T^d",
+        "In 3D the famous result is C ~ T^3, so in 2D it is C ~ T^2",
+        "High-T limit must recover classical equipartition: C = d*N*k_B per degree of freedom",
+        "Check: the crossover temperature scale is T ~ Theta_D"
+      ],
+      "reference": {
+        "title": "Statistical Physics of Particles",
+        "authors": ["M. Kardar"],
+        "year": 2007,
+        "section": "Chapter 8"
+      }
+    },
+    {
+      "task_id": "sm-004",
+      "title": "Entropy of mixing for ideal gases",
+      "description": "Calculate the entropy of mixing when two ideal gases at the same T and P are combined, and resolve the Gibbs paradox.",
+      "subfield": "stat-mech",
+      "task_type": "calculation",
+      "difficulty": "introductory",
+      "topics": ["entropy of mixing", "Gibbs paradox", "ideal gas", "indistinguishability"],
+      "problem_statement": "Two containers hold ideal gases A and B, each with N molecules at temperature T and pressure P. A partition is removed and the gases mix. Calculate the entropy change. Then consider the case where both gases are identical (A = B) and explain the resolution of the Gibbs paradox.",
+      "given": [
+        "Gas A: N molecules in volume V",
+        "Gas B: N molecules in volume V",
+        "Both at the same T and P",
+        "After mixing: 2N molecules in volume 2V"
+      ],
+      "assumptions": [
+        "Ideal gas behavior",
+        "Same temperature and pressure before mixing"
+      ],
+      "conventions": [
+        "S = k_B ln Omega for microcanonical entropy",
+        "k_B = 1 in intermediate steps"
+      ],
+      "expected_answer": "For distinguishable gases: Delta S = 2 N k_B ln 2. For identical gases: Delta S = 0.",
+      "output_format": "symbolic",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "The entropy of mixing for distinguishable gases must be positive (second law)",
+        "For identical gases, removing the partition is not a thermodynamic process",
+        "The Gibbs paradox is resolved by proper counting (dividing by N!) in quantum statistics",
+        "For a mixture of n_A and n_B with total N = n_A + n_B: Delta S = -k_B [x_A ln x_A + x_B ln x_B] * N"
+      ],
+      "reference": {
+        "title": "Thermal Physics",
+        "authors": ["C. Kittel", "H. Kroemer"],
+        "year": 1980,
+        "section": "Chapter 6"
+      }
+    },
+    {
+      "task_id": "sm-005",
+      "title": "Stefan-Boltzmann law from Planck distribution",
+      "description": "Derive the Stefan-Boltzmann law for total radiated power from the Planck blackbody spectrum.",
+      "subfield": "stat-mech",
+      "task_type": "derivation",
+      "difficulty": "introductory",
+      "topics": ["blackbody radiation", "Planck spectrum", "Stefan-Boltzmann law", "thermal radiation"],
+      "problem_statement": "Starting from the Planck spectral energy density u(nu, T), integrate over all frequencies to obtain the total energy density u(T) of blackbody radiation, thereby deriving the Stefan-Boltzmann law and expressing the Stefan-Boltzmann constant sigma in terms of fundamental constants.",
+      "given": [
+        "Planck spectral energy density: u(nu, T) = (8 pi h nu^3)/(c^3) * 1/(exp(h nu/(k_B T)) - 1)",
+        "Integral: integral_0^inf x^3/(e^x - 1) dx = pi^4/15"
+      ],
+      "assumptions": [
+        "Thermal equilibrium at temperature T",
+        "Three-dimensional cavity"
+      ],
+      "conventions": [
+        "Power per unit area: P/A = sigma T^4 where sigma is the Stefan-Boltzmann constant",
+        "u(T) = (4 sigma / c) T^4"
+      ],
+      "expected_answer": "u(T) = (8 pi^5 k_B^4)/(15 c^3 h^3) * T^4. Stefan-Boltzmann constant: sigma = (2 pi^5 k_B^4)/(15 c^2 h^3).",
+      "output_format": "latex",
+      "answer_tolerance": "",
+      "verification_hints": [
+        "sigma approx 5.67 * 10^{-8} W m^{-2} K^{-4}",
+        "Check dimensions: [u] = energy/volume = J/m^3",
+        "The T^4 dependence follows from the substitution x = h nu/(k_B T)",
+        "Wien's displacement law (peak frequency ~ T) is a separate consequence of the Planck spectrum"
+      ],
+      "reference": {
+        "title": "Statistical Mechanics",
+        "authors": ["R. K. Pathria", "P. D. Beale"],
+        "year": 2011,
+        "section": "Chapter 7.3"
+      }
+    }
+  ]
+}
