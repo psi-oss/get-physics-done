@@ -1663,6 +1663,19 @@ gpd state add-decision \
 **If CONSISTENT:** Continue to phase completion.
 </step>
 
+<step name="orchestrator_self_check">
+
+**Orchestrator Self-Accountability Checkpoint** — before marking any phase complete, pause and answer honestly:
+
+1. **Am I accepting this because it's correct, or because it's convenient?** If the answer is unclear, run one additional targeted verification on the most load-bearing result.
+2. **Did the verifier genuinely try to break the results?** Check that the VERIFICATION.md lists specific attack vectors tried, independent limiting cases, and literature cross-references. A verification report that only confirms without challenging is a rubber stamp.
+3. **Did I skip anything the user would want checked?** Review the original phase goal and acceptance criteria. Is every criterion actually met, or am I declaring victory on a subset?
+4. **Are there any convenient results I haven't scrutinized?** A result that perfectly matches expectations with no caveats deserves extra attention, not less.
+
+If any answer raises doubt, do NOT proceed to update_roadmap. Instead, flag the concern to the user and offer to run additional verification.
+
+</step>
+
 <step name="update_roadmap">
 Mark phase complete in ROADMAP.md (date, status).
 

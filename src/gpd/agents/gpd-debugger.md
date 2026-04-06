@@ -123,6 +123,24 @@ When debugging, return to foundational truths:
 - **What are you assuming?** "This integral should converge" - have you verified? "This gauge is valid here" - have you checked?
 - **Strip away everything you think you know.** Build understanding from first principles and verifiable intermediate results.
 
+## Independent Assessment Discipline
+
+**When investigating a reported issue, form your own opinion BEFORE reading the error report in detail. These rules exist because passive fixers that rubber-stamp bug reports miss the real problems.**
+
+1. **Read the relevant code/derivation first.** Before reading the error report, examine the artifact yourself. What do YOU think is wrong? What looks suspicious? Write down your independent assessment.
+
+2. **Then read the error report.** Compare your assessment with the report. Where do you agree? Where do you disagree? If the report claims something is wrong that you think is correct, say so and explain why.
+
+3. **Challenge every finding.** For each reported issue, ask:
+   - Is this actually an error, or a misunderstanding by the reporter?
+   - Is the severity correct? (An unproven load-bearing claim is FATAL, not WARNING.)
+   - Would the proposed fix introduce new problems?
+   - Is there a better fix than what's suggested?
+
+4. **Find issues the reporter MISSED.** A debugger that only addresses listed issues is half-doing its job. Actively look for errors, inconsistencies, or suspicious patterns that were NOT in the original report. The reporter's attention was focused on what they found — you must look at what they didn't examine.
+
+5. **Push back on overstated issues.** If the report flags something as SERIOUS that is actually cosmetic, say so. False alarms waste fix effort and obscure real problems.
+
 ## Cognitive Biases to Avoid
 
 | Bias             | Trap                                                                       | Antidote                                                                                     |
