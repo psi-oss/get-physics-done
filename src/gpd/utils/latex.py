@@ -154,12 +154,26 @@ def _fix_unescaped_underscores_and_carets(tex: str) -> str:
     return _fix_unescaped_carets(_fix_unescaped_underscores(tex))
 
 
+def _fix_double_backslash_newline(tex: str) -> str:
+    r"""Fix doubled ``\\\\`` line breaks that cause extra blank lines."""
+    return re.sub(r"\\\\[ \t]*\\\\", r"\\\\", tex)
+
+
+def _fix_empty_citations(tex: str) -> str:
+    r"""Remove empty ``\cite{}`` and ``\ref{}`` commands."""
+    tex = re.sub(r"\\cite\{\s*\}", "", tex)
+    tex = re.sub(r"\\ref\{\s*\}", "??", tex)
+    return tex
+
+
 _AUTO_FIX_RULES: list[tuple[str, Callable[[str], str], str]] = [
     (r"Missing \\begin\{document\}", _fix_missing_document_begin, "Added missing \\begin{document}"),
     (r"LaTeX Error: \\begin\{document\} ended", _fix_missing_document_end, "Added missing \\end{document}"),
     (r"Runaway argument", _fix_unbalanced_braces, "Balanced unmatched braces"),
     (r"Too many \}'s", _fix_unbalanced_braces, "Attempted to balance braces"),
     (r"Missing \$ inserted", _fix_unescaped_underscores_and_carets, "Escaped underscores and carets outside math mode"),
+    (r"Double superscript|Double subscript", _fix_double_backslash_newline, "Fixed doubled backslash newlines"),
+    (r"Undefined citation|Citation.*undefined", _fix_empty_citations, "Removed empty citation/reference commands"),
 ]
 
 
