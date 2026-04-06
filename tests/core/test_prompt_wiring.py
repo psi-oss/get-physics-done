@@ -57,7 +57,7 @@ COMMAND_SPAWN_TOKENS = {
     "literature-review.md": ["gpd-literature-reviewer"],
     "debug.md": ["gpd-debugger"],
     "map-research.md": ["gpd-research-mapper"],
-    "plan-phase.md": ["gpd-planner", "gpd-plan-checker"],
+    "plan-phase.md": ["gpd-planner"],
     "quick.md": ["gpd-planner", "gpd-executor"],
     "research-phase.md": ["gpd-phase-researcher"],
     "write-paper.md": [
@@ -1155,13 +1155,16 @@ def test_progress_workflow_surfaces_contract_load_and_validation_state() -> None
     assert "structured load status, warnings, and blockers for the contract" in workflow_text
     status_scan = 'grep -l -E "^(status: (gaps_found|human_needed|expert_needed)|session_status: diagnosed)$"'
     assert status_scan in workflow_text
-    assert status_scan in command_text
+    assert status_scan not in command_text
+    assert "Read `{GPD_INSTALL_DIR}/workflows/progress.md` with the file-read tool and follow it exactly." in command_text
+    assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config)" not in command_text
+    assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" not in command_text
     assert 'status: (gaps_found|diagnosed|human_needed|expert_needed)' not in workflow_text
     assert 'status: (gaps_found|diagnosed|human_needed|expert_needed)' not in command_text
     assert "`session_status: diagnosed`" in workflow_text
-    assert "`session_status: diagnosed`" in command_text
+    assert "`session_status: diagnosed`" not in command_text
     assert "GPD/phases/[current-phase-dir]/*-VERIFICATION.md" in workflow_text
-    assert "GPD/phases/[current-phase-dir]/*-VERIFICATION.md" in command_text
+    assert "GPD/phases/[current-phase-dir]/*-VERIFICATION.md" not in command_text
 
 
 def test_planning_prompts_keep_contract_gate_in_light_mode_and_all_modes() -> None:
@@ -1382,7 +1385,8 @@ def test_workflows_use_raw_json_when_shell_snippets_pipe_cli_output_into_gpd_jso
     assert 'PHASE_INFO=$(gpd --raw roadmap get-phase "${phase_number}")' in research_command
     assert 'gpd --raw state snapshot | gpd json get .decisions --default "[]"' in research_command
     assert 'ROADMAP=$(gpd --raw roadmap analyze)' in progress_workflow
-    assert 'ROADMAP=$(gpd --raw roadmap analyze)' in progress_command
+    assert 'ROADMAP=$(gpd --raw roadmap analyze)' not in progress_command
+    assert "Read `{GPD_INSTALL_DIR}/workflows/progress.md` with the file-read tool and follow it exactly." in progress_command
     assert 'gpd --raw summary-extract <path> --field one_liner | gpd json get .one_liner --default ""' in progress_workflow
     assert 'PHASES=$(gpd --raw phase list)' in gaps_workflow
     assert 'PHASE_GOAL=$(gpd --raw roadmap get-phase "${phase_number}" | gpd json get .goal --default "")' in execute_workflow

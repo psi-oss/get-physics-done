@@ -363,13 +363,12 @@ def test_progress_prompt_runs_preflight_after_init_context() -> None:
     command = (REPO_ROOT / "src/gpd/commands/progress.md").read_text(encoding="utf-8")
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/progress.md").read_text(encoding="utf-8")
 
-    assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config)" in command
-    assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" in command
-    assert command.index("INIT=$(gpd --raw init progress --include state,roadmap,project,config)") < command.index(
-        "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")"
-    )
-    assert "The recent-project picker is advisory" in command
-    assert "reloads canonical state for that project" in command
+    assert "@{GPD_INSTALL_DIR}/workflows/progress.md" in command
+    assert "Read `{GPD_INSTALL_DIR}/workflows/progress.md` with the file-read tool and follow it exactly." in command
+    assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config)" not in command
+    assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" not in command
+    assert "The recent-project picker is advisory" not in command
+    assert "reloads canonical state for that project" not in command
 
     assert "INIT=$(gpd --raw init progress --include state,roadmap,project,config)" in workflow
     assert "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")" in workflow
@@ -383,6 +382,21 @@ def test_progress_prompt_requires_project_not_roadmap() -> None:
 
     assert 'files: ["GPD/PROJECT.md"]' in command
     assert 'files: ["GPD/ROADMAP.md"]' not in command
+
+
+def test_plan_phase_prompt_is_a_thin_dispatch_shell() -> None:
+    command = (REPO_ROOT / "src/gpd/commands/plan-phase.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/workflows/plan-phase.md" in command
+    assert "@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md" in command
+    assert "@{GPD_INSTALL_DIR}/references/ui/ui-brand.md" in command
+    assert "Read `{GPD_INSTALL_DIR}/workflows/plan-phase.md` with the file-read tool and follow it exactly." in command
+    assert "agent: gpd-planner" in command
+    assert "What Makes a Good Physics Plan" not in command
+    assert "Common Failure Modes" not in command
+    assert "Quick Checklist Before Approving a Plan" not in command
+    assert "Domain-Aware Planning" not in command
+    assert "gpd --raw init plan-phase" not in command
 
 
 def test_new_milestone_prompt_mentions_planning_commit_docs() -> None:
@@ -436,9 +450,9 @@ def test_new_project_and_state_schema_surface_contract_id_integrity_rules() -> N
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/new-project.md").read_text(encoding="utf-8")
     schema = (REPO_ROOT / "src/gpd/specs/templates/state-json-schema.md").read_text(encoding="utf-8")
 
-    for content in (workflow, schema):
-        assert "same-kind ids must be unique" in content.lower()
-        assert "must not match any declared contract ID" in content
+    assert "do not paraphrase the schema here; reuse its exact keys, enum values, list/object shapes, ID-linkage rules, and proof-bearing claim requirements" in workflow
+    assert "Same-kind IDs must be unique within each section." in schema
+    assert "must not match any declared contract ID" in schema
 
 
 def test_compare_branches_prompt_keeps_branch_summary_extraction_in_memory() -> None:
