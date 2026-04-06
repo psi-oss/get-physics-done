@@ -238,13 +238,15 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         "description": (
             "Optional/conditional arXiv paper search and retrieval via arxiv-mcp-server. "
             "Available only when the optional arxiv-mcp-server dependency is installed; "
-            "search for physics papers, fetch abstracts, and download full text."
+            "search for physics papers, fetch abstracts, and download full text. "
+            "Falls back to arXiv source/TeX retrieval when PDF fetch fails."
         ),
         "capabilities": [
             "search_papers",
             "download_paper",
             "list_papers",
             "read_paper",
+            "fetch_source",
         ],
         "registry_prefix": "gpd_arxiv",
         "health_check": {

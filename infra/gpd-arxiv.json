@@ -12,8 +12,10 @@
     "search_papers",
     "download_paper",
     "list_papers",
-    "read_paper"
+    "read_paper",
+    "fetch_source"
   ],
+  "source_url_template": "https://arxiv.org/e-print/{arxiv_id}",
   "registry_prefix": "gpd_arxiv",
   "prerequisites": [
     "Install GPD before enabling built-in MCP servers."
