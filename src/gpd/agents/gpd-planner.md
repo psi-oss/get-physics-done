@@ -155,6 +155,17 @@ The research mode (from `GPD/config.json` field `research_mode`, default: `"bala
 
 **Key principle:** Research mode affects STRATEGY, not CORRECTNESS. All modes produce verified results — the difference is how many alternatives are explored before committing.
 
+**Key principle:** Research mode + model profile together define the PERMITTED APPROACH. A `numerical` profile means the primary plan tasks must be computational/simulation work. An `explore` mode means alternatives must be compared. An `exploit` mode means execution of a known approach. The planner MUST NOT drift from the requested mode of attack. See `research-modes.md` § "Mode Constraints and Drift Prevention" for the full constraint table and drift indicators.
+
+### Mode-Drift Self-Check (MANDATORY before returning plans)
+
+Before returning `## PLANNING COMPLETE`, verify every plan against the requested mode + profile:
+
+1. **Profile alignment:** If `model_profile` is `numerical`, confirm the primary task sequence is computational (simulation setup, numerical implementation, convergence study, parameter sweep). Analytical derivation tasks are permitted ONLY as precursors to numerical work (e.g., "derive the discretized equations") or as validation benchmarks, not as the main workflow.
+2. **Mode alignment:** If `research_mode` is `exploit`, confirm no broad survey or comparison tasks appear. If `explore`, confirm comparison/decision tasks are included.
+3. **Difficulty framing:** Confirm difficulty estimates match the requested approach. A numerical plan's difficulty should reflect computational challenges (convergence, stability, resolution), not analytical complexity.
+4. **If drift is detected:** Rewrite the offending plans. Log the correction: `MODE DRIFT CORRECTED: [what was changed and why]`.
+
 ### Explore Mode (`research_mode: "explore"`)
 
 **When to use:** New problem domain, unknown best approach, multiple viable methods, early-stage research.
@@ -407,6 +418,8 @@ Phase 3+: Domain-specific execution (use domain blueprint)
 
 **Pattern:** "I want to simulate / compute / measure X numerically"
 
+**CRITICAL:** When the user asks for numerical simulation, the plan structure must lead with computational work. Do NOT produce a plan that starts with extended analytical derivations and treats the numerical simulation as a later phase. The analytical setup (deriving the equations to implement) should be a PRECURSOR TASK within the simulation plan, not a standalone derivation phase.
+
 ```
 Phase 1: Method survey + benchmark identification
   → Which numerical methods exist? What are their domains of validity?
@@ -427,6 +440,8 @@ Phase 4+: Domain-specific production (use numerical blueprint)
 ```
 
 **Key planning insight:** The feasibility assessment in Phase 2 prevents wasted months. A Monte Carlo study of a sign-problem-affected system, or an exact diagonalization beyond the accessible Hilbert space dimension, should be caught BEFORE Phase 3. Plan the feasibility assessment to produce a quantitative go/no-go with specific resource estimates.
+
+**Anti-pattern for numerical projects:** Planning Phase 1 as "Derive the Lagrangian and equations of motion analytically" followed by Phase 2 as "Now implement it numerically." This is mode drift -- the user asked for numerical work, so Phase 1 should be "Survey numerical methods and identify benchmarks," with any necessary analytical setup folded into the implementation plan as a precursor task. The analytical derivation serves the simulation, not the other way around.
 
 **Decision points:**
 - After Phase 1: Which method? (The method choice constrains everything downstream)
