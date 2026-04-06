@@ -705,6 +705,16 @@ Export research results to HTML, LaTeX, or ZIP package.
 Usage: `/gpd:export --format html`
 Usage: `/gpd:export --format all`
 
+**`/gpd:export-chat [--format markdown|json] [--session <id>]`**
+Export chat logs to shareable files for bug reports, feature requests, and workflow examples.
+
+- Markdown: human-readable log with timestamps and event summaries
+- JSON: machine-readable structured export for programmatic analysis
+- Sanitizes sensitive data (API keys, home paths) by default
+
+Usage: `/gpd:export-chat --format markdown`
+Usage: `/gpd:export-chat --session <session-id> --format json`
+
 **`/gpd:slides [topic, audience, or source path]`**
 Create presentation slides from a GPD project or the current folder.
 

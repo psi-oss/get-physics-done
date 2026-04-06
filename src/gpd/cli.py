@@ -1739,6 +1739,51 @@ def observe_show(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# export-chat — Chat log export for sharing and debugging
+# ═══════════════════════════════════════════════════════════════════════════
+
+export_chat_app = typer.Typer(help="Export chat logs for sharing, bug reports, and debugging")
+app.add_typer(export_chat_app, name="export-chat")
+
+
+@export_chat_app.command("sessions")
+def export_chat_sessions() -> None:
+    """List available chat sessions for export."""
+    from gpd.core.chat_export import list_chat_sessions
+
+    _output(list_chat_sessions(_get_cwd()))
+
+
+@export_chat_app.command("run")
+def export_chat_run(
+    format: str = typer.Option("markdown", "--format", "-f", help="Output format: markdown or json"),
+    output: str | None = typer.Option(None, "--output", "-o", help="Output file path"),
+    session: str | None = typer.Option(None, "--session", "-s", help="Export specific session by ID"),
+    no_traces: bool = typer.Option(False, "--no-traces", help="Exclude trace events"),
+    no_sanitize: bool = typer.Option(False, "--no-sanitize", help="Skip sensitive data redaction"),
+    last: int | None = typer.Option(None, "--last", "-n", help="Limit to last N session events"),
+    phase: str | None = typer.Option(None, "--phase", help="Filter traces by phase"),
+    plan: str | None = typer.Option(None, "--plan", help="Filter traces by plan"),
+) -> None:
+    """Export chat logs to a file for sharing."""
+    from gpd.core.chat_export import export_chat
+
+    _output(
+        export_chat(
+            _get_cwd(),
+            format=format,
+            output_path=output,
+            session_id=session,
+            include_traces=not no_traces,
+            sanitize=not no_sanitize,
+            last=last,
+            phase=phase,
+            plan=plan,
+        )
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # init — Workflow context assembly
 # ═══════════════════════════════════════════════════════════════════════════
 
