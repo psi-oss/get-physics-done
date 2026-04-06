@@ -2129,6 +2129,64 @@ If no conventions exist, the FIRST task in the FIRST plan MUST be establishing t
 If conventions exist, verify compatibility with current phase's needs.
 </step>
 
+<step name="search_existing_packages">
+**Before writing custom code, search for existing packages that solve the computational problem.**
+
+This is the FIRST planning step for any phase involving simulations, numerical methods, or computational tools. Adapting an existing, tested package is almost always faster and more reliable than building from scratch.
+
+**Search protocol:**
+
+1. **Check RESEARCH.md:** The phase researcher should have identified standard computational tools. Start there.
+2. **Search PyPI / conda / Julia registries:**
+   ```bash
+   # Search for relevant packages
+   pip index versions "[candidate-package]" 2>/dev/null || true
+   web_search "[physics method] python package" OR "[physics method] simulation library [current year]"
+   ```
+3. **Check the project itself:**
+   ```bash
+   search_files "[method]" --include="*.py"
+   find_files "*.py" | xargs grep -l "[relevant import]" 2>/dev/null || true
+   ```
+4. **Evaluate candidates** using this decision matrix:
+
+| Criterion | Weight | Evaluate |
+|-----------|--------|----------|
+| **Does it solve the core problem?** | Must-have | Does the package implement the algorithm/method needed? |
+| **Maintained and tested?** | High | Last commit < 1 year, has test suite, CI passing |
+| **Used by the community?** | High | Citations in papers, GitHub stars, PyPI downloads |
+| **Adaptable?** | Medium | Can we extend/modify it for our specific needs? |
+| **Well-documented API?** | Medium | Can the executor use it without reverse-engineering? |
+| **License compatible?** | Must-have | MIT, BSD, Apache, or compatible with project |
+
+**Decision hierarchy (STRICT):**
+
+1. **Use an existing package directly** if it solves the problem -- write a thin wrapper or configuration, not a reimplementation
+2. **Adapt an existing package** (subclass, extend, or fork) if it solves 70%+ of the problem -- modify what is needed, keep the tested core
+3. **Combine existing packages** if the problem decomposes into solved subproblems -- glue code between established tools
+4. **Write custom code ONLY** when no existing package covers the core computation, or when the overhead of adapting exceeds writing from scratch
+
+**Document the decision** in the plan frontmatter:
+
+```yaml
+package_strategy:
+  approach: "use_existing" | "adapt_existing" | "combine_existing" | "custom"
+  packages:
+    - name: "package-name"
+      version: ">=X.Y"
+      role: "core solver / validation / utilities"
+      adaptations: "none / subclass X for Y / patch Z"
+  justification: "Why this approach over alternatives"
+  rejected:
+    - name: "other-package"
+      reason: "Why it was not suitable"
+```
+
+**Anti-pattern:** Planning a from-scratch implementation of a Monte Carlo sampler, ODE integrator, finite element solver, molecular dynamics engine, or other standard computational method when established, tested packages exist. This wastes development time and produces less reliable code.
+
+Skip this step for purely analytical/derivation phases that need no computational tools.
+</step>
+
 <step name="check_computational_environment">
 **Before creating plans, verify that computational tools assumed in the plan are actually available.**
 
