@@ -18,4 +18,4 @@ def command_visibility_note() -> str:
 
 
 def review_contract_visibility_note() -> str:
-    return "Model-visible review contract. Validation uses this schema."
+    return "Review contract schema. Follow this YAML."

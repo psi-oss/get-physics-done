@@ -9,6 +9,7 @@ import pytest
 
 from gpd.adapters import get_adapter
 from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 
 
 def _install_and_finalize(adapter, gpd_root: Path, target: Path, **install_kwargs: object) -> dict[str, object]:
@@ -35,9 +36,18 @@ def gpd_root() -> Path:
     return root
 
 
-def test_claude_code_lifecycle_round_trip(tmp_path: Path, gpd_root: Path) -> None:
-    adapter = get_adapter("claude-code")
-    target = tmp_path / ".claude"
+_INSTALL_LIFECYCLE_DESCRIPTORS = iter_runtime_descriptors()
+_MARKDOWN_COMMAND_RUNTIME = next(
+    descriptor for descriptor in _INSTALL_LIFECYCLE_DESCRIPTORS if descriptor.native_include_support
+)
+_EXTERNAL_SKILLS_RUNTIME = next(
+    descriptor for descriptor in _INSTALL_LIFECYCLE_DESCRIPTORS if "skills/" in descriptor.manifest_file_prefixes
+)
+
+
+def test_markdown_command_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: Path) -> None:
+    adapter = get_adapter(_MARKDOWN_COMMAND_RUNTIME.runtime_name)
+    target = tmp_path / _MARKDOWN_COMMAND_RUNTIME.config_dir_name
     target.mkdir()
 
     _install_and_finalize(adapter, gpd_root, target, is_global=True)
@@ -64,7 +74,7 @@ def test_claude_code_lifecycle_round_trip(tmp_path: Path, gpd_root: Path) -> Non
     assert "Uses `gpd --raw suggest`" in suggest_next
 
     manifest = _assert_manifest_present(target)
-    assert manifest["runtime"] == "claude-code"
+    assert manifest["runtime"] == adapter.runtime_name
     assert (target / "hooks" / "statusline.py").exists()
     assert (target / "get-physics-done" / "VERSION").exists()
 
@@ -75,9 +85,9 @@ def test_claude_code_lifecycle_round_trip(tmp_path: Path, gpd_root: Path) -> Non
     assert not (target / MANIFEST_NAME).exists()
 
 
-def test_codex_lifecycle_round_trip(tmp_path: Path, gpd_root: Path) -> None:
-    adapter = get_adapter("codex")
-    target = tmp_path / ".codex"
+def test_external_skills_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: Path) -> None:
+    adapter = get_adapter(_EXTERNAL_SKILLS_RUNTIME.runtime_name)
+    target = tmp_path / _EXTERNAL_SKILLS_RUNTIME.config_dir_name
     target.mkdir()
     skills_dir = tmp_path / ".agents" / "skills"
     skills_dir.mkdir(parents=True)

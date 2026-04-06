@@ -122,8 +122,8 @@ Rules:
 context_intake:
   must_read_refs: [ref-main]
   must_include_prior_outputs: ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
-  user_asserted_anchors: ["Use the lattice normalization from the user notes"]
-  known_good_baselines: ["Published large-N curve from Smith et al."]
+  user_asserted_anchors: ["GPD/phases/00-baseline/00-01-SUMMARY.md#lattice-normalization"]
+  known_good_baselines: ["GPD/phases/00-baseline/00-01-SUMMARY.md#published-large-n-curve"]
   context_gaps: ["Comparison source still undecided before planning"]
   crucial_inputs: ["Check the user's finite-volume cutoff choice before proceeding"]
 ```

@@ -50,7 +50,6 @@ from gpd.core.utils import dedupe_preserve_order
 __all__ = [
     "ProjectContractValidationResult",
     "is_authoritative_project_contract_schema_finding",
-    "is_defaultable_singleton_project_contract_schema_finding",
     "is_repair_relevant_project_contract_schema_finding",
     "salvage_project_contract",
     "split_project_contract_schema_findings",
@@ -554,14 +553,14 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
 def split_project_contract_schema_findings(
     errors: list[str],
     *,
-    allow_singleton_defaults: bool = True,
+    allow_case_drift_recovery: bool = True,
 ) -> tuple[list[str], list[str]]:
-    """Partition salvage findings into recoverable warnings and blocking errors."""
+    """Partition salvage findings into recoverable case-drift warnings and blocking errors."""
 
     recoverable: list[str] = []
     blocking: list[str] = []
     recoverable_patterns = _RECOVERABLE_SCHEMA_WARNING_PATTERNS
-    if allow_singleton_defaults:
+    if allow_case_drift_recovery:
         recoverable_patterns += _CASE_DRIFT_SCHEMA_WARNING_PATTERNS
     for error in errors:
         if any(pattern.fullmatch(error) for pattern in recoverable_patterns):
@@ -575,17 +574,6 @@ def is_authoritative_project_contract_schema_finding(error: str) -> bool:
     """Return whether one schema finding touches an authoritative scalar field."""
 
     return any(pattern.fullmatch(error) for pattern in _AUTHORITATIVE_SCALAR_FINDING_PATTERNS)
-
-
-def is_defaultable_singleton_project_contract_schema_finding(error: str) -> bool:
-    """Return whether one schema finding is treated as recoverable singleton drift.
-
-    Singleton shape drift is not actually defaulted by salvage, so this remains
-    a compatibility hook that intentionally stays false.
-    """
-
-    del error
-    return False
 
 
 def is_repair_relevant_project_contract_schema_finding(error: str) -> bool:

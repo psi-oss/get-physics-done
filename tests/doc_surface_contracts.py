@@ -1125,9 +1125,7 @@ def assert_resume_authority_contract(
     require_generic_compatibility_note: bool = False,
 ) -> None:
     contract = _resume_authority_contract()
-    compatibility_note = (
-        "Compatibility-only intake fields stay internal and are not part of the public top-level resume vocabulary"
-    )
+    compatibility_note = "Compatibility-only intake fields stay internal"
     assert _contract_string(contract, "durable_authority_phrase", label="resume_authority") in content
     assert _contract_string(contract, "public_vocabulary_intro", label="resume_authority") in content
     for field in _contract_string_list(contract, "public_fields", label="resume_authority"):

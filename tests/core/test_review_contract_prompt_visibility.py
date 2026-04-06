@@ -13,6 +13,7 @@ from gpd.core.review_contract_prompt import (
     normalize_review_contract_frontmatter_payload,
     normalize_review_contract_payload,
     render_review_contract_prompt,
+    review_contract_payload,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -80,7 +81,7 @@ def test_review_grade_commands_prepend_model_visible_review_contract_to_registry
         contract = command.review_contract
 
         assert contract is not None
-        expected_section = render_review_contract_prompt(dataclasses.asdict(contract))
+        expected_section = render_review_contract_prompt(review_contract_payload(contract))
         assert command.content.startswith("## Command Requirements\n")
         assert "## Command Requirements" in command.content
         assert command_visibility_note() in command.content
@@ -116,7 +117,8 @@ def test_review_grade_commands_prepend_model_visible_review_contract_to_registry
 
 
 def test_review_contract_renderer_rejects_unknown_keys() -> None:
-    contract = dataclasses.asdict(registry.get_command("write-paper").review_contract)
+    contract = review_contract_payload(registry.get_command("write-paper").review_contract)
+    assert contract is not None
     contract["unknown_field"] = "legacy drift"
 
     with pytest.raises(ValueError, match="Unknown review-contract field"):
@@ -251,6 +253,18 @@ def test_review_contract_normalizer_accepts_singleton_string_list_fields() -> No
             "stage_artifacts": [],
         }
     ]
+
+
+def test_review_contract_payload_elides_blank_required_state() -> None:
+    payload = review_contract_payload(
+        {
+            "schema_version": 1,
+            "review_mode": "review",
+            "required_state": " ",
+        }
+    )
+
+    assert payload == {"schema_version": 1, "review_mode": "review"}
 
 
 @pytest.mark.parametrize(
@@ -492,7 +506,7 @@ def test_review_contract_renderer_rejects_unknown_preflight_checks() -> None:
 def test_review_contract_renderer_always_surfaces_blocking_preflight_dependency_rule() -> None:
     section = render_review_contract_prompt({"schema_version": 1, "review_mode": "review"})
 
-    assert "`preflight_checks` must use declared values" in section
+    assert "`preflight_checks`=`" in section
     assert f"`conditional_requirements[].when`={'|'.join(VALID_REVIEW_CONDITIONAL_WHENS)}" in section
     assert (
         "`conditional_requirements[].blocking_preflight_checks` must reuse declared `preflight_checks` values."

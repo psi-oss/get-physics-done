@@ -7,7 +7,8 @@ def test_help_resume_boundary_note_is_concise_and_contract_aligned() -> None:
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8").lower()
 
     assert help_workflow.count("compatibility-only intake fields stay internal") == 1
-    assert "public top-level resume vocabulary only" in help_workflow
+    assert "canonical continuation fields define the public resume vocabulary" in help_workflow
+    assert "public top-level resume vocabulary" not in help_workflow
 
 
 def test_transition_workflow_stays_runtime_neutral() -> None:

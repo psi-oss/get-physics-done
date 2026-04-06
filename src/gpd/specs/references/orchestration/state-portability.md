@@ -4,7 +4,7 @@ How GPD project state travels between machines, survives session interruptions, 
 
 ## Continuation Surface Contract
 
-The continuation architecture separates execution provenance from bounded-resume authority. `gpd --raw resume` reads `state.json.continuation` first, then fills gaps from lineage and recovery surfaces. Public resume vocabulary centers on canonical continuation fields: `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `active_resume_result`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`. Compatibility-only cues stay backend-only, compatibility-only intake fields stay internal, and `.continue-here.md` plus `DERIVATION-STATE.md` are projections rather than authorities.
+The continuation architecture separates execution provenance from bounded-resume authority. `gpd --raw resume` reads `state.json.continuation` first, then fills gaps from lineage and recovery surfaces. Canonical continuation fields define the public resume vocabulary: `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `active_resume_result`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`. Compatibility-only cues stay backend-only, compatibility-only intake fields stay internal, and `.continue-here.md` plus `DERIVATION-STATE.md` are projections rather than authorities.
 
 | Surface | Current Role | Authority |
 |---------|--------------|-----------|
@@ -95,7 +95,7 @@ For most disagreements, `gpd:sync-state` or `gpd state validate` will detect and
 
 `gpd:resume-work` does not blindly reload the last session. It **infers** the current project state from the full artifact tree.
 
-The shared resume resolver turns the storage authority chain into one canonical continuation view, while keeping compatibility cues nested and out of the public top-level resume vocabulary:
+The shared resume resolver turns the storage authority chain into one canonical continuation view, while keeping compatibility cues nested and backend-only:
 
 - storage authority: `GPD/state.json` (including `continuation`), then `GPD/state.json.bak`, then `GPD/STATE.md`
 - editable mirror: `GPD/STATE.md`

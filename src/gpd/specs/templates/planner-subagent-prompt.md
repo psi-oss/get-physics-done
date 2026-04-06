@@ -20,6 +20,7 @@ Template for spawning `gpd-planner`. The planner agent owns the planning logic; 
 
 Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source. Keep this prompt for scope selection, mode flags, and return conventions only.
 If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED` rather than guessing.
+Treat `approach_policy` as execution policy only.
 
 **Project State:** {state_content}
 **Project Contract:** {project_contract}
@@ -50,12 +51,12 @@ Keep dimensions, limits, proof coverage, and cross-method consistency explicit. 
 </physics_planning_requirements>
 
 <contract_completion_requirements>
-Planning requires `project_contract`. Keep the schema-backed contract complete. Use `effective_reference_intake` and `active_reference_context` for grounding, not as substitutes. Autonomy and model profile may change cadence, not contract completeness.
+Planning requires `project_contract`. Keep the contract block complete per the schema include. Use `effective_reference_intake` and `active_reference_context` for grounding, not as substitutes. Autonomy and model profile may change cadence, not contract completeness.
 </contract_completion_requirements>
 
 <contract_visibility_shortcuts>
 The contract still exposes defaultable semantic fields: `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation`. They default to `other` and may be omitted only when that generic category is actually intended.
-`approach_policy` stays execution-only.
+Treat `approach_policy` as execution policy only; it does not substitute for grounding.
 Include `references[]` only when the contract does not already carry explicit grounding through `context_intake` or preserved scoping inputs.
 **Proof claim audit:** For theorem/proof work, enumerate hypotheses, quantified variables, and named parameters explicitly enough to catch silently narrowed subcases or dropped assumptions.
 **Stale proof review gate:** If a proof-backed deliverable or theorem statement changes after review, rerun the proof audit before accepting the repaired target.

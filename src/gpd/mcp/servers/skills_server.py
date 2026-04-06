@@ -12,10 +12,9 @@ Usage:
 """
 
 import copy
-import dataclasses
 import re
 from collections.abc import Callable
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
 from typing import Annotated
 
@@ -32,7 +31,7 @@ from gpd.command_labels import (
 )
 from gpd.core.errors import GPDError
 from gpd.core.observability import gpd_span
-from gpd.core.review_contract_prompt import normalize_review_contract_payload
+from gpd.core.review_contract_prompt import review_contract_payload
 from gpd.mcp.servers import (
     configure_mcp_logging,
     parse_frontmatter_safe,
@@ -173,10 +172,7 @@ def _skill_review_contract_payload(review_contract: content_registry.ReviewComma
     """Return the canonical MCP payload for a command review contract."""
     if review_contract is None:
         return None
-    payload = normalize_review_contract_payload(dataclasses.asdict(review_contract))
-    if not payload.get("required_state"):
-        payload.pop("required_state", None)
-    return payload
+    return review_contract_payload(review_contract)
 
 
 def _normalize_skill_category(category: str) -> str:
@@ -478,7 +474,7 @@ def _is_schema_reference(path: str) -> bool:
     return any(token in document_type for token in ("schema", "template", "manifest", "tracker"))
 
 
-@lru_cache(maxsize=None)
+@cache
 def _reference_document_type(path: str) -> str | None:
     resolved = _portable_reference_path(path)
     reference_path = resolved[1] if resolved is not None else None

@@ -1130,9 +1130,9 @@ assert.throws(
   /runtime catalog entry 0\.capabilities\.permission_surface_kind must be a config surface label when permissions_surface=config-file/
 );
 
-const badConfigFileSpecialValueCatalog = JSON.parse(JSON.stringify(futureLaunchWrapperPermissionKindCatalog));
+const badConfigFileSpecialValueCatalog = JSON.parse(JSON.stringify(catalog));
 badConfigFileSpecialValueCatalog[0].capabilities.permissions_surface = "config-file";
-badConfigFileSpecialValueCatalog[0].capabilities.permission_surface_kind = "future.json:launchWrapper";
+badConfigFileSpecialValueCatalog[0].capabilities.permission_surface_kind = launchWrapperPermissionSurfaceKinds[0];
 assert.throws(
   () => validateRuntimeCatalog(badConfigFileSpecialValueCatalog),
   /runtime catalog entry 0\.capabilities\.permission_surface_kind must be a config surface label when permissions_surface=config-file/

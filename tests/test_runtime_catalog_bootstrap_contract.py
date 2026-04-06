@@ -1,47 +1,29 @@
 from __future__ import annotations
 
-import subprocess
+import json
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+CATALOG_PATH = Path(__file__).resolve().parent.parent / "src" / "gpd" / "adapters" / "runtime_catalog.json"
+SCHEMA_PATH = Path(__file__).resolve().parent.parent / "src" / "gpd" / "adapters" / "runtime_catalog_schema.json"
 
 
-def _run_node_validation(script: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["node", "-e", script],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+def test_runtime_catalog_schema_matches_canonical_catalog_payload() -> None:
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
 
+    required_entry_keys = set(schema["entry_required_keys"])
+    allowed_entry_keys = required_entry_keys | set(schema["entry_optional_keys"])
+    required_global_config_keys = {
+        strategy: set(keys) for strategy, keys in schema["global_config_keys"].items()
+    }
+    required_capability_keys = set(schema["capability_keys"])
+    required_hook_payload_keys = set(schema["hook_payload_keys"])
 
-def test_bootstrap_runtime_catalog_validator_treats_launch_wrapper_special_values_as_catalog_driven() -> None:
-    result = _run_node_validation(
-        r"""
-const assert = require("node:assert/strict");
-const { validateRuntimeCatalog } = require("./bin/install.js");
-const catalog = require("./src/gpd/adapters/runtime_catalog.json");
-
-const dynamicCatalog = JSON.parse(JSON.stringify(catalog));
-const launchWrapperRuntime = dynamicCatalog.find(
-  (runtime) => runtime.capabilities.permissions_surface === "launch-wrapper"
-);
-launchWrapperRuntime.capabilities.permission_surface_kind = "future.json:launchWrapper";
-assert.equal(
-  validateRuntimeCatalog(dynamicCatalog).find(
-    (runtime) => runtime.runtime_name === launchWrapperRuntime.runtime_name
-  ).capabilities.permission_surface_kind,
-  "future.json:launchWrapper"
-);
-
-const invalidCatalog = JSON.parse(JSON.stringify(dynamicCatalog));
-invalidCatalog[0].capabilities.permission_surface_kind = "future.json:launchWrapper";
-assert.throws(
-  () => validateRuntimeCatalog(invalidCatalog),
-  /runtime catalog entry 0\.capabilities\.permission_surface_kind must be a config surface label when permissions_surface=config-file/
-);
-"""
-    )
-
-    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+    assert catalog
+    for entry in catalog:
+        entry_keys = set(entry)
+        assert required_entry_keys <= entry_keys
+        assert entry_keys <= allowed_entry_keys
+        assert set(entry["global_config"]) == required_global_config_keys[entry["global_config"]["strategy"]]
+        assert set(entry["capabilities"]) == required_capability_keys
+        assert set(entry["hook_payload"]) == required_hook_payload_keys

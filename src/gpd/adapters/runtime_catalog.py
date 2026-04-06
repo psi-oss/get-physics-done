@@ -127,91 +127,150 @@ _SHARED_INSTALL_METADATA = SharedInstallMetadata(
 )
 
 
-def _catalog_path() -> Path:
-    return Path(__file__).with_name("runtime_catalog.json")
+def _runtime_catalog_schema_path() -> Path:
+    return Path(__file__).with_name("runtime_catalog_schema.json")
 
 
-def _load_runtime_catalog_shape() -> dict[str, object]:
-    catalog_path = Path(__file__).with_name("runtime_catalog.json")
-    raw_entries = json.loads(catalog_path.read_text(encoding="utf-8"))
-    if not isinstance(raw_entries, list) or not raw_entries:
-        raise ValueError("runtime catalog must be a non-empty JSON array")
+@lru_cache(maxsize=1)
+def _load_runtime_catalog_schema_shape() -> dict[str, object]:
+    schema_path = _runtime_catalog_schema_path()
+    raw_schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    if not isinstance(raw_schema, dict) or not raw_schema:
+        raise ValueError("runtime catalog schema must be a non-empty JSON object")
 
-    entry_key_sets: list[set[str]] = []
-    global_config_key_sets: dict[str, list[set[str]]] = {}
-    capability_key_sets: list[set[str]] = []
-    hook_payload_key_sets: list[set[str]] = []
-    capability_enum_values: dict[str, list[str]] = {
-        "permissions_surface": [],
-        "statusline_surface": [],
-        "notify_surface": [],
-        "telemetry_source": [],
-        "telemetry_completeness": [],
+    allowed_top_level_keys = {
+        "schema_version",
+        "entry_required_keys",
+        "entry_optional_keys",
+        "global_config_keys",
+        "capability_keys",
+        "capability_enums",
+        "hook_payload_keys",
+        "install_help_example_scopes",
+        "launch_wrapper_permission_surface_kinds",
     }
-    install_help_example_scopes: list[str] = []
+    unknown_top_level_keys = sorted(key for key in raw_schema if key not in allowed_top_level_keys)
+    if unknown_top_level_keys:
+        formatted = ", ".join(unknown_top_level_keys)
+        raise ValueError(f"runtime catalog schema contains unknown key(s): {formatted}")
 
-    for index, entry in enumerate(raw_entries):
-        if not isinstance(entry, dict):
-            raise ValueError(f"runtime catalog entry {index} must be a mapping")
-        entry_key_sets.append(set(entry.keys()))
+    schema_version = raw_schema.get("schema_version")
+    if type(schema_version) is not int or schema_version != 1:
+        raise ValueError(f"Unsupported runtime catalog schema_version: {schema_version!r}")
 
-        global_config = entry.get("global_config")
-        if isinstance(global_config, dict):
-            strategy = global_config.get("strategy")
-            if isinstance(strategy, str):
-                global_config_key_sets.setdefault(strategy, []).append(set(global_config.keys()))
+    def _require_string_tuple(
+        value: object,
+        *,
+        label: str,
+        allow_empty: bool,
+    ) -> tuple[str, ...]:
+        if not isinstance(value, list):
+            raise ValueError(f"{label} must be a list of strings")
+        if not value and not allow_empty:
+            raise ValueError(f"{label} must contain at least one string")
 
-        capabilities = entry.get("capabilities")
-        if isinstance(capabilities, dict):
-            capability_key_sets.append(set(capabilities.keys()))
-            for field_name, values in capability_enum_values.items():
-                value = capabilities.get(field_name)
-                if isinstance(value, str):
-                    stripped = value.strip()
-                    if stripped and stripped not in values:
-                        values.append(stripped)
+        items: list[str] = []
+        seen: set[str] = set()
+        for index, item in enumerate(value):
+            item_label = f"{label}[{index}]"
+            if not isinstance(item, str) or not item or item.strip() != item:
+                raise ValueError(f"{item_label} must be a non-empty string")
+            if item in seen:
+                raise ValueError(f"{label} must not contain duplicate values")
+            seen.add(item)
+            items.append(item)
+        return tuple(items)
 
-        hook_payload = entry.get("hook_payload")
-        if isinstance(hook_payload, dict):
-            hook_payload_key_sets.append(set(hook_payload.keys()))
+    def _require_schema_mapping(value: object, *, label: str) -> dict[str, object]:
+        if not isinstance(value, dict) or not value:
+            raise ValueError(f"{label} must be a non-empty JSON object")
+        return value
 
-        scope = entry.get("installer_help_example_scope")
-        if isinstance(scope, str):
-            stripped = scope.strip()
-            if stripped and stripped not in install_help_example_scopes:
-                install_help_example_scopes.append(stripped)
+    entry_required_keys = frozenset(
+        _require_string_tuple(raw_schema.get("entry_required_keys"), label="runtime catalog schema.entry_required_keys", allow_empty=False)
+    )
+    entry_optional_keys = frozenset(
+        _require_string_tuple(raw_schema.get("entry_optional_keys"), label="runtime catalog schema.entry_optional_keys", allow_empty=True)
+    )
+    if entry_required_keys & entry_optional_keys:
+        overlap = ", ".join(sorted(entry_required_keys & entry_optional_keys))
+        raise ValueError(f"runtime catalog schema entry key overlap is not allowed: {overlap}")
 
-    entry_required_keys = set.intersection(*(set(keys) for keys in entry_key_sets))
-    entry_allowed_keys = set.union(*(set(keys) for keys in entry_key_sets))
-    global_config_keys = {
-        strategy: frozenset(set.intersection(*(set(keys) for keys in key_sets)))
-        for strategy, key_sets in global_config_key_sets.items()
-    }
-    capability_keys = set.intersection(*(set(keys) for keys in capability_key_sets))
-    hook_payload_keys = set.intersection(*(set(keys) for keys in hook_payload_key_sets))
+    global_config_keys_raw = _require_schema_mapping(raw_schema.get("global_config_keys"), label="runtime catalog schema.global_config_keys")
+    global_config_keys: dict[str, frozenset[str]] = {}
+    for strategy, keys in global_config_keys_raw.items():
+        if not isinstance(strategy, str) or not strategy or strategy.strip() != strategy:
+            raise ValueError("runtime catalog schema.global_config_keys keys must be non-empty strings")
+        global_config_keys[strategy] = frozenset(
+            _require_string_tuple(
+                keys,
+                label=f"runtime catalog schema.global_config_keys.{strategy}",
+                allow_empty=False,
+            )
+        )
+
+    capability_keys = frozenset(
+        _require_string_tuple(raw_schema.get("capability_keys"), label="runtime catalog schema.capability_keys", allow_empty=False)
+    )
+
+    capability_enums_raw = _require_schema_mapping(raw_schema.get("capability_enums"), label="runtime catalog schema.capability_enums")
+    capability_enums: dict[str, frozenset[str]] = {}
+    for field_name, values in capability_enums_raw.items():
+        if not isinstance(field_name, str) or not field_name or field_name.strip() != field_name:
+            raise ValueError("runtime catalog schema.capability_enums keys must be non-empty strings")
+        capability_enums[field_name] = frozenset(
+            _require_string_tuple(
+                values,
+                label=f"runtime catalog schema.capability_enums.{field_name}",
+                allow_empty=False,
+            )
+        )
+
+    hook_payload_keys = frozenset(
+        _require_string_tuple(raw_schema.get("hook_payload_keys"), label="runtime catalog schema.hook_payload_keys", allow_empty=False)
+    )
+    install_help_example_scopes = frozenset(
+        _require_string_tuple(
+            raw_schema.get("install_help_example_scopes"),
+            label="runtime catalog schema.install_help_example_scopes",
+            allow_empty=False,
+        )
+    )
+    launch_wrapper_permission_surface_kinds = frozenset(
+        _require_string_tuple(
+            raw_schema.get("launch_wrapper_permission_surface_kinds"),
+            label="runtime catalog schema.launch_wrapper_permission_surface_kinds",
+            allow_empty=False,
+        )
+    )
 
     return {
-        "entry_required_keys": frozenset(entry_required_keys),
-        "entry_optional_keys": frozenset(entry_allowed_keys - entry_required_keys),
-        "global_config_strategies": frozenset(global_config_keys.keys()),
-        "install_help_example_scopes": frozenset(install_help_example_scopes),
+        "schema_version": schema_version,
+        "entry_required_keys": entry_required_keys,
+        "entry_optional_keys": entry_optional_keys,
         "global_config_keys": global_config_keys,
-        "capability_keys": frozenset(capability_keys),
-        "capability_enums": {field_name: frozenset(values) for field_name, values in capability_enum_values.items()},
-        "hook_payload_keys": frozenset(hook_payload_keys),
+        "capability_keys": capability_keys,
+        "capability_enums": capability_enums,
+        "hook_payload_keys": hook_payload_keys,
+        "install_help_example_scopes": install_help_example_scopes,
+        "launch_wrapper_permission_surface_kinds": launch_wrapper_permission_surface_kinds,
     }
+
+
+def _catalog_path() -> Path:
+    return Path(__file__).with_name("runtime_catalog.json")
 
 
 _RUNTIME_CATALOG_SCHEMA_OVERRIDES = json.loads(
     Path(__file__).with_name("runtime_catalog_overrides.json").read_text(encoding="utf-8")
 )
-_RUNTIME_CATALOG_SHAPE = _load_runtime_catalog_shape()
+_RUNTIME_CATALOG_SHAPE = _load_runtime_catalog_schema_shape()
 _RUNTIME_ENTRY_REQUIRED_KEYS = _RUNTIME_CATALOG_SHAPE["entry_required_keys"]
 _RUNTIME_ENTRY_OPTIONAL_KEYS = _RUNTIME_CATALOG_SHAPE["entry_optional_keys"] | frozenset(
     _RUNTIME_CATALOG_SCHEMA_OVERRIDES.get("entry_optional_keys", ())
 )
 _RUNTIME_ENTRY_ALLOWED_KEYS = _RUNTIME_ENTRY_REQUIRED_KEYS | _RUNTIME_ENTRY_OPTIONAL_KEYS
-_RUNTIME_GLOBAL_CONFIG_STRATEGIES = _RUNTIME_CATALOG_SHAPE["global_config_strategies"]
+_RUNTIME_GLOBAL_CONFIG_STRATEGIES = frozenset(_RUNTIME_CATALOG_SHAPE["global_config_keys"].keys())
 _RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = _RUNTIME_CATALOG_SHAPE["install_help_example_scopes"]
 _RUNTIME_VALIDATED_COMMAND_SURFACE_RE = re.compile(r"^public_runtime_[a-z0-9_]+_command$")
 _RUNTIME_CONFIG_SURFACE_LABEL_RE = re.compile(r"^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$")
@@ -223,6 +282,7 @@ _RUNTIME_CAPABILITY_ENUMS = {
 _RUNTIME_GLOBAL_CONFIG_KEYS = _RUNTIME_CATALOG_SHAPE["global_config_keys"]
 _RUNTIME_CAPABILITY_KEYS = _RUNTIME_CATALOG_SHAPE["capability_keys"]
 _RUNTIME_HOOK_PAYLOAD_KEYS = _RUNTIME_CATALOG_SHAPE["hook_payload_keys"]
+_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = _RUNTIME_CATALOG_SHAPE["launch_wrapper_permission_surface_kinds"]
 
 
 def _require_mapping(value: object, *, label: str) -> dict[str, object]:
@@ -434,24 +494,6 @@ def _parse_capabilities(
     return policy
 
 
-def _derive_launch_wrapper_permission_surface_kinds(raw_entries: list[object]) -> frozenset[str]:
-    values: set[str] = set()
-    for entry in raw_entries:
-        if not isinstance(entry, dict):
-            continue
-        capabilities = entry.get("capabilities")
-        if not isinstance(capabilities, dict):
-            continue
-        if capabilities.get("permissions_surface") != "launch-wrapper":
-            continue
-        surface_kind = capabilities.get("permission_surface_kind")
-        if isinstance(surface_kind, str):
-            stripped = surface_kind.strip()
-            if stripped:
-                values.add(stripped)
-    return frozenset(values)
-
-
 def _validate_runtime_catalog_uniqueness(descriptors: list[RuntimeDescriptor]) -> None:
     runtime_names: dict[str, str] = {}
     install_flags: dict[str, str] = {}
@@ -573,7 +615,6 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
     raw_entries = json.loads(_catalog_path().read_text(encoding="utf-8"))
     if not isinstance(raw_entries, list):
         raise ValueError("runtime catalog must be a JSON array")
-    launch_wrapper_permission_surface_kinds = _derive_launch_wrapper_permission_surface_kinds(raw_entries)
     descriptors: list[RuntimeDescriptor] = []
     for index, entry in enumerate(raw_entries):
         label = f"runtime catalog entry {index}"
@@ -608,7 +649,7 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                 capabilities=_parse_capabilities(
                     payload["capabilities"],
                     label=f"{label}.capabilities",
-                    launch_wrapper_permission_surface_kinds=launch_wrapper_permission_surface_kinds,
+                    launch_wrapper_permission_surface_kinds=_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS,
                 ),
                 hook_payload=_parse_hook_payload(payload["hook_payload"], label=f"{label}.hook_payload"),
                 manifest_file_prefixes=_require_string_tuple(

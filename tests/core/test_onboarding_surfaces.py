@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import copy
+import importlib.resources
+import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -31,24 +34,75 @@ from gpd.core.public_surface_contract import (
 )
 from tests import doc_surface_contracts as doc_surface_contracts_module
 
+PUBLIC_SURFACE_CONTRACT_MODULE_PATH = Path(public_surface_contract_module.__file__).resolve()
+
+
+def _public_surface_contract_files(contract_path: Path, schema_path: Path) -> object:
+    class _FakeFiles:
+        def __init__(self, contract_path: Path, schema_path: Path) -> None:
+            self._contract_path = contract_path
+            self._schema_path = schema_path
+
+        def joinpath(self, name: str) -> Path:
+            if name == "public_surface_contract.json":
+                return self._contract_path
+            if name == "public_surface_contract_schema.json":
+                return self._schema_path
+            raise AssertionError(f"Unexpected public surface contract resource: {name}")
+
+    return _FakeFiles(contract_path, schema_path)
+
 
 def _load_public_surface_contract_with_payload(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     payload: dict[str, object],
+    schema_payload: dict[str, object] | None = None,
 ) -> None:
-    class _FakeFiles:
-        def __init__(self, contract_path: Path) -> None:
-            self._contract_path = contract_path
-
-        def joinpath(self, name: str) -> Path:
-            assert name == "public_surface_contract.json"
-            return self._contract_path
-
     contract_path = tmp_path / "public_surface_contract.json"
+    schema_path = tmp_path / "public_surface_contract_schema.json"
     contract_path.write_text(json.dumps(payload), encoding="utf-8")
-    monkeypatch.setattr(public_surface_contract_module, "files", lambda package: _FakeFiles(contract_path))
+    schema_payload = schema_payload or json.loads(
+        (Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract_schema.json")).read_text(
+            encoding="utf-8"
+        )
+    )
+    schema_path.write_text(json.dumps(schema_payload), encoding="utf-8")
+    monkeypatch.setattr(
+        public_surface_contract_module,
+        "files",
+        lambda package: _public_surface_contract_files(contract_path, schema_path),
+    )
     load_public_surface_contract.cache_clear()
+
+
+def _load_fresh_public_surface_contract_module(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    payload: dict[str, object],
+    schema_payload: dict[str, object],
+) -> object:
+    contract_path = tmp_path / "public_surface_contract.json"
+    schema_path = tmp_path / "public_surface_contract_schema.json"
+    contract_path.write_text(json.dumps(payload), encoding="utf-8")
+    schema_path.write_text(json.dumps(schema_payload), encoding="utf-8")
+    monkeypatch.setattr(
+        importlib.resources,
+        "files",
+        lambda package: _public_surface_contract_files(contract_path, schema_path),
+    )
+    spec = importlib.util.spec_from_file_location(
+        "gpd.core.public_surface_contract_fresh",
+        PUBLIC_SURFACE_CONTRACT_MODULE_PATH,
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.modules.pop(spec.name, None)
 
 
 def test_beginner_onboarding_surface_contract_exposes_hub_and_ladder() -> None:
@@ -144,9 +198,9 @@ def test_beginner_runtime_surface_single_lookup_uses_adapter_descriptor_boundary
 def test_resume_authority_contract_exposes_full_validated_surface() -> None:
     contract = resume_authority_contract()
 
-    assert "canonical continuation fields" in contract.public_vocabulary_intro
+    assert "canonical continuation fields" in contract.public_vocabulary_intro.casefold()
     assert contract.public_fields == resume_authority_fields()
-    assert "public top-level resume vocabulary only" in contract.top_level_boundary_phrase
+    assert contract.top_level_boundary_phrase == "Canonical continuation fields define the public resume vocabulary"
     assert not hasattr(contract, "compat_surface")
     assert not hasattr(contract, "session_mirror")
     assert not hasattr(contract, "compatibility_phrase")
@@ -155,13 +209,13 @@ def test_resume_authority_contract_exposes_full_validated_surface() -> None:
 def test_resume_authority_helper_rejects_legacy_compatibility_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_section = {
         "durable_authority_phrase": "`state.json.continuation` is the durable authority",
-        "public_vocabulary_intro": "Public resume vocabulary centers on canonical continuation fields",
+        "public_vocabulary_intro": "Canonical continuation fields define the public resume vocabulary",
         "public_fields": [
             "active_resume_kind",
             "active_resume_origin",
             "active_resume_pointer",
         ],
-        "top_level_boundary_phrase": "public top-level resume vocabulary only",
+        "top_level_boundary_phrase": "Canonical continuation fields define the public resume vocabulary",
         "compat_surface": "legacy compatibility surface",
         "session_mirror": "legacy session mirror",
         "compatibility_phrase": "legacy compatibility note",
@@ -183,6 +237,95 @@ def test_public_surface_contract_loader_rejects_additive_keys(monkeypatch, tmp_p
     with pytest.raises(ValueError, match=r"public_surface_contract contains unknown key\(s\): legacy_note"):
         load_public_surface_contract()
     load_public_surface_contract.cache_clear()
+
+
+def test_public_surface_contract_loader_rejects_payload_drift_against_frozen_schema(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    canonical_payload = json.loads(
+        (Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract.json")).read_text(
+            encoding="utf-8"
+        )
+    )
+    canonical_schema = json.loads(
+        (Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract_schema.json")).read_text(
+            encoding="utf-8"
+        )
+    )
+    drifted_payload = copy.deepcopy(canonical_payload)
+    drifted_payload["legacy_note"] = "unexpected"
+
+    fresh_module = _load_fresh_public_surface_contract_module(
+        monkeypatch,
+        tmp_path,
+        drifted_payload,
+        canonical_schema,
+    )
+
+    with pytest.raises(ValueError, match=r"public_surface_contract contains unknown key\(s\): legacy_note"):
+        fresh_module.load_public_surface_contract()
+
+
+def test_public_surface_contract_loader_rejects_local_cli_command_drift_against_schema(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    canonical_payload = json.loads(
+        (Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract.json")).read_text(
+            encoding="utf-8"
+        )
+    )
+    drifted_payload = copy.deepcopy(canonical_payload)
+    drifted_payload["local_cli_bridge"]["commands"][:2] = [
+        canonical_payload["local_cli_bridge"]["commands"][1],
+        canonical_payload["local_cli_bridge"]["commands"][0],
+    ]
+    drifted_payload["local_cli_bridge"]["named_commands"]["help"] = canonical_payload["local_cli_bridge"]["commands"][1]
+    drifted_payload["local_cli_bridge"]["named_commands"]["doctor"] = canonical_payload["local_cli_bridge"]["commands"][0]
+
+    _load_public_surface_contract_with_payload(monkeypatch, tmp_path, drifted_payload)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"local_cli_bridge\.commands must exactly match "
+            r"public_surface_contract_schema\.sections\.local_cli_bridge\.commands"
+        ),
+    ):
+        load_public_surface_contract()
+    load_public_surface_contract.cache_clear()
+
+
+def test_public_surface_contract_schema_rejects_local_cli_command_inventory_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    canonical_payload = json.loads(
+        (Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract.json")).read_text(
+            encoding="utf-8"
+        )
+    )
+    canonical_schema = json.loads(
+        (Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract_schema.json")).read_text(
+            encoding="utf-8"
+        )
+    )
+    canonical_schema["sections"]["local_cli_bridge"]["commands"].pop()
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"public_surface_contract_schema\.local_cli_bridge commands and "
+            r"ordered named command keys must stay aligned"
+        ),
+    ):
+        _load_fresh_public_surface_contract_module(
+            monkeypatch,
+            tmp_path,
+            canonical_payload,
+            canonical_schema,
+        )
 
 
 @pytest.mark.parametrize(

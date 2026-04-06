@@ -2463,7 +2463,7 @@ def _parse_project_contract_data(
 
         schema_warnings, schema_errors = split_project_contract_schema_findings(
             schema_findings,
-            allow_singleton_defaults=False,
+            allow_case_drift_recovery=False,
         )
         blocking_errors = [
             *_collect_literal_case_drift_errors(data),
@@ -2491,7 +2491,7 @@ def _parse_project_contract_data(
 
     schema_warnings, schema_errors = split_project_contract_schema_findings(
         schema_findings,
-        allow_singleton_defaults=True,
+        allow_case_drift_recovery=True,
     )
     recoverable_errors = [*schema_warnings, *list_shape_drift_errors, *_collect_project_contract_list_member_errors(data)]
     blocking_errors = [*schema_errors]

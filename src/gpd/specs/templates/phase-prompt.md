@@ -11,7 +11,9 @@ Before authoring or revising the `contract:` block, use the canonical schema bel
 @{GPD_INSTALL_DIR}/templates/plan-contract-schema.md
 
 Surface machine-checkable prerequisites up front with `tool_requirements`; keep human-only setup in `researcher_setup`. When a plan genuinely depends on specialized tooling outside the guaranteed Python/SymPy baseline, declare it in frontmatter `tool_requirements` before drafting task prose. Use the included schema for contract shape, cardinality, and enum defaults. `tool_requirements[].id` values must be unique within the list. Gap-closure plans still use `type: execute`; mark verification-repair plans with `gap_closure: true` instead of inventing a third plan type. Keep proofs auditable in the body when a plan is proof-bearing, and rerun stale proof audits before `status: passed`.
-The defaultable semantic fields still exist in the contract surface: `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation`. They default to `other`, but the more specific value remains mandatory when the plan already knows it. For non-scoping plans, keep the contract concretely grounded rather than placeholder-only. `approach_policy` stays execution policy only; grounding still needs explicit anchors from the contract schema.
+Surface hard validation requirements before the body so they are visible on the plan surface. When a plan genuinely depends on specialized tooling outside the guaranteed Python/SymPy baseline, declare it in frontmatter `tool_requirements` before drafting task prose.
+The validator accepts a closed tool vocabulary today: `wolfram` and `command`. For `tool: command`, a non-empty `command` field is mandatory; for non-`command` tools, `command` must be omitted. `required` defaults to `true` when omitted, and a declared `fallback` does not turn a missing required tool into a non-blocking preflight check.
+The defaultable semantic fields still exist in the contract surface: `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation`. They default to `other`, but the more specific value remains mandatory when the plan already knows it. For non-scoping plans, keep the contract concretely grounded rather than placeholder-only. Treat `approach_policy` as execution policy only; it does not satisfy grounding on its own. Grounding still needs explicit anchors from the contract schema; do not omit required references.
 `must_surface` uses YAML booleans. When `must_surface` is `true`, keep `required_actions[]` and `applies_to[]` non-empty. `carry_forward_to[]` is free-text workflow scope only and must not be overloaded with contract IDs. `uncertainty_markers` must stay a YAML object, not a string or list. For `observables[].kind: proof_obligation`, name the theorem or claim plus the hypotheses/parameter regime explicitly so audits can catch silently specialized parameters. If a proof or theorem statement changes after a proof audit, treat that audit as stale before `status: passed` is possible for the affected target.
 
 ---
@@ -64,8 +66,8 @@ contract:
   context_intake:
     must_read_refs: [ref-main]
     must_include_prior_outputs: ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
-    user_asserted_anchors: ["Use the lattice normalization from the user notes"]
-    known_good_baselines: ["Published large-N curve from Smith et al."]
+    user_asserted_anchors: ["GPD/phases/00-baseline/00-01-SUMMARY.md#vacuum-polarization-normalization"]
+    known_good_baselines: ["GPD/phases/00-baseline/00-01-SUMMARY.md#accepted-reference-curve"]
     context_gaps: ["Comparison source still undecided before planning"]
     crucial_inputs: ["Check the user's finite-volume cutoff choice before proceeding"]
   claims:
@@ -243,8 +245,8 @@ contract:
   context_intake:
     must_read_refs: [ref-textbook]
     must_include_prior_outputs: ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
-    user_asserted_anchors: ["Use the normalization from the user notes"]
-    known_good_baselines: ["Accepted reference curve from the milestone review"]
+    user_asserted_anchors: ["GPD/phases/00-baseline/00-01-SUMMARY.md#vacuum-polarization-normalization"]
+    known_good_baselines: ["GPD/phases/00-baseline/00-01-SUMMARY.md#accepted-reference-curve"]
     context_gaps: ["Need the exact comparison source before planning"]
     crucial_inputs: ["Confirm the user's cutoff convention before writing the plan"]
   claims:

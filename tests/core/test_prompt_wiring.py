@@ -2430,7 +2430,11 @@ def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> 
     assert "Use the included schema for contract shape, cardinality, and enum defaults." in phase_prompt
     assert "Keep proofs auditable in the body when a plan is proof-bearing, and rerun stale proof audits before `status: passed`." in phase_prompt
     assert "must_include_prior_outputs: [\"GPD/phases/00-baseline/00-01-SUMMARY.md\"]" in phase_prompt
-    assert "user_asserted_anchors: [\"Use the lattice normalization from the user notes\"]" in phase_prompt
+    assert (
+        "user_asserted_anchors: "
+        "[\"GPD/phases/00-baseline/00-01-SUMMARY.md#vacuum-polarization-normalization\"]"
+        in phase_prompt
+    )
     assert "claims:" in phase_prompt
     assert "observables: [obs-main]" in phase_prompt
     assert "### `forbidden_proxies[]`" in phase_prompt
@@ -2509,8 +2513,14 @@ def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalizat
     assert "`contract.context_intake` is required and must be a non-empty object, not a string or list." in plan_schema
     assert "must_read_refs: [ref-main]" in plan_schema
     assert "must_include_prior_outputs: [\"GPD/phases/00-baseline/00-01-SUMMARY.md\"]" in plan_schema
-    assert "user_asserted_anchors: [\"Use the lattice normalization from the user notes\"]" in plan_schema
-    assert "known_good_baselines: [\"Published large-N curve from Smith et al.\"]" in plan_schema
+    assert (
+        "user_asserted_anchors: [\"GPD/phases/00-baseline/00-01-SUMMARY.md#lattice-normalization\"]"
+        in plan_schema
+    )
+    assert (
+        "known_good_baselines: [\"GPD/phases/00-baseline/00-01-SUMMARY.md#published-large-n-curve\"]"
+        in plan_schema
+    )
     assert "context_gaps: [\"Comparison source still undecided before planning\"]" in plan_schema
     assert "crucial_inputs: [\"Check the user's finite-volume cutoff choice before proceeding\"]" in plan_schema
     assert "Only concrete anchors count as grounding." in plan_schema
@@ -2630,8 +2640,8 @@ def test_stage5_execution_surfaces_use_bounded_review_cadence_and_first_result_g
     assert "Do NOT narrow just because a wave advanced or one proxy passed." in execute_phase
     assert "What decisive evidence is still owed before downstream work is trustworthy?" in resume_work
     assert "Pattern D: Auto-bounded" in executor_agent
-    assert "canonical continuation fields" in resume_work
-    assert "public top-level resume vocabulary only" in resume_work
+    assert "Canonical continuation fields define the public resume vocabulary" in resume_work
+    assert "public top-level resume vocabulary" not in resume_work
     assert "compat_resume_surface" not in resume_work
     assert "gpd init resume" not in resume_work
     assert "execution_segment" in continuation
@@ -2695,9 +2705,9 @@ def test_resume_workflow_surfaces_contract_load_and_validation_state() -> None:
         require_generic_compatibility_note=False,
     )
     assert "Canonical continuation and recovery authority:" in resume_work
-    assert "canonical continuation fields" in resume_work
+    assert "Canonical continuation fields define the public resume vocabulary" in resume_work
     _assert_resume_compatibility_note(resume_work)
-    assert "The public resume vocabulary stays canonical and top-level." not in resume_work
+    assert "public top-level resume vocabulary" not in resume_work
     assert "continuity_handoff_file" in resume_work
     assert "recorded_continuity_handoff_file" in resume_work
     assert "missing_continuity_handoff_file" in resume_work
@@ -2724,7 +2734,7 @@ def _assert_resume_compatibility_note(text: str) -> None:
 def test_resume_command_keeps_internal_resume_backend_details_out_of_public_prompt_surface() -> None:
     resume_command = (COMMANDS_DIR / "resume-work.md").read_text(encoding="utf-8")
 
-    assert "canonical continuation fields" in resume_command
+    assert "Canonical continuation fields define the public resume vocabulary" in resume_command
     _assert_resume_compatibility_note(resume_command)
     assert "compat_resume_surface" not in resume_command
     assert "gpd init resume" not in resume_command
@@ -2760,11 +2770,10 @@ def test_pause_resume_and_help_wiring_keep_runtime_handoff_and_local_snapshot_bo
     assert "cross-project discovery surface" in resume_work
     assert "advisory and machine-local" in resume_work
     assert "reloads that project's canonical state" in resume_work
-    assert "canonical continuation fields" in resume_work
+    assert "Canonical continuation fields define the public resume vocabulary" in resume_work
     assert "resume_candidates" in resume_work
     assert "compat_resume_surface" not in resume_work
-    assert "canonical continuation fields" in resume_work
-    assert "canonical continuation fields" in help_workflow
+    assert "Canonical continuation fields define the public resume vocabulary" in help_workflow
     assert "Do NOT invent additional candidates from plan files without summaries, auto-checkpoints, or other ad hoc checkpoints." in resume_work
     assert "gpd:resume-work" in pause_work
     assert "gpd resume" in pause_work
@@ -2772,7 +2781,7 @@ def test_pause_resume_and_help_wiring_keep_runtime_handoff_and_local_snapshot_bo
     assert "This is the canonical recorded handoff artifact for the current phase." in pause_work
     assert "continuation handoff artifact" in pause_work or "session continuity" in pause_work
     assert "session.resume_file" not in pause_work
-    assert "Public resume vocabulary centers on" in help_workflow
+    assert "Canonical continuation fields define the public resume vocabulary" in help_workflow
     _assert_resume_compatibility_note(help_workflow)
     assert_recovery_ladder_contract(
         help_workflow,
@@ -2786,9 +2795,9 @@ def test_state_portability_reference_keeps_resume_public_vocabulary_note_compact
     state_portability = (REFERENCES_DIR / "orchestration" / "state-portability.md").read_text(encoding="utf-8")
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
 
-    assert "canonical continuation fields" in state_portability
+    assert "Canonical continuation fields define the public resume vocabulary" in state_portability
     _assert_resume_compatibility_note(state_portability)
-    assert "Those legacy raw-intake aliases are not part of the public top-level resume vocabulary." not in state_portability
+    assert "public top-level resume vocabulary" not in state_portability
     assert "gpd observe execution" in help_workflow
     assert "suggested read-only checks rather than runtime hotkeys" in help_workflow
 

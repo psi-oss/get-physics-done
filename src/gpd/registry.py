@@ -19,6 +19,7 @@ from gpd.core.model_visible_text import agent_visibility_note, command_visibilit
 from gpd.core.review_contract_prompt import (
     normalize_review_contract_frontmatter_payload,
     render_review_contract_prompt,
+    review_contract_payload,
 )
 from gpd.specs import SPECS_DIR
 
@@ -479,38 +480,12 @@ def _parse_agent_metadata_enum(
     return value
 
 
-def _review_contract_payload(review_contract: ReviewCommandContract) -> dict[str, object]:
-    """Return a stable mapping for model-visible review-contract rendering."""
-
-    return {
-        "schema_version": review_contract.schema_version,
-        "review_mode": review_contract.review_mode,
-        "required_outputs": list(review_contract.required_outputs),
-        "required_evidence": list(review_contract.required_evidence),
-        "blocking_conditions": list(review_contract.blocking_conditions),
-        "preflight_checks": list(review_contract.preflight_checks),
-        "stage_artifacts": list(review_contract.stage_artifacts),
-        "conditional_requirements": [
-            {
-                "when": requirement.when,
-                "required_outputs": list(requirement.required_outputs),
-                "required_evidence": list(requirement.required_evidence),
-                "blocking_conditions": list(requirement.blocking_conditions),
-                "blocking_preflight_checks": list(requirement.blocking_preflight_checks),
-                "stage_artifacts": list(requirement.stage_artifacts),
-            }
-            for requirement in review_contract.conditional_requirements
-        ],
-        "required_state": review_contract.required_state,
-    }
-
-
 def render_review_contract_section(review_contract: ReviewCommandContract | None) -> str:
     """Render a model-visible review-contract block for command prompt bodies."""
 
     if review_contract is None:
         return ""
-    return render_review_contract_prompt(_review_contract_payload(review_contract))
+    return render_review_contract_prompt(review_contract_payload(review_contract))
 
 
 def _agent_requirements_payload(

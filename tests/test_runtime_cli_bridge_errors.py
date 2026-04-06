@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import gpd.runtime_cli as runtime_cli
+from gpd.adapters.install_utils import build_runtime_install_repair_command
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 
 _BRIDGE_RUNTIME_DESCRIPTOR = iter_runtime_descriptors()[0]
@@ -107,6 +108,62 @@ def test_runtime_cli_allows_version_passthrough_as_root_flag(
 
     assert exit_code == 0
     assert observed["argv"] == ["gpd", root_flag]
+
+
+@pytest.mark.parametrize(
+    ("manifest_scope", "bridge_scope"),
+    [("local", "global"), ("global", "local")],
+)
+def test_runtime_cli_rejects_manifest_install_scope_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    manifest_scope: str,
+    bridge_scope: str,
+) -> None:
+    runtime_name = _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name
+    config_dir = tmp_path / _BRIDGE_RUNTIME_DESCRIPTOR.config_dir_name
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / runtime_cli.get_shared_install_metadata().manifest_name).write_text(
+        json.dumps(
+            {
+                "runtime": runtime_name,
+                "install_scope": manifest_scope,
+                "install_target_dir": str(config_dir),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    expected_repair_command = build_runtime_install_repair_command(
+        runtime_name,
+        install_scope=manifest_scope,
+        target_dir=config_dir,
+        explicit_target=False,
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+
+    exit_code = runtime_cli.main(
+        [
+            "--runtime",
+            runtime_name,
+            "--config-dir",
+            str(config_dir),
+            "--install-scope",
+            bridge_scope,
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge scope mismatch" in captured.err
+    assert f"pins `{manifest_scope}`" in captured.err
+    assert f"launched as `{bridge_scope}`" in captured.err
+    assert expected_repair_command in captured.err
 
 
 def test_runtime_cli_rejects_missing_bridge_arguments_without_argparse_abort(

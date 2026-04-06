@@ -6,7 +6,7 @@ from pathlib import Path
 
 from gpd.hooks.install_context import resolve_hook_lookup_context
 from gpd.hooks.runtime_lookup import (
-    _normalized_runtime_hint,
+    normalize_runtime_hint,
     resolve_runtime_lookup_active_runtime,
     resolve_runtime_lookup_context,
     resolve_runtime_lookup_dir,
@@ -92,6 +92,26 @@ def test_resolve_runtime_lookup_dir_falls_back_to_project_root_for_trusted_proje
     assert resolved == str(project_root)
 
 
+def test_resolve_runtime_lookup_dir_keeps_trusted_project_root_when_nested_other_runtime_exists(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    workspace = project_root / "src" / "analysis"
+    workspace.mkdir(parents=True)
+
+    _mark_complete_install(workspace / ".codex", runtime="codex")
+
+    resolved = resolve_runtime_lookup_dir(
+        workspace_dir=str(workspace),
+        project_root=str(project_root),
+        explicit_project_dir=True,
+        project_dir_trusted=True,
+        active_runtime="claude-code",
+    )
+
+    assert resolved == str(project_root)
+
+
 def test_resolve_runtime_lookup_active_runtime_prefers_project_runtime_for_explicit_project_dir() -> None:
     calls: list[str | None] = []
 
@@ -158,11 +178,11 @@ def test_resolve_runtime_lookup_active_runtime_uses_workspace_when_project_dir_i
     assert calls == ["/tmp/project/src/analysis"]
 
 
-def test_normalized_runtime_hint_handles_alias_unknown_and_blank_values() -> None:
-    assert _normalized_runtime_hint("claude") == "claude-code"
-    assert _normalized_runtime_hint("  claude  ") == "claude-code"
-    assert _normalized_runtime_hint("unknown") is None
-    assert _normalized_runtime_hint("   ") is None
+def test_normalize_runtime_hint_handles_alias_unknown_and_blank_values() -> None:
+    assert normalize_runtime_hint("claude") == "claude-code"
+    assert normalize_runtime_hint("  claude  ") == "claude-code"
+    assert normalize_runtime_hint("unknown") is None
+    assert normalize_runtime_hint("   ") is None
 
 
 def test_resolve_runtime_lookup_context_falls_back_to_workspace_runtime_when_project_runtime_missing(

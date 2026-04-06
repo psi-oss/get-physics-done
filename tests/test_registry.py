@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from gpd import registry
-from gpd.specs import SPECS_DIR as CANONICAL_SPECS_DIR
 from gpd.registry import (
     AgentDef,
     CommandDef,
@@ -21,6 +20,7 @@ from gpd.registry import (
     load_agents_from_dir,
     render_command_visibility_sections_from_frontmatter,
 )
+from gpd.specs import SPECS_DIR as CANONICAL_SPECS_DIR
 
 
 def _write_review_contract_command(tmp_path: Path, file_name: str, review_contract_body: str) -> Path:

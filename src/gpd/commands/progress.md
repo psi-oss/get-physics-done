@@ -13,9 +13,6 @@ allowed-tools:
   - find_files
 ---
 
-<!-- Tool names and @ includes are runtime-specific; the installer rewrites paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may expose different tool interfaces. -->
-
 <objective>
 Check physics research progress, summarize recent work and what's ahead, then route to the next action.
 

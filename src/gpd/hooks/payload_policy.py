@@ -33,8 +33,10 @@ def resolve_hook_surface_runtime(
     self_install = hook_layout.detect_self_owned_install(hook_file)
     if self_install is not None and _surface_is_explicit(self_install.runtime, surface=surface):
         return self_install.runtime
-
-    return hook_layout.resolve_hook_lookup_context(cwd=cwd).active_runtime
+    lookup = hook_layout.resolve_hook_lookup_context(cwd=cwd)
+    if self_install is not None and lookup.active_runtime is None:
+        return self_install.runtime
+    return lookup.active_runtime
 
 
 def resolve_hook_payload_policy(

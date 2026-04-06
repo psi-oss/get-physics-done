@@ -16,6 +16,7 @@ from gpd.mcp.servers.state_server import (
     get_phase_info,
     get_progress,
     get_state,
+    load_state_json,
     mcp,
     run_health_check,
     validate_state,
@@ -82,6 +83,48 @@ def test_state_server_tools_return_stable_error_envelopes(tool_fn, patch_target:
 
     assert result["schema_version"] == 1
     assert result["error"] in {"boom", "missing", "bad"}
+
+
+def test_load_state_json_strips_legacy_session_and_surfaces_contract_gate(monkeypatch, tmp_path: Path) -> None:
+    state_obj = {
+        "position": {"current_phase": "01"},
+        "decisions": [],
+        "blockers": [],
+        "session": {"last_date": "2026-01-01"},
+    }
+
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server.peek_state_json",
+        lambda *_args, **_kwargs: (state_obj, [], "state.json"),
+    )
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server._project_contract_runtime_payload_for_state",
+        lambda *_args, **_kwargs: (
+            {"status": "loaded"},
+            {"valid": True},
+            {"authoritative": True},
+        ),
+    )
+
+    result = load_state_json(tmp_path)
+
+    assert result is not None
+    assert "session" not in result
+    assert result["position"]["current_phase"] == "01"
+    assert result["project_contract_load_info"]["status"] == "loaded"
+    assert result["project_contract_validation"]["valid"] is True
+    assert result["project_contract_gate"]["authoritative"] is True
+
+
+def test_get_state_reports_current_project_state_guidance(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("gpd.mcp.servers.state_server.load_state_json", lambda *_args, **_kwargs: None)
+
+    result = get_state(str(tmp_path))
+
+    assert result == {
+        "error": "No project state found. Run 'gpd init' to initialize a GPD project state.",
+        "schema_version": 1,
+    }
 
 
 def test_get_progress_does_not_mutate_checkpoint_shelf_artifacts(tmp_path: Path) -> None:

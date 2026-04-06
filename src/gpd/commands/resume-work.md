@@ -20,7 +20,7 @@ Restore complete research context and resume from the canonical continuation sta
 
 This is the runtime recovery command for the selected project. Use `gpd resume` for the current-workspace read-only recovery snapshot, `gpd resume --recent` when you need the explicit multi-project picker, then run `gpd:resume-work` in the reopened project. The recent-project list is advisory and machine-local; once you choose a workspace, `gpd:resume-work` reloads that project's canonical state. After resuming, `gpd:suggest-next` is the fastest next command when you only need the next action.
 
-`state.json.continuation` is the durable continuation authority. Public resume vocabulary centers on canonical continuation fields: `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `active_resume_result`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`. Those fields are the public top-level resume vocabulary only; compatibility-only intake fields stay internal.
+`state.json.continuation` is the durable authority. Canonical continuation fields define the public resume vocabulary: `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `active_resume_result`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`. Compatibility-only intake fields stay internal.
 
 Routes to the resume-work workflow which handles:
 

@@ -30,7 +30,6 @@ from gpd.contracts import (
 )
 from gpd.core.contract_validation import (
     is_authoritative_project_contract_schema_finding,
-    is_defaultable_singleton_project_contract_schema_finding,
     split_project_contract_schema_findings,
     validate_project_contract,
 )
@@ -74,31 +73,30 @@ def test_validate_project_contract_accepts_stage0_fixture() -> None:
 def test_project_contract_schema_finding_helpers_keep_authoritative_and_blocking_classes_distinct() -> None:
     assert is_authoritative_project_contract_schema_finding("schema_version must be the integer 1") is True
     assert is_authoritative_project_contract_schema_finding("references.0.must_surface must be a boolean") is True
-    assert is_defaultable_singleton_project_contract_schema_finding(
-        "context_intake must be an object, not str"
-    ) is False
-    assert is_defaultable_singleton_project_contract_schema_finding(
-        "uncertainty_markers must be an object, not str"
-    ) is False
-    assert is_defaultable_singleton_project_contract_schema_finding(
-        "approach_policy must be an object, not str"
-    ) is False
 
 
-def test_split_project_contract_schema_findings_uses_public_helper_contract() -> None:
-    recoverable, blocking = split_project_contract_schema_findings(
-        [
-            "legacy_notes: Extra inputs are not permitted",
-            "context_intake must be an object, not str",
-            "schema_version must be the integer 1",
-        ]
-    )
+def test_split_project_contract_schema_findings_separates_case_drift_from_blocking_errors() -> None:
+    findings = [
+        "legacy_notes: Extra inputs are not permitted",
+        "observables.0.kind must use exact canonical value: other",
+        "schema_version must be the integer 1",
+    ]
+
+    recoverable, blocking = split_project_contract_schema_findings(findings, allow_case_drift_recovery=False)
 
     assert recoverable == ["legacy_notes: Extra inputs are not permitted"]
     assert blocking == [
-        "context_intake must be an object, not str",
+        "observables.0.kind must use exact canonical value: other",
         "schema_version must be the integer 1",
     ]
+
+    recoverable, blocking = split_project_contract_schema_findings(findings, allow_case_drift_recovery=True)
+
+    assert recoverable == [
+        "legacy_notes: Extra inputs are not permitted",
+        "observables.0.kind must use exact canonical value: other",
+    ]
+    assert blocking == ["schema_version must be the integer 1"]
 
 
 @pytest.mark.parametrize(

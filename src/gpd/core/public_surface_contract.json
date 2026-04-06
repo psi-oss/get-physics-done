@@ -63,7 +63,7 @@
   },
   "resume_authority": {
     "durable_authority_phrase": "`state.json.continuation` is the durable authority",
-    "public_vocabulary_intro": "Public resume vocabulary centers on canonical continuation fields",
+    "public_vocabulary_intro": "Canonical continuation fields define the public resume vocabulary",
     "public_fields": [
       "active_resume_kind",
       "active_resume_origin",
@@ -76,7 +76,7 @@
       "missing_continuity_handoff_file",
       "resume_candidates"
     ],
-    "top_level_boundary_phrase": "public top-level resume vocabulary only"
+    "top_level_boundary_phrase": "Canonical continuation fields define the public resume vocabulary"
   },
   "recovery_ladder": {
     "title": "Recovery ladder",

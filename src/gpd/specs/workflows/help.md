@@ -562,7 +562,7 @@ Usage: `gpd:progress --reconcile` (fix diverged STATE.md and state.json)
 Resume research from a previous session with full context restoration.
 
 - `state.json.continuation` is the durable authority for resume state; `gpd resume` is the read-only local summary and `gpd resume --recent` is the workspace picker
-- Public resume vocabulary centers on canonical continuation fields: `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `active_resume_result`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`. Compatibility-only intake fields stay internal and are not part of the public top-level resume vocabulary. The list above is the public top-level resume vocabulary only.
+- Canonical continuation fields define the public resume vocabulary: `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `active_resume_result`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`. Compatibility-only intake fields stay internal.
 - Use the recovery ladder (`gpd resume` -> `gpd resume --recent` -> `gpd:resume-work`) to pick up where you left off
 - Best first in-runtime command when returning to paused or interrupted work
 

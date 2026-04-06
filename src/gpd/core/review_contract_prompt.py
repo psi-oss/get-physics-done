@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Mapping
 
 import yaml
@@ -75,10 +76,10 @@ def _review_contract_guidance() -> str:
     preflight_checks = "|".join(VALID_REVIEW_PREFLIGHT_CHECKS)
     return (
         f"{review_contract_visibility_note()} "
-        "Closed schema: no extra keys. "
+        "Closed schema; no extra keys. "
         f"`review_mode`={review_modes}; "
         f"`required_state`={required_states} when present; "
-        f"`preflight_checks` must use declared values (`{preflight_checks}`); "
+        f"`preflight_checks`=`{preflight_checks}`; "
         f"`conditional_requirements[].when`={when_values}; "
         "`conditional_requirements[].blocking_preflight_checks` must reuse declared `preflight_checks` values."
     )
@@ -401,6 +402,32 @@ def normalize_review_contract_frontmatter_payload(review_contract: object) -> di
         review_contract,
         allowed_wrapper_key=REVIEW_CONTRACT_FRONTMATTER_KEY,
     )
+
+
+def review_contract_payload(review_contract: object) -> dict[str, object] | None:
+    """Return the canonical serialized payload for a review-contract dataclass or mapping."""
+
+    if review_contract is None:
+        return None
+    if isinstance(review_contract, Mapping):
+        payload = dict(review_contract)
+    elif dataclasses.is_dataclass(review_contract):
+        payload = dataclasses.asdict(review_contract)
+    else:
+        raise ValueError("review contract must be a mapping or dataclass instance")
+
+    if not payload:
+        return None
+    required_state = payload.get("required_state")
+    if isinstance(required_state, str):
+        required_state = required_state.strip()
+        if required_state:
+            payload["required_state"] = required_state
+        else:
+            payload.pop("required_state", None)
+    elif not required_state:
+        payload.pop("required_state", None)
+    return payload or None
 
 
 def render_review_contract_prompt(review_contract: object) -> str:

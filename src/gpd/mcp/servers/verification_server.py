@@ -51,7 +51,6 @@ from gpd.contracts import (
 )
 from gpd.core.contract_validation import (
     is_authoritative_project_contract_schema_finding,
-    is_defaultable_singleton_project_contract_schema_finding,
     is_repair_relevant_project_contract_schema_finding,
 )
 from gpd.core.observability import gpd_span
@@ -3266,7 +3265,8 @@ def _is_authoritative_contract_parse_error(error: str) -> bool:
 
 
 def _is_defaultable_singleton_contract_error(error: str) -> bool:
-    return is_defaultable_singleton_project_contract_schema_finding(error)
+    del error
+    return False
 
 
 def _recoverable_collection_list_shape_error(error: str, *, contract_raw: dict[str, object]) -> bool:

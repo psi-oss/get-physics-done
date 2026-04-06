@@ -25,6 +25,7 @@ from gpd.adapters.runtime_catalog import (
 )
 
 _RUNTIME_CATALOG_PATH = Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog.json"
+_RUNTIME_CATALOG_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog_schema.json"
 _RUNTIME_CONFIG_SURFACE_LABEL_RE = re.compile(r"^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$")
 
 
@@ -57,6 +58,61 @@ def _iter_runtime_descriptors_from_payload(
     try:
         return runtime_catalog.iter_runtime_descriptors()
     finally:
+        runtime_catalog._load_catalog.cache_clear()
+
+
+def _iter_runtime_descriptors_from_schema(
+    schema_payload: dict[str, object],
+    *,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    schema_path = tmp_path / "runtime_catalog_schema.json"
+    schema_path.write_text(json.dumps(schema_payload), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_runtime_catalog_schema_path", lambda: schema_path)
+    runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
+    schema_shape = runtime_catalog._load_runtime_catalog_schema_shape()
+    monkeypatch.setattr(runtime_catalog, "_RUNTIME_CATALOG_SHAPE", schema_shape)
+    monkeypatch.setattr(runtime_catalog, "_RUNTIME_ENTRY_REQUIRED_KEYS", schema_shape["entry_required_keys"])
+    monkeypatch.setattr(
+        runtime_catalog,
+        "_RUNTIME_ENTRY_OPTIONAL_KEYS",
+        schema_shape["entry_optional_keys"]
+        | frozenset(runtime_catalog._RUNTIME_CATALOG_SCHEMA_OVERRIDES.get("entry_optional_keys", ())),
+    )
+    monkeypatch.setattr(
+        runtime_catalog,
+        "_RUNTIME_ENTRY_ALLOWED_KEYS",
+        schema_shape["entry_required_keys"]
+        | (
+            schema_shape["entry_optional_keys"]
+            | frozenset(runtime_catalog._RUNTIME_CATALOG_SCHEMA_OVERRIDES.get("entry_optional_keys", ()))
+        ),
+    )
+    monkeypatch.setattr(runtime_catalog, "_RUNTIME_GLOBAL_CONFIG_STRATEGIES", frozenset(schema_shape["global_config_keys"].keys()))
+    monkeypatch.setattr(runtime_catalog, "_RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES", schema_shape["install_help_example_scopes"])
+    monkeypatch.setattr(
+        runtime_catalog,
+        "_RUNTIME_CAPABILITY_ENUMS",
+        {
+            field_name: values
+            | frozenset(runtime_catalog._RUNTIME_CATALOG_SCHEMA_OVERRIDES.get("capability_enum_values", {}).get(field_name, ()))
+            for field_name, values in schema_shape["capability_enums"].items()
+        },
+    )
+    monkeypatch.setattr(runtime_catalog, "_RUNTIME_GLOBAL_CONFIG_KEYS", schema_shape["global_config_keys"])
+    monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_KEYS", schema_shape["capability_keys"])
+    monkeypatch.setattr(runtime_catalog, "_RUNTIME_HOOK_PAYLOAD_KEYS", schema_shape["hook_payload_keys"])
+    monkeypatch.setattr(
+        runtime_catalog,
+        "_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS",
+        schema_shape["launch_wrapper_permission_surface_kinds"],
+    )
+    runtime_catalog._load_catalog.cache_clear()
+    try:
+        return runtime_catalog.iter_runtime_descriptors()
+    finally:
+        runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
         runtime_catalog._load_catalog.cache_clear()
 
 
@@ -185,6 +241,17 @@ def test_runtime_catalog_rejects_unknown_top_level_keys(tmp_path: Path, monkeypa
 
     with pytest.raises(ValueError, match=r"runtime catalog entry 0 contains unknown key\(s\): legacy_note"):
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_schema_drift_against_fixed_schema(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    schema["entry_required_keys"] = [*schema["entry_required_keys"], "legacy_required_key"]
+
+    with pytest.raises(ValueError, match=r"runtime catalog entry 0 is missing required key\(s\): legacy_required_key"):
+        _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
 def test_runtime_catalog_rejects_blank_selection_aliases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -331,10 +398,18 @@ def test_runtime_catalog_accepts_catalog_declared_launch_wrapper_special_values(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    schema["launch_wrapper_permission_surface_kinds"] = [
+        *schema["launch_wrapper_permission_surface_kinds"],
+        "future.json:launchWrapper",
+    ]
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
     _catalog_entry_by_runtime_name(payload, "gemini")["capabilities"]["permission_surface_kind"] = "future.json:launchWrapper"
 
-    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    catalog_path = tmp_path / "runtime_catalog.json"
+    catalog_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_catalog_path", lambda: catalog_path)
+    descriptors = _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
     gemini = next(descriptor for descriptor in descriptors if descriptor.runtime_name == "gemini")
     assert gemini.capabilities.permission_surface_kind == "future.json:launchWrapper"
@@ -344,15 +419,22 @@ def test_runtime_catalog_rejects_config_file_use_of_catalog_declared_launch_wrap
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    schema["launch_wrapper_permission_surface_kinds"] = [
+        *schema["launch_wrapper_permission_surface_kinds"],
+        "future.json:launchWrapper",
+    ]
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
-    _catalog_entry_by_runtime_name(payload, "gemini")["capabilities"]["permission_surface_kind"] = "future.json:launchWrapper"
     _catalog_entry_by_runtime_name(payload, "codex")["capabilities"]["permission_surface_kind"] = "future.json:launchWrapper"
+    catalog_path = tmp_path / "runtime_catalog.json"
+    catalog_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_catalog_path", lambda: catalog_path)
 
     with pytest.raises(
         ValueError,
         match=r"runtime catalog entry \d+\.capabilities\.permission_surface_kind must be a config surface label when permissions_surface=config-file",
     ):
-        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+        _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
 def test_hook_payload_policy_uses_runtime_specific_overrides_and_merged_fallback() -> None:

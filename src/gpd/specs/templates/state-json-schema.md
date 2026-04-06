@@ -31,7 +31,7 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 | `pending_todos` | `string[]` | `[]` | Ideas captured via gpd:add-todo | Synced from todos/ |
 | `blockers` | `string[]` | `[]` | Active blockers/concerns | Synced from STATE.md |
 | `continuation` | `ContinuationObject` | see below | Durable canonical continuation authority; compatibility mirrors derive from it | **Authoritative** (JSON-only) |
-| `session` | `SessionObject` | see below | Markdown-compatible compatibility mirror of canonical continuation for STATE.md rendering; not part of the public top-level resume vocabulary | Synced from canonical continuation / STATE.md |
+| `session` | `SessionObject` | see below | Markdown-compatible compatibility mirror of canonical continuation for STATE.md rendering; not part of the public resume vocabulary | Synced from canonical continuation / STATE.md |
 
 ### Authoritative vs Derived
 
@@ -71,8 +71,8 @@ Fields marked **Authoritative** exist only in state.json (not representable in S
   "context_intake": {
     "must_read_refs": ["Ref-01"],
     "must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"],
-    "user_asserted_anchors": ["Recover known asymptotic limit from the accepted benchmark curve"],
-    "known_good_baselines": ["Baseline derivation in notebook X"],
+    "user_asserted_anchors": ["GPD/phases/00-baseline/00-01-SUMMARY.md#benchmark-curve"],
+    "known_good_baselines": ["GPD/phases/00-baseline/00-01-SUMMARY.md#accepted-baseline"],
     "context_gaps": ["Need grounding; decisive target not yet chosen before planning"],
     "crucial_inputs": ["Figure 2 from prior work"]
   },
@@ -229,7 +229,7 @@ If a project-contract reference sets `must_surface: true`, `applies_to[]` must n
 Approved-mode grounding is field-specific:
 
 - `must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames that already exist inside the current project root. If `project_root` is unavailable, treat them as non-grounding until the file can be resolved against a concrete root.
-- `user_asserted_anchors[]` and `known_good_baselines[]` should use at least three words and name a concrete benchmark, baseline, reference, paper, notebook, figure, table, dataset, curve, result, derivation, observable, limit, comparison, or comparable anchor phrase. Single-token filler does not count.
+- `user_asserted_anchors[]` and `known_good_baselines[]` must name a concrete, re-findable handle such as a citation, DOI, arXiv ID, durable URL, or project-local artifact path. Multi-word prose alone does not count.
 - If a `references[].locator` uses a project-local artifact path instead of an external paper locator, it only counts as approved grounding when the referenced file already exists inside the current project root. If no project root is available, it does not count as approved grounding.
 - `Placeholder`, `TBD`, `TODO`, `unknown`, `unclear`, `none`, `n/a`, and `placeholder` remain non-grounding unless they are part of a genuinely missing-anchor blocker phrase.
 

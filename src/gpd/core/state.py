@@ -832,7 +832,7 @@ def _classify_project_contract_payload(
     normalized_contract, schema_findings = salvage_project_contract(raw_contract)
     schema_warnings, schema_errors = split_project_contract_schema_findings(
         schema_findings,
-        allow_singleton_defaults=True,
+        allow_case_drift_recovery=True,
     )
     schema_warnings = list(dict.fromkeys([*schema_warnings, *list_shape_drift_errors, *list_member_errors]))
     blocking_schema_errors = list(schema_errors)
@@ -2058,7 +2058,7 @@ def _normalize_project_contract_section(
             return None
         _schema_warnings, schema_errors = split_project_contract_schema_findings(
             combined_errors,
-            allow_singleton_defaults=allow_project_contract_salvage,
+            allow_case_drift_recovery=allow_project_contract_salvage,
         )
         if schema_errors:
             integrity_issues.append(
@@ -3556,7 +3556,7 @@ def _preserved_visible_project_contract_for_json_save(cwd: Path, *, state_obj: d
         return None
     _, candidate_schema_errors = split_project_contract_schema_findings(
         candidate_schema_findings,
-        allow_singleton_defaults=True,
+        allow_case_drift_recovery=True,
     )
     if candidate_schema_errors:
         return None

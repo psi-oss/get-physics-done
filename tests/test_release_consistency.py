@@ -27,6 +27,13 @@ def _repo_root() -> Path:
 
 
 _SHARED_INSTALL = get_shared_install_metadata()
+_BOOTSTRAP_JSON_ASSETS = (
+    "src/gpd/adapters/runtime_catalog.json",
+    "src/gpd/adapters/runtime_catalog_overrides.json",
+    "src/gpd/adapters/runtime_catalog_schema.json",
+    "src/gpd/core/public_surface_contract.json",
+    "src/gpd/core/public_surface_contract_schema.json",
+)
 
 
 def _project_script_lines(repo_root: Path) -> list[str]:
@@ -87,6 +94,18 @@ def _npm_pack_dry_run(repo_root: Path, work_dir: Path) -> dict[str, object]:
     pack = pack_data[0]
     assert isinstance(pack, dict)
     return pack
+
+
+def _packaged_file_paths(pack: dict[str, object]) -> set[str]:
+    files = pack.get("files", [])
+    assert isinstance(files, list)
+    paths: set[str] = set()
+    for entry in files:
+        assert isinstance(entry, dict)
+        path = entry.get("path")
+        assert isinstance(path, str)
+        paths.add(path)
+    return paths
 
 
 def _copy_release_surfaces(repo_root: Path, out_dir: Path) -> None:
@@ -196,11 +215,12 @@ def test_public_metadata_records_psi_affiliation() -> None:
 def test_public_bootstrap_package_exposes_npx_installer() -> None:
     repo_root = _repo_root()
     package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
+    packaged_files = set(package_json.get("files", []))
 
     assert package_json["name"] == "get-physics-done"
     assert package_json.get("bin", {}).get("get-physics-done") == "bin/install.js"
-    assert "bin/" in package_json.get("files", [])
-    assert "src/gpd/core/public_surface_contract.json" in package_json.get("files", [])
+    assert "bin/" in packaged_files
+    assert set(_BOOTSTRAP_JSON_ASSETS) <= packaged_files
     assert (repo_root / "bin" / "install.js").is_file()
 
 
@@ -434,13 +454,13 @@ def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
     )
 
     pack = _npm_pack_dry_run(repo_root, tmp_path)
-    packed_paths = {str(item["path"]) for item in pack["files"]}
+    packed_paths = _packaged_file_paths(pack)
 
     assert pack["name"] == "get-physics-done"
     assert pack["version"] == _python_release_version(repo_root)
     assert "bin/install.js" in packed_paths
-    assert "src/gpd/adapters/runtime_catalog.json" in packed_paths
-    assert "src/gpd/core/public_surface_contract.json" in packed_paths
+    assert "package.json" in packed_paths
+    assert set(_BOOTSTRAP_JSON_ASSETS) <= packed_paths
     assert (tmp_path / "npm-cache").is_dir()
 
     if existed_before:

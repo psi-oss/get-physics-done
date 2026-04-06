@@ -111,9 +111,11 @@ def test_state_schema_surfaces_the_exact_approved_mode_grounding_rule() -> None:
     assert "`GPD/phases/.../*-SUMMARY.md` or `paper/main.tex`" not in state_schema_text
     assert "`GPD/phases/.../SUMMARY.md`" not in state_schema_text
     assert (
-        "`user_asserted_anchors[]` and `known_good_baselines[]` should use at least three words and name a concrete benchmark, baseline, reference, paper, notebook, figure, table, dataset, curve, result, derivation, observable, limit, comparison, or comparable anchor phrase."
+        "`user_asserted_anchors[]` and `known_good_baselines[]` must name a concrete, re-findable handle such as a citation, DOI, arXiv ID, durable URL, or project-local artifact path."
         in state_schema_text
     )
+    assert "Multi-word prose alone does not count." in state_schema_text
+    assert "should use at least three words and name a concrete benchmark" not in state_schema_text
     assert "gpd --raw validate project-contract - --mode approved" in state_schema_text
     assert "`context_intake`, `approach_policy`, and `uncertainty_markers` are JSON objects when present; do not collapse them to strings or lists." in state_schema_text
     assert "`schema_version` must be the integer `1`." in state_schema_text

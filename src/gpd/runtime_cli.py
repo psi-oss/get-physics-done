@@ -300,6 +300,35 @@ def _runtime_mismatch_error_message(
     )
 
 
+def _install_scope_mismatch_error_message(
+    *,
+    runtime: str,
+    manifest_install_scope: str,
+    config_dir: Path,
+    install_scope: str,
+    explicit_target: bool,
+    cli_cwd: Path,
+) -> str:
+    """Return repair guidance when the manifest scope disagrees with the bridge scope."""
+    repair_command = build_runtime_install_repair_command(
+        runtime,
+        install_scope=manifest_install_scope,
+        target_dir=config_dir,
+        explicit_target=_uses_effective_explicit_target(
+            runtime=runtime,
+            config_dir=config_dir,
+            install_scope=manifest_install_scope,
+            explicit_target=explicit_target,
+            cli_cwd=cli_cwd,
+        ),
+    )
+    return (
+        f"GPD runtime bridge scope mismatch for {_runtime_display_name(runtime)} at `{config_dir}`.\n"
+        f"Resolved install manifest pins `{manifest_install_scope}`, but this bridge was launched as `{install_scope}`.\n"
+        f"Repair or reinstall with the owning scope: `{repair_command}`\n"
+    )
+
+
 def _malformed_manifest_runtime_error_message(
     *,
     runtime: str,
@@ -503,6 +532,19 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 127
+    if isinstance(manifest_install_scope, str) and manifest_install_scope in {"local", "global"}:
+        if manifest_install_scope != options.install_scope:
+            sys.stderr.write(
+                _install_scope_mismatch_error_message(
+                    runtime=runtime,
+                    manifest_install_scope=manifest_install_scope,
+                    config_dir=config_dir,
+                    install_scope=options.install_scope,
+                    explicit_target=repair_explicit_target,
+                    cli_cwd=cli_cwd,
+                )
+            )
+            return 127
 
     missing = adapter.missing_install_artifacts(config_dir)
     if missing:

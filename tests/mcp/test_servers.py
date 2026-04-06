@@ -1225,8 +1225,8 @@ class TestSkillsServer:
         assert result["skills"][0]["name"] == "gpd-execute-phase"
 
     def test_list_skills_empty_category(self):
-        from gpd.mcp.servers.skills_server import list_skills
         from gpd import registry as content_registry
+        from gpd.mcp.servers.skills_server import list_skills
 
         result = list_skills(category="nonexistent")
         assert result == {

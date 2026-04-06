@@ -25,7 +25,9 @@ const {
   gpdPythonVersion: rawPythonPackageVersion,
 } = require("../package.json");
 const PUBLIC_SURFACE_CONTRACT = require("../src/gpd/core/public_surface_contract.json");
+const PUBLIC_SURFACE_CONTRACT_SCHEMA = require("../src/gpd/core/public_surface_contract_schema.json");
 const BUNDLED_RUNTIME_CATALOG_PAYLOAD = require("../src/gpd/adapters/runtime_catalog.json");
+const RUNTIME_CATALOG_SCHEMA = require("../src/gpd/adapters/runtime_catalog_schema.json");
 const RUNTIME_CATALOG_SCHEMA_OVERRIDES = require("../src/gpd/adapters/runtime_catalog_overrides.json");
 
 const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPythonPackageVersion.trim() : "";
@@ -111,175 +113,48 @@ function runtimeInstallerHelpExampleScope(runtime) {
   return runtimeRecord(runtime).installer_help_example_scope || null;
 }
 
-function deriveRuntimeCatalogShape(catalogPayload) {
-  if (!Array.isArray(catalogPayload) || catalogPayload.length === 0) {
-    throw new Error("runtime catalog must be a non-empty JSON array");
-  }
-
-  const entryKeySets = [];
-  const globalConfigKeySets = new Map();
-  const capabilityKeySets = [];
-  const hookPayloadKeySets = [];
-  const capabilityEnumValues = {
-    permissions_surface: [],
-    statusline_surface: [],
-    notify_surface: [],
-    telemetry_source: [],
-    telemetry_completeness: [],
-  };
-  const installHelpExampleScopes = [];
-
-  catalogPayload.forEach((entry, index) => {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      throw new Error(`runtime catalog entry ${index} must be a JSON object`);
-    }
-
-    const entryKeys = Object.keys(entry);
-    entryKeySets.push(new Set(entryKeys));
-
-    const globalConfig = entry.global_config;
-    if (globalConfig && typeof globalConfig === "object" && !Array.isArray(globalConfig)) {
-      const strategy = globalConfig.strategy;
-      if (typeof strategy === "string" && strategy.trim()) {
-        const normalizedStrategy = strategy.trim();
-        if (!globalConfigKeySets.has(normalizedStrategy)) {
-          globalConfigKeySets.set(normalizedStrategy, []);
-        }
-        globalConfigKeySets.get(normalizedStrategy).push(new Set(Object.keys(globalConfig)));
-      }
-    }
-
-    const capabilities = entry.capabilities;
-    if (capabilities && typeof capabilities === "object" && !Array.isArray(capabilities)) {
-      capabilityKeySets.push(new Set(Object.keys(capabilities)));
-      for (const [fieldName, values] of Object.entries(capabilityEnumValues)) {
-        const value = capabilities[fieldName];
-        if (typeof value === "string") {
-          const normalizedValue = value.trim();
-          if (normalizedValue && !values.includes(normalizedValue)) {
-            values.push(normalizedValue);
-          }
-        }
-      }
-    }
-
-    const hookPayload = entry.hook_payload;
-    if (hookPayload && typeof hookPayload === "object" && !Array.isArray(hookPayload)) {
-      hookPayloadKeySets.push(new Set(Object.keys(hookPayload)));
-    }
-
-    const helpScope = entry.installer_help_example_scope;
-    if (typeof helpScope === "string") {
-      const normalizedScope = helpScope.trim();
-      if (normalizedScope && !installHelpExampleScopes.includes(normalizedScope)) {
-        installHelpExampleScopes.push(normalizedScope);
-      }
-    }
-  });
-
-  const intersectSets = (sets) => {
-    if (sets.length === 0) {
-      return new Set();
-    }
-    const [first, ...rest] = sets;
-    const result = new Set(first);
-    for (const value of [...result]) {
-      if (rest.some((set) => !set.has(value))) {
-        result.delete(value);
-      }
-    }
-    return result;
-  };
-
-  const unionSets = (sets) => {
-    const result = new Set();
-    for (const set of sets) {
-      for (const value of set) {
-        result.add(value);
-      }
-    }
-    return result;
-  };
-
-  const entryRequiredKeys = intersectSets(entryKeySets);
-  const entryAllowedKeys = unionSets(entryKeySets);
-  const globalConfigKeys = Object.fromEntries(
-    [...globalConfigKeySets.entries()].map(([strategy, keySets]) => [strategy, intersectSets(keySets)])
-  );
-
-  return {
-    entryRequiredKeys,
-    entryOptionalKeys: new Set([...entryAllowedKeys].filter((key) => !entryRequiredKeys.has(key))),
-    globalConfigKeys,
-    capabilityKeys: intersectSets(capabilityKeySets),
-    capabilityEnums: Object.fromEntries(
-      Object.entries(capabilityEnumValues).map(([fieldName, values]) => [fieldName, new Set(values)])
-    ),
-    hookPayloadKeys: intersectSets(hookPayloadKeySets),
-    installHelpExampleScopes: new Set(installHelpExampleScopes),
-  };
-}
-
-const PUBLIC_SURFACE_CONTRACT_KEYS = Object.keys(PUBLIC_SURFACE_CONTRACT);
-const PUBLIC_SURFACE_CONTRACT_SECTION_KEYS = Object.fromEntries(
-  Object.entries(PUBLIC_SURFACE_CONTRACT)
-    .filter(([key]) => key !== "schema_version")
-    .map(([section, payload]) => [section, Object.keys(payload)])
+const RUNTIME_CATALOG_GLOBAL_CONFIG_KEYS = Object.fromEntries(
+  Object.entries(RUNTIME_CATALOG_SCHEMA.global_config_keys).map(([strategy, keys]) => [strategy, new Set(keys)])
 );
+const RUNTIME_CATALOG_GLOBAL_CONFIG_STRATEGIES = new Set(Object.keys(RUNTIME_CATALOG_GLOBAL_CONFIG_KEYS));
+const RUNTIME_CATALOG_ENTRY_REQUIRED_KEYS = new Set(RUNTIME_CATALOG_SCHEMA.entry_required_keys);
+const RUNTIME_CATALOG_ENTRY_OPTIONAL_KEYS = new Set([
+  ...RUNTIME_CATALOG_SCHEMA.entry_optional_keys,
+  ...(RUNTIME_CATALOG_SCHEMA_OVERRIDES.entry_optional_keys || []),
+]);
+const RUNTIME_CATALOG_ENTRY_KEYS = {
+  required: [...RUNTIME_CATALOG_ENTRY_REQUIRED_KEYS],
+  optional: [...RUNTIME_CATALOG_ENTRY_OPTIONAL_KEYS],
+};
+const RUNTIME_CATALOG_ALLOWED_KEYS = new Set([
+  ...RUNTIME_CATALOG_ENTRY_REQUIRED_KEYS,
+  ...RUNTIME_CATALOG_ENTRY_OPTIONAL_KEYS,
+]);
+const RUNTIME_CATALOG_CAPABILITY_KEYS = new Set(RUNTIME_CATALOG_SCHEMA.capability_keys);
+const RUNTIME_CATALOG_CAPABILITY_ENUMS = Object.fromEntries(
+  Object.entries(RUNTIME_CATALOG_SCHEMA.capability_enums).map(([fieldName, values]) => [
+    fieldName,
+    new Set([...values, ...(RUNTIME_CATALOG_SCHEMA_OVERRIDES.capability_enum_values?.[fieldName] || [])]),
+  ])
+);
+const RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS = new Set(RUNTIME_CATALOG_SCHEMA.hook_payload_keys);
+const RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = new Set(RUNTIME_CATALOG_SCHEMA.install_help_example_scopes);
+const RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = new Set(
+  RUNTIME_CATALOG_SCHEMA.launch_wrapper_permission_surface_kinds
+);
+const PUBLIC_SURFACE_CONTRACT_KEYS = [...PUBLIC_SURFACE_CONTRACT_SCHEMA.top_level_keys];
 const PUBLIC_SURFACE_CONTRACT_ALLOWED_KEYS = new Set(PUBLIC_SURFACE_CONTRACT_KEYS);
+const PUBLIC_SURFACE_CONTRACT_SECTION_KEYS = Object.fromEntries(
+  Object.entries(PUBLIC_SURFACE_CONTRACT_SCHEMA.sections).map(([section, payload]) => [section, payload.keys])
+);
 const PUBLIC_SURFACE_CONTRACT_SECTION_ALLOWED_KEYS = Object.fromEntries(
   Object.entries(PUBLIC_SURFACE_CONTRACT_SECTION_KEYS).map(([section, keys]) => [section, new Set(keys)])
 );
-const PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = Object.keys(PUBLIC_SURFACE_CONTRACT.local_cli_bridge.named_commands);
-const RUNTIME_CATALOG_SHAPE = deriveRuntimeCatalogShape(BUNDLED_RUNTIME_CATALOG_PAYLOAD);
-const RUNTIME_CATALOG_ENTRY_SCHEMA_ONLY_OPTIONAL_KEYS = new Set(RUNTIME_CATALOG_SCHEMA_OVERRIDES.entry_optional_keys || []);
-const RUNTIME_CATALOG_ENTRY_KEYS = {
-  required: [...RUNTIME_CATALOG_SHAPE.entryRequiredKeys],
-  optional: [...new Set([...RUNTIME_CATALOG_SHAPE.entryOptionalKeys, ...RUNTIME_CATALOG_ENTRY_SCHEMA_ONLY_OPTIONAL_KEYS])],
-};
-const RUNTIME_CATALOG_ALLOWED_KEYS = new Set([
-  ...RUNTIME_CATALOG_ENTRY_KEYS.required,
-  ...RUNTIME_CATALOG_ENTRY_KEYS.optional,
-]);
-const RUNTIME_CATALOG_GLOBAL_CONFIG_KEYS = Object.fromEntries(
-  Object.entries(RUNTIME_CATALOG_SHAPE.globalConfigKeys).map(([strategy, keys]) => [strategy, new Set(keys)])
-);
-const RUNTIME_CATALOG_CAPABILITY_KEYS = new Set(RUNTIME_CATALOG_SHAPE.capabilityKeys);
-const RUNTIME_CATALOG_CAPABILITY_ENUMS = Object.fromEntries(
-  Object.entries(RUNTIME_CATALOG_SHAPE.capabilityEnums).map(([fieldName, values]) => [
-    fieldName,
-    new Set([...values, ...(RUNTIME_CATALOG_SCHEMA_OVERRIDES.capability_enum_values?.[fieldName] ?? [])]),
-  ])
-);
-const RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS = new Set(RUNTIME_CATALOG_SHAPE.hookPayloadKeys);
-const RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = new Set(RUNTIME_CATALOG_SHAPE.installHelpExampleScopes);
+const PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = [
+  ...PUBLIC_SURFACE_CONTRACT_SCHEMA.sections.local_cli_bridge.named_commands.ordered_keys,
+];
+const PUBLIC_SURFACE_LOCAL_CLI_COMMANDS = [...PUBLIC_SURFACE_CONTRACT_SCHEMA.sections.local_cli_bridge.commands];
 const RUNTIME_CONFIG_SURFACE_LABEL_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$/;
-
-function deriveLaunchWrapperPermissionSurfaceKinds(catalogPayload) {
-  if (!Array.isArray(catalogPayload)) {
-    return new Set();
-  }
-
-  const values = new Set();
-  for (const entry of catalogPayload) {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      continue;
-    }
-    const capabilities = entry.capabilities;
-    if (!capabilities || typeof capabilities !== "object" || Array.isArray(capabilities)) {
-      continue;
-    }
-    if (capabilities.permissions_surface !== "launch-wrapper") {
-      continue;
-    }
-    const surfaceKind = capabilities.permission_surface_kind;
-    if (typeof surfaceKind === "string" && surfaceKind.trim()) {
-      values.add(surfaceKind.trim());
-    }
-  }
-
-  return values;
-}
 
 function formatQuotedDisjunction(values) {
   const normalized = [...values].sort();
@@ -458,11 +333,7 @@ function validateRuntimeCatalogGlobalConfig(globalConfig, label) {
   };
 }
 
-function validateRuntimeCatalogCapabilities(capabilities, label, options = {}) {
-  const launchWrapperPermissionSurfaceKinds =
-    options.launchWrapperPermissionSurfaceKinds instanceof Set
-      ? options.launchWrapperPermissionSurfaceKinds
-      : new Set();
+function validateRuntimeCatalogCapabilities(capabilities, label) {
   const payload = requireJsonObject(capabilities, label);
   requireKnownKeys(payload, RUNTIME_CATALOG_CAPABILITY_KEYS, label);
   requirePresentKeys(payload, RUNTIME_CATALOG_CAPABILITY_KEYS, label);
@@ -476,7 +347,7 @@ function validateRuntimeCatalogCapabilities(capabilities, label, options = {}) {
     permission_surface_kind: requireRuntimeSurfaceLabel(
       payload.permission_surface_kind,
       `${label}.permission_surface_kind`,
-      { allowSpecialValues: launchWrapperPermissionSurfaceKinds }
+      { allowSpecialValues: RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS }
     ),
     prompt_free_mode_value: requireStrictString(payload.prompt_free_mode_value, `${label}.prompt_free_mode_value`),
     supports_runtime_permission_sync: requireStrictBoolean(
@@ -526,7 +397,7 @@ function validateRuntimeCatalogCapabilities(capabilities, label, options = {}) {
   if (validated.permissions_surface === "config-file") {
     if (
       validated.permission_surface_kind === "none" ||
-      launchWrapperPermissionSurfaceKinds.has(validated.permission_surface_kind)
+      RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS.has(validated.permission_surface_kind)
     ) {
       throw new Error(
         `${label}.permission_surface_kind must be a config surface label when permissions_surface=config-file`
@@ -536,10 +407,16 @@ function validateRuntimeCatalogCapabilities(capabilities, label, options = {}) {
       throw new Error(`${label}.supports_runtime_permission_sync must be true when permissions_surface=config-file`);
     }
   } else if (validated.permissions_surface === "launch-wrapper") {
-    if (!launchWrapperPermissionSurfaceKinds.has(validated.permission_surface_kind)) {
+    if (
+      validated.permission_surface_kind === "none" ||
+      !(
+        RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS.has(validated.permission_surface_kind) ||
+        RUNTIME_CONFIG_SURFACE_LABEL_RE.test(validated.permission_surface_kind)
+      )
+    ) {
       throw new Error(
-        `${label}.permission_surface_kind must be ${formatQuotedDisjunction(launchWrapperPermissionSurfaceKinds)} `
-        + "when permissions_surface=launch-wrapper"
+        `${label}.permission_surface_kind must be ${formatQuotedDisjunction(RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS)} `
+        + "or a config surface label like file:key when permissions_surface=launch-wrapper"
       );
     }
     if (!validated.supports_runtime_permission_sync) {
@@ -642,7 +519,7 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
   requirePresentKeys(payload, RUNTIME_CATALOG_ENTRY_KEYS.required, label);
 
   const globalConfig = validateRuntimeCatalogGlobalConfig(payload.global_config, `${label}.global_config`);
-  const capabilities = validateRuntimeCatalogCapabilities(payload.capabilities, `${label}.capabilities`, options);
+  const capabilities = validateRuntimeCatalogCapabilities(payload.capabilities, `${label}.capabilities`);
   const hookPayload = validateRuntimeCatalogHookPayload(payload.hook_payload, `${label}.hook_payload`);
 
   return {
@@ -708,10 +585,7 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
 
 function validateRuntimeCatalog(catalogPayload) {
   const payload = requireJsonArray(catalogPayload, "runtime catalog");
-  const launchWrapperPermissionSurfaceKinds = deriveLaunchWrapperPermissionSurfaceKinds(payload);
-  const entries = payload.map((entry, index) =>
-    validateRuntimeCatalogEntry(entry, index, { launchWrapperPermissionSurfaceKinds })
-  );
+  const entries = payload.map((entry, index) => validateRuntimeCatalogEntry(entry, index));
   entries.sort((left, right) => {
     if (left.priority !== right.priority) {
       return left.priority - right.priority;
@@ -839,6 +713,9 @@ function validateSharedPublicSurfaceContract(contractPayload) {
   const beginnerCaveats = requireNonEmptyStringList(beginnerPayload, "caveats", "beginner_onboarding");
   const beginnerStartupLadder = requireNonEmptyStringList(beginnerPayload, "startup_ladder", "beginner_onboarding");
   const localCliBridgeCommands = requireNonEmptyStringList(localCliBridge, "commands", "local_cli_bridge");
+  for (const command of PUBLIC_SURFACE_LOCAL_CLI_COMMANDS) {
+    requireListedCommand(localCliBridgeCommands, "local_cli_bridge", command);
+  }
   const namedCommands = Object.fromEntries(
     PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS.map((key) => [
       key,
@@ -854,6 +731,15 @@ function validateSharedPublicSurfaceContract(contractPayload) {
   ) {
     throw new Error(
       "local_cli_bridge.commands must exactly match local_cli_bridge.named_commands in canonical order"
+    );
+  }
+  if (
+    localCliBridgeCommands.length !== PUBLIC_SURFACE_LOCAL_CLI_COMMANDS.length
+    || localCliBridgeCommands.some((command, index) => command !== PUBLIC_SURFACE_LOCAL_CLI_COMMANDS[index])
+  ) {
+    throw new Error(
+      "local_cli_bridge.commands must exactly match "
+      + "public_surface_contract_schema.sections.local_cli_bridge.commands"
     );
   }
   const terminalPhrase = requireNonEmptyString(localCliBridge, "terminal_phrase", "local_cli_bridge");
