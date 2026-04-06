@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -11,6 +12,7 @@ __all__ = [
     "CoverageMetric",
     "BinaryCheck",
     "VerificationConfidence",
+    "DraftingError",
     "EquationsQualityInput",
     "FiguresQualityInput",
     "CitationsQualityInput",
@@ -23,6 +25,7 @@ __all__ = [
     "CategoryScore",
     "PaperQualityReport",
     "score_paper_quality",
+    "validate_tex_draft",
 ]
 
 
@@ -572,6 +575,26 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
                 blocking=True,
             )
         )
+    if not data.conventions.notation_consistent.passed and not data.conventions.notation_consistent.not_applicable:
+        blockers.append(
+            PaperQualityIssue(
+                category="conventions",
+                check="notation_consistent",
+                severity=Severity.blocker,
+                summary="Notation is inconsistent across sections.",
+                blocking=True,
+            )
+        )
+    if not data.completeness.placeholders_cleared.passed and not data.completeness.placeholders_cleared.not_applicable:
+        blockers.append(
+            PaperQualityIssue(
+                category="completeness",
+                check="placeholders_cleared",
+                severity=Severity.blocker,
+                summary="TODO/FIXME/PENDING/TBD placeholders remain in the manuscript.",
+                blocking=True,
+            )
+        )
 
     base_score = round(sum(category.score for category in categories.values()), 2)
 
@@ -618,3 +641,200 @@ def score_paper_quality(data: PaperQualityInput) -> PaperQualityReport:
         issues=issues,
         blocking_issues=blockers,
     )
+
+
+# ---------------------------------------------------------------------------
+# Pre-submission TeX draft validation
+# ---------------------------------------------------------------------------
+
+class DraftingError(BaseModel):
+    """A single error detected in the TeX draft before compilation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    category: str
+    message: str
+    severity: Severity
+    line: int | None = None
+
+
+# Regex patterns for common drafting errors
+_PLACEHOLDER_RE = re.compile(r"\b(TODO|FIXME|PENDING|TBD|XXX)\b")
+_MISSING_CITE_RE = re.compile(r"\\cite\{MISSING:")
+_DOUBLE_BACKSLASH_NEWLINE_RE = re.compile(r"\\\\[ \t]*\\\\")
+_EMPTY_CITE_RE = re.compile(r"\\cite\{\s*\}")
+_EMPTY_REF_RE = re.compile(r"\\ref\{\s*\}")
+_EMPTY_LABEL_RE = re.compile(r"\\label\{\s*\}")
+_UNCLOSED_ENV_RE = re.compile(r"\\begin\{(\w+)\}")
+_CLOSE_ENV_RE = re.compile(r"\\end\{(\w+)\}")
+_DUPLICATE_LABEL_RE = re.compile(r"\\label\{([^}]+)\}")
+_BARE_EQUATION_RE = re.compile(r"\\begin\{equation\*?\}.*?\\end\{equation\*?\}", re.DOTALL)
+_UNLABELED_EQUATION_RE = re.compile(
+    r"\\begin\{equation\}(.*?)\\end\{equation\}", re.DOTALL
+)
+_DOUBLE_PERIOD_RE = re.compile(r"\.\.")
+_REPEATED_WORD_RE = re.compile(r"\b(\w{3,})\s+\1\b", re.IGNORECASE)
+_PERCENT_WITHOUT_ESCAPE_RE = re.compile(r"(?<!\\)%")
+
+
+def validate_tex_draft(tex_content: str) -> list[DraftingError]:
+    """Scan TeX content for common drafting errors before compilation.
+
+    Returns a list of :class:`DraftingError` instances sorted by severity
+    (blockers first).  This is a fast, regex-based pre-flight check -- it
+    does not replace full LaTeX compilation.
+    """
+    errors: list[DraftingError] = []
+
+    lines = tex_content.split("\n")
+    in_comment = False
+
+    # Track labels for duplicate detection
+    seen_labels: dict[str, int] = {}
+
+    # Track environments for unbalanced detection
+    env_stack: list[tuple[str, int]] = []
+
+    for lineno, line in enumerate(lines, start=1):
+        stripped = line.strip()
+
+        # Skip comment-only lines (but track % in non-comment context)
+        if stripped.startswith("%"):
+            continue
+
+        # Check for placeholders
+        for match in _PLACEHOLDER_RE.finditer(line):
+            # Skip if inside a comment portion of the line
+            comment_pos = line.find("%")
+            if comment_pos >= 0 and match.start() > comment_pos:
+                continue
+            errors.append(DraftingError(
+                category="completeness",
+                message=f"Placeholder '{match.group()}' found",
+                severity=Severity.blocker,
+                line=lineno,
+            ))
+
+        # Check for MISSING: citations
+        if _MISSING_CITE_RE.search(line):
+            errors.append(DraftingError(
+                category="citations",
+                message="Unresolved MISSING: citation placeholder",
+                severity=Severity.blocker,
+                line=lineno,
+            ))
+
+        # Check for empty \cite{}, \ref{}, \label{}
+        if _EMPTY_CITE_RE.search(line):
+            errors.append(DraftingError(
+                category="citations",
+                message="Empty \\cite{} command",
+                severity=Severity.major,
+                line=lineno,
+            ))
+
+        if _EMPTY_REF_RE.search(line):
+            errors.append(DraftingError(
+                category="references",
+                message="Empty \\ref{} command",
+                severity=Severity.major,
+                line=lineno,
+            ))
+
+        if _EMPTY_LABEL_RE.search(line):
+            errors.append(DraftingError(
+                category="references",
+                message="Empty \\label{} command",
+                severity=Severity.major,
+                line=lineno,
+            ))
+
+        # Track labels for duplicates
+        for match in _DUPLICATE_LABEL_RE.finditer(line):
+            label = match.group(1)
+            if label in seen_labels:
+                errors.append(DraftingError(
+                    category="references",
+                    message=f"Duplicate \\label{{{label}}} (first at line {seen_labels[label]})",
+                    severity=Severity.major,
+                    line=lineno,
+                ))
+            else:
+                seen_labels[label] = lineno
+
+        # Track environments
+        for match in _UNCLOSED_ENV_RE.finditer(line):
+            env_stack.append((match.group(1), lineno))
+        for match in _CLOSE_ENV_RE.finditer(line):
+            env_name = match.group(1)
+            if env_stack and env_stack[-1][0] == env_name:
+                env_stack.pop()
+            elif env_stack:
+                # Mismatched close
+                expected_name, expected_line = env_stack[-1]
+                errors.append(DraftingError(
+                    category="latex",
+                    message=(
+                        f"Mismatched \\end{{{env_name}}} -- "
+                        f"expected \\end{{{expected_name}}} "
+                        f"(opened at line {expected_line})"
+                    ),
+                    severity=Severity.major,
+                    line=lineno,
+                ))
+
+        # Check for double periods (common typo)
+        if _DOUBLE_PERIOD_RE.search(line):
+            comment_pos = line.find("%")
+            dp_match = _DOUBLE_PERIOD_RE.search(line)
+            if dp_match and (comment_pos < 0 or dp_match.start() < comment_pos):
+                errors.append(DraftingError(
+                    category="typography",
+                    message="Double period '..' detected (likely typo)",
+                    severity=Severity.minor,
+                    line=lineno,
+                ))
+
+        # Check for repeated words
+        for match in _REPEATED_WORD_RE.finditer(line):
+            comment_pos = line.find("%")
+            if comment_pos >= 0 and match.start() > comment_pos:
+                continue
+            word = match.group(1).lower()
+            # Skip common intentional repetitions
+            if word not in {"that", "the", "had", "is", "very", "much"}:
+                errors.append(DraftingError(
+                    category="typography",
+                    message=f"Repeated word '{match.group(1)}'",
+                    severity=Severity.minor,
+                    line=lineno,
+                ))
+
+    # Check for unlabeled displayed equations (full-content scan)
+    for match in _UNLABELED_EQUATION_RE.finditer(tex_content):
+        body = match.group(1)
+        if "\\label{" not in body:
+            # Find line number
+            offset = match.start()
+            line_num = tex_content[:offset].count("\n") + 1
+            errors.append(DraftingError(
+                category="equations",
+                message="Displayed equation without \\label{}",
+                severity=Severity.minor,
+                line=line_num,
+            ))
+
+    # Report unclosed environments
+    for env_name, open_line in env_stack:
+        errors.append(DraftingError(
+            category="latex",
+            message=f"Unclosed environment \\begin{{{env_name}}}",
+            severity=Severity.major,
+            line=open_line,
+        ))
+
+    # Sort: blockers first, then major, then minor
+    severity_order = {Severity.blocker: 0, Severity.major: 1, Severity.minor: 2}
+    errors.sort(key=lambda e: severity_order.get(e.severity, 3))
+
+    return errors

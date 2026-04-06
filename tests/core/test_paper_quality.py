@@ -481,3 +481,272 @@ def test_paper_quality_input_rejects_unknown_nested_fields() -> None:
 
     with pytest.raises(ValidationError, match="verification.report_exists"):
         PaperQualityInput.model_validate(payload)
+
+
+# ─── Notation inconsistency blocker ──────────────────────────────────────────
+
+
+def test_score_paper_quality_blocks_inconsistent_notation():
+    """Notation inconsistency should now be a blocker."""
+    report = score_paper_quality(
+        PaperQualityInput(
+            title="Inconsistent Notation Paper",
+            journal="generic",
+            equations=EquationsQualityInput(
+                labeled=_full_metric(1),
+                symbols_defined=_full_metric(1),
+                dimensionally_verified=_full_metric(1),
+                limiting_cases_verified=_full_metric(1),
+            ),
+            figures=FiguresQualityInput(
+                axes_labeled_with_units=_full_metric(1),
+                error_bars_present=_full_metric(1),
+                referenced_in_text=_full_metric(1),
+                captions_self_contained=_full_metric(1),
+                colorblind_safe=_full_metric(1),
+            ),
+            citations=CitationsQualityInput(
+                citation_keys_resolve=_full_metric(1),
+                missing_placeholders=BinaryCheck(passed=True),
+                key_prior_work_cited=BinaryCheck(passed=True),
+                hallucination_free=BinaryCheck(passed=True),
+            ),
+            conventions=ConventionsQualityInput(
+                convention_lock_complete=BinaryCheck(passed=True),
+                assert_convention_coverage=_full_metric(1),
+                notation_consistent=BinaryCheck(passed=False),
+            ),
+            verification=VerificationQualityInput(
+                report_passed=BinaryCheck(passed=True),
+                contract_targets_verified=_full_metric(1),
+                key_result_confidences=[VerificationConfidence.independently_confirmed],
+            ),
+            completeness=CompletenessQualityInput(
+                abstract_written_last=BinaryCheck(passed=True),
+                required_sections_present=_full_metric(1),
+                placeholders_cleared=BinaryCheck(passed=True),
+                supplemental_cross_referenced=BinaryCheck(passed=True),
+            ),
+            results=ResultsQualityInput(
+                uncertainties_present=_full_metric(1),
+                comparison_with_prior_work_present=BinaryCheck(passed=True),
+                physical_interpretation_present=BinaryCheck(passed=True),
+            ),
+        )
+    )
+
+    assert report.ready_for_submission is False
+    blocking_checks = {issue.check for issue in report.blocking_issues}
+    assert "notation_consistent" in blocking_checks
+
+
+# ─── Placeholders cleared blocker ────────────────────────────────────────────
+
+
+def test_score_paper_quality_blocks_uncleared_placeholders():
+    """Uncleared placeholders should now be a blocker."""
+    report = score_paper_quality(
+        PaperQualityInput(
+            title="Placeholder Paper",
+            journal="generic",
+            equations=EquationsQualityInput(
+                labeled=_full_metric(1),
+                symbols_defined=_full_metric(1),
+                dimensionally_verified=_full_metric(1),
+                limiting_cases_verified=_full_metric(1),
+            ),
+            figures=FiguresQualityInput(
+                axes_labeled_with_units=_full_metric(1),
+                error_bars_present=_full_metric(1),
+                referenced_in_text=_full_metric(1),
+                captions_self_contained=_full_metric(1),
+                colorblind_safe=_full_metric(1),
+            ),
+            citations=CitationsQualityInput(
+                citation_keys_resolve=_full_metric(1),
+                missing_placeholders=BinaryCheck(passed=True),
+                key_prior_work_cited=BinaryCheck(passed=True),
+                hallucination_free=BinaryCheck(passed=True),
+            ),
+            conventions=ConventionsQualityInput(
+                convention_lock_complete=BinaryCheck(passed=True),
+                assert_convention_coverage=_full_metric(1),
+                notation_consistent=BinaryCheck(passed=True),
+            ),
+            verification=VerificationQualityInput(
+                report_passed=BinaryCheck(passed=True),
+                contract_targets_verified=_full_metric(1),
+                key_result_confidences=[VerificationConfidence.independently_confirmed],
+            ),
+            completeness=CompletenessQualityInput(
+                abstract_written_last=BinaryCheck(passed=True),
+                required_sections_present=_full_metric(1),
+                placeholders_cleared=BinaryCheck(passed=False),
+                supplemental_cross_referenced=BinaryCheck(passed=True),
+            ),
+            results=ResultsQualityInput(
+                uncertainties_present=_full_metric(1),
+                comparison_with_prior_work_present=BinaryCheck(passed=True),
+                physical_interpretation_present=BinaryCheck(passed=True),
+            ),
+        )
+    )
+
+    assert report.ready_for_submission is False
+    blocking_checks = {issue.check for issue in report.blocking_issues}
+    assert "placeholders_cleared" in blocking_checks
+
+
+# ─── validate_tex_draft tests ────────────────────────────────────────────────
+
+from gpd.core.paper_quality import DraftingError, Severity, validate_tex_draft
+
+
+def test_validate_tex_draft_clean_document():
+    """A minimal clean document should produce no errors."""
+    tex = r"""\documentclass{article}
+\begin{document}
+\begin{abstract}
+This is a clean document.
+\end{abstract}
+\section{Introduction}
+We study the problem~\cite{smith2024}.
+\begin{equation}
+\label{eq:main}
+E = mc^2
+\end{equation}
+\section{Conclusion}
+We conclude.
+\end{document}
+"""
+    errors = validate_tex_draft(tex)
+    blockers = [e for e in errors if e.severity == Severity.blocker]
+    assert blockers == []
+
+
+def test_validate_tex_draft_catches_placeholders():
+    """Placeholders like TODO and FIXME should be blockers."""
+    tex = r"""\documentclass{article}
+\begin{document}
+TODO: write this section.
+This is FIXME text.
+\end{document}
+"""
+    errors = validate_tex_draft(tex)
+    blockers = [e for e in errors if e.severity == Severity.blocker]
+    assert len(blockers) >= 2
+    messages = [e.message for e in blockers]
+    assert any("TODO" in m for m in messages)
+    assert any("FIXME" in m for m in messages)
+
+
+def test_validate_tex_draft_catches_missing_citations():
+    """\\cite{MISSING:...} should be a blocker."""
+    tex = r"""\documentclass{article}
+\begin{document}
+See \cite{MISSING:jones2024} for details.
+\end{document}
+"""
+    errors = validate_tex_draft(tex)
+    blockers = [e for e in errors if e.severity == Severity.blocker]
+    assert len(blockers) >= 1
+    assert any("MISSING" in e.message for e in blockers)
+
+
+def test_validate_tex_draft_catches_empty_citations():
+    """Empty \\cite{} should be a major error."""
+    tex = r"""\documentclass{article}
+\begin{document}
+See \cite{} and \ref{} for details.
+\end{document}
+"""
+    errors = validate_tex_draft(tex)
+    major = [e for e in errors if e.severity == Severity.major]
+    assert len(major) >= 2
+    messages = [e.message for e in major]
+    assert any("Empty \\cite{}" in m for m in messages)
+    assert any("Empty \\ref{}" in m for m in messages)
+
+
+def test_validate_tex_draft_catches_duplicate_labels():
+    """Duplicate labels should be flagged."""
+    tex = r"""\documentclass{article}
+\begin{document}
+\begin{equation}
+\label{eq:energy}
+E = mc^2
+\end{equation}
+\begin{equation}
+\label{eq:energy}
+E = hf
+\end{equation}
+\end{document}
+"""
+    errors = validate_tex_draft(tex)
+    major = [e for e in errors if e.severity == Severity.major]
+    assert any("Duplicate" in e.message for e in major)
+
+
+def test_validate_tex_draft_catches_unlabeled_equations():
+    """Non-starred equation environments without \\label should be minor."""
+    tex = r"""\documentclass{article}
+\begin{document}
+\begin{equation}
+E = mc^2
+\end{equation}
+\end{document}
+"""
+    errors = validate_tex_draft(tex)
+    minor = [e for e in errors if e.severity == Severity.minor]
+    assert any("without \\label" in e.message for e in minor)
+
+
+def test_validate_tex_draft_catches_repeated_words():
+    """Repeated words should be caught as minor issues."""
+    tex = r"""\documentclass{article}
+\begin{document}
+The the energy is computed.
+\end{document}
+"""
+    errors = validate_tex_draft(tex)
+    minor = [e for e in errors if e.severity == Severity.minor]
+    # "The" is in the skip list, but "energy energy" etc. would be caught
+    # For "The the" -- it might be caught depending on case
+    # Let's test with a non-skipped word
+    tex2 = r"""\documentclass{article}
+\begin{document}
+We compute compute the energy.
+\end{document}
+"""
+    errors2 = validate_tex_draft(tex2)
+    minor2 = [e for e in errors2 if e.severity == Severity.minor]
+    assert any("Repeated word" in e.message for e in minor2)
+
+
+def test_validate_tex_draft_catches_double_period():
+    """Double periods should be caught as minor typos."""
+    tex = r"""\documentclass{article}
+\begin{document}
+The energy is computed..
+\end{document}
+"""
+    errors = validate_tex_draft(tex)
+    minor = [e for e in errors if e.severity == Severity.minor]
+    assert any("Double period" in e.message for e in minor)
+
+
+def test_validate_tex_draft_sorts_by_severity():
+    """Errors should be sorted: blockers first, then major, then minor."""
+    tex = r"""\documentclass{article}
+\begin{document}
+TODO: fix this
+\cite{}
+The energy is computed..
+\end{document}
+"""
+    errors = validate_tex_draft(tex)
+    assert len(errors) >= 3
+    # Verify ordering
+    severity_order = {Severity.blocker: 0, Severity.major: 1, Severity.minor: 2}
+    for i in range(len(errors) - 1):
+        assert severity_order[errors[i].severity] <= severity_order[errors[i + 1].severity]
