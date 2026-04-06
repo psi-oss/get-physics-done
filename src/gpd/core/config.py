@@ -28,10 +28,13 @@ __all__ = [
     "GPDProjectConfig",
     "ModelProfile",
     "ModelTier",
+    "PlatformMode",
     "ReviewCadence",
     "ResearchMode",
     "canonical_config_key",
+    "check_credit_budget",
     "effective_config_value",
+    "is_academic_mode",
     "load_config",
     "resolve_agent_tier",
     "resolve_tier",
@@ -49,6 +52,13 @@ class AutonomyMode(StrEnum):
     SUPERVISED = "supervised"
     BALANCED = "balanced"
     YOLO = "yolo"
+
+
+class PlatformMode(StrEnum):
+    """Platform deployment mode controlling credit tracking and artifact capture."""
+
+    STANDARD = "standard"
+    ACADEMIC = "academic"
 
 
 class ReviewCadence(StrEnum):
@@ -334,6 +344,14 @@ class GPDProjectConfig(BaseModel):
     phase_branch_template: str = "gpd/phase-{phase}-{slug}"
     milestone_branch_template: str = "gpd/{milestone}-{slug}"
 
+    # Platform mode
+    platform_mode: PlatformMode = PlatformMode.STANDARD
+
+    # Academic credit tracking
+    credit_budget: int | None = Field(default=None, ge=0)
+    credit_used: int = Field(default=0, ge=0)
+    artifact_capture: bool = True
+
     # Optional overrides
     model_overrides: dict[str, dict[str, str]] | None = Field(default=None)
 
@@ -396,6 +414,7 @@ def _enum_value(value: object) -> object:
 
 
 _EFFECTIVE_CONFIG_LEAVES: dict[str, Callable[[GPDProjectConfig], object]] = {
+    "artifact_capture": lambda config: config.artifact_capture,
     "autonomy": lambda config: _enum_value(config.autonomy),
     "branching_strategy": lambda config: _enum_value(config.branching_strategy),
     "checkpoint_after_first_load_bearing_result": (
@@ -406,6 +425,8 @@ _EFFECTIVE_CONFIG_LEAVES: dict[str, Callable[[GPDProjectConfig], object]] = {
         lambda config: config.checkpoint_before_downstream_dependent_tasks
     ),
     "commit_docs": lambda config: config.commit_docs,
+    "credit_budget": lambda config: config.credit_budget,
+    "credit_used": lambda config: config.credit_used,
     "max_unattended_minutes_per_plan": lambda config: config.max_unattended_minutes_per_plan,
     "max_unattended_minutes_per_wave": lambda config: config.max_unattended_minutes_per_wave,
     "milestone_branch_template": lambda config: config.milestone_branch_template,
@@ -414,6 +435,7 @@ _EFFECTIVE_CONFIG_LEAVES: dict[str, Callable[[GPDProjectConfig], object]] = {
     "parallelization": lambda config: config.parallelization,
     "phase_branch_template": lambda config: config.phase_branch_template,
     "plan_checker": lambda config: config.plan_checker,
+    "platform_mode": lambda config: _enum_value(config.platform_mode),
     "research": lambda config: config.research,
     "review_cadence": lambda config: _enum_value(config.review_cadence),
     "research_mode": lambda config: _enum_value(config.research_mode),
@@ -440,15 +462,28 @@ _EFFECTIVE_CONFIG_SECTIONS: dict[str, Callable[[GPDProjectConfig], dict[str, obj
         "plan_checker": config.plan_checker,
         "verifier": config.verifier,
     },
+    "academic": lambda config: {
+        "platform_mode": _enum_value(config.platform_mode),
+        "credit_budget": config.credit_budget,
+        "credit_used": config.credit_used,
+        "artifact_capture": config.artifact_capture,
+    },
 }
 
 _CONFIG_KEY_ALIASES: dict[str, str] = {
+    "academic.artifact_capture": "artifact_capture",
+    "academic.credit_budget": "credit_budget",
+    "academic.credit_used": "credit_used",
+    "academic.platform_mode": "platform_mode",
+    "artifact_capture": "artifact_capture",
     "autonomy": "autonomy",
     "branching_strategy": "branching_strategy",
     "checkpoint_after_first_load_bearing_result": "checkpoint_after_first_load_bearing_result",
     "checkpoint_after_n_tasks": "checkpoint_after_n_tasks",
     "checkpoint_before_downstream_dependent_tasks": "checkpoint_before_downstream_dependent_tasks",
     "commit_docs": "commit_docs",
+    "credit_budget": "credit_budget",
+    "credit_used": "credit_used",
     "execution.checkpoint_after_first_load_bearing_result": "checkpoint_after_first_load_bearing_result",
     "execution.checkpoint_after_n_tasks": "checkpoint_after_n_tasks",
     "execution.checkpoint_before_downstream_dependent_tasks": "checkpoint_before_downstream_dependent_tasks",
@@ -467,6 +502,7 @@ _CONFIG_KEY_ALIASES: dict[str, str] = {
     "phase_branch_template": "phase_branch_template",
     "plan_checker": "plan_checker",
     "planning.commit_docs": "commit_docs",
+    "platform_mode": "platform_mode",
     "research": "research",
     "review_cadence": "review_cadence",
     "research_mode": "research_mode",
@@ -493,6 +529,10 @@ _CANONICAL_CONFIG_STORAGE_PATHS.update(
             "execution",
             "checkpoint_before_downstream_dependent_tasks",
         ),
+        "platform_mode": ("academic", "platform_mode"),
+        "credit_budget": ("academic", "credit_budget"),
+        "credit_used": ("academic", "credit_used"),
+        "artifact_capture": ("academic", "artifact_capture"),
     }
 )
 
@@ -622,12 +662,16 @@ def _get_nested(parsed: dict, key: str, section: str | None = None, field: str |
 
 _ALLOWED_CONFIG_ROOT_KEYS = frozenset(
     {
+        "academic",
+        "artifact_capture",
         "autonomy",
         "branching_strategy",
         "checkpoint_after_first_load_bearing_result",
         "checkpoint_after_n_tasks",
         "checkpoint_before_downstream_dependent_tasks",
         "commit_docs",
+        "credit_budget",
+        "credit_used",
         "execution",
         "git",
         "max_unattended_minutes_per_plan",
@@ -639,6 +683,7 @@ _ALLOWED_CONFIG_ROOT_KEYS = frozenset(
         "phase_branch_template",
         "plan_checker",
         "planning",
+        "platform_mode",
         "research",
         "review_cadence",
         "research_mode",
@@ -661,6 +706,7 @@ _ALLOWED_CONFIG_SECTION_KEYS = {
     ),
     "planning": frozenset({"commit_docs"}),
     "workflow": frozenset({"plan_checker", "research", "verifier"}),
+    "academic": frozenset({"platform_mode", "credit_budget", "credit_used", "artifact_capture"}),
 }
 
 
@@ -805,6 +851,22 @@ def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
                 _get_nested(parsed, "model_overrides"),
                 None,
             ),
+            platform_mode=_coalesce(
+                _get_nested(parsed, "platform_mode", section="academic", field="platform_mode"),
+                _CONFIG_DEFAULTS.platform_mode,
+            ),
+            credit_budget=_coalesce(
+                _get_nested(parsed, "credit_budget", section="academic", field="credit_budget"),
+                _CONFIG_DEFAULTS.credit_budget,
+            ),
+            credit_used=_coalesce(
+                _get_nested(parsed, "credit_used", section="academic", field="credit_used"),
+                _CONFIG_DEFAULTS.credit_used,
+            ),
+            artifact_capture=_coalesce(
+                _get_nested(parsed, "artifact_capture", section="academic", field="artifact_capture"),
+                _CONFIG_DEFAULTS.artifact_capture,
+            ),
         )
     except (ValueError, TypeError) as e:
         raise ConfigError(
@@ -910,3 +972,25 @@ def resolve_model(project_dir: Path, agent_name: str, runtime: str | None = None
     if not runtime_overrides:
         return None
     return runtime_overrides.get(tier)
+
+
+# ─── Academic Platform Helpers ────────────────────────────────────────────────
+
+
+def is_academic_mode(config: GPDProjectConfig) -> bool:
+    """Return True when the project is configured for academic platform mode."""
+    return config.platform_mode == PlatformMode.ACADEMIC
+
+
+def check_credit_budget(config: GPDProjectConfig) -> tuple[bool, int | None]:
+    """Check remaining credit budget availability.
+
+    Returns:
+        (has_budget, remaining) -- has_budget is True when credit_budget is
+        None (unlimited) or credit_used < credit_budget.  remaining is None
+        for unlimited budgets.
+    """
+    if config.credit_budget is None:
+        return True, None
+    remaining = max(0, config.credit_budget - config.credit_used)
+    return remaining > 0, remaining
