@@ -20,7 +20,7 @@ Get Physics Done is an open-source AI copilot for physics research from [Physica
 
 https://github.com/user-attachments/assets/e79f8153-c0bd-484f-b69e-da8f142649e0
 
-[Quick Start](#quick-start) · [Supported Runtimes](#supported-runtimes) · [Workflow](#what-gpd-does) · [Commands](#key-in-runtime-commands) · [Models](#optional-model-profiles-and-tier-overrides) · [Advanced CLI](#advanced-cli-utilities) · [System Requirements](#system-requirements)
+[Quick Start](#quick-start) · [Examples](examples/) · [Supported Runtimes](#supported-runtimes) · [Workflow](#what-gpd-does) · [Commands](#key-in-runtime-commands) · [Models](#optional-model-profiles-and-tier-overrides) · [Advanced CLI](#advanced-cli-utilities) · [System Requirements](#system-requirements)
 
 ## Who This Is For
 
@@ -204,6 +204,8 @@ Once the relevant phases are complete and verified, continue toward write-up wit
 Typical artifacts include derivation notes, numerical scripts, convergence studies, and phase-level planning and verification documents under `GPD/`.
 
 </details>
+
+For more worked examples across classical mechanics, quantum mechanics, statistical mechanics, electrodynamics, fluid dynamics, and QFT, see the **[Examples Gallery](examples/)**.
 
 ## Key In-Runtime Commands
 
