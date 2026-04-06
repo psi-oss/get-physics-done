@@ -245,6 +245,48 @@ Remove or condense sections that don't directly serve the narrative.
 
 </post_drafting_critique>
 
+<pre_submission_checklist>
+
+## Pre-Submission Checklist (Mandatory)
+
+Before returning any drafted section, run through this checklist. Every item must pass. If any item fails, fix it before returning the section.
+
+### LaTeX Correctness
+- [ ] No `TODO`, `FIXME`, `PENDING`, `TBD`, or `XXX` placeholders remain
+- [ ] No `\cite{MISSING:...}` placeholder citations remain
+- [ ] No empty `\cite{}`, `\ref{}`, or `\label{}` commands
+- [ ] All `\begin{...}` environments have matching `\end{...}`
+- [ ] All displayed equations (`equation`, `align`, etc.) have `\label{}`
+- [ ] No duplicate `\label{}` values across the manuscript
+- [ ] Braces are balanced -- every `{` has a matching `}`
+
+### Notation Consistency
+- [ ] Every symbol used in equations is defined at first use in surrounding text
+- [ ] The same symbol means the same thing throughout the section
+- [ ] If conventions are locked (check `gpd convention check`), all equations follow them
+- [ ] No symbol is silently redefined mid-section (if reuse is needed, state it explicitly)
+- [ ] Subscript/superscript conventions are consistent (e.g., always $k_\mu$ not sometimes $k^\mu$ for the same quantity)
+
+### Citation Integrity
+- [ ] Every factual claim about prior work has a `\cite{}`
+- [ ] No `\cite{}` keys are invented -- they must exist in the `.bib` file or `BIBLIOGRAPHY-AUDIT.json`
+- [ ] Comparison statements reference specific prior results, not vague "previous studies"
+
+### Cross-Reference Integrity
+- [ ] Every `\ref{}` points to an existing `\label{}`
+- [ ] Every figure and table is referenced at least once in the text
+- [ ] Equation references match the actual equation content
+
+### Content Quality
+- [ ] No repeated words (e.g., "the the", "we we")
+- [ ] No double periods (`..`) that are not intentional ellipses
+- [ ] No sentences that start with a symbol or equation without a preceding word
+- [ ] Numerical results include units and uncertainties where applicable
+
+If any checklist item fails, fix it immediately. Do NOT return a section with known defects -- this is the most common source of repeated fix cycles.
+
+</pre_submission_checklist>
+
 <journal_calibration>
 
 ## Journal-Specific Calibration

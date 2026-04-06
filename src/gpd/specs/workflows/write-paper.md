@@ -932,6 +932,52 @@ Read `GPD/review/REFEREE-DECISION{round_suffix}.json` and `GPD/review/REVIEW-LED
   3. Stop and return to research phases to fix underlying problems
 </step>
 
+<step name="self_validation">
+## Self-Validation Pass (Automated)
+
+Before proceeding to the final review, run the automated draft validation to catch common errors that would otherwise require manual fix cycles. This pass is fast and catches the most frequent sources of repeated fixes.
+
+**Step 1 -- Run TeX draft validator:**
+
+Read the manuscript TeX content and run the built-in draft validator:
+
+```python
+from gpd.core.paper_quality import validate_tex_draft
+errors = validate_tex_draft(tex_content)
+```
+
+**Step 2 -- Categorize findings:**
+
+- **Blockers** (must fix before proceeding): placeholders, MISSING: citations, empty cite/ref commands
+- **Major** (should fix): duplicate labels, mismatched environments, empty labels
+- **Minor** (fix if time permits): repeated words, double periods, unlabeled equations
+
+**Step 3 -- Fix all blockers and major issues:**
+
+For each blocker or major issue found:
+1. Locate the affected line in the manuscript
+2. Fix the issue directly
+3. Re-run the validator to confirm the fix
+
+**Step 4 -- Verify notation consistency:**
+
+Scan the manuscript for common notation inconsistencies:
+1. Same quantity written differently in different sections (e.g., `$\vec{k}$` vs `$\mathbf{k}$`)
+2. Subscript/superscript inconsistencies (e.g., `$k_\mu$` vs `$k^\mu$` for the same index placement)
+3. Missing symbol definitions after equations
+4. Convention violations against the locked convention set
+
+```bash
+CONV_CHECK=$(gpd --raw convention check 2>/dev/null)
+if echo "$CONV_CHECK" | grep -q '"complete":false'; then
+  echo "WARNING: Convention lock incomplete -- notation may be inconsistent"
+fi
+```
+
+**Gate:** Do not proceed to `final_review` if any blocker-severity issues remain. Major issues should ideally be zero, but the gate only blocks on blockers.
+
+</step>
+
 <step name="final_review">
 Before declaring the draft complete:
 

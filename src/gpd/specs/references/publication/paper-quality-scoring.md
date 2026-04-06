@@ -70,6 +70,21 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 | Decisive outputs have explicit comparison verdicts and anchors | 3 | `comparison_verdicts` exist for decisive results and cite the right anchors; decisive figures should link back to `GPD/comparisons/*-COMPARISON.md` when relevant |
 | Physical interpretation provided (not just math) | 3 | Discussion section explains meaning of results |
 
+## Blocking Conditions (Hard Stops)
+
+The following conditions block submission regardless of the total score. These are the most common sources of repeated fix cycles and must be resolved before the quality gate passes:
+
+| Condition | Category | Why it blocks |
+|-----------|----------|---------------|
+| `MISSING:` citation placeholders | Citations | Indicates incomplete literature work |
+| Empty `\cite{}` or `\ref{}` commands | Citations/References | Broken cross-references in output |
+| Any `UNRELIABLE` verification confidence | Verification | Key result cannot be trusted |
+| Verification report not passed | Verification | Research integrity not confirmed |
+| Notation inconsistent across sections | Conventions | Produces wrong physics when combined |
+| `TODO`/`FIXME`/`PENDING`/`TBD`/`XXX` placeholders | Completeness | Incomplete manuscript |
+| Decisive artifacts missing comparison verdicts | Results | Central claims not anchored |
+| Decisive comparison failures not scoped | Results | Unaddressed tensions undermine credibility |
+
 ## Total Score Interpretation
 
 | Score | Status | Action |
@@ -79,6 +94,18 @@ This is **not** the final referee-decision policy. A manuscript can score well o
 | **70-79** | Needs work | Address all items scoring 0; re-score after fixes |
 | **60-69** | Significant gaps | Multiple categories need attention; plan revision phase |
 | **<60** | Not ready | Major work remaining; return to research/verification phases |
+
+## Pre-Submission TeX Validation
+
+Before scoring, run the automated TeX draft validator to catch common drafting errors. This is a fast, regex-based scan that catches errors compilation alone would miss:
+
+```python
+from gpd.core.paper_quality import validate_tex_draft
+errors = validate_tex_draft(tex_content)
+blockers = [e for e in errors if e.severity == "blocker"]
+```
+
+The validator catches: placeholder text, empty citations/references, duplicate labels, mismatched environments, unlabeled equations, repeated words, and double periods. Blocker-severity findings from this scan must be resolved before the quality score is meaningful.
 
 ## Automated Scoring Protocol
 
