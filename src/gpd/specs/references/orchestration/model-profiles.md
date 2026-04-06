@@ -41,6 +41,7 @@ If no override is configured for the active runtime, `gpd resolve-model` returns
 | gpd-referee              | tier-1        | tier-2      | tier-2        | tier-1   | tier-1          |
 | gpd-experiment-designer  | tier-2        | tier-1      | tier-2        | tier-2   | tier-3          |
 | gpd-notation-coordinator | tier-2        | tier-3      | tier-3        | tier-2   | tier-2          |
+| gpd-parallel-reviewer    | tier-1        | tier-1      | tier-2        | tier-1   | tier-1          |
 
 ## Profile Philosophy
 
