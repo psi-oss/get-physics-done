@@ -35,11 +35,14 @@ from gpd.mcp.paper.models import ArtifactManifest, is_supported_paper_journal
 __all__ = ["build_paper_quality_input"]
 
 
-_PLACEHOLDER_RE = re.compile(r"TODO|FIXME|PENDING|TBD|\\text\{\[PENDING\]\}")
+_PLACEHOLDER_RE = re.compile(r"\b(?:TODO|FIXME|PENDING|TBD|XXX)\b|\\text\{\[PENDING\]\}")
 _MISSING_CITE_RE = re.compile(r"\\cite\{MISSING:")
+_EMPTY_CITE_RE = re.compile(r"\\cite\{\s*\}")
 _ABSTRACT_RE = re.compile(r"\\begin\{abstract\}[\s\S]*?\\end\{abstract\}", re.IGNORECASE)
 _INTRO_RE = re.compile(r"\\section\*?\{[^}]*introduction[^}]*\}", re.IGNORECASE)
 _CONCLUSION_RE = re.compile(r"\\section\*?\{[^}]*conclusion[^}]*\}", re.IGNORECASE)
+_METHODS_RE = re.compile(r"\\section\*?\{[^}]*(method|formalism|model|setup|framework)[^}]*\}", re.IGNORECASE)
+_RESULTS_RE = re.compile(r"\\section\*?\{[^}]*(result|finding)[^}]*\}", re.IGNORECASE)
 _SUPPLEMENT_RE = re.compile(r"appendix|supplement", re.IGNORECASE)
 _CITE_RE = re.compile(r"\\cite\{([^}]*)\}")
 _BIB_ENTRY_RE = re.compile(r"@\w+\s*\{\s*([^,\s]+)\s*,")
@@ -548,12 +551,17 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
 
     placeholder_count = len(_PLACEHOLDER_RE.findall(tex_content))
     missing_cites = len(_MISSING_CITE_RE.findall(tex_content))
+    empty_cites = len(_EMPTY_CITE_RE.findall(tex_content))
     cite_keys = list(dict.fromkeys(part.strip() for match in _CITE_RE.findall(tex_content) for part in match.split(",") if part.strip()))
-    required_sections = 3
+    required_sections = 5
     present_sections = 0
     if _ABSTRACT_RE.search(tex_content):
         present_sections += 1
     if _INTRO_RE.search(tex_content):
+        present_sections += 1
+    if _METHODS_RE.search(tex_content):
+        present_sections += 1
+    if _RESULTS_RE.search(tex_content):
         present_sections += 1
     if _CONCLUSION_RE.search(tex_content):
         present_sections += 1
@@ -581,7 +589,7 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
 
     citations = CitationsQualityInput(
         citation_keys_resolve=citation_key_coverage,
-        missing_placeholders=BinaryCheck(passed=missing_cites == 0),
+        missing_placeholders=BinaryCheck(passed=missing_cites == 0 and empty_cites == 0),
         key_prior_work_cited=BinaryCheck(passed=bool(verdicts) or bool(cite_keys)),
         hallucination_free=BinaryCheck(
             passed=failed_sources == 0 and partial_sources == 0 and unverified_sources == 0,
