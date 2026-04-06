@@ -50,20 +50,10 @@ def test_verification_report_strict_pass_guidance_includes_reference_coverage_ru
     verification_report = _read("src/gpd/specs/templates/verification-report.md")
 
     assert "status: passed` is strict" in verification_report
-    assert "every claim, deliverable, and acceptance_test entry in `contract_results` is `passed`" in verification_report
-    assert "every reference entry is `completed`" in verification_report
-    assert "every `must_surface` reference has all `required_actions` recorded in `completed_actions`" in verification_report
-    assert 'summary: "[what the adversarial proof review concluded]"' in verification_report
-    assert "completed_actions: []" in verification_report
-    assert "missing_actions: [read]" in verification_report
+    assert "every required decisive comparison is decisive" in verification_report
+    assert "Proof-backed claims follow the proof-audit rules in the canonical schema" in verification_report
+    assert "structured `suggested_contract_checks`" in verification_report
     assert "Legacy frontmatter aliases are forbidden in model-facing output" in verification_report
-    for legacy_alias in ("must_haves", "verification_inputs", "contract_evidence", "independently_confirmed"):
-        assert legacy_alias not in verification_report
-    assert "linked_ids: [deliverable-id, acceptance-test-id, reference-id]" in verification_report
-    assert "evidence:\n        - verifier: gpd-verifier" in verification_report
-    assert "linked_ids: [claim-id, acceptance-test-id]" in verification_report
-    assert "linked_ids: [claim-id, deliverable-id, reference-id]" in verification_report
-    assert "suggested_contract_checks" in verification_report
     assert "status: passed" in verification_report
 
 
@@ -120,12 +110,10 @@ def test_model_visible_worked_examples_keep_summary_and_verdict_shapes_copy_safe
     assert "verifier: gpd-verifier" in executor_example
     assert 'recommended_action: "Keep the benchmark coefficient comparison explicit in the verification report."' in executor_example
     assert 'notes: "Exact pole agreement closes the decisive benchmark requirement for this claim."' in executor_example
-    assert "linked_ids: [deliverable-id, acceptance-test-id, reference-id]" in verification_report
-    assert "evidence:\n        - verifier: gpd-verifier" in verification_report
-    assert "linked_ids: [claim-id, acceptance-test-id]" in verification_report
-    assert "linked_ids: [claim-id, deliverable-id, reference-id]" in verification_report
-    assert "linked_ids: [deliverable-id, acceptance-test-id, reference-id]" in verifier_prompt
-    assert "evidence:\n        - verifier: gpd-verifier" in verifier_prompt
+    assert "comparison_verdicts" in verification_report
+    assert "subject_role: decisive" in verification_report
+    assert "comparison_verdicts" in verifier_prompt
+    assert "subject_role: decisive" in verifier_prompt
     assert 'recommended_action: "[what to do next]"' in verifier_prompt
     assert 'notes: "[optional context]"' in verifier_prompt
 
@@ -167,8 +155,11 @@ def test_research_verification_template_keeps_contract_results_and_scalar_exampl
 def test_summary_template_keeps_reference_action_ledger_and_legacy_alias_note() -> None:
     summary_template = _read("src/gpd/specs/templates/summary.md")
 
-    assert "For `contract_results.references`, keep the action ledger consistent" in summary_template
-    assert "required_actions`, `completed_actions`, and `missing_actions` all use the same validator-enforced action vocabulary" in summary_template
+    assert "single detailed rule source" in summary_template
+    assert "plan_contract_ref" in summary_template
+    assert "contract_results" in summary_template
+    assert "comparison_verdicts" in summary_template
+    assert "suggested_contract_checks" in summary_template
     assert "Legacy frontmatter aliases are forbidden in model-facing output" in summary_template
     for legacy_alias in ("must_haves", "verification_inputs", "contract_evidence", "independently_confirmed"):
         assert legacy_alias not in summary_template

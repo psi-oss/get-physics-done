@@ -761,47 +761,37 @@ def test_write_paper_review_contract_surfaces_manuscript_root_review_dependencie
 
 def test_summary_template_surfaces_plan_contract_ref_rule_for_contract_ledgers() -> None:
     summary_template = (TEMPLATES_DIR / "summary.md").read_text(encoding="utf-8")
+    contract_results_schema = (TEMPLATES_DIR / "contract-results-schema.md").read_text(encoding="utf-8")
 
-    assert "If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is also required." in summary_template
-    assert 'plan_contract_ref: "GPD/phases/XX-name/{phase}-{plan}-PLAN.md#/contract"' in summary_template
-    assert "Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing the YAML" in summary_template
-    assert "canonical project-root-relative `GPD/phases/XX-name/{phase}-{plan}-PLAN.md#/contract` path" in summary_template
-    assert "Choose the depth explicitly" in summary_template
-    assert "default: full" not in summary_template
-    assert "Keep `uncertainty_markers` explicit and user-visible" in summary_template
-    assert "uncertainty_markers:" in summary_template
-    assert "weakest_anchors: [anchor-1]" in summary_template
-    assert "disconfirming_observations: [observation-1]" in summary_template
-    assert "For contract-backed summaries, `contract_results` is required" in summary_template
-    assert "It must not be absolute, parent-traversing, or collapse to a bare sibling reference." in summary_template
-    assert "`completed` needs non-empty `completed_actions`" in summary_template
-    assert "If a decisive external anchor was used, include `reference_id`" in summary_template
-    assert "Do not invent extra keys in `contract_results` or `comparison_verdicts`" in summary_template
-    assert "`suggested_contract_checks` is verification-only and does not belong in summaries." in summary_template
+    assert "single detailed rule source" in summary_template
+    assert "plan_contract_ref" in summary_template
+    assert "contract_results" in summary_template
+    assert "comparison_verdicts" in summary_template
+    assert "uncertainty_markers" in summary_template
+    assert "suggested_contract_checks" in summary_template
+    assert "The canonical schema defines the exact list-trimming semantics" in summary_template
+    assert "Blank-after-trim entries are invalid" in contract_results_schema
+    assert "duplicate-after-trim entries are invalid" in contract_results_schema
 
 
 def test_verification_template_forbids_placeholder_uncertainty_fillers() -> None:
     verification_template = (TEMPLATES_DIR / "verification-report.md").read_text(encoding="utf-8")
 
-    assert "concrete non-blank entries in `weakest_anchors` and `disconfirming_observations`" in verification_template
-    assert "Do not use filler placeholders." in verification_template
-    assert "non-empty placeholder anchors" not in verification_template
+    assert "decisive readout of the same contract-backed ledger" in verification_template
+    assert "Keep `uncertainty_markers` explicit" in verification_template
+    assert "structured `suggested_contract_checks`" in verification_template
+    assert "filler placeholders" not in verification_template
 
 
 def test_verification_template_surfaces_strict_passed_and_blocked_semantics() -> None:
     verification_template = (TEMPLATES_DIR / "verification-report.md").read_text(encoding="utf-8")
 
     assert "status: passed` is strict" in verification_template
-    assert "every claim, deliverable, and acceptance_test entry in `contract_results` is `passed`" in verification_template
-    assert "If any contract target is `partial`, `failed`, `blocked`, `missing`, or `unresolved`, use `gaps_found`, `expert_needed`, or `human_needed` instead of `passed`." in verification_template
-    assert "every reference entry is `completed`" in verification_template
-    assert "every `must_surface` reference has all `required_actions` recorded in `completed_actions`" in verification_template
-    assert "Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing the YAML" in verification_template
-    assert "verification-side `suggested_contract_checks`" in verification_template
-    assert "same canonical schema surface as the rest of the verification ledger" in verification_template
-    assert "uncertainty_markers:" in verification_template
-    assert "weakest_anchors: [anchor-1]" in verification_template
-    assert "disconfirming_observations: [observation-1]" in verification_template
+    assert "every required decisive comparison is decisive" in verification_template
+    assert "If decisive work remains open, use `partial`, `gaps_found`, `expert_needed`, or `human_needed`" in verification_template
+    assert "Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and apply it literally." in verification_template
+    assert "record structured `suggested_contract_checks` instead of padding prose" in verification_template
+    assert "Proof-backed claims follow the proof-audit rules in the canonical schema" in verification_template
 
 
 def test_research_verification_template_surfaces_non_empty_uncertainty_markers() -> None:
@@ -875,9 +865,8 @@ def test_contract_ledgers_surface_decisive_only_verdict_rules_and_strict_suggest
     assert "disconfirming_observations: [observation-1]" in contract_results
     assert "Invented keys such as `check_id` fail validation." in contract_results
     assert "Copy the `check_key` returned by `suggest_contract_checks(contract)` into the frontmatter `check` field" in contract_results
-    assert "suggested_subject_kind" in verification_template
-    assert "suggested_subject_id" in verification_template
-    assert "evidence_path" in verification_template
+    assert "comparison_verdicts" in verification_template
+    assert "suggested_contract_checks" in verification_template
 
 
 def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary() -> None:
@@ -885,14 +874,16 @@ def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary
     contract_results = (TEMPLATES_DIR / "contract-results-schema.md").read_text(encoding="utf-8")
     state_schema = (TEMPLATES_DIR / "state-json-schema.md").read_text(encoding="utf-8")
 
-    assert "forbidden_proxy_id" in summary_template
+    assert "single detailed rule source" in summary_template
+    assert "contract_results" in summary_template
+    assert "comparison_verdicts" in summary_template
+    assert "legacy frontmatter aliases" in summary_template.lower()
     assert "forbidden_proxy_id" in contract_results
-    assert "action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`" in summary_template
     assert "closed action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`" in contract_results
-    assert "completed_actions: [read, use, compare, cite, avoid]" in summary_template
-    assert "uncertainty_markers:" in summary_template
-    assert "weakest_anchors: [anchor-1]" in summary_template
-    assert "disconfirming_observations: [observation-1]" in summary_template
+    assert "Blank-after-trim entries are invalid" in contract_results
+    assert "duplicate-after-trim entries are invalid" in contract_results
+    assert "weakest_anchors: [anchor-1]" in contract_results
+    assert "disconfirming_observations: [observation-1]" in contract_results
     assert "uncertainty_markers.weakest_anchors" in state_schema
     assert "uncertainty_markers.disconfirming_observations" in state_schema
     assert (

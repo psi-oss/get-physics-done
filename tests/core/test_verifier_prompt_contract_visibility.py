@@ -56,19 +56,13 @@ def test_verifier_prompt_surfaces_validator_enforced_contract_ledger_rules() -> 
 def test_verifier_prompt_frontmatter_example_includes_contract_ledgers() -> None:
     verifier = _read_verifier_prompt()
 
-    assert "plan_contract_ref: GPD/phases/{phase_number}-{phase_name}/{phase_number}-{plan}-PLAN.md#/contract" in verifier
-    assert "contract_results:" in verifier
-    assert "uncertainty_markers:" in verifier
-    assert "comparison_verdicts:    # Required when a decisive comparison was required or attempted" in verifier
-    assert "subject_kind: claim|deliverable|acceptance_test|reference" in verifier
-    assert "subject_role: decisive|supporting|supplemental|other" in verifier
-    assert "comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other" in verifier
-    assert "weakest_anchors: [anchor-1]" in verifier
-    assert "disconfirming_observations: [observation-1]" in verifier
+    assert "plan_contract_ref" in verifier
+    assert "contract_results" in verifier
+    assert "comparison_verdicts" in verifier
+    assert "suggested_contract_checks" in verifier
     assert "\nindependently_confirmed:" not in verifier
     assert "<!-- ASSERT_CONVENTION: natural_units=natural, metric_signature=mostly-minus, fourier_convention=physics -->" in verifier
-    assert "weakest_anchors: []" not in verifier
-    assert "disconfirming_observations: []" not in verifier
+    assert "filler placeholders" not in verifier
 
 
 def test_verifier_prompt_surfaces_missing_parameter_proof_audit_and_stale_review_gate() -> None:
@@ -105,18 +99,13 @@ def test_verifier_prompt_surfaces_missing_parameter_proof_audit_and_stale_review
     assert "`proof_audit.proof_artifact_path` must match a declared `proof_deliverables` path" in contract_results_schema
     assert "`proof_audit.audit_artifact_path` must point to a proof-redteam artifact" in contract_results_schema
     assert "every declared proof-specific acceptance test in `claims[].acceptance_tests[]` passing" in contract_results_schema
-    assert 'summary: "[what the adversarial proof review concluded]"' in verification_template
-    assert "completed_actions: []" in verification_template
-    assert "missing_actions: [read]" in verification_template
+    assert "Verification reports are the decisive readout of the same contract-backed ledger" in verification_template
+    assert "status: passed` is strict" in verification_template
+    assert "every required decisive comparison is decisive" in verification_template
+    assert "record structured `suggested_contract_checks` instead of padding prose" in verification_template
+    assert "Proof-backed claims follow the proof-audit rules in the canonical schema" in verification_template
+    assert "completed_actions: []" not in verification_template
+    assert "missing_actions: [read]" not in verification_template
     assert 'summary: "[what the adversarial proof review concluded]"' in research_verification
-
-    assert "Proof-backed claims are stricter still" in verification_template
-    assert "`claim_kind` is `theorem|lemma|corollary|proposition|claim`" in verification_template
-    assert "current `proof_artifact_path`" in verification_template
-    assert "Quantified proof claims must keep `proof_audit.quantifier_status` explicit" in verification_template
-    assert "the declared proof artifact path and the canonical proof-redteam artifact path" in verification_template
-    assert "every declared proof-specific acceptance test passing" in verification_template
-    assert "proof artifact, or proof-audit deliverable changed after the last adversarial proof review" in verification_template
-    assert "A stale proof audit is never compatible with `status: passed`." in verification_template
     assert "all artifacts pass levels 1-4" in verifier
     assert "all artifacts pass levels 1-3" not in verifier
