@@ -45,6 +45,19 @@ IMPORTANT: If context exists below, it contains USER DECISIONS from /gpd:discuss
 **Gap Closure (if --gaps):** {verification_content} {validation_content}
 </planning_context>
 
+<mode_adherence_requirements>
+Each plan MUST respect the requested research mode (`{research_mode}`) and model profile.
+
+**Mode-profile alignment check (MANDATORY before writing any plan):**
+
+1. If the model profile is `numerical`, the plan's primary task sequence MUST be computational work (simulation setup, numerical implementation, convergence study, parameter sweep). Analytical tasks are permitted only as precursors (deriving equations to discretize) or validation (comparing against known limits). Do NOT produce a plan that is primarily analytical derivations when the user requested numerical work.
+2. If `research_mode` is `exploit`, do NOT include broad literature surveys, method comparison tasks, or alternative approach exploration. The approach should already be established.
+3. If `research_mode` is `explore`, plans MUST include comparison tasks or decision tasks that evaluate alternatives against each other.
+4. Difficulty estimates in plan frontmatter must reflect the requested approach. For numerical profiles, estimate difficulty in computational terms (convergence, stability, grid resolution, resource requirements). For deep-theory profiles, estimate in analytical terms (mathematical complexity, number of steps, subtlety of approximations).
+
+**If mode drift is detected during planning**, correct it before returning. Log: `MODE DRIFT CORRECTED: [description]`.
+</mode_adherence_requirements>
+
 <physics_planning_requirements>
 Each plan MUST include:
 
