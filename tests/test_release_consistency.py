@@ -299,12 +299,15 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert "branches: [main]" in workflow
     assert "workflow_dispatch:" in workflow
     assert "name: pytest (3.11)" in workflow
-    assert "actions/checkout@v5" in workflow
+    assert "actions/checkout@v6" in workflow
     assert "actions/setup-python@v6" in workflow
     assert 'python-version: "3.11"' in workflow
     assert "astral-sh/setup-uv@v7" in workflow
     assert "uv sync --dev" in workflow
+    assert "Run fast test suite" in workflow
+    assert "Run complementary heavy suite" in workflow
     assert "uv run pytest tests/ -q -n auto" in workflow
+    assert "uv run pytest tests/ -q --full-suite -n auto --dist=loadscope $HEAVY_SUITE_IGNORE_ARGS" in workflow
 
 
 def test_prepare_release_workflow_creates_release_pr_without_publishing() -> None:
@@ -318,7 +321,7 @@ def test_prepare_release_workflow_creates_release_pr_without_publishing() -> Non
     assert "workflow_dispatch:" in workflow
     assert 'description: "Dry run — validate and preview without opening a release PR"' in workflow
     assert "pull-requests: write" in workflow
-    assert "actions/checkout@v5" in workflow
+    assert "actions/checkout@v6" in workflow
     assert "actions/setup-python@v6" in workflow
     assert "actions/setup-node@v6" in workflow
     assert "astral-sh/setup-uv@v7" in workflow
@@ -349,10 +352,10 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "environment:" in workflow
     assert "name: PyPI" in workflow
     assert "id-token: write" in workflow
-    assert "actions/checkout@v5" in workflow
+    assert "actions/checkout@v6" in workflow
     assert "actions/setup-python@v6" in workflow
     assert "actions/setup-node@v6" in workflow
-    assert "actions/upload-artifact@v6" in workflow
+    assert "actions/upload-artifact@v7" in workflow
     assert "actions/download-artifact@v8" in workflow
     assert "pypa/gh-action-pypi-publish@release/v1" in workflow
     assert "npm publish" in workflow

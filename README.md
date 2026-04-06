@@ -548,6 +548,12 @@ If GPD contributes to published research, please cite the software using [`CITAT
 Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 1.1.0). https://github.com/psi-oss/get-physics-done
 ```
 
+## Papers Using GPD
+
+Papers that cite or acknowledge use of GPD. If your paper should be listed here, open a pull request.
+
+- C. Ferko, J. Halverson, V. Jejjala and B. Robinson, *Topological Effects in Neural Network Field Theory* (2026), [arXiv:2604.02313](https://arxiv.org/abs/2604.02313).
+
 ## Star History
 
 <p align="center">

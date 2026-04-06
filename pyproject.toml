@@ -72,10 +72,10 @@ build-backend = "hatchling.build"
 packages = ["src/gpd"]
 
 [tool.pytest.ini_options]
-addopts = "-n auto"
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+addopts = "-n auto"
 markers = []
 
 [tool.ruff]
