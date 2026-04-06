@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Install health check hook — detects and repairs broken GPD installs on session start.
 
-GPD can disappear after Claude Code credit exhaustion, an update, or an
+GPD can disappear after runtime credit exhaustion, an update, or an
 environment restart. This hook runs on SessionStart alongside the update
 check hook and:
 
@@ -126,7 +126,7 @@ def _check_install_integrity(config_dir: Path) -> tuple[bool, list[str]]:
         missing.extend(missing_artifacts)
 
     # Also check for commands directory specifically since that is what
-    # surfaces the /gpd slash commands in Claude Code.
+    # surfaces the /gpd slash commands in the host runtime.
     commands_dir = config_dir / "commands" / "gpd"
     if not commands_dir.is_dir():
         if "commands/gpd" not in missing:
