@@ -13,6 +13,62 @@ This reference is loaded by GPD agents when generating code or recommending comp
 
 ---
 
+## Package Preference Policy
+
+**Principle: Prefer adapting existing packages before writing code from scratch.**
+
+Physics software has decades of accumulated domain knowledge, edge-case handling, and community testing. A custom reimplementation rarely matches the reliability of an established package, and the development time is almost always better spent on the physics.
+
+### Decision Hierarchy
+
+When a computational task arises, follow this order:
+
+1. **Use an existing package directly.** Configure it, call its API, write a thin wrapper. This is the default and requires no justification.
+2. **Adapt an existing package.** Subclass, extend, monkey-patch, or fork. Justified when the package covers 70%+ of the need but lacks a specific feature.
+3. **Combine existing packages.** Write glue code between established tools. Justified when the problem decomposes into subproblems each solved by a different package.
+4. **Write custom code.** Justified ONLY when:
+   - No package implements the required algorithm or physics
+   - The adaptation overhead genuinely exceeds a clean implementation
+   - Performance requirements cannot be met by existing tools
+   - The plan's `package_strategy` frontmatter documents the justification
+
+### Common Domains and Their Standard Packages
+
+| Computational Need | Standard Packages | Do NOT Rewrite |
+|--------------------|-------------------|----------------|
+| ODE/PDE integration | SciPy, DifferentialEquations.jl, FEniCS | Adaptive timesteppers, stiff solvers |
+| Monte Carlo sampling | emcee, PyMC, Stan | MCMC walkers, convergence diagnostics |
+| Molecular dynamics | LAMMPS, OpenMM, GROMACS, ASE | Force field evaluation, neighbor lists, integrators |
+| Quantum dynamics | QuTiP, Qiskit, Cirq | Master equations, state tomography, gate decomposition |
+| Electronic structure | PySCF, Quantum ESPRESSO, VASP | SCF loops, exchange-correlation functionals |
+| Tensor networks | ITensors.jl, TeNPy, quimb | Contraction ordering, DMRG sweeps |
+| Symbolic algebra | SymPy, Mathematica, FORM | Pattern matching, simplification engines |
+| Linear algebra | NumPy/SciPy (LAPACK/BLAS), Eigen | Matrix decompositions, sparse solvers |
+| Fluid dynamics | Dedalus, OpenFOAM, Firedrake | Spectral methods, mesh generation |
+| Lattice field theory | Grid, Chroma, openQCD | Gauge field updates, fermion inversions |
+| N-body / orbital | REBOUND, Gadget, AREPO | Gravity solvers, tree codes, SPH |
+| Statistical analysis | pandas, xarray, uncertainties | Data manipulation, error propagation |
+| Optimization | SciPy, NLopt, Optuna | Constrained optimization, hyperparameter tuning |
+
+### Anti-Patterns
+
+- **Reimplementing a Runge-Kutta integrator** when `scipy.integrate.solve_ivp` exists
+- **Writing a custom MCMC sampler** when `emcee` or `PyMC` handles the problem
+- **Building a molecular dynamics engine** when LAMMPS/OpenMM has the required force fields
+- **Coding matrix diagonalization** when `scipy.linalg.eigh` wraps optimized LAPACK routines
+- **Writing a custom FFT** when `numpy.fft` or `FFTW` exists
+- **Implementing a finite element solver** when FEniCS/Firedrake handles the PDE class
+
+### When Custom Code IS Appropriate
+
+- Novel algorithms not yet in any package (document the novelty)
+- Tight inner loops where Python overhead is prohibitive and no compiled package exists
+- Highly specialized physics with no community package (e.g., novel lattice actions, custom effective potentials)
+- Educational/pedagogical implementations where understanding the algorithm is the goal
+- Prototyping a new method before packaging it
+
+---
+
 ## Python Scientific Stack
 
 - **NumPy/SciPy** -- Numerical linear algebra, integration, optimization, special functions
