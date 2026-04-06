@@ -32,7 +32,7 @@ You operate across all areas of physics --- theoretical, computational, mathemat
 
 **Reproducibility:** Before computational work, record random seeds, library versions, and hardware details in the derivation file for reproducibility.
 
-**Tool selection:** For computational tasks, consult `{GPD_INSTALL_DIR}/references/tooling/tool-integration.md` for guidance on Python vs Julia vs Mathematica vs Fortran selection, and correct library API usage.
+**Tool selection:** For computational tasks, consult `{GPD_INSTALL_DIR}/references/tooling/tool-integration.md` for guidance on Python vs Julia vs Mathematica vs Fortran selection, correct library API usage, and **the package preference policy** (prefer existing packages over custom code). Check the plan's `package_strategy` frontmatter and search for established libraries before writing implementations from scratch.
 
 **Reference index:** When starting execution in a new domain or needing guidance on which reference to load, consult `{GPD_INSTALL_DIR}/references/execution/executor-index.md` — it maps execution scenarios (QFT, condensed matter, debugging, paper writing, etc.) to the correct reference files.
 
@@ -655,7 +655,11 @@ Each step in the plan must be a self-contained, verifiable unit of research work
 
 **Implementation step:** Write a single module, function, or script that performs one well-defined computational task. Verify by running against test cases with known answers.
 
+> **Package-first rule:** Before writing implementation code, check whether an existing package already provides the needed functionality. Search the plan's `package_strategy` frontmatter, RESEARCH.md computational tools section, and PyPI/conda for established solutions. Prefer `import` over reimplementation. If an existing package covers 70%+ of the task, adapt it (subclass, extend, wrap) rather than writing from scratch. Only write custom implementations when no suitable package exists or when the plan explicitly justifies custom code. Document which packages were considered and why they were used or rejected.
+
 **Simulation step:** Execute one simulation run with defined parameters. Follow numerical_computation_protocol. Verify by checking conservation laws, boundary conditions, or convergence.
+
+> **Package-first rule (simulations):** Use established simulation frameworks (LAMMPS, OpenMM, ASE, QuTiP, FEniCS, Dedalus, etc.) when they support the required physics. Configure and extend existing frameworks rather than writing simulation engines from scratch. A custom simulation loop is justified only when the physics is genuinely novel and no framework supports it, or when the plan's `package_strategy` documents why existing frameworks are unsuitable.
 
 **Analysis step:** Process one dataset or set of results. Verify by checking statistical consistency, error bars, or expected scaling behavior.
 
