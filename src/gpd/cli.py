@@ -4570,7 +4570,7 @@ def _update_wolfram_integration_state(cwd: Path, *, enabled: bool) -> dict[str, 
     config_path = _integrations_config_path(project_root)
     with file_lock(config_path):
         try:
-            payload = WOLFRAM_MANAGED_INTEGRATION.project_payload(project_root, strict=True)
+            payload = WOLFRAM_MANAGED_INTEGRATION.project_payload(project_root)
             current = WOLFRAM_MANAGED_INTEGRATION.project_record(project_root, strict=True) or {}
         except RuntimeError as exc:
             _error(str(exc))

@@ -84,7 +84,7 @@ class ManagedIntegrationDescriptor:
     def project_config_path(self, cwd: Path) -> Path:
         return _project_integrations_config_path(cwd)
 
-    def project_payload(self, cwd: Path | None = None, *, strict: bool = False) -> dict[str, object]:
+    def project_payload(self, cwd: Path | None = None) -> dict[str, object]:
         if cwd is None:
             return {}
         return _load_project_integrations_payload(cwd)
@@ -92,7 +92,7 @@ class ManagedIntegrationDescriptor:
     def project_record(self, cwd: Path | None = None, *, strict: bool = False) -> dict[str, object] | None:
         if cwd is None:
             return None
-        payload = self.project_payload(cwd, strict=strict)
+        payload = self.project_payload(cwd)
         raw = payload.get(self.integration_id)
         if raw is None:
             return None
