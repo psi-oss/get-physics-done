@@ -175,6 +175,59 @@ Use the same `-R2` / `-R3` suffix convention for downstream response artifacts:
 Use one short sentence that names each stage's job, for example:
 
 `Launching the six-stage review panel: Stage 1 maps the paper's claims; Stages 2-3 check prior work and mathematical soundness in parallel; Stage 4 checks whether the physical interpretation is supported; Stage 5 judges significance and venue fit; Stage 6 synthesizes everything into the final recommendation.`
+
+If `--parallel` is set, also announce:
+
+`Parallel adversarial reviewer will run independently alongside Stages 1-5 and produce a divergence report for the referee.`
+</step>
+
+<step name="parallel_review_launch">
+**Launch parallel reviewer if --parallel flag is set:**
+
+If `$ARGUMENTS` includes `--parallel`, launch the parallel adversarial reviewer concurrently with Stage 1. The parallel reviewer runs through its Phase 1 (independent manuscript analysis) in parallel with Stages 1-5 of the primary panel.
+
+Resolve parallel reviewer model:
+
+```bash
+PARALLEL_MODEL=$(gpd resolve-model gpd-parallel-reviewer)
+```
+
+> **Runtime delegation:** Spawn a fresh subagent. If the runtime supports parallel execution, launch this alongside Stage 1. The parallel reviewer MUST NOT read any primary panel STAGE-*.json artifacts during Phase 1.
+
+```
+task(
+  subagent_type="gpd-parallel-reviewer",
+  model="{parallel_model}",
+  readonly=false,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-parallel-reviewer.md for your role and instructions.
+Then read {GPD_INSTALL_DIR}/references/verification/core/adversarial-review-protocol.md for the adversarial review protocol.
+
+Execute Phase 1 only (independent manuscript analysis). Do NOT read any STAGE-*.json, CLAIMS.json, or other primary panel artifacts.
+
+Target journal: {target_journal}
+Round: {round}
+Output path: `GPD/review/PARALLEL-REVIEW{round_suffix}.json`
+
+Files to read:
+- Resolved manuscript main file and all nearby section .tex files
+- Summary artifacts matching `GPD/phases/*/*SUMMARY.md`
+- `GPD/phases/*/*-VERIFICATION.md`
+- All `*.bib` files under `${MANUSCRIPT_ROOT}`
+
+Focus on:
+1. Identify the 3-5 most critical claims and verify each through an alternative derivation path.
+2. Stress-test the 3-5 most load-bearing assumptions at their boundaries.
+3. Construct the strongest possible counter-narrative to the paper's main claim.
+4. Cross-reference findings against the LLM physics error catalog.
+
+Return PHASE 1 COMPLETE with independent recommendation ceiling and key findings.",
+  description="Parallel review phase 1: independent manuscript analysis (runs alongside primary panel)"
+)
+```
+
+If `--parallel` is not set, skip this step entirely.
+
+Note: Phase 1 failure does not block the primary panel. If Phase 1 fails, log the failure and continue with the primary panel alone. The referee will note the absence of parallel review artifacts.
 </step>
 
 <step name="stage_1_read">
@@ -531,6 +584,48 @@ If validation fails:
 Max retries per stage: **1**.
 </step>
 
+<step name="parallel_review_divergence">
+**Parallel review Phase 2 — Divergence analysis (if --parallel is set):**
+
+If `--parallel` was set and Phase 1 of the parallel reviewer completed successfully (i.e., `GPD/review/PARALLEL-REVIEW{round_suffix}.json` exists), run the divergence analysis now that Stages 1-5 are complete.
+
+```
+task(
+  subagent_type="gpd-parallel-reviewer",
+  model="{parallel_model}",
+  readonly=false,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-parallel-reviewer.md for your role and instructions.
+Then read {GPD_INSTALL_DIR}/references/verification/core/adversarial-review-protocol.md for the adversarial review protocol.
+
+Execute Phase 2 only (cross-panel divergence analysis).
+
+Round: {round}
+Output path: `GPD/review/DIVERGENCE-REPORT{round_suffix}.json`
+
+Files to read:
+- `GPD/review/PARALLEL-REVIEW{round_suffix}.json` (your Phase 1 output)
+- `GPD/review/CLAIMS{round_suffix}.json`
+- `GPD/review/STAGE-reader{round_suffix}.json`
+- `GPD/review/STAGE-literature{round_suffix}.json`
+- `GPD/review/STAGE-math{round_suffix}.json`
+- `GPD/review/STAGE-physics{round_suffix}.json`
+- `GPD/review/STAGE-interestingness{round_suffix}.json`
+
+Focus on:
+1. Compare your independent findings with the panel's findings claim by claim.
+2. Identify every divergence and classify each as material or minor.
+3. For each material divergence, provide specific evidence supporting your position.
+
+Return PHASE 2 COMPLETE with material divergence count and reconciliation priority items.",
+  description="Parallel review phase 2: cross-panel divergence analysis"
+)
+```
+
+If `--parallel` was not set, or if Phase 1 failed, skip this step.
+
+If Phase 2 fails, log the failure and continue to Stage 6 without divergence data. The referee will note the absence.
+</step>
+
 <step name="final_adjudication">
 **Stage 6 — Final adjudication by `gpd-referee`.**
 
@@ -578,6 +673,8 @@ Files to read:
 - `GPD/review/STAGE-math{round_suffix}.json`
 - `GPD/review/STAGE-physics{round_suffix}.json`
 - `GPD/review/STAGE-interestingness{round_suffix}.json`
+- `GPD/review/PARALLEL-REVIEW{round_suffix}.json` if present (parallel adversarial review)
+- `GPD/review/DIVERGENCE-REPORT{round_suffix}.json` if present (parallel review divergence analysis)
 - `GPD/comparisons/*-COMPARISON.md` if present
 - `GPD/paper/FIGURE_TRACKER.md` if present
 - `${ARTIFACT_MANIFEST_PATH}` if present
@@ -602,6 +699,7 @@ Recommendation guardrails:
 7. Run `gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json`.
 8. Run `gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger GPD/review/REVIEW-LEDGER{round_suffix}.json` before trusting any final recommendation.
 9. If either validator fails, STOP and fix the JSON artifacts before presenting or relying on the final recommendation.
+10. If `GPD/review/DIVERGENCE-REPORT{round_suffix}.json` is present, read it and reconcile any material divergences before issuing the final recommendation. Document the reconciliation in `REFEREE-DECISION{round_suffix}.json` under a `parallel_review_reconciliation` field. If material divergences exist and the parallel reviewer provides stronger evidence than the panel on a specific claim, adjust the recommendation accordingly.
 
 Treat `project_contract_load_info` and `project_contract_validation` as the authoritative contract gate state. Treat `project_contract` and `contract_intake` as approved evidence only when that gate is clean and passing. Treat `effective_reference_intake`, `reference_artifacts_content`, and `active_reference_context` as binding carry-forward evidence even when the contract gate is blocked. If that gate is blocked, keep `project_contract` and `contract_intake` visible as context but do not rely on them as approved scope.
 
@@ -679,6 +777,10 @@ Present:
 **Report:** {path}
 **LaTeX report:** {path or "not written"}
 **Consistency report:** {path or "not written"}
+**Parallel review:** {path or "not run"}
+**Divergence report:** {path or "not run"}
+**Material divergences:** {count or "N/A"}
+**Divergences reconciled:** {yes/no/N/A}
 ```
 </step>
 
@@ -715,4 +817,9 @@ If this was a revision round, state the round number and whether the referee con
 - [ ] Final adjudicating gpd-referee executed successfully
 - [ ] Latest referee report located and summarized
 - [ ] Outcome routed to the correct next action
+- [ ] (If --parallel) Parallel reviewer Phase 1 completed independently
+- [ ] (If --parallel) PARALLEL-REVIEW artifact written with non-empty independent checks
+- [ ] (If --parallel) Divergence analysis Phase 2 completed after Stages 1-5
+- [ ] (If --parallel) DIVERGENCE-REPORT artifact written
+- [ ] (If --parallel) Material divergences reconciled by referee in final recommendation
 </success_criteria>

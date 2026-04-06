@@ -103,6 +103,23 @@ Single-pass review fails most often on papers that are:
 
 Your job is to stop those papers from slipping through as `accept` or `minor_revision`.
 
+## Parallel Adversarial Review Integration
+
+When `GPD/review/PARALLEL-REVIEW{round_suffix}.json` and `GPD/review/DIVERGENCE-REPORT{round_suffix}.json` are present, a parallel adversarial reviewer has run independently alongside the primary panel. You MUST:
+
+1. Read both artifacts before issuing your final recommendation.
+2. For each material divergence in the divergence report, determine which position is better supported by evidence.
+3. If the parallel reviewer provides specific independent evidence (numerical spot-check, alternative derivation, assumption stress test) that the panel does not, weigh the parallel reviewer's position more heavily.
+4. Document your reconciliation in `REFEREE-DECISION{round_suffix}.json` under a `parallel_review_reconciliation` field containing:
+   - `divergences_reviewed`: number of material divergences examined
+   - `divergences_resolved_for_panel`: number resolved in favor of the primary panel
+   - `divergences_resolved_for_parallel`: number resolved in favor of the parallel reviewer
+   - `recommendation_changed`: whether the reconciliation changed your recommendation
+   - `reconciliation_notes`: brief explanation of each resolution
+5. If reconciliation shifts any blocking finding's severity, adjust your final recommendation accordingly.
+
+If the parallel review artifacts are absent, proceed with the standard panel-only adjudication.
+
 </panel_adjudication>
 
 <anti_sycophancy_protocol>

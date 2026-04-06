@@ -272,6 +272,13 @@ MODEL_PROFILES: dict[str, dict[str, ModelTier]] = {
         "review": ModelTier.TIER_2,
         "paper-writing": ModelTier.TIER_2,
     },
+    "gpd-parallel-reviewer": {
+        "deep-theory": ModelTier.TIER_1,
+        "numerical": ModelTier.TIER_1,
+        "exploratory": ModelTier.TIER_2,
+        "review": ModelTier.TIER_1,
+        "paper-writing": ModelTier.TIER_1,
+    },
 }
 
 # Default tier per agent (profile-independent fallback)
@@ -299,6 +306,7 @@ AGENT_DEFAULT_TIERS: dict[str, ModelTier] = {
     "gpd-referee": ModelTier.TIER_1,
     "gpd-experiment-designer": ModelTier.TIER_2,
     "gpd-notation-coordinator": ModelTier.TIER_2,
+    "gpd-parallel-reviewer": ModelTier.TIER_1,
 }
 
 # ─── Config Model ───────────────────────────────────────────────────────────────
