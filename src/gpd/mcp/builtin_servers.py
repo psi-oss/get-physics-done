@@ -15,7 +15,7 @@ import subprocess
 import sys
 from copy import deepcopy
 
-from gpd.mcp.verification_contract_policy import verification_contract_policy_text
+from gpd.mcp.verification_contract_policy import verification_server_description
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +196,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         },
     },
     "gpd-verification": {
-        "description": verification_contract_policy_text(),
+        "description": verification_server_description(),
         "capabilities": [
             "run_check",
             "run_contract_check",
