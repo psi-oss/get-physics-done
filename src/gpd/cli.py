@@ -93,15 +93,11 @@ from gpd.core.resume_surface import (
 from gpd.core.root_resolution import resolve_project_root
 from gpd.core.surface_phrases import (
     cost_inspect_action,
-    local_cli_bridge_note,
-    post_start_settings_note,
-    post_start_settings_recommendation,
     recovery_action_lines,
     recovery_ladder_note,
     recovery_recent_action,
     recovery_resume_action,
     tangent_branch_later_follow_up_lines,
-    workflow_preset_surface_note,
 )
 from gpd.core.workflow_presets import (
     get_workflow_preset,
@@ -8343,7 +8339,7 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
             soft_wrap=True,
         )
         if len(next_step_entries) == 1:
-            single_runtime_name, single_result = results[0]
+            single_runtime_name, _ = results[0]
             (
                 _runtime_name,
                 display_name,
@@ -8357,12 +8353,6 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
             resume_work_command = _get_adapter_or_error(single_runtime_name, action="install summary").format_command("resume-work")
             suggest_next_command = _get_adapter_or_error(single_runtime_name, action="install summary").format_command("suggest-next")
             pause_work_command = _get_adapter_or_error(single_runtime_name, action="install summary").format_command("pause-work")
-            target_value = single_result.get("target")
-            doctor_scope = (
-                "global"
-                if target_value and _target_dir_matches_global(single_runtime_name, str(target_value), action="install summary")
-                else "local"
-            )
             console.print(
                 f"1. Open [bold]{display_name}[/] from your system terminal "
                 f"([{_INSTALL_ACCENT_COLOR} bold]{launch_command}[/]).",
@@ -8398,27 +8388,10 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
                 f"{recovery_ladder_note(resume_work_phrase=f'`{resume_work_command}`', suggest_next_phrase=f'`{suggest_next_command}`', pause_work_phrase=f'`{pause_work_command}`')}",
                 soft_wrap=True,
             )
-            console.print()
-            console.print("[bold]Secondary follow-up[/]")
             console.print(
                 f"7. {_install_summary_local_cli_bridge_line()}",
                 soft_wrap=True,
             )
-            console.print(
-                f"8. Run [bold]gpd doctor --runtime {single_runtime_name} --{doctor_scope}[/] for a focused readiness check.",
-                soft_wrap=True,
-            )
-            console.print(
-                f"9. {post_start_settings_note()} {post_start_settings_recommendation()}",
-                soft_wrap=True,
-            )
-            console.print(
-                "10. If you plan to use paper/manuscript workflows, rerun "
-                f"[bold]gpd doctor --runtime {single_runtime_name} --{doctor_scope}[/] "
-                "and check the `Workflow Presets` and `LaTeX Toolchain` rows before publication work.",
-                soft_wrap=True,
-            )
-            console.print(_workflow_preset_surface_note(), soft_wrap=True)
         else:
             runtime_lines: list[str] = []
             for runtime_name, display_name, launch_command, help_command, start_command, tour_command, new_project_command, map_research_command in next_step_entries:
@@ -8447,29 +8420,10 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
                 ),
                 soft_wrap=True,
             )
-            console.print()
-            console.print("[bold]Secondary follow-up[/]")
             console.print(
                 _install_summary_local_cli_bridge_line(),
                 soft_wrap=True,
             )
-            console.print(
-                "Run [bold]gpd doctor --runtime <runtime> --local[/] for local installs or "
-                "[bold]gpd doctor --runtime <runtime> --global[/] for global installs.",
-                soft_wrap=True,
-            )
-            console.print(
-                f"{post_start_settings_note()} {post_start_settings_recommendation()}",
-                soft_wrap=True,
-            )
-            console.print(
-                "For paper/manuscript workflows, rerun "
-                "[bold]gpd doctor --runtime <runtime> --local[/] for local installs or "
-                "[bold]gpd doctor --runtime <runtime> --global[/] for global installs "
-                "and check the `Workflow Presets` and `LaTeX Toolchain` rows before publication work.",
-                soft_wrap=True,
-            )
-            console.print(_workflow_preset_surface_note(), soft_wrap=True)
         console.print()
 
 
@@ -8525,17 +8479,9 @@ def _resolve_detected_runtime_target(runtime_name: str) -> tuple[Path | None, st
     return None, None
 
 
-def _workflow_preset_surface_note() -> str:
-    """Return the shared preset-surface note derived from the preset registry."""
-    return workflow_preset_surface_note()
-
-
 def _install_summary_local_cli_bridge_line() -> str:
-    """Return the shared local-CLI bridge follow-up for install summaries."""
-    return (
-        f"Use [bold]{local_cli_help_command()}[/] for local install, readiness, validation, permissions, observability, and diagnostics. "
-        f"Local CLI bridge: {local_cli_bridge_note()}"
-    )
+    """Return the concise local-CLI bridge follow-up for install summaries."""
+    return f"Use [bold]{local_cli_help_command()}[/] for local diagnostics and later setup."
 
 
 def _print_workflow_preset_list() -> None:

@@ -15,7 +15,8 @@ tmp/
 .mcp.json
 # Runtime-owned local mirrors/config snapshots.
 .agents/
+.claude/
 .codex/
-.planning/
+GPD/
 .gemini/
 .opencode/

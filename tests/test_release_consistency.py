@@ -41,7 +41,9 @@ from tests.doc_surface_contracts import (
     assert_beginner_router_bridge_contract,
     assert_beginner_startup_routing_contract,
     assert_cost_advisory_contract,
+    assert_help_command_all_extract_contract,
     assert_help_command_quick_start_extract_contract,
+    assert_help_workflow_command_index_contract,
     assert_help_workflow_quick_start_taxonomy_contract,
     assert_help_workflow_runtime_reference_contract,
     assert_optional_paper_workflow_guidance_contract,
@@ -677,13 +679,16 @@ def test_public_help_default_quick_start_keeps_runtime_surface_readiness_path() 
     quick_start = _extract_between(
         help_command,
         "## Step 2: Quick Start Extract (Default Output)",
-        "## Step 3: Full Command Reference (--all)",
+        "## Step 3: Compact Command Index (--all)",
     )
-    quick_start_reference = _extract_between(help_workflow, "## Quick Start", "## Core Workflow")
+    quick_start_reference = _extract_between(help_workflow, "## Quick Start", "## Command Index")
+    command_index = _extract_between(help_workflow, "## Command Index", "## Detailed Command Reference")
 
     assert_help_command_quick_start_extract_contract(quick_start)
+    assert_help_command_all_extract_contract(help_command)
     assert_help_workflow_runtime_reference_contract(help_workflow)
     assert_help_workflow_quick_start_taxonomy_contract(quick_start_reference)
+    assert_help_workflow_command_index_contract(command_index)
 
 
 def test_public_help_surfaces_keep_publication_workflows_visible_for_optional_add_ons() -> None:
@@ -692,7 +697,7 @@ def test_public_help_surfaces_keep_publication_workflows_visible_for_optional_ad
     help_workflow = (repo_root / "src/gpd/specs/workflows/help.md").read_text(encoding="utf-8")
 
     assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
-    assert "## Core Workflow" in help_workflow
+    assert "## Detailed Command Reference" in help_workflow
     assert "**`gpd:write-paper [title or topic] [--from-phases 1,2,3]`**" in help_workflow
     assert "**`gpd:arxiv-submission`**" in help_workflow
     assert_optional_paper_workflow_guidance_contract(help_workflow)
@@ -1232,6 +1237,23 @@ def test_contributing_docs_cover_release_validation_flow() -> None:
     assert "## Release Process" not in content
     assert "`Prepare release`" not in content
     assert "`Publish release`" not in content
+
+
+def test_source_checkout_cli_docs_use_uv() -> None:
+    repo_root = _repo_root()
+    readme = (repo_root / "README.md").read_text(encoding="utf-8")
+    contributing = (repo_root / "CONTRIBUTING.md").read_text(encoding="utf-8")
+
+    assert "Working from a source checkout?" in readme
+    assert "uv sync --dev" in readme
+    assert "uv run gpd --help" in readme
+    assert "uv run gpd install <runtime> --local" in readme
+    assert "pyproject.toml" in readme
+
+    assert "## Local CLI From This Checkout" in contributing
+    assert "uv run gpd --help" in contributing
+    assert "uv run gpd install <runtime> --local" in contributing
+    assert "python -m pip install -e ." not in contributing
 
 
 def test_gitignore_covers_repo_local_npm_cache() -> None:

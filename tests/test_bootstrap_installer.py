@@ -16,13 +16,8 @@ import gpd.adapters.runtime_catalog as runtime_catalog_module
 import gpd.core.public_surface_contract as public_surface_contract_module
 from gpd.adapters import get_adapter, iter_runtime_descriptors
 from gpd.core.public_surface_contract import beginner_onboarding_hub_url
-from gpd.core.surface_phrases import (
-    post_start_settings_note,
-    post_start_settings_recommendation,
-    recovery_ladder_note,
-)
+from gpd.core.surface_phrases import recovery_ladder_note
 from tests.doc_surface_contracts import (
-    assert_beginner_caveat_follow_up_contract,
     assert_install_summary_runtime_follow_up_contract,
     assert_recovery_ladder_contract,
 )
@@ -73,8 +68,6 @@ _GENERIC_RECOVERY_LADDER_NOTE = recovery_ladder_note(
     suggest_next_phrase="your runtime-specific `suggest-next` command",
     pause_work_phrase="your runtime-specific `pause-work` command",
 )
-_POST_START_SETTINGS_NOTE = post_start_settings_note()
-_POST_START_SETTINGS_RECOMMENDATION = post_start_settings_recommendation()
 _RUNTIME_RECOVERY_LADDER_TEMPLATE = recovery_ladder_note(
     resume_work_phrase="{resume_work}",
     suggest_next_phrase="{suggest_next}",
@@ -184,7 +177,6 @@ def _assert_install_summary_semantic_contract(
         pause_work_fragments=pause_work_fragments,
     )
     assert_install_summary_runtime_follow_up_contract(output, runtime_help_fragments=runtime_help_fragments)
-    assert_beginner_caveat_follow_up_contract(output)
 
 
 def test_version_consistency():

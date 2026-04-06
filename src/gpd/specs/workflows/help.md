@@ -74,7 +74,8 @@ Revision workflow:
   gpd:peer-review         — Re-run peer review after revision
 ```
 
-For full command reference: `gpd:help --all`
+For the compact command index: `gpd:help --all`
+For one detailed command entry: `gpd:help --command gpd:plan-phase`
 </step>
 
 <step name="concepts">
@@ -152,36 +153,36 @@ Depending on the runtime, those names may be rendered with slash prefixes, dolla
 If you only remember one order, use this: `help -> start -> tour -> new-project / map-research -> resume-work`.
 In runtime terms, that means `gpd:help`, then `gpd:start`, then `gpd:tour`, then `gpd:new-project` or `gpd:map-research`, and later `gpd:resume-work` when you return.
 
-After that, choose the path that matches your current situation:
+Use the path that matches your current situation:
 
 **New work**
-1. `gpd:start` - Guided first-run router when you are not sure whether to create a new project, map existing work, resume, or ask a standalone explanation question
-2. `gpd:tour` - Optional read-only guided tour of the main commands and when to use them
-3. `gpd:new-project` - Full project setup (deep questioning, literature survey, requirements, roadmap)
-4. `gpd:new-project --minimal` - Fast path from a single description to a working GPD project
+1. `gpd:start` - Guided first-run router that chooses the safest first step for this folder
+2. `gpd:tour` - Get a read-only overview before choosing
+3. `gpd:new-project` - Create a full GPD project
+4. `gpd:new-project --minimal` - Create a project through the shortest setup path
 
 **Existing work**
-1. `gpd:map-research` - Map an existing folder or project first
-2. `gpd:new-project` - Convert that mapped context into a structured GPD project
+1. `gpd:map-research` - Map an existing folder before turning it into a GPD project
+2. `gpd:new-project` - Turn that mapped context into a full GPD project
 
 **Returning work**
-1. `gpd resume` - Current-workspace read-only recovery snapshot from your normal terminal
-2. `gpd resume --recent` - Find the workspace first when you need to reopen a different one
-3. `gpd:resume-work` - Continue in-runtime from the selected project state
-4. `gpd:progress` - Secondary manual status check; use `--brief` when you only need a short snapshot
-5. `gpd:suggest-next` - Fastest post-resume next command when you only need the next action
-6. `gpd observe execution` - Read-only long-run visibility from your normal terminal; use this for progress / waiting state, conservative `possibly stalled` wording, and the next read-only checks
-7. `gpd cost` - Read-only machine-local usage / cost summary from your normal terminal
+1. `gpd resume` - Reopen the current-workspace recovery snapshot from your normal terminal
+2. `gpd resume --recent` - Find a different workspace first from your normal terminal
+3. `gpd:resume-work` - Continue inside the reopened project
+4. `gpd:progress` - See the broader project snapshot
+5. `gpd:suggest-next` - Get the fastest next action
+6. `gpd observe execution` - Watch progress / waiting state, conservative `possibly stalled` wording, and the next read-only checks from your normal terminal
+7. `gpd cost` - Review recorded machine-local usage / cost from your normal terminal
 
 **Post-startup settings**
-1. `gpd:settings` - Primary guided unattended/autonomy setup after your first successful start or later when you want to choose posture, decide whether to keep runtime defaults or pin tiers, review advisory limits, and sync runtime permissions
-2. `gpd:set-tier-models` - Direct concrete tier-model path when you only want to pin `tier-1`, `tier-2`, and `tier-3` model ids for the active runtime without changing the broader settings bundle
+1. `gpd:settings` - Change autonomy, permissions, and broader runtime preferences after your first successful start or later
+2. `gpd:set-tier-models` - Pin concrete `tier-1`, `tier-2`, and `tier-3` model ids only
 
-**Tangents**
-1. `gpd:tangent` - Chooser for stay / quick / defer / branch when a side investigation appears
-2. `gpd:branch-hypothesis` - Explicit git-backed alternative path with isolated `GPD/` state when the tangent needs to diverge cleanly
+When a side investigation appears later, use `gpd:tangent` first. It is the chooser for stay / quick / defer / branch. Use `gpd:branch-hypothesis` only when that tangent needs its own git-backed branch.
 
-If `gpd observe execution` surfaces an alternative-path follow-up, route it through `gpd:tangent`; use `gpd:branch-hypothesis` only after that choice.
+## Command Index
+
+This is the compact grouped list of runtime commands. For normal-terminal install, readiness, and diagnostics commands, use `gpd --help`.
 
 **Workflow presets**
 1. `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
@@ -191,26 +192,99 @@ If `gpd observe execution` surfaces an alternative-path follow-up, route it thro
 5. `gpd presets apply <preset> [--dry-run]` - Apply or preview one preset from your normal terminal without inventing a separate preset schema
 6. `gpd validate plan-preflight <PLAN.md>` - Check machine-readable plan tool requirements before execution when a plan depends on specialized tools
 
-Workflow presets are bundles over the existing config keys only; they do not add a separate persisted preset block.
+### Starter commands
 
-**Wolfram integration**
-1. `gpd integrations status wolfram` - Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
-2. `gpd integrations enable wolfram` - Enable the shared optional Wolfram integration config
-3. `gpd integrations disable wolfram` - Disable the shared optional Wolfram integration config
+- `gpd:help` - Show the quick start or command index
+- `gpd:start` - Guided first-run router for the safest first path in the current folder
+- `gpd:tour` - Show a read-only overview of the main commands
+- `gpd:new-project` - Create a full GPD project
+- `gpd:new-project --minimal` - Create a GPD project through the shortest setup path
+- `gpd:map-research` - Map an existing research folder before planning
+- `gpd:resume-work` - Resume an existing GPD project inside the runtime
+- `gpd:progress` - Review project status and likely next steps
+- `gpd:suggest-next` - Ask only for the next best action
+- `gpd:explain [concept]` - Explain a concept, method, result, or paper
+- `gpd:quick` - Run one small bounded task without the full phase workflow
 
-Local Mathematica installs are separate from the shared optional Wolfram integration config.
+### Planning and execution
 
-Workflow preset tooling is layered on top of the base install; it does not change runtime permission alignment.
+- `gpd:discuss-phase <number>` - Capture phase context before planning
+- `gpd:research-phase <number>` - Run a focused phase literature survey
+- `gpd:list-phase-assumptions <number>` - Preview the planned phase approach
+- `gpd:discover [phase or topic]` - Survey methods, literature, and tools before planning
+- `gpd:show-phase <number>` - Inspect one phase's artifacts and status
+- `gpd:plan-phase <number>` - Build a detailed execution plan for a phase
+- `gpd:execute-phase <phase-number>` - Run all plans in a phase
+- `gpd:derive-equation` - Run a rigorous derivation workflow
 
-## What comes later after startup
+### Roadmap and milestones
 
-These are the main capability groups GPD supports once a project is underway:
+- `gpd:add-phase <description>` - Append a new phase to the roadmap
+- `gpd:insert-phase <after> <description>` - Insert urgent work between phases
+- `gpd:remove-phase <number>` - Remove a future phase and renumber later ones
+- `gpd:revise-phase <number> "<reason>"` - Supersede a completed phase with a replacement
+- `gpd:merge-phases <source> <target>` - Fold one phase's results into another
+- `gpd:new-milestone <name>` - Start the next milestone
+- `gpd:complete-milestone <version>` - Archive a completed milestone
 
-- Project work: `gpd:discuss-phase`, `gpd:plan-phase`, `gpd:execute-phase`, `gpd:verify-work`
-- Writing and review: `gpd:write-paper`, `gpd:peer-review`, `gpd:respond-to-referees`, `gpd:arxiv-submission`
-- Side investigations and preferences: `gpd:tangent`, `gpd:branch-hypothesis`, `gpd:set-profile`, `gpd:set-tier-models`, `gpd:settings`
+### Validation and analysis
 
-## Core Workflow
+- `gpd:verify-work [phase]` - Run physics verification checks
+- `gpd:debug [issue description]` - Start a persistent debug session
+- `gpd:dimensional-analysis` - Check dimensional consistency
+- `gpd:limiting-cases` - Check known limits
+- `gpd:numerical-convergence` - Run convergence checks for numerical work
+- `gpd:compare-experiment` - Compare results against external data
+- `gpd:compare-results` - Compare internal results or baselines
+- `gpd:validate-conventions [phase]` - Check notation and convention consistency
+- `gpd:regression-check [phase]` - Scan for regressions in recorded verification state
+- `gpd:health` - Run project health checks
+- `gpd:parameter-sweep [phase]` - Run a structured parameter sweep
+- `gpd:sensitivity-analysis` - Rank which inputs matter most
+- `gpd:error-propagation` - Track uncertainties through a calculation chain
+
+### Writing and publication
+
+- `gpd:literature-review [topic]` - Create a structured literature review
+- `gpd:write-paper [title or topic] [--from-phases 1,2,3]` - Draft a paper from project results
+- `gpd:peer-review [paper directory or manuscript path]` - Run the staged review workflow
+- `gpd:respond-to-referees` - Draft referee responses and revise the paper
+- `gpd:arxiv-submission` - Package a built manuscript for arXiv
+- `gpd:slides [topic, audience, or source path]` - Create presentation slides
+
+### Tangents, memory, and exports
+
+- `gpd:tangent [description]` - Chooser for stay / quick / defer / branch when a side investigation appears
+- `gpd:branch-hypothesis <description>` - Explicit git-backed alternative path for a side investigation
+- `gpd:compare-branches` - Compare results across hypothesis branches
+- `gpd:pause-work` - Save a continuation handoff before stepping away
+- `gpd:add-todo [description]` - Capture a task or idea
+- `gpd:check-todos [area]` - Review pending todos and pick one
+- `gpd:decisions [phase or keyword]` - Search the decision log
+- `gpd:graph` - Visualize phase dependencies
+- `gpd:export [--format html|latex|zip|all]` - Export project artifacts
+- `gpd:export-logs [--format jsonl|json|markdown] [--session <id>] [--last N] [--no-traces] [--output-dir <path>]` - Export observability logs
+- `gpd:error-patterns [category]` - Review common project-specific errors
+- `gpd:record-insight [description]` - Save a project-specific lesson
+- `gpd:audit-milestone [version]` - Audit milestone completion against goals
+- `gpd:plan-milestone-gaps` - Turn audit gaps into new phases
+
+### Configuration and maintenance
+
+- `gpd:settings` - Guided autonomy, permissions, and runtime configuration after your first successful start or later
+- `gpd:set-tier-models` - Directly pin concrete tier model ids
+- `gpd:set-profile <profile>` - Switch the abstract model profile
+- `gpd:compact-state` - Archive old `STATE.md` entries
+- `gpd:sync-state` - Repair diverged `STATE.md` and `state.json`
+- `gpd:undo` - Roll back the last GPD operation with a safety checkpoint
+- `gpd:update` - Update GPD to the latest version
+- `gpd:reapply-patches` - Reapply local modifications after updating
+
+## Detailed Command Reference
+
+Use `gpd:help --command <name>` when you want the detailed notes for one runtime command at a time.
+
+### Core Workflow
 
 ```
 gpd:new-project -> gpd:discuss-phase -> gpd:plan-phase -> gpd:execute-phase -> gpd:verify-work -> repeat
@@ -773,6 +847,28 @@ Structured literature review for a physics research topic.
 - Creates structured review with key papers, methods, and gaps
 
 Usage: `gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`
+
+### Optional Local CLI Add-Ons
+
+**Workflow presets**
+
+- `Paper/manuscript workflows` - First supported workflow preset for `write-paper`, `paper-build`, `peer-review`, and `arxiv-submission`; inspect it with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific `settings` command
+- `gpd doctor --runtime <runtime> --local|--global` - Check runtime-local paper-toolchain readiness from your normal terminal before using that preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
+- `gpd presets list` - Inspect the local preset catalog; presets resolve to the existing config keys and do not add a separate persisted preset block
+- `gpd presets show <preset>` - Preview one preset's bundle before applying it
+- `gpd presets apply <preset> [--dry-run]` - Apply or preview one preset from your normal terminal without inventing a separate preset schema
+
+Workflow presets are bundles over the existing config keys only; they do not add a separate persisted preset block.
+
+**Wolfram integration**
+
+- `gpd integrations status wolfram` - Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
+- `gpd integrations enable wolfram` - Enable the shared optional Wolfram integration config
+- `gpd integrations disable wolfram` - Disable the shared optional Wolfram integration config
+
+Local Mathematica installs are separate from the shared optional Wolfram integration config.
+
+Workflow preset tooling is layered on top of the base install; it does not change runtime permission alignment.
 
 ### Tangents & Hypothesis Branches
 

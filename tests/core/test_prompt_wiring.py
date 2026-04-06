@@ -17,7 +17,9 @@ from gpd.registry import _parse_frontmatter, _parse_tools
 from tests.doc_surface_contracts import (
     assert_cost_surface_discoverability,
     assert_execution_observability_surface_contract,
+    assert_help_command_all_extract_contract,
     assert_help_command_quick_start_extract_contract,
+    assert_help_command_single_command_extract_contract,
     assert_help_workflow_quick_start_taxonomy_contract,
     assert_help_workflow_runtime_reference_contract,
     assert_recovery_ladder_contract,
@@ -2621,7 +2623,7 @@ def test_execution_observability_and_resume_workflow_surfaces_stay_conservative_
     assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
     assert_execution_observability_surface_contract(help_workflow)
     assert_cost_surface_discoverability(help_workflow)
-    assert "Start at `# GPD Command Reference`." in help_command
+    assert "Start at the workflow-owned `## Quick Start` section." in help_command
     assert "When STATE.md appears out of sync with disk reality" in progress
     assert "advisory context only" in resume_work
     assert "it is not a ranked bounded-segment resume candidate and does not justify `active_resume_kind=\"bounded_segment\"`." in resume_work
@@ -2904,7 +2906,8 @@ def test_help_surfaces_distinguish_runtime_slash_commands_from_local_cli_subcomm
     assert "Display GPD help by delegating to the workflow-owned help surface." in help_command
     assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
     assert "## Step 2: Quick Start Extract (Default Output)" in help_command
-    assert "## Step 3: Full Command Reference (--all)" in help_command
+    assert "## Step 3: Compact Command Index (--all)" in help_command
+    assert "## Step 4: Single Command Detail Extract (--command <name>)" in help_command
 
     assert_help_workflow_runtime_reference_contract(help_workflow)
     assert "gpd validate command-context gpd:<name>" in help_workflow
@@ -2913,13 +2916,15 @@ def test_help_surfaces_distinguish_runtime_slash_commands_from_local_cli_subcomm
 def test_help_command_keeps_static_quick_start_while_workflow_owns_full_reference() -> None:
     help_command = (COMMANDS_DIR / "help.md").read_text(encoding="utf-8")
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
-    quick_start_reference = _extract_between(help_workflow, "## Quick Start", "## Core Workflow")
+    quick_start_reference = _extract_between(help_workflow, "## Quick Start", "## Command Index")
 
     assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
     assert_help_command_quick_start_extract_contract(help_command)
+    assert_help_command_all_extract_contract(help_command)
+    assert_help_command_single_command_extract_contract(help_command)
     assert "Append this one wrapper-owned line:" in help_command
     assert_help_workflow_runtime_reference_contract(help_workflow)
-    assert "## Core Workflow" in help_workflow
+    assert "## Detailed Command Reference" in help_workflow
     assert_help_workflow_quick_start_taxonomy_contract(quick_start_reference)
 
 

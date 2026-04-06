@@ -13,7 +13,10 @@ from tests.doc_surface_contracts import (
     assert_beginner_startup_routing_contract,
     assert_cost_advisory_contract,
     assert_cost_surface_discoverability,
+    assert_help_command_all_extract_contract,
     assert_help_command_quick_start_extract_contract,
+    assert_help_command_single_command_extract_contract,
+    assert_help_workflow_command_index_contract,
     assert_help_workflow_quick_start_taxonomy_contract,
     assert_help_workflow_runtime_reference_contract,
     assert_recovery_ladder_contract,
@@ -159,7 +162,9 @@ def test_help_prompt_delegates_full_reference_to_workflow() -> None:
 
     assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_prompt
     assert "workflow-owned help surface" in help_prompt
-    assert "Output the complete `<reference>` block from the loaded workflow help file verbatim." in help_prompt
+    assert "Compact Command Index (--all)" in help_prompt
+    assert_help_command_all_extract_contract(help_prompt)
+    assert_help_command_single_command_extract_contract(help_prompt)
 
 
 def test_help_prompt_default_quick_start_extracts_workflow_owned_sections() -> None:
@@ -168,21 +173,22 @@ def test_help_prompt_default_quick_start_extracts_workflow_owned_sections() -> N
     quick_start = _extract_between(
         help_prompt,
         "## Step 2: Quick Start Extract (Default Output)",
-        "## Step 3: Full Command Reference (--all)",
+        "## Step 3: Compact Command Index (--all)",
     )
 
     assert_help_command_quick_start_extract_contract(quick_start)
     assert_help_workflow_runtime_reference_contract(help_workflow)
-    quick_start_reference = _extract_between(help_workflow, "## Quick Start", "## Core Workflow")
+    quick_start_reference = _extract_between(help_workflow, "## Quick Start", "## Command Index")
+    command_index = _extract_between(help_workflow, "## Command Index", "## Detailed Command Reference")
     assert_help_workflow_quick_start_taxonomy_contract(quick_start_reference)
+    assert_help_workflow_command_index_contract(command_index)
     assert_beginner_startup_routing_contract(quick_start_reference)
     assert "Usage: `/gpd:start`" not in quick_start_reference
-    assert "## Core Workflow" in help_workflow
+    assert "## Detailed Command Reference" in help_workflow
     assert "gpd:new-project -> gpd:discuss-phase -> gpd:plan-phase -> gpd:execute-phase -> gpd:verify-work -> repeat" in help_workflow
     assert "gpd init new-project" not in help_workflow
-    later_capabilities = help_workflow.split("## What comes later after startup", 1)[1]
     for token in ("gpd:discuss-phase", "gpd:write-paper", "gpd:tangent", "gpd:set-tier-models", "gpd:settings"):
-        assert token in later_capabilities
+        assert token in command_index
 
 
 def test_help_prompt_keeps_workflow_preset_readiness_on_local_cli_surface() -> None:
@@ -191,10 +197,10 @@ def test_help_prompt_keeps_workflow_preset_readiness_on_local_cli_surface() -> N
     quick_start = _extract_between(
         help_command,
         "## Step 2: Quick Start Extract (Default Output)",
-        "## Step 3: Full Command Reference (--all)",
+        "## Step 3: Compact Command Index (--all)",
     )
 
-    assert "Include the workflow-owned `## Invocation Surfaces` section." in quick_start
+    assert "## Invocation Surfaces" not in quick_start
     assert "Include the workflow-owned `## Quick Start` section." in quick_start
     assert "Append this one wrapper-owned line" in quick_start
     assert_help_workflow_runtime_reference_contract(help_workflow)
@@ -251,7 +257,7 @@ def test_tour_prompt_delegates_routing_to_workflow_only() -> None:
 
 def test_help_workflow_surfaces_start_as_first_run_router() -> None:
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
-    quick_start_reference = _extract_between(help_workflow, "## Quick Start", "## Core Workflow")
+    quick_start_reference = _extract_between(help_workflow, "## Quick Start", "## Command Index")
 
     assert "gpd:start" in help_workflow
     assert "Guided first-run router" in help_workflow
@@ -529,6 +535,7 @@ def test_help_prompt_workflow_modes_match_current_settings_vocabulary() -> None:
 def test_help_prompt_surfaces_workflow_presets_on_the_local_cli_surface() -> None:
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
 
+    assert "### Optional Local CLI Add-Ons" in help_workflow
     assert "**Workflow presets**" in help_workflow
     assert "Paper/manuscript workflows" in help_workflow
     assert DOCTOR_RUNTIME_SCOPE_RE.search(help_workflow) is not None

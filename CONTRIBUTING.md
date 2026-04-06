@@ -25,6 +25,19 @@ uv sync --dev
 source .venv/bin/activate
 ```
 
+## Local CLI From This Checkout
+
+Prefer `uv run` from the repo root when you want the local CLI without relying
+on a separately installed `gpd` executable.
+
+```bash
+uv run gpd --help
+uv run gpd install <runtime> --local
+```
+
+Use `codex`, `claude`, `gemini`, or `opencode` for `<runtime>`. After
+`uv sync --dev`, an activated `.venv` can also run `gpd ...` directly.
+
 ## Contributor License Agreements
 
 Before we can accept a contribution, you must complete the applicable CLA:

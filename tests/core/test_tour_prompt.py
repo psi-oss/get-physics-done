@@ -25,6 +25,11 @@ def test_tour_command_references_workflow() -> None:
 def test_tour_workflow_introduces_a_safe_beginner_walkthrough() -> None:
     workflow = (WORKFLOWS_DIR / "tour.md").read_text(encoding="utf-8")
     assert_tour_command_surface_contract(workflow)
+    table_entries = workflow[
+        workflow.index("Include these entries:") : workflow.index("Keep this table runtime-facing only.")
+    ]
+    assert "- `gpd resume`" not in table_entries
+    assert "Keep this table runtime-facing only." in workflow
 
     for fragment in (
         "A common first pass is help -> start -> tour, then the path that fits the folder.",

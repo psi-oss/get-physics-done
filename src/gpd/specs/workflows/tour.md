@@ -52,7 +52,6 @@ Include these entries:
 - `gpd:new-project --minimal`
 - `gpd:new-project`
 - `gpd:map-research`
-- `gpd resume`
 - `gpd:resume-work`
 - `gpd:progress`
 - `gpd:suggest-next`
@@ -61,6 +60,9 @@ Include these entries:
 - `gpd:set-tier-models`
 - `gpd:settings`
 - `gpd:help`
+
+Keep this table runtime-facing only. Do not include normal-terminal-only commands
+such as `gpd resume` here; explain them later in the terminal/runtime distinction.
 
 Keep the examples short and concrete, such as `I just opened a folder and do not know what belongs here yet.`
 

@@ -33,6 +33,25 @@ npx -y get-physics-done
 ```
 
 <details>
+<summary><strong>Working from a source checkout?</strong></summary>
+
+If you are developing this repo itself rather than installing the published
+bootstrap package, prefer `uv` so the environment is resolved from
+`pyproject.toml` and `uv.lock`:
+
+```bash
+uv sync --dev
+uv run gpd --help
+uv run gpd install <runtime> --local
+```
+
+Use `codex`, `claude`, `gemini`, or `opencode` for `<runtime>`. After
+`uv sync --dev`, you can also `source .venv/bin/activate` and run `gpd ...`
+directly if you prefer an activated shell.
+
+</details>
+
+<details>
 <summary><strong>Need Node.js?</strong></summary>
 
 `npm` and `npx` come with Node.js, so install Node.js first in your normal

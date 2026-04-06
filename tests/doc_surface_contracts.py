@@ -338,19 +338,12 @@ def assert_help_command_quick_start_extract_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "Start at `# GPD Command Reference`.",
-            "Start at `# GPD Command Reference`",
+            "Start at the workflow-owned `## Quick Start` section.",
+            "workflow-owned `## Quick Start` section",
         ),
         label="help command quick-start reference anchor",
     )
-    _assert_contains_any(
-        content,
-        (
-            "Include the workflow-owned `## Invocation Surfaces` section.",
-            "`## Invocation Surfaces` section",
-        ),
-        label="help command invocation-surfaces extract boundary",
-    )
+    assert "## Invocation Surfaces" not in content
     _assert_contains_any(
         content,
         (
@@ -362,22 +355,111 @@ def assert_help_command_quick_start_extract_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "Stop before `## Core Workflow`.",
-            "before `## Core Workflow`",
+            "Stop before `## Command Index`.",
+            "before `## Command Index`",
         ),
-        label="help command core-workflow cutoff boundary",
+        label="help command command-index cutoff boundary",
     )
     _assert_contains_any(
         content,
         (
-            "Run \\`gpd:help --all\\` for the full command reference.",
-            "`gpd:help --all` for the full command reference",
+            "Run \\`gpd:help --all\\` for the compact command index.",
+            "`gpd:help --all` for the compact command index",
             "`gpd:help --all`",
-            "Run \\`/gpd:help --all\\` for the full command reference.",
-            "`/gpd:help --all` for the full command reference",
+            "Run \\`/gpd:help --all\\` for the compact command index.",
+            "`/gpd:help --all` for the compact command index",
             "`/gpd:help --all`",
         ),
-        label="help command full-reference follow-up",
+        label="help command compact-index follow-up",
+    )
+
+
+def assert_help_command_all_extract_contract(content: str) -> None:
+    _assert_contains_any(
+        content,
+        (
+            "Compact Command Index (--all)",
+            "compact command index",
+        ),
+        label="help command compact-index heading",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "Include the workflow-owned `## Command Index` section.",
+            "`## Command Index` section",
+        ),
+        label="help command command-index extract boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "Stop before `## Detailed Command Reference`.",
+            "before `## Detailed Command Reference`",
+        ),
+        label="help command detailed-reference cutoff boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "Run \\`gpd:help --command <name>\\` for detailed help on one command.",
+            "`gpd:help --command <name>` for detailed help on one command",
+            "`gpd:help --command <name>`",
+        ),
+        label="help command single-command follow-up",
+    )
+
+
+def assert_help_command_single_command_extract_contract(content: str) -> None:
+    _assert_contains_any(
+        content,
+        (
+            "Single Command Detail Extract (--command <name>)",
+            "--command <name>",
+        ),
+        label="help command single-command heading",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "Parse the command name from `$ARGUMENTS` after `--command`.",
+            "after `--command`",
+        ),
+        label="help command single-command parse rule",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "Accept either a bare command name such as `plan-phase` or a canonical runtime command such as `gpd:plan-phase`.",
+            "bare command name",
+            "canonical runtime command",
+        ),
+        label="help command single-command normalization",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "If the lookup includes inline flags or arguments such as `gpd:new-project --minimal`, normalize it to the base command block",
+            "inline flags or arguments",
+            "base command block",
+        ),
+        label="help command single-command flag normalization",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "Include the nearest containing section heading",
+            "smallest matching detailed command block",
+        ),
+        label="help command single-command extraction boundary",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "Unknown command. Run \\`gpd:help --all\\` for the compact command index.",
+            "`gpd:help --all` for the compact command index",
+        ),
+        label="help command single-command fallback",
     )
 
 
@@ -386,10 +468,15 @@ def assert_help_workflow_quick_start_taxonomy_contract(content: str) -> None:
         ("quick-start new-work group", ("**New work**", "New work")),
         ("quick-start existing-work group", ("**Existing work**", "Existing work")),
         ("quick-start returning-work group", ("**Returning work**", "Returning work")),
-        ("quick-start post-startup settings group", ("**Post-startup settings**", "Post-startup settings")),
-        ("quick-start tangents group", ("**Tangents**", "Tangents")),
-        ("quick-start workflow presets group", ("**Workflow presets**", "Workflow presets")),
-        ("quick-start Wolfram integration group", ("**Wolfram integration**", "Wolfram integration")),
+        (
+            "quick-start post-startup settings group",
+            (
+                "**Post-startup settings**",
+                "Post-startup settings",
+                "**After your first successful start**",
+                "After your first successful start",
+            ),
+        ),
     ):
         _assert_contains_any(content, options, label=label)
 
@@ -400,6 +487,7 @@ def assert_help_workflow_quick_start_taxonomy_contract(content: str) -> None:
         ("quick-start map-research command", ("gpd:map-research", "`gpd:map-research`", "/gpd:map-research", "`/gpd:map-research`")),
         ("quick-start resume-work command", ("gpd:resume-work", "`gpd:resume-work`", "/gpd:resume-work", "`/gpd:resume-work`")),
         ("quick-start settings command", ("gpd:settings", "`gpd:settings`", "/gpd:settings", "`/gpd:settings`")),
+        ("quick-start set-tier-models command", ("gpd:set-tier-models", "`gpd:set-tier-models`")),
     ):
         _assert_contains_any(content, options, label=label)
 
@@ -412,6 +500,55 @@ def assert_help_workflow_quick_start_taxonomy_contract(content: str) -> None:
         ),
         label="quick-start post-startup settings guidance",
     )
+    _assert_contains_any(
+        content,
+        (
+            "gpd:tangent",
+            "`gpd:tangent`",
+        ),
+        label="quick-start tangent follow-up guidance",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "gpd:branch-hypothesis",
+            "`gpd:branch-hypothesis`",
+        ),
+        label="quick-start branch-hypothesis follow-up guidance",
+    )
+
+
+def assert_help_workflow_command_index_contract(content: str) -> None:
+    _assert_contains_any(
+        content,
+        (
+            "compact grouped list of runtime commands",
+            "compact grouped list",
+            "normal-terminal install, readiness, and diagnostics commands",
+        ),
+        label="help workflow command-index framing",
+    )
+    for label, options in (
+        ("command-index starter heading", ("### Starter commands", "Starter commands")),
+        ("command-index planning heading", ("### Planning and execution", "Planning and execution")),
+        ("command-index roadmap heading", ("### Roadmap and milestones", "Roadmap and milestones")),
+        ("command-index validation heading", ("### Validation and analysis", "Validation and analysis")),
+        ("command-index writing heading", ("### Writing and publication", "Writing and publication")),
+        ("command-index tangents heading", ("### Tangents, memory, and exports", "Tangents, memory, and exports")),
+        ("command-index configuration heading", ("### Configuration and maintenance", "Configuration and maintenance")),
+    ):
+        _assert_contains_any(content, options, label=label)
+
+    for label, options in (
+        ("command-index help surface", ("gpd:help", "`gpd:help`")),
+        ("command-index start surface", ("gpd:start", "`gpd:start`")),
+        ("command-index plan-phase surface", ("gpd:plan-phase", "`gpd:plan-phase`")),
+        ("command-index execute-phase surface", ("gpd:execute-phase", "`gpd:execute-phase`")),
+        ("command-index write-paper surface", ("gpd:write-paper", "`gpd:write-paper`")),
+        ("command-index tangent surface", ("gpd:tangent", "`gpd:tangent`")),
+        ("command-index settings surface", ("gpd:settings", "`gpd:settings`")),
+    ):
+        _assert_contains_any(content, options, label=label)
 
 
 def assert_tour_read_only_teaching_contract(content: str) -> None:
@@ -1109,6 +1246,22 @@ def assert_help_workflow_runtime_reference_contract(
     _assert_contains_any(
         content,
         (
+            "## Command Index",
+            "Command Index",
+        ),
+        label="help workflow command-index section",
+    )
+    _assert_contains_any(
+        content,
+        (
+            "## Detailed Command Reference",
+            "Detailed Command Reference",
+        ),
+        label="help workflow detailed-reference section",
+    )
+    _assert_contains_any(
+        content,
+        (
             "`/gpd:*`",
             "canonical in-runtime command names",
             "slash prefixes",
@@ -1135,6 +1288,7 @@ def assert_help_workflow_runtime_reference_contract(
     )
     assert_execution_observability_surface_contract(content)
     assert_cost_surface_discoverability(content)
+    assert_help_workflow_command_index_contract(content)
     assert_workflow_preset_surface_contract(content)
     assert_optional_paper_workflow_guidance_contract(content)
     assert_publication_toolchain_boundary_contract(content)
@@ -1147,57 +1301,17 @@ def assert_install_summary_runtime_follow_up_contract(
     runtime_help_fragments: Iterable[str] = (),
 ) -> None:
     assert "gpd --help" in content
+    assert "Secondary follow-up" not in content
     _assert_contains_any(
         content,
         (
-            "local install, readiness, validation, permissions, observability, and diagnostics",
-            "local install/readiness/permissions/diagnostics surface directly",
-            "local CLI for install, readiness checks, permissions, observability, validation, and diagnostics",
+            "local diagnostics and later setup",
         ),
-        label="local CLI install/readiness follow-up surface",
+        label="install-summary local CLI bridge",
     )
     help_fragments = tuple(fragment for fragment in runtime_help_fragments if fragment)
     if help_fragments:
         _assert_contains_any(content, help_fragments, label="runtime help follow-up surface")
-    assert "gpd doctor" in content
-    _assert_contains_any(
-        content,
-        (
-            "Verify or troubleshoot this machine",
-            "focused readiness check",
-            "gpd doctor --runtime",
-        ),
-        label="doctor follow-up surface",
-    )
-    assert post_start_settings_note() in content
-    assert post_start_settings_recommendation() in content
-    _assert_contains_any(
-        content,
-        (
-            "paper/manuscript workflows",
-            "Paper/manuscript workflows",
-        ),
-        label="paper/manuscript workflow follow-up",
-    )
-    assert "Workflow Presets" in content
-    assert "LaTeX Toolchain" in content
-    _assert_contains_any(
-        content,
-        (
-            "before publication work",
-            "check whether `Workflow Presets` is `ready` or `degraded`",
-        ),
-        label="publication workflow follow-up timing",
-    )
-    assert "gpd presets list" in content
-    _assert_contains_any(
-        content,
-        (
-            "workflow preset surface",
-            "workflow preset catalog",
-        ),
-        label="workflow preset follow-up",
-    )
 
 
 def assert_settings_local_terminal_follow_up_contract(content: str) -> None:

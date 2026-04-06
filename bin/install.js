@@ -987,6 +987,10 @@ function localCliDiagnosticsFollowUpLine() {
   );
 }
 
+function localCliInstallSummaryBridgeLine() {
+  return `Use \`${sharedLocalCliHelpCommand()}\` for local diagnostics and later setup.`;
+}
+
 function recoveryLadderNote({ resumeWorkPhrase, suggestNextPhrase, pauseWorkPhrase }) {
   const recovery = SHARED_PUBLIC_SURFACE_TEXT.recoveryLadder;
   return (
@@ -1718,22 +1722,6 @@ function runtimeDoctorHint(runtime, scope, targetDir = null) {
   return formatShellCommand(parts);
 }
 
-function runtimePermissionsHint(action, runtime, autonomy = "balanced", targetDir = null) {
-  const parts = ["gpd", "permissions", action, "--runtime", runtime, "--autonomy", autonomy];
-  if (targetDir) {
-    parts.push("--target-dir", targetDir);
-  }
-  return formatShellCommand(parts);
-}
-
-function runtimeUnattendedReadinessHint(runtime, autonomy = "balanced", targetDir = null) {
-  const parts = ["gpd", "validate", "unattended-readiness", "--runtime", runtime, "--autonomy", autonomy];
-  if (targetDir) {
-    parts.push("--target-dir", targetDir);
-  }
-  return formatShellCommand(parts);
-}
-
 function buildRuntimeDoctorArgs(runtime, scope, targetDir = null) {
   const args = ["-m", "gpd.cli", "--raw", "doctor", "--runtime", runtime, `--${scope}`];
   if (targetDir) {
@@ -1959,7 +1947,7 @@ function printUnattendedConfigurationReminder(runtimes, targetDir = null) {
         pauseWorkPhrase: `\`${pauseWorkCommand}\``,
       })
     );
-    log(`7. ${localCliDiagnosticsFollowUpLine()}`);
+    log(`7. ${localCliInstallSummaryBridgeLine()}`);
   } else {
     log("For multiple runtimes, follow the same order in each one.");
     for (const runtime of runtimes) {
@@ -1983,30 +1971,7 @@ function printUnattendedConfigurationReminder(runtimes, targetDir = null) {
         pauseWorkPhrase: "your runtime-specific `pause-work` command",
       })
     );
-    log(localCliDiagnosticsFollowUpLine());
-  }
-  console.log("");
-  console.log(` ${bold}${brandTitle}Secondary follow-up${reset}`);
-  console.log("");
-  log("Recommended unattended default: Balanced autonomy (`balanced`).");
-  if (runtimes.length === 1) {
-    const runtime = runtimes[0];
-    log(settingsCommandFollowUp(runtime));
-    log(SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence);
-    log(`Check the unattended or overnight verdict with \`${runtimeUnattendedReadinessHint(runtime, "balanced", targetDir)}\`.`);
-    log(`If it reports \`not-ready\`, run \`${runtimePermissionsHint("sync", runtime, "balanced", targetDir)}\`.`);
-    warn("If it reports `relaunch-required`, the runtime is not ready for unattended use until you exit and relaunch it.");
-  } else {
-    log(settingsCommandFollowUp());
-    log(SHARED_PUBLIC_SURFACE_TEXT.settingsRecommendationSentence);
-    for (const runtime of runtimes) {
-      log(
-        `${runtimeDisplayName(runtime)}: \`${runtimeSurfaceCommand(runtime, "settings")}\`, then `
-        + `\`${runtimeUnattendedReadinessHint(runtime)}\`.`
-      );
-    }
-    log(`If any runtime reports \`not-ready\`, rerun the matching \`${sharedPermissionsSyncCommand()}\` command.`);
-    warn("If any runtime reports `relaunch-required`, treat its unattended readiness as not ready until that runtime is relaunched.");
+    log(localCliInstallSummaryBridgeLine());
   }
   console.log("");
 }
