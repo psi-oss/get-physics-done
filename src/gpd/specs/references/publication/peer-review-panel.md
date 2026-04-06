@@ -319,3 +319,28 @@ JHEP describes itself as seeking significant new material of high scientific qua
 ### General reviewer standard
 
 Springer reviewer guidance emphasizes originality, significance, and whether the conclusions are supported by the results. The final recommendation must check all three explicitly.
+
+## Parallel Adversarial Review (Optional)
+
+When invoked with `--parallel` or when the manuscript warrants additional scrutiny, a parallel adversarial reviewer runs concurrently with Stages 1-5. This reviewer operates independently of the primary panel to catch errors arising from single-agent self-consistency bias.
+
+### Integration With The Six-Stage Panel
+
+- The parallel reviewer (`gpd-parallel-reviewer`) reads only the manuscript during Phase 1 — no primary panel artifacts.
+- After Stages 1-5 complete, the parallel reviewer compares its independent findings with the panel's in Phase 2, producing a `DIVERGENCE-REPORT{round_suffix}.json`.
+- Stage 6 (final adjudication by `gpd-referee`) MUST read the divergence report when present and reconcile any material divergences before issuing the final recommendation.
+
+### Additional Artifacts When Parallel Review Is Active
+
+- `GPD/review/PARALLEL-REVIEW{round_suffix}.json` — Independent analysis with alternative derivation checks, assumption stress tests, and counter-narrative
+- `GPD/review/DIVERGENCE-REPORT{round_suffix}.json` — Cross-comparison of parallel and primary panel findings with classified divergences
+
+### When To Use
+
+- High-stakes submissions to top venues (PRL, JHEP, Nature Physics)
+- Novel methodology that may be difficult for a single pipeline to verify
+- Self-generated manuscripts where GPD wrote or substantially aided the paper
+- Manuscripts where a prior review round had significant inter-stage disagreement
+- Explicit user request for additional review confidence
+
+See `references/verification/core/adversarial-review-protocol.md` for the full protocol specification.
