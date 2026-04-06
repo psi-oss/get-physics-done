@@ -47,7 +47,7 @@ class TestConstants:
         assert len(VALID_DOMAINS) == 13
 
     def test_categories_count(self):
-        assert len(VALID_CATEGORIES) == 8
+        assert len(VALID_CATEGORIES) == 9
 
     def test_severities_order(self):
         assert VALID_SEVERITIES == ("critical", "high", "medium", "low")

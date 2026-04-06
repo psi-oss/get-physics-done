@@ -104,6 +104,7 @@ class PatternCategory(StrEnum):
     NUMERICAL_INSTABILITY = "numerical-instability"
     CONCEPTUAL_ERROR = "conceptual-error"
     DIMENSIONAL_ERROR = "dimensional-error"
+    REDUNDANT_IMPLEMENTATION = "redundant-implementation"
 
 
 class PatternSeverity(StrEnum):
@@ -668,6 +669,39 @@ _BOOTSTRAP_PATTERNS: list[dict[str, object]] = [
         "detection": "Check Euclidean action is bounded below. Verify Euclidean propagator is positive.",
         "prevention": "With (+,-,-,-), rotate k0 -> ik4 counterclockwise. Verify Minkowski -> Euclidean mapping.",
         "tags": ["wick-rotation", "euclidean", "sign", "pole", "analytic-continuation"],
+    },
+    {
+        "domain": "condensed-matter",
+        "category": "redundant-implementation",
+        "severity": "high",
+        "title": "Reimplementing standard simulation methods instead of using existing packages",
+        "slug": "reinventing-simulation-wheel",
+        "domains_extra": ["qft", "stat-mech", "classical", "fluid", "amo", "quantum-info"],
+        "description": (
+            "Writing custom implementations of ODE integrators, Monte Carlo samplers, "
+            "molecular dynamics engines, finite element solvers, or other standard "
+            "computational methods when well-tested packages (SciPy, emcee, LAMMPS, "
+            "FEniCS, QuTiP, etc.) already provide them. Custom code lacks years of "
+            "edge-case handling, optimization, and community testing."
+        ),
+        "detection": (
+            "Check for hand-written Runge-Kutta loops, custom MCMC walkers, manual "
+            "neighbor-list construction, or reimplemented matrix decompositions. "
+            "Search PyPI/conda for existing solutions before accepting custom code."
+        ),
+        "prevention": (
+            "Follow the package preference policy: use existing packages directly, "
+            "adapt them if needed, or combine them. Write custom code only when no "
+            "package covers the required physics and document the justification."
+        ),
+        "tags": [
+            "package-preference",
+            "reuse",
+            "simulation",
+            "reimplementation",
+            "existing-tools",
+            "computational-efficiency",
+        ],
     },
 ]
 
