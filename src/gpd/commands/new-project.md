@@ -11,8 +11,8 @@ allowed-tools:
   - ask_user
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
+<!-- Tool names and @ includes are runtime-specific; the installer rewrites paths for your runtime. -->
+<!-- Allowed-tools are runtime-specific. Other platforms may expose different tool interfaces. -->
 
 <context>
 **Flags:**
@@ -22,16 +22,16 @@ allowed-tools:
 </context>
 
 <objective>
-Initialize a new physics research project through unified flow: questioning or structured intake → scoping contract approval → literature survey (optional) → requirements → roadmap.
+Initialize a new physics research project through one flow: questioning or structured intake → scoping contract approval → literature survey (optional) → requirements → roadmap.
 
-If no project config exists yet, the workflow opens with the physics-questioning pass, then surfaces a preset choice before writing workflow preferences, and only asks the detailed config questions after scope approval and before the first project-artifact commit.
+If no project config exists yet, start with physics questioning, surface a preset choice before workflow preferences, and ask detailed config questions only after scope approval and before the first project-artifact commit.
 
 **Creates:**
 
-- `GPD/PROJECT.md` — research project context
+- `GPD/PROJECT.md` — project context
 - `GPD/config.json` — workflow preferences
-- `GPD/research/` — domain and literature research (optional)
-- `GPD/REQUIREMENTS.md` — scoped research requirements
+- `GPD/research/` — optional domain and literature research
+- `GPD/REQUIREMENTS.md` — scoped requirements
 - `GPD/ROADMAP.md` — phase structure
 - `GPD/STATE.md` — project memory
 - `GPD/state.json` `project_contract` — authoritative machine-readable scoping contract
@@ -58,7 +58,7 @@ Also read these reference files:
 - {GPD_INSTALL_DIR}/templates/requirements.md (REQUIREMENTS.md template)
 - {GPD_INSTALL_DIR}/templates/state-json-schema.md (project contract object shape and ID linkage rules)
 
-Before synthesizing or revising the raw `project_contract`, use the `project_contract` section of `state-json-schema.md` as the schema source of truth. Do not invent ad-hoc fields, replace object arrays with strings, or create unresolved ID references.
+Use the `project_contract` section of `state-json-schema.md` as the schema source of truth. Do not invent ad-hoc fields, flatten object arrays into strings, or create unresolved ID references.
 
 Execute the workflow end-to-end. Preserve all workflow gates (validation, approvals, routing).
 
@@ -66,13 +66,13 @@ Execute the workflow end-to-end. Preserve all workflow gates (validation, approv
 
 Check `$ARGUMENTS` for flags:
 
-- **`--auto`** → Auto mode (structured document synthesis + scope approval)
-- **`--minimal`** → Minimal mode (fast bootstrapping path with scope approval)
+- **`--auto`** → Structured synthesis + scope approval
+- **`--minimal`** → Fast bootstrapping with scope approval
 - **`--minimal @file.md`** → Minimal mode with input file
 
-**If `--minimal` detected:** After Setup, route to the **minimal initialization path** in the workflow. This compresses questioning and research, keeps the quick intake to one response, and still requires a scoping contract with decisive outputs, anchors, and explicit approval before downstream artifacts.
+**If `--minimal` detected:** After Setup, route to the **minimal initialization path**. It keeps intake to one response, still requires a scoping contract with decisive outputs and anchors, and still needs explicit approval before downstream artifacts.
 
-**If `--auto` detected:** After Setup, synthesize context from the provided document, repair only blocking gaps, present the scoping contract for approval, then run research → requirements → roadmap automatically with smart defaults.
+**If `--auto` detected:** After Setup, synthesize context from the provided document, repair blocking gaps only, present the scoping contract for approval, then run research → requirements → roadmap with smart defaults.
 </process>
 
 <output>
@@ -95,32 +95,31 @@ Check `$ARGUMENTS` for flags:
 <success_criteria>
 
 **Full mode success criteria:**
-- [ ] GPD/ directory created and git repo initialized
-- [ ] Deep questioning completed (research context fully captured)
+- [ ] `GPD/` exists and the repo is initialized
+- [ ] Deep questioning captured the research context
 - [ ] Scoping contract captures decisive outputs, anchors, weakest assumptions, and unresolved gaps
-- [ ] Scoping contract explicitly approved before requirements or roadmap generation
-- [ ] PROJECT.md created with full context -- committed
-- [ ] config.json created with workflow settings -- committed
-- [ ] Literature survey completed (if selected) -- committed
-- [ ] REQUIREMENTS.md created with REQ-IDs -- committed
-- [ ] ROADMAP.md created with phases and requirement mappings -- committed
-- [ ] STATE.md initialized
-- [ ] CONVENTIONS.md created via gpd-notation-coordinator -- committed
-- [ ] Convention lock populated via gpd convention set
-- [ ] User informed next step is gpd:discuss-phase 1
+- [ ] Scoping contract is explicitly approved before requirements or roadmap generation
+- [ ] `PROJECT.md` created and committed
+- [ ] `config.json` created and committed
+- [ ] Literature survey completed if selected and committed
+- [ ] `REQUIREMENTS.md` created with REQ-IDs and committed
+- [ ] `ROADMAP.md` created with phases and requirement mappings and committed
+- [ ] `STATE.md` initialized
+- [ ] `CONVENTIONS.md` created via `gpd-notation-coordinator` and committed
+- [ ] Convention lock populated via `gpd convention set`
+- [ ] User told the next step is `gpd:discuss-phase 1`
 
 **Minimal mode success criteria (if `--minimal`):**
 
-- [ ] GPD/ directory created
-- [ ] Git repo initialized
-- [ ] Structured intake captured core question, decisive outputs, anchors, and known gaps
+- [ ] `GPD/` created and the repo initialized
+- [ ] Structured intake captured the core question, decisive outputs, anchors, and known gaps
 - [ ] Scoping contract approved before requirements or roadmap generation
-- [ ] PROJECT.md created from single description or input file → **committed**
-- [ ] ROADMAP.md created with phases derived from input → **committed**
-- [ ] REQUIREMENTS.md created with auto-generated REQ-IDs → **committed**
-- [ ] STATE.md initialized → **committed**
-- [ ] config.json created with defaults → **committed**
-- [ ] All files committed in single commit: "docs: initialize research project (minimal)"
+- [ ] `PROJECT.md` created from one description or input file and committed
+- [ ] `ROADMAP.md` created from the input and committed
+- [ ] `REQUIREMENTS.md` created with auto-generated REQ-IDs and committed
+- [ ] `STATE.md` initialized and committed
+- [ ] `config.json` created with defaults and committed
+- [ ] All files committed in one commit: `docs: initialize research project (minimal)`
 - [ ] Same directory structure and file set as full path
 - [ ] User offered "Discuss phase 1 now?"
 

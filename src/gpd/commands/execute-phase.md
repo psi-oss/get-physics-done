@@ -16,24 +16,17 @@ allowed-tools:
   - ask_user
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
+<!-- Tool names and @ includes are runtime-specific; the installer rewrites paths for your runtime. -->
+<!-- Allowed-tools are runtime-specific. Other platforms may expose different tool interfaces. -->
 
 <objective>
-Execute all plans in a phase using wave-based parallel execution.
+Execute all phase plans with wave-based parallelization.
 
-Orchestrator stays lean: discover plans, analyze dependencies, group into waves, spawn subagents, collect results. Each subagent loads the full execute-plan context and handles its own plan.
+The orchestrator discovers plans, groups them into waves, spawns subagents, and collects results while each subagent owns its own plan.
 
-**Execution scope:** Each plan may involve any combination of:
+Plans may cover derivations, calculations, numerical implementations, data analysis, figure generation, or LaTeX writing.
 
-- **Derivations** -- analytic calculations, symbolic manipulations, proof steps
-- **Calculations** -- numerical computations, parameter sweeps, optimization
-- **Numerical implementations** -- writing simulation code, solvers, integrators
-- **Data analysis** -- processing simulation output, statistical analysis, fitting
-- **Figure generation** -- plots, phase diagrams, schematic illustrations
-- **LaTeX writing** -- manuscript sections, appendices, supplementary material
-
-Context budget: ~15% orchestrator, 100% fresh per subagent.
+Context budget: ~15% orchestrator, fresh context per subagent.
 </objective>
 
 <execution_context>
@@ -46,7 +39,7 @@ Phase: $ARGUMENTS
 
 **Flags:**
 
-- `--gaps-only` -- Execute only gap closure plans (plans with `gap_closure: true` in frontmatter). Use after verify-work creates fix plans.
+- `--gaps-only` -- Execute only gap-closure plans (`gap_closure: true`). Use after `verify-work` creates fix plans.
 
 @GPD/ROADMAP.md
 @GPD/STATE.md
@@ -56,41 +49,40 @@ Phase: $ARGUMENTS
 
 ## Error Recovery
 
-- **Subagent failure:** If a subagent fails or produces an empty/invalid result, do NOT silently continue. Re-read the PLAN.md task, check if the task was well-specified, and retry with clarified instructions. If it fails again, mark the task as blocked and continue with independent tasks.
-- **Derivation dead end:** When an analytical approach hits an obstruction (integral diverges, series doesn't converge, symmetry argument fails), stop and record what was tried and why it failed. Consider: (1) different regularization, (2) different variable/representation, (3) known result from literature as cross-check. Do not push through without understanding why.
-- **Numerics don't converge:** Check in this order: (1) units and dimensions of all inputs, (2) boundary/initial conditions, (3) grid resolution or step size, (4) algorithm suitability for the problem's stiffness or oscillatory character. Log the convergence behavior (error vs iteration/grid size) before changing approach.
-- **Sign or factor errors:** When intermediate results disagree with expectations, trace backward through each step rather than adjusting by hand. A sign error usually indicates a missed minus from integration by parts, a commutator, or a Fourier convention mismatch.
+- **Subagent failure:** Re-read the `PLAN.md` task, clarify it, and retry; if it still fails, mark the task blocked and continue.
+- **Derivation dead end:** Stop, record what failed, and try a different representation, regularization, or cross-check.
+- **Numerics don't converge:** Check units, boundary conditions, resolution, and algorithm fit before changing approach.
+- **Sign or factor errors:** Trace backward through each step rather than adjusting by hand.
 
 ## Physics-Specific Execution Tips
 
-- **Dimensional consistency after each task:** Before moving to the next task, verify that all new expressions have correct dimensions. This catches errors cheapest when they are fresh.
-- **Check approximation validity:** After obtaining numerical values, verify that the parameter regime still satisfies the assumptions made in the plan (e.g., coupling constant still small, temperature still above the scale where quantum corrections matter).
-- **Watch for convention mismatches:** When combining results from different tasks or literature, verify sign conventions (metric signature, Fourier transform convention, commutator vs anticommutator), unit systems (natural units, Gaussian, SI), and index placement.
-- **Record intermediate results:** Write key intermediate expressions to the SUMMARY.md as they are obtained, not just the final answer. This aids debugging and enables partial-result recovery.
+- **Dimensional consistency:** Verify dimensions before moving to the next task.
+- **Approximation validity:** Check that the parameter regime still matches the plan.
+- **Convention mismatches:** Verify sign conventions, unit systems, and index placement when combining results.
+- **Intermediate results:** Write key expressions to `SUMMARY.md` as they are obtained.
 
 ## Inter-wave Verification Gates
 
-Between waves, the orchestrator can run lightweight verification on the just-completed wave's SUMMARY.md outputs (dimensional consistency, convention checks, and other class-specific scans). This is controlled by `execution.review_cadence`, together with the phase classification rules in the full workflow:
+Between waves, the orchestrator can run lightweight verification on the completed wave's `SUMMARY.md` outputs. This is controlled by `execution.review_cadence` and the phase classification rules in the full workflow:
 
-- `"dense"` — always run the bounded inter-wave review gates
-- `"adaptive"` (default) — run the gates when the completed wave created or challenged decisive downstream evidence, baseline selection, or fanout-critical results
-- `"sparse"` — skip routine inter-wave gates unless the wave raised a failed sanity check, anchor gap, or dependency warning
+- `"dense"` — always run the gates
+- `"adaptive"` (default) — run the gates when the wave created or challenged decisive downstream evidence
+- `"sparse"` — skip routine gates unless the wave raised a failed sanity check, anchor gap, or dependency warning
 
-Cost: ~2-5k tokens per gate. Catches sign errors and convention drift before they propagate to downstream waves.
+Cost: ~2-5k tokens per gate. Catches sign errors and convention drift before they propagate.
 
 ## Partial Completion and Resumption
 
-- If execution is interrupted (context limit, user stop, crash), the completed task SUMMARY.md files are already written.
-- On resumption, the orchestrator detects which plans already have SUMMARY.md files and skips them.
-- To force re-execution of a completed plan, delete or rename its SUMMARY.md before re-running `gpd:execute-phase`.
-- The orchestrator applies returned shared-state updates after each successfully completed plan, so by the time a wave completes `STATE.md` already reflects that plan-level progress.
+- If execution is interrupted, completed `SUMMARY.md` files remain written.
+- On resumption, the orchestrator skips plans that already have `SUMMARY.md`.
+- To force re-execution, delete or rename the relevant `SUMMARY.md`.
+- Shared-state updates land after each completed plan, so `STATE.md` stays current by wave end.
 
 </inline_guidance>
 
 <process>
 **CRITICAL: First, read the full workflow file using the file_read tool:**
-Read the file at {GPD_INSTALL_DIR}/workflows/execute-phase.md — this contains the complete step-by-step instructions. Do NOT improvise. Follow the workflow file exactly.
+Read {GPD_INSTALL_DIR}/workflows/execute-phase.md first and follow it exactly.
 
-Execute the workflow end-to-end.
-Preserve all workflow gates (wave execution, checkpoint handling, verification, state updates, routing).
+Execute the workflow end-to-end and preserve all gates (wave execution, checkpoint handling, verification, state updates, routing).
 </process>

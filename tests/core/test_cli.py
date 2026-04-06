@@ -42,6 +42,18 @@ from gpd.core.health import (
     UnattendedReadinessResult,
 )
 from gpd.core.project_reentry import resolve_project_reentry
+from gpd.core.public_surface_contract import (
+    local_cli_bridge_commands,
+    local_cli_doctor_local_command,
+    local_cli_install_local_example_command,
+    local_cli_permissions_status_command,
+    local_cli_permissions_sync_command,
+    local_cli_plan_preflight_command,
+    local_cli_resume_command,
+    local_cli_resume_recent_command,
+    local_cli_unattended_readiness_command,
+    local_cli_validate_command_context_command,
+)
 from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
 from gpd.core.state import default_state_dict, generate_state_markdown, save_state_json, save_state_markdown
 from tests.latex_test_support import toolchain_capability as _toolchain_capability
@@ -212,11 +224,15 @@ def test_help_surfaces_core_and_auxiliary_commands() -> None:
     assert "permissions" in normalized_output
     assert "Runtime permission readiness and sync" in normalized_output
     assert "gpd doctor" in normalized_output
-    assert "gpd validate unattended-readiness --runtime <runtime> --autonomy balanced" in normalized_output
-    assert "gpd permissions status --runtime <runtime> --autonomy balanced" in normalized_output
+    assert local_cli_unattended_readiness_command() in normalized_output
+    assert local_cli_permissions_status_command() in normalized_output
+    assert local_cli_permissions_sync_command() in normalized_output
     assert "gpd observe execution" in normalized_output
-    assert "gpd resume --recent" in normalized_output
-    from gpd.core.public_surface_contract import local_cli_bridge_commands
+
+    assert local_cli_resume_recent_command() in normalized_output
+    assert local_cli_install_local_example_command() in normalized_output
+    assert local_cli_doctor_local_command() in normalized_output
+    assert local_cli_validate_command_context_command() in normalized_output
 
     for command in local_cli_bridge_commands():
         assert command in normalized_output
@@ -225,6 +241,15 @@ def test_help_surfaces_core_and_auxiliary_commands() -> None:
     assert "application" in normalized_output
     assert "integrations" in normalized_output
     assert "Optional shared capability integrations" in normalized_output
+
+
+def test_install_help_uses_public_surface_examples() -> None:
+    result = runner.invoke(app, ["install", "--help"])
+
+    assert result.exit_code == 0
+    normalized_output = _normalize_cli_output(result.output)
+    assert local_cli_install_local_example_command() in normalized_output
+    assert "gpd install <runtime> # single runtime, local" not in normalized_output
 
 
 def test_workflow_presets_help_surfaces_apply_command() -> None:
@@ -257,7 +282,7 @@ def test_integrations_status_reports_effective_project_local_state_and_plan_read
     assert payload["ready"] is False
     assert payload["state"] == "missing-api-key"
     assert payload["scope"] == "project-local"
-    assert payload["plan_readiness_command"] == "gpd validate plan-preflight <PLAN.md>"
+    assert payload["plan_readiness_command"] == local_cli_plan_preflight_command()
     assert payload["api_key_env"] == "GPD_WOLFRAM_MCP_API_KEY"
     assert "GPD_WOLFRAM_MCP_API_KEY" in payload["next_step"]
     assert "Mathematica" in payload["local_mathematica_note"]
@@ -1090,7 +1115,7 @@ def test_resume_recovery_advice_uses_resolved_runtime_commands(monkeypatch: pyte
     assert advice.continue_command == "/gpd:resume-work"
     assert advice.fast_next_command == "/gpd:suggest-next"
     assert advice.mode == "current-workspace"
-    assert advice.primary_command == "gpd resume"
+    assert advice.primary_command == local_cli_resume_command()
 
 
 def test_resume_recovery_advice_keeps_recent_projects_fallbacks_distinct(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1105,7 +1130,7 @@ def test_resume_recovery_advice_keeps_recent_projects_fallbacks_distinct(monkeyp
     assert advice.continue_command == "runtime `resume-work`"
     assert advice.fast_next_command == "runtime `suggest-next`"
     assert advice.mode == "recent-projects"
-    assert advice.primary_command == "gpd resume --recent"
+    assert advice.primary_command == local_cli_resume_recent_command()
 
 
 def test_resume_runtime_commands_logs_runtime_resolution_failures(
@@ -1286,7 +1311,7 @@ def test_resume_plain_output_hints_recent_when_workspace_is_missing(tmp_path: Pa
 
     assert result.exit_code == 0
     assert "No GPD planning directory" in result.output
-    assert "gpd resume --recent" in result.output
+    assert local_cli_resume_recent_command() in result.output
 
 
 def test_resume_plain_output_surfaces_auto_selected_recent_project(tmp_path: Path, monkeypatch) -> None:
@@ -5049,7 +5074,7 @@ def test_observe_execution_human_output_keeps_waiting_state_distinct_from_possib
     assert result.exit_code == 0
     assert "Execution Status" in result.output
     assert "Check next" in result.output
-    assert "gpd resume" in result.output
+    assert local_cli_resume_command() in result.output
     assert "waiting" in result.output.lower()
     assert "possibly stalled" not in result.output.lower()
 
@@ -5106,7 +5131,7 @@ def test_observe_execution_raw_surfaces_tangent_proposal_without_replacing_prima
     assert payload["tangent_decision"] == "branch_later"
     assert payload["tangent_decision_label"] == "branch later"
     assert payload["tangent_pending"] is False
-    assert payload["next_check_command"] == "gpd resume"
+    assert payload["next_check_command"] == local_cli_resume_command()
     assert payload["tangent_follow_up"] == [
         "Use the runtime `tangent` command to keep the chooser explicit for this alternative path.",
         "Use the runtime `branch-hypothesis` command only if you decide to open a git-backed alternative path after this bounded stop.",
@@ -5141,7 +5166,7 @@ def test_observe_execution_human_output_surfaces_branch_later_tangent_follow_up(
     assert "Tangent follow-up" in result.output
     assert "runtime `tangent` command" in result.output
     assert "runtime `branch-hypothesis` command" in result.output
-    assert "gpd resume" in result.output
+    assert local_cli_resume_command() in result.output
     assert "possibly stalled" not in result.output.lower()
 
 

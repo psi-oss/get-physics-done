@@ -26,7 +26,10 @@ __all__ = [
     "local_cli_bridge_contract",
     "local_cli_cost_command",
     "local_cli_doctor_command",
+    "local_cli_doctor_global_command",
+    "local_cli_doctor_local_command",
     "local_cli_help_command",
+    "local_cli_install_local_example_command",
     "local_cli_integrations_status_wolfram_command",
     "local_cli_observe_execution_command",
     "local_cli_permissions_status_command",
@@ -37,6 +40,7 @@ __all__ = [
     "local_cli_resume_recent_command",
     "local_cli_permissions_sync_command",
     "local_cli_unattended_readiness_command",
+    "local_cli_validate_command_context_command",
     "local_cli_bridge_purpose_phrase",
     "post_start_settings_contract",
     "post_start_settings_note",
@@ -99,6 +103,10 @@ class LocalCliBridgeContract:
     named_commands: LocalCliNamedCommandsContract
     terminal_phrase: str
     purpose_phrase: str
+    install_local_example: str
+    doctor_local_command: str
+    doctor_global_command: str
+    validate_command_context_command: str
 
     def render_note(self) -> str:
         return (
@@ -173,7 +181,16 @@ _PUBLIC_SURFACE_CONTRACT_KEYS = (
 )
 _PUBLIC_SURFACE_SECTION_KEYS = {
     "beginner_onboarding": ("hub_url", "preflight_requirements", "caveats", "startup_ladder"),
-    "local_cli_bridge": ("commands", "named_commands", "terminal_phrase", "purpose_phrase"),
+    "local_cli_bridge": (
+        "commands",
+        "named_commands",
+        "terminal_phrase",
+        "purpose_phrase",
+        "install_local_example",
+        "doctor_local_command",
+        "doctor_global_command",
+        "validate_command_context_command",
+    ),
     "post_start_settings": ("primary_sentence", "default_sentence"),
     "resume_authority": (
         "durable_authority_phrase",
@@ -450,6 +467,26 @@ def load_public_surface_contract() -> PublicSurfaceContract:
             named_commands=named_commands,
             terminal_phrase=_require_string(bridge_payload, "terminal_phrase", label="local_cli_bridge"),
             purpose_phrase=_require_string(bridge_payload, "purpose_phrase", label="local_cli_bridge"),
+            install_local_example=_require_string(
+                bridge_payload,
+                "install_local_example",
+                label="local_cli_bridge",
+            ),
+            doctor_local_command=_require_string(
+                bridge_payload,
+                "doctor_local_command",
+                label="local_cli_bridge",
+            ),
+            doctor_global_command=_require_string(
+                bridge_payload,
+                "doctor_global_command",
+                label="local_cli_bridge",
+            ),
+            validate_command_context_command=_require_string(
+                bridge_payload,
+                "validate_command_context_command",
+                label="local_cli_bridge",
+            ),
         ),
         post_start_settings=PostStartSettingsContract(
             primary_sentence=_require_string(
@@ -550,6 +587,18 @@ def local_cli_doctor_command() -> str:
     return _local_cli_bridge_command(local_cli_bridge_contract().named_commands.doctor)
 
 
+def local_cli_install_local_example_command() -> str:
+    return local_cli_bridge_contract().install_local_example
+
+
+def local_cli_doctor_local_command() -> str:
+    return local_cli_bridge_contract().doctor_local_command
+
+
+def local_cli_doctor_global_command() -> str:
+    return local_cli_bridge_contract().doctor_global_command
+
+
 def local_cli_unattended_readiness_command() -> str:
     return _local_cli_bridge_command(local_cli_bridge_contract().named_commands.unattended_readiness)
 
@@ -588,6 +637,10 @@ def local_cli_plan_preflight_command() -> str:
 
 def local_cli_integrations_status_wolfram_command() -> str:
     return _local_cli_bridge_command(local_cli_bridge_contract().named_commands.integrations_status_wolfram)
+
+
+def local_cli_validate_command_context_command() -> str:
+    return local_cli_bridge_contract().validate_command_context_command
 
 
 def local_cli_bridge_note() -> str:

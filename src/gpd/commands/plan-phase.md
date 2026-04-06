@@ -17,22 +17,17 @@ allowed-tools:
   - mcp__context7__*
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
+<!-- Tool names and @ includes are runtime-specific; the installer rewrites paths for your runtime. -->
+<!-- Allowed-tools are runtime-specific. Other platforms may expose different tool interfaces. -->
 
 <objective>
-Create executable phase prompts (PLAN.md files) for a research-project phase with integrated research and verification.
+Create executable phase prompts (`PLAN.md`) for a research phase with built-in research and verification.
 
-**Default flow:** Research (if needed) -> Plan -> Verify -> Done
+Default flow: research if needed → plan → verify → done.
 
-**Planning scope:** Each plan should address:
+Each plan should cover the mathematical approach, computational strategy, validation plan, and approximation scheme.
 
-- **Mathematical approach** -- formalism, representation, notation conventions
-- **Computational strategy** -- algorithms, numerical methods, computational tools
-- **Validation plan** -- analytic limits, symmetry checks, benchmark comparisons
-- **Approximation scheme** -- what is being neglected, regime of validity, error estimates
-
-**Orchestrator role:** Parse arguments, validate phase, research domain (unless skipped), spawn gpd-planner, verify with gpd-plan-checker, iterate until pass or max iterations, present results.
+The orchestrator parses arguments, validates the phase, researches the domain unless skipped, spawns `gpd-planner`, verifies with `gpd-plan-checker`, iterates until pass or max iterations, and presents results.
 </objective>
 
 <execution_context>
@@ -42,48 +37,47 @@ Create executable phase prompts (PLAN.md files) for a research-project phase wit
 </execution_context>
 
 <context>
-Phase number: $ARGUMENTS (optional -- auto-detects next unplanned phase if omitted)
+Phase number: $ARGUMENTS (optional; auto-detects the next unplanned phase if omitted)
 
 **Flags:**
 
-- `--research` -- Force re-research even if RESEARCH.md exists
-- `--skip-research` -- Skip research, go straight to planning
-- `--gaps` -- Gap closure mode (reads VERIFICATION.md, skips research)
-- `--skip-verify` -- Skip verification loop
-- `--light` -- Produce simplified plans: contract + constraints + high-level approach only (no code snippets, no detailed implementation steps)
+- `--research` -- Re-research even if `RESEARCH.md` exists
+- `--skip-research` -- Skip research and plan directly
+- `--gaps` -- Gap-closure mode (`VERIFICATION.md`, no research)
+- `--skip-verify` -- Skip the verification loop
+- `--light` -- Produce contract-plus-constraints plans only
 
-Normalize phase input in step 2 before any directory lookups.
+Normalize the phase input in step 2 before any directory lookups.
 </context>
 
 <inline_guidance>
 
 ## What Makes a Good Physics Plan
 
-- **Atomic tasks:** Each task should produce one verifiable result (one integral evaluated, one limit checked, one plot generated). If a task description contains "and", split it.
-- **Verification at every step:** Each task must state how to verify its output -- dimensional analysis, limiting case, comparison with known result, or symmetry check.
-- **Dimensional analysis required:** Every task that produces an equation must include a dimensional consistency check as part of its success criteria.
-- **Explicit formalism:** Specify the mathematical framework upfront (path integral vs canonical quantization, Lagrangian vs Hamiltonian, momentum space vs position space, natural units vs SI).
-- **Approximation scheme stated:** Name what is being neglected, the regime of validity, and how to estimate the error introduced.
-- **Expected limiting cases:** List which limits the final result must reproduce (free theory, classical limit, non-relativistic limit, known exact solutions).
-- **Notation locked:** Define all notation in the plan so subagents cannot introduce conflicting conventions mid-phase.
+- **Atomic tasks:** Each task should produce one verifiable result; split any task that mixes outcomes.
+- **Verification:** Each task must state how to check its output, including dimensional analysis, limiting cases, comparison with known results, or symmetry checks.
+- **Explicit formalism:** Specify the framework, notation, and unit system up front.
+- **Approximation scheme:** State what is neglected, the validity regime, and the error estimate.
+- **Expected limits:** List the limits the final result must reproduce.
+- **Notation locked:** Define all notation so subagents do not drift mid-phase.
 
 ## Common Failure Modes
 
-- **Plans too large:** A plan with more than 8-10 tasks is usually trying to do too much. Split into multiple plans within the phase.
-- **Missing verification steps:** If the plan goes derivation -> derivation -> derivation with no checks in between, intermediate errors will propagate silently.
-- **Unclear success criteria:** "Derive the partition function" is not a success criterion. "Obtain Z(T) and verify it reproduces the known high-T limit Z ~ T^N" is.
-- **Implicit assumptions:** Plans that don't state approximations will have subagents make their own choices, leading to inconsistencies.
-- **Notation drift:** Without explicit conventions, different tasks may use the same symbol for different quantities.
+- **Plans too large:** More than 8-10 tasks usually means the plan should be split.
+- **Missing checks:** Derivation-only plans let intermediate errors propagate.
+- **Unclear success criteria:** Say what result is expected and how it is checked.
+- **Implicit assumptions:** Unstated approximations lead to inconsistent choices.
+- **Notation drift:** Explicit conventions prevent symbol reuse.
 
 ## Quick Checklist Before Approving a Plan
 
-- [ ] Does the plan specify the **formalism** (Lagrangian, Hamiltonian, path integral, etc.)?
-- [ ] Is the **approximation scheme** explicit (mean field, perturbative to order N, saddle point, etc.)?
-- [ ] Is there a **validation strategy** for each major result (not just at the end)?
-- [ ] Are **expected limiting cases** listed with the values/behaviors they should reproduce?
-- [ ] Are tasks **small enough** that a single subagent can complete each one without context overflow?
-- [ ] If the phase involves **numerical experiments**, are parameter sweeps, convergence studies, and error budgets planned? (See `gpd:parameter-sweep`, `gpd:sensitivity-analysis`, `gpd-experiment-designer` agent)
-- [ ] If the phase has **competing predictions or regime-dependent behavior**, is a hypothesis-driven plan structure used? (predict → derive → verify cycle; see `hypothesis-driven-research.md` reference in gpd-planner)
+- [ ] Does the plan specify the **formalism**?
+- [ ] Is the **approximation scheme** explicit?
+- [ ] Is there a **validation strategy** for each major result?
+- [ ] Are **expected limiting cases** listed?
+- [ ] Are tasks small enough for one subagent each?
+- [ ] If the phase is numerical, are sweeps, convergence studies, and error budgets planned?
+- [ ] If the phase has competing predictions, does it use a predict → derive → verify structure?
 
 ## Domain-Aware Planning
 
@@ -99,7 +93,7 @@ The planner automatically selects a **domain blueprint** based on the phase's ph
 | convergence, finite element, PDE | Numerical: mandatory convergence study → production |
 | matching, Wilson coefficient, EFT | EFT: power counting first → operator basis → matching |
 
-The planner also adapts to the **project stage**: discovery (vague idea → structured research), initial planning (domain blueprints), gap closure (targeted verification fixes), and revision (4 types: targeted fix, diagnostic, structural, supplementary).
+The planner also adapts to the **project stage**: discovery, initial planning, gap closure, and revision.
 
 </inline_guidance>
 

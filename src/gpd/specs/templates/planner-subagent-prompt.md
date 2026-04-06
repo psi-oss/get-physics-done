@@ -55,16 +55,14 @@ If the plan is proof-bearing, make hypotheses, parameters, and conclusion clause
 <contract_completion_requirements>
 Planning requires `project_contract`:
 
-- If `project_contract` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED`.
 - Keep the contract block complete per the schema include.
 - Use `effective_reference_intake` and `active_reference_context` for carry-forward grounding, not as substitutes for the contract.
 - Autonomy and model profile can change cadence, not contract completeness.
 </contract_completion_requirements>
 
 <contract_visibility_shortcuts>
-The contract still exposes defaultable semantic fields: `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation`.
+The contract exposes defaultable semantic fields: `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation`.
 They default to `other` and may be omitted only when that generic category is actually intended.
-**Defaulted semantic fields:** `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation` all exist in the contract and default to `other`.
 Treat `approach_policy` as execution policy only; it does not substitute for grounding.
 Include `references[]` only when the contract does not already carry explicit grounding through `context_intake` or preserved scoping inputs.
 **Proof claim audit:** For theorem/proof work, enumerate hypotheses, quantified variables, and named parameters explicitly enough to catch silently narrowed subcases or dropped assumptions.

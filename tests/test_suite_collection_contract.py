@@ -21,7 +21,6 @@ EXPECTED_FAST_SUITE_EXCLUDES = {
     "core/test_cli.py",
     "core/test_state.py",
     "core/test_resume_runtime.py",
-    "core/test_verifier_prompt_contract_visibility.py",
 }
 
 

@@ -4,12 +4,7 @@ How GPD project state travels between machines, survives session interruptions, 
 
 ## Continuation Surface Contract
 
-The current continuation architecture separates execution provenance from bounded-resume authority. The portable execution story now has an append-only lineage record plus a derived execution head, and `gpd init resume` is the shared resolver that reads `state.json.continuation` first before projecting the canonical continuation view from the storage, lineage, and recovery ladder. The shared resume-surface resolver owns the canonical candidate kind/origin semantics, so raw source labels remain intake-only compatibility cues. The canonical public resume surface centers on `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`. Legacy compatibility cues stay inside backend-only intake paths; `gpd:resume-work` and `gpd resume` expose the canonicalized public fields only. `.continue-here.md` and `DERIVATION-STATE.md` are supporting projections only; they may mirror canonical continuation or provenance, but they do not compete with it:
-
-`state.json.continuation` is the durable authority.
-
-Public resume vocabulary centers on canonical continuation fields: `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `active_resume_result`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`.
-Those fields are the public top-level resume vocabulary only; compatibility-only intake fields stay internal.
+The continuation architecture separates execution provenance from bounded-resume authority. `gpd init resume` reads `state.json.continuation` first, then fills gaps from lineage and recovery surfaces. Public resume vocabulary centers on canonical continuation fields: `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `active_resume_result`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`. Compatibility-only cues stay backend-only, compatibility-only intake fields stay internal, and `.continue-here.md` plus `DERIVATION-STATE.md` are projections rather than authorities.
 
 | Surface | Current Role | Authority |
 |---------|--------------|-----------|
@@ -28,7 +23,7 @@ The `GPD/` project directory is the unit of portability. It lives inside the use
 
 Portable contents include:
 
-- `state.json` and `STATE.md` (dual-write state engine; `continuation` is durable JSON-only state and `state.json.bak` is the recovery backup)
+- `state.json` and `STATE.md` (dual-write state engine; `continuation` is durable JSON state and `state.json.bak` is the recovery backup)
 - `state.json.bak` (crash-recovery backup)
 - `PROJECT.md`, `ROADMAP.md`, `DERIVATION-STATE.md`
 - `phases/` tree (plans, summaries, context files, resume artifacts)
@@ -37,7 +32,7 @@ Portable contents include:
 - Append-only execution lineage and its derived head projection
 - Session telemetry and agent history
 
-Portable references should stay anchored at the repository root. `state_record_session()` normalizes project-local absolute `resume_file` paths back to relative form before persisting them; any external absolute path that survives in state is advisory-only continuity metadata rather than a portable contract. The shared resume resolver keeps the canonical continuation view repo-root-relative even though it may be assembled from multiple surfaces. When `state.json.continuation.bounded_segment` exists, that durable bounded-segment state is authoritative; the derived execution head and `GPD/observability/current-execution.json` are compatibility projections, not the source of bounded-resume authority. `DERIVATION-STATE.md` stays supporting context for derivation history, not a competing store for resume ranking or project position. The public resume vocabulary still uses the canonical fields above; nested alias labels remain compatibility-only cues.
+Portable references should stay anchored at the repository root. `state_record_session()` normalizes project-local absolute `resume_file` paths back to relative form before persisting them; any external absolute path that survives in state is advisory-only continuity metadata. The shared resume resolver keeps the canonical continuation view repo-root-relative. When `state.json.continuation.bounded_segment` exists, that bounded-segment state is authoritative; the derived execution head and `GPD/observability/current-execution.json` are compatibility projections. `DERIVATION-STATE.md` stays supporting context, not a competing store.
 
 Resume and progress surfaces treat state as present only when it can actually be recovered from `state.json`, `state.json.bak`, or `STATE.md`. A lone unreadable file path does not count as portable recoverable state.
 
@@ -78,7 +73,7 @@ Detection of partial completion on resume:
 2. **Resume artifacts**: Canonical `state.json.continuation.bounded_segment` is the primary durable bounded-segment state. A derived execution head contributes a bounded-segment candidate only when that canonical field is absent and its `resume_file` still resolves to a portable repo-local path. When `state.json.continuation.handoff.resume_file` resolves to an existing repo-local file, it surfaces as a non-resumable recorded handoff candidate, and it becomes `continuity_handoff_file` / `active_resume_pointer` only as the fallback pointer when no usable derived execution head exists. If the recorded handoff is repo-local but missing, resume surfaces a missing recorded handoff artifact plus an advisory recorded handoff candidate with `status: "missing"`. Backend compatibility cues may still be ingested for migration, but they remain backend-only inputs rather than competing top-level resume fields, and `gpd --raw resume` strips them after canonicalization. A derived head without a portable usable resume file remains advisory continuity context only.
 3. **Interrupted agents**: The `has_interrupted_agent` flag in the init envelope signals an agent was spawned but the session ended before completion.
 
-The resume workflow ranks three semantic recovery families into `resume_candidates`: bounded execution snapshot, recorded handoff, and interrupted agent. The `gpd init resume` backend may still surface those families through backend-only compatibility inputs, including the live execution snapshot label `current_execution`; the canonicalized `gpd --raw resume` surface keeps the top-level `resume_candidates` list only. The recorded handoff source can appear either as a non-resumable `handoff` candidate or as an advisory `missing` candidate. It does not synthesize additional candidates from auto-checkpoints, filesystem drift, or machine-change state. A `.continue-here.md` file by itself is only a temporary continuation handoff artifact; it becomes part of the canonical continuation view only when reached through the ranked runtime surfaces. `current_execution` remains the compatibility fallback whenever canonical continuation is missing or incomplete; when canonical `state.json.continuation` is complete, it stays the source of truth first.
+The resume workflow ranks three recovery families into `resume_candidates`: bounded execution snapshot, recorded handoff, and interrupted agent. Backend-only compatibility inputs may still surface those families, including `current_execution`, but `gpd --raw resume` keeps the canonical top-level list only. A `.continue-here.md` file by itself is only a temporary handoff artifact; it becomes part of the canonical continuation view only through the ranked runtime surfaces.
 
 Likewise, if the current readable `state.json` contains a malformed `project_contract`, resume surfaces that live-state block from `state.json` instead of silently promoting `state.json.bak` as the current authoritative contract.
 

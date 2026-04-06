@@ -8,8 +8,8 @@ Template for `GPD/phases/XX-name/{phase}-VERIFICATION.md` -- persistent research
 
 A conversational walkthrough of research results, checking derivation logic, physical intuition, edge cases, and overall soundness.
 Use `@{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract. This template only adds the researcher-session body scaffold (`Current Check`, conversational logs, and diagnosis flow), so its verification-side `suggested_contract_checks` entries are part of the same canonical schema surface and must stay aligned with that shared schema instead of inventing a second checklist format.
-Keep the contract-backed frontmatter explicit: `uncertainty_markers` stay non-empty, theorem/proof claims remain `partial` or `blocked` until the proof audit and proof-specific acceptance test both pass, and any active convention lock still requires a machine-readable `ASSERT_CONVENTION` comment after the YAML frontmatter.
-Legacy frontmatter aliases such as `must_haves`, `verification_inputs`, `contract_evidence`, and `independently_confirmed` are forbidden in model-facing output; use only the canonical contract-ledger fields from `contract_results`.
+Keep the contract-backed frontmatter explicit: `uncertainty_markers` stay non-empty, theorem/proof claims remain `partial` or `blocked` until the proof audit is complete and every declared proof-specific acceptance test passes, and any active convention lock still requires a machine-readable `ASSERT_CONVENTION` comment after the YAML frontmatter.
+Legacy frontmatter aliases are forbidden in model-facing output; use only the canonical contract-ledger fields from `contract_results`.
 
 ---
 
@@ -121,14 +121,8 @@ session_status: validating
 ## Current Check
 
 <!-- OVERWRITE each check - shows where we are -->
-<!-- Include only the ID keys that actually bind this check.
-Omit unused `subject_id`, `claim_id`, `deliverable_id`, `acceptance_test_id`,
-and `forbidden_proxy_id` fields instead of leaving blank placeholder strings. -->
-<!-- Allowed body enum values:
-`check_subject_kind`: claim|deliverable|acceptance_test|reference
-`comparison_kind`: benchmark|prior_work|experiment|cross_method|baseline|other
-`suggested_subject_kind`: claim|deliverable|acceptance_test|reference
--->
+<!-- Include only the ID keys that actually bind this check; omit unused `subject_id`, `claim_id`, `deliverable_id`, `acceptance_test_id`, and `forbidden_proxy_id` fields instead of leaving blank placeholders. -->
+<!-- Allowed body enum values: `check_subject_kind` and `suggested_subject_kind` use `claim|deliverable|acceptance_test|reference`; `comparison_kind`: benchmark|prior_work|experiment|cross_method|baseline|other. -->
 
 number: 1
 name: "[check name]"
@@ -141,8 +135,7 @@ comparison_reference_id: "reference-id"
 # If this check is not comparison-backed yet, omit both `comparison_kind` and `comparison_reference_id` instead of leaving blank placeholders.
 expected: |
   [what the researcher should confirm or evaluate]
-# Use `comparison_kind: benchmark` for benchmark acceptance tests and
-# `comparison_kind: cross_method` for cross-method acceptance tests.
+# Use `comparison_kind: benchmark` for benchmark acceptance tests and `comparison_kind: cross_method` for cross-method acceptance tests.
 suggested_contract_checks:
   # If you cannot bind the gap to a known contract target yet, omit both
   # `suggested_subject_kind` and `suggested_subject_id` instead of leaving one blank.
@@ -159,9 +152,7 @@ awaiting: researcher response
 
 ### 1. [Check Name]
 
-<!-- Include only the ID keys that actually bind this check.
-Omit unused `subject_id`, `claim_id`, `deliverable_id`, `acceptance_test_id`,
-and `forbidden_proxy_id` fields instead of leaving blank placeholder strings. -->
+<!-- Same rule as above: keep only the ID keys that actually bind this check. -->
 
 check_subject_kind: claim
 subject_id: "claim-main"

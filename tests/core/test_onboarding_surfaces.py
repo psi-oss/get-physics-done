@@ -144,9 +144,9 @@ def test_beginner_runtime_surface_single_lookup_uses_adapter_descriptor_boundary
 def test_resume_authority_contract_exposes_full_validated_surface() -> None:
     contract = resume_authority_contract()
 
-    assert contract.public_vocabulary_intro == "Public resume vocabulary centers on canonical continuation fields"
+    assert "canonical continuation fields" in contract.public_vocabulary_intro
     assert contract.public_fields == resume_authority_fields()
-    assert contract.top_level_boundary_phrase == "public top-level resume vocabulary only"
+    assert "public top-level resume vocabulary only" in contract.top_level_boundary_phrase
     assert not hasattr(contract, "compat_surface")
     assert not hasattr(contract, "session_mirror")
     assert not hasattr(contract, "compatibility_phrase")
@@ -256,10 +256,13 @@ def test_public_surface_contract_bridge_note_surfaces_runtime_readiness_and_plan
     note = local_cli_bridge_note()
 
     assert "local install, readiness, validation, permissions, observability, diagnostics, recovery, cost, preset, and shared Wolfram integration surface" in note
-    assert "gpd doctor --runtime <runtime> --local" in note
-    assert "gpd doctor --runtime <runtime> --global" in note
+    assert "gpd doctor --runtime <runtime> --local" not in note
+    assert "gpd doctor --runtime <runtime> --global" not in note
     assert "gpd validate plan-preflight <PLAN.md>" in note
+    assert public_surface_contract_module.local_cli_doctor_local_command() == "gpd doctor --runtime <runtime> --local"
+    assert public_surface_contract_module.local_cli_doctor_global_command() == "gpd doctor --runtime <runtime> --global"
     assert "gpd validate plan-preflight <PLAN.md>" in public_surface_contract_module.local_cli_plan_preflight_command()
+    assert public_surface_contract_module.local_cli_validate_command_context_command() == "gpd validate command-context gpd:<name>"
 
 
 def test_public_surface_contract_loader_normalizes_whitespace(
@@ -401,6 +404,10 @@ def test_doc_surface_contract_helpers_read_runtime_normalized_contract(
             ),
             terminal_phrase="in your normal terminal",
             purpose_phrase="workspace diagnostics",
+            install_local_example="gpd install <runtime> --local",
+            doctor_local_command="gpd doctor --runtime <runtime> --local",
+            doctor_global_command="gpd doctor --runtime <runtime> --global",
+            validate_command_context_command="gpd validate command-context gpd:<name>",
         ),
         post_start_settings=public_surface_contract_module.PostStartSettingsContract(
             primary_sentence="Run settings after start.",
@@ -441,5 +448,7 @@ def test_doc_surface_contract_helpers_read_runtime_normalized_contract(
     assert public_surface_contract_module.local_cli_bridge_purpose_phrase() == "workspace diagnostics"
     assert local_cli_bridge_note().startswith("Use `gpd --help`, `gpd doctor`")
     assert local_cli_bridge_note().endswith("when you want workspace diagnostics.")
+    assert public_surface_contract_module.local_cli_install_local_example_command() == "gpd install <runtime> --local"
+    assert public_surface_contract_module.local_cli_validate_command_context_command() == "gpd validate command-context gpd:<name>"
 
     doc_surface_contracts_module._public_surface_contract_payload.cache_clear()

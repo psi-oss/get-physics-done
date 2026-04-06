@@ -54,6 +54,7 @@ def test_fast_suite_policy_keeps_heavyweight_skips_explicit() -> None:
 
 def test_fast_suite_policy_keeps_boundary_regressions_in_default_path() -> None:
     required = {
+        "test_project_contract_boundary_regressions.py",
         "test_runtime_abstraction_boundaries.py",
         "core/test_contract_schema_prompt_parity.py",
         "mcp/test_tool_contract_visibility.py",

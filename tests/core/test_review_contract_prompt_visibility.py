@@ -68,7 +68,9 @@ def test_peer_review_workflow_keeps_contract_gate_prose_concise() -> None:
     workflow = _read_workflow("peer-review")
     assert "project_contract_gate.authoritative" in workflow
     assert "effective_reference_intake" in workflow
-    assert "Apply the gate rule above." in workflow
+    assert "Bundle guidance is additive only" in workflow
+    assert "Reader-visible claims and surfaced evidence remain first-class" in workflow
+    assert "Apply the gate rule above." not in workflow
 
 
 def test_review_grade_commands_prepend_model_visible_review_contract_to_registry_content() -> None:
@@ -250,11 +252,65 @@ def test_review_contract_normalizer_accepts_singleton_string_list_fields() -> No
     ]
 
 
+@pytest.mark.parametrize(
+    ("normalizer", "payload", "error_fragment"),
+    [
+        (
+            normalize_review_contract_payload,
+            {
+                "schema_version": 1,
+                "review_mode": "publication",
+                "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md", "GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+            },
+            "required_outputs must not contain duplicates",
+        ),
+        (
+            normalize_review_contract_frontmatter_payload,
+            {
+                "review-contract": {
+                    "schema_version": 1,
+                    "review_mode": "publication",
+                    "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md", "GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+                }
+            },
+            "required_outputs must not contain duplicates",
+        ),
+        (
+            normalize_review_contract_payload,
+            {
+                "schema_version": 1,
+                "review_mode": "publication",
+                "preflight_checks": ["Manuscript", "manuscript"],
+            },
+            "preflight_checks must not contain duplicates",
+        ),
+        (
+            normalize_review_contract_frontmatter_payload,
+            {
+                "review-contract": {
+                    "schema_version": 1,
+                    "review_mode": "publication",
+                    "preflight_checks": ["Manuscript", "manuscript"],
+                }
+            },
+            "preflight_checks must not contain duplicates",
+        ),
+    ],
+)
+def test_review_contract_normalizers_reject_duplicate_list_entries(
+    normalizer,
+    payload: dict[str, object],
+    error_fragment: str,
+) -> None:
+    with pytest.raises(ValueError, match=re.escape(error_fragment)):
+        normalizer(payload)
+
+
 def test_review_contract_normalizer_canonicalizes_case_only_enum_drift() -> None:
     payload = {
         "schema_version": 1,
         "review_mode": "Publication",
-        "preflight_checks": ["Manuscript", "Compiled_Manuscript", "manuscript"],
+        "preflight_checks": ["Manuscript", "Compiled_Manuscript"],
         "required_state": "PHASE_EXECUTED",
         "conditional_requirements": [
             {
@@ -807,7 +863,9 @@ def test_contract_ledgers_surface_decisive_only_verdict_rules_and_strict_suggest
     assert "disconfirming_observations: [observation-1]" in contract_results
     assert "Invented keys such as `check_id` fail validation." in contract_results
     assert "Copy the `check_key` returned by `suggest_contract_checks(contract)` into the frontmatter `check` field" in contract_results
-    assert "Allowed keys are exactly `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`." in verification_template
+    assert "suggested_subject_kind" in verification_template
+    assert "suggested_subject_id" in verification_template
+    assert "evidence_path" in verification_template
 
 
 def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary() -> None:

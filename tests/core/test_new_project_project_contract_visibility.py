@@ -47,7 +47,11 @@ def test_new_project_prompt_surfaces_the_canonical_state_schema_for_project_cont
     assert "`schema_version` must be the integer `1`" in new_project_text
     assert "`references[].must_surface` must be a boolean `true` or `false`" in new_project_text
     assert "`claims[].proof_deliverables` must point only to declared `deliverables[].id` values" in new_project_text
-    assert "proof-bearing claims (theorem-like claim kinds, or claims linked to `proof_obligation` observables)" in new_project_text
+    assert "treat a claim as proof-bearing whenever any of these is true" in new_project_text
+    assert "`claim_kind` is `theorem`, `lemma`, `corollary`, `proposition`, or `claim`" in new_project_text
+    assert "the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language)" in new_project_text
+    assert "any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`)" in new_project_text
+    assert "`observables[]` references a `proof_obligation` target" in new_project_text
     assert "proof-bearing claims must include at least one proof-specific acceptance test kind" in new_project_text
     assert "project_contract_load_info" in new_project_text
     assert "project_contract_validation" in new_project_text
@@ -116,7 +120,11 @@ def test_state_schema_surfaces_the_exact_approved_mode_grounding_rule() -> None:
     assert "`must_surface` is a boolean scalar. Use the JSON literals `true` and `false`;" in state_schema_text
     assert "`context_intake` must not be empty." in state_schema_text
     assert '`claims[]` — `{ "id", "statement", "claim_kind", "observables[]", "deliverables[]", "acceptance_tests[]", "references[]", "parameters[]", "hypotheses[]", "quantifiers[]", "conclusion_clauses[]", "proof_deliverables[]" }`' in state_schema_text
-    assert "Proof-bearing claim fields are required when the claim is theorem-like" in state_schema_text
+    assert "Treat a claim as proof-bearing whenever any of these is true" in state_schema_text
+    assert "`claim_kind` is `theorem`, `lemma`, `corollary`, `proposition`, or `claim`" in state_schema_text
+    assert "the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language)" in state_schema_text
+    assert "any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`)" in state_schema_text
+    assert "`observables[]` references a `proof_obligation` target" in state_schema_text
     assert "claims[].proof_deliverables[]" in state_schema_text
     assert "`claims[].parameters[]`, `claims[].hypotheses[]`, and `claims[].conclusion_clauses[]` must each be non-empty." in state_schema_text
     assert "`claims[].acceptance_tests[]` must include at least one proof-specific test kind" in state_schema_text

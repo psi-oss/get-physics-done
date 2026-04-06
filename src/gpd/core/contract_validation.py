@@ -459,7 +459,8 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
     errors: list[str] = []
     errors.extend(_collect_literal_case_drift_errors(contract))
     raw_required_section_presence = {
-        field_name: field_name in contract for field_name in ("schema_version", "context_intake", "uncertainty_markers")
+        field_name: field_name in contract
+        for field_name in ("schema_version", "scope", "context_intake", "uncertainty_markers")
     }
     scalar_sanitized = _sanitize_contract_scalars(contract, errors=errors)
     if not isinstance(scalar_sanitized, dict):
@@ -470,7 +471,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
     _normalize_blank_list_fields(normalized_contract)
 
     missing_required_section_errors: list[str] = []
-    for field_name in ("schema_version", "context_intake", "uncertainty_markers"):
+    for field_name in ("schema_version", "scope", "context_intake", "uncertainty_markers"):
         if field_name not in normalized_contract and not raw_required_section_presence[field_name]:
             missing_required_section_errors.append(_required_project_contract_section_error(field_name))
     if missing_required_section_errors:
@@ -517,15 +518,18 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
     normalized_contract["context_intake"] = context_intake
 
     if "approach_policy" in normalized_contract:
+        approach_policy_errors: list[str] = []
         approach_policy, approach_policy_blocked = _salvage_model_mapping(
             normalized_contract.get("approach_policy"),
             path_prefix="approach_policy",
             model=ContractApproachPolicy,
-            errors=errors,
+            errors=approach_policy_errors,
         )
         if approach_policy_blocked or approach_policy is None:
-            return None, errors
-        normalized_contract["approach_policy"] = approach_policy
+            errors.extend(error for error in approach_policy_errors if error not in errors)
+            normalized_contract.pop("approach_policy", None)
+        else:
+            normalized_contract["approach_policy"] = approach_policy
 
     uncertainty_markers, uncertainty_markers_blocked = _salvage_model_mapping(
         normalized_contract.get("uncertainty_markers"),
@@ -575,6 +579,7 @@ def split_project_contract_schema_findings(
         else:
             blocking.append(error)
     return recoverable, blocking
+
 
 def is_authoritative_project_contract_schema_finding(error: str) -> bool:
     """Return whether one schema finding touches an authoritative scalar field."""
@@ -1128,6 +1133,13 @@ def validate_project_contract(
         errors.append("uncertainty_markers.disconfirming_observations must identify what would force a rethink")
 
     errors.extend(_light_contract_consistency_errors(parsed))
+
+    deliverable_ids = {deliverable.id for deliverable in parsed.deliverables}
+    for claim in parsed.claims:
+        for proof_deliverable_id in claim.proof_deliverables:
+            if proof_deliverable_id not in deliverable_ids:
+                errors.append(f"claim {claim.id} references unknown proof deliverable {proof_deliverable_id}")
+
     warnings.extend(_context_intake_guidance_warnings(parsed, project_root=project_root))
     warnings.extend(_must_surface_locator_warnings(parsed, project_root=project_root))
 

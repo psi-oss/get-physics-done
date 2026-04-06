@@ -15,8 +15,9 @@ Template for `GPD/phases/XX-name/{phase}-VERIFICATION.md` -- physics verificatio
 **Standard Verification:** All applicable sections for your project type (default).
 
 `status: passed` is strict: use it only when every claim, deliverable, and acceptance_test entry in `contract_results` is `passed`, every reference entry is `completed`, every `must_surface` reference has all `required_actions` recorded in `completed_actions`, every forbidden_proxy is `rejected` or `not_applicable`, every required decisive comparison has a decisive verdict, and `suggested_contract_checks` is empty. If any contract target is `partial`, `failed`, `blocked`, `missing`, or `unresolved`, use `gaps_found`, `expert_needed`, or `human_needed` instead of `passed`.
-Proof-backed claims are stricter still: `contract_results.claims.<claim-id>.status: passed` is invalid unless that same entry carries `proof_audit.completeness: complete`, `reviewer: gpd-check-proof`, a current `claim_statement_sha256`, current `proof_artifact_sha256`, current `audit_artifact_sha256`, and a passed proof-specific acceptance test. Quantified proof claims must keep `proof_audit.quantifier_status` explicit, and a passed quantified claim must use `quantifier_status: matched`. The proof audit also has to point at the declared proof artifact path and the canonical proof-redteam artifact path, not just any readable file. If the theorem statement, proof artifact, or proof-audit deliverable changed after the last adversarial proof review, keep the affected target at `partial` or `blocked` until the proof audit is rerun. A stale proof audit is never compatible with `status: passed`.
-Legacy frontmatter aliases such as `must_haves`, `verification_inputs`, `contract_evidence`, and `independently_confirmed` are forbidden in model-facing output; use only the canonical contract-ledger fields from `contract_results`.
+Treat a claim as proof-bearing if any of these is true: `claim_kind` is `theorem|lemma|corollary|proposition|claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
+Proof-backed claims are stricter still: `contract_results.claims.<claim-id>.status: passed` is invalid unless that entry carries `proof_audit.completeness: complete`, `reviewer: gpd-check-proof`, current `proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, and `claim_statement_sha256`, plus every declared proof-specific acceptance test passing. Quantified proof claims must keep `proof_audit.quantifier_status` explicit, and a passed quantified claim must use `quantifier_status: matched`. The proof audit must point at the declared proof artifact path and the canonical proof-redteam artifact path. If the proof artifact, or proof-audit deliverable changed after the last adversarial proof review, keep the affected target at `partial` or `blocked` until the proof audit is rerun. A stale proof audit is never compatible with `status: passed`.
+Legacy frontmatter aliases are forbidden in model-facing output; use only the canonical contract-ledger fields from `contract_results`.
 
 ---
 
@@ -177,7 +178,7 @@ suggested_contract_checks:
 | {reference-id} | reference anchor | {completed/missing} | {yes/no} | {path} | {why} |
 
 Use contract IDs consistently throughout the report. The PLAN contract defines what must be verified. `SUMMARY.md` `contract_results` and `comparison_verdicts` tell you what evidence was produced, not what success means.
-Record only user-visible contract targets here: things a researcher could point to in the promised outcome or artifact set. Internal workflow steps, tool invocations, and generic "validation happened" statements do not belong in this table.
+Record only user-visible contract targets here: things a researcher could point to in the promised outcome or artifact set. Internal workflow steps, tool invocations, and generic "validation happened" statements do not belong here.
 - `claims|deliverables|acceptance_tests -> passed|partial|failed|blocked|not_attempted`
 - `references -> completed|missing|not_applicable`
 - `forbidden_proxies -> rejected|violated|unresolved|not_applicable`
@@ -206,7 +207,7 @@ Emit comparison verdicts whenever the contract or decisive anchor context requir
 - `subject_role: decisive|supporting|supplemental|other`
 - `comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other`
 - `verdict: pass|tension|fail|inconclusive`
-Only `subject_role: decisive` closes a decisive benchmark/cross-method requirement or contradicts a passed contract target. `supporting` and `supplemental` verdicts are recorded context, not decisive blockers on their own.
+Only `subject_role: decisive` closes a decisive benchmark/cross-method requirement or contradicts a passed contract target. `supporting` and `supplemental` verdicts are context only.
 - Benchmark acceptance tests require `comparison_kind: benchmark`; cross-method acceptance tests require `comparison_kind: cross_method`.
 
 ## Suggested Contract Checks

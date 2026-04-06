@@ -6,7 +6,18 @@ import re
 from pathlib import Path
 
 from gpd.core import public_surface_contract as public_surface_contract_module
-from gpd.core.public_surface_contract import local_cli_bridge_note, resume_authority_fields
+from gpd.core.public_surface_contract import (
+    local_cli_bridge_note,
+    local_cli_doctor_global_command,
+    local_cli_doctor_local_command,
+    local_cli_permissions_status_command,
+    local_cli_plan_preflight_command,
+    local_cli_resume_command,
+    local_cli_resume_recent_command,
+    local_cli_unattended_readiness_command,
+    local_cli_validate_command_context_command,
+    resume_authority_fields,
+)
 from gpd.registry import VALID_CONTEXT_MODES, _parse_frontmatter
 from tests.doc_surface_contracts import (
     DOCTOR_RUNTIME_SCOPE_RE,
@@ -229,7 +240,7 @@ def test_start_prompt_delegates_routing_to_workflow_only() -> None:
     assert "explain them the first time they appear" in start_command
     assert "gpd:tour" in start_command
     assert_start_workflow_router_contract(start_workflow)
-    assert "gpd resume --recent" in start_workflow
+    assert local_cli_resume_recent_command() in start_workflow
     assert "in your normal terminal to find the project first" in start_workflow
     assert "The recent-project picker is advisory; choose the workspace there" in start_workflow
     assert "reloads canonical state for that project." in start_workflow
@@ -308,17 +319,17 @@ def test_suggest_next_prompt_uses_real_cli_subcommand() -> None:
     assert "Uses `gpd --raw suggest`" in suggest_prompt
     assert "Local CLI fallback: `gpd --raw suggest`" in suggest_prompt
     assert (
-        "If you still need to rediscover the project first, do that in your normal terminal with `gpd resume` for the current workspace or `gpd resume --recent` for the explicit multi-project picker before reopening the runtime."
+        f"If you still need to rediscover the project first, do that in your normal terminal with `{local_cli_resume_command()}` for the current workspace or `{local_cli_resume_recent_command()}` for the explicit multi-project picker before reopening the runtime."
         in suggest_prompt
     )
     assert "Keep `/clear` as a fresh-context reset, not as a recovery step." in suggest_prompt
     assert "`/clear` first -> fresh context window, then `{command}`." in suggest_prompt
     assert (
-        "If you still need to rediscover the project first, do that in your normal terminal with `gpd resume` for the current workspace or `gpd resume --recent` for a different project before reopening the runtime."
+        f"If you still need to rediscover the project first, do that in your normal terminal with `{local_cli_resume_command()}` for the current workspace or `{local_cli_resume_recent_command()}` for a different project before reopening the runtime."
         in suggest_prompt
     )
     assert (
-        "`/clear` first -> fresh context window, then `{command}`; if you still need to rediscover the project, use `gpd resume --recent` before reopening the runtime"
+        f"`/clear` first -> fresh context window, then `{{command}}`; if you still need to rediscover the project, use `{local_cli_resume_recent_command()}` before reopening the runtime"
         not in suggest_prompt
     )
     assert "gpd suggest-next to scan" not in suggest_prompt
@@ -404,6 +415,8 @@ def test_new_project_prompt_uses_stdin_for_contract_validation_and_persistence()
 
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - --mode approved' in workflow
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -' in workflow
+    assert "gpd permissions sync --runtime <runtime>" in workflow
+    assert "gpd permissions sync --runtime <name>" not in workflow
     assert "/tmp/gpd-project-contract.json" not in workflow
     assert "temporary JSON file if needed" not in workflow
 
@@ -544,12 +557,13 @@ def test_prompt_and_public_surface_contract_agree_on_runtime_readiness_and_plan_
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
     bridge_note = local_cli_bridge_note()
 
-    assert "gpd doctor --runtime <runtime> --local|--global" in help_workflow
-    assert "gpd permissions status --runtime <runtime> --autonomy balanced" in help_workflow
-    assert "gpd validate plan-preflight <PLAN.md>" in help_workflow
-    assert "gpd doctor --runtime <runtime> --local" in bridge_note
-    assert "gpd doctor --runtime <runtime> --global" in bridge_note
-    assert "gpd validate plan-preflight <PLAN.md>" in bridge_note
+    assert local_cli_unattended_readiness_command() in help_workflow
+    assert local_cli_permissions_status_command() in help_workflow
+    assert local_cli_plan_preflight_command() in help_workflow
+    assert local_cli_doctor_local_command() in help_workflow
+    assert local_cli_doctor_global_command() in help_workflow
+    assert local_cli_validate_command_context_command() in help_workflow
+    assert "local install, readiness, validation, permissions, observability, diagnostics, recovery, cost, preset, and shared Wolfram integration surface" in bridge_note
 
 
 def test_help_workflow_mentions_all_authoritative_local_cli_bridge_commands() -> None:
@@ -557,14 +571,18 @@ def test_help_workflow_mentions_all_authoritative_local_cli_bridge_commands() ->
     for command in public_surface_contract_module.load_public_surface_contract().local_cli_bridge.named_commands.ordered():
         assert command in help_workflow
 
+    assert local_cli_doctor_local_command() in help_workflow
+    assert local_cli_doctor_global_command() in help_workflow
+    assert local_cli_validate_command_context_command() in help_workflow
+
 
 def test_help_prompt_session_management_keeps_pause_before_leave_and_resume_on_return() -> None:
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
 
     assert_runtime_reset_rediscovery_contract(
         help_workflow,
-        extra_reset_fragments=("then run gpd resume in your normal terminal",),
-        extra_reset_not_recovery_fragments=("then run gpd resume in your normal terminal",),
+        extra_reset_fragments=(f"then run {local_cli_resume_command()} in your normal terminal",),
+        extra_reset_not_recovery_fragments=(f"then run {local_cli_resume_command()} in your normal terminal",),
     )
     assert "**`gpd:resume-work`**" in help_workflow
     assert "**`gpd:pause-work`**" in help_workflow

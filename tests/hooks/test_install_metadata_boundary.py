@@ -351,6 +351,15 @@ def test_runtime_detect_manifest_helper_signature_drops_unused_cwd_and_home() ->
     assert "home" not in params
 
 
+def test_runtime_detect_install_helper_signature_drops_unused_cwd_and_home() -> None:
+    from gpd.hooks.runtime_detect import _has_gpd_install
+
+    params = inspect.signature(_has_gpd_install).parameters
+
+    assert "cwd" not in params
+    assert "home" not in params
+
+
 def test_runtime_cli_uses_shared_manifest_runtime_helper() -> None:
     import gpd.runtime_cli as runtime_cli
 

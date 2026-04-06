@@ -208,7 +208,9 @@ The following fields always store arrays of objects, never arrays of plain strin
 - `forbidden_proxies[]` — `{ "id", "subject", "proxy", "reason" }`
 - `links[]` — `{ "id", "source", "target", "relation", "verified_by[]" }`
 
-Proof-bearing claim fields are required when the claim is theorem-like (`claim_kind` is `theorem`, `lemma`, `corollary`, or `proposition`) or when the claim touches a `proof_obligation` observable:
+Treat a claim as proof-bearing whenever any of these is true: `claim_kind` is `theorem`, `lemma`, `corollary`, `proposition`, or `claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
+
+When that applies, require:
 
 - `claims[].claim_kind` must use the closed vocabulary: `theorem | lemma | corollary | proposition | result | claim | other`.
 - `claims[].proof_deliverables[]` must be non-empty and contain only `deliverables[].id` values.

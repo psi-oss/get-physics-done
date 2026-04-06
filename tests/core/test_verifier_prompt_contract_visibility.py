@@ -28,7 +28,9 @@ def test_verifier_prompt_points_to_canonical_verification_schema_sources() -> No
     assert "Do not invent a verifier-local schema, relax required ledgers, or treat body prose as a substitute for frontmatter consumed by validation and downstream tooling." in verifier
     assert "include a machine-readable `ASSERT_CONVENTION` comment immediately after the YAML frontmatter in `VERIFICATION.md`." in verifier
     assert "Changed phase verification artifacts now fail `gpd pre-commit-check` if the required header is missing or mismatched." in verifier
-    assert "Legacy frontmatter aliases such as `must_haves`, `verification_inputs`, `contract_evidence`, and `independently_confirmed` are forbidden in model-facing output" in verifier
+    assert "Legacy frontmatter aliases are forbidden in model-facing output" in verifier
+    for legacy_alias in ("must_haves", "verification_inputs", "contract_evidence", "independently_confirmed"):
+        assert legacy_alias not in verifier
     assert "@{GPD_INSTALL_DIR}/templates/verification-report.md" in verifier_lines
     assert "@{GPD_INSTALL_DIR}/templates/contract-results-schema.md" in verifier_lines
 
@@ -96,16 +98,22 @@ def test_verifier_prompt_surfaces_missing_parameter_proof_audit_and_stale_review
         "`proof_audit.audit_artifact_path` points to the canonical proof-redteam artifact"
     ) in verifier
     assert "A quantified proof-bearing claim must keep `proof_audit.quantifier_status` explicit" in contract_results_schema
+    assert "`claim_kind` is `theorem|lemma|corollary|proposition|claim`" in contract_results_schema
+    assert "`proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, `claim_statement_sha256`" in contract_results_schema
     assert "`proof_audit.proof_artifact_path` must match a declared `proof_deliverables` path" in contract_results_schema
     assert "`proof_audit.audit_artifact_path` must point to a proof-redteam artifact" in contract_results_schema
+    assert "every declared proof-specific acceptance test in `claims[].acceptance_tests[]` passing" in contract_results_schema
     assert 'summary: "[what the adversarial proof review concluded]"' in verification_template
     assert "completed_actions: []" in verification_template
     assert "missing_actions: [read]" in verification_template
     assert 'summary: "[what the adversarial proof review concluded]"' in research_verification
 
     assert "Proof-backed claims are stricter still" in verification_template
+    assert "`claim_kind` is `theorem|lemma|corollary|proposition|claim`" in verification_template
+    assert "current `proof_artifact_path`" in verification_template
     assert "Quantified proof claims must keep `proof_audit.quantifier_status` explicit" in verification_template
     assert "the declared proof artifact path and the canonical proof-redteam artifact path" in verification_template
+    assert "every declared proof-specific acceptance test passing" in verification_template
     assert "proof artifact, or proof-audit deliverable changed after the last adversarial proof review" in verification_template
     assert "A stale proof audit is never compatible with `status: passed`." in verification_template
     assert "all artifacts pass levels 1-4" in verifier

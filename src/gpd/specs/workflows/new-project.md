@@ -135,9 +135,8 @@ Build a canonical scoping contract from the extracted input.
 - What result would make the current framing look wrong or incomplete
 - Unresolved questions / context gaps
 
-**Preservation rule:** If the user names a specific observable, figure, dataset, derivation, paper, benchmark, notebook, prior run, or stop condition, keep that wording recognizable in the contract. Do not generalize it away into a vague proxy.
-If the user does not know the anchor yet, preserve that explicitly in `scope.unresolved_questions`, `context_intake.context_gaps`, or `uncertainty_markers.weakest_anchors` rather than inventing a paper, benchmark, or baseline.
-Prefer explicit missing-anchor wording such as `Which reference should serve as the decisive benchmark anchor?`, `Benchmark reference not yet selected`, `need grounding before the decisive anchor is chosen`, `decisive target not yet chosen`, or `baseline comparison is TBD`.
+**Preservation rule:** Keep named observables, figures, datasets, derivations, papers, benchmarks, notebooks, prior runs, and stop conditions recognizable in the contract; if the anchor is unknown, record that explicitly instead of inventing a paper, benchmark, or baseline.
+Prefer explicit missing-anchor wording such as `Which reference should serve as the decisive benchmark anchor?`, `Benchmark reference not yet selected`, or `decisive target not yet chosen`.
 Do not force a phase list just to make the scoping contract look complete. If decomposition is still unclear, record that uncertainty and let `ROADMAP.md` start with a single coarse phase or first grounded investigation chunk.
 If the init JSON already contains `project_contract`, `project_contract_load_info`, or `project_contract_validation`, preserve that state in the approval gate and continuation decision. Do not collapse a visible-but-blocked contract into a blank slate when deciding whether this is a fresh project or a continuation.
 
@@ -168,7 +167,8 @@ Before you show the approval gate, build the raw contract as a literal JSON obje
   - `references[].kind`: `paper | dataset | prior_artifact | spec | user_anchor | other`
   - `references[].role`: `definition | benchmark | method | must_consider | background | other`
   - `links[].relation`: `supports | computes | visualizes | benchmarks | depends_on | evaluated_by | proves | uses_hypothesis | depends_on_lemma | other`
-- proof-bearing claims (theorem-like claim kinds, or claims linked to `proof_obligation` observables) must include non-empty `proof_deliverables[]`, `parameters[]`, `hypotheses[]`, and `conclusion_clauses[]`
+- treat a claim as proof-bearing whenever any of these is true: `claim_kind` is `theorem`, `lemma`, `corollary`, `proposition`, or `claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target
+- proof-bearing claims must include non-empty `proof_deliverables[]`, `parameters[]`, `hypotheses[]`, and `conclusion_clauses[]`
 - proof-bearing claims must include at least one proof-specific acceptance test kind in `claims[].acceptance_tests[]` (`proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `claim_to_proof_alignment`, `lemma_dependency_closure`, or `counterexample_search`)
 - if `references[].must_surface` is `true`, both `references[].applies_to[]` and `references[].required_actions[]` must be non-empty; do not leave must-surface anchors implicit
 - `references[].carry_forward_to[]` is free-text workflow scope such as `planning`, `execution`, `verification`, or `writing`; it is not an enum and must not match any declared contract ID from `observables[]`, `claims[]`, `deliverables[]`, `acceptance_tests[]`, `references[]`, `forbidden_proxies[]`, or `links[]`
@@ -814,7 +814,7 @@ Before writing `PROJECT.md`, synthesize a canonical project contract with at lea
 `schema_version` must be the integer `1`, and `references[].must_surface` must be a boolean `true` or `false`, not a quoted synonym.
 
 If no must-read references are confirmed yet, record that explicitly in the contract rather than inventing one.
-If the user does not know the anchor yet, record that explicitly as an unresolved question or context gap rather than fabricating a paper, dataset, benchmark, or baseline.
+If the user does not know the anchor yet, preserve that explicitly in `scope.unresolved_questions`, `context_intake.context_gaps`, or `uncertainty_markers.weakest_anchors` rather than inventing a paper, benchmark, or baseline.
 Accepted shorthand like `need grounding` or `target not yet chosen` is fine when it clearly refers to the missing decisive anchor.
 If the user supplied explicit observables, deliverables, prior outputs, or stop conditions, preserve them in the contract using wording the user would still recognize. Do not paraphrase them into generic "benchmark" or "artifact" language unless the user asked you to broaden them.
 If the user named a prior output or review checkpoint that must ground approval or be carried forward, put it in `context_intake.must_include_prior_outputs`. Use `context_intake.crucial_inputs` for user-stated observables, stop conditions, review requests, or constraints that must stay visible but do not themselves replace approved-mode grounding.
@@ -1229,7 +1229,7 @@ Interpret the sync payload before continuing:
 
 - If `message` is present, summarize it in plain language.
 - If `requires_relaunch` is `true`, show `next_step` verbatim before moving on so the user knows whether the runtime must be restarted or relaunched through a generated command or wrapper.
-- If sync fails because no runtime install could be resolved, explain that the project config was still created successfully and the user can run `gpd permissions sync --runtime <name>` later.
+- If sync fails because no runtime install could be resolved, explain that the project config was still created successfully and the user can run `gpd permissions sync --runtime <runtime>` later.
 - This sync only updates runtime-owned permission settings; it does not create or validate the base install or workflow-tool readiness.
 
 **Commit config.json:**

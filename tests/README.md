@@ -1137,7 +1137,7 @@ They explicitly preserve:
 - `src/gpd/hooks/runtime_detect.py -> environment signals {CLAUDE_CODE_SESSION, CLAUDE_CODE, CODEX_SESSION, CODEX_CLI, GEMINI_CLI, OPENCODE_SESSION, CLAUDE_CONFIG_DIR, CODEX_CONFIG_DIR, GEMINI_CONFIG_DIR, OPENCODE_CONFIG_DIR, OPENCODE_CONFIG, XDG_CONFIG_HOME}`
   `candidate-set`
 
-- `src/gpd/hooks/runtime_detect.py -> active runtime precedence {activation env vars -> local runtime dirs -> global runtime dirs -> ALL_RUNTIMES tie-break}`
+- `src/gpd/hooks/runtime_detect.py -> active runtime precedence {activation env vars -> local runtime dirs -> global runtime dirs -> live runtime inventory tie-break}`
   `ordering-contract`
   Runtime detection is precedence-driven, not a flat unordered candidate family.
 
@@ -1151,7 +1151,7 @@ They explicitly preserve:
   `ordering-contract`
   Hook consumers inherit this precedence through `get_gpd_install_dirs(prefer_active=True)` and `get_update_cache_files()`.
 
-- `tests/hooks/test_runtime_detect.py -> src/gpd/hooks/runtime_detect.py::ALL_RUNTIMES`
+- `tests/hooks/test_runtime_detect.py -> src/gpd/hooks/runtime_detect.py::supported_runtime_names()`
   `ordering-contract`
 
 - `src/gpd/hooks/statusline.py -> <workspace>/GPD/state.json`

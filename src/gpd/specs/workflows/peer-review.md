@@ -87,9 +87,9 @@ fi
 <step name="load_specialized_review_context">
 Use `protocol_bundle_context` from init JSON as additive review guidance.
 
-- If `selected_protocol_bundle_ids` is non-empty, treat the bundle summary as a quick map of which decisive artifacts, benchmark anchors, estimator caveats, or specialized comparisons the manuscript should make visible.
-- Use bundle guidance to sharpen skepticism about missing evidence; do **not** use it to invent claims, waive missing comparisons, or overrule the manuscript, `project_contract`, `GPD/comparisons/*-COMPARISON.md`, `${MANUSCRIPT_ROOT}/FIGURE_TRACKER.md`, or phase summary / verification evidence (`GPD/phases/*/*SUMMARY.md`, `GPD/phases/*/*-VERIFICATION.md`).
-- Judge the paper by reader-visible claims and surfaced evidence first. Review-support artifacts are scaffolding, not substitutes for contract-backed evidence.
+- If `selected_protocol_bundle_ids` is non-empty, use the bundle summary as a compact map of decisive artifacts, benchmark anchors, estimator caveats, or specialized comparisons the manuscript should surface.
+- Bundle guidance is additive only: it can sharpen missing-evidence checks, but it cannot invent claims, waive missing comparisons, or overrule the manuscript, `project_contract`, `GPD/comparisons/*-COMPARISON.md`, `${MANUSCRIPT_ROOT}/FIGURE_TRACKER.md`, or phase summary / verification evidence (`GPD/phases/*/*SUMMARY.md`, `GPD/phases/*/*-VERIFICATION.md`).
+- Reader-visible claims and surfaced evidence remain first-class; review-support artifacts are scaffolding, not substitutes for contract-backed evidence.
 - Read `@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md` for the canonical failure-recovery and round-suffix conventions that keep this workflow fail-closed without falling back to legacy recovery paths.
 - If no bundle is selected, run the same review pipeline against the manuscript and contract-backed artifacts without any specialized overlay.
 </step>
@@ -293,26 +293,7 @@ Operate in literature-context stage mode with a fresh context.
 Target journal: {target_journal}
 Round: {round}
 Selected protocol bundles: {selected_protocol_bundle_ids}
-Additive specialized guidance:
-{protocol_bundle_context}
-Project Contract:
-{project_contract}
-Project Contract Gate:
-{project_contract_gate}
-Project Contract Load Info:
-{project_contract_load_info}
-Project Contract Validation:
-{project_contract_validation}
-Active References:
-{active_reference_context}
-Derived Manuscript Reference Status:
-{derived_manuscript_reference_status}
-Contract Intake:
-{contract_intake}
-Effective Reference Intake:
-{effective_reference_intake}
-Reference Artifacts Content:
-{reference_artifacts_content}
+Carry-forward context: protocol bundle guidance {protocol_bundle_context}; project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
 Output path: `GPD/review/STAGE-literature{round_suffix}.json`
 
 Files to read:
@@ -324,8 +305,7 @@ Files to read:
 - `${BIBLIOGRAPHY_AUDIT_PATH}` if present
 - All `*.bib` files under `${MANUSCRIPT_ROOT}`, plus `references/references.bib` if present
 
-Use targeted web search when novelty, significance, or prior-work positioning is uncertain. Treat novelty-heavy claims as requiring external comparison, not trust. Use bundle reference prompts only as additive hints about which prior-work or benchmark framing should be visible; do not infer novelty or correctness from bundle presence alone.
-Apply the gate rule above.
+Use targeted web search when novelty, significance, or prior-work positioning is uncertain. Treat novelty-heavy claims as requiring external comparison, not trust. Use bundle reference prompts only as additive hints about prior-work or benchmark framing; do not infer novelty or correctness from bundle presence alone.
 Return STAGE 2 COMPLETE with assessment, blocker count, and major concern count.",
   description="Peer review stage 2: literature context"
 )
@@ -345,39 +325,21 @@ Operate in mathematical-soundness stage mode with a fresh context.
 
 Target journal: {target_journal}
 Round: {round}
-Project Contract:
-{project_contract}
-Project Contract Gate:
-{project_contract_gate}
-Project Contract Load Info:
-{project_contract_load_info}
-Project Contract Validation:
-{project_contract_validation}
-Active References:
-{active_reference_context}
-Derived Manuscript Reference Status:
-{derived_manuscript_reference_status}
-Contract Intake:
-{contract_intake}
-Effective Reference Intake:
-{effective_reference_intake}
-Reference Artifacts Content:
-{reference_artifacts_content}
+Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
 Output path: `GPD/review/STAGE-math{round_suffix}.json`
 
-	Files to read:
-	- Resolved manuscript main file and all nearby section .tex files
-	- `GPD/review/CLAIMS{round_suffix}.json`
-	- `GPD/review/STAGE-reader{round_suffix}.json`
+Files to read:
+- Resolved manuscript main file and all nearby section .tex files
+- `GPD/review/CLAIMS{round_suffix}.json`
+- `GPD/review/STAGE-reader{round_suffix}.json`
 - Summary artifacts matching `GPD/phases/*/*SUMMARY.md`
 - `GPD/phases/*/*-VERIFICATION.md`
-	- `${ARTIFACT_MANIFEST_PATH}` if present
-	- `${REPRODUCIBILITY_MANIFEST_PATH}` if present
+- `${ARTIFACT_MANIFEST_PATH}` if present
+- `${REPRODUCIBILITY_MANIFEST_PATH}` if present
 
-	Focus on key equations, limits, internal consistency, and approximation validity.
-	If theorem-bearing claims are present, `gpd-check-proof` may be running in parallel and will produce `GPD/review/PROOF-REDTEAM{round_suffix}.md`; do not wait on that artifact to begin the math review, and do not duplicate the proof audit yourself.
-	Apply the gate rule above.
-	Return STAGE 3 COMPLETE with assessment, blocker count, and major concern count.",
+Focus on key equations, limits, internal consistency, and approximation validity.
+If theorem-bearing claims are present, `gpd-check-proof` may be running in parallel and will produce `GPD/review/PROOF-REDTEAM{round_suffix}.md`; do not wait on that artifact to begin the math review, and do not duplicate the proof audit yourself.
+Return STAGE 3 COMPLETE with assessment, blocker count, and major concern count.",
   description="Peer review stage 3: mathematical soundness"
 )
 ```
@@ -396,24 +358,7 @@ Operate in adversarial proof-critique mode with a fresh context.
 
 Target journal: {target_journal}
 Round: {round}
-Project Contract:
-{project_contract}
-Project Contract Gate:
-{project_contract_gate}
-Project Contract Load Info:
-{project_contract_load_info}
-Project Contract Validation:
-{project_contract_validation}
-Active References:
-{active_reference_context}
-Derived Manuscript Reference Status:
-{derived_manuscript_reference_status}
-Contract Intake:
-{contract_intake}
-Effective Reference Intake:
-{effective_reference_intake}
-Reference Artifacts Content:
-{reference_artifacts_content}
+Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
 Write to: `GPD/review/PROOF-REDTEAM{round_suffix}.md`
 
 Before writing frontmatter, bind these fields exactly from the active round artifacts rather than approximating them:
@@ -494,35 +439,19 @@ Operate in physical-soundness stage mode with a fresh context.
 Target journal: {target_journal}
 Round: {round}
 Selected protocol bundles: {selected_protocol_bundle_ids}
-Additive specialized guidance:
-{protocol_bundle_context}
-Project Contract:
-{project_contract}
-Project Contract Load Info:
-{project_contract_load_info}
-Project Contract Validation:
-{project_contract_validation}
-Active References:
-{active_reference_context}
-Derived Manuscript Reference Status:
-{derived_manuscript_reference_status}
-Contract Intake:
-{contract_intake}
-Effective Reference Intake:
-{effective_reference_intake}
-Reference Artifacts Content:
-{reference_artifacts_content}
+Additive specialized guidance: {protocol_bundle_context}
+Carry-forward context: project contract {project_contract}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
 Output path: `GPD/review/STAGE-physics{round_suffix}.json`
 
 Files to read:
 - Resolved manuscript main file and all nearby section .tex files
-	- `GPD/review/CLAIMS{round_suffix}.json`
-	- `GPD/review/STAGE-reader{round_suffix}.json`
-	- `GPD/review/STAGE-math{round_suffix}.json`
-	- `GPD/review/PROOF-REDTEAM{round_suffix}.md` if proof-bearing review is active
-	- `GPD/review/STAGE-literature{round_suffix}.json`
-	- Summary artifacts matching `GPD/phases/*/*SUMMARY.md`
-	- `GPD/phases/*/*-VERIFICATION.md`
+- `GPD/review/CLAIMS{round_suffix}.json`
+- `GPD/review/STAGE-reader{round_suffix}.json`
+- `GPD/review/STAGE-math{round_suffix}.json`
+- `GPD/review/PROOF-REDTEAM{round_suffix}.md` if proof-bearing review is active
+- `GPD/review/STAGE-literature{round_suffix}.json`
+- Summary artifacts matching `GPD/phases/*/*SUMMARY.md`
+- `GPD/phases/*/*-VERIFICATION.md`
 - `GPD/comparisons/*-COMPARISON.md` if present
 - `${MANUSCRIPT_ROOT}/FIGURE_TRACKER.md` if present
 
@@ -532,8 +461,7 @@ Focus on:
 3. Unsupported or unfounded connections between formal manipulations and physics
 4. Whether decisive comparison artifacts, benchmark anchors, and estimator caveats expected by the specialized workflow are actually visible in the manuscript or honestly scoped down
 
-Treat bundle guidance as additive skepticism only. It may highlight missing decisive comparisons or estimator caveats, but it must not replace contract-backed evidence or create new manuscript obligations out of thin air.
-Apply the gate rule above.
+Treat bundle guidance as additive skepticism only: it may highlight missing decisive comparisons or estimator caveats, but it must not replace contract-backed evidence or create new manuscript obligations out of thin air.
 
 Return STAGE 4 COMPLETE with assessment, blocker count, and major concern count.",
   description="Peer review stage 4: physical soundness"
@@ -581,24 +509,7 @@ Operate in interestingness-and-venue-fit stage mode with a fresh context.
 
 Target journal: {target_journal}
 Round: {round}
-Project Contract:
-{project_contract}
-Project Contract Gate:
-{project_contract_gate}
-Project Contract Load Info:
-{project_contract_load_info}
-Project Contract Validation:
-{project_contract_validation}
-Active References:
-{active_reference_context}
-Derived Manuscript Reference Status:
-{derived_manuscript_reference_status}
-Contract Intake:
-{contract_intake}
-Effective Reference Intake:
-{effective_reference_intake}
-Reference Artifacts Content:
-{reference_artifacts_content}
+Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
 Output path: `GPD/review/STAGE-interestingness{round_suffix}.json`
 
 Files to read:
@@ -614,8 +525,6 @@ You must explicitly decide whether the paper is:
 1. Scientifically interesting enough for the venue
 2. Merely technically competent
 3. Overclaimed relative to its actual contribution
-
-Apply the gate rule above.
 
 Return STAGE 5 COMPLETE with assessment, blocker count, and major concern count.",
   description="Peer review stage 5: significance and venue fit"
@@ -664,36 +573,18 @@ Act as the final adjudicating referee for the staged peer-review panel.
 Target journal: {target_journal}
 Round: {round}
 Selected protocol bundles: {selected_protocol_bundle_ids}
-Additive specialized guidance:
-{protocol_bundle_context}
-Project Contract:
-{project_contract}
-Project Contract Gate:
-{project_contract_gate}
-Project Contract Load Info:
-{project_contract_load_info}
-Project Contract Validation:
-{project_contract_validation}
-Active References:
-{active_reference_context}
-Derived Manuscript Reference Status:
-{derived_manuscript_reference_status}
-Contract Intake:
-{contract_intake}
-Effective Reference Intake:
-{effective_reference_intake}
-Reference Artifacts Content:
-{reference_artifacts_content}
+Additive specialized guidance: {protocol_bundle_context}
+Carry-forward context: project contract {project_contract}; project contract gate {project_contract_gate}; project contract load info {project_contract_load_info}; project contract validation {project_contract_validation}; active references {active_reference_context}; derived manuscript reference status {derived_manuscript_reference_status}; contract intake {contract_intake}; effective reference intake {effective_reference_intake}; reference artifacts content {reference_artifacts_content}
 
 Files to read:
 - Resolved manuscript main file and all nearby section .tex files
 - `GPD/review/CLAIMS{round_suffix}.json`
-	- `GPD/review/STAGE-reader{round_suffix}.json`
-	- `GPD/review/STAGE-literature{round_suffix}.json`
-	- `GPD/review/STAGE-math{round_suffix}.json`
-	- `GPD/review/PROOF-REDTEAM{round_suffix}.md` if proof-bearing review is active
-	- `GPD/review/STAGE-physics{round_suffix}.json`
-	- `GPD/review/STAGE-interestingness{round_suffix}.json`
+- `GPD/review/STAGE-reader{round_suffix}.json`
+- `GPD/review/STAGE-literature{round_suffix}.json`
+- `GPD/review/STAGE-math{round_suffix}.json`
+- `GPD/review/PROOF-REDTEAM{round_suffix}.md` if proof-bearing review is active
+- `GPD/review/STAGE-physics{round_suffix}.json`
+- `GPD/review/STAGE-interestingness{round_suffix}.json`
 - `GPD/comparisons/*-COMPARISON.md` if present
 - `${MANUSCRIPT_ROOT}/FIGURE_TRACKER.md` if present
 - `${ARTIFACT_MANIFEST_PATH}` if present
@@ -708,19 +599,17 @@ If this is a revision round, also read the latest `REFEREE-REPORT*.md` and match
 
 If any required staged-review artifact is missing, malformed, or uses the wrong round suffix, STOP and report that failure instead of falling back to standalone review.
 
-	Recommendation guardrails:
-	1. Do not issue minor revision if novelty, physical support, or significance remain materially doubtful.
-	2. A mathematically coherent but physically weak or scientifically mediocre paper can require major revision or rejection.
-	3. Evaluate venue fit explicitly using the panel artifacts and spot-check the manuscript where the artifacts are under-evidenced.
-	4. Treat protocol bundle guidance as additive context only. It can increase concern when decisive comparisons or benchmark anchors are missing, but it cannot rescue missing evidence or override the manuscript's actual artifact trail.
-	5. For proof-bearing claims, a missing, malformed, or non-passing `GPD/review/PROOF-REDTEAM{round_suffix}.md` artifact prevents any favorable recommendation. Recommendation floor: `major_revision` or `reject`.
-	6. Write `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json`.
-	7. Keep `manuscript_path` non-empty and identical across `GPD/review/REVIEW-LEDGER{round_suffix}.json`, `GPD/review/REFEREE-DECISION{round_suffix}.json`, and the staged-review artifacts for this round.
-	8. Run `gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json`.
-	9. Run `gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger GPD/review/REVIEW-LEDGER{round_suffix}.json` before trusting any final recommendation.
-	10. If either validator fails, STOP and fix the JSON artifacts before presenting or relying on the final recommendation.
-
-Apply the gate rule above.
+Recommendation guardrails:
+1. Do not issue minor revision if novelty, physical support, or significance remain materially doubtful.
+2. A mathematically coherent but physically weak or scientifically mediocre paper can require major revision or rejection.
+3. Evaluate venue fit explicitly using the panel artifacts and spot-check the manuscript where the artifacts are under-evidenced.
+4. Treat protocol bundle guidance as additive context only. It can increase concern when decisive comparisons or benchmark anchors are missing, but it cannot rescue missing evidence or override the manuscript's actual artifact trail.
+5. For proof-bearing claims, a missing, malformed, or non-passing `GPD/review/PROOF-REDTEAM{round_suffix}.md` artifact prevents any favorable recommendation. Recommendation floor: `major_revision` or `reject`.
+6. Write `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json`.
+7. Keep `manuscript_path` non-empty and identical across `GPD/review/REVIEW-LEDGER{round_suffix}.json`, `GPD/review/REFEREE-DECISION{round_suffix}.json`, and the staged-review artifacts for this round.
+8. Run `gpd validate review-ledger GPD/review/REVIEW-LEDGER{round_suffix}.json`.
+9. Run `gpd validate referee-decision GPD/review/REFEREE-DECISION{round_suffix}.json --strict --ledger GPD/review/REVIEW-LEDGER{round_suffix}.json` before trusting any final recommendation.
+10. If either validator fails, STOP and fix the JSON artifacts before presenting or relying on the final recommendation.
 
 Write `GPD/REFEREE-REPORT{round_suffix}.md` and the matching `GPD/REFEREE-REPORT{round_suffix}.tex`.
 Also write `GPD/CONSISTENCY-REPORT.md` when applicable.

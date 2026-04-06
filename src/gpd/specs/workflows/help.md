@@ -63,6 +63,7 @@ Phase {N} complete:
 Publication workflow:
   gpd:peer-review         — Run manuscript peer review inside the current project
   gpd:arxiv-submission    — Package only after review passes and the paper-build contract succeeds
+  gpd doctor --runtime <runtime> --global — Check runtime-local paper-toolchain readiness for the paper/manuscript workflow preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
   gpd doctor --runtime <runtime> --local|--global — Check runtime-local paper-toolchain readiness for the paper/manuscript workflow preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
   gpd integrations status wolfram — Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
 ```
@@ -144,7 +145,7 @@ Depending on the runtime, those names may be rendered with slash prefixes, dolla
 - If you need to validate whether a public runtime command can run in the current workspace, use `gpd validate command-context gpd:<name>`.
 - If a plan declares specialized `tool_requirements`, use `gpd validate plan-preflight <PLAN.md>` from your normal terminal before execution.
 - For a normal-terminal, current-workspace read-only recovery snapshot without launching the runtime, use `gpd resume`.
-- For cross-project discovery from your normal terminal, use `gpd resume --recent` first, then open the selected project and continue there with the runtime `resume-work` command.
+- For cross-project discovery from your normal terminal, use `gpd resume --recent` to find the workspace first, then open the selected project and continue there with the runtime `resume-work` command.
 - After resuming inside the runtime, use `gpd:suggest-next` when you only need the next action.
 - For a normal-terminal, read-only machine-local usage / cost summary, use `gpd cost`.
 
@@ -304,9 +305,9 @@ Show a guided beginner tour of the core GPD commands without taking action.
 Usage: `gpd:tour`
 
 **`gpd:new-project`**
-Initialize new research project through unified flow.
+Initialize a new research project through questioning, optional survey, scoping, and roadmap generation.
 
-One command takes you from research idea to ready-for-investigation:
+One command takes you from idea to ready-for-investigation:
 
 - Deep questioning to understand the physics problem
 - Optional literature survey (spawns 4 parallel scout agents)
@@ -559,16 +560,13 @@ Usage: `gpd:progress --reconcile` (fix diverged STATE.md and state.json)
 ### Session Management
 
 **`gpd:resume-work`**
-Resume research from previous session with full context restoration.
+Resume research from a previous session with full context restoration.
 
-- `state.json.continuation` is the durable authority for resume state; the shared resume resolver projects the public recovery view from it first
-- Restores canonical continuation state and recorded handoff context through the shared resume resolver
-- Public resume vocabulary centers on canonical continuation fields: `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `active_resume_result`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`
+- `state.json.continuation` is the durable authority for resume state; `gpd resume` is the read-only local summary and `gpd resume --recent` is the workspace picker
+- Public resume vocabulary centers on canonical continuation fields: `active_resume_kind`, `active_resume_origin`, `active_resume_pointer`, `active_bounded_segment`, `derived_execution_head`, `active_resume_result`, `continuity_handoff_file`, `recorded_continuity_handoff_file`, `missing_continuity_handoff_file`, and `resume_candidates`; compatibility-only intake fields stay internal
 - Those fields are the public top-level resume vocabulary only; compatibility-only intake fields stay internal
-- Uses the recovery ladder (`gpd resume` -> `gpd resume --recent` when needed -> `gpd:resume-work`) to pick up where you left off
+- Use the recovery ladder (`gpd resume` -> `gpd resume --recent` -> `gpd:resume-work`) to pick up where you left off
 - Best first in-runtime command when returning to paused or interrupted work
-- This is the in-runtime continue path; for a current-workspace read-only recovery snapshot, use `gpd resume`
-- If you need to find the workspace first, use `gpd resume --recent`, then continue inside that workspace with `gpd:resume-work`
 
 Usage: `gpd:resume-work`
 

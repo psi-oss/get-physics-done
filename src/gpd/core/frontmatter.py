@@ -21,19 +21,18 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import (
     PROOF_ACCEPTANCE_TEST_KINDS,
-    THEOREM_CLAIM_KIND_VALUES,
     ComparisonVerdict,
     ContractResults,
     ProjectContractParseResult,
     ResearchContract,
     SuggestedContractCheck,
+    claim_requires_proof_audit,
     collect_plan_contract_integrity_errors,
     collect_proof_audit_alignment_errors,
     contract_has_explicit_context_intake,
     parse_comparison_verdicts_data_strict,
     parse_contract_results_data_artifact,
     parse_project_contract_data_strict,
-    statement_looks_theorem_like,
 )
 from gpd.core.constants import (
     PLAN_SUFFIX,
@@ -362,25 +361,10 @@ _DECISIVE_ACCEPTANCE_TEST_COMPARISON_KINDS: dict[str, frozenset[str]] = {
     "benchmark": frozenset({"benchmark"}),
     "cross_method": frozenset({"cross_method"}),
 }
-_THEOREM_CLAIM_KINDS = frozenset(THEOREM_CLAIM_KIND_VALUES)
 # Plan contracts can omit collection fields that already have safe closed-vocabulary
 # defaults in the schema models; downstream validation should stabilize them rather
 # than reject otherwise valid model output for restating "other".
 _PLAN_CONTRACT_EXPLICIT_COLLECTION_FIELDS: tuple[tuple[str, str], ...] = ()
-
-
-def _claim_requires_proof_audit(claim: object, observable_kind_by_id: dict[str, str]) -> bool:
-    observables = getattr(claim, "observables", [])
-    return (
-        getattr(claim, "claim_kind", "other") in _THEOREM_CLAIM_KINDS
-        or statement_looks_theorem_like(getattr(claim, "statement", None))
-        or bool(getattr(claim, "parameters", []))
-        or bool(getattr(claim, "hypotheses", []))
-        or bool(getattr(claim, "quantifiers", []))
-        or bool(getattr(claim, "conclusion_clauses", []))
-        or bool(getattr(claim, "proof_deliverables", []))
-        or any(observable_kind_by_id.get(observable_id) == "proof_obligation" for observable_id in observables)
-    )
 
 
 def _sha256_text(value: str) -> str:
@@ -643,7 +627,7 @@ def _claim_pass_proof_audit_errors(
     claim_by_id = {claim.id: claim for claim in contract.claims}
     observable_kind_by_id = {observable.id: observable.kind for observable in contract.observables}
     claim = claim_by_id.get(claim_id)
-    if claim is None or not _claim_requires_proof_audit(claim, observable_kind_by_id):
+    if claim is None or not claim_requires_proof_audit(claim, observable_kind_by_id):
         return []
     if claim_result.status != "passed":
         return []
@@ -768,7 +752,7 @@ def _proof_audit_errors(
     }
 
     for claim in contract.claims:
-        if not _claim_requires_proof_audit(claim, observable_kind_by_id):
+        if not claim_requires_proof_audit(claim, observable_kind_by_id):
             continue
 
         result = contract_results.claims.get(claim.id)

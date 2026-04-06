@@ -614,3 +614,19 @@ def test_readme_optional_terminal_reference_uses_runtime_placeholders() -> None:
     assert "relaunch Codex" not in block
     assert "--<runtime-flag>" in block
     assert "--runtime <runtime>" in block
+
+
+def test_user_facing_runtime_command_hints_use_runtime_placeholder() -> None:
+    leaks = _scan_paths_for_pattern(
+        (
+            REPO_ROOT / "src/gpd/cli.py",
+            REPO_ROOT / "src/gpd/core/health.py",
+            REPO_ROOT / "src/gpd/specs/workflows/new-project.md",
+        ),
+        re.compile(r"--runtime <name>"),
+    )
+
+    assert leaks == [], (
+        "User-facing runtime command hints should use the canonical <runtime> placeholder:\n"
+        f"{_format_failures(leaks)}"
+    )

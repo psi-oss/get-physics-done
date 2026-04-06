@@ -73,7 +73,17 @@ from gpd.core.proof_review import (
     resolve_manuscript_proof_review_status,
     resolve_phase_proof_review_status,
 )
-from gpd.core.public_surface_contract import local_cli_bridge_commands, local_cli_help_command
+from gpd.core.public_surface_contract import (
+    local_cli_bridge_commands,
+    local_cli_doctor_local_command,
+    local_cli_help_command,
+    local_cli_install_local_example_command,
+    local_cli_permissions_sync_command,
+    local_cli_plan_preflight_command,
+    local_cli_resume_command,
+    local_cli_resume_recent_command,
+    local_cli_validate_command_context_command,
+)
 from gpd.core.publication_review_paths import (
     manuscript_matches_review_artifact_path,
     review_artifact_round,
@@ -735,21 +745,25 @@ class _GPDTyper(typer.Typer):
             raise
 
 
+def _cli_epilog() -> str:
+    return (
+        "Primary research workflow commands run inside an installed runtime surface, not the local `gpd` CLI.\n"
+        f"Use `{local_cli_install_local_example_command()}` to install GPD, then open that runtime and run its GPD help command there.\n\n"
+        "Use the local CLI for install, readiness checks, permissions, observability, validation, and diagnostics.\n"
+        "Examples:\n"
+        f"  {local_cli_install_local_example_command()}\n"
+        f"  {local_cli_doctor_local_command()}\n"
+        + "".join(f"  {command}\n" for command in local_cli_bridge_commands())
+        + f"  {local_cli_validate_command_context_command()}"
+    )
+
+
 app = _GPDTyper(
     name="gpd",
     help="GPD — Get Physics Done: local install, readiness, validation, permissions, observability, and diagnostics CLI",
     no_args_is_help=True,
     add_completion=True,
-    epilog=(
-        "Primary research workflow commands run inside an installed runtime surface, not the local `gpd` CLI.\n"
-        "Use `gpd install <runtime>` to install GPD, then open that runtime and run its GPD help command there.\n\n"
-        "Use the local CLI for install, readiness checks, permissions, observability, validation, and diagnostics.\n"
-        "Examples:\n"
-        "  gpd install <runtime> --local\n"
-        "  gpd doctor --runtime <runtime> --local\n"
-        + "".join(f"  {command}\n" for command in local_cli_bridge_commands())
-        + "  gpd validate command-context gpd:new-project"
-    ),
+    epilog=_cli_epilog(),
 )
 
 
@@ -1229,7 +1243,7 @@ def _resume_recent_hint(payload: dict[str, object]) -> str | None:
         _payload_flag(payload, key) for key in ("state_exists", "roadmap_exists", "project_exists")
     ):
         return None
-    return "If this is the wrong workspace, run `gpd resume --recent` to search other recent projects on this machine."
+    return f"If this is the wrong workspace, run `{local_cli_resume_recent_command()}` to search other recent projects on this machine."
 
 
 def _resume_runtime_commands(*, cwd: Path | None = None) -> tuple[str | None, str | None]:
@@ -2142,7 +2156,9 @@ def _render_recent_resume_summary(rows: list[dict[str, object]]) -> None:
 
     if not rows:
         console.print("[dim]No recent projects are recorded on this machine yet.[/]")
-        console.print("[dim]Run `gpd resume` inside a project first, or wait for session continuity to be recorded.[/]")
+        console.print(
+            f"[dim]Run `{local_cli_resume_command()}` inside a project first, or wait for session continuity to be recorded.[/]"
+        )
         return
 
     for idx, row in enumerate(rows, start=1):
@@ -3510,9 +3526,9 @@ def _observe_execution_status_note(result: ObserveExecutionResult) -> str | None
     if result.status_classification == "waiting":
         return "[cyan]This execution is waiting on review or another gate.[/] It is not currently treated as stalled."
     if result.status_classification == "paused-or-resumable":
-        return "[cyan]This execution is paused or resumable.[/] Use `gpd resume` to inspect the best recovery target."
+        return f"[cyan]This execution is paused or resumable.[/] Use `{local_cli_resume_command()}` to inspect the best recovery target."
     if result.status_classification == "blocked":
-        return "[yellow]This execution is blocked.[/] Use `gpd resume` and the recent event trail to inspect the blocker context."
+        return f"[yellow]This execution is blocked.[/] Use `{local_cli_resume_command()}` and the recent event trail to inspect the blocker context."
     return None
 
 
@@ -4597,7 +4613,7 @@ def _update_wolfram_integration_state(cwd: Path, *, enabled: bool) -> dict[str, 
         "endpoint": endpoint,
         "api_key_env": WOLFRAM_MANAGED_INTEGRATION.api_key_env_var,
         "scope": "project-local",
-        "plan_readiness_command": "gpd validate plan-preflight <PLAN.md>",
+        "plan_readiness_command": local_cli_plan_preflight_command(),
     }
 
 
@@ -4619,7 +4635,7 @@ def _wolfram_integration_status_payload(cwd: Path) -> dict[str, object]:
     if not enabled:
         next_step = "Run `gpd integrations enable wolfram` to re-enable the shared Wolfram bridge for this project."
     elif ready:
-        next_step = "Use `gpd validate plan-preflight <PLAN.md>` to verify whether a specific plan can run."
+        next_step = f"Use `{local_cli_plan_preflight_command()}` to verify whether a specific plan can run."
     else:
         next_step = (
             f"Set `{WOLFRAM_MANAGED_INTEGRATION.api_key_env_var}` to make the shared Wolfram bridge available, "
@@ -4637,7 +4653,7 @@ def _wolfram_integration_status_payload(cwd: Path) -> dict[str, object]:
         "endpoint": endpoint,
         "api_key_env": WOLFRAM_MANAGED_INTEGRATION.api_key_env_var,
         "api_key_present": api_key_present,
-        "plan_readiness_command": "gpd validate plan-preflight <PLAN.md>",
+        "plan_readiness_command": local_cli_plan_preflight_command(),
         "next_step": next_step,
         "local_mathematica_note": (
             "Local Mathematica / Wolfram Language installs are separate from this shared optional integration."
@@ -4906,7 +4922,10 @@ def _runtime_permissions_payload(
             "target": None,
             "sync_applied": False,
             "changed": False,
-            "message": "No active runtime was detected. Run `gpd permissions sync --runtime <name>` after installing GPD into a runtime.",
+            "message": (
+                "No active runtime was detected. "
+                f"Run `{local_cli_permissions_sync_command()}` after installing GPD into a runtime."
+            ),
             }
         )
 
@@ -4966,7 +4985,6 @@ def _permissions_status_payload(
     return normalize_permissions_readiness_payload(
         payload,
         requested_runtime=runtime,
-        requested_autonomy=autonomy,
     )
 
 
@@ -5959,7 +5977,7 @@ def _build_recoverable_workspace_guidance(*, init_command: str) -> str:
     """Render the standardized recovery guidance string for project-required commands."""
     return (
         "This command requires a recoverable GPD workspace. "
-        "Open the right project, use `gpd resume --recent` to rediscover it, or "
+        f"Open the right project, use `{local_cli_resume_recent_command()}` to rediscover it, or "
         f"initialize a new project with `{init_command}` in the runtime surface or `gpd init new-project` in the local CLI."
     )
 
@@ -6419,7 +6437,7 @@ def _build_command_context_preflight(
                 if recoverable
                 else (
                     "This command found multiple recoverable recent GPD projects and will not switch silently. "
-                    "Use `gpd resume --recent` to pick the right project explicitly, then reopen it in the runtime."
+                    f"Use `{local_cli_resume_recent_command()}` to pick the right project explicitly, then reopen it in the runtime."
                     if reentry.requires_user_selection
                     else (
                         _build_recoverable_workspace_guidance(init_command=init_command)
@@ -8678,7 +8696,19 @@ def _run_install_readiness_preflight(
     return failures, advisories
 
 
-@app.command("install")
+def _install_command_doc() -> str:
+    return (
+        "Install GPD skills, agents, and hooks into runtime config directories.\n\n"
+        "Run without arguments for interactive mode. Specify runtime name(s) or --all for batch mode.\n\n"
+        "Examples::\n\n"
+        "    gpd install                        # interactive\n"
+        f"    {local_cli_install_local_example_command()}              # single runtime, local\n"
+        "    gpd install <runtime-a> <runtime-b>\n"
+        "    gpd install --all --global         # all runtimes, global\n"
+    )
+
+
+@app.command("install", help=_install_command_doc())
 def install(
     runtimes: list[str] | None = typer.Argument(
         None,
@@ -8690,17 +8720,7 @@ def install(
     target_dir: str | None = typer.Option(None, "--target-dir", help="Override target config directory"),
     force_statusline: bool = typer.Option(False, "--force-statusline", help="Overwrite existing statusline config"),
 ) -> None:
-    """Install GPD skills, agents, and hooks into runtime config directories.
-
-    Run without arguments for interactive mode. Specify runtime name(s) or --all for batch mode.
-
-    Examples::
-
-        gpd install                        # interactive
-        gpd install <runtime>              # single runtime, local
-        gpd install <runtime-a> <runtime-b>
-        gpd install --all --global         # all runtimes, global
-    """
+    """Install GPD skills, agents, and hooks into runtime config directories."""
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
     from gpd.core.health import runtime_doctor_hint
@@ -8839,6 +8859,9 @@ def install(
 
     if failures:
         raise typer.Exit(code=1)
+
+
+install.__doc__ = _install_command_doc()
 
 
 # ═══════════════════════════════════════════════════════════════════════════

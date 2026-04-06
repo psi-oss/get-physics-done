@@ -2852,7 +2852,7 @@ def _preserved_visible_project_contract_from_raw_state(
     source_path: Path,
     raw_state: object,
 ) -> dict[str, object] | None:
-    """Return a raw project contract when the existing raw state already exposes it visibly."""
+    """Return the visible normalized contract when state already exposes it."""
 
     if not isinstance(raw_state, dict):
         return None
@@ -2877,7 +2877,7 @@ def _preserved_visible_project_contract_from_raw_state(
     }:
         return None
 
-    return copy.deepcopy(raw_contract)
+    return visible_contract.model_dump(mode="python")
 
 
 def _preserved_visible_project_contract_from_state_file(
@@ -2885,7 +2885,7 @@ def _preserved_visible_project_contract_from_state_file(
     *,
     state_path: Path,
 ) -> dict[str, object] | None:
-    """Return the raw visible project contract preserved from a state JSON file."""
+    """Return the visible normalized project contract preserved from one state JSON file."""
 
     try:
         raw_state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -3519,8 +3519,14 @@ def _preserved_visible_project_contract_for_json_save(cwd: Path, *, state_obj: d
     if load_info.get("status") not in {"blocked_integrity", "loaded_with_schema_normalization", "loaded_with_approval_blockers"}:
         return None
 
-    candidate_contract, _candidate_schema_findings = salvage_project_contract(candidate)
+    candidate_contract, candidate_schema_findings = salvage_project_contract(candidate)
     if candidate_contract is None:
+        return None
+    _, candidate_schema_errors = split_project_contract_schema_findings(
+        candidate_schema_findings,
+        allow_singleton_defaults=True,
+    )
+    if candidate_schema_errors:
         return None
 
     # Compare semantic contract content instead of raw dict shape so callers
@@ -3529,7 +3535,7 @@ def _preserved_visible_project_contract_for_json_save(cwd: Path, *, state_obj: d
     if candidate_contract.model_dump(mode="python") != visible_contract.model_dump(mode="python"):
         return None
 
-    return copy.deepcopy(raw_contract)
+    return visible_contract.model_dump(mode="python")
 
 
 def _preserved_project_contract_for_markdown_save(

@@ -51,7 +51,11 @@
       "integrations_status_wolfram": "gpd integrations status wolfram"
     },
     "terminal_phrase": "from your normal terminal",
-    "purpose_phrase": "the broader local install, readiness, validation, permissions, observability, diagnostics, recovery, cost, preset, and shared Wolfram integration surface; use `gpd doctor --runtime <runtime> --local` or `gpd doctor --runtime <runtime> --global` for runtime-local readiness and `gpd validate plan-preflight <PLAN.md>` for plan validation"
+    "purpose_phrase": "the broader local install, readiness, validation, permissions, observability, diagnostics, recovery, cost, preset, and shared Wolfram integration surface",
+    "install_local_example": "gpd install <runtime> --local",
+    "doctor_local_command": "gpd doctor --runtime <runtime> --local",
+    "doctor_global_command": "gpd doctor --runtime <runtime> --global",
+    "validate_command_context_command": "gpd validate command-context gpd:<name>"
   },
   "post_start_settings": {
     "primary_sentence": "After your first successful start or later, use the runtime `settings` command to review autonomy, workflow defaults, model-cost posture, runtime permission sync, and preset/tier overrides.",

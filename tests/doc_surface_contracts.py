@@ -128,6 +128,10 @@ def _public_surface_contract_payload() -> dict[str, object]:
             },
             "terminal_phrase": contract.local_cli_bridge.terminal_phrase,
             "purpose_phrase": contract.local_cli_bridge.purpose_phrase,
+            "install_local_example": contract.local_cli_bridge.install_local_example,
+            "doctor_local_command": contract.local_cli_bridge.doctor_local_command,
+            "doctor_global_command": contract.local_cli_bridge.doctor_global_command,
+            "validate_command_context_command": contract.local_cli_bridge.validate_command_context_command,
         },
         "post_start_settings": {
             "primary_sentence": contract.post_start_settings.primary_sentence,

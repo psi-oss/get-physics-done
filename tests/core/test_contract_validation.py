@@ -11,6 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from gpd.contracts import (
+    ContractApproachPolicy,
     ContractClaim,
     ContractProofParameter,
     ContractResults,
@@ -186,8 +187,10 @@ def test_contract_from_data_salvage_rejects_non_object_approach_policy() -> None
 
     parsed = parse_project_contract_data_salvage(contract)
 
-    assert parsed.contract is None
+    assert parsed.contract is not None
+    assert parsed.contract.approach_policy == ContractApproachPolicy()
     assert parsed.blocking_errors == ["approach_policy must be an object, not list"]
+    assert parsed.recoverable_errors == []
     assert contract_from_data_salvage(contract) is None
 
 
@@ -195,6 +198,7 @@ def test_contract_from_data_salvage_rejects_non_object_approach_policy() -> None
     ("field_name", "expected_error"),
     [
         ("schema_version", "schema_version is required"),
+        ("scope", "scope is required"),
         ("context_intake", "context_intake is required"),
         ("uncertainty_markers", "uncertainty_markers is required"),
     ],
@@ -208,6 +212,26 @@ def test_contract_from_data_salvage_rejects_missing_required_sections(field_name
     assert parsed.contract is None
     assert expected_error in parsed.blocking_errors
     assert contract_from_data_salvage(contract) is None
+
+
+def test_validate_project_contract_approved_mode_rejects_unknown_proof_deliverables() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["proof_deliverables"] = ["deliv-missing"]
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is False
+    assert "claim claim-benchmark references unknown proof deliverable deliv-missing" in result.errors
+
+
+def test_validate_project_contract_draft_mode_rejects_unknown_proof_deliverables() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["proof_deliverables"] = ["deliv-missing"]
+
+    result = validate_project_contract(contract, mode="draft")
+
+    assert result.valid is False
+    assert "claim claim-benchmark references unknown proof deliverable deliv-missing" in result.errors
 
 
 def test_contract_from_data_salvage_rejects_missing_uncertainty_marker_subfields() -> None:

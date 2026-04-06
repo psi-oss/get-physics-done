@@ -19,7 +19,7 @@ If the source PLAN contains a `contract:` block, then the derived `SUMMARY.md` o
 - `contract_results`
 - `comparison_verdicts` whenever a decisive comparison is required by the contract or decisive anchor context
 
-If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is required, and `uncertainty_markers` must stay explicit in the frontmatter. In contract-backed outputs, `weakest_anchors` and `disconfirming_observations` must be non-empty so the unresolved anchors stay visible before writing.
+If `contract_results` or `comparison_verdicts` are present, `plan_contract_ref` is required, and `uncertainty_markers` must stay explicit in the frontmatter. In contract-backed outputs, `weakest_anchors` and `disconfirming_observations` must be non-empty so unresolved anchors stay visible before writing.
 
 ---
 
@@ -111,9 +111,9 @@ Rules:
 - `contract_results` and every nested entry use a closed schema. Only the documented keys are allowed; invented keys such as `context_usage` fail validation.
 - Missing contract-backed `contract_results` is invalid.
 - `uncertainty_markers` must remain explicit in contract-backed outputs so the model sees unresolved anchors, competing explanations, and disconfirming observations before writing.
-- Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the referenced PLAN contract must appear in its matching section.
+- Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the referenced PLAN contract must appear in the matching section.
 - Section-specific status vocabularies are mandatory:
-  - `claims`, `deliverables`, and `acceptance_tests` use `passed`, `partial`, `failed`, `blocked`, or `not_attempted` while work is still open.
+  - `claims`, `deliverables`, and `acceptance_tests` use `passed`, `partial`, `failed`, `blocked`, or `not_attempted`.
   - `references` use `completed`, `missing`, or `not_applicable`.
   - `forbidden_proxies` use `rejected`, `violated`, `unresolved`, or `not_applicable`.
 - `claims|deliverables|acceptance_tests -> passed|partial|failed|blocked|not_attempted`
@@ -121,13 +121,14 @@ Rules:
 - `forbidden_proxies -> rejected|violated|unresolved|not_applicable`
 - Do not silently omit unfinished work. Use the section-specific open-work status explicitly when a contract ID is still open.
 - `linked_ids` and evidence sub-IDs (`claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_id`, `forbidden_proxy_id`) must point to declared contract IDs.
+- A claim is proof-bearing if any of these is true: `claim_kind` is `theorem|lemma|corollary|proposition|claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
 - `proof_audit` belongs on `contract_results.claims.<claim-id>` for theorem/proof claims. Do not move it to `deliverables` or `acceptance_tests`.
 - If a proof-bearing claim is marked `status: passed`, `proof_audit` is mandatory and `proof_audit.completeness` must be explicit.
-- `proof_audit.completeness: complete` is only valid when the audit has `reviewer: gpd-check-proof`, a non-empty `reviewed_at`, no missing hypotheses, no missing parameter symbols, no uncovered quantifiers, no uncovered conclusion clauses, `scope_status: matched`, `counterexample_status: none_found`, and `stale: false`.
+- `proof_audit.completeness: complete` is only valid when the audit has `reviewer: gpd-check-proof`, a non-empty `reviewed_at`, `proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, `claim_statement_sha256`, no missing hypotheses, no missing parameter symbols, no uncovered quantifiers, no uncovered conclusion clauses, `scope_status: matched`, `counterexample_status: none_found`, and `stale: false`.
 - A quantified proof-bearing claim must keep `proof_audit.quantifier_status` explicit; a passed quantified claim must use `quantifier_status: matched`.
-- A passed proof-bearing claim must carry `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, and a `claim_statement_sha256` that matches the current claim statement so stale theorem text or stale proof-redteam artifacts cannot inherit an old proof audit silently.
+- A passed proof-bearing claim must carry `proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, and a `claim_statement_sha256` that matches the current claim statement so stale theorem text or proof-redteam artifacts cannot inherit an old proof audit silently.
 - `proof_audit.proof_artifact_path` must match a declared `proof_deliverables` path, and `proof_audit.audit_artifact_path` must point to a proof-redteam artifact.
-- A passed proof-bearing claim must also have at least one passed proof-specific acceptance test such as `claim_to_proof_alignment`, `proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `lemma_dependency_closure`, or `counterexample_search`.
+- A passed proof-bearing claim must also have every declared proof-specific acceptance test in `claims[].acceptance_tests[]` passing; proof-bearing claims must declare at least one such test (`claim_to_proof_alignment`, `proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `lemma_dependency_closure`, or `counterexample_search`).
 - If a PLAN reference has `must_surface: true`, the ledger must include a matching `contract_results.references.<reference-id>` entry.
 - For `must_surface` references, `completed_actions` must cover every `required_actions` item; do not mark the anchor as handled while leaving required actions only in prose.
 - `required_actions`, `completed_actions`, and `missing_actions` use the same closed action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`.

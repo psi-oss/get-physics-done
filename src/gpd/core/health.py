@@ -46,6 +46,9 @@ from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import GPDError, ValidationError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, validate_frontmatter
 from gpd.core.observability import gpd_span
+from gpd.core.public_surface_contract import (
+    local_cli_permissions_sync_command,
+)
 from gpd.core.state import (
     peek_state_json,
     save_state_json,
@@ -1168,7 +1171,6 @@ def normalize_permissions_readiness_payload(
     payload: dict[str, object],
     *,
     requested_runtime: str | None,
-    requested_autonomy: str | None,
 ) -> dict[str, object]:
     """Normalize runtime-permissions status into unattended-readiness verdict fields.
 
@@ -1241,20 +1243,21 @@ def normalize_permissions_readiness_payload(
                 and isinstance(autonomy_value, str)
                 and autonomy_value
             ):
+                permissions_sync_command = local_cli_permissions_sync_command().split(" --autonomy ", 1)[0]
                 if permissions_surface == "launch-wrapper":
                     next_step = (
                         f"Use `{_doctor_active_runtime_settings_command()}` inside the runtime for guided changes, or run "
-                        f"`gpd permissions sync --runtime {runtime_name} --autonomy {autonomy_value}` "
+                        f"`{permissions_sync_command} --autonomy {autonomy_value}` "
                         "from your normal system terminal to generate the launcher needed for the next session."
                     )
                 else:
                     next_step = (
                         f"Use `{_doctor_active_runtime_settings_command()}` inside the runtime for guided changes, or run "
-                        f"`gpd permissions sync --runtime {runtime_name} --autonomy {autonomy_value}` "
+                        f"`{permissions_sync_command} --autonomy {autonomy_value}` "
                         "from your normal system terminal."
                     )
             elif readiness == "unresolved" and requested_runtime is None:
-                next_step = "Pass `--runtime <name>` to inspect a specific installed runtime."
+                next_step = "Pass `--runtime <runtime>` to inspect a specific installed runtime."
 
         normalized["readiness"] = readiness
         normalized["ready"] = ready
@@ -1783,7 +1786,6 @@ def build_unattended_readiness_result(
     normalized_permissions = normalize_permissions_readiness_payload(
         permissions_payload,
         requested_runtime=runtime,
-        requested_autonomy=autonomy,
     )
     blocker_messages: list[str] = []
     seen_blockers: set[str] = set()

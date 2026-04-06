@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
+import gpd.hooks.runtime_detect as runtime_detect_module
 from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from gpd.adapters.runtime_catalog import normalize_runtime_name as catalog_normalize_runtime_name
@@ -397,12 +398,15 @@ class TestNormalizeRuntimeName:
 
 
 def test_supported_runtime_names_reflect_live_runtime_inventory(monkeypatch: pytest.MonkeyPatch) -> None:
-    import gpd.hooks.runtime_detect as runtime_detect
-
-    monkeypatch.setattr(runtime_detect, "list_runtimes", lambda: ["alpha", "beta", "gamma"])
+    monkeypatch.setattr(runtime_detect_module, "list_runtimes", lambda: ["alpha", "beta", "gamma"])
 
     assert supported_runtime_names() == ("alpha", "beta", "gamma")
-    assert runtime_detect._prioritized_runtimes("beta") == ["beta", "alpha", "gamma"]
+    assert runtime_detect_module._prioritized_runtimes("beta") == ["beta", "alpha", "gamma"]
+
+
+def test_runtime_detect_does_not_export_cached_runtime_inventory() -> None:
+    assert hasattr(runtime_detect_module, "supported_runtime_names")
+    assert not hasattr(runtime_detect_module, "ALL_RUNTIMES")
 
 
 class TestDetectActiveRuntimeWithInstall:

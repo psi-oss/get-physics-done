@@ -120,7 +120,16 @@ const PUBLIC_SURFACE_CONTRACT_KEYS = [
 ];
 const PUBLIC_SURFACE_CONTRACT_SECTION_KEYS = {
   beginner_onboarding: ["hub_url", "preflight_requirements", "caveats", "startup_ladder"],
-  local_cli_bridge: ["commands", "named_commands", "terminal_phrase", "purpose_phrase"],
+  local_cli_bridge: [
+    "commands",
+    "named_commands",
+    "terminal_phrase",
+    "purpose_phrase",
+    "install_local_example",
+    "doctor_local_command",
+    "doctor_global_command",
+    "validate_command_context_command",
+  ],
   post_start_settings: ["primary_sentence", "default_sentence"],
   resume_authority: [
     "durable_authority_phrase",
@@ -839,6 +848,14 @@ function validateSharedPublicSurfaceContract(contractPayload) {
   }
   const terminalPhrase = requireNonEmptyString(localCliBridge, "terminal_phrase", "local_cli_bridge");
   const purposePhrase = requireNonEmptyString(localCliBridge, "purpose_phrase", "local_cli_bridge");
+  const installLocalExample = requireNonEmptyString(localCliBridge, "install_local_example", "local_cli_bridge");
+  const doctorLocalCommand = requireNonEmptyString(localCliBridge, "doctor_local_command", "local_cli_bridge");
+  const doctorGlobalCommand = requireNonEmptyString(localCliBridge, "doctor_global_command", "local_cli_bridge");
+  const validateCommandContextCommand = requireNonEmptyString(
+    localCliBridge,
+    "validate_command_context_command",
+    "local_cli_bridge"
+  );
   const settingsCommandSentence = requireNonEmptyString(postStartSettings, "primary_sentence", "post_start_settings");
   const settingsRecommendationSentence = requireNonEmptyString(
     postStartSettings,
@@ -920,6 +937,10 @@ function validateSharedPublicSurfaceContract(contractPayload) {
       integrationsStatusWolframCommand: namedCommands.integrations_status_wolfram,
       terminalPhrase,
       purposePhrase,
+      installLocalExample,
+      doctorLocalCommand,
+      doctorGlobalCommand,
+      validateCommandContextCommand,
       unattendedReadinessCommand: namedCommands.unattended_readiness,
     },
     schemaVersion: 1,

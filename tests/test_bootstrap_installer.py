@@ -736,6 +736,13 @@ assert.equal(sharedText.localCliBridge.presetsListCommand, payload.local_cli_bri
 assert.equal(sharedText.localCliBridge.planPreflightCommand, payload.local_cli_bridge.named_commands.plan_preflight);
 assert.equal(sharedText.localCliBridge.terminalPhrase, payload.local_cli_bridge.terminal_phrase);
 assert.equal(sharedText.localCliBridge.purposePhrase, payload.local_cli_bridge.purpose_phrase);
+assert.equal(sharedText.localCliBridge.installLocalExample, payload.local_cli_bridge.install_local_example);
+assert.equal(sharedText.localCliBridge.doctorLocalCommand, payload.local_cli_bridge.doctor_local_command);
+assert.equal(sharedText.localCliBridge.doctorGlobalCommand, payload.local_cli_bridge.doctor_global_command);
+assert.equal(
+  sharedText.localCliBridge.validateCommandContextCommand,
+  payload.local_cli_bridge.validate_command_context_command
+);
 assert.equal(
   sharedText.localCliBridge.integrationsStatusWolframCommand,
   payload.local_cli_bridge.named_commands.integrations_status_wolfram

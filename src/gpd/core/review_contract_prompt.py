@@ -156,7 +156,7 @@ def _normalize_review_contract_string_list(value: object, *, field_name: str) ->
     for item in value:
         entry = _normalize_review_contract_required_str(item, field_name=field_name)
         if entry in seen:
-            continue
+            raise ValueError(f"{field_name} must not contain duplicates")
         seen.add(entry)
         normalized.append(entry)
     return normalized
@@ -187,7 +187,7 @@ def _normalize_review_contract_choice_list(
             invalid_values.append(item)
             continue
         if matched in seen:
-            continue
+            raise ValueError(f"{field_name} must not contain duplicates")
         seen.add(matched)
         canonicalized.append(matched)
     if invalid_values:

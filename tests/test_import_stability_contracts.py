@@ -5,6 +5,13 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_PYTHON = REPO_ROOT / ".venv" / "bin" / "python"
+
+
+def _repo_python_command() -> list[str]:
+    if REPO_PYTHON.is_file():
+        return [str(REPO_PYTHON)]
+    return ["uv", "run", "python"]
 
 
 def _top_level_imports(path: Path) -> list[str]:
@@ -27,9 +34,7 @@ def test_adapter_base_does_not_import_registry_at_module_import_time() -> None:
 def test_registry_import_remains_stable_after_adapter_package_import() -> None:
     result = subprocess.run(
         [
-            "uv",
-            "run",
-            "python",
+            *_repo_python_command(),
             "-c",
             "import gpd.adapters.base\nfrom gpd import registry\nprint(hasattr(registry, 'render_command_visibility_sections_from_frontmatter'))",
         ],

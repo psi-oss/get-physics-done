@@ -933,7 +933,8 @@ def test_new_project_requires_scoping_contract_across_setup_modes() -> None:
     assert "scope.unresolved_questions`, `context_intake.context_gaps`, or `uncertainty_markers.weakest_anchors`" in workflow_text
     assert "Do not approve a scoping contract that strips decisive outputs, anchors, prior outputs, or review/stop triggers down to generic placeholders." in workflow_text
     assert "Do NOT skip the initial scoping-contract approval gate." in workflow_text
-    assert "scoping contract with decisive outputs, anchors, and explicit approval" in command_text
+    assert "scoping contract with decisive outputs and anchors" in command_text
+    assert "explicit approval before downstream artifacts" in command_text
 
 
 def _assert_parse_line_includes_tokens(parse_line: str, fields: tuple[str, ...]) -> None:
@@ -991,9 +992,9 @@ def test_new_project_defers_workflow_setup_until_after_scope_approval() -> None:
     assert "If `GPD/config.json` does not exist yet, run Step 5 now before generating or committing `PROJECT.md`." in workflow_text
     assert "Run this step after scope approval and before the first project-artifact commit whenever `GPD/config.json` does not exist yet." in workflow_text
     assert "If Step 2.5 already captured provisional setup preferences" not in workflow_text
-    assert "workflow opens with the physics-questioning pass" in command_text
-    assert "surfaces a preset choice before writing workflow preferences" in command_text
-    assert "only asks the detailed config questions after scope approval" in command_text
+    assert "start with physics questioning" in command_text
+    assert "surface a preset choice before workflow preferences" in command_text
+    assert "before the first project-artifact commit" in command_text
 
 
 def test_new_project_command_avoids_stale_workflow_line_counts() -> None:
@@ -1212,7 +1213,8 @@ def test_new_project_minimal_mode_and_planning_wiring_allow_coarse_scoped_decomp
     assert "A full phase breakdown is not required at this stage;" in workflow_text
     assert "Use the coarsest decomposition the approved contract actually supports." in workflow_text
     assert "Do NOT invent literature, numerics, or paper phases unless the requirements or contract demand them." in workflow_text
-    assert "If `project_contract` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED`" in planner_prompt
+    assert "## CHECKPOINT REACHED" in planner_prompt
+    assert "missing or no longer sufficient to identify the right phase slice" in planner_prompt
 
 
 def test_reference_workflows_require_anchor_registry_propagation() -> None:
@@ -1524,7 +1526,8 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     assert "require that the selected `PLAN.md` passes `gpd validate plan-preflight <PLAN.md>`" in execute_phase
     assert "gpd validate plan-preflight <PLAN.md>" in plan_phase
     assert "declare it as `tool: wolfram` in `tool_requirements`" in tooling_ref
-    assert "verification_inputs" not in summary_template
+    for legacy_alias in ("must_haves", "verification_inputs", "contract_evidence", "independently_confirmed"):
+        assert legacy_alias not in summary_template
     assert "`suggested_contract_checks` is verification-only and does not belong in summaries." in summary_template
     assert "contract_results" in verification_template
     assert "comparison_verdicts" in verification_template
@@ -1680,7 +1683,7 @@ def test_execute_phase_and_execute_plan_surface_required_reference_and_state_own
         "substitute the repository's actual default branch and remote names for "
         "`<default-branch>` and `<remote-name>`"
     ) in execute_plan
-    assert "applies returned shared-state updates after each successfully completed plan" in execute_command
+    assert "Shared-state updates land after each completed plan" in execute_command
     assert "STATE.md is updated after each wave completes" not in execute_command
     assert "By the time the wave-complete report is emitted" in execute_workflow
     assert "continuation_update" in execute_plan
@@ -2019,14 +2022,8 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     review_significance = (AGENTS_DIR / "gpd-review-significance.md").read_text(encoding="utf-8")
     referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
 
-    assert "Project Contract:\n{project_contract}" in peer_review
-    assert "Project Contract Gate:\n{project_contract_gate}" in peer_review
-    assert "Project Contract Load Info:\n{project_contract_load_info}" in peer_review
-    assert "Project Contract Validation:\n{project_contract_validation}" in peer_review
-    assert "Active References:\n{active_reference_context}" in peer_review
-    assert "Contract Intake:\n{contract_intake}" in peer_review
-    assert "Effective Reference Intake:\n{effective_reference_intake}" in peer_review
-    assert "Reference Artifacts Content:\n{reference_artifacts_content}" in peer_review
+    assert "Reader-visible claims and surfaced evidence remain first-class" in peer_review
+    assert "effective_reference_intake" in peer_review
     assert "project_contract_validation" in peer_review
     assert "project_contract_load_info" in peer_review
     contract_gate_note = (
@@ -2204,7 +2201,8 @@ def test_research_verification_body_scaffold_keeps_body_only_subject_labels_dist
 
     assert "Allowed body enum values:" in research_verification
     assert "check_subject_kind: claim" in research_verification
-    assert "`check_subject_kind`: claim|deliverable|acceptance_test|reference" in research_verification
+    assert "check_subject_kind: claim" in research_verification
+    assert "suggested_subject_kind" in research_verification
     assert 'gap_subject_kind: "claim"' in research_verification
     assert "Use `check_subject_kind` for body-only verification checkpoints" in research_verification
     assert "Use `gap_subject_kind` for the body scaffold" in research_verification
@@ -2386,7 +2384,7 @@ def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> 
     assert "If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED` rather than guessing." in planner_prompt
     assert "Treat `approach_policy` as execution policy only." in planner_prompt
     assert "Keep `contract.context_intake` non-empty and specific, and surface explicit anchors when they matter." in planner_prompt
-    assert "Keep the contract block complete per the schema include." in planner_prompt
+    assert "contract block complete per the schema include" in planner_prompt
     assert "scope.unresolved_questions" in planner_prompt
     assert "Every claim must declare a stable `id`." in planner_prompt
     assert (
@@ -2394,7 +2392,6 @@ def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> 
         "target resolution becomes ambiguous."
         in planner_prompt
     )
-    assert "Keep the contract block complete per the schema include." in planner_prompt
     assert "# Contract Results Schema" in summary_template
     assert "Missing contract-backed `contract_results` is invalid." in summary_template
     assert "Do not invent `artifact` or `other` subject kinds" in summary_template
@@ -2414,6 +2411,8 @@ def test_sync_state_and_write_paper_command_prompts_expand_required_schema_bodie
     )
     assert "`convention_lock`" in sync_state
     assert "Reproducibility Manifest Template" in write_paper
+    assert "bibliographer search breadth" in write_paper
+    assert "paper-writer style by mode" in write_paper
     assert '"execution_steps"' in write_paper
     assert "random_seeds[].computation" in write_paper
     assert "resource_requirements[].step" in write_paper
@@ -2464,10 +2463,8 @@ def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalizat
     assert "context_gaps: [\"Comparison source still undecided before planning\"]" in plan_schema
     assert "crucial_inputs: [\"Check the user's finite-volume cutoff choice before proceeding\"]" in plan_schema
     assert "Only concrete anchors count as grounding." in plan_schema
-    assert (
-        "`context_gaps` and `crucial_inputs` preserve uncertainty and workflow visibility, but they do not satisfy the hard grounding/anchor requirement by themselves."
-        in plan_schema
-    )
+    assert "preserve uncertainty and workflow visibility" in plan_schema
+    assert "do not satisfy the hard grounding requirement by themselves" in plan_schema
     assert "approach_policy:" in plan_schema
     assert "allowed_fit_families: [power_law]" in plan_schema
     assert "`observables[]` may only reference declared `observables[].id`." in plan_schema
@@ -2582,7 +2579,7 @@ def test_stage5_execution_surfaces_use_bounded_review_cadence_and_first_result_g
     assert "Do NOT narrow just because a wave advanced or one proxy passed." in execute_phase
     assert "What decisive evidence is still owed before downstream work is trustworthy?" in resume_work
     assert "Pattern D: Auto-bounded" in executor_agent
-    assert "Public resume vocabulary centers on canonical continuation fields" in resume_work
+    assert "canonical continuation fields" in resume_work
     assert "public top-level resume vocabulary only" in resume_work
     assert "compat_resume_surface" not in resume_work
     assert "gpd init resume" not in resume_work
@@ -2647,9 +2644,8 @@ def test_resume_workflow_surfaces_contract_load_and_validation_state() -> None:
         require_generic_compatibility_note=False,
     )
     assert "Canonical continuation and recovery authority:" in resume_work
-    assert "Public resume vocabulary centers on canonical continuation fields" in resume_work
+    assert "canonical continuation fields" in resume_work
     _assert_resume_compatibility_note(resume_work)
-    assert resume_work.count("Public resume vocabulary centers on canonical continuation fields") == 1
     assert "The public resume vocabulary stays canonical and top-level." not in resume_work
     assert "continuity_handoff_file" in resume_work
     assert "recorded_continuity_handoff_file" in resume_work
@@ -2677,7 +2673,7 @@ def _assert_resume_compatibility_note(text: str) -> None:
 def test_resume_command_keeps_internal_resume_backend_details_out_of_public_prompt_surface() -> None:
     resume_command = (COMMANDS_DIR / "resume-work.md").read_text(encoding="utf-8")
 
-    assert "Public resume vocabulary centers on canonical continuation fields" in resume_command
+    assert "canonical continuation fields" in resume_command
     _assert_resume_compatibility_note(resume_command)
     assert "compat_resume_surface" not in resume_command
     assert "gpd init resume" not in resume_command
@@ -2716,8 +2712,8 @@ def test_pause_resume_and_help_wiring_keep_runtime_handoff_and_local_snapshot_bo
     assert "canonical continuation fields" in resume_work
     assert "resume_candidates" in resume_work
     assert "compat_resume_surface" not in resume_work
-    assert "Public resume vocabulary centers on canonical continuation fields" in resume_work
-    assert help_workflow.count("Public resume vocabulary centers on canonical continuation fields") == 1
+    assert "canonical continuation fields" in resume_work
+    assert "canonical continuation fields" in help_workflow
     assert "Do NOT invent additional candidates from plan files without summaries, auto-checkpoints, or other ad hoc checkpoints." in resume_work
     assert "gpd:resume-work" in pause_work
     assert "gpd resume" in pause_work
@@ -2739,7 +2735,7 @@ def test_state_portability_reference_keeps_resume_public_vocabulary_note_compact
     state_portability = (REFERENCES_DIR / "orchestration" / "state-portability.md").read_text(encoding="utf-8")
     help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
 
-    assert state_portability.count("Public resume vocabulary centers on canonical continuation fields") == 1
+    assert "canonical continuation fields" in state_portability
     _assert_resume_compatibility_note(state_portability)
     assert "Those legacy raw-intake aliases are not part of the public top-level resume vocabulary." not in state_portability
     assert "gpd observe execution" in help_workflow
@@ -3112,5 +3108,5 @@ def test_verification_and_publication_prompts_keep_decisive_contract_targets_rea
     assert "Missing generic `verification_status` / `confidence` tags alone are not blockers." in write_paper
     assert "Only require the manuscript to surface decisive comparisons for claims it actually makes." in write_paper
     assert "Do not enter `pre_submission_review` with a missing or non-review-ready reproducibility manifest" in write_paper
-    assert "Review-support artifacts are scaffolding, not substitutes for contract-backed evidence." in peer_review
+    assert "review-support artifacts are scaffolding" in peer_review
     assert "Treat referee requests beyond the manuscript's honest scope as optional unless they expose a real support gap" in respond

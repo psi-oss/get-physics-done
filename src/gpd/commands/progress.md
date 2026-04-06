@@ -13,14 +13,13 @@ allowed-tools:
   - find_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
+<!-- Tool names and @ includes are runtime-specific; the installer rewrites paths for your runtime. -->
+<!-- Allowed-tools are runtime-specific. Other platforms may expose different tool interfaces. -->
 
 <objective>
-Check physics research progress, summarize recent work and what's ahead, then intelligently route to the next action — either executing an existing plan or creating the next one.
+Check physics research progress, summarize recent work and what's ahead, then route to the next action.
 
-Provides situational awareness before continuing research work.
-Use `--brief` when returning and you only need a quick orientation snapshot, or `--reconcile` when state may have drifted from disk reality.
+Use `--brief` for a quick orientation snapshot, or `--reconcile` when disk state may have drifted.
 </objective>
 
 <execution_context>
@@ -32,16 +31,15 @@ Use `--brief` when returning and you only need a quick orientation snapshot, or 
 
 Check `$ARGUMENTS` for flags:
 
-- **`--brief`**: Show compact 3-line status (phase, plan, progress bar + last result + next command), then STOP. Do not show the full report.
-- **`--reconcile`**: Compare STATE.md against disk artifacts and fix discrepancies. See workflow for details.
-- **Default (no flag)**: Show full progress report with routing to next action.
+- **`--brief`**: Show a 3-line status, then stop.
+- **`--reconcile`**: Compare `STATE.md` against disk artifacts and fix discrepancies.
+- **Default (no flag)**: Show the full progress report and route to the next action.
 - **`--full`**: Same as default, plus detailed per-phase artifact listings and system health checks.
 
 **CRITICAL: First, read the full workflow file using the file_read tool:**
-Read the file at {GPD_INSTALL_DIR}/workflows/progress.md — this contains the complete step-by-step instructions. Do NOT improvise. Follow the workflow file exactly.
+Read {GPD_INSTALL_DIR}/workflows/progress.md first and follow it exactly.
 
-Execute the workflow end-to-end.
-Preserve all routing logic (Routes A through F) and edge case handling.
+Execute the workflow end-to-end and preserve all routing logic (Routes A through F) and edge cases.
 
 ## Step 1: Init Context
 
