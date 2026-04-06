@@ -1226,11 +1226,13 @@ class TestSkillsServer:
 
     def test_list_skills_empty_category(self):
         from gpd.mcp.servers.skills_server import list_skills
+        from gpd import registry as content_registry
 
         result = list_skills(category="nonexistent")
-        assert result["count"] == 0
-        assert result["skills"] == []
-        assert "categories" in result
+        assert result == {
+            "error": f"category must be one of: {', '.join(content_registry.skill_categories())}",
+            "schema_version": 1,
+        }
 
     def test_get_skill_found(self):
         from gpd.mcp.servers.skills_server import get_skill
@@ -1285,7 +1287,7 @@ class TestSkillsServer:
         assert "referee-decision-schema.md" in schema_documents
         assert "Referee Decision Schema" in schema_documents["referee-decision-schema.md"]["body"]
         assert "review-ledger-schema.md" in contract_documents
-        assert "schema_documents and contract_documents include the loaded markdown bodies for schema and contract references" in result["loading_hint"]
+        assert "schema_documents and contract_documents mirror loaded schema and contract markdown bodies." in result["loading_hint"]
         assert result["content_authority"] == "canonical"
         assert result["structured_metadata_authority"] == {
             "content": "canonical",

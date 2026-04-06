@@ -162,6 +162,35 @@ def _public_skill(skill: content_registry.SkillDef) -> dict[str, str]:
     }
 
 
+def _skill_loading_hint(*, source_kind: str, referenced_files: bool) -> str:
+    """Return a concise, content-first loading hint for a skill payload."""
+    reference_hint = (
+        "schema_documents and contract_documents mirror loaded schema and contract markdown bodies."
+        if referenced_files
+        else "No external markdown dependencies detected in the canonical skill body."
+    )
+    if source_kind == "command":
+        return (
+            f"{reference_hint} treat `content` as authoritative; it already embeds the model-visible "
+            "`Command Requirements` section."
+        )
+    if source_kind == "agent":
+        return (
+            f"{reference_hint} treat `content` as authoritative; it already embeds the model-visible "
+            "`Agent Requirements` section."
+        )
+    return f"{reference_hint} treat `content` as authoritative."
+
+
+def _normalize_skill_category(category: str) -> str:
+    """Validate a skill category against the live published enum."""
+    normalized = category.strip()
+    allowed = _skill_category_values()
+    if normalized not in allowed:
+        raise ValueError(f"category must be one of: {', '.join(allowed)}")
+    return normalized
+
+
 def _skill_index_label(skill: content_registry.SkillDef) -> str:
     """Render a canonical skill label for the shared MCP surface."""
     if skill.source_kind == "command":
@@ -512,6 +541,8 @@ def list_skills(
 
     with gpd_span("mcp.skills.list", category=category or ""):
         try:
+            if category is not None:
+                category = _normalize_skill_category(category)
             skills = [_public_skill(skill) for skill in _load_skill_index()]
             all_categories = sorted({s["category"] for s in skills})
             if category:
@@ -563,11 +594,7 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
                 referenced_files,
                 predicate=_is_contract_reference,
             )
-            loading_hint = (
-                "schema_documents and contract_documents include the loaded markdown bodies for schema and contract references; use referenced_files only for additional workflow/context docs."
-                if referenced_files
-                else "No external markdown dependencies detected in the canonical skill body."
-            )
+            loading_hint = _skill_loading_hint(source_kind=skill.source_kind, referenced_files=bool(referenced_files))
             payload = {
                 "name": skill.name,
                 "category": skill.category,
@@ -585,19 +612,12 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
             if skill.source_kind == "command":
                 command = content_registry.get_command(skill.registry_name)
                 allowed_tools = _normalize_allowed_tools(command.allowed_tools)
-                command_loading_hint = (
-                    loading_hint + " treat `content` as authoritative; the content field already includes a model-visible `Command Requirements` section."
-                )
-                if command.review_contract is not None:
-                    command_loading_hint += (
-                        " You do not need to inject `review_contract` alongside `content` because the `Review Contract` section is already embedded. `review_contract` remains a mirrored projection."
-                    )
                 payload.update(
                     {
                         "context_mode": command.context_mode,
                         "project_reentry_capable": command.project_reentry_capable,
                         "argument_hint": command.argument_hint,
-                        "loading_hint": command_loading_hint,
+                        "loading_hint": loading_hint,
                         "requires": copy.deepcopy(command.requires),
                         "review_contract": (
                             dataclasses.asdict(command.review_contract) if command.review_contract is not None else None
@@ -625,10 +645,7 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
                 payload["allowed_tools_surface"] = "agent.tools"
                 payload["agent_policy"] = agent_policy
                 payload["content_authority"] = "canonical"
-                payload["loading_hint"] = (
-                    loading_hint
-                    + " treat `content` as authoritative; the content field already includes a model-visible `Agent Requirements` section."
-                )
+                payload["loading_hint"] = loading_hint
             return stable_mcp_response(payload)
         except (GPDError, OSError, ValueError, TimeoutError) as e:
             return stable_mcp_error(e)

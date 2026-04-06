@@ -2294,7 +2294,7 @@ def test_skill_surface_exposes_contract_references_for_paper_and_review_workflow
     assert "Peer Review Panel Protocol" in peer_review_contract_documents["peer-review-panel.md"]["body"]
     assert "Peer Review Phase Reliability" in arxiv_contract_documents["peer-review-reliability.md"]["body"]
     assert "Peer Review Phase Reliability" in respond_contract_documents["peer-review-reliability.md"]["body"]
-    assert "schema_documents and contract_documents include the loaded markdown bodies for schema and contract references" in write_paper["loading_hint"]
+    assert "schema_documents and contract_documents mirror loaded schema and contract markdown bodies." in write_paper["loading_hint"]
 
 
 def test_review_and_execution_prompts_expand_required_schema_sources() -> None:

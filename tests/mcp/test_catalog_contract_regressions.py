@@ -59,15 +59,17 @@ def test_protocol_catalog_tools_reject_blank_inputs_up_front() -> None:
 
 def test_skill_catalog_tools_reject_blank_and_unknown_filters_up_front() -> None:
     from gpd.mcp.servers.skills_server import get_skill, list_skills
+    from gpd import registry as content_registry
 
     assert get_skill("") == {"error": "name must be a non-empty string", "schema_version": 1}
     assert list_skills(category="") == {"error": "category must be a non-empty string when provided", "schema_version": 1}
 
     result = list_skills(category="nonexistent")
 
-    assert result["count"] == 0
-    assert result["skills"] == []
-    assert "categories" in result
+    assert result == {
+        "error": f"category must be one of: {', '.join(content_registry.skill_categories())}",
+        "schema_version": 1,
+    }
 
 
 def test_verification_catalog_tools_reject_blank_inputs_up_front() -> None:
