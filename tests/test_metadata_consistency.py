@@ -229,6 +229,34 @@ def test_arxiv_descriptor_tracks_optional_dependency_surface() -> None:
     assert descriptor["prerequisites"] == ["Install GPD before enabling built-in MCP servers."]
 
 
+def test_arxiv_descriptor_reflects_v032_feature_surface() -> None:
+    """Verify the arXiv MCP descriptor accurately represents arxiv-mcp-server >=0.3.2."""
+    from gpd.mcp.builtin_servers import _BUILTIN_SERVERS, build_public_descriptors
+
+    raw = _BUILTIN_SERVERS["gpd-arxiv"]
+    assert raw["min_version"] == "0.3.2"
+
+    descriptor = build_public_descriptors()["gpd-arxiv"]
+
+    # v0.3.2 tools
+    assert descriptor["capabilities"] == [
+        "search_papers",
+        "download_paper",
+        "list_papers",
+        "read_paper",
+    ]
+
+    # v0.3.2 prompts (deep paper analysis with multi-turn context)
+    assert descriptor["prompts"] == ["deep-paper-analysis"]
+
+    # Description must mention key v0.3.2 features
+    desc = descriptor["description"]
+    assert ">=0.3.2" in desc
+    assert "advanced filtering" in desc
+    assert "deep paper analysis" in desc
+    assert "multi-turn" in desc
+
+
 def test_agent_count_matches_prompts_and_user_docs() -> None:
     agents_count = len(list((_repo_root() / "src" / "gpd" / "agents").glob("*.md")))
     assert agents_count == len(MODEL_PROFILES)
