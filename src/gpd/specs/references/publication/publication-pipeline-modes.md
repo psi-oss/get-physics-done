@@ -35,7 +35,7 @@ How the bibliographer, referee, and paper-writer agents adapt their behavior bas
 
 Set via: `gpd config set autonomy balanced` and `gpd config set research_mode balanced`.
 
-Read via: `gpd init` includes both fields in the init JSON output.
+Read via: `gpd --raw init` includes both fields in the init JSON output.
 
 ---
 

@@ -116,6 +116,11 @@ def test_get_skill_agent_surfaces_allowed_tools() -> None:
     assert result["allowed_tools"] == ["shell", "file_read"]
     assert result["allowed_tools"] is not agent.tools
     assert result["allowed_tools_surface"] == "agent.tools"
+    assert result["structured_metadata_authority"] == {
+        "content": "canonical",
+        "allowed_tools": "mirrored",
+        "agent_policy": "mirrored",
+    }
     result["allowed_tools"].append("network")
     assert agent.tools == ["shell", "file_read", "shell"]
 

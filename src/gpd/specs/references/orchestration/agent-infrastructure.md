@@ -249,7 +249,7 @@ Common state management commands used across agents:
 
 ```bash
 # Initialize execution context
-gpd init <command> <phase>
+gpd --raw init <command> <phase>
 
 # Update project state
 gpd state add-decision --phase <N> --summary "<text>" --rationale "<why>"
@@ -609,7 +609,7 @@ Different phase types have different context consumption patterns. The orchestra
 **Budget anomaly detection:**
 
 If the orchestrator detects it is consuming more than its allocated budget (e.g., >25% for a derivation phase), it should:
-1. Stop reading full SUMMARY files -- use `gpd summary-extract <path> --field one_liner` instead.
+1. Stop reading full SUMMARY files -- use `gpd --raw summary-extract <path> --field one_liner` instead.
 2. Stop re-reading STATE.md between waves (use cached version).
 3. Delegate any remaining analysis to a subagent.
 

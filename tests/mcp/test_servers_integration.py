@@ -480,6 +480,7 @@ class TestSkillsServerIntegration:
         assert any(path.endswith("referee-decision-schema.md") for path in result["schema_references"])
         assert result["review_contract"] is not None
         assert result["review_contract"]["review_mode"] == "publication"
+        assert "required_state" not in result["review_contract"]
         assert result["review_contract"]["conditional_requirements"] == [
             {
                 "when": "theorem-bearing claims are present",

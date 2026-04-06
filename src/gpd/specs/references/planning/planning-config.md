@@ -77,11 +77,11 @@ Configuration options for `GPD/` directory behavior in physics research projects
 gpd commit "docs: update state" --files GPD/STATE.md
 
 # Load config via init progress (returns JSON):
-INIT=$(gpd init progress --include state,config)
+INIT=$(gpd --raw init progress --include state,config)
 # planning.commit_docs is available in the JSON output
 
 # Or use init commands which include planning.commit_docs:
-INIT=$(gpd init execute-phase "1")
+INIT=$(gpd --raw init execute-phase "1")
 # planning.commit_docs is included in all init command outputs
 ```
 
@@ -218,14 +218,14 @@ To use uncommitted mode:
 Use `init execute-phase` which returns all config as JSON:
 
 ```bash
-INIT=$(gpd init execute-phase "1")
+INIT=$(gpd --raw init execute-phase "1")
 # JSON output includes: branching_strategy, phase_branch_template, milestone_branch_template
 ```
 
 Or use `init progress` for the config values:
 
 ```bash
-INIT=$(gpd init progress --include state,config)
+INIT=$(gpd --raw init progress --include state,config)
 # Parse branching_strategy, phase_branch_template, milestone_branch_template from JSON
 ```
 

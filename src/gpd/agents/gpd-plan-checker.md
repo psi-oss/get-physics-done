@@ -833,7 +833,7 @@ This feedback loop ensures the plan checker improves over time within a project.
 Load phase operation context:
 
 ```bash
-INIT=$(gpd init phase-op "${PHASE_ARG}")
+INIT=$(gpd --raw init phase-op "${PHASE_ARG}")
 ```
 
 Extract from init JSON: `phase_dir`, `phase_number`, `has_plans`, `plan_count`.

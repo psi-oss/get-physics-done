@@ -69,7 +69,7 @@ Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 Load experiment context:
 
 ```bash
-INIT=$(gpd init phase-op "${PHASE}")
+INIT=$(gpd --raw init phase-op "${PHASE}")
 ```
 
 Extract from init JSON: `phase_dir`, `plans`, `conventions`.

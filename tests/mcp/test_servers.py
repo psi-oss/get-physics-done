@@ -1302,6 +1302,7 @@ class TestSkillsServer:
         assert result["project_reentry_capable"] is False
         assert result["review_contract"] is not None
         assert result["review_contract"]["review_mode"] == "publication"
+        assert "required_state" not in result["review_contract"]
         assert result["review_contract"]["conditional_requirements"] == [
             {
                 "when": "theorem-bearing claims are present",
@@ -1367,6 +1368,11 @@ class TestSkillsServer:
         assert "## Agent Requirements" in result["content"]
         assert result["content"].count("## Agent Requirements") == 1
         assert "## Agent Policy" not in result["content"]
+        assert result["structured_metadata_authority"] == {
+            "content": "canonical",
+            "allowed_tools": "mirrored",
+            "agent_policy": "mirrored",
+        }
         assert "commit_authority" in result["content"]
         assert "artifact_write_authority" in result["content"]
         assert "shared_state_authority" in result["content"]
@@ -1378,6 +1384,19 @@ class TestSkillsServer:
             "shared_state_authority": agent.shared_state_authority,
             "tools": agent.tools,
         }
+
+    def test_get_skill_loading_hint_only_claims_schema_documents_when_loaded(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-debug")
+
+        assert result["reference_count"] > 0
+        assert result["schema_documents"] == []
+        assert result["contract_documents"] == []
+        assert "See `referenced_files` for external markdown dependencies." in result["loading_hint"]
+        assert "schema_documents and contract_documents mirror loaded schema and contract markdown bodies." not in result[
+            "loading_hint"
+        ]
 
     def test_get_skill_canonicalizes_runtime_command_examples(self):
         from gpd.mcp.servers.skills_server import get_skill

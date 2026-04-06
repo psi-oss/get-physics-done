@@ -426,7 +426,7 @@ In addition to computation-type mini-checklists, run these after each major step
 Load execution context:
 
 ```bash
-INIT=$(gpd init execute-phase "${PHASE}")
+INIT=$(gpd --raw init execute-phase "${PHASE}")
 ```
 
 Extract from init JSON: `executor_model`, `checkpoint_docs`, `phase_dir`, `plans`, `incomplete_plans`.
@@ -444,7 +444,7 @@ fi
 If STATE.md missing but GPD/ exists: offer to reconstruct or continue without.
 If GPD/ missing: Error --- project not initialized.
 
-If the prompt does NOT provide a phase identifier because this is a scoped quick task or another bounded execution handoff, skip `gpd init execute-phase` and instead load only the files, artifacts, and constraints named explicitly in the prompt. In that scoped-task mode, the prompt itself is the execution contract.
+If the prompt does NOT provide a phase identifier because this is a scoped quick task or another bounded execution handoff, skip `gpd --raw init execute-phase` and instead load only the files, artifacts, and constraints named explicitly in the prompt. In that scoped-task mode, the prompt itself is the execution contract.
 </step>
 
 <step name="load_plan_or_task_contract">

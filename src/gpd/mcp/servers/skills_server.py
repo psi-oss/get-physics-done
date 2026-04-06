@@ -32,6 +32,7 @@ from gpd.command_labels import (
 )
 from gpd.core.errors import GPDError
 from gpd.core.observability import gpd_span
+from gpd.core.review_contract_prompt import normalize_review_contract_payload
 from gpd.mcp.servers import (
     configure_mcp_logging,
     parse_frontmatter_safe,
@@ -162,12 +163,16 @@ def _public_skill(skill: content_registry.SkillDef) -> dict[str, str]:
     }
 
 
-def _skill_loading_hint(*, source_kind: str, referenced_files: bool) -> str:
+def _skill_loading_hint(*, source_kind: str, referenced_files: bool, reference_documents: bool) -> str:
     """Return a concise, content-first loading hint for a skill payload."""
     reference_hint = (
         "schema_documents and contract_documents mirror loaded schema and contract markdown bodies."
-        if referenced_files
-        else "No external markdown dependencies detected in the canonical skill body."
+        if reference_documents
+        else (
+            "See `referenced_files` for external markdown dependencies."
+            if referenced_files
+            else "No external markdown dependencies detected in the canonical skill body."
+        )
     )
     if source_kind == "command":
         return (
@@ -180,6 +185,16 @@ def _skill_loading_hint(*, source_kind: str, referenced_files: bool) -> str:
             "`Agent Requirements` section."
         )
     return f"{reference_hint} treat `content` as authoritative."
+
+
+def _skill_review_contract_payload(review_contract: content_registry.ReviewCommandContract | None) -> dict[str, object] | None:
+    """Return the canonical MCP payload for a command review contract."""
+    if review_contract is None:
+        return None
+    payload = normalize_review_contract_payload(dataclasses.asdict(review_contract))
+    if not payload.get("required_state"):
+        payload.pop("required_state", None)
+    return payload
 
 
 def _normalize_skill_category(category: str) -> str:
@@ -594,7 +609,11 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
                 referenced_files,
                 predicate=_is_contract_reference,
             )
-            loading_hint = _skill_loading_hint(source_kind=skill.source_kind, referenced_files=bool(referenced_files))
+            loading_hint = _skill_loading_hint(
+                source_kind=skill.source_kind,
+                referenced_files=bool(referenced_files),
+                reference_documents=bool(schema_documents or contract_documents),
+            )
             payload = {
                 "name": skill.name,
                 "category": skill.category,
@@ -619,9 +638,7 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
                         "argument_hint": command.argument_hint,
                         "loading_hint": loading_hint,
                         "requires": copy.deepcopy(command.requires),
-                        "review_contract": (
-                            dataclasses.asdict(command.review_contract) if command.review_contract is not None else None
-                        ),
+                        "review_contract": _skill_review_contract_payload(command.review_contract),
                         "allowed_tools_surface": "command.allowed-tools",
                         "content_authority": "canonical",
                         "structured_metadata_authority": {
@@ -645,6 +662,11 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
                 payload["allowed_tools_surface"] = "agent.tools"
                 payload["agent_policy"] = agent_policy
                 payload["content_authority"] = "canonical"
+                payload["structured_metadata_authority"] = {
+                    "content": "canonical",
+                    "allowed_tools": "mirrored",
+                    "agent_policy": "mirrored",
+                }
                 payload["loading_hint"] = loading_hint
             return stable_mcp_response(payload)
         except (GPDError, OSError, ValueError, TimeoutError) as e:

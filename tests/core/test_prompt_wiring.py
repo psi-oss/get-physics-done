@@ -1362,15 +1362,30 @@ def test_workflows_use_raw_json_when_shell_snippets_pipe_cli_output_into_gpd_jso
 def test_workflow_and_command_docs_use_raw_output_for_machine_parsed_cli_json() -> None:
     offenders: list[str] = []
 
-    for directory in (WORKFLOWS_DIR, COMMANDS_DIR):
-        for path in sorted(directory.glob("*.md")):
-            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-                if re.search(r"\bgpd init\b", line) and "gpd --raw init" not in line:
-                    offenders.append(f"{path.relative_to(REPO_ROOT)}:{line_number}: {line.strip()}")
-                if re.search(r"\bgpd summary-extract\b", line) and "gpd --raw summary-extract" not in line:
-                    offenders.append(f"{path.relative_to(REPO_ROOT)}:{line_number}: {line.strip()}")
-                if re.search(r"\bgpd state compact\b", line) and "gpd --raw state compact" not in line:
-                    offenders.append(f"{path.relative_to(REPO_ROOT)}:{line_number}: {line.strip()}")
+    prompt_paths = [
+        *sorted(WORKFLOWS_DIR.glob("*.md")),
+        *sorted(COMMANDS_DIR.glob("*.md")),
+        *sorted(AGENTS_DIR.glob("*.md")),
+        *sorted(TEMPLATES_DIR.rglob("*.md")),
+        *sorted(REFERENCES_DIR.rglob("*.md")),
+    ]
+
+    machine_parsed_paths = [
+        *sorted(WORKFLOWS_DIR.glob("*.md")),
+        *sorted(COMMANDS_DIR.glob("*.md")),
+    ]
+
+    for path in prompt_paths:
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if re.search(r"\bgpd init\b", line) and "gpd --raw init" not in line:
+                offenders.append(f"{path.relative_to(REPO_ROOT)}:{line_number}: {line.strip()}")
+            if re.search(r"\bgpd summary-extract\b", line) and "gpd --raw summary-extract" not in line:
+                offenders.append(f"{path.relative_to(REPO_ROOT)}:{line_number}: {line.strip()}")
+
+    for path in machine_parsed_paths:
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if re.search(r"\bgpd state compact\b", line) and "gpd --raw state compact" not in line:
+                offenders.append(f"{path.relative_to(REPO_ROOT)}:{line_number}: {line.strip()}")
 
     assert not offenders, "Found machine-parsed CLI snippets missing --raw:\n" + "\n".join(offenders)
 

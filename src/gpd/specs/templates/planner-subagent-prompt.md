@@ -170,7 +170,7 @@ Return what changed.
 
 | Placeholder | Source |
 | --- | --- |
-| `{phase_number}` | `gpd init plan-phase` |
+| `{phase_number}` | `gpd --raw init plan-phase` |
 | `{research_mode}` | `GPD/config.json` or init JSON |
 | `{autonomy}` | `GPD/config.json` or init JSON |
 | `{state_content}` | `state_content` from init JSON |
