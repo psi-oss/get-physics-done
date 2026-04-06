@@ -45,6 +45,7 @@ from gpd.contracts import (
 from gpd.contracts import (
     _is_project_artifact_path as _shared_is_project_artifact_path,
 )
+from gpd.core.utils import dedupe_preserve_order
 
 __all__ = [
     "ProjectContractValidationResult",
@@ -141,17 +142,6 @@ class ProjectContractValidationResult(BaseModel):
     guidance_signal_count: int = 0
     reference_count: int = 0
     mode: Literal["draft", "approved"] = "draft"
-
-
-def _dedupe_findings(findings: list[str]) -> list[str]:
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for finding in findings:
-        if finding in seen:
-            continue
-        seen.add(finding)
-        deduped.append(finding)
-    return deduped
 
 
 def _format_schema_error(error: dict[str, object]) -> str:
@@ -671,7 +661,7 @@ def _collect_list_shape_drift_errors(contract: dict[str, object]) -> list[str]:
     for collection_name, field_names in PROJECT_CONTRACT_COLLECTION_LIST_FIELDS.items():
         _check_collection_item_lists(collection_name, field_names)
 
-    return _dedupe_findings(errors)
+    return dedupe_preserve_order(errors)
 
 
 _LITERAL_CASE_DRIFT_FIELD_PATTERNS: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] = (
@@ -1088,11 +1078,11 @@ def validate_project_contract(
 
     salvage_result = parse_project_contract_data_salvage(contract_payload)
     parsed = salvage_result.contract
-    schema_warnings = _dedupe_findings(list(salvage_result.recoverable_errors))
-    schema_errors = _dedupe_findings(list(salvage_result.blocking_errors))
+    schema_warnings = dedupe_preserve_order(salvage_result.recoverable_errors)
+    schema_errors = dedupe_preserve_order(salvage_result.blocking_errors)
     schema_version_error = _project_contract_schema_version_missing_error(contract_payload)
     if schema_version_error is not None:
-        schema_errors = _dedupe_findings([schema_version_error, *schema_errors])
+        schema_errors = dedupe_preserve_order([schema_version_error, *schema_errors])
     if parsed is None:
         return ProjectContractValidationResult(
             valid=False,
@@ -1171,8 +1161,8 @@ def validate_project_contract(
 
     return ProjectContractValidationResult(
         valid=not errors,
-        errors=_dedupe_findings(errors),
-        warnings=_dedupe_findings(warnings),
+        errors=dedupe_preserve_order(errors),
+        warnings=dedupe_preserve_order(warnings),
         question=question or None,
         decisive_target_count=decisive_target_count,
         guidance_signal_count=guidance_signal_count,

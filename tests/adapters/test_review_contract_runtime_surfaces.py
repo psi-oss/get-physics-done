@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import pytest
 
+from gpd import registry
 from gpd.adapters.codex import _convert_to_codex_skill
 from gpd.adapters.gemini import _convert_to_gemini_toml
 from gpd.adapters.opencode import convert_claude_to_opencode_frontmatter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
-from gpd import registry
 from tests.adapters.review_contract_test_utils import extract_review_contract_section
 
 RUNTIMES = tuple(descriptor.runtime_name for descriptor in iter_runtime_descriptors())

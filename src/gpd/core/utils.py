@@ -9,9 +9,10 @@ import os
 import re
 import tempfile
 import time
-from collections.abc import Iterable, Iterator
+from collections.abc import Hashable, Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import TypeVar
 
 from gpd.core.constants import (
     DEFAULT_MAX_INCLUDE_CHARS,
@@ -36,6 +37,7 @@ __all__ = [
     "MAX_INCLUDE_CHARS",
     "atomic_write",
     "compare_phase_numbers",
+    "dedupe_preserve_order",
     "file_lock",
     "generate_slug",
     "is_phase_complete",
@@ -50,6 +52,8 @@ __all__ = [
     "safe_read_file",
     "safe_read_file_truncated",
 ]
+
+_HashableT = TypeVar("_HashableT", bound=Hashable)
 
 # ─── Phase Utilities ────────────────────────────────────────────────────────────
 
@@ -180,6 +184,18 @@ def generate_slug(text: str) -> str | None:
         return None
     slug = re.sub(r"[^a-z0-9]+", "-", text.lower())
     return slug.strip("-") or None
+
+
+def dedupe_preserve_order(values: Iterable[_HashableT]) -> list[_HashableT]:
+    """Return unique values in first-seen order."""
+    deduped: list[_HashableT] = []
+    seen: set[_HashableT] = set()
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        deduped.append(value)
+    return deduped
 
 
 def safe_parse_int(value: object, default: int | None = 0) -> int | None:

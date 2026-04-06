@@ -10,6 +10,7 @@ import pytest
 import gpd.core.utils as utils
 from gpd.core.utils import (
     compare_phase_numbers,
+    dedupe_preserve_order,
     file_lock,
     phase_normalize,
     phase_unpad,
@@ -153,6 +154,20 @@ def test_safe_read_file_truncated_marks_large_files(tmp_path: Path) -> None:
 
 def test_safe_read_file_truncated_returns_none_for_missing_files(tmp_path: Path) -> None:
     assert safe_read_file_truncated(tmp_path / "missing.txt") is None
+
+
+def test_dedupe_preserve_order_keeps_first_seen_sequence() -> None:
+    assert dedupe_preserve_order(["claim-a", "claim-b", "claim-a", "claim-c", "claim-b"]) == [
+        "claim-a",
+        "claim-b",
+        "claim-c",
+    ]
+
+
+def test_dedupe_preserve_order_accepts_generators() -> None:
+    values = (value for value in (Path("a"), Path("b"), Path("a"), Path("c")))
+
+    assert dedupe_preserve_order(values) == [Path("a"), Path("b"), Path("c")]
 
 
 def test_utils_module_imports_without_fcntl(monkeypatch: pytest.MonkeyPatch) -> None:

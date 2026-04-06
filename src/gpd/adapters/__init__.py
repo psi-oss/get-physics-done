@@ -18,7 +18,7 @@ from gpd.adapters.runtime_catalog import (
 if TYPE_CHECKING:
     from gpd.adapters.base import RuntimeAdapter
 
-_REGISTRY: dict[str, type["RuntimeAdapter"]] = {}
+_REGISTRY: dict[str, type[RuntimeAdapter]] = {}
 _LOADED = False
 
 
@@ -27,7 +27,7 @@ def _module_name_for_runtime(runtime_name: str) -> str:
     return runtime_name.replace("-", "_")
 
 
-def _load_adapter_class(runtime_name: str) -> type["RuntimeAdapter"]:
+def _load_adapter_class(runtime_name: str) -> type[RuntimeAdapter]:
     """Import and return the adapter class that owns *runtime_name*."""
     from gpd.adapters.base import RuntimeAdapter
 

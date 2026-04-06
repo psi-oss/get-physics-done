@@ -48,6 +48,7 @@ from gpd.core.surface_phrases import (
 from gpd.core.surface_phrases import (
     workflow_preset_surface_note as _workflow_preset_surface_note_text,
 )
+from gpd.core.utils import dedupe_preserve_order
 from gpd.core.workflow_presets import (
     _normalize_latex_capability,
     resolve_workflow_preset_readiness,
@@ -92,17 +93,6 @@ def _model_dump(value: object) -> dict[str, object] | None:
             return None
         return dumped if isinstance(dumped, dict) else None
     return value if isinstance(value, dict) else None
-
-
-def _dedupe_text(items: list[str]) -> list[str]:
-    seen: set[str] = set()
-    merged: list[str] = []
-    for item in items:
-        if item in seen:
-            continue
-        seen.add(item)
-        merged.append(item)
-    return merged
 
 
 def workflow_preset_surface_note() -> str:
@@ -641,7 +631,7 @@ def build_runtime_hint_payload(
                 next_action_parts.append(next_action.strip())
     if include_workflow_presets:
         next_action_parts.extend(_workflow_next_actions(base_ready=base_ready))
-    next_actions = _dedupe_text(next_action_parts)
+    next_actions = dedupe_preserve_order(next_action_parts)
 
     return RuntimeHintPayload(
         source_meta=source_meta,

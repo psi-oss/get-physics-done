@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 from pydantic import ValidationError as PydanticValidationError
 
+from gpd.core.utils import dedupe_preserve_order
+
 __all__ = [
     "ConventionLock",
     "VerificationEvidence",
@@ -2297,17 +2299,6 @@ class ProjectContractParseResult(BaseModel):
         return list(self.recoverable_errors)
 
 
-def _dedupe_preserve_order(values: list[str]) -> list[str]:
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for value in values:
-        if value in seen:
-            continue
-        seen.add(value)
-        deduped.append(value)
-    return deduped
-
-
 def _project_contract_parse_result(
     *,
     contract: ResearchContract | None = None,
@@ -2316,8 +2307,8 @@ def _project_contract_parse_result(
 ) -> ProjectContractParseResult:
     return ProjectContractParseResult(
         contract=contract,
-        blocking_errors=_dedupe_preserve_order(list(blocking_errors or [])),
-        recoverable_errors=_dedupe_preserve_order(list(recoverable_errors or [])),
+        blocking_errors=dedupe_preserve_order(blocking_errors or []),
+        recoverable_errors=dedupe_preserve_order(recoverable_errors or []),
     )
 
 
