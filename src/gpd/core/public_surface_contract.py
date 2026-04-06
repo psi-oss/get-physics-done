@@ -171,58 +171,37 @@ class PublicSurfaceContract:
     recovery_ladder: RecoveryLadderContract
 
 
-_PUBLIC_SURFACE_CONTRACT_KEYS = (
-    "schema_version",
-    "beginner_onboarding",
-    "local_cli_bridge",
-    "post_start_settings",
-    "resume_authority",
-    "recovery_ladder",
-)
-_PUBLIC_SURFACE_SECTION_KEYS = {
-    "beginner_onboarding": ("hub_url", "preflight_requirements", "caveats", "startup_ladder"),
-    "local_cli_bridge": (
-        "commands",
-        "named_commands",
-        "terminal_phrase",
-        "purpose_phrase",
-        "install_local_example",
-        "doctor_local_command",
-        "doctor_global_command",
-        "validate_command_context_command",
-    ),
-    "post_start_settings": ("primary_sentence", "default_sentence"),
-    "resume_authority": (
-        "durable_authority_phrase",
-        "public_vocabulary_intro",
-        "public_fields",
-        "top_level_boundary_phrase",
-    ),
-    "recovery_ladder": (
-        "title",
-        "local_snapshot_command",
-        "local_snapshot_phrase",
-        "cross_workspace_command",
-        "cross_workspace_phrase",
-        "resume_phrase",
-        "next_phrase",
-        "pause_phrase",
-    ),
-}
-_LOCAL_CLI_NAMED_COMMAND_KEYS = (
-    "help",
-    "doctor",
-    "unattended_readiness",
-    "permissions_status",
-    "permissions_sync",
-    "resume",
-    "resume_recent",
-    "observe_execution",
-    "cost",
-    "presets_list",
-    "plan_preflight",
-    "integrations_status_wolfram",
-)
+def _load_public_surface_contract_shape() -> tuple[tuple[str, ...], dict[str, tuple[str, ...]], tuple[str, ...]]:
+    contract_path = files("gpd.core").joinpath("public_surface_contract.json")
+    raw_payload = json.loads(contract_path.read_text(encoding="utf-8"))
+    if not isinstance(raw_payload, dict):
+        raise ValueError(f"public_surface_contract must be a JSON object, got {type(raw_payload).__name__}")
+
+    section_names = (
+        "beginner_onboarding",
+        "local_cli_bridge",
+        "post_start_settings",
+        "resume_authority",
+        "recovery_ladder",
+    )
+    section_keys: dict[str, tuple[str, ...]] = {}
+    for section_name in section_names:
+        section_payload = raw_payload.get(section_name)
+        if not isinstance(section_payload, dict):
+            raise ValueError(f"{section_name} must be a JSON object")
+        section_keys[section_name] = tuple(section_payload.keys())
+
+    local_cli_bridge = raw_payload.get("local_cli_bridge")
+    if not isinstance(local_cli_bridge, dict):
+        raise ValueError("local_cli_bridge must be a JSON object")
+    named_commands = local_cli_bridge.get("named_commands")
+    if not isinstance(named_commands, dict):
+        raise ValueError("local_cli_bridge.named_commands must be a JSON object")
+
+    return tuple(raw_payload.keys()), section_keys, tuple(named_commands.keys())
+
+
+_PUBLIC_SURFACE_CONTRACT_KEYS, _PUBLIC_SURFACE_SECTION_KEYS, _LOCAL_CLI_NAMED_COMMAND_KEYS = _load_public_surface_contract_shape()
 
 
 def _join_backticked_commands(commands: tuple[str, ...]) -> str:

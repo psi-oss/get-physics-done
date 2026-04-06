@@ -156,7 +156,7 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 - Use your runtime-specific `settings` command after the first successful launch as the guided path for unattended configuration. Balanced (`balanced`) is the recommended unattended default.
 - For the broader terminal-side diagnostics, readiness, recovery, visibility, cost, and preset surface, start with `gpd --help` from your normal terminal.
 - Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` when you want a terminal-side unattended or overnight verdict.
-- If you plan paper/manuscript work later, use `gpd doctor --runtime <runtime> --local|--global` as the terminal-side readiness check first. For the fuller preset catalog, shared Wolfram integration details, and plan-preflight boundaries, use `gpd presets list`, `gpd integrations status wolfram`, and `gpd validate plan-preflight <PLAN.md>` from your normal terminal.
+- If you plan paper/manuscript work later, use `gpd doctor --runtime <runtime> --local` for the project-local target or `gpd doctor --runtime <runtime> --global` for the global target first. For the fuller preset catalog, shared Wolfram integration details, and plan-preflight boundaries, use `gpd presets list`, `gpd integrations status wolfram`, and `gpd validate plan-preflight <PLAN.md>` from your normal terminal.
 - Provider authentication is checked manually in the runtime itself; GPD will point this out, but it does not hard-block installation readiness on it
 - Use `--upgrade` only when you intentionally want the latest unreleased GitHub `main` snapshot
 
@@ -171,9 +171,9 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 
 **Troubleshooting**
 
-- If the bootstrap installer fails before `gpd doctor --runtime <runtime> --local|--global` can run, fix Node / Python / `venv` bootstrap prerequisites first.
-- If `gpd doctor --runtime <runtime> --local|--global` fails, fix the selected runtime's launcher / target / runtime-readiness issue first.
-- If `gpd doctor --runtime <runtime> --local|--global` only warns about `Workflow Presets` or `LaTeX Toolchain`, the base install can still be fine; treat that as degraded readiness for `write-paper` and local smoke checks rather than a full install blocker. Use `gpd paper-build` to judge whether the manuscript scaffold is buildable.
+- If the bootstrap installer fails before either `gpd doctor --runtime <runtime> --local` or `gpd doctor --runtime <runtime> --global` can run, fix Node / Python / `venv` bootstrap prerequisites first.
+- If the matching `gpd doctor --runtime <runtime> --local` or `gpd doctor --runtime <runtime> --global` command fails, fix the selected runtime's launcher / target / runtime-readiness issue first.
+- If that matching doctor command only warns about `Workflow Presets` or `LaTeX Toolchain`, the base install can still be fine; treat that as degraded readiness for `write-paper` and local smoke checks rather than a full install blocker. Use `gpd paper-build` to judge whether the manuscript scaffold is buildable.
 - If the runtime launches but GPD commands are missing, rerun the installer with an explicit runtime and explicit scope from your normal system terminal.
 - If you want the read-only runtime-owned permission snapshot first, run `gpd permissions status --runtime <runtime> --autonomy balanced`. If `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` returns `not-ready`, run `gpd permissions sync --runtime <runtime> --autonomy balanced` and check again; if it returns `relaunch-required`, exit and relaunch the runtime before unattended use.
 - If the runtime itself cannot launch or is not authenticated, fix the runtime/provider setup outside GPD before retrying the GPD install.
@@ -221,29 +221,7 @@ GPD currently installs into four AI runtimes. To preselect one during install, u
 | Gemini CLI | `--gemini` | `/gpd:help` | `/gpd:start` | `/gpd:tour` | `/gpd:new-project --minimal` | `/gpd:map-research` | `/gpd:resume-work` |
 | OpenCode | `--opencode` | `/gpd-help` | `/gpd-start` | `/gpd-tour` | `/gpd-new-project --minimal` | `/gpd-map-research` | `/gpd-resume-work` |
 
-Each runtime uses its own command prefix, but the workflow is the same across all four. After installing GPD, open your chosen runtime normally from your system terminal and use the commands shown above.
-After your first successful start or later, use your runtime's `settings` command to review autonomy, workflow defaults, model-cost posture, runtime permission sync, and preset/tier overrides.
-
-Notes:
-- Claude Code-specific note: GPD writes `.claude/settings.json` for hooks and statusline. MCP servers are added to project `.mcp.json` for local installs or `~/.claude.json` for global installs.
-- Codex-specific note: GPD writes `.codex/config.toml` during install, enables `features.multi_agent = true`, configures the required notify hook and built-in MCP servers, registers GPD agent roles in `[agents.*]`, and for local installs exposes only public `gpd-*` agents there as discoverable skills in repo-scoped `.agents/skills/`; the full agent catalog still installs under `.codex/agents/` for direct invocation.
-- Codex global skills use `CODEX_SKILLS_DIR` when set, or `~/.agents/skills/` by default.
-- Gemini-specific note: GPD writes `.gemini/settings.json` during install, enables `experimental.enableAgents`, configures the required hooks and built-in MCP servers, and installs `policies/gpd-auto-edit.toml` for Gemini auto-edit shell approvals.
-- OpenCode-specific note: GPD writes `.opencode/opencode.json` for local installs or `~/.config/opencode/opencode.json` for global installs, installs flat `command/gpd-*.md` files, configures built-in MCP servers under the `mcp` key, and manages GPD-owned `permission.read` / `permission.external_directory` entries.
-
-<details>
-<summary><strong>Config path overrides</strong></summary>
-
-| Runtime | Local config dir | Global config dir | Environment overrides |
-|---------|------------------|-------------------|-----------------------|
-| Claude Code | `./.claude/` | `~/.claude/` | `CLAUDE_CONFIG_DIR` |
-| Gemini CLI | `./.gemini/` | `~/.gemini/` | `GEMINI_CONFIG_DIR` |
-| Codex | `./.codex/` | `~/.codex/` | `CODEX_CONFIG_DIR`; discoverable global skills use `CODEX_SKILLS_DIR` |
-| OpenCode | `./.opencode/` | `~/.config/opencode/` | `OPENCODE_CONFIG_DIR`, `OPENCODE_CONFIG`, `XDG_CONFIG_HOME` |
-
-GPD respects these overrides during install, uninstall, and runtime detection.
-
-</details>
+Each runtime uses its own command prefix, but the workflow is the same across all four. For install-path details, runtime-specific hooks, and launcher notes, use the onboarding hub and the runtime guides in `docs/`.
 
 ## What GPD Does
 

@@ -29,6 +29,10 @@ def _assert_in_order(content: str, fragments: tuple[str, ...]) -> None:
     assert positions == sorted(positions)
 
 
+def _normalize_markdown_table(content: str) -> str:
+    return content.replace("`", "")
+
+
 def _markdown_section(content: str, heading: str) -> str:
     marker = f"{heading}\n"
     start = content.index(marker)
@@ -161,6 +165,26 @@ def test_root_readme_start_here_links_to_docs_onboarding_hub() -> None:
             "Inside your AI runtime:",
         ),
     )
+
+
+def test_root_readme_supported_runtimes_table_matches_beginner_runtime_surfaces() -> None:
+    content = _read("README.md")
+    supported_runtimes = _markdown_section(content, "## Supported Runtimes")
+    normalized_supported_runtimes = _normalize_markdown_table(supported_runtimes)
+
+    for surface in beginner_runtime_surfaces():
+        expected_row = (
+            f"| {surface.display_name} | {surface.install_flag} | {surface.help_command} | "
+            f"{surface.start_command} | {surface.tour_command} | {surface.new_project_minimal_command} | "
+            f"{surface.map_research_command} | {surface.resume_work_command} |"
+        )
+        assert expected_row in normalized_supported_runtimes
+
+    assert "Config path overrides" not in content
+    assert "CLAUDE_CONFIG_DIR" not in content
+    assert "CODEX_SKILLS_DIR" not in content
+    assert "GEMINI_CONFIG_DIR" not in content
+    assert "OPENCODE_CONFIG_DIR" not in content
 
 
 def test_runtime_quickstarts_keep_current_provider_specific_setup_notes() -> None:

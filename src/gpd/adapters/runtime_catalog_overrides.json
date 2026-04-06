@@ -1,0 +1,6 @@
+{
+  "entry_optional_keys": ["public_command_surface_prefix"],
+  "capability_enum_values": {
+    "permissions_surface": ["unsupported"]
+  }
+}

@@ -131,90 +131,98 @@ def _catalog_path() -> Path:
     return Path(__file__).with_name("runtime_catalog.json")
 
 
-_RUNTIME_ENTRY_REQUIRED_KEYS = frozenset(
-    {
-        "runtime_name",
-        "display_name",
-        "priority",
-        "config_dir_name",
-        "install_flag",
-        "launch_command",
-        "command_prefix",
-        "activation_env_vars",
-        "selection_flags",
-        "selection_aliases",
-        "global_config",
-        "capabilities",
-        "hook_payload",
+def _load_runtime_catalog_shape() -> dict[str, object]:
+    catalog_path = Path(__file__).with_name("runtime_catalog.json")
+    raw_entries = json.loads(catalog_path.read_text(encoding="utf-8"))
+    if not isinstance(raw_entries, list) or not raw_entries:
+        raise ValueError("runtime catalog must be a non-empty JSON array")
+
+    entry_key_sets: list[set[str]] = []
+    global_config_key_sets: dict[str, list[set[str]]] = {}
+    capability_key_sets: list[set[str]] = []
+    hook_payload_key_sets: list[set[str]] = []
+    capability_enum_values: dict[str, list[str]] = {
+        "permissions_surface": [],
+        "statusline_surface": [],
+        "notify_surface": [],
+        "telemetry_source": [],
+        "telemetry_completeness": [],
     }
+    install_help_example_scopes: list[str] = []
+
+    for index, entry in enumerate(raw_entries):
+        if not isinstance(entry, dict):
+            raise ValueError(f"runtime catalog entry {index} must be a mapping")
+        entry_key_sets.append(set(entry.keys()))
+
+        global_config = entry.get("global_config")
+        if isinstance(global_config, dict):
+            strategy = global_config.get("strategy")
+            if isinstance(strategy, str):
+                global_config_key_sets.setdefault(strategy, []).append(set(global_config.keys()))
+
+        capabilities = entry.get("capabilities")
+        if isinstance(capabilities, dict):
+            capability_key_sets.append(set(capabilities.keys()))
+            for field_name, values in capability_enum_values.items():
+                value = capabilities.get(field_name)
+                if isinstance(value, str):
+                    stripped = value.strip()
+                    if stripped and stripped not in values:
+                        values.append(stripped)
+
+        hook_payload = entry.get("hook_payload")
+        if isinstance(hook_payload, dict):
+            hook_payload_key_sets.append(set(hook_payload.keys()))
+
+        scope = entry.get("installer_help_example_scope")
+        if isinstance(scope, str):
+            stripped = scope.strip()
+            if stripped and stripped not in install_help_example_scopes:
+                install_help_example_scopes.append(stripped)
+
+    entry_required_keys = set.intersection(*(set(keys) for keys in entry_key_sets))
+    entry_allowed_keys = set.union(*(set(keys) for keys in entry_key_sets))
+    global_config_keys = {
+        strategy: frozenset(set.intersection(*(set(keys) for keys in key_sets)))
+        for strategy, key_sets in global_config_key_sets.items()
+    }
+    capability_keys = set.intersection(*(set(keys) for keys in capability_key_sets))
+    hook_payload_keys = set.intersection(*(set(keys) for keys in hook_payload_key_sets))
+
+    return {
+        "entry_required_keys": frozenset(entry_required_keys),
+        "entry_optional_keys": frozenset(entry_allowed_keys - entry_required_keys),
+        "global_config_strategies": frozenset(global_config_keys.keys()),
+        "install_help_example_scopes": frozenset(install_help_example_scopes),
+        "global_config_keys": global_config_keys,
+        "capability_keys": frozenset(capability_keys),
+        "capability_enums": {field_name: frozenset(values) for field_name, values in capability_enum_values.items()},
+        "hook_payload_keys": frozenset(hook_payload_keys),
+    }
+
+
+_RUNTIME_CATALOG_SCHEMA_OVERRIDES = json.loads(
+    Path(__file__).with_name("runtime_catalog_overrides.json").read_text(encoding="utf-8")
 )
-_RUNTIME_ENTRY_OPTIONAL_KEYS = frozenset(
-    {
-        "manifest_file_prefixes",
-        "native_include_support",
-        "agent_prompt_uses_dollar_templates",
-        "installer_help_example_scope",
-        "validated_command_surface",
-        "public_command_surface_prefix",
-    }
+_RUNTIME_CATALOG_SHAPE = _load_runtime_catalog_shape()
+_RUNTIME_ENTRY_REQUIRED_KEYS = _RUNTIME_CATALOG_SHAPE["entry_required_keys"]
+_RUNTIME_ENTRY_OPTIONAL_KEYS = _RUNTIME_CATALOG_SHAPE["entry_optional_keys"] | frozenset(
+    _RUNTIME_CATALOG_SCHEMA_OVERRIDES.get("entry_optional_keys", ())
 )
 _RUNTIME_ENTRY_ALLOWED_KEYS = _RUNTIME_ENTRY_REQUIRED_KEYS | _RUNTIME_ENTRY_OPTIONAL_KEYS
-_RUNTIME_GLOBAL_CONFIG_STRATEGIES = frozenset({"env_or_home", "xdg_app"})
-_RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = frozenset({"global", "local"})
+_RUNTIME_GLOBAL_CONFIG_STRATEGIES = _RUNTIME_CATALOG_SHAPE["global_config_strategies"]
+_RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = _RUNTIME_CATALOG_SHAPE["install_help_example_scopes"]
 _RUNTIME_VALIDATED_COMMAND_SURFACE_RE = re.compile(r"^public_runtime_[a-z0-9_]+_command$")
 _RUNTIME_CONFIG_SURFACE_LABEL_RE = re.compile(r"^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$")
 _RUNTIME_CAPABILITY_ENUMS = {
-    "permissions_surface": frozenset({"config-file", "launch-wrapper", "unsupported"}),
-    "statusline_surface": frozenset({"explicit", "none"}),
-    "notify_surface": frozenset({"explicit", "none"}),
-    "telemetry_source": frozenset({"notify-hook", "none"}),
-    "telemetry_completeness": frozenset({"best-effort", "none"}),
+    field_name: values
+    | frozenset(_RUNTIME_CATALOG_SCHEMA_OVERRIDES.get("capability_enum_values", {}).get(field_name, ()))
+    for field_name, values in _RUNTIME_CATALOG_SHAPE["capability_enums"].items()
 }
-_RUNTIME_GLOBAL_CONFIG_KEYS = {
-    "env_or_home": frozenset({"strategy", "env_var", "home_subpath"}),
-    "xdg_app": frozenset({"strategy", "env_dir_var", "env_file_var", "xdg_subdir", "home_subpath"}),
-}
-_RUNTIME_CAPABILITY_KEYS = frozenset(
-    {
-        "permissions_surface",
-        "permission_surface_kind",
-        "prompt_free_mode_value",
-        "supports_runtime_permission_sync",
-        "supports_prompt_free_mode",
-        "prompt_free_requires_relaunch",
-        "statusline_surface",
-        "statusline_config_surface",
-        "notify_surface",
-        "notify_config_surface",
-        "telemetry_source",
-        "telemetry_completeness",
-        "supports_usage_tokens",
-        "supports_cost_usd",
-        "supports_context_meter",
-    }
-)
-_RUNTIME_HOOK_PAYLOAD_KEYS = frozenset(
-    {
-        "notify_event_types",
-        "workspace_keys",
-        "project_dir_keys",
-        "runtime_session_id_keys",
-        "model_keys",
-        "provider_keys",
-        "usage_keys",
-        "input_tokens_keys",
-        "output_tokens_keys",
-        "total_tokens_keys",
-        "cached_input_tokens_keys",
-        "cache_write_input_tokens_keys",
-        "cost_usd_keys",
-        "agent_id_keys",
-        "agent_name_keys",
-        "agent_scope_keys",
-        "context_window_size_keys",
-        "context_remaining_keys",
-    }
-)
+_RUNTIME_GLOBAL_CONFIG_KEYS = _RUNTIME_CATALOG_SHAPE["global_config_keys"]
+_RUNTIME_CAPABILITY_KEYS = _RUNTIME_CATALOG_SHAPE["capability_keys"]
+_RUNTIME_HOOK_PAYLOAD_KEYS = _RUNTIME_CATALOG_SHAPE["hook_payload_keys"]
 
 
 def _require_mapping(value: object, *, label: str) -> dict[str, object]:

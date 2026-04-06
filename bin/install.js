@@ -26,6 +26,7 @@ const {
 } = require("../package.json");
 const PUBLIC_SURFACE_CONTRACT = require("../src/gpd/core/public_surface_contract.json");
 const BUNDLED_RUNTIME_CATALOG_PAYLOAD = require("../src/gpd/adapters/runtime_catalog.json");
+const RUNTIME_CATALOG_SCHEMA_OVERRIDES = require("../src/gpd/adapters/runtime_catalog_overrides.json");
 
 const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPythonPackageVersion.trim() : "";
 const GPD_HOME_ENV = "GPD_HOME";
@@ -110,139 +111,148 @@ function runtimeInstallerHelpExampleScope(runtime) {
   return runtimeRecord(runtime).installer_help_example_scope || null;
 }
 
-const PUBLIC_SURFACE_CONTRACT_KEYS = [
-  "schema_version",
-  "beginner_onboarding",
-  "local_cli_bridge",
-  "post_start_settings",
-  "resume_authority",
-  "recovery_ladder",
-];
-const PUBLIC_SURFACE_CONTRACT_SECTION_KEYS = {
-  beginner_onboarding: ["hub_url", "preflight_requirements", "caveats", "startup_ladder"],
-  local_cli_bridge: [
-    "commands",
-    "named_commands",
-    "terminal_phrase",
-    "purpose_phrase",
-    "install_local_example",
-    "doctor_local_command",
-    "doctor_global_command",
-    "validate_command_context_command",
-  ],
-  post_start_settings: ["primary_sentence", "default_sentence"],
-  resume_authority: [
-    "durable_authority_phrase",
-    "public_vocabulary_intro",
-    "public_fields",
-    "top_level_boundary_phrase",
-  ],
-  recovery_ladder: [
-    "title",
-    "local_snapshot_command",
-    "local_snapshot_phrase",
-    "cross_workspace_command",
-    "cross_workspace_phrase",
-    "resume_phrase",
-    "next_phrase",
-    "pause_phrase",
-  ],
-};
+function deriveRuntimeCatalogShape(catalogPayload) {
+  if (!Array.isArray(catalogPayload) || catalogPayload.length === 0) {
+    throw new Error("runtime catalog must be a non-empty JSON array");
+  }
+
+  const entryKeySets = [];
+  const globalConfigKeySets = new Map();
+  const capabilityKeySets = [];
+  const hookPayloadKeySets = [];
+  const capabilityEnumValues = {
+    permissions_surface: [],
+    statusline_surface: [],
+    notify_surface: [],
+    telemetry_source: [],
+    telemetry_completeness: [],
+  };
+  const installHelpExampleScopes = [];
+
+  catalogPayload.forEach((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new Error(`runtime catalog entry ${index} must be a JSON object`);
+    }
+
+    const entryKeys = Object.keys(entry);
+    entryKeySets.push(new Set(entryKeys));
+
+    const globalConfig = entry.global_config;
+    if (globalConfig && typeof globalConfig === "object" && !Array.isArray(globalConfig)) {
+      const strategy = globalConfig.strategy;
+      if (typeof strategy === "string" && strategy.trim()) {
+        const normalizedStrategy = strategy.trim();
+        if (!globalConfigKeySets.has(normalizedStrategy)) {
+          globalConfigKeySets.set(normalizedStrategy, []);
+        }
+        globalConfigKeySets.get(normalizedStrategy).push(new Set(Object.keys(globalConfig)));
+      }
+    }
+
+    const capabilities = entry.capabilities;
+    if (capabilities && typeof capabilities === "object" && !Array.isArray(capabilities)) {
+      capabilityKeySets.push(new Set(Object.keys(capabilities)));
+      for (const [fieldName, values] of Object.entries(capabilityEnumValues)) {
+        const value = capabilities[fieldName];
+        if (typeof value === "string") {
+          const normalizedValue = value.trim();
+          if (normalizedValue && !values.includes(normalizedValue)) {
+            values.push(normalizedValue);
+          }
+        }
+      }
+    }
+
+    const hookPayload = entry.hook_payload;
+    if (hookPayload && typeof hookPayload === "object" && !Array.isArray(hookPayload)) {
+      hookPayloadKeySets.push(new Set(Object.keys(hookPayload)));
+    }
+
+    const helpScope = entry.installer_help_example_scope;
+    if (typeof helpScope === "string") {
+      const normalizedScope = helpScope.trim();
+      if (normalizedScope && !installHelpExampleScopes.includes(normalizedScope)) {
+        installHelpExampleScopes.push(normalizedScope);
+      }
+    }
+  });
+
+  const intersectSets = (sets) => {
+    if (sets.length === 0) {
+      return new Set();
+    }
+    const [first, ...rest] = sets;
+    const result = new Set(first);
+    for (const value of [...result]) {
+      if (rest.some((set) => !set.has(value))) {
+        result.delete(value);
+      }
+    }
+    return result;
+  };
+
+  const unionSets = (sets) => {
+    const result = new Set();
+    for (const set of sets) {
+      for (const value of set) {
+        result.add(value);
+      }
+    }
+    return result;
+  };
+
+  const entryRequiredKeys = intersectSets(entryKeySets);
+  const entryAllowedKeys = unionSets(entryKeySets);
+  const globalConfigKeys = Object.fromEntries(
+    [...globalConfigKeySets.entries()].map(([strategy, keySets]) => [strategy, intersectSets(keySets)])
+  );
+
+  return {
+    entryRequiredKeys,
+    entryOptionalKeys: new Set([...entryAllowedKeys].filter((key) => !entryRequiredKeys.has(key))),
+    globalConfigKeys,
+    capabilityKeys: intersectSets(capabilityKeySets),
+    capabilityEnums: Object.fromEntries(
+      Object.entries(capabilityEnumValues).map(([fieldName, values]) => [fieldName, new Set(values)])
+    ),
+    hookPayloadKeys: intersectSets(hookPayloadKeySets),
+    installHelpExampleScopes: new Set(installHelpExampleScopes),
+  };
+}
+
+const PUBLIC_SURFACE_CONTRACT_KEYS = Object.keys(PUBLIC_SURFACE_CONTRACT);
+const PUBLIC_SURFACE_CONTRACT_SECTION_KEYS = Object.fromEntries(
+  Object.entries(PUBLIC_SURFACE_CONTRACT)
+    .filter(([key]) => key !== "schema_version")
+    .map(([section, payload]) => [section, Object.keys(payload)])
+);
 const PUBLIC_SURFACE_CONTRACT_ALLOWED_KEYS = new Set(PUBLIC_SURFACE_CONTRACT_KEYS);
 const PUBLIC_SURFACE_CONTRACT_SECTION_ALLOWED_KEYS = Object.fromEntries(
   Object.entries(PUBLIC_SURFACE_CONTRACT_SECTION_KEYS).map(([section, keys]) => [section, new Set(keys)])
 );
-const PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = [
-  "help",
-  "doctor",
-  "unattended_readiness",
-  "permissions_status",
-  "permissions_sync",
-  "resume",
-  "resume_recent",
-  "observe_execution",
-  "cost",
-  "presets_list",
-  "plan_preflight",
-  "integrations_status_wolfram",
-];
+const PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = Object.keys(PUBLIC_SURFACE_CONTRACT.local_cli_bridge.named_commands);
+const RUNTIME_CATALOG_SHAPE = deriveRuntimeCatalogShape(BUNDLED_RUNTIME_CATALOG_PAYLOAD);
+const RUNTIME_CATALOG_ENTRY_SCHEMA_ONLY_OPTIONAL_KEYS = new Set(RUNTIME_CATALOG_SCHEMA_OVERRIDES.entry_optional_keys || []);
 const RUNTIME_CATALOG_ENTRY_KEYS = {
-  required: [
-    "runtime_name",
-    "display_name",
-    "priority",
-    "config_dir_name",
-    "install_flag",
-    "launch_command",
-    "command_prefix",
-    "activation_env_vars",
-    "selection_flags",
-    "selection_aliases",
-    "global_config",
-    "capabilities",
-    "hook_payload",
-  ],
-  optional: [
-    "manifest_file_prefixes",
-    "native_include_support",
-    "agent_prompt_uses_dollar_templates",
-    "installer_help_example_scope",
-    "validated_command_surface",
-    "public_command_surface_prefix",
-  ],
+  required: [...RUNTIME_CATALOG_SHAPE.entryRequiredKeys],
+  optional: [...new Set([...RUNTIME_CATALOG_SHAPE.entryOptionalKeys, ...RUNTIME_CATALOG_ENTRY_SCHEMA_ONLY_OPTIONAL_KEYS])],
 };
 const RUNTIME_CATALOG_ALLOWED_KEYS = new Set([
   ...RUNTIME_CATALOG_ENTRY_KEYS.required,
   ...RUNTIME_CATALOG_ENTRY_KEYS.optional,
 ]);
-const RUNTIME_CATALOG_GLOBAL_CONFIG_KEYS = {
-  env_or_home: new Set(["strategy", "env_var", "home_subpath"]),
-  xdg_app: new Set(["strategy", "env_dir_var", "env_file_var", "xdg_subdir", "home_subpath"]),
-};
-const RUNTIME_CATALOG_CAPABILITY_KEYS = new Set([
-  "permissions_surface",
-  "permission_surface_kind",
-  "prompt_free_mode_value",
-  "supports_runtime_permission_sync",
-  "supports_prompt_free_mode",
-  "prompt_free_requires_relaunch",
-  "statusline_surface",
-  "statusline_config_surface",
-  "notify_surface",
-  "notify_config_surface",
-  "telemetry_source",
-  "telemetry_completeness",
-  "supports_usage_tokens",
-  "supports_cost_usd",
-  "supports_context_meter",
-]);
-const RUNTIME_CATALOG_CAPABILITY_ENUMS = {
-  permissions_surface: new Set(["config-file", "launch-wrapper", "unsupported"]),
-  statusline_surface: new Set(["explicit", "none"]),
-  notify_surface: new Set(["explicit", "none"]),
-  telemetry_source: new Set(["notify-hook", "none"]),
-  telemetry_completeness: new Set(["best-effort", "none"]),
-};
-const RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS = new Set([
-  "notify_event_types",
-  "workspace_keys",
-  "project_dir_keys",
-  "runtime_session_id_keys",
-  "model_keys",
-  "provider_keys",
-  "usage_keys",
-  "input_tokens_keys",
-  "output_tokens_keys",
-  "total_tokens_keys",
-  "cached_input_tokens_keys",
-  "cache_write_input_tokens_keys",
-  "cost_usd_keys",
-  "agent_id_keys",
-  "agent_name_keys",
-  "agent_scope_keys",
-  "context_window_size_keys",
-  "context_remaining_keys",
-]);
+const RUNTIME_CATALOG_GLOBAL_CONFIG_KEYS = Object.fromEntries(
+  Object.entries(RUNTIME_CATALOG_SHAPE.globalConfigKeys).map(([strategy, keys]) => [strategy, new Set(keys)])
+);
+const RUNTIME_CATALOG_CAPABILITY_KEYS = new Set(RUNTIME_CATALOG_SHAPE.capabilityKeys);
+const RUNTIME_CATALOG_CAPABILITY_ENUMS = Object.fromEntries(
+  Object.entries(RUNTIME_CATALOG_SHAPE.capabilityEnums).map(([fieldName, values]) => [
+    fieldName,
+    new Set([...values, ...(RUNTIME_CATALOG_SCHEMA_OVERRIDES.capability_enum_values?.[fieldName] ?? [])]),
+  ])
+);
+const RUNTIME_CATALOG_HOOK_PAYLOAD_KEYS = new Set(RUNTIME_CATALOG_SHAPE.hookPayloadKeys);
+const RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = new Set(RUNTIME_CATALOG_SHAPE.installHelpExampleScopes);
 const RUNTIME_CONFIG_SURFACE_LABEL_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$/;
 
 function deriveLaunchWrapperPermissionSurfaceKinds(catalogPayload) {
