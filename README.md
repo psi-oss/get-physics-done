@@ -389,6 +389,7 @@ The full command reference below uses Claude Code / Gemini CLI syntax. Codex use
 | `/gpd:graph` | Visualize dependency graph across phases and identify gaps |
 | `/gpd:slides [topic]` | Create presentation slides from a GPD project or the current folder |
 | `/gpd:export [--format {html,latex,zip,all}]` | Export research results to HTML, LaTeX, or ZIP package |
+| `/gpd:export-chat [--format {markdown,json}]` | Export chat logs to shareable files for bug reports and debugging |
 | `/gpd:error-patterns [category]` | View accumulated physics error patterns for this project |
 | `/gpd:record-insight [description]` | Record a project-specific learning or pattern to the insights ledger |
 
