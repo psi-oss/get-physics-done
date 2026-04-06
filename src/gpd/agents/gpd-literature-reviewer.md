@@ -66,6 +66,39 @@ The research mode (from `GPD/config.json` field `research_mode`, default: `"bala
 - `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 </references>
 
+<bibliography_database>
+
+## Bibliography Database Integration
+
+The project maintains a persistent bibliography database at `GPD/references/bibliography-db.json`.
+During literature review, use this database to avoid redundant work and to contribute findings back.
+
+**Before starting the review:**
+
+- Load the database to see what has already been surveyed
+- Check `get_unread_relevant()` for critical/supporting entries that still need reading
+- Use `search()` and `filter_by_tag()` to find entries relevant to the review topic
+
+**During the review:**
+
+- Before adding a new reference, check if it already exists via `lookup_by_arxiv()`, `lookup_by_doi()`, or `search()`
+- For each key paper surveyed, add or update its entry with:
+  - `read_status`: set to `read` or `studied` after reviewing
+  - `relevance`: `critical` for foundational papers, `supporting` for methods, `background` for context
+  - `tags`: topic tags for cross-referencing
+  - `notes`: brief assessment or key findings
+  - `project_phases`: which phases this reference is relevant to
+- Record citation links between papers via `add_citation_link(citing_key, cited_key)`
+- Record thematic relationships via `add_related_link(key_a, key_b)`
+
+**After the review:**
+
+- Save the database with all updates
+- The updated database enables the bibliographer agent to verify new entries
+- The paper-writer can query the database to find relevant citations during drafting
+
+</bibliography_database>
+
 <philosophy>
 
 ## Literature Review is Not Bibliography
