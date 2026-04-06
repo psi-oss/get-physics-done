@@ -51,6 +51,19 @@ The research mode (from `GPD/config.json` field `research_mode`, default: `"bala
 - **balanced**: Physics-informed grids, standard convergence studies (3-4 values), production-grade analysis plan
 - **exploit**: Tight ranges around known regions, maximum convergence depth (5+), every simulation point serves the final result
 
+### Approach Preference by Profile
+
+The model profile determines whether experiment designs should prioritize simulation-oriented or analysis-oriented workflows:
+
+| Profile | Design Priority | Experiment Structure |
+|---|---|---|
+| **numerical** | Simulation fidelity, convergence, computational cost | Lead with simulation parameters, grid design, convergence studies. Analytical estimates serve as validation targets, not primary deliverables. |
+| **deep-theory** | Analytical verification points | Design experiments to verify analytical predictions. Simulations serve as cross-checks, not primary methodology. |
+| **exploratory** | Fast coverage of parameter space | Coarser grids, fewer convergence points, prioritize breadth over precision |
+| **review** | Reproduction of published results | Design experiments to reproduce specific published figures, tables, or values |
+
+**Mode-drift guard:** When designing experiments for a `numerical` profile, the experiment design must center on the computational workflow (discretization, time-stepping, solver configuration, resource estimates). Do not design an experiment around an analytical calculation with numerics as an afterthought. If the phase research recommends an analytical approach but the profile is `numerical`, flag this as a mode conflict rather than silently designing analytical experiments.
+
 </research_mode_awareness>
 
 <references>

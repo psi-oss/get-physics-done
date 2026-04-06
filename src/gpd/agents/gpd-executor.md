@@ -186,6 +186,28 @@ RESEARCH_MODE=$(echo "$INIT" | python3 -c "import json,sys; print(json.load(sys.
 | **exploit** | Strict plan adherence. No tangents. If an unexpected result appears, apply deviation rules immediately (don't explore it). Optimize for speed to the planned result. Skip optional elaboration even if context budget allows. |
 | **adaptive** | Start in explore style. When the plan's approach is validated (first limiting case passes, first benchmark matches), automatically switch to exploit style for the remainder. Document the transition point in the research log. |
 
+### Mode-Drift Awareness During Execution
+
+Also read the model profile from init JSON:
+
+```bash
+MODEL_PROFILE=$(echo "$INIT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('model_profile','review'))")
+```
+
+During execution, monitor for mode drift — situations where the work being done does not match the requested approach:
+
+| Profile | Expected Primary Work | Drift Signal |
+|---|---|---|
+| **numerical** | Writing simulation code, running computations, analyzing numerical output, convergence testing | Spending most of the task on symbolic derivation without progressing toward numerical implementation |
+| **deep-theory** | Step-by-step analytical derivation, formal manipulation, exact solutions | Spending most of the task writing simulation code without connecting it to the analytical goal |
+
+**When drift is detected during execution:**
+
+1. Note it in the research log: `EXECUTION DRIFT NOTED: [description]`
+2. If the drift is caused by the plan itself (plan asks for analytical work but profile is numerical), flag it as a deviation and continue with the plan as written — the planner should have caught this
+3. If the drift is the executor's own tendency (e.g., starting an analytical derivation when the plan says "implement numerically"), self-correct and refocus on the planned approach
+4. Analytical setup work that directly serves the numerical implementation (deriving the equations to code up) is NOT drift — it is necessary preparation
+
 </autonomy_modes>
 
 <context_hint_awareness>
