@@ -25,6 +25,7 @@ from gpd.adapters.install_utils import (
     build_hook_command,
     compile_markdown_for_runtime,
     convert_tool_references_in_body,
+    ensure_doctor_hook,
     ensure_update_hook,
     hook_python_interpreter,
     materialize_first_round_review_schema_headings,
@@ -1123,6 +1124,19 @@ class GeminiAdapter(RuntimeAdapter):
             target_dir=target_dir,
             config_dir_name=self.config_dir_name,
         )
+        doctor_cmd = build_hook_command(
+            target_dir,
+            HOOK_SCRIPTS["install_doctor"],
+            is_global=is_global,
+            config_dir_name=self.config_dir_name,
+            explicit_target=getattr(self, "_install_explicit_target", False),
+        )
+        ensure_doctor_hook(
+            settings,
+            doctor_cmd,
+            target_dir=target_dir,
+            config_dir_name=self.config_dir_name,
+        )
 
         bridge_command = self.runtime_cli_bridge_command(target_dir)
 
@@ -1485,11 +1499,19 @@ def _entry_has_gpd_hook(
     return any(
         isinstance(h, dict)
         and isinstance(h.get("command"), str)
-        and _is_hook_command_for_script(
-            h["command"],
-            HOOK_SCRIPTS["check_update"],
-            target_dir=target_dir,
-            config_dir_name=config_dir_name,
+        and (
+            _is_hook_command_for_script(
+                h["command"],
+                HOOK_SCRIPTS["check_update"],
+                target_dir=target_dir,
+                config_dir_name=config_dir_name,
+            )
+            or _is_hook_command_for_script(
+                h["command"],
+                HOOK_SCRIPTS["install_doctor"],
+                target_dir=target_dir,
+                config_dir_name=config_dir_name,
+            )
         )
         for h in entry_hooks
     )

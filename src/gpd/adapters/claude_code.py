@@ -14,6 +14,7 @@ from gpd.adapters.install_utils import (
     build_hook_command,
     compile_markdown_for_runtime,
     copy_with_path_replacement,
+    ensure_doctor_hook,
     ensure_update_hook,
     hook_python_interpreter,
     materialize_first_round_review_schema_headings,
@@ -167,6 +168,19 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         ensure_update_hook(
             settings,
             update_check_command,
+            target_dir=target_dir,
+            config_dir_name=self.config_dir_name,
+        )
+        doctor_command = build_hook_command(
+            target_dir,
+            HOOK_SCRIPTS["install_doctor"],
+            is_global=is_global,
+            config_dir_name=self.config_dir_name,
+            explicit_target=getattr(self, "_install_explicit_target", False),
+        )
+        ensure_doctor_hook(
+            settings,
+            doctor_command,
             target_dir=target_dir,
             config_dir_name=self.config_dir_name,
         )
@@ -700,6 +714,12 @@ def _entry_has_gpd_hook(
             _is_hook_command_for_script(
                 hook["command"],
                 HOOK_SCRIPTS["check_update"],
+                target_dir=target_dir,
+                config_dir_name=config_dir_name,
+            )
+            or _is_hook_command_for_script(
+                hook["command"],
+                HOOK_SCRIPTS["install_doctor"],
                 target_dir=target_dir,
                 config_dir_name=config_dir_name,
             )

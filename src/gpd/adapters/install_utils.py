@@ -43,6 +43,7 @@ GPD_CONTENT_DIRS = ("references", "templates", "workflows")
 HOOK_SCRIPTS: dict[str, str] = {
     "statusline": "statusline.py",
     "check_update": "check_update.py",
+    "install_doctor": "install_doctor.py",
     "notify": "notify.py",
     "runtime_detect": "runtime_detect.py",
 }
@@ -1834,6 +1835,92 @@ def ensure_update_hook(
         _install_logger.info("Configured update check hook")
     elif changed:
         _install_logger.info("Updated update check hook")
+
+    if changed:
+        hooks["SessionStart"] = normalized_session_start
+
+
+def ensure_doctor_hook(
+    settings: dict[str, object],
+    doctor_command: str,
+    *,
+    target_dir: Path | None = None,
+    config_dir_name: str | None = None,
+) -> None:
+    """Ensure SessionStart has one up-to-date GPD install-doctor hook.
+
+    The install-doctor hook detects missing install artifacts on session
+    start and attempts automatic self-repair before the user notices that
+    ``/gpd`` commands have disappeared.  Mirrors the structure of
+    :func:`ensure_update_hook`.
+    """
+    hooks = settings.setdefault("hooks", {})
+    if not isinstance(hooks, dict):
+        hooks = {}
+        settings["hooks"] = hooks
+
+    session_start = hooks.setdefault("SessionStart", [])
+    if not isinstance(session_start, list):
+        session_start = []
+        hooks["SessionStart"] = session_start
+
+    normalized_session_start: list[object] = []
+    managed_hook_found = False
+    changed = False
+
+    for entry in session_start:
+        if not isinstance(entry, dict):
+            normalized_session_start.append(entry)
+            continue
+        entry_hooks = entry.get("hooks")
+        if not isinstance(entry_hooks, list):
+            normalized_session_start.append(entry)
+            continue
+
+        normalized_hooks: list[object] = []
+        for hook in entry_hooks:
+            if not isinstance(hook, dict):
+                normalized_hooks.append(hook)
+                continue
+
+            cmd = hook.get("command", "")
+            if not _is_hook_command_for_script(
+                cmd,
+                HOOK_SCRIPTS["install_doctor"],
+                target_dir=target_dir,
+                config_dir_name=config_dir_name,
+            ):
+                normalized_hooks.append(hook)
+                continue
+
+            if managed_hook_found:
+                changed = True
+                continue
+
+            managed_hook_found = True
+            desired_hook = dict(hook)
+            if desired_hook.get("type") != "command" or desired_hook.get("command") != doctor_command:
+                desired_hook["type"] = "command"
+                desired_hook["command"] = doctor_command
+                changed = True
+            normalized_hooks.append(desired_hook)
+
+        if normalized_hooks != entry_hooks:
+            changed = True
+            if not normalized_hooks:
+                continue
+            normalized_entry = dict(entry)
+            normalized_entry["hooks"] = normalized_hooks
+            normalized_session_start.append(normalized_entry)
+        else:
+            normalized_session_start.append(entry)
+
+    if not managed_hook_found:
+        normalized_session_start.append({"hooks": [{"type": "command", "command": doctor_command}]})
+        changed = True
+        _install_logger.info("Configured install doctor hook")
+    elif changed:
+        _install_logger.info("Updated install doctor hook")
 
     if changed:
         hooks["SessionStart"] = normalized_session_start
