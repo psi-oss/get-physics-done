@@ -84,6 +84,36 @@ Also read:
 If prior phases have numerical results, read their SUMMARY.md for baseline values, achieved tolerances, and lessons learned.
 </step>
 
+<step name="identify_simulation_framework">
+## Identify Existing Simulation Frameworks
+
+**Before designing a custom simulation pipeline, search for existing frameworks that can run the required experiment.**
+
+Check in this order:
+
+1. **Plan's `package_strategy` frontmatter:** The planner should have already identified candidate packages. Respect that decision.
+2. **RESEARCH.md Computational Tools section:** The phase researcher documents standard tools for this domain.
+3. **Domain-standard frameworks:** Consult the table below for well-established simulation packages.
+
+| Domain | Standard Frameworks | Strengths |
+|--------|-------------------|-----------|
+| Molecular dynamics | LAMMPS, OpenMM, GROMACS, ASE | Force fields, integrators, analysis built-in |
+| Quantum systems | QuTiP, Qiskit, Cirq | Master equations, circuits, noise models |
+| Fluid dynamics | FEniCS, Dedalus, OpenFOAM | PDE solvers, spectral methods, mesh handling |
+| Condensed matter | kwant, PySCF, DFTB+ | Transport, electronic structure, tight-binding |
+| Statistical mechanics | emcee, PyMC, Stan | MCMC sampling, Bayesian inference |
+| Lattice field theory | Grid, Chroma, openQCD | Gauge field simulation, fermion solvers |
+| N-body / gravitational | REBOUND, Gadget, AREPO | Orbital mechanics, cosmological simulation |
+| General ODE/PDE | SciPy, DifferentialEquations.jl | Adaptive solvers, stiff systems |
+
+**Design principle:** Design the experiment protocol around the framework's capabilities. For example:
+- If using LAMMPS: design in terms of LAMMPS commands (`fix`, `compute`, `dump`), not raw algorithms
+- If using QuTiP: design in terms of `mesolve`, `mcsolve`, Qobj, not manual Lindblad integration
+- If using emcee: design in terms of walkers, burn-in, autocorrelation, not custom MCMC moves
+
+**When NO existing framework fits:** Document why (novel physics, unsupported boundary conditions, performance requirements) in the experiment design. The justification should be specific enough that a reviewer can verify the claim.
+</step>
+
 <step name="identify_quantities">
 ## Identify Target Quantities
 
