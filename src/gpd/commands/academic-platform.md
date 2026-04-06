@@ -1,7 +1,7 @@
 ---
 name: gpd:academic-platform
 description: Configure and manage GPD academic platform mode with credit grants and artifact capture
-context_mode: project
+context_mode: project-required
 allowed-tools:
   - file_read
   - file_write
