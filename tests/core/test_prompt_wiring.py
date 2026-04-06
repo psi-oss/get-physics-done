@@ -35,7 +35,7 @@ REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
 FIXTURES_STAGE0 = REPO_ROOT / "tests" / "fixtures" / "stage0"
 FIXTURES_STAGE4 = REPO_ROOT / "tests" / "fixtures" / "stage4"
 GRAPH_PATH = REPO_ROOT / "tests" / "README.md"
-WORKFLOW_EXEMPT_COMMANDS = frozenset({"health", "suggest-next"})
+WORKFLOW_EXEMPT_COMMANDS = frozenset({"btw", "health", "suggest-next"})
 
 COMMAND_SPAWN_TOKENS = {
     "explain.md": ["gpd-explainer", "gpd-bibliographer"],
@@ -427,7 +427,10 @@ def test_commands_are_workflow_backed_or_explicitly_exempt() -> None:
 
     for command_stem in sorted(WORKFLOW_EXEMPT_COMMANDS):
         command_text = (COMMANDS_DIR / f"{command_stem}.md").read_text(encoding="utf-8")
-        if command_stem == "health":
+        if command_stem == "btw":
+            assert "$ARGUMENTS" in command_text
+            assert "@{GPD_INSTALL_DIR}/workflows/btw.md" not in command_text
+        elif command_stem == "health":
             assert "gpd --raw health" in command_text
             assert "@{GPD_INSTALL_DIR}/workflows/health.md" not in command_text
         elif command_stem == "suggest-next":

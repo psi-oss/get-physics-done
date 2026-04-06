@@ -392,6 +392,16 @@ Create context handoff when pausing work mid-phase.
 
 Usage: `/gpd:pause-work`
 
+**`/gpd:btw <text>`**
+Add context, notes, or background information to the current conversation.
+
+- Accepts inline text — paste or type any length
+- No files written, no project state modified
+- Useful for pasting paper excerpts, constraints, error messages, or assumptions
+
+Usage: `/gpd:btw The coupling constant must be positive for stability`
+Usage: `/gpd:btw <paste a paragraph from a referee report>`
+
 ### Todo Management
 
 **`/gpd:add-todo [description]`**
@@ -978,6 +988,13 @@ Example config:
 /gpd:add-todo Check finite-size scaling exponent    # Capture with explicit description
 /gpd:check-todos                                    # Review and work on todos
 /gpd:check-todos numerical                          # Filter by area
+```
+
+**Adding context mid-conversation (paste-friendly):**
+
+```
+/gpd:btw The lattice spacing must satisfy a < 1/Lambda for the continuum limit
+/gpd:btw <paste referee comment, equation, constraint, or any background text>
 ```
 
 ## Getting Help
