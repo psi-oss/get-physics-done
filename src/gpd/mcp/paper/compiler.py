@@ -18,6 +18,7 @@ from pathlib import Path
 
 from pybtex.database import BibliographyData
 
+from gpd.core.paper_quality import Severity, validate_tex_draft
 from gpd.mcp.paper.artifact_manifest import build_artifact_manifest, write_artifact_manifest
 from gpd.mcp.paper.bibliography import (
     CitationSource,
@@ -550,6 +551,22 @@ async def build_paper(
     tex_content = render_paper(config)
     tex_path = output_dir / "main.tex"
     await asyncio.to_thread(tex_path.write_text, tex_content, encoding="utf-8")
+
+    # 3.5. Pre-compilation draft validation
+    draft_errors = validate_tex_draft(tex_content)
+    blocker_errors = [e for e in draft_errors if e.severity == Severity.blocker]
+    major_errors = [e for e in draft_errors if e.severity == Severity.major]
+    for err in blocker_errors:
+        line_info = f" (line {err.line})" if err.line else ""
+        errors.append(f"BLOCKER: {err.message}{line_info}")
+    for err in major_errors:
+        line_info = f" (line {err.line})" if err.line else ""
+        errors.append(f"WARNING: {err.message}{line_info}")
+    if blocker_errors:
+        logger.warning(
+            "Pre-compilation validation found %d blocker(s) -- compilation may fail or produce incorrect output",
+            len(blocker_errors),
+        )
 
     manifest = build_artifact_manifest(
         config,
