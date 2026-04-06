@@ -8,7 +8,11 @@ from importlib import import_module
 from pathlib import Path
 
 import gpd.adapters.install_utils as install_utils
-from gpd.adapters.runtime_catalog import get_managed_install_surface_policy, get_shared_install_metadata
+from gpd.adapters.runtime_catalog import (
+    get_managed_install_surface_policy,
+    get_shared_install_metadata,
+    list_runtime_names,
+)
 
 _SHARED_INSTALL_METADATA = get_shared_install_metadata()
 GPD_INSTALL_DIR_NAME = _SHARED_INSTALL_METADATA.install_root_dir_name
@@ -44,11 +48,7 @@ def _canonical_manifest_runtime_name(value: str) -> str | None:
     if not normalized:
         return None
 
-    runtime_catalog = import_module("gpd.adapters.runtime_catalog")
-    for descriptor in runtime_catalog.iter_runtime_descriptors():
-        if normalized == descriptor.runtime_name:
-            return descriptor.runtime_name
-    return None
+    return normalized if normalized in list_runtime_names() else None
 
 
 @dataclass(frozen=True, slots=True)

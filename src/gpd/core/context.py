@@ -150,9 +150,6 @@ def _ignore_dirs() -> frozenset[str]:
     )
 
 
-_RUNTIME_CONFIG_DIRS = _runtime_config_dirs()
-
-
 __all__ = [
     "init_execute_phase",
     "init_map_research",

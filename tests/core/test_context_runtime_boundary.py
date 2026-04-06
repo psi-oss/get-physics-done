@@ -25,5 +25,6 @@ def test_context_import_does_not_require_adapter_instantiation(
     payload = context.init_new_project(tmp_path)
 
     expected_runtime_dirs = {descriptor.config_dir_name for descriptor in iter_runtime_descriptors()}
-    assert expected_runtime_dirs <= context._RUNTIME_CONFIG_DIRS
+    assert expected_runtime_dirs <= context._runtime_config_dirs()
+    assert expected_runtime_dirs <= context._ignore_dirs()
     assert payload["has_research_files"] is False
