@@ -33,8 +33,7 @@ Check if the user passed `--all` as an argument.
 Use the loaded workflow help file as the authority. Output ONLY this extract from
 that workflow-owned reference and then STOP:
 
-- Start at `# GPD Command Reference`.
-- Include the workflow-owned `## Invocation Surfaces` section.
+- Start at the workflow-owned `## Quick Start` section.
 - Include the workflow-owned `## Quick Start` section.
 - Stop before `## Core Workflow`.
 - Append this one wrapper-owned line: `Run \`gpd:help --all\` for the full command reference.`

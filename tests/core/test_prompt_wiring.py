@@ -2493,7 +2493,7 @@ def test_execution_observability_and_resume_workflow_surfaces_stay_conservative_
     assert "@{GPD_INSTALL_DIR}/workflows/help.md" in help_command
     assert_execution_observability_surface_contract(help_workflow)
     assert_cost_surface_discoverability(help_workflow)
-    assert "Start at `# GPD Command Reference`." in help_command
+    assert "Start at the workflow-owned `## Quick Start` section." in help_command
     assert "When STATE.md appears out of sync with disk reality" in progress
     assert "advisory context only" in resume_work
     assert "it is not a ranked bounded-segment resume candidate and does not justify `active_resume_kind=\"bounded_segment\"`." in resume_work

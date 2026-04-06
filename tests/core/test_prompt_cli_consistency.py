@@ -193,7 +193,7 @@ def test_help_prompt_keeps_workflow_preset_readiness_on_local_cli_surface() -> N
         "## Step 3: Full Command Reference (--all)",
     )
 
-    assert "Include the workflow-owned `## Invocation Surfaces` section." in quick_start
+    assert "## Invocation Surfaces" not in quick_start
     assert "Include the workflow-owned `## Quick Start` section." in quick_start
     assert "Append this one wrapper-owned line" in quick_start
     assert_help_workflow_runtime_reference_contract(help_workflow)
