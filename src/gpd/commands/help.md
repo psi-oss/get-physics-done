@@ -56,7 +56,7 @@ These `/gpd:*` entries are canonical in-runtime slash-command names exposed insi
 **Workflow:** new-project → discuss-phase → plan-phase → execute-phase → verify-work → repeat → complete-milestone
 **Publication:** write-paper → peer-review → respond-to-referees → arxiv-submission
 
-Run `/gpd:help --all` for all 61 commands.
+Run `/gpd:help --all` for all 62 commands.
 
 --- END of default output. STOP here. ---
 
@@ -371,6 +371,16 @@ Create context handoff when pausing work mid-phase.
 - Captures in-progress work context
 
 Usage: `/gpd:pause-work`
+
+**`/gpd:btw <text>`**
+Add context, notes, or background information to the current conversation.
+
+- Accepts inline text — paste or type any length
+- No files written, no project state modified
+- Useful for pasting paper excerpts, constraints, error messages, or assumptions
+
+Usage: `/gpd:btw The coupling constant must be positive for stability`
+Usage: `/gpd:btw <paste a paragraph from a referee report>`
 
 ### Todo Management
 
@@ -949,6 +959,13 @@ Example config:
 /gpd:add-todo Check finite-size scaling exponent    # Capture with explicit description
 /gpd:check-todos                                    # Review and work on todos
 /gpd:check-todos numerical                          # Filter by area
+```
+
+**Adding context mid-conversation (paste-friendly):**
+
+```
+/gpd:btw The lattice spacing must satisfy a < 1/Lambda for the continuum limit
+/gpd:btw <paste referee comment, equation, constraint, or any background text>
 ```
 
 ## Getting Help
