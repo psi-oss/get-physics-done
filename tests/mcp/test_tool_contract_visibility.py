@@ -514,7 +514,8 @@ def test_public_descriptors_surface_contract_and_optional_dependency_visibility(
     assert arxiv["optional"] is True
     assert arxiv["availability"] == "conditional"
     assert "optional Python module 'arxiv_mcp_server'" in arxiv["availability_condition"]
-    assert "Optional/conditional arXiv paper search and retrieval" in arxiv["description"]
+    assert "Optional arXiv paper search, retrieval, and analysis" in arxiv["description"]
+    assert arxiv["prompts"] == ["deep-paper-analysis"]
 
 
 def test_public_protocols_infra_descriptor_matches_live_catalog_surface() -> None:

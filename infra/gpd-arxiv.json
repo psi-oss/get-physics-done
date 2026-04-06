@@ -1,6 +1,6 @@
 {
   "name": "gpd-arxiv",
-  "description": "Optional/conditional arXiv paper search and retrieval via arxiv-mcp-server. Available only when the optional arxiv-mcp-server dependency is installed; search for physics papers, fetch abstracts, and download full text.",
+  "description": "Optional arXiv paper search, retrieval, and analysis via arxiv-mcp-server (>=0.3.2). Available only when the optional arxiv-mcp-server dependency is installed. Search for papers with advanced filtering (date ranges, categories, field-specific queries), download and convert PDFs to markdown, read full paper text, and perform deep paper analysis with multi-turn research context tracking.",
   "transport": "stdio",
   "command": "python",
   "args": [
@@ -26,6 +26,9 @@
     },
     "expect": "contains paper"
   },
+  "prompts": [
+    "deep-paper-analysis"
+  ],
   "optional": true,
   "availability": "conditional",
   "availability_condition": "Available only when the optional Python module 'arxiv_mcp_server' is installed."

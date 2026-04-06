@@ -64,6 +64,7 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
         "env": {},
         "optional": True,
         "module_check": "arxiv_mcp_server",
+        "min_version": "0.3.2",
     },
 }
 
@@ -236,15 +237,20 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
     },
     "gpd-arxiv": {
         "description": (
-            "Optional/conditional arXiv paper search and retrieval via arxiv-mcp-server. "
-            "Available only when the optional arxiv-mcp-server dependency is installed; "
-            "search for physics papers, fetch abstracts, and download full text."
+            "Optional arXiv paper search, retrieval, and analysis via arxiv-mcp-server (>=0.3.2). "
+            "Available only when the optional arxiv-mcp-server dependency is installed. "
+            "Search for papers with advanced filtering (date ranges, categories, field-specific queries), "
+            "download and convert PDFs to markdown, read full paper text, and perform deep paper analysis "
+            "with multi-turn research context tracking."
         ),
         "capabilities": [
             "search_papers",
             "download_paper",
             "list_papers",
             "read_paper",
+        ],
+        "prompts": [
+            "deep-paper-analysis",
         ],
         "registry_prefix": "gpd_arxiv",
         "health_check": {
@@ -336,6 +342,9 @@ def build_public_descriptor(name: str) -> dict[str, object]:
         "prerequisites": list(metadata.get("prerequisites", [_PUBLIC_BOOTSTRAP_PREREQUISITE])),
         "health_check": dict(metadata["health_check"]) if isinstance(metadata["health_check"], dict) else {},
     }
+    prompts = metadata.get("prompts")
+    if isinstance(prompts, list) and prompts:
+        descriptor["prompts"] = list(prompts)
     alternatives = _build_public_alternatives(name)
     if alternatives:
         descriptor["alternatives"] = alternatives
