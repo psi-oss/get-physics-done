@@ -408,19 +408,22 @@ Phase 3+: Domain-specific execution (use domain blueprint)
 **Pattern:** "I want to simulate / compute / measure X numerically"
 
 ```
-Phase 1: Method survey + benchmark identification
+Phase 1: Method survey + EXISTING PACKAGE search + benchmark identification
   → Which numerical methods exist? What are their domains of validity?
+  → Which existing packages implement these methods? (PyPI, conda, Julia, domain-specific codes)
   → What benchmarks exist for validation?
-  → Output: METHODS.md with method comparison matrix
+  → Output: METHODS.md with method comparison matrix AND package candidates
 
 Phase 2: Feasibility assessment + resource estimation
   → Can we reach the required system size / precision / parameter range?
   → How much compute time / memory / storage?
   → Key decision: Is this computationally feasible with available resources?
+  → Key decision: Use existing package, adapt one, or build custom?
   → Output: FEASIBILITY.md with go/no-go recommendation
 
-Phase 3: Benchmark reproduction
+Phase 3: Benchmark reproduction (USING existing package when available)
   → Reproduce a known result with the chosen method before doing anything new
+  → Prefer running the benchmark with an existing package — this validates BOTH the method AND the tool
   → This is NON-NEGOTIABLE — skip it and you won't know if bugs are in your code or your physics
 
 Phase 4+: Domain-specific production (use numerical blueprint)
@@ -429,7 +432,7 @@ Phase 4+: Domain-specific production (use numerical blueprint)
 **Key planning insight:** The feasibility assessment in Phase 2 prevents wasted months. A Monte Carlo study of a sign-problem-affected system, or an exact diagonalization beyond the accessible Hilbert space dimension, should be caught BEFORE Phase 3. Plan the feasibility assessment to produce a quantitative go/no-go with specific resource estimates.
 
 **Decision points:**
-- After Phase 1: Which method? (The method choice constrains everything downstream)
+- After Phase 1: Which method AND which existing package? (Both constrain everything downstream)
 - After Phase 2: Go or pivot? (If infeasible, restructure before investing in code)
 - After Phase 3: Does benchmark pass? (If not, debug before production)
 
