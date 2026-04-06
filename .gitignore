@@ -17,6 +17,5 @@ tmp/
 .agents/
 .claude/
 .codex/
-GPD/
 .gemini/
 .opencode/
