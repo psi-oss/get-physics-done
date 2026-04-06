@@ -67,6 +67,7 @@ from gpd.mcp.servers import (
     stable_mcp_response,
     tighten_registered_tool_contracts,
 )
+from gpd.mcp.verification_contract_policy import verification_contract_policy_text
 
 logger = configure_mcp_logging("gpd-verification")
 
@@ -1051,18 +1052,7 @@ _CONTRACT_PAYLOAD_INPUT_SCHEMA: dict[str, object] = _object_schema(
     additional_properties=False,
 )
 _CONTRACT_PAYLOAD_INPUT_SCHEMA["description"] = (
-    f"contract payload schema_version is required and must equal {VERIFICATION_SCHEMA_VERSION}. "
-    "context_intake must contain at least one non-empty grounding field. "
-    "uncertainty_markers must include weakest_anchors and disconfirming_observations. "
-    "Non-scoping plans require claims, deliverables, and acceptance_tests; scoping-only contracts may omit claims "
-    "only when they still preserve at least one target, unresolved question, or grounding input. "
-    "Each claim must name deliverables and acceptance_tests. When claims are present, top-level deliverables and "
-    "acceptance_tests must also be present. Non-scoping non-exploratory plans also require either `references` or "
-    "explicit grounding context, require at least one `references[].must_surface=true` anchor when references are "
-    "present, and require non-empty `forbidden_proxies`. The schema accepts recoverable singleton-string/list drift "
-    "for contract string-list fields and case-only drift for closed enum fields, but unknown keys, non-object "
-    "sections, blank strings, and malformed members still remain hard errors. Additional semantic integrity rules "
-    "still apply at runtime for scoping, grounding, references, forbidden_proxies, and id resolution."
+    verification_contract_policy_text()
 )
 _CONTRACT_PAYLOAD_INPUT_SCHEMA["allOf"] = [
     {
@@ -3732,7 +3722,31 @@ def _validate_limit_expected_behavior_binding(
     return expected_behavior, None
 
 
-@mcp.tool()
+@mcp.tool(description=(
+    "Run a contract-aware verification check from a single structured ``request`` object. "
+    "``request.check_key`` is required. When present, it must be a non-empty "
+    "string without leading or trailing whitespace and must name a "
+    "contract-aware verification check such as "
+    "``contract.limit_recovery`` or ``contract.benchmark_reproduction``. "
+    "``request.contract`` is optional, but when supplied it must be a project or "
+    "phase contract object. Proof-oriented checks still require an authoritative "
+    "contract payload even when other checks can rely on metadata-only evidence. "
+    f"{verification_contract_policy_text()} "
+    "``request.binding``, ``request.metadata``, and ``request.observed`` are each "
+    "optional objects. Decisive pass/fail verdicts still require the check-specific "
+    "fields inside those objects. When ``request.binding`` is present, its keys "
+    "must come from the per-check ``supported_binding_fields`` surfaced by "
+    "``suggest_contract_checks(...)``; unsupported or irrelevant binding fields "
+    "are request errors, not soft verification issues. Canonical binding fields "
+    "are plural ``*_ids`` arrays. ``request.check_key`` may be the canonical key "
+    "or the stable numeric id that resolves to the same check. ``request.artifact_content`` "
+    "is optional and must be a string when present. "
+    "Use ``suggest_contract_checks(contract, active_checks=...)`` first when you "
+    "need the exact ``required_request_fields``, ``schema_required_request_fields``, "
+    "``schema_required_request_anyof_fields``, ``optional_request_fields``, "
+    "``supported_binding_fields``, and ``request_template`` for a given "
+    "contract-aware check before calling this tool."
+))
 def run_contract_check(request: RunContractCheckPayload) -> dict:
     """Run a contract-aware verification check from a single structured ``request`` object.
 
@@ -3744,25 +3758,6 @@ def run_contract_check(request: RunContractCheckPayload) -> dict:
     ``request.contract`` is optional, but when supplied it must be a project or
     phase contract object. Proof-oriented checks still require an authoritative
     contract payload even when other checks can rely on metadata-only evidence.
-    The contract payload ``schema_version`` is required and must equal ``1``.
-    The payload is treated as a hard schema boundary for authoritative fields:
-    unknown top-level keys, non-object sections, blank strings, and malformed
-    list members are rejected instead of being guessed. Recoverable
-    singleton-string/list drift for contract string-list fields and case-only
-    drift for closed contract enum fields are normalized by the shared
-    contract parser before verification, and benchmark prose may still surface
-    a warning when direct evidence is incomplete. Contract
-    payloads must also satisfy the shared semantic integrity rules: same-kind IDs must be unique; target IDs must not be reused across claim/deliverable/acceptance-test/reference kinds when that would make resolution ambiguous; ``references[].carry_forward_to`` uses workflow scope labels, never contract IDs; ``references[].must_surface`` requires non-empty ``applies_to`` and ``required_actions`` lists; and contract context must stay consistent with metadata defaults and explicit metadata fields, so benchmark anchors, regime labels, and family selections cannot contradict the resolved binding. For plan-style contract payloads, ``context_intake`` must be
-    present and non-empty, and the contract must satisfy the same plan semantic
-    requirements GPD enforces in plan frontmatter. Recoverable singleton-list
-    and case-only enum normalization is surfaced back as structured salvage
-    findings; unknown keys and non-object sections still fail hard. For
-    proof-oriented checks, any
-    contract-derived metadata you provide must either be omitted or match the
-    resolved contract defaults exactly, including
-    ``metadata.expected_behavior``, ``metadata.claim_statement``,
-    ``metadata.hypothesis_ids``, ``metadata.theorem_parameter_symbols``, and
-    ``metadata.conclusion_clause_ids``.
 
     ``request.binding``, ``request.metadata``, and ``request.observed`` are each
     optional objects. Decisive pass/fail verdicts still require the check-specific
@@ -4481,39 +4476,34 @@ def run_contract_check(request: RunContractCheckPayload) -> dict:
             return _error_result(exc)
 
 
-@mcp.tool()
+@mcp.tool(description=(
+    "Suggest contract-aware checks from a schema-validated project or phase ``contract``. "
+    "``contract`` must be an object with the normal GPD contract structure. "
+    f"{verification_contract_policy_text()} "
+    "For plan-style contract payloads, ``context_intake`` must be present and "
+    "non-empty, and the contract must satisfy the same plan semantic "
+    "requirements GPD enforces in plan frontmatter. Non-scoping plans require "
+    "claims, deliverables, and ``acceptance_tests``. Scoping-only contracts may "
+    "omit claims only when they still preserve at least one target, unresolved "
+    "question, or grounding input. ``uncertainty_markers.weakest_anchors`` and "
+    "``uncertainty_markers.disconfirming_observations`` must stay explicit and "
+    "non-empty so unresolved risk remains visible to later tools. Recoverable "
+    "singleton-list and case-only enum normalization is carried through the "
+    "suggestion metadata; unknown keys and non-object sections still fail hard. "
+    "``active_checks`` is optional and must be ``list[str]`` with non-empty entries "
+    "when provided. Supply already-enabled check ids or check keys so each "
+    "suggestion can mark ``already_active`` precisely. Each ``suggested_checks[]`` "
+    "entry includes ``required_request_fields``, ``schema_required_request_fields``, "
+    "``schema_required_request_anyof_fields``, ``optional_request_fields``, "
+    "``supported_binding_fields``, and a ``request_template`` that is safe to use as "
+    "the starting point for ``run_contract_check(request=...)``. Proof-check "
+    "templates surface an explicit ``contract`` placeholder because runtime "
+    "execution requires an authoritative contract payload."
+))
 def suggest_contract_checks(contract: SuggestContractPayload, active_checks: StringListPayload = None) -> dict:
     """Suggest contract-aware checks from a schema-validated project or phase ``contract``.
 
     ``contract`` must be an object with the normal GPD contract structure.
-    The contract payload ``schema_version`` is required and must equal ``1``. The tool keeps authoritative fields strict: non-object
-    payloads, unknown top-level keys, blank strings, and malformed list
-    members are rejected rather than inferred. Recoverable singleton-string/list
-    drift for contract string-list fields and case-only drift for closed
-    contract enum fields are normalized by the shared contract parser before
-    verification.
-
-    Contract payloads must also satisfy the shared semantic integrity rules:
-    same-kind IDs must be unique; target IDs must not be reused across
-    claim/deliverable/acceptance-test/reference kinds when that would make
-    resolution ambiguous; ``references[].carry_forward_to`` uses workflow
-    scope labels, never contract IDs; ``references[].must_surface`` requires non-empty ``applies_to`` and ``required_actions`` lists; and contract context must stay consistent with metadata defaults and explicit metadata fields, so benchmark anchors, regime labels, and family selections cannot contradict the resolved binding.
-    For proof-oriented suggestions, contract-derived metadata fields must be
-    omitted or match the resolved defaults exactly; this includes
-    ``metadata.expected_behavior``, ``metadata.claim_statement``,
-    ``metadata.hypothesis_ids``, ``metadata.theorem_parameter_symbols``, and
-    ``metadata.conclusion_clause_ids``.
-
-    For plan-style contract payloads, ``context_intake`` must be present and
-    non-empty, and the contract must satisfy the same plan semantic
-    requirements GPD enforces in plan frontmatter. Non-scoping plans require
-    claims, deliverables, and acceptance_tests. Scoping-only contracts may
-    omit claims only when they still preserve at least one target, unresolved
-    question, or grounding input. ``uncertainty_markers.weakest_anchors`` and
-    ``uncertainty_markers.disconfirming_observations`` must stay explicit and
-    non-empty so unresolved risk remains visible to later tools. Recoverable
-    singleton-list and case-only enum normalization is carried through the
-    suggestion metadata; unknown keys and non-object sections still fail hard.
 
     ``active_checks`` is optional and must be ``list[str]`` with non-empty
     entries when provided. Supply already-enabled check ids or check keys so

@@ -15,6 +15,8 @@ import subprocess
 import sys
 from copy import deepcopy
 
+from gpd.mcp.verification_contract_policy import verification_contract_policy_text
+
 logger = logging.getLogger(__name__)
 
 _PYTHON_COMMAND_SENTINEL = "__GPD_PYTHON__"
@@ -194,31 +196,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         },
     },
     "gpd-verification": {
-        "description": (
-            "GPD physics verification checks. Tools for running contract-aware checks, "
-            "dimensional analysis, domain and bundle-specific checklists, limiting case checks, "
-            "symmetry verification, and coverage gap analysis. Proof-oriented checks require an "
-            "authoritative contract payload. Contract-aware tools accept "
-            "structured request objects or contract payloads whose `schema_version` is required "
-            "and must equal `1`, expose the exact "
-            "request shape through `required_request_fields`, `schema_required_request_fields`, "
-            "`schema_required_request_anyof_fields`, `optional_request_fields`, and "
-            "`request_template`, and surface the supported binding fields `binding.observable_ids`, "
-            "`binding.claim_ids`, `binding.deliverable_ids`, `binding.acceptance_test_ids`, "
-            "`binding.reference_ids`, and `binding.forbidden_proxy_ids`. `run_contract_check` "
-            "uses `request.check_key` as its sole top-level identifier and rejects `check_id` "
-            "there. These live semantic "
-            "integrity rules reject target IDs reused across contract kinds when that makes target "
-            "resolution ambiguous, and treat `references[].carry_forward_to` entries as workflow "
-            "scope labels only, never contract IDs, require `references[].must_surface` anchors "
-            "to carry non-empty `applies_to` and `required_actions` lists, and keep contract "
-            "context consistent with metadata defaults and explicit metadata fields so benchmark "
-            "anchors, regime labels, and family selections cannot contradict the resolved binding. "
-            "For proof-oriented checks, contract-derived metadata fields must be omitted or match "
-            "the resolved defaults exactly, including `metadata.expected_behavior`, "
-            "`metadata.claim_statement`, `metadata.hypothesis_ids`, "
-            "`metadata.theorem_parameter_symbols`, and `metadata.conclusion_clause_ids`."
-        ),
+        "description": verification_contract_policy_text(),
         "capabilities": [
             "run_check",
             "run_contract_check",
