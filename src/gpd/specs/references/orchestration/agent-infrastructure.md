@@ -185,6 +185,7 @@ Canonical ownership matrix:
 | gpd-literature-reviewer | `orchestrator` | Returns `files_written`; orchestrator commits |
 | gpd-notation-coordinator | `orchestrator` | Returns `files_written`; orchestrator commits |
 | gpd-paper-writer | `orchestrator` | Returns `files_written`; orchestrator commits |
+| gpd-parallel-reviewer | `orchestrator` | Returns `files_written`; orchestrator commits |
 | gpd-phase-researcher | `orchestrator` | Returns `files_written`; orchestrator commits |
 | gpd-plan-checker | `orchestrator` | Returns `files_written`; orchestrator commits |
 | gpd-project-researcher | `orchestrator` | Returns `files_written`; orchestrator commits (spawned in parallel) |
