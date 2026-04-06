@@ -253,15 +253,25 @@ Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
 ### Core Tools
 
-| Tool          | Version/Module | Purpose        | Why Standard         |
-| ------------- | -------------- | -------------- | -------------------- |
-| [e.g., SymPy] | [ver/module]   | [what it does] | [why experts use it] |
+| Tool          | Version/Module | Purpose        | Why Standard         | Use Directly or Adapt? |
+| ------------- | -------------- | -------------- | -------------------- | ---------------------- |
+| [e.g., SymPy] | [ver/module]   | [what it does] | [why experts use it] | [direct / adapt / reference only] |
 
 ### Supporting Tools
 
 | Tool               | Purpose         | When to Use         |
 | ------------------ | --------------- | ------------------- |
 | [e.g., matplotlib] | [visualization] | [specific use case] |
+
+### Package Recommendation
+
+**Recommended approach:** [use_existing / adapt_existing / combine_existing / custom]
+
+| Package | Covers | Does NOT Cover | Adaptation Needed | License |
+| ------- | ------ | -------------- | ----------------- | ------- |
+| [name]  | [what it handles] | [gaps] | [subclass X / configure Y / none] | [MIT/BSD/etc.] |
+
+**If custom code is recommended, justify:** [Why no existing package is suitable — be specific about the gap]
 
 ### Alternatives Considered
 
@@ -469,13 +479,26 @@ For each domain, follow this search strategy:
 4. Search for the specific problem or closely related problems: `site:arxiv.org "[specific method]" "[specific system]"`
 5. Check for known exact solutions, no-go theorems, or impossibility results
 
-### 3b: Computational Tools
+### 3b: Computational Tools and Existing Packages
+
+**CRITICAL: Package discovery is a primary research output.** The planner and executor depend on this section to decide whether to use, adapt, or build computational tools. Thorough package research here prevents weeks of unnecessary reimplementation downstream.
 
 1. Search for established codes in this domain (e.g., LAMMPS for MD, Quantum ESPRESSO for DFT, FORM for symbolic algebra in HEP)
-2. Check official documentation for capabilities and limitations
-3. Search for benchmark comparisons between tools
-4. Verify compatibility with the mathematical framework chosen in 3a
-5. Check the project (`search_files`/`find_files`) for existing implementations or related tools already available
+2. **Search package registries for reusable libraries:**
+   - `web_search "[physics method] python package PyPI [current year]"`
+   - `web_search "[physics method] simulation framework"`
+   - `web_search "[physics method] open source code github"`
+   - For Julia: `web_search "[physics method] julia package"`
+3. Check official documentation for capabilities and limitations
+4. Search for benchmark comparisons between tools
+5. Verify compatibility with the mathematical framework chosen in 3a
+6. Check the project (`search_files`/`find_files`) for existing implementations or related tools already available
+7. **For each candidate package, document in Computational Tools section:**
+   - Name, version, license
+   - What it solves (and what it does not)
+   - Community adoption (citations, stars, active maintenance)
+   - Whether it can be used directly, needs adaptation, or is unsuitable
+   - Installation requirements
 
 ### 3c: Validation and Pitfalls
 
