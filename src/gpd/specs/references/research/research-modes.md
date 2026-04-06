@@ -168,6 +168,54 @@ When the orchestrator detects transition criteria are met:
 
 The user can override at any time: `/gpd:settings` or `gpd config set research_mode explore`
 
+## Mode Constraints and Drift Prevention
+
+Each research mode, when combined with a model profile, implies constraints on what kinds of tasks and approaches are permitted. Violating these constraints is **mode drift** -- the system planning or executing work that does not match the user's requested mode of attack.
+
+### Mode-Profile Approach Constraints
+
+When a user selects both a research mode and a model profile, the combination constrains which approaches appear in plans:
+
+| Profile + Mode | Permitted Primary Approach | Prohibited Drift |
+|---|---|---|
+| **numerical + any mode** | Numerical simulation, computational methods, discretization, Monte Carlo, finite element, molecular dynamics | Do NOT lead with analytical derivations as the primary plan. Analytical work is permitted only as setup for the numerical pipeline (e.g., deriving the equations to discretize) or as validation benchmarks. |
+| **deep-theory + any mode** | Analytical derivation, formal proofs, exact solutions, perturbation theory | Do NOT lead with numerical simulation as the primary plan. Numerics are permitted only as verification of analytical results. |
+| **exploratory + explore** | Multiple approaches compared side-by-side | Plans MUST include alternatives, not just one approach |
+| **exploratory + exploit** | Single known approach, executed quickly | Do NOT include comparison tasks or alternative surveys |
+| **any profile + exploit** | The approach already identified in prior phases or CONTEXT.md | Do NOT re-survey methods or introduce new approaches not previously validated |
+
+### Mode Drift Detection
+
+Mode drift occurs when the planner or researcher produces output that contradicts the requested mode. Agents MUST self-check for drift before returning results.
+
+**Drift indicators (flag if detected):**
+
+1. **Approach mismatch:** User requested `numerical` profile but the plan's primary tasks are symbolic derivations with no numerical implementation
+2. **Depth mismatch:** User requested `exploit` mode but the plan includes broad literature surveys or method comparison tasks
+3. **Breadth mismatch:** User requested `explore` mode but the plan commits to a single approach without comparing alternatives
+4. **Scope mismatch:** User requested `exploit` mode but the plan introduces new methods not validated in prior phases
+5. **Framing mismatch:** The problem difficulty estimation assumes a different approach than the one requested (e.g., estimating difficulty as "straightforward analytically" when the user asked for a numerical simulation workflow)
+
+**When drift is detected:**
+
+1. The detecting agent MUST flag it explicitly: `MODE DRIFT DETECTED: [description of the drift]`
+2. Rewrite the drifting section to align with the requested mode
+3. If the drift reflects a genuine concern (e.g., the requested approach may not work), document it as an `open_question` or `risk` rather than silently switching approaches
+4. Never silently override the user's requested mode of attack
+
+### Difficulty Estimation by Mode
+
+Problem difficulty should be estimated relative to the requested approach, not relative to the "easiest possible" approach:
+
+| Profile | Difficulty Basis | Example |
+|---|---|---|
+| **numerical** | Computational complexity, convergence challenges, discretization difficulties, resource requirements | "Moderate: requires adaptive mesh refinement near singularity, ~10^6 grid points, convergence study needed" |
+| **deep-theory** | Mathematical complexity, number of derivation steps, subtlety of approximations, existence of closed-form solutions | "Hard: three-loop integral with no known closed form, requires sector decomposition" |
+| **exploratory** | Scope of search, number of viable approaches, decision complexity | "Easy: two well-known approaches, comparison criteria are clear" |
+| **review** | Volume of literature, degree of consensus, number of conflicting results | "Moderate: 30+ papers, two competing methodologies, no clear consensus" |
+
+When a user asks for a numerical simulation workflow, estimate difficulty in terms of computational challenges (grid resolution, time-stepping stability, convergence, parallelization), NOT in terms of how hard the analytical derivation would be.
+
 ## Interaction with Model Profiles
 
 Research mode and model profile are ORTHOGONAL:
