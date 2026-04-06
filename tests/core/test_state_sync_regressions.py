@@ -178,6 +178,59 @@ def test_save_state_markdown_preserves_visible_blocked_project_contract_in_prima
     assert stored["project_contract"]["claims"][0]["references"] == ["missing-ref"]
 
 
+def test_sync_state_json_core_preserves_visible_blocked_project_contract_in_primary_state_json(
+    tmp_path: Path,
+) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / "GPD"
+    contract = _draft_invalid_project_contract()
+
+    existing_state = default_state_dict()
+    existing_state["project_contract"] = contract
+    existing_state["position"]["current_phase"] = "01"
+    existing_state["position"]["status"] = "Ready to plan"
+    (planning / "state.json").write_text(json.dumps(existing_state, indent=2), encoding="utf-8")
+
+    markdown_state = default_state_dict()
+    markdown_state["position"]["current_phase"] = "03"
+    markdown_state["position"]["status"] = "Executing"
+    md_content = generate_state_markdown(markdown_state)
+
+    result = sync_state_json_core(cwd, md_content)
+    stored = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+
+    assert result["position"]["current_phase"] == "03"
+    assert result["position"]["status"] == "Executing"
+    assert result["project_contract"]["claims"][0]["references"] == ["missing-ref"]
+    assert stored["project_contract"]["claims"][0]["references"] == ["missing-ref"]
+
+
+def test_state_load_preserves_visible_blocked_project_contract_during_unrelated_backup_recovery(
+    tmp_path: Path,
+) -> None:
+    cwd = _bootstrap_project(tmp_path)
+    planning = cwd / "GPD"
+    contract = _draft_invalid_project_contract()
+
+    primary_state = default_state_dict()
+    primary_state["position"] = []
+    primary_state["project_contract"] = contract
+    (planning / "state.json").write_text(json.dumps(primary_state, indent=2), encoding="utf-8")
+
+    backup_state = default_state_dict()
+    backup_state["position"]["current_phase"] = "09"
+    backup_state["position"]["status"] = "Executing"
+    (planning / "state.json.bak").write_text(json.dumps(backup_state, indent=2), encoding="utf-8")
+
+    loaded = state_load(cwd)
+    stored = json.loads((planning / "state.json").read_text(encoding="utf-8"))
+
+    assert loaded.state["position"]["current_phase"] == "09"
+    assert loaded.state["project_contract"]["claims"][0]["references"] == ["missing-ref"]
+    assert stored["position"]["current_phase"] == "09"
+    assert stored["project_contract"]["claims"][0]["references"] == ["missing-ref"]
+
+
 def test_save_state_json_preserves_visible_blocked_project_contract_on_unrelated_updates(tmp_path: Path) -> None:
     cwd = _bootstrap_project(tmp_path)
     planning = cwd / "GPD"
