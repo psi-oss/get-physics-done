@@ -36,47 +36,15 @@ Your output must give later reviewers a concise statement of what is mathematica
 </process>
 
 <artifact_format>
-Use the stage artifact contract from `peer-review-panel.md`.
+Use `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md` as the shared source of truth for the full `StageReviewReport` contract. Do not restate that schema here.
 
-Required schema for `STAGE-math{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):
+Math-specific deltas:
 
-- Top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `manuscript_path`, `manuscript_sha256`, `claims_reviewed`, `summary`, `strengths`, `findings`, `proof_audits`, `confidence`, `recommendation_ceiling`
-- `stage_id` and `stage_kind` must both be `math`
-- The filename `STAGE-math{round_suffix}.json` and the JSON `round` field must agree: unsuffixed first-round artifacts use `round: 1`, and `-R<round>` filenames must use that same integer in `round`
-- `manuscript_path` must be non-empty and must exactly match the sibling `CLAIMS{round_suffix}.json`
-- `manuscript_sha256` must be the lowercase 64-hex digest for the exact manuscript snapshot under review
-- `claims_reviewed` must be an array of Stage 1 `CLM-...` claim IDs; use an empty array only when no indexed claim was actually reviewed
-- `manuscript_sha256` must exactly match the sibling `CLAIMS{round_suffix}.json`
-- Each `findings[]` entry is a `ReviewFinding` with: `issue_id`, `claim_ids`, `severity`, `summary`, `rationale`, `evidence_refs`, `manuscript_locations`, `support_status`, `blocking`, `required_action`
-- `blocking` must be a literal JSON boolean (`true` or `false`), not a quoted string or synonym such as `"yes"` / `"no"`
-- Each `proof_audits[]` entry is a `ProofAuditRecord` with: `claim_id`, `theorem_assumptions_checked`, `theorem_parameters_checked`, `proof_locations`, `uncovered_assumptions`, `uncovered_parameters`, `coverage_gaps`, `alignment_status`, `notes`
-- For every reviewed theorem-bearing claim from Stage 1, emit exactly one `proof_audits[]` entry whose `claim_id` is also present in `claims_reviewed`. Do not emit proof audits for unreviewed claims, and do not repeat `claim_id` values. Treat a claim as theorem-bearing when its Stage 1 `ClaimRecord` marks a theorem-style `claim_kind` (`theorem`, `lemma`, `corollary`, `proposition`, `claim`) or when the indexed statement is theorem-like even if the extraction arrays are incomplete. Use an empty `proof_audits` array only when no reviewed claim is theorem-bearing.
-- `theorem_assumptions_checked` and `theorem_parameters_checked` should list what the proof actually uses, not what the theorem merely states.
-- `uncovered_assumptions` and `uncovered_parameters` should list any statement items that never become active in the proof, are silently specialized away, or are otherwise unsupported by the derivation.
-- `alignment_status` must use exactly: `aligned`, `partially_aligned`, `misaligned`, `not_applicable`
-- For theorem-bearing claims, never use `alignment_status: not_applicable`; theorem-bearing proof audits must resolve to `aligned`, `partially_aligned`, or `misaligned`
-- `alignment_status: aligned` is a strict state. Aligned theorem-bearing audits must include non-empty `proof_locations`, must record at least one checked assumption or checked parameter, and must leave `uncovered_assumptions`, `uncovered_parameters`, and `coverage_gaps` empty
-- Reuse Stage 1 claim IDs like `CLM-001` in `claim_ids`; use `REF-...` issue IDs in `issue_id`
-- Every `claim_ids[]` entry must match `CLM-[A-Za-z0-9][A-Za-z0-9_-]*` and reuse a Stage 1 claim ID from `CLAIMS{round_suffix}.json`
-- `issue_id` must match `REF-[A-Za-z0-9][A-Za-z0-9_-]*`
-- `severity` must use exactly: `critical`, `major`, `minor`, `suggestion`
-- `support_status` must use exactly: `supported`, `partially_supported`, `unsupported`, `unclear`
-- `confidence` must use exactly: `high`, `medium`, `low`
-- `recommendation_ceiling` must use exactly: `accept`, `minor_revision`, `major_revision`, `reject`
-- `StageReviewReport` and every nested `ReviewFinding` use a closed schema; do not invent extra keys
-- Keep `claims_reviewed`, `strengths`, `findings`, `proof_audits`, `evidence_refs`, and `manuscript_locations` as arrays even when empty; do not collapse them to prose or scalars
-- If a theorem statement quantifies over a parameter or regime variable but the proof never uses it, that is a theorem-to-proof alignment failure, not a harmless omission
-- Any central theorem-proof misalignment or missing proof audit caps `recommendation_ceiling` at `major_revision` or `reject`
-
-Required finding coverage:
-
-- key equations checked
-- limits and cross-checks
-- approximation and consistency notes
-- theorem-to-proof alignment, including unused assumptions or unused parameters
-- unchecked risk areas
-
-Include equation/location/check/status data in `findings` or supporting evidence refs.
+- For every reviewed theorem-bearing Stage 1 claim, emit exactly one `proof_audits[]` entry whose `claim_id` is also present in `claims_reviewed`.
+- Do not emit proof audits for unreviewed claims, and do not repeat `claim_id` values.
+- The theorem-to-proof audit must record what the proof actually uses, what it silently specializes away, and any remaining coverage gaps.
+- Keep the focus on key equations, limits, cross-checks, approximation notes, and theorem-to-proof alignment.
+- `recommendation_ceiling` must drop to `major_revision` or `reject` for central theorem-proof gaps or missing audits.
 </artifact_format>
 
 <anti_patterns>

@@ -1166,6 +1166,13 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
 
     assert "## Contract Overview" in roadmap_template
     assert "**Contract Coverage:**" in roadmap_template
+    assert "Phase titles should be objective-driven, not template-driven" in roadmap_template
+    assert "Standard physics research flow" not in roadmap_template
+    assert "Literature Review" not in roadmap_template
+    assert "Formalism Development" not in roadmap_template
+    assert "Calculation / Simulation" not in roadmap_template
+    assert "Validation & Cross-checks" not in roadmap_template
+    assert "Paper Writing" not in roadmap_template
     assert "@{GPD_INSTALL_DIR}/templates/roadmap.md" in roadmapper_agent
     assert "@{GPD_INSTALL_DIR}/templates/state.md" in roadmapper_agent
     assert "Contract coverage" in roadmapper_agent
@@ -2054,33 +2061,44 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     )
     assert peer_review.count(contract_gate_note) >= 1
     assert "repair the blocked contract before retrying" in peer_review
-    assert "peer-review-panel.md` directly" in review_reader
-    assert "peer-review-panel.md` directly" in review_literature
     assert "GPD/review/CLAIMS{round_suffix}.json" in review_reader
     assert "GPD/review/STAGE-reader{round_suffix}.json" in review_reader
-    assert "closed schema; do not invent extra keys" in review_reader
-    assert "CLAIMS.json" not in review_reader
-    assert "STAGE-reader.json" not in review_reader
-    assert "round-specific variant when instructed" not in review_reader
+    assert "shared source of truth for the full `ClaimIndex` and `StageReviewReport` contracts" in review_reader
+    assert "Stage 1 must also emit `GPD/review/CLAIMS{round_suffix}.json`." in review_reader
+    assert "Capture theorem kind, explicit hypotheses, and free target parameters for theorem-like claims." in review_reader
+    assert "Keep `proof_audits` empty in this stage." in review_reader
+    assert "Focus `findings` on overclaiming, missing promised deliverables, and claim-structure blockers." in review_reader
+    assert "Required schema for" not in review_reader
+    assert "closed schema; do not invent extra keys" not in review_reader
     assert "GPD/review/STAGE-literature{round_suffix}.json" in review_literature
     assert "GPD/review/STAGE-math{round_suffix}.json" in review_math
     assert "GPD/review/STAGE-physics{round_suffix}.json" in review_physics
     assert "GPD/review/STAGE-interestingness{round_suffix}.json" in review_significance
-    assert "every theorem-bearing Stage 1 claim must be reviewed and proof-audited" in review_math
-    assert "Required schema for `STAGE-math{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):" in review_math
-    assert "Required schema for `STAGE-physics{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):" in review_physics
-    assert (
-        "Required schema for `STAGE-interestingness{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):"
-        in review_significance
-    )
-    assert "STAGE-literature.json" not in review_literature
-    assert "STAGE-math.json" not in review_math
-    assert "STAGE-physics.json" not in review_physics
-    assert "STAGE-interestingness.json" not in review_significance
-    assert "round-specific variant" not in review_literature
-    assert "round-specific variant" not in review_math
-    assert "round-specific variant" not in review_physics
-    assert "round-specific variant" not in review_significance
+    assert "shared source of truth for the full `StageReviewReport` contract" in review_literature
+    assert "shared source of truth for the full `StageReviewReport` contract" in review_math
+    assert "shared source of truth for the full `StageReviewReport` contract" in review_physics
+    assert "shared source of truth for the full `StageReviewReport` contract" in review_significance
+    assert "Keep `proof_audits` empty in this stage." in review_literature
+    assert "Focus `findings` on claimed advance, directly relevant prior work, missing or misused citations, and novelty assessment." in review_literature
+    assert "Escalate to `reject` when prior work already contains the main result or the novelty framing is materially false." in review_literature
+    assert "Escalate to `major_revision` when literature positioning needs substantial repair." in review_literature
+    assert "For every reviewed theorem-bearing Stage 1 claim, emit exactly one `proof_audits[]` entry whose `claim_id` is also present in `claims_reviewed`." in review_math
+    assert "Do not emit proof audits for unreviewed claims, and do not repeat `claim_id` values." in review_math
+    assert "The theorem-to-proof audit must record what the proof actually uses, what it silently specializes away, and any remaining coverage gaps." in review_math
+    assert "Keep the focus on key equations, limits, cross-checks, approximation notes, and theorem-to-proof alignment." in review_math
+    assert "`recommendation_ceiling` must drop to `major_revision` or `reject` for central theorem-proof gaps or missing audits." in review_math
+    assert "Keep `proof_audits` empty in this stage unless the workflow explicitly asks for a theorem-to-proof spot check." in review_physics
+    assert "Focus `findings` on stated physical assumptions, regime of validity, supported physical conclusions, and unsupported or overstated connections." in review_physics
+    assert "Treat formal resemblance as insufficient evidence for a physical conclusion." in review_physics
+    assert "Escalate `recommendation_ceiling` to `major_revision` or worse whenever central physical conclusions outrun the actual evidence." in review_physics
+    assert "Keep `proof_audits` empty in this stage." in review_significance
+    assert "Focus `findings` on why the result might matter, why it might not, venue fit, and claim proportionality." in review_significance
+    assert "Be explicit when the paper is technically competent but scientifically mediocre." in review_significance
+    assert "Escalate `recommendation_ceiling` to `reject` for PRL/Nature-style venues when significance or venue fit is weak." in review_significance
+    assert "Escalate to at least `major_revision` when the paper is technically competent but physically uninteresting or overclaimed." in review_significance
+    for text in (review_reader, review_literature, review_math, review_physics, review_significance):
+        assert "Required schema for" not in text
+        assert "closed schema; do not invent extra keys" not in text
     assert "re-open `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`" in referee
 
 

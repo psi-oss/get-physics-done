@@ -37,40 +37,14 @@ This stage is where mathematically respectable but physically weak papers should
 </process>
 
 <artifact_format>
-Use the stage artifact contract from `peer-review-panel.md`.
+Use `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md` as the shared source of truth for the full `StageReviewReport` contract. Do not restate that schema here.
 
-Required schema for `STAGE-physics{round_suffix}.json` (`StageReviewReport`, mirroring the staged-review contract):
+Physics-specific deltas:
 
-- Top-level keys: `version`, `round`, `stage_id`, `stage_kind`, `manuscript_path`, `manuscript_sha256`, `claims_reviewed`, `summary`, `strengths`, `findings`, `proof_audits`, `confidence`, `recommendation_ceiling`
-- `stage_id` and `stage_kind` must both be `physics`
-- The filename `STAGE-physics{round_suffix}.json` and the JSON `round` field must agree: unsuffixed first-round artifacts use `round: 1`, and `-R<round>` filenames must use that same integer in `round`
-- `manuscript_path` must be non-empty and must exactly match the sibling `CLAIMS{round_suffix}.json`
-- `manuscript_sha256` must be the lowercase 64-hex digest for the exact manuscript snapshot under review
-- `claims_reviewed` must be an array of Stage 1 `CLM-...` claim IDs; use an empty array only when no indexed claim was actually reviewed
-- `manuscript_sha256` must exactly match the sibling `CLAIMS{round_suffix}.json`
-- Each `findings[]` entry is a `ReviewFinding` with: `issue_id`, `claim_ids`, `severity`, `summary`, `rationale`, `evidence_refs`, `manuscript_locations`, `support_status`, `blocking`, `required_action`
-- `blocking` must be a literal JSON boolean (`true` or `false`), not a quoted string or synonym such as `"yes"` / `"no"`
-- Each `proof_audits[]` entry is a `ProofAuditRecord` with: `claim_id`, `theorem_assumptions_checked`, `theorem_parameters_checked`, `proof_locations`, `uncovered_assumptions`, `uncovered_parameters`, `coverage_gaps`, `alignment_status`, `notes`
-- Keep `proof_audits` as an empty array in the physics stage unless the workflow explicitly asks for a theorem-to-proof spot check
-- `alignment_status` must use exactly: `aligned`, `partially_aligned`, `misaligned`, `not_applicable`
-- Reuse Stage 1 claim IDs like `CLM-001` in `claim_ids`; use `REF-...` issue IDs in `issue_id`
-- `issue_id` must match `REF-[A-Za-z0-9][A-Za-z0-9_-]*`
-- Every `claim_ids[]` entry must match `CLM-[A-Za-z0-9][A-Za-z0-9_-]*` and reuse a Stage 1 claim ID from `CLAIMS{round_suffix}.json`
-- `severity` must use exactly: `critical`, `major`, `minor`, `suggestion`
-- `support_status` must use exactly: `supported`, `partially_supported`, `unsupported`, `unclear`
-- `confidence` must use exactly: `high`, `medium`, `low`
-- `recommendation_ceiling` must use exactly: `accept`, `minor_revision`, `major_revision`, `reject`
-- `StageReviewReport` and every nested `ReviewFinding` use a closed schema; do not invent extra keys
-- Keep `claims_reviewed`, `strengths`, `findings`, `proof_audits`, `evidence_refs`, and `manuscript_locations` as arrays even when empty; do not collapse them to prose or scalars
-
-Required finding coverage:
-
-- stated physical assumptions
-- regime of validity
-- supported physical conclusions
-- unsupported or overstated connections
-
-Set `recommendation_ceiling` to `major_revision` or worse whenever central physical conclusions outrun the actual evidence.
+- Keep `proof_audits` empty in this stage unless the workflow explicitly asks for a theorem-to-proof spot check.
+- Focus `findings` on stated physical assumptions, regime of validity, supported physical conclusions, and unsupported or overstated connections.
+- Treat formal resemblance as insufficient evidence for a physical conclusion.
+- Escalate `recommendation_ceiling` to `major_revision` or worse whenever central physical conclusions outrun the actual evidence.
 </artifact_format>
 
 <anti_patterns>
