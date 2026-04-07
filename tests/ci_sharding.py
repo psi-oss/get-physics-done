@@ -6,11 +6,17 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-CI_TOTAL_SHARDS = 12
+CI_CATEGORY_SHARD_COUNTS = {
+    "root": 4,
+    "adapters": 1,
+    "hooks": 1,
+    "mcp": 1,
+    "core": 6,
+}
 
 # Observed GitHub Actions timings on 2026-04-07 showed that these files are the
-# real bottlenecks, not just the largest by collected test count. Split them
-# inside the file and bias their weight upward so the planner isolates them.
+# real bottlenecks inside their category. Split them inside the file and bias
+# their weight upward so category-local planners isolate them.
 CI_HOT_TEST_FILE_SPLITS = {
     "test_runtime_cli.py": 4,
     "test_cli_integration.py": 2,
@@ -33,26 +39,43 @@ CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS = {
 @dataclass(frozen=True)
 class CIShardSpec:
     slug: str
+    category: str
     shard_index: int
     shard_total: int
+
+    @property
+    def display_name(self) -> str:
+        if self.shard_total == 1:
+            return self.category
+        return f"{self.category} {self.shard_index}/{self.shard_total}"
 
 
 @dataclass(frozen=True)
 class CIWorkUnit:
     label: str
+    category: str
     targets: tuple[str, ...]
     weight: float
 
 
+def category_for_test_relpath(rel_path: str) -> str:
+    return rel_path.split("/", 1)[0] if "/" in rel_path else "root"
+
+
 def ci_shard_specs() -> tuple[CIShardSpec, ...]:
-    return tuple(
-        CIShardSpec(
-            slug=f"shard-{shard_index}",
-            shard_index=shard_index,
-            shard_total=CI_TOTAL_SHARDS,
-        )
-        for shard_index in range(1, CI_TOTAL_SHARDS + 1)
-    )
+    specs: list[CIShardSpec] = []
+    for category, shard_total in CI_CATEGORY_SHARD_COUNTS.items():
+        for shard_index in range(1, shard_total + 1):
+            slug = category if shard_total == 1 else f"{category}-{shard_index}"
+            specs.append(
+                CIShardSpec(
+                    slug=slug,
+                    category=category,
+                    shard_index=shard_index,
+                    shard_total=shard_total,
+                )
+            )
+    return tuple(specs)
 
 
 def all_test_relpaths(*, tests_root: Path) -> tuple[str, ...]:
@@ -115,6 +138,7 @@ def build_ci_work_units(
     work_units: list[CIWorkUnit] = []
 
     for rel_path, nodeids in inventory.items():
+        category = category_for_test_relpath(rel_path)
         split_parts = CI_HOT_TEST_FILE_SPLITS.get(rel_path, 1)
         split_groups = _split_nodeids_round_robin(nodeids, parts=split_parts)
         total_weight = _file_weight(rel_path, test_count=len(nodeids))
@@ -124,6 +148,7 @@ def build_ci_work_units(
             work_units.append(
                 CIWorkUnit(
                     label=rel_path,
+                    category=category,
                     targets=(f"tests/{rel_path}",),
                     weight=total_weight,
                 )
@@ -134,6 +159,7 @@ def build_ci_work_units(
             work_units.append(
                 CIWorkUnit(
                     label=f"{rel_path} [{group_index}/{len(split_groups)}]",
+                    category=category,
                     targets=group,
                     weight=len(group) * scale,
                 )
@@ -142,10 +168,10 @@ def build_ci_work_units(
     return tuple(sorted(work_units, key=lambda unit: (-unit.weight, unit.label)))
 
 
-def plan_ci_shards_from_work_units(
+def plan_work_units_into_shards(
     work_units: tuple[CIWorkUnit, ...],
     *,
-    shard_total: int = CI_TOTAL_SHARDS,
+    shard_total: int,
 ) -> tuple[tuple[str, ...], ...]:
     if shard_total < 1:
         raise ValueError("shard_total must be positive")
@@ -164,10 +190,16 @@ def plan_ci_shards_from_work_units(
     return tuple(tuple(targets) for targets in shard_targets)
 
 
-def plan_ci_shards(*, repo_root: Path | None = None) -> tuple[tuple[str, ...], ...]:
+def plan_category_ci_shards(
+    *,
+    category: str,
+    repo_root: Path | None = None,
+) -> tuple[tuple[str, ...], ...]:
     inventory = collected_test_inventory(repo_root=repo_root)
-    work_units = build_ci_work_units(inventory)
-    return plan_ci_shards_from_work_units(work_units)
+    work_units = tuple(unit for unit in build_ci_work_units(inventory) if unit.category == category)
+    if not work_units:
+        raise ValueError(f"no work units matched category {category!r}")
+    return plan_work_units_into_shards(work_units, shard_total=CI_CATEGORY_SHARD_COUNTS[category])
 
 
 def expand_ci_targets_to_nodeids(
@@ -187,26 +219,30 @@ def expand_ci_targets_to_nodeids(
 
 def select_ci_shard_targets(
     *,
+    category: str,
     shard_index: int,
     shard_total: int,
     repo_root: Path | None = None,
 ) -> tuple[str, ...]:
-    if shard_total != CI_TOTAL_SHARDS:
-        raise ValueError(f"shard_total must equal {CI_TOTAL_SHARDS}")
+    expected_total = CI_CATEGORY_SHARD_COUNTS[category]
+    if shard_total != expected_total:
+        raise ValueError(f"shard_total for {category!r} must equal {expected_total}")
     if shard_index < 1 or shard_index > shard_total:
         raise ValueError("shard_index must be within shard_total")
-    planned_shards = plan_ci_shards(repo_root=repo_root)
+    planned_shards = plan_category_ci_shards(category=category, repo_root=repo_root)
     return planned_shards[shard_index - 1]
 
 
 def write_ci_shard_targets_file(
     *,
     target_file: Path,
+    category: str,
     shard_index: int,
     shard_total: int,
     repo_root: Path | None = None,
 ) -> tuple[str, ...]:
     targets = select_ci_shard_targets(
+        category=category,
         shard_index=shard_index,
         shard_total=shard_total,
         repo_root=repo_root,

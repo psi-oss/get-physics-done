@@ -312,8 +312,11 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert "workflow_dispatch:" in workflow
     assert "name: pytest ${{ matrix.display_name }} (3.11)" in workflow
     assert "fail-fast: false" in workflow
-    assert "display_name: shard 1/12" in workflow
-    assert "display_name: shard 12/12" in workflow
+    assert "display_name: root 1/4" in workflow
+    assert "display_name: adapters" in workflow
+    assert "display_name: hooks" in workflow
+    assert "display_name: mcp" in workflow
+    assert "display_name: core 6/6" in workflow
     assert "actions/checkout@v6" in workflow
     assert "actions/setup-python@v6" in workflow
     assert 'python-version: "3.11"' in workflow
@@ -323,6 +326,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert "Resolve pytest shard targets" in workflow
     assert "Run pytest shard" in workflow
     assert "from tests.ci_sharding import write_ci_shard_targets_file" in workflow
+    assert "PYTEST_CATEGORY" in workflow
     assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in workflow
     assert "needs: [pytest]" in workflow
 
