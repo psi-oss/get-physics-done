@@ -7,16 +7,13 @@ Display the complete GPD command reference. Output ONLY the reference content. D
 <step name="contextual_help">
 ## Contextual Help (State-Aware Variant)
 
-When a state-aware help view is requested, show guidance based on project state:
-
-1. Check project state via gpd CLI
-2. Show ONLY the 5-8 commands relevant NOW:
+When a state-aware help view is requested, show only the commands relevant to the current project state:
 
 **No project exists:**
 ```
 Getting started:
-  gpd:start               — Guided router when you are not sure whether to create, map, resume, or just explain something
-  gpd:tour               — Optional guided tour of the main commands and when to use them
+  gpd:start               — Guided router for create, map, resume, or explain decisions
+  gpd:tour               — Read-only guided tour of the main commands
   gpd:new-project         — Start a new research project with full scoping
   gpd:new-project --minimal — Faster one-question project bootstrap
   gpd:map-research        — Map an existing research project
@@ -29,7 +26,7 @@ Returning to work:
   gpd resume --recent    — Find the workspace first when you need to reopen a different one
   gpd:resume-work         — Continue in-runtime from the selected project's canonical state
   gpd:progress            — Review the broader project snapshot
-  gpd:suggest-next        — Fastest post-resume next command when you only need the next action
+  gpd:suggest-next        — Fastest post-resume next command
   gpd observe execution    — Read-only live status from your normal terminal; use this for progress / waiting state, then follow its suggested read-only checks rather than runtime hotkeys
   gpd cost                 — Read-only machine-local usage / cost summary from your normal terminal
   gpd:tangent             — Choose stay / quick / defer / branch when a side investigation appears
@@ -119,7 +116,7 @@ Project ─── the overall research goal
 
 ## Startup Checklist
 
-For the exact beginner-first startup order, use the shared onboarding surfaces in the README or installer output.
+Use the shared onboarding surfaces in the README or installer output for the longer beginner-first startup order and prerequisites.
 
 1. `gpd:help` - See the command reference first.
 2. `gpd:start` - Let GPD choose the safest first step for the current folder.
@@ -135,9 +132,9 @@ This reference lists the canonical in-runtime command names for the installed ru
 Depending on the runtime, those names may be rendered with slash prefixes, dollar prefixes, or another adapter-specific convention.
 
 - If you are new to terminals or runtime setup, start with the Beginner Onboarding Hub linked from the README and installer output.
-- That shared onboarding surface keeps the OS guides, runtime guides, and beginner startup checklist in one place.
+- That shared onboarding surface keeps the OS guides, runtime guides, and startup checklist in one place.
 - Use these names inside the installed agent/runtime command surface.
-- The bootstrap installer owns Node.js / Python / `venv` prerequisites. The local `gpd` CLI may expose different `gpd ...` subcommands and grouping. Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
+- The bootstrap installer owns Node.js / Python / `venv` prerequisites; use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
 - Use `gpd permissions status --runtime <runtime> --autonomy balanced` when you want the read-only runtime-owned approval/alignment snapshot from your normal terminal.
 - Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`.
 - If you need to validate whether a public runtime command can run in the current workspace, use `gpd validate command-context gpd:<name>`.

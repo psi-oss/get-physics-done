@@ -111,7 +111,7 @@ def test_review_grade_commands_prepend_model_visible_review_contract_to_registry
         contract = command.review_contract
 
         assert contract is not None
-        expected_section = render_review_contract_prompt(review_contract_payload(contract))
+        expected_section = render_review_contract_prompt(contract)
         assert command.content.startswith("## Command Requirements\n")
         assert "## Command Requirements" in command.content
         assert command_visibility_note() in command.content
@@ -234,7 +234,11 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert agent_note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
     assert command_note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
     assert note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
+    assert "Empty optional fields may be omitted." in note
     assert "strict booleans" in command_note.lower()
+    assert "`allowed_tools` is a list when present;" in command_note
+    assert "`requires` is an object when present;" in command_note
+    assert "Empty optional fields may be omitted." in command_note
     for value in VALID_CONTEXT_MODES:
         assert value in command_note
     for value in command_agent_labels:

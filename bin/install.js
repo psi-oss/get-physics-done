@@ -112,6 +112,38 @@ function runtimeInstallerHelpExampleScope(runtime) {
   return runtimeRecord(runtime).installer_help_example_scope || null;
 }
 
+function loadSharedPublicSurfaceShape(contractPayload = PUBLIC_SURFACE_CONTRACT) {
+  const contract = requireJsonObject(contractPayload, "public surface contract");
+  requirePresentKeys(contract, ["schema_version"], "public surface contract");
+  if (contract.schema_version !== 1) {
+    throw new Error(`Unsupported public surface contract schema_version: ${JSON.stringify(contract.schema_version)}`);
+  }
+
+  const topLevelKeys = Object.keys(contract);
+  const sectionNames = topLevelKeys.filter((key) => key !== "schema_version");
+  const sectionKeys = Object.fromEntries(
+    sectionNames.map((sectionName) => [
+      sectionName,
+      Object.keys(requireJsonObject(contract[sectionName], `public surface contract.${sectionName}`)),
+    ])
+  );
+  const localCliBridge = requireJsonObject(contract.local_cli_bridge, "public surface contract.local_cli_bridge");
+  const namedCommands = requireJsonObject(
+    localCliBridge.named_commands,
+    "public surface contract.local_cli_bridge.named_commands"
+  );
+
+  return {
+    topLevelKeys,
+    sectionKeys,
+    localCliBridgeCommands: requireStrictStringList(
+      localCliBridge.commands,
+      "public surface contract.local_cli_bridge.commands"
+    ),
+    localCliNamedCommandKeys: Object.keys(namedCommands),
+  };
+}
+
 const RUNTIME_CATALOG_GLOBAL_CONFIG_KEYS = Object.fromEntries(
   Object.entries(RUNTIME_CATALOG_SCHEMA.global_config_keys).map(([strategy, keys]) => [strategy, new Set(keys)])
 );
@@ -135,65 +167,15 @@ const RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES = new Set(RUNTIME_CATALOG_SCHEMA.insta
 const RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = new Set(
   RUNTIME_CATALOG_SCHEMA.launch_wrapper_permission_surface_kinds
 );
-const PUBLIC_SURFACE_CONTRACT_KEYS = [...PUBLIC_SURFACE_CONTRACT_SCHEMA.top_level_keys];
+const PUBLIC_SURFACE_CONTRACT_SHAPE = loadSharedPublicSurfaceShape(PUBLIC_SURFACE_CONTRACT);
+const PUBLIC_SURFACE_CONTRACT_KEYS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.topLevelKeys];
 const PUBLIC_SURFACE_CONTRACT_ALLOWED_KEYS = new Set(PUBLIC_SURFACE_CONTRACT_KEYS);
-const PUBLIC_SURFACE_CONTRACT_SECTION_KEYS = Object.fromEntries(
-  Object.entries(PUBLIC_SURFACE_CONTRACT_SCHEMA.sections).map(([section, payload]) => [section, payload.keys])
-);
+const PUBLIC_SURFACE_CONTRACT_SECTION_KEYS = PUBLIC_SURFACE_CONTRACT_SHAPE.sectionKeys;
 const PUBLIC_SURFACE_CONTRACT_SECTION_ALLOWED_KEYS = Object.fromEntries(
   Object.entries(PUBLIC_SURFACE_CONTRACT_SECTION_KEYS).map(([section, keys]) => [section, new Set(keys)])
 );
-const PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = [
-  ...PUBLIC_SURFACE_CONTRACT_SCHEMA.sections.local_cli_bridge.named_commands.ordered_keys,
-];
-const PUBLIC_SURFACE_LOCAL_CLI_COMMANDS = [...PUBLIC_SURFACE_CONTRACT_SCHEMA.sections.local_cli_bridge.commands];
-const SUPPORTED_PUBLIC_SURFACE_CONTRACT_KEYS = [
-  "schema_version",
-  "beginner_onboarding",
-  "local_cli_bridge",
-  "post_start_settings",
-  "resume_authority",
-  "recovery_ladder",
-];
-const SUPPORTED_PUBLIC_SURFACE_SECTION_KEYS = Object.freeze({
-  beginner_onboarding: ["hub_url", "preflight_requirements", "caveats", "startup_ladder"],
-  local_cli_bridge: [
-    "commands",
-    "named_commands",
-    "terminal_phrase",
-    "purpose_phrase",
-    "install_local_example",
-    "doctor_local_command",
-    "doctor_global_command",
-    "validate_command_context_command",
-  ],
-  post_start_settings: ["primary_sentence", "default_sentence"],
-  resume_authority: ["durable_authority_phrase", "public_vocabulary_intro", "public_fields"],
-  recovery_ladder: [
-    "title",
-    "local_snapshot_command",
-    "local_snapshot_phrase",
-    "cross_workspace_command",
-    "cross_workspace_phrase",
-    "resume_phrase",
-    "next_phrase",
-    "pause_phrase",
-  ],
-});
-const SUPPORTED_PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = [
-  "help",
-  "doctor",
-  "unattended_readiness",
-  "permissions_status",
-  "permissions_sync",
-  "resume",
-  "resume_recent",
-  "observe_execution",
-  "cost",
-  "presets_list",
-  "plan_preflight",
-  "integrations_status_wolfram",
-];
+const PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.localCliNamedCommandKeys];
+const PUBLIC_SURFACE_LOCAL_CLI_COMMANDS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.localCliBridgeCommands];
 const RUNTIME_CONFIG_SURFACE_LABEL_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$/;
 
 function formatQuotedDisjunction(values) {
@@ -339,18 +321,14 @@ function validateSharedPublicSurfaceSchemaShape(schemaPayload = PUBLIC_SURFACE_C
   }
 
   const topLevelKeys = requireStrictStringList(schema.top_level_keys, "public surface contract schema.top_level_keys");
-  requireExactKeyOrder(
-    topLevelKeys,
-    SUPPORTED_PUBLIC_SURFACE_CONTRACT_KEYS,
-    "public surface contract schema.top_level_keys"
-  );
+  requireExactKeyOrder(topLevelKeys, PUBLIC_SURFACE_CONTRACT_KEYS, "public surface contract schema.top_level_keys");
 
   const sections = requireJsonObject(schema.sections, "public surface contract schema.sections");
-  const supportedSectionNames = Object.keys(SUPPORTED_PUBLIC_SURFACE_SECTION_KEYS);
+  const supportedSectionNames = PUBLIC_SURFACE_CONTRACT_KEYS.filter((key) => key !== "schema_version");
   requireKnownKeys(sections, new Set(supportedSectionNames), "public surface contract schema.sections");
   requirePresentKeys(sections, supportedSectionNames, "public surface contract schema.sections");
 
-  for (const [sectionName, expectedKeys] of Object.entries(SUPPORTED_PUBLIC_SURFACE_SECTION_KEYS)) {
+  for (const [sectionName, expectedKeys] of Object.entries(PUBLIC_SURFACE_CONTRACT_SECTION_KEYS)) {
     const section = requireJsonObject(sections[sectionName], `public surface contract schema.sections.${sectionName}`);
     const allowedKeys = sectionName === "local_cli_bridge" ? new Set(["keys", "commands", "named_commands"]) : new Set(["keys"]);
     requireKnownKeys(section, allowedKeys, `public surface contract schema.sections.${sectionName}`);
@@ -386,7 +364,7 @@ function validateSharedPublicSurfaceSchemaShape(schemaPayload = PUBLIC_SURFACE_C
   );
   requireExactKeyOrder(
     orderedKeys,
-    SUPPORTED_PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS,
+    PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS,
     "public surface contract schema.sections.local_cli_bridge.named_commands.ordered_keys"
   );
 

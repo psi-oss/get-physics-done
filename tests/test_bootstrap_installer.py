@@ -1005,6 +1005,22 @@ assert.throws(
 
     assert drift_result.returncode == 0, f"{drift_result.stdout}\n{drift_result.stderr}"
 
+    drifted_top_level_schema = json.loads(json.dumps(canonical_schema))
+    drifted_top_level_schema["top_level_keys"].append("legacy_note")
+    top_level_result = _run_node_contract_validation(
+        f"""
+const assert = require("node:assert/strict");
+const {{ validateSharedPublicSurfaceSchemaShape }} = require("./bin/install.js");
+const schema = {json.dumps(drifted_top_level_schema)};
+assert.throws(
+  () => validateSharedPublicSurfaceSchemaShape(schema),
+  /public surface contract schema\\.top_level_keys must exactly match the code-supported public surface fields/
+);
+"""
+    )
+
+    assert top_level_result.returncode == 0, f"{top_level_result.stdout}\n{top_level_result.stderr}"
+
 
 def test_bootstrap_runtime_catalog_validator_rejects_malformed_records() -> None:
     result = _run_node_contract_validation(

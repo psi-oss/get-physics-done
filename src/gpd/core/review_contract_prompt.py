@@ -430,6 +430,8 @@ def review_contract_payload(review_contract: object) -> dict[str, object] | None
 def render_review_contract_prompt(review_contract: object) -> str:
     """Render a canonical model-visible review-contract section."""
 
+    if dataclasses.is_dataclass(review_contract):
+        review_contract = review_contract_payload(review_contract)
     payload = normalize_review_contract_payload(review_contract)
     if not payload:
         return ""

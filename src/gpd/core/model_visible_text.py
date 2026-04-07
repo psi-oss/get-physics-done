@@ -108,6 +108,9 @@ def command_visibility_note() -> str:
         "Model-visible command constraints.",
         "Strict booleans only.",
         f"`context_mode` must be {_join_disjunction(VALID_CONTEXT_MODES)};",
+        "`allowed_tools` is a list when present;",
+        "`requires` is an object when present;",
+        "Empty optional fields may be omitted.",
         agent_clause,
         "`project_reentry_capable` must be `true` or `false` and may be `true` only when `context_mode` is `project-required`.",
     )
@@ -121,6 +124,7 @@ def review_contract_visibility_note() -> str:
     return render_model_visible_note(
         "Review contract schema.",
         f"`{REVIEW_CONTRACT_PROMPT_WRAPPER_KEY}` is the wrapper key; `schema_version` must be the integer `1`;",
+        "Empty optional fields may be omitted.",
         f"`review_mode` must be {review_modes};",
         f"when present, `required_state` must be {required_states};",
         f"`conditional_requirements[].when` must be one of {conditional_whens};",

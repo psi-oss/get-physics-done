@@ -1141,7 +1141,10 @@ class TestSkillsServer:
             "---\n"
             "\n"
             "Canonical help command.\n"
-            "Try /gpd:help or /gpd:execute-phase for runtime-installed shells.\n",
+            "Try /gpd:help or /gpd:execute-phase for runtime-installed shells.\n"
+            "## Contextual Help (State-Aware Variant)\n"
+            "\n"
+            "Use the state-aware help block to pick the current-state command set.\n",
             encoding="utf-8",
         )
         (commands_dir / "slides.md").write_text(
@@ -1412,7 +1415,7 @@ class TestSkillsServer:
         assert "gpd-execute-phase" in result["content"]
         assert "## Command Requirements" in result["content"]
         assert "Try gpd-help or gpd-execute-phase for runtime-installed shells." in result["content"]
-        assert "## Contextual Help" not in result["content"]
+        assert "## Contextual Help" in result["content"]
 
     def test_get_skill_resolves_install_and_agents_placeholders(self):
         from gpd.mcp.servers.skills_server import get_skill

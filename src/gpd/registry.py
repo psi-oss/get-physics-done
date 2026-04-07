@@ -33,7 +33,6 @@ from gpd.core.model_visible_text import (
 from gpd.core.review_contract_prompt import (
     normalize_review_contract_frontmatter_payload,
     render_review_contract_prompt,
-    review_contract_payload,
 )
 from gpd.core.strict_yaml import load_strict_yaml
 from gpd.specs import SPECS_DIR
@@ -609,7 +608,7 @@ def render_review_contract_section(review_contract: ReviewCommandContract | None
 
     if review_contract is None:
         return ""
-    return render_review_contract_prompt(review_contract_payload(review_contract))
+    return render_review_contract_prompt(review_contract)
 
 
 def _agent_requirements_payload(
