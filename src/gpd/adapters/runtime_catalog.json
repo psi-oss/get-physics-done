@@ -230,5 +230,62 @@
       "xdg_subdir": "opencode",
       "home_subpath": ".config/opencode"
     }
+  },
+  {
+    "runtime_name": "copilot-cli",
+    "display_name": "GitHub Copilot CLI",
+    "priority": 50,
+    "config_dir_name": ".copilot",
+    "install_flag": "--copilot",
+    "launch_command": "gh copilot",
+    "command_prefix": "/gpd-",
+    "native_include_support": false,
+    "activation_env_vars": ["COPILOT_CLI_SESSION"],
+    "selection_flags": ["--copilot", "--copilot-cli"],
+    "selection_aliases": ["copilot", "copilot cli", "copilot-cli", "github copilot"],
+    "manifest_file_prefixes": ["command/"],
+    "validated_command_surface": "public_runtime_slash_command",
+    "capabilities": {
+      "permissions_surface": "config-file",
+      "permission_surface_kind": "copilot.json:mcp",
+      "prompt_free_mode_value": "none",
+      "supports_runtime_permission_sync": true,
+      "supports_prompt_free_mode": false,
+      "prompt_free_requires_relaunch": false,
+      "statusline_surface": "none",
+      "statusline_config_surface": "none",
+      "notify_surface": "none",
+      "notify_config_surface": "none",
+      "telemetry_source": "none",
+      "telemetry_completeness": "none",
+      "supports_usage_tokens": false,
+      "supports_cost_usd": false,
+      "supports_context_meter": false
+    },
+    "hook_payload": {
+      "notify_event_types": [],
+      "workspace_keys": [],
+      "project_dir_keys": [],
+      "runtime_session_id_keys": [],
+      "model_keys": [],
+      "provider_keys": [],
+      "usage_keys": [],
+      "input_tokens_keys": [],
+      "output_tokens_keys": [],
+      "total_tokens_keys": [],
+      "cached_input_tokens_keys": [],
+      "cache_write_input_tokens_keys": [],
+      "cost_usd_keys": [],
+      "agent_id_keys": [],
+      "agent_name_keys": [],
+      "agent_scope_keys": [],
+      "context_window_size_keys": [],
+      "context_remaining_keys": []
+    },
+    "global_config": {
+      "strategy": "env_or_home",
+      "env_var": "COPILOT_CONFIG_DIR",
+      "home_subpath": ".copilot"
+    }
   }
 ]
