@@ -18,6 +18,7 @@ from gpd.core.model_visible_text import (
     REVIEW_CONTRACT_WRAPPER_KEYS,
     review_contract_visibility_note,
 )
+from gpd.core.strict_yaml import load_strict_yaml
 
 REVIEW_CONTRACT_FIELD_ORDER = (
     "schema_version",
@@ -42,40 +43,6 @@ REVIEW_CONTRACT_KEYS = frozenset(REVIEW_CONTRACT_FIELD_ORDER)
 REVIEW_CONTRACT_CONDITIONAL_KEYS = frozenset(REVIEW_CONTRACT_CONDITIONAL_FIELD_ORDER)
 
 
-class _StrictYAMLLoader(yaml.SafeLoader):
-    """Safe YAML loader that rejects duplicate mapping keys at any depth."""
-
-
-def _strict_yaml_construct_mapping(loader: yaml.SafeLoader, node, deep: bool = False) -> dict[object, object]:
-    """Construct one YAML mapping while rejecting duplicate keys."""
-
-    loader.flatten_mapping(node)
-    mapping: dict[object, object] = {}
-    for key_node, value_node in node.value:
-        key = loader.construct_object(key_node, deep=deep)
-        try:
-            is_duplicate = key in mapping
-        except TypeError as exc:  # pragma: no cover - defensive YAML safety guard
-            raise yaml.constructor.ConstructorError(
-                "while constructing a mapping",
-                node.start_mark,
-                f"found unhashable key {key!r}",
-                key_node.start_mark,
-            ) from exc
-        if is_duplicate:
-            raise yaml.constructor.ConstructorError(
-                "while constructing a mapping",
-                node.start_mark,
-                f"found duplicate key {key!r}",
-                key_node.start_mark,
-            )
-        mapping[key] = loader.construct_object(value_node, deep=deep)
-    return mapping
-
-
-_StrictYAMLLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _strict_yaml_construct_mapping)
-
-
 def _load_review_contract_payload(
     review_contract: object,
     *,
@@ -90,7 +57,7 @@ def _load_review_contract_payload(
         if not block:
             return {}, False
         try:
-            loaded = yaml.load(block, Loader=_StrictYAMLLoader)
+            loaded = load_strict_yaml(block)
         except yaml.YAMLError as exc:
             raise ValueError(f"review contract must parse as valid YAML: {exc}") from exc
     elif isinstance(review_contract, Mapping):

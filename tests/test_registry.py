@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from gpd import registry
+from gpd.core.model_visible_text import agent_visibility_note, command_visibility_note
 from gpd.registry import (
     AgentDef,
     CommandDef,
@@ -101,6 +102,12 @@ class TestParseFrontmatter:
         assert meta["another"] == 42
         assert body == "Body."
 
+    def test_frontmatter_rejects_duplicate_keys(self) -> None:
+        text = "---\nname: test\nname: duplicate\n---\nBody."
+
+        with pytest.raises(ValueError, match="duplicate key"):
+            _parse_frontmatter(text)
+
     def test_frontmatter_with_leading_blank_lines_is_parsed(self) -> None:
         text = "\n\n---\nname: test\n---\nBody."
         meta, body = _parse_frontmatter(text)
@@ -172,10 +179,7 @@ class TestParseAgentFile:
         assert agent.system_prompt.startswith("## Agent Requirements\n")
         assert "Model-visible agent requirements. Follow this YAML." in agent.system_prompt
         assert "Closed schema; no extra keys." in agent.system_prompt
-        assert (
-            "Use only the declared enum values for `commit_authority`, `surface`, `role_family`, "
-            "`artifact_write_authority`, and `shared_state_authority`."
-        ) in agent.system_prompt
+        assert agent_visibility_note() in agent.system_prompt
         assert "commit_authority: orchestrator" in agent.system_prompt
         assert "surface: public" in agent.system_prompt
         assert "role_family: worker" in agent.system_prompt
@@ -398,10 +402,7 @@ class TestParseCommandFile:
         assert cmd.content.startswith("## Command Requirements\n\n")
         assert "Closed schema; no extra keys." in cmd.content
         assert "Strict booleans only." in cmd.content
-        assert (
-            "Use only declared values for `context_mode` and `agent`; "
-            "`project_reentry_capable` must be `true` or `false`."
-        ) in cmd.content
+        assert command_visibility_note() in cmd.content
         assert "GPD/ROADMAP.md" in cmd.content
         assert cmd.content.endswith("Command body.")
 

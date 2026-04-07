@@ -19,8 +19,14 @@ from gpd.adapters.install_utils import expand_at_includes
 from gpd.command_labels import canonical_command_label, canonical_skill_label, command_slug_from_label
 from gpd.core.model_visible_sections import render_model_visible_yaml_section
 from gpd.core.model_visible_text import (
+    AGENT_ARTIFACT_WRITE_AUTHORITIES,
+    AGENT_COMMIT_AUTHORITIES,
+    AGENT_ROLE_FAMILIES,
+    AGENT_SHARED_STATE_AUTHORITIES,
+    AGENT_SURFACES,
     REVIEW_CONTRACT_FRONTMATTER_KEY,
     REVIEW_CONTRACT_PROMPT_WRAPPER_KEY,
+    VALID_CONTEXT_MODES,
     agent_visibility_note,
     command_visibility_note,
 )
@@ -544,14 +550,6 @@ def _parse_command_agent(raw: object, *, command_name: str) -> str | None:
     return normalized
 
 
-VALID_CONTEXT_MODES: tuple[str, ...] = ("global", "projectless", "project-aware", "project-required")
-VALID_AGENT_COMMIT_AUTHORITIES: tuple[str, ...] = ("direct", "orchestrator")
-VALID_AGENT_SURFACES: tuple[str, ...] = ("public", "internal")
-VALID_AGENT_ROLE_FAMILIES: tuple[str, ...] = ("worker", "analysis", "verification", "review", "coordination")
-VALID_AGENT_ARTIFACT_WRITE_AUTHORITIES: tuple[str, ...] = ("scoped_write", "read_only")
-VALID_AGENT_SHARED_STATE_AUTHORITIES: tuple[str, ...] = ("return_only", "direct")
-
-
 def _review_contract_frontmatter_value(meta: dict[str, object], *, command_name: str) -> object:
     """Return the canonical review-contract frontmatter payload."""
 
@@ -590,8 +588,8 @@ def _parse_commit_authority(raw: object, *, agent_name: str) -> str:
     authority = raw.strip().lower()
     if not authority:
         raise ValueError(f"commit_authority for {agent_name} must be a non-empty string")
-    if authority not in VALID_AGENT_COMMIT_AUTHORITIES:
-        valid = ", ".join(VALID_AGENT_COMMIT_AUTHORITIES)
+    if authority not in AGENT_COMMIT_AUTHORITIES:
+        valid = ", ".join(AGENT_COMMIT_AUTHORITIES)
         raise ValueError(f"Invalid commit_authority {authority!r} for {agent_name}; expected one of: {valid}")
     return authority
 
@@ -902,28 +900,28 @@ def _parse_agent_file(path: Path, source: str) -> AgentDef:
         meta.get("surface"),
         field_name="surface",
         agent_name=agent_name,
-        valid_values=VALID_AGENT_SURFACES,
+        valid_values=AGENT_SURFACES,
         default="internal",
     )
     role_family = _parse_agent_metadata_enum(
         meta.get("role_family"),
         field_name="role_family",
         agent_name=agent_name,
-        valid_values=VALID_AGENT_ROLE_FAMILIES,
+        valid_values=AGENT_ROLE_FAMILIES,
         default="analysis",
     )
     artifact_write_authority = _parse_agent_metadata_enum(
         meta.get("artifact_write_authority"),
         field_name="artifact_write_authority",
         agent_name=agent_name,
-        valid_values=VALID_AGENT_ARTIFACT_WRITE_AUTHORITIES,
+        valid_values=AGENT_ARTIFACT_WRITE_AUTHORITIES,
         default="scoped_write",
     )
     shared_state_authority = _parse_agent_metadata_enum(
         meta.get("shared_state_authority"),
         field_name="shared_state_authority",
         agent_name=agent_name,
-        valid_values=VALID_AGENT_SHARED_STATE_AUTHORITIES,
+        valid_values=AGENT_SHARED_STATE_AUTHORITIES,
         default="return_only",
     )
     color = _parse_frontmatter_string_field(
@@ -1351,11 +1349,11 @@ __all__ = [
     "ReviewCommandContract",
     "SkillDef",
     "SPECS_DIR",
-    "VALID_AGENT_ARTIFACT_WRITE_AUTHORITIES",
-    "VALID_AGENT_COMMIT_AUTHORITIES",
-    "VALID_AGENT_ROLE_FAMILIES",
-    "VALID_AGENT_SHARED_STATE_AUTHORITIES",
-    "VALID_AGENT_SURFACES",
+    "AGENT_ARTIFACT_WRITE_AUTHORITIES",
+    "AGENT_COMMIT_AUTHORITIES",
+    "AGENT_ROLE_FAMILIES",
+    "AGENT_SHARED_STATE_AUTHORITIES",
+    "AGENT_SURFACES",
     "VALID_CONTEXT_MODES",
     "get_agent",
     "get_command",
