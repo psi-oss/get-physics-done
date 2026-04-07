@@ -16,7 +16,7 @@
   <a href="#supported-runtimes"><img alt="OpenCode supported" src="https://img.shields.io/badge/OpenCode-supported-cfcecd?style=flat&labelColor=565656&logo=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABzUlEQVR4AeycQQrCQBAEF1%2Bg6J%2F0o5LPCXmCnnNx0E2nNqGEPciw024VffV0PZ%2FfHo7BqflBCSgAxd%2BaAhQAE4DjbYACYAJwvA1QAEwAjrcBCgAIDBRpA2AZClAATACOtwEKgAnA8TZAATABOD7egNc8tz2ftJ%2B4gPQD9r5fAbDBDQXALx00XgGwGAUoACYAx9sABcAE4HgboACYABxvAxSwJHC7XFryLNP4bzYg7KBar4CKUHiugDDgar0CKkLhuQLCgKv1CqgIhecKCAOu1iugIhSeKyAMuFqvgIpQeK6AMOBq%2FXAC7o9H6z5fdlRAtp4PJ2BrAHSeAmADClAATACOtwEKgAnA8TZAATABON4GKAAmAMev2AD4JTuNVwAsTgEKgAnA8TZAATABON4GKAAmAMfbAAXABOB4G9ApoPe6AnoJdt5XQCfA3uvDCXhOU0ueXmBr3x9OwNoPHH2fAmBDClAATACOtwEKgAnA8TZAAX8QONAVGwDLVIACYAJwfLwByf%2F%2B2WJ32k9cQPoBe9%2BvANigAhQAE4DjbYACYAJw%2FA8NgH%2FpQeMVAItVgAJgAnC8DVAATACOtwEKgAnA8TZAATABON4GFALS4w8AAAD%2F%2Fx7wkLQAAAAGSURBVAMAKj5LkLSa6SQAAAAASUVORK5CYII%3D"></a>
 </p>
 
-Get Physics Done is an open-source AI copilot for physics research from [Physical Superintelligence PBC (PSI)](https://www.psi.inc), released as a community contribution. GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
+Get Physics Done is an open-source agentic AI for physics research from [Physical Superintelligence PBC (PSI)](https://www.psi.inc), released as a community contribution. GPD helps turn a research question into a structured workflow: scope the problem, plan the work, derive results, verify them, and package the output.
 
 https://github.com/user-attachments/assets/e79f8153-c0bd-484f-b69e-da8f142649e0
 
