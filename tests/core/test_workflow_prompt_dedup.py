@@ -54,7 +54,7 @@ def test_planner_workflows_expand_the_shared_planner_template_once_per_route() -
 
     assert planner_template.count("## Standard Planning Template") == 1
     assert planner_template.count("## Revision Template") == 1
-    assert planner_template.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 2
+    assert planner_template.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
 
     assert "# Planner Subagent Prompt Template" in plan_phase
     assert plan_phase.count("# Planner Subagent Prompt Template") == 2

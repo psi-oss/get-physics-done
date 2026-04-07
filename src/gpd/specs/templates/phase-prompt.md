@@ -6,22 +6,18 @@ template_version: 1
 
 Canonical PLAN.md structure for `gpd-planner`. PLAN.md is the executor prompt, so every field must be specific enough to execute and verify without interpretation.
 
-Before authoring or revising the `contract:` block, use the canonical schema below as the source of truth. The include is intentionally standalone so the prompt expander can inline it.
+Use the canonical schema below before drafting any `contract:` block.
 
 @{GPD_INSTALL_DIR}/templates/plan-contract-schema.md
 
 Quick contract rules:
-- Put machine-checkable prerequisites in `tool_requirements`; keep human-only setup in `researcher_setup`.
-- Use the included schema for contract shape, cardinality, and enum defaults.
-- `tool_requirements[].id` values must be unique within the list.
+- Put machine-checkable prerequisites in `tool_requirements`; keep human-only setup in `researcher_setup`. `tool_requirements[].id` values must be unique within the list.
 - Gap-closure plans still use `type: execute`; mark verification-repair plans with `gap_closure: true` instead of inventing a third plan type.
-- `scope.in_scope` must be populated in the executor-facing contract examples, and project-scoping plans must keep it non-empty.
-- Proof-bearing claims must use an explicit non-`other` `claim_kind`, and the body must keep hypotheses, parameters, and conclusions auditable.
-- `context_intake` anchors must be concrete enough to re-find later.
-- If grounding already exists elsewhere, a missing `must_surface: true` reference is a warning, not a blocker.
-- The validator accepts a closed tool vocabulary today: `wolfram` and `command`. For `tool: command`, a non-empty `command` field is mandatory; for non-`command` tools, `command` must be omitted. `required` defaults to `true` when omitted, and a declared `fallback` does not turn a missing required tool into a non-blocking preflight check.
-- The defaultable semantic fields still exist in the contract surface: `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation`. They default to `other`, but the more specific value remains mandatory when the plan already knows it. For non-scoping plans, keep the contract concretely grounded rather than placeholder-only. Treat `approach_policy` as execution policy only; it does not satisfy grounding on its own.
-- `must_surface` uses YAML booleans. When `must_surface` is `true`, keep `required_actions[]` and `applies_to[]` non-empty. `carry_forward_to[]` is free-text workflow scope only and must not be overloaded with contract IDs. `uncertainty_markers` must stay a YAML object, not a string or list. For `observables[].kind: proof_obligation`, name the theorem or claim plus the hypotheses/parameter regime explicitly so audits can catch silently specialized parameters. If a proof or theorem statement changes after a proof audit, treat that audit as stale before `status: passed` is possible for the affected target.
+- `scope.in_scope` must be populated in project-scoping plans, and `context_intake` anchors must be concrete enough to re-find later.
+- Keep `claim_kind`, `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, `links[].relation`, `must_surface`, `required_actions[]`, `applies_to[]`, `carry_forward_to[]`, and `uncertainty_markers` visible. When `must_surface` is `true`, keep `required_actions[]` and `applies_to[]` non-empty, and treat `carry_forward_to[]` as workflow scope only.
+- `context_intake`, `approach_policy`, and `uncertainty_markers` must stay YAML objects.
+- The validator accepts a closed tool vocabulary today: `wolfram` and `command`. For `tool: command`, a non-empty `command` field is mandatory; for other tools, omit `command`. `required` defaults to `true`, and `fallback` does not waive a required tool.
+- For proof-bearing work, use an explicit non-`other` `claim_kind`, keep hypotheses, parameters, and conclusions auditable, and name `observables[].kind: proof_obligation` items with the theorem or claim plus the hypotheses or parameter regime they cover. If a proof or theorem statement changes after a proof audit, treat that audit as stale before `status: passed` is possible for the affected target.
 
 ---
 

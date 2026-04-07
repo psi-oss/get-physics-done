@@ -48,7 +48,7 @@ def test_planner_prompt_surfaces_default_salvage_and_specific_semantics() -> Non
 
     assert planner_prompt.count("## Standard Planning Template") == 1
     assert planner_prompt.count("## Revision Template") == 1
-    assert planner_prompt.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 2
+    assert planner_prompt.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
     assert "**Project Contract Gate:** {project_contract_gate}" in planner_prompt
     assert "**Project Contract Load Info:** {project_contract_load_info}" in planner_prompt
     assert "**Project Contract Validation:** {project_contract_validation}" in planner_prompt
@@ -114,6 +114,7 @@ def test_phase_prompt_surfaces_default_salvage_and_hard_plan_requirements() -> N
     phase_prompt = _read_template("phase-prompt.md")
 
     assert phase_prompt.count("Quick contract rules:") == 1
+    assert phase_prompt.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
     for token in (
         "tool_requirements",
         "researcher_setup",
@@ -187,14 +188,19 @@ def test_proof_obligation_planning_surfaces_require_claim_audit_and_stale_review
         "parameter regime the proof must cover."
     ) in plan_schema
 
-    assert "For proof-bearing work, use an explicit non-`other` `claim_kind` and keep hypotheses, quantified variables, and named parameters explicit enough to audit." in planner_prompt
+    assert (
+        "For proof-bearing work, use an explicit non-`other` `claim_kind` with auditable hypotheses, quantified "
+        "variables, and named parameters."
+    ) in planner_prompt
     assert "**Proof claim audit:**" not in planner_prompt
     assert "**Stale proof review gate:**" not in planner_prompt
 
-    assert "For `observables[].kind: proof_obligation`, name the theorem or claim plus the hypotheses/parameter regime explicitly" in phase_prompt
-    assert "silently specialized parameters" in phase_prompt
-    assert "If a proof or theorem statement changes after a proof audit, treat that audit as stale" in phase_prompt
-    assert "before `status: passed` is possible for the affected target." in phase_prompt
+    assert (
+        "For proof-bearing work, use an explicit non-`other` `claim_kind`, keep hypotheses, parameters, and "
+        "conclusions auditable, and name `observables[].kind: proof_obligation` items with the theorem or claim "
+        "plus the hypotheses or parameter regime they cover."
+    ) in phase_prompt
+    assert "If a proof or theorem statement changes after a proof audit, treat that audit as stale before `status: passed` is possible for the affected target." in phase_prompt
 
 
 def test_planner_gap_closure_example_keeps_execute_type_and_required_contract_block() -> None:

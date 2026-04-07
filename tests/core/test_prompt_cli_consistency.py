@@ -468,7 +468,11 @@ def test_state_json_schema_stays_aligned_with_stdin_contract_persistence_flow() 
 
 def test_new_project_and_state_schema_surface_contract_id_integrity_rules() -> None:
     workflow = (REPO_ROOT / "src/gpd/specs/workflows/new-project.md").read_text(encoding="utf-8")
-    schema = (REPO_ROOT / "src/gpd/specs/templates/state-json-schema.md").read_text(encoding="utf-8")
+    schema = expand_at_includes(
+        (REPO_ROOT / "src/gpd/specs/templates/state-json-schema.md").read_text(encoding="utf-8"),
+        REPO_ROOT / "src/gpd/specs",
+        "/runtime/",
+    )
 
     assert "do not paraphrase the schema here; reuse its exact keys, enum values, list/object shapes, ID-linkage rules, and proof-bearing claim requirements" in workflow
     assert "Same-kind IDs must be unique within each section." in schema

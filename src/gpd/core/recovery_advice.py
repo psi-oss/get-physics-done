@@ -20,6 +20,7 @@ from gpd.core.public_surface_contract import (
 from gpd.core.recent_projects import list_recent_projects
 from gpd.core.resume_surface import (
     RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF,
+    RESUME_SURFACE_SCHEMA_VERSION,
     lookup_resume_surface_list,
     lookup_resume_surface_mapping,
     lookup_resume_surface_text,
@@ -41,9 +42,6 @@ __all__ = [
     "serialize_recovery_advice",
     "serialize_recovery_orientation",
 ]
-
-RESUME_SURFACE_SCHEMA_VERSION = 1
-
 
 class RecoveryAdviceAction(BaseModel):
     """One structured recovery follow-up action."""

@@ -4,8 +4,7 @@ template_version: 1
 
 # Planner Subagent Prompt Template
 
-Template for spawning `gpd-planner`. The planner agent owns the planning logic; this template carries phase-specific context, mode flags, and return conventions.
-Keep workflow wrappers thin: they should pass phase-specific inputs, not restate planner policy.
+Template for spawning `gpd-planner`. Keep wrappers thin: pass phase-specific inputs, mode flags, and return conventions; do not restate planner policy.
 
 ---
 
@@ -50,17 +49,14 @@ IMPORTANT: If context exists below, it contains USER DECISIONS from gpd:discuss-
 </planning_context>
 
 <physics_planning_requirements>
-Keep dimensions, limits, and cross-method consistency explicit. For proof-bearing work, make hypotheses, parameters, and conclusions auditable in the body.
+Keep dimensions, limits, and cross-method consistency explicit. For proof-bearing work, keep hypotheses, parameters, and conclusions auditable in the body.
 </physics_planning_requirements>
 
 <contract_visibility_requirements>
-Planning requires an approved `project_contract`. Keep the contract block complete per the schema include.
-If `project_contract_gate.authoritative` is false, keep the contract visible as diagnostics, not approved planning scope.
-If `project_contract_load_info.status` starts with `blocked` or `project_contract_validation.valid` is false, return `## CHECKPOINT REACHED` instead of guessing.
-Keep `project_contract` as the structured grounding ledger. Use `effective_reference_intake` and `active_reference_context` only as readable projections of the same anchors, not as substitutes.
-Treat `approach_policy` as execution policy only. It does not substitute for grounding.
-Keep `scope.in_scope` populated, and keep `contract.context_intake` concrete enough to audit.
-For proof-bearing work, use an explicit non-`other` `claim_kind` and keep hypotheses, quantified variables, and named parameters explicit enough to audit.
+Planning requires an approved `project_contract`. If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `## CHECKPOINT REACHED` instead of guessing.
+Keep `project_contract` as the grounding ledger. Use `effective_reference_intake` and `active_reference_context` only as readable projections of the same anchors.
+Treat `approach_policy` as execution policy only. Keep `scope.in_scope` populated and `contract.context_intake` concrete enough to audit.
+For proof-bearing work, use an explicit non-`other` `claim_kind` with auditable hypotheses, quantified variables, and named parameters.
 </contract_visibility_requirements>
 
 <tangent_control>
@@ -68,15 +64,15 @@ Do not silently branch or widen scope. If multiple viable main-line paths remain
 </tangent_control>
 
 <light_mode_instructions>
-**If plan depth is `light`:** Keep the full canonical frontmatter, including `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, `contract`, and `contract.context_intake`. Simplify only the body: one high-level task block per plan, concise verification, no extra code snippets. Light mode changes body verbosity only.
+**If plan depth is `light`:** Keep the full canonical frontmatter and contract block. Light mode changes body verbosity only.
 </light_mode_instructions>
 
 <context_budget_guidance>
-Keep plan prompts concise. Prefer fresh reads over copying long history, and split large phases instead of overloading one plan.
+Keep plan prompts concise. Prefer fresh reads over copied history, and split oversized phases instead of overloading one plan.
 </context_budget_guidance>
 
 <downstream_consumer>
-Output consumed by gpd:execute-phase. Plans need frontmatter, XML tasks, rigorous verification criteria, complete contract coverage, explicit dependency wiring, and surfaced anchors/benchmarks. Reflect selected protocol bundle guidance in tasks, verification paths, and decisive artifact choices.
+Output is consumed by gpd:execute-phase. Plans need frontmatter, XML tasks, rigorous verification criteria, complete contract coverage, explicit dependency wiring, and surfaced anchors or benchmarks. Reflect selected protocol bundle guidance in tasks, verification paths, and decisive artifact choices.
 </downstream_consumer>
 
 <quality_gate>
@@ -93,14 +89,6 @@ Output consumed by gpd:execute-phase. Plans need frontmatter, XML tasks, rigorou
 - [ ] Proof-bearing plans keep proof artifacts and sibling `*-PROOF-REDTEAM.md` audits explicit
 </quality_gate>
 ```
-
-## Canonical PLAN Contract Schema
-
-Load the validator-enforced PLAN contract schema before writing or revising any `contract:` block:
-
-@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md
-
----
 
 ## Revision Template
 
@@ -121,10 +109,6 @@ Load the validator-enforced PLAN contract schema before writing or revising any 
 **Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
-
-## Canonical PLAN Contract Schema
-
-The canonical schema above applies here too; do not restate it.
 
 **Phase Context:**
 Revisions MUST still honor user decisions.

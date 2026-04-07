@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 
 __all__ = [
+    "RESUME_SURFACE_SCHEMA_VERSION",
     "RESUME_COMPATIBILITY_ALIAS_FIELDS",
     "RESUME_CANDIDATE_KIND_BOUNDED_SEGMENT",
     "RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF",
@@ -36,6 +37,7 @@ __all__ = [
     "resume_payload_has_local_recovery_target",
 ]
 
+RESUME_SURFACE_SCHEMA_VERSION = 1
 
 RESUME_COMPATIBILITY_ALIAS_FIELDS: tuple[str, ...] = (
     "active_execution_segment",

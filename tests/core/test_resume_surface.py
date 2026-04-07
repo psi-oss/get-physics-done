@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
+from gpd.core.context import init_resume
+from gpd.core.recovery_advice import RecoveryAdvice, serialize_recovery_advice
 from gpd.core.resume_surface import (
+    RESUME_SURFACE_SCHEMA_VERSION,
     build_resume_candidate,
     build_resume_segment_candidate,
     canonicalize_resume_public_payload,
@@ -28,6 +31,14 @@ def test_lookup_resume_surface_helpers_prefer_canonical_values() -> None:
     assert lookup_resume_surface_text(payload, "active_resume_pointer") == "GPD/phases/07/.continue-here.md"
     assert lookup_resume_surface_mapping(payload, "active_bounded_segment") == {"segment_id": "seg-canonical"}
     assert lookup_resume_surface_list(payload, "resume_candidates") == [{"kind": "bounded_segment"}]
+
+
+def test_resume_surface_schema_version_uses_shared_constant(tmp_path) -> None:
+    advice_payload = serialize_recovery_advice(RecoveryAdvice())
+    resume_payload = init_resume(tmp_path, data_root=tmp_path / "data")
+
+    assert advice_payload["resume_surface_schema_version"] == RESUME_SURFACE_SCHEMA_VERSION
+    assert resume_payload["resume_surface_schema_version"] == RESUME_SURFACE_SCHEMA_VERSION
 
 
 def test_resume_candidate_helpers_normalize_raw_and_canonical_shapes_to_canonical_origins() -> None:

@@ -69,6 +69,7 @@ __all__ = [
     "ContractUncertaintyMarkers",
     "ResearchContract",
     "collect_plan_contract_integrity_errors",
+    "collect_proof_bearing_claim_integrity_errors",
     "contract_has_explicit_context_intake",
     "claim_requires_proof_audit",
     "statement_looks_theorem_like",
@@ -742,9 +743,7 @@ def _collect_project_contract_list_member_errors(data: object) -> list[str]:
                     if isinstance(parameters, list):
                         for param_index, parameter in enumerate(parameters):
                             if isinstance(parameter, dict) and isinstance(parameter.get("aliases"), str):
-                                if _blank_string(parameter["aliases"]):
-                                    parameter["aliases"] = []
-                                else:
+                                if not _blank_string(parameter["aliases"]):
                                     errors.append(
                                         f"{collection_name}.{index}.parameters.{param_index}.aliases must be a list, not str"
                                     )
@@ -757,9 +756,7 @@ def _collect_project_contract_list_member_errors(data: object) -> list[str]:
                     if isinstance(hypotheses, list):
                         for hypothesis_index, hypothesis in enumerate(hypotheses):
                             if isinstance(hypothesis, dict) and isinstance(hypothesis.get("symbols"), str):
-                                if _blank_string(hypothesis["symbols"]):
-                                    hypothesis["symbols"] = []
-                                else:
+                                if not _blank_string(hypothesis["symbols"]):
                                     errors.append(
                                         f"{collection_name}.{index}.hypotheses.{hypothesis_index}.symbols must be a list, not str"
                                     )
@@ -773,6 +770,34 @@ def _collect_project_contract_list_member_errors(data: object) -> list[str]:
         _check_mapping_lists(data.get(section_name), path_prefix=section_name, field_names=field_names)
     for collection_name, field_names in PROJECT_CONTRACT_COLLECTION_LIST_FIELDS.items():
         _check_collection_item_lists(collection_name, field_names)
+
+    return errors
+
+
+def _collect_strict_nested_proof_list_scalar_drift_errors(data: object) -> list[str]:
+    """Reject blank nested proof-list scalar drift without mutating authored input."""
+
+    if not isinstance(data, dict):
+        return []
+
+    errors: list[str] = []
+    claims = data.get("claims")
+    if not isinstance(claims, list):
+        return errors
+
+    for claim_index, claim in enumerate(claims):
+        if not isinstance(claim, dict):
+            continue
+        parameters = claim.get("parameters")
+        if isinstance(parameters, list):
+            for param_index, parameter in enumerate(parameters):
+                if isinstance(parameter, dict) and isinstance(parameter.get("aliases"), str) and not parameter["aliases"].strip():
+                    errors.append(f"claims.{claim_index}.parameters.{param_index}.aliases must be a list, not str")
+        hypotheses = claim.get("hypotheses")
+        if isinstance(hypotheses, list):
+            for hypothesis_index, hypothesis in enumerate(hypotheses):
+                if isinstance(hypothesis, dict) and isinstance(hypothesis.get("symbols"), str) and not hypothesis["symbols"].strip():
+                    errors.append(f"claims.{claim_index}.hypotheses.{hypothesis_index}.symbols must be a list, not str")
 
     return errors
 
@@ -2244,6 +2269,41 @@ def collect_contract_integrity_errors(contract: ResearchContract) -> list[str]:
     return errors
 
 
+def collect_proof_bearing_claim_integrity_errors(contract: ResearchContract) -> list[str]:
+    """Return proof-bearing claim integrity errors shared by project and plan contracts."""
+
+    observable_kind_by_id = {observable.id: observable.kind for observable in contract.observables}
+    deliverable_ids = {deliverable.id for deliverable in contract.deliverables}
+    acceptance_test_kind_by_id = {test.id: test.kind for test in contract.acceptance_tests}
+
+    issues: list[str] = []
+    for claim in contract.claims:
+        for proof_deliverable_id in claim.proof_deliverables:
+            if proof_deliverable_id not in deliverable_ids:
+                issues.append(f"claim {claim.id} references unknown proof deliverable {proof_deliverable_id}")
+
+        if not claim_requires_proof_audit(claim, observable_kind_by_id):
+            continue
+
+        if claim.claim_kind == "other":
+            issues.append(f"claim {claim.id} missing claim_kind for proof-bearing claim")
+        if not claim.proof_deliverables:
+            issues.append(f"claim {claim.id} missing proof_deliverables")
+        if not claim.parameters:
+            issues.append(f"claim {claim.id} missing parameters for proof-bearing claim")
+        if not claim.hypotheses:
+            issues.append(f"claim {claim.id} missing hypotheses for proof-bearing claim")
+        if not claim.conclusion_clauses:
+            issues.append(f"claim {claim.id} missing conclusion_clauses for proof-bearing claim")
+        if not any(
+            acceptance_test_kind_by_id.get(test_id) in PROOF_ACCEPTANCE_TEST_KINDS
+            for test_id in claim.acceptance_tests
+        ):
+            issues.append(f"claim {claim.id} missing proof-specific acceptance_tests")
+
+    return issues
+
+
 def _collect_project_local_grounding_integrity_errors(
     contract: ResearchContract,
     *,
@@ -2504,11 +2564,9 @@ def collect_plan_contract_integrity_errors(
         issues.append("scoping contracts must preserve at least one target, open question, or carry-forward input")
 
     observable_ids = {observable.id for observable in contract.observables}
-    observable_kind_by_id = {observable.id: observable.kind for observable in contract.observables}
     claim_ids = {claim.id for claim in contract.claims}
     deliverable_ids = {deliverable.id for deliverable in contract.deliverables}
     acceptance_test_ids = {test.id for test in contract.acceptance_tests}
-    acceptance_test_kind_by_id = {test.id: test.kind for test in contract.acceptance_tests}
     reference_ids = {reference.id for reference in contract.references}
     known_ids = claim_ids | deliverable_ids | acceptance_test_ids | reference_ids
 
@@ -2543,9 +2601,6 @@ def collect_plan_contract_integrity_errors(
         for reference_id in claim.references:
             if reference_id not in reference_ids:
                 issues.append(f"claim {claim.id} references unknown reference {reference_id}")
-        for proof_deliverable_id in claim.proof_deliverables:
-            if proof_deliverable_id not in deliverable_ids:
-                issues.append(f"claim {claim.id} references unknown proof deliverable {proof_deliverable_id}")
 
         if len({parameter.symbol for parameter in claim.parameters}) != len(claim.parameters):
             issues.append(f"claim {claim.id} has duplicate proof parameter symbols")
@@ -2553,23 +2608,6 @@ def collect_plan_contract_integrity_errors(
             issues.append(f"claim {claim.id} has duplicate proof hypothesis ids")
         if len({clause.id for clause in claim.conclusion_clauses}) != len(claim.conclusion_clauses):
             issues.append(f"claim {claim.id} has duplicate conclusion clause ids")
-
-        if claim_requires_proof_audit(claim, observable_kind_by_id):
-            if claim.claim_kind == "other":
-                issues.append(f"claim {claim.id} missing claim_kind for proof-bearing claim")
-            if not claim.proof_deliverables:
-                issues.append(f"claim {claim.id} missing proof_deliverables")
-            if not claim.parameters:
-                issues.append(f"claim {claim.id} missing parameters for proof-bearing claim")
-            if not claim.hypotheses:
-                issues.append(f"claim {claim.id} missing hypotheses for proof-bearing claim")
-            if not claim.conclusion_clauses:
-                issues.append(f"claim {claim.id} missing conclusion_clauses for proof-bearing claim")
-            if not any(
-                acceptance_test_kind_by_id.get(test_id) in PROOF_ACCEPTANCE_TEST_KINDS
-                for test_id in claim.acceptance_tests
-            ):
-                issues.append(f"claim {claim.id} missing proof-specific acceptance_tests")
 
     for test in contract.acceptance_tests:
         if test.subject not in claim_ids and test.subject not in deliverable_ids:
@@ -2601,6 +2639,8 @@ def collect_plan_contract_integrity_errors(
         for verification_id in link.verified_by:
             if verification_id not in acceptance_test_ids:
                 issues.append(f"link {link.id} references unknown acceptance test {verification_id}")
+
+    issues.extend(collect_proof_bearing_claim_integrity_errors(contract))
 
     return issues
 
@@ -2665,6 +2705,7 @@ def _parse_project_contract_data(
             *schema_warnings,
             *list_shape_drift_errors,
             *_collect_project_contract_list_member_errors(data),
+            *_collect_strict_nested_proof_list_scalar_drift_errors(data),
         ]
         schema_version_error = _project_contract_schema_version_missing_error(data)
         if schema_version_error is not None:

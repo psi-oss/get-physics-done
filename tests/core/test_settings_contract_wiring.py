@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from gpd.adapters.install_utils import expand_at_includes
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
@@ -13,7 +15,11 @@ TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 
 def test_new_project_minimal_contract_guidance_surfaces_contract_enum_vocabulary() -> None:
     workflow_text = (WORKFLOWS_DIR / "new-project.md").read_text(encoding="utf-8")
-    project_contract_schema_text = (TEMPLATES_DIR / "project-contract-schema.md").read_text(encoding="utf-8")
+    project_contract_schema_text = expand_at_includes(
+        (TEMPLATES_DIR / "project-contract-schema.md").read_text(encoding="utf-8"),
+        REPO_ROOT / "src/gpd/specs",
+        "/runtime/",
+    )
 
     assert "templates/project-contract-schema.md" in workflow_text
     assert "templates/state-json-schema.md" not in workflow_text

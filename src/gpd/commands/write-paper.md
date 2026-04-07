@@ -80,6 +80,8 @@ allowed-tools:
 Structure and write a physics paper from completed research results.
 
 Keep the wrapper thin and let the workflow own the full pipeline.
+
+**Why subagent:** Publication drafting and review coordination burn context fast. Separate drafting context keeps the orchestrator lean.
 </objective>
 
 <execution_context>
@@ -102,6 +104,8 @@ Paper topic: $ARGUMENTS
 Read `@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md` before applying any autonomy or research mode behavior.
 
 Check for existing drafts with the shared manuscript-root publication preflight block.
+
+Before reading or updating `${PAPER_DIR}/FIGURE_TRACKER.md`, load `@{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md` and `@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md` first.
 
 Load research context:
 

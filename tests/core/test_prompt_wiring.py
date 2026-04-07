@@ -60,25 +60,6 @@ COMMAND_SPAWN_TOKENS = {
     "plan-phase.md": ["gpd-planner"],
     "quick.md": ["gpd-planner", "gpd-executor"],
     "research-phase.md": ["gpd-phase-researcher"],
-    "write-paper.md": [
-        "gpd-paper-writer",
-        "gpd-bibliographer",
-        "gpd-review-reader",
-        "gpd-review-literature",
-        "gpd-review-math",
-        "gpd-review-physics",
-        "gpd-review-significance",
-        "gpd-referee",
-    ],
-    "peer-review.md": [
-        "gpd-review-reader",
-        "gpd-review-literature",
-        "gpd-review-math",
-        "gpd-check-proof",
-        "gpd-review-physics",
-        "gpd-review-significance",
-        "gpd-referee",
-    ],
 }
 
 WORKFLOW_SPAWN_TOKENS = {
@@ -2675,7 +2656,7 @@ def test_plan_contract_schema_surfaces_downstream_contract_fields_and_normalizat
 
 
 def test_state_json_schema_surfaces_stdin_contract_persistence_and_model_normalization_rules() -> None:
-    state_schema = (TEMPLATES_DIR / "state-json-schema.md").read_text(encoding="utf-8")
+    state_schema = _expand_prompt_surface(TEMPLATES_DIR / "state-json-schema.md")
 
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract -' in state_schema
     assert 'printf \'%s\\n\' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -' in state_schema

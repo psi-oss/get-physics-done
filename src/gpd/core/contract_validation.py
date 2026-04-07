@@ -43,6 +43,7 @@ from gpd.contracts import (
     _is_context_intake_locator_grounding,
     _is_project_artifact_path,
     collect_contract_integrity_errors,
+    collect_proof_bearing_claim_integrity_errors,
     is_placeholder_only_guidance_text,
     parse_project_contract_data_salvage,
 )
@@ -1212,12 +1213,7 @@ def validate_project_contract(
         errors.append("uncertainty_markers.disconfirming_observations must identify what would force a rethink")
 
     errors.extend(_light_contract_consistency_errors(parsed))
-
-    deliverable_ids = {deliverable.id for deliverable in parsed.deliverables}
-    for claim in parsed.claims:
-        for proof_deliverable_id in claim.proof_deliverables:
-            if proof_deliverable_id not in deliverable_ids:
-                errors.append(f"claim {claim.id} references unknown proof deliverable {proof_deliverable_id}")
+    errors.extend(collect_proof_bearing_claim_integrity_errors(parsed))
 
     warnings.extend(_context_intake_guidance_warnings(parsed, project_root=project_root))
     must_surface_locator_warnings = _must_surface_locator_warnings(parsed, project_root=project_root)

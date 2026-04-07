@@ -1,6 +1,12 @@
 If a project contract has any `references[]` and does not already carry concrete prior-output, user-anchor, or baseline grounding, at least one reference must set `must_surface: true`. When that other grounding exists, a missing `must_surface: true` reference is still a warning that should be repaired, not a silent ignore.
 
-If a project-contract reference sets `must_surface: true`, `applies_to[]` must not be empty. `required_actions[]` must not be empty either.
+`must_surface` is a boolean scalar. Use the JSON literals `true` and `false`; do not quote them or replace them with yes/no wording.
+
+`required_actions[]` uses the same closed action vocabulary enforced downstream in contract ledgers: `read`, `use`, `compare`, `cite`, `avoid`.
+
+If a project-contract reference sets `must_surface: true`, `applies_to[]` must not be empty.
+
+If a project-contract reference sets `must_surface: true`, `required_actions[]` must not be empty.
 
 Approved-mode grounding is field-specific:
 
@@ -41,3 +47,5 @@ If the user does not know the decisive anchor yet, keep that uncertainty explici
 - `Baseline comparison is TBD before planning can proceed.`
 
 These phrases are valid for preserving uncertainty when they point to a genuinely missing decisive anchor, but they do not satisfy approved-mode grounding on their own. Approved mode still needs a concrete reference, prior output, user anchor, or baseline elsewhere in the contract; placeholder-only wording does not count.
+
+In validator terms: approved project contract requires at least one concrete anchor/reference/prior-output/baseline; explicit missing-anchor notes preserve uncertainty but do not satisfy approval on their own.

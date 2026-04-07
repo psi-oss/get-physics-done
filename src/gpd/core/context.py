@@ -72,6 +72,7 @@ from gpd.core.reference_ingestion import ingest_manuscript_reference_status, ing
 from gpd.core.results import result_list
 from gpd.core.resume_surface import (
     RESUME_COMPATIBILITY_ALIAS_FIELDS,
+    RESUME_SURFACE_SCHEMA_VERSION,
     build_resume_candidate,
     build_resume_segment_candidate,
     canonicalize_resume_public_payload,
@@ -109,8 +110,6 @@ _REFERENCE_ROLE_PRIORITY = {
     "background": 4,
     "other": 5,
 }
-
-_RESUME_SURFACE_SCHEMA_VERSION = 1
 
 # Directories to skip when scanning for research files.
 _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = re.compile(r"^(?:[ \t]*\r?\n)+(?=---[ \t]*\r?\n)")
@@ -1538,7 +1537,7 @@ def _build_resume_read_state(
     )
 
     result = {
-        "resume_surface_schema_version": _RESUME_SURFACE_SCHEMA_VERSION,
+        "resume_surface_schema_version": RESUME_SURFACE_SCHEMA_VERSION,
         "active_bounded_segment": active_bounded_segment,
         "derived_execution_head": current_execution,
         "continuity_handoff_file": resume_projection.handoff_resume_file,
@@ -2226,7 +2225,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None) -> dict:
         "research_mode": config["research_mode"],
         "resume_surface_schema_version": continuation_state.get(
             "resume_surface_schema_version",
-            _RESUME_SURFACE_SCHEMA_VERSION,
+            RESUME_SURFACE_SCHEMA_VERSION,
         ),
         "active_bounded_segment": active_bounded_segment,
         "derived_execution_head": derived_execution_head,

@@ -314,6 +314,33 @@ def test_parse_project_contract_data_strict_rejects_nested_proof_list_scalar_dri
     assert "claims.0.hypotheses.0.symbols must be a list, not str" in parsed.errors
 
 
+def test_parse_project_contract_data_strict_rejects_blank_nested_proof_list_scalar_drift_without_mutation() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["parameters"] = [
+        {
+            "symbol": "r_0",
+            "aliases": "   ",
+            "required_in_proof": True,
+        }
+    ]
+    contract["claims"][0]["hypotheses"] = [
+        {
+            "id": "hyp-r0",
+            "text": "r_0 >= 0",
+            "symbols": "   ",
+            "required_in_proof": True,
+        }
+    ]
+
+    parsed = parse_project_contract_data_strict(contract)
+
+    assert parsed.contract is None
+    assert "claims.0.parameters.0.aliases must be a list, not str" in parsed.errors
+    assert "claims.0.hypotheses.0.symbols must be a list, not str" in parsed.errors
+    assert contract["claims"][0]["parameters"][0]["aliases"] == "   "
+    assert contract["claims"][0]["hypotheses"][0]["symbols"] == "   "
+
+
 def test_parse_contract_results_data_strict_rejects_evidence_scalar_and_case_drift() -> None:
     with pytest.raises(ValidationError):
         ContractResults.model_validate(
@@ -1894,6 +1921,69 @@ def test_validate_project_contract_rejects_must_surface_reference_without_requir
 
     assert result.valid is False
     assert "reference ref-benchmark is must_surface but missing required_actions" in result.errors
+
+
+def test_validate_project_contract_requires_theorem_inventory_for_proof_bearing_claims() -> None:
+    contract = {
+        "schema_version": 1,
+        "scope": {"question": "Can the theorem be proved as stated?", "in_scope": ["Prove the theorem as stated."]},
+        "context_intake": {"must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"]},
+        "observables": [
+            {
+                "id": "obs-proof",
+                "name": "proof obligation",
+                "kind": "proof_obligation",
+                "definition": "Prove the theorem for every named parameter",
+            }
+        ],
+        "claims": [
+            {
+                "id": "claim-proof",
+                "statement": "For all r_0 >= 0, F(r_0) >= 0.",
+                "claim_kind": "theorem",
+                "observables": ["obs-proof"],
+                "deliverables": ["deliv-proof"],
+                "acceptance_tests": ["test-proof-align"],
+                "proof_deliverables": ["deliv-proof"],
+            }
+        ],
+        "deliverables": [
+            {
+                "id": "deliv-proof",
+                "kind": "derivation",
+                "path": "derivations/theorem-proof.tex",
+                "description": "Detailed theorem proof",
+            }
+        ],
+        "acceptance_tests": [
+            {
+                "id": "test-proof-align",
+                "subject": "claim-proof",
+                "kind": "claim_to_proof_alignment",
+                "procedure": "Audit the theorem against the proof",
+                "pass_condition": "No theorem parameter or hypothesis is silently dropped",
+            }
+        ],
+        "forbidden_proxies": [
+            {
+                "id": "fp-proof",
+                "subject": "claim-proof",
+                "proxy": "Centered subcase only",
+                "reason": "Would silently specialize away r_0",
+            }
+        ],
+        "uncertainty_markers": {
+            "weakest_anchors": ["The theorem inventory is still incomplete."],
+            "disconfirming_observations": ["A proof that drops r_0 invalidates the claim."],
+        },
+    }
+
+    result = validate_project_contract(contract)
+
+    assert result.valid is False
+    assert "claim claim-proof missing parameters for proof-bearing claim" in result.errors
+    assert "claim claim-proof missing hypotheses for proof-bearing claim" in result.errors
+    assert "claim claim-proof missing conclusion_clauses for proof-bearing claim" in result.errors
 
 
 def test_validate_project_contract_normalizes_reference_required_actions_whitespace_and_duplicates() -> None:

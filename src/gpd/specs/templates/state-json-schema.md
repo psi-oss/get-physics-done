@@ -273,6 +273,18 @@ When that applies, require:
 
 ### Shared Grounding And Linkage Rules
 
+If a project contract has any `references[]` and does not already carry concrete prior-output, user-anchor, or baseline grounding, at least one reference must set `must_surface: true`.
+
+`must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames that already exist inside the current project root. If `project_root` is unavailable, treat them as non-grounding until the file can be resolved against a concrete root.
+
+Placeholder or `TBD` text does not count as concrete grounding. Explicit missing-anchor notes preserve uncertainty, but they do not satisfy approved-mode grounding on their own.
+
+Keep these exact grounding reminders visible in the raw schema surface as well:
+
+- Need grounding before the decisive anchor is chosen.
+- Decisive target not yet chosen before planning can proceed.
+- If other grounding already exists, a missing `must_surface: true` reference is still a warning that should be repaired, not a silent ignore.
+
 @{GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md
 
 ### `position`

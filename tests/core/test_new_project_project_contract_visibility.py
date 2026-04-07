@@ -4,11 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from gpd.adapters.install_utils import expand_at_includes
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NEW_PROJECT = REPO_ROOT / "src" / "gpd" / "specs" / "workflows" / "new-project.md"
 PROJECT_CONTRACT_SCHEMA = REPO_ROOT / "src" / "gpd" / "specs" / "templates" / "project-contract-schema.md"
 STATE_SCHEMA = REPO_ROOT / "src" / "gpd" / "specs" / "templates" / "state-json-schema.md"
 QUESTIONING = REPO_ROOT / "src" / "gpd" / "specs" / "references" / "research" / "questioning.md"
+
+
+def _expanded(path: Path) -> str:
+    return expand_at_includes(path.read_text(encoding="utf-8"), REPO_ROOT / "src/gpd/specs", "/runtime/")
 
 
 def _extract_contract_rule_block_lines(text: str, start_marker: str) -> tuple[str, ...]:
@@ -102,7 +108,7 @@ def test_new_project_contract_rule_block_is_not_duplicated() -> None:
 
 
 def test_project_contract_schema_slice_keeps_contract_critical_rules_visible() -> None:
-    contract_schema_text = PROJECT_CONTRACT_SCHEMA.read_text(encoding="utf-8")
+    contract_schema_text = _expanded(PROJECT_CONTRACT_SCHEMA)
 
     assert "Canonical schema for the `project_contract` object inside `GPD/state.json`." in contract_schema_text
     assert "model-facing contract setup should see only the `project_contract` shape and rules" in contract_schema_text
@@ -112,7 +118,7 @@ def test_project_contract_schema_slice_keeps_contract_critical_rules_visible() -
 
 
 def test_state_schema_surfaces_the_exact_approved_mode_grounding_rule() -> None:
-    state_schema_text = STATE_SCHEMA.read_text(encoding="utf-8")
+    state_schema_text = _expanded(STATE_SCHEMA)
 
     assert (
         "approved project contract requires at least one concrete anchor/reference/prior-output/baseline; "

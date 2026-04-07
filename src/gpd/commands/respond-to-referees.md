@@ -40,6 +40,8 @@ allowed-tools:
 Structure a point-by-point response to referee reports and revise the manuscript accordingly.
 
 Keep the wrapper focused on referee triage, revision routing, and synchronized response artifacts.
+
+**Why subagent:** Referee triage and synchronized manuscript revision burn context fast. Fresh context keeps the orchestrator lean.
 </objective>
 
 <execution_context>
