@@ -136,7 +136,7 @@ The workflow handles the rest:
 5. **Paper-readiness audit** — Check SUMMARY completeness, convention consistency, numerical stability, figure readiness, and citation readiness.
 6. **Create outline** — Draft a section-level outline with purpose, key content, equations, figures, citations, and dependencies.
 7. **Generate files** — Build `${PAPER_DIR}/PAPER-CONFIG.json`, then materialize the canonical manuscript scaffold with `gpd paper-build`.
-8. **Generate figures** — Produce figures under `${PAPER_DIR}/figures/` and update FIGURE_TRACKER.md.
+8. **Generate figures** — Produce figures under `${PAPER_DIR}/figures/` and update `${PAPER_DIR}/FIGURE_TRACKER.md`.
 9. **Draft sections** — Spawn gpd-paper-writer agents in waves, skipping waves whose outputs already exist.
 10. **Consistency and notation** — Audit notation, cross-references, placeholders, and physics consistency.
 11. **Verify references** — Use gpd-bibliographer to verify citations and detect orphans.

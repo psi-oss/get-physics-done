@@ -35,6 +35,7 @@ from gpd.core.review_contract_prompt import (
     render_review_contract_prompt,
     review_contract_payload,
 )
+from gpd.core.strict_yaml import load_strict_yaml
 from gpd.specs import SPECS_DIR
 
 # ─── Package layout ──────────────────────────────────────────────────────────
@@ -65,40 +66,6 @@ _COMMAND_FRONTMATTER_KEYS = frozenset(
         "agent",
     }
 )
-
-
-class _StrictYAMLLoader(yaml.SafeLoader):
-    """Safe YAML loader that rejects duplicate mapping keys at any depth."""
-
-
-def _strict_yaml_construct_mapping(loader: yaml.SafeLoader, node, deep: bool = False) -> dict[object, object]:
-    """Construct one YAML mapping while rejecting duplicate keys."""
-
-    loader.flatten_mapping(node)
-    mapping: dict[object, object] = {}
-    for key_node, value_node in node.value:
-        key = loader.construct_object(key_node, deep=deep)
-        try:
-            is_duplicate = key in mapping
-        except TypeError as exc:  # pragma: no cover - defensive YAML safety guard
-            raise yaml.constructor.ConstructorError(
-                "while constructing a mapping",
-                node.start_mark,
-                f"found unhashable key {key!r}",
-                key_node.start_mark,
-            ) from exc
-        if is_duplicate:
-            raise yaml.constructor.ConstructorError(
-                "while constructing a mapping",
-                node.start_mark,
-                f"found duplicate key {key!r}",
-                key_node.start_mark,
-            )
-        mapping[key] = loader.construct_object(value_node, deep=deep)
-    return mapping
-
-
-_StrictYAMLLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _strict_yaml_construct_mapping)
 _AGENT_FRONTMATTER_KEYS = frozenset(
     {
         "name",
@@ -255,15 +222,22 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, object], str]:
     yaml_str, body = _frontmatter_parts(text)
     if yaml_str is None:
         return {}, text
+    meta = _load_frontmatter_mapping(yaml_str, error_prefix="Malformed YAML frontmatter")
+    return meta, body
+
+
+def _load_frontmatter_mapping(frontmatter: str, *, error_prefix: str) -> dict[str, object]:
+    """Load YAML frontmatter into a mapping while rejecting duplicate keys."""
+
     try:
-        meta = yaml.load(yaml_str, Loader=_StrictYAMLLoader)
+        meta = load_strict_yaml(frontmatter) if frontmatter.strip() else {}
     except yaml.YAMLError as exc:
-        raise ValueError(f"Malformed YAML frontmatter: {exc}") from exc
+        raise ValueError(f"{error_prefix}: {exc}") from exc
     if meta is None:
-        return {}, body
+        return {}
     if not isinstance(meta, dict):
         raise ValueError(f"Frontmatter must parse to a mapping, got {type(meta).__name__}")
-    return meta, body
+    return meta
 
 
 def _split_frontmatter_block(text: str) -> tuple[str, str] | None:
@@ -519,6 +493,12 @@ def _canonical_agent_names() -> frozenset[str]:
     return frozenset(load_agents_from_dir(_PKG_ROOT / "agents"))
 
 
+def canonical_agent_names() -> tuple[str, ...]:
+    """Return the sorted built-in agent labels accepted by command frontmatter."""
+
+    return tuple(sorted(_canonical_agent_names()))
+
+
 def _parse_project_reentry_capable(raw: object, *, command_name: str, context_mode: str) -> bool:
     """Normalize project re-entry metadata and reject invalid command-mode pairings."""
     value = _parse_bool_field(
@@ -544,7 +524,7 @@ def _parse_command_agent(raw: object, *, command_name: str) -> str | None:
     if not value:
         raise ValueError(f"agent for {command_name} must be a non-empty string")
     normalized = canonical_skill_label(value)
-    known_agents = _canonical_agent_names()
+    known_agents = canonical_agent_names()
     if known_agents and normalized not in known_agents:
         raise ValueError(f"Unknown agent {normalized!r} for {command_name}")
     return normalized
@@ -746,14 +726,7 @@ def render_command_visibility_sections_from_frontmatter(frontmatter: str, *, com
     """Render canonical model-visible command constraints from raw frontmatter."""
 
     _validate_raw_command_frontmatter(frontmatter, command_name=command_name)
-    try:
-        meta = yaml.load(frontmatter, Loader=_StrictYAMLLoader) if frontmatter.strip() else {}
-    except yaml.YAMLError as exc:
-        raise ValueError(f"Malformed frontmatter for {command_name}: {exc}") from exc
-    if meta is None:
-        meta = {}
-    if not isinstance(meta, dict):
-        raise ValueError(f"Frontmatter for {command_name} must parse to a mapping")
+    meta = _load_frontmatter_mapping(frontmatter, error_prefix=f"Malformed frontmatter for {command_name}")
     review_contract_value = _review_contract_frontmatter_value(meta, command_name=command_name)
     _validate_command_frontmatter_keys(meta, command_name=command_name)
 
@@ -1355,6 +1328,7 @@ __all__ = [
     "AGENT_SHARED_STATE_AUTHORITIES",
     "AGENT_SURFACES",
     "VALID_CONTEXT_MODES",
+    "canonical_agent_names",
     "get_agent",
     "get_command",
     "get_skill",

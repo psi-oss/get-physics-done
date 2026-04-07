@@ -1841,6 +1841,42 @@ def test_format_active_runtime_command_formats_detected_runtime_command() -> Non
     assert result == adapter.format_command("resume-work")
 
 
+def test_format_active_runtime_command_logs_runtime_resolution_failures(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level("WARNING"):
+        result = format_active_runtime_command(
+            "resume-work",
+            detect_runtime=lambda **kwargs: (_ for _ in ()).throw(RuntimeError("detector broke")),
+            fallback="fallback command",
+        )
+
+    assert result == "fallback command"
+    assert "Active runtime resolution failed: detector broke" in caplog.text
+
+
+def test_format_active_runtime_command_logs_runtime_formatting_failures(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    runtime = _RUNTIME_NAMES[0]
+
+    with (
+        patch(
+            "gpd.core.runtime_command_surfaces.resolve_active_runtime_descriptor",
+            return_value=SimpleNamespace(runtime_name=runtime),
+        ),
+        patch(
+            "gpd.adapters.get_adapter",
+            return_value=SimpleNamespace(
+                format_command=lambda action: (_ for _ in ()).throw(RuntimeError(f"format failed: {action}"))
+            ),
+        ),
+        caplog.at_level("WARNING"),
+    ):
+        result = format_active_runtime_command("resume-work", fallback="fallback command")
+
+    assert result == "fallback command"
+    assert "Active runtime command formatting failed for resume-work: format failed: resume-work" in caplog.text
+
+
 def test_build_runtime_hint_payload_uses_generic_runtime_commands_when_no_install_authoritative_runtime(
     tmp_path: Path, monkeypatch
 ) -> None:

@@ -12,11 +12,18 @@ from gpd.core.model_visible_sections import (
     MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE,
 )
 from gpd.core.model_visible_text import (
+    AGENT_ARTIFACT_WRITE_AUTHORITIES,
+    AGENT_COMMIT_AUTHORITIES,
+    AGENT_ROLE_FAMILIES,
+    AGENT_SHARED_STATE_AUTHORITIES,
+    AGENT_SURFACES,
     REVIEW_CONTRACT_CONDITIONAL_WHENS,
     REVIEW_CONTRACT_FRONTMATTER_KEY,
     REVIEW_CONTRACT_MODES,
+    REVIEW_CONTRACT_PREFLIGHT_CHECKS,
     REVIEW_CONTRACT_PROMPT_WRAPPER_KEY,
     REVIEW_CONTRACT_REQUIRED_STATES,
+    VALID_CONTEXT_MODES,
     agent_visibility_note,
     command_visibility_note,
     review_contract_visibility_note,
@@ -207,26 +214,45 @@ def test_model_visible_section_renderers_share_one_canonical_wrapper_structure()
 def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None:
     note = review_contract_visibility_note()
     command_note = command_visibility_note()
+    agent_note = agent_visibility_note()
+    command_agent_labels = registry.canonical_agent_names()
     review_modes = " or ".join(f"`{value}`" for value in REVIEW_CONTRACT_MODES)
     conditional_whens = " or ".join(f"`{value}`" for value in REVIEW_CONTRACT_CONDITIONAL_WHENS)
+    preflight_checks = " or ".join(f"`{value}`" for value in REVIEW_CONTRACT_PREFLIGHT_CHECKS)
     required_states = " or ".join(f"`{value}`" for value in REVIEW_CONTRACT_REQUIRED_STATES)
+    agent_values = (
+        *AGENT_COMMIT_AUTHORITIES,
+        *AGENT_SURFACES,
+        *AGENT_ROLE_FAMILIES,
+        *AGENT_ARTIFACT_WRITE_AUTHORITIES,
+        *AGENT_SHARED_STATE_AUTHORITIES,
+    )
 
-    assert MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE in agent_visibility_note()
+    assert MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE in agent_note
     assert MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE in command_note
     assert MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE in note
-    assert agent_visibility_note().count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
+    assert agent_note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
     assert command_note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
     assert note.count(MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE) == 1
     assert "strict booleans" in command_note.lower()
+    for value in VALID_CONTEXT_MODES:
+        assert value in command_note
+    for value in command_agent_labels:
+        assert value in command_note
+    for value in agent_values:
+        assert value in agent_note
     assert "`schema_version` must be the integer `1`" in note
     assert "context_mode" in command_note
     assert "project_reentry_capable" in command_note
+    assert "may be `true` only when `context_mode` is `project-required`" in command_note
 
     assert "wrapper key" in note
     assert f"`review_mode` must be {review_modes}" in note
     assert f"`required_state` must be {required_states}" in note
     assert f"`conditional_requirements[].when` must be one of {conditional_whens}" in note
+    assert f"`preflight_checks` must be one of {preflight_checks}" in note
     assert "blocking_preflight_checks" in note
+    assert "Each `conditional_requirements[].when` value may appear at most once." in note
     assert "List fields reject blank entries and duplicates." in note
     assert "Each conditional requirement must declare at least one field." in note
 
@@ -1009,7 +1035,7 @@ def test_write_paper_prompt_loads_figure_tracker_schema_before_updating_tracker(
 
     assert "@{GPD_INSTALL_DIR}/templates/paper/figure-tracker.md" in source
     assert "${PAPER_DIR}/FIGURE_TRACKER.md" in source
-    assert "canonical schema/template surfaces it loads there" in source
+    assert "@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md" in source
 
 
 def test_comparison_templates_match_full_comparison_verdict_subject_kind_enum() -> None:

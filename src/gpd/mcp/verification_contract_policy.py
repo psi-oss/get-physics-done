@@ -8,19 +8,29 @@ VERIFICATION_SERVER_DESCRIPTION_INTRO = (
     "symmetry verification, and coverage gap analysis."
 )
 
+VERIFICATION_BINDING_TARGETS = (
+    "observable",
+    "claim",
+    "deliverable",
+    "acceptance_test",
+    "reference",
+    "forbidden_proxy",
+)
+VERIFICATION_BINDING_FIELD_NAMES = tuple(f"binding.{target}_ids" for target in VERIFICATION_BINDING_TARGETS)
+
 _VERIFICATION_CONTRACT_POLICY_CLAUSES = (
     "Validate contract payloads whose `schema_version` is required and must equal `1`.",
     "Use `required_request_fields`, `schema_required_request_fields`, "
     "`schema_required_request_anyof_fields`, `optional_request_fields`, "
     "`supported_binding_fields`, and `request_template` as the exact per-check request "
-    "shape; the supported binding fields are canonical plural id arrays, namely "
-    "`binding.observable_ids`, `binding.claim_ids`, "
-    "`binding.deliverable_ids`, `binding.acceptance_test_ids`, "
-    "`binding.reference_ids`, and `binding.forbidden_proxy_ids`.",
+    "shape; the supported binding fields are the canonical plural id arrays "
+    + ", ".join(f"`{field}`" for field in VERIFICATION_BINDING_FIELD_NAMES)
+    + ".",
     "Proof-oriented checks require an authoritative contract payload.",
-    "unknown top-level keys, non-object sections, blank strings, and malformed members "
-    "are hard errors; recoverable normalization is limited to singleton string/list drift "
-    "and closed-enum case drift.",
+    "Nested object schemas are closed at every level: unknown top-level or nested keys, "
+    "non-object sections, blank strings, and malformed members are hard errors; "
+    "recoverable normalization is limited to singleton string/list drift and "
+    "closed-enum case drift.",
     "Plan-style contracts need non-empty `context_intake`, explicit non-empty "
     "`uncertainty_markers.weakest_anchors` and "
     "`uncertainty_markers.disconfirming_observations`, and project-scoping payloads "

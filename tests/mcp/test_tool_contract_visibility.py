@@ -692,7 +692,8 @@ def test_run_contract_check_tool_description_surfaces_request_requirements() -> 
     assert "whitespace" in description
     assert "``request.contract`` is optional" in description
     assert "`schema_version` is required and must equal `1`" in description
-    assert "unknown top-level keys" in description
+    assert "Nested object schemas are closed at every level" in description
+    assert "unknown top-level or nested keys" in description
     assert "Same-kind IDs must be unique" in description
     assert "Contract context must stay consistent with metadata defaults" in description
     assert "metadata defaults and explicit" in description
@@ -1116,6 +1117,7 @@ def test_assert_convention_validate_description_surfaces_required_headers() -> N
 
 def test_public_descriptors_surface_contract_and_optional_dependency_visibility() -> None:
     from gpd.mcp.builtin_servers import build_public_descriptors
+    from gpd.mcp.verification_contract_policy import VERIFICATION_BINDING_FIELD_NAMES
 
     descriptors = build_public_descriptors()
 
@@ -1129,14 +1131,7 @@ def test_public_descriptors_surface_contract_and_optional_dependency_visibility(
     assert "request_template" in verification["description"]
     assert "supported binding fields" in verification["description"]
     assert "Proof-oriented checks require an authoritative contract payload." in verification["description"]
-    for field in (
-        "binding.observable_ids",
-        "binding.claim_ids",
-        "binding.deliverable_ids",
-        "binding.acceptance_test_ids",
-        "binding.reference_ids",
-        "binding.forbidden_proxy_ids",
-    ):
+    for field in VERIFICATION_BINDING_FIELD_NAMES:
         assert field in verification["description"]
     assert "target IDs must not be reused across claim/deliverable/acceptance-test/reference kinds" in verification["description"]
     assert "`references[].carry_forward_to` uses workflow scope labels only" in verification["description"]
@@ -1370,6 +1365,8 @@ def test_run_check_tool_description_surfaces_alias_and_contract_hint_support() -
 
 
 def test_public_verification_infra_descriptor_surfaces_semantic_contract_rules() -> None:
+    from gpd.mcp.verification_contract_policy import VERIFICATION_BINDING_FIELD_NAMES
+
     descriptor = json.loads(
         (Path(__file__).resolve().parents[2] / "infra" / "gpd-verification.json").read_text(encoding="utf-8")
     )
@@ -1386,14 +1383,7 @@ def test_public_verification_infra_descriptor_surfaces_semantic_contract_rules()
     assert "metadata.hypothesis_ids" in description
     assert "metadata.theorem_parameter_symbols" in description
     assert "metadata.conclusion_clause_ids" in description
-    for field in (
-        "binding.observable_ids",
-        "binding.claim_ids",
-        "binding.deliverable_ids",
-        "binding.acceptance_test_ids",
-        "binding.reference_ids",
-        "binding.forbidden_proxy_ids",
-    ):
+    for field in VERIFICATION_BINDING_FIELD_NAMES:
         assert field in description
     assert "target IDs must not be reused across claim/deliverable/acceptance-test/reference kinds" in description
     assert "`references[].carry_forward_to` uses workflow scope labels only" in description

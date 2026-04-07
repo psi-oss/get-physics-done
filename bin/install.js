@@ -518,16 +518,10 @@ function validateRuntimeCatalogCapabilities(capabilities, label) {
       throw new Error(`${label}.supports_runtime_permission_sync must be true when permissions_surface=config-file`);
     }
   } else if (validated.permissions_surface === "launch-wrapper") {
-    if (
-      validated.permission_surface_kind === "none" ||
-      !(
-        RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS.has(validated.permission_surface_kind) ||
-        RUNTIME_CONFIG_SURFACE_LABEL_RE.test(validated.permission_surface_kind)
-      )
-    ) {
+    if (!RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS.has(validated.permission_surface_kind)) {
       throw new Error(
         `${label}.permission_surface_kind must be ${formatQuotedDisjunction(RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS)} `
-        + "or a config surface label like file:key when permissions_surface=launch-wrapper"
+        + "when permissions_surface=launch-wrapper"
       );
     }
     if (!validated.supports_runtime_permission_sync) {
@@ -623,6 +617,17 @@ function parsePublicCommandSurfacePrefix(value, label, commandPrefix) {
   return prefix;
 }
 
+function parseInstallHelpExampleScope(value, label) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const scope = requireStrictString(value, label);
+  if (!RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES.has(scope)) {
+    throw new Error(`${label} must be one of: ${[...RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES].sort().join(", ")}`);
+  }
+  return scope;
+}
+
 function validateRuntimeCatalogEntry(entry, index, options = {}) {
   const label = `runtime catalog entry ${index}`;
   const payload = requireJsonObject(entry, label);
@@ -665,13 +670,7 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
       `${label}.agent_prompt_uses_dollar_templates`
     ),
     installer_help_example_scope: Object.prototype.hasOwnProperty.call(payload, "installer_help_example_scope")
-      ? (() => {
-          const scope = requireStrictString(payload.installer_help_example_scope, `${label}.installer_help_example_scope`);
-          if (scope !== "global" && scope !== "local") {
-            throw new Error(`${label}.installer_help_example_scope must be one of: global, local`);
-          }
-          return scope;
-        })()
+      ? parseInstallHelpExampleScope(payload.installer_help_example_scope, `${label}.installer_help_example_scope`)
       : null,
     validated_command_surface: Object.prototype.hasOwnProperty.call(payload, "validated_command_surface")
       ? (() => {

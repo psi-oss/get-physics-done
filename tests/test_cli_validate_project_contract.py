@@ -120,8 +120,22 @@ def test_validate_project_contract_command_raw_stdin_failure_surfaces_schema_ref
     assert result.exit_code == 1, result.output
     payload = json.loads(result.output)
     assert payload["valid"] is False
-    assert payload["schema_reference"].endswith("state-json-schema.md")
+    assert payload["schema_reference"].endswith("project-contract-schema.md")
     assert "context_intake.must_read_refs must be a list, not str" in payload["errors"]
+
+
+def test_validate_project_contract_command_non_raw_failure_surfaces_schema_reference(tmp_path: Path) -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["context_intake"]["must_read_refs"] = "ref-benchmark"
+    contract_path = tmp_path / "project-contract.json"
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+    result = runner.invoke(app, ["validate", "project-contract", str(contract_path)], catch_exceptions=False)
+
+    assert result.exit_code == 1, result.output
+    assert "templates/project-contract-schema.md" in result.output
+    assert "context_intake.must_read_refs" in result.output
+    assert "must be a list" in result.output
 
 
 def test_validate_project_contract_command_warns_when_user_guidance_is_missing(tmp_path: Path) -> None:

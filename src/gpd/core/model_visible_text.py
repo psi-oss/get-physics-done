@@ -11,6 +11,12 @@ __all__ = [
     "agent_visibility_note",
     "command_visibility_note",
     "MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE",
+    "AGENT_ARTIFACT_WRITE_AUTHORITIES",
+    "AGENT_COMMIT_AUTHORITIES",
+    "AGENT_ROLE_FAMILIES",
+    "AGENT_SHARED_STATE_AUTHORITIES",
+    "AGENT_SURFACES",
+    "VALID_CONTEXT_MODES",
     "REVIEW_CONTRACT_CONDITIONAL_WHENS",
     "REVIEW_CONTRACT_FRONTMATTER_KEY",
     "REVIEW_CONTRACT_MODES",
@@ -27,6 +33,12 @@ REVIEW_CONTRACT_WRAPPER_KEYS = (
     REVIEW_CONTRACT_PROMPT_WRAPPER_KEY,
     REVIEW_CONTRACT_FRONTMATTER_KEY,
 )
+VALID_CONTEXT_MODES = ("global", "projectless", "project-aware", "project-required")
+AGENT_COMMIT_AUTHORITIES = ("direct", "orchestrator")
+AGENT_SURFACES = ("public", "internal")
+AGENT_ROLE_FAMILIES = ("worker", "analysis", "verification", "review", "coordination")
+AGENT_ARTIFACT_WRITE_AUTHORITIES = ("scoped_write", "read_only")
+AGENT_SHARED_STATE_AUTHORITIES = ("return_only", "direct")
 REVIEW_CONTRACT_MODES = ("publication", "review")
 REVIEW_CONTRACT_REQUIRED_STATES = ("phase_executed",)
 REVIEW_CONTRACT_CONDITIONAL_WHENS = (
@@ -66,20 +78,38 @@ def _join_disjunction(values: tuple[str, ...]) -> str:
     return " or ".join(f"`{value}`" for value in values)
 
 
+def _command_agent_labels() -> tuple[str, ...]:
+    try:
+        from gpd.registry import canonical_agent_names
+    except Exception:
+        return ()
+    return canonical_agent_names()
+
+
 def agent_visibility_note() -> str:
     return render_model_visible_note(
         "Model-visible agent requirements.",
-        "Use only the declared enum values for `commit_authority`, `surface`, `role_family`,",
-        "`artifact_write_authority`, and `shared_state_authority`.",
+        f"`commit_authority` must be {_join_disjunction(AGENT_COMMIT_AUTHORITIES)};",
+        f"`surface` must be {_join_disjunction(AGENT_SURFACES)};",
+        f"`role_family` must be {_join_disjunction(AGENT_ROLE_FAMILIES)};",
+        f"`artifact_write_authority` must be {_join_disjunction(AGENT_ARTIFACT_WRITE_AUTHORITIES)};",
+        f"`shared_state_authority` must be {_join_disjunction(AGENT_SHARED_STATE_AUTHORITIES)}.",
     )
 
 
 def command_visibility_note() -> str:
+    agent_labels = _command_agent_labels()
+    agent_clause = (
+        f"`agent` when present must be one of {_join_disjunction(agent_labels)};"
+        if agent_labels
+        else "`agent` when present must match a built-in canonical agent label exactly;"
+    )
     return render_model_visible_note(
         "Model-visible command constraints.",
         "Strict booleans only.",
-        "Use only declared values for `context_mode` and `agent`;",
-        "`project_reentry_capable` must be `true` or `false`.",
+        f"`context_mode` must be {_join_disjunction(VALID_CONTEXT_MODES)};",
+        agent_clause,
+        "`project_reentry_capable` must be `true` or `false` and may be `true` only when `context_mode` is `project-required`.",
     )
 
 
@@ -87,13 +117,16 @@ def review_contract_visibility_note() -> str:
     review_modes = _join_disjunction(REVIEW_CONTRACT_MODES)
     conditional_whens = _join_disjunction(REVIEW_CONTRACT_CONDITIONAL_WHENS)
     required_states = _join_disjunction(REVIEW_CONTRACT_REQUIRED_STATES)
+    preflight_checks = _join_disjunction(REVIEW_CONTRACT_PREFLIGHT_CHECKS)
     return render_model_visible_note(
         "Review contract schema.",
         f"`{REVIEW_CONTRACT_PROMPT_WRAPPER_KEY}` is the wrapper key; `schema_version` must be the integer `1`;",
         f"`review_mode` must be {review_modes};",
         f"when present, `required_state` must be {required_states};",
         f"`conditional_requirements[].when` must be one of {conditional_whens};",
+        f"`preflight_checks` must be one of {preflight_checks};",
         "`conditional_requirements[].blocking_preflight_checks` must reuse declared `preflight_checks`.",
+        "Each `conditional_requirements[].when` value may appear at most once.",
         "List fields reject blank entries and duplicates.",
         "Each conditional requirement must declare at least one field.",
     )

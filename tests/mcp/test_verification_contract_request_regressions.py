@@ -124,18 +124,14 @@ def test_run_contract_check_accepts_numeric_check_key_identifiers() -> None:
 
 def test_run_contract_check_published_schema_keeps_schema_required_fields_strict() -> None:
     from gpd.mcp.servers.verification_server import mcp
+    from gpd.mcp.verification_contract_policy import VERIFICATION_BINDING_FIELD_NAMES
 
     run_schema = _tool_input_schema(mcp, "run_contract_check")
     request_schema = _schema_object(run_schema, run_schema["properties"]["request"])
     assert "check_id" not in request_schema["properties"]
     binding_schema = _schema_anyof_object(request_schema["properties"]["binding"])
     assert set(binding_schema["properties"]) == {
-        "observable_ids",
-        "claim_ids",
-        "deliverable_ids",
-        "acceptance_test_ids",
-        "reference_ids",
-        "forbidden_proxy_ids",
+        field_name.removeprefix("binding.") for field_name in VERIFICATION_BINDING_FIELD_NAMES
     }
     for field_name in binding_schema["properties"]:
         field_schema = binding_schema["properties"][field_name]
@@ -218,6 +214,15 @@ def test_run_contract_check_published_schema_keeps_schema_required_fields_strict
     assert alignment_observed_branch["properties"]["uncovered_conclusion_clause_ids"]["items"]["type"] == "string"
     assert alignment_observed_branch["properties"]["uncovered_conclusion_clause_ids"]["items"]["minLength"] == 1
     assert "check_id" not in json.dumps(run_schema)
+
+
+def test_contract_binding_request_model_fields_match_canonical_binding_field_names() -> None:
+    from gpd.mcp.servers.verification_server import ContractBindingRequest
+    from gpd.mcp.verification_contract_policy import VERIFICATION_BINDING_FIELD_NAMES
+
+    assert tuple(ContractBindingRequest.model_fields) == tuple(
+        field_name.removeprefix("binding.") for field_name in VERIFICATION_BINDING_FIELD_NAMES
+    )
 
 
 @pytest.mark.parametrize(

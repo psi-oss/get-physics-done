@@ -1009,8 +1009,14 @@ def test_new_project_wiring_mentions_contract_persistence_and_contract_first_dow
     assert "@{GPD_INSTALL_DIR}/templates/project-contract-schema.md" in command_text
     assert shared_include in workflow_text
     assert shared_include in command_text
-    assert "For project-scoping work, keep `project_contract` literal and preserve cross-referenced IDs, gate state, and approval blockers exactly." in expanded_workflow
-    assert "For project-scoping work, keep `project_contract` literal and preserve cross-referenced IDs, gate state, and approval blockers exactly." in expanded_command
+    assert (
+        "For project-scoping work, keep `project_contract` literal and preserve gate state, approval blockers, "
+        "and linked IDs exactly."
+    ) in expanded_workflow
+    assert (
+        "For project-scoping work, keep `project_contract` literal and preserve gate state, approval blockers, "
+        "and linked IDs exactly."
+    ) in expanded_command
 
 
 def test_new_project_defers_workflow_setup_until_after_scope_approval() -> None:
@@ -2285,12 +2291,18 @@ def test_publication_prompts_surface_strict_semantic_manuscript_gates() -> None:
         assert "references/publication/peer-review-reliability.md" in content
         assert "@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md" in content
         expanded_content = expand_at_includes(content, REPO_ROOT / "src/gpd", "/runtime/")
-        assert "Do not invent hidden fields, extra keys, placeholder fallbacks, flattened shapes, or alternate JSON payloads from prior runs." in expanded_content
+        assert (
+            "Use the explicitly loaded schema, template, and contract/reference files that define an output shape or "
+            "validation gate as the authority."
+        ) in expanded_content
     assert "references/publication/peer-review-panel.md" in peer_review
     assert "references/publication/peer-review-panel.md" in write_paper
-    assert "Do not invent hidden fields, extra keys, placeholder fallbacks, flattened shapes, or alternate JSON payloads from prior runs." in shared_discipline
+    assert (
+        "Use the explicitly loaded schema, template, and contract/reference files that define an output shape or "
+        "validation gate as the authority."
+    ) in shared_discipline
     assert "If a field is hard-enforced, surface it in model-visible schema text before asking the model to satisfy it." in shared_discipline
-    assert "For publication and review artifacts, treat `VERIFICATION.md`, `contract_results`, `comparison_verdicts`, `REVIEW-LEDGER{round_suffix}.json`, `REFEREE-DECISION{round_suffix}.json`, `manuscript_path`, and `manuscript_sha256` as hard contracts." in shared_discipline
+    assert "For publication and review artifacts" not in shared_discipline
 
 
 def test_publication_command_contexts_surface_schema_docs_before_generation() -> None:

@@ -52,7 +52,10 @@ def test_verifier_prompt_points_to_canonical_verification_schema_sources() -> No
     assert "Prefer copy-pasteable GPD commands" in expanded_verifier
     assert "# Verifier Profile-Specific Checks" in expanded_verifier
     assert "[] Proof structure" in expanded_verifier
-    assert "Do not invent hidden fields, extra keys, placeholder fallbacks, flattened shapes, or alternate JSON payloads from prior runs." in expanded_verifier
+    assert (
+        "Use the explicitly loaded schema, template, and contract/reference files that define an output shape or "
+        "validation gate as the authority."
+    ) in expanded_verifier
     for legacy_alias in ("must_haves", "verification_inputs", "contract_evidence", "independently_confirmed"):
         assert legacy_alias not in verifier
     assert "@{GPD_INSTALL_DIR}/templates/verification-report.md" in verifier_lines

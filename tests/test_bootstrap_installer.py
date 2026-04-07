@@ -1012,24 +1012,35 @@ def test_bootstrap_runtime_catalog_validator_rejects_malformed_records() -> None
 const assert = require("node:assert/strict");
 const { validateRuntimeCatalog } = require("./bin/install.js");
 const catalog = require("./src/gpd/adapters/runtime_catalog.json");
+const runtimeCatalogSchema = require("./src/gpd/adapters/runtime_catalog_schema.json");
+const installHelpExampleScopes = new Set(runtimeCatalogSchema.install_help_example_scopes);
+const installHelpExampleScopeList = [...installHelpExampleScopes].sort();
+const launchWrapperPermissionSurfaceKinds = [...new Set(runtimeCatalogSchema.launch_wrapper_permission_surface_kinds)].sort();
+const launchWrapperDisjunction = launchWrapperPermissionSurfaceKinds.length === 1
+  ? JSON.stringify(launchWrapperPermissionSurfaceKinds[0])
+  : `one of ${launchWrapperPermissionSurfaceKinds.map((value) => JSON.stringify(value)).join(", ")}`;
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 assert.doesNotThrow(() => validateRuntimeCatalog(catalog));
 
 const helpExampleRuntimes = catalog.filter((runtime) => runtime.installer_help_example_scope);
 assert.ok(helpExampleRuntimes.length >= 2);
 for (const runtime of helpExampleRuntimes) {
+  assert.ok(installHelpExampleScopes.has(runtime.installer_help_example_scope));
   if (runtime.installer_help_example_scope === "global") {
     assert.equal(runtime.validated_command_surface, "public_runtime_slash_command");
     continue;
   }
   if (runtime.installer_help_example_scope === "local") {
     assert.equal(runtime.validated_command_surface, "public_runtime_dollar_command");
-    continue;
   }
-  assert.fail(`unexpected installer_help_example_scope: ${runtime.installer_help_example_scope}`);
 }
-assert.ok(helpExampleRuntimes.some((runtime) => runtime.installer_help_example_scope === "global"));
-assert.ok(helpExampleRuntimes.some((runtime) => runtime.installer_help_example_scope === "local"));
+if (installHelpExampleScopes.has("global")) {
+  assert.ok(helpExampleRuntimes.some((runtime) => runtime.installer_help_example_scope === "global"));
+}
+if (installHelpExampleScopes.has("local")) {
+  assert.ok(helpExampleRuntimes.some((runtime) => runtime.installer_help_example_scope === "local"));
+}
 
 const explicitSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
 explicitSurfaceCatalog[0].public_command_surface_prefix = explicitSurfaceCatalog[0].command_prefix;
@@ -1064,7 +1075,9 @@ const badHelpScopeCatalog = JSON.parse(JSON.stringify(catalog));
 badHelpScopeCatalog[0].installer_help_example_scope = "sideways";
 assert.throws(
   () => validateRuntimeCatalog(badHelpScopeCatalog),
-  /runtime catalog entry 0\.installer_help_example_scope must be one of: global, local/
+  new RegExp(
+    `runtime catalog entry 0\\.installer_help_example_scope must be one of: ${escapeRegex(installHelpExampleScopeList.join(", "))}`
+  )
 );
 
 const badSurfaceCatalog = JSON.parse(JSON.stringify(catalog));
@@ -1143,26 +1156,16 @@ assert.equal(
   "future.json:notify"
 );
 
-const launchWrapperPermissionSurfaceKinds = [...new Set(
-  catalog
-    .filter((runtime) => runtime.capabilities.permissions_surface === "launch-wrapper")
-    .map((runtime) => runtime.capabilities.permission_surface_kind)
-)].sort();
-const launchWrapperDisjunction = launchWrapperPermissionSurfaceKinds.length === 1
-  ? JSON.stringify(launchWrapperPermissionSurfaceKinds[0])
-  : `one of ${launchWrapperPermissionSurfaceKinds.map((value) => JSON.stringify(value)).join(", ")}`;
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
 const futureLaunchWrapperPermissionKindCatalog = JSON.parse(JSON.stringify(catalog));
 const launchWrapperRuntime = futureLaunchWrapperPermissionKindCatalog.find(
   (runtime) => runtime.capabilities.permissions_surface === "launch-wrapper"
 );
 launchWrapperRuntime.capabilities.permission_surface_kind = "future.json:launchWrapper";
-assert.equal(
-  validateRuntimeCatalog(futureLaunchWrapperPermissionKindCatalog).find(
-    (runtime) => runtime.runtime_name === launchWrapperRuntime.runtime_name
-  ).capabilities.permission_surface_kind,
-  "future.json:launchWrapper"
+assert.throws(
+  () => validateRuntimeCatalog(futureLaunchWrapperPermissionKindCatalog),
+  new RegExp(
+    `runtime catalog entry \\d+\\.capabilities\\.permission_surface_kind must be ${escapeRegex(launchWrapperDisjunction)} when permissions_surface=launch-wrapper`
+  )
 );
 
 const badPermissionKindCatalog = JSON.parse(JSON.stringify(catalog));

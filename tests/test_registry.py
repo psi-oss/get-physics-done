@@ -108,6 +108,21 @@ class TestParseFrontmatter:
         with pytest.raises(ValueError, match="duplicate key"):
             _parse_frontmatter(text)
 
+    def test_frontmatter_uses_shared_strict_yaml_loader(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        seen: dict[str, str] = {}
+
+        def _fake_load_strict_yaml(content: str) -> object:
+            seen["content"] = content
+            return {"name": "test"}
+
+        monkeypatch.setattr(registry, "load_strict_yaml", _fake_load_strict_yaml)
+
+        meta, body = _parse_frontmatter("---\nname: test\n---\nBody.")
+
+        assert seen["content"] == "name: test\n"
+        assert meta == {"name": "test"}
+        assert body == "Body."
+
     def test_frontmatter_with_leading_blank_lines_is_parsed(self) -> None:
         text = "\n\n---\nname: test\n---\nBody."
         meta, body = _parse_frontmatter(text)

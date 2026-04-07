@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema
+from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, create_model
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import (
@@ -70,7 +70,11 @@ from gpd.mcp.servers import (
     stable_mcp_response,
     tighten_registered_tool_contracts,
 )
-from gpd.mcp.verification_contract_policy import verification_contract_policy_text
+from gpd.mcp.verification_contract_policy import (
+    VERIFICATION_BINDING_FIELD_NAMES,
+    VERIFICATION_BINDING_TARGETS,
+    verification_contract_policy_text,
+)
 
 logger = configure_mcp_logging("gpd-verification")
 
@@ -361,31 +365,25 @@ class _ContractRequestBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class ContractBindingRequest(_ContractRequestBase):
-    observable_ids: list[str] | None = Field(
-        default=None,
-        description="Binding to one or more observable ids.",
-    )
-    claim_ids: list[str] | None = Field(
-        default=None,
-        description="Binding to one or more claim ids.",
-    )
-    deliverable_ids: list[str] | None = Field(
-        default=None,
-        description="Binding to one or more deliverable ids.",
-    )
-    acceptance_test_ids: list[str] | None = Field(
-        default=None,
-        description="Binding to one or more acceptance-test ids.",
-    )
-    reference_ids: list[str] | None = Field(
-        default=None,
-        description="Binding to one or more reference ids.",
-    )
-    forbidden_proxy_ids: list[str] | None = Field(
-        default=None,
-        description="Binding to one or more forbidden-proxy ids.",
-    )
+def _binding_request_field_name(binding_field_name: str) -> str:
+    return binding_field_name.removeprefix("binding.")
+
+
+ContractBindingRequest = create_model(
+    "ContractBindingRequest",
+    __base__=_ContractRequestBase,
+    **{
+        _binding_request_field_name(binding_field_name): (
+            list[str] | None,
+            Field(
+                default=None,
+                description=f"Binding to one or more {target.replace('_', '-')} ids.",
+            ),
+        )
+        for target, binding_field_name in zip(VERIFICATION_BINDING_TARGETS, VERIFICATION_BINDING_FIELD_NAMES, strict=True)
+    },
+)
+ContractBindingRequest.__doc__ = "Closed binding request surface derived from the canonical verification binding fields."
 
 
 class ContractMetadataRequest(_ContractRequestBase):
@@ -646,14 +644,6 @@ def _binding_input_schema_for_targets(targets: Iterable[str]) -> dict[str, objec
     return _object_schema(properties, additional_properties=False)
 
 
-_CONTRACT_BINDING_TARGETS: tuple[str, ...] = (
-    "observable",
-    "claim",
-    "deliverable",
-    "acceptance_test",
-    "reference",
-    "forbidden_proxy",
-)
 _PROOF_CLAIM_KIND_VALUES = THEOREM_CLAIM_KIND_VALUES
 _PROOF_ACCEPTANCE_TEST_KIND_VALUES = PROOF_ACCEPTANCE_TEST_KINDS
 _PROOF_CHECK_TO_ACCEPTANCE_KIND = {
@@ -702,7 +692,7 @@ _RUN_CHECK_IDENTIFIER_SCHEMA: dict[str, object] = {
 }
 
 
-_CONTRACT_BINDING_INPUT_SCHEMA: dict[str, object] = _binding_input_schema_for_targets(_CONTRACT_BINDING_TARGETS)
+_CONTRACT_BINDING_INPUT_SCHEMA: dict[str, object] = _binding_input_schema_for_targets(VERIFICATION_BINDING_TARGETS)
 _CONTRACT_METADATA_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "regime_label": _non_empty_string_or_null_schema(),
@@ -1343,7 +1333,7 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
                 include_observable_binding=True,
             )
             if limit_test is None:
-                binding_ids = {target: _binding_values_for_target(binding, target) for target in _BINDING_TARGETS}
+                binding_ids = {target: _binding_values_for_target(binding, target) for target in VERIFICATION_BINDING_TARGETS}
                 limit_test = _resolve_single_limit_acceptance_test(contract, binding_ids)
             if limit_test is not None and limit_test.pass_condition:
                 metadata["expected_behavior"] = limit_test.pass_condition
@@ -2192,13 +2182,8 @@ def run_check(
             return _error_result(exc)
 
 
-_BINDING_TARGETS: tuple[str, ...] = (
-    "observable",
-    "claim",
-    "deliverable",
-    "acceptance_test",
-    "reference",
-    "forbidden_proxy",
+_VERIFICATION_BINDING_FIELD_NAMES_BY_TARGET = dict(
+    zip(VERIFICATION_BINDING_TARGETS, VERIFICATION_BINDING_FIELD_NAMES, strict=True)
 )
 
 
@@ -2218,7 +2203,10 @@ def _supported_binding_fields_for_targets(targets: Iterable[str]) -> list[str]:
     seen: set[str] = set()
     fields: list[str] = []
     for target in targets:
-        field = f"binding.{target}_ids"
+        field_name = _VERIFICATION_BINDING_FIELD_NAMES_BY_TARGET.get(target)
+        if field_name is None:
+            continue
+        field = field_name
         if field in seen:
             continue
         seen.add(field)
@@ -3755,7 +3743,7 @@ def _apply_single_acceptance_test_binding_if_consistent(
     if test is None:
         return None
 
-    binding_ids = {target: _binding_values_for_target(candidate_binding, target) for target in _BINDING_TARGETS}
+    binding_ids = {target: _binding_values_for_target(candidate_binding, target) for target in VERIFICATION_BINDING_TARGETS}
     if _binding_claim_context_issue(binding_ids=binding_ids, contract=contract) is not None:
         return None
 

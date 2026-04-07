@@ -14,6 +14,8 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
         mcp,
     )
     from gpd.mcp.verification_contract_policy import (
+        VERIFICATION_BINDING_FIELD_NAMES,
+        VERIFICATION_BINDING_TARGETS,
         VERIFICATION_CONTRACT_POLICY_TEXT,
         verification_server_description,
     )
@@ -27,6 +29,22 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     state_schema = (repo_root / "src/gpd/specs/templates/state-json-schema.md").read_text(encoding="utf-8")
 
     assert _CONTRACT_PAYLOAD_INPUT_SCHEMA["description"] == VERIFICATION_CONTRACT_POLICY_TEXT
+    assert VERIFICATION_BINDING_TARGETS == (
+        "observable",
+        "claim",
+        "deliverable",
+        "acceptance_test",
+        "reference",
+        "forbidden_proxy",
+    )
+    assert VERIFICATION_BINDING_FIELD_NAMES == (
+        "binding.observable_ids",
+        "binding.claim_ids",
+        "binding.deliverable_ids",
+        "binding.acceptance_test_ids",
+        "binding.reference_ids",
+        "binding.forbidden_proxy_ids",
+    )
     assert verification_descriptor["description"] == verification_server_description()
     assert infra_descriptor["description"].startswith("GPD physics verification checks.")
     assert tools["run_contract_check"].description is not None
@@ -39,12 +57,10 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     assert "request_template" in tools["suggest_contract_checks"].description
     assert "active_checks" in tools["suggest_contract_checks"].description
     assert "contract payload" in tools["suggest_contract_checks"].description
-    conditional_anchor_rule = (
-        "When `references[]` is present and no other concrete grounding exists, at least one "
-        "`references[].must_surface=true` anchor is required; otherwise missing `must_surface=true` "
-        "is a warning that should be repaired."
-    )
-    assert conditional_anchor_rule in VERIFICATION_CONTRACT_POLICY_TEXT
+    assert "Nested object schemas are closed at every level" in VERIFICATION_CONTRACT_POLICY_TEXT
+    assert "unknown top-level or nested keys" in VERIFICATION_CONTRACT_POLICY_TEXT
+    for field_name in VERIFICATION_BINDING_FIELD_NAMES:
+        assert f"`{field_name}`" in VERIFICATION_CONTRACT_POLICY_TEXT
     assert (
         "If `references[]` is non-empty and the contract does not already carry concrete grounding elsewhere, "
         "at least one reference must set `must_surface: true`."

@@ -7384,16 +7384,17 @@ def validate_project_contract_cmd(
                 )
                 result = anchored_result if anchored_result.valid != unanchored_result.valid else unanchored_result
     if not result.valid:
+        schema_reference = "templates/project-contract-schema.md"
         if _raw:
             _emit_raw_json(
                 _model_dump_with_schema_reference(
                     result,
-                    schema_reference="templates/project-contract-schema.md",
+                    schema_reference=schema_reference,
                 ),
                 err=True,
             )
         else:
-            _output(result)
+            _output(_model_dump_with_schema_reference(result, schema_reference=schema_reference))
         raise typer.Exit(code=1)
     _output(result)
 
