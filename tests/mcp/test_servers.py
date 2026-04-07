@@ -1,4 +1,4 @@
-"""Tests for all 7 GPD MCP servers.
+"""Tests for the built-in GPD MCP servers.
 
 Calls @mcp.tool() decorated functions directly with mock backends.
 Covers: conventions, errors, patterns, protocols, skills, state, verification.

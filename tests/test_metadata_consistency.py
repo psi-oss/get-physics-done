@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import importlib
 import re
 import sys
 import tomllib
@@ -91,6 +92,17 @@ def _descriptor_python_module(descriptor: dict[str, object]) -> str | None:
     if isinstance(alt_args, list) and len(alt_args) == 2 and alt_args[0] == "-m":
         return str(alt_args[1])
     return None
+
+
+def _module_advertised_mcp_tools(module_name: str) -> list[str]:
+    module = importlib.import_module(module_name)
+    advertised = getattr(module, "ADVERTISED_TOOL_NAMES", None)
+    if isinstance(advertised, tuple):
+        return list(advertised)
+    if isinstance(advertised, list):
+        return advertised
+    module_path = Path("src") / Path(*module_name.split(".")).with_suffix(".py")
+    return _decorated_mcp_tools(module_path.as_posix())
 
 
 def _project_script_lines(repo_root: Path) -> list[str]:
@@ -247,13 +259,8 @@ def test_public_mcp_descriptor_capabilities_match_server_tools() -> None:
     descriptors = build_public_descriptors()
     for name, descriptor in descriptors.items():
         module_name = _descriptor_python_module(descriptor)
-        if module_name == "arxiv_mcp_server":
-            continue
-
         assert isinstance(module_name, str), name
-        module_path = Path("src") / Path(*module_name.split(".")).with_suffix(".py")
-
-        assert descriptor["capabilities"] == _decorated_mcp_tools(module_path.as_posix()), name
+        assert descriptor["capabilities"] == _module_advertised_mcp_tools(module_name), name
 
 
 def test_public_mcp_descriptor_entry_point_alternatives_match_pyproject_scripts() -> None:
@@ -268,10 +275,7 @@ def test_public_mcp_descriptor_entry_point_alternatives_match_pyproject_scripts(
     descriptors = build_public_descriptors()
     for name, descriptor in descriptors.items():
         module_name = _descriptor_python_module(descriptor)
-        if module_name == "arxiv_mcp_server":
-            assert "alternatives" not in descriptor
-            continue
-
+        assert isinstance(module_name, str), name
         script_name = descriptor.get("command")
         assert isinstance(script_name, str), name
         assert descriptor.get("args") == []
@@ -301,6 +305,7 @@ def test_arxiv_descriptor_tracks_optional_dependency_surface() -> None:
 
     descriptor = build_public_descriptors()["gpd-arxiv"]
     assert descriptor["prerequisites"] == ["Install GPD before enabling built-in MCP servers."]
+    assert descriptor["capabilities"][-1] == "download_source"
 
 
 def test_agent_count_matches_prompts_and_user_docs() -> None:

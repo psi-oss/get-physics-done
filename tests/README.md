@@ -1232,14 +1232,17 @@ They explicitly preserve:
 - `src/gpd/mcp/builtin_servers.py -> external binary {python}`
   `external-binary`
 
-- `src/gpd/mcp/builtin_servers.py -> external Python package {arxiv_mcp_server}`
+- `src/gpd/mcp/builtin_servers.py -> src/gpd/mcp/servers/arxiv_bridge.py`
+  `hard-import`
+
+- `src/gpd/mcp/servers/arxiv_bridge.py -> external Python package {arxiv_mcp_server}`
   `external-package`
 
 - `infra/gpd-{conventions,errors,patterns,protocols,skills,state,verification,arxiv}.json -> external binary {python}`
   `external-binary`
 
-- `infra/gpd-arxiv.json -> external Python package {arxiv_mcp_server}`
-  `external-package`
+- `infra/gpd-arxiv.json -> src/gpd/mcp/servers/arxiv_bridge.py`
+  `hard-import`
 
 - `src/gpd/mcp/servers/state_server.py -> src/gpd/core/{config,health,state,errors}.py`
   `hard-import`

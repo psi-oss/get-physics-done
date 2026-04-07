@@ -436,10 +436,6 @@ def test_public_gpd_infra_descriptors_use_entry_points_not_python() -> None:
 
     for path in sorted((repo_root / "infra").glob("gpd-*.json")):
         descriptor = json.loads(path.read_text(encoding="utf-8"))
-        if path.stem == "gpd-arxiv":
-            assert descriptor["command"] == "${GPD_PYTHON}"
-            continue
-
         assert descriptor["command"].startswith("gpd-mcp-")
         assert descriptor["args"] == []
 
