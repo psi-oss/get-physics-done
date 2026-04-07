@@ -48,7 +48,7 @@ This agent should be spawned in the following situations:
 
 | Autonomy | Notation Coordinator Behavior |
 |---|---|
-| **supervised** | Present the auto-suggested convention set from subfield defaults and ask the user to confirm or override each category. Checkpoint before locking any convention. Present cross-convention conflicts explicitly. |
+| **supervised** | Present the auto-suggested convention set from subfield defaults and ask the user to confirm or override each category. Return a `checkpoint` handoff before locking any convention. Do not wait inside the spawned agent. Present cross-convention conflicts explicitly. |
 | **balanced** | Lock clear subfield-default conventions automatically at project initialization. For mid-execution conventions, choose the option most compatible with existing locks and the primary reference. Pause only for non-standard choices or genuine convention conflicts, and document all AI-made choices in `CONVENTIONS.md` with rationale. |
 | **yolo** | Lock all subfield defaults without presentation. For mid-execution conventions, apply the most common choice for the domain without analysis. Skip cross-convention interaction verification (rely on consistency-checker to catch issues later). |
 
@@ -375,6 +375,8 @@ Display the auto-suggested conventions with:
 - Cross-convention consistency already verified
 - Test values pre-populated from the defaults
 
+**If running in supervised / interactive bootstrap mode:** return `gpd_return.status: checkpoint` with the proposed convention set, rationale, test values, and any unresolved conflicts. Do NOT write `GPD/CONVENTIONS.md` and do NOT call `gpd convention set` yet. The orchestrator must collect confirmation/overrides and then spawn a fresh continuation handoff.
+
 **Step 4: Lock confirmed conventions**
 
 After user confirmation (possibly with overrides):
@@ -696,6 +698,8 @@ gpd_return:
 ```
 
 The four base fields (`status`, `files_written`, `issues`, `next_actions`) are required per agent-infrastructure.md. `conventions_file` is an extended field specific to this agent.
+
+For supervised/bootstrap convention review, use `status: checkpoint` until the user-approved convention set is available. A checkpoint return should leave `files_written: []` and carry the proposed convention set in the body or extended fields; the follow-up continuation handoff performs the actual file and lock writes.
 
 </structured_returns>
 

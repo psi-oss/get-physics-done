@@ -1891,7 +1891,12 @@ CHECKPOINT
 
 This step is critical for multi-phase projects where convention mismatches cause silent errors (wrong signs, factors of 2*pi, metric signature confusion).
 
-**If auto mode:** Auto-approve subfield defaults without user confirmation.
+**Convention setup mode is driven by autonomy, not by whether the intake used `--auto`:**
+
+- `autonomy=supervised`: use `interactive` mode. The notation coordinator must return a checkpoint proposal before writing anything, the orchestrator presents it to the user, and a fresh continuation handoff performs the final write after confirmation/override.
+- `autonomy=balanced` (default): use `auto` mode. Lock clear subfield defaults automatically and only return a checkpoint/conflict if the context contains a genuine ambiguity or cross-subfield conflict that needs user judgment.
+- `autonomy=yolo`: use `auto` mode and accept the returned conventions automatically.
+- `--auto` only compresses intake. It does not force interactive convention review for `balanced` / `yolo`, and it does not remove the supervised checkpoint.
 
 Display stage banner:
 
@@ -1908,6 +1913,11 @@ NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator)
 ```
 
 If `NOTATION_MODEL` is empty or null, omit `model=` entirely in the spawn call. If it has a concrete value, include `model="$NOTATION_MODEL"`.
+
+Set `CONVENTION_MODE` before spawning:
+
+- `interactive` only when `autonomy=supervised`
+- `auto` for `autonomy=balanced` and `autonomy=yolo`
 
 Spawn gpd-notation-coordinator:
 
@@ -1929,15 +1939,21 @@ Read these files:
 </project_context>
 
 <mode>
-{auto | interactive}
-Auto mode: Use subfield defaults, lock all, skip user confirmation.
-Interactive mode: Present suggested conventions, wait for user confirmation/override.
+{CONVENTION_MODE}
+Auto mode: Use subfield defaults, lock all, skip user confirmation unless a genuine ambiguity or conflict blocks completion.
+Interactive mode: Return `status: checkpoint` with the suggested conventions, rationale, test values, and any conflicts. Do NOT write `GPD/CONVENTIONS.md` and do NOT call `gpd convention set` until the orchestrator collects the user's confirmation/override and spawns a fresh continuation handoff.
 </mode>
 
 <output>
+If mode=`auto`:
 1. Create: GPD/CONVENTIONS.md (full convention reference)
 2. Lock conventions via: gpd convention set
 3. Return CONVENTIONS ESTABLISHED with summary
+
+If mode=`interactive`:
+1. Return a checkpoint proposal only
+2. Include the suggested conventions, rationale, test values, and any conflicts
+3. Leave file creation and `gpd convention set` for the continuation handoff after user confirmation
 </output>
 <spawn_contract>
 write_scope:
@@ -1952,6 +1968,15 @@ shared_state_policy: direct
 ```
 
 **Handle notation-coordinator return:**
+
+- **Artifact gate:** If the notation-coordinator returns success but `GPD/CONVENTIONS.md` is missing, treat the handoff as incomplete. Recover via the artifact-recovery protocol: write the returned content in the main context if available; otherwise re-execute the convention-establishment task in the main context. Do not silently proceed.
+
+- **`status: checkpoint` / `CHECKPOINT REACHED`:** Present the proposed conventions, rationale, test values, and any conflict table to the user. Collect confirmation or overrides. Then spawn a fresh `gpd-notation-coordinator` handoff (NOT send-message/resume) with:
+  1. the original project context,
+  2. the proposal returned by the first handoff,
+  3. the user-approved / user-overridden convention values,
+  4. instructions to write `GPD/CONVENTIONS.md`, run `gpd convention set` for each approved category, and return `CONVENTIONS ESTABLISHED`.
+  Treat that continuation handoff as the normal success path for `autonomy=supervised`, not as an error.
 
 **If the notation-coordinator agent fails to spawn or returns an error:** Use a deterministic fallback instead of hardcoded defaults:
 

@@ -54,6 +54,7 @@ Every runtime-specific delegation surface must preserve these workflow semantics
 5. **Blocking completion semantics:** The orchestrator treats the handoff as incomplete until artifacts or structured return data are present.
 6. **Success-path artifact gate:** A reported success is not sufficient by itself. If `expected_artifacts` are missing, the handoff is incomplete even when the runtime says it finished cleanly.
 7. **Return-envelope parity:** The subagent must return the same machine-readable outcome shape the shared workflows expect.
+8. **Checkpoint, don't idle:** `task()` is a single-run handoff. A spawned subagent must not "wait here for the user" inside the same handoff. If human input is required, return `status: checkpoint` with the proposal/blocker and enough state for the orchestrator to present the checkpoint and spawn a fresh continuation handoff.
 
 If a runtime cannot satisfy these invariants with native subagents, fall back to a sequential main-context execution that still preserves the same write scope, artifact checks, and return-envelope discipline.
 
