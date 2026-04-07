@@ -711,6 +711,26 @@ class CodexAdapter(RuntimeAdapter):
     def runtime_name(self) -> str:
         return "codex"
 
+    def project_markdown_surface(
+        self,
+        content: str,
+        *,
+        surface_kind: str,
+        path_prefix: str,
+        command_name: str | None = None,
+    ) -> str:
+        del path_prefix
+        if surface_kind != "command":
+            return super().project_markdown_surface(
+                content,
+                surface_kind=surface_kind,
+                path_prefix="",
+                command_name=command_name,
+            )
+        if command_name is None:
+            raise ValueError("command_name is required for projected command surfaces")
+        return _convert_to_codex_skill(content, f"gpd-{command_name}")
+
     def format_command(self, action: str) -> str:
         return f"$gpd-{action}"
 

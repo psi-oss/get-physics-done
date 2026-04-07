@@ -107,14 +107,15 @@ def test_ci_and_test_readme_document_explicit_fast_and_full_suite_commands() -> 
     fast_suite_command = run_steps["Run fast test suite"]
     assert fast_suite_command == "uv run pytest tests/ -q --dist=loadscope"
     assert "--dist=loadscope" in fast_suite_command
-    assert 'addopts = "-n auto"' in pyproject
+    assert 'addopts = "-n auto"' not in pyproject
+    assert 'pytest-xdist>=3.8.0' in pyproject
     assert "--full-suite" not in fast_suite_command
     heavy_suite_command = run_steps["Run complementary heavy suite"]
     assert "from tests.conftest import complementary_heavy_suite_ignore_args" in heavy_suite_command
     assert 'HEAVY_SUITE_IGNORE_ARGS="$(' in heavy_suite_command
     assert "uv run pytest tests/ -q --full-suite --dist=loadscope $HEAVY_SUITE_IGNORE_ARGS" in heavy_suite_command
     assert "--full-suite" in heavy_suite_command
-    assert "already runs in parallel via `pyproject.toml`'s `-n auto` default" in tests_readme
+    assert "Default `uv run pytest tests/ -q` uses the fast daily suite declared in `tests/conftest.py`." in tests_readme
     assert "explicit `loadscope` scheduling used by CI" in tests_readme
     assert "GitHub Actions workflow runs the complementary heavy suite with `--full-suite` plus the shared ignore helper" in tests_readme
     assert complementary_heavy_suite_ignore_args() == tuple(

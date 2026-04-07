@@ -74,8 +74,6 @@ packages = ["src/gpd"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
-asyncio_mode = "auto"
-addopts = "-n auto"
 markers = []
 
 [tool.ruff]

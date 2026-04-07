@@ -50,8 +50,8 @@ def test_validate_project_contract_smoke_rejects_coercive_reference_must_surface
     result = validate_project_contract(contract)
 
     assert result.valid is False
-    assert "references.0.must_surface must be a boolean" in result.errors
-    assert "references.0.must_surface: Value error, must be a boolean" in result.errors
+    assert result.errors == ["references.0.must_surface must be a boolean"]
+    assert result.warnings == []
     assert not any("unknown reference" in issue for issue in result.errors + result.warnings)
     assert not any(
         "must include at least one must_surface=true anchor" in issue for issue in result.errors + result.warnings

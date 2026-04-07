@@ -15,6 +15,7 @@ import logging
 import re
 import shlex
 import shutil
+import tomllib
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -1095,6 +1096,26 @@ class GeminiAdapter(RuntimeAdapter):
     @property
     def runtime_name(self) -> str:
         return "gemini"
+
+    def project_markdown_surface(
+        self,
+        content: str,
+        *,
+        surface_kind: str,
+        path_prefix: str,
+        command_name: str | None = None,
+    ) -> str:
+        del path_prefix, command_name
+        if surface_kind != "command":
+            return super().project_markdown_surface(
+                content,
+                surface_kind=surface_kind,
+                path_prefix="",
+            )
+        prompt = tomllib.loads(_convert_to_gemini_toml(content)).get("prompt")
+        if not isinstance(prompt, str):
+            raise ValueError("gemini projected command surface must expose a prompt string")
+        return prompt
 
     def _runtime_bridge_only_relpaths(self) -> tuple[str, ...]:
         """Return Gemini artifacts that appear only after finalize_install()."""

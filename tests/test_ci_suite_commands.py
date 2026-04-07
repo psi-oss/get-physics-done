@@ -49,8 +49,8 @@ def test_ci_workflow_runs_fast_and_full_pytest_suites_with_default_parallelism_a
     assert "complementary_heavy_suite_ignore_args" in steps[-1]["run"]
     assert steps[2]["uses"] == "actions/setup-node@v6"
     assert steps[2]["with"]["node-version"] == "20"
-    assert 'addopts = "-n auto"' in pyproject
-    assert 'addopts = "-n auto --dist=loadscope"' not in pyproject
+    assert 'addopts = "-n auto"' not in pyproject
+    assert 'pytest-xdist>=3.8.0' in pyproject
     assert complementary_heavy_suite_ignore_args() == tuple(
         f"--ignore=tests/{rel_path}"
         for rel_path in sorted(
@@ -65,6 +65,5 @@ def test_tests_readme_documents_fast_and_full_suite_entrypoints() -> None:
     tests_readme = (REPO_ROOT / "tests" / "README.md").read_text(encoding="utf-8")
 
     assert "Default `uv run pytest tests/ -q` uses the fast daily suite declared in" in tests_readme
-    assert "already runs in parallel via `pyproject.toml`'s `-n auto` default" in tests_readme
     assert "`uv run pytest tests/ -q --dist=loadscope`" in tests_readme
     assert "The GitHub Actions workflow runs the complementary heavy suite with `--full-suite` plus the shared ignore helper" in tests_readme

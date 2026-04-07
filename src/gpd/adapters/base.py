@@ -247,6 +247,21 @@ class RuntimeAdapter(abc.ABC):
             content = strip_sub_tags(content)
         return convert_tool_references_in_body(content, self.tool_reference_translation_map())
 
+    def project_markdown_surface(
+        self,
+        content: str,
+        *,
+        surface_kind: str,
+        path_prefix: str,
+        command_name: str | None = None,
+    ) -> str:
+        """Return the runtime-visible prompt surface for compiled shared markdown."""
+
+        del path_prefix, command_name
+        if surface_kind not in {"agent", "command"}:
+            raise ValueError("surface_kind must be 'agent' or 'command'")
+        return content
+
     def commit_attribution_config_path(self, *, explicit_config_dir: str | None = None) -> Path | None:
         """Return the runtime-owned config file that stores commit attribution.
 

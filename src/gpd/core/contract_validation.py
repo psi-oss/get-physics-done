@@ -189,11 +189,26 @@ def _format_schema_error(error: dict[str, object]) -> str:
     return f"{location}: {message}"
 
 
+def _schema_error_location(error: dict[str, object], *, path_prefix: str = "") -> str:
+    """Return the fully qualified dotted location for one Pydantic error."""
+
+    loc = tuple(error.get("loc", ()))
+    parts = [path_prefix, *(str(part) for part in loc if str(part))]
+    return ".".join(part for part in parts if part)
+
+
+def _is_canonical_authoritative_scalar_location(location: str) -> bool:
+    """Return whether one location is governed by a canonical authoritative scalar error."""
+
+    return location == "schema_version" or re.fullmatch(r"references\.\d+\.must_surface", location) is not None
+
+
 def _sanitize_contract_scalars(
     value: object,
     *,
     path_prefix: str = "",
     errors: list[str] | None = None,
+    canonical_authoritative_scalar_locations: set[str] | None = None,
 ) -> object:
     """Remove malformed coercive scalars so callers can reject them explicitly.
 
@@ -218,9 +233,13 @@ def _sanitize_contract_scalars(
             if location == "schema_version":
                 if type(raw_item) is not int:
                     sink.append("schema_version must be the integer 1")
+                    if canonical_authoritative_scalar_locations is not None:
+                        canonical_authoritative_scalar_locations.add(location)
                     continue
                 if raw_item != 1:
                     sink.append("schema_version: Input should be 1")
+                    if canonical_authoritative_scalar_locations is not None:
+                        canonical_authoritative_scalar_locations.add(location)
                     continue
                 cleaned[raw_key] = raw_item
                 continue
@@ -228,6 +247,8 @@ def _sanitize_contract_scalars(
             if re.fullmatch(r"references\.\d+\.must_surface", location):
                 if type(raw_item) is not bool:
                     sink.append(f"{location} must be a boolean")
+                    if canonical_authoritative_scalar_locations is not None:
+                        canonical_authoritative_scalar_locations.add(location)
                     cleaned[raw_key] = raw_item
                     continue
                 cleaned[raw_key] = raw_item
@@ -237,6 +258,7 @@ def _sanitize_contract_scalars(
                 raw_item,
                 path_prefix=location,
                 errors=sink,
+                canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
             )
         return cleaned
 
@@ -246,6 +268,7 @@ def _sanitize_contract_scalars(
                 item,
                 path_prefix=f"{path_prefix}.{index}" if path_prefix else str(index),
                 errors=sink,
+                canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
             )
             for index, item in enumerate(value)
         ]
@@ -298,6 +321,7 @@ def _salvage_model_mapping(
     path_prefix: str,
     model: type[BaseModel],
     errors: list[str],
+    canonical_authoritative_scalar_locations: set[str] | None = None,
     default_value: dict[str, object] | None = None,
     required_fields: tuple[str, ...] = (),
     missing_is_default: bool = False,
@@ -333,6 +357,15 @@ def _salvage_model_mapping(
                 key = str(loc[0])
                 field = model.model_fields.get(key)
                 if field is None:
+                    continue
+                location = _schema_error_location({"loc": loc}, path_prefix=path_prefix)
+                if (
+                    canonical_authoritative_scalar_locations is not None
+                    and _is_canonical_authoritative_scalar_location(location)
+                    and location in canonical_authoritative_scalar_locations
+                ):
+                    blocked = True
+                    progress = True
                     continue
                 formatted = _format_schema_error(
                     {
@@ -375,6 +408,7 @@ def _salvage_model_mapping(
                                 path_prefix=f"{path_prefix}.{key}.{index}",
                                 model=item_model,
                                 errors=errors,
+                                canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
                             )
                             if item_blocking:
                                 blocked = True
@@ -410,6 +444,7 @@ def _salvage_contract_collection(
     field_name: str,
     item_model: type[BaseModel],
     errors: list[str],
+    canonical_authoritative_scalar_locations: set[str] | None = None,
 ) -> tuple[list[dict[str, object]], bool]:
     path_prefix = field_name
     if not isinstance(value, list):
@@ -428,6 +463,7 @@ def _salvage_contract_collection(
             path_prefix=item_prefix,
             model=item_model,
             errors=errors,
+            canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
         )
         if item_blocked:
             blocked = True
@@ -469,12 +505,17 @@ def _normalize_blank_list_fields(contract: dict[str, object]) -> None:
 
 def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContract | None, list[str]]:
     errors: list[str] = []
+    canonical_authoritative_scalar_locations: set[str] = set()
     errors.extend(_collect_literal_case_drift_errors(contract))
     raw_required_section_presence = {
         field_name: field_name in contract
         for field_name in ("schema_version", "scope", "context_intake", "uncertainty_markers")
     }
-    scalar_sanitized = _sanitize_contract_scalars(contract, errors=errors)
+    scalar_sanitized = _sanitize_contract_scalars(
+        contract,
+        errors=errors,
+        canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+    )
     if not isinstance(scalar_sanitized, dict):
         return None, errors
 
@@ -506,6 +547,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
             field_name=field_name,
             item_model=item_model,
             errors=errors,
+            canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
         )
         normalized_contract[field_name] = normalized_items
 
@@ -514,6 +556,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         path_prefix="scope",
         model=ContractScope,
         errors=errors,
+        canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
     )
     if scope_blocked or scope is None:
         return None, errors
@@ -524,6 +567,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         path_prefix="context_intake",
         model=ContractContextIntake,
         errors=errors,
+        canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
     )
     if context_intake_blocked or context_intake is None:
         return None, errors
@@ -536,6 +580,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
             path_prefix="approach_policy",
             model=ContractApproachPolicy,
             errors=approach_policy_errors,
+            canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
         )
         if approach_policy_blocked or approach_policy is None:
             errors.extend(error for error in approach_policy_errors if error not in errors)
@@ -548,6 +593,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         path_prefix="uncertainty_markers",
         model=ContractUncertaintyMarkers,
         errors=errors,
+        canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
         required_fields=("weakest_anchors", "disconfirming_observations"),
     )
     if uncertainty_markers_blocked or uncertainty_markers is None:

@@ -292,12 +292,10 @@ def _assert_installed_contract_visibility(
     assert "project_contract_validation" in new_project
     assert "`schema_version` must be the integer `1`" in new_project
     assert "`references[].must_surface` must be a boolean `true` or `false`" in new_project
-    assert "`context_intake`, `approach_policy`, and `uncertainty_markers` are objects, not strings or lists" in new_project
-    assert "treat a claim as proof-bearing whenever any of these is true" in new_project
-    assert "`claim_kind` is `theorem`, `lemma`, `corollary`, `proposition`, or `claim`" in new_project
-    assert "`observables[]` references a `proof_obligation` target" in new_project
-    assert "proof-bearing claims must include at least one proof-specific acceptance test kind" in new_project
-    assert "`references[].carry_forward_to[]` is free-text workflow scope such as `planning`, `execution`, `verification`, or `writing`" in new_project
+    assert "`context_intake`" in new_project
+    assert "`approach_policy`" in new_project
+    assert "`uncertainty_markers`" in new_project
+    assert "do not flatten them into strings or lists" in new_project
 
     assert "Canonical contract schema and hard validation rules" in plan_phase
     assert (

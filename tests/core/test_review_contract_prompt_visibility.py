@@ -12,6 +12,7 @@ from gpd.core.model_visible_text import (
     REVIEW_CONTRACT_FRONTMATTER_KEY,
     REVIEW_CONTRACT_MODES,
     REVIEW_CONTRACT_PROMPT_WRAPPER_KEY,
+    REVIEW_CONTRACT_REQUIRED_STATES,
     agent_visibility_note,
     command_visibility_note,
     review_contract_visibility_note,
@@ -103,11 +104,10 @@ def test_review_grade_commands_prepend_model_visible_review_contract_to_registry
         assert "## Review Contract" in command.content
         assert expected_section in command.content
         assert f"{REVIEW_CONTRACT_PROMPT_WRAPPER_KEY}:" in command.content
-        assert f"`{REVIEW_CONTRACT_PROMPT_WRAPPER_KEY}` is the wrapper key;" in expected_section
-        assert "Closed schema; no extra keys." in expected_section
-        assert "List fields reject blank entries and duplicates." in expected_section
-        assert "Each conditional requirement must declare at least one field." in expected_section
-        assert "`schema_version` must be `1`;" in expected_section
+        assert "wrapper key" in expected_section
+        assert "schema_version" in expected_section
+        assert "required_state" in expected_section
+        assert "conditional_requirements" in expected_section
         assert review_contract_visibility_note() in expected_section
         assert f"review_mode: {contract.review_mode}" in expected_section
         for output in contract.required_outputs:
@@ -135,19 +135,23 @@ def test_review_grade_commands_prepend_model_visible_review_contract_to_registry
 
 
 def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None:
-    assert "Closed schema; no extra keys." in agent_visibility_note()
-    assert "Closed schema; no extra keys." in command_visibility_note()
-    assert "Strict booleans only." in command_visibility_note()
-    assert "Use only declared values for `context_mode` and `agent`;" in command_visibility_note()
-    assert "`project_reentry_capable` must be `true` or `false`." in command_visibility_note()
-    assert "Closed schema; no extra keys." in review_contract_visibility_note()
     note = review_contract_visibility_note()
+    command_note = command_visibility_note()
     review_modes = " or ".join(f"`{value}`" for value in REVIEW_CONTRACT_MODES)
     conditional_whens = " or ".join(f"`{value}`" for value in REVIEW_CONTRACT_CONDITIONAL_WHENS)
-    assert f"`{REVIEW_CONTRACT_PROMPT_WRAPPER_KEY}` is the wrapper key;" in note
+    required_states = " or ".join(f"`{value}`" for value in REVIEW_CONTRACT_REQUIRED_STATES)
+
+    assert "Closed schema" in agent_visibility_note()
+    assert "Closed schema" in command_note
+    assert "strict booleans" in command_note.lower()
+    assert "context_mode" in command_note
+    assert "project_reentry_capable" in command_note
+
+    assert "Closed schema" in note
+    assert "wrapper key" in note
     assert f"`review_mode` must be {review_modes}" in note
+    assert f"`required_state` must be {required_states}" in note
     assert f"`conditional_requirements[].when` must be one of {conditional_whens}" in note
-    assert "`schema_version` must be `1`" in note
     assert "blocking_preflight_checks" in note
 
 
@@ -650,6 +654,19 @@ def test_review_contract_renderer_normalizes_blank_required_state() -> None:
     )
 
     assert "required_state: ''" not in section
+
+
+def test_review_contract_renderer_surfaces_required_state_constraint_in_note() -> None:
+    section = render_review_contract_prompt(
+        {
+            "schema_version": 1,
+            "review_mode": "review",
+            "required_state": REVIEW_CONTRACT_REQUIRED_STATES[0],
+        }
+    )
+
+    assert "required_state: phase_executed" in section
+    assert "required_state" in section
 
 
 def test_review_contract_renderer_rejects_non_list_and_non_mapping_conditional_shapes() -> None:

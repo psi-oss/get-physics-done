@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
 
 import pytest
 
 from gpd import registry
-from gpd.adapters.codex import _convert_to_codex_skill
-from gpd.adapters.gemini import _convert_to_gemini_toml
-from gpd.adapters.install_utils import compile_markdown_for_runtime
-from gpd.adapters.opencode import convert_claude_to_opencode_frontmatter
+from gpd.adapters.install_utils import project_markdown_for_runtime
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.core.model_visible_text import command_visibility_note
 
@@ -29,19 +25,14 @@ def _read(path: Path) -> str:
 
 
 def _project_command(command_name: str, runtime: str) -> str:
-    projected = compile_markdown_for_runtime(
+    projected = project_markdown_for_runtime(
         _read(COMMANDS_DIR / f"{command_name}.md"),
         runtime=runtime,
         path_prefix="/runtime/",
         src_root=REPO_ROOT / "src/gpd",
         protect_agent_prompt_body=False,
+        command_name=command_name,
     )
-    if runtime == "codex":
-        projected = _convert_to_codex_skill(projected, f"gpd-{command_name}")
-    elif runtime == "gemini":
-        projected = tomllib.loads(_convert_to_gemini_toml(projected))["prompt"]
-    elif runtime == "opencode":
-        projected = convert_claude_to_opencode_frontmatter(projected, "/runtime/")
 
     assert isinstance(projected, str)
     return projected

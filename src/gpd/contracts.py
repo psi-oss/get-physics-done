@@ -836,19 +836,10 @@ def _normalize_literal_choice_list(value: object, choices: tuple[str, ...]) -> o
     return canonicalized
 
 
-def normalize_contract_results_input(value: object, *, strict: bool = True) -> object:
-    """Preserve contract-results shape before strict ``ContractResults`` validation.
-
-    Legacy permissive normalization is intentionally unsupported. All live
-    contract-results entry points validate strict contract-backed ledgers, so
-    this helper now rejects ``strict=False`` rather than silently reintroducing
-    coercive compatibility behavior.
-    """
+def normalize_contract_results_input(value: object) -> object:
+    """Normalize contract-results input before strict ``ContractResults`` validation."""
     if not isinstance(value, dict):
         return value
-
-    if strict is not True:
-        raise ValueError("normalize_contract_results_input only supports strict=True")
 
     return _StrictContractResultsInput(dict(value))
 
@@ -1510,7 +1501,7 @@ def parse_contract_results_data_strict(value: object) -> ContractResults:
 
     if not isinstance(value, dict):
         raise ValueError("contract_results must be an object")
-    return ContractResults.model_validate(normalize_contract_results_input(value, strict=True))
+    return ContractResults.model_validate(normalize_contract_results_input(value))
 
 
 def parse_contract_results_data_artifact(value: object) -> ContractResults:

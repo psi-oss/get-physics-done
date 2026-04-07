@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from gpd import registry
-from gpd.adapters.codex import _convert_to_codex_skill
-from gpd.adapters.gemini import _convert_to_gemini_toml
-from gpd.adapters.opencode import convert_claude_to_opencode_frontmatter
+from gpd.adapters.install_utils import project_markdown_for_runtime
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from tests.adapters.review_contract_test_utils import extract_review_contract_section
 
@@ -15,15 +15,13 @@ REVIEW_COMMANDS = tuple(command_name.removeprefix("gpd:") for command_name in re
 
 def _transform_registry_command_content(command_name: str, runtime: str) -> str:
     content = registry.get_command(command_name).content
-    if runtime == "claude-code":
-        return content
-    if runtime == "codex":
-        return _convert_to_codex_skill(content, f"gpd-{command_name}")
-    if runtime == "gemini":
-        return _convert_to_gemini_toml(content)
-    if runtime == "opencode":
-        return convert_claude_to_opencode_frontmatter(content)
-    raise AssertionError(f"Unsupported runtime: {runtime}")
+    return project_markdown_for_runtime(
+        content,
+        runtime=runtime,
+        path_prefix="/runtime/",
+        src_root=Path(__file__).resolve().parents[2] / "src/gpd",
+        command_name=command_name,
+    )
 
 
 @pytest.mark.parametrize(

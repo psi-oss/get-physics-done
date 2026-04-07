@@ -1030,6 +1030,50 @@ def compile_markdown_for_runtime(
     return _inject_command_visibility_sections_from_frontmatter(content)
 
 
+def project_markdown_for_runtime(
+    content: str,
+    *,
+    runtime: str,
+    path_prefix: str,
+    surface_kind: str = "command",
+    install_scope: str | None = None,
+    src_root: str | Path | None = None,
+    workflow_target_dir: Path | None = None,
+    explicit_target: bool = False,
+    protect_agent_prompt_body: bool = False,
+    command_name: str | None = None,
+) -> str:
+    """Return the final runtime-visible prompt surface for one markdown source.
+
+    The shared compiler handles common normalization. Adapter-specific
+    projection is delegated to the runtime adapter implementation so shared
+    infrastructure stays agnostic about per-runtime surface formats.
+    """
+
+    compiled = compile_markdown_for_runtime(
+        content,
+        runtime=runtime,
+        path_prefix=path_prefix,
+        install_scope=install_scope,
+        src_root=src_root,
+        workflow_target_dir=workflow_target_dir,
+        explicit_target=explicit_target,
+        protect_agent_prompt_body=protect_agent_prompt_body,
+    )
+
+    if surface_kind not in {"agent", "command"}:
+        raise ValueError("surface_kind must be 'agent' or 'command'")
+
+    from gpd.adapters import get_adapter
+
+    return get_adapter(runtime).project_markdown_surface(
+        compiled,
+        surface_kind=surface_kind,
+        path_prefix=path_prefix,
+        command_name=command_name,
+    )
+
+
 def expand_at_includes(
     content: str,
     src_root: str | Path,

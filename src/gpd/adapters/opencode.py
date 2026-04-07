@@ -1040,6 +1040,23 @@ class OpenCodeAdapter(RuntimeAdapter):
     def runtime_name(self) -> str:
         return "opencode"
 
+    def project_markdown_surface(
+        self,
+        content: str,
+        *,
+        surface_kind: str,
+        path_prefix: str,
+        command_name: str | None = None,
+    ) -> str:
+        del command_name
+        if surface_kind != "command":
+            return super().project_markdown_surface(
+                content,
+                surface_kind=surface_kind,
+                path_prefix=path_prefix,
+            )
+        return convert_claude_to_opencode_frontmatter(content, path_prefix)
+
     def translate_shared_command_references(self, content: str) -> str:
         return content.replace("/gpd:", self.command_prefix)
 

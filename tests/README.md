@@ -4,7 +4,7 @@ This directory contains the automated test suite for GPD: core CLI and state reg
 
 The final section of this README keeps the full checked-in repository interdependency graph that the graph guardrail tests read directly.
 
-Default `uv run pytest tests/ -q` uses the fast daily suite declared in `tests/conftest.py` and already runs in parallel via `pyproject.toml`'s `-n auto` default. Use `uv run pytest tests/ -q --dist=loadscope` when you want the explicit `loadscope` scheduling used by CI. For a focused smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`. The GitHub Actions workflow runs the complementary heavy suite with `--full-suite` plus the shared ignore helper so heavyweight files are actually collected on their own.
+Default `uv run pytest tests/ -q` uses the fast daily suite declared in `tests/conftest.py`. Use `uv run pytest tests/ -q --dist=loadscope` when you want the explicit `loadscope` scheduling used by CI. For a focused smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`. The GitHub Actions workflow runs the complementary heavy suite with `--full-suite` plus the shared ignore helper so heavyweight files are actually collected on their own.
 
 ## Repository Interdependency Graph
 

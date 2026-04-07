@@ -82,11 +82,13 @@ def command_visibility_note() -> str:
 def review_contract_visibility_note() -> str:
     review_modes = _join_disjunction(REVIEW_CONTRACT_MODES)
     conditional_whens = _join_disjunction(REVIEW_CONTRACT_CONDITIONAL_WHENS)
+    required_states = _join_disjunction(REVIEW_CONTRACT_REQUIRED_STATES)
     return (
         "Review contract schema. Follow this YAML. "
         "Closed schema; no extra keys. "
         f"`{REVIEW_CONTRACT_PROMPT_WRAPPER_KEY}` is the wrapper key; `schema_version` must be `1`; "
         f"`review_mode` must be {review_modes}; "
+        f"when present, `required_state` must be {required_states}; "
         f"`conditional_requirements[].when` must be one of {conditional_whens}; "
         "`conditional_requirements[].blocking_preflight_checks` must reuse declared `preflight_checks`."
     )

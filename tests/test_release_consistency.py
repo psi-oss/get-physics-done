@@ -305,7 +305,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert 'python-version: "3.11"' in workflow
     assert "astral-sh/setup-uv@v7" in workflow
     assert "uv sync --dev" in workflow
-    assert 'addopts = "-n auto"' in pyproject
+    assert 'addopts = "-n auto"' not in pyproject
     assert "Run fast test suite" in workflow
     assert "Run complementary heavy suite" in workflow
     assert "uv run pytest tests/ -q --dist=loadscope" in workflow

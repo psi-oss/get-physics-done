@@ -323,7 +323,6 @@ def test_parse_contract_results_data_strict_rejects_evidence_scalar_and_case_dri
                         "disconfirming_observations": ["obs-1"],
                     },
                 },
-                strict=True,
             )
         )
 
@@ -515,7 +514,10 @@ def test_parse_project_contract_data_salvage_preserves_valid_siblings_when_one_c
 
     assert result.contract is not None
     assert any(item.id == sibling_id for item in getattr(result.contract, collection_name))
-    assert any(expected_error in error for error in result.blocking_errors)
+    if collection_name == "references":
+        assert result.blocking_errors == ["references.0.must_surface must be a boolean"]
+    else:
+        assert any(expected_error in error for error in result.blocking_errors)
     assert contract_from_data_salvage(contract) is None
 
 
@@ -1867,7 +1869,7 @@ def test_validate_project_contract_rejects_coercive_reference_must_surface_scala
     result = validate_project_contract(contract)
 
     assert result.valid is False
-    assert "references.0.must_surface must be a boolean" in result.errors
+    assert result.errors == ["references.0.must_surface must be a boolean"]
 
 
 def test_validate_project_contract_rejects_coercive_schema_version_scalar() -> None:
@@ -2249,7 +2251,7 @@ def test_validate_project_contract_rejects_missing_uncertainty_marker_subfields(
 
 def test_contract_results_strict_mode_requires_explicit_uncertainty_markers() -> None:
     with pytest.raises(ValidationError, match="uncertainty_markers"):
-        ContractResults.model_validate(normalize_contract_results_input({"claims": {}}, strict=True))
+        ContractResults.model_validate(normalize_contract_results_input({"claims": {}}))
 
 
 def test_contract_results_strict_mode_rejects_scalar_uncertainty_marker_lists() -> None:
@@ -2268,7 +2270,7 @@ def test_contract_results_strict_mode_rejects_scalar_uncertainty_marker_lists() 
     }
 
     with pytest.raises(ValidationError) as excinfo:
-        ContractResults.model_validate(normalize_contract_results_input(payload, strict=True))
+        ContractResults.model_validate(normalize_contract_results_input(payload))
 
     message = str(excinfo.value)
     assert "uncertainty_markers.weakest_anchors must be a list, not str" in message
@@ -2325,7 +2327,7 @@ def test_contract_results_strict_mode_rejects_scalar_string_list_drift(
     }
 
     with pytest.raises(ValidationError, match=re.escape(error_fragment)):
-        ContractResults.model_validate(normalize_contract_results_input(payload, strict=True))
+        ContractResults.model_validate(normalize_contract_results_input(payload))
 
 
 def test_contract_results_strict_mode_rejects_proof_audit_without_explicit_completeness() -> None:
@@ -2351,7 +2353,7 @@ def test_contract_results_strict_mode_rejects_proof_audit_without_explicit_compl
             "claims.claim-main.proof_audit.completeness must be explicit in contract-backed contract_results"
         ),
     ):
-        ContractResults.model_validate(normalize_contract_results_input(payload, strict=True))
+        ContractResults.model_validate(normalize_contract_results_input(payload))
 
 
 def test_contract_results_strict_mode_rejects_scalar_proof_audit_string_lists() -> None:
@@ -2375,7 +2377,7 @@ def test_contract_results_strict_mode_rejects_scalar_proof_audit_string_lists() 
         ValidationError,
         match=re.escape("claims.claim-main.proof_audit.covered_parameter_symbols must be a list, not str"),
     ):
-        ContractResults.model_validate(normalize_contract_results_input(payload, strict=True))
+        ContractResults.model_validate(normalize_contract_results_input(payload))
 
 
 def test_contract_results_strict_mode_rejects_duplicate_linked_ids_and_actions() -> None:
@@ -2486,7 +2488,7 @@ def test_contract_results_strict_mode_rejects_string_stale_proof_audit_boolean()
     }
 
     with pytest.raises(ValidationError) as excinfo:
-        ContractResults.model_validate(normalize_contract_results_input(payload, strict=True))
+        ContractResults.model_validate(normalize_contract_results_input(payload))
 
     message = str(excinfo.value)
     assert "claims.claim-main.proof_audit.stale" in message
@@ -2515,7 +2517,7 @@ def test_parse_contract_results_data_strict_matches_contract_results_model_valid
     }
 
     parsed = parse_contract_results_data_strict(payload)
-    baseline = ContractResults.model_validate(normalize_contract_results_input(payload, strict=True))
+    baseline = ContractResults.model_validate(normalize_contract_results_input(payload))
 
     assert parsed.model_dump() == baseline.model_dump()
 
@@ -2523,30 +2525,6 @@ def test_parse_contract_results_data_strict_matches_contract_results_model_valid
 def test_parse_contract_results_data_strict_rejects_non_mapping_input() -> None:
     with pytest.raises(ValueError, match="contract_results must be an object"):
         parse_contract_results_data_strict("not-a-dict")
-
-
-def test_contract_results_non_strict_mode_is_rejected() -> None:
-    payload = {
-        "claims": {
-            "claim-main": {
-                "status": "passed",
-                "linked_ids": "deliv-main",
-            }
-        },
-        "references": {
-            "ref-main": {
-                "status": "completed",
-                "completed_actions": "compare",
-            }
-        },
-        "uncertainty_markers": {
-            "weakest_anchors": ["anchor-main"],
-            "disconfirming_observations": ["observation-main"],
-        },
-    }
-
-    with pytest.raises(ValueError, match=re.escape("normalize_contract_results_input only supports strict=True")):
-        normalize_contract_results_input(payload, strict=False)
 
 
 def test_plan_contract_schema_uses_supported_contract_enum_values() -> None:

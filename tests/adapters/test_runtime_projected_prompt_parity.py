@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
 
 import pytest
 
-from gpd.adapters.codex import _convert_to_codex_skill
-from gpd.adapters.gemini import _convert_to_gemini_toml
-from gpd.adapters.install_utils import compile_markdown_for_runtime
-from gpd.adapters.opencode import convert_claude_to_opencode_frontmatter
+from gpd.adapters.install_utils import project_markdown_for_runtime
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
-from gpd.core.model_visible_text import command_visibility_note, review_contract_visibility_note
+from gpd.core.model_visible_text import (
+    REVIEW_CONTRACT_REQUIRED_STATES,
+    command_visibility_note,
+    review_contract_visibility_note,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
@@ -23,7 +23,11 @@ COMMAND_SURFACES = {
     "plan-phase": (command_visibility_note(),),
     "new-project": (command_visibility_note(),),
     "execute-phase": (command_visibility_note(),),
-    "verify-work": (command_visibility_note(), review_contract_visibility_note()),
+    "verify-work": (
+        command_visibility_note(),
+        review_contract_visibility_note(),
+        f"required_state: {REVIEW_CONTRACT_REQUIRED_STATES[0]}",
+    ),
 }
 PLAN_AGENT_SURFACES = {
     "gpd-planner": (
@@ -54,23 +58,15 @@ def _read(path: Path) -> str:
 
 
 def _project_markdown(path: Path, runtime: str, *, is_agent: bool) -> str:
-    content = compile_markdown_for_runtime(
+    return project_markdown_for_runtime(
         _read(path),
         runtime=runtime,
         path_prefix="/runtime/",
+        surface_kind="agent" if is_agent else "command",
         src_root=REPO_ROOT / "src/gpd",
         protect_agent_prompt_body=is_agent,
+        command_name=path.stem,
     )
-    if path.parent.name == "commands":
-        if runtime == "codex":
-            return _convert_to_codex_skill(content, f"gpd-{path.stem}")
-        if runtime == "gemini":
-            prompt = tomllib.loads(_convert_to_gemini_toml(content))["prompt"]
-            assert isinstance(prompt, str)
-            return prompt
-        if runtime == "opencode":
-            return convert_claude_to_opencode_frontmatter(content, "/runtime/")
-    return content
 
 
 def _assert_fragments_visible(text: str, fragments: tuple[str, ...], *, label: str) -> None:
