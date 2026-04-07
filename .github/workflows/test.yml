@@ -15,8 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  no-ai-coauthors:
-    name: no AI co-authors
+  human-authors:
+    name: human authors
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
 
@@ -26,9 +26,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check for AI co-author lines
+      - name: Check commit attribution uses human authors
         run: |
-          bash scripts/check-no-ai-coauthors.sh --range "origin/${{ github.base_ref }}..HEAD"
+          bash scripts/check-human-authors.sh --range "origin/${{ github.base_ref }}..HEAD"
 
   ruff:
     name: ruff check
