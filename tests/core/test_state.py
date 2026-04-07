@@ -27,6 +27,7 @@ from gpd.core.state import (
     state_get,
     state_load,
     state_record_session,
+    state_set_continuation_bounded_segment,
     state_set_project_contract,
     state_snapshot,
     state_update_progress,
@@ -2763,6 +2764,91 @@ def test_save_state_json_normalizes_canonical_continuation_resume_paths_for_pers
     assert stored["continuation"]["handoff"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
     assert stored["continuation"]["bounded_segment"]["resume_file"] is None
     assert stored["session"]["resume_file"] == "GPD/phases/03-analysis/.continue-here.md"
+
+
+@pytest.mark.parametrize(
+    ("case_name", "expected_reason_fragment"),
+    [
+        ("outside_resume_file", "portable repo-local reference"),
+        ("invalid_boolean", "waiting_for_review"),
+        ("unknown_key", 'dropped unknown "continuation.bounded_segment.legacy_note"'),
+        ("empty", "bounded_segment must include at least one non-empty field"),
+    ],
+)
+def test_state_set_continuation_bounded_segment_rejects_salvageable_drift(
+    tmp_path: Path,
+    state_project_factory,
+    case_name: str,
+    expected_reason_fragment: str,
+) -> None:
+    cwd = state_project_factory(tmp_path)
+    resume_path = cwd / "GPD" / "phases" / "03-analysis" / "resume.md"
+    resume_path.parent.mkdir(parents=True, exist_ok=True)
+    resume_path.write_text("resume\n", encoding="utf-8")
+
+    payloads: dict[str, dict[str, object]] = {
+        "outside_resume_file": {
+            "resume_file": "../outside.md",
+            "phase": "03",
+            "plan": "02",
+            "segment_status": "paused",
+        },
+        "invalid_boolean": {
+            "resume_file": str(resume_path),
+            "phase": "03",
+            "plan": "02",
+            "segment_status": "paused",
+            "waiting_for_review": "yes",
+        },
+        "unknown_key": {
+            "resume_file": str(resume_path),
+            "phase": "03",
+            "plan": "02",
+            "segment_status": "paused",
+            "legacy_note": "stale",
+        },
+        "empty": {},
+    }
+    payload = payloads[case_name]
+
+    before = load_state_json(cwd)
+    assert before is not None
+
+    result = state_set_continuation_bounded_segment(cwd, payload)
+
+    assert result.updated is False
+    assert expected_reason_fragment in (result.reason or "")
+
+    after = load_state_json(cwd)
+    assert after == before
+
+
+def test_state_set_continuation_bounded_segment_persists_strict_valid_payload(
+    tmp_path: Path, state_project_factory
+) -> None:
+    cwd = state_project_factory(tmp_path)
+    resume_path = cwd / "GPD" / "phases" / "03-analysis" / "resume.md"
+    resume_path.parent.mkdir(parents=True, exist_ok=True)
+    resume_path.write_text("resume\n", encoding="utf-8")
+
+    result = state_set_continuation_bounded_segment(
+        cwd,
+        {
+            "resume_file": str(resume_path),
+            "phase": "03",
+            "plan": "02",
+            "segment_id": "segment-03-02",
+            "segment_status": "paused",
+            "waiting_for_review": True,
+            "updated_at": "2026-03-29T12:30:00+00:00",
+        },
+    )
+
+    assert result.updated is True
+    stored = load_state_json(cwd)
+    assert stored is not None
+    assert stored["continuation"]["bounded_segment"]["resume_file"] == "GPD/phases/03-analysis/resume.md"
+    assert stored["continuation"]["bounded_segment"]["waiting_for_review"] is True
 
 
 def test_save_state_markdown_does_not_override_canonical_continuation_session_mirror(

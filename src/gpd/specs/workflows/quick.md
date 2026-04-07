@@ -112,6 +112,7 @@ Read the file at GPD/STATE.md
 **Project Contract Gate:** {project_contract_gate}
 **Project Contract Load Info:** {project_contract_load_info}
 **Project Contract Validation:** {project_contract_validation}
+**Contract Intake:** {contract_intake}
 **Effective Reference Intake:** {effective_reference_intake}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
@@ -170,6 +171,7 @@ Project contract: {project_contract}
 Project contract gate: {project_contract_gate}
 Project contract load info: {project_contract_load_info}
 Project contract validation: {project_contract_validation}
+Contract intake: {contract_intake}
 Effective reference intake: {effective_reference_intake}
 Active references: {active_reference_context}
 Reference artifacts: {reference_artifacts_content}

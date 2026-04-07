@@ -42,6 +42,14 @@ def _normalized_lookup_dir(path: str | Path) -> str:
     return str(Path(path).expanduser().resolve(strict=False))
 
 
+def _has_local_runtime_install(cwd: Path) -> bool:
+    for runtime in supported_runtime_names():
+        install_target = detect_runtime_install_target(runtime, cwd=cwd)
+        if install_target is not None and install_target.install_scope == SCOPE_LOCAL:
+            return True
+    return False
+
+
 def resolve_runtime_lookup_active_runtime(
     *,
     workspace_dir: str,
@@ -74,10 +82,10 @@ def resolve_runtime_lookup_dir(
         resolved_workspace = Path(workspace_dir).expanduser().resolve(strict=False)
         resolved_project = Path(project_root).expanduser().resolve(strict=False)
         if normalized_runtime is None:
-            for runtime in supported_runtime_names():
-                install_target = detect_runtime_install_target(runtime, cwd=resolved_workspace)
-                if install_target is not None and install_target.install_scope == SCOPE_LOCAL:
-                    return _normalized_lookup_dir(resolved_workspace)
+            if _has_local_runtime_install(resolved_project):
+                return _normalized_lookup_dir(resolved_project)
+            if _has_local_runtime_install(resolved_workspace):
+                return _normalized_lookup_dir(resolved_workspace)
             return _normalized_lookup_dir(resolved_project)
         install_target = detect_runtime_install_target(normalized_runtime, cwd=resolved_workspace)
         if install_target is not None and install_target.install_scope == SCOPE_LOCAL:

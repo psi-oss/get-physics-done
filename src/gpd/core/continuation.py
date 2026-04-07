@@ -35,6 +35,7 @@ __all__ = [
     "ContinuationState",
     "RESUMABLE_SEGMENT_STATUSES",
     "canonical_bounded_segment_from_execution_snapshot",
+    "normalize_continuation_bounded_segment_with_issues",
     "normalize_continuation",
     "normalize_continuation_with_issues",
     "normalize_continuation_reference",
@@ -473,6 +474,18 @@ def normalize_continuation_with_issues(
     if normalized_segment is not None and normalized_segment.is_empty:
         normalized_segment = None
     return normalized.model_copy(update={"handoff": normalized_handoff, "bounded_segment": normalized_segment}), issues
+
+
+def normalize_continuation_bounded_segment_with_issues(
+    project_root: Path | str | None,
+    bounded_segment: ContinuationBoundedSegment | Mapping[str, object] | object,
+) -> tuple[ContinuationBoundedSegment | None, list[str]]:
+    """Validate one bounded-segment write payload and surface any normalization drift."""
+
+    if isinstance(bounded_segment, ContinuationBoundedSegment):
+        bounded_segment = bounded_segment.model_dump(mode="python")
+    normalized, issues = normalize_continuation_with_issues(project_root, {"bounded_segment": bounded_segment})
+    return normalized.bounded_segment, issues
 
 
 def normalize_continuation(

@@ -2994,6 +2994,8 @@ def test_stage7_runtime_parity_docs_use_canonical_model_resolution_and_generic_h
     assert "**Project Contract Gate:** {project_contract_gate}" in quick
     assert "**Project Contract Load Info:** {project_contract_load_info}" in quick
     assert "**Project Contract Validation:** {project_contract_validation}" in quick
+    assert "**Contract Intake:** {contract_intake}" in quick
+    assert "Contract intake: {contract_intake}" in quick
     assert "Project contract gate: {project_contract_gate}" in quick
     assert "## CHECKPOINT REACHED" in quick
     assert "classifyHandoffIfNeeded" not in execute_phase

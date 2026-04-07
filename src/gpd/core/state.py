@@ -53,6 +53,7 @@ from gpd.core.continuation import (
     ContinuationBoundedSegment,
     ContinuationState,
     normalize_continuation,
+    normalize_continuation_bounded_segment_with_issues,
     normalize_continuation_reference,
     normalize_continuation_with_issues,
     resolve_continuation,
@@ -3942,29 +3943,30 @@ def state_set_continuation_bounded_segment(
     bounded_segment: dict[str, object] | ContinuationBoundedSegment,
 ) -> StateUpdateResult:
     """Persist the canonical continuation bounded_segment to state.json only."""
-
-    try:
-        if isinstance(bounded_segment, ContinuationBoundedSegment):
-            bounded_segment_payload = bounded_segment.model_dump(mode="python")
-        elif isinstance(bounded_segment, dict):
-            bounded_segment_payload = bounded_segment
-        else:
-            return StateUpdateResult(
-                updated=False,
-                reason="Invalid continuation bounded_segment schema: bounded_segment must be a JSON object",
-            )
-
-        normalized_segment = normalize_continuation(
-            cwd,
-            {
-                "bounded_segment": bounded_segment_payload,
-            },
+    if isinstance(bounded_segment, ContinuationBoundedSegment):
+        bounded_segment_payload = bounded_segment.model_dump(mode="python")
+    elif isinstance(bounded_segment, dict):
+        bounded_segment_payload = bounded_segment
+    else:
+        return StateUpdateResult(
+            updated=False,
+            reason="Invalid continuation bounded_segment schema: bounded_segment must be a JSON object",
         )
-    except PydanticValidationError as exc:
-        first_error = exc.errors()[0] if exc.errors() else {}
-        location = ".".join(str(part) for part in first_error.get("loc", ())) or "continuation.bounded_segment"
-        message = first_error.get("msg", "validation failed")
-        return StateUpdateResult(updated=False, reason=f"Invalid continuation bounded_segment at {location}: {message}")
+
+    normalized_segment, normalization_issues = normalize_continuation_bounded_segment_with_issues(
+        cwd,
+        bounded_segment_payload,
+    )
+    if normalization_issues:
+        return StateUpdateResult(
+            updated=False,
+            reason="Invalid continuation bounded_segment schema: " + "; ".join(dict.fromkeys(normalization_issues)),
+        )
+    if normalized_segment is None or normalized_segment.is_empty:
+        return StateUpdateResult(
+            updated=False,
+            reason="Invalid continuation bounded_segment schema: bounded_segment must include at least one non-empty field",
+        )
 
     with _state_lock(cwd):
         _recover_intent_locked(cwd)
@@ -3974,9 +3976,7 @@ def state_set_continuation_bounded_segment(
             cwd,
             {
                 **current_continuation,
-                "bounded_segment": normalized_segment.bounded_segment.model_dump(mode="python")
-                if normalized_segment.bounded_segment is not None
-                else None,
+                "bounded_segment": normalized_segment.model_dump(mode="python"),
             },
         ).model_dump(mode="python")
 

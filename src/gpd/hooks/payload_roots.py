@@ -91,7 +91,7 @@ def payload_uses_alias_only_workspace_mapping(
     return bool(
         _first_string(candidate_mapping, *workspace_keys)
         and _project_dir_from_payload(data, hook_payload=hook_payload)
-        and not _first_string(candidate_mapping, workspace_keys[0])
+        and not _first_string(candidate_mapping, "cwd")
     )
 
 
@@ -224,8 +224,8 @@ def _resolve_with_shared_service(
             resolved = service(**kwargs)
         except TypeError:
             continue
-        except Exception:
-            return None
+        except Exception as exc:
+            raise RuntimeError("shared root resolution service failed") from exc
         return _coerce_root_pair(
             resolved,
             fallback_workspace_dir=workspace_dir,

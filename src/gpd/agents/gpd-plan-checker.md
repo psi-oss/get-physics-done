@@ -900,9 +900,21 @@ contract:
       deliverables: [deliv-main, deliv-proof-main]
       acceptance_tests: [test-main, test-proof-main]
       references: [ref-main]
-      parameters: [k]
-      hypotheses: ["Reference normalization and tolerance convention match Ref-01"]
-      conclusion_clauses: ["Benchmark agreement stays within tolerance at every approved sample"]
+      parameters:
+        - symbol: k
+          domain_or_type: "dimensionless"
+          aliases: [kappa]
+          required_in_proof: true
+          notes: "Benchmark parameter that must remain visible in the proof"
+      hypotheses:
+        - id: hyp-normalization
+          text: "Reference normalization and tolerance convention match Ref-01"
+          symbols: [k]
+          category: assumption
+          required_in_proof: true
+      conclusion_clauses:
+        - id: concl-benchmark
+          text: "Benchmark agreement stays within tolerance at every approved sample"
       proof_deliverables: [deliv-proof-main]
   deliverables:
     - id: deliv-main

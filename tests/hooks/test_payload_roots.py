@@ -5,6 +5,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import pytest
+
 from gpd.hooks.payload_roots import (
     _coerce_root_pair,
     _resolve_with_shared_service,
@@ -141,6 +143,21 @@ def test_payload_uses_alias_only_workspace_mapping_detects_top_level_alias_only_
     )
 
 
+def test_payload_uses_alias_only_workspace_mapping_is_insensitive_to_workspace_key_order(tmp_path) -> None:
+    workspace = tmp_path / "workspace"
+    project = tmp_path / "project"
+    workspace.mkdir()
+    project.mkdir()
+
+    assert payload_uses_alias_only_workspace_mapping(
+        {
+            "workspace": {"current_dir": str(workspace)},
+            "project_root": str(project),
+        },
+        hook_payload=_policy(workspace_keys=("current_dir", "cwd"), project_dir_keys=("project_root",)),
+    )
+
+
 def test_coerce_root_pair_accepts_tuple_and_list_payloads(tmp_path) -> None:
     workspace = tmp_path / "workspace"
     project = tmp_path / "project"
@@ -235,6 +252,27 @@ def test_resolve_with_shared_service_uses_later_signature_after_type_error(tmp_p
     assert roots.workspace_dir == str(workspace.resolve(strict=False))
     assert roots.project_root == str(project.resolve(strict=False))
     assert len(calls) >= 3
+
+
+def test_resolve_with_shared_service_raises_non_signature_errors(tmp_path) -> None:
+    workspace = tmp_path / "workspace"
+    project = tmp_path / "project"
+    workspace.mkdir()
+    project.mkdir()
+
+    def _service(**kwargs):
+        if "payload" in kwargs or "data" in kwargs:
+            raise ValueError("bad service state")
+        raise TypeError("unsupported signature")
+
+    with pytest.raises(RuntimeError, match="shared root resolution service failed"):
+        _resolve_with_shared_service(
+            {"workspace": str(workspace)},
+            workspace_dir=str(workspace),
+            project_dir=str(project),
+            hook_payload=_policy(root_resolution_service=_service),
+            cwd=str(tmp_path),
+        )
 
 
 def test_project_root_from_payload_prefers_explicit_project_dir_input(tmp_path) -> None:

@@ -34,7 +34,7 @@ from gpd.core.observability import gpd_span
 from gpd.core.review_contract_prompt import review_contract_payload
 from gpd.mcp.servers import (
     configure_mcp_logging,
-    parse_frontmatter_safe,
+    parse_frontmatter_with_error,
     published_tool_input_schema,
     refresh_string_enum_property_schema,
     set_registered_and_published_tool_input_schema,
@@ -458,6 +458,8 @@ def _extract_referenced_files(content: str, *, source_path: Path | None = None) 
 def _is_schema_reference(path: str) -> bool:
     if Path(path).name.endswith("-schema.md"):
         return True
+    if _reference_document_parse_error(path) is not None and path.startswith("@{GPD_INSTALL_DIR}/templates/"):
+        return True
     document_type = _reference_document_type(path)
     if document_type is None:
         return False
@@ -465,24 +467,34 @@ def _is_schema_reference(path: str) -> bool:
 
 
 @cache
-def _reference_document_type(path: str) -> str | None:
+def _reference_document_metadata(path: str) -> tuple[str | None, str | None]:
     resolved = _portable_reference_path(path)
     reference_path = resolved[1] if resolved is not None else None
     if reference_path is None or not reference_path.is_file():
-        return None
+        return None, None
     try:
-        frontmatter, _body = parse_frontmatter_safe(reference_path.read_text(encoding="utf-8"))
+        frontmatter, _body, parse_error = parse_frontmatter_with_error(reference_path.read_text(encoding="utf-8"))
     except OSError:
-        return None
+        return None, None
     doc_type = frontmatter.get("type") if isinstance(frontmatter, dict) else None
     if not isinstance(doc_type, str):
-        return None
+        return None, parse_error
     stripped = doc_type.strip()
-    return stripped or None
+    return stripped or None, parse_error
+
+
+def _reference_document_type(path: str) -> str | None:
+    return _reference_document_metadata(path)[0]
+
+
+def _reference_document_parse_error(path: str) -> str | None:
+    return _reference_document_metadata(path)[1]
 
 
 def _is_contract_reference(path: str) -> bool:
     if _is_schema_reference(path):
+        return True
+    if _reference_document_parse_error(path) is not None and path.startswith("@{GPD_INSTALL_DIR}/references/"):
         return True
     document_type = _reference_document_type(path)
     if document_type is None:
@@ -512,11 +524,13 @@ def _load_reference_document(path: str, *, kind: str) -> dict[str, object]:
         document["error"] = str(exc)
         return document
 
-    frontmatter, body = parse_frontmatter_safe(content)
+    frontmatter, body, parse_error = parse_frontmatter_with_error(content)
     document["content"] = content
     document["body"] = body
     if frontmatter:
         document["frontmatter"] = frontmatter
+    if parse_error is not None:
+        document["frontmatter_error"] = parse_error
     return document
 
 
