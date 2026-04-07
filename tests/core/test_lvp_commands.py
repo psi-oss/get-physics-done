@@ -81,3 +81,4 @@ class TestLvpProjectAwareRegistration:
         from gpd.cli import _PROJECT_AWARE_EXPLICIT_INPUTS
 
         assert "gpd:check-citations" in _PROJECT_AWARE_EXPLICIT_INPUTS
+
