@@ -362,19 +362,51 @@ def test_parse_contract_results_data_strict_rejects_evidence_scalar_and_case_dri
         )
 
 
-def test_parse_contract_results_data_artifact_rejects_evidence_scalar_and_case_drift() -> None:
-    with pytest.raises(ValueError, match=r"claims\.claim-main\.status must use exact literal 'passed'"):
-        parse_contract_results_data_artifact(
+def test_parse_contract_results_data_artifact_accepts_case_drift_and_string_list_drift() -> None:
+    parsed = parse_contract_results_data_artifact(
+        {
+            "claims": {
+                "claim-main": {
+                    "status": "Passed",
+                    "evidence": [
+                        {
+                            "confidence": "High",
+                            "covered_hypothesis_ids": "hyp-main",
+                        }
+                    ],
+                }
+            },
+            "references": {
+                "ref-main": {
+                    "status": "Completed",
+                    "completed_actions": "Read",
+                    "missing_actions": [],
+                }
+            },
+            "uncertainty_markers": {
+                "weakest_anchors": ["anchor-1"],
+                "unvalidated_assumptions": [],
+                "competing_explanations": [],
+                "disconfirming_observations": ["obs-1"],
+            },
+        }
+    )
+
+    assert parsed.claims["claim-main"].status == "passed"
+    assert parsed.claims["claim-main"].evidence[0].confidence == "high"
+    assert parsed.claims["claim-main"].evidence[0].covered_hypothesis_ids == ["hyp-main"]
+    assert parsed.references["ref-main"].status == "completed"
+    assert parsed.references["ref-main"].completed_actions == ["read"]
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_error"),
+    [
+        (
             {
                 "claims": {
                     "claim-main": {
-                        "status": "Passed",
-                        "evidence": [
-                            {
-                                "confidence": "High",
-                                "covered_hypothesis_ids": "hyp-main",
-                            }
-                        ],
+                        "evidence": [],
                     }
                 },
                 "uncertainty_markers": {
@@ -383,8 +415,50 @@ def test_parse_contract_results_data_artifact_rejects_evidence_scalar_and_case_d
                     "competing_explanations": [],
                     "disconfirming_observations": ["obs-1"],
                 },
-            }
-        )
+            },
+            "claims.claim-main.status must be explicit in contract-backed contract_results",
+        ),
+        (
+            {
+                "claims": {
+                    "claim-main": {
+                        "status": "passed",
+                        "proof_audit": {
+                            "reviewed_at": "2025-01-01T00:00:00",
+                            "reviewer": "gpd-check-proof",
+                        },
+                    }
+                },
+                "uncertainty_markers": {
+                    "weakest_anchors": ["anchor-1"],
+                    "unvalidated_assumptions": [],
+                    "competing_explanations": [],
+                    "disconfirming_observations": ["obs-1"],
+                },
+            },
+            "claims.claim-main.proof_audit.completeness must be explicit in contract-backed contract_results",
+        ),
+        (
+            {
+                "claims": {
+                    "claim-main": {
+                        "status": "passed",
+                        "evidence": [],
+                    }
+                }
+            },
+            "uncertainty_markers must be explicit in contract-backed contract_results",
+        ),
+    ],
+)
+def test_parse_contract_results_data_artifact_rejects_missing_explicit_blockers(
+    payload: dict[str, object],
+    expected_error: str,
+) -> None:
+    with pytest.raises(ValueError) as exc_info:
+        parse_contract_results_data_artifact(payload)
+
+    assert expected_error in str(exc_info.value)
 
 
 def test_parse_contract_results_data_artifact_rejects_blank_and_duplicate_list_members() -> None:

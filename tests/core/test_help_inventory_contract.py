@@ -62,3 +62,17 @@ def test_help_command_uses_one_shared_extract_warning() -> None:
 
     assert help_command.count("Shared wrapper rule for every extract below") == 1
     assert help_command.count("output only the requested section and do not rewrite, summarize, or invent alternate wording") == 1
+
+
+def test_help_command_keeps_one_shared_workflow_authority_note() -> None:
+    help_command = _read("src/gpd/commands/help.md")
+
+    assert help_command.count("the loaded workflow help file is the authority") == 1
+    assert "Use the loaded workflow help file as the authority." not in help_command
+
+
+def test_help_workflow_keeps_concise_local_cli_surface_note() -> None:
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+
+    assert "Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly." in help_workflow
+    assert "The bootstrap installer owns Node.js / Python / `venv` prerequisites; use `gpd --help`" not in help_workflow

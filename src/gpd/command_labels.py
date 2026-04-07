@@ -45,6 +45,25 @@ def runtime_command_prefixes() -> tuple[str, ...]:
     return tuple(prefixes)
 
 
+@lru_cache(maxsize=1)
+def runtime_public_command_prefixes() -> tuple[str, ...]:
+    """Return the runtime-public command prefixes used on shared surfaces."""
+
+    from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+
+    prefixes: list[str] = []
+    seen: set[str] = set()
+    for descriptor in iter_runtime_descriptors():
+        prefix = descriptor.public_command_surface_prefix or descriptor.command_prefix
+        if prefix in seen:
+            continue
+        seen.add(prefix)
+        prefixes.append(prefix)
+
+    prefixes.sort(key=len, reverse=True)
+    return tuple(prefixes)
+
+
 def command_slug_from_label(label: str) -> str:
     """Return the shared command slug from a runtime-native or canonical label."""
 
@@ -115,4 +134,5 @@ __all__ = [
     "runtime_command_prefixes",
     "runtime_command_surface_is_path_like_context",
     "runtime_command_surface_pattern",
+    "runtime_public_command_prefixes",
 ]

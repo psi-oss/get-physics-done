@@ -186,7 +186,7 @@ def test_summary_extract_rejects_reference_action_ledgers_with_blank_and_duplica
     assert "completed_actions.4 is a duplicate" in message
 
 
-def test_summary_extract_rejects_scalar_reference_action_ledgers_for_contract_backed_summary(
+def test_summary_extract_accepts_scalar_reference_action_ledgers_for_contract_backed_summary(
     tmp_path: Path,
 ) -> None:
     _write_contract_backed_summary(
@@ -199,11 +199,10 @@ def test_summary_extract_rejects_scalar_reference_action_ledgers_for_contract_ba
         required_actions=["read"],
     )
 
-    with pytest.raises(ValidationError) as excinfo:
-        cmd_summary_extract(tmp_path, "01-SUMMARY.md")
+    result = cmd_summary_extract(tmp_path, "01-SUMMARY.md")
 
-    message = str(excinfo.value)
-    assert "completed_actions must be a list, not str" in message
+    assert result.contract_results is not None
+    assert result.contract_results.references["ref-benchmark"].completed_actions == ["read"]
 
 
 def test_summary_extract_rejects_case_variant_reference_action_ledgers(
@@ -223,8 +222,6 @@ def test_summary_extract_rejects_case_variant_reference_action_ledgers(
         cmd_summary_extract(tmp_path, "01-SUMMARY.md")
 
     message = str(excinfo.value)
-    assert "completed_actions.0 must use exact literal 'read'" in message
-    assert "completed_actions.1 must use exact literal 'read'" in message
     assert "completed_actions.2 is a duplicate" in message
 
 

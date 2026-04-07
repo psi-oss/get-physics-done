@@ -23,6 +23,9 @@ If `{project_contract}` is empty, stale, or too underspecified to identify the p
 
 **Project State:** {state_content}
 **Project Contract:** {project_contract}
+**Project Contract Gate:** {project_contract_gate}
+**Project Contract Load Info:** {project_contract_load_info}
+**Project Contract Validation:** {project_contract_validation}
 **Contract Intake:** {contract_intake}
 **Effective Reference Intake:** {effective_reference_intake}
 **Roadmap:** {roadmap_content}
@@ -50,7 +53,9 @@ Keep dimensions, limits, and cross-method consistency explicit. For proof-bearin
 </physics_planning_requirements>
 
 <contract_visibility_requirements>
-Planning requires `project_contract`. Keep the contract block complete per the schema include.
+Planning requires an approved `project_contract`. Keep the contract block complete per the schema include.
+If `project_contract_gate.authoritative` is false, keep the contract visible as diagnostics, not approved planning scope.
+If `project_contract_load_info.status` starts with `blocked` or `project_contract_validation.valid` is false, return `## CHECKPOINT REACHED` instead of guessing.
 Keep `project_contract` as the structured grounding ledger. Use `effective_reference_intake` and `active_reference_context` only as readable projections of the same anchors, not as substitutes.
 Treat `approach_policy` as execution policy only. It does not substitute for grounding.
 Keep `scope.in_scope` populated, and keep `contract.context_intake` concrete enough to audit.
@@ -100,6 +105,9 @@ Load the validator-enforced PLAN contract schema before writing or revising any 
 **Checker issues:** {structured_issues_from_checker}
 **Project State:** {state_content}
 **Project Contract:** {project_contract}
+**Project Contract Gate:** {project_contract_gate}
+**Project Contract Load Info:** {project_contract_load_info}
+**Project Contract Validation:** {project_contract_validation}
 **Contract Intake:** {contract_intake}
 **Effective Reference Intake:** {effective_reference_intake}
 **Protocol Bundles:** {protocol_bundle_context}
@@ -118,6 +126,7 @@ Revisions MUST still honor user decisions.
 <instructions>
 Make targeted updates to address checker issues.
 Do NOT replan from scratch unless issues are fundamental.
+If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `## CHECKPOINT REACHED` instead of patching around guessed scope.
 If the approved project contract is missing or no longer sufficient to identify the right phase slice, return `## CHECKPOINT REACHED` instead of patching around guessed scope.
 Fix contract-gate blockers first: missing decisive outputs, missing acceptance tests, missing anchor refs, forbidden-proxy misses, and missing disconfirming paths.
 Return what changed.
@@ -135,6 +144,9 @@ Return what changed.
 | `{autonomy}` | `GPD/config.json` or init JSON |
 | `{state_content}` | `state_content` from init JSON |
 | `{project_contract}` | `project_contract` from init JSON |
+| `{project_contract_gate}` | `project_contract_gate` from init JSON |
+| `{project_contract_load_info}` | `project_contract_load_info` from init JSON |
+| `{project_contract_validation}` | `project_contract_validation` from init JSON |
 | `{roadmap_content}` | `roadmap_content` from init JSON |
 | `{requirements_content}` | `requirements_content` from init JSON |
 | `{protocol_bundle_context}` | `protocol_bundle_context` from init JSON |

@@ -1020,6 +1020,24 @@ def _collect_strict_contract_results_errors(value: _StrictContractResultsInput) 
     return errors
 
 
+def _collect_artifact_contract_results_errors(value: object) -> list[str]:
+    """Return contract-results artifact blockers while tolerating harmless drift."""
+
+    if not isinstance(value, dict):
+        return ["contract_results must be an object"]
+
+    errors = _collect_strict_contract_results_errors(value)
+    if "uncertainty_markers" not in value:
+        errors.append("uncertainty_markers must be explicit in contract-backed contract_results")
+
+    ignored_error_substrings = (" must use exact literal ", " must be a list, not str")
+    return [
+        error
+        for error in errors
+        if not any(ignored_error_substring in error for ignored_error_substring in ignored_error_substrings)
+    ]
+
+
 class ConventionLock(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
@@ -1505,9 +1523,14 @@ def parse_contract_results_data_strict(value: object) -> ContractResults:
 
 
 def parse_contract_results_data_artifact(value: object) -> ContractResults:
-    """Parse contract-results data for SUMMARY / VERIFICATION frontmatter."""
+    """Parse contract-results data for SUMMARY / VERIFICATION frontmatter with narrow salvage."""
 
-    return parse_contract_results_data_strict(value)
+    errors = _collect_artifact_contract_results_errors(value)
+    if errors:
+        raise ValueError("; ".join(errors))
+    if not isinstance(value, dict):
+        raise ValueError("contract_results must be an object")
+    return ContractResults.model_validate(value)
 
 
 def _format_pydantic_validation_errors(exc: PydanticValidationError) -> list[str]:

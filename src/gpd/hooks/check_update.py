@@ -12,8 +12,8 @@ from pathlib import Path
 from gpd.adapters.install_utils import CACHE_DIR_NAME, GPD_INSTALL_DIR_NAME, UPDATE_CACHE_FILENAME
 from gpd.adapters.runtime_catalog import get_shared_install_metadata
 from gpd.core.constants import ENV_GPD_DEBUG
-from gpd.hooks.install_metadata import config_dir_has_complete_install
 from gpd.hooks.install_context import should_prefer_self_owned_install
+from gpd.hooks.install_metadata import config_dir_has_complete_install
 
 _SHARED_INSTALL_METADATA = get_shared_install_metadata()
 SECONDS_PER_HOUR = 3600

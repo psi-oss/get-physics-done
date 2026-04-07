@@ -19,6 +19,7 @@ from pathlib import Path
 
 from gpd.adapters import iter_adapters
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
+from gpd.command_labels import runtime_public_command_prefixes
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -88,14 +89,12 @@ def _runtime_capability_surface_patterns() -> list[str]:
     return sorted(patterns)
 
 
-def _runtime_native_command_prefix_patterns() -> list[str]:
-    return sorted(
-        {
-            re.escape(descriptor.command_prefix)
-            for descriptor in _RUNTIME_DESCRIPTORS
-            if descriptor.command_prefix in {"/gpd:", "$gpd-"}
-        }
-    )
+def _runtime_public_command_surface_pattern() -> re.Pattern[str]:
+    prefixes = runtime_public_command_prefixes()
+    if not prefixes:
+        return re.compile(r"$^")
+    escaped_prefixes = "|".join(re.escape(prefix) for prefix in prefixes)
+    return re.compile(r"(?<![A-Za-z0-9_.@/}\-])(?:" + escaped_prefixes + r")(?P<slug>[a-z0-9][a-z0-9-]*)(?!\.md\b)")
 
 
 def _runtime_tool_alias_patterns() -> list[str]:
@@ -182,11 +181,7 @@ _RUNTIME_INSTALL_ARTIFACT_PATTERN = re.compile(
     )
     + ")"
 )
-_SHARED_COMMAND_SURFACE_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9_.-])(?:"
-    + "|".join(_runtime_native_command_prefix_patterns())
-    + ")"
-)
+_SHARED_COMMAND_SURFACE_PATTERN = _runtime_public_command_surface_pattern()
 _SHARED_BOOTSTRAP_COMMAND_PATTERN = re.compile(
     r"(\bnpx\b|\bnpm\b|\buvx\b|\bpip\b|\bpipx\b|\bbunx\b|get-physics-done)"
 )

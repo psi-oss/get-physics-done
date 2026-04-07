@@ -557,10 +557,13 @@ Planner prompt:
 **Research mode:** {RESEARCH_MODE}
 **Autonomy:** {AUTONOMY}
 
-Planning requires the approved `project_contract`; if it is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED`.
+Planning requires the approved `project_contract`; if the gate is blocked or the phase slice is too underspecified, return `## CHECKPOINT REACHED`.
 
 **Project State:** {state_content}
 **Project Contract:** {project_contract}
+**Project Contract Gate:** {project_contract_gate}
+**Project Contract Load Info:** {project_contract_load_info}
+**Project Contract Validation:** {project_contract_validation}
 **Contract Intake:** {contract_intake}
 **Effective Reference Intake:** {effective_reference_intake}
 **Roadmap:** {roadmap_content}
@@ -574,6 +577,7 @@ Planning requires the approved `project_contract`; if it is empty, stale, or too
 Use the shared planner template, phase template, and `templates/plan-contract-schema.md`; this wrapper only adds phase-specific gates.
 
 **Validator gate before planning:**
+- If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `## CHECKPOINT REACHED` instead of drafting from guessed scope.
 - If `project_contract` is empty, stale, or too underspecified to identify the phase contract slice, return `## CHECKPOINT REACHED`.
 - Keep `Contract Intake` and `Effective Reference Intake` visible to the planner.
 - For proof-bearing work, preserve theorem inventory, proof-specific acceptance tests, and the `{plan_id}-PROOF-REDTEAM.md` handoff.
@@ -698,6 +702,11 @@ Checker prompt:
 **Plans to verify:** {plans_content}
 **Requirements:** {requirements_content}
 **Project Contract:** {project_contract}
+**Project Contract Gate:** {project_contract_gate}
+**Project Contract Load Info:** {project_contract_load_info}
+**Project Contract Validation:** {project_contract_validation}
+**Contract Intake:** {contract_intake}
+**Effective Reference Intake:** {effective_reference_intake}
 **Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
@@ -815,6 +824,9 @@ Revision prompt:
 **Existing plans:** {plans_content}
 **Checker issues:** {structured_issues_from_checker}
 **Protocol Bundles:** {protocol_bundle_context}
+**Project Contract Gate:** {project_contract_gate}
+**Project Contract Load Info:** {project_contract_load_info}
+**Project Contract Validation:** {project_contract_validation}
 **Contract Intake:** {contract_intake}
 **Effective Reference Intake:** {effective_reference_intake}
 **Active References:** {active_reference_context}
@@ -828,6 +840,7 @@ Use the shared planner template, phase template, and `templates/plan-contract-sc
 <instructions>
 Make targeted updates to address checker issues.
 Do NOT replan from scratch unless issues are fundamental (wrong physical regime, missing conservation law, incorrect symmetry, or an invalid contract slice).
+If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `## CHECKPOINT REACHED`.
 If the approved project contract is missing or no longer sufficient to identify the right phase slice, return `## CHECKPOINT REACHED`.
 Keep proof-bearing coverage, `tool_requirements`, decisive outputs, anchor refs, forbidden-proxy handling, and disconfirming paths visible where the checker can see them.
 Return what changed.

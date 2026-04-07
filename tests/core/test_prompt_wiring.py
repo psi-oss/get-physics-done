@@ -1142,8 +1142,11 @@ def test_planning_and_phase_templates_surface_active_reference_context() -> None
     phase_prompt = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
     workflow_text = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
 
-    assert "Planning requires `project_contract`." in planner_prompt
+    assert "Planning requires an approved `project_contract`." in planner_prompt
     assert "**Project Contract:** {project_contract}" in planner_prompt
+    assert "**Project Contract Gate:** {project_contract_gate}" in planner_prompt
+    assert "**Project Contract Load Info:** {project_contract_load_info}" in planner_prompt
+    assert "**Project Contract Validation:** {project_contract_validation}" in planner_prompt
     assert "**Active References:** {active_reference_context}" in planner_prompt
     assert "@path/to/reference-or-benchmark-anchor.md" in phase_prompt
     assert "Planning requires an approved scoping contract in `GPD/state.json`" in workflow_text
@@ -1202,6 +1205,11 @@ def test_plan_checker_requires_contract_gate_and_reference_artifacts() -> None:
     assert "contract_decisive_output" in checker_agent
     assert "contract_anchor_coverage" in checker_agent
     assert "proxy_only_success_path" in checker_agent
+    assert "**Project Contract Gate:** {project_contract_gate}" in workflow_text
+    assert "**Project Contract Load Info:** {project_contract_load_info}" in workflow_text
+    assert "**Project Contract Validation:** {project_contract_validation}" in workflow_text
+    assert "**Contract Intake:** {contract_intake}" in workflow_text
+    assert "**Effective Reference Intake:** {effective_reference_intake}" in workflow_text
     assert "**Reference Artifacts:** {reference_artifacts_content}" in workflow_text
     assert "**Decisive outputs:** The plan set covers decisive claims and deliverables" in workflow_text
     assert "**Acceptance tests:** Every decisive claim or deliverable has at least one executable or reviewable test" in workflow_text
@@ -1509,10 +1517,19 @@ def test_phase_research_and_verification_surfaces_keep_anchor_checks_mandatory()
     assert "| validation, testing, benchmarks    | VALIDATION.md, REFERENCES.md    |" in planner_agent
     assert "Do NOT skip contract-critical anchors" in verify_workflow
     assert "active_reference_context" in verify_workflow
+    assert "project_contract_gate" in verify_workflow
     assert "project_contract_validation" in verify_workflow
     assert "project_contract_load_info" in verify_workflow
     assert "visible-but-blocked contract must be repaired before it is used as authoritative verification scope" in verify_workflow
     assert "suggest_contract_checks(contract)" in verify_workflow
+    assert verify_workflow.count("**Project Contract Gate:** {project_contract_gate}") == 3
+    assert (
+        verify_workflow.count(
+            "Treat `effective_reference_intake` as the structured source of carry-forward anchors; "
+            "`active_reference_context` is the readable projection, not the source of truth."
+        )
+        == 2
+    )
 
 
 def test_workflows_surface_structured_proof_review_statuses() -> None:
@@ -1649,9 +1666,15 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     assert "reference-main" in research_verification
     assert (
         "Use the shared planner template, phase template, and `templates/plan-contract-schema.md` "
-        "before drafting the fix plan. If the downstream fix plan needs specialized tooling or any "
-        "other machine-checkable hard validation requirement, surface it in PLAN frontmatter "
-        "`tool_requirements`."
+        "before drafting the fix plan."
+    ) in verify_workflow
+    assert (
+        "If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, "
+        "or `project_contract_validation.valid` is false, return `## CHECKPOINT REACHED` instead of drafting from guessed scope."
+    ) in verify_workflow
+    assert (
+        "If the downstream fix plan needs specialized tooling or any other machine-checkable hard validation "
+        "requirement, surface it in PLAN frontmatter `tool_requirements`."
     ) in verify_workflow
     assert (
         "Use the shared planner template, phase template, and `templates/plan-contract-schema.md` "
@@ -2968,14 +2991,31 @@ def test_stage7_runtime_parity_docs_use_canonical_model_resolution_and_generic_h
     assert "project_contract_validation" in quick
     assert "project_contract_load_info" in quick
     assert "Quick mode still inherits the approved `project_contract` only when `project_contract_gate.authoritative` is true" in quick
+    assert "**Project Contract Gate:** {project_contract_gate}" in quick
     assert "**Project Contract Load Info:** {project_contract_load_info}" in quick
     assert "**Project Contract Validation:** {project_contract_validation}" in quick
+    assert "Project contract gate: {project_contract_gate}" in quick
     assert "## CHECKPOINT REACHED" in quick
     assert "classifyHandoffIfNeeded" not in execute_phase
     assert "classifyHandoffIfNeeded" not in execute_plan
     assert "classifyHandoffIfNeeded" not in quick
     assert "cat GPD/config.json" not in model_resolution
     assert "print(c.get('model_profile', 'review'))" not in execute_phase
+
+
+def test_verify_work_gap_closure_delegation_surfaces_contract_gate_inputs() -> None:
+    verify_work = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
+
+    assert "**Project Contract Gate:** {project_contract_gate}" in verify_work
+    assert "**Project Contract Load Info:** {project_contract_load_info}" in verify_work
+    assert "**Project Contract Validation:** {project_contract_validation}" in verify_work
+    assert "**Contract Intake:** {contract_intake}" in verify_work
+    assert "**Effective Reference Intake:** {effective_reference_intake}" in verify_work
+    assert (
+        "If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, "
+        "or `project_contract_validation.valid` is false, return `## CHECKPOINT REACHED` instead of drafting from guessed scope."
+        in verify_work
+    )
 
 
 def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profile_invariants() -> None:

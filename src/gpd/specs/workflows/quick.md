@@ -109,6 +109,7 @@ Read the file at GPD/STATE.md
 **Project Exists:** {project_exists}
 
 **Project Contract:** {project_contract}
+**Project Contract Gate:** {project_contract_gate}
 **Project Contract Load Info:** {project_contract_load_info}
 **Project Contract Validation:** {project_contract_validation}
 **Effective Reference Intake:** {effective_reference_intake}
@@ -166,6 +167,7 @@ Execute quick task ${next_num}.
 Plan: Read the file at ${QUICK_DIR}/${next_num}-PLAN.md
 Project state: Read the file at GPD/STATE.md
 Project contract: {project_contract}
+Project contract gate: {project_contract_gate}
 Project contract load info: {project_contract_load_info}
 Project contract validation: {project_contract_validation}
 Effective reference intake: {effective_reference_intake}

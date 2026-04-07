@@ -48,6 +48,15 @@ def test_planner_prompt_surfaces_default_salvage_and_specific_semantics() -> Non
 
     assert "Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source." in planner_prompt
     assert "Keep this prompt for scope selection, mode flags, and return conventions only." in planner_prompt
+    assert "**Project Contract Gate:** {project_contract_gate}" in planner_prompt
+    assert "**Project Contract Load Info:** {project_contract_load_info}" in planner_prompt
+    assert "**Project Contract Validation:** {project_contract_validation}" in planner_prompt
+    assert "Planning requires an approved `project_contract`." in planner_prompt
+    assert "If `project_contract_gate.authoritative` is false, keep the contract visible as diagnostics, not approved planning scope." in planner_prompt
+    assert (
+        "If `project_contract_load_info.status` starts with `blocked` or `project_contract_validation.valid` is false, "
+        "return `## CHECKPOINT REACHED` instead of guessing."
+    ) in planner_prompt
     assert "Keep `project_contract` as the structured grounding ledger." in planner_prompt
     assert (
         "Use `effective_reference_intake` and `active_reference_context` only as readable projections "

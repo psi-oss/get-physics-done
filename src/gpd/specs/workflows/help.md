@@ -134,7 +134,7 @@ Depending on the runtime, those names may be rendered with slash prefixes, dolla
 - If you are new to terminals or runtime setup, start with the Beginner Onboarding Hub linked from the README and installer output.
 - That shared onboarding surface keeps the OS guides, runtime guides, and startup checklist in one place.
 - Use these names inside the installed agent/runtime command surface.
-- The bootstrap installer owns Node.js / Python / `venv` prerequisites; use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
+- Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly. Bootstrap prerequisites still belong to the installer.
 - Use `gpd permissions status --runtime <runtime> --autonomy balanced` when you want the read-only runtime-owned approval/alignment snapshot from your normal terminal.
 - Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`.
 - If you need to validate whether a public runtime command can run in the current workspace, use `gpd validate command-context gpd:<name>`.

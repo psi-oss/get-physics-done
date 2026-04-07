@@ -13,6 +13,7 @@ from gpd.command_labels import (
     command_slug_from_label,
     rewrite_runtime_command_surfaces,
     runtime_command_prefixes,
+    runtime_public_command_prefixes,
 )
 from gpd.mcp.servers.skills_server import _canonicalize_command_surface
 
@@ -55,6 +56,21 @@ def test_runtime_command_prefixes_are_derived_from_the_runtime_catalog() -> None
     expected_prefixes.sort(key=len, reverse=True)
 
     assert runtime_command_prefixes() == tuple(expected_prefixes)
+
+
+def test_runtime_public_command_prefixes_are_derived_from_the_runtime_catalog() -> None:
+    expected_prefixes = []
+    seen: set[str] = set()
+    for descriptor in iter_runtime_descriptors():
+        prefix = descriptor.public_command_surface_prefix or descriptor.command_prefix
+        if prefix in seen:
+            continue
+        seen.add(prefix)
+        expected_prefixes.append(prefix)
+    expected_prefixes.sort(key=len, reverse=True)
+
+    assert runtime_public_command_prefixes() == tuple(expected_prefixes)
+    assert "/gpd-" in runtime_public_command_prefixes()
 
 
 @pytest.mark.parametrize("descriptor", iter_runtime_descriptors(), ids=lambda item: item.runtime_name)

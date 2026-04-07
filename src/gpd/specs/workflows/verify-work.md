@@ -1017,13 +1017,16 @@ task(
 **Phase:** {phase_number}
 **Mode:** gap_closure
 **Project Contract:** {project_contract}
+**Project Contract Gate:** {project_contract_gate}
+**Project Contract Load Info:** {project_contract_load_info}
+**Project Contract Validation:** {project_contract_validation}
 **Contract Intake:** {contract_intake}
 **Effective Reference Intake:** {effective_reference_intake}
 **Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
 
-Use the shared planner template, phase template, and `templates/plan-contract-schema.md` before drafting the fix plan. If the downstream fix plan needs specialized tooling or any other machine-checkable hard validation requirement, surface it in PLAN frontmatter `tool_requirements`.
+Use the shared planner template, phase template, and `templates/plan-contract-schema.md` before drafting the fix plan. If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `## CHECKPOINT REACHED` instead of drafting from guessed scope. If the downstream fix plan needs specialized tooling or any other machine-checkable hard validation requirement, surface it in PLAN frontmatter `tool_requirements`.
 
 <files_to_read>
 Read these files using the file_read tool:
@@ -1081,6 +1084,16 @@ task(
 
 **Phase:** {phase_number}
 **Phase Goal:** Close diagnosed gaps from research validation
+**Project Contract:** {project_contract}
+**Project Contract Gate:** {project_contract_gate}
+**Project Contract Load Info:** {project_contract_load_info}
+**Project Contract Validation:** {project_contract_validation}
+**Contract Intake:** {contract_intake}
+**Effective Reference Intake:** {effective_reference_intake}
+**Active References:** {active_reference_context}
+**Reference Artifacts:** {reference_artifacts_content}
+
+Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth.
 
 <files_to_read>
 Read all PLAN.md files in ${phase_dir}/ using the file_read tool.
@@ -1129,6 +1142,9 @@ task(
 **Phase:** {phase_number}
 **Mode:** revision
 **Project Contract:** {project_contract}
+**Project Contract Gate:** {project_contract_gate}
+**Project Contract Load Info:** {project_contract_load_info}
+**Project Contract Validation:** {project_contract_validation}
 **Contract Intake:** {contract_intake}
 **Effective Reference Intake:** {effective_reference_intake}
 **Protocol Bundles:** {protocol_bundle_context}
@@ -1136,6 +1152,7 @@ task(
 **Reference Artifacts:** {reference_artifacts_content}
 
 Use the shared planner template, phase template, and `templates/plan-contract-schema.md` before rewriting the fix plan. If the revised fix plan still needs specialized tooling or any other machine-checkable hard validation requirement, keep it in PLAN frontmatter `tool_requirements`.
+Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth.
 
 <files_to_read>
 Read all PLAN.md files in ${phase_dir}/ using the file_read tool.
