@@ -1,4 +1,4 @@
-"""Reusable prompt-surface metrics for markdown-based GPD prompts."""
+"""Test-only prompt-surface measurement helpers."""
 
 from __future__ import annotations
 

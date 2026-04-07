@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 
+from gpd.adapters.runtime_catalog import RuntimeDescriptor
+
 CANONICAL_COMMAND_PREFIX = "gpd:"
 CANONICAL_SKILL_PREFIX = "gpd-"
 _PATHLIKE_CONTEXT_PREFIXES = ("/", ".", "@")
@@ -54,7 +56,7 @@ def runtime_public_command_prefixes() -> tuple[str, ...]:
     prefixes: list[str] = []
     seen: set[str] = set()
     for descriptor in iter_runtime_descriptors():
-        prefix = descriptor.public_command_surface_prefix or descriptor.command_prefix
+        prefix = validated_public_command_prefix(descriptor)
         if prefix in seen:
             continue
         seen.add(prefix)
@@ -62,6 +64,15 @@ def runtime_public_command_prefixes() -> tuple[str, ...]:
 
     prefixes.sort(key=len, reverse=True)
     return tuple(prefixes)
+
+
+def validated_public_command_prefix(descriptor: RuntimeDescriptor) -> str:
+    """Return the descriptor-owned public command prefix and fail closed if missing."""
+
+    prefix = descriptor.public_command_surface_prefix.strip()
+    if not prefix:
+        raise ValueError(f"runtime descriptor {descriptor.runtime_name!r} is missing a public command surface prefix")
+    return prefix
 
 
 def command_slug_from_label(label: str) -> str:
@@ -135,4 +146,5 @@ __all__ = [
     "runtime_command_surface_is_path_like_context",
     "runtime_command_surface_pattern",
     "runtime_public_command_prefixes",
+    "validated_public_command_prefix",
 ]

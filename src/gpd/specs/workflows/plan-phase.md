@@ -584,7 +584,7 @@ Do not restate template-owned contract gates, tangent control, tool-requirement 
 
 ```
 task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + filled_prompt,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md, {GPD_INSTALL_DIR}/templates/phase-prompt.md, and {GPD_INSTALL_DIR}/templates/plan-contract-schema.md for your role and instructions.\n\n" + filled_prompt,
   subagent_type="gpd-planner",
   model="{planner_model}",
   readonly=false,
@@ -766,7 +766,7 @@ Keep the revision prompt scoped to targeted checker fixes. Do not restate templa
 
 ```
 task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + revision_prompt,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md, {GPD_INSTALL_DIR}/templates/phase-prompt.md, and {GPD_INSTALL_DIR}/templates/plan-contract-schema.md for your role and instructions.\n\n" + revision_prompt,
   subagent_type="gpd-planner",
   model="{planner_model}",
   readonly=false,

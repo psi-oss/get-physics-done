@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from gpd.adapters import iter_runtime_descriptors
 from gpd.adapters.runtime_catalog import RuntimeDescriptor, get_runtime_descriptor, normalize_runtime_name
+from gpd.command_labels import validated_public_command_prefix
 from gpd.core.public_surface_contract import beginner_onboarding_hub_url, beginner_startup_ladder_text
 
 __all__ = [
@@ -39,7 +40,7 @@ class BeginnerRuntimeSurface:
 
 
 def _public_command_prefix(descriptor: RuntimeDescriptor) -> str:
-    return descriptor.public_command_surface_prefix or descriptor.command_prefix
+    return validated_public_command_prefix(descriptor)
 
 
 def _beginner_runtime_surface_from_descriptor(descriptor: RuntimeDescriptor) -> BeginnerRuntimeSurface:
@@ -72,7 +73,4 @@ def beginner_runtime_surface(runtime_name: str) -> BeginnerRuntimeSurface:
 
 
 def beginner_runtime_surfaces() -> tuple[BeginnerRuntimeSurface, ...]:
-    return tuple(
-        _beginner_runtime_surface_from_descriptor(descriptor)
-        for descriptor in iter_runtime_descriptors()
-    )
+    return tuple(_beginner_runtime_surface_from_descriptor(descriptor) for descriptor in iter_runtime_descriptors())

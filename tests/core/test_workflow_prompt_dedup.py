@@ -43,8 +43,8 @@ def test_planner_workflows_expand_the_shared_planner_template_once_per_route() -
         assert "# Planner Subagent Prompt Template" not in raw_text
 
     assert plan_phase_raw.count("templates/planner-subagent-prompt.md") == 3
-    assert plan_phase_raw.count("templates/phase-prompt.md") == 1
-    assert plan_phase_raw.count("templates/plan-contract-schema.md") == 1
+    assert plan_phase_raw.count("templates/phase-prompt.md") == 3
+    assert plan_phase_raw.count("templates/plan-contract-schema.md") == 3
     assert quick_raw.count("templates/planner-subagent-prompt.md") == 1
     assert quick_raw.count("templates/phase-prompt.md") == 1
     assert quick_raw.count("templates/plan-contract-schema.md") == 1
@@ -87,7 +87,7 @@ def test_planner_workflows_do_not_embed_the_removed_long_policy_blocks() -> None
         "Keep the full canonical frontmatter, including `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, and `contract`.",
         "If the downstream fix plan will need specialized tooling or any other machine-checkable hard validation requirement, surface it in PLAN frontmatter `tool_requirements` before drafting task prose.",
         "If the revised fix plan still needs specialized tooling or any other machine-checkable hard validation requirement, keep it in PLAN frontmatter `tool_requirements` before rewriting task prose.",
-        ):
+    ):
         assert legacy_phrase not in plan_phase
         assert legacy_phrase not in verify_work
 
@@ -95,7 +95,9 @@ def test_planner_workflows_do_not_embed_the_removed_long_policy_blocks() -> None
     assert "Render the template's `## Revision Template` into `revision_prompt`" in plan_phase
     assert "Do not restate template-owned contract gates" in plan_phase
     assert "Use the shared planner template, phase template, and `templates/plan-contract-schema.md`." not in plan_phase
-    assert "Before planning, load the shared planner template, phase template, and canonical contract schema." not in quick
+    assert (
+        "Before planning, load the shared planner template, phase template, and canonical contract schema." not in quick
+    )
     assert "The shared planner template owns the canonical planning policy and contract gate." not in verify_work
     assert "The shared planner template owns the canonical planning and revision policy." not in verify_work
 
@@ -115,7 +117,10 @@ def test_new_project_workflow_keeps_contract_preservation_rules_single_sourced()
         "`schema_version` must be the integer `1`, `references[].must_surface` must stay a boolean `true` or "
         "`false`, and `context_intake`, `uncertainty_markers`, and `references[]` must stay visible in the approval gate"
     ) in new_project
-    assert "keep `schema_version` at `1`, and keep `references[].must_surface` as a boolean, not a synonym" not in new_project
+    assert (
+        "keep `schema_version` at `1`, and keep `references[].must_surface` as a boolean, not a synonym"
+        not in new_project
+    )
 
 
 def test_planner_workflows_keep_tangent_policy_single_sourced() -> None:

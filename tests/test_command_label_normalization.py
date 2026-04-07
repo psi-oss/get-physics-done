@@ -14,6 +14,7 @@ from gpd.command_labels import (
     rewrite_runtime_command_surfaces,
     runtime_command_prefixes,
     runtime_public_command_prefixes,
+    validated_public_command_prefix,
 )
 from gpd.mcp.servers.skills_server import _canonicalize_command_surface
 
@@ -45,7 +46,10 @@ def test_runtime_command_prefixes_are_derived_from_the_runtime_catalog() -> None
     expected_prefixes: list[str] = []
     seen: set[str] = set()
     for descriptor in iter_runtime_descriptors():
-        for candidate in (descriptor.command_prefix, descriptor.command_prefix[1:] if descriptor.command_prefix[:1] in {"/", "$"} else None):
+        for candidate in (
+            descriptor.command_prefix,
+            descriptor.command_prefix[1:] if descriptor.command_prefix[:1] in {"/", "$"} else None,
+        ):
             if candidate and candidate not in seen:
                 seen.add(candidate)
                 expected_prefixes.append(candidate)
@@ -62,7 +66,7 @@ def test_runtime_public_command_prefixes_are_derived_from_the_runtime_catalog() 
     expected_prefixes = []
     seen: set[str] = set()
     for descriptor in iter_runtime_descriptors():
-        prefix = descriptor.public_command_surface_prefix or descriptor.command_prefix
+        prefix = validated_public_command_prefix(descriptor)
         if prefix in seen:
             continue
         seen.add(prefix)
@@ -71,6 +75,12 @@ def test_runtime_public_command_prefixes_are_derived_from_the_runtime_catalog() 
 
     assert runtime_public_command_prefixes() == tuple(expected_prefixes)
     assert "/gpd-" in runtime_public_command_prefixes()
+
+
+def test_validated_public_command_prefix_uses_descriptor_owned_surface() -> None:
+    descriptor = iter_runtime_descriptors()[0]
+
+    assert validated_public_command_prefix(descriptor) == descriptor.public_command_surface_prefix
 
 
 @pytest.mark.parametrize("descriptor", iter_runtime_descriptors(), ids=lambda item: item.runtime_name)

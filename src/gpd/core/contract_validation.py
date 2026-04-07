@@ -61,6 +61,7 @@ __all__ = [
 
 _RECOVERABLE_SCHEMA_WARNING_PATTERNS = (
     re.compile(r"^.+: Extra inputs are not permitted$"),
+    re.compile(r"^.+ was normalized from blank string to empty list$"),
     re.compile(r"^.+\.\d+ must be a valid list member$"),
     re.compile(r"^.+\.\d+: Input should .+$"),
     re.compile(r"^.+: Input should be a valid string$"),
@@ -73,9 +74,7 @@ _LOSSY_LIST_NORMALIZATION_WARNING_PATTERNS = (
     re.compile(r"^.+\.\d+ must not be blank$"),
     re.compile(r"^.+\.\d+ is a duplicate$"),
 )
-_CASE_DRIFT_SCHEMA_WARNING_PATTERNS = (
-    re.compile(r"^.+ must use exact canonical value: .+$"),
-)
+_CASE_DRIFT_SCHEMA_WARNING_PATTERNS = (re.compile(r"^.+ must use exact canonical value: .+$"),)
 _AUTHORITATIVE_SCALAR_FINDING_PATTERNS = (
     re.compile(r"^schema_version must be 1$"),
     re.compile(r"^schema_version must be the integer 1$"),
@@ -95,7 +94,9 @@ class _ProjectContractSchemaFindingCategory(StrEnum):
     AUTHORITATIVE_SCALAR = "authoritative_scalar"
 
 
-_SCHEMA_FINDING_CATEGORY_PATTERNS: tuple[tuple[_ProjectContractSchemaFindingCategory, tuple[re.Pattern[str], ...]], ...] = (
+_SCHEMA_FINDING_CATEGORY_PATTERNS: tuple[
+    tuple[_ProjectContractSchemaFindingCategory, tuple[re.Pattern[str], ...]], ...
+] = (
     (_ProjectContractSchemaFindingCategory.RECOVERABLE, _RECOVERABLE_SCHEMA_WARNING_PATTERNS),
     (_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION, _LOSSY_LIST_NORMALIZATION_WARNING_PATTERNS),
     (_ProjectContractSchemaFindingCategory.CASE_DRIFT, _CASE_DRIFT_SCHEMA_WARNING_PATTERNS),
@@ -448,11 +449,7 @@ def _salvage_model_mapping(
                     item_errors_by_index: dict[int, list[str]] = defaultdict(list)
                     for item_error in exc.errors():
                         item_loc = tuple(item_error.get("loc", ()))
-                        if (
-                            len(item_loc) > 1
-                            and str(item_loc[0]) == key
-                            and isinstance(item_loc[1], int)
-                        ):
+                        if len(item_loc) > 1 and str(item_loc[0]) == key and isinstance(item_loc[1], int):
                             item_index = int(item_loc[1])
                             item_indexes.add(item_index)
                             formatted_item_error = _format_schema_error(
@@ -484,7 +481,9 @@ def _salvage_model_mapping(
                                 salvaged_items[index] = salvaged_item
                                 progress = True
                                 continue
-                        item_errors = item_errors_by_index.get(index) or [f"{path_prefix}.{key}.{index} must be a valid list member"]
+                        item_errors = item_errors_by_index.get(index) or [
+                            f"{path_prefix}.{key}.{index} must be a valid list member"
+                        ]
                         for item_error in item_errors:
                             if item_error not in errors:
                                 errors.append(item_error)
@@ -583,6 +582,85 @@ def _normalize_blank_list_fields(contract: dict[str, object]) -> None:
                         hypothesis["symbols"] = []
 
 
+def _collect_blank_list_normalization_findings(
+    raw_contract: dict[str, object],
+    normalized_contract: dict[str, object],
+) -> list[str]:
+    """Return recoverable findings for blank string list fields that were normalized away."""
+
+    findings: list[str] = []
+
+    def _record(path: str) -> None:
+        findings.append(f"{path} was normalized from blank string to empty list")
+
+    for field_name in PROJECT_CONTRACT_TOP_LEVEL_LIST_FIELDS:
+        raw_value = raw_contract.get(field_name)
+        normalized_value = normalized_contract.get(field_name)
+        if isinstance(raw_value, str) and not raw_value.strip() and isinstance(normalized_value, list):
+            _record(field_name)
+
+    for section_name, field_names in PROJECT_CONTRACT_MAPPING_LIST_FIELDS.items():
+        raw_section = raw_contract.get(section_name)
+        normalized_section = normalized_contract.get(section_name)
+        if not isinstance(raw_section, dict) or not isinstance(normalized_section, dict):
+            continue
+        for field_name in field_names:
+            raw_value = raw_section.get(field_name)
+            normalized_value = normalized_section.get(field_name)
+            if isinstance(raw_value, str) and not raw_value.strip() and isinstance(normalized_value, list):
+                _record(f"{section_name}.{field_name}")
+
+    for collection_name, field_names in PROJECT_CONTRACT_COLLECTION_LIST_FIELDS.items():
+        raw_collection = raw_contract.get(collection_name)
+        normalized_collection = normalized_contract.get(collection_name)
+        if not isinstance(raw_collection, list) or not isinstance(normalized_collection, list):
+            continue
+        for index, raw_item in enumerate(raw_collection):
+            if not isinstance(raw_item, dict) or index >= len(normalized_collection):
+                continue
+            normalized_item = normalized_collection[index]
+            if not isinstance(normalized_item, dict):
+                continue
+            for field_name in field_names:
+                raw_value = raw_item.get(field_name)
+                normalized_value = normalized_item.get(field_name)
+                if isinstance(raw_value, str) and not raw_value.strip() and isinstance(normalized_value, list):
+                    _record(f"{collection_name}.{index}.{field_name}")
+
+            if collection_name != "claims":
+                continue
+
+            raw_parameters = raw_item.get("parameters")
+            normalized_parameters = normalized_item.get("parameters")
+            if isinstance(raw_parameters, list) and isinstance(normalized_parameters, list):
+                for parameter_index, raw_parameter in enumerate(raw_parameters):
+                    if not isinstance(raw_parameter, dict) or parameter_index >= len(normalized_parameters):
+                        continue
+                    normalized_parameter = normalized_parameters[parameter_index]
+                    if not isinstance(normalized_parameter, dict):
+                        continue
+                    raw_value = raw_parameter.get("aliases")
+                    normalized_value = normalized_parameter.get("aliases")
+                    if isinstance(raw_value, str) and not raw_value.strip() and isinstance(normalized_value, list):
+                        _record(f"claims.{index}.parameters.{parameter_index}.aliases")
+
+            raw_hypotheses = raw_item.get("hypotheses")
+            normalized_hypotheses = normalized_item.get("hypotheses")
+            if isinstance(raw_hypotheses, list) and isinstance(normalized_hypotheses, list):
+                for hypothesis_index, raw_hypothesis in enumerate(raw_hypotheses):
+                    if not isinstance(raw_hypothesis, dict) or hypothesis_index >= len(normalized_hypotheses):
+                        continue
+                    normalized_hypothesis = normalized_hypotheses[hypothesis_index]
+                    if not isinstance(normalized_hypothesis, dict):
+                        continue
+                    raw_value = raw_hypothesis.get("symbols")
+                    normalized_value = normalized_hypothesis.get("symbols")
+                    if isinstance(raw_value, str) and not raw_value.strip() and isinstance(normalized_value, list):
+                        _record(f"claims.{index}.hypotheses.{hypothesis_index}.symbols")
+
+    return findings
+
+
 def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContract | None, list[str]]:
     errors: list[str] = []
     canonical_authoritative_scalar_locations: set[str] = set()
@@ -602,6 +680,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
     working = _strip_unknown_model_keys(scalar_sanitized, path_prefix="", model=ResearchContract, errors=errors)
     normalized_contract = copy.deepcopy(working)
     _normalize_blank_list_fields(normalized_contract)
+    errors.extend(_collect_blank_list_normalization_findings(working, normalized_contract))
 
     missing_required_section_errors: list[str] = []
     for field_name in ("schema_version", "scope", "context_intake", "uncertainty_markers"):
@@ -1048,11 +1127,15 @@ def _guidance_signal_flags(
             for value in contract.context_intake.must_include_prior_outputs
         ),
         "user_asserted_anchors": any(
-            _is_context_intake_locator_grounding(value, project_root=project_root, require_existing_project_artifacts=True)
+            _is_context_intake_locator_grounding(
+                value, project_root=project_root, require_existing_project_artifacts=True
+            )
             for value in contract.context_intake.user_asserted_anchors
         ),
         "known_good_baselines": any(
-            _is_context_intake_locator_grounding(value, project_root=project_root, require_existing_project_artifacts=True)
+            _is_context_intake_locator_grounding(
+                value, project_root=project_root, require_existing_project_artifacts=True
+            )
             for value in contract.context_intake.known_good_baselines
         ),
         "context_gaps": _has_meaningful_guidance_text(contract.context_intake.context_gaps),
@@ -1217,7 +1300,7 @@ def validate_project_contract(
 
     warnings.extend(_context_intake_guidance_warnings(parsed, project_root=project_root))
     must_surface_locator_warnings = _must_surface_locator_warnings(parsed, project_root=project_root)
-    if mode == "approved":
+    if mode == "approved" and not _has_approved_grounding_signal(parsed, project_root=project_root):
         errors.extend(must_surface_locator_warnings)
     else:
         warnings.extend(must_surface_locator_warnings)
@@ -1231,9 +1314,13 @@ def validate_project_contract(
         else:
             warnings.append(finding)
 
-    if mode == "approved" and decisive_target_count > 0 and not _has_approved_grounding_signal(
-        parsed,
-        project_root=project_root,
+    if (
+        mode == "approved"
+        and decisive_target_count > 0
+        and not _has_approved_grounding_signal(
+            parsed,
+            project_root=project_root,
+        )
     ):
         errors.append(
             "approved project contract requires at least one concrete anchor/reference/prior-output/baseline; explicit missing-anchor notes preserve uncertainty but do not satisfy approval on their own"

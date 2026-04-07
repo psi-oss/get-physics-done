@@ -48,7 +48,7 @@ Read {GPD_INSTALL_DIR}/workflows/new-project.md first and follow it exactly.
 
 After that, load late-stage authorities only when the workflow reaches the matching stage:
 - Read {GPD_INSTALL_DIR}/references/research/questioning.md only when entering the full questioning path.
-- Read {GPD_INSTALL_DIR}/templates/project-contract-schema.md only when preparing the approval gate and validating the raw scoping contract.
+- Read {GPD_INSTALL_DIR}/templates/project-contract-schema.md and {GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md only when preparing the approval gate and validating the raw scoping contract.
 - Read {GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md only when authoring or repairing the scoping contract.
 - Read {GPD_INSTALL_DIR}/templates/project.md only when writing `GPD/PROJECT.md`.
 - Read {GPD_INSTALL_DIR}/templates/requirements.md only when writing `GPD/REQUIREMENTS.md`.

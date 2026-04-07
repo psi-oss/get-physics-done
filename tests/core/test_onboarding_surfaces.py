@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from gpd.adapters import iter_runtime_descriptors
+from gpd.command_labels import validated_public_command_prefix
 from gpd.core import onboarding_surfaces as onboarding_surfaces_module
 from gpd.core import public_surface_contract as public_surface_contract_module
 from gpd.core.onboarding_surfaces import (
@@ -71,9 +72,9 @@ def _load_public_surface_contract_with_payload(
     schema_path = tmp_path / "public_surface_contract_schema.json"
     contract_path.write_text(json.dumps(payload), encoding="utf-8")
     schema_payload = schema_payload or json.loads(
-        (Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract_schema.json")).read_text(
-            encoding="utf-8"
-        )
+        (
+            Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract_schema.json")
+        ).read_text(encoding="utf-8")
     )
     schema_path.write_text(json.dumps(schema_payload), encoding="utf-8")
     monkeypatch.setattr(
@@ -85,7 +86,7 @@ def _load_public_surface_contract_with_payload(
 
 
 def _expected_beginner_runtime_surface(descriptor: object) -> BeginnerRuntimeSurface:
-    public_prefix = descriptor.public_command_surface_prefix or descriptor.command_prefix
+    public_prefix = validated_public_command_prefix(descriptor)
     return BeginnerRuntimeSurface(
         runtime_name=descriptor.runtime_name,
         display_name=descriptor.display_name,
@@ -136,7 +137,9 @@ def test_public_surface_contract_rejects_recovery_ladder_command_drift(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    payload = json.loads(Path(public_surface_contract_module.__file__).with_name("public_surface_contract.json").read_text())
+    payload = json.loads(
+        Path(public_surface_contract_module.__file__).with_name("public_surface_contract.json").read_text()
+    )
     payload["recovery_ladder"]["local_snapshot_command"] = payload["local_cli_bridge"]["named_commands"]["help"]
     _load_public_surface_contract_with_payload(monkeypatch, tmp_path, payload)
 
@@ -163,9 +166,10 @@ def test_public_surface_contract_loader_rejects_local_cli_bridge_command_drift(
     command_fragment: str,
 ) -> None:
     payload = json.loads(
-        Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract.json").read_text(
-            encoding="utf-8"
-        )
+        Path(public_surface_contract_module.__file__)
+        .resolve()
+        .with_name("public_surface_contract.json")
+        .read_text(encoding="utf-8")
     )
     payload["local_cli_bridge"][field_name] = f"{command_fragment} --drifted"
     _load_public_surface_contract_with_payload(monkeypatch, tmp_path, payload)
@@ -194,7 +198,9 @@ def test_beginner_runtime_surface_single_lookup_matches_bulk_surface() -> None:
 def test_beginner_runtime_surface_accepts_display_names_and_aliases() -> None:
     for descriptor in iter_runtime_descriptors():
         assert beginner_runtime_surface(descriptor.display_name) == _expected_beginner_runtime_surface(descriptor)
-        assert beginner_runtime_surface(descriptor.selection_aliases[0]) == _expected_beginner_runtime_surface(descriptor)
+        assert beginner_runtime_surface(descriptor.selection_aliases[0]) == _expected_beginner_runtime_surface(
+            descriptor
+        )
 
 
 def test_beginner_runtime_surface_single_lookup_uses_descriptor_public_surface_boundary(
@@ -236,6 +242,23 @@ def test_beginner_runtime_surface_single_lookup_uses_descriptor_public_surface_b
         resume_work_command="/public:resume-work",
         settings_command="/public:settings",
     )
+
+
+def test_beginner_runtime_surface_requires_descriptor_public_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime_name = iter_runtime_descriptors()[0].runtime_name
+    descriptor = SimpleNamespace(
+        runtime_name=runtime_name,
+        display_name="Descriptor Display",
+        install_flag="--descriptor",
+        launch_command="descriptor-launch",
+        command_prefix="/adapter:",
+        public_command_surface_prefix="",
+    )
+
+    monkeypatch.setattr(onboarding_surfaces_module, "get_runtime_descriptor", lambda name: descriptor)
+
+    with pytest.raises(ValueError, match="missing a public command surface prefix"):
+        onboarding_surfaces_module.beginner_runtime_surface(runtime_name)
 
 
 def test_resume_authority_contract_exposes_full_validated_surface() -> None:
@@ -291,9 +314,9 @@ def test_public_surface_contract_loader_rejects_schema_key_drift_after_cache_cle
         )
     )
     canonical_schema = json.loads(
-        (Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract_schema.json")).read_text(
-            encoding="utf-8"
-        )
+        (
+            Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract_schema.json")
+        ).read_text(encoding="utf-8")
     )
     refreshed_payload = copy.deepcopy(canonical_payload)
     refreshed_schema = copy.deepcopy(canonical_schema)
@@ -333,7 +356,9 @@ def test_public_surface_contract_loader_rejects_local_cli_command_drift_against_
         canonical_payload["local_cli_bridge"]["commands"][0],
     ]
     drifted_payload["local_cli_bridge"]["named_commands"]["help"] = canonical_payload["local_cli_bridge"]["commands"][1]
-    drifted_payload["local_cli_bridge"]["named_commands"]["doctor"] = canonical_payload["local_cli_bridge"]["commands"][0]
+    drifted_payload["local_cli_bridge"]["named_commands"]["doctor"] = canonical_payload["local_cli_bridge"]["commands"][
+        0
+    ]
 
     _load_public_surface_contract_with_payload(monkeypatch, tmp_path, drifted_payload)
 
@@ -358,9 +383,9 @@ def test_public_surface_contract_schema_rejects_local_cli_command_inventory_mism
         )
     )
     canonical_schema = json.loads(
-        (Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract_schema.json")).read_text(
-            encoding="utf-8"
-        )
+        (
+            Path(public_surface_contract_module.__file__).resolve().with_name("public_surface_contract_schema.json")
+        ).read_text(encoding="utf-8")
     )
     canonical_payload["local_cli_bridge"]["commands"].pop()
     canonical_schema["sections"]["local_cli_bridge"]["commands"].pop()
@@ -416,9 +441,7 @@ def test_public_surface_contract_loader_requires_authoritative_local_cli_bridge_
     canonical_payload = json.loads(canonical_path.read_text(encoding="utf-8"))
     invalid_payload = copy.deepcopy(canonical_payload)
     invalid_payload["local_cli_bridge"]["commands"] = [
-        command
-        for command in invalid_payload["local_cli_bridge"]["commands"]
-        if command != "gpd doctor"
+        command for command in invalid_payload["local_cli_bridge"]["commands"] if command != "gpd doctor"
     ]
 
     _load_public_surface_contract_with_payload(monkeypatch, tmp_path, invalid_payload)
@@ -436,9 +459,7 @@ def test_public_surface_contract_loader_requires_recovery_ladder_commands_to_sta
     canonical_payload = json.loads(canonical_path.read_text(encoding="utf-8"))
     invalid_payload = copy.deepcopy(canonical_payload)
     invalid_payload["local_cli_bridge"]["commands"] = [
-        command
-        for command in invalid_payload["local_cli_bridge"]["commands"]
-        if command != "gpd resume --recent"
+        command for command in invalid_payload["local_cli_bridge"]["commands"] if command != "gpd resume --recent"
     ]
 
     _load_public_surface_contract_with_payload(monkeypatch, tmp_path, invalid_payload)
@@ -458,7 +479,10 @@ def test_public_surface_contract_bridge_note_surfaces_runtime_readiness_and_plan
     assert public_surface_contract_module.local_cli_doctor_local_command() == "gpd doctor --runtime <runtime> --local"
     assert public_surface_contract_module.local_cli_doctor_global_command() == "gpd doctor --runtime <runtime> --global"
     assert "gpd validate plan-preflight <PLAN.md>" in public_surface_contract_module.local_cli_plan_preflight_command()
-    assert public_surface_contract_module.local_cli_validate_command_context_command() == "gpd validate command-context gpd:<name>"
+    assert (
+        public_surface_contract_module.local_cli_validate_command_context_command()
+        == "gpd validate command-context gpd:<name>"
+    )
 
 
 def test_public_surface_contract_loader_normalizes_whitespace(
@@ -495,9 +519,14 @@ def test_public_surface_contract_loader_normalizes_whitespace(
     contract = load_public_surface_contract()
 
     assert contract.beginner_onboarding.hub_url == canonical_payload["beginner_onboarding"]["hub_url"]
-    assert contract.beginner_onboarding.startup_ladder == tuple(canonical_payload["beginner_onboarding"]["startup_ladder"])
+    assert contract.beginner_onboarding.startup_ladder == tuple(
+        canonical_payload["beginner_onboarding"]["startup_ladder"]
+    )
     assert contract.local_cli_bridge.commands == tuple(canonical_payload["local_cli_bridge"]["commands"])
-    assert contract.local_cli_bridge.named_commands.doctor == canonical_payload["local_cli_bridge"]["named_commands"]["doctor"]
+    assert (
+        contract.local_cli_bridge.named_commands.doctor
+        == canonical_payload["local_cli_bridge"]["named_commands"]["doctor"]
+    )
     assert contract.post_start_settings.primary_sentence == canonical_payload["post_start_settings"]["primary_sentence"]
     assert contract.resume_authority.public_fields == tuple(canonical_payload["resume_authority"]["public_fields"])
     assert contract.recovery_ladder.title == canonical_payload["recovery_ladder"]["title"]
@@ -641,7 +670,10 @@ def test_doc_surface_contract_helpers_read_runtime_normalized_contract(
     assert doc_surface_contracts_module.DOCTOR_RUNTIME_SCOPE_RE.search(
         public_surface_contract_module.local_cli_doctor_global_command()
     )
-    assert local_cli_unattended_readiness_command() == "gpd validate unattended-readiness --runtime <runtime> --autonomy balanced"
+    assert (
+        local_cli_unattended_readiness_command()
+        == "gpd validate unattended-readiness --runtime <runtime> --autonomy balanced"
+    )
     assert local_cli_permissions_sync_command() == "gpd permissions sync --runtime <runtime> --autonomy balanced"
     assert public_surface_contract_module.local_cli_plan_preflight_command() == "gpd validate plan-preflight <PLAN.md>"
     assert recovery_local_snapshot_command() == "gpd resume"
@@ -652,7 +684,10 @@ def test_doc_surface_contract_helpers_read_runtime_normalized_contract(
     assert public_surface_contract_module.local_cli_bridge_purpose_phrase() in bridge_note
     assert public_surface_contract_module.local_cli_plan_preflight_command() in bridge_note
     assert public_surface_contract_module.local_cli_install_local_example_command() == "gpd install <runtime> --local"
-    assert public_surface_contract_module.local_cli_validate_command_context_command() == "gpd validate command-context gpd:<name>"
+    assert (
+        public_surface_contract_module.local_cli_validate_command_context_command()
+        == "gpd validate command-context gpd:<name>"
+    )
 
     doc_surface_contracts_module._public_surface_contract_payload.cache_clear()
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from gpd.core.prompt_metrics import expanded_prompt_text, line_number_for_fragment, measure_prompt_surface
+from tests.prompt_metrics_support import expanded_prompt_text, line_number_for_fragment, measure_prompt_surface
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"

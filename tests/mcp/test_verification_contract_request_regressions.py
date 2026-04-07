@@ -64,7 +64,9 @@ def _schema_anyof_object(schema_fragment: dict[str, object]) -> dict[str, object
     raise AssertionError(f"No object branch found in {schema_fragment!r}")
 
 
-def _request_requirement_for_check(run_request_schema: dict[str, object], check_identifier: str) -> dict[str, object] | None:
+def _request_requirement_for_check(
+    run_request_schema: dict[str, object], check_identifier: str
+) -> dict[str, object] | None:
     for clause in run_request_schema.get("allOf", []):
         if_branch = clause.get("if")
         if not isinstance(if_branch, dict):
@@ -359,7 +361,9 @@ def test_suggest_contract_checks_normalizes_whitespace_padded_active_checks() ->
         {"contract": _load_project_contract_fixture(), "active_checks": active_checks},
     )
 
-    benchmark = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction")
+    benchmark = next(
+        entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction"
+    )
     assert benchmark["already_active"] is True
     assert result_via_mcp == result
 
@@ -391,7 +395,17 @@ def test_contract_tools_reject_blank_scalar_to_list_drift() -> None:
     contract = _load_project_contract_fixture()
     contract["claims"][0]["references"] = "   "
 
-    expected = {"error": "Invalid contract payload: claims.0.references must not be blank", "schema_version": 1}
+    expected = {
+        "error": (
+            "Invalid contract payload: claims.0.references must not be blank; "
+            "claims.0.references was normalized from blank string to empty list"
+        ),
+        "contract_error_details": [
+            "claims.0.references must not be blank",
+            "claims.0.references was normalized from blank string to empty list",
+        ],
+        "schema_version": 1,
+    }
 
     request = {
         "check_key": "contract.benchmark_reproduction",

@@ -62,6 +62,7 @@ from gpd.core.contract_validation import (
     _collect_list_shape_drift_errors,
     _has_authoritative_scalar_schema_findings,
     _project_contract_schema_version_missing_error,
+    is_authoritative_project_contract_schema_finding,
     is_repair_relevant_project_contract_schema_finding,
     salvage_project_contract,
     split_project_contract_schema_findings,
@@ -188,7 +189,9 @@ def _project_recent_project_entry(
     try:
         projection = resolve_continuation(cwd, state=state_obj)
     except Exception:
-        logger.debug("Skipping recent-project projection for %s because continuation resolution failed", cwd, exc_info=True)
+        logger.debug(
+            "Skipping recent-project projection for %s because continuation resolution failed", cwd, exc_info=True
+        )
         return None
 
     session = state_obj.get("session") if isinstance(state_obj.get("session"), dict) else {}
@@ -303,9 +306,15 @@ def _project_recent_project_entry(
         if target_kind == "handoff"
         else None
     )
-    source_session_id = bounded_segment.source_session_id if bounded_segment is not None and target_kind == "bounded_segment" else None
-    source_segment_id = bounded_segment.segment_id if bounded_segment is not None and target_kind == "bounded_segment" else None
-    source_transition_id = bounded_segment.transition_id if bounded_segment is not None and target_kind == "bounded_segment" else None
+    source_session_id = (
+        bounded_segment.source_session_id if bounded_segment is not None and target_kind == "bounded_segment" else None
+    )
+    source_segment_id = (
+        bounded_segment.segment_id if bounded_segment is not None and target_kind == "bounded_segment" else None
+    )
+    source_transition_id = (
+        bounded_segment.transition_id if bounded_segment is not None and target_kind == "bounded_segment" else None
+    )
     source_recorded_at = resume_target_recorded_at
     source_event_id = None
     if existing is not None and existing.resume_file == resume_file and existing.resume_target_kind == target_kind:
@@ -765,6 +774,18 @@ def _project_contract_missing_required_schema_errors(raw_contract: object) -> li
     return list(dict.fromkeys(errors))
 
 
+def _project_contract_schema_reference_for_errors(errors: list[str]) -> str:
+    """Return the most specific schema reference for one project-contract failure set."""
+
+    if any(
+        is_repair_relevant_project_contract_schema_finding(error)
+        or is_authoritative_project_contract_schema_finding(error)
+        for error in errors
+    ):
+        return "templates/project-contract-schema.md"
+    return "templates/state-json-schema.md"
+
+
 def _load_raw_project_contract_payload(cwd: Path) -> tuple[Path, object] | None:
     """Return the raw project_contract payload from state storage."""
 
@@ -954,8 +975,7 @@ def _load_project_contract_for_runtime_context(cwd: Path) -> tuple[ResearchContr
             for issue in state_issues
             if isinstance(issue, str)
             and (
-                "primary state.json was unavailable or unreadable" in issue
-                or "primary state.json was missing" in issue
+                "primary state.json was unavailable or unreadable" in issue or "primary state.json was missing" in issue
             )
         ),
         None,
@@ -1135,10 +1155,7 @@ def _session_payload_has_legacy_recovery_values(payload: object) -> bool:
 
     if not isinstance(payload, dict):
         return False
-    return any(
-        payload.get(field) is not None
-        for field in ("stopped_at", "resume_file", "last_result_id")
-    )
+    return any(payload.get(field) is not None for field in ("stopped_at", "resume_file", "last_result_id"))
 
 
 def _session_from_continuation_payload(continuation: object) -> dict[str, str | None]:
@@ -1722,9 +1739,7 @@ def parse_state_to_json(content: str, *, import_legacy_session: bool = False) ->
         "last_result_id": last_result_id,
     }
     continuation = (
-        _continuation_from_session_payload(session)
-        if import_legacy_session
-        else _normalize_continuation_payload(None)
+        _continuation_from_session_payload(session) if import_legacy_session else _normalize_continuation_payload(None)
     )
 
     return {
@@ -1812,7 +1827,7 @@ def _normalize_state_schema(
             elif isinstance(default_val, dict) and not isinstance(normalized[key], dict):
                 if key == "continuation":
                     integrity_issues.append(
-                        f'schema normalization: continuation requires salvage because expected object, got {type(normalized[key]).__name__}'
+                        f"schema normalization: continuation requires salvage because expected object, got {type(normalized[key]).__name__}"
                     )
                 else:
                     integrity_issues.append(
@@ -1845,7 +1860,9 @@ def _normalize_state_schema(
                 if len(loc) > 1 and loc not in removed_validation_paths:
                     if _remove_validation_error_path(normalized, loc):
                         removed_validation_paths.add(loc)
-                        issue = f'schema normalization: dropped malformed "{_format_validation_location(loc)}": {message}'
+                        issue = (
+                            f'schema normalization: dropped malformed "{_format_validation_location(loc)}": {message}'
+                        )
                         if issue not in validation_findings:
                             validation_findings.append(issue)
                         nested_removed = True
@@ -1856,7 +1873,9 @@ def _normalize_state_schema(
             if nested_removed:
                 continue
 
-            removed_now = sorted(key for key in top_level_keys if key not in removed_top_level_keys and key in normalized)
+            removed_now = sorted(
+                key for key in top_level_keys if key not in removed_top_level_keys and key in normalized
+            )
             if removed_now:
                 validation_findings.append(
                     "schema normalization: removed invalid top-level sections "
@@ -1907,10 +1926,7 @@ def _normalize_state_schema_with_backup_project_contract(
     if (
         backup_normalized is not None
         and not _state_reset_issue_present(backup_issues)
-        and (
-            not isinstance(raw, dict)
-            or _state_reset_issue_present(integrity_issues)
-        )
+        and (not isinstance(raw, dict) or _state_reset_issue_present(integrity_issues))
     ):
         normalized = backup_normalized
         integrity_issues = list(backup_issues)
@@ -2154,7 +2170,9 @@ def _normalize_intermediate_results_section(value: object, integrity_issues: lis
             changed = True
         except PydanticValidationError as exc:
             detail = _first_validation_issue(exc)
-            integrity_issues.append(f'schema normalization: dropped malformed "intermediate_results[{index}]": {detail}')
+            integrity_issues.append(
+                f'schema normalization: dropped malformed "intermediate_results[{index}]": {detail}'
+            )
             changed = True
 
     return normalized_results if changed else value
@@ -2216,7 +2234,9 @@ def _normalize_state_for_persistence(raw: dict | None, *, project_root: Path | N
     normalized = copy.deepcopy(normalized)
     normalized["session"] = _session_from_continuation_payload(normalized.get("continuation"))
     if any("project_contract" in issue for issue in integrity_issues):
-        logger.warning("state.json persistence normalized project_contract with issue(s): %s", "; ".join(integrity_issues))
+        logger.warning(
+            "state.json persistence normalized project_contract with issue(s): %s", "; ".join(integrity_issues)
+        )
     return normalized
 
 
@@ -2297,11 +2317,7 @@ def _merge_intermediate_result_markdown_text(existing_item: object, markdown_ite
     metadata_match = re.search(r"\s*\((?P<meta>[^()]*)\)\s*$", body)
     if metadata_match is not None:
         body = body[: metadata_match.start()].rstrip()
-        metadata_tokens = [
-            token.strip()
-            for token in metadata_match.group("meta").split(",")
-            if token.strip()
-        ]
+        metadata_tokens = [token.strip() for token in metadata_match.group("meta").split(",") if token.strip()]
 
     description = body
     equation = None
@@ -2377,8 +2393,7 @@ def _state_md_comparison_payload(section: str, value: object) -> object:
         normalized = {
             key: item
             for key, item in value.items()
-            if key == "custom_conventions"
-            or (key in KNOWN_CONVENTIONS and not is_bogus_value(item))
+            if key == "custom_conventions" or (key in KNOWN_CONVENTIONS and not is_bogus_value(item))
         }
         if not normalized.get("custom_conventions"):
             normalized.pop("custom_conventions", None)
@@ -3276,7 +3291,9 @@ def _load_state_json_with_integrity_issues(
                 recover_intent=recover_intent,
                 import_session_continuation_from_markdown=import_session_continuation_from_markdown,
             )
-            integrity_issues = ["state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable"]
+            integrity_issues = [
+                "state.json root was recovered from STATE.md after primary state.json was unavailable or unreadable"
+            ]
             if parse_issue is not None:
                 integrity_issues.insert(0, parse_issue)
             if persist_recovery:
@@ -3550,7 +3567,11 @@ def _preserved_visible_project_contract_for_json_save(cwd: Path, *, state_obj: d
     if visible_contract is None:
         return None
 
-    if load_info.get("status") not in {"blocked_integrity", "loaded_with_schema_normalization", "loaded_with_approval_blockers"}:
+    if load_info.get("status") not in {
+        "blocked_integrity",
+        "loaded_with_schema_normalization",
+        "loaded_with_approval_blockers",
+    }:
         return None
 
     candidate_contract, candidate_schema_findings = salvage_project_contract(candidate)
@@ -3738,10 +3759,7 @@ def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
     with _state_lock(cwd):
         content = _load_or_rebuild_state_markdown_locked(cwd)
         if content is None:
-            raise StateError(
-                f"STATE.md not found at {md_path}. "
-                "Run 'gpd init' to create the project state file."
-            )
+            raise StateError(f"STATE.md not found at {md_path}. Run 'gpd init' to create the project state file.")
 
     if not section:
         return StateGetResult(content=content)
@@ -3815,8 +3833,7 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
         content = _load_or_rebuild_state_markdown_locked(cwd)
         if content is None:
             raise StateError(
-                f"STATE.md not found at {md_path}. "
-                "Run 'gpd init' to create the project state file before patching."
+                f"STATE.md not found at {md_path}. Run 'gpd init' to create the project state file before patching."
             )
         updated: list[str] = []
         failed: list[str] = []
@@ -3862,10 +3879,9 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
     non-authoritative. Read/repair flows can still canonicalize historical
     state through ``ensure_state_schema()`` and the backup recovery path.
     """
-    schema_reference = "templates/state-json-schema.md"
     warning_messages: list[str] = []
 
-    def _failure(reason: str) -> StateUpdateResult:
+    def _failure(reason: str, *, schema_reference: str = "templates/state-json-schema.md") -> StateUpdateResult:
         return StateUpdateResult(
             updated=False,
             reason=reason,
@@ -3884,7 +3900,10 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
             return _failure("Invalid project contract schema: project contract must be a JSON object")
         strict_result: ProjectContractParseResult = parse_project_contract_data_strict(contract_payload)
         if strict_result.errors:
-            return _failure("Invalid project contract schema: " + "; ".join(strict_result.errors))
+            return _failure(
+                "Invalid project contract schema: " + "; ".join(strict_result.errors),
+                schema_reference=_project_contract_schema_reference_for_errors(strict_result.errors),
+            )
         parsed = strict_result.contract
         if parsed is None:
             return _failure("Invalid project contract schema: project contract could not be normalized")
@@ -3899,7 +3918,10 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
         for warning in draft_validation.warnings:
             if warning not in warning_messages:
                 warning_messages.append(warning)
-        return _failure("Project contract failed scoping validation: " + "; ".join(draft_validation.errors))
+        return _failure(
+            "Project contract failed scoping validation: " + "; ".join(draft_validation.errors),
+            schema_reference=_project_contract_schema_reference_for_errors(draft_validation.errors),
+        )
     for warning in draft_validation.warnings:
         if warning not in warning_messages:
             warning_messages.append(warning)
@@ -3933,12 +3955,12 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
 
         state_obj["project_contract"] = contract_payload
 
-        unresolved = [question.strip() for question in parsed.scope.unresolved_questions if question and question.strip()]
+        unresolved = [
+            question.strip() for question in parsed.scope.unresolved_questions if question and question.strip()
+        ]
         if unresolved:
             existing_questions = {
-                item.strip()
-                for item in state_obj.get("open_questions", [])
-                if isinstance(item, str) and item.strip()
+                item.strip() for item in state_obj.get("open_questions", []) if isinstance(item, str) and item.strip()
             }
             for question in unresolved:
                 if question not in existing_questions:
@@ -3993,7 +4015,9 @@ def state_set_continuation_bounded_segment(
         ).model_dump(mode="python")
 
         if current_continuation.get("bounded_segment") == desired_continuation.get("bounded_segment"):
-            return StateUpdateResult(updated=False, reason="Continuation bounded_segment already matches requested value")
+            return StateUpdateResult(
+                updated=False, reason="Continuation bounded_segment already matches requested value"
+            )
 
         state_obj["continuation"] = desired_continuation
         save_state_json_locked(cwd, state_obj)
@@ -4370,6 +4394,7 @@ def state_resolve_blocker(cwd: Path, text: str) -> ResolveBlockerResult:
 
         return ResolveBlockerResult(resolved=False, blocker=text, reason="no match found")
 
+
 def _normalize_session_resume_file(cwd: Path, resume_file: str | None) -> str | None:
     """Normalize project-local absolute resume pointers back to repo-relative form."""
     if resume_file is None:
@@ -4416,9 +4441,7 @@ def state_record_session(
         existing_machine = current_continuation.machine
         normalized_existing_resume_file = _normalize_session_resume_file(cwd, existing_handoff.resume_file)
         normalized_resume_file = (
-            normalized_existing_resume_file
-            if resume_file is None
-            else _normalize_session_resume_file(cwd, resume_file)
+            normalized_existing_resume_file if resume_file is None else _normalize_session_resume_file(cwd, resume_file)
         )
         if (
             resume_file is not None
@@ -4438,11 +4461,12 @@ def state_record_session(
                 )
         current_bounded_segment = current_continuation.bounded_segment
         bounded_segment_last_result_id = (
-            _optional_state_text(current_bounded_segment.last_result_id) if current_bounded_segment is not None else None
+            _optional_state_text(current_bounded_segment.last_result_id)
+            if current_bounded_segment is not None
+            else None
         )
-        if (
-            bounded_segment_last_result_id is not None
-            and not _state_has_canonical_result_id(state_obj, bounded_segment_last_result_id)
+        if bounded_segment_last_result_id is not None and not _state_has_canonical_result_id(
+            state_obj, bounded_segment_last_result_id
         ):
             bounded_segment_last_result_id = None
         updated: list[str] = []
@@ -4698,9 +4722,9 @@ def state_validate(
             records = r.get("verification_records") or []
             if r.get("verified") and not records:
                 target = issues if integrity_mode == "review" else warnings
-                target.append(f'intermediate_results[{rid}]: verified=true but no verification_records present')
+                target.append(f"intermediate_results[{rid}]: verified=true but no verification_records present")
             if records and not r.get("verified"):
-                warnings.append(f'intermediate_results[{rid}]: verification_records present while verified=false')
+                warnings.append(f"intermediate_results[{rid}]: verification_records present while verified=false")
 
             for index, record in enumerate(records):
                 if not isinstance(record, dict):
@@ -4711,9 +4735,7 @@ def state_validate(
                     evidence_file = Path(cwd) / str(evidence_path)
                     if not evidence_file.exists():
                         target = issues if integrity_mode == "review" else warnings
-                        target.append(
-                            f'intermediate_results[{rid}]: evidence_path "{evidence_path}" does not exist'
-                        )
+                        target.append(f'intermediate_results[{rid}]: evidence_path "{evidence_path}" does not exist')
 
     # Cross-check: phase directory exists
     current_phase = json_pos.get("current_phase") if isinstance(json_pos, dict) else None

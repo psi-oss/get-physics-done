@@ -1,4 +1,4 @@
-"""Typed loader for the staged `new-project` manifest."""
+"""Test-only loader for the staged `new-project` manifest."""
 
 from __future__ import annotations
 
@@ -7,17 +7,18 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from gpd.specs import SPECS_DIR
-
 __all__ = [
     "NEW_PROJECT_STAGE_MANIFEST_PATH",
     "NewProjectStage",
     "NewProjectStageContract",
     "load_new_project_stage_contract",
+    "load_new_project_stage_contract_from_path",
+    "validate_new_project_stage_contract_payload",
 ]
 
 
-NEW_PROJECT_STAGE_MANIFEST_PATH = SPECS_DIR / "workflows" / "new-project-stage-manifest.json"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+NEW_PROJECT_STAGE_MANIFEST_PATH = REPO_ROOT / "src" / "gpd" / "specs" / "workflows" / "new-project-stage-manifest.json"
 
 _ALLOWED_TOP_LEVEL_KEYS = {"schema_version", "workflow_id", "stages"}
 _ALLOWED_STAGE_KEYS = {
@@ -38,8 +39,6 @@ _ALLOWED_STAGE_KEYS = {
 
 @dataclass(frozen=True, slots=True)
 class NewProjectStage:
-    """One stage entry in the staged new-project contract."""
-
     id: str
     order: int
     purpose: str
@@ -56,8 +55,6 @@ class NewProjectStage:
 
 @dataclass(frozen=True, slots=True)
 class NewProjectStageContract:
-    """Canonical staged-loader contract for `gpd:new-project`."""
-
     schema_version: int
     workflow_id: str
     stages: tuple[NewProjectStage, ...]
@@ -147,7 +144,7 @@ def _validate_stage(raw: object, *, index: int) -> NewProjectStage:
     )
 
 
-def _validate_contract_payload(raw: object) -> NewProjectStageContract:
+def validate_new_project_stage_contract_payload(raw: object) -> NewProjectStageContract:
     if not isinstance(raw, dict):
         raise ValueError("new-project stage manifest must be a JSON object")
 
@@ -188,33 +185,25 @@ def _validate_contract_payload(raw: object) -> NewProjectStageContract:
         missing_next = sorted(next_stage for next_stage in stage.next_stages if next_stage not in stage_id_set)
         if missing_next:
             raise ValueError(f"stage {stage.id!r} references unknown next stage(s): {', '.join(missing_next)}")
-        if stage.loaded_authorities:
-            for authority in stage.loaded_authorities:
-                if not authority.startswith(("workflows/", "references/", "templates/")):
-                    raise ValueError(f"stage {stage.id!r} has invalid authority path: {authority!r}")
-        if stage.must_not_eager_load:
-            for authority in stage.must_not_eager_load:
-                if not authority.startswith(("workflows/", "references/", "templates/")):
-                    raise ValueError(f"stage {stage.id!r} has invalid eager-exclusion path: {authority!r}")
+        for authority in (*stage.loaded_authorities, *stage.must_not_eager_load):
+            if authority and not authority.startswith(("workflows/", "references/", "templates/")):
+                raise ValueError(f"stage {stage.id!r} has invalid authority path: {authority!r}")
 
-    if stages[0].id != "bootstrap":
-        raise ValueError("bootstrap must be the first stage")
-    if stages[-1].id != "post_scope":
-        raise ValueError("post_scope must be the last stage")
+    expected_stage_ids = ["scope_intake", "scope_approval", "post_scope"]
+    if stage_ids != expected_stage_ids:
+        raise ValueError("new-project stage manifest must define scope_intake, scope_approval, and post_scope in order")
 
     return NewProjectStageContract(schema_version=schema_version, workflow_id=workflow_id, stages=stages)
 
 
-def _load_manifest_payload(manifest_path: Path = NEW_PROJECT_STAGE_MANIFEST_PATH) -> NewProjectStageContract:
+def load_new_project_stage_contract_from_path(manifest_path: Path) -> NewProjectStageContract:
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"Failed to read new-project stage manifest {manifest_path}: {exc}") from exc
-    return _validate_contract_payload(payload)
+    return validate_new_project_stage_contract_payload(payload)
 
 
 @lru_cache(maxsize=1)
 def load_new_project_stage_contract() -> NewProjectStageContract:
-    """Load the canonical staged-loader contract for `gpd:new-project`."""
-
-    return _load_manifest_payload()
+    return load_new_project_stage_contract_from_path(NEW_PROJECT_STAGE_MANIFEST_PATH)

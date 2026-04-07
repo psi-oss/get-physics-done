@@ -1038,15 +1038,13 @@ Render the template's `## Standard Planning Template` into `gap_closure_prompt` 
 - `{verification_content}` -> Read `${phase_dir}/${phase_number}-VERIFICATION.md` before drafting.
 - `{validation_content}` -> Use existing phase validation notes only if they already exist and matter to the diagnosed gaps.
 
-Also read `{GPD_INSTALL_DIR}/templates/phase-prompt.md` before drafting so PLAN output stays canonical.
-The included template already brings in `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md`; do not restate schema rules here.
 If the downstream fix plan needs specialized tooling or other machine-checkable hard requirements, keep them in PLAN frontmatter `tool_requirements`.
 Keep the prompt scoped to diagnosed verification gaps. Do not restate template-owned contract gates, tangent control, context-budget guidance, downstream-consumer rules, or the quality gate here.
 ```
 
 ```
 task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + gap_closure_prompt,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md, {GPD_INSTALL_DIR}/templates/phase-prompt.md, and {GPD_INSTALL_DIR}/templates/plan-contract-schema.md for your role and instructions.\n\n" + gap_closure_prompt,
   subagent_type="gpd-planner",
   model="{planner_model}",
   readonly=false,
@@ -1160,8 +1158,6 @@ Render the template's `## Revision Template` into `revision_prompt` with these b
 - `{reference_artifacts_content}` -> {reference_artifacts_content}
 - `{context_content}` -> Keep revisions scoped to checker feedback plus the diagnosed verification gaps already surfaced in `${phase_dir}/${phase_number}-VERIFICATION.md`.
 
-Also read `{GPD_INSTALL_DIR}/templates/phase-prompt.md` before rewriting so edited PLAN output stays canonical.
-The included template already brings in `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md`; do not restate schema rules here.
 If the revised fix plan still needs specialized tooling or other machine-checkable hard requirements, keep them in PLAN frontmatter `tool_requirements`.
 Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth.
 Keep the revision prompt scoped to targeted checker fixes. Do not restate template-owned revision policy here.
@@ -1169,7 +1165,7 @@ Keep the revision prompt scoped to targeted checker fixes. Do not restate templa
 
 ```
 task(
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md for your role and instructions.\n\n" + revision_prompt,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-planner.md, {GPD_INSTALL_DIR}/templates/phase-prompt.md, and {GPD_INSTALL_DIR}/templates/plan-contract-schema.md for your role and instructions.\n\n" + revision_prompt,
   subagent_type="gpd-planner",
   model="{planner_model}",
   readonly=false,

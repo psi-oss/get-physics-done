@@ -30,10 +30,6 @@ Continuation equivalent of new-project. Research project exists, PROJECT.md has 
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/new-milestone.md
-@{GPD_INSTALL_DIR}/references/research/questioning.md
-@{GPD_INSTALL_DIR}/references/ui/ui-brand.md
-@{GPD_INSTALL_DIR}/templates/project.md
-@{GPD_INSTALL_DIR}/templates/requirements.md
 </execution_context>
 
 <context>
@@ -52,6 +48,12 @@ Milestone name: $ARGUMENTS (optional - will prompt if not provided)
 <process>
 **Follow the new-milestone workflow** from `@{GPD_INSTALL_DIR}/workflows/new-milestone.md`.
 
+Load late-stage authorities only when the workflow reaches the matching stage:
+- Read {GPD_INSTALL_DIR}/references/research/questioning.md only when you need guided milestone questioning.
+- Read {GPD_INSTALL_DIR}/templates/project.md only when updating `GPD/PROJECT.md`.
+- Read {GPD_INSTALL_DIR}/templates/requirements.md only when writing `GPD/REQUIREMENTS.md`.
+- Read {GPD_INSTALL_DIR}/references/ui/ui-brand.md only when rendering branded completion or status blocks.
+
 **Argument parsing:**
 
 - `$ARGUMENTS` → milestone name (optional, will prompt if not provided)
@@ -59,19 +61,7 @@ Milestone name: $ARGUMENTS (optional - will prompt if not provided)
 
 **Flags:** None currently defined.
 
-The workflow handles the full milestone initialization flow:
-
-1. Load existing project context (PROJECT.md, MILESTONES.md, STATE.md)
-2. Gather milestone goals (from MILESTONE-CONTEXT.md or user questioning)
-3. Determine milestone version (auto-increment from MILESTONES.md)
-4. Update PROJECT.md and STATE.md
-5. Optional literature survey (4 parallel researcher agents)
-6. Define research requirements (category scoping, REQ-IDs)
-7. Create research roadmap (gpd-roadmapper agent)
-8. Commit all artifacts
-9. Present next steps (`gpd:discuss-phase [N]` or `gpd:plan-phase [N]`)
-
-All gates (validation, questioning, research, requirements, roadmap approval, commits) are preserved in the workflow.
+Execute the workflow end-to-end and preserve its gates.
 </process>
 
 <success_criteria>

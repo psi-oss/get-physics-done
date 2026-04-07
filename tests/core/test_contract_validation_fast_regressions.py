@@ -56,6 +56,17 @@ def test_fast_contract_validation_salvage_normalizes_blank_list_members_without_
     )
 
 
+def test_fast_contract_validation_salvage_surfaces_blank_list_normalization_finding() -> None:
+    contract = _load_contract_fixture()
+    contract["context_intake"]["must_read_refs"] = " "
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.contract.context_intake.must_read_refs == []
+    assert "context_intake.must_read_refs was normalized from blank string to empty list" in result.recoverable_errors
+
+
 def test_fast_contract_validation_salvage_normalizes_blank_nested_proof_lists() -> None:
     contract = _load_contract_fixture()
     contract["claims"][0]["parameters"] = [{"symbol": "alpha", "aliases": ""}]
@@ -66,7 +77,8 @@ def test_fast_contract_validation_salvage_normalizes_blank_nested_proof_lists() 
     assert result.contract is not None
     assert result.contract.claims[0].parameters[0].aliases == []
     assert result.contract.claims[0].hypotheses[0].symbols == []
-    assert result.recoverable_errors == []
+    assert "claims.0.parameters.0.aliases was normalized from blank string to empty list" in result.recoverable_errors
+    assert "claims.0.hypotheses.0.symbols was normalized from blank string to empty list" in result.recoverable_errors
     assert result.blocking_errors == []
 
 
@@ -118,8 +130,7 @@ def test_fast_contract_validation_rootless_path_like_anchor_does_not_count_as_ap
     )
     assert (
         "context_intake.user_asserted_anchors entry requires a resolved project_root to verify artifact grounding: "
-        "GPD/phases/01-setup/01-01-SUMMARY.md"
-        in validation.warnings
+        "GPD/phases/01-setup/01-01-SUMMARY.md" in validation.warnings
     )
     assert "missing references or explicit grounding context" in integrity_errors
 

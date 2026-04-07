@@ -3,9 +3,9 @@
   "workflow_id": "new-project",
   "stages": [
     {
-      "id": "bootstrap",
+      "id": "scope_intake",
       "order": 1,
-      "purpose": "startup routing, scoping intake, contract approval, and workflow-preference collection",
+      "purpose": "startup routing, scoping intake, and first-question capture",
       "mode_paths": [
         "workflows/new-project.md"
       ],
@@ -37,6 +37,7 @@
         "references/ui/ui-brand.md",
         "templates/project.md",
         "templates/requirements.md",
+        "templates/project-contract-grounding-linkage.md",
         "templates/project-contract-schema.md"
       ],
       "allowed_tools": [
@@ -48,11 +49,11 @@
       ],
       "writes_allowed": [],
       "produced_state": [
-        "bootstrap routing state",
+        "intake routing state",
         "scoping-contract gate state"
       ],
       "next_stages": [
-        "post_scope"
+        "scope_approval"
       ],
       "checkpoints": [
         "detect existing workspace state",
@@ -61,8 +62,53 @@
       ]
     },
     {
-      "id": "post_scope",
+      "id": "scope_approval",
       "order": 2,
+      "purpose": "scoping contract approval and approval-state persistence",
+      "mode_paths": [
+        "workflows/new-project.md"
+      ],
+      "required_init_fields": [
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation"
+      ],
+      "loaded_authorities": [
+        "templates/project-contract-schema.md",
+        "templates/project-contract-grounding-linkage.md"
+      ],
+      "must_not_eager_load": [
+        "references/research/questioning.md",
+        "references/ui/ui-brand.md",
+        "templates/project.md",
+        "templates/requirements.md"
+      ],
+      "allowed_tools": [
+        "file_read",
+        "shell",
+        "file_write",
+        "task",
+        "ask_user"
+      ],
+      "writes_allowed": [
+        "GPD/state.json"
+      ],
+      "produced_state": [
+        "approved project contract",
+        "approval-state persistence"
+      ],
+      "next_stages": [
+        "post_scope"
+      ],
+      "checkpoints": [
+        "approval gate has passed",
+        "project contract is ready for persistence"
+      ]
+    },
+    {
+      "id": "post_scope",
+      "order": 3,
       "purpose": "deferred downstream project writing and late-stage orchestration",
       "mode_paths": [
         "workflows/new-project.md"
@@ -77,8 +123,7 @@
         "references/research/questioning.md",
         "references/ui/ui-brand.md",
         "templates/project.md",
-        "templates/requirements.md",
-        "templates/project-contract-schema.md"
+        "templates/requirements.md"
       ],
       "must_not_eager_load": [],
       "allowed_tools": [

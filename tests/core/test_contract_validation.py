@@ -77,7 +77,10 @@ def test_validate_project_contract_accepts_stage0_fixture() -> None:
 def test_project_contract_schema_finding_helpers_keep_authoritative_and_blocking_classes_distinct() -> None:
     assert is_authoritative_project_contract_schema_finding("schema_version must be the integer 1") is True
     assert is_authoritative_project_contract_schema_finding("references.0.must_surface must be a boolean") is True
-    assert is_authoritative_project_contract_schema_finding("schema_version: Input should be 1 [type=literal_error]") is True
+    assert (
+        is_authoritative_project_contract_schema_finding("schema_version: Input should be 1 [type=literal_error]")
+        is True
+    )
     assert (
         is_authoritative_project_contract_schema_finding(
             "references.0.must_surface: Input should be a valid boolean, unable to interpret input"
@@ -85,9 +88,7 @@ def test_project_contract_schema_finding_helpers_keep_authoritative_and_blocking
         is True
     )
     assert (
-        is_authoritative_project_contract_schema_finding(
-            "references.0.must_surface: boolean wording changed upstream"
-        )
+        is_authoritative_project_contract_schema_finding("references.0.must_surface: boolean wording changed upstream")
         is False
     )
 
@@ -131,10 +132,15 @@ def test_split_project_contract_schema_findings_blocks_nested_collection_item_tr
 def test_project_contract_schema_finding_helpers_keep_repair_relevance_stable_for_equivalent_messages() -> None:
     assert is_repair_relevant_project_contract_schema_finding("legacy_notes: Extra inputs are not permitted") is True
     assert (
-        is_repair_relevant_project_contract_schema_finding("legacy_notes: Extra inputs are not permitted [type=extra_forbidden]")
+        is_repair_relevant_project_contract_schema_finding(
+            "legacy_notes: Extra inputs are not permitted [type=extra_forbidden]"
+        )
         is True
     )
-    assert is_repair_relevant_project_contract_schema_finding("observables.0.kind must use exact canonical value: other") is False
+    assert (
+        is_repair_relevant_project_contract_schema_finding("observables.0.kind must use exact canonical value: other")
+        is False
+    )
     assert (
         is_repair_relevant_project_contract_schema_finding(
             "references.0.must_surface: Input should be a valid boolean, unable to interpret input"
@@ -643,7 +649,9 @@ def test_comparison_verdict_requires_reference_binding_for_decisive_external_com
     assert verdict.reference_id is None
 
 
-def test_parse_project_contract_data_salvage_preserves_blocking_errors_for_missing_required_collection_item_field() -> None:
+def test_parse_project_contract_data_salvage_preserves_blocking_errors_for_missing_required_collection_item_field() -> (
+    None
+):
     contract = _load_contract_fixture()
     del contract["claims"][0]["statement"]
 
@@ -843,10 +851,7 @@ def test_validate_project_contract_rejects_missing_decisive_targets_and_skeptici
     assert result.valid is False
     assert "project contract must include at least one observable, claim, or deliverable" in result.errors
     assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.errors
-    assert (
-        "uncertainty_markers.disconfirming_observations must identify what would force a rethink"
-        in result.errors
-    )
+    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.errors
 
 
 def test_validate_project_contract_warns_when_user_guidance_signals_are_missing() -> None:
@@ -910,7 +915,10 @@ def test_validate_project_contract_warns_for_non_concrete_anchor_guidance(
     assert result.valid is False
     assert result.guidance_signal_count == 0
     assert "context_intake must not be empty" in result.errors
-    assert f"context_intake.{field_name} entry is not concrete enough to preserve as durable guidance: {value}" in result.warnings
+    assert (
+        f"context_intake.{field_name} entry is not concrete enough to preserve as durable guidance: {value}"
+        in result.warnings
+    )
 
 
 def test_validate_project_contract_rejects_missing_prior_output_only_guidance(tmp_path: Path) -> None:
@@ -1033,7 +1041,9 @@ def test_validate_project_contract_approved_mode_rejects_not_yet_selected_anchor
     contract = _load_contract_fixture()
     contract["references"] = []
     _remove_incidental_grounding(contract)
-    contract["context_intake"]["context_gaps"] = ["Benchmark reference not yet selected; still to identify the decisive anchor"]
+    contract["context_intake"]["context_gaps"] = [
+        "Benchmark reference not yet selected; still to identify the decisive anchor"
+    ]
     contract["scope"]["unresolved_questions"] = []
 
     result = validate_project_contract(contract, mode="approved")
@@ -1114,7 +1124,9 @@ def test_validate_project_contract_approved_mode_accepts_concrete_reference_loca
     assert result.guidance_signal_count == 1
 
 
-@pytest.mark.parametrize(("reference_kind", "locator"), [("paper", "Table 2"), ("paper", "Fig. 3"), ("paper", "Section 4")])
+@pytest.mark.parametrize(
+    ("reference_kind", "locator"), [("paper", "Table 2"), ("paper", "Fig. 3"), ("paper", "Section 4")]
+)
 def test_validate_project_contract_approved_mode_rejects_bare_reference_locator_grounding(
     reference_kind: str,
     locator: str,
@@ -1144,7 +1156,10 @@ def test_validate_project_contract_approved_mode_rejects_bare_reference_locator_
     assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
 
 
-@pytest.mark.parametrize(("field_name", "value"), [("user_asserted_anchors", "Nature benchmark"), ("known_good_baselines", "Science benchmark")])
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [("user_asserted_anchors", "Nature benchmark"), ("known_good_baselines", "Science benchmark")],
+)
 def test_validate_project_contract_approved_mode_rejects_journal_only_text_grounding(
     field_name: str,
     value: str,
@@ -1320,7 +1335,9 @@ def test_validate_project_contract_approved_mode_rejects_missing_project_local_p
     assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
 
 
-def test_validate_project_contract_approved_mode_rejects_placeholder_must_surface_reference_masked_by_background_reference() -> None:
+def test_validate_project_contract_approved_mode_warns_for_invalid_must_surface_reference_when_other_concrete_grounding_exists() -> (
+    None
+):
     contract = _load_contract_fixture()
     _remove_incidental_grounding(contract)
     contract["references"] = [
@@ -1445,14 +1462,14 @@ def test_validate_project_contract_approved_mode_blocks_invalid_must_surface_loc
 
     result = validate_project_contract(contract, mode="approved", project_root=tmp_path)
 
-    assert result.valid is False
+    assert result.valid is True
     assert (
         "reference ref-placeholder is must_surface but locator is not concrete enough to ground validation"
-        in result.errors
+        in result.warnings
     )
     assert (
         "reference ref-placeholder is must_surface but locator is not concrete enough to ground validation"
-        not in result.warnings
+        not in result.errors
     )
 
 
@@ -1790,7 +1807,9 @@ def test_validate_project_contract_approved_mode_rejects_placeholder_user_assert
     assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
 
 
-def test_validate_project_contract_approved_mode_rejects_placeholder_user_asserted_anchor_even_with_explicit_blocker() -> None:
+def test_validate_project_contract_approved_mode_rejects_placeholder_user_asserted_anchor_even_with_explicit_blocker() -> (
+    None
+):
     contract = _load_contract_fixture()
     contract["references"] = []
     _remove_incidental_grounding(contract)
@@ -2716,9 +2735,7 @@ def test_research_contract_rejects_string_required_in_proof_booleans() -> None:
     contract["claims"][0]["parameters"] = [
         {"symbol": "r_0", "domain_or_type": "nonnegative real", "required_in_proof": "yes"}
     ]
-    contract["claims"][0]["hypotheses"] = [
-        {"id": "hyp-r0", "text": "r_0 >= 0", "required_in_proof": "no"}
-    ]
+    contract["claims"][0]["hypotheses"] = [{"id": "hyp-r0", "text": "r_0 >= 0", "required_in_proof": "no"}]
 
     with pytest.raises(ValidationError) as excinfo:
         ResearchContract.model_validate(contract)

@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from gpd.adapters.runtime_catalog import RuntimeDescriptor, get_runtime_descriptor, normalize_runtime_name
+from gpd.command_labels import validated_public_command_prefix
 
 __all__ = ["format_active_runtime_command", "resolve_active_runtime_descriptor"]
 
@@ -50,5 +51,4 @@ def format_active_runtime_command(
     descriptor = resolve_active_runtime_descriptor(cwd=cwd, detect_runtime=detect_runtime)
     if descriptor is None:
         return fallback
-    prefix = descriptor.public_command_surface_prefix or descriptor.command_prefix
-    return f"{prefix}{action}"
+    return f"{validated_public_command_prefix(descriptor)}{action}"

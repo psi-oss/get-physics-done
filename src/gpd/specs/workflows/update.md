@@ -173,13 +173,12 @@ Run the update with the public bootstrap command from step 1:
 
 Capture output. If the update command fails, show the error and exit.
 
-Then clear update caches so indicators disappear immediately:
+Then clear the configured update caches so indicators disappear immediately:
 
 ```bash
 rm -f \
   "{GPD_CONFIG_DIR}/cache/gpd-update-check.json" \
-  "{GPD_GLOBAL_CONFIG_DIR}/cache/gpd-update-check.json" \
-  "$HOME/.gpd/cache/gpd-update-check.json"
+  "{GPD_GLOBAL_CONFIG_DIR}/cache/gpd-update-check.json"
 ```
 </step>
 
