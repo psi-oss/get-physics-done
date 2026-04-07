@@ -17,8 +17,6 @@ allowed-tools:
   - ask_user
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Systematically compare theoretical predictions with experimental or observational data. Handles unit conversion, uncertainty propagation, statistical testing, and discrepancy analysis.

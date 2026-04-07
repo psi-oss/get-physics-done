@@ -387,7 +387,7 @@ Deviations are normal -- handle via deviation rules in `execute-plan-validation.
 
 **Context awareness (after each task):**
 
-Context is finite (~200k tokens, ~80% usable). After completing each task:
+Context is finite (~80% usable before compression). After completing each task:
 
 1. Check statusline context percentage
 2. If >60% with heavy work remaining: consider proactive pause

@@ -10,8 +10,6 @@ allowed-tools:
   - find_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Analyze a phase and present the AI's assumptions about the physics, methodology, computational approach, scope boundaries, anchors, risk areas, and dependencies.

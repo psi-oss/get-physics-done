@@ -12,8 +12,6 @@ allowed-tools:
   - ask_user
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Extract research decisions that downstream agents need -- researcher and planner will use CONTEXT.md to know what to investigate, which anchors and prior outputs must stay visible, and what choices are locked.

@@ -14,8 +14,6 @@ allowed-tools:
   - ask_user
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Execute a systematic parameter sweep: vary one or more parameters across a range, collect results, and produce summary tables and data. Uses wave-based parallelism for independent parameter values.

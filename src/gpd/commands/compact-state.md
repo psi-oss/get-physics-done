@@ -11,8 +11,6 @@ allowed-tools:
   - search_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Compact STATE.md when it grows too large by archiving historical entries to STATE-ARCHIVE.md.

@@ -8,8 +8,6 @@ allowed-tools:
   - shell
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Provide a safe beginner walkthrough of the core GPD command paths.

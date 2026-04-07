@@ -14,16 +14,12 @@ allowed-tools:
   - web_fetch
   - ask_user
 ---
-
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
-
 <objective>
 Conduct a systematic literature review for a physics research topic. Identifies key papers, maps citation networks, catalogs methods and results, finds open questions, and produces a structured LITERATURE-REVIEW.md plus a machine-readable, strict `CITATION-SOURCES.json` sidecar for manuscript reuse.
 
 **Orchestrator role:** Scope the review, spawn gpd-literature-reviewer agent, handle checkpoints, present results.
 
-**Why subagent:** Literature searches burn context fast (reading abstracts, following citation chains, cross-referencing results, tracking conventions across papers). Fresh 200k context for the full survey. Main context stays lean for user interaction.
+**Why subagent:** Literature searches burn context fast (reading abstracts, following citation chains, cross-referencing results, tracking conventions across papers). Fresh context for the full survey keeps the main context lean for user interaction.
 
 A physics literature review is not a bibliography. It is a map of the intellectual landscape: who computed what, using which methods, with what assumptions, getting what results, and where do they agree or disagree. The reviewer must think like a physicist surveying a field, not a librarian cataloging references.
 </objective>

@@ -13,8 +13,6 @@ allowed-tools:
   - task
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Supersede a completed research phase and create a replacement phase for iterative revision. Preserves the original phase as historical record while creating a new phase that inherits valid decisions and addresses what needs to change.

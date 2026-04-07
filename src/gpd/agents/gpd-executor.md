@@ -947,13 +947,11 @@ For contract-backed SUMMARY frontmatter, explicitly load and read the canonical 
 
 @{GPD_INSTALL_DIR}/templates/contract-results-schema.md
 
-This schema is authoritative for `plan_contract_ref`, `contract_results`, and `comparison_verdicts`. Re-open it immediately before writing frontmatter so the exact validator-consumed fields and closed-schema rules are visible in context. Do not rely on memory, prior plans, or a paraphrase from `templates/summary.md`.
+This schema is authoritative for `plan_contract_ref`, `contract_results`, and `comparison_verdicts`. Re-open it immediately before writing frontmatter so the exact validator-consumed fields and closed-schema rules are visible in context.
 
 Key requirements (always in memory — sufficient if the file_read above fails):
 - SUMMARY.md location: `GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md`
-- For contract-backed plans, load the schema above before writing frontmatter and copy `plan_contract_ref`, `contract_results`, and `comparison_verdicts` exactly from that canonical contract surface
-- If the PLAN has a `contract`, SUMMARY frontmatter MUST declare `plan_contract_ref` and `contract_results`
-- Include `comparison_verdicts` whenever the plan produces decisive internal or external comparisons
+- For contract-backed plans, load the schema above before writing frontmatter, then re-open it immediately before finalizing YAML and follow it literally. Do not rely on memory, prior plans, or a paraphrase from `templates/summary.md`.
 - Contract-backed examples in `executor-completion.md` and `executor-worked-example.md` keep `uncertainty_markers` explicit and non-empty; do not copy an older empty-list pattern.
 - One-liner must be substantive and physics-specific (not "calculation completed")
 - Use template: @{GPD_INSTALL_DIR}/templates/summary.md

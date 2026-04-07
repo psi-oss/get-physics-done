@@ -12,8 +12,6 @@ allowed-tools:
   - find_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Inspect a single research phase in detail: its artifacts, completion status, key results, convention changes, and verification state. Produces a structured report for quick situational awareness.

@@ -8,8 +8,6 @@ allowed-tools:
   - shell
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Create the canonical `.continue-here.md` continuation handoff artifact to preserve complete research state across sessions.

@@ -8214,6 +8214,10 @@ def _prompt_runtimes(*, action: str = "install") -> list[str]:
     try:
         idx = int(choice)
     except ValueError:
+        canonical_runtime = normalize_runtime_name(choice)
+        if canonical_runtime in adapters:
+            return [canonical_runtime]
+
         normalized = choice.strip().casefold()
         exact_matches = [
             runtime_name

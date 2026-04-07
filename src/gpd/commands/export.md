@@ -11,8 +11,6 @@ allowed-tools:
   - find_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Export research results into shareable formats. Collects key results, equations, derivations, and figures from all completed phases and packages them for external consumption.

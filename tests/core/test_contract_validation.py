@@ -30,6 +30,7 @@ from gpd.contracts import (
 )
 from gpd.core.contract_validation import (
     is_authoritative_project_contract_schema_finding,
+    is_repair_relevant_project_contract_schema_finding,
     split_project_contract_schema_findings,
     validate_project_contract,
 )
@@ -73,6 +74,19 @@ def test_validate_project_contract_accepts_stage0_fixture() -> None:
 def test_project_contract_schema_finding_helpers_keep_authoritative_and_blocking_classes_distinct() -> None:
     assert is_authoritative_project_contract_schema_finding("schema_version must be the integer 1") is True
     assert is_authoritative_project_contract_schema_finding("references.0.must_surface must be a boolean") is True
+    assert is_authoritative_project_contract_schema_finding("schema_version: Input should be 1 [type=literal_error]") is True
+    assert (
+        is_authoritative_project_contract_schema_finding(
+            "references.0.must_surface: Input should be a valid boolean, unable to interpret input"
+        )
+        is True
+    )
+    assert (
+        is_authoritative_project_contract_schema_finding(
+            "references.0.must_surface: boolean wording changed upstream"
+        )
+        is False
+    )
 
 
 def test_split_project_contract_schema_findings_separates_case_drift_from_blocking_errors() -> None:
@@ -97,6 +111,21 @@ def test_split_project_contract_schema_findings_separates_case_drift_from_blocki
         "observables.0.kind must use exact canonical value: other",
     ]
     assert blocking == ["schema_version must be the integer 1"]
+
+
+def test_project_contract_schema_finding_helpers_keep_repair_relevance_stable_for_equivalent_messages() -> None:
+    assert is_repair_relevant_project_contract_schema_finding("legacy_notes: Extra inputs are not permitted") is True
+    assert (
+        is_repair_relevant_project_contract_schema_finding("legacy_notes: Extra inputs are not permitted [type=extra_forbidden]")
+        is True
+    )
+    assert is_repair_relevant_project_contract_schema_finding("observables.0.kind must use exact canonical value: other") is False
+    assert (
+        is_repair_relevant_project_contract_schema_finding(
+            "references.0.must_surface: Input should be a valid boolean, unable to interpret input"
+        )
+        is False
+    )
 
 
 @pytest.mark.parametrize(

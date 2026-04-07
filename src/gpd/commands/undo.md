@@ -9,8 +9,6 @@ allowed-tools:
   - find_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Safely rollback the last GPD-related git commit. Creates a safety checkpoint tag before reverting so the operation itself is reversible.

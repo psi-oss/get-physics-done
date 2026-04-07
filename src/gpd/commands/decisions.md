@@ -12,8 +12,6 @@ allowed-tools:
   - find_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Display the cumulative decision log from GPD/DECISIONS.md with optional filtering by phase number or keyword search.

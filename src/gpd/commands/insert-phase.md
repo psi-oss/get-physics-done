@@ -9,8 +9,6 @@ allowed-tools:
   - shell
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Insert a decimal phase for urgent research work discovered mid-milestone that must be completed between existing integer phases.

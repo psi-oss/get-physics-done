@@ -1,13 +1,13 @@
 <overview>
-Context windows are finite (~200k tokens, ~80% usable before the runtime compresses). Research workflows that ignore context pressure produce degraded results: missed signs, sloppy limits, forgotten conventions. Managing context is part of research discipline, not an engineering detail.
+Context windows are finite (~80% usable before the runtime compresses). Research workflows that ignore context pressure produce degraded results: missed signs, sloppy limits, forgotten conventions. Managing context is part of research discipline, not an engineering detail.
 
 **Core principle:** A fresh context with the right files loaded outperforms a saturated context with everything accumulated. Plan segmentation, strategic `/clear`, and proactive handoffs are research quality tools.
 
-**Key numbers:**
+**Key ratios:**
 
-- Total window: ~200k tokens
-- Usable before compression: ~160k tokens (80%)
-- Statusline shows scaled usage: 100% = 80% real = compression imminent
+- Total window: runtime/model-dependent
+- Usable before compression: ~80% of the total window
+- Statusline shows scaled usage: 100% statusline = compression imminent
 - After compression: prior context is summarized, detail is lost
 
 **Related:** For per-agent pressure thresholds (GREEN/YELLOW/ORANGE/RED), see `references/orchestration/context-pressure-thresholds.md`. For the canonical threshold table, see `references/orchestration/agent-infrastructure.md` §Context Pressure Management.

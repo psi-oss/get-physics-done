@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 import yaml
@@ -222,6 +223,21 @@ def _format_frontmatter_field_subject(field_name: str, owner_name: str | None = 
     return field_name
 
 
+def _raw_scalar_frontmatter_value(frontmatter: str | None, *, field_name: str) -> str | None:
+    """Return the raw scalar text for one frontmatter field when present."""
+
+    if not frontmatter:
+        return None
+
+    pattern = re.compile(
+        rf"(?m)^[ \t]*{re.escape(field_name)}:[ \t]*(?P<value>[^#\r\n]*)[ \t]*(?:#.*)?$"
+    )
+    match = pattern.search(frontmatter)
+    if match is None:
+        return None
+    return match.group("value").strip()
+
+
 def _parse_frontmatter_string_field(
     raw: object,
     *,
@@ -254,9 +270,12 @@ def _parse_tools(raw: object, *, field_name: str = "tools", owner_name: str | No
         return []
     values: list[str] = []
     seen: set[str] = set()
+    subject = _format_frontmatter_field_subject(field_name, owner_name)
 
     def _append(value: str) -> None:
-        if value and value not in seen:
+        if not value:
+            raise ValueError(f"{subject} must not contain blank entries")
+        if value not in seen:
             seen.add(value)
             values.append(value)
 
@@ -265,12 +284,10 @@ def _parse_tools(raw: object, *, field_name: str = "tools", owner_name: str | No
             _append(item.strip())
         return values
     if not isinstance(raw, list):
-        subject = _format_frontmatter_field_subject(field_name, owner_name)
         raise ValueError(f"{subject} must be a string or list of strings")
 
     for item in raw:
         if not isinstance(item, str):
-            subject = _format_frontmatter_field_subject(field_name, owner_name)
             raise ValueError(f"{subject} must contain only strings")
         _append(item.strip())
     return values
@@ -336,7 +353,9 @@ def _parse_allowed_tools(raw: object, *, command_name: str) -> list[str]:
         if not isinstance(item, str):
             raise ValueError(f"allowed-tools for {command_name} must contain only strings")
         value = item.strip()
-        if value and value not in seen:
+        if not value:
+            raise ValueError(f"allowed-tools for {command_name} must not contain blank entries")
+        if value not in seen:
             seen.add(value)
             values.append(value)
     return values
@@ -359,28 +378,76 @@ def _validate_raw_boolean_frontmatter_field(
 ) -> None:
     """Reject legacy boolean spellings before YAML coercion can hide them."""
 
-    if not frontmatter:
+    raw_value = _raw_scalar_frontmatter_value(frontmatter, field_name=field_name)
+    if raw_value is None:
         return
-    pattern = re.compile(
-        rf"(?m)^[ \t]*{re.escape(field_name)}:[ \t]*(?P<value>[^#\r\n]+?)[ \t]*(?:#.*)?$"
-    )
-    match = pattern.search(frontmatter)
-    if match is None:
-        return
-    raw_value = match.group("value").strip()
     if raw_value.casefold() in {"true", "false"}:
         return
     raise ValueError(f"{field_name} for {command_name} must be a boolean")
 
 
+def _validate_raw_nonempty_string_frontmatter_field(
+    frontmatter: str | None,
+    *,
+    field_name: str,
+    owner_name: str,
+) -> None:
+    """Reject explicit blank or null scalar spellings before YAML hides them."""
+
+    raw_value = _raw_scalar_frontmatter_value(frontmatter, field_name=field_name)
+    if raw_value is None:
+        return
+    if raw_value.casefold() not in {"", "null", "~"}:
+        return
+    raise ValueError(f"{field_name} for {owner_name} must be a non-empty string")
+
+
 def _validate_raw_command_frontmatter(frontmatter: str | None, *, command_name: str) -> None:
     """Reject legacy raw frontmatter spellings for strict command metadata."""
 
+    _validate_raw_nonempty_string_frontmatter_field(
+        frontmatter,
+        field_name="context_mode",
+        owner_name=command_name,
+    )
+    _validate_raw_nonempty_string_frontmatter_field(
+        frontmatter,
+        field_name="agent",
+        owner_name=command_name,
+    )
     _validate_raw_boolean_frontmatter_field(
         frontmatter,
         field_name="project_reentry_capable",
         command_name=command_name,
     )
+
+
+def _validate_raw_agent_frontmatter(frontmatter: str | None, *, agent_name: str) -> None:
+    """Reject explicit blank or null spellings for defaulted agent metadata."""
+
+    _validate_raw_nonempty_string_frontmatter_field(
+        frontmatter,
+        field_name="commit_authority",
+        owner_name=agent_name,
+    )
+    for field_name in (
+        "surface",
+        "role_family",
+        "artifact_write_authority",
+        "shared_state_authority",
+    ):
+        _validate_raw_nonempty_string_frontmatter_field(
+            frontmatter,
+            field_name=field_name,
+            owner_name=agent_name,
+        )
+
+
+@lru_cache(maxsize=1)
+def _canonical_agent_names() -> frozenset[str]:
+    """Return validated built-in agent names from the canonical package tree."""
+
+    return frozenset(load_agents_from_dir(_PKG_ROOT / "agents"))
 
 
 def _parse_project_reentry_capable(raw: object, *, command_name: str, context_mode: str) -> bool:
@@ -407,7 +474,11 @@ def _parse_command_agent(raw: object, *, command_name: str) -> str | None:
     value = raw.strip().lower()
     if not value:
         raise ValueError(f"agent for {command_name} must be a non-empty string")
-    return canonical_skill_label(value)
+    normalized = canonical_skill_label(value)
+    known_agents = _canonical_agent_names()
+    if known_agents and normalized not in known_agents:
+        raise ValueError(f"Unknown agent {normalized!r} for {command_name}")
+    return normalized
 
 
 VALID_CONTEXT_MODES: tuple[str, ...] = ("global", "projectless", "project-aware", "project-required")
@@ -439,7 +510,7 @@ def _parse_context_mode(raw: object, *, command_name: str) -> str:
         raise ValueError(f"context_mode for {command_name} must be a string")
     mode = raw.strip().lower()
     if not mode:
-        return "project-required"
+        raise ValueError(f"context_mode for {command_name} must be a non-empty string")
     if mode not in VALID_CONTEXT_MODES:
         valid = ", ".join(VALID_CONTEXT_MODES)
         raise ValueError(f"Invalid context_mode {mode!r} for {command_name}; expected one of: {valid}")
@@ -455,7 +526,7 @@ def _parse_commit_authority(raw: object, *, agent_name: str) -> str:
         raise ValueError(f"commit_authority for {agent_name} must be a string")
     authority = raw.strip().lower()
     if not authority:
-        return "orchestrator"
+        raise ValueError(f"commit_authority for {agent_name} must be a non-empty string")
     if authority not in VALID_AGENT_COMMIT_AUTHORITIES:
         valid = ", ".join(VALID_AGENT_COMMIT_AUTHORITIES)
         raise ValueError(f"Invalid commit_authority {authority!r} for {agent_name}; expected one of: {valid}")
@@ -478,7 +549,7 @@ def _parse_agent_metadata_enum(
         raise ValueError(f"{field_name} for {agent_name} must be a string")
     value = raw.strip().lower()
     if not value:
-        return default
+        raise ValueError(f"{field_name} for {agent_name} must be a non-empty string")
     if value not in valid_values:
         valid = ", ".join(valid_values)
         raise ValueError(f"Invalid {field_name} {value!r} for {agent_name}; expected one of: {valid}")
@@ -629,7 +700,7 @@ def render_command_visibility_sections_from_frontmatter(frontmatter: str, *, com
     except yaml.YAMLError as exc:
         raise ValueError(f"Malformed frontmatter for {command_name}: {exc}") from exc
     if meta is None:
-        return ""
+        meta = {}
     if not isinstance(meta, dict):
         raise ValueError(f"Frontmatter for {command_name} must parse to a mapping")
     review_contract_value = _review_contract_frontmatter_value(meta, command_name=command_name)
@@ -749,15 +820,16 @@ def _parse_review_contract(raw: object, command_name: str) -> ReviewCommandContr
 def _parse_agent_file(path: Path, source: str) -> AgentDef:
     """Parse a single agent .md file into an AgentDef."""
     text = path.read_text(encoding="utf-8")
+    raw_frontmatter, _unused_body = _frontmatter_parts(text)
     try:
         meta, body = _parse_frontmatter(text)
     except ValueError as exc:
         raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
+    _validate_raw_agent_frontmatter(raw_frontmatter, agent_name=path.stem)
     agent_name = _parse_frontmatter_string_field(
         meta.get("name"),
         field_name="name",
         owner_name=path.stem,
-        default=path.stem,
         required=True,
     )
     _validate_agent_frontmatter_keys(meta, agent_name=agent_name)
@@ -909,6 +981,17 @@ def _validate_command_name(path: Path, command: CommandDef) -> None:
         )
 
 
+def _validate_agent_name(path: Path, agent: AgentDef) -> None:
+    """Reject agent metadata that drifts from its registry filename."""
+
+    expected_name = path.stem
+    if agent.name != expected_name:
+        raise ValueError(
+            f"Agent frontmatter name {agent.name!r} does not match file stem {path.stem!r}; "
+            f"expected {expected_name!r}"
+        )
+
+
 def load_agents_from_dir(agents_dir: Path) -> dict[str, AgentDef]:
     """Parse agent definitions from an arbitrary agents directory."""
     result: dict[str, AgentDef] = {}
@@ -917,9 +1000,7 @@ def load_agents_from_dir(agents_dir: Path) -> dict[str, AgentDef]:
 
     for path in sorted(agents_dir.glob("*.md")):
         agent = _parse_agent_file(path, source="agents")
-        if agent.name in result:
-            first_path = result[agent.name].path
-            raise ValueError(f"Duplicate agent name {agent.name!r} discovered in {path} and {first_path}")
+        _validate_agent_name(path, agent)
         result[agent.name] = agent
 
     return result
@@ -1203,6 +1284,7 @@ def get_skill(name: str) -> SkillDef:
 def invalidate_cache() -> None:
     """Clear the registry cache. Call after install/uninstall or in tests."""
     _cache.invalidate()
+    _canonical_agent_names.cache_clear()
 
 
 __all__ = [

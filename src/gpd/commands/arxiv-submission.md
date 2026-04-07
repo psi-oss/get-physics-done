@@ -61,8 +61,6 @@ allowed-tools:
   - task
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Prepare a completed paper for arXiv submission. Handles the full submission pipeline: LaTeX validation, figure embedding, bibliography flattening, file packaging, and metadata generation.

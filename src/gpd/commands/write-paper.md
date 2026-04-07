@@ -75,8 +75,6 @@ allowed-tools:
   - ask_user
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Structure and write a physics paper from completed research results. Drive the full pipeline from digest to draft: readiness audit, scope, outline, figures, wave-parallelized drafting, notation audit, bibliography verification, staged peer review, and bounded revision. When literature review has already assembled a machine-readable citation list, treat it as a handoff artifact for `gpd paper-build --citation-sources`, not a separate bibliography database.

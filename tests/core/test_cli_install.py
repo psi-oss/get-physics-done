@@ -97,6 +97,14 @@ def _descriptor_with_spaced_selection_alias() -> tuple[object, str]:
     return matches[0]
 
 
+def _descriptor_with_runtime_selection_flag() -> tuple[object, str]:
+    for descriptor in _INSTALL_TEST_DESCRIPTORS:
+        flag_inputs = tuple(dict.fromkeys((descriptor.install_flag, *descriptor.selection_flags)))
+        if flag_inputs:
+            return descriptor, flag_inputs[0]
+    raise AssertionError("Expected at least one runtime descriptor with a catalog selection flag")
+
+
 def _install_target(tmp_path: Path, descriptor=_PRIMARY_INSTALL_DESCRIPTOR) -> Path:
     return tmp_path / descriptor.config_dir_name
 
@@ -1637,6 +1645,53 @@ def test_install_interactive_accepts_unique_fuzzy_runtime_name(tmp_path: Path):
         mock_get.side_effect = lambda runtime: adapters[runtime]
 
         result = runner.invoke(app, ["install"], input="open\n1\n")
+
+    assert result.exit_code == 0
+    assert captured_calls == [
+        {
+            "runtime": target_descriptor.runtime_name,
+            "is_global": False,
+            "target_dir_override": None,
+        }
+    ]
+
+
+def test_install_interactive_accepts_catalog_runtime_flag(tmp_path: Path) -> None:
+    """Interactive install should reuse the shared runtime normalizer for catalog flags."""
+    target_descriptor, selection_flag = _descriptor_with_runtime_selection_flag()
+    competing_descriptor = next(
+        descriptor
+        for descriptor in _INSTALL_TEST_DESCRIPTORS
+        if descriptor.runtime_name != target_descriptor.runtime_name
+    )
+
+    captured_calls: list[dict[str, object]] = []
+
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+        captured_calls.append(
+            {
+                "runtime": runtime_name,
+                "is_global": is_global,
+                "target_dir_override": target_dir_override,
+            }
+        )
+        return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path / runtime_name)}
+
+    with (
+        patch("gpd.cli._install_single_runtime", side_effect=mock_install_single),
+        patch(
+            "gpd.adapters.list_runtimes",
+            return_value=[target_descriptor.runtime_name, competing_descriptor.runtime_name],
+        ),
+        patch("gpd.adapters.get_adapter") as mock_get,
+    ):
+        adapters = {
+            descriptor.runtime_name: _mock_install_adapter(descriptor)
+            for descriptor in (target_descriptor, competing_descriptor)
+        }
+        mock_get.side_effect = lambda runtime: adapters[runtime]
+
+        result = runner.invoke(app, ["install"], input=f"{selection_flag}\n1\n")
 
     assert result.exit_code == 0
     assert captured_calls == [

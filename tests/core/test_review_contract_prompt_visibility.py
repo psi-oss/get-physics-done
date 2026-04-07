@@ -138,6 +138,8 @@ def test_model_visible_wrapper_notes_surface_their_closed_schema_rules() -> None
     assert "Closed schema; no extra keys." in agent_visibility_note()
     assert "Closed schema; no extra keys." in command_visibility_note()
     assert "Strict booleans only." in command_visibility_note()
+    assert "Use only declared values for `context_mode` and `agent`;" in command_visibility_note()
+    assert "`project_reentry_capable` must be `true` or `false`." in command_visibility_note()
     assert "Closed schema; no extra keys." in review_contract_visibility_note()
     note = review_contract_visibility_note()
     review_modes = " or ".join(f"`{value}`" for value in REVIEW_CONTRACT_MODES)

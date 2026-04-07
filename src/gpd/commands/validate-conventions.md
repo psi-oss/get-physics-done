@@ -11,8 +11,6 @@ allowed-tools:
   - task
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Validate that physics conventions (metric signature, Fourier convention, natural units, gauge choice, etc.) are used consistently across all completed phases. Detects convention drift where a symbol or convention is redefined in a later phase without updating earlier references.

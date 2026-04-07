@@ -9,16 +9,12 @@ allowed-tools:
   - task
   - ask_user
 ---
-
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
-
 <objective>
 Debug physics calculations using systematic isolation with subagent investigation.
 
 **Orchestrator role:** Gather symptoms, spawn gpd-debugger agent, handle checkpoints, spawn continuations.
 
-**Why subagent:** Investigation burns context fast (reading derivations, forming hypotheses, testing limiting cases, running numerical checks). Fresh 200k context per investigation. Main context stays lean for user interaction.
+**Why subagent:** Investigation burns context fast (reading derivations, forming hypotheses, testing limiting cases, running numerical checks). Fresh context per investigation keeps the orchestrator context lean for user interaction.
 
 Physics debugging differs fundamentally from software debugging. In software, a bug is deterministic: same input gives same wrong output. In physics calculations, errors can be subtle — a sign error that only matters in one regime, a factor of 2 from a symmetry argument, a gauge artifact that looks like a physical effect, a numerical instability that masquerades as a phase transition. The debugger must think like a physicist, not a programmer.
 </objective>

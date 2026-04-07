@@ -14,8 +14,6 @@ allowed-tools:
   - ask_user
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Systematic uncertainty propagation through a derivation chain. Traces how input uncertainties flow through intermediate results to final quantities, identifies dominant error sources, and produces error budgets.

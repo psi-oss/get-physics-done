@@ -498,7 +498,7 @@ Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true`
 
 4. **Spawn executor agents:**
 
-   Pass paths only -- executors read files themselves with their fresh 200k context.
+   Pass paths only -- executors read files themselves with fresh context.
    This keeps orchestrator context lean (~10-15%).
 
    > **Runtime delegation:** Spawn a subagent for the task below. Adapt the `task()` call to your runtime's agent spawning mechanism. If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model. Always pass `readonly=false` for file-producing agents. If subagent spawning is unavailable, execute these steps sequentially in the main context.
@@ -1075,7 +1075,7 @@ Count the SUMMARY files that will be read and estimate their impact on orchestra
 ```bash
 SUMMARY_COUNT=$(ls "${phase_dir}"/*-SUMMARY.md 2>/dev/null | wc -l)
 ESTIMATED_TOKENS=$(( SUMMARY_COUNT * 3000 ))
-CONTEXT_BUDGET=${CONTEXT_BUDGET:-200000}  # Model-dependent; 200k for most current models
+CONTEXT_BUDGET=${CONTEXT_BUDGET:-160000}  # Approximate usable-token budget (about 80% of window)
 BUDGET_PERCENT=$(( ESTIMATED_TOKENS * 100 / CONTEXT_BUDGET ))
 ```
 
@@ -1741,7 +1741,7 @@ All {N} phases executed.
 </process>
 
 <context_efficiency>
-Orchestrator: ~10-15% context. Subagents: fresh 200k each. No polling (Task blocks). No context bleed.
+Orchestrator: ~10-15% context. Subagents: fresh contexts. No polling (Task blocks). No context bleed.
 </context_efficiency>
 
 <failure_handling>

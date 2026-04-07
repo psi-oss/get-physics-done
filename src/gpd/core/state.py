@@ -1988,10 +1988,12 @@ def _first_validation_issue(exc: PydanticValidationError) -> str:
 
 
 def _integrity_issue_from_contract_error(error: str) -> str:
+    extra_inputs_marker = ": Extra inputs are not permitted"
+
     if error.startswith("project_contract."):
         return f"schema normalization: {error}"
-    if error.endswith(": Extra inputs are not permitted"):
-        path = error.rsplit(":", 1)[0].strip()
+    if extra_inputs_marker in error:
+        path = error.split(extra_inputs_marker, 1)[0].strip()
         return f'schema normalization: dropped unknown "project_contract.{path}"'
     if " must be an object, not " in error:
         path, actual = error.split(" must be an object, not ", 1)

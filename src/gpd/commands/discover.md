@@ -14,8 +14,6 @@ allowed-tools:
   - web_fetch
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Run a standalone discovery investigation for a research phase. Surveys the physics landscape: what is known, what methods exist, what approximations are valid, what data is available.

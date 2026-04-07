@@ -196,7 +196,30 @@ def test_normalize_runtime_name_is_centralized_in_runtime_catalog() -> None:
     assert normalize_runtime_name("Claude Code") == "claude-code"
     assert normalize_runtime_name("claude") == "claude-code"
     assert normalize_runtime_name("open code") == "opencode"
+    assert normalize_runtime_name("--claude") == "claude-code"
+    assert normalize_runtime_name("--gemini-cli") == "gemini"
+    assert normalize_runtime_name("--codex") == "codex"
+    assert normalize_runtime_name("--opencode") == "opencode"
     assert normalize_runtime_name("not-a-runtime") is None
+
+
+def test_normalize_runtime_name_accepts_install_flags_outside_selection_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    codex = _catalog_entry_by_runtime_name(payload, "codex")
+    codex["install_flag"] = "--codex-install-only"
+    codex["selection_flags"] = ["--codex-selection-only"]
+
+    catalog_path = tmp_path / "runtime_catalog.json"
+    catalog_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_catalog_path", lambda: catalog_path)
+    runtime_catalog._load_catalog.cache_clear()
+    try:
+        assert normalize_runtime_name("--codex-install-only") == "codex"
+        assert normalize_runtime_name("--codex-selection-only") == "codex"
+    finally:
+        runtime_catalog._load_catalog.cache_clear()
 
 
 def test_managed_install_surface_policy_is_derived_from_runtime_metadata() -> None:

@@ -12,8 +12,6 @@ allowed-tools:
   - task
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Map an existing physics research project using parallel gpd-research-mapper agents.

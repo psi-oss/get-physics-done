@@ -749,7 +749,7 @@ def list_runtime_names() -> list[str]:
 
 
 def normalize_runtime_name(value: str | None) -> str | None:
-    """Resolve a runtime id, display name, or alias to a canonical runtime name."""
+    """Resolve a runtime id, display name, alias, or install flag to a canonical runtime name."""
     if not isinstance(value, str):
         return None
 
@@ -761,6 +761,8 @@ def normalize_runtime_name(value: str | None) -> str | None:
         if normalized in {
             descriptor.runtime_name.casefold(),
             descriptor.display_name.casefold(),
+            descriptor.install_flag.casefold(),
+            *(flag.casefold() for flag in descriptor.selection_flags),
             *(alias.casefold() for alias in descriptor.selection_aliases),
         }:
             return descriptor.runtime_name

@@ -12,8 +12,6 @@ allowed-tools:
   - ask_user
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Systematically identify all relevant limiting cases for a physics result and verify that each limit is correctly recovered. This is the single most powerful verification tool in theoretical physics.

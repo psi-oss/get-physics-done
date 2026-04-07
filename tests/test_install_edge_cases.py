@@ -866,13 +866,11 @@ class TestRegistryInvalidYaml:
             registry.invalidate_cache()
 
     def test_agent_with_empty_yaml_block(self, tmp_path: Path) -> None:
-        """Agent .md with empty YAML block (--- followed by ---) uses stem as name."""
+        """Agent .md with empty YAML block should fail closed on missing name."""
         f = tmp_path / "empty-yaml.md"
         f.write_text("---\n \n---\nBody text.", encoding="utf-8")
-        agent = _parse_agent_file(f, source="agents")
-        assert agent.name == "empty-yaml"  # Falls back to stem
-        assert agent.system_prompt.startswith("## Agent Requirements\n")
-        assert agent.system_prompt.endswith("Body text.")
+        with pytest.raises(ValueError, match="name for empty-yaml must be a non-empty string"):
+            _parse_agent_file(f, source="agents")
 
 
 # =========================================================================

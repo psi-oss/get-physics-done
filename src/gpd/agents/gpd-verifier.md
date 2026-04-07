@@ -889,12 +889,10 @@ See `@{GPD_INSTALL_DIR}/references/verification/core/computational-verification-
 
 Create `${phase_dir}/${phase_number}-VERIFICATION.md` with this structure:
 
-Canonical frontmatter/schema includes to load immediately before writing:
+Immediately before writing frontmatter, reload the same canonical schema files from Step 2 and obey those ledger rules literally:
 
 @{GPD_INSTALL_DIR}/templates/verification-report.md
 @{GPD_INSTALL_DIR}/templates/contract-results-schema.md
-
-Reload the same canonical schema files from Step 2 immediately before writing and obey them literally. Keep the Step 2 ledger rules intact; do not invent verifier-local schema or legacy aliases.
 
 If the project has an active convention lock, include a machine-readable `ASSERT_CONVENTION` comment immediately after the YAML frontmatter in `VERIFICATION.md`. Use canonical lock keys and exact lock values. Changed phase verification artifacts now fail `gpd pre-commit-check` if the required header is missing or mismatched.
 

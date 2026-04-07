@@ -5,8 +5,6 @@ argument-hint: "[--all | --command <name>]"
 context_mode: global
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Display GPD help by delegating to the workflow-owned help surface.

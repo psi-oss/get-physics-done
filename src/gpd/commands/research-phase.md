@@ -8,10 +8,6 @@ allowed-tools:
   - shell
   - task
 ---
-
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
-
 <objective>
 Research how to tackle a phase. Spawns gpd-phase-researcher agent with phase context.
 
@@ -26,7 +22,7 @@ Research how to tackle a phase. Spawns gpd-phase-researcher agent with phase con
 
 **Orchestrator role:** Parse phase, validate against roadmap, check existing research, gather context, spawn researcher agent, present results.
 
-**Why subagent:** Research burns context fast (literature searches, method surveys, source verification). Fresh 200k context for investigation. Main context stays lean for user interaction.
+**Why subagent:** Research burns context fast (literature searches, method surveys, source verification). Fresh context for investigation keeps the main context lean for user interaction.
 </objective>
 
 <execution_context>

@@ -11,8 +11,6 @@ allowed-tools:
   - shell
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Mark research milestone {version} complete, archive to milestones/, and update ROADMAP.md and REQUIREMENTS.md.

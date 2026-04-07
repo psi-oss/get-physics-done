@@ -10,8 +10,6 @@ allowed-tools:
   - find_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Build and visualize the dependency graph across all research phases. Shows how results flow between phases (provides/requires/affects) and identifies gaps where a phase requires something no other phase provides.

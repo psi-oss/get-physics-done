@@ -1297,6 +1297,7 @@ def test_file_producing_command_surfaces_use_canonical_spawn_contract() -> None:
     literature = (COMMANDS_DIR / "literature-review.md").read_text(encoding="utf-8")
     debug = (COMMANDS_DIR / "debug.md").read_text(encoding="utf-8")
     research = (COMMANDS_DIR / "research-phase.md").read_text(encoding="utf-8")
+    respond = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
 
     for content, agent_name, file_token in (
         (literature, "gpd-literature-reviewer", "GPD/literature/{slug}-REVIEW.md"),
@@ -1307,6 +1308,9 @@ def test_file_producing_command_surfaces_use_canonical_spawn_contract() -> None:
         assert "readonly=false" in content
         assert f"{file_token}\nRead that file before continuing" in content
         assert f"@{file_token}" not in content
+        assert "Fresh 200k context" not in content
+
+    assert "Fresh 200k context" not in respond
 
 
 def test_revision_and_audit_workflows_verify_artifacts_before_trusting_success_text() -> None:

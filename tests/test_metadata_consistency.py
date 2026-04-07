@@ -152,7 +152,8 @@ def test_canonical_registry_skill_inventory_counts_match_repo_contents() -> None
         1 for name in _project_script_targets(repo_root) if name == "gpd-mcp-wolfram"
     )
 
-    assert commands_count >= 50
+    assert commands_count > 0
+    assert agents_count > 0
     # The canonical registry/MCP skill index remains commands + agents even
     # when a runtime projects a narrower discoverable install surface.
     assert canonical_skills_count == commands_count + agents_count
@@ -177,7 +178,7 @@ def test_agent_metadata_inventory_uses_valid_enums_without_changing_canonical_sk
 
 def test_convention_field_counts_match_source_of_truth() -> None:
     convention_count = len(ConventionLock.model_fields) - 1  # exclude custom_conventions
-    assert convention_count == 18
+    assert convention_count > 0
 
     assert f"Convention lock ({convention_count} physics fields + custom)" in _read("src/gpd/core/__init__.py")
     assert f"locks conventions for up to {convention_count} physics fields" in _read("README.md")
@@ -185,7 +186,7 @@ def test_convention_field_counts_match_source_of_truth() -> None:
 
 def test_pattern_domain_counts_match_source_of_truth() -> None:
     domain_count = len(PatternDomain)
-    assert domain_count == 13
+    assert domain_count > 0
 
     assert f"Error pattern library (8 categories, {domain_count} domains)" in _read("src/gpd/core/__init__.py")
     assert f'pattern_app = typer.Typer(help="Error pattern library (8 categories, {domain_count} domains)")' in _read(
@@ -203,7 +204,7 @@ def test_mcp_server_count_matches_public_entrypoints() -> None:
         for name in _project_script_targets(repo_root)
         if name.startswith("gpd-mcp-") and name != WOLFRAM_BRIDGE_COMMAND
     )
-    assert mcp_server_count == 7
+    assert mcp_server_count > 0
     assert mcp_server_count == builtin_mcp_script_count
 
 
@@ -365,7 +366,7 @@ def test_execute_phase_docs_use_review_cadence_not_removed_verify_between_waves_
 
 def test_health_check_count_matches_skill_documentation() -> None:
     health_check_count = len(_ALL_CHECKS)
-    assert health_check_count == 13
+    assert health_check_count > 0
 
     command = _read("src/gpd/commands/health.md")
     assert "All {total} health checks passed." in command

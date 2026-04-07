@@ -214,6 +214,14 @@ def test_normalize_state_schema_reports_coercive_project_contract_scalars():
     )
 
 
+def test_integrity_issue_from_contract_error_accepts_pydantic_extra_forbidden_suffix() -> None:
+    issue = state_module._integrity_issue_from_contract_error(
+        "legacy_notes: Extra inputs are not permitted [type=extra_forbidden]"
+    )
+
+    assert issue == 'schema normalization: dropped unknown "project_contract.legacy_notes"'
+
+
 def test_normalize_state_schema_drops_project_contract_that_fails_draft_scoping_validation():
     normalized, issues = _normalize_state_schema({"project_contract": _draft_invalid_project_contract()})
 

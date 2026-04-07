@@ -74,7 +74,8 @@ def command_visibility_note() -> str:
         "Model-visible command constraints. Follow this YAML. "
         "Closed schema; no extra keys. "
         "Strict booleans only. "
-        "Use only declared values for `context_mode`, `agent`, and `project_reentry_capable`."
+        "Use only declared values for `context_mode` and `agent`; "
+        "`project_reentry_capable` must be `true` or `false`."
     )
 
 

@@ -11,8 +11,6 @@ allowed-tools:
   - search_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Reconcile STATE.md and state.json when they have diverged due to manual edits, partial updates, or corruption.

@@ -9,8 +9,6 @@ allowed-tools:
   - find_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Analyze current project state and suggest the most impactful next action. Uses `gpd --raw suggest` to scan phases, plans, verification status, blockers, and todos to produce a prioritized action list.

@@ -125,8 +125,9 @@ class TestParseTools:
     def test_list_input(self) -> None:
         assert _parse_tools(["file_read", "file_write"]) == ["file_read", "file_write"]
 
-    def test_empty_string(self) -> None:
-        assert _parse_tools("") == []
+    def test_empty_string_raises(self) -> None:
+        with pytest.raises(ValueError, match="tools must not contain blank entries"):
+            _parse_tools("")
 
     def test_none_returns_empty(self) -> None:
         assert _parse_tools(None) == []
@@ -140,7 +141,11 @@ class TestParseTools:
             _parse_tools([1, True, "shell"])
 
     def test_string_with_extra_whitespace(self) -> None:
-        assert _parse_tools("  file_read ,  , file_write  ") == ["file_read", "file_write"]
+        assert _parse_tools("  file_read , file_write  ") == ["file_read", "file_write"]
+
+    def test_string_with_blank_member_raises(self) -> None:
+        with pytest.raises(ValueError, match="tools must not contain blank entries"):
+            _parse_tools("file_read, ,file_write")
 
 
 class TestParseAgentFile:
@@ -180,16 +185,12 @@ class TestParseAgentFile:
         assert agent.system_prompt.endswith("System prompt.")
         assert agent.source == "agents"
 
-    def test_agent_file_no_frontmatter(self, tmp_path: Path) -> None:
+    def test_agent_file_no_frontmatter_raises(self, tmp_path: Path) -> None:
         f = tmp_path / "bare-agent.md"
         f.write_text("Just a body, no frontmatter.", encoding="utf-8")
-        agent = _parse_agent_file(f, source="agents")
-        assert agent.name == "bare-agent"
-        assert agent.description == ""
-        assert agent.tools == []
-        assert agent.system_prompt.startswith("## Agent Requirements\n")
-        assert "Closed schema; no extra keys." in agent.system_prompt
-        assert agent.system_prompt.endswith("Just a body, no frontmatter.")
+
+        with pytest.raises(ValueError, match="name for bare-agent must be a non-empty string"):
+            _parse_agent_file(f, source="agents")
 
     def test_agent_file_missing_optional_fields(self, tmp_path: Path) -> None:
         f = tmp_path / "minimal.md"
@@ -283,6 +284,55 @@ class TestParseAgentFile:
         with pytest.raises(ValueError, match="tools for bad-agent must contain only strings"):
             _parse_agent_file(f, source="agents")
 
+    def test_agent_file_tools_list_rejects_blank_members(self, tmp_path: Path) -> None:
+        f = tmp_path / "bad-tools-list-blank.md"
+        f.write_text("---\nname: bad-agent\ntools:\n  - file_read\n  - \"  \"\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="tools for bad-agent must not contain blank entries"):
+            _parse_agent_file(f, source="agents")
+
+    def test_agent_file_allowed_tools_list_rejects_blank_members(self, tmp_path: Path) -> None:
+        f = tmp_path / "bad-allowed-tools-list-blank.md"
+        f.write_text("---\nname: bad-agent\nallowed-tools:\n  - file_read\n  - \"\"\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="allowed-tools for bad-agent must not contain blank entries"):
+            _parse_agent_file(f, source="agents")
+
+    def test_agent_file_blank_commit_authority_raises(self, tmp_path: Path) -> None:
+        f = tmp_path / "blank-authority.md"
+        f.write_text("---\nname: bad\ncommit_authority: \"  \"\n---\nPrompt.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="commit_authority for bad must be a non-empty string"):
+            _parse_agent_file(f, source="agents")
+
+    def test_agent_file_null_commit_authority_raises(self, tmp_path: Path) -> None:
+        f = tmp_path / "null-authority.md"
+        f.write_text("---\nname: bad\ncommit_authority:\n---\nPrompt.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="commit_authority for null-authority must be a non-empty string"):
+            _parse_agent_file(f, source="agents")
+
+    @pytest.mark.parametrize(
+        ("field_name", "expected_error"),
+        [
+            ("surface", "surface for bad must be a non-empty string"),
+            ("role_family", "role_family for bad must be a non-empty string"),
+            ("artifact_write_authority", "artifact_write_authority for bad must be a non-empty string"),
+            ("shared_state_authority", "shared_state_authority for bad must be a non-empty string"),
+        ],
+    )
+    def test_agent_file_blank_spawn_metadata_raises(
+        self,
+        tmp_path: Path,
+        field_name: str,
+        expected_error: str,
+    ) -> None:
+        f = tmp_path / "bad-metadata-blank.md"
+        f.write_text(f"---\nname: bad\n{field_name}: \"  \"\n---\nPrompt.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match=expected_error):
+            _parse_agent_file(f, source="agents")
+
     def test_agent_file_empty_body(self, tmp_path: Path) -> None:
         f = tmp_path / "nobody.md"
         f.write_text("---\nname: nobody\n---\n", encoding="utf-8")
@@ -311,10 +361,16 @@ class TestParseAgentFile:
         self, tmp_path: Path, frontmatter_line: str, expected_error: str
     ) -> None:
         f = tmp_path / "bad-agent.md"
-        f.write_text(
-            f"---\n{frontmatter_line}\n---\nPrompt.",
-            encoding="utf-8",
-        )
+        if frontmatter_line.startswith("name:"):
+            f.write_text(
+                f"---\n{frontmatter_line}\n---\nPrompt.",
+                encoding="utf-8",
+            )
+        else:
+            f.write_text(
+                f"---\nname: bad-agent\n{frontmatter_line}\n---\nPrompt.",
+                encoding="utf-8",
+            )
 
         with pytest.raises(ValueError, match=expected_error):
             _parse_agent_file(f, source="agents")
@@ -342,7 +398,10 @@ class TestParseCommandFile:
         assert cmd.content.startswith("## Command Requirements\n\n")
         assert "Closed schema; no extra keys." in cmd.content
         assert "Strict booleans only." in cmd.content
-        assert "Use only declared values for `context_mode`, `agent`, and `project_reentry_capable`." in cmd.content
+        assert (
+            "Use only declared values for `context_mode` and `agent`; "
+            "`project_reentry_capable` must be `true` or `false`."
+        ) in cmd.content
         assert "GPD/ROADMAP.md" in cmd.content
         assert cmd.content.endswith("Command body.")
 
@@ -434,6 +493,13 @@ class TestParseCommandFile:
         with pytest.raises(ValueError, match="allowed-tools for bad must contain only strings"):
             _parse_command_file(f, source="commands")
 
+    def test_command_allowed_tools_list_rejects_blank_members(self, tmp_path: Path) -> None:
+        f = tmp_path / "bad-tools-members-blank.md"
+        f.write_text("---\nname: bad\nallowed-tools:\n  - file_read\n  - \"\"\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="allowed-tools for bad must not contain blank entries"):
+            _parse_command_file(f, source="commands")
+
     def test_command_unexpected_fields(self, tmp_path: Path) -> None:
         f = tmp_path / "extra.md"
         f.write_text("---\nname: extra\nversion: 99\nfoo: bar\n---\nBody.", encoding="utf-8")
@@ -456,6 +522,16 @@ class TestParseCommandFile:
         assert "agent: gpd-planner" in rendered
         assert "context_mode: project-required" in rendered
 
+    def test_render_command_visibility_sections_comment_only_frontmatter_keeps_default_constraints(self) -> None:
+        rendered = render_command_visibility_sections_from_frontmatter(
+            "# comment only\n",
+            command_name="gpd:test",
+        )
+
+        assert "## Command Requirements" in rendered
+        assert "context_mode: project-required" in rendered
+        assert "project_reentry_capable: false" in rendered
+
     def test_command_agent_frontmatter_key_is_explicitly_allowed(self, tmp_path: Path) -> None:
         f = tmp_path / "plan-phase.md"
         f.write_text("---\nname: gpd:plan-phase\nagent: gpd-planner\n---\nBody.", encoding="utf-8")
@@ -466,6 +542,21 @@ class TestParseCommandFile:
         assert cmd.agent == "gpd-planner"
         assert "agent: gpd-planner" in cmd.content
         assert cmd.content.endswith("Body.")
+
+    def test_command_agent_validation_uses_canonical_inventory_not_patched_agents_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        patched_agents_dir = tmp_path / "agents"
+        patched_agents_dir.mkdir()
+        monkeypatch.setattr(registry, "AGENTS_DIR", patched_agents_dir)
+        registry.invalidate_cache()
+
+        f = tmp_path / "plan-phase.md"
+        f.write_text("---\nname: gpd:plan-phase\nagent: gpd-planner\n---\nBody.", encoding="utf-8")
+
+        cmd = _parse_command_file(f, source="commands")
+
+        assert cmd.agent == "gpd-planner"
 
     def test_command_parses_explicit_context_mode(self, tmp_path: Path) -> None:
         f = tmp_path / "help.md"
@@ -547,6 +638,25 @@ class TestParseCommandFile:
 
         assert cmd.project_reentry_capable is expected
 
+    @pytest.mark.parametrize("frontmatter_line", ["project_reentry_capable:", "project_reentry_capable: null"])
+    def test_command_project_reentry_capable_rejects_explicitly_empty_values(
+        self,
+        tmp_path: Path,
+        frontmatter_line: str,
+    ) -> None:
+        f = tmp_path / "resume-work.md"
+        f.write_text(
+            "---\n"
+            "name: gpd:resume-work\n"
+            f"{frontmatter_line}\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="project_reentry_capable for gpd:resume-work must be a boolean"):
+            _parse_command_file(f, source="commands")
+
     def test_command_project_reentry_capable_requires_project_required_context_mode(self, tmp_path: Path) -> None:
         f = tmp_path / "start.md"
         f.write_text(
@@ -570,6 +680,36 @@ class TestParseCommandFile:
         f.write_text("---\nname: gpd:help\ncontext_mode: somewhere\n---\nBody.", encoding="utf-8")
 
         with pytest.raises(ValueError, match="Invalid context_mode"):
+            _parse_command_file(f, source="commands")
+
+    def test_command_blank_context_mode_raises(self, tmp_path: Path) -> None:
+        f = tmp_path / "help.md"
+        f.write_text("---\nname: gpd:help\ncontext_mode: \"  \"\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="context_mode for gpd:help must be a non-empty string"):
+            _parse_command_file(f, source="commands")
+
+    @pytest.mark.parametrize("frontmatter_line", ["context_mode:", "context_mode: null"])
+    def test_command_explicitly_empty_context_mode_raises(self, tmp_path: Path, frontmatter_line: str) -> None:
+        f = tmp_path / "help.md"
+        f.write_text(f"---\nname: gpd:help\n{frontmatter_line}\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="context_mode for gpd:help must be a non-empty string"):
+            _parse_command_file(f, source="commands")
+
+    @pytest.mark.parametrize("frontmatter_line", ["agent:", "agent: null"])
+    def test_command_explicitly_empty_agent_raises(self, tmp_path: Path, frontmatter_line: str) -> None:
+        f = tmp_path / "plan-phase.md"
+        f.write_text(f"---\nname: gpd:plan-phase\n{frontmatter_line}\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="agent for gpd:plan-phase must be a non-empty string"):
+            _parse_command_file(f, source="commands")
+
+    def test_command_unknown_agent_raises(self, tmp_path: Path) -> None:
+        f = tmp_path / "plan-phase.md"
+        f.write_text("---\nname: gpd:plan-phase\nagent: gpd-not-real\n---\nBody.", encoding="utf-8")
+
+        with pytest.raises(ValueError, match=r"Unknown agent 'gpd-not-real' for gpd:plan-phase"):
             _parse_command_file(f, source="commands")
 
     def test_command_file_invalid_frontmatter_raises_with_path(self, tmp_path: Path) -> None:
@@ -1184,24 +1324,21 @@ class TestDiscovery:
     def test_agents_keyed_by_declared_name(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
-        (agents_dir / "alias.md").write_text("---\nname: gpd-alias\n---\nPrompt.", encoding="utf-8")
+        (agents_dir / "gpd-alias.md").write_text("---\nname: gpd-alias\n---\nPrompt.", encoding="utf-8")
 
         monkeypatch.setattr(registry, "AGENTS_DIR", agents_dir)
         result = registry._discover_agents()
         assert "gpd-alias" in result
-        assert "alias" not in result
 
-    def test_duplicate_agent_names_raise(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_agent_name_mismatch_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
-        (agents_dir / "first.md").write_text("---\nname: gpd-duplicate\n---\nFirst prompt.", encoding="utf-8")
-        (agents_dir / "second.md").write_text("---\nname: gpd-duplicate\n---\nSecond prompt.", encoding="utf-8")
+        (agents_dir / "alias.md").write_text("---\nname: gpd-alias\n---\nPrompt.", encoding="utf-8")
 
         monkeypatch.setattr(registry, "AGENTS_DIR", agents_dir)
 
-        with pytest.raises(ValueError, match="Duplicate agent name 'gpd-duplicate'"):
+        with pytest.raises(ValueError, match="does not match file stem"):
             registry._discover_agents()
-
 
 class TestSkillDiscovery:
     """Tests for canonical skills derived from primary commands and agents."""

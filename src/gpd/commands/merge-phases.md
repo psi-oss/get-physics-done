@@ -12,8 +12,6 @@ allowed-tools:
   - find_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Merge the results, artifacts, and state updates from a source phase into a target phase. Useful when phases are reorganized, when a decimal phase (e.g., 2.1) needs to be folded back into its parent, or when parallel investigation branches converge.

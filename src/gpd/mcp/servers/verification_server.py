@@ -52,6 +52,7 @@ from gpd.contracts import (
 from gpd.core.contract_validation import (
     is_authoritative_project_contract_schema_finding,
     is_repair_relevant_project_contract_schema_finding,
+    split_project_contract_schema_findings,
 )
 from gpd.core.observability import gpd_span
 from gpd.core.protocol_bundles import ResolvedProtocolBundle, get_protocol_bundle, render_protocol_bundle_context
@@ -3419,13 +3420,18 @@ def _recoverable_mapping_list_shape_error(error: str, *, contract_raw: dict[str,
     return isinstance(raw_value, str) and bool(raw_value.strip())
 
 
-def _recoverable_literal_case_drift_error(error: str, *, contract_raw: dict[str, object]) -> bool:
-    match = re.fullmatch(r"^(.+) must use exact canonical value: (.+)$", error)
-    if match is None:
+def _is_case_drift_contract_parse_error(error: str) -> bool:
+    recoverable_with_case_drift, _ = split_project_contract_schema_findings(
+        [error],
+        allow_case_drift_recovery=True,
+    )
+    if not recoverable_with_case_drift:
         return False
-    path, canonical_value = match.groups()
-    raw_value = _contract_value_at_path(contract_raw, path)
-    return isinstance(raw_value, str) and bool(raw_value.strip()) and raw_value.strip().casefold() == canonical_value.casefold()
+    recoverable_without_case_drift, _ = split_project_contract_schema_findings(
+        [error],
+        allow_case_drift_recovery=False,
+    )
+    return not recoverable_without_case_drift
 
 
 def _is_recoverable_contract_parse_error(error: str, *, contract_raw: dict[str, object]) -> bool:
@@ -3433,7 +3439,7 @@ def _is_recoverable_contract_parse_error(error: str, *, contract_raw: dict[str, 
         (
             _recoverable_collection_list_shape_error(error, contract_raw=contract_raw),
             _recoverable_mapping_list_shape_error(error, contract_raw=contract_raw),
-            _recoverable_literal_case_drift_error(error, contract_raw=contract_raw),
+            _is_case_drift_contract_parse_error(error),
             _is_defaultable_singleton_contract_error(error),
         )
     )

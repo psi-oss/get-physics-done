@@ -36,10 +36,6 @@ allowed-tools:
   - task
   - ask_user
 ---
-
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
-
 <objective>
 Structure a point-by-point response to referee reports and revise the manuscript accordingly.
 
@@ -47,7 +43,7 @@ Handles the full revision pipeline: parsing referee comments, categorizing by pr
 
 **Orchestrator role:** Parse and triage referee comments, coordinate revision agents, track new calculation requests, and keep the internal and journal-facing response artifacts synchronized.
 
-**Why subagent:** Each section revision needs the full context of the referee comment, current section text, and planned response. Fresh 200k context per section revision ensures quality. Main context coordinates the overall response structure.
+**Why subagent:** Each section revision needs the full context of the referee comment, current section text, and planned response. Fresh context per section revision improves quality while the main context coordinates the overall response structure.
 
 Responding to referees is collaborative improvement: every comment, even an incorrect one, reveals something about how the paper communicates its results. The goal is a stronger paper.
 </objective>

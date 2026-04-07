@@ -10,8 +10,6 @@ allowed-tools:
   - find_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Display accumulated physics error patterns from `GPD/ERROR-PATTERNS.md`. Optionally filter by category.

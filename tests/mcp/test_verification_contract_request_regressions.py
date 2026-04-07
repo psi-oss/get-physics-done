@@ -401,6 +401,33 @@ def test_contract_tools_reject_blank_scalar_to_list_drift() -> None:
     assert _call_verification_tool("suggest_contract_checks", {"contract": contract}) == expected
 
 
+def test_contract_parse_recoverability_keeps_case_drift_nonblocking() -> None:
+    from gpd.mcp.servers.verification_server import _is_recoverable_contract_parse_error, run_contract_check
+
+    contract = _load_project_contract_fixture()
+
+    assert _is_recoverable_contract_parse_error(
+        "references.0.role must use exact canonical value: benchmark",
+        contract_raw=contract,
+    )
+    assert not _is_recoverable_contract_parse_error(
+        "references.0.notes: Extra inputs are not permitted",
+        contract_raw=contract,
+    )
+
+    contract["references"][0]["role"] = "BENCHMARK"
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    result = run_contract_check(request)
+
+    assert result["status"] == "pass"
+
+
 @pytest.mark.parametrize(
     ("request_payload", "expected_error"),
     [

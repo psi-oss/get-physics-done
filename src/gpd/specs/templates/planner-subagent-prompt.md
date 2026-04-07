@@ -49,13 +49,12 @@ IMPORTANT: If context exists below, it contains USER DECISIONS from gpd:discuss-
 Keep dimensions, limits, proof coverage, and cross-method consistency explicit. Keep `contract.context_intake` specific, and make proof-bearing hypotheses, parameters, and conclusions auditable in the body.
 </physics_planning_requirements>
 
-<contract_completion_requirements>
-Planning requires `project_contract`. Keep the contract block complete per the schema include. Use `effective_reference_intake` and `active_reference_context` as rendered support surfaces aligned with the contract, not as substitutes for it.
-</contract_completion_requirements>
-
-<contract_visibility_shortcuts>
-Keep `project_contract` as the structured grounding ledger. Use `effective_reference_intake` and `active_reference_context` only to surface the same anchors in readable form. Treat `approach_policy` as execution policy only. It does not substitute for grounding. For proof-bearing work, keep hypotheses, quantified variables, and named parameters explicit enough to audit.
-</contract_visibility_shortcuts>
+<contract_visibility_requirements>
+Planning requires `project_contract`. Keep the contract block complete per the schema include.
+Keep `project_contract` as the structured grounding ledger. Use `effective_reference_intake` and `active_reference_context` only as readable projections of the same anchors, not as substitutes.
+Treat `approach_policy` as execution policy only. It does not substitute for grounding.
+Keep `contract.context_intake` specific, and for proof-bearing work keep hypotheses, quantified variables, and named parameters explicit enough to audit.
+</contract_visibility_requirements>
 
 <light_mode_instructions>
 **If plan depth is `light`:** Keep the full canonical frontmatter, including `wave`, `depends_on`, `files_modified`, `interactive`, `conventions`, `contract`, and `contract.context_intake`. Simplify only the body: one high-level task block per plan, concise verification, no extra code snippets. Light mode changes body verbosity only.

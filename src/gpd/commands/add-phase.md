@@ -9,8 +9,6 @@ allowed-tools:
   - shell
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Add a new integer phase to the end of the current milestone in the roadmap.

@@ -15,8 +15,6 @@ allowed-tools:
   - ask_user
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Produce a rigorous, well-scoped explanation of a concept, method, notation, result, or paper in the context of the user's current research workflow.

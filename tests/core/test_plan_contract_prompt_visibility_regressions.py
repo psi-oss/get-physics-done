@@ -38,10 +38,16 @@ def test_planner_prompt_surfaces_default_salvage_and_specific_semantics() -> Non
     assert "Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source." in planner_prompt
     assert "Keep this prompt for scope selection, mode flags, and return conventions only." in planner_prompt
     assert "Keep `project_contract` as the structured grounding ledger." in planner_prompt
-    assert "Use `effective_reference_intake` and `active_reference_context` only to surface the same anchors in readable form." in planner_prompt
+    assert (
+        "Use `effective_reference_intake` and `active_reference_context` only as readable projections "
+        "of the same anchors, not as substitutes."
+    ) in planner_prompt
     assert "Treat `approach_policy` as execution policy only." in planner_prompt
     assert "It does not substitute for grounding." in planner_prompt
-    assert "For proof-bearing work, keep hypotheses, quantified variables, and named parameters explicit enough to audit." in planner_prompt
+    assert (
+        "for proof-bearing work keep hypotheses, quantified variables, and named parameters "
+        "explicit enough to audit."
+    ) in planner_prompt
     assert "The contract still exposes defaultable semantic fields" not in planner_prompt
     assert "Stale proof review gate" not in planner_prompt
 
@@ -106,7 +112,10 @@ def test_proof_obligation_planning_surfaces_require_claim_audit_and_stale_review
         "parameter regime the proof must cover."
     ) in plan_schema
 
-    assert "For proof-bearing work, keep hypotheses, quantified variables, and named parameters explicit enough to audit." in planner_prompt
+    assert (
+        "for proof-bearing work keep hypotheses, quantified variables, and named parameters "
+        "explicit enough to audit."
+    ) in planner_prompt
     assert "**Proof claim audit:**" not in planner_prompt
     assert "**Stale proof review gate:**" not in planner_prompt
 

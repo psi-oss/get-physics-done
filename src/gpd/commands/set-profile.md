@@ -9,8 +9,6 @@ allowed-tools:
   - shell
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Switch the research profile used by GPD agents. Controls how each agent approaches physics tasks, balancing rigor and depth vs speed and breadth.

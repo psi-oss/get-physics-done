@@ -10,8 +10,6 @@ allowed-tools:
   - search_files
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Run the lightweight regression audit implemented by `gpd regression-check`.

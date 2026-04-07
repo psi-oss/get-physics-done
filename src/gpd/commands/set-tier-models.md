@@ -10,8 +10,6 @@ allowed-tools:
   - ask_user
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Set the concrete runtime-native model strings GPD should use for `tier-1`, `tier-2`, and `tier-3`.

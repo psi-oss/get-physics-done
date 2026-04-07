@@ -31,8 +31,7 @@ def test_verifier_prompt_points_to_canonical_verification_schema_sources() -> No
     assert "@{GPD_INSTALL_DIR}/references/verification/meta/verifier-profile-checks.md" in verifier_lines
     assert "`@{GPD_INSTALL_DIR}/templates/verification-report.md` is the canonical `VERIFICATION.md` frontmatter/body surface." in verifier
     assert "`@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` is the canonical source of truth for `plan_contract_ref`, `contract_results`, `comparison_verdicts`, and verification-side `suggested_contract_checks`." in verifier
-    assert "Reload the same canonical schema files from Step 2 immediately before writing and obey them literally." in verifier
-    assert "do not invent verifier-local schema or legacy aliases." in verifier
+    assert "Immediately before writing frontmatter, reload the same canonical schema files from Step 2 and obey those ledger rules literally:" in verifier
     assert "## Data Boundary" not in verifier
     assert "## Canonical LLM Error References" in verifier
     assert "`@{GPD_INSTALL_DIR}/references/verification/errors/llm-physics-errors.md` -- index and entry point" in verifier

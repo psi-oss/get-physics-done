@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import re
 from collections import defaultdict
+from enum import StrEnum
 from pathlib import Path
 from typing import Literal, get_args, get_origin
 
@@ -78,9 +79,72 @@ _AUTHORITATIVE_SCALAR_FINDING_PATTERNS = (
     re.compile(r"^schema_version must be the integer 1$"),
     re.compile(r"^schema_version: Input should be 1$"),
     re.compile(r"^.+\.must_surface must be a boolean$"),
+    re.compile(r"^.+\.must_surface: Input should be a valid boolean.*$"),
 )
 
 _SCHEMA_VERSION_REQUIRED_ERROR = "schema_version is required"
+
+
+class _ProjectContractSchemaFindingCategory(StrEnum):
+    RECOVERABLE = "recoverable"
+    LOSSY_LIST_NORMALIZATION = "lossy_list_normalization"
+    CASE_DRIFT = "case_drift"
+    AUTHORITATIVE_SCALAR = "authoritative_scalar"
+
+
+_SCHEMA_FINDING_CATEGORY_PATTERNS: tuple[tuple[_ProjectContractSchemaFindingCategory, tuple[re.Pattern[str], ...]], ...] = (
+    (_ProjectContractSchemaFindingCategory.RECOVERABLE, _RECOVERABLE_SCHEMA_WARNING_PATTERNS),
+    (_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION, _LOSSY_LIST_NORMALIZATION_WARNING_PATTERNS),
+    (_ProjectContractSchemaFindingCategory.CASE_DRIFT, _CASE_DRIFT_SCHEMA_WARNING_PATTERNS),
+    (_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR, _AUTHORITATIVE_SCALAR_FINDING_PATTERNS),
+)
+
+
+def _split_schema_finding_location_and_message(error: str) -> tuple[str | None, str]:
+    """Return ``(location, message)`` when an error is in ``location: message`` form."""
+
+    location, separator, message = error.partition(": ")
+    if separator and location and " " not in location:
+        return location, message
+    return None, error
+
+
+def _matches_equivalent_authoritative_schema_finding(*, location: str | None, message: str) -> bool:
+    """Return whether one finding is an equivalent authoritative scalar variant."""
+
+    normalized_message = message.strip().casefold()
+    if location == "schema_version":
+        return normalized_message.startswith("input should be 1")
+    if isinstance(location, str) and location.endswith(".must_surface"):
+        return normalized_message.startswith("input should be a valid boolean")
+    return False
+
+
+def _matches_equivalent_recoverable_schema_finding(*, message: str) -> bool:
+    """Return whether one finding is an equivalent recoverable schema-warning variant."""
+
+    return message.strip().startswith("Extra inputs are not permitted")
+
+
+def _project_contract_schema_finding_categories(error: str) -> frozenset[_ProjectContractSchemaFindingCategory]:
+    """Classify one schema finding into semantic categories."""
+
+    normalized_error = error.strip()
+    if not normalized_error:
+        return frozenset()
+
+    categories: set[_ProjectContractSchemaFindingCategory] = set()
+    for category, patterns in _SCHEMA_FINDING_CATEGORY_PATTERNS:
+        if any(pattern.fullmatch(normalized_error) for pattern in patterns):
+            categories.add(category)
+
+    location, message = _split_schema_finding_location_and_message(normalized_error)
+    if _matches_equivalent_recoverable_schema_finding(message=message):
+        categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
+    if _matches_equivalent_authoritative_schema_finding(location=location, message=message):
+        categories.add(_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR)
+
+    return frozenset(categories)
 
 
 def _project_contract_schema_version_missing_error(contract_payload: object) -> str | None:
@@ -518,34 +582,36 @@ def split_project_contract_schema_findings(
 
     recoverable: list[str] = []
     blocking: list[str] = []
-    recoverable_patterns = _RECOVERABLE_SCHEMA_WARNING_PATTERNS
-    if allow_case_drift_recovery:
-        recoverable_patterns += _CASE_DRIFT_SCHEMA_WARNING_PATTERNS
     for error in errors:
-        if any(pattern.fullmatch(error) for pattern in recoverable_patterns):
+        categories = _project_contract_schema_finding_categories(error)
+        recoverable_finding = _ProjectContractSchemaFindingCategory.RECOVERABLE in categories
+        case_drift_finding = _ProjectContractSchemaFindingCategory.CASE_DRIFT in categories
+        if recoverable_finding or (allow_case_drift_recovery and case_drift_finding):
             recoverable.append(error)
-        else:
-            blocking.append(error)
+            continue
+        blocking.append(error)
     return recoverable, blocking
 
 
 def is_authoritative_project_contract_schema_finding(error: str) -> bool:
     """Return whether one schema finding touches an authoritative scalar field."""
 
-    return any(pattern.fullmatch(error) for pattern in _AUTHORITATIVE_SCALAR_FINDING_PATTERNS)
+    categories = _project_contract_schema_finding_categories(error)
+    return _ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR in categories
 
 
 def is_repair_relevant_project_contract_schema_finding(error: str) -> bool:
     """Return whether one recoverable schema finding still requires repair."""
 
-    if any(pattern.fullmatch(error) for pattern in _CASE_DRIFT_SCHEMA_WARNING_PATTERNS):
+    categories = _project_contract_schema_finding_categories(error)
+    if _ProjectContractSchemaFindingCategory.CASE_DRIFT in categories:
         return False
-    return any(
-        pattern.fullmatch(error)
-        for pattern in (
-            *_RECOVERABLE_SCHEMA_WARNING_PATTERNS,
-            *_LOSSY_LIST_NORMALIZATION_WARNING_PATTERNS,
-        )
+    return bool(
+        {
+            _ProjectContractSchemaFindingCategory.RECOVERABLE,
+            _ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION,
+        }
+        & categories
     )
 
 

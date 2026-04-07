@@ -101,7 +101,8 @@ class TestKnownConventionsParity:
         assert KNOWN_CONVENTIONS == fixture["known_conventions"]
 
     def test_convention_count(self):
-        assert len(KNOWN_CONVENTIONS) == 18
+        fixture = _load_fixture("known_conventions")
+        assert len(KNOWN_CONVENTIONS) == len(fixture["known_conventions"])
 
 
 # --- Convention set parity ---

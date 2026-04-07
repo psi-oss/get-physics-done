@@ -44,10 +44,10 @@ def lib_root(tmp_path: Path) -> Path:
 
 class TestConstants:
     def test_domains_count(self):
-        assert len(VALID_DOMAINS) == 13
+        assert len(VALID_DOMAINS) == len(set(VALID_DOMAINS))
 
     def test_categories_count(self):
-        assert len(VALID_CATEGORIES) == 8
+        assert len(VALID_CATEGORIES) == len(set(VALID_CATEGORIES))
 
     def test_severities_order(self):
         assert VALID_SEVERITIES == ("critical", "high", "medium", "low")

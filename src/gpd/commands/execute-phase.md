@@ -17,7 +17,6 @@ allowed-tools:
 ---
 
 <!-- Tool names and @ includes are runtime-specific; the installer rewrites paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may expose different tool interfaces. -->
 
 <objective>
 Execute all phase plans with wave-based parallelization.

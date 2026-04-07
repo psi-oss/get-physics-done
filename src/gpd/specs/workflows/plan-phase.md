@@ -613,7 +613,7 @@ Light mode changes the body only; keep the canonical frontmatter from the phase 
 </light_mode_instructions>
 
 <context_budget_guidance>
-Context windows are finite (~200k tokens, ~80% usable). Plans must be sized accordingly:
+Context windows are finite (~80% usable before compression). Plans must be sized accordingly:
 
 - **Target per plan:** ~50% context budget (40% for hypothesis-driven plans)
 - **Segment large phases** into multiple plans rather than one overloaded plan

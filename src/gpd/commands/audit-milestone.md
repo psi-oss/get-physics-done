@@ -14,8 +14,6 @@ allowed-tools:
   - file_write
 ---
 
-<!-- Tool names and @ includes are platform-specific. The installer translates paths for your runtime. -->
-<!-- Allowed-tools are runtime-specific. Other platforms may use different tool interfaces. -->
 
 <objective>
 Verify a research milestone achieved its definition of done. Check whether the original research question has been answered, whether all claims are supported by derivations or data, whether results are internally consistent, and whether cross-phase integration is sound.

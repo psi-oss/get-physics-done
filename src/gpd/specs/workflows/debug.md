@@ -32,7 +32,7 @@ Ensure the debug directory exists before writing:
 mkdir -p GPD/debug
 ```
 
-Debug files use the `GPD/debug/` path (hidden directory with leading dot).
+Debug files use the `GPD/debug/` path.
 </paths>
 
 <quick_triage>

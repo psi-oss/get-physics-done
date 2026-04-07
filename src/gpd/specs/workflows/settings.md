@@ -390,13 +390,7 @@ Display:
 | Git Branching        | {none/per-phase/per-milestone} |
 | Runtime Permissions  | {aligned / changed / manual follow-up required} |
 
-Terminal follow-ups for these settings:
-- `gpd --help` for the broader local CLI entrypoint from your normal terminal
-- `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict after these settings changes
-- `gpd permissions sync --runtime <runtime> --autonomy balanced` when you need to align runtime-owned permission settings explicitly
-- `gpd cost` after runs for advisory local usage / cost, optional USD budget guardrails, and the current profile tier mix
-
-Broader local references still stay outside this settings-owned follow-up list: use `gpd doctor` for install and runtime-local readiness, `gpd integrations status wolfram` for the shared optional Wolfram integration config rather than local Mathematica readiness, and `gpd validate plan-preflight <PLAN.md>` when you need a plan gate instead of a settings change.
+Terminal follow-ups for these settings: reuse the normal-terminal follow-up list from the `present_settings` step (`gpd --help`, `gpd validate unattended-readiness`, `gpd permissions sync`, `gpd cost`). Keep `gpd doctor`, `gpd integrations status wolfram`, and `gpd validate plan-preflight <PLAN.md>` as broader references outside this settings-owned follow-up list.
 
 These settings apply to future gpd:plan-phase and gpd:execute-phase runs.
 
