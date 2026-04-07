@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -33,6 +34,15 @@ from gpd.core.public_surface_contract import (
     resume_authority_fields,
 )
 from tests import doc_surface_contracts as doc_surface_contracts_module
+
+
+@pytest.fixture(autouse=True)
+def _clear_public_surface_contract_caches() -> Iterator[None]:
+    load_public_surface_contract.cache_clear()
+    doc_surface_contracts_module._public_surface_contract_payload.cache_clear()
+    yield
+    load_public_surface_contract.cache_clear()
+    doc_surface_contracts_module._public_surface_contract_payload.cache_clear()
 
 
 def _public_surface_contract_files(contract_path: Path, schema_path: Path) -> object:
