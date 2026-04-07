@@ -2867,10 +2867,7 @@ def test_contract_tools_reject_blank_scalar_to_list_contract_drift(
     for result in (run_contract_check(request), suggest_contract_checks(contract)):
         assert result["schema_version"] == 1
         assert result["error"].startswith(f"Invalid contract payload: {expected_error}")
-        assert result["contract_error_details"] == [
-            expected_error,
-            expected_error.replace(" must not be blank", " was normalized from blank string to empty list"),
-        ]
+        assert result["contract_error_details"] == expected_details
 
 
 @pytest.mark.parametrize("payload", ["not-a-dict", ["claim-benchmark"], 3])
