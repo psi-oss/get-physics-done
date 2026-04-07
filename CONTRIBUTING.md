@@ -62,12 +62,12 @@ uv run pytest tests/test_metadata_consistency.py -v
 uv run pytest tests/test_release_consistency.py -v
 uv run pytest tests/adapters/test_registry.py tests/adapters/test_install_roundtrip.py -v
 uv run pytest tests/core/test_cli.py -v
-uv run pytest tests/ -v --dist=loadscope
+uv run pytest tests/ -v
 HEAVY_SUITE_IGNORE_ARGS="$(uv run python - <<'PY'
 from tests.conftest import complementary_heavy_suite_ignore_args
 print(' '.join(complementary_heavy_suite_ignore_args()))
 PY
-)" uv run pytest tests/ -v --full-suite --dist=loadscope $HEAVY_SUITE_IGNORE_ARGS
+)" uv run pytest tests/ -v --full-suite $HEAVY_SUITE_IGNORE_ARGS
 ```
 
 Cross-runtime release checks:

@@ -4,7 +4,7 @@ This directory contains the automated test suite for GPD: core CLI and state reg
 
 The final section of this README keeps the full checked-in repository interdependency graph that the graph guardrail tests read directly.
 
-Default `uv run pytest tests/ -q` uses the fast daily suite declared in `tests/conftest.py` and inherits `-n auto --dist=worksteal` from `pyproject.toml`, so pytest parallelizes by default and can rebalance giant modules across idle workers. If you need a serial run for debugging, override that default explicitly with `uv run pytest tests/ -q -n 0`. For a focused smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/core/test_review_contract_prompt_visibility.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`. The GitHub Actions workflow runs the complementary heavy suite with `--full-suite` and the shared ignore helper while relying on the same default pytest parallelism policy.
+Default `uv run pytest tests/ -q` uses the fast daily suite declared in `tests/conftest.py` and inherits `-n auto --dist=worksteal` from `pyproject.toml`, so pytest parallelizes by default and can rebalance giant modules across idle workers. If you need a serial run for debugging, override that default explicitly with `uv run pytest tests/ -q -n 0`. For a focused smoke pass, run `uv run pytest tests/test_runtime_abstraction_boundaries.py tests/core/test_contract_schema_prompt_parity.py tests/core/test_review_contract_prompt_visibility.py tests/mcp/test_tool_contract_visibility.py tests/core/test_verifier_prompt_contract_visibility.py tests/core/test_verification_surface_alignment_regressions.py -q`. The GitHub Actions workflow runs the fast and complementary heavy suites as separate jobs, with the heavy job using `--full-suite` and the shared ignore helper while both jobs rely on the same default pytest parallelism policy.
 
 ## Repository Interdependency Graph
 
@@ -35,7 +35,7 @@ This graph therefore includes:
 - `src/gpd/specs/references/**/*.md`: `167`
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `11`
-- `src/gpd/mcp/servers/*.py`: `8`
+- `src/gpd/mcp/servers/*.py`: `9`
 - `infra/gpd-*.json`: `8`
 
 Excluded as noise from node counting, but still modeled where contractually relevant:

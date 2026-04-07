@@ -310,7 +310,8 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert "push:" in workflow
     assert "branches: [main]" in workflow
     assert "workflow_dispatch:" in workflow
-    assert "name: pytest (3.11)" in workflow
+    assert "name: pytest fast (3.11)" in workflow
+    assert "name: pytest heavy (3.11)" in workflow
     assert "actions/checkout@v6" in workflow
     assert "actions/setup-python@v6" in workflow
     assert 'python-version: "3.11"' in workflow
@@ -321,6 +322,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert "Run complementary heavy suite" in workflow
     assert "uv run pytest tests/ -q" in workflow
     assert "uv run pytest tests/ -q --full-suite $HEAVY_SUITE_IGNORE_ARGS" in workflow
+    assert "needs: [pytest-fast, pytest-heavy]" in workflow
 
 
 def test_prepare_release_workflow_creates_release_pr_without_publishing() -> None:

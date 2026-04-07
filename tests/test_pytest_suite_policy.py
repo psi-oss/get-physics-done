@@ -99,18 +99,39 @@ def test_ci_and_test_readme_document_explicit_fast_and_full_suite_commands() -> 
     workflow = _workflow_data()
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
     tests_readme = (repo_root / "tests" / "README.md").read_text(encoding="utf-8")
-    pytest_steps = _workflow_job_steps(workflow, "pytest")
-    step_names = [str(step.get("name", "")) for step in pytest_steps]
-    run_steps = {str(step.get("name", "")): str(step.get("run", "")) for step in pytest_steps if "run" in step}
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    pytest_fast_steps = _workflow_job_steps(workflow, "pytest-fast")
+    pytest_heavy_steps = _workflow_job_steps(workflow, "pytest-heavy")
+    fast_step_names = [str(step.get("name", "")) for step in pytest_fast_steps]
+    fast_run_steps = {
+        str(step.get("name", "")): str(step.get("run", ""))
+        for step in pytest_fast_steps
+        if "run" in step
+    }
+    heavy_step_names = [str(step.get("name", "")) for step in pytest_heavy_steps]
+    heavy_run_steps = {
+        str(step.get("name", "")): str(step.get("run", ""))
+        for step in pytest_heavy_steps
+        if "run" in step
+    }
 
-    assert "Set up Node.js" in step_names
-    assert step_names.index("Set up Node.js") < step_names.index("Install dependencies")
-    fast_suite_command = run_steps["Run fast test suite"]
+    assert jobs["pytest-fast"].get("needs") is None
+    assert jobs["pytest-heavy"].get("needs") is None
+    trigger_job = jobs["trigger-staging-rebuild"]
+    assert isinstance(trigger_job, dict)
+    assert trigger_job["needs"] == ["pytest-fast", "pytest-heavy"]
+
+    assert "Set up Node.js" in fast_step_names
+    assert fast_step_names.index("Set up Node.js") < fast_step_names.index("Install dependencies")
+    fast_suite_command = fast_run_steps["Run fast test suite"]
     assert fast_suite_command == "uv run pytest tests/ -q"
     assert 'addopts = "-n auto --dist=worksteal"' in pyproject
     assert 'pytest-xdist>=3.8.0' in pyproject
     assert "--full-suite" not in fast_suite_command
-    heavy_suite_command = run_steps["Run complementary heavy suite"]
+    assert "Set up Node.js" in heavy_step_names
+    assert heavy_step_names.index("Set up Node.js") < heavy_step_names.index("Install dependencies")
+    heavy_suite_command = heavy_run_steps["Run complementary heavy suite"]
     assert "from tests.conftest import complementary_heavy_suite_ignore_args" in heavy_suite_command
     assert 'HEAVY_SUITE_IGNORE_ARGS="$(' in heavy_suite_command
     assert "uv run pytest tests/ -q" in heavy_suite_command
@@ -121,7 +142,8 @@ def test_ci_and_test_readme_document_explicit_fast_and_full_suite_commands() -> 
     assert "Default `uv run pytest tests/ -q` uses the fast daily suite declared in `tests/conftest.py`" in tests_readme
     assert "inherits `-n auto --dist=worksteal` from `pyproject.toml`" in tests_readme
     assert "override that default explicitly with `uv run pytest tests/ -q -n 0`" in tests_readme
-    assert "GitHub Actions workflow runs the complementary heavy suite with `--full-suite` and the shared ignore helper" in tests_readme
+    assert "GitHub Actions workflow runs the fast and complementary heavy suites as separate jobs" in tests_readme
+    assert "heavy job using `--full-suite` and the shared ignore helper" in tests_readme
     assert "tests/core/test_review_contract_prompt_visibility.py" in tests_readme
     assert complementary_heavy_suite_ignore_args() == tuple(
         f"--ignore=tests/{rel_path}" for rel_path in _all_test_paths() if rel_path not in FAST_SUITE_EXCLUDES

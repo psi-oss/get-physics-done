@@ -55,8 +55,8 @@ jobs:
       - name: Run ruff check
         run: uv run ruff check .
 
-  pytest:
-    name: pytest (3.11)
+  pytest-fast:
+    name: pytest fast (3.11)
     runs-on: ubuntu-latest
 
     steps:
@@ -82,6 +82,30 @@ jobs:
       - name: Run fast test suite
         run: uv run pytest tests/ -q
 
+  pytest-heavy:
+    name: pytest heavy (3.11)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --dev
+
       - name: Run complementary heavy suite
         run: |
           HEAVY_SUITE_IGNORE_ARGS="$(uv run python - <<'PY'
@@ -95,7 +119,7 @@ jobs:
   # ── Trigger GPD Web staging rebuild on push to main ──
   trigger-staging-rebuild:
     name: trigger GPD Web staging rebuild
-    needs: [pytest]
+    needs: [pytest-fast, pytest-heavy]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
