@@ -1598,6 +1598,20 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any("context_intake must not be empty" in error for error in result.errors)
 
+    def test_plan_accepts_rootless_prior_output_as_visible_context_intake(self) -> None:
+        content = _valid_plan_contract_frontmatter().replace(
+            "    must_read_refs: [ref-main]\n"
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n",
+            "    must_read_refs: []\n"
+            "    must_include_prior_outputs: [./RESULTS.md]\n",
+            1,
+        )
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is True
+        assert not any("context_intake must not be empty" in error for error in result.errors)
+
     def test_plan_accepts_non_must_surface_reference_with_project_root_grounding(self, tmp_path: Path) -> None:
         content = _valid_plan_contract_frontmatter().replace("must_surface: true", "must_surface: false", 1)
         plan_path = tmp_path / "GPD" / "phases" / "01-test" / "01-01-PLAN.md"
@@ -1610,6 +1624,33 @@ class TestValidateFrontmatter:
 
         assert result.valid is True
         assert result.errors == []
+
+    def test_plan_contract_parsing_normalizes_blank_nested_proof_lists(self, tmp_path: Path) -> None:
+        _phase_dir, plan_path = _write_proof_contract_phase(tmp_path)
+        content = plan_path.read_text(encoding="utf-8").replace(
+            "- symbol: r_0\n"
+            "          domain_or_type: nonnegative real\n",
+            "- symbol: r_0\n"
+            "          domain_or_type: nonnegative real\n"
+            "          aliases: \"\"\n",
+            1,
+        ).replace(
+            "- id: hyp-r0\n"
+            "          text: r_0 >= 0\n"
+            "          symbols: [r_0]\n",
+            "- id: hyp-r0\n"
+            "          text: r_0 >= 0\n"
+            "          symbols: \"\"\n",
+            1,
+        )
+
+        result = validate_frontmatter(content, "plan", source_path=plan_path)
+        contract = parse_contract_block(content, source_path=plan_path)
+
+        assert result.valid is True
+        assert contract is not None
+        assert contract.claims[0].parameters[0].aliases == []
+        assert contract.claims[0].hypotheses[0].symbols == []
 
     def test_incomplete_plan_contract_requires_must_surface_anchor_metadata(self):
         content = (

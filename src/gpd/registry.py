@@ -48,6 +48,10 @@ _MODEL_VISIBLE_INCLUDE_PATH_PREFIX = "{GPD_INSTALL_DIR}/__gpd_registry_include__
 
 _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = re.compile(r"^(?:[ \t]*\r?\n)+(?=---\r?\n)")
 _FRONTMATTER_DELIMITER_RE = re.compile(r"^---[ \t]*(?:\r?\n)?$")
+_MODEL_VISIBLE_INCLUDE_START_RE = re.compile(r"^[ \t]*<!-- \[included:.*?\] -->[ \t]*$")
+_MODEL_VISIBLE_INCLUDE_END_RE = re.compile(r"^[ \t]*<!-- \[end included\] -->[ \t]*$")
+_MODEL_VISIBLE_FENCE_RE = re.compile(r"^[ \t]*(?P<fence>`{3,}|~{3,})")
+_STANDALONE_HTML_COMMENT_RE = re.compile(r"^[ \t]*<!--(?P<body>.*?)-->[ \t]*$", re.DOTALL)
 _COMMAND_FRONTMATTER_KEYS = frozenset(
     {
         "name",
@@ -101,17 +105,50 @@ def _inline_model_visible_includes(content: str) -> str:
     """Inline shared include directives while preserving canonical placeholder tokens."""
 
     expanded = expand_at_includes(content, _PKG_ROOT, _MODEL_VISIBLE_INCLUDE_PATH_PREFIX)
-    cleaned = re.sub(r"(?m)^[ \t]*<!-- \[included:.*?\] -->\s*\n?", "", expanded)
-    cleaned = re.sub(r"(?m)^[ \t]*<!-- \[end included\] -->\s*\n?", "", cleaned)
+    cleaned_lines: list[str] = []
+    in_included_block = False
+    active_fence_char: str | None = None
+    active_fence_length = 0
 
-    def _strip_generic_html_comment(match: re.Match[str]) -> str:
-        body = match.group("body").strip()
-        # Keep machine-visible ASSERT_CONVENTION examples in prompt surfaces.
-        if body.startswith("ASSERT_CONVENTION:"):
-            return match.group(0)
-        return ""
+    for line in expanded.splitlines(keepends=True):
+        stripped = line.strip()
+        if _MODEL_VISIBLE_INCLUDE_START_RE.fullmatch(stripped):
+            in_included_block = True
+            continue
+        if _MODEL_VISIBLE_INCLUDE_END_RE.fullmatch(stripped):
+            in_included_block = False
+            continue
 
-    cleaned = re.sub(r"(?s)<!--(?P<body>.*?)-->", _strip_generic_html_comment, cleaned)
+        fence_match = _MODEL_VISIBLE_FENCE_RE.match(line)
+        if active_fence_char is None:
+            if fence_match is not None:
+                fence = fence_match.group("fence")
+                active_fence_char = fence[0]
+                active_fence_length = len(fence)
+                cleaned_lines.append(line)
+                continue
+        else:
+            if (
+                fence_match is not None
+                and fence_match.group("fence")[0] == active_fence_char
+                and len(fence_match.group("fence")) >= active_fence_length
+            ):
+                active_fence_char = None
+                active_fence_length = 0
+            cleaned_lines.append(line)
+            continue
+
+        comment_match = _STANDALONE_HTML_COMMENT_RE.fullmatch(stripped)
+        if comment_match is not None and not in_included_block:
+            body = comment_match.group("body").strip()
+            # Keep executable contract markers visible even in direct prompt text.
+            if body.startswith("ASSERT_CONVENTION:"):
+                cleaned_lines.append(line)
+            continue
+
+        cleaned_lines.append(line)
+
+    cleaned = "".join(cleaned_lines)
     return (
         cleaned.replace(
             f"{_MODEL_VISIBLE_INCLUDE_PATH_PREFIX}get-physics-done/",

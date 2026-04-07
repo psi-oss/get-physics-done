@@ -1425,7 +1425,13 @@ class TestRegistryPromptIncludeInlining:
         commands_dir.mkdir()
         (commands_dir / "commented.md").write_text(
             "---\nname: gpd:commented\ndescription: Commented command\n---\n"
-            "Command body.\n<!-- hidden command note -->\nVisible tail.",
+            "Command body.\n"
+            "<!-- hidden command note -->\n"
+            "Inline marker prose keeps <!-- AI-drafted --> visible.\n"
+            "```markdown\n"
+            "<!-- AI-drafted -->\n"
+            "```\n"
+            "Visible tail.",
             encoding="utf-8",
         )
 
@@ -1433,7 +1439,13 @@ class TestRegistryPromptIncludeInlining:
         agents_dir.mkdir()
         (agents_dir / "gpd-commented.md").write_text(
             "---\nname: gpd-commented\ndescription: Commented agent\ntools: file_read\n---\n"
-            "Agent body.\n<!-- hidden agent note -->\nVisible tail.",
+            "Agent body.\n"
+            "<!-- hidden agent note -->\n"
+            "Inline marker prose keeps <!-- AI-drafted --> visible.\n"
+            "```markdown\n"
+            "<!-- AI-drafted -->\n"
+            "```\n"
+            "Visible tail.",
             encoding="utf-8",
         )
 
@@ -1445,8 +1457,12 @@ class TestRegistryPromptIncludeInlining:
             command = registry.get_command("gpd:commented")
             agent = registry.get_agent("gpd-commented")
 
-            assert "<!--" not in command.content
-            assert "<!--" not in agent.system_prompt
+            assert "<!-- hidden command note -->" not in command.content
+            assert "<!-- hidden agent note -->" not in agent.system_prompt
+            assert "Inline marker prose keeps <!-- AI-drafted --> visible." in command.content
+            assert "Inline marker prose keeps <!-- AI-drafted --> visible." in agent.system_prompt
+            assert "```markdown\n<!-- AI-drafted -->\n```" in command.content
+            assert "```markdown\n<!-- AI-drafted -->\n```" in agent.system_prompt
             assert "Visible tail." in command.content
             assert "Visible tail." in agent.system_prompt
         finally:

@@ -176,6 +176,25 @@ def test_run_contract_check_accepts_non_must_surface_reference_when_project_dir_
     assert rooted["status"] == "pass"
 
 
+def test_suggest_contract_checks_accepts_rootless_prior_output_as_visible_context_intake() -> None:
+    from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+    contract = _load_project_contract_fixture()
+    contract["context_intake"] = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": ["./RESULTS.md"],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+
+    result = suggest_contract_checks(contract)
+
+    assert "error" not in result
+    assert "suggested_checks" in result
+
+
 def test_contract_server_singleton_drift_classifier_matches_core_contract_policy() -> None:
     from gpd.mcp.servers.verification_server import _is_defaultable_singleton_contract_error
 

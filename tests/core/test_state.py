@@ -355,6 +355,23 @@ def test_restore_visible_project_contract_rejects_nested_collection_truncation()
     assert findings == []
 
 
+def test_restore_visible_project_contract_normalizes_blank_nested_proof_lists() -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["claims"][0]["parameters"] = [{"symbol": "alpha", "aliases": ""}]
+    contract["claims"][0]["hypotheses"] = [{"id": "hyp-alpha", "text": "alpha >= 0", "symbols": ""}]
+
+    restored, findings = state_module._restore_visible_project_contract(
+        default_state_dict(),
+        contract,
+    )
+
+    assert restored["project_contract"] is not None
+    claim = restored["project_contract"]["claims"][0]
+    assert claim["parameters"][0]["aliases"] == []
+    assert claim["hypotheses"][0]["symbols"] == []
+    assert not any("must be a list, not str" in finding for finding in findings)
+
+
 def test_state_load_keeps_visible_blocked_contract_in_state_for_rootless_local_anchor(tmp_path: Path) -> None:
     state = default_state_dict()
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
