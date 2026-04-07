@@ -858,7 +858,7 @@ def state_set_project_contract_cmd(
             updated=False,
             reason="Invalid project contract schema: "
             + "; ".join(list(strict_result.errors) or ["project contract could not be normalized"]),
-            schema_reference="templates/state-json-schema.md",
+            schema_reference="templates/project-contract-schema.md",
         )
         _output(result)
         raise typer.Exit(code=1)
@@ -866,7 +866,13 @@ def state_set_project_contract_cmd(
     validation = validate_project_contract(strict_result.contract, mode="approved", project_root=project_root)
     if not validation.valid:
         if _raw:
-            _emit_raw_json(_model_dump_with_schema_reference(validation, schema_reference="templates/state-json-schema.md"), err=True)
+            _emit_raw_json(
+                _model_dump_with_schema_reference(
+                    validation,
+                    schema_reference="templates/project-contract-schema.md",
+                ),
+                err=True,
+            )
         else:
             _output(validation)
         raise typer.Exit(code=1)
@@ -7379,7 +7385,13 @@ def validate_project_contract_cmd(
                 result = anchored_result if anchored_result.valid != unanchored_result.valid else unanchored_result
     if not result.valid:
         if _raw:
-            _emit_raw_json(_model_dump_with_schema_reference(result, schema_reference="templates/state-json-schema.md"), err=True)
+            _emit_raw_json(
+                _model_dump_with_schema_reference(
+                    result,
+                    schema_reference="templates/project-contract-schema.md",
+                ),
+                err=True,
+            )
         else:
             _output(result)
         raise typer.Exit(code=1)

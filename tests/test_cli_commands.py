@@ -695,7 +695,7 @@ class TestStateCommands:
             == "Invalid project contract schema: context_intake.must_read_refs must be a list, not str"
         )
         assert payload["warnings"] == []
-        assert payload["schema_reference"] == "templates/state-json-schema.md"
+        assert payload["schema_reference"] == "templates/project-contract-schema.md"
         state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
         assert state["project_contract"] is None
 

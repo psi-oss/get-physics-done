@@ -62,6 +62,7 @@ _RECOVERABLE_SCHEMA_WARNING_PATTERNS = (
     re.compile(r"^.+: Extra inputs are not permitted$"),
     re.compile(r"^.+\.\d+ must be a valid list member$"),
     re.compile(r"^.+\.\d+: Input should .+$"),
+    re.compile(r"^.+: Input should be a valid string$"),
 )
 _LOSSY_LIST_NORMALIZATION_WARNING_PATTERNS = (
     re.compile(r"^.+ must be a list, not .+$"),
@@ -375,8 +376,34 @@ def _salvage_model_mapping(
                     }
                 )
                 field_value = cleaned.get(key)
+                item_model = _list_item_model(field)
+                if item_model is not None and isinstance(field_value, dict):
+                    nested_errors: list[str] = []
+                    salvaged_item, item_blocked = _salvage_model_mapping(
+                        field_value,
+                        path_prefix=f"{path_prefix}.{key}",
+                        model=item_model,
+                        errors=nested_errors,
+                        canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+                    )
+                    if salvaged_item is not None and not item_blocked:
+                        cleaned[key] = [salvaged_item]
+                        progress = True
+                        for nested_error in nested_errors:
+                            if nested_error not in errors:
+                                errors.append(nested_error)
+                        continue
+                    if field.is_required():
+                        for nested_error in nested_errors:
+                            if nested_error not in errors:
+                                errors.append(nested_error)
+                        errors.append(formatted)
+                        blocked = True
+                    else:
+                        cleaned.pop(key, None)
+                        progress = True
+                    continue
                 if isinstance(field_value, list) and len(loc) > 1 and isinstance(loc[1], int):
-                    item_model = _list_item_model(field)
                     item_indexes: set[int] = set()
                     item_errors_by_index: dict[int, list[str]] = defaultdict(list)
                     for item_error in exc.errors():
@@ -431,7 +458,8 @@ def _salvage_model_mapping(
                     continue
                 if key in cleaned:
                     errors.append(formatted)
-                    blocked = True
+                    cleaned.pop(key, None)
+                    progress = True
             if blocked:
                 return None, True
             if not progress:

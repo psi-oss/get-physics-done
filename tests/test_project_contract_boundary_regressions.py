@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from gpd.contracts import contract_from_data, contract_from_data_salvage
-from gpd.core.contract_validation import validate_project_contract
+from gpd.core.contract_validation import parse_project_contract_data_salvage, validate_project_contract
 from gpd.core.state import (
     ProjectLayout,
     default_state_dict,
@@ -51,6 +51,27 @@ def test_fast_project_contract_proxy_strict_rejects_singleton_list_drift_but_sal
 
     assert salvaged is not None
     assert salvaged.context_intake.must_read_refs == ["ref-benchmark"]
+
+
+def test_fast_project_contract_proxy_salvage_preserves_claim_when_optional_proof_field_is_malformed() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["parameters"] = [
+        {
+            "symbol": "alpha",
+            "domain_or_type": ["real"],
+            "aliases": ["alpha"],
+            "required_in_proof": True,
+        }
+    ]
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.blocking_errors == []
+    assert any("claims.0.parameters.0.domain_or_type" in error for error in result.recoverable_errors)
+    assert len(result.contract.claims) == 1
+    assert result.contract.claims[0].parameters[0].symbol == "alpha"
+    assert result.contract.claims[0].parameters[0].domain_or_type is None
 
 
 def test_fast_project_contract_proxy_rejects_malformed_optional_approach_policy(tmp_path: Path) -> None:

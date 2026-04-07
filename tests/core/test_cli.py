@@ -2470,7 +2470,7 @@ def test_validate_project_contract_raw_failure_surfaces_schema_reference(tmp_pat
     assert result.exit_code == 1, result.output
     payload = json.loads(result.output)
     assert payload["valid"] is False
-    assert payload["schema_reference"].endswith("state-json-schema.md")
+    assert payload["schema_reference"].endswith("project-contract-schema.md")
     assert any("approved project contract requires at least one concrete anchor" in error for error in payload["errors"])
 
 
