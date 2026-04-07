@@ -691,25 +691,13 @@ class TestParseContractBlock:
             parse_contract_block(content)
 
     def test_rejects_coercive_schema_version_scalar(self):
-        content = _valid_plan_contract_frontmatter(
-            extra_contract_lines="  schema_version: true",
-        ) + "Body.\n"
+        content = _valid_plan_contract_frontmatter().replace("schema_version: 1\n", "schema_version: true\n", 1) + "Body.\n"
 
         with pytest.raises(FrontmatterValidationError, match="schema_version must be the integer 1"):
             parse_contract_block(content)
 
     def test_rejects_singleton_list_drift(self):
-        content = _valid_plan_contract_frontmatter(
-            extra_contract_lines=(
-                "  context_intake:\n"
-                "    must_read_refs: ref-main\n"
-                "    must_include_prior_outputs: []\n"
-                "    user_asserted_anchors: []\n"
-                "    known_good_baselines: []\n"
-                "    context_gaps: []\n"
-                "    crucial_inputs: []"
-            ),
-        ) + "Body.\n"
+        content = _valid_plan_contract_frontmatter().replace("must_read_refs: [ref-main]\n", "must_read_refs: ref-main\n", 1) + "Body.\n"
 
         with pytest.raises(
             FrontmatterValidationError,
@@ -718,16 +706,10 @@ class TestParseContractBlock:
             parse_contract_block(content)
 
     def test_rejects_recoverable_extra_key_drift(self):
-        content = _valid_plan_contract_frontmatter(
-            extra_contract_lines=(
-                "  claims:\n"
-                "    - id: claim-main\n"
-                "      statement: Recover the benchmark value within tolerance\n"
-                "      deliverables: [deliv-main]\n"
-                "      acceptance_tests: [test-main]\n"
-                "      references: [ref-main]\n"
-                "      notes: harmless"
-            ),
+        content = _valid_plan_contract_frontmatter().replace(
+            "      references: [ref-main]\n",
+            "      references: [ref-main]\n      notes: harmless\n",
+            1,
         ) + "Body.\n"
 
         with pytest.raises(
@@ -828,9 +810,7 @@ class TestValidateFrontmatter:
         assert "contract: references.0.must_surface must be a boolean" in result.errors
 
     def test_plan_rejects_coercive_schema_version_scalar(self):
-        content = _valid_plan_contract_frontmatter(
-            extra_contract_lines="  schema_version: true",
-        ) + "Body.\n"
+        content = _valid_plan_contract_frontmatter().replace("schema_version: 1\n", "schema_version: true\n", 1) + "Body.\n"
 
         result = validate_frontmatter(content, "plan")
 
@@ -854,17 +834,7 @@ class TestValidateFrontmatter:
         assert any("tool_requirements:" in error for error in result.errors)
 
     def test_plan_rejects_singleton_list_drift_in_contract(self):
-        content = _valid_plan_contract_frontmatter(
-            extra_contract_lines=(
-                "  context_intake:\n"
-                "    must_read_refs: ref-main\n"
-                "    must_include_prior_outputs: []\n"
-                "    user_asserted_anchors: []\n"
-                "    known_good_baselines: []\n"
-                "    context_gaps: []\n"
-                "    crucial_inputs: []"
-            ),
-        ) + "Body.\n"
+        content = _valid_plan_contract_frontmatter().replace("must_read_refs: [ref-main]\n", "must_read_refs: ref-main\n", 1) + "Body.\n"
 
         result = validate_frontmatter(content, "plan")
 
@@ -1847,14 +1817,6 @@ class TestValidateFrontmatter:
         verification_path.write_text(
             (STAGE4_FIXTURES_DIR / "verification_with_contract_results.md")
             .read_text(encoding="utf-8")
-            .replace(
-                "comparison_verdicts:\n",
-                "  uncertainty_markers:\n"
-                "    weakest_anchors: [Reference tolerance interpretation]\n"
-                "    disconfirming_observations: [Benchmark agreement disappears once normalization is fixed]\n"
-                "comparison_verdicts:\n",
-                1,
-            )
             .replace(
                 "      status: passed\n      summary: Claim independently verified.\n",
                 "      status: blocked\n      summary: Claim remains blocked on the decisive benchmark.\n",

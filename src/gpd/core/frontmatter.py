@@ -44,6 +44,7 @@ from gpd.core.contract_validation import _format_schema_error
 from gpd.core.errors import GPDError
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.root_resolution import resolve_project_root
+from gpd.core.strict_yaml import load_strict_yaml
 from gpd.core.tool_preflight import PlanToolPreflightError, parse_plan_tool_requirements
 from gpd.core.utils import matching_phase_artifact_count, phase_artifact_display_name, phase_artifact_id, safe_read_file
 
@@ -143,7 +144,7 @@ def extract_frontmatter(content: str) -> tuple[dict, str]:
         yaml_str = match.group(1)
         body = frontmatter_candidate[match.end() :]
         try:
-            meta = yaml.safe_load(yaml_str)
+            meta = load_strict_yaml(yaml_str)
             if meta is None:
                 meta = {}
         except yaml.YAMLError as exc:

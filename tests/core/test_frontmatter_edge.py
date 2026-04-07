@@ -174,23 +174,22 @@ class TestTrailingWhitespace:
 
 
 class TestDuplicateKeys:
-    """YAML spec says duplicate keys are allowed; last value wins."""
+    """Duplicate frontmatter keys must fail closed."""
 
-    def test_duplicate_keys_last_wins(self):
+    def test_duplicate_keys_raise(self):
         content = "---\ntitle: First\ntitle: Second\n---\n\nBody."
-        meta, body = extract_frontmatter(content)
-        # PyYAML safe_load: last value wins for duplicate keys
-        assert meta["title"] == "Second"
+        with pytest.raises(FrontmatterParseError, match="duplicate key"):
+            extract_frontmatter(content)
 
-    def test_duplicate_keys_different_types(self):
+    def test_duplicate_keys_different_types_raise(self):
         content = "---\nval: 42\nval: hello\n---\n\nBody."
-        meta, body = extract_frontmatter(content)
-        assert meta["val"] == "hello"
+        with pytest.raises(FrontmatterParseError, match="duplicate key"):
+            extract_frontmatter(content)
 
-    def test_duplicate_nested_keys(self):
+    def test_duplicate_nested_keys_raise(self):
         content = "---\nouter:\n  key: first\n  key: second\n---\n\nBody."
-        meta, body = extract_frontmatter(content)
-        assert meta["outer"]["key"] == "second"
+        with pytest.raises(FrontmatterParseError, match="duplicate key"):
+            extract_frontmatter(content)
 
 
 # ---------------------------------------------------------------------------

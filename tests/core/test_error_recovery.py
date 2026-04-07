@@ -501,6 +501,11 @@ class TestFrontmatterErrorHandling:
         with pytest.raises(FrontmatterParseError):
             extract_frontmatter(content)
 
+    def test_duplicate_keys_raise(self) -> None:
+        content = "---\ntitle: First\ntitle: Second\n---\n\nBody"
+        with pytest.raises(FrontmatterParseError, match="duplicate key"):
+            extract_frontmatter(content)
+
     def test_non_dict_yaml_raises(self) -> None:
         """If YAML block parses to a list instead of dict, raise."""
         content = "---\n- item1\n- item2\n---\n\nBody"
@@ -619,6 +624,11 @@ class TestValidateFrontmatter:
         """Malformed YAML in validate propagates as FrontmatterParseError."""
         content = "---\n: : bad\n---\n\nBody"
         with pytest.raises(FrontmatterParseError):
+            validate_frontmatter(content, "plan")
+
+    def test_duplicate_keys_in_validate_raise(self) -> None:
+        content = "---\ntitle: First\ntitle: Second\n---\n\nBody"
+        with pytest.raises(FrontmatterParseError, match="duplicate key"):
             validate_frontmatter(content, "plan")
 
 
