@@ -46,7 +46,13 @@ AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
 REFERENCES_DIR = REPO_ROOT / "src/gpd/specs/references"
 FIXTURES_STAGE0 = REPO_ROOT / "tests" / "fixtures" / "stage0"
 FIXTURES_STAGE4 = REPO_ROOT / "tests" / "fixtures" / "stage4"
-WORKFLOW_EXEMPT_COMMANDS = frozenset({"health", "suggest-next"})
+WORKFLOW_EXEMPT_COMMANDS = frozenset({
+    "health",
+    "suggest-next",
+    "verify-equations",
+    "scan-equations",
+    "check-citations",
+})
 
 
 def _assert_contains_fragments(text: str, *fragments: str) -> None:
