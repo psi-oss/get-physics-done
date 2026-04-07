@@ -67,11 +67,12 @@ def test_fast_project_contract_proxy_salvage_preserves_claim_when_optional_proof
     result = parse_project_contract_data_salvage(contract)
 
     assert result.contract is not None
-    assert result.blocking_errors == []
-    assert any("claims.0.parameters.0.domain_or_type" in error for error in result.recoverable_errors)
+    assert result.recoverable_errors == []
+    assert result.blocking_errors == ["claims.0.parameters.0.domain_or_type: Input should be a valid string"]
     assert len(result.contract.claims) == 1
     assert result.contract.claims[0].parameters[0].symbol == "alpha"
     assert result.contract.claims[0].parameters[0].domain_or_type is None
+    assert contract_from_data_salvage(contract) is None
 
 
 def test_fast_project_contract_proxy_rejects_malformed_optional_approach_policy(tmp_path: Path) -> None:

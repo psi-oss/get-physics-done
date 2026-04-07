@@ -89,6 +89,7 @@ _SCHEMA_VERSION_REQUIRED_ERROR = "schema_version is required"
 class _ProjectContractSchemaFindingCategory(StrEnum):
     RECOVERABLE = "recoverable"
     LOSSY_LIST_NORMALIZATION = "lossy_list_normalization"
+    NESTED_COLLECTION_ITEM_TRUNCATION = "nested_collection_item_truncation"
     CASE_DRIFT = "case_drift"
     AUTHORITATIVE_SCALAR = "authoritative_scalar"
 
@@ -127,6 +128,36 @@ def _matches_equivalent_recoverable_schema_finding(*, message: str) -> bool:
     return message.strip().startswith("Extra inputs are not permitted")
 
 
+def _schema_finding_location_depth(location: str | None) -> int:
+    """Return the number of list-index segments in one dotted schema location."""
+
+    if location is None:
+        return 0
+    return sum(1 for part in location.split(".") if part.isdigit())
+
+
+def _schema_finding_location(error: str) -> str | None:
+    """Return a best-effort dotted location for one formatted schema finding."""
+
+    location, _message = _split_schema_finding_location_and_message(error)
+    if location is not None:
+        return location
+
+    nested_location = re.match(
+        r"^(?P<location>.+?) (?:must not be blank|is a duplicate|must be a valid list member|must be a list, not .+|must be an object, not .+)$",
+        error.strip(),
+    )
+    if nested_location is not None:
+        return nested_location.group("location")
+    return None
+
+
+def _is_nested_collection_item_location(location: str | None) -> bool:
+    """Return whether one location is inside a nested collection item."""
+
+    return _schema_finding_location_depth(location) >= 2
+
+
 def _project_contract_schema_finding_categories(error: str) -> frozenset[_ProjectContractSchemaFindingCategory]:
     """Classify one schema finding into semantic categories."""
 
@@ -144,6 +175,14 @@ def _project_contract_schema_finding_categories(error: str) -> frozenset[_Projec
         categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
     if _matches_equivalent_authoritative_schema_finding(location=location, message=message):
         categories.add(_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR)
+
+    nested_location = _schema_finding_location(normalized_error)
+    if nested_location is not None and _is_nested_collection_item_location(nested_location):
+        if categories & {
+            _ProjectContractSchemaFindingCategory.RECOVERABLE,
+            _ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION,
+        }:
+            categories.add(_ProjectContractSchemaFindingCategory.NESTED_COLLECTION_ITEM_TRUNCATION)
 
     return frozenset(categories)
 
@@ -658,6 +697,9 @@ def split_project_contract_schema_findings(
     blocking: list[str] = []
     for error in errors:
         categories = _project_contract_schema_finding_categories(error)
+        if _ProjectContractSchemaFindingCategory.NESTED_COLLECTION_ITEM_TRUNCATION in categories:
+            blocking.append(error)
+            continue
         recoverable_finding = _ProjectContractSchemaFindingCategory.RECOVERABLE in categories
         case_drift_finding = _ProjectContractSchemaFindingCategory.CASE_DRIFT in categories
         if recoverable_finding or (allow_case_drift_recovery and case_drift_finding):

@@ -5383,10 +5383,16 @@ def _review_contract_requests_check(contract: object, check_name: str) -> bool:
     return check_name in list(getattr(contract, "preflight_checks", []) or [])
 
 
-def _review_preflight_check_is_blocking(contract: object, check_name: str) -> bool:
+def _review_preflight_check_is_blocking(
+    contract: object,
+    check_name: str,
+    *,
+    conditional_blocking_preflight_checks: set[str] | None = None,
+) -> bool:
     """Return True when the typed review contract marks a check as hard-blocking."""
 
-    return check_name in list(getattr(contract, "preflight_checks", []) or [])
+    declared_preflight_checks = set(getattr(contract, "preflight_checks", []) or [])
+    return check_name in declared_preflight_checks or check_name in (conditional_blocking_preflight_checks or set())
 
 
 def _review_contract_active_conditional_requirements(
@@ -6599,6 +6605,8 @@ def _build_review_preflight(
     manuscript: Path | None = None
     active_conditional_requirements: list[ReviewContractConditionalRequirement] = []
 
+    conditional_blocking_preflight_checks: set[str] = set()
+
     def add_check(name: str, passed: bool, detail: str, *, blocking: bool | None = None) -> None:
         checks.append(
             ReviewPreflightCheck(
@@ -6606,7 +6614,13 @@ def _build_review_preflight(
                 passed=passed,
                 detail=detail,
                 blocking=(
-                    _review_preflight_check_is_blocking(contract, name) if blocking is None else blocking
+                    _review_preflight_check_is_blocking(
+                        contract,
+                        name,
+                        conditional_blocking_preflight_checks=conditional_blocking_preflight_checks,
+                    )
+                    if blocking is None
+                    else blocking
                 ),
             )
         )
@@ -6750,7 +6764,6 @@ def _build_review_preflight(
                 ),
             )
         if manuscript is not None:
-            conditional_blocking_preflight_checks: set[str] = set()
             if list(getattr(contract, "conditional_requirements", []) or []):
                 active_conditional_requirements = _review_contract_active_conditional_requirements(
                     contract,
@@ -7272,7 +7285,10 @@ def validate_review_contract(
 @validate_app.command("review-preflight")
 def validate_review_preflight(
     command_name: str = typer.Argument(..., help="Command registry key or gpd:name"),
-    subject: str | None = typer.Argument(None, help="Optional phase number or report path"),
+    subject: str | None = typer.Argument(
+        None,
+        help="Optional phase number, manuscript target, or referee report source",
+    ),
     strict: bool = typer.Option(False, "--strict", help="Enable stricter evidence-oriented checks"),
 ) -> None:
     """Run lightweight executable preflight checks for review-grade workflows."""

@@ -68,7 +68,22 @@ def test_fast_contract_validation_salvage_preserves_nested_collection_siblings()
     assert result.contract is not None
     assert [parameter.symbol for parameter in result.contract.claims[0].parameters] == ["alpha", "beta"]
     assert result.contract.claims[0].parameters[0].aliases == ["alpha"]
-    assert any("claims.0.parameters.0.aliases.1" in error for error in result.recoverable_errors)
+    assert result.recoverable_errors == []
+    assert result.blocking_errors == ["claims.0.parameters.0.aliases.1: Input should be a valid string"]
+
+
+def test_fast_contract_validation_nested_optional_proof_field_truncation_is_blocking() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["parameters"] = [
+        {"symbol": "alpha", "domain_or_type": ["nonnegative real"], "aliases": ["alpha"]},
+    ]
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.contract.claims[0].parameters[0].domain_or_type is None
+    assert result.recoverable_errors == []
+    assert result.blocking_errors == ["claims.0.parameters.0.domain_or_type: Input should be a valid string"]
 
 
 def test_fast_contract_validation_rootless_path_like_anchor_does_not_count_as_approved_grounding() -> None:

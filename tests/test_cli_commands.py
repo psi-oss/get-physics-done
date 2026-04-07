@@ -1816,6 +1816,25 @@ class TestReviewValidationCommands:
         assert cli_module._review_preflight_check_is_blocking(contract, "compiled_manuscript") is False
         assert cli_module._review_contract_requests_check(contract, "review_ledger") is False
         assert cli_module._review_preflight_check_is_blocking(contract, "review_ledger") is False
+        assert (
+            cli_module._review_preflight_check_is_blocking(
+                contract,
+                "manuscript_proof_review",
+                conditional_blocking_preflight_checks={"manuscript_proof_review"},
+            )
+            is True
+        )
+
+    def test_validate_review_preflight_help_mentions_manuscript_and_referee_subjects(self) -> None:
+        result = runner.invoke(
+            app,
+            ["validate", "review-preflight", "--help"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Optional phase number, manuscript target" in result.output
+        assert "referee report source" in result.output
 
     def test_command_required_files_override_detail_uses_contract_metadata_not_command_name(self, tmp_path: Path) -> None:
         manuscript = canonical_manuscript_path(tmp_path)

@@ -340,6 +340,21 @@ def test_restore_visible_project_contract_accepts_existing_local_prior_output_gr
     assert findings == []
 
 
+def test_restore_visible_project_contract_rejects_nested_collection_truncation() -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["claims"][0]["parameters"] = [
+        {"symbol": "alpha", "domain_or_type": ["real"], "aliases": ["alpha"]},
+    ]
+
+    restored, findings = state_module._restore_visible_project_contract(
+        default_state_dict(),
+        contract,
+    )
+
+    assert restored["project_contract"] is None
+    assert findings == []
+
+
 def test_state_load_keeps_visible_blocked_contract_in_state_for_rootless_local_anchor(tmp_path: Path) -> None:
     state = default_state_dict()
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
@@ -1090,6 +1105,24 @@ def test_state_load_keeps_blocked_raw_project_contract_non_authoritative_after_r
     assert loaded.project_contract_gate["visible"] is True
     assert loaded.project_contract_gate["authoritative"] is False
     assert loaded.project_contract_gate["repair_required"] is True
+
+
+def test_state_load_blocks_nested_collection_truncation_in_raw_project_contract(tmp_path: Path) -> None:
+    state = default_state_dict()
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["claims"][0]["parameters"] = [
+        {"symbol": "alpha", "domain_or_type": ["real"], "aliases": ["alpha"]},
+    ]
+    state["project_contract"] = contract
+    _write_raw_state_json(tmp_path, state)
+
+    loaded = state_load(tmp_path)
+
+    assert loaded.state["project_contract"] is None
+    assert loaded.project_contract_load_info["status"] == "blocked_schema"
+    assert loaded.project_contract_gate["visible"] is False
+    assert loaded.project_contract_gate["repair_required"] is True
+    assert "claims.0.parameters.0.domain_or_type: Input should be a valid string" in loaded.project_contract_load_info["errors"]
 
 
 def test_state_load_backup_restore_surfaces_project_contract_salvage_diagnostics(

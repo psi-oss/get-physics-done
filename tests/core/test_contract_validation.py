@@ -113,6 +113,18 @@ def test_split_project_contract_schema_findings_separates_case_drift_from_blocki
     assert blocking == ["schema_version must be the integer 1"]
 
 
+def test_split_project_contract_schema_findings_blocks_nested_collection_item_truncation() -> None:
+    findings = [
+        "claims.0.parameters.0.domain_or_type: Input should be a valid string",
+        "claims.0.parameters.0.aliases.1: Input should be a valid string",
+    ]
+
+    recoverable, blocking = split_project_contract_schema_findings(findings, allow_case_drift_recovery=True)
+
+    assert recoverable == []
+    assert blocking == findings
+
+
 def test_project_contract_schema_finding_helpers_keep_repair_relevance_stable_for_equivalent_messages() -> None:
     assert is_repair_relevant_project_contract_schema_finding("legacy_notes: Extra inputs are not permitted") is True
     assert (
@@ -1859,7 +1871,8 @@ def test_parse_project_contract_data_salvage_preserves_nested_proof_list_sibling
     assert result.contract is not None
     assert [parameter.symbol for parameter in result.contract.claims[0].parameters] == ["alpha", "beta"]
     assert result.contract.claims[0].parameters[0].aliases == ["alpha"]
-    assert any("claims.0.parameters.0.aliases.1" in error for error in result.recoverable_errors)
+    assert result.recoverable_errors == []
+    assert result.blocking_errors == ["claims.0.parameters.0.aliases.1: Input should be a valid string"]
 
 
 def test_validate_project_contract_rejects_coercive_reference_must_surface_scalar() -> None:
