@@ -14,18 +14,18 @@ from gpd.mcp.paper.models import PaperToolchainCapability
 
 class TestFindLatexCompiler:
     def test_returns_path_when_compiler_on_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("gpd.mcp.paper.compiler.shutil.which", lambda _: "/usr/bin/pdflatex")
+        monkeypatch.setattr("gpd.mcp.paper.compiler._which", lambda _: "/usr/bin/pdflatex")
         assert find_latex_compiler("pdflatex") == "/usr/bin/pdflatex"
 
     def test_returns_none_when_not_found_on_non_windows(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("gpd.mcp.paper.compiler.shutil.which", lambda _: None)
+        monkeypatch.setattr("gpd.mcp.paper.compiler._which", lambda _: None)
         monkeypatch.setattr("gpd.mcp.paper.compiler.platform.system", lambda: "Linux")
         assert find_latex_compiler("pdflatex") is None
 
     def test_searches_windows_paths_when_not_on_path(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr("gpd.mcp.paper.compiler.shutil.which", lambda _: None)
+        monkeypatch.setattr("gpd.mcp.paper.compiler._which", lambda _: None)
         monkeypatch.setattr("gpd.mcp.paper.compiler.platform.system", lambda: "Windows")
 
         # Create a fake MiKTeX install directory
@@ -45,7 +45,7 @@ class TestFindLatexCompiler:
     def test_searches_texlive_year_dirs_on_windows(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr("gpd.mcp.paper.compiler.shutil.which", lambda _: None)
+        monkeypatch.setattr("gpd.mcp.paper.compiler._which", lambda _: None)
         monkeypatch.setattr("gpd.mcp.paper.compiler.platform.system", lambda: "Windows")
 
         # Create a fake TeX Live install directory with year subdir
@@ -66,8 +66,8 @@ class TestFindLatexCompiler:
 class TestDetectLatexToolchain:
     def test_available_on_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "gpd.mcp.paper.compiler.find_latex_compiler",
-            lambda compiler: "/usr/bin/pdflatex",
+            "gpd.mcp.paper.compiler._which",
+            lambda compiler: "/usr/bin/pdflatex" if compiler == "pdflatex" else None,
         )
         status = detect_latex_toolchain()
         assert status.available is True
@@ -75,10 +75,7 @@ class TestDetectLatexToolchain:
         assert status.distribution is not None
 
     def test_not_available(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            "gpd.mcp.paper.compiler.find_latex_compiler",
-            lambda compiler: None,
-        )
+        monkeypatch.setattr("gpd.mcp.paper.compiler._which", lambda _: None)
         status = detect_latex_toolchain()
         assert status.available is False
         assert status.compiler_path is None
@@ -96,7 +93,7 @@ class TestDetectLatexToolchain:
             }
             return mapping.get(binary)
 
-        monkeypatch.setattr("gpd.mcp.paper.compiler.find_latex_compiler", fake_find)
+        monkeypatch.setattr("gpd.mcp.paper.compiler._which", fake_find)
 
         status = detect_latex_toolchain()
 
@@ -123,7 +120,7 @@ class TestDetectLatexToolchain:
             }
             return mapping.get(binary)
 
-        monkeypatch.setattr("gpd.mcp.paper.compiler.find_latex_compiler", fake_find)
+        monkeypatch.setattr("gpd.mcp.paper.compiler._which", fake_find)
 
         status = detect_latex_toolchain()
 
@@ -178,7 +175,7 @@ class TestPaperToolchainCapability:
             }
             return mapping.get(binary)
 
-        monkeypatch.setattr("gpd.mcp.paper.compiler.find_latex_compiler", fake_find)
+        monkeypatch.setattr("gpd.mcp.paper.compiler._which", fake_find)
 
         status = detect_latex_toolchain()
 
@@ -195,8 +192,10 @@ class TestPaperToolchainCapability:
 
     def test_detects_miktex_distribution(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "gpd.mcp.paper.compiler.find_latex_compiler",
-            lambda compiler: "C:\\Users\\user\\AppData\\Local\\Programs\\MiKTeX\\miktex\\bin\\x64\\pdflatex.exe",
+            "gpd.mcp.paper.compiler._which",
+            lambda compiler: "C:\\Users\\user\\AppData\\Local\\Programs\\MiKTeX\\miktex\\bin\\x64\\pdflatex.exe"
+            if compiler == "pdflatex"
+            else None,
         )
         status = detect_latex_toolchain()
         assert status.available is True
@@ -204,8 +203,8 @@ class TestPaperToolchainCapability:
 
     def test_detects_texlive_distribution(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "gpd.mcp.paper.compiler.find_latex_compiler",
-            lambda compiler: "C:\\texlive\\2024\\bin\\windows\\pdflatex.exe",
+            "gpd.mcp.paper.compiler._which",
+            lambda compiler: "C:\\texlive\\2024\\bin\\windows\\pdflatex.exe" if compiler == "pdflatex" else None,
         )
         status = detect_latex_toolchain()
         assert status.available is True
@@ -213,8 +212,8 @@ class TestPaperToolchainCapability:
 
     def test_detects_mactex_distribution(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "gpd.mcp.paper.compiler.find_latex_compiler",
-            lambda compiler: "/Library/TeX/texbin/pdflatex",
+            "gpd.mcp.paper.compiler._which",
+            lambda compiler: "/Library/TeX/texbin/pdflatex" if compiler == "pdflatex" else None,
         )
         status = detect_latex_toolchain()
         assert status.available is True

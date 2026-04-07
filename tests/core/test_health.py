@@ -1250,7 +1250,7 @@ class TestRunDoctor:
 
         with (
             patch("gpd.core.health._doctor_active_virtualenv", return_value=True),
-            patch("gpd.core.health.shutil.which", return_value=_PRIMARY_LAUNCHER_PATH),
+            patch("gpd.core.health._doctor_which", return_value=_PRIMARY_LAUNCHER_PATH),
             patch("gpd.core.health.os.access", return_value=True),
             patch(
                 "gpd.core.health._doctor_check_bootstrap_network_access",
@@ -1532,7 +1532,7 @@ trigger:
                 return subprocess.CompletedProcess(args=command, returncode=0, stdout="BibTeX 0.99d\n", stderr="")
             raise AssertionError(f"Unexpected command: {command}")
 
-        monkeypatch.setattr("gpd.core.health.shutil.which", fake_which)
+        monkeypatch.setattr("gpd.core.health._doctor_which", fake_which)
         monkeypatch.setattr("gpd.core.health.subprocess.run", fake_run)
 
         report = run_doctor(
@@ -1574,7 +1574,7 @@ trigger:
 
         with (
             patch("gpd.core.health._doctor_active_virtualenv", return_value=False),
-            patch("gpd.core.health.shutil.which", return_value=_PRIMARY_LAUNCHER_PATH),
+            patch("gpd.core.health._doctor_which", return_value=_PRIMARY_LAUNCHER_PATH),
             patch(
                 "gpd.core.health._doctor_check_bootstrap_network_access",
                 return_value=HealthCheck(status=CheckStatus.OK, label="Bootstrap Network Access"),
@@ -1628,7 +1628,7 @@ trigger:
 
         with (
             patch("gpd.core.health._doctor_active_virtualenv", return_value=True),
-            patch("gpd.core.health.shutil.which", return_value=None),
+            patch("gpd.core.health._doctor_which", return_value=None),
             patch(
                 "gpd.core.health._doctor_check_bootstrap_network_access",
                 return_value=HealthCheck(status=CheckStatus.OK, label="Bootstrap Network Access"),
@@ -1666,7 +1666,7 @@ trigger:
 
         with (
             patch("gpd.core.health._doctor_active_virtualenv", return_value=True),
-            patch("gpd.core.health.shutil.which", return_value=_PRIMARY_LAUNCHER_PATH),
+            patch("gpd.core.health._doctor_which", return_value=_PRIMARY_LAUNCHER_PATH),
             patch("gpd.core.health.os.access", side_effect=_access),
             patch(
                 "gpd.core.health._doctor_check_bootstrap_network_access",
@@ -1699,7 +1699,7 @@ trigger:
 
         with (
             patch("gpd.core.health._doctor_active_virtualenv", return_value=True),
-            patch("gpd.core.health.shutil.which", return_value=_PRIMARY_LAUNCHER_PATH),
+            patch("gpd.core.health._doctor_which", return_value=_PRIMARY_LAUNCHER_PATH),
             patch("gpd.core.health.os.access", return_value=True),
             patch(
                 "gpd.core.health._doctor_check_bootstrap_network_access",
@@ -1797,7 +1797,7 @@ trigger:
 
         with (
             patch("gpd.core.health._doctor_active_virtualenv", return_value=True),
-            patch("gpd.core.health.shutil.which", return_value="/usr/bin/runtime"),
+            patch("gpd.core.health._doctor_which", return_value="/usr/bin/runtime"),
             patch("gpd.core.health.os.access", return_value=True),
             patch(
                 "gpd.core.health._doctor_check_bootstrap_network_access",
@@ -1845,7 +1845,7 @@ trigger:
 
         with (
             patch("gpd.core.health._doctor_active_virtualenv", return_value=True),
-            patch("gpd.core.health.shutil.which", return_value="/usr/bin/runtime"),
+            patch("gpd.core.health._doctor_which", return_value="/usr/bin/runtime"),
             patch("gpd.core.health.os.access", return_value=True),
             patch(
                 "gpd.core.health._doctor_check_bootstrap_network_access",
@@ -1882,7 +1882,7 @@ trigger:
 
     def test_runtime_readiness_mode_adds_selected_runtime_checks(self, tmp_path: Path, monkeypatch):
         specs_dir = self._make_specs_dir(tmp_path)
-        monkeypatch.setattr("gpd.core.health.shutil.which", lambda *_args: "/usr/bin/runtime")
+        monkeypatch.setattr("gpd.core.health._doctor_which", lambda *_args: "/usr/bin/runtime")
         monkeypatch.setattr("gpd.core.health.os.access", lambda *_args: True)
         monkeypatch.setattr(
             "gpd.core.health._doctor_check_bootstrap_network_access",
@@ -1944,7 +1944,7 @@ trigger:
 
         with (
             patch("gpd.core.health._doctor_active_virtualenv", return_value=True),
-            patch("gpd.core.health.shutil.which", return_value="/usr/bin/runtime"),
+            patch("gpd.core.health._doctor_which", return_value="/usr/bin/runtime"),
             patch("gpd.core.health.os.access", return_value=True),
             patch(
                 "gpd.core.health._doctor_check_bootstrap_network_access",

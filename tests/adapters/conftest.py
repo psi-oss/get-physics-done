@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,20 +10,22 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _stable_hook_python(request):
-    """Force hook_python_interpreter() to use sys.executable in tests.
+    """Keep hook_python_interpreter() on the active test interpreter.
 
-    In development checkouts ``resolve_checkout_python`` discovers
-    ``.venv/bin/python`` which makes adapter install assertions
-    non-deterministic.  Returning *None* lets ``hook_python_interpreter``
-    fall through to ``sys.executable``.
-
-    Tests that explicitly test checkout-python pinning can opt out with
-    ``@pytest.mark.no_stable_hook_python``.
+    Adapter tests intentionally patch ``gpd.adapters.install_utils.sys.executable``
+    in a few places. Returning that fallback from ``resolve_checkout_python``
+    keeps the generated artifacts deterministic without pretending that checkout
+    detection failed. Tests that need the real checkout resolution can opt out
+    with ``@pytest.mark.no_stable_hook_python``.
     """
     if request.node.get_closest_marker("no_stable_hook_python"):
         yield
         return
-    with patch("gpd.version.resolve_checkout_python", return_value=None):
+
+    def _use_fallback(*_: object, fallback: str | None = None) -> str | None:
+        return fallback
+
+    with patch("gpd.version.resolve_checkout_python", side_effect=_use_fallback):
         yield
 
 

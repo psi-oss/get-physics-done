@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-import sys
+import os
 from pathlib import Path
 
 import pytest
 
 from gpd.adapters.claude_code import ClaudeCodeAdapter
-from gpd.adapters.install_utils import build_runtime_cli_bridge_command
+from gpd.adapters.install_utils import build_runtime_cli_bridge_command, hook_python_interpreter
 from gpd.version import __version__, version_for_gpd_root
 from tests.adapters.review_contract_test_utils import (
     assert_review_contract_prompt_surface,
@@ -76,6 +76,15 @@ def _make_checkout(tmp_path: Path, version: str) -> Path:
     (gpd_root / "specs" / "templates" / "tpl.md").write_text("# templates\n", encoding="utf-8")
     (gpd_root / "specs" / "workflows" / "flow.md").write_text("# workflows\n", encoding="utf-8")
     return gpd_root
+
+
+def _make_managed_home_python(tmp_path: Path) -> Path:
+    managed_home = tmp_path / "managed-home"
+    python_relpath = Path("Scripts/python.exe") if os.name == "nt" else Path("bin/python")
+    managed_python = managed_home / "venv" / python_relpath
+    managed_python.parent.mkdir(parents=True, exist_ok=True)
+    managed_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    return managed_python
 
 
 class TestProperties:
@@ -320,7 +329,7 @@ class TestInstall:
         assert "  - AskUserQuestion" in content
         assert "  - shell" not in content
 
-    def test_install_preserves_jsonc_settings_and_uses_current_interpreter(
+    def test_install_preserves_jsonc_settings_and_uses_managed_home_interpreter(
         self,
         adapter: ClaudeCodeAdapter,
         gpd_root: Path,
@@ -333,11 +342,14 @@ class TestInstall:
             '{\n  // keep user settings\n  "theme": "solarized",\n}\n',
             encoding="utf-8",
         )
+        managed_python = _make_managed_home_python(tmp_path)
         monkeypatch.delenv("GPD_PYTHON", raising=False)
         monkeypatch.setenv("GPD_HOME", str(tmp_path / "managed-home"))
         monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/custom/venv/bin/python")
         monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
 
+        selected_python = hook_python_interpreter()
+        assert selected_python == str(managed_python)
         result = adapter.install(gpd_root, target)
         adapter.finish_install(
             result["settingsPath"],
@@ -348,10 +360,10 @@ class TestInstall:
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         assert settings["theme"] == "solarized"
-        assert settings["statusLine"]["command"] == "/custom/venv/bin/python .claude/hooks/statusline.py"
+        assert settings["statusLine"]["command"] == f"{selected_python} .claude/hooks/statusline.py"
         session_start = settings.get("hooks", {}).get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
-        assert "/custom/venv/bin/python .claude/hooks/check_update.py" in cmds
+        assert f"{selected_python} .claude/hooks/check_update.py" in cmds
 
     def test_reinstall_rewrites_stale_managed_update_hook(
         self,
@@ -375,11 +387,14 @@ class TestInstall:
             ),
             encoding="utf-8",
         )
+        managed_python = _make_managed_home_python(tmp_path)
         monkeypatch.delenv("GPD_PYTHON", raising=False)
         monkeypatch.setenv("GPD_HOME", str(tmp_path / "managed-home"))
         monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/custom/venv/bin/python")
         monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
 
+        selected_python = hook_python_interpreter()
+        assert selected_python == str(managed_python)
         result = adapter.install(gpd_root, target)
         adapter.finish_install(
             result["settingsPath"],
@@ -391,7 +406,7 @@ class TestInstall:
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         session_start = settings.get("hooks", {}).get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
-        assert cmds.count("/custom/venv/bin/python .claude/hooks/check_update.py") == 1
+        assert cmds.count(f"{selected_python} .claude/hooks/check_update.py") == 1
         assert "python3 .claude/hooks/check_update.py" not in cmds
 
     def test_install_preserves_non_gpd_check_update_hook(
@@ -446,10 +461,11 @@ class TestInstall:
         )
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
-        assert settings["statusLine"]["command"] == f"{sys.executable or 'python3'} {(target / 'hooks' / 'statusline.py')}"
+        hook_python = hook_python_interpreter()
+        assert settings["statusLine"]["command"] == f"{hook_python} {(target / 'hooks' / 'statusline.py')}"
         session_start = settings.get("hooks", {}).get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
-        assert f"{sys.executable or 'python3'} {(target / 'hooks' / 'check_update.py')}" in cmds
+        assert f"{hook_python} {(target / 'hooks' / 'check_update.py')}" in cmds
 
     def test_install_preserves_existing_mcp_overrides(
         self,
@@ -485,7 +501,8 @@ class TestInstall:
         adapter.install(gpd_root, target)
 
         parsed = json.loads(mcp_config.read_text(encoding="utf-8"))
-        expected = build_mcp_servers_dict(python_path=sys.executable)["gpd-state"]
+        hook_python = hook_python_interpreter()
+        expected = build_mcp_servers_dict(python_path=hook_python)["gpd-state"]
         server = parsed["mcpServers"]["gpd-state"]
         assert server["command"] == expected["command"]
         assert server["args"] == expected["args"]
@@ -543,7 +560,7 @@ class TestInstall:
         }
         assert parsed["mcpServers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
         assert "claude-test-key" not in mcp_config.read_text(encoding="utf-8")
-        assert result["mcpServers"] == len(build_mcp_servers_dict(python_path=sys.executable)) + 1
+        assert result["mcpServers"] == len(build_mcp_servers_dict(python_path=hook_python_interpreter())) + 1
 
     def test_install_omits_managed_wolfram_when_project_override_disables_it(
         self,
@@ -880,7 +897,7 @@ class TestUninstall:
             json.dumps(
                 {
                     "mcpServers": {
-                        **build_mcp_servers_dict(python_path=sys.executable),
+                        **build_mcp_servers_dict(python_path=hook_python_interpreter()),
                         "custom-server": {"command": "node", "args": ["custom.js"]},
                     }
                 }
@@ -951,7 +968,7 @@ class TestUninstall:
                 "{\n"
                 "  // local workspace servers\n"
                 '  "mcpServers": {\n'
-                f'    "gpd-state": {json.dumps(build_mcp_servers_dict(python_path=sys.executable)["gpd-state"])},\n'
+                f'    "gpd-state": {json.dumps(build_mcp_servers_dict(python_path=hook_python_interpreter())["gpd-state"])},\n'
                 '    "custom-server": {"command": "node", "args": ["custom.js"]},\n'
                 "  },\n"
                 "}\n"

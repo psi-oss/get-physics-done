@@ -177,6 +177,8 @@ def test_verifier_prompt_surfaces_missing_parameter_proof_audit_and_stale_review
     assert "`proof_audit.audit_artifact_path` must point to a proof-redteam artifact" in contract_results_schema
     assert "every declared proof-specific acceptance test in `claims[].acceptance_tests[]` passing" in contract_results_schema
     assert "Verification reports are the decisive readout of the same contract-backed ledger" in verification_template
+    assert "## Canonical Report Surface" in verification_template
+    assert "machine-readable surface limited to the schema-owned ledgers" in verification_template
     assert "status: passed` is strict" in verification_template
     assert "every required decisive comparison is decisive" in verification_template
     assert "record structured `suggested_contract_checks` instead of padding prose" in verification_template

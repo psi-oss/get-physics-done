@@ -1527,6 +1527,8 @@ Reload these canonical verifier surfaces before updating any verdicts:
 - {GPD_INSTALL_DIR}/templates/verification-report.md
 - {GPD_INSTALL_DIR}/templates/contract-results-schema.md
 
+Treat `VERIFICATION.md` as contract-backed only through the schema-owned ledgers `plan_contract_ref`, `contract_results`, `comparison_verdicts`, and `suggested_contract_checks`; do not expect verifier-local aliases or ad hoc machine-readable artifact fields.
+
 Re-verify Phase {PHASE_NUMBER} after gap closure.
 
 <phase_class>{PHASE_CLASSES}</phase_class>

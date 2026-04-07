@@ -1419,6 +1419,15 @@ def _doctor_gpd_cli_probe_command() -> list[str]:
     return [sys.executable, "-m", "gpd.cli", "--help"]
 
 
+def _doctor_which(executable: str) -> str | None:
+    """Resolve *executable* using PATH lookup.
+
+    Tests patch this helper instead of ``shutil.which`` so concurrent suites do
+    not share mutable stdlib state.
+    """
+    return shutil.which(executable)
+
+
 def _doctor_check_live_executable_probes() -> HealthCheck:
     """Optionally run harmless local executable probes for live doctor feedback."""
     probe_results: list[dict[str, object]] = []
@@ -1438,7 +1447,7 @@ def _doctor_check_live_executable_probes() -> HealthCheck:
         )
 
     for executable in _DOCTOR_LIVE_EXECUTABLE_OPTIONAL_COMMANDS:
-        resolved = shutil.which(executable)
+        resolved = _doctor_which(executable)
         if resolved is None:
             skipped.append(executable)
             probe_results.append(
@@ -1507,7 +1516,7 @@ def _doctor_check_runtime_launcher(runtime: str) -> HealthCheck:
     except ValueError:
         launch_argv = []
     launch_executable = launch_argv[0] if launch_argv else descriptor.launch_command.strip()
-    launch_path = shutil.which(launch_executable) if launch_executable else None
+    launch_path = _doctor_which(launch_executable) if launch_executable else None
     issues = [] if launch_path else [f"{launch_executable or descriptor.launch_command} not found on PATH"]
     return HealthCheck(
         status=CheckStatus.OK if launch_path else CheckStatus.FAIL,

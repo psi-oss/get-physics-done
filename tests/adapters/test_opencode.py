@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import json
 import re
-import sys
 from pathlib import Path
 
 import pytest
 
-from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command
+from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command, hook_python_interpreter
 from gpd.adapters.opencode import (
     OpenCodeAdapter,
     configure_opencode_permissions,
@@ -693,7 +692,7 @@ class TestInstall:
         adapter.install(gpd_root, target)
 
         config = json.loads((target / "opencode.json").read_text(encoding="utf-8"))
-        expected = build_mcp_servers_dict(python_path=sys.executable)["gpd-state"]
+        expected = build_mcp_servers_dict(python_path=hook_python_interpreter())["gpd-state"]
         server = config["mcp"]["gpd-state"]
         assert server["type"] == "local"
         assert server["command"] == [expected["command"], *expected["args"]]

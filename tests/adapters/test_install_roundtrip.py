@@ -327,6 +327,7 @@ def test_install_artifacts_pin_checkout_python_when_running_from_checkout(
     runtime: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Exercise the real checkout-python resolution path, not the stable fallback."""
     checkout_root, checkout_python = _make_checkout_stub(tmp_path)
     stale_managed_python = "/managed/gpd/venv/bin/python"
 

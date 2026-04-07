@@ -55,6 +55,11 @@ _WINDOWS_LATEX_SEARCH_DIRS: list[str] = [
 ]
 
 
+def _which(binary: str) -> str | None:
+    """Module-local wrapper around :func:`shutil.which` for test isolation."""
+    return shutil.which(binary)
+
+
 def _find_in_windows_paths(binary: str) -> str | None:
     """Search common Windows LaTeX install directories for *binary*."""
     for base in _WINDOWS_LATEX_SEARCH_DIRS:
@@ -87,7 +92,7 @@ def find_latex_compiler(compiler: str = "pdflatex") -> str | None:
 
     Returns the full path to the compiler, or ``None`` if not found.
     """
-    found = shutil.which(compiler)
+    found = _which(compiler)
     if found:
         return found
     if platform.system() == "Windows":

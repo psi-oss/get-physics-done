@@ -1629,11 +1629,14 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     assert "require that the selected `PLAN.md` passes `gpd validate plan-preflight <PLAN.md>`" in execute_phase
     assert "templates/planner-subagent-prompt.md" in plan_phase
     assert "`tool_requirements` pass `gpd validate plan-preflight <PLAN.md>` before the plan is treated as execution-ready" in planner_prompt_template
+    assert "Treat `VERIFICATION.md` as contract-backed only through the schema-owned ledgers `plan_contract_ref`, `contract_results`, `comparison_verdicts`, and `suggested_contract_checks`; do not expect verifier-local aliases or ad hoc machine-readable artifact fields." in execute_phase
     assert "declare it as `tool: wolfram` in `tool_requirements`" in tooling_ref
     for legacy_alias in ("must_haves", "verification_inputs", "contract_evidence", "independently_confirmed"):
         assert legacy_alias not in summary_template
     assert "`suggested_contract_checks` is verification-only and does not belong in summaries." in summary_template
     assert "contract_results" in verification_template
+    assert "## Canonical Report Surface" in verification_template
+    assert "machine-readable surface limited to the schema-owned ledgers" in verification_template
     assert "Comparison verdicts must declare `subject_role` explicitly" in verification_template
     assert "subject_role: decisive" in verification_template
     assert "verification-side `suggested_contract_checks`" in verification_template

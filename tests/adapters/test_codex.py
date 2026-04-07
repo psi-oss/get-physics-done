@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
-import sys
 import tomllib
 from pathlib import Path
 
@@ -18,7 +18,7 @@ from gpd.adapters.codex import (
     _normalize_codex_questioning,
     _tracked_codex_generated_skill_dirs,
 )
-from gpd.adapters.install_utils import build_runtime_cli_bridge_command, file_hash
+from gpd.adapters.install_utils import build_runtime_cli_bridge_command, file_hash, hook_python_interpreter
 from gpd.registry import load_agents_from_dir
 from tests.adapters.review_contract_test_utils import (
     assert_review_contract_prompt_surface,
@@ -85,6 +85,15 @@ def _make_checkout(tmp_path: Path, version: str) -> Path:
     (gpd_root / "specs" / "templates" / "tpl.md").write_text("# templates\n", encoding="utf-8")
     (gpd_root / "specs" / "workflows" / "flow.md").write_text("# workflows\n", encoding="utf-8")
     return gpd_root
+
+
+def _make_managed_home_python(tmp_path: Path) -> Path:
+    managed_home = tmp_path / "managed-home"
+    python_relpath = Path("Scripts/python.exe") if os.name == "nt" else Path("bin/python")
+    managed_python = managed_home / "venv" / python_relpath
+    managed_python.parent.mkdir(parents=True, exist_ok=True)
+    managed_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    return managed_python
 
 
 class TestProperties:
@@ -565,7 +574,7 @@ class TestInstall:
         config_toml = target / "config.toml"
         assert config_toml.exists()
         content = config_toml.read_text(encoding="utf-8")
-        escaped_exe = (sys.executable or "python3").replace("\\", "\\\\")
+        escaped_exe = hook_python_interpreter().replace("\\", "\\\\")
         expected_notify = (
             f'notify = ["{escaped_exe}", '
             f'"{(target / "hooks" / "notify.py").as_posix()}"]'
@@ -651,7 +660,7 @@ class TestInstall:
         }
         assert parsed["mcp_servers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
         assert "codex-test-key" not in (target / "config.toml").read_text(encoding="utf-8")
-        assert result["mcpServers"] == len(build_mcp_servers_dict(python_path=sys.executable)) + 1
+        assert result["mcpServers"] == len(build_mcp_servers_dict(python_path=hook_python_interpreter())) + 1
 
     def test_install_omits_managed_wolfram_when_project_override_disables_it(
         self,
@@ -1000,16 +1009,19 @@ class TestRuntimePermissions:
             encoding="utf-8",
         )
         shared_skills = tmp_path / "shared-skills"
+        managed_python = _make_managed_home_python(tmp_path)
         monkeypatch.setenv("CODEX_SKILLS_DIR", str(shared_skills))
         monkeypatch.delenv("GPD_PYTHON", raising=False)
         monkeypatch.setenv("GPD_HOME", str(tmp_path / "managed-home"))
         monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/custom/venv/bin/python")
         monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
 
+        selected_python = hook_python_interpreter()
+        assert selected_python == str(managed_python)
         adapter.install(gpd_root, target, is_global=False)
 
         content = (target / "config.toml").read_text(encoding="utf-8")
-        assert 'notify = ["/custom/venv/bin/python", ".codex/hooks/notify.py"]' in content
+        assert f'notify = ["{selected_python}", ".codex/hooks/notify.py"]' in content
         assert 'notify = ["python3", ".codex/hooks/notify.py"]' not in content
 
     def test_install_uses_gpd_python_override_for_notify_and_mcp(
@@ -1576,11 +1588,12 @@ class TestUninstall:
         target = tmp_path / ".codex"
         target.mkdir()
         config_toml = target / "config.toml"
+        hook_python = hook_python_interpreter().replace("\\", "\\\\")
         config_toml.write_text(
             'model = "gpt-4"\n'
             '# My notes about gpd-style naming\n'
             'custom = "my-gpd-tool"\n'
-            f'notify = ["{sys.executable or "python3"}", "/path/notify.py"]\n',
+            f'notify = ["{hook_python}", "/path/notify.py"]\n',
             encoding="utf-8",
         )
         skills = tmp_path / "skills"
@@ -1591,7 +1604,7 @@ class TestUninstall:
         assert 'model = "gpt-4"' in content
         assert "gpd-style naming" in content
         assert 'custom = "my-gpd-tool"' in content
-        assert f'notify = ["{sys.executable or "python3"}", "/path/notify.py"]' in content
+        assert f'notify = ["{hook_python}", "/path/notify.py"]' in content
 
     def test_uninstall_preserves_non_gpd_agent_roles(
         self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path
@@ -1620,11 +1633,12 @@ class TestUninstall:
         target = tmp_path / ".codex"
         target.mkdir()
         config_toml = target / "config.toml"
+        hook_python = hook_python_interpreter().replace("\\", "\\\\")
         config_toml.write_text(
             'model = "gpt-4"\n'
             "\n"
             "# GPD update notification\n"
-            f'notify = ["{sys.executable or "python3"}", "/path/notify.py"]\n',
+            f'notify = ["{hook_python}", "/path/notify.py"]\n',
             encoding="utf-8",
         )
         skills = tmp_path / "skills"
@@ -1658,7 +1672,7 @@ class TestNotifyConfiguration:
 
         content = config_toml.read_text(encoding="utf-8")
         assert '# GPD original notify: ["toolctl", "/path/to/my-tool"]' in content
-        escaped_exe = (sys.executable or "python3").replace("\\", "\\\\")
+        escaped_exe = hook_python_interpreter().replace("\\", "\\\\")
         assert f'notify = ["{escaped_exe}", "-c",' in content
         assert "gpd-codex-notify-wrapper-v1" in content
         assert "/path/to/my-tool" in content
