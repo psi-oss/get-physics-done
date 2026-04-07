@@ -230,6 +230,9 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:parameter-sweep [phase]` - Run a structured parameter sweep
 - `gpd:sensitivity-analysis` - Rank which inputs matter most
 - `gpd:error-propagation` - Track uncertainties through a calculation chain
+- `gpd:verify-equations [LaTeX file]` - Verify equations against literature using LVP
+- `gpd:scan-equations [LaTeX file]` - Extract equation and variable inventory from LaTeX
+- `gpd:check-citations [LaTeX file]` - Cross-reference equations with cited sources
 
 ### Writing and publication
 
@@ -744,6 +747,38 @@ Track how uncertainties propagate through multi-step calculations.
 
 Usage: `gpd:error-propagation --target final_mass`
 Usage: `gpd:error-propagation --phase-range 1:5`
+
+**`gpd:verify-equations [LaTeX file]`**
+Run the LVP (Literature Verification Pipeline) on a LaTeX document.
+
+- Extracts all equations and cross-references with literature
+- Parses equations to SymPy for symbolic checking
+- Detects potential typos by comparing against published versions
+- Tests limiting cases and approximations
+- Builds equation dependency graph
+- Generates a per-equation verification report
+
+Usage: `gpd:verify-equations paper/main.tex`
+
+**`gpd:scan-equations [LaTeX file]`**
+Extract a structured inventory of equations and variables from LaTeX.
+
+- Finds all equation environments (equation, align, $$, etc.)
+- Classifies each equation by type (definition, relation, constraint)
+- Extracts variables with descriptions and units
+- Reports parsing issues or unusual notation
+
+Usage: `gpd:scan-equations paper/main.tex`
+
+**`gpd:check-citations [LaTeX file]`**
+Verify citations and map equations to their literature sources.
+
+- Resolves bibliography entries to arXiv/DOI
+- Maps which equations cite which papers
+- Identifies equations missing attribution
+- Flags unused bibliography entries
+
+Usage: `gpd:check-citations paper/main.tex`
 
 ### Research Publishing
 
