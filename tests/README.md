@@ -35,7 +35,7 @@ This graph therefore includes:
 - `src/gpd/specs/references/**/*.md`: `168`
 - `src/gpd/adapters/*.py`: `9`
 - `src/gpd/hooks/*.py`: `11`
-- `src/gpd/mcp/servers/*.py`: `8`
+- `src/gpd/mcp/servers/*.py`: `9`
 - `infra/gpd-*.json`: `8`
 
 Excluded as noise from node counting, but still modeled where contractually relevant:
@@ -53,6 +53,7 @@ Excluded as noise from node counting, but still modeled where contractually rele
 - `.gemini/**`
 - `.codex/**`
 - `.opencode/**`
+- `.copilot/**`
 - `dist/**`
 <!-- repo-graph-scope:end -->
 

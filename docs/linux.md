@@ -1,6 +1,6 @@
 # GPD on Linux
 
-GPD adds structured physics-research commands to Claude Code, Codex, Gemini CLI, or OpenCode.
+GPD adds structured physics-research commands to Claude Code, Codex, Gemini CLI, GitHub Copilot CLI, or OpenCode.
 
 In these docs, "runtime" means the AI terminal app you talk to.
 
@@ -13,7 +13,7 @@ Back to the onboarding hub: [GPD Onboarding Hub](./README.md).
 - Node.js 20 or newer
 - Python 3.11 or newer with `venv`
 - One supported runtime that already starts from your terminal:
-  Claude Code, Codex, Gemini CLI, or OpenCode
+  Claude Code, Codex, Gemini CLI, GitHub Copilot CLI, or OpenCode
 
 ## Open a terminal
 
@@ -80,6 +80,7 @@ Before installing GPD, confirm that your runtime starts from Terminal:
 - Claude Code: `claude --version`
 - Codex: `codex --help`
 - Gemini CLI: `gemini --help`
+- GitHub Copilot CLI: `gh copilot --help`
 - OpenCode: `opencode --help`
 
 Then use the matching runtime guide:
@@ -87,6 +88,7 @@ Then use the matching runtime guide:
 - [Claude Code quickstart](./claude-code.md)
 - [Codex quickstart](./codex.md)
 - [Gemini CLI quickstart](./gemini-cli.md)
+- [GitHub Copilot CLI quickstart](./github-copilot-cli.md)
 - [OpenCode quickstart](./opencode.md)
 
 ## Install GPD
@@ -100,6 +102,7 @@ Here, `--local` means "install GPD for this project or folder only," so run the 
 | Claude Code | `npx -y get-physics-done --claude --local` |
 | Codex | `npx -y get-physics-done --codex --local` |
 | Gemini CLI | `npx -y get-physics-done --gemini --local` |
+| GitHub Copilot CLI | `npx -y get-physics-done --copilot --local` |
 | OpenCode | `npx -y get-physics-done --opencode --local` |
 
 ## Confirm success
@@ -114,7 +117,7 @@ gpd --help
 
 - Claude Code or Gemini CLI: `/gpd:help`
 - Codex: `$gpd-help`
-- OpenCode: `/gpd-help`
+- GitHub Copilot CLI or OpenCode: `/gpd-help`
 
 If that works, the install is in good shape. If you are not sure what fits this folder yet, use the runtime-specific `start` command below. If you want a guided overview first, use the runtime-specific `tour` command below.
 
@@ -122,8 +125,8 @@ If that works, the install is in good shape. If you are not sure what fits this 
 
 Use the exact command for your runtime:
 
-| What you want to do | Claude Code / Gemini CLI | Codex | OpenCode |
-|---------------------|--------------------------|-------|----------|
+| What you want to do | Claude Code / Gemini CLI | Codex | GitHub Copilot CLI / OpenCode |
+|---------------------|--------------------------|-------|-------------------------------|
 | Not sure which path fits this folder | `/gpd:start` | `$gpd-start` | `/gpd-start` |
 | Want a guided overview | `/gpd:tour` | `$gpd-tour` | `/gpd-tour` |
 | Start a new project | `/gpd:new-project --minimal` | `$gpd-new-project --minimal` | `/gpd-new-project --minimal` |

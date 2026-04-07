@@ -18,7 +18,7 @@ Make sure these are already true:
 <details>
 <summary>What this hub does not do</summary>
 
-- GPD is not a standalone app. It installs commands into Claude Code, Codex, Gemini CLI, or OpenCode.
+- GPD is not a standalone app. It installs commands into Claude Code, Codex, Gemini CLI, GitHub Copilot CLI, or OpenCode.
 - GPD does not install your runtime for you.
 - GPD does not include model access, billing, or API credits.
 - This hub is the beginner path, not the full reference. Use the OS guide, runtime guide, and later `help` / `gpd --help` for the exact commands and deeper diagnostics.
@@ -62,7 +62,7 @@ You will use two different places:
 <details>
 <summary>Common beginner terms</summary>
 
-- **Runtime**: the AI terminal app you talk to, such as Claude Code, Codex, Gemini CLI, or OpenCode.
+- **Runtime**: the AI terminal app you talk to, such as Claude Code, Codex, Gemini CLI, GitHub Copilot CLI, or OpenCode.
 - **API credits**: paid model usage from the provider behind your runtime.
 - **`--local`**: install GPD for just this project or folder.
 - **`gpd resume`**: the terminal-side recovery step.
@@ -135,6 +135,16 @@ Use this if you want GPD inside Gemini CLI. Inside the runtime, GPD commands use
 
 - Install: `npx -y get-physics-done --gemini --local`
 - [Gemini CLI quickstart](./gemini-cli.md)
+
+</details>
+
+<details>
+<summary>GitHub Copilot CLI</summary>
+
+Use this if you want GPD inside GitHub Copilot CLI. Inside the runtime, GPD commands use `/gpd-...`.
+
+- Install: `npx -y get-physics-done --copilot --local`
+- [GitHub Copilot CLI quickstart](./github-copilot-cli.md)
 
 </details>
 

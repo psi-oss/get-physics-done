@@ -24,7 +24,7 @@ https://github.com/user-attachments/assets/e79f8153-c0bd-484f-b69e-da8f142649e0
 
 ## Start Here
 
-GPD is not a standalone app. It installs physics-research commands into Claude Code, Codex, Gemini CLI, or OpenCode.
+GPD is not a standalone app. It installs physics-research commands into Claude Code, Codex, Gemini CLI, GitHub Copilot CLI, or OpenCode.
 
 To install GPD, run this in your system terminal:
 ```bash
@@ -102,16 +102,16 @@ Use this post-install order:
 
 `help -> start -> tour -> new-project / map-research -> resume-work`
 
-Run its help command first: Claude Code / Gemini CLI use `/gpd:help`. Codex uses `$gpd-help`, and OpenCode uses `/gpd-help`.
+Run its help command first: Claude Code / Gemini CLI use `/gpd:help`. Codex uses `$gpd-help`, and GitHub Copilot CLI / OpenCode use `/gpd-help`.
 
 Expert fast path:
 
-- From inside the folder where your project should live, install GPD with the matching `npx -y get-physics-done` bootstrap command from [Start Here](#start-here), then launch `claude`, `codex`, `gemini`, or `opencode`.
+- From inside the folder where your project should live, install GPD with the matching `npx -y get-physics-done` bootstrap command from [Start Here](#start-here), then launch `claude`, `codex`, `gemini`, `gh copilot`, or `opencode`.
 - Run the matching GPD help command shown in [Supported Runtimes](#supported-runtimes).
 - Then use `start` if you are not sure what fits this folder, `tour` for a read-only walkthrough, `new-project --minimal` for new work, `map-research` for existing work, or `resume-work` when you return later.
 - Treat the new-work choice as distinct from the existing-work choice; pick one, then follow it through.
 
-The bootstrap installer requires Node.js 20+, Python 3.11+ with `venv`, and one supported runtime (`claude`, `gemini`, `codex`, or `opencode`).
+The bootstrap installer requires Node.js 20+, Python 3.11+ with `venv`, and one supported runtime (`claude`, `gemini`, `codex`, `gh copilot`, or `opencode`).
 
 If the install worked, both of these should be true:
 
@@ -189,7 +189,7 @@ Typical new-project workflow:
 
 | Flag | Meaning |
 |------|---------|
-| `--claude`, `--codex`, `--gemini`, `--opencode` | Select one runtime. `--claude-code` and `--gemini-cli` also work. |
+| `--claude`, `--codex`, `--gemini`, `--copilot`, `--opencode` | Select one runtime. `--claude-code`, `--gemini-cli`, and `--copilot-cli` also work. |
 | `--all` | Select all supported runtimes. |
 | `--local`, `-l` | Use the current project only. |
 | `--global`, `-g` | Use the global runtime config dir. |
@@ -212,16 +212,17 @@ npx -y github:psi-oss/get-physics-done --upgrade
 
 ## Supported Runtimes
 
-GPD currently installs into four AI runtimes. To preselect one during install, use the matching `npx` flag, or use `--all` to install everything in one pass:
+GPD currently installs into five AI runtimes. To preselect one during install, use the matching `npx` flag, or use `--all` to install everything in one pass:
 
 | Runtime | `npx` flag | Help | Start | Tour | New work | Existing work | Return later |
 |---------|------------|------|-------|------|----------|---------------|--------------|
 | Claude Code | `--claude` | `/gpd:help` | `/gpd:start` | `/gpd:tour` | `/gpd:new-project --minimal` | `/gpd:map-research` | `/gpd:resume-work` |
 | Codex | `--codex` | `$gpd-help` | `$gpd-start` | `$gpd-tour` | `$gpd-new-project --minimal` | `$gpd-map-research` | `$gpd-resume-work` |
 | Gemini CLI | `--gemini` | `/gpd:help` | `/gpd:start` | `/gpd:tour` | `/gpd:new-project --minimal` | `/gpd:map-research` | `/gpd:resume-work` |
+| GitHub Copilot CLI | `--copilot` | `/gpd-help` | `/gpd-start` | `/gpd-tour` | `/gpd-new-project --minimal` | `/gpd-map-research` | `/gpd-resume-work` |
 | OpenCode | `--opencode` | `/gpd-help` | `/gpd-start` | `/gpd-tour` | `/gpd-new-project --minimal` | `/gpd-map-research` | `/gpd-resume-work` |
 
-Each runtime uses its own command prefix, but the workflow is the same across all four. For install-path details, runtime-specific hooks, and launcher notes, use the onboarding hub and the runtime guides in `docs/`.
+Each runtime uses its own command prefix, but the workflow is the same across all five. For install-path details, runtime-specific hooks, and launcher notes, use the onboarding hub and the runtime guides in `docs/`.
 
 ## What GPD Does
 
@@ -433,7 +434,7 @@ Per-project tier settings live in `GPD/config.json` under `model_overrides`:
 }
 ```
 
-Valid runtime keys are `claude-code`, `codex`, `gemini`, and `opencode`. If no override is set for the active runtime, GPD uses that runtime's default model.
+Valid runtime keys are `claude-code`, `codex`, `gemini`, `copilot-cli`, and `opencode`. If no override is set for the active runtime, GPD uses that runtime's default model.
 
 </details>
 
