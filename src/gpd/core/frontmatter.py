@@ -21,6 +21,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import (
     PROOF_ACCEPTANCE_TEST_KINDS,
+    PROOF_AUDIT_REVIEWER,
     ComparisonVerdict,
     ContractResults,
     ProjectContractParseResult,
@@ -692,8 +693,8 @@ def _claim_pass_proof_audit_errors(
 
     if audit.completeness != "complete":
         errors.append(f"claim {claim_id} status=passed requires proof_audit.completeness=complete")
-    if audit.reviewer != "gpd-check-proof":
-        errors.append(f"claim {claim_id} status=passed requires proof_audit.reviewer=gpd-check-proof")
+    if audit.reviewer != PROOF_AUDIT_REVIEWER:
+        errors.append(f"claim {claim_id} status=passed requires proof_audit.reviewer={PROOF_AUDIT_REVIEWER}")
     if not audit.reviewed_at:
         errors.append(f"claim {claim_id} status=passed requires proof_audit.reviewed_at")
     if audit.stale:

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd.contracts import PROOF_AUDIT_REVIEWER
 from gpd.core.proof_review import (
     manuscript_has_theorem_bearing_language,
     manuscript_proof_review_manifest_path,
@@ -97,6 +98,22 @@ def test_manuscript_proof_review_rejects_nonpassing_proof_redteam_artifact(tmp_p
     assert status.state == "open_required_artifact"
     assert status.can_rely_on_prior_review is False
     assert status.anchor_artifact == tmp_path / "GPD" / "review" / "PROOF-REDTEAM.md"
+
+
+def test_manuscript_proof_review_rejects_noncanonical_reviewer(tmp_path: Path) -> None:
+    manuscript_path = write_proof_review_package(
+        tmp_path,
+        theorem_bearing=True,
+        review_report=True,
+        proof_redteam_status="passed",
+        proof_redteam_reviewer="someone-else",
+    ).manuscript_path
+
+    status = resolve_manuscript_proof_review_status(tmp_path, manuscript_path)
+
+    assert status.state == "invalid_required_artifact"
+    assert status.can_rely_on_prior_review is False
+    assert PROOF_AUDIT_REVIEWER in status.detail
 
 
 def test_manuscript_proof_review_rejects_mismatched_proof_redteam_snapshot(tmp_path: Path) -> None:

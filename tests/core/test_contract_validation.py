@@ -11,6 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from gpd.contracts import (
+    PROOF_AUDIT_REVIEWER,
     ComparisonVerdict,
     ContractApproachPolicy,
     ContractClaim,
@@ -2606,6 +2607,27 @@ def test_contract_results_strict_mode_rejects_proof_audit_without_explicit_compl
             "claims.claim-main.proof_audit.completeness must be explicit in contract-backed contract_results"
         ),
     ):
+        ContractResults.model_validate(normalize_contract_results_input(payload))
+
+
+def test_contract_results_strict_mode_rejects_noncanonical_proof_audit_reviewer() -> None:
+    payload = {
+        "claims": {
+            "claim-main": {
+                "status": "passed",
+                "proof_audit": {
+                    "completeness": "incomplete",
+                    "reviewer": "someone-else",
+                },
+            }
+        },
+        "uncertainty_markers": {
+            "weakest_anchors": ["anchor-main"],
+            "disconfirming_observations": ["observation-main"],
+        },
+    }
+
+    with pytest.raises(ValidationError, match=re.escape(f"reviewer must be {PROOF_AUDIT_REVIEWER}")):
         ContractResults.model_validate(normalize_contract_results_input(payload))
 
 

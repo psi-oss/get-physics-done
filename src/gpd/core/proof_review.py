@@ -10,7 +10,7 @@ from pathlib import Path
 
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.contracts import statement_looks_theorem_like
+from gpd.contracts import PROOF_AUDIT_REVIEWER, statement_looks_theorem_like
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
 from gpd.core.referee_policy import validate_stage_review_artifact_alignment
@@ -758,8 +758,8 @@ def _read_proof_redteam_status(
         return None, "top-level frontmatter `status` must be one of: passed, gaps_found, human_needed"
 
     reviewer = meta.get("reviewer")
-    if reviewer != "gpd-check-proof":
-        return None, "top-level frontmatter `reviewer` must be `gpd-check-proof`"
+    if reviewer != PROOF_AUDIT_REVIEWER:
+        return None, f"top-level frontmatter `reviewer` must be `{PROOF_AUDIT_REVIEWER}`"
 
     claim_ids = meta.get("claim_ids")
     if not isinstance(claim_ids, list) or any(not isinstance(item, str) or not item.strip() for item in claim_ids):
