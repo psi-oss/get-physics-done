@@ -1272,6 +1272,7 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-paper": "paper",
     "gpd-literature": "research",
     "gpd-research": "research",
+    "gpd-digest-knowledge": "research",
     "gpd-discover": "research",
     "gpd-explain": "help",
     "gpd-map": "exploration",
