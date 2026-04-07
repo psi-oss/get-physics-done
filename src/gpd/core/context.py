@@ -320,6 +320,112 @@ _VERIFY_WORK_INIT_FIELDS = frozenset(
     }
 )
 
+_EXECUTE_PHASE_STAGE_ALLOWED_TOOLS = frozenset(
+    {
+        "ask_user",
+        "file_edit",
+        "file_read",
+        "file_write",
+        "find_files",
+        "search_files",
+        "shell",
+        "task",
+    }
+)
+_EXECUTE_PHASE_CONTRACT_GATE_FIELDS = frozenset(
+    {
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+    }
+)
+_EXECUTE_PHASE_REFERENCE_RUNTIME_FIELDS = frozenset(
+    {
+        "contract_intake",
+        "effective_reference_intake",
+        "derived_active_references",
+        "derived_active_reference_count",
+        "citation_source_files",
+        "citation_source_count",
+        "citation_source_warnings",
+        "derived_citation_sources",
+        "derived_citation_source_count",
+        "derived_manuscript_reference_status",
+        "derived_manuscript_reference_status_count",
+        "selected_protocol_bundle_ids",
+        "protocol_bundle_count",
+        "protocol_bundle_verifier_extensions",
+        "protocol_bundle_context",
+        "active_reference_context",
+        "active_references",
+        "active_reference_count",
+        "reference_artifact_files",
+        "reference_artifacts_content",
+        "literature_review_files",
+        "literature_review_count",
+        "research_map_reference_files",
+        "research_map_reference_count",
+        "derived_manuscript_proof_review_status",
+    }
+)
+_EXECUTE_PHASE_STRUCTURED_STATE_FIELDS = frozenset(
+    {
+        "state_load_source",
+        "state_integrity_issues",
+        "convention_lock",
+        "convention_lock_count",
+        "intermediate_results",
+        "intermediate_result_count",
+        "approximations",
+        "approximation_count",
+        "propagated_uncertainties",
+        "propagated_uncertainty_count",
+    }
+)
+_EXECUTE_PHASE_STATE_MEMORY_FIELDS = frozenset(
+    {
+        "derived_convention_lock",
+        "derived_convention_lock_count",
+        "derived_intermediate_results",
+        "derived_intermediate_result_count",
+        "derived_approximations",
+        "derived_approximation_count",
+    }
+)
+_EXECUTE_PHASE_EXECUTION_RUNTIME_FIELDS = frozenset(
+    {
+        "current_execution",
+        "has_live_execution",
+        "execution_review_pending",
+        "execution_pre_fanout_review_pending",
+        "execution_skeptical_requestioning_required",
+        "execution_downstream_locked",
+        "execution_blocked",
+        "execution_resumable",
+        "execution_paused_at",
+        "current_execution_resume_file",
+        "session_resume_file",
+        "recorded_session_resume_file",
+        "missing_session_resume_file",
+        "execution_resume_file",
+        "execution_resume_file_source",
+        "resume_projection",
+        "current_hostname",
+        "current_platform",
+        "session_hostname",
+        "session_platform",
+        "session_last_date",
+        "session_stopped_at",
+        "machine_change_detected",
+        "machine_change_notice",
+        "derived_execution_head",
+        "continuity_handoff_file",
+        "recorded_continuity_handoff_file",
+        "missing_continuity_handoff_file",
+        "has_continuity_handoff",
+    }
+)
 # Directories to skip when scanning for research files.
 _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = re.compile(r"^(?:[ \t]*\r?\n)+(?=---[ \t]*\r?\n)")
 
@@ -2043,13 +2149,19 @@ def _detect_platform(cwd: Path | None = None) -> str:
 # ─── Context Assemblers ──────────────────────────────────────────────────────
 
 
-def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None = None) -> dict:
+def init_execute_phase(
+    cwd: Path,
+    phase: str | None,
+    includes: set[str] | None = None,
+    stage: str | None = None,
+) -> dict:
     """Assemble context for phase execution.
 
     Args:
         cwd: Project root directory.
         phase: Phase identifier (e.g. "3", "03", "3.1").
         includes: Optional set of file sections to embed (state, config, roadmap).
+        stage: Optional staged execute-phase context identifier.
     """
     if not phase:
         raise ValidationError(
@@ -2058,6 +2170,11 @@ def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None =
         )
 
     includes = includes or set()
+    if stage is not None and includes:
+        raise ValueError(
+            "gpd init execute-phase does not allow --include together with --stage; "
+            "stage payloads already declare their required context."
+        )
     config = load_config(cwd)
     phase_info = _try_find_phase(cwd, phase)
     milestone = _try_get_milestone_info(cwd)
@@ -2112,21 +2229,60 @@ def init_execute_phase(cwd: Path, phase: str | None, includes: set[str] | None =
         # Platform
         "platform": _detect_platform(cwd),
     }
-    result.update(_build_reference_runtime_context(cwd))
-    result.update(_build_state_memory_runtime_context(cwd))
-    result.update(_build_execution_runtime_context(cwd))
+    if stage is None:
+        result.update(_build_reference_runtime_context(cwd))
+        result.update(_build_state_memory_runtime_context(cwd))
+        result.update(_build_execution_runtime_context(cwd))
 
-    # Include file contents if requested
-    planning = cwd / PLANNING_DIR_NAME
-    if "state" in includes:
-        result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
-        result.update(_build_structured_state_runtime_context(cwd))
-    if "config" in includes:
-        result["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
-    if "roadmap" in includes:
-        result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
+        # Include file contents if requested
+        planning = cwd / PLANNING_DIR_NAME
+        if "state" in includes:
+            result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
+            result.update(_build_structured_state_runtime_context(cwd))
+        if "config" in includes:
+            result["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
+        if "roadmap" in includes:
+            result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
 
-    return result
+        return result
+
+    from gpd.core.workflow_staging import load_execute_phase_stage_contract
+
+    manifest = load_execute_phase_stage_contract()
+    try:
+        stage_def = manifest.stage_by_id(stage)
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown execute-phase stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
+        ) from exc
+
+    required_fields = set(stage_def.required_init_fields)
+    staged_source = dict(result)
+
+    if required_fields & _EXECUTE_PHASE_CONTRACT_GATE_FIELDS:
+        staged_source.update(_build_new_project_contract_runtime_context(cwd))
+
+    if required_fields & _EXECUTE_PHASE_REFERENCE_RUNTIME_FIELDS:
+        staged_source.update(_build_reference_runtime_context(cwd))
+
+    if required_fields & _EXECUTE_PHASE_STRUCTURED_STATE_FIELDS:
+        staged_source.update(_build_structured_state_runtime_context(cwd))
+
+    if required_fields & _EXECUTE_PHASE_STATE_MEMORY_FIELDS:
+        staged_source.update(_build_state_memory_runtime_context(cwd))
+
+    if required_fields & _EXECUTE_PHASE_EXECUTION_RUNTIME_FIELDS:
+        staged_source.update(_build_execution_runtime_context(cwd))
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
+    if missing_fields:
+        raise ValueError(
+            f"execute-phase stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
+        )
+
+    staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
+    staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
+    return staged_payload
 
 
 def _build_plan_phase_file_context(

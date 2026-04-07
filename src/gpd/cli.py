@@ -4153,6 +4153,11 @@ def _parse_init_include_option(
 def init_execute_phase(
     phase: str | None = typer.Argument(None, help="Phase number"),
     include: str | None = typer.Option(None, "--include", help="Additional context includes"),
+    stage: str | None = typer.Option(
+        None,
+        "--stage",
+        help="Load the staged execute-phase context for a specific stage id.",
+    ),
 ) -> None:
     """Assemble context for executing a phase."""
     from gpd.core.context import init_execute_phase
@@ -4162,7 +4167,7 @@ def init_execute_phase(
         command_name="gpd init execute-phase",
         allowed=_INIT_EXECUTE_PHASE_INCLUDES,
     )
-    _output(init_execute_phase(_get_cwd(), phase, includes=includes))
+    _output(init_execute_phase(_get_cwd(), phase, includes=includes, stage=stage))
 
 
 @init_app.command("plan-phase")

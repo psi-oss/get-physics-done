@@ -1937,6 +1937,20 @@ def test_execute_phase_workflow_surfaces_project_contract_validation_gate() -> N
     assert "visible-but-blocked contract as an approved execution contract" in execute_workflow
 
 
+def test_execute_phase_and_execute_plan_use_staged_execution_bootstrap_instead_of_monolithic_init() -> None:
+    execute_workflow = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+    execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
+
+    assert "BOOTSTRAP_INIT=$(load_execute_phase_stage phase_bootstrap)" in execute_workflow
+    assert "WAVE_PLANNING_INIT=$(load_execute_phase_stage wave_planning)" in execute_workflow
+    assert "WAVE_DISPATCH_INIT=$(load_execute_phase_stage wave_dispatch)" in execute_workflow
+    assert "gpd --raw init execute-phase \"${phase}\" --include state,config" not in execute_plan
+    assert 'gpd --raw init execute-phase "${phase}" --stage plan_bootstrap' in execute_plan
+    assert 'gpd --raw init execute-phase "${phase}" --stage contract_anchor_gate' in execute_plan
+    assert 'gpd --raw init execute-phase "${phase}" --stage segment_execution' in execute_plan
+    assert 'gpd --raw init execute-phase "${phase}" --stage summary_finalize' in execute_plan
+
+
 def test_execute_phase_and_execute_plan_surface_required_reference_and_state_ownership_guidance() -> None:
     execute_command = (COMMANDS_DIR / "execute-phase.md").read_text(encoding="utf-8")
     execute_workflow = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")

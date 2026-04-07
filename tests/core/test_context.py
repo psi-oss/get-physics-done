@@ -1203,6 +1203,21 @@ class TestInitExecutePhase:
         assert checklist["bundle_checks"] == ctx["protocol_bundle_verifier_extensions"]
 
 
+class TestInitExecutePhaseStagedWiring:
+    def test_stage_phase_bootstrap_returns_only_bootstrap_payload(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-setup")
+        _write_project_contract_state(tmp_path)
+
+        ctx = init_execute_phase(tmp_path, "1", stage="phase_bootstrap")
+
+        assert ctx["phase_found"] is True
+        assert ctx["staged_loading"]["stage_id"] == "phase_bootstrap"
+        assert "reference_artifacts_content" not in ctx
+        assert "protocol_bundle_context" not in ctx
+        assert "current_execution" not in ctx
+
+
 # ─── init_plan_phase ──────────────────────────────────────────────────────────
 
 

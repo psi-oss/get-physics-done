@@ -30,7 +30,6 @@ Context budget: ~15% orchestrator, fresh context per subagent.
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/execute-phase.md
-@{GPD_INSTALL_DIR}/references/ui/ui-brand.md
 </execution_context>
 
 <context>
@@ -40,8 +39,7 @@ Phase: $ARGUMENTS
 
 - `--gaps-only` -- Execute only gap-closure plans (`gap_closure: true`). Use after `verify-work` creates fix plans.
 
-@GPD/ROADMAP.md
-@GPD/STATE.md
+Shared-state updates land after each completed plan, so the orchestrator keeps the shared execution ledger current by wave end.
 </context>
 
 <inline_guidance>

@@ -8,8 +8,10 @@ from pathlib import Path
 import pytest
 
 from gpd.core.workflow_staging import (
+    EXECUTE_PHASE_STAGE_MANIFEST_PATH,
     NEW_PROJECT_STAGE_MANIFEST_PATH,
     invalidate_workflow_stage_manifest_cache,
+    known_init_fields_for_workflow,
     load_workflow_stage_manifest,
     load_workflow_stage_manifest_from_path,
     resolve_workflow_stage_manifest_path,
@@ -28,6 +30,7 @@ def _workflow_payload(workflow_id: str) -> dict[str, object]:
         ("new-project", NEW_PROJECT_STAGE_MANIFEST_PATH),
         ("plan-phase", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "plan-phase-stage-manifest.json"),
         ("verify-work", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "verify-work-stage-manifest.json"),
+        ("execute-phase", EXECUTE_PHASE_STAGE_MANIFEST_PATH),
     ],
 )
 def test_resolve_workflow_stage_manifest_path_matches_canonical_manifest(
@@ -97,6 +100,164 @@ def test_validate_workflow_stage_manifest_payload_loads_plan_phase_manifest() ->
     assert "experiment_design_content" in manifest.stages[2].required_init_fields
     assert "experiment_design_content" in manifest.stages[3].required_init_fields
     assert "GPD/phases" in manifest.stages[2].writes_allowed
+
+
+def test_known_init_fields_for_execute_phase_include_bootstrap_and_wave_context() -> None:
+    known_init_fields = known_init_fields_for_workflow("execute-phase")
+
+    assert known_init_fields is not None
+    assert "executor_model" in known_init_fields
+    assert "verifier_model" in known_init_fields
+    assert "phase_found" in known_init_fields
+    assert "plan_count" in known_init_fields
+    assert "selected_protocol_bundle_ids" in known_init_fields
+    assert "reference_artifacts_content" in known_init_fields
+    assert "current_execution" in known_init_fields
+
+
+def test_validate_workflow_stage_manifest_payload_loads_execute_phase_manifest_shape() -> None:
+    manifest = validate_workflow_stage_manifest_payload(
+        {
+            "schema_version": 1,
+            "workflow_id": "execute-phase",
+            "stages": [
+                {
+                    "id": "phase_bootstrap",
+                    "order": 1,
+                    "purpose": "Load only the bootstrap execution snapshot and route the phase.",
+                    "mode_paths": ["workflows/execute-phase.md"],
+                    "required_init_fields": [
+                        "executor_model",
+                        "verifier_model",
+                        "commit_docs",
+                        "autonomy",
+                        "review_cadence",
+                        "research_mode",
+                        "parallelization",
+                        "max_unattended_minutes_per_plan",
+                        "max_unattended_minutes_per_wave",
+                        "checkpoint_after_n_tasks",
+                        "checkpoint_after_first_load_bearing_result",
+                        "checkpoint_before_downstream_dependent_tasks",
+                        "verifier_enabled",
+                        "branching_strategy",
+                        "branch_name",
+                        "phase_found",
+                        "phase_dir",
+                        "phase_number",
+                        "phase_name",
+                        "phase_slug",
+                        "plans",
+                        "summaries",
+                        "incomplete_plans",
+                        "plan_count",
+                        "incomplete_count",
+                        "state_exists",
+                        "roadmap_exists",
+                        "project_contract",
+                        "project_contract_gate",
+                        "project_contract_validation",
+                        "project_contract_load_info",
+                        "state_load_source",
+                        "state_integrity_issues",
+                        "convention_lock",
+                        "convention_lock_count",
+                    ],
+                    "loaded_authorities": ["workflows/execute-phase.md"],
+                    "conditional_authorities": [],
+                    "must_not_eager_load": [
+                        "references/ui/ui-brand.md",
+                        "references/orchestration/artifact-surfacing.md",
+                        "templates/contract-results-schema.md",
+                        "templates/summary.md",
+                    ],
+                    "allowed_tools": ["file_read", "shell", "task"],
+                    "writes_allowed": [],
+                    "produced_state": [],
+                    "next_stages": ["wave_planning"],
+                    "checkpoints": [],
+                },
+                {
+                    "id": "wave_planning",
+                    "order": 2,
+                    "purpose": "Load the wave-planning payload only when the orchestrator needs to shape waves.",
+                    "mode_paths": ["workflows/execute-phase.md"],
+                    "required_init_fields": [
+                        "selected_protocol_bundle_ids",
+                        "protocol_bundle_context",
+                        "active_reference_context",
+                        "reference_artifacts_content",
+                        "intermediate_results",
+                        "intermediate_result_count",
+                        "approximations",
+                        "approximation_count",
+                        "propagated_uncertainties",
+                        "propagated_uncertainty_count",
+                        "derived_convention_lock",
+                        "derived_convention_lock_count",
+                        "derived_intermediate_results",
+                        "derived_intermediate_result_count",
+                        "derived_approximations",
+                        "derived_approximation_count",
+                    ],
+                    "loaded_authorities": [
+                        "workflows/execute-phase.md",
+                        "references/orchestration/meta-orchestration.md",
+                    ],
+                    "conditional_authorities": [],
+                    "must_not_eager_load": [
+                        "references/ui/ui-brand.md",
+                        "templates/contract-results-schema.md",
+                        "templates/summary.md",
+                    ],
+                    "allowed_tools": ["file_read", "shell", "task"],
+                    "writes_allowed": [],
+                    "produced_state": [],
+                    "next_stages": ["wave_dispatch"],
+                    "checkpoints": [],
+                },
+                {
+                    "id": "wave_dispatch",
+                    "order": 3,
+                    "purpose": "Load only the late execution context required to spawn and review waves.",
+                    "mode_paths": ["workflows/execute-phase.md"],
+                    "required_init_fields": [
+                        "selected_protocol_bundle_ids",
+                        "protocol_bundle_context",
+                        "active_reference_context",
+                        "reference_artifacts_content",
+                    ],
+                    "loaded_authorities": [
+                        "workflows/execute-phase.md",
+                        "references/orchestration/artifact-surfacing.md",
+                    ],
+                    "conditional_authorities": [],
+                    "must_not_eager_load": [
+                        "references/ui/ui-brand.md",
+                        "templates/summary.md",
+                        "templates/contract-results-schema.md",
+                    ],
+                    "allowed_tools": ["file_read", "shell", "task"],
+                    "writes_allowed": [],
+                    "produced_state": [],
+                    "next_stages": [],
+                    "checkpoints": [],
+                },
+            ],
+        },
+        expected_workflow_id="execute-phase",
+    )
+
+    assert manifest.stage_ids() == ("phase_bootstrap", "wave_planning", "wave_dispatch")
+    assert manifest.stages[0].loaded_authorities == ("workflows/execute-phase.md",)
+    assert "references/ui/ui-brand.md" in manifest.stages[0].must_not_eager_load
+    assert "templates/contract-results-schema.md" in manifest.stages[0].must_not_eager_load
+    assert "references/orchestration/meta-orchestration.md" in manifest.stages[1].loaded_authorities
+    assert "selected_protocol_bundle_ids" in manifest.stages[1].required_init_fields
+    assert "reference_artifacts_content" in manifest.stages[2].required_init_fields
+    assert "references/orchestration/artifact-surfacing.md" in manifest.stages[2].loaded_authorities
+    assert manifest.staged_loading_payload("phase_bootstrap")["next_stages"] == ["wave_planning"]
+    assert manifest.staged_loading_payload("wave_dispatch")["checkpoints"] == []
 
 
 @pytest.mark.parametrize(

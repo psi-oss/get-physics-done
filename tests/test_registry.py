@@ -1961,6 +1961,68 @@ class TestPublicAPI:
         assert cmd.staged_loading.stage_ids() == ("session_router",)
         assert cmd.staged_loading.stages[0].loaded_authorities == ("workflows/verify-work.md",)
 
+    def test_get_command_execute_phase_surfaces_staged_loading_manifest(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir()
+        (commands_dir / "execute-phase.md").write_text(
+            "---\n"
+            "name: gpd:execute-phase\n"
+            "description: Execute phase\n"
+            "allowed-tools:\n"
+            "  - file_read\n"
+            "---\n"
+            "Body.",
+            encoding="utf-8",
+        )
+
+        manifest_path = tmp_path / "execute-phase-stage-manifest.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "workflow_id": "execute-phase",
+                    "stages": [
+                        {
+                            "id": "phase_bootstrap",
+                            "order": 1,
+                            "purpose": "phase lookup and routing",
+                            "mode_paths": ["workflows/execute-phase.md"],
+                            "required_init_fields": [],
+                            "loaded_authorities": ["workflows/execute-phase.md"],
+                            "conditional_authorities": [],
+                            "must_not_eager_load": ["references/ui/ui-brand.md"],
+                            "allowed_tools": ["file_read"],
+                            "writes_allowed": [],
+                            "produced_state": [],
+                            "next_stages": [],
+                            "checkpoints": [],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        original_resolve_manifest_path = registry.resolve_workflow_stage_manifest_path
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(
+            registry,
+            "resolve_workflow_stage_manifest_path",
+            lambda workflow_id: manifest_path if workflow_id == "execute-phase" else original_resolve_manifest_path(workflow_id),
+        )
+        registry.invalidate_cache()
+
+        cmd = registry.get_command("execute-phase")
+
+        assert cmd.staged_loading is not None
+        assert cmd.staged_loading.workflow_id == "execute-phase"
+        assert cmd.staged_loading.stage_ids() == ("phase_bootstrap",)
+        assert cmd.staged_loading.stages[0].loaded_authorities == ("workflows/execute-phase.md",)
+
     def test_registry_cache_invalidation_clears_new_project_stage_manifest(self) -> None:
         registry.invalidate_cache()
         first = registry.get_command("gpd:new-project").staged_loading

@@ -15,17 +15,32 @@ For artifact class definitions and review priority rules, see `@{GPD_INSTALL_DIR
 <process>
 
 <step name="initialize" priority="first">
-Load all context in one call:
+Load the bootstrap stage first. Keep later wave and closeout context on demand.
 
 ```bash
-INIT=$(gpd --raw init execute-phase "${PHASE_ARG}")
+load_execute_phase_stage() {
+  local stage_name="$1"
+  local init_payload=""
+
+  if [ -n "$stage_name" ]; then
+    init_payload=$(gpd --raw init execute-phase "${PHASE_ARG}" --stage "${stage_name}" 2>/dev/null)
+    if [ $? -eq 0 ] && [ -n "$init_payload" ]; then
+      printf '%s' "$init_payload"
+      return 0
+    fi
+  fi
+
+  gpd --raw init execute-phase "${PHASE_ARG}"
+}
+
+BOOTSTRAP_INIT=$(load_execute_phase_stage phase_bootstrap)
 if [ $? -ne 0 ]; then
-  echo "ERROR: gpd initialization failed: $INIT"
+  echo "ERROR: gpd initialization failed: $BOOTSTRAP_INIT"
   exit 1
 fi
 ```
 
-Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `review_cadence`, `research_mode`, `parallelization`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `state_load_source`, `state_integrity_issues`, `convention_lock`, `convention_lock_count`, `intermediate_results`, `intermediate_result_count`, `approximations`, `approximation_count`, `propagated_uncertainties`, `propagated_uncertainty_count`, `derived_convention_lock`, `derived_convention_lock_count`, `derived_intermediate_results`, `derived_intermediate_result_count`, `derived_approximations`, `derived_approximation_count`, `selected_protocol_bundle_ids`, `protocol_bundle_context`.
+Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `review_cadence`, `research_mode`, `parallelization`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `state_load_source`, `state_integrity_issues`, `convention_lock`, `convention_lock_count`.
 
 **If `phase_found` is false:** Error -- phase directory not found.
 **If `plan_count` is 0:** Error -- no plans found in phase.
@@ -277,6 +292,20 @@ Never treat a clean `SUMMARY.md`, correct algebra in a subset of cases, or "huma
 When runtime delegation is available, `gpd-check-proof` is the canonical owner of this sibling artifact. The executor may draft the proof and theorem inventory, but it must not self-certify theorem-proof alignment as its own independent redteam.
 </step>
 
+<step name="refresh_wave_planning_context">
+Refresh the wave-planning stage so the orchestrator does not keep late execution context pinned in bootstrap state:
+
+```bash
+WAVE_PLANNING_INIT=$(load_execute_phase_stage wave_planning)
+if [ $? -ne 0 ]; then
+  echo "ERROR: wave-planning stage refresh failed: $WAVE_PLANNING_INIT"
+  exit 1
+fi
+```
+
+Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `reference_artifacts_content`, `intermediate_results`, `intermediate_result_count`, `approximations`, `approximation_count`, `propagated_uncertainties`, `propagated_uncertainty_count`, `derived_convention_lock`, `derived_convention_lock_count`, `derived_intermediate_results`, `derived_intermediate_result_count`, `derived_approximations`, `derived_approximation_count`.
+</step>
+
 <step name="structural_validation">
 Run structural validation on all plans before execution begins:
 
@@ -445,6 +474,18 @@ When `RESEARCH_MODE=exploit`, suppress optional tangents by default: classify th
 
 <step name="execute_waves">
 Execute each wave in sequence. Within a wave: parallel if `PARALLELIZATION=true` AND `FORCE_SEQUENTIAL=false`, sequential otherwise. (Literature phases force sequential execution — see `adapt_to_computation_type`.)
+
+Refresh the wave-dispatch stage immediately before spawning executors so plan execution sees only the late-loaded context it actually needs:
+
+```bash
+WAVE_DISPATCH_INIT=$(load_execute_phase_stage wave_dispatch)
+if [ $? -ne 0 ]; then
+  echo "ERROR: wave-dispatch stage refresh failed: $WAVE_DISPATCH_INIT"
+  exit 1
+fi
+```
+
+Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `reference_artifacts_content`.
 
 **For each wave:**
 

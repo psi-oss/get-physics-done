@@ -58,3 +58,14 @@ def test_execute_plan_surfaces_github_lifecycle_wiring() -> None:
     assert "git branch --merged main" not in github_lifecycle
     assert "git push origin <tag-name>" not in github_lifecycle
     assert "git push origin --tags" not in github_lifecycle
+
+
+def test_execute_plan_uses_staged_execution_bootstrap_and_late_context_refreshes() -> None:
+    execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
+
+    assert 'gpd --raw init execute-phase "${phase}" --stage plan_bootstrap' in execute_plan
+    assert 'gpd --raw init execute-phase "${phase}" --stage contract_anchor_gate' in execute_plan
+    assert 'gpd --raw init execute-phase "${phase}" --stage segment_execution' in execute_plan
+    assert 'gpd --raw init execute-phase "${phase}" --stage summary_finalize' in execute_plan
+    assert 'gpd --raw init execute-phase "${phase}" --include state,config' not in execute_plan
+    assert "summary-schema loads until the stage that actually consumes them" in execute_plan

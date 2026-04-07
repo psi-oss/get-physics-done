@@ -5,63 +5,51 @@ Execute a research plan (`PLAN.md` or `*-PLAN.md`) -- carry out derivations, cal
 <required_reading>
 Load the structured init-state payload first; reopen `STATE.md` only if the payload is missing, stale, or flagged by `state_load_source` / `state_integrity_issues`.
 Read config.json for planning behavior settings.
-
-Read these reference files using the file_read tool:
-- {GPD_INSTALL_DIR}/references/execution/git-integration.md
-- {GPD_INSTALL_DIR}/references/execution/github-lifecycle.md
-- {GPD_INSTALL_DIR}/references/execution/execute-plan-recovery.md
-- {GPD_INSTALL_DIR}/references/execution/execute-plan-validation.md
-- {GPD_INSTALL_DIR}/references/execution/execute-plan-checkpoints.md
-- {GPD_INSTALL_DIR}/references/protocols/reproducibility.md
-- {GPD_INSTALL_DIR}/references/protocols/error-propagation-protocol.md -- Cross-phase uncertainty propagation protocol (Uncertainty Budget declaration format, verification checks, phase handoff format)
-- {GPD_INSTALL_DIR}/references/execution/executor-index.md -- Maps execution scenarios (QFT, condensed matter, numerical, paper writing, debugging) to the correct domain-specific reference files
-- {GPD_INSTALL_DIR}/templates/calculation-log.md -- Template for CALCULATION_LOG.md (detailed derivation records within a phase)
-- {GPD_INSTALL_DIR}/templates/recovery-plan.md -- Template for RECOVERY.md (structured recovery after plan execution failure)
-
-When following GitHub lifecycle examples, substitute the repository's actual default branch and remote names for `<default-branch>` and `<remote-name>`; those placeholders are not literal branch or remote names.
+Defer execution-reference, checkpoint, recovery, and summary-schema loads until the stage that actually consumes them. When those files are needed, read them with the file_read tool in the relevant stage rather than frontloading them here.
 </required_reading>
 
 <process>
 
 <step name="init_context" priority="first">
-Load execution context (uses `init execute-phase` for full context, including file contents):
+Load the bootstrap execution context using the staged init payload:
 
 ```bash
-INIT=$(gpd --raw init execute-phase "${phase}" --include state,config)
+INIT=$(gpd --raw init execute-phase "${phase}" --stage plan_bootstrap)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   exit 1
 fi
 ```
 
-Extract from init JSON: `executor_model`, `commit_docs`, `phase_dir`, `phase_number`, `plans`, `summaries`, `incomplete_plans`, `autonomy`, `review_cadence`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `state_load_source`, `state_integrity_issues`, `convention_lock`, `convention_lock_count`, `intermediate_results`, `intermediate_result_count`, `approximations`, `approximation_count`, `propagated_uncertainties`, `propagated_uncertainty_count`, `derived_convention_lock`, `derived_convention_lock_count`, `derived_intermediate_results`, `derived_intermediate_result_count`, `derived_approximations`, `derived_approximation_count`, `selected_protocol_bundle_ids`, `protocol_bundle_context`.
-
-**File contents (from --include):** `state_content`, `config_content`. Access with:
-
-```bash
-STATE_CONTENT=$(echo "$INIT" | gpd json get .state_content --default "")
-CONFIG_CONTENT=$(echo "$INIT" | gpd json get .config_content --default "")
-```
+Extract from bootstrap init JSON: `executor_model`, `commit_docs`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `summaries`, `incomplete_plans`, `plan_count`, `incomplete_count`, `autonomy`, `review_cadence`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `branching_strategy`, `branch_name`, `phase_found`, `state_exists`, `roadmap_exists`, `config_exists`, `state_load_source`, `state_integrity_issues`, `convention_lock`, `convention_lock_count`, `derived_convention_lock`, `derived_convention_lock_count`.
 
 If `GPD/` missing: error.
 </step>
 
 <step name="load_contract_anchor_context">
+Load the contract / anchor gate payload only when you actually need it:
+
+```bash
+CONTRACT_INIT=$(gpd --raw init execute-phase "${phase}" --stage contract_anchor_gate)
+if [ $? -ne 0 ]; then
+  echo "ERROR: staged contract-anchor init failed: $CONTRACT_INIT"
+  exit 1
+fi
+```
+
+Extract from init JSON: `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`. This is the contract-anchor stage payload.
+
 If `project_contract_load_info.status` starts with `blocked`, STOP and repair the stored contract before executing. Use the surfaced `project_contract_load_info.errors` / `warnings`; do not guess around them from prose-only context.
 
 If `project_contract_validation.valid` is false, STOP and repair the contract before executing. A visible-but-blocked contract is still not an approved execution contract.
 
 Treat `project_contract` as authoritative machine-readable scope only when `project_contract_gate.authoritative` is true. Do not execute from PLAN markdown alone if the contract or active-anchor ledger says a decisive reference, prior output, or forbidden proxy still constrains the work.
 
-Treat `effective_reference_intake` as the structured carry-forward ledger for must-read refs, baselines, prior outputs, user anchors, and context gaps. Use `active_reference_context` and `reference_artifacts_content` to interpret that ledger quickly, not to replace it with prose-only reconstruction.
+Treat `effective_reference_intake` as the structured carry-forward ledger for must-read refs, baselines, prior outputs, user anchors, and context gaps. Use `active_reference_context` to interpret that ledger quickly, not to replace it with prose-only reconstruction.
 </step>
 
 <step name="load_protocol_bundle_context">
-If `selected_protocol_bundle_ids` is non-empty, treat `protocol_bundle_context` as the primary specialized-loading guide for this plan.
-
-- Read the bundle-listed core assets before starting substantive work.
-- Carry bundle estimator policies and decisive artifact guidance into task execution and SUMMARY evidence.
-- If no bundle is selected, fall back to shared protocols plus on-demand routing through the executor index.
+Keep bundle asset reads out of bootstrap. If the plan later needs specialized execution guidance, the segment-execution stage will load the bundle payload and the bundle-listed core assets there instead of here.
 </step>
 
 <step name="verify_conventions">
@@ -141,6 +129,8 @@ Start execution trace for debugging:
 ```bash
 gpd trace start "${phase}" "${plan}" 2>/dev/null || true
 ```
+
+Keep the GitHub lifecycle reference deferred until the plan reaches its checkpoint / closeout handling, but remember that this plan will eventually need `{GPD_INSTALL_DIR}/references/execution/github-lifecycle.md` for branch and remote examples.
 </step>
 
 <step name="resolve_autonomy_mode">
@@ -298,6 +288,38 @@ ls GPD/phases/*/*SUMMARY.md 2>/dev/null | sort -r | head -2 | tail -1
 > **Platform note:** If `ask_user` is not available, present these options in plain text and wait for the user's freeform response.
 
 If previous SUMMARY has unresolved "Issues Encountered" or "Next Phase Readiness" blockers: ask_user(header="Previous Issues", options: "Proceed anyway" | "Address first" | "Review previous").
+</step>
+
+<step name="load_segment_execution_context">
+Load the plan-execution payload only when the plan is ready to move into segment execution:
+
+```bash
+SEGMENT_INIT=$(gpd --raw init execute-phase "${phase}" --stage segment_execution)
+if [ $? -ne 0 ]; then
+  echo "ERROR: staged segment-execution init failed: $SEGMENT_INIT"
+  exit 1
+fi
+```
+
+Extract from segment-execution init JSON: `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `state_load_source`, `state_integrity_issues`, `convention_lock`, `convention_lock_count`, `intermediate_results`, `intermediate_result_count`, `approximations`, `approximation_count`, `propagated_uncertainties`, `propagated_uncertainty_count`, `derived_convention_lock`, `derived_convention_lock_count`, `derived_intermediate_results`, `derived_intermediate_result_count`, `derived_approximations`, `derived_approximation_count`, `current_execution`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`.
+
+If `selected_protocol_bundle_ids` is non-empty, treat `protocol_bundle_context` as the execution-stage specialized-loading guide for this plan. Read any bundle-listed core assets now, not during bootstrap.
+
+Use `reference_artifacts_content` only here, when the segment actually needs to interpret prior outputs, baselines, or unresolved gaps.
+
+Read these reference files using the file_read tool only now, in the segment-execution stage:
+- {GPD_INSTALL_DIR}/references/execution/git-integration.md
+- {GPD_INSTALL_DIR}/references/execution/github-lifecycle.md
+- {GPD_INSTALL_DIR}/references/execution/execute-plan-recovery.md
+- {GPD_INSTALL_DIR}/references/execution/execute-plan-validation.md
+- {GPD_INSTALL_DIR}/references/execution/execute-plan-checkpoints.md
+- {GPD_INSTALL_DIR}/references/protocols/reproducibility.md
+- {GPD_INSTALL_DIR}/references/protocols/error-propagation-protocol.md -- Cross-phase uncertainty propagation protocol (Uncertainty Budget declaration format, verification checks, phase handoff format)
+- {GPD_INSTALL_DIR}/references/execution/executor-index.md -- Maps execution scenarios (QFT, condensed matter, numerical, paper writing, debugging) to the correct domain-specific reference files
+- {GPD_INSTALL_DIR}/templates/calculation-log.md -- Template for CALCULATION_LOG.md (detailed derivation records within a phase)
+- {GPD_INSTALL_DIR}/templates/recovery-plan.md -- Template for RECOVERY.md (structured recovery after plan execution failure)
+
+When following GitHub lifecycle examples, substitute the repository's actual default branch and remote names for `<default-branch>` and `<remote-name>`; those placeholders are not literal branch or remote names.
 </step>
 
 <step name="execute">
@@ -548,6 +570,18 @@ fi
 </step>
 
 <step name="create_summary">
+Load the summary-finalization payload only when the plan is ready to write `SUMMARY.md`:
+
+```bash
+SUMMARY_INIT=$(gpd --raw init execute-phase "${phase}" --stage summary_finalize)
+if [ $? -ne 0 ]; then
+  echo "ERROR: staged summary-finalize init failed: $SUMMARY_INIT"
+  exit 1
+fi
+```
+
+Extract from summary-finalize init JSON: `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `state_load_source`, `state_integrity_issues`.
+
 Create `${phase}-${plan}-SUMMARY.md` at `${phase_dir}/`. Use `{GPD_INSTALL_DIR}/templates/summary.md`.
 
 Note: DERIVATION-STATE.md is updated by gpd:pause-work as the projected pause handoff record. On natural completion (no pause), key equations and results are captured in SUMMARY.md instead. If you want cumulative derivation state across sessions, run gpd:pause-work before ending.

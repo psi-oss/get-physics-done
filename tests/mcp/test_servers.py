@@ -1382,6 +1382,67 @@ class TestSkillsServer:
         assert result["staged_loading"]["stages"][0]["loaded_authorities"] == ["workflows/plan-phase.md"]
         assert result["structured_metadata_authority"]["staged_loading"] == "mirrored"
 
+    def test_get_skill_surfaces_execute_phase_staged_loading_sidecar(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        from gpd import registry as content_registry
+        from gpd.mcp.servers.skills_server import get_skill
+
+        commands_dir = tmp_path / "commands"
+        commands_dir.mkdir(exist_ok=True)
+        (commands_dir / "execute-phase.md").write_text(
+            "---\n"
+            "name: gpd:execute-phase\n"
+            "description: Execute.\n"
+            "agent: gpd-executor\n"
+            "allowed-tools:\n"
+            "  - file_read\n"
+            "---\n"
+            "Read @{GPD_INSTALL_DIR}/workflows/execute-phase.md and {GPD_AGENTS_DIR}/gpd-executor.md.\n",
+            encoding="utf-8",
+        )
+        manifest_path = tmp_path / "execute-phase-stage-manifest.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "workflow_id": "execute-phase",
+                    "stages": [
+                        {
+                            "id": "phase_bootstrap",
+                            "order": 1,
+                            "purpose": "phase lookup and routing",
+                            "mode_paths": ["workflows/execute-phase.md"],
+                            "required_init_fields": [],
+                            "loaded_authorities": ["workflows/execute-phase.md"],
+                            "conditional_authorities": [],
+                            "must_not_eager_load": ["references/ui/ui-brand.md"],
+                            "allowed_tools": ["file_read"],
+                            "writes_allowed": [],
+                            "produced_state": [],
+                            "next_stages": [],
+                            "checkpoints": [],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        original_resolve_manifest_path = content_registry.resolve_workflow_stage_manifest_path
+        monkeypatch.setattr(content_registry, "COMMANDS_DIR", commands_dir)
+        monkeypatch.setattr(
+            content_registry,
+            "resolve_workflow_stage_manifest_path",
+            lambda workflow_id: manifest_path if workflow_id == "execute-phase" else original_resolve_manifest_path(workflow_id),
+        )
+        content_registry.invalidate_cache()
+
+        result = get_skill("gpd-execute-phase")
+
+        assert result["staged_loading"]["workflow_id"] == "execute-phase"
+        assert result["staged_loading"]["stages"][0]["id"] == "phase_bootstrap"
+        assert result["staged_loading"]["stages"][0]["loaded_authorities"] == ["workflows/execute-phase.md"]
+        assert result["structured_metadata_authority"]["staged_loading"] == "mirrored"
+
     def test_get_skill_surfaces_referenced_files(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         from gpd import registry as content_registry
         from gpd.mcp.servers.skills_server import get_skill

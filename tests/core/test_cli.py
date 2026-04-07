@@ -5491,6 +5491,18 @@ def test_init_execute_phase(mock_init):
     mock_init.assert_called_once()
 
 
+@patch("gpd.core.context.init_execute_phase")
+def test_init_execute_phase_forwards_stage_option(mock_init):
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"context": "..."}
+    mock_init.return_value = mock_result
+    result = runner.invoke(app, ["init", "execute-phase", "42", "--stage", "phase_bootstrap"])
+    assert result.exit_code == 0
+    mock_init.assert_called_once()
+    assert mock_init.call_args.args == (cli_module._get_cwd(), "42")
+    assert mock_init.call_args.kwargs == {"includes": set(), "stage": "phase_bootstrap"}
+
+
 @patch("gpd.core.context.init_new_project")
 def test_init_new_project(mock_init):
     mock_result = MagicMock()
