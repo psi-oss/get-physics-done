@@ -1256,6 +1256,8 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-limiting": "analysis",
     "gpd-parameter": "analysis",
     "gpd-compare": "analysis",
+    "gpd-scan": "analysis",
+    "gpd-citation": "verification",
     "gpd-derive": "computation",
     "gpd-set": "configuration",
     "gpd-update": "management",

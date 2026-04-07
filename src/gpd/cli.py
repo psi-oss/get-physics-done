@@ -6005,6 +6005,9 @@ _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None]
     "gpd:literature-review": (["topic or research question"], _has_simple_positional_inputs),
     "gpd:numerical-convergence": (["phase number or file path"], _has_simple_positional_inputs),
     "gpd:sensitivity-analysis": (["--target quantity", "--params p1,p2,..."], _has_sensitivity_explicit_inputs),
+    "gpd:verify-equations": (["LaTeX file path"], _has_simple_positional_inputs),
+    "gpd:scan-equations": (["LaTeX file path"], _has_simple_positional_inputs),
+    "gpd:check-citations": (["LaTeX file path"], _has_simple_positional_inputs),
 }
 
 
