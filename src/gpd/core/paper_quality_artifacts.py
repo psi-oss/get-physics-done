@@ -15,7 +15,7 @@ from gpd.contracts import (
     ConventionLock,
     ResearchContract,
     parse_comparison_verdicts_data_strict,
-    parse_contract_results_data_strict,
+    parse_contract_results_data_artifact,
 )
 from gpd.core.constants import STANDALONE_VALIDATION, VALIDATION_SUFFIX, ProjectLayout
 from gpd.core.conventions import check_assertions, convention_check
@@ -567,7 +567,7 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
                 contract_results_alignment_ok = False
             else:
                 try:
-                    contract_results = parse_contract_results_data_strict(raw_results)
+                    contract_results = parse_contract_results_data_artifact(raw_results)
                 except (PydanticValidationError, TypeError, ValueError):
                     contract_results = None
                     contract_results_parse_ok = False

@@ -399,6 +399,32 @@ def test_parse_contract_results_data_artifact_accepts_case_drift_and_string_list
     assert parsed.references["ref-main"].completed_actions == ["read"]
 
 
+def test_parse_contract_results_data_artifact_accepts_linked_ids_and_uncertainty_singletons() -> None:
+    parsed = parse_contract_results_data_artifact(
+        {
+            "claims": {
+                "claim-main": {
+                    "status": "Passed",
+                    "linked_ids": "deliv-main",
+                }
+            },
+            "uncertainty_markers": {
+                "weakest_anchors": "anchor-1",
+                "unvalidated_assumptions": "assumption-1",
+                "competing_explanations": "alternative-1",
+                "disconfirming_observations": "obs-1",
+            },
+        }
+    )
+
+    assert parsed.claims["claim-main"].status == "passed"
+    assert parsed.claims["claim-main"].linked_ids == ["deliv-main"]
+    assert parsed.uncertainty_markers.weakest_anchors == ["anchor-1"]
+    assert parsed.uncertainty_markers.unvalidated_assumptions == ["assumption-1"]
+    assert parsed.uncertainty_markers.competing_explanations == ["alternative-1"]
+    assert parsed.uncertainty_markers.disconfirming_observations == ["obs-1"]
+
+
 @pytest.mark.parametrize(
     ("payload", "expected_error"),
     [

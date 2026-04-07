@@ -786,6 +786,24 @@ _STRICT_PROOF_AUDIT_STRING_LIST_FIELDS: tuple[str, ...] = (
     "uncovered_quantifiers",
     "uncovered_conclusion_clause_ids",
 )
+_RECOVERABLE_ARTIFACT_CONTRACT_RESULTS_STRING_LIST_PATHS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^(claims|deliverables|acceptance_tests)\.[^.]+\.linked_ids$"),
+    re.compile(r"^references\.[^.]+\.(completed_actions|missing_actions)$"),
+    re.compile(
+        r"^(claims|deliverables|acceptance_tests|references|forbidden_proxies)\.[^.]+\.evidence\.\d+\."
+        r"(covered_hypothesis_ids|missing_hypothesis_ids|covered_parameter_symbols|missing_parameter_symbols|"
+        r"uncovered_conclusion_clause_ids)$"
+    ),
+    re.compile(
+        r"^(claims|deliverables|acceptance_tests)\.[^.]+\.proof_audit\."
+        r"(covered_hypothesis_ids|missing_hypothesis_ids|covered_parameter_symbols|missing_parameter_symbols|"
+        r"uncovered_quantifiers|uncovered_conclusion_clause_ids)$"
+    ),
+    re.compile(
+        r"^uncertainty_markers\."
+        r"(weakest_anchors|unvalidated_assumptions|competing_explanations|disconfirming_observations)$"
+    ),
+)
 
 
 def _normalize_literal_choice(value: object, choices: tuple[str, ...]) -> object:
@@ -1030,12 +1048,16 @@ def _collect_artifact_contract_results_errors(value: object) -> list[str]:
     if "uncertainty_markers" not in value:
         errors.append("uncertainty_markers must be explicit in contract-backed contract_results")
 
-    ignored_error_substrings = (" must use exact literal ", " must be a list, not str")
-    return [
-        error
-        for error in errors
-        if not any(ignored_error_substring in error for ignored_error_substring in ignored_error_substrings)
-    ]
+    def _is_recoverable(error: str) -> bool:
+        if " must use exact literal " in error:
+            return True
+        suffix = " must be a list, not str"
+        if not error.endswith(suffix):
+            return False
+        path = error.removesuffix(suffix)
+        return any(pattern.fullmatch(path) for pattern in _RECOVERABLE_ARTIFACT_CONTRACT_RESULTS_STRING_LIST_PATHS)
+
+    return [error for error in errors if not _is_recoverable(error)]
 
 
 class ConventionLock(BaseModel):

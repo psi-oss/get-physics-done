@@ -133,6 +133,7 @@ Rules:
 - For `must_surface` references, `completed_actions` must cover every `required_actions` item; do not mark the anchor as handled while leaving required actions only in prose.
 - `required_actions`, `completed_actions`, and `missing_actions` use the same closed action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`.
 - Every strict string list is trimmed before validation. Blank-after-trim entries are invalid, and duplicate-after-trim entries are invalid. This includes `linked_ids`, `completed_actions`, `missing_actions`, and the list-valued proof-audit coverage fields.
+- Artifact readers may recover singleton string/list drift and closed-enum case drift when parsing existing ledgers, but newly written YAML must still use canonical lists and exact lowercase literals.
 - For `contract_results.references`:
   `status: completed` requires non-empty `completed_actions` and empty `missing_actions`.
   `status: missing` requires non-empty `missing_actions`.

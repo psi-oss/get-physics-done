@@ -1494,6 +1494,39 @@ def test_build_paper_quality_input_marks_mixed_contract_results_ledger_alignment
     assert result.journal_extra_checks["contract_results_alignment_ok"] is False
 
 
+def test_build_paper_quality_input_accepts_contract_results_artifact_salvage_drift(
+    tmp_path: Path,
+) -> None:
+    plan_dir = tmp_path / "GPD" / "phases" / "01-benchmark"
+    _write(plan_dir / "01-01-PLAN.md", (STAGE0_FIXTURES_DIR / "plan_with_contract.md").read_text(encoding="utf-8"))
+
+    summary = (FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8")
+    summary = summary.replace("      status: passed\n", "      status: Passed\n", 1)
+    summary = summary.replace(
+        "      completed_actions: [read, compare, cite]\n",
+        "      completed_actions: [Read, Compare, Cite]\n",
+        1,
+    )
+    summary = summary.replace(
+        "    weakest_anchors: [Reference tolerance interpretation]\n",
+        "    weakest_anchors: Reference tolerance interpretation\n",
+        1,
+    )
+    summary = summary.replace(
+        "    disconfirming_observations: [Benchmark agreement disappears once normalization is fixed]\n",
+        "    disconfirming_observations: Benchmark agreement disappears once normalization is fixed\n",
+        1,
+    )
+    _write(plan_dir / "01-SUMMARY.md", summary)
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.verification.contract_targets_verified.satisfied == 3
+    assert result.verification.contract_targets_verified.total == 3
+    assert result.journal_extra_checks["contract_results_parse_ok"] is True
+    assert result.journal_extra_checks["contract_results_alignment_ok"] is True
+
+
 def test_build_paper_quality_input_marks_invalid_contract_results_ledger_parse_failure(
     tmp_path: Path,
 ) -> None:
