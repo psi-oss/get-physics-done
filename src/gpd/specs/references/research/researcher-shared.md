@@ -101,6 +101,8 @@ Different phases require different levels of rigor. Identify the appropriate lev
 - Search official documentation for libraries (SymPy, NumPy/SciPy, QuTiP, FEniCS, LAMMPS, Quantum ESPRESSO, etc.)
 - Check version-specific features and known limitations
 - Look for benchmark results and validation tests
+- For computational phases, search for established packages/frameworks before recommending bespoke code
+- If bespoke code is still the recommendation, record the missing capability, control requirement, or integration constraint that rules out the standard tools
 
 ### Reference Databases
 

@@ -40,6 +40,7 @@ from gpd.core.paper_quality import (
     ResultsQualityInput,
     VerificationConfidence,
     VerificationQualityInput,
+    validate_tex_draft,
 )
 from gpd.mcp.paper.bibliography import BibliographyAudit
 from gpd.mcp.paper.models import ArtifactManifest, PaperConfig, is_supported_paper_journal
@@ -884,6 +885,9 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
 
     placeholder_count = len(_PLACEHOLDER_RE.findall(manuscript_content))
     missing_cites = len(_MISSING_CITE_RE.findall(manuscript_content))
+    draft_findings = validate_tex_draft(manuscript_content)
+    empty_citation_commands = sum(1 for finding in draft_findings if finding.check == "empty_citation_command")
+    empty_reference_commands = sum(1 for finding in draft_findings if finding.check == "empty_reference_command")
     cite_keys = list(
         dict.fromkeys(
             part.strip()
@@ -931,6 +935,8 @@ def build_paper_quality_input(project_root: Path) -> PaperQualityInput:
         journal_extra_checks.update(raw_journal_extra_checks)
     journal_extra_checks["manuscript_reference_status_present"] = bool(manuscript_reference_status)
     journal_extra_checks["manuscript_reference_bridge_complete"] = manuscript_reference_bridge_complete
+    journal_extra_checks["empty_citation_commands_absent"] = empty_citation_commands == 0
+    journal_extra_checks["empty_reference_commands_absent"] = empty_reference_commands == 0
     if contract_coverage.contract_results_seen:
         journal_extra_checks["contract_results_parse_ok"] = contract_coverage.contract_results_parse_ok
         journal_extra_checks["contract_results_alignment_ok"] = contract_coverage.contract_results_alignment_ok

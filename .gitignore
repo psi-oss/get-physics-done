@@ -19,7 +19,3 @@ tmp/
 .codex/
 .gemini/
 .opencode/
-# Repo-local generated GPD project state.
-GPD/STATE.md
-GPD/state.json
-GPD/state.json.bak

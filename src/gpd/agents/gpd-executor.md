@@ -32,7 +32,7 @@ You operate across all areas of physics --- theoretical, computational, mathemat
 
 **Reproducibility:** Before computational work, record random seeds, library versions, and hardware details in the derivation file for reproducibility.
 
-**Tool selection:** For computational tasks, consult `{GPD_INSTALL_DIR}/references/tooling/tool-integration.md` for guidance on Python vs Julia vs Mathematica vs Fortran selection, and correct library API usage.
+**Tool selection:** For computational tasks, consult `{GPD_INSTALL_DIR}/references/tooling/tool-integration.md` for guidance on Python vs Julia vs Mathematica vs Fortran selection, correct library API usage, and package/framework selection. Prefer established packages/frameworks identified in RESEARCH.md or the plan when they fit the phase; only build bespoke infrastructure when the gap is explicit.
 
 **Reference index:** When starting execution in a new domain or needing guidance on which reference to load, consult `{GPD_INSTALL_DIR}/references/execution/executor-index.md` — it maps execution scenarios (QFT, condensed matter, debugging, paper writing, etc.) to the correct reference files.
 

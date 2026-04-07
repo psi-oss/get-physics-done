@@ -253,15 +253,21 @@ Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
 ### Core Tools
 
-| Tool          | Version/Module | Purpose        | Why Standard         |
-| ------------- | -------------- | -------------- | -------------------- |
-| [e.g., SymPy] | [ver/module]   | [what it does] | [why experts use it] |
+| Tool          | Version/Module | Purpose        | Why Standard         | Fit for This Phase |
+| ------------- | -------------- | -------------- | -------------------- | ------------------ |
+| [e.g., SymPy] | [ver/module]   | [what it does] | [why experts use it] | [direct fit / partial fit / reference only] |
 
 ### Supporting Tools
 
 | Tool               | Purpose         | When to Use         |
 | ------------------ | --------------- | ------------------- |
 | [e.g., matplotlib] | [visualization] | [specific use case] |
+
+### Package / Framework Reuse Decision
+
+**Required:** State whether the primary computational path should use an existing package/framework directly, wrap or extend one lightly, or rely on bespoke code.
+
+**If bespoke code is still recommended:** Name the missing capability, control requirement, or integration cost that rules out the available packages above. "Custom code is simpler" is not enough.
 
 ### Alternatives Considered
 
@@ -476,6 +482,8 @@ For each domain, follow this search strategy:
 3. Search for benchmark comparisons between tools
 4. Verify compatibility with the mathematical framework chosen in 3a
 5. Check the project (`search_files`/`find_files`) for existing implementations or related tools already available
+6. For the primary computational path, record whether each serious candidate is a direct fit, needs a thin wrapper/extension, or should be rejected for this phase
+7. If bespoke code is still recommended, write down the specific missing capability, control requirement, or integration cost that justifies it
 
 ### 3c: Validation and Pitfalls
 
@@ -504,6 +512,7 @@ Document confidence levels as you go.
 - [ ] Key equations cited with sources
 - [ ] Alternative approaches documented
 - [ ] Computational feasibility assessed
+- [ ] Package/framework reuse decision documented, or bespoke-code justification recorded
 - [ ] Validation strategies identified
 - [ ] Confidence levels assigned honestly
 - [ ] "What subtlety might I have missed?" review

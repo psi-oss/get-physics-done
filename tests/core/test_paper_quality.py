@@ -13,6 +13,7 @@ from gpd.core.paper_quality import (
     CompletenessQualityInput,
     ConventionsQualityInput,
     CoverageMetric,
+    DraftingFinding,
     EquationsQualityInput,
     FiguresQualityInput,
     PaperQualityInput,
@@ -20,6 +21,7 @@ from gpd.core.paper_quality import (
     VerificationConfidence,
     VerificationQualityInput,
     score_paper_quality,
+    validate_tex_draft,
 )
 
 TEMPLATE_PATH = Path(__file__).resolve().parents[2] / "src" / "gpd" / "specs" / "templates" / "paper" / "paper-quality-input-schema.md"
@@ -153,6 +155,7 @@ def test_score_paper_quality_flags_blockers():
     assert "report_passed" in blocking_checks
     assert "no_unreliable_results" in blocking_checks
     assert "comparison_with_prior_work_present" in blocking_checks
+    assert "placeholders_cleared" in blocking_checks
 
 
 def test_score_paper_quality_blocks_missing_citation_audit_when_citations_are_applicable():
@@ -322,6 +325,64 @@ def test_score_paper_quality_blocks_invalid_contract_and_comparison_ledgers() ->
     assert "contract_results_parse_ok" in blocking_checks
     assert "contract_results_alignment_ok" in blocking_checks
     assert "comparison_verdicts_valid" in blocking_checks
+
+
+def test_score_paper_quality_blocks_empty_citation_and_reference_commands() -> None:
+    report = score_paper_quality(
+        PaperQualityInput(
+            title="Broken manuscript commands",
+            journal="generic",
+            equations=EquationsQualityInput(
+                labeled=_full_metric(1),
+                symbols_defined=_full_metric(1),
+                dimensionally_verified=_full_metric(1),
+                limiting_cases_verified=_full_metric(1),
+            ),
+            figures=FiguresQualityInput(
+                axes_labeled_with_units=_full_metric(1),
+                error_bars_present=_full_metric(1),
+                referenced_in_text=_full_metric(1),
+                captions_self_contained=_full_metric(1),
+                colorblind_safe=_full_metric(1),
+            ),
+            citations=CitationsQualityInput(
+                citation_keys_resolve=_full_metric(1),
+                missing_placeholders=BinaryCheck(passed=True),
+                key_prior_work_cited=BinaryCheck(passed=True),
+                hallucination_free=BinaryCheck(passed=True),
+            ),
+            conventions=ConventionsQualityInput(
+                convention_lock_complete=BinaryCheck(passed=True),
+                assert_convention_coverage=_full_metric(1),
+                notation_consistent=BinaryCheck(passed=True),
+            ),
+            verification=VerificationQualityInput(
+                report_passed=BinaryCheck(passed=True),
+                contract_targets_verified=_full_metric(1),
+                key_result_confidences=[VerificationConfidence.independently_confirmed],
+            ),
+            completeness=CompletenessQualityInput(
+                abstract_written_last=BinaryCheck(passed=True),
+                required_sections_present=_full_metric(3),
+                placeholders_cleared=BinaryCheck(passed=True),
+                supplemental_cross_referenced=BinaryCheck(passed=True),
+            ),
+            results=ResultsQualityInput(
+                uncertainties_present=_full_metric(1),
+                comparison_with_prior_work_present=BinaryCheck(passed=True),
+                physical_interpretation_present=BinaryCheck(passed=True),
+            ),
+            journal_extra_checks={
+                "empty_citation_commands_absent": False,
+                "empty_reference_commands_absent": False,
+            },
+        )
+    )
+
+    assert report.ready_for_submission is False
+    blocking_checks = {issue.check for issue in report.blocking_issues}
+    assert "empty_citation_commands_absent" in blocking_checks
+    assert "empty_reference_commands_absent" in blocking_checks
 
 
 def test_score_paper_quality_applies_journal_adjustments():
@@ -652,3 +713,37 @@ def test_paper_quality_input_rejects_unknown_nested_fields() -> None:
 
     with pytest.raises(ValidationError, match="verification.report_exists"):
         PaperQualityInput.model_validate(payload)
+
+
+def test_validate_tex_draft_reports_structured_findings() -> None:
+    findings = validate_tex_draft(
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "Value is 50\\% TODO.\n"
+        "See \\cite{} and \\ref{}.\n"
+        "\\begin{equation}\n"
+        "E = mc^2\n"
+        "\\end{equation}\n"
+        "\\end{document}\n"
+    )
+
+    assert findings
+    assert all(isinstance(finding, DraftingFinding) for finding in findings)
+    checks = {finding.check for finding in findings}
+    assert "placeholder_marker" in checks
+    assert "empty_citation_command" in checks
+    assert "empty_reference_command" in checks
+    assert "unlabeled_equation" in checks
+    assert findings[0].severity == "blocker"
+
+
+def test_validate_tex_draft_ignores_commented_markup() -> None:
+    findings = validate_tex_draft(
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "% TODO in a comment should not block.\n"
+        "% \\cite{}\n"
+        "\\end{document}\n"
+    )
+
+    assert findings == []

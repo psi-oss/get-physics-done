@@ -1033,6 +1033,8 @@ Only include what the assistant literally cannot do.
 
 Use `tool_requirements` when the plan depends on specialized tooling outside the guaranteed Python scientific baseline and the dependency should be machine-checkable before execution.
 
+When `RESEARCH.md` identifies an established package or framework that fits the phase, plan around using or lightly adapting it instead of defaulting to bespoke infrastructure. If that package or external code is a hard execution prerequisite, surface it in `tool_requirements` or `researcher_setup` rather than only mentioning it in task prose.
+
 ```yaml
 tool_requirements:
   - id: wolfram-cas

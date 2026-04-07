@@ -454,6 +454,87 @@ def test_gitignore_covers_repo_local_tmp_root() -> None:
     assert "tmp/" in content
 
 
+def test_gitignore_does_not_exclude_gpd_directory() -> None:
+    """Regression: GPD/ must not be gitignored.
+
+    Workflow commit commands (``gpd commit``) include GPD/ files; gitignoring
+    them causes ``git add`` failures.  A pre-commit hook strips GPD/ from
+    commits to the codebase repo instead.
+    """
+    repo_root = _repo_root()
+    content = (repo_root / ".gitignore").read_text(encoding="utf-8")
+    for pattern in ("GPD/", "GPD/*", "GPD/STATE.md", "GPD/state.json", "GPD/state.json.bak"):
+        assert pattern not in content, f".gitignore must not contain {pattern!r}"
+
+
+def test_pre_commit_config_blocks_gpd_directory() -> None:
+    """The pre-commit config must include the block-gpd-directory hook."""
+    import yaml
+
+    repo_root = _repo_root()
+    config = yaml.safe_load((repo_root / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+    hook_ids = [h["id"] for repo in config["repos"] for h in repo["hooks"]]
+    assert "block-gpd-directory" in hook_ids
+
+
+def test_block_gpd_commit_hook_script_exists_and_is_executable() -> None:
+    repo_root = _repo_root()
+    hook_script = repo_root / "scripts" / "block-gpd-commit.sh"
+    assert hook_script.exists(), "scripts/block-gpd-commit.sh must exist"
+    assert os.access(hook_script, os.X_OK), "scripts/block-gpd-commit.sh must be executable"
+
+
+def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
+    """Integration: the hook script strips GPD/ files from the index."""
+    repo_root = _repo_root()
+    hook_script = repo_root / "scripts" / "block-gpd-commit.sh"
+
+    # Set up a throwaway git repo.
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=tmp_path, check=True, capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=tmp_path, check=True, capture_output=True,
+    )
+
+    # Seed an initial commit so HEAD exists.
+    (tmp_path / "README.md").write_text("seed\n")
+    subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "init"],
+        cwd=tmp_path, check=True, capture_output=True,
+    )
+
+    # Stage a GPD file and a non-GPD file.
+    gpd_dir = tmp_path / "GPD"
+    gpd_dir.mkdir()
+    (gpd_dir / "STATE.md").write_text("state\n")
+    (tmp_path / "real.txt").write_text("real\n")
+    subprocess.run(["git", "add", "GPD/STATE.md", "real.txt"], cwd=tmp_path, check=True, capture_output=True)
+
+    # Run the hook script.
+    result = subprocess.run(
+        [str(hook_script)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+
+    # GPD/STATE.md should be unstaged; real.txt should remain staged.
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=tmp_path, capture_output=True, text=True, check=True,
+    )
+    staged_files = staged.stdout.strip().splitlines()
+    assert "real.txt" in staged_files
+    assert "GPD/STATE.md" not in staged_files
+
+
 def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
     repo_root = _repo_root()
     if shutil.which("npm") is None:

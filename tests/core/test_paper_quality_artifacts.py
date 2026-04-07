@@ -1150,6 +1150,38 @@ Done.
     assert result.completeness.required_sections_present.total == 3
 
 
+def test_build_paper_quality_input_detects_empty_citation_and_reference_commands(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "curvature_flow_bounds.md",
+        """
+# Curvature Flow Bounds
+
+## Abstract
+Markdown manuscript test.
+
+## Introduction
+See \\cite{} and Eq.~\\ref{}.
+
+## Conclusion
+Done.
+""".strip()
+        + "\n",
+    )
+    _write(
+        tmp_path / "paper" / "PAPER-CONFIG.json",
+        json.dumps(_paper_config_payload("Curvature Flow Bounds", "jhep")),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+    report = score_paper_quality(result)
+
+    assert result.journal_extra_checks["empty_citation_commands_absent"] is False
+    assert result.journal_extra_checks["empty_reference_commands_absent"] is False
+    blocker_checks = {issue.check for issue in report.blocking_issues}
+    assert "empty_citation_commands_absent" in blocker_checks
+    assert "empty_reference_commands_absent" in blocker_checks
+
+
 def test_build_paper_quality_input_collects_comparison_verdicts_from_active_manuscript_root(tmp_path: Path) -> None:
     _write(
         tmp_path / "manuscript" / "curvature_flow_bounds.tex",

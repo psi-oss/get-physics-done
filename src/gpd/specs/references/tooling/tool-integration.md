@@ -13,6 +13,17 @@ This reference is loaded by GPD agents when generating code or recommending comp
 
 ---
 
+## Package / Framework Selection
+
+Prefer established packages and frameworks when they fit the scientific requirements and are available in the current environment.
+
+- Check standard subfield tools, official documentation, and existing project code before recommending bespoke infrastructure.
+- Reuse can mean using a package directly or wrapping/extending it lightly; do not default to from-scratch infrastructure when the standard tooling already covers the hard parts.
+- Recommend bespoke code only when the required physics, controls, validation surface, or integration constraints make the standard tools a poor fit. State that gap explicitly.
+- If a package or external code is a hard execution prerequisite, surface it via `tool_requirements` or `researcher_setup` rather than burying it in task prose.
+
+---
+
 ## Python Scientific Stack
 
 - **NumPy/SciPy** -- Numerical linear algebra, integration, optimization, special functions

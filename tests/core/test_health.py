@@ -742,32 +742,37 @@ class TestCheckStoragePaths:
             ".gitignore:25:!GPD/phase-checkpoints/*.md\tGPD/phase-checkpoints/01-test-phase.md",
         ]
 
-    def test_repo_gitignore_hides_repo_local_gpd_state_surfaces(self, tmp_path: Path) -> None:
+    def test_repo_gitignore_does_not_hide_gpd_state_surfaces(self, tmp_path: Path) -> None:
+        """Regression: GPD/ files must NOT be gitignored.
+
+        Workflow commit commands include these files; gitignoring them causes
+        ``git add`` failures (exit code 1) at commit time.  A pre-commit hook
+        strips GPD/ from commits to the codebase repo instead.
+        """
         repo = _init_git_repo(tmp_path)
 
+        gpd_paths = [
+            "GPD/STATE.md",
+            "GPD/state.json",
+            "GPD/state.json.bak",
+            "GPD/PROJECT.md",
+            "GPD/ROADMAP.md",
+            "GPD/REQUIREMENTS.md",
+            "GPD/config.json",
+            "GPD/CONVENTIONS.md",
+        ]
         result = subprocess.run(
-            [
-                "git",
-                "check-ignore",
-                "-v",
-                "--",
-                "GPD/STATE.md",
-                "GPD/state.json",
-                "GPD/state.json.bak",
-            ],
+            ["git", "check-ignore", "--", *gpd_paths],
             cwd=repo,
             capture_output=True,
             text=True,
             check=False,
         )
 
-        assert result.stderr == ""
-        assert result.returncode == 0
-        lines = [line for line in result.stdout.splitlines() if line.strip()]
-        assert len(lines) == 3
-        assert any(line.endswith("\tGPD/STATE.md") for line in lines)
-        assert any(line.endswith("\tGPD/state.json") for line in lines)
-        assert any(line.endswith("\tGPD/state.json.bak") for line in lines)
+        assert result.returncode == 1, (
+            f"GPD files should not be gitignored but git check-ignore matched: "
+            f"{result.stdout.strip()}"
+        )
 
     def test_git_status_reports_dirty_tracked_checkpoint_artifacts(self, tmp_path: Path) -> None:
         repo = _init_git_repo(tmp_path)
