@@ -44,7 +44,7 @@ dependencies = [
 
 [project.optional-dependencies]
 arxiv = [
-    "arxiv-mcp-server>=0.3.2",
+    "arxiv-mcp-server>=0.4.11",
 ]
 
 [project.scripts]

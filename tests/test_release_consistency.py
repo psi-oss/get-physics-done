@@ -402,7 +402,7 @@ def test_public_runtime_dependency_surface_stays_curated() -> None:
     optional = project.get("optional-dependencies", {})
 
     assert _normalized_dependency_names(dependencies) == _expected_runtime_dependency_names()
-    assert optional == {"arxiv": ["arxiv-mcp-server>=0.3.2"]}
+    assert optional == {"arxiv": ["arxiv-mcp-server>=0.4.11"]}
 
 
 

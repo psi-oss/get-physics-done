@@ -94,7 +94,7 @@ Every computational phase must record:
   "mcp_servers": {
     "gpd-verification": "1.1.0",
     "gpd-conventions": "1.1.0",
-    "gpd-arxiv": "0.3.2"
+    "gpd-arxiv": "0.4.11"
   },
   "platform": {
     "os": "Linux 6.1.0",
