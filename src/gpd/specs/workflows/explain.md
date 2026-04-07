@@ -19,7 +19,7 @@ Parse the returned JSON.
 - If `project_exists=false`, require an explicit concept/topic from `$ARGUMENTS` and operate in standalone mode.
 - If the request is empty or too vague to explain meaningfully, ask one clarifying question.
 - If structured citation-source fields are present in init payloads, treat them as the preferred paper catalog for follow-up links and reference IDs.
-- If the concept maps to a canonical stored result and the `result_id` is already known, prefer `gpd result show "{result_id}"` for the direct stored result view before dependency tracing.
+- If the concept maps to a canonical stored result and the `result_id` is already known, prefer `gpd result show "{result_id}"` for the direct stored result view before dependency tracing. Use `gpd result deps "{result_id}"` when you need the upstream derivation chain, and `gpd result downstream "{result_id}"` when you need the reverse impact tree.
 </step>
 
 <step name="scope_request">
@@ -36,7 +36,7 @@ Determine what kind of explanation is needed.
    - Full conceptual + formal explanation if the request is broader or foundational
 4. Generate a slug for the output file from the concept.
 5. If structured citation-source metadata is available, prefer it over prose-only reference reconstruction when selecting papers to mention or link.
-6. If a canonical `result_id` is already known, use `gpd result show "{result_id}"` before `gpd result deps "{result_id}"` when the explanation needs the direct stored result view.
+6. If a canonical `result_id` is already known, use `gpd result show "{result_id}"` before `gpd result deps "{result_id}"` when the explanation needs the direct stored result view. Use `gpd result downstream "{result_id}"` when the explanation needs to show what depends on the result.
 
 **Important:** Do not default to a generic textbook exposition. The explanation must answer why this matters in the user's current workflow or requested standalone task.
 </step>
@@ -58,6 +58,7 @@ Use the init payload to extract:
 - Any manuscript-local reference status surfaced as `derived_manuscript_reference_status` when the explanation is about the active paper or manuscript
 - Any canonical result metadata you can recover through `gpd result search` when the concept maps to a derived equation, result, or quantity already stored in `intermediate_results`
 - When a canonical `result_id` is already known, use `gpd result show "{result_id}"` before `gpd result deps "{result_id}"` so the explainer can ground the explanation on the stored result directly
+- When the explanation needs reverse impact context, use `gpd result downstream "{result_id}"` to separate direct dependents from transitive dependents
 - Any upstream dependency context you can recover through `gpd result deps "{result_id}"` once a canonical result has been identified and the explanation needs to show where it comes from
 
 Search the local workspace for relevant mentions of the requested concept:
@@ -122,7 +123,7 @@ Explain the following concept rigorously and in context: {concept}
 5. Connect the concept to this project's files, conventions, current phase, or manuscript claims when available.
 6. Distinguish established literature facts from project-specific assumptions or interpretations.
 7. If structured citation-source metadata is available, use it to keep the literature guide tied to stable `reference_id` entries and openable URLs.
-8. If a canonical `result_id` is already known, use `gpd result show "{result_id}"` before `gpd result deps "{result_id}"` when the direct stored result view is relevant.
+8. If a canonical `result_id` is already known, use `gpd result show "{result_id}"` before `gpd result deps "{result_id}"` when the direct stored result view is relevant. Use `gpd result downstream "{result_id}"` when the explanation needs the reverse dependency tree.
 9. Include a literature guide with papers the user can open directly. Prefer arXiv abstract links when available; otherwise use DOI or INSPIRE links.
 10. Never fabricate citations. If a reference is uncertain, mark it clearly as unverified instead of guessing.
 11. Close with common confusions, failure modes, and the next questions the user should ask.

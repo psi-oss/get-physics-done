@@ -27,6 +27,7 @@ __all__ = [
     "ResultSearchResult",
     "ResultUpsertResult",
     "ResultDeps",
+    "ResultDownstream",
     "MissingDep",
     "result_add",
     "result_list",
@@ -34,6 +35,7 @@ __all__ = [
     "result_upsert",
     "result_upsert_derived",
     "result_deps",
+    "result_downstream",
     "result_verify",
     "result_update",
 ]
@@ -68,6 +70,16 @@ class ResultDeps(BaseModel):
     depends_on: list[str]
     direct_deps: list[IntermediateResult | MissingDep]
     transitive_deps: list[IntermediateResult | MissingDep]
+
+
+class ResultDownstream(BaseModel):
+    """Reverse dependency trace for a result — all results that depend on it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    result: IntermediateResult
+    direct_dependents: list[IntermediateResult]
+    transitive_dependents: list[IntermediateResult]
 
 
 class ResultSearchResult(BaseModel):
@@ -215,6 +227,53 @@ def _find_result_index(results: list, result_id: str) -> int:
     return -1
 
 
+def _normalize_dependency_ids(depends_on: object) -> list[str]:
+    """Normalize a raw depends_on payload into a list of dependency IDs."""
+    if depends_on is None:
+        return []
+    if isinstance(depends_on, str):
+        raw_dependencies: list[object] = [depends_on]
+    elif isinstance(depends_on, (list, tuple, set, frozenset)):
+        raw_dependencies = list(depends_on)
+    else:
+        raw_dependencies = [depends_on]
+
+    normalized: list[str] = []
+    for dependency in raw_dependencies:
+        if isinstance(dependency, str):
+            normalized.append(dependency)
+        elif dependency is not None:
+            normalized.append(str(dependency))
+    return normalized
+
+
+def _build_result_lookup(results: list[object]) -> dict[str, dict]:
+    """Build a result-id lookup for structured registry entries."""
+    by_id: dict[str, dict] = {}
+    for result in results:
+        if isinstance(result, dict):
+            result_id = result.get("id")
+            if result_id:
+                by_id[str(result_id)] = result
+    return by_id
+
+
+def _result_from_record(record: dict) -> IntermediateResult:
+    """Build a validated result model from a raw registry record."""
+    payload = dict(record)
+    payload["depends_on"] = _normalize_dependency_ids(record.get("depends_on", []))
+    return IntermediateResult(**payload)
+
+
+def _get_result_registry_context(state: dict, result_id: str) -> tuple[list[object], dict, dict[str, dict]]:
+    """Return the raw registry list, the target result, and an ID lookup."""
+    results = state.get("intermediate_results", [])
+    idx = _find_result_index(results, result_id)
+    if idx == -1:
+        raise ResultNotFoundError(result_id)
+    return results, results[idx], _build_result_lookup(results)
+
+
 def term_matches(term: str, value: str) -> bool:
     """Check whether a term matches a value using case-insensitive substring matching."""
     if not term or not value:
@@ -251,7 +310,7 @@ def _result_has_upstream_dependency(
     if not target_id:
         return False
 
-    queue: deque[str] = deque(result.depends_on)
+    queue: deque[str] = deque(_normalize_dependency_ids(result.depends_on))
     visited: set[str] = set()
 
     while queue:
@@ -433,7 +492,7 @@ def result_list(
     if unverified is True:
         results = [r for r in results if not _has_verification_evidence(r)]
 
-    return [IntermediateResult(**r) for r in results]
+    return [_result_from_record(r) for r in results]
 
 
 @instrument_gpd_function("results.search")
@@ -663,26 +722,15 @@ def result_deps(state: dict, result_id: str) -> ResultDeps:
 
     Raises ResultNotFoundError if result_id is not found.
     """
-    results = state.get("intermediate_results", [])
-    idx = _find_result_index(results, result_id)
-    if idx == -1:
-        raise ResultNotFoundError(result_id)
+    results, result, by_id = _get_result_registry_context(state, result_id)
 
-    result = results[idx]
-
-    # Build lookup map
-    by_id: dict[str, dict] = {}
-    for r in results:
-        if isinstance(r, dict) and r.get("id"):
-            by_id[r["id"]] = r
-
-    direct_dep_ids = list(dict.fromkeys(result.get("depends_on", [])))
+    direct_dep_ids = list(dict.fromkeys(_normalize_dependency_ids(result.get("depends_on", []))))
 
     # Direct dependencies
     direct_deps: list[IntermediateResult | MissingDep] = []
     for dep_id in direct_dep_ids:
         if dep_id in by_id:
-            direct_deps.append(IntermediateResult(**by_id[dep_id]))
+            direct_deps.append(_result_from_record(by_id[dep_id]))
         else:
             direct_deps.append(MissingDep(id=dep_id))
 
@@ -707,17 +755,69 @@ def result_deps(state: dict, result_id: str) -> ResultDeps:
             continue
 
         if not is_direct:
-            transitive_deps.append(IntermediateResult(**dep))
+            transitive_deps.append(_result_from_record(dep))
 
-        for sub_dep_id in dep.get("depends_on", []):
+        for sub_dep_id in _normalize_dependency_ids(dep.get("depends_on", [])):
             if sub_dep_id not in visited:
                 queue.append(sub_dep_id)
 
     return ResultDeps(
-        result=IntermediateResult(**result),
+        result=_result_from_record(result),
         depends_on=list(direct_dep_ids),
         direct_deps=direct_deps,
         transitive_deps=transitive_deps,
+    )
+
+
+@instrument_gpd_function("results.downstream")
+def result_downstream(state: dict, result_id: str) -> ResultDownstream:
+    """Find all results that depend on the given result, transitively.
+
+    Returns the result, its direct dependents (results whose ``depends_on``
+    includes *result_id*), and transitive dependents (results that depend on
+    those, and so on).
+
+    Raises ResultNotFoundError if result_id is not found.
+    """
+    results, result, by_id = _get_result_registry_context(state, result_id)
+
+    # Build a reverse adjacency map: for each result, which results list it
+    # in their depends_on?
+    reverse_deps: dict[str, list[str]] = {}
+    for r in results:
+        if not isinstance(r, dict) or not r.get("id"):
+            continue
+        for dep_id in _normalize_dependency_ids(r.get("depends_on", [])):
+            reverse_deps.setdefault(dep_id, []).append(r["id"])
+
+    # Direct dependents — results whose depends_on contains result_id.
+    direct_dependent_ids = list(dict.fromkeys(reverse_deps.get(result_id, [])))
+    direct_dependents = [_result_from_record(by_id[did]) for did in direct_dependent_ids if did in by_id]
+
+    # Transitive dependents via BFS, excluding direct dependents and the
+    # result itself.
+    visited: set[str] = {result_id}
+    queue: deque[str] = deque(direct_dependent_ids)
+    transitive_dependents: list[IntermediateResult] = []
+    direct_dep_set = set(direct_dependent_ids)
+
+    while queue:
+        dep_id = queue.popleft()
+        if dep_id in visited:
+            continue
+        visited.add(dep_id)
+
+        if dep_id not in direct_dep_set and dep_id in by_id:
+            transitive_dependents.append(_result_from_record(by_id[dep_id]))
+
+        for downstream_id in reverse_deps.get(dep_id, []):
+            if downstream_id not in visited:
+                queue.append(downstream_id)
+
+    return ResultDownstream(
+        result=_result_from_record(result),
+        direct_dependents=direct_dependents,
+        transitive_dependents=transitive_dependents,
     )
 
 
@@ -777,7 +877,7 @@ def result_verify(
     records.append(record)
     raw_result["verification_records"] = [entry.model_dump() for entry in records]
     raw_result["verified"] = True
-    return IntermediateResult(**raw_result)
+    return _result_from_record(raw_result)
 
 
 @instrument_gpd_function("results.update")
@@ -841,11 +941,12 @@ def result_update(
     if trial.get("verification_records") and not bool(trial.get("verified")):
         raise ResultError("verified cannot be false when verification_records are present")
     try:
-        IntermediateResult(**trial)
+        validated = _result_from_record(trial)
     except _PydanticValidationError as exc:
         raise ResultError(f"Invalid update: {exc}") from exc
 
     # Commit to state only after validation succeeds
     state["intermediate_results"][idx].update(pending)
+    state["intermediate_results"][idx]["depends_on"] = list(validated.depends_on)
 
-    return updated_fields, IntermediateResult(**state["intermediate_results"][idx])
+    return updated_fields, _result_from_record(state["intermediate_results"][idx])

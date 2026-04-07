@@ -465,6 +465,9 @@ gpd result show <identifier>
 # Trace dependencies for a canonical result identifier
 gpd result deps <identifier>
 
+# Trace downstream dependents with direct/transitive separation
+gpd result downstream <identifier>
+
 # Query assumptions across phases
 gpd query assumptions "<search term>"
 ```

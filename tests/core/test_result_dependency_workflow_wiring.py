@@ -15,10 +15,13 @@ SENSITIVITY_ANALYSIS = REPO_ROOT / "src/gpd/specs/workflows/sensitivity-analysis
 AGENT_INFRASTRUCTURE = REPO_ROOT / "src/gpd/specs/references/orchestration/agent-infrastructure.md"
 
 
-def test_compare_experiment_workflow_uses_dependency_aware_result_search() -> None:
+def test_compare_experiment_workflow_distinguishes_flat_search_from_reverse_trace() -> None:
     text = COMPARE_EXPERIMENT.read_text(encoding="utf-8")
 
     assert 'gpd result search --depends-on "{upstream_result_id}"' in text
+    assert 'gpd result downstream "{upstream_result_id}"' in text
+    assert "flat list of all downstream dependents" in text
+    assert "reverse dependency tree separated into direct and transitive dependents" in text
     assert 'gpd result show "{result_id}"' in text
     assert 'gpd result deps "{result_id}"' in text
 
@@ -38,8 +41,10 @@ def test_explain_surfaces_result_deps_for_upstream_context() -> None:
 
     assert 'gpd result show "{result_id}"' in workflow_text
     assert 'gpd result deps "{result_id}"' in workflow_text
+    assert 'gpd result downstream "{result_id}"' in workflow_text
     assert 'gpd result show "{result_id}"' in command_text
     assert 'gpd result deps "{result_id}"' in command_text
+    assert 'gpd result downstream "{result_id}"' in command_text
 
 
 def test_lookup_first_validation_workflows_surface_result_show_after_search() -> None:
@@ -70,3 +75,5 @@ def test_agent_infrastructure_separates_phase_and_result_dependency_commands() -
     assert text.count('gpd result show <identifier>') >= 2
     assert 'gpd result deps <identifier>' in text
     assert 'Trace dependencies for a canonical result identifier' in text
+    assert 'gpd result downstream <identifier>' in text
+    assert 'Trace downstream dependents with direct/transitive separation' in text

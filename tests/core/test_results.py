@@ -572,6 +572,20 @@ def test_result_search_matches_transitive_depends_on_across_phase_filter():
     assert matches.total == 1
 
 
+def test_result_search_handles_raw_string_depends_on_field():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "equation": "A", "phase": "1", "depends_on": []},
+            {"id": "R-02", "equation": "B", "phase": "2", "depends_on": "R-01"},
+        ]
+    }
+
+    matches = result_search(state, depends_on="R-01")
+
+    assert [result.id for result in matches.matches] == ["R-02"]
+    assert matches.total == 1
+
+
 def test_result_search_preserves_registry_order():
     state: dict = {
         "intermediate_results": [
@@ -639,6 +653,21 @@ def test_result_deps_ignores_string_entries():
         ]
     }
     deps = result_deps(state, "R-02")
+    assert len(deps.direct_deps) == 1
+    assert deps.direct_deps[0].id == "R-01"
+
+
+def test_result_deps_handles_raw_string_depends_on_field():
+    state: dict = {
+        "intermediate_results": [
+            {"id": "R-01", "depends_on": [], "verified": False, "verification_records": []},
+            {"id": "R-02", "depends_on": "R-01", "verified": False, "verification_records": []},
+        ]
+    }
+
+    deps = result_deps(state, "R-02")
+
+    assert deps.depends_on == ["R-01"]
     assert len(deps.direct_deps) == 1
     assert deps.direct_deps[0].id == "R-01"
 

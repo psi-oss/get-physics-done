@@ -2766,7 +2766,35 @@ def result_deps(
     """Trace the direct and transitive upstream dependency chain for a canonical result."""
     from gpd.core.results import result_deps
 
-    _output(result_deps(_load_state_dict(), result_id))
+    try:
+        deps = result_deps(_load_state_dict(), result_id)
+    except GPDError as exc:
+        _error(str(exc))
+
+    if _raw:
+        _emit_raw_json(deps.model_dump(mode="json", by_alias=True))
+        return
+
+    _print_result_deps(deps)
+
+
+@result_app.command("downstream")
+def result_downstream(
+    result_id: str = typer.Argument(..., help="Canonical result ID"),
+) -> None:
+    """Show the direct and transitive dependents of a canonical result."""
+    from gpd.core.results import result_downstream
+
+    try:
+        downstream = result_downstream(_load_state_dict(), result_id)
+    except GPDError as exc:
+        _error(str(exc))
+
+    if _raw:
+        _emit_raw_json(downstream.model_dump(mode="json", by_alias=True))
+        return
+
+    _print_result_downstream(downstream)
 
 
 def _print_result_show_dependencies(
@@ -2815,7 +2843,7 @@ def _print_result_show_dependencies(
     console.print(table)
 
 
-def _print_result_show(result_deps: object) -> None:
+def _print_result_deps(result_deps: object) -> None:
     """Render one canonical result with direct and transitive dependencies."""
     result = getattr(result_deps, "result", None)
     if result is None:
@@ -2823,6 +2851,25 @@ def _print_result_show(result_deps: object) -> None:
         return
 
     console.rule(f"Result {result.id}")
+    _print_result_summary(result)
+
+    _print_result_show_dependencies(
+        "Direct dependencies",
+        list(getattr(result_deps, "direct_deps", []) or []),
+        empty_message="No direct dependencies",
+    )
+    _print_result_show_dependencies(
+        "Transitive dependencies",
+        list(getattr(result_deps, "transitive_deps", []) or []),
+        empty_message="No transitive dependencies",
+    )
+
+
+def _print_result_summary(result: object) -> None:
+    """Render the common summary table used by result inspection commands."""
+    if result is None:
+        console.print(Text("Result unavailable", style="bold red"))
+        return
 
     summary = Table(show_header=False, header_style=f"bold {_INSTALL_ACCENT_COLOR}")
     summary.add_column("Field", style=f"bold {_INSTALL_ACCENT_COLOR}")
@@ -2836,16 +2883,32 @@ def _print_result_show(result_deps: object) -> None:
     summary.add_row("Declared deps", ", ".join(result.depends_on) if result.depends_on else "—")
     console.print(summary)
 
+
+def _print_result_downstream(result_downstream: object) -> None:
+    """Render one canonical result with direct and transitive dependents."""
+    result = getattr(result_downstream, "result", None)
+    if result is None:
+        console.print(Text("Result unavailable", style="bold red"))
+        return
+
+    console.rule(f"Result {result.id}")
+    _print_result_summary(result)
+
     _print_result_show_dependencies(
-        "Direct dependencies",
-        list(getattr(result_deps, "direct_deps", []) or []),
-        empty_message="No direct dependencies",
+        "Direct dependents",
+        list(getattr(result_downstream, "direct_dependents", []) or []),
+        empty_message="No direct dependents",
     )
     _print_result_show_dependencies(
-        "Transitive dependencies",
-        list(getattr(result_deps, "transitive_deps", []) or []),
-        empty_message="No transitive dependencies",
+        "Transitive dependents",
+        list(getattr(result_downstream, "transitive_dependents", []) or []),
+        empty_message="No transitive dependents",
     )
+
+
+def _print_result_show(result_deps: object) -> None:
+    """Render one canonical result with direct and transitive dependencies."""
+    _print_result_deps(result_deps)
 
 
 @result_app.command("search")

@@ -23,7 +23,7 @@ Produce a rigorous, well-scoped explanation of a concept, method, notation, resu
 
 **Why subagent:** The explanation needs local state, notation, nearby derivations, and literature context. Fresh context keeps it rigorous.
 When available, the explainer should also use the derived citation-source catalog so literature guides can prefer stable `reference_id` anchors and openable URLs instead of reconstructing papers from prose.
-If the topic is already represented in `intermediate_results`, use `gpd result search` to recover the canonical result before explaining it so the explanation can anchor to the stored equation, description, phase, and verification state. If a canonical `result_id` is already known, use `gpd result show "{result_id}"` to inspect the stored result directly before explaining it. When the explanation also needs the upstream derivation path, run `gpd result deps "{result_id}"` after the search or show step so the explanation can reuse the recorded dependency chain instead of reconstructing it from prose.
+If the topic is already represented in `intermediate_results`, use `gpd result search` to recover the canonical result before explaining it so the explanation can anchor to the stored equation, description, phase, and verification state. If a canonical `result_id` is already known, use `gpd result show "{result_id}"` to inspect the stored result directly before explaining it. When the explanation also needs the upstream derivation path, run `gpd result deps "{result_id}"` after the search or show step so the explanation can reuse the recorded dependency chain instead of reconstructing it from prose. When the explanation needs the reverse impact tree, run `gpd result downstream "{result_id}"` to separate direct dependents from transitive dependents.
 </objective>
 
 <execution_context>
@@ -59,7 +59,7 @@ Extract the target concept from `$ARGUMENTS`.
 
 - If the request is materially ambiguous and the active project does not disambiguate it, ask one focused clarification question.
 - Otherwise infer the intended scope from the current phase, manuscript work, notation, and nearby project files.
-- If the concept looks like a derived equation or stored quantity, search the result registry first with `gpd result search` before falling back to prose-only context. If you find a canonical `result_id`, use `gpd result show "{result_id}"` for the direct stored-result view and `gpd result deps "{result_id}"` when the explanation needs upstream context.
+- If the concept looks like a derived equation or stored quantity, search the result registry first with `gpd result search` before falling back to prose-only context. If you find a canonical `result_id`, use `gpd result show "{result_id}"` for the direct stored-result view, `gpd result deps "{result_id}"` when the explanation needs upstream context, and `gpd result downstream "{result_id}"` when the explanation needs the reverse impact tree.
 
 ## 2. Gather Context
 
