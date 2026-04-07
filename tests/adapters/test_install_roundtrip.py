@@ -287,7 +287,7 @@ def _assert_installed_contract_visibility(
     assert "comparison_verdicts" in executor
     assert "These ledgers are user-visible evidence." in executor
 
-    assert "templates/state-json-schema.md" in new_project
+    assert "templates/project-contract-schema.md" in new_project
     assert "project_contract_load_info" in new_project
     assert "project_contract_validation" in new_project
     assert "`schema_version` must be the integer `1`" in new_project
@@ -295,7 +295,7 @@ def _assert_installed_contract_visibility(
     assert "`context_intake`" in new_project
     assert "`approach_policy`" in new_project
     assert "`uncertainty_markers`" in new_project
-    assert "do not flatten them into strings or lists" in new_project
+    assert "`context_intake`, `approach_policy`, and `uncertainty_markers` must each stay as objects, not strings or lists." in new_project
 
     assert "Canonical contract schema and hard validation rules" in plan_phase
     assert (
