@@ -1255,8 +1255,14 @@ class TestInitPlanPhase:
 
         ctx = init_progress(tmp_path)
 
-        assert ctx["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert ctx["project_contract"]["context_intake"]["must_read_refs"] == ["benchmark-paper"]
         assert ctx["contract_intake"]["must_read_refs"] == ["ref-benchmark"]
+        assert ctx["project_contract_load_info"]["status"] == "loaded_with_approval_blockers"
+        assert ctx["project_contract_validation"]["valid"] is False
+        assert ctx["project_contract_gate"]["visible"] is True
+        assert ctx["project_contract_gate"]["authoritative"] is False
+        assert ctx["project_contract_gate"]["blocked"] is True
+        assert ctx["project_contract_gate"]["repair_required"] is True
 
     def test_non_authoritative_project_contract_does_not_select_protocol_bundles(
         self,

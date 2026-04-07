@@ -88,6 +88,10 @@ from gpd.core.publication_review_paths import (
     manuscript_matches_review_artifact_path,
     review_artifact_round,
 )
+from gpd.core.runtime_command_surfaces import (
+    format_active_runtime_command,
+    resolve_active_runtime_descriptor,
+)
 from gpd.core.recovery_advice import (
     RecoveryAdvice,
     build_recovery_advice,
@@ -5980,54 +5984,34 @@ def _build_recoverable_workspace_guidance(*, init_command: str) -> str:
 
 def _active_runtime_command_prefix(*, cwd: Path | None = None) -> str | None:
     """Return the public command prefix for the active runtime, if available."""
-    from gpd.adapters import get_adapter
-    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN
-
-    runtime_name = detect_runtime_for_gpd_use(cwd=cwd or _get_cwd())
-    if runtime_name in (None, RUNTIME_UNKNOWN):
+    descriptor = resolve_active_runtime_descriptor(
+        cwd=cwd or _get_cwd(),
+        detect_runtime=detect_runtime_for_gpd_use,
+    )
+    if descriptor is None:
         return None
-    try:
-        return get_adapter(runtime_name).runtime_descriptor.public_command_surface_prefix
-    except KeyError:
-        return None
+    return descriptor.public_command_surface_prefix
 
 
 def _active_runtime_validated_surface(*, cwd: Path | None = None) -> str | None:
     """Return the machine-readable public command surface for the active runtime."""
-    from gpd.adapters import get_adapter
-    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN
-
-    runtime_name = detect_runtime_for_gpd_use(cwd=cwd or _get_cwd())
-    if runtime_name in (None, RUNTIME_UNKNOWN):
+    descriptor = resolve_active_runtime_descriptor(
+        cwd=cwd or _get_cwd(),
+        detect_runtime=detect_runtime_for_gpd_use,
+    )
+    if descriptor is None:
         return None
-    try:
-        return get_adapter(runtime_name).runtime_descriptor.validated_command_surface
-    except KeyError:
-        return None
-
-
-def _active_runtime_formatted_command(action: str, *, cwd: Path | None = None) -> str | None:
-    """Return one adapter-formatted public command for the active runtime."""
-    from gpd.adapters import get_adapter
-    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN
-
-    runtime_name = detect_runtime_for_gpd_use(cwd=cwd or _get_cwd())
-    if runtime_name in (None, RUNTIME_UNKNOWN):
-        return None
-    try:
-        return get_adapter(runtime_name).format_command(action)
-    except KeyError:
-        return None
-
-
-def _generic_runtime_command_reference(action: str) -> str:
-    """Return a runtime-surface-neutral reference for one public command."""
-    return f"the active runtime's `{action}` command"
+    return descriptor.validated_command_surface
 
 
 def _active_runtime_settings_command(*, cwd: Path | None = None) -> str:
     """Return the active runtime's settings command, or a runtime-surface-neutral fallback."""
-    return _active_runtime_formatted_command("settings", cwd=cwd) or _generic_runtime_command_reference("settings")
+    return format_active_runtime_command(
+        "settings",
+        cwd=cwd or _get_cwd(),
+        detect_runtime=detect_runtime_for_gpd_use,
+        fallback="the active runtime's `settings` command",
+    )
 
 
 def _command_required_file_patterns(command: object) -> list[str]:
@@ -6209,8 +6193,12 @@ def _active_runtime_command_family(*, cwd: Path | None = None) -> str:
 
 def _active_runtime_new_project_command(*, cwd: Path | None = None) -> str:
     """Return the runtime-native new-project command, if it can be resolved."""
-    command = _active_runtime_formatted_command("new-project", cwd=cwd)
-    return command if command else "the active runtime's `new-project` command"
+    return format_active_runtime_command(
+        "new-project",
+        cwd=cwd or _get_cwd(),
+        detect_runtime=detect_runtime_for_gpd_use,
+        fallback="the active runtime's `new-project` command",
+    )
 
 
 def _runtime_surface_dispatch_note(*, cwd: Path | None = None) -> str:

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from gpd.core.context import init_progress
 from gpd.core.contract_validation import validate_project_contract
-from gpd.core.state import default_state_dict, save_state_json
+from gpd.core.state import default_state_dict, save_state_json, state_set_project_contract
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 
@@ -36,9 +36,13 @@ def _write_draft_project_contract_state(tmp_path: Path) -> dict[str, object]:
         "context_gaps": ["Need a concrete must-surface anchor before approval."],
         "crucial_inputs": [],
     }
-    state = default_state_dict()
-    state["project_contract"] = contract
-    save_state_json(tmp_path, state)
+    save_state_json(tmp_path, default_state_dict())
+    result = state_set_project_contract(tmp_path, contract)
+    assert result.updated is True
+    assert any(
+        warning.startswith("approval blocker: references must include at least one must_surface=true anchor")
+        for warning in result.warnings
+    )
     return contract
 
 

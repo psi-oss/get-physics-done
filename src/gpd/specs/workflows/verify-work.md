@@ -173,7 +173,11 @@ Use `protocol_bundle_context` from init JSON as additive specialized guidance.
 - Call `get_bundle_checklist(selected_protocol_bundle_ids)` through the verification server only when the init payload lacks those extensions or when you need a fallback consistency check.
 - Bundle guidance may add estimator checks, decisive artifact expectations, or domain-specific audits, but it does NOT replace the plan contract or reduce anchor obligations.
 - Use `protocol_bundle_verifier_extensions` as the machine-readable quick map when deciding which contract-aware checks deserve deeper scrutiny first.
-- If the phase has a PLAN `contract`, call `suggest_contract_checks(contract)` through the verification server before finalizing the check inventory. Treat the returned items as the default contract-aware check seed unless they are clearly inapplicable to this phase. For each returned check, use the returned `request_template` as the starting request, fill the listed `required_request_fields`, stay within the returned `supported_binding_fields`, and then call `run_contract_check(request=...)` so contract-aware checks are executed rather than only discovered.
+- If the phase has a PLAN `contract` and project-local anchors or prior-output paths matter, use this contract-check loop before finalizing the inventory:
+  1. Call `suggest_contract_checks(contract, project_dir=...)`.
+  2. Treat the returned items as the default contract-aware seed unless they are clearly inapplicable.
+  3. For each returned check, start from `request_template`, satisfy `required_request_fields` and `schema_required_request_fields`, satisfy one full alternative from `schema_required_request_anyof_fields`, stay within `supported_binding_fields` for `request.binding`, and keep `project_dir` as the top-level absolute project root argument.
+  4. Call `run_contract_check(request=..., project_dir=...)` so contract-aware checks are executed rather than only discovered.
 </step>
 
 <step name="check_active_session">

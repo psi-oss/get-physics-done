@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from gpd.adapters import get_adapter, list_runtimes
+from gpd.adapters import tool_names as tool_names_module
 from gpd.adapters.tool_names import (
     CANONICAL_TOOL_NAMES,
     build_canonical_alias_map,
@@ -76,3 +79,19 @@ def test_reference_translation_map_comes_from_adapter_policy() -> None:
     assert mapping["ask_user"] == "question"
     assert mapping["slash_command"] == "skill"
     assert mapping["file_read"] == "read_file"
+
+
+def test_runtime_string_policy_comes_from_live_adapter_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_map = {name: f"fake_{name}" for name in CANONICAL_TOOL_NAMES}
+    fake_adapter = SimpleNamespace(
+        runtime_name="fake-runtime",
+        tool_name_map=fake_map,
+        auto_discovered_tools=frozenset({"task"}),
+        drop_mcp_frontmatter_tools=True,
+    )
+    monkeypatch.setattr("gpd.adapters.iter_adapters", lambda: [fake_adapter])
+    monkeypatch.setattr(tool_names_module, "_DEFAULT_POLICIES", None)
+
+    assert translate("file_read", "fake-runtime", alias_map={}) == "fake_file_read"
+    assert translate_for_runtime("task", "fake-runtime", alias_map={}) is None
+    assert translate_for_runtime("mcp__physics", "fake-runtime", alias_map={}) is None

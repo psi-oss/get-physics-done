@@ -679,18 +679,33 @@ def _load_public_surface_contract_from_payload(
     *,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    schema_payload: dict[str, object] | None = None,
 ):
     class _FakeFiles:
-        def __init__(self, contract_path: Path) -> None:
+        def __init__(self, contract_path: Path, schema_path: Path) -> None:
             self._contract_path = contract_path
+            self._schema_path = schema_path
 
         def joinpath(self, name: str) -> Path:
-            assert name == "public_surface_contract.json"
-            return self._contract_path
+            if name == "public_surface_contract.json":
+                return self._contract_path
+            if name == "public_surface_contract_schema.json":
+                return self._schema_path
+            raise AssertionError(f"Unexpected public surface contract resource: {name}")
 
     contract_path = tmp_path / "public_surface_contract.json"
+    schema_path = tmp_path / "public_surface_contract_schema.json"
     contract_path.write_text(json.dumps(payload), encoding="utf-8")
-    monkeypatch.setattr(public_surface_contract_module, "files", lambda package: _FakeFiles(contract_path))
+    if schema_payload is None:
+        schema_payload = json.loads(
+            (REPO_ROOT / "src" / "gpd" / "core" / "public_surface_contract_schema.json").read_text(encoding="utf-8")
+        )
+    schema_path.write_text(json.dumps(schema_payload), encoding="utf-8")
+    monkeypatch.setattr(
+        public_surface_contract_module,
+        "files",
+        lambda package: _FakeFiles(contract_path, schema_path),
+    )
     public_surface_contract_module.load_public_surface_contract.cache_clear()
     try:
         return public_surface_contract_module.load_public_surface_contract()
@@ -942,6 +957,50 @@ assert.throws(
 """
     )
     assert missing_result.returncode == 0, f"{missing_result.stdout}\n{missing_result.stderr}"
+
+
+def test_bootstrap_public_surface_contract_schema_validator_stays_in_parity_with_python_loader(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    canonical_payload = json.loads(
+        (REPO_ROOT / "src" / "gpd" / "core" / "public_surface_contract.json").read_text(encoding="utf-8")
+    )
+    canonical_schema = json.loads(
+        (REPO_ROOT / "src" / "gpd" / "core" / "public_surface_contract_schema.json").read_text(encoding="utf-8")
+    )
+    drifted_payload = json.loads(json.dumps(canonical_payload))
+    drifted_schema = json.loads(json.dumps(canonical_schema))
+    drifted_payload["beginner_onboarding"]["legacy_note"] = "unexpected"
+    drifted_schema["sections"]["beginner_onboarding"]["keys"].append("legacy_note")
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"public_surface_contract_schema\.sections\.beginner_onboarding\.keys must exactly match "
+            r"the code-supported contract fields"
+        ),
+    ):
+        _load_public_surface_contract_from_payload(
+            drifted_payload,
+            tmp_path=tmp_path,
+            monkeypatch=monkeypatch,
+            schema_payload=drifted_schema,
+        )
+
+    drift_result = _run_node_contract_validation(
+        f"""
+const assert = require("node:assert/strict");
+const {{ validateSharedPublicSurfaceSchemaShape }} = require("./bin/install.js");
+const schema = {json.dumps(drifted_schema)};
+assert.throws(
+  () => validateSharedPublicSurfaceSchemaShape(schema),
+  /public surface contract schema\\.sections\\.beginner_onboarding\\.keys must exactly match the code-supported public surface fields/
+);
+"""
+    )
+
+    assert drift_result.returncode == 0, f"{drift_result.stdout}\n{drift_result.stderr}"
 
 
 def test_bootstrap_runtime_catalog_validator_rejects_malformed_records() -> None:

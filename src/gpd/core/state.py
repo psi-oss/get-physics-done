@@ -721,10 +721,11 @@ def _project_contract_load_payload(
     raw_project_contract_classified: bool = False,
     errors: list[str] | None = None,
     warnings: list[str] | None = None,
+    approval_validation: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Build structured project-contract load diagnostics."""
 
-    return {
+    payload = {
         "status": status,
         "source_path": source_path,
         "provenance": provenance,
@@ -732,6 +733,9 @@ def _project_contract_load_payload(
         "errors": list(errors or []),
         "warnings": list(warnings or []),
     }
+    if approval_validation is not None:
+        payload["approval_validation"] = dict(approval_validation)
+    return payload
 
 
 def _project_contract_missing_required_schema_errors(raw_contract: object) -> list[str]:
@@ -903,6 +907,7 @@ def _classify_project_contract_payload(
             "; ".join(approval_validation.errors) if approval_validation.errors else "validation failed",
         )
         load_info["status"] = "loaded_with_approval_blockers"
+        load_info["approval_validation"] = approval_validation.model_dump(mode="json")
     return normalized_contract, load_info
 
 
@@ -1025,9 +1030,13 @@ def _finalize_project_contract_gate(
             finalized_load_info["errors"] = list(
                 dict.fromkeys([*list(finalized_load_info.get("errors") or []), *draft_validation.errors])
             )
-        validation_payload = validate_project_contract(contract, mode="approved", project_root=cwd).model_dump(
-            mode="json"
-        )
+        raw_approval_validation = load_info.get("approval_validation")
+        if isinstance(raw_approval_validation, dict):
+            validation_payload = dict(raw_approval_validation)
+        else:
+            validation_payload = validate_project_contract(contract, mode="approved", project_root=cwd).model_dump(
+                mode="json"
+            )
         if finalized_load_info["status"] != "blocked_integrity":
             repair_relevant_schema_warning = any(
                 is_repair_relevant_project_contract_schema_finding(warning)
@@ -3422,6 +3431,8 @@ def _project_contract_runtime_payload_for_state(
             "errors": list(preloaded_load_info.get("errors") or []),
             "warnings": list(preloaded_load_info.get("warnings") or []),
         }
+        if isinstance(preloaded_load_info.get("approval_validation"), dict):
+            load_info["approval_validation"] = dict(preloaded_load_info["approval_validation"])
 
     if contract is not None:
         from gpd.core.context import (
@@ -3449,22 +3460,6 @@ def _project_contract_runtime_payload_for_state(
             active_references=active_references,
             effective_reference_intake=effective_reference_intake,
         )
-        existing_warnings = list(load_info.get("warnings") or [])
-        existing_provenance = str(load_info.get("provenance") or "raw")
-        raw_project_contract_classified = bool(load_info.get("raw_project_contract_classified"))
-        contract, load_info = _classify_project_contract_payload(
-            cwd=cwd,
-            source_path=source_path,
-            raw_contract=contract.model_dump(mode="python"),
-            provenance=existing_provenance if existing_provenance else "raw",
-        )
-        load_info["raw_project_contract_classified"] = raw_project_contract_classified
-        load_info["provenance"] = existing_provenance
-        if existing_warnings:
-            load_info = {
-                **load_info,
-                "warnings": list(dict.fromkeys([*existing_warnings, *list(load_info.get("warnings") or [])])),
-            }
         if canonicalization_warnings:
             load_info = {
                 **load_info,
@@ -3848,9 +3843,11 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
     This is a JSON-only state field, so it bypasses ``STATE.md`` field patching and
     writes through the authoritative structured state path instead. Unlike
     ``ensure_state_schema()``, this write path rejects authored schema
-    normalization drift instead of silently salvaging it. Read/repair flows can
-    still canonicalize historical state through ``ensure_state_schema()`` and
-    the backup recovery path.
+    normalization drift instead of silently salvaging it. Draft-valid contracts
+    that still fail approval validation are persisted with explicit warnings so
+    downstream runtime/init loaders can surface them as visible but
+    non-authoritative. Read/repair flows can still canonicalize historical
+    state through ``ensure_state_schema()`` and the backup recovery path.
     """
     schema_reference = "templates/state-json-schema.md"
     warning_messages: list[str] = []
@@ -3899,7 +3896,11 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
         for warning in approval_validation.warnings:
             if warning not in warning_messages:
                 warning_messages.append(warning)
-        return _failure("Project contract failed approval validation: " + "; ".join(approval_validation.errors))
+        warning_messages.extend(
+            f"approval blocker: {error}"
+            for error in approval_validation.errors
+            if f"approval blocker: {error}" not in warning_messages
+        )
     for warning in approval_validation.warnings:
         if warning not in warning_messages:
             warning_messages.append(warning)

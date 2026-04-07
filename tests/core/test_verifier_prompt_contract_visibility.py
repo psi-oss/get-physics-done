@@ -76,7 +76,13 @@ def test_verifier_prompt_surfaces_validator_enforced_contract_ledger_rules() -> 
     assert "`suggested_contract_checks` entries in `VERIFICATION.md` may only use `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`." in verifier
     assert "When the gap comes from `suggest_contract_checks(contract)`, `check` must copy the returned `check_key`." in verifier
     assert "If you bind a `suggested_contract_checks` entry to a known contract target, `suggested_subject_kind` and `suggested_subject_id` must appear together; otherwise omit both." in contract_results_schema
-    assert "For each suggested check, start from its returned `request_template`, satisfy the listed `required_request_fields`, constrain any bindings to the returned `supported_binding_fields`, and then execute `run_contract_check(request=...)`" in verifier
+    assert "For each suggested check, start from `request_template`" in verifier
+    assert "`schema_required_request_fields`" in verifier
+    assert "`schema_required_request_anyof_fields`" in verifier
+    assert "satisfy one full alternative from `schema_required_request_anyof_fields`" in verifier
+    assert "keep `project_dir` as the top-level absolute project root argument" in verifier
+    assert "bind only `supported_binding_fields`" in verifier
+    assert "Execute `run_contract_check(request=..., project_dir=...)`." in verifier
     assert "required reference actions missing" in verifier
     assert "`suggested_contract_check`" not in verifier
 

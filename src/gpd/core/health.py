@@ -47,8 +47,11 @@ from gpd.core.errors import GPDError, ValidationError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, validate_frontmatter
 from gpd.core.observability import gpd_span
 from gpd.core.public_surface_contract import (
+    local_cli_doctor_global_command,
+    local_cli_doctor_local_command,
     local_cli_permissions_sync_command,
 )
+from gpd.core.runtime_command_surfaces import format_active_runtime_command
 from gpd.core.state import (
     peek_state_json,
     save_state_json,
@@ -196,6 +199,32 @@ def check_storage_paths(cwd: Path) -> HealthCheck:
     }
     status = CheckStatus.WARN if warnings else CheckStatus.OK
     return HealthCheck(status=status, label="Storage-Path Policy", details=details, warnings=warnings)
+
+
+def _render_contract_cli_command(
+    template: str,
+    *,
+    runtime_name: str | None = None,
+    autonomy: str | None = None,
+    target_dir: Path | None = None,
+) -> str:
+    """Render a contract-owned local CLI template with runtime-specific values."""
+    rendered: list[str] = []
+    replace_autonomy = False
+    for token in shlex.split(template):
+        if token == "<runtime>" and runtime_name is not None:
+            rendered.append(runtime_name)
+            replace_autonomy = False
+            continue
+        if replace_autonomy and autonomy is not None:
+            rendered.append(autonomy)
+            replace_autonomy = False
+            continue
+        rendered.append(token)
+        replace_autonomy = token == "--autonomy"
+    if target_dir is not None:
+        rendered.extend(["--target-dir", str(target_dir)])
+    return " ".join(shlex.quote(part) for part in rendered)
 
 
 def _peek_normalized_state_for_health(cwd: Path) -> tuple[dict[str, object] | None, str | None]:
@@ -1254,17 +1283,21 @@ def normalize_permissions_readiness_payload(
                 and isinstance(autonomy_value, str)
                 and autonomy_value
             ):
-                permissions_sync_command = local_cli_permissions_sync_command().split(" --autonomy ", 1)[0]
+                permissions_sync_command = _render_contract_cli_command(
+                    local_cli_permissions_sync_command(),
+                    runtime_name=runtime_name,
+                    autonomy=autonomy_value,
+                )
                 if permissions_surface == "launch-wrapper":
                     next_step = (
                         f"Use `{_doctor_active_runtime_settings_command()}` inside the runtime for guided changes, or run "
-                        f"`{permissions_sync_command} --autonomy {autonomy_value}` "
+                        f"`{permissions_sync_command}` "
                         "from your normal system terminal to generate the launcher needed for the next session."
                     )
                 else:
                     next_step = (
                         f"Use `{_doctor_active_runtime_settings_command()}` inside the runtime for guided changes, or run "
-                        f"`{permissions_sync_command} --autonomy {autonomy_value}` "
+                        f"`{permissions_sync_command}` "
                         "from your normal system terminal."
                     )
             elif readiness == "unresolved" and requested_runtime is None:
@@ -1493,14 +1526,11 @@ def _doctor_check_runtime_launcher(runtime: str) -> HealthCheck:
 
 def _doctor_active_runtime_settings_command(*, cwd: Path | None = None) -> str:
     """Return the active runtime settings command, or a runtime-surface-neutral fallback."""
-    from gpd.adapters import get_adapter
-    from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use
-
-    try:
-        runtime_name = detect_runtime_for_gpd_use(cwd=cwd)
-        return get_adapter(runtime_name).format_command("settings")
-    except Exception:
-        return "the active runtime's `settings` command"
+    return format_active_runtime_command(
+        "settings",
+        cwd=cwd,
+        fallback="the active runtime's `settings` command",
+    )
 
 
 def _doctor_runtime_install_issue(assessment: InstallTargetAssessment, runtime: str | None) -> str | None:
@@ -1776,10 +1806,8 @@ def extract_doctor_advisories(report: DoctorReport) -> list[str]:
 
 def runtime_doctor_hint(runtime_name: str, *, install_scope: str, target_dir: Path | None) -> str:
     """Build the exact doctor command that inspects one install target."""
-    parts = ["gpd", "doctor", "--runtime", runtime_name, f"--{install_scope}"]
-    if target_dir is not None:
-        parts.extend(["--target-dir", str(target_dir)])
-    return " ".join(shlex.quote(part) for part in parts)
+    template = local_cli_doctor_global_command() if install_scope == "global" else local_cli_doctor_local_command()
+    return _render_contract_cli_command(template, runtime_name=runtime_name, target_dir=target_dir)
 
 
 def build_unattended_readiness_result(

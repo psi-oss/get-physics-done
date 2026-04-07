@@ -1002,10 +1002,15 @@ def _build_reference_runtime_context(
         project_contract_load_info,
     )
     project_text = _safe_read_file(cwd / PLANNING_DIR_NAME / PROJECT_FILENAME)
-    visible_context_contract = visible_contract if project_contract_gate.get("visible") else None
+    visible_context_contract = None
+    if project_contract_gate.get("visible"):
+        visible_context_contract = visible_contract if project_contract_gate.get("authoritative") else contract
+    surfaced_contract_intake = None
+    if project_contract_gate.get("visible") and visible_contract is not None:
+        surfaced_contract_intake = visible_contract.context_intake.model_dump(mode="json")
     authoritative_contract = visible_contract if project_contract_gate.get("authoritative") else None
     carry_forward_reference_contract = (
-        visible_context_contract
+        visible_contract
         if authoritative_contract is not None or project_contract_gate.get("approval_blocked")
         else None
     )
@@ -1036,11 +1041,7 @@ def _build_reference_runtime_context(
         "project_contract_validation": project_contract_validation,
         "project_contract_load_info": project_contract_load_info,
         "project_contract_gate": project_contract_gate,
-        "contract_intake": (
-            visible_context_contract.context_intake.model_dump(mode="json")
-            if visible_context_contract is not None
-            else None
-        ),
+        "contract_intake": surfaced_contract_intake,
         "effective_reference_intake": surfaced_effective_reference_intake,
         "derived_active_references": derived_references,
         "derived_active_reference_count": len(derived_references),

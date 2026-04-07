@@ -41,6 +41,16 @@ class PayloadRoots:
         """Return whether the resolved project root trusted the explicit project_dir hint."""
         return self.project_dir_trusted
 
+    @property
+    def project_dir_is_authoritative(self) -> bool:
+        """Compatibility alias for older hook trust payloads."""
+        return self.project_dir_trusted
+
+    @property
+    def project_dir_authoritative(self) -> bool:
+        """Compatibility alias for older hook trust payloads."""
+        return self.project_dir_trusted
+
 
 def _object_value(value: object, key: str) -> object | None:
     if isinstance(value, dict):
@@ -203,7 +213,15 @@ def _coerce_root_pair(
             "root",
         )
         project_dir_present = bool(_first_bool(value, "project_dir_present", "explicit_project_dir"))
-        project_dir_trusted = bool(_first_bool(value, "project_dir_trusted", "trusted_project_dir"))
+        project_dir_trusted = bool(
+            _first_bool(
+                value,
+                "project_dir_trusted",
+                "trusted_project_dir",
+                "project_dir_is_authoritative",
+                "project_dir_authoritative",
+            )
+        )
 
     if not project_root:
         return None

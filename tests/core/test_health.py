@@ -121,6 +121,71 @@ def test_doctor_active_runtime_settings_command_falls_back_to_runtime_neutral_re
     )
 
 
+def test_runtime_doctor_hint_uses_public_surface_contract_templates(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        health_module,
+        "local_cli_doctor_local_command",
+        lambda: "gpd doctor dynamic --runtime <runtime> --local",
+    )
+    monkeypatch.setattr(
+        health_module,
+        "local_cli_doctor_global_command",
+        lambda: "gpd doctor dynamic --runtime <runtime> --global",
+    )
+
+    assert runtime_doctor_hint(PRIMARY_RUNTIME, install_scope="local", target_dir=Path("/tmp/doctor-target")) == (
+        f"gpd doctor dynamic --runtime {PRIMARY_RUNTIME} --local --target-dir /tmp/doctor-target"
+    )
+    assert runtime_doctor_hint(PRIMARY_RUNTIME, install_scope="global", target_dir=None) == (
+        f"gpd doctor dynamic --runtime {PRIMARY_RUNTIME} --global"
+    )
+
+
+def test_build_unattended_readiness_result_uses_public_surface_contract_permissions_sync_template(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        health_module,
+        "local_cli_permissions_sync_command",
+        lambda: "gpd permissions dynamic --runtime <runtime> --autonomy balanced",
+    )
+    monkeypatch.setattr(
+        health_module,
+        "_doctor_active_runtime_settings_command",
+        lambda cwd=None: "$gpd-settings",
+    )
+
+    result = build_unattended_readiness_result(
+        runtime=PRIMARY_RUNTIME,
+        autonomy="yolo",
+        install_scope="local",
+        target_dir=None,
+        doctor_report=DoctorReport(
+            overall=CheckStatus.OK,
+            runtime=PRIMARY_RUNTIME,
+            install_scope="local",
+            summary=HealthSummary(ok=1, warn=0, fail=0, total=1),
+            checks=[],
+        ),
+        permissions_payload={
+            "runtime": PRIMARY_RUNTIME,
+            "autonomy": "yolo",
+            "config_aligned": False,
+            "status_scope": "config-only",
+            "current_session_verified": False,
+            "capabilities": {
+                "permissions_surface": "direct-sync",
+            },
+        },
+        live_executable_probes=False,
+    )
+
+    assert result.next_step == (
+        f"Use `$gpd-settings` inside the runtime for guided changes, or run "
+        f"`gpd permissions dynamic --runtime {PRIMARY_RUNTIME} --autonomy yolo` from your normal system terminal."
+    )
+
+
 def test_permissions_capability_payload_surfaces_unexpected_catalog_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

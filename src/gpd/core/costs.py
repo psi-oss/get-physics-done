@@ -27,6 +27,7 @@ from gpd.core.constants import (
 )
 from gpd.core.observability import get_current_session_id
 from gpd.core.root_resolution import normalize_workspace_hint, resolve_project_roots
+from gpd.core.runtime_command_surfaces import format_active_runtime_command
 from gpd.core.utils import atomic_write, file_lock, safe_read_file
 
 __all__ = [
@@ -54,16 +55,11 @@ _COMPLETED_SEGMENT_STATES = {"completed", "complete", "done", "finished"}
 
 def _active_runtime_tier_models_command(*, cwd: Path | None = None) -> str:
     """Return the active runtime tier-model command, or a runtime-surface-neutral fallback."""
-    from gpd.adapters import get_adapter
-    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_runtime_for_gpd_use
-
-    try:
-        detected_runtime = detect_runtime_for_gpd_use(cwd=cwd)
-        if detected_runtime == RUNTIME_UNKNOWN:
-            return "the active runtime's `set-tier-models` command"
-        return get_adapter(detected_runtime).format_command("set-tier-models")
-    except Exception:
-        return "the active runtime's `set-tier-models` command"
+    return format_active_runtime_command(
+        "set-tier-models",
+        cwd=cwd,
+        fallback="the active runtime's `set-tier-models` command",
+    )
 
 
 class UsageRecord(BaseModel):

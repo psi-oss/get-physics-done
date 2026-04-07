@@ -589,7 +589,7 @@ def test_state_set_project_contract_surfaces_approved_mode_warnings_on_success(t
     assert result.warnings
 
 
-def test_state_set_project_contract_rejects_schema_valid_draft_with_approval_blockers(tmp_path: Path):
+def test_state_set_project_contract_persists_schema_valid_draft_with_approval_blockers(tmp_path: Path):
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["context_intake"] = {
         "must_read_refs": [],
@@ -605,13 +605,16 @@ def test_state_set_project_contract_rejects_schema_valid_draft_with_approval_blo
 
     result = state_set_project_contract(tmp_path, contract)
 
-    assert result.updated is False
-    assert result.reason is not None
-    assert "Project contract failed approval validation:" in result.reason
-    assert "references must include at least one must_surface=true anchor" in result.reason
+    assert result.updated is True
+    assert result.reason is None
+    assert any(
+        warning.startswith("approval blocker: references must include at least one must_surface=true anchor")
+        for warning in result.warnings
+    )
     saved = load_state_json(tmp_path)
     assert saved is not None
-    assert saved["project_contract"] is None
+    assert saved["project_contract"] is not None
+    assert saved["project_contract"]["references"][0]["must_surface"] is False
 
 
 def test_save_state_markdown_preserves_canonical_continuation_recorded_at_when_session_date_is_missing(
@@ -1069,6 +1072,24 @@ def test_state_load_backup_recovery_does_not_promote_salvaged_backup_contract_to
     assert second_load.project_contract_load_info["status"] == "loaded"
     assert second_load.project_contract_gate["authoritative"] is True
     assert second_load.project_contract_gate["repair_required"] is False
+
+
+def test_state_load_keeps_blocked_raw_project_contract_non_authoritative_after_runtime_canonicalization(
+    tmp_path: Path,
+) -> None:
+    state = default_state_dict()
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["context_intake"]["must_read_refs"] = ["benchmark-paper"]
+    state["project_contract"] = contract
+    _write_raw_state_json(tmp_path, state)
+
+    loaded = state_load(tmp_path)
+
+    assert loaded.state["project_contract"]["context_intake"]["must_read_refs"] == ["benchmark-paper"]
+    assert loaded.project_contract_load_info["status"] == "blocked_integrity"
+    assert loaded.project_contract_gate["visible"] is True
+    assert loaded.project_contract_gate["authoritative"] is False
+    assert loaded.project_contract_gate["repair_required"] is True
 
 
 def test_state_load_backup_restore_surfaces_project_contract_salvage_diagnostics(

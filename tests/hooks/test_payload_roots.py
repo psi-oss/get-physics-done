@@ -164,6 +164,27 @@ def test_coerce_root_pair_preserves_trust_flags_from_mapping_payload(tmp_path) -
     assert roots.project_dir_trusted is False
 
 
+def test_coerce_root_pair_accepts_legacy_trust_flag_aliases(tmp_path) -> None:
+    workspace = tmp_path / "workspace"
+    project = tmp_path / "project"
+
+    roots = _coerce_root_pair(
+        {
+            "workspace_dir": str(workspace),
+            "project_root": str(project),
+            "explicit_project_dir": True,
+            "project_dir_is_authoritative": True,
+        },
+        fallback_workspace_dir=str(tmp_path / "fallback"),
+    )
+
+    assert roots is not None
+    assert roots.project_dir_present is True
+    assert roots.project_dir_trusted is True
+    assert roots.project_dir_is_authoritative is True
+    assert roots.project_dir_authoritative is True
+
+
 def test_resolve_with_shared_service_uses_later_signature_after_type_error(tmp_path) -> None:
     workspace = tmp_path / "workspace"
     project = tmp_path / "project"

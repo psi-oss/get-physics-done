@@ -795,7 +795,7 @@ def test_permissions_sync_help_surfaces_guided_runtime_changes() -> None:
 
 
 def test_active_runtime_settings_command_falls_back_to_runtime_neutral_reference(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli_module, "detect_runtime_for_gpd_use", lambda cwd=None: None)
+    monkeypatch.setattr("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", lambda cwd=None: None)
 
     assert cli_module._active_runtime_settings_command(cwd=Path("/tmp")) == "the active runtime's `settings` command"
 
@@ -4865,6 +4865,7 @@ def test_runtime_surface_helpers_track_the_active_runtime_prefix(monkeypatch: py
     workspace = Path("/tmp/runtime-surface")
 
     monkeypatch.setattr(cli_module, "detect_runtime_for_gpd_use", lambda cwd=None: runtime_name)
+    monkeypatch.setattr("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", lambda cwd=None: runtime_name)
 
     assert cli_module._active_runtime_command_prefix(cwd=workspace) == prefix
     assert cli_module._active_runtime_command_family(cwd=workspace) == prefix
@@ -4881,6 +4882,7 @@ def test_runtime_surface_helpers_track_the_active_runtime_prefix(monkeypatch: py
 def test_runtime_surface_helpers_fall_back_when_runtime_resolution_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     workspace = Path("/tmp/runtime-surface-fallback")
     monkeypatch.setattr(cli_module, "detect_runtime_for_gpd_use", lambda cwd=None: None)
+    monkeypatch.setattr("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", lambda cwd=None: None)
 
     assert cli_module._active_runtime_command_prefix(cwd=workspace) is None
     assert cli_module._active_runtime_command_family(cwd=workspace) == "the active runtime command surface"
@@ -4892,7 +4894,7 @@ def test_runtime_surface_helpers_fall_back_when_runtime_resolution_fails(monkeyp
     assert cli_module._validated_runtime_surface(cwd=workspace) == "public_runtime_command_surface"
 
 
-def test_runtime_surface_helpers_propagate_unexpected_detection_failures(
+def test_runtime_surface_helpers_fall_back_on_unexpected_detection_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workspace = Path("/tmp/runtime-surface-failure")
@@ -4901,9 +4903,9 @@ def test_runtime_surface_helpers_propagate_unexpected_detection_failures(
         raise RuntimeError("runtime resolution failed")
 
     monkeypatch.setattr(cli_module, "detect_runtime_for_gpd_use", _raise_runtime_error)
-
-    with pytest.raises(RuntimeError, match="runtime resolution failed"):
-        cli_module._active_runtime_command_prefix(cwd=workspace)
+    assert cli_module._active_runtime_command_prefix(cwd=workspace) is None
+    assert cli_module._active_runtime_validated_surface(cwd=workspace) is None
+    assert cli_module._active_runtime_new_project_command(cwd=workspace) == "the active runtime's `new-project` command"
 
 
 # ─── trace subcommands ──────────────────────────────────────────────────────

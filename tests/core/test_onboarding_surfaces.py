@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import copy
-import importlib.resources
-import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -33,9 +30,6 @@ from gpd.core.public_surface_contract import (
     resume_authority_fields,
 )
 from tests import doc_surface_contracts as doc_surface_contracts_module
-
-PUBLIC_SURFACE_CONTRACT_MODULE_PATH = Path(public_surface_contract_module.__file__).resolve()
-
 
 def _public_surface_contract_files(contract_path: Path, schema_path: Path) -> object:
     class _FakeFiles:
@@ -74,35 +68,6 @@ def _load_public_surface_contract_with_payload(
         lambda package: _public_surface_contract_files(contract_path, schema_path),
     )
     load_public_surface_contract.cache_clear()
-
-
-def _load_fresh_public_surface_contract_module(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    payload: dict[str, object],
-    schema_payload: dict[str, object],
-) -> object:
-    contract_path = tmp_path / "public_surface_contract.json"
-    schema_path = tmp_path / "public_surface_contract_schema.json"
-    contract_path.write_text(json.dumps(payload), encoding="utf-8")
-    schema_path.write_text(json.dumps(schema_payload), encoding="utf-8")
-    monkeypatch.setattr(
-        importlib.resources,
-        "files",
-        lambda package: _public_surface_contract_files(contract_path, schema_path),
-    )
-    spec = importlib.util.spec_from_file_location(
-        "gpd.core.public_surface_contract_fresh",
-        PUBLIC_SURFACE_CONTRACT_MODULE_PATH,
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    try:
-        spec.loader.exec_module(module)
-        return module
-    finally:
-        sys.modules.pop(spec.name, None)
 
 
 def test_beginner_onboarding_surface_contract_exposes_hub_and_ladder() -> None:
@@ -238,7 +203,7 @@ def test_public_surface_contract_loader_rejects_additive_keys(monkeypatch, tmp_p
     load_public_surface_contract.cache_clear()
 
 
-def test_public_surface_contract_loader_rejects_payload_drift_against_frozen_schema(
+def test_public_surface_contract_loader_rejects_schema_key_drift_after_cache_clear_without_fresh_import_hack(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -252,18 +217,27 @@ def test_public_surface_contract_loader_rejects_payload_drift_against_frozen_sch
             encoding="utf-8"
         )
     )
-    drifted_payload = copy.deepcopy(canonical_payload)
-    drifted_payload["legacy_note"] = "unexpected"
+    refreshed_payload = copy.deepcopy(canonical_payload)
+    refreshed_schema = copy.deepcopy(canonical_schema)
+    refreshed_payload["beginner_onboarding"]["legacy_note"] = "unexpected"
+    refreshed_schema["sections"]["beginner_onboarding"]["keys"].append("legacy_note")
 
-    fresh_module = _load_fresh_public_surface_contract_module(
+    _load_public_surface_contract_with_payload(
         monkeypatch,
         tmp_path,
-        drifted_payload,
-        canonical_schema,
+        refreshed_payload,
+        refreshed_schema,
     )
 
-    with pytest.raises(ValueError, match=r"public_surface_contract contains unknown key\(s\): legacy_note"):
-        fresh_module.load_public_surface_contract()
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"public_surface_contract_schema\.sections\.beginner_onboarding\.keys must exactly match "
+            r"the code-supported contract fields"
+        ),
+    ):
+        load_public_surface_contract()
+    load_public_surface_contract.cache_clear()
 
 
 def test_public_surface_contract_loader_rejects_local_cli_command_drift_against_schema(
@@ -296,7 +270,7 @@ def test_public_surface_contract_loader_rejects_local_cli_command_drift_against_
     load_public_surface_contract.cache_clear()
 
 
-def test_public_surface_contract_schema_rejects_local_cli_command_inventory_mismatch(
+def test_public_surface_contract_schema_rejects_local_cli_command_inventory_mismatch_without_fresh_import_hack(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -310,6 +284,7 @@ def test_public_surface_contract_schema_rejects_local_cli_command_inventory_mism
             encoding="utf-8"
         )
     )
+    canonical_payload["local_cli_bridge"]["commands"].pop()
     canonical_schema["sections"]["local_cli_bridge"]["commands"].pop()
 
     with pytest.raises(
@@ -319,12 +294,13 @@ def test_public_surface_contract_schema_rejects_local_cli_command_inventory_mism
             r"ordered named command keys must stay aligned"
         ),
     ):
-        _load_fresh_public_surface_contract_module(
+        _load_public_surface_contract_with_payload(
             monkeypatch,
             tmp_path,
             canonical_payload,
             canonical_schema,
         )
+        load_public_surface_contract()
 
 
 @pytest.mark.parametrize(
@@ -581,6 +557,12 @@ def test_doc_surface_contract_helpers_read_runtime_normalized_contract(
     assert doc_surface_contracts_module.resume_authority_public_vocabulary_intro() == "Public vocabulary intro"
     assert local_cli_help_command() == "gpd --help"
     assert local_cli_doctor_command() == "gpd doctor"
+    assert doc_surface_contracts_module.DOCTOR_RUNTIME_SCOPE_RE.search(
+        public_surface_contract_module.local_cli_doctor_local_command()
+    )
+    assert doc_surface_contracts_module.DOCTOR_RUNTIME_SCOPE_RE.search(
+        public_surface_contract_module.local_cli_doctor_global_command()
+    )
     assert local_cli_unattended_readiness_command() == "gpd validate unattended-readiness --runtime <runtime> --autonomy balanced"
     assert local_cli_permissions_sync_command() == "gpd permissions sync --runtime <runtime> --autonomy balanced"
     assert public_surface_contract_module.local_cli_plan_preflight_command() == "gpd validate plan-preflight <PLAN.md>"
@@ -593,3 +575,100 @@ def test_doc_surface_contract_helpers_read_runtime_normalized_contract(
     assert public_surface_contract_module.local_cli_validate_command_context_command() == "gpd validate command-context gpd:<name>"
 
     doc_surface_contracts_module._public_surface_contract_payload.cache_clear()
+
+
+def test_doc_surface_contract_helpers_refresh_dynamic_command_surfaces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    contract = public_surface_contract_module.PublicSurfaceContract(
+        beginner_onboarding=public_surface_contract_module.BeginnerOnboardingContract(
+            hub_url="./docs/dynamic.md",
+            preflight_requirements=("Dynamic preflight",),
+            caveats=("Dynamic caveat",),
+            startup_ladder=("help", "start"),
+        ),
+        local_cli_bridge=public_surface_contract_module.LocalCliBridgeContract(
+            commands=(
+                "gpd help dynamic",
+                "gpd doctor dynamic",
+                "gpd validate dynamic-unattended --runtime <runtime> --autonomy balanced",
+                "gpd permissions status dynamic --runtime <runtime> --autonomy balanced",
+                "gpd permissions sync dynamic --runtime <runtime> --autonomy balanced",
+                "gpd resume dynamic",
+                "gpd resume dynamic --recent",
+                "gpd observe dynamic",
+                "gpd cost dynamic",
+                "gpd presets dynamic",
+                "gpd validate dynamic-plan <PLAN.md>",
+                "gpd integrations status dynamic-wolfram",
+            ),
+            named_commands=public_surface_contract_module.LocalCliNamedCommandsContract(
+                help="gpd help dynamic",
+                doctor="gpd doctor dynamic",
+                unattended_readiness="gpd validate dynamic-unattended --runtime <runtime> --autonomy balanced",
+                permissions_status="gpd permissions status dynamic --runtime <runtime> --autonomy balanced",
+                permissions_sync="gpd permissions sync dynamic --runtime <runtime> --autonomy balanced",
+                resume="gpd resume dynamic",
+                resume_recent="gpd resume dynamic --recent",
+                observe_execution="gpd observe dynamic",
+                cost="gpd cost dynamic",
+                presets_list="gpd presets dynamic",
+                plan_preflight="gpd validate dynamic-plan <PLAN.md>",
+                integrations_status_wolfram="gpd integrations status dynamic-wolfram",
+            ),
+            terminal_phrase="from your normal terminal",
+            purpose_phrase="dynamic diagnostics",
+            install_local_example="gpd install dynamic --local",
+            doctor_local_command="gpd doctor dynamic --runtime <runtime> --local",
+            doctor_global_command="gpd doctor dynamic --runtime <runtime> --global",
+            validate_command_context_command="gpd validate dynamic-context gpd:<name>",
+        ),
+        post_start_settings=public_surface_contract_module.PostStartSettingsContract(
+            primary_sentence="Use settings later.",
+            default_sentence="Balanced stays recommended.",
+        ),
+        resume_authority=public_surface_contract_module.ResumeAuthorityContract(
+            durable_authority_phrase="Durable authority",
+            public_vocabulary_intro="Visible vocabulary",
+            public_fields=("resume_file",),
+        ),
+        recovery_ladder=public_surface_contract_module.RecoveryLadderContract(
+            title="Dynamic recovery ladder",
+            local_snapshot_command="gpd resume dynamic",
+            local_snapshot_phrase="inspect the current workspace",
+            cross_workspace_command="gpd resume dynamic --recent",
+            cross_workspace_phrase="find another workspace",
+            resume_phrase="continue with resume-work",
+            next_phrase="use suggest-next for the fastest next action",
+            pause_phrase="a continuation handoff artifact",
+        ),
+    )
+    monkeypatch.setattr(doc_surface_contracts_module, "load_public_surface_contract", lambda: contract)
+    monkeypatch.setattr(public_surface_contract_module, "load_public_surface_contract", lambda: contract)
+    doc_surface_contracts_module._public_surface_contract_payload.cache_clear()
+
+    doc_surface_contracts_module.assert_unattended_readiness_contract(
+        "\n".join(
+            (
+                contract.local_cli_bridge.named_commands.unattended_readiness,
+                contract.local_cli_bridge.named_commands.permissions_status,
+                contract.local_cli_bridge.named_commands.permissions_sync,
+                contract.local_cli_bridge.named_commands.doctor,
+                "Runtime permissions are runtime-owned approval/alignment only.",
+            )
+        )
+    )
+    assert doc_surface_contracts_module.DOCTOR_RUNTIME_SCOPE_RE.search(contract.local_cli_bridge.doctor_local_command)
+    assert doc_surface_contracts_module.DOCTOR_RUNTIME_SCOPE_RE.search(contract.local_cli_bridge.doctor_global_command)
+    doc_surface_contracts_module.assert_runtime_reset_rediscovery_contract(
+        "\n".join(
+            (
+                "/clear",
+                contract.recovery_ladder.local_snapshot_command,
+                contract.recovery_ladder.cross_workspace_command,
+                "reset the runtime to a fresh context window",
+                "use your normal terminal before reopening the runtime",
+                "do this instead of implying that `/clear` performs recovery",
+            )
+        )
+    )

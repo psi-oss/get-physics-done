@@ -198,6 +198,39 @@ class PublicSurfaceContractSchema:
     local_cli_named_command_keys: tuple[str, ...]
 
 
+def _dataclass_field_names(contract_type: type[object]) -> tuple[str, ...]:
+    return tuple(contract_type.__dataclass_fields__)
+
+
+def _require_schema_matches_code(schema: PublicSurfaceContractSchema) -> None:
+    expected_top_level_keys = ("schema_version", *_dataclass_field_names(PublicSurfaceContract))
+    if schema.top_level_keys != expected_top_level_keys:
+        raise ValueError(
+            "public_surface_contract_schema.top_level_keys must exactly match the code-supported public surface fields"
+        )
+
+    expected_section_keys = {
+        "beginner_onboarding": _dataclass_field_names(BeginnerOnboardingContract),
+        "local_cli_bridge": _dataclass_field_names(LocalCliBridgeContract),
+        "post_start_settings": _dataclass_field_names(PostStartSettingsContract),
+        "resume_authority": _dataclass_field_names(ResumeAuthorityContract),
+        "recovery_ladder": _dataclass_field_names(RecoveryLadderContract),
+    }
+    for section_name, expected_keys in expected_section_keys.items():
+        if schema.section_keys.get(section_name) != expected_keys:
+            raise ValueError(
+                f"public_surface_contract_schema.sections.{section_name}.keys must exactly match "
+                "the code-supported contract fields"
+            )
+
+    expected_named_command_keys = _dataclass_field_names(LocalCliNamedCommandsContract)
+    if schema.local_cli_named_command_keys != expected_named_command_keys:
+        raise ValueError(
+            "public_surface_contract_schema.sections.local_cli_bridge.named_commands.ordered_keys "
+            "must exactly match the code-supported named command fields"
+        )
+
+
 def _require_schema_string_tuple(value: object, *, label: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not value:
         raise ValueError(f"{label} must be a non-empty list")
@@ -325,19 +358,14 @@ def load_public_surface_contract_schema() -> PublicSurfaceContractSchema:
             "public_surface_contract_schema.local_cli_bridge commands and ordered named command keys must stay aligned"
         )
 
-    return PublicSurfaceContractSchema(
+    schema = PublicSurfaceContractSchema(
         top_level_keys=top_level_keys,
         section_keys=section_keys,
         local_cli_bridge_commands=local_cli_bridge_commands,
         local_cli_named_command_keys=local_cli_named_command_keys,
     )
-
-
-_PUBLIC_SURFACE_CONTRACT_SCHEMA = load_public_surface_contract_schema()
-_PUBLIC_SURFACE_CONTRACT_KEYS = _PUBLIC_SURFACE_CONTRACT_SCHEMA.top_level_keys
-_PUBLIC_SURFACE_SECTION_KEYS = _PUBLIC_SURFACE_CONTRACT_SCHEMA.section_keys
-_LOCAL_CLI_BRIDGE_COMMANDS = _PUBLIC_SURFACE_CONTRACT_SCHEMA.local_cli_bridge_commands
-_LOCAL_CLI_NAMED_COMMAND_KEYS = _PUBLIC_SURFACE_CONTRACT_SCHEMA.local_cli_named_command_keys
+    _require_schema_matches_code(schema)
+    return schema
 
 
 def _join_backticked_commands(commands: tuple[str, ...]) -> str:
@@ -349,6 +377,7 @@ def _join_backticked_commands(commands: tuple[str, ...]) -> str:
     if len(rendered) == 2:
         return f"{rendered[0]} and {rendered[1]}"
     return ", ".join(rendered[:-1]) + f", and {rendered[-1]}"
+
 
 def _require_string(payload: dict[str, object], key: str, *, label: str) -> str:
     value = payload.get(key)
@@ -388,17 +417,18 @@ def _require_local_cli_named_commands(
     payload: dict[str, object],
     *,
     bridge_commands: tuple[str, ...],
+    named_command_keys: tuple[str, ...],
 ) -> LocalCliNamedCommandsContract:
     named_payload = _require_object(payload.get("named_commands"), label="local_cli_bridge.named_commands")
     _require_present_keys(
         named_payload,
         label="local_cli_bridge.named_commands",
-        keys=_LOCAL_CLI_NAMED_COMMAND_KEYS,
+        keys=named_command_keys,
     )
     _require_allowed_keys(
         named_payload,
         label="local_cli_bridge.named_commands",
-        keys=_LOCAL_CLI_NAMED_COMMAND_KEYS,
+        keys=named_command_keys,
     )
     named_commands = LocalCliNamedCommandsContract(
         help=_require_string(named_payload, "help", label="local_cli_bridge.named_commands"),
@@ -443,15 +473,16 @@ def _require_local_cli_named_commands(
 
 @lru_cache(maxsize=1)
 def load_public_surface_contract() -> PublicSurfaceContract:
+    schema = load_public_surface_contract_schema()
     contract_path = files("gpd.core").joinpath("public_surface_contract.json")
     raw_payload = json.loads(contract_path.read_text(encoding="utf-8"))
     payload = _require_object(raw_payload, label="public_surface_contract")
     _require_present_keys(
         payload,
         label="public_surface_contract",
-        keys=_PUBLIC_SURFACE_CONTRACT_KEYS,
+        keys=schema.top_level_keys,
     )
-    _require_allowed_keys(payload, label="public_surface_contract", keys=_PUBLIC_SURFACE_CONTRACT_KEYS)
+    _require_allowed_keys(payload, label="public_surface_contract", keys=schema.top_level_keys)
 
     schema_version = payload.get("schema_version")
     if not isinstance(schema_version, int) or isinstance(schema_version, bool) or schema_version != 1:
@@ -461,62 +492,66 @@ def load_public_surface_contract() -> PublicSurfaceContract:
     _require_present_keys(
         beginner_payload,
         label="beginner_onboarding",
-        keys=_PUBLIC_SURFACE_SECTION_KEYS["beginner_onboarding"],
+        keys=schema.section_keys["beginner_onboarding"],
     )
     _require_allowed_keys(
         beginner_payload,
         label="beginner_onboarding",
-        keys=_PUBLIC_SURFACE_SECTION_KEYS["beginner_onboarding"],
+        keys=schema.section_keys["beginner_onboarding"],
     )
     bridge_payload = _require_object(payload.get("local_cli_bridge"), label="local_cli_bridge")
     _require_present_keys(
         bridge_payload,
         label="local_cli_bridge",
-        keys=_PUBLIC_SURFACE_SECTION_KEYS["local_cli_bridge"],
+        keys=schema.section_keys["local_cli_bridge"],
     )
     _require_allowed_keys(
         bridge_payload,
         label="local_cli_bridge",
-        keys=_PUBLIC_SURFACE_SECTION_KEYS["local_cli_bridge"],
+        keys=schema.section_keys["local_cli_bridge"],
     )
     settings_payload = _require_object(payload.get("post_start_settings"), label="post_start_settings")
     _require_present_keys(
         settings_payload,
         label="post_start_settings",
-        keys=_PUBLIC_SURFACE_SECTION_KEYS["post_start_settings"],
+        keys=schema.section_keys["post_start_settings"],
     )
     _require_allowed_keys(
         settings_payload,
         label="post_start_settings",
-        keys=_PUBLIC_SURFACE_SECTION_KEYS["post_start_settings"],
+        keys=schema.section_keys["post_start_settings"],
     )
     resume_authority_payload = _require_object(payload.get("resume_authority"), label="resume_authority")
     _require_present_keys(
         resume_authority_payload,
         label="resume_authority",
-        keys=_PUBLIC_SURFACE_SECTION_KEYS["resume_authority"],
+        keys=schema.section_keys["resume_authority"],
     )
     _require_allowed_keys(
         resume_authority_payload,
         label="resume_authority",
-        keys=_PUBLIC_SURFACE_SECTION_KEYS["resume_authority"],
+        keys=schema.section_keys["resume_authority"],
     )
     recovery_payload = _require_object(payload.get("recovery_ladder"), label="recovery_ladder")
     _require_present_keys(
         recovery_payload,
         label="recovery_ladder",
-        keys=_PUBLIC_SURFACE_SECTION_KEYS["recovery_ladder"],
+        keys=schema.section_keys["recovery_ladder"],
     )
     _require_allowed_keys(
         recovery_payload,
         label="recovery_ladder",
-        keys=_PUBLIC_SURFACE_SECTION_KEYS["recovery_ladder"],
+        keys=schema.section_keys["recovery_ladder"],
     )
     bridge_commands = _require_string_list(bridge_payload, "commands", label="local_cli_bridge")
-    for command in _LOCAL_CLI_BRIDGE_COMMANDS:
+    for command in schema.local_cli_bridge_commands:
         _require_exact_command(bridge_commands, label="local_cli_bridge", command=command)
-    named_commands = _require_local_cli_named_commands(bridge_payload, bridge_commands=bridge_commands)
-    if bridge_commands != _LOCAL_CLI_BRIDGE_COMMANDS:
+    named_commands = _require_local_cli_named_commands(
+        bridge_payload,
+        bridge_commands=bridge_commands,
+        named_command_keys=schema.local_cli_named_command_keys,
+    )
+    if bridge_commands != schema.local_cli_bridge_commands:
         raise ValueError(
             "local_cli_bridge.commands must exactly match "
             "public_surface_contract_schema.sections.local_cli_bridge.commands"
@@ -641,6 +676,17 @@ def load_public_surface_contract() -> PublicSurfaceContract:
             ),
         ),
     )
+
+
+_load_public_surface_contract_cache_clear = load_public_surface_contract.cache_clear
+
+
+def _clear_public_surface_contract_cache() -> None:
+    _load_public_surface_contract_cache_clear()
+    load_public_surface_contract_schema.cache_clear()
+
+
+load_public_surface_contract.cache_clear = _clear_public_surface_contract_cache
 
 
 def beginner_onboarding_contract() -> BeginnerOnboardingContract:

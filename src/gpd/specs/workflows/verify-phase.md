@@ -124,7 +124,12 @@ Treat these as separate verification obligations:
 - `forbidden_proxies` -> determine whether tempting but non-decisive substitutes were explicitly rejected
 
 If the phase depends on a decisive comparison (benchmark, prior work, experiment, cross-method, baseline), emit a `comparison_verdicts` entry in the report keyed to the relevant contract IDs. Missing or purely implicit comparison evidence keeps the supported target below VERIFIED. If the comparison was attempted but not closed, record that honestly with `verdict: inconclusive` or `verdict: tension` instead of omitting the entry.
-Before finalizing the check list, call `suggest_contract_checks(contract)` through the verification server and fold the returned contract-aware checks into the verification plan unless they are clearly inapplicable. For each returned check, start from the `request_template`, satisfy the `required_request_fields`, use only the returned `supported_binding_fields` for bindings, and then execute `run_contract_check(request=...)` so the contract-aware check is actually run.
+Before finalizing the check list, use this contract-check loop whenever project-local anchors or prior-output paths matter:
+
+1. Call `suggest_contract_checks(contract, project_dir=...)`.
+2. Fold the returned contract-aware checks into the plan unless they are clearly inapplicable.
+3. For each returned check, start from `request_template`, satisfy `required_request_fields` and `schema_required_request_fields`, satisfy one full alternative from `schema_required_request_anyof_fields`, use only `supported_binding_fields` inside `request.binding`, and keep `project_dir` as the top-level absolute project root argument.
+4. Execute `run_contract_check(request=..., project_dir=...)` so the contract-aware check actually runs.
 
 **Option B: Derive contract-like targets from phase goal**
 

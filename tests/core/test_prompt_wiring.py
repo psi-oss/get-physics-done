@@ -1670,8 +1670,11 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     assert "copy the returned `check_key` into the frontmatter `check` field" in verify_workflow
     assert "request_template" in verify_workflow
     assert "required_request_fields" in verify_workflow
+    assert "schema_required_request_fields" in verify_workflow
+    assert "schema_required_request_anyof_fields" in verify_workflow
+    assert "project_dir" in verify_workflow
     assert "supported_binding_fields" in verify_workflow
-    assert "run_contract_check(request=...)" in verify_workflow
+    assert "run_contract_check(request=..., project_dir=...)" in verify_workflow
     assert "deliverables: {}" not in verify_workflow
     assert "acceptance_tests: {}" not in verify_workflow
     assert "references: {}" not in verify_workflow
@@ -1716,7 +1719,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     assert "request_template" in verify_phase
     assert "required_request_fields" in verify_phase
     assert "supported_binding_fields" in verify_phase
-    assert "run_contract_check(request=...)" in verify_phase
+    assert "run_contract_check(request=..., project_dir=...)" in verify_phase
     assert "copy the returned `check_key` into the frontmatter `check` field" in verify_phase
     assert "comparison_verdicts" in compare_workflow
     assert "project_contract_load_info" in compare_workflow
@@ -1733,6 +1736,12 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     assert "subject_kind: claim" in compare_workflow
     assert "subject_role: decisive" in compare_workflow
     assert "comparison_kind: experiment" in compare_workflow
+    assert "schema_required_request_fields" in verify_phase
+    assert "schema_required_request_anyof_fields" in verify_phase
+    assert "project_dir" in verify_phase
+    assert "schema_required_request_fields" in verifier_agent
+    assert "schema_required_request_anyof_fields" in verifier_agent
+    assert "project_dir" in verifier_agent
     assert "verdict: pass" in compare_workflow
     assert "omit `protocol_bundle_ids` and `bundle_expectations` entirely" in compare_workflow
     assert "protocol_bundle_ids (optional):" not in comparison_template

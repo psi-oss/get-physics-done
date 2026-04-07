@@ -206,10 +206,7 @@ def _shared_runtime_facing_test_paths() -> tuple[Path, ...]:
             continue
         if rel_path.parts[:2] in {("tests", "adapters"), ("tests", "hooks")}:
             continue
-        if rel_path.parts[:2] in {("tests", "core"), ("tests", "mcp")} or (
-            len(rel_path.parts) == 2 and rel_path.name.startswith("test_")
-        ):
-            paths.append(path)
+        paths.append(path)
     return tuple(paths)
 
 

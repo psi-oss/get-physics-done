@@ -154,6 +154,53 @@ const PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = [
   ...PUBLIC_SURFACE_CONTRACT_SCHEMA.sections.local_cli_bridge.named_commands.ordered_keys,
 ];
 const PUBLIC_SURFACE_LOCAL_CLI_COMMANDS = [...PUBLIC_SURFACE_CONTRACT_SCHEMA.sections.local_cli_bridge.commands];
+const SUPPORTED_PUBLIC_SURFACE_CONTRACT_KEYS = [
+  "schema_version",
+  "beginner_onboarding",
+  "local_cli_bridge",
+  "post_start_settings",
+  "resume_authority",
+  "recovery_ladder",
+];
+const SUPPORTED_PUBLIC_SURFACE_SECTION_KEYS = Object.freeze({
+  beginner_onboarding: ["hub_url", "preflight_requirements", "caveats", "startup_ladder"],
+  local_cli_bridge: [
+    "commands",
+    "named_commands",
+    "terminal_phrase",
+    "purpose_phrase",
+    "install_local_example",
+    "doctor_local_command",
+    "doctor_global_command",
+    "validate_command_context_command",
+  ],
+  post_start_settings: ["primary_sentence", "default_sentence"],
+  resume_authority: ["durable_authority_phrase", "public_vocabulary_intro", "public_fields"],
+  recovery_ladder: [
+    "title",
+    "local_snapshot_command",
+    "local_snapshot_phrase",
+    "cross_workspace_command",
+    "cross_workspace_phrase",
+    "resume_phrase",
+    "next_phrase",
+    "pause_phrase",
+  ],
+});
+const SUPPORTED_PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = [
+  "help",
+  "doctor",
+  "unattended_readiness",
+  "permissions_status",
+  "permissions_sync",
+  "resume",
+  "resume_recent",
+  "observe_execution",
+  "cost",
+  "presets_list",
+  "plan_preflight",
+  "integrations_status_wolfram",
+];
 const RUNTIME_CONFIG_SURFACE_LABEL_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$/;
 
 function formatQuotedDisjunction(values) {
@@ -284,6 +331,75 @@ function requirePresentKeys(payload, requiredKeys, label) {
   }
 }
 
+function requireExactKeyOrder(actualKeys, expectedKeys, label) {
+  if (actualKeys.length !== expectedKeys.length || actualKeys.some((key, index) => key !== expectedKeys[index])) {
+    throw new Error(`${label} must exactly match the code-supported public surface fields`);
+  }
+}
+
+function validateSharedPublicSurfaceSchemaShape(schemaPayload = PUBLIC_SURFACE_CONTRACT_SCHEMA) {
+  const schema = requireJsonObject(schemaPayload, "public surface contract schema");
+  requireKnownKeys(schema, new Set(["schema_version", "top_level_keys", "sections"]), "public surface contract schema");
+  requirePresentKeys(schema, ["schema_version", "top_level_keys", "sections"], "public surface contract schema");
+  if (schema.schema_version !== 1) {
+    throw new Error(`Unsupported public surface contract schema_version: ${JSON.stringify(schema.schema_version)}`);
+  }
+
+  const topLevelKeys = requireStrictStringList(schema.top_level_keys, "public surface contract schema.top_level_keys");
+  requireExactKeyOrder(
+    topLevelKeys,
+    SUPPORTED_PUBLIC_SURFACE_CONTRACT_KEYS,
+    "public surface contract schema.top_level_keys"
+  );
+
+  const sections = requireJsonObject(schema.sections, "public surface contract schema.sections");
+  const supportedSectionNames = Object.keys(SUPPORTED_PUBLIC_SURFACE_SECTION_KEYS);
+  requireKnownKeys(sections, new Set(supportedSectionNames), "public surface contract schema.sections");
+  requirePresentKeys(sections, supportedSectionNames, "public surface contract schema.sections");
+
+  for (const [sectionName, expectedKeys] of Object.entries(SUPPORTED_PUBLIC_SURFACE_SECTION_KEYS)) {
+    const section = requireJsonObject(sections[sectionName], `public surface contract schema.sections.${sectionName}`);
+    const allowedKeys = sectionName === "local_cli_bridge" ? new Set(["keys", "commands", "named_commands"]) : new Set(["keys"]);
+    requireKnownKeys(section, allowedKeys, `public surface contract schema.sections.${sectionName}`);
+    requirePresentKeys(section, [...allowedKeys], `public surface contract schema.sections.${sectionName}`);
+    const sectionKeys = requireStrictStringList(
+      section.keys,
+      `public surface contract schema.sections.${sectionName}.keys`
+    );
+    requireExactKeyOrder(
+      sectionKeys,
+      expectedKeys,
+      `public surface contract schema.sections.${sectionName}.keys`
+    );
+  }
+
+  const namedCommands = requireJsonObject(
+    sections.local_cli_bridge.named_commands,
+    "public surface contract schema.sections.local_cli_bridge.named_commands"
+  );
+  requireKnownKeys(
+    namedCommands,
+    new Set(["ordered_keys"]),
+    "public surface contract schema.sections.local_cli_bridge.named_commands"
+  );
+  requirePresentKeys(
+    namedCommands,
+    ["ordered_keys"],
+    "public surface contract schema.sections.local_cli_bridge.named_commands"
+  );
+  const orderedKeys = requireStrictStringList(
+    namedCommands.ordered_keys,
+    "public surface contract schema.sections.local_cli_bridge.named_commands.ordered_keys"
+  );
+  requireExactKeyOrder(
+    orderedKeys,
+    SUPPORTED_PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS,
+    "public surface contract schema.sections.local_cli_bridge.named_commands.ordered_keys"
+  );
+
+  return schema;
+}
+
 function requireStrictStringList(value, label, { allowEmpty = false } = {}) {
   if (!Array.isArray(value)) {
     throw new Error(`${label} must be a list of strings`);
@@ -332,6 +448,8 @@ function validateRuntimeCatalogGlobalConfig(globalConfig, label) {
     home_subpath: requireStrictString(payload.home_subpath, `${label}.home_subpath`),
   };
 }
+
+validateSharedPublicSurfaceSchemaShape(PUBLIC_SURFACE_CONTRACT_SCHEMA);
 
 function validateRuntimeCatalogCapabilities(capabilities, label) {
   const payload = requireJsonObject(capabilities, label);
@@ -2399,5 +2517,6 @@ if (require.main === module) {
 module.exports = {
   loadSharedPublicSurfaceText,
   validateRuntimeCatalog,
+  validateSharedPublicSurfaceSchemaShape,
   validateSharedPublicSurfaceContract,
 };

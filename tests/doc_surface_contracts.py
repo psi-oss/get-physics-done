@@ -2,28 +2,127 @@
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from collections.abc import Iterable
-from functools import lru_cache
 
+from gpd.adapters import get_adapter, iter_runtime_descriptors
 from gpd.core.public_surface_contract import load_public_surface_contract
+from gpd.core.public_surface_contract import local_cli_bridge_commands
+from gpd.core.public_surface_contract import local_cli_cost_command
+from gpd.core.public_surface_contract import local_cli_doctor_command
+from gpd.core.public_surface_contract import local_cli_doctor_global_command
+from gpd.core.public_surface_contract import local_cli_doctor_local_command
+from gpd.core.public_surface_contract import local_cli_help_command
+from gpd.core.public_surface_contract import local_cli_integrations_status_wolfram_command
+from gpd.core.public_surface_contract import local_cli_observe_execution_command
+from gpd.core.public_surface_contract import local_cli_permissions_status_command
+from gpd.core.public_surface_contract import local_cli_permissions_sync_command
+from gpd.core.public_surface_contract import local_cli_plan_preflight_command
+from gpd.core.public_surface_contract import local_cli_presets_list_command
+from gpd.core.public_surface_contract import recovery_cross_workspace_command
+from gpd.core.public_surface_contract import recovery_local_snapshot_command
+from gpd.core.public_surface_contract import local_cli_resume_command
+from gpd.core.public_surface_contract import local_cli_resume_recent_command
+from gpd.core.public_surface_contract import local_cli_unattended_readiness_command
+from gpd.core.public_surface_contract import local_cli_validate_command_context_command
 from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
 from gpd.core.surface_phrases import post_start_settings_note
 
-DOCTOR_RUNTIME_SCOPE_RE = re.compile(r"gpd doctor --runtime <runtime> --local\|--global")
-UNATTENDED_READINESS_SURFACE = "gpd validate unattended-readiness"
-PERMISSIONS_STATUS_SURFACE = "gpd permissions status --runtime <runtime> --autonomy balanced"
-PERMISSIONS_SYNC_SURFACE = "gpd permissions sync --runtime <runtime> --autonomy balanced"
-PLAN_PREFLIGHT_SURFACE = "gpd validate plan-preflight <PLAN.md>"
-WOLFRAM_STATUS_SURFACE = "gpd integrations status wolfram"
+_RUNTIME_NAMES = tuple(descriptor.runtime_name for descriptor in iter_runtime_descriptors())
+
+
+def _doctor_runtime_scope_re() -> re.Pattern[str]:
+    return re.compile(
+        rf"(?:{re.escape(local_cli_doctor_local_command())}|{re.escape(local_cli_doctor_global_command())})"
+    )
+
+
+def _unattended_readiness_surface() -> str:
+    return local_cli_unattended_readiness_command()
+
+
+def _permissions_status_surface() -> str:
+    return local_cli_permissions_status_command()
+
+
+def _permissions_sync_surface() -> str:
+    return local_cli_permissions_sync_command()
+
+
+def _plan_preflight_surface() -> str:
+    return local_cli_plan_preflight_command()
+
+
+def _wolfram_status_surface() -> str:
+    return local_cli_integrations_status_wolfram_command()
+
+
+class _RegexProxy:
+    def search(self, content: str, *args: object, **kwargs: object) -> re.Match[str] | None:
+        return _doctor_runtime_scope_re().search(content, *args, **kwargs)
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(_doctor_runtime_scope_re(), name)
+
+
+DOCTOR_RUNTIME_SCOPE_RE = _RegexProxy()
+
+
+def _canonical_runtime_command(action: str) -> str:
+    command, separator, remainder = action.partition(" ")
+    canonical = f"gpd:{command}"
+    return canonical if not separator else f"{canonical} {remainder}"
+
+
+def _runtime_command_variants(action: str) -> tuple[str, ...]:
+    variants: list[str] = []
+    seen: set[str] = set()
+    canonical_command = _canonical_runtime_command(action)
+    seen.add(canonical_command)
+    variants.append(canonical_command)
+    for runtime_name in _RUNTIME_NAMES:
+        command = get_adapter(runtime_name).format_command(action)
+        if command in seen:
+            continue
+        seen.add(command)
+        variants.append(command)
+    return tuple(variants)
+
+
+def _runtime_command_fragments(action: str) -> tuple[str, ...]:
+    fragments: list[str] = []
+    seen: set[str] = set()
+    for command in _runtime_command_variants(action):
+        for fragment in (command, f"`{command}`"):
+            if fragment in seen:
+                continue
+            seen.add(fragment)
+            fragments.append(fragment)
+    return tuple(fragments)
+
+
+def _quoted_fragments(*values: str) -> tuple[str, ...]:
+    fragments: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        for fragment in (value, f"`{value}`"):
+            if fragment in seen:
+                continue
+            seen.add(fragment)
+            fragments.append(fragment)
+    return tuple(fragments)
+
+
+def _action_surface_fragments(action: str, *, include_bare: bool = False) -> tuple[str, ...]:
+    fragments: list[str] = []
+    if include_bare:
+        fragments.append(f"`{action}`")
+    fragments.extend(_runtime_command_fragments(action))
+    return tuple(dict.fromkeys(fragments))
 
 __all__ = [
     "DOCTOR_RUNTIME_SCOPE_RE",
-    "PERMISSIONS_STATUS_SURFACE",
-    "PERMISSIONS_SYNC_SURFACE",
-    "PLAN_PREFLIGHT_SURFACE",
-    "UNATTENDED_READINESS_SURFACE",
-    "WOLFRAM_STATUS_SURFACE",
     "assert_cost_advisory_contract",
     "assert_cost_surface_discoverability",
     "assert_execution_observability_surface_contract",
@@ -59,30 +158,18 @@ __all__ = [
 
 HELP_ENTRY_FRAGMENTS = (
     "`help`",
-    "gpd:help",
-    "`gpd:help`",
-    "/gpd:help",
-    "$gpd-help",
-    "/gpd-help",
+    *_runtime_command_fragments("help"),
     "run `help`",
     "help command",
 )
 START_ENTRY_FRAGMENTS = (
     "`start`",
-    "gpd:start",
-    "`gpd:start`",
-    "/gpd:start",
-    "$gpd-start",
-    "/gpd-start",
+    *_runtime_command_fragments("start"),
     "Run `start`",
 )
 TOUR_ENTRY_FRAGMENTS = (
     "`tour`",
-    "gpd:tour",
-    "`gpd:tour`",
-    "/gpd:tour",
-    "$gpd-tour",
-    "/gpd-tour",
+    *_runtime_command_fragments("tour"),
     "Run `tour`",
 )
 
@@ -99,60 +186,8 @@ def _first_index_of_any(content: str, fragments: Iterable[str], *, label: str) -
     return min(positions)
 
 
-@lru_cache(maxsize=1)
 def _public_surface_contract_payload() -> dict[str, object]:
-    contract = load_public_surface_contract()
-    payload = {
-        "schema_version": 1,
-        "beginner_onboarding": {
-            "hub_url": contract.beginner_onboarding.hub_url,
-            "preflight_requirements": list(contract.beginner_onboarding.preflight_requirements),
-            "caveats": list(contract.beginner_onboarding.caveats),
-            "startup_ladder": list(contract.beginner_onboarding.startup_ladder),
-        },
-        "local_cli_bridge": {
-            "commands": list(contract.local_cli_bridge.commands),
-            "named_commands": {
-                "help": contract.local_cli_bridge.named_commands.help,
-                "doctor": contract.local_cli_bridge.named_commands.doctor,
-                "unattended_readiness": contract.local_cli_bridge.named_commands.unattended_readiness,
-                "permissions_status": contract.local_cli_bridge.named_commands.permissions_status,
-                "permissions_sync": contract.local_cli_bridge.named_commands.permissions_sync,
-                "resume": contract.local_cli_bridge.named_commands.resume,
-                "resume_recent": contract.local_cli_bridge.named_commands.resume_recent,
-                "observe_execution": contract.local_cli_bridge.named_commands.observe_execution,
-                "cost": contract.local_cli_bridge.named_commands.cost,
-                "presets_list": contract.local_cli_bridge.named_commands.presets_list,
-                "plan_preflight": contract.local_cli_bridge.named_commands.plan_preflight,
-                "integrations_status_wolfram": contract.local_cli_bridge.named_commands.integrations_status_wolfram,
-            },
-            "terminal_phrase": contract.local_cli_bridge.terminal_phrase,
-            "purpose_phrase": contract.local_cli_bridge.purpose_phrase,
-            "install_local_example": contract.local_cli_bridge.install_local_example,
-            "doctor_local_command": contract.local_cli_bridge.doctor_local_command,
-            "doctor_global_command": contract.local_cli_bridge.doctor_global_command,
-            "validate_command_context_command": contract.local_cli_bridge.validate_command_context_command,
-        },
-        "post_start_settings": {
-            "primary_sentence": contract.post_start_settings.primary_sentence,
-            "default_sentence": contract.post_start_settings.default_sentence,
-        },
-        "resume_authority": {
-            "durable_authority_phrase": contract.resume_authority.durable_authority_phrase,
-            "public_vocabulary_intro": contract.resume_authority.public_vocabulary_intro,
-            "public_fields": list(contract.resume_authority.public_fields),
-        },
-        "recovery_ladder": {
-            "title": contract.recovery_ladder.title,
-            "local_snapshot_command": contract.recovery_ladder.local_snapshot_command,
-            "local_snapshot_phrase": contract.recovery_ladder.local_snapshot_phrase,
-            "cross_workspace_command": contract.recovery_ladder.cross_workspace_command,
-            "cross_workspace_phrase": contract.recovery_ladder.cross_workspace_phrase,
-            "resume_phrase": contract.recovery_ladder.resume_phrase,
-            "next_phrase": contract.recovery_ladder.next_phrase,
-            "pause_phrase": contract.recovery_ladder.pause_phrase,
-        },
-    }
+    payload = {"schema_version": 1, **dataclasses.asdict(load_public_surface_contract())}
     assert isinstance(payload, dict), "public surface contract must be a JSON object"
     assert set(payload) == {
         "schema_version",
@@ -164,6 +199,13 @@ def _public_surface_contract_payload() -> dict[str, object]:
     }
     assert payload["schema_version"] == 1
     return payload
+
+
+def _clear_public_surface_contract_payload_cache() -> None:
+    return None
+
+
+_public_surface_contract_payload.cache_clear = _clear_public_surface_contract_payload_cache
 
 
 def _contract_section(name: str) -> dict[str, object]:
@@ -180,7 +222,7 @@ def _contract_string(section: dict[str, object], key: str, *, label: str) -> str
 
 def _contract_string_list(section: dict[str, object], key: str, *, label: str) -> tuple[str, ...]:
     value = section[key]
-    assert isinstance(value, list) and value, f"{label}.{key} must be a non-empty list"
+    assert isinstance(value, (list, tuple)) and value, f"{label}.{key} must be a non-empty list"
     items: list[str] = []
     seen: set[str] = set()
     for item in value:
@@ -237,10 +279,10 @@ def resume_compat_alias_fields() -> tuple[str, ...]:
 
 
 def assert_unattended_readiness_contract(content: str) -> None:
-    assert UNATTENDED_READINESS_SURFACE in content
-    assert PERMISSIONS_SYNC_SURFACE in content
-    assert PERMISSIONS_STATUS_SURFACE in content
-    assert "gpd doctor" in content
+    assert _unattended_readiness_surface() in content
+    assert _permissions_sync_surface() in content
+    assert _permissions_status_surface() in content
+    assert local_cli_doctor_command() in content
     _assert_contains_any(
         content,
         (
@@ -271,7 +313,7 @@ def assert_cost_advisory_contract(content: str) -> None:
 
 
 def assert_cost_surface_discoverability(content: str) -> None:
-    assert "gpd cost" in content
+    assert local_cli_cost_command() in content
     _assert_contains_any(
         content,
         (
@@ -298,7 +340,7 @@ def assert_cost_surface_discoverability(content: str) -> None:
 
 
 def assert_execution_observability_surface_contract(content: str) -> None:
-    assert "gpd observe execution" in content
+    assert local_cli_observe_execution_command() in content
     _assert_contains_any(
         content,
         (
@@ -364,12 +406,11 @@ def assert_help_command_quick_start_extract_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "Run \\`gpd:help --all\\` for the compact command index.",
-            "`gpd:help --all` for the compact command index",
-            "`gpd:help --all`",
-            "Run \\`/gpd:help --all\\` for the compact command index.",
-            "`/gpd:help --all` for the compact command index",
-            "`/gpd:help --all`",
+            *tuple(
+                f"Run \\`{command}\\` for the compact command index."
+                for command in _runtime_command_variants("help --all")
+            ),
+            *_quoted_fragments(*_runtime_command_variants("help --all")),
         ),
         label="help command compact-index follow-up",
     )
@@ -403,9 +444,11 @@ def assert_help_command_all_extract_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "Run \\`gpd:help --command <name>\\` for detailed help on one command.",
-            "`gpd:help --command <name>` for detailed help on one command",
-            "`gpd:help --command <name>`",
+            *tuple(
+                f"Run \\`{command}\\` for detailed help on one command."
+                for command in _runtime_command_variants("help --command <name>")
+            ),
+            *_quoted_fragments(*_runtime_command_variants("help --command <name>")),
         ),
         label="help command single-command follow-up",
     )
@@ -457,8 +500,8 @@ def assert_help_command_single_command_extract_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "Unknown command. Run \\`gpd:help --all\\` for the compact command index.",
-            "`gpd:help --all` for the compact command index",
+            "Unknown command. Run `",
+            *_quoted_fragments(*_runtime_command_variants("help --all")),
         ),
         label="help command single-command fallback",
     )
@@ -482,13 +525,13 @@ def assert_help_workflow_quick_start_taxonomy_contract(content: str) -> None:
         _assert_contains_any(content, options, label=label)
 
     for label, options in (
-        ("quick-start start command", ("gpd:start", "`gpd:start`", "/gpd:start", "`/gpd:start`")),
-        ("quick-start tour command", ("gpd:tour", "`gpd:tour`", "/gpd:tour", "`/gpd:tour`")),
-        ("quick-start new-project command", ("gpd:new-project", "`gpd:new-project`", "/gpd:new-project", "`/gpd:new-project`")),
-        ("quick-start map-research command", ("gpd:map-research", "`gpd:map-research`", "/gpd:map-research", "`/gpd:map-research`")),
-        ("quick-start resume-work command", ("gpd:resume-work", "`gpd:resume-work`", "/gpd:resume-work", "`/gpd:resume-work`")),
-        ("quick-start settings command", ("gpd:settings", "`gpd:settings`", "/gpd:settings", "`/gpd:settings`")),
-        ("quick-start set-tier-models command", ("gpd:set-tier-models", "`gpd:set-tier-models`")),
+        ("quick-start start command", _runtime_command_fragments("start")),
+        ("quick-start tour command", _runtime_command_fragments("tour")),
+        ("quick-start new-project command", _runtime_command_fragments("new-project")),
+        ("quick-start map-research command", _runtime_command_fragments("map-research")),
+        ("quick-start resume-work command", _runtime_command_fragments("resume-work")),
+        ("quick-start settings command", _runtime_command_fragments("settings")),
+        ("quick-start set-tier-models command", _runtime_command_fragments("set-tier-models")),
     ):
         _assert_contains_any(content, options, label=label)
 
@@ -504,16 +547,14 @@ def assert_help_workflow_quick_start_taxonomy_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "gpd:tangent",
-            "`gpd:tangent`",
+            *_runtime_command_fragments("tangent"),
         ),
         label="quick-start tangent follow-up guidance",
     )
     _assert_contains_any(
         content,
         (
-            "gpd:branch-hypothesis",
-            "`gpd:branch-hypothesis`",
+            *_runtime_command_fragments("branch-hypothesis"),
         ),
         label="quick-start branch-hypothesis follow-up guidance",
     )
@@ -541,13 +582,13 @@ def assert_help_workflow_command_index_contract(content: str) -> None:
         _assert_contains_any(content, options, label=label)
 
     for label, options in (
-        ("command-index help surface", ("gpd:help", "`gpd:help`")),
-        ("command-index start surface", ("gpd:start", "`gpd:start`")),
-        ("command-index plan-phase surface", ("gpd:plan-phase", "`gpd:plan-phase`")),
-        ("command-index execute-phase surface", ("gpd:execute-phase", "`gpd:execute-phase`")),
-        ("command-index write-paper surface", ("gpd:write-paper", "`gpd:write-paper`")),
-        ("command-index tangent surface", ("gpd:tangent", "`gpd:tangent`")),
-        ("command-index settings surface", ("gpd:settings", "`gpd:settings`")),
+        ("command-index help surface", _runtime_command_fragments("help")),
+        ("command-index start surface", _runtime_command_fragments("start")),
+        ("command-index plan-phase surface", _runtime_command_fragments("plan-phase")),
+        ("command-index execute-phase surface", _runtime_command_fragments("execute-phase")),
+        ("command-index write-paper surface", _runtime_command_fragments("write-paper")),
+        ("command-index tangent surface", _runtime_command_fragments("tangent")),
+        ("command-index settings surface", _runtime_command_fragments("settings")),
     ):
         _assert_contains_any(content, options, label=label)
 
@@ -598,26 +639,26 @@ def assert_tour_read_only_teaching_contract(content: str) -> None:
 def assert_tour_command_surface_contract(content: str) -> None:
     assert_tour_read_only_teaching_contract(content)
     for label, options in (
-        ("tour start surface", ("gpd:start", "/gpd:start")),
-        ("tour new-project --minimal surface", ("gpd:new-project --minimal", "/gpd:new-project --minimal")),
-        ("tour new-project surface", ("gpd:new-project", "/gpd:new-project")),
-        ("tour map-research surface", ("gpd:map-research", "/gpd:map-research")),
-        ("tour local resume surface", ("gpd resume",)),
-        ("tour resume-work surface", ("gpd:resume-work", "/gpd:resume-work")),
-        ("tour suggest-next surface", ("gpd:suggest-next", "/gpd:suggest-next")),
-        ("tour progress surface", ("gpd:progress", "/gpd:progress")),
-        ("tour explain surface", ("gpd:explain", "/gpd:explain")),
-        ("tour quick surface", ("gpd:quick", "/gpd:quick")),
-        ("tour settings surface", ("gpd:settings", "/gpd:settings")),
-        ("tour help surface", ("gpd:help", "/gpd:help")),
+        ("tour start surface", _runtime_command_fragments("start")),
+        ("tour new-project --minimal surface", _runtime_command_fragments("new-project --minimal")),
+        ("tour new-project surface", _runtime_command_fragments("new-project")),
+        ("tour map-research surface", _runtime_command_fragments("map-research")),
+        ("tour local resume surface", _quoted_fragments(local_cli_resume_command())),
+        ("tour resume-work surface", _runtime_command_fragments("resume-work")),
+        ("tour suggest-next surface", _runtime_command_fragments("suggest-next")),
+        ("tour progress surface", _runtime_command_fragments("progress")),
+        ("tour explain surface", _runtime_command_fragments("explain")),
+        ("tour quick surface", _runtime_command_fragments("quick")),
+        ("tour settings surface", _runtime_command_fragments("settings")),
+        ("tour help surface", _runtime_command_fragments("help")),
     ):
         _assert_contains_any(content, options, label=label)
 
     assert "What comes later after startup" in content
     for label, options in (
-        ("tour discuss-phase surface", ("gpd:discuss-phase", "/gpd:discuss-phase")),
-        ("tour write-paper surface", ("gpd:write-paper", "/gpd:write-paper")),
-        ("tour tangent surface", ("gpd:tangent", "/gpd:tangent")),
+        ("tour discuss-phase surface", _runtime_command_fragments("discuss-phase")),
+        ("tour write-paper surface", _runtime_command_fragments("write-paper")),
+        ("tour tangent surface", _runtime_command_fragments("tangent")),
     ):
         _assert_contains_any(content, options, label=label)
 
@@ -633,8 +674,8 @@ def assert_tour_command_surface_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "Use `gpd resume` first",
-            "gpd resume` is the normal-terminal recovery step",
+            f"Use `{recovery_local_snapshot_command()}` first",
+            f"{recovery_local_snapshot_command()}` is the normal-terminal recovery step",
             "resume-work` is the in-runtime continue command",
         ),
         label="tour resume boundary",
@@ -660,33 +701,11 @@ def assert_beginner_startup_routing_contract(content: str) -> None:
         "If you only remember one order, use this:",
     )
     new_project_fragments = (
-        "`new-project --minimal`",
-        "gpd:new-project --minimal",
-        "`gpd:new-project --minimal`",
-        "/gpd:new-project --minimal",
-        "$gpd-new-project --minimal",
-        "/gpd-new-project --minimal",
-        "`new-project`",
-        "gpd:new-project",
-        "`gpd:new-project`",
-        "/gpd:new-project",
+        *_action_surface_fragments("new-project --minimal", include_bare=True),
+        *_action_surface_fragments("new-project", include_bare=True),
     )
-    map_research_fragments = (
-        "`map-research`",
-        "gpd:map-research",
-        "`gpd:map-research`",
-        "/gpd:map-research",
-        "$gpd-map-research",
-        "/gpd-map-research",
-    )
-    resume_work_fragments = (
-        "`resume-work`",
-        "gpd:resume-work",
-        "`gpd:resume-work`",
-        "/gpd:resume-work",
-        "$gpd-resume-work",
-        "/gpd-resume-work",
-    )
+    map_research_fragments = _action_surface_fragments("map-research", include_bare=True)
+    resume_work_fragments = _action_surface_fragments("resume-work", include_bare=True)
 
     _assert_contains_any(
         content,
@@ -746,41 +765,41 @@ def assert_start_workflow_router_contract(content: str) -> None:
     for label, options in (
         ("start recommended-next-steps heading", ("Recommended next steps:",)),
         ("start other-useful-options heading", ("Other useful options",)),
-        ("start resume-work surface", ("gpd:resume-work", "/gpd:resume-work")),
-        ("start progress surface", ("gpd:progress", "/gpd:progress")),
-        ("start suggest-next surface", ("gpd:suggest-next", "/gpd:suggest-next")),
-        ("start quick surface", ("gpd:quick", "/gpd:quick")),
-        ("start tour surface", ("gpd:tour", "/gpd:tour")),
-        ("start map-research surface", ("gpd:map-research", "/gpd:map-research")),
-        ("start new-project --minimal surface", ("gpd:new-project --minimal", "/gpd:new-project --minimal")),
-        ("start new-project surface", ("gpd:new-project", "/gpd:new-project")),
-        ("start explain surface", ("gpd:explain", "/gpd:explain")),
-        ("start help --all surface", ("gpd:help --all", "/gpd:help --all")),
+        ("start resume-work surface", _runtime_command_fragments("resume-work")),
+        ("start progress surface", _runtime_command_fragments("progress")),
+        ("start suggest-next surface", _runtime_command_fragments("suggest-next")),
+        ("start quick surface", _runtime_command_fragments("quick")),
+        ("start tour surface", _runtime_command_fragments("tour")),
+        ("start map-research surface", _runtime_command_fragments("map-research")),
+        ("start new-project --minimal surface", _runtime_command_fragments("new-project --minimal")),
+        ("start new-project surface", _runtime_command_fragments("new-project")),
+        ("start explain surface", _runtime_command_fragments("explain")),
+        ("start help --all surface", _runtime_command_fragments("help --all")),
         (
             "start minimal-command-contract handoff",
-            (
-                "Follow the installed `gpd:new-project --minimal` command contract directly",
-                "Follow the installed `/gpd:new-project --minimal` command contract directly",
+            tuple(
+                f"Follow the installed `{command}` command contract directly"
+                for command in _runtime_command_variants("new-project --minimal")
             ),
         ),
         (
             "start new-project-command-contract handoff",
-            (
-                "Follow the installed `gpd:new-project` command contract directly",
-                "Follow the installed `/gpd:new-project` command contract directly",
+            tuple(
+                f"Follow the installed `{command}` command contract directly"
+                for command in _runtime_command_variants("new-project")
             ),
         ),
         (
             "start help-command-contract handoff",
-            (
-                "Follow the installed `gpd:help --all` command contract directly",
-                "Follow the installed `/gpd:help --all` command contract directly",
+            tuple(
+                f"Follow the installed `{command}` command contract directly"
+                for command in _runtime_command_variants("help --all")
             ),
         ),
     ):
         _assert_contains_any(content, options, label=label)
 
-    assert "gpd resume --recent" in content
+    assert recovery_cross_workspace_command() in content
     _assert_contains_any(
         content,
         (
@@ -826,10 +845,7 @@ def assert_beginner_router_bridge_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "gpd:help",
-            "/gpd:help",
-            "$gpd-help",
-            "/gpd-help",
+            *_action_surface_fragments("help"),
             "help command",
         ),
         label="runtime help bridge",
@@ -837,11 +853,7 @@ def assert_beginner_router_bridge_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "gpd:start",
-            "`start`",
-            "/gpd:start",
-            "$gpd-start",
-            "/gpd-start",
+            *_action_surface_fragments("start", include_bare=True),
             "runtime's `start` command",
             "use `start`",
         ),
@@ -850,11 +862,7 @@ def assert_beginner_router_bridge_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "gpd:tour",
-            "`tour`",
-            "/gpd:tour",
-            "$gpd-tour",
-            "/gpd-tour",
+            *_action_surface_fragments("tour", include_bare=True),
             "runtime's `tour` command",
             "use `tour`",
         ),
@@ -863,34 +871,22 @@ def assert_beginner_router_bridge_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            "`new-project --minimal`",
-            "`new-project`",
-            "gpd:new-project",
-            "/gpd:new-project",
-            "$gpd-new-project",
-            "/gpd-new-project",
+            *_action_surface_fragments("new-project --minimal", include_bare=True),
+            *_action_surface_fragments("new-project", include_bare=True),
         ),
         label="new-project routing surface",
     )
     _assert_contains_any(
         content,
         (
-            "`map-research`",
-            "gpd:map-research",
-            "/gpd:map-research",
-            "$gpd-map-research",
-            "/gpd-map-research",
+            *_action_surface_fragments("map-research", include_bare=True),
         ),
         label="map-research routing surface",
     )
     _assert_contains_any(
         content,
         (
-            "`resume-work`",
-            "gpd:resume-work",
-            "/gpd:resume-work",
-            "$gpd-resume-work",
-            "/gpd-resume-work",
+            *_action_surface_fragments("resume-work", include_bare=True),
         ),
         label="resume-work routing surface",
     )
@@ -1007,8 +1003,8 @@ def assert_recovery_ladder_contract(
     suggest_next_fragments: Iterable[str],
     pause_work_fragments: Iterable[str],
 ) -> None:
-    assert "gpd resume" in content
-    assert "gpd resume --recent" in content
+    assert recovery_local_snapshot_command() in content
+    assert recovery_cross_workspace_command() in content
     _assert_contains_any(
         content,
         (
@@ -1081,8 +1077,8 @@ def assert_runtime_reset_rediscovery_contract(
     extra_reset_not_recovery_fragments: Iterable[str] = (),
 ) -> None:
     assert "/clear" in content
-    assert "gpd resume" in content
-    assert "gpd resume --recent" in content
+    assert recovery_local_snapshot_command() in content
+    assert recovery_cross_workspace_command() in content
     _assert_contains_any(
         content,
         (
@@ -1176,7 +1172,7 @@ def assert_runtime_readiness_handoff_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            UNATTENDED_READINESS_SURFACE,
+            _unattended_readiness_surface(),
             "sharedUnattendedReadinessCommand()",
             "localCliBridge.unattendedReadinessCommand",
         ),
@@ -1196,8 +1192,8 @@ def assert_runtime_readiness_handoff_contract(content: str) -> None:
     _assert_contains_any(
         content,
         (
-            PERMISSIONS_STATUS_SURFACE,
-            PERMISSIONS_SYNC_SURFACE,
+            _permissions_status_surface(),
+            _permissions_sync_surface(),
             "sharedPermissionsStatusCommand()",
             "sharedPermissionsSyncCommand()",
             "localCliBridge.permissionsStatusCommand",
@@ -1216,9 +1212,9 @@ def assert_runtime_readiness_handoff_contract(content: str) -> None:
 def assert_help_workflow_runtime_reference_contract(
     content: str,
     *,
-    resume_work_fragments: Iterable[str] = ("gpd:resume-work", "/gpd:resume-work"),
-    suggest_next_fragments: Iterable[str] = ("gpd:suggest-next", "/gpd:suggest-next"),
-    pause_work_fragments: Iterable[str] = ("gpd:pause-work", "/gpd:pause-work"),
+    resume_work_fragments: Iterable[str] = _runtime_command_fragments("resume-work"),
+    suggest_next_fragments: Iterable[str] = _runtime_command_fragments("suggest-next"),
+    pause_work_fragments: Iterable[str] = _runtime_command_fragments("pause-work"),
 ) -> None:
     _assert_contains_any(
         content,
@@ -1321,12 +1317,19 @@ def assert_settings_local_terminal_follow_up_contract(content: str) -> None:
         ),
         label="settings local terminal follow-up framing",
     )
-    assert UNATTENDED_READINESS_SURFACE in content
     _assert_contains_any(
         content,
         (
-            PERMISSIONS_STATUS_SURFACE,
-            PERMISSIONS_SYNC_SURFACE,
+            _unattended_readiness_surface(),
+            "gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>",
+        ),
+        label="settings unattended-readiness follow-up surface",
+    )
+    _assert_contains_any(
+        content,
+        (
+            _permissions_status_surface(),
+            _permissions_sync_surface(),
             "gpd permissions sync --runtime <runtime> --autonomy <mode>",
         ),
         label="settings runtime-permission follow-up surface",
@@ -1412,8 +1415,8 @@ def assert_workflow_preset_surface_contract(content: str) -> None:
 
 
 def assert_wolfram_plan_boundary_contract(content: str) -> None:
-    assert WOLFRAM_STATUS_SURFACE in content
-    assert PLAN_PREFLIGHT_SURFACE in content
+    assert _wolfram_status_surface() in content
+    assert _plan_preflight_surface() in content
     _assert_contains_any(
         content,
         (

@@ -163,7 +163,14 @@ Canonical files to include directly before you verify or write frontmatter:
 - `proof_audit.proof_artifact_path` matches a declared `proof_deliverables` path and `proof_audit.audit_artifact_path` points to the canonical proof-redteam artifact.
 
 Whenever a decisive benchmark, prior-work, experiment, baseline, or cross-method comparison is required, emit a `comparison_verdict` keyed to the relevant contract IDs. If the comparison was attempted but remains unresolved, record `inconclusive` or `tension` rather than omitting the verdict or upgrading the parent target to pass.
-Before freezing the verification plan, call `suggest_contract_checks(contract)` through the verification server and incorporate the returned contract-aware checks unless they are clearly inapplicable. For each suggested check, start from its returned `request_template`, satisfy the listed `required_request_fields`, constrain any bindings to the returned `supported_binding_fields`, and then execute `run_contract_check(request=...)` so the check is actually run instead of merely discovered. If the contract still appears to miss a decisive check after that pass, record it as a structured `suggested_contract_checks` entry.
+Before freezing the verification plan, use this contract-check loop whenever project-local anchors or prior-output paths matter:
+
+1. Call `suggest_contract_checks(contract, project_dir=...)`.
+2. Treat the returned items as the default contract-aware check seed unless they are clearly inapplicable.
+3. For each suggested check, start from `request_template`, satisfy `required_request_fields` and `schema_required_request_fields`, satisfy one full alternative from `schema_required_request_anyof_fields`, bind only `supported_binding_fields` inside `request.binding`, and keep `project_dir` as the top-level absolute project root argument.
+4. Execute `run_contract_check(request=..., project_dir=...)`.
+
+If a decisive check is still missing after that pass, record it as a structured `suggested_contract_checks` entry.
 
 **Protocol bundle guidance (additive, not authoritative)**
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from importlib import import_module
 
 CANONICAL_TOOL_NAMES: tuple[str, ...] = (
     "file_read",
@@ -52,25 +51,16 @@ _DEFAULT_POLICIES: dict[str, RuntimeToolPolicy] | None = None
 
 
 def _load_default_policies() -> dict[str, RuntimeToolPolicy]:
-    from gpd.adapters.base import RuntimeAdapter
-    from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+    from gpd.adapters import iter_adapters
 
     policies: dict[str, RuntimeToolPolicy] = {}
-    for descriptor in iter_runtime_descriptors():
-        module = import_module(f"gpd.adapters.{descriptor.runtime_name.replace('-', '_')}")
-        for value in module.__dict__.values():
-            if not isinstance(value, type) or not issubclass(value, RuntimeAdapter) or value is RuntimeAdapter:
-                continue
-            adapter = value()
-            if adapter.runtime_name != descriptor.runtime_name:
-                continue
-            policies[adapter.runtime_name] = RuntimeToolPolicy(
-                runtime_name=adapter.runtime_name,
-                tool_name_map=getattr(adapter, "tool_name_map", {}),
-                auto_discovered_tools=frozenset(getattr(adapter, "auto_discovered_tools", frozenset())),
-                drop_mcp_frontmatter_tools=bool(getattr(adapter, "drop_mcp_frontmatter_tools", False)),
-            )
-            break
+    for adapter in iter_adapters():
+        policies[adapter.runtime_name] = RuntimeToolPolicy(
+            runtime_name=adapter.runtime_name,
+            tool_name_map=getattr(adapter, "tool_name_map", {}),
+            auto_discovered_tools=frozenset(getattr(adapter, "auto_discovered_tools", frozenset())),
+            drop_mcp_frontmatter_tools=bool(getattr(adapter, "drop_mcp_frontmatter_tools", False)),
+        )
     return policies
 
 

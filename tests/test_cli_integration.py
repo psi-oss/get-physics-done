@@ -2424,9 +2424,14 @@ class TestCommandContextSurface:
             raise RuntimeError("runtime resolution failed")
 
         monkeypatch.setattr("gpd.cli.detect_runtime_for_gpd_use", _raise_runtime_error)
+        result = _invoke("--raw", "validate", "command-context", command_name)
+        payload = json.loads(result.output)
 
-        with pytest.raises(RuntimeError, match="runtime resolution failed"):
-            _invoke("--raw", "validate", "command-context", command_name)
+        assert payload["command"] == command_name
+        assert payload["validated_surface"] == "public_runtime_command_surface"
+        assert payload["public_runtime_command_prefix"] == ""
+        assert payload["local_cli_equivalence_guaranteed"] is False
+        assert "the active runtime command surface" in payload["dispatch_note"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
