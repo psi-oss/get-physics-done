@@ -2820,28 +2820,47 @@ def test_contract_tools_reject_blank_or_malformed_contract_list_members_at_mcp_b
 
 
 @pytest.mark.parametrize(
-    ("mutator", "expected_error"),
+    ("mutator", "expected_error", "expected_details"),
     [
         (
             lambda contract: contract["claims"][0].__setitem__("references", "   "),
-            "claims.0.references must not be blank",
+            (
+                "claims.0.references must not be blank; "
+                "claims.0.references was normalized from blank string to empty list"
+            ),
+            [
+                "claims.0.references must not be blank",
+                "claims.0.references was normalized from blank string to empty list",
+            ],
         ),
         (
             lambda contract: contract["scope"].__setitem__("in_scope", "   "),
-            "scope.in_scope must not be blank",
+            (
+                "scope.in_scope must not be blank; "
+                "scope.in_scope was normalized from blank string to empty list"
+            ),
+            [
+                "scope.in_scope must not be blank",
+                "scope.in_scope was normalized from blank string to empty list",
+            ],
         ),
     ],
 )
 def test_contract_tools_reject_blank_scalar_to_list_contract_drift(
     mutator,
     expected_error: str,
+    expected_details: list[str],
 ) -> None:
     from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 
     contract = _load_project_contract_fixture()
     mutator(contract)
 
-    expected = {"error": f"Invalid contract payload: {expected_error}", "schema_version": 1}
+    expected = {
+        "error": f"Invalid contract payload: {expected_error}",
+        "contract_error_details": expected_details,
+        "schema_version": 1,
+    }
 
     request = {
         "check_key": "contract.benchmark_reproduction",
@@ -3124,12 +3143,19 @@ def test_contract_tools_surface_full_contract_error_details_for_multi_error_payl
 
     expected_details = [
         "scope.in_scope must not be blank",
+        "scope.in_scope was normalized from blank string to empty list",
         "claims.0.references must not be blank",
+        "claims.0.references was normalized from blank string to empty list",
         "references.0.aliases must not be blank",
+        "references.0.aliases was normalized from blank string to empty list",
         "references.0.required_actions.3: Input should be 'read', 'use', 'compare', 'cite' or 'avoid'",
     ]
 
-    assert run_result["error"] == "Invalid contract payload: scope.in_scope must not be blank; claims.0.references must not be blank; references.0.aliases must not be blank; +1 more"
+    assert (
+        run_result["error"] == "Invalid contract payload: scope.in_scope must not be blank; "
+        "scope.in_scope was normalized from blank string to empty list; "
+        "claims.0.references must not be blank; +4 more"
+    )
     assert run_result["contract_error_details"] == expected_details
     assert suggest_result["error"] == run_result["error"]
     assert suggest_result["contract_error_details"] == expected_details
