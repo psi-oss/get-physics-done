@@ -185,7 +185,7 @@ def test_prompt_surface_extractor_matches_shared_root_global_flags() -> None:
 
     sample = """
     ```text
-    gpd --help --version -v --cwd /tmp/workspace progress bar
+    gpd --version -v --cwd /tmp/workspace progress bar
     ```
     """
 

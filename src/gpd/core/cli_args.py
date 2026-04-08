@@ -11,7 +11,7 @@ __all__ = [
     "validate_root_global_cli_passthrough",
 ]
 
-_ROOT_GLOBAL_FLAG_TOKENS = frozenset({"--help", "--raw", "--version", "-v"})
+_ROOT_GLOBAL_FLAG_TOKENS = frozenset({"--raw", "--version", "-v"})
 
 
 def validate_root_global_cli_passthrough(argv: list[str]) -> None:
@@ -28,7 +28,7 @@ def validate_root_global_cli_passthrough(argv: list[str]) -> None:
             return
         if not arg.startswith("-"):
             return
-        if arg in _ROOT_GLOBAL_FLAG_TOKENS:
+        if arg in _ROOT_GLOBAL_FLAG_TOKENS or arg == "--help":
             index += 1
             continue
         if arg == "--cwd":

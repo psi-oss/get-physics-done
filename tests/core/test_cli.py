@@ -3073,7 +3073,7 @@ def test_entrypoint_normalizes_trailing_global_options(monkeypatch) -> None:
     assert captured["args"] == ["--cwd", "/tmp/demo", "--raw", "progress", "bar"]
 
 
-@pytest.mark.parametrize("root_flag", ["--help", "--version", "-v"])
+@pytest.mark.parametrize("root_flag", ["--version", "-v"])
 def test_entrypoint_normalizes_trailing_root_global_flags(monkeypatch, root_flag: str) -> None:
     captured: dict[str, object] = {}
 
