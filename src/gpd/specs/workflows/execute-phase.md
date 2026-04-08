@@ -670,17 +670,18 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
 	   - Check for `## Self-Check: FAILED` marker
 	   - Check for `## Validation: FAILED` marker (physics-specific)
 	   - For proof-bearing plans, verify the sibling `{plan_id}-PROOF-REDTEAM.md` artifact exists and has `status: passed`
-	   - Validate the gpd_return envelope:
+	   - Validate and apply the gpd_return envelope through the canonical child-return path:
 
      ```bash
-     RETURN_CHECK=$(gpd --raw validate-return "${SUMMARY_FILE}")
-     if [ "$RETURN_CHECK" != "passed" ]; then
-       echo "WARNING: validate-return failed for $(basename "$SUMMARY_FILE")"
-       # Mark plan as NEEDS_REVIEW but continue — missing envelope is not fatal
+     RETURN_APPLY=$(gpd --raw apply-return-updates "${SUMMARY_FILE}")
+     RETURN_PASSED=$(python -c 'import json, sys; print(str(bool(json.loads(sys.argv[1]).get("passed", False))).lower())' "$RETURN_APPLY")
+     if [ "$RETURN_PASSED" != "true" ]; then
+       echo "ERROR: apply-return-updates failed for $(basename "$SUMMARY_FILE")"
+       exit 1
      fi
      ```
 
-	   If ANY spot-check fails, including a missing or non-passing proof-redteam artifact for proof-bearing work: report which plan failed, route to `wave_failure_handling` -- do NOT silently continue.
+	   If ANY spot-check fails, including a missing or non-passing proof-redteam artifact for proof-bearing work, or if `apply-return-updates` does not report `passed: true`: report which plan failed, route to `wave_failure_handling` -- do NOT silently continue.
 
    **IMPORTANT: Executor subagents MUST NOT write STATE.md directly.** Return state updates (position, decisions, metrics) in the structured return envelope. The orchestrator applies them sequentially after each agent completes. This prevents parallel write conflicts where multiple agents overwrite each other's STATE.md changes.
 

@@ -68,17 +68,15 @@ RETURN_ENVELOPE_STATUS_CONTRACTS: dict[str, GpdReturnStatusContract] = {
             "decisions",
             "blockers",
             "continuation_update",
-            "resume_contract",
-            "execution_segment",
         ),
     ),
     "blocked": GpdReturnStatusContract(
         required_fields=REQUIRED_RETURN_FIELDS,
-        structured_fields=("blockers", "continuation_update", "resume_contract", "execution_segment"),
+        structured_fields=("blockers", "continuation_update"),
     ),
     "failed": GpdReturnStatusContract(
         required_fields=REQUIRED_RETURN_FIELDS,
-        structured_fields=("blockers", "continuation_update", "resume_contract", "execution_segment"),
+        structured_fields=("blockers", "continuation_update"),
     ),
 }
 """Explicit status-dependent contract structure for supported envelopes."""
@@ -100,13 +98,11 @@ class GpdReturnEnvelope(BaseModel):
     plan: StrictStr | None = None
     design_file: StrictStr | None = None
     field_assessment: StrictStr | None = None
-    state_updates: list[object] | None = None
-    contract_updates: list[object] | None = None
+    state_updates: dict[str, object] | None = None
+    contract_updates: dict[str, object] | None = None
     decisions: list[object] | None = None
     blockers: list[object] | None = None
     continuation_update: dict[str, object] | None = None
-    resume_contract: dict[str, object] | None = None
-    execution_segment: dict[str, object] | None = None
     conventions_used: dict[str, object] | None = None
     checkpoint_hashes: list[dict[str, object]] | None = None
 
@@ -127,7 +123,7 @@ class GpdReturnEnvelope(BaseModel):
     def _validate_string_list(cls, value: object, info) -> list[str]:
         return _validate_string_list(value, field_name=info.field_name)
 
-    @field_validator("state_updates", "contract_updates", "decisions", "blockers", mode="before")
+    @field_validator("decisions", "blockers", mode="before")
     @classmethod
     def _validate_yaml_sequence(cls, value: object, info) -> list[object] | None:
         if value is None:
@@ -147,7 +143,7 @@ class GpdReturnEnvelope(BaseModel):
             raise ValueError(f"{info.field_name} not a number: {value!r}")
         return value
 
-    @field_validator("continuation_update", "resume_contract", "execution_segment", "conventions_used", mode="before")
+    @field_validator("state_updates", "contract_updates", "continuation_update", "conventions_used", mode="before")
     @classmethod
     def _validate_yaml_mapping(cls, value: object, info) -> dict[str, object] | None:
         if value is None:

@@ -120,14 +120,14 @@ Read the file at GPD/STATE.md
 - Create a SINGLE plan with 1-3 focused tasks
 - Quick tasks should be atomic and self-contained
 - No literature review phase, no checker phase
-- If `project_contract_load_info.status` starts with `blocked` or `project_contract_validation.valid` is false, return `## CHECKPOINT REACHED` instead of drafting a plan from guessed scope.
-- If the task is theorem-style or proof-bearing, return `## CHECKPOINT REACHED` and tell the user quick mode is blocked pending the full proof-redteam workflow.
+- If `project_contract_load_info.status` starts with `blocked` or `project_contract_validation.valid` is false, return `gpd_return.status: checkpoint` instead of drafting a plan from guessed scope. The `## CHECKPOINT REACHED` heading is presentation only.
+- If the task is theorem-style or proof-bearing, return `gpd_return.status: checkpoint` and tell the user quick mode is blocked pending the full proof-redteam workflow.
 - Target ~30% context usage (simple, focused)
 </constraints>
 
 <output>
 Write plan to: ${QUICK_DIR}/${next_num}-PLAN.md
-Return: ## PLANNING COMPLETE with plan path
+Return `gpd_return.status: completed` with plan path. The `## PLANNING COMPLETE` heading is presentation only.
 </output>
 ",
   subagent_type="gpd-planner",
@@ -179,6 +179,7 @@ Reference artifacts: {reference_artifacts_content}
 - Create summary at: ${QUICK_DIR}/${next_num}-SUMMARY.md
 - Do NOT update ROADMAP.md (quick tasks are separate from planned phases)
 - If proof-bearing work slipped through planning, STOP and return the reroute instead of executing. Quick mode must not produce a proof result without the mandatory proof-redteam gate.
+- Return a structured `gpd_return` envelope with `gpd_return.status` and `gpd_return.files_written`; the `## PLANNING COMPLETE` / `## CHECKPOINT REACHED` headings are presentation only.
 </constraints>
 ",
   subagent_type="gpd-executor",
@@ -204,17 +205,38 @@ Note: For quick tasks producing multiple plans (rare), spawn executors in parall
 
 ---
 
-**Step 6: Update project state**
+**Step 6: Apply child-return effects**
+
+Treat the executor summary as the canonical child-return artifact. Before any direct quick-task state updates, validate and apply its durable subset through the shared command path:
+
+```bash
+APPLY_RETURN=$(gpd apply-return-updates "${QUICK_DIR}/${next_num}-SUMMARY.md")
+if [ $? -ne 0 ]; then
+  echo "ERROR: apply-return-updates failed: $APPLY_RETURN"
+  # STOP — show the structured errors and do not proceed.
+fi
+```
+
+Route on `gpd_return.status` and the artifact gate, not on the human-readable headings:
+
+- `gpd_return.status: completed` means the summary file passed the artifact gate and its durable child-return effects were applied.
+- `gpd_return.status: checkpoint` means the quick task needs user input; present the checkpoint and spawn a fresh continuation handoff.
+- `gpd_return.status: blocked` means the task cannot be completed without external repair.
+- `gpd_return.status: failed` means the task did not complete and must be retried or handled manually.
+
+Only proceed to the quick-task completion record after `apply-return-updates` succeeds and the summary file still exists on disk.
+
+**Step 7: Update project state**
 
 Update project state with quick task completion record using gpd commands (ensures STATE.md + state.json stay in sync):
 
-**6a. Record quick task completion as a decision:**
+**7a. Record quick task completion as a decision:**
 
 ```bash
 gpd state add-decision --phase "quick-${next_num}" --summary "Quick task ${next_num}: ${DESCRIPTION}" --rationale "Ad-hoc task completed outside planned phases"
 ```
 
-**6b. Update last activity:**
+**7b. Update last activity:**
 
 ```bash
 gpd state update "Last Activity" "${date}"
@@ -230,7 +252,7 @@ If you want a human-facing index, put it in `GPD/quick/README.md` or in the quic
 
 ---
 
-**Step 7: Final commit and completion**
+**Step 8: Final commit and completion**
 
 Stage and commit quick task artifacts:
 

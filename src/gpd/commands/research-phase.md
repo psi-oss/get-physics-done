@@ -128,11 +128,11 @@ task(
 
 ## 5. Handle Agent Return
 
-**`## RESEARCH COMPLETE`:** Display summary, offer: Plan phase, Dig deeper, Review full, Done.
+Handle the researcher return through the workflow-owned child-return contract. Do not branch on heading text here.
 
-**`## CHECKPOINT REACHED`:** Present to user, get response, spawn continuation.
-
-**`## RESEARCH INCONCLUSIVE`:** Show what was attempted, offer: Add context, Try different mode, Manual.
+- `gpd_return.status: completed` -- Verify `{phase_dir}/{phase_number}-RESEARCH.md` exists and passes the artifact gate, show the summary, and offer: Plan phase, Dig deeper, Review full, Done.
+- `gpd_return.status: checkpoint` -- Present the checkpoint to the user, collect the response, and spawn a fresh continuation run.
+- `gpd_return.status: blocked` or `failed` -- Show what was attempted and offer: Add context, Try different mode, Manual.
 
 ## 6. Spawn Continuation Agent
 

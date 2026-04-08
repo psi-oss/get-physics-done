@@ -318,6 +318,10 @@ If the workflow expects a spawned-agent handoff, the same `gpd_return` object ma
 
 ```yaml
 gpd_return:
+  status: completed | checkpoint | blocked | failed
+  files_written: ["GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md"]
+  issues: [list of issues encountered, if any]
+  next_actions: [list of recommended follow-up actions]
   state_updates: [...]
   contract_updates: [...]
   decisions: [...]

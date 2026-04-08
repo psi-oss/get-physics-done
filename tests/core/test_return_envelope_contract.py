@@ -16,9 +16,8 @@ def test_accepts_nested_state_and_continuation_payloads() -> None:
         "  issues: []\n"
         "  next_actions: [/gpd:resume-work]\n"
         "  state_updates:\n"
-        "    - current_phase: 09\n"
-        "      blockers:\n"
-        "        - waiting on approval\n"
+        "    advance_plan: true\n"
+        "    update_progress: true\n"
         "  continuation_update:\n"
         "    resume_contract:\n"
         "      next_step: continue\n"
@@ -33,7 +32,8 @@ def test_accepts_nested_state_and_continuation_payloads() -> None:
     result = validate_gpd_return_markdown(content)
 
     assert result.passed is True
-    assert result.fields["state_updates"][0]["blockers"] == ["waiting on approval"]
+    assert result.fields["state_updates"]["advance_plan"] is True
+    assert result.fields["state_updates"]["update_progress"] is True
     assert result.fields["continuation_update"]["execution_segment"]["current_cursor"] == 3
 
 
@@ -51,20 +51,20 @@ def test_rejects_scalar_where_list_field_is_required() -> None:
     assert any("files_written" in error and "list" in error for error in result.errors)
 
 
-def test_rejects_nested_map_where_state_updates_must_be_a_list() -> None:
+def test_rejects_state_updates_when_not_a_mapping() -> None:
     content = _wrap_return_block(
         "  status: checkpoint\n"
         "  files_written: [src/main.py]\n"
         "  issues: []\n"
         "  next_actions: [/gpd:resume-work]\n"
         "  state_updates:\n"
-        "    current_phase: 09\n"
+        "    - advance_plan: true\n"
     )
 
     result = validate_gpd_return_markdown(content)
 
     assert result.passed is False
-    assert any("state_updates" in error and "list" in error for error in result.errors)
+    assert any("state_updates" in error and "mapping" in error for error in result.errors)
 
 
 def test_rejects_scalar_where_continuation_update_requires_mapping() -> None:
@@ -82,4 +82,3 @@ def test_rejects_scalar_where_continuation_update_requires_mapping() -> None:
 
     assert result.passed is False
     assert any("continuation_update" in error and "mapping" in error for error in result.errors)
-

@@ -156,7 +156,7 @@ Use this 4-way decision model:
 3. `Capture and defer` -> route through `gpd:add-todo`
 4. `Stay on the main line` -> create plans only for the selected primary approach
 
-If the context does not already contain an explicit tangent choice and more than one viable path remains live, return `## CHECKPOINT REACHED` with the four options above instead of silently branching.
+If the context does not already contain an explicit tangent choice and more than one viable path remains live, return `gpd_return.status: checkpoint` with the four options above instead of silently branching.
 
 Explore mode widens analysis and comparison, not branch creation. Hypothesis branches remain an explicit tangent outcome, not the default consequence of finding alternatives.
 
@@ -167,7 +167,7 @@ If the user is already on an active hypothesis branch, continue serving that bra
 **When to use:** New problem domain, unknown best approach, multiple viable methods, early-stage research.
 
 **Planner behavior:**
-- **Plans:** Identify 2-3 viable approaches during planning analysis, but do NOT silently emit branch-like alternative plans. Explore mode alone does not authorize git-backed branches, `branch: true` plans, or side-work detours. If the user has not explicitly chosen a tangent path, create the recommended main-line plan only and return `## CHECKPOINT REACHED` when multiple live alternatives still matter.
+- **Plans:** Identify 2-3 viable approaches during planning analysis, but do NOT silently emit branch-like alternative plans. Explore mode alone does not authorize git-backed branches, `branch: true` plans, or side-work detours. If the user has not explicitly chosen a tangent path, create the recommended main-line plan only and set `gpd_return.status: checkpoint` when multiple live alternatives still matter.
 - **Researcher depth:** Request COMPREHENSIVE research — explore multiple methods, compare tradeoffs, identify which approaches have worked for similar problems.
 - **Literature:** Broad search — survey 10+ papers across multiple methods. Include "failed approaches" from literature to avoid repeating them.
 - **Scope:** Wider — include validation-intensive tasks, but keep optional tangents out of the main-line plan until the user explicitly chooses how to handle them.

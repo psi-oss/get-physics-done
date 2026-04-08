@@ -2587,9 +2587,8 @@ class TestValidateReturn:
             "  issues: []\n"
             "  next_actions: [\"/gpd:resume-work\"]\n"
             "  state_updates:\n"
-            "    - current_phase: 09\n"
-            "      blockers:\n"
-            "        - waiting on approval\n"
+            "    advance_plan: true\n"
+            "    update_progress: true\n"
             "  continuation_update:\n"
             "    resume_contract:\n"
             "      next_step: continue\n"
@@ -2603,7 +2602,8 @@ class TestValidateReturn:
         result = _invoke("--raw", "validate-return", str(return_file))
         parsed = json.loads(result.output)
         assert parsed["passed"] is True
-        assert parsed["fields"]["state_updates"][0]["blockers"] == ["waiting on approval"]
+        assert parsed["fields"]["state_updates"]["advance_plan"] is True
+        assert parsed["fields"]["state_updates"]["update_progress"] is True
         assert parsed["fields"]["continuation_update"]["execution_segment"]["current_cursor"] == 3
 
     def test_validate_return_rejects_malformed_nested_payloads(self, gpd_project: Path) -> None:
@@ -2628,6 +2628,63 @@ class TestValidateReturn:
         parsed = json.loads(result.output)
         assert parsed["passed"] is False
         assert any("continuation_update" in error for error in parsed["errors"])
+
+    def test_apply_return_updates_applies_state_changes(self, gpd_project: Path) -> None:
+        """The CLI should apply supported child-return updates and persist them."""
+        state_path = gpd_project / "GPD" / "STATE.md"
+        before = state_path.read_text(encoding="utf-8")
+        return_file = gpd_project / "apply_return.md"
+        return_file.write_text(
+            "# Summary\n\n```yaml\ngpd_return:\n"
+            "  status: checkpoint\n"
+            "  files_written: [\"GPD/STATE.md\"]\n"
+            "  issues: []\n"
+            "  next_actions: [\"/gpd:resume-work\"]\n"
+            "  decisions:\n"
+            "    - summary: Prefer canonical CLI application\n"
+            '      phase: "10"\n'
+            "  blockers:\n"
+            "    - waiting on approval\n"
+            "  contract_updates:\n"
+            "    project_contract: retained\n```\n",
+            encoding="utf-8",
+        )
+
+        result = _invoke("--raw", "apply-return-updates", str(return_file))
+        parsed = json.loads(result.output)
+        assert parsed["passed"] is True
+        assert parsed["status"] == "checkpoint"
+        assert parsed["applied_decisions"] == 1
+        assert parsed["applied_blockers"] == 1
+        assert parsed["contract_updates"] == {"project_contract": "retained"}
+        assert state_path.read_text(encoding="utf-8") != before
+        updated_state = state_path.read_text(encoding="utf-8")
+        assert "Prefer canonical CLI application" in updated_state
+        assert "waiting on approval" in updated_state
+
+    def test_apply_return_updates_rejects_malformed_updates_before_mutation(self, gpd_project: Path) -> None:
+        """Malformed update payloads should fail closed before touching state."""
+        state_path = gpd_project / "GPD" / "STATE.md"
+        before = state_path.read_text(encoding="utf-8")
+        return_file = gpd_project / "bad_apply_return.md"
+        return_file.write_text(
+            "# Summary\n\n```yaml\ngpd_return:\n"
+            "  status: checkpoint\n"
+            "  files_written: [\"GPD/STATE.md\"]\n"
+            "  issues: []\n"
+            "  next_actions: [\"/gpd:resume-work\"]\n"
+            "  state_updates:\n"
+            "    unexpected_operation: true\n```\n",
+            encoding="utf-8",
+        )
+
+        result = _invoke("--raw", "apply-return-updates", str(return_file), expect_ok=False)
+        assert result.exit_code == 1
+        parsed = json.loads(result.output)
+        assert parsed["passed"] is False
+        assert parsed["status"] == "failed"
+        assert any("state_updates" in error and "unexpected_operation" in error for error in parsed["errors"])
+        assert state_path.read_text(encoding="utf-8") == before
 
 
 # ═══════════════════════════════════════════════════════════════════════════

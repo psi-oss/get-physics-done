@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import anyio
 import pytest
@@ -13,6 +14,7 @@ from gpd.core.health import CheckStatus, HealthCheck, HealthReport, HealthSummar
 from gpd.core.state import default_state_dict
 from gpd.mcp.servers.state_server import (
     advance_plan,
+    apply_return_updates,
     get_config,
     get_phase_info,
     get_progress,
@@ -41,6 +43,38 @@ def test_state_server_exposes_expected_tool_names() -> None:
         "run_health_check",
         "get_config",
     } == set(names)
+
+
+def test_state_server_apply_return_updates_wraps_canonical_command(monkeypatch, tmp_path: Path) -> None:
+    mock_result = SimpleNamespace(
+        model_dump=lambda: {
+            "passed": True,
+            "status": "applied",
+            "files_written": ["GPD/phases/01-foundations/01-foundations-01-SUMMARY.md"],
+        }
+    )
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server.cmd_apply_return_updates",
+        lambda *_args, **_kwargs: mock_result,
+    )
+
+    result = apply_return_updates(str(tmp_path), "GPD/phases/01-foundations/01-foundations-01-SUMMARY.md")
+
+    assert result["schema_version"] == 1
+    assert result["passed"] is True
+    assert result["status"] == "applied"
+    assert result["files_written"] == ["GPD/phases/01-foundations/01-foundations-01-SUMMARY.md"]
+
+
+def test_state_server_apply_return_updates_rejects_relative_project_dir(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server.cmd_apply_return_updates",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not run")),
+    )
+
+    result = apply_return_updates("relative/project", "GPD/phases/01-foundations/01-foundations-01-SUMMARY.md")
+
+    assert result == {"error": "project_dir must be an absolute path", "schema_version": 1}
 
 
 @pytest.mark.parametrize(

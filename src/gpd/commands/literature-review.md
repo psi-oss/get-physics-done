@@ -125,35 +125,11 @@ task(
 
 ## 4. Handle Agent Return
 
-**If `## REVIEW COMPLETE`:**
+Handle the reviewer return through the workflow-owned child-return contract. Do not branch on heading text here.
 
-- Display executive summary and key takeaways
-- Report paper count and coverage assessment
-- Offer options:
-  - "Deep dive on subtopic" -- focus on one aspect found during review
-  - "Start research" -- use review to plan a research phase
-  - "Find gaps" -- identify what's missing for a specific calculation
-  - "Export references" -- format for BibTeX / manuscript and refresh `GPD/literature/{slug}-CITATION-SOURCES.json`
-
-**If `## CHECKPOINT REACHED`:**
-
-- Present checkpoint details to user
-- Common checkpoints in literature review:
-  - "Found conflicting conventions between major references -- which do you want to adopt?"
-  - "Two competing theoretical frameworks -- which is more relevant to your work?"
-  - "Need access to a paywalled paper -- can you provide the key results?"
-  - "Scope is broader than expected -- should I narrow focus?"
-- Get user response
-- Spawn continuation agent
-
-**If `## REVIEW INCONCLUSIVE`:**
-
-- Show what was found and what's missing
-- Offer options:
-  - "Broaden search" -- expand keywords and sources
-  - "Narrow focus" -- restrict to specific subtopic
-  - "Manual search" -- provide specific papers to include
-  - "Accept partial" -- use what was found
+- `gpd_return.status: completed` -- Verify `GPD/literature/{slug}-REVIEW.md` and `GPD/literature/{slug}-CITATION-SOURCES.json` exist and pass the artifact gate, display the executive summary and key takeaways, and offer: Deep dive on subtopic, Start research, Find gaps, Export references.
+- `gpd_return.status: checkpoint` -- Present the checkpoint details to the user, collect the response, and spawn a fresh continuation run.
+- `gpd_return.status: blocked` or `failed` -- Show what was found and what is missing, then offer: Broaden search, Narrow focus, Manual search, Accept partial.
 
 ## 5. Spawn Continuation agent (After Checkpoint)
 

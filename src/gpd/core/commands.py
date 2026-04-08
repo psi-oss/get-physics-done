@@ -19,6 +19,7 @@ from gpd.contracts import (
     parse_comparison_verdicts_data_strict,
     parse_contract_results_data_artifact,
 )
+from gpd.core.child_return_application import ApplyChildReturnResult, apply_child_return_updates
 from gpd.core.constants import (
     PHASES_DIR_NAME,
     PLAN_SUFFIX,
@@ -45,6 +46,7 @@ from gpd.core.utils import (
 )
 
 __all__ = [
+    "ApplyChildReturnResult",
     "CurrentTimestampResult",
     "DecisionEntry",
     "GenerateSlugResult",
@@ -59,6 +61,7 @@ __all__ = [
     "cmd_current_timestamp",
     "cmd_generate_slug",
     "cmd_history_digest",
+    "cmd_apply_return_updates",
     "cmd_regression_check",
     "cmd_summary_extract",
     "cmd_validate_return",
@@ -804,4 +807,26 @@ def cmd_validate_return(file_path: Path) -> ValidateReturnResult:
         fields=validation.fields,
         warning_count=validation.warning_count,
     )
+
+
+@instrument_gpd_function("commands.apply_return_updates")
+def cmd_apply_return_updates(cwd: Path, file_path: Path) -> ApplyChildReturnResult:
+    """Validate and apply the durable subset of one ``gpd_return`` envelope."""
+    content = safe_read_file(file_path)
+    if content is None:
+        raise ValidationError(f"File not found: {file_path}")
+
+    validation = validate_gpd_return_markdown(content)
+    if not validation.passed or validation.envelope is None:
+        return ApplyChildReturnResult(
+            passed=False,
+            status="failed",
+            errors=list(validation.errors),
+            warnings=list(validation.warnings),
+        )
+
+    result = apply_child_return_updates(cwd, validation.envelope)
+    if validation.warnings:
+        result.warnings.extend(warning for warning in validation.warnings if warning not in result.warnings)
+    return result
 _MISSING = object()

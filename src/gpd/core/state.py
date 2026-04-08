@@ -4412,6 +4412,8 @@ def state_record_session(
     stopped_at: str | None = None,
     resume_file: str | None = None,
     last_result_id: str | None = None,
+    clear_resume_file: bool = False,
+    clear_last_result_id: bool = False,
 ) -> RecordSessionResult:
     """Record session continuity through canonical continuation state."""
     with _state_lock(cwd):
@@ -4435,9 +4437,17 @@ def state_record_session(
         existing_machine = current_continuation.machine
         normalized_existing_resume_file = _normalize_session_resume_file(cwd, existing_handoff.resume_file)
         normalized_resume_file = (
-            normalized_existing_resume_file if resume_file is None else _normalize_session_resume_file(cwd, resume_file)
+            None
+            if clear_resume_file
+            else (
+                normalized_existing_resume_file
+                if resume_file is None
+                else _normalize_session_resume_file(cwd, resume_file)
+            )
         )
         if (
+            not clear_resume_file
+            and
             resume_file is not None
             and normalized_resume_file is None
             and resume_file.strip()
@@ -4445,7 +4455,11 @@ def state_record_session(
             and resume_file.strip().casefold() not in {"none", "null"}
         ):
             raise StateError("resume_file must be a repo-relative path inside the project root")
-        requested_last_result_id = _optional_state_text(last_result_id) if last_result_id is not None else None
+        requested_last_result_id = (
+            None
+            if clear_last_result_id
+            else (_optional_state_text(last_result_id) if last_result_id is not None else None)
+        )
         if last_result_id is not None:
             if requested_last_result_id is None:
                 raise StateError("last_result_id must be a non-empty string when provided")
@@ -4472,9 +4486,13 @@ def state_record_session(
             updated.append("Platform")
         desired_stopped_at = stopped_at if stopped_at is not None else existing_handoff.stopped_at
         desired_last_result_id = (
-            requested_last_result_id
-            if last_result_id is not None
-            else bounded_segment_last_result_id or _optional_state_text(existing_handoff.last_result_id)
+            None
+            if clear_last_result_id
+            else (
+                requested_last_result_id
+                if last_result_id is not None
+                else bounded_segment_last_result_id or _optional_state_text(existing_handoff.last_result_id)
+            )
         )
         if desired_stopped_at != existing_handoff.stopped_at:
             updated.append("Stopped at")

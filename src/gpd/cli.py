@@ -7929,6 +7929,20 @@ def validate_return(
         raise typer.Exit(code=1)
 
 
+@app.command("apply-return-updates")
+def apply_return_updates(
+    file_path: str = typer.Argument(..., help="Path to file containing gpd_return YAML block"),
+) -> None:
+    """Validate one gpd_return envelope and apply its durable child-return updates."""
+    from gpd.core.commands import cmd_apply_return_updates
+
+    resolved = _get_cwd() / file_path
+    result = cmd_apply_return_updates(_get_cwd(), resolved)
+    _output(result)
+    if not result.passed:
+        raise typer.Exit(code=1)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # paper-build — Canonical paper package entry point
 # ═══════════════════════════════════════════════════════════════════════════

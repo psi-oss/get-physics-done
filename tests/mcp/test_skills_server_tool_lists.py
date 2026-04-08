@@ -205,6 +205,54 @@ def test_get_skill_plan_phase_surfaces_staged_loading_sidecar() -> None:
     assert result["structured_metadata_authority"]["staged_loading"] == "mirrored"
 
 
+def test_get_skill_command_surfaces_spawn_contract_sidecar_without_content_injection() -> None:
+    from gpd.mcp.servers.skills_server import get_skill
+
+    spawn_contracts = (
+        {
+            "agent": "gpd-notation-coordinator",
+            "shared_state_policy": "return_only",
+            "write_scope": {"mode": "scoped_write", "paths": ["GPD/CONVENTIONS.md"]},
+            "expected_artifacts": ["GPD/CONVENTIONS.md"],
+        },
+    )
+    command = CommandDef(
+        name="gpd:new-project",
+        description="New project.",
+        argument_hint="",
+        agent=None,
+        requires={},
+        allowed_tools=["file_read"],
+        content="Command body.",
+        path="/tmp/gpd-new-project.md",
+        source="commands",
+        spawn_contracts=spawn_contracts,
+    )
+    skill = SkillDef(
+        name="gpd-new-project",
+        description="New project.",
+        content="Command body.",
+        category="project",
+        path="/tmp/gpd-new-project.md",
+        source_kind="command",
+        registry_name="new-project",
+        spawn_contracts=spawn_contracts,
+    )
+
+    with (
+        patch("gpd.mcp.servers.skills_server._resolve_skill", return_value=skill),
+        patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
+    ):
+        result = get_skill("gpd-new-project")
+
+    assert result["content"] == "Command body."
+    assert result["spawn_contracts"] == [dict(spawn_contracts[0])]
+    assert result["spawn_contracts"] is not command.spawn_contracts
+    result["spawn_contracts"][0]["expected_artifacts"].append("GPD/EXTRA.md")
+    assert command.spawn_contracts[0]["expected_artifacts"] == ["GPD/CONVENTIONS.md"]
+    assert result["structured_metadata_authority"]["spawn_contracts"] == "mirrored"
+
+
 def test_get_skill_execute_phase_surfaces_staged_loading_sidecar() -> None:
     from gpd.mcp.servers.skills_server import get_skill
 
@@ -260,6 +308,49 @@ def test_get_skill_execute_phase_surfaces_staged_loading_sidecar() -> None:
     assert result["staged_loading"]["workflow_id"] == "execute-phase"
     assert result["staged_loading"]["stages"][0]["id"] == "phase_bootstrap"
     assert result["structured_metadata_authority"]["staged_loading"] == "mirrored"
+
+
+def test_get_skill_index_surfaces_spawn_contract_presence_sidecar() -> None:
+    from gpd.mcp.servers.skills_server import get_skill_index
+
+    skill = SkillDef(
+        name="gpd-new-project",
+        description="New project.",
+        content="Command body.",
+        category="project",
+        path="/tmp/gpd-new-project.md",
+        source_kind="command",
+        registry_name="new-project",
+    )
+    command = CommandDef(
+        name="gpd:new-project",
+        description="New project.",
+        argument_hint="",
+        agent=None,
+        requires={},
+        allowed_tools=["file_read"],
+        content="Command body.",
+        path="/tmp/gpd-new-project.md",
+        source="commands",
+        spawn_contracts=(
+            {
+                "agent": "gpd-notation-coordinator",
+                "shared_state_policy": "return_only",
+                "write_scope": {"mode": "scoped_write", "paths": ["GPD/CONVENTIONS.md"]},
+                "expected_artifacts": ["GPD/CONVENTIONS.md"],
+            },
+        ),
+    )
+
+    with (
+        patch("gpd.mcp.servers.skills_server._load_skill_index", return_value=[skill]),
+        patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
+    ):
+        result = get_skill_index()
+
+    assert result["total_skills"] == 1
+    assert result["command_envelopes"]["gpd-new-project"]["has_spawn_contracts"] is True
+    assert result["command_envelopes"]["gpd-new-project"]["has_review_contract"] is False
 
 
 def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:

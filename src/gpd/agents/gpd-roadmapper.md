@@ -1138,7 +1138,10 @@ Common research roadblocks:
 
 ```yaml
 gpd_return:
-  # base fields (status, files_written, issues, next_actions) per agent-infrastructure.md
+  status: completed | checkpoint | blocked | failed
+  files_written: [GPD/ROADMAP.md, GPD/STATE.md]
+  issues: [list of issues encountered, if any]
+  next_actions: [list of recommended follow-up actions]
   phases_created: {count}
 ```
 

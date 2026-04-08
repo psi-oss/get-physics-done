@@ -185,6 +185,15 @@ def _skill_staged_loading_payload(
     return staged_loading.to_payload()
 
 
+def _skill_spawn_contracts_payload(
+    spawn_contracts: tuple[dict[str, object], ...] | None,
+) -> list[dict[str, object]] | None:
+    """Return the canonical MCP payload for command spawn-contract sidecars."""
+    if not spawn_contracts:
+        return None
+    return [copy.deepcopy(contract) for contract in spawn_contracts]
+
+
 def _normalize_skill_category(category: str) -> str:
     """Validate a skill category against the live published enum."""
     normalized = category.strip()
@@ -684,6 +693,9 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
                 if command.staged_loading is not None:
                     payload["staged_loading"] = _skill_staged_loading_payload(command.staged_loading)
                     payload["structured_metadata_authority"]["staged_loading"] = "mirrored"
+                if command.spawn_contracts:
+                    payload["spawn_contracts"] = _skill_spawn_contracts_payload(command.spawn_contracts)
+                    payload["structured_metadata_authority"]["spawn_contracts"] = "mirrored"
                 payload["allowed_tools"] = allowed_tools
             elif skill.source_kind == "agent":
                 agent = content_registry.get_agent(skill.registry_name)
@@ -861,6 +873,7 @@ def get_skill_index() -> dict:
                         "allowed_tools": _normalize_allowed_tools(command.allowed_tools),
                         "requires": copy.deepcopy(command.requires),
                         "has_review_contract": command.review_contract is not None,
+                        "has_spawn_contracts": bool(command.spawn_contracts),
                     }
 
             lines = ["# Available GPD Skills", "", _SKILL_BEHAVIORAL_GUARDRAIL_HINT, ""]
