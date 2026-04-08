@@ -31,7 +31,7 @@ class TestFindLatexCompiler:
         # Create a fake MiKTeX install directory
         miktex_bin = tmp_path / "MiKTeX" / "miktex" / "bin" / "x64"
         miktex_bin.mkdir(parents=True)
-        (miktex_bin / "pdflatex.exe").write_text("fake")
+        (miktex_bin / "pdflatex.exe").write_text("fake", encoding="utf-8")
 
         monkeypatch.setattr(
             "gpd.mcp.paper.compiler._WINDOWS_LATEX_SEARCH_DIRS",
@@ -51,7 +51,7 @@ class TestFindLatexCompiler:
         # Create a fake TeX Live install directory with year subdir
         tl_bin = tmp_path / "texlive" / "2024" / "bin" / "windows"
         tl_bin.mkdir(parents=True)
-        (tl_bin / "pdflatex.exe").write_text("fake")
+        (tl_bin / "pdflatex.exe").write_text("fake", encoding="utf-8")
 
         monkeypatch.setattr(
             "gpd.mcp.paper.compiler._WINDOWS_LATEX_SEARCH_DIRS",

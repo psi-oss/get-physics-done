@@ -670,7 +670,7 @@ class TestCheckProjectStructure:
         planning = tmp_path / "GPD"
         planning.mkdir()
         for f in REQUIRED_PLANNING_FILES:
-            (planning / f).write_text("stub")
+            (planning / f).write_text("stub", encoding="utf-8")
         for d in REQUIRED_PLANNING_DIRS:
             (planning / d).mkdir(parents=True, exist_ok=True)
         result = check_project_structure(tmp_path)
@@ -957,7 +957,7 @@ class TestCheckCompaction:
     def test_small_state_ok(self, tmp_path: Path):
         planning = tmp_path / "GPD"
         planning.mkdir()
-        (planning / "STATE.md").write_text("# State\nShort content\n")
+        (planning / "STATE.md").write_text("# State\nShort content\n", encoding="utf-8")
         result = check_compaction_needed(tmp_path)
         assert result.status == CheckStatus.OK
 
@@ -984,7 +984,7 @@ class TestCheckConventionLock:
     def test_no_convention_lock_key(self, tmp_path: Path):
         planning = tmp_path / "GPD"
         planning.mkdir()
-        (planning / "state.json").write_text(json.dumps({"position": {}}))
+        (planning / "state.json").write_text(json.dumps({"position": {}}), encoding="utf-8")
         result = check_convention_lock(tmp_path)
         assert result.status == CheckStatus.WARN
 
@@ -1072,7 +1072,7 @@ class TestCheckRoadmapConsistency:
     def test_roadmap_with_matching_phases(self, tmp_path: Path):
         planning = tmp_path / "GPD"
         planning.mkdir()
-        (planning / "ROADMAP.md").write_text("## Phase 1: Intro\n## Phase 2: Method\n")
+        (planning / "ROADMAP.md").write_text("## Phase 1: Intro\n## Phase 2: Method\n", encoding="utf-8")
         phases = planning / "phases"
         (phases / "1-intro").mkdir(parents=True)
         (phases / "2-method").mkdir(parents=True)
@@ -1093,8 +1093,8 @@ class TestCheckPlanFrontmatter:
         phase_dir.mkdir(parents=True)
         # Create plans with a gap: 01, 03 (missing 02)
         plan_content = _canonical_plan_frontmatter()
-        (phase_dir / "01-PLAN.md").write_text(plan_content)
-        (phase_dir / "03-PLAN.md").write_text(plan_content)
+        (phase_dir / "01-PLAN.md").write_text(plan_content, encoding="utf-8")
+        (phase_dir / "03-PLAN.md").write_text(plan_content, encoding="utf-8")
         result = check_plan_frontmatter(tmp_path)
         assert result.status == CheckStatus.WARN
         assert result.details["numbering_gaps"] >= 1
@@ -1106,9 +1106,9 @@ class TestCheckPlanFrontmatter:
         phase_dir = phases / "01-intro"
         phase_dir.mkdir(parents=True)
         plan_content = _canonical_plan_frontmatter()
-        (phase_dir / "01-PLAN.md").write_text(plan_content)
-        (phase_dir / "02-PLAN.md").write_text(plan_content)
-        (phase_dir / "03-PLAN.md").write_text(plan_content)
+        (phase_dir / "01-PLAN.md").write_text(plan_content, encoding="utf-8")
+        (phase_dir / "02-PLAN.md").write_text(plan_content, encoding="utf-8")
+        (phase_dir / "03-PLAN.md").write_text(plan_content, encoding="utf-8")
         result = check_plan_frontmatter(tmp_path)
         assert result.details["numbering_gaps"] == 0
         assert not any("Plan numbering gap" in w for w in result.warnings)
@@ -1133,7 +1133,7 @@ class TestCheckPlanFrontmatter:
             "---\n\n"
             "# Plan\n"
         )
-        (phase_dir / "01-PLAN.md").write_text(plan_content)
+        (phase_dir / "01-PLAN.md").write_text(plan_content, encoding="utf-8")
 
         result = check_plan_frontmatter(tmp_path)
 
@@ -1161,7 +1161,7 @@ class TestCheckPlanFrontmatter:
             "---\n\n"
             "# Plan\n"
         )
-        (phase_dir / "01-PLAN.md").write_text(plan_content)
+        (phase_dir / "01-PLAN.md").write_text(plan_content, encoding="utf-8")
 
         result = check_plan_frontmatter(tmp_path)
 

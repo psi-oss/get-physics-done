@@ -3123,8 +3123,8 @@ def _bootstrap_project_with_state(
     planning = tmp_path / "GPD"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
-    (planning / "PROJECT.md").write_text("# Project\nTest.\n")
-    (planning / "ROADMAP.md").write_text("# Roadmap\n")
+    (planning / "PROJECT.md").write_text("# Project\nTest.\n", encoding="utf-8")
+    (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
 
     state = state_dict or default_state_dict()
     pos = state.setdefault("position", {})
@@ -3184,8 +3184,8 @@ def test_state_compact_recovers_intent_before_reading(tmp_path):
     planning = tmp_path / "GPD"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
-    (planning / "PROJECT.md").write_text("# Project\nTest.\n")
-    (planning / "ROADMAP.md").write_text("# Roadmap\n")
+    (planning / "PROJECT.md").write_text("# Project\nTest.\n", encoding="utf-8")
+    (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
 
     # Write a STALE state.json with phase "01" (wrong)
     stale_state = default_state_dict()
@@ -3288,8 +3288,8 @@ def test_advance_plan_returns_error_when_fields_missing(tmp_path):
     planning = tmp_path / "GPD"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
-    (planning / "PROJECT.md").write_text("# Project\nTest.\n")
-    (planning / "ROADMAP.md").write_text("# Roadmap\n")
+    (planning / "PROJECT.md").write_text("# Project\nTest.\n", encoding="utf-8")
+    (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
 
     # A STATE.md that has no **Current Plan:** field at all
     md = "# Research State\n\n**Status:** Executing\n**Total Plans in Phase:** 3\n"
@@ -3321,8 +3321,8 @@ def test_advance_plan_marks_phase_complete_on_last_plan(tmp_path):
     planning = tmp_path / "GPD"
     planning.mkdir(exist_ok=True)
     (planning / "phases").mkdir(exist_ok=True)
-    (planning / "PROJECT.md").write_text("# Project\nTest.\n")
-    (planning / "ROADMAP.md").write_text("# Roadmap\n")
+    (planning / "PROJECT.md").write_text("# Project\nTest.\n", encoding="utf-8")
+    (planning / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
 
     md = generate_state_markdown(state)
     (planning / "STATE.md").write_text(md, encoding="utf-8")

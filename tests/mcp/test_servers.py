@@ -554,7 +554,7 @@ class TestConventionsServer:
                 "natural_units": "natural",
             }
         }
-        (planning / "state.json").write_text(json.dumps(state))
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
         result = convention_lock_status(str(tmp_path))
         assert result["set_count"] >= 2
         assert "metric_signature" in result["set_fields"]
@@ -572,7 +572,7 @@ class TestConventionsServer:
 
         planning = tmp_path / "GPD"
         planning.mkdir()
-        (planning / "state.json").write_text(json.dumps({}))
+        (planning / "state.json").write_text(json.dumps({}), encoding="utf-8")
 
         result = convention_set(str(tmp_path), "metric_signature", "(+,-,-,-)")
         assert result["status"] == "set"
@@ -584,7 +584,7 @@ class TestConventionsServer:
         planning = tmp_path / "GPD"
         planning.mkdir()
         state = {"convention_lock": {"metric_signature": "(+,-,-,-)"}}
-        (planning / "state.json").write_text(json.dumps(state))
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         result = convention_set(str(tmp_path), "metric_signature", "(-,+,+,+)")
         assert result["status"] == "already_set"
@@ -594,7 +594,7 @@ class TestConventionsServer:
 
         planning = tmp_path / "GPD"
         planning.mkdir()
-        (planning / "state.json").write_text(json.dumps({}))
+        (planning / "state.json").write_text(json.dumps({}), encoding="utf-8")
 
         result = convention_set(str(tmp_path), "custom:my_convention", "my_value")
         assert result["status"] == "set"
@@ -630,7 +630,7 @@ class TestConventionsServer:
 
         planning = tmp_path / "GPD"
         planning.mkdir()
-        (planning / "state.json").write_text(json.dumps({}))
+        (planning / "state.json").write_text(json.dumps({}), encoding="utf-8")
 
         result = convention_set(str(tmp_path), "custom:bad key", "my_value")
         assert "error" in result
@@ -643,7 +643,7 @@ class TestConventionsServer:
 
         planning = tmp_path / "GPD"
         planning.mkdir()
-        (planning / "state.json").write_text(json.dumps([1, 2, 3]))
+        (planning / "state.json").write_text(json.dumps([1, 2, 3]), encoding="utf-8")
         with pytest.raises(ValueError, match="not recoverable"):
             _load_lock_from_project(str(tmp_path))
 
@@ -653,7 +653,7 @@ class TestConventionsServer:
 
         planning = tmp_path / "GPD"
         planning.mkdir()
-        (planning / "state.json").write_text(json.dumps("just a string"))
+        (planning / "state.json").write_text(json.dumps("just a string"), encoding="utf-8")
         with pytest.raises(ValueError, match="not recoverable"):
             _load_lock_from_project(str(tmp_path))
 
@@ -663,7 +663,7 @@ class TestConventionsServer:
 
         planning = tmp_path / "GPD"
         planning.mkdir()
-        (planning / "state.json").write_text(json.dumps([1, 2, 3]))
+        (planning / "state.json").write_text(json.dumps([1, 2, 3]), encoding="utf-8")
         with pytest.raises(ValueError, match="not recoverable"):
             _update_lock_in_project(str(tmp_path), lambda lk: lk.metric_signature)
 
@@ -732,7 +732,7 @@ class TestConventionsServer:
 
         planning = tmp_path / "GPD"
         planning.mkdir()
-        (planning / "state.json").write_text("{bad json!!")
+        (planning / "state.json").write_text("{bad json!!", encoding="utf-8")
 
         result = convention_set(str(tmp_path), "metric_signature", "(+,-,-,-)")
         assert "error" in result
@@ -744,7 +744,7 @@ class TestConventionsServer:
 
         planning = tmp_path / "GPD"
         planning.mkdir()
-        (planning / "state.json").write_text(json.dumps({}))
+        (planning / "state.json").write_text(json.dumps({}), encoding="utf-8")
 
         result = convention_set(str(tmp_path), "custom:", "val")
         assert "error" in result
@@ -768,7 +768,7 @@ class TestConventionsServer:
 
         planning = tmp_path / "GPD"
         planning.mkdir()
-        (planning / "state.json").write_text("{bad json!!")
+        (planning / "state.json").write_text("{bad json!!", encoding="utf-8")
 
         result = convention_lock_status(str(tmp_path))
         assert "error" in result

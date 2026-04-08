@@ -77,18 +77,18 @@ def _setup_project(tmp_path: Path) -> Path:
     planning = tmp_path / "GPD"
     planning.mkdir()
     (planning / "phases").mkdir()
-    (planning / "PROJECT.md").write_text("# My Project\n")
+    (planning / "PROJECT.md").write_text("# My Project\n", encoding="utf-8")
     return tmp_path
 
 
 def _create_roadmap(tmp_path: Path, content: str = "# Roadmap\n## Phase 1\n") -> None:
     """Write ROADMAP.md."""
-    (tmp_path / "GPD" / "ROADMAP.md").write_text(content)
+    (tmp_path / "GPD" / "ROADMAP.md").write_text(content, encoding="utf-8")
 
 
 def _create_state(tmp_path: Path, state: dict[str, object]) -> None:
     """Write state.json."""
-    (tmp_path / "GPD" / "state.json").write_text(json.dumps(state))
+    (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
 def _create_phase(
@@ -104,13 +104,13 @@ def _create_phase(
     phase_dir = tmp_path / "GPD" / "phases" / name
     phase_dir.mkdir(parents=True, exist_ok=True)
     for i in range(1, plans + 1):
-        (phase_dir / f"{i:02d}-PLAN.md").write_text(f"Plan {i}\n")
+        (phase_dir / f"{i:02d}-PLAN.md").write_text(f"Plan {i}\n", encoding="utf-8")
     for i in range(1, summaries + 1):
-        (phase_dir / f"{i:02d}-SUMMARY.md").write_text(f"Summary {i}\n")
+        (phase_dir / f"{i:02d}-SUMMARY.md").write_text(f"Summary {i}\n", encoding="utf-8")
     if research:
-        (phase_dir / "RESEARCH.md").write_text("Research\n")
+        (phase_dir / "RESEARCH.md").write_text("Research\n", encoding="utf-8")
     if verification:
-        (phase_dir / "01-VERIFICATION.md").write_text("Verification\n")
+        (phase_dir / "01-VERIFICATION.md").write_text("Verification\n", encoding="utf-8")
     return phase_dir
 
 
@@ -225,7 +225,7 @@ def _create_todos(tmp_path: Path, count: int) -> None:
     pending = tmp_path / "GPD" / "todos" / "pending"
     pending.mkdir(parents=True, exist_ok=True)
     for i in range(count):
-        (pending / f"todo-{i}.md").write_text(f"Todo {i}\n")
+        (pending / f"todo-{i}.md").write_text(f"Todo {i}\n", encoding="utf-8")
 
 
 def _write_submission_review_package(
@@ -744,7 +744,7 @@ def test_referee_report_in_planning_root_suggests_response(tmp_path: Path) -> No
     root = _setup_project(tmp_path)
     _create_roadmap(root)
     _write_active_manuscript_entrypoint(root)
-    (root / "GPD" / "REFEREE-REPORT.md").write_text("Major revision needed.\n")
+    (root / "GPD" / "REFEREE-REPORT.md").write_text("Major revision needed.\n", encoding="utf-8")
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
     assert "respond-to-referees" in actions
@@ -756,7 +756,7 @@ def test_referee_report_in_canonical_gpd_root_suggests_response(tmp_path: Path) 
     root = _setup_project(tmp_path)
     _create_roadmap(root)
     _write_active_manuscript_entrypoint(root)
-    (root / "GPD" / "REFEREE-REPORT.md").write_text("Major revision needed.\n")
+    (root / "GPD" / "REFEREE-REPORT.md").write_text("Major revision needed.\n", encoding="utf-8")
 
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
@@ -1037,7 +1037,7 @@ def test_milestone_referee_report_namespace_does_not_trigger_response(tmp_path: 
     root = _setup_project(tmp_path)
     _create_roadmap(root)
     _write_active_manuscript_entrypoint(root)
-    (root / "GPD" / "v1-MILESTONE-REFEREE-REPORT.md").write_text("Milestone review only.\n")
+    (root / "GPD" / "v1-MILESTONE-REFEREE-REPORT.md").write_text("Milestone review only.\n", encoding="utf-8")
 
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
@@ -1052,7 +1052,7 @@ def test_legacy_lowercase_referee_report_locations_no_longer_trigger_response(tm
     paper_dir = root / "GPD" / "paper"
     paper_dir.mkdir(parents=True)
     _write_active_manuscript_entrypoint(root)
-    (paper_dir / "referee-report-1.md").write_text("Major revision needed.\n")
+    (paper_dir / "referee-report-1.md").write_text("Major revision needed.\n", encoding="utf-8")
 
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
@@ -1067,7 +1067,7 @@ def test_non_markdown_referee_report_does_not_trigger_response(tmp_path: Path) -
     reports_dir = root / "paper" / "referee-reports"
     reports_dir.mkdir(parents=True)
     _write_active_manuscript_entrypoint(root)
-    (reports_dir / "REFEREE-REPORT-1.txt").write_text("Major revision needed.\n")
+    (reports_dir / "REFEREE-REPORT-1.txt").write_text("Major revision needed.\n", encoding="utf-8")
 
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
@@ -1124,7 +1124,7 @@ def test_explore_mode_boosts_discussion(tmp_path: Path) -> None:
     """Explore mode should lower priority (boost) discuss-phase."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / "GPD" / "config.json").write_text(json.dumps({"research_mode": "explore"}))
+    (root / "GPD" / "config.json").write_text(json.dumps({"research_mode": "explore"}), encoding="utf-8")
     _create_phase(root, "01-setup", plans=2, summaries=0)
     _create_phase(root, "02-core")  # pending
     result = suggest_next(root)
@@ -1137,7 +1137,7 @@ def test_exploit_mode_boosts_execution(tmp_path: Path) -> None:
     """Exploit mode should lower priority (boost) execute-phase."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / "GPD" / "config.json").write_text(json.dumps({"research_mode": "exploit"}))
+    (root / "GPD" / "config.json").write_text(json.dumps({"research_mode": "exploit"}), encoding="utf-8")
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
@@ -1149,7 +1149,7 @@ def test_supervised_mode_penalizes_execution(tmp_path: Path) -> None:
     """Supervised autonomy mode should increase execution priority (penalize)."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / "GPD" / "config.json").write_text(json.dumps({"autonomy": "supervised"}))
+    (root / "GPD" / "config.json").write_text(json.dumps({"autonomy": "supervised"}), encoding="utf-8")
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
@@ -1161,7 +1161,7 @@ def test_yolo_mode_boosts_execution(tmp_path: Path) -> None:
     """YOLO mode should lower execution priority (boost)."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / "GPD" / "config.json").write_text(json.dumps({"autonomy": "yolo"}))
+    (root / "GPD" / "config.json").write_text(json.dumps({"autonomy": "yolo"}), encoding="utf-8")
     _create_phase(root, "01-setup", plans=2, summaries=0)
     result = suggest_next(root)
     execute = next((s for s in result.suggestions if s.action == "execute-phase"), None)
@@ -1223,7 +1223,7 @@ def test_adaptive_mode_without_lock_signal_boosts_discussion(tmp_path: Path) -> 
     """Adaptive mode should stay discussion-heavy until the method is locked by evidence."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / "GPD" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}))
+    (root / "GPD" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}), encoding="utf-8")
     _create_phase(root, "01-setup", plans=2, summaries=0)
     _create_phase(root, "02-core")
     result = suggest_next(root)
@@ -1237,7 +1237,7 @@ def test_adaptive_mode_with_decisive_evidence_boosts_execution_and_verification(
     """Adaptive mode should narrow only once decisive evidence or an explicit lock exists."""
     root = _setup_project(tmp_path)
     _create_roadmap(root)
-    (root / "GPD" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}))
+    (root / "GPD" / "config.json").write_text(json.dumps({"research_mode": "adaptive"}), encoding="utf-8")
     locked_phase = _create_phase(root, "00-scan", summaries=1)
     (locked_phase / "01-SUMMARY.md").write_text(
         """---

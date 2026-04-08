@@ -261,20 +261,20 @@ def gpd_project(tmp_path: Path) -> Path:
             "custom_conventions": {"my_custom": "value"},
         }
     )
-    (planning / "state.json").write_text(json.dumps(state, indent=2))
-    (planning / "STATE.md").write_text(generate_state_markdown(state))
+    (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+    (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
     (planning / "PROJECT.md").write_text(
-        "# Test Project\n\n## Core Research Question\nWhat is physics?\n"
+        "# Test Project\n\n## Core Research Question\nWhat is physics?\n", encoding="utf-8"
     )
     (planning / "REQUIREMENTS.md").write_text(
-        "# Requirements\n\n- [ ] **REQ-01**: Do the thing\n"
+        "# Requirements\n\n- [ ] **REQ-01**: Do the thing\n", encoding="utf-8"
     )
     (planning / "ROADMAP.md").write_text(
         "# Roadmap\n\n## Phase 1: Test Phase\nGoal: Test\nRequirements: REQ-01\n"
-        "\n## Phase 2: Phase Two\nGoal: More tests\nRequirements: REQ-01\n"
+        "\n## Phase 2: Phase Two\nGoal: More tests\nRequirements: REQ-01\n", encoding="utf-8"
     )
     (planning / "CONVENTIONS.md").write_text(
-        "# Conventions\n\n- Metric: (-,+,+,+)\n- Coordinates: Cartesian\n"
+        "# Conventions\n\n- Metric: (-,+,+,+)\n- Coordinates: Cartesian\n", encoding="utf-8"
     )
     (planning / "config.json").write_text(
         json.dumps(
@@ -290,15 +290,15 @@ def gpd_project(tmp_path: Path) -> Path:
                     "verifier": True,
                 },
             }
-        )
+        ), encoding="utf-8"
     )
 
     # Phase directories
     p1 = planning / "phases" / "01-test-phase"
     p1.mkdir(parents=True)
-    (p1 / "README.md").write_text("# Phase 1: Test Phase\n")
+    (p1 / "README.md").write_text("# Phase 1: Test Phase\n", encoding="utf-8")
     (p1 / "01-PLAN.md").write_text(
-        "---\nphase: '01'\nplan: '01'\nwave: 1\n---\n\n# Plan A\n\n## Tasks\n\n- Task 1\n"
+        "---\nphase: '01'\nplan: '01'\nwave: 1\n---\n\n# Plan A\n\n## Tasks\n\n- Task 1\n", encoding="utf-8"
     )
     (p1 / "01-SUMMARY.md").write_text(
         '---\nphase: "01"\nplan: "01"\ndepth: "full"\nprovides: ["main-module"]\ncompleted: "2026-03-22"\none-liner: "Set up project"\n'
@@ -309,12 +309,12 @@ def gpd_project(tmp_path: Path) -> Path:
         "methods:\n  added:\n    - finite-element\n"
         "conventions:\n  metric: (-,+,+,+)\n"
         "---\n\n# Summary\n\n**Set up the project.**\n\n"
-        "## Key Results\n\nWe got results.\n\n## Equations Derived\n\nE = mc^2\n"
+        "## Key Results\n\nWe got results.\n\n## Equations Derived\n\nE = mc^2\n", encoding="utf-8"
     )
 
     p2 = planning / "phases" / "02-phase-two"
     p2.mkdir(parents=True)
-    (p2 / "README.md").write_text("# Phase 2: Phase Two\n")
+    (p2 / "README.md").write_text("# Phase 2: Phase Two\n", encoding="utf-8")
 
     return tmp_path
 
@@ -2458,11 +2458,11 @@ class TestRegressionCheck:
 
     def test_regression_check_phase_scope(self, gpd_project: Path) -> None:
         p2 = gpd_project / "GPD" / "phases" / "02-phase-two"
-        (p2 / "01-PLAN.md").write_text("---\nphase: '02'\n---\n# Plan\n")
+        (p2 / "01-PLAN.md").write_text("---\nphase: '02'\n---\n# Plan\n", encoding="utf-8")
         (p2 / "01-SUMMARY.md").write_text(
             '---\nphase: "02"\nplan: "01"\n'
             "conventions:\n  metric: (+,-,-,-)\n"
-            "---\n\n# Summary\n"
+            "---\n\n# Summary\n", encoding="utf-8"
         )
 
         result = _invoke("--raw", "regression-check", "1")
@@ -2476,11 +2476,11 @@ class TestRegressionCheck:
         p2 = gpd_project / "GPD" / "phases" / "02-phase-two"
 
         # Make phase 2 look completed with a conflicting convention
-        (p2 / "01-PLAN.md").write_text("---\nphase: '02'\n---\n# Plan\n")
+        (p2 / "01-PLAN.md").write_text("---\nphase: '02'\n---\n# Plan\n", encoding="utf-8")
         (p2 / "01-SUMMARY.md").write_text(
             '---\nphase: "02"\nplan: "01"\n'
             "conventions:\n  metric: (+,-,-,-)\n"
-            "---\n\n# Summary\n"
+            "---\n\n# Summary\n", encoding="utf-8"
         )
 
         result = runner.invoke(app, ["--raw", "regression-check"], catch_exceptions=False)
@@ -2506,7 +2506,7 @@ class TestValidateReturn:
             '  status: completed\n  files_written: ["src/main.py"]\n'
             "  issues: []\n"
             '  next_actions: ["/gpd:verify-work 01"]\n'
-            "  duration_seconds: 120\n```\n"
+            "  duration_seconds: 120\n```\n", encoding="utf-8"
         )
         result = _invoke("--raw", "validate-return", str(return_file))
         parsed = json.loads(result.output)
@@ -2518,7 +2518,7 @@ class TestValidateReturn:
         return_file = gpd_project / "incomplete_return.md"
         return_file.write_text(
             "# Summary\n\n```yaml\ngpd_return:\n"
-            '  status: completed\n```\n'
+            '  status: completed\n```\n', encoding="utf-8"
         )
         result = runner.invoke(
             app,
@@ -2533,7 +2533,7 @@ class TestValidateReturn:
     def test_validate_return_no_block(self, gpd_project: Path) -> None:
         """A file without a gpd_return block should fail."""
         return_file = gpd_project / "no_block.md"
-        return_file.write_text("# Just a regular file\n\nNo return block here.\n")
+        return_file.write_text("# Just a regular file\n\nNo return block here.\n", encoding="utf-8")
         result = runner.invoke(
             app,
             ["--raw", "validate-return", str(return_file)],
@@ -2551,7 +2551,7 @@ class TestValidateReturn:
             "# Summary\n\n```yaml\ngpd_return:\n"
             '  status: banana\n  files_written: ["src/main.py"]\n'
             "  issues: []\n"
-            '  next_actions: ["/gpd:verify-work 01"]\n```\n'
+            '  next_actions: ["/gpd:verify-work 01"]\n```\n', encoding="utf-8"
         )
         result = runner.invoke(
             app,
@@ -2570,7 +2570,7 @@ class TestValidateReturn:
             "# Summary\n\n```yaml\ngpd_return:\n"
             '  status: completed\n  files_written: ["src/main.py"]\n'
             "  issues: []\n"
-            '  next_actions: ["/gpd:verify-work 01"]\n```\n'
+            '  next_actions: ["/gpd:verify-work 01"]\n```\n', encoding="utf-8"
         )
         result = _invoke("--raw", "validate-return", str(return_file))
         parsed = json.loads(result.output)
@@ -2601,7 +2601,7 @@ class TestValidateReturn:
             "      plan: 01\n"
             "      segment_id: seg-01\n"
             "      segment_status: paused\n"
-            "      checkpoint_reason: segment_boundary\n```\n"
+            "      checkpoint_reason: segment_boundary\n```\n", encoding="utf-8"
         )
         result = _invoke("--raw", "validate-return", str(return_file))
         parsed = json.loads(result.output)
@@ -2624,7 +2624,7 @@ class TestValidateReturn:
             "  next_actions: [\"/gpd:resume-work\"]\n"
             "  continuation_update:\n"
             "    execution_segment:\n"
-            "      current_cursor: 3\n```\n"
+            "      current_cursor: 3\n```\n", encoding="utf-8"
         )
         result = _invoke("--raw", "validate-return", str(return_file), expect_ok=False)
         assert result.exit_code == 1
@@ -2643,7 +2643,7 @@ class TestValidateReturn:
             "  next_actions: []\n"
             "  blockers:\n"
             "    - waiting on approval\n"
-            "  continuation_update: checkpoint\n```\n"
+            "  continuation_update: checkpoint\n```\n", encoding="utf-8"
         )
         result = runner.invoke(
             app,
@@ -3227,8 +3227,8 @@ class TestJsonCommands:
         f1 = gpd_project / "merge1.json"
         f2 = gpd_project / "merge2.json"
         out = gpd_project / "merged.json"
-        f1.write_text(json.dumps({"a": 1, "b": 2}))
-        f2.write_text(json.dumps({"c": 3, "d": 4}))
+        f1.write_text(json.dumps({"a": 1, "b": 2}), encoding="utf-8")
+        f2.write_text(json.dumps({"c": 3, "d": 4}), encoding="utf-8")
         result = _invoke(
             "--raw",
             "json",

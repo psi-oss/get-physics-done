@@ -763,7 +763,7 @@ class TestSafeParseFunctions:
     def test_safe_read_file_permission_error(self, tmp_path: Path) -> None:
         """Reading a file with permission error returns None."""
         f = tmp_path / "noperm.txt"
-        f.write_text("content")
+        f.write_text("content", encoding="utf-8")
         f.chmod(0o000)
         try:
             assert safe_read_file(f) is None

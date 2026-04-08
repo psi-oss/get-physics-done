@@ -112,7 +112,7 @@ class TestReadInstalledVersion:
     def test_fallback_to_version_file(self, tmp_path: Path) -> None:
         """When metadata returns dev version, falls back to VERSION file."""
         version_file = tmp_path / "VERSION"
-        version_file.write_text("1.2.3\n")
+        version_file.write_text("1.2.3\n", encoding="utf-8")
 
         with (
             patch("gpd.version.__version__", "0.0.0-dev"),
@@ -140,8 +140,8 @@ class TestReadInstalledVersion:
         codex_version = home / ".codex" / "get-physics-done" / "VERSION"
         claude_version.parent.mkdir(parents=True)
         codex_version.parent.mkdir(parents=True)
-        claude_version.write_text("1.0.0\n")
-        codex_version.write_text("2.0.0\n")
+        claude_version.write_text("1.0.0\n", encoding="utf-8")
+        codex_version.write_text("2.0.0\n", encoding="utf-8")
         _mark_complete_install(codex_version.parent.parent, runtime="codex")
 
         with (
@@ -160,8 +160,8 @@ class TestReadInstalledVersion:
         installed_codex_version = installed_codex_dir / "get-physics-done" / "VERSION"
         stale_claude_version.parent.mkdir(parents=True)
         installed_codex_version.parent.mkdir(parents=True)
-        stale_claude_version.write_text("1.0.0\n")
-        installed_codex_version.write_text("2.0.0\n")
+        stale_claude_version.write_text("1.0.0\n", encoding="utf-8")
+        installed_codex_version.write_text("2.0.0\n", encoding="utf-8")
         _mark_complete_install(installed_codex_dir, runtime="codex")
 
         with (
@@ -329,7 +329,7 @@ class TestDoCheck:
         """If cache file write fails (e.g., permissions), no crash."""
         # Point to a path that can't be written (parent is a file, not dir)
         blocker = tmp_path / "blocker"
-        blocker.write_text("I am a file")
+        blocker.write_text("I am a file", encoding="utf-8")
         cache_file = blocker / "subdir" / "gpd-update-check.json"
 
         with (
@@ -351,7 +351,7 @@ class TestMainThrottle:
         cache_dir = tmp_path / "GPD" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
-        cache_file.write_text(json.dumps({"checked": int(time.time()), "update_available": False}))
+        cache_file.write_text(json.dumps({"checked": int(time.time()), "update_available": False}), encoding="utf-8")
 
         with (
             patch(
@@ -371,7 +371,7 @@ class TestMainThrottle:
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
         stale_time = int(time.time()) - UPDATE_CHECK_TTL_SECONDS - 100
-        cache_file.write_text(json.dumps({"checked": stale_time, "update_available": False}))
+        cache_file.write_text(json.dumps({"checked": stale_time, "update_available": False}), encoding="utf-8")
 
         with (
             patch(
@@ -404,7 +404,7 @@ class TestMainThrottle:
         cache_dir = tmp_path / "GPD" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
-        cache_file.write_text("not json!")
+        cache_file.write_text("not json!", encoding="utf-8")
 
         with (
             patch(
@@ -438,7 +438,7 @@ class TestMainThrottle:
         cache_dir = tmp_path / "GPD" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
-        cache_file.write_text(json.dumps({"update_available": False}))
+        cache_file.write_text(json.dumps({"update_available": False}), encoding="utf-8")
 
         with (
             patch(
@@ -457,7 +457,7 @@ class TestMainThrottle:
         cache_dir = tmp_path / "GPD" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
-        cache_file.write_text(json.dumps({"checked": "not-a-number"}))
+        cache_file.write_text(json.dumps({"checked": "not-a-number"}), encoding="utf-8")
 
         with (
             patch(
@@ -649,7 +649,7 @@ class TestMainThrottle:
         cache_dir = tmp_path / "GPD" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
-        cache_file.write_text(json.dumps([1, 2, 3]))
+        cache_file.write_text(json.dumps([1, 2, 3]), encoding="utf-8")
 
         with (
             patch(
@@ -668,7 +668,7 @@ class TestMainThrottle:
         cache_dir = tmp_path / "GPD" / "cache"
         cache_dir.mkdir(parents=True)
         cache_file = cache_dir / "gpd-update-check.json"
-        cache_file.write_text(json.dumps("just a string"))
+        cache_file.write_text(json.dumps("just a string"), encoding="utf-8")
 
         with (
             patch(

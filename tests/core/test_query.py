@@ -52,7 +52,7 @@ def project_dir(tmp_path: Path) -> Path:
 
         We derived the bare Hamiltonian H = p^2/2m + V(x).
         The spectral gap is Delta = 1.5 eV.
-    """)
+    """), encoding="utf-8"
     )
 
     # Phase 02
@@ -75,7 +75,7 @@ def project_dir(tmp_path: Path) -> Path:
 
         Applied perturbation theory to obtain the effective Hamiltonian.
         The correction term is delta_H = g * V_1.
-    """)
+    """), encoding="utf-8"
     )
 
     # Phase 03
@@ -95,7 +95,7 @@ def project_dir(tmp_path: Path) -> Path:
 
         Computed the scattering amplitude T = -i * g^2 / (E - E_0).
         This uses the weak coupling approximation.
-    """)
+    """), encoding="utf-8"
     )
 
     return tmp_path
@@ -272,7 +272,7 @@ class TestCollectSummaries:
     def test_skips_parse_errors(self, tmp_path: Path) -> None:
         phases_dir = tmp_path / "GPD" / "phases" / "01-test"
         phases_dir.mkdir(parents=True)
-        (phases_dir / "01-01-SUMMARY.md").write_text("---\nbad: [yaml: {{\n---\n")
+        (phases_dir / "01-01-SUMMARY.md").write_text("---\nbad: [yaml: {{\n---\n", encoding="utf-8")
         summaries = collect_summaries(tmp_path)
         assert len(summaries) == 0
 
@@ -292,7 +292,7 @@ class TestCollectSummaries:
             # Phase 02 Summary
 
             This summary should still be collected.
-        """)
+        """), encoding="utf-8"
         )
 
         summaries = collect_summaries(tmp_path)
@@ -388,7 +388,7 @@ class TestQuery:
             # Phase 04 Summary
 
             Body text intentionally unrelated.
-        """)
+        """), encoding="utf-8"
         )
 
         result = query(project_dir, text="renormalization note")
@@ -408,7 +408,7 @@ class TestQuery:
             # Phase 04 Summary
 
             Structured provides entry.
-        """)
+        """), encoding="utf-8"
         )
 
         result = query(project_dir, provides="dated-result")
@@ -448,7 +448,7 @@ class TestQueryDeps:
             provides: bare-hamiltonian
             ---
             # Summary
-            """)
+            """), encoding="utf-8"
         )
 
         phase2 = tmp_path / "GPD" / "phases" / "02-core"
@@ -459,7 +459,7 @@ class TestQueryDeps:
             requires: bare-hamiltonian
             ---
             # Summary
-            """)
+            """), encoding="utf-8"
         )
 
         result = query_deps(tmp_path, "bare-hamiltonian")
@@ -478,7 +478,7 @@ class TestQueryDeps:
             provides: bare-hamiltonian
             ---
             # Summary
-            """)
+            """), encoding="utf-8"
         )
 
         phase2 = tmp_path / "GPD" / "phases" / "02-core"
@@ -489,7 +489,7 @@ class TestQueryDeps:
             requires: bare-hamiltonian
             ---
             # Summary
-            """)
+            """), encoding="utf-8"
         )
 
         result = query_deps(tmp_path, "bare hamiltonian")
@@ -509,7 +509,7 @@ class TestQueryDeps:
             provides: phase-10
             ---
             # Summary
-            """)
+            """), encoding="utf-8"
         )
 
         phase2 = tmp_path / "GPD" / "phases" / "02-core"
@@ -520,7 +520,7 @@ class TestQueryDeps:
             requires: phase-10
             ---
             # Summary
-            """)
+            """), encoding="utf-8"
         )
 
         result = query_deps(tmp_path, "phase-1")
@@ -537,7 +537,7 @@ class TestQueryDeps:
             provides: alpha
             ---
             # Summary
-            """)
+            """), encoding="utf-8"
         )
 
         phase2 = tmp_path / "GPD" / "phases" / "02-core"
@@ -550,7 +550,7 @@ class TestQueryDeps:
                 phase: phase-01-plan-01
             ---
             # Summary
-            """)
+            """), encoding="utf-8"
         )
 
         result = query_deps(tmp_path, "phase-01-plan-01")
@@ -568,7 +568,7 @@ class TestQueryDeps:
               - QED Feynman rules and conventions
             ---
             # Summary
-            """)
+            """), encoding="utf-8"
         )
 
         phase2 = tmp_path / "GPD" / "phases" / "02-core"
@@ -580,7 +580,7 @@ class TestQueryDeps:
               - "01-01: QED Feynman rules and conventions"
             ---
             # Summary
-            """)
+            """), encoding="utf-8"
         )
 
         result = query_deps(tmp_path, "QED Feynman rules and conventions")
@@ -600,7 +600,7 @@ class TestQueryDeps:
             provides: alpha
             ---
             # Summary
-            """)
+            """), encoding="utf-8"
         )
 
         phase3 = tmp_path / "GPD" / "phases" / "03-update"
@@ -611,7 +611,7 @@ class TestQueryDeps:
             provides: alpha
             ---
             # Summary
-            """)
+            """), encoding="utf-8"
         )
 
         result = query_deps(tmp_path, "alpha")
@@ -671,7 +671,7 @@ class TestQueryAssumptions:
             # Phase 05 Summary
 
             Body text intentionally unrelated.
-        """)
+        """), encoding="utf-8"
         )
 
         result = query_assumptions(project_dir, "adiabatic switching")

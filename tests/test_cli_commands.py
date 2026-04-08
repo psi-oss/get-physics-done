@@ -116,15 +116,15 @@ def gpd_project(tmp_path: Path) -> Path:
             "custom_conventions": {"my_custom": "value"},
         }
     )
-    (planning / "state.json").write_text(json.dumps(state, indent=2))
-    (planning / "STATE.md").write_text(generate_state_markdown(state))
-    (planning / "PROJECT.md").write_text("# Test Project\n\n## Core Research Question\nWhat is physics?\n")
-    (planning / "REQUIREMENTS.md").write_text("# Requirements\n\n- [ ] **REQ-01**: Do the thing\n")
+    (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+    (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
+    (planning / "PROJECT.md").write_text("# Test Project\n\n## Core Research Question\nWhat is physics?\n", encoding="utf-8")
+    (planning / "REQUIREMENTS.md").write_text("# Requirements\n\n- [ ] **REQ-01**: Do the thing\n", encoding="utf-8")
     (planning / "ROADMAP.md").write_text(
         "# Roadmap\n\n## Phase 1: Test Phase\nGoal: Test\nRequirements: REQ-01\n"
-        "\n## Phase 2: Phase Two\nGoal: More tests\nRequirements: REQ-01\n"
+        "\n## Phase 2: Phase Two\nGoal: More tests\nRequirements: REQ-01\n", encoding="utf-8"
     )
-    (planning / "CONVENTIONS.md").write_text("# Conventions\n\n- Metric: (-,+,+,+)\n- Coordinates: Cartesian\n")
+    (planning / "CONVENTIONS.md").write_text("# Conventions\n\n- Metric: (-,+,+,+)\n- Coordinates: Cartesian\n", encoding="utf-8")
     (planning / "config.json").write_text(
         json.dumps(
             {
@@ -139,13 +139,13 @@ def gpd_project(tmp_path: Path) -> Path:
                     "verifier": True,
                 },
             }
-        )
+        ), encoding="utf-8"
     )
 
     # Phase directories
     p1 = planning / "phases" / "01-test-phase"
     p1.mkdir(parents=True)
-    (p1 / "README.md").write_text("# Phase 1: Test Phase\n")
+    (p1 / "README.md").write_text("# Phase 1: Test Phase\n", encoding="utf-8")
     (p1 / "01-SUMMARY.md").write_text(
         "---\n"
         "phase: 01-test-phase\n"
@@ -154,7 +154,7 @@ def gpd_project(tmp_path: Path) -> Path:
         "provides: [executed plan summary]\n"
         "completed: 2026-03-10\n"
         "---\n\n"
-        "# Summary\n\nExecuted plan summary.\n"
+        "# Summary\n\nExecuted plan summary.\n", encoding="utf-8"
     )
     (p1 / "01-VERIFICATION.md").write_text(
         "---\n"
@@ -163,11 +163,11 @@ def gpd_project(tmp_path: Path) -> Path:
         "status: passed\n"
         "score: 1/1 checks passed\n"
         "---\n\n"
-        "# Verification\n\nVerified result.\n"
+        "# Verification\n\nVerified result.\n", encoding="utf-8"
     )
     p2 = planning / "phases" / "02-phase-two"
     p2.mkdir(parents=True)
-    (p2 / "README.md").write_text("# Phase 2: Phase Two\n")
+    (p2 / "README.md").write_text("# Phase 2: Phase Two\n", encoding="utf-8")
 
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()
@@ -264,7 +264,7 @@ def gpd_project(tmp_path: Path) -> Path:
 
     reports_dir = tmp_path / "reports"
     reports_dir.mkdir()
-    (reports_dir / "referee-report.md").write_text("# Referee Report\n\n1. Clarify the derivation.\n")
+    (reports_dir / "referee-report.md").write_text("# Referee Report\n\n1. Clarify the derivation.\n", encoding="utf-8")
 
     return tmp_path
 

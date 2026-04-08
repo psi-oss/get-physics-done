@@ -46,7 +46,7 @@ def _create_roadmap(tmp_path: Path, content: str) -> Path:
     """Write ROADMAP.md and return its path."""
     roadmap = tmp_path / "GPD" / "ROADMAP.md"
     roadmap.parent.mkdir(parents=True, exist_ok=True)
-    roadmap.write_text(textwrap.dedent(content))
+    roadmap.write_text(textwrap.dedent(content), encoding="utf-8")
     return roadmap
 
 
@@ -54,7 +54,7 @@ def _create_state(tmp_path: Path, content: str) -> Path:
     """Write STATE.md and return its path."""
     state = tmp_path / "GPD" / "STATE.md"
     state.parent.mkdir(parents=True, exist_ok=True)
-    state.write_text(textwrap.dedent(content))
+    state.write_text(textwrap.dedent(content), encoding="utf-8")
     return state
 
 
@@ -87,19 +87,19 @@ class TestProgressRenderNoMisleadingField:
         # Phase 1 -- two plans, one completed
         p1 = _create_phase_dir(tmp_path, "01-setup")
         (p1 / "a-PLAN.md").write_text(
-            "---\nwave: 1\nfiles_modified: []\ndepends_on: []\n---\n# Plan A\n"
+            "---\nwave: 1\nfiles_modified: []\ndepends_on: []\n---\n# Plan A\n", encoding="utf-8"
         )
         (p1 / "a-SUMMARY.md").write_text(
-            "---\none-liner: Done A\nstatus: complete\n---\n# Summary A\n"
+            "---\none-liner: Done A\nstatus: complete\n---\n# Summary A\n", encoding="utf-8"
         )
         (p1 / "b-PLAN.md").write_text(
-            "---\nwave: 1\nfiles_modified: []\ndepends_on: []\n---\n# Plan B\n"
+            "---\nwave: 1\nfiles_modified: []\ndepends_on: []\n---\n# Plan B\n", encoding="utf-8"
         )
 
         # Phase 2 -- one plan, not completed
         p2 = _create_phase_dir(tmp_path, "02-work")
         (p2 / "c-PLAN.md").write_text(
-            "---\nwave: 1\nfiles_modified: []\ndepends_on: []\n---\n# Plan C\n"
+            "---\nwave: 1\nfiles_modified: []\ndepends_on: []\n---\n# Plan C\n", encoding="utf-8"
         )
 
         result = progress_render(tmp_path, "json")
@@ -132,7 +132,7 @@ class TestValidatePhaseWavesUnreadablePlan:
 
         # Write a valid plan so the phase is discovered
         (phase_dir / "a-PLAN.md").write_text(
-            "---\nwave: 1\nfiles_modified: []\ndepends_on: []\n---\n# Valid plan\n"
+            "---\nwave: 1\nfiles_modified: []\ndepends_on: []\n---\n# Valid plan\n", encoding="utf-8"
         )
 
         # Write a binary-garbage plan that cannot be decoded as UTF-8
@@ -160,7 +160,7 @@ class TestPhasePlanIndexUnreadablePlan:
 
         # One valid plan
         (phase_dir / "a-PLAN.md").write_text(
-            "---\nwave: 1\nfiles_modified: []\ndepends_on: []\n---\n# Valid plan\n"
+            "---\nwave: 1\nfiles_modified: []\ndepends_on: []\n---\n# Valid plan\n", encoding="utf-8"
         )
 
         # One corrupt plan
@@ -197,7 +197,7 @@ class TestMilestoneCompleteUnreadableSummary:
 
         phase_dir = _create_phase_dir(tmp_path, "01-setup")
         (phase_dir / "a-PLAN.md").write_text(
-            "---\nwave: 1\nfiles_modified: []\ndepends_on: []\n---\n# Plan\n"
+            "---\nwave: 1\nfiles_modified: []\ndepends_on: []\n---\n# Plan\n", encoding="utf-8"
         )
 
         # Write a summary that looks correct to the file-system (right name,

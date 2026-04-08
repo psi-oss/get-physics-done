@@ -510,7 +510,7 @@ def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     )
 
     # Seed an initial commit so HEAD exists.
-    (tmp_path / "README.md").write_text("seed\n")
+    (tmp_path / "README.md").write_text("seed\n", encoding="utf-8")
     subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "init"],
@@ -520,8 +520,8 @@ def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     # Stage a GPD file and a non-GPD file.
     gpd_dir = tmp_path / "GPD"
     gpd_dir.mkdir()
-    (gpd_dir / "STATE.md").write_text("state\n")
-    (tmp_path / "real.txt").write_text("real\n")
+    (gpd_dir / "STATE.md").write_text("state\n", encoding="utf-8")
+    (tmp_path / "real.txt").write_text("real\n", encoding="utf-8")
     subprocess.run(["git", "add", "GPD/STATE.md", "real.txt"], cwd=tmp_path, check=True, capture_output=True)
 
     # Run the hook script.

@@ -107,7 +107,7 @@ class TestNormalization:
     def test_normalize_svg_no_converter(self, tmp_path, monkeypatch):
         src = tmp_path / "input" / "fig.svg"
         src.parent.mkdir()
-        src.write_text("<svg></svg>")
+        src.write_text("<svg></svg>", encoding="utf-8")
 
         out = tmp_path / "output"
 
@@ -135,7 +135,7 @@ class TestNormalization:
     ):
         src = tmp_path / "input" / "fig.svg"
         src.parent.mkdir()
-        src.write_text("<svg></svg>")
+        src.write_text("<svg></svg>", encoding="utf-8")
 
         out = tmp_path / "output"
 
@@ -170,7 +170,7 @@ class TestNormalization:
     def test_normalize_svg_reports_inkscape_stderr_and_cleans_partial_output(self, tmp_path, monkeypatch):
         src = tmp_path / "input" / "fig.svg"
         src.parent.mkdir()
-        src.write_text("<svg></svg>")
+        src.write_text("<svg></svg>", encoding="utf-8")
 
         out = tmp_path / "output"
 
@@ -190,7 +190,7 @@ class TestNormalization:
             export_arg = next(arg for arg in args if arg.startswith("--export-filename="))
             dest = Path(export_arg.split("=", 1)[1])
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text("partial pdf")
+            dest.write_text("partial pdf", encoding="utf-8")
             raise subprocess.CalledProcessError(
                 1,
                 args,
@@ -210,7 +210,7 @@ class TestNormalization:
     def test_normalize_svg_preserves_broken_cairosvg_import_error(self, tmp_path, monkeypatch):
         src = tmp_path / "input" / "fig.svg"
         src.parent.mkdir()
-        src.write_text("<svg></svg>")
+        src.write_text("<svg></svg>", encoding="utf-8")
 
         out = tmp_path / "output"
 

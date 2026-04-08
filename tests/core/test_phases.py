@@ -58,7 +58,7 @@ def _create_roadmap(tmp_path: Path, content: str) -> Path:
     """Write ROADMAP.md and return its path."""
     roadmap = tmp_path / "GPD" / "ROADMAP.md"
     roadmap.parent.mkdir(parents=True, exist_ok=True)
-    roadmap.write_text(textwrap.dedent(content))
+    roadmap.write_text(textwrap.dedent(content), encoding="utf-8")
     return roadmap
 
 
@@ -66,7 +66,7 @@ def _create_state(tmp_path: Path, content: str) -> Path:
     """Write STATE.md and return its path."""
     state = tmp_path / "GPD" / "STATE.md"
     state.parent.mkdir(parents=True, exist_ok=True)
-    state.write_text(textwrap.dedent(content))
+    state.write_text(textwrap.dedent(content), encoding="utf-8")
     return state
 
 
@@ -112,7 +112,7 @@ def _recording_file_lock(lock_calls: list[Path]):
 def test_find_phase_exact_match(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("plan content")
+    (phase_dir / "a-PLAN.md").write_text("plan content", encoding="utf-8")
 
     result = find_phase(tmp_path, "1")
     assert result is not None
@@ -127,8 +127,8 @@ def test_find_phase_exact_match(tmp_path: Path) -> None:
 def test_find_phase_with_summary(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "02-compute")
-    (phase_dir / "a-PLAN.md").write_text("plan")
-    (phase_dir / "SUMMARY.md").write_text("summary")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "SUMMARY.md").write_text("summary", encoding="utf-8")
 
     result = find_phase(tmp_path, "2")
     assert result is not None
@@ -157,8 +157,8 @@ def test_find_phase_no_phases_dir(tmp_path: Path) -> None:
 def test_find_phase_research_and_context(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "03-analysis")
-    (phase_dir / "RESEARCH.md").write_text("research")
-    (phase_dir / "CONTEXT.md").write_text("context")
+    (phase_dir / "RESEARCH.md").write_text("research", encoding="utf-8")
+    (phase_dir / "CONTEXT.md").write_text("context", encoding="utf-8")
 
     result = find_phase(tmp_path, "3")
     assert result is not None
@@ -272,8 +272,8 @@ def test_roadmap_analyze_basic(tmp_path: Path) -> None:
     )
 
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("plan")
-    (phase_dir / "a-SUMMARY.md").write_text("summary")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("summary", encoding="utf-8")
 
     result = roadmap_analyze(tmp_path)
     assert result.phase_count == 2
@@ -615,11 +615,11 @@ def test_phase_remove_rolls_back_roadmap_and_phase_tree_when_atomic_state_save_f
     )
     _seed_state_pair(tmp_path, current_phase="02", current_phase_name="Second", total_phases=3, status="in_progress")
     first_dir = _create_phase_dir(tmp_path, "01-first")
-    (first_dir / "01-01-PLAN.md").write_text("plan")
+    (first_dir / "01-01-PLAN.md").write_text("plan", encoding="utf-8")
     second_dir = _create_phase_dir(tmp_path, "02-second")
-    (second_dir / "02-01-PLAN.md").write_text("plan")
+    (second_dir / "02-01-PLAN.md").write_text("plan", encoding="utf-8")
     third_dir = _create_phase_dir(tmp_path, "03-third")
-    (third_dir / "03-01-PLAN.md").write_text("plan")
+    (third_dir / "03-01-PLAN.md").write_text("plan", encoding="utf-8")
 
     before_roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
     before_md = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
@@ -664,8 +664,8 @@ def test_phase_complete_uses_canonical_state_lock_and_locked_writer(tmp_path: Pa
     _write_state_pair(tmp_path, state)
 
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("plan")
-    (phase_dir / "a-SUMMARY.md").write_text("done")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
     _create_phase_dir(tmp_path, "02-build")
 
     lock_calls = _assert_canonical_state_lock_and_locked_writer(tmp_path, monkeypatch)
@@ -694,8 +694,8 @@ def test_phase_complete_rolls_back_roadmap_when_atomic_state_save_fails(
     )
     _seed_state_pair(tmp_path, current_phase="01", current_phase_name="Setup", total_phases=2, status="in_progress")
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("plan")
-    (phase_dir / "a-SUMMARY.md").write_text("done")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
     _create_phase_dir(tmp_path, "02-build")
 
     before_roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
@@ -720,8 +720,8 @@ def test_milestone_complete_uses_canonical_state_lock_and_locked_writer(tmp_path
     _write_state_pair(tmp_path, state)
 
     phase_dir = _create_phase_dir(tmp_path, "01-x")
-    (phase_dir / "a-PLAN.md").write_text("plan")
-    (phase_dir / "a-SUMMARY.md").write_text("---\none-liner: Did the thing\n---\n## Task 1\nDone")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("---\none-liner: Did the thing\n---\n## Task 1\nDone", encoding="utf-8")
 
     lock_calls = _assert_canonical_state_lock_and_locked_writer(tmp_path, monkeypatch)
     result = milestone_complete(tmp_path, "v1.0", name="Test Milestone")
@@ -745,8 +745,8 @@ def test_milestone_complete_rolls_back_archives_when_atomic_state_save_fails(
     )
     _seed_state_pair(tmp_path, total_phases=1)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "01-PLAN.md").write_text("plan")
-    (phase_dir / "01-SUMMARY.md").write_text("---\none-liner: Finished setup\n---\n\n# Summary\n")
+    (phase_dir / "01-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "01-SUMMARY.md").write_text("---\none-liner: Finished setup\n---\n\n# Summary\n", encoding="utf-8")
     audit_file = tmp_path / "GPD" / "v1.0-MILESTONE-AUDIT.md"
     audit_file.write_text("# Audit\n", encoding="utf-8")
 
@@ -781,8 +781,8 @@ def test_milestone_complete_rolls_back_partial_archives_when_audit_move_fails(
     )
     _seed_state_pair(tmp_path, total_phases=1)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "01-PLAN.md").write_text("plan")
-    (phase_dir / "01-SUMMARY.md").write_text("---\none-liner: Finished setup\n---\n\n# Summary\n")
+    (phase_dir / "01-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "01-SUMMARY.md").write_text("---\none-liner: Finished setup\n---\n\n# Summary\n", encoding="utf-8")
     audit_file = tmp_path / "GPD" / "v1.0-MILESTONE-AUDIT.md"
     audit_file.write_text("# Audit\n", encoding="utf-8")
     archive_dir = tmp_path / "GPD" / "milestones"
@@ -912,7 +912,7 @@ def test_phase_remove_renumber_same_slug(tmp_path: Path) -> None:
     phases_dir = tmp_path / "GPD" / "phases"
     for i in range(1, 4):
         d = _create_phase_dir(tmp_path, f"{str(i).zfill(2)}-work")
-        (d / f"{str(i).zfill(2)}-PLAN.md").write_text("plan")
+        (d / f"{str(i).zfill(2)}-PLAN.md").write_text("plan", encoding="utf-8")
 
     result = phase_remove(tmp_path, "1")
 
@@ -947,7 +947,7 @@ def test_phase_remove_decimal_renumber_same_slug(tmp_path: Path) -> None:
     _create_phase_dir(tmp_path, "03-base")
     for i in range(1, 4):
         d = _create_phase_dir(tmp_path, f"03.{i}-fix")
-        (d / f"03.{i}-PLAN.md").write_text("plan")
+        (d / f"03.{i}-PLAN.md").write_text("plan", encoding="utf-8")
 
     phase_remove(tmp_path, "3.1", force=True)
 
@@ -995,12 +995,12 @@ def test_phase_remove_integer_removes_descendant_subtree_and_clears_removed_curr
 
     phases_dir = tmp_path / "GPD" / "phases"
     setup_dir = _create_phase_dir(tmp_path, "01-setup")
-    (setup_dir / "01-01-PLAN.md").write_text("plan")
+    (setup_dir / "01-01-PLAN.md").write_text("plan", encoding="utf-8")
     _create_phase_dir(tmp_path, "02-main")
     _create_phase_dir(tmp_path, "02.1-hotfix")
     _create_phase_dir(tmp_path, "02.1.1-detail")
     validation_dir = _create_phase_dir(tmp_path, "03-validation")
-    (validation_dir / "03-01-PLAN.md").write_text("plan")
+    (validation_dir / "03-01-PLAN.md").write_text("plan", encoding="utf-8")
 
     phase_remove(tmp_path, "2")
 
@@ -1064,9 +1064,9 @@ def test_phase_remove_decimal_removes_descendants_and_renumbers_later_subtree_re
     _create_phase_dir(tmp_path, "03.1-fix")
     _create_phase_dir(tmp_path, "03.1.1-detail")
     followup_dir = _create_phase_dir(tmp_path, "03.2-follow-up")
-    (followup_dir / "03.2-01-PLAN.md").write_text("plan")
+    (followup_dir / "03.2-01-PLAN.md").write_text("plan", encoding="utf-8")
     detail_dir = _create_phase_dir(tmp_path, "03.2.1-follow-up-detail")
-    (detail_dir / "03.2.1-01-PLAN.md").write_text("plan")
+    (detail_dir / "03.2.1-01-PLAN.md").write_text("plan", encoding="utf-8")
 
     phase_remove(tmp_path, "3.1", force=True)
 
@@ -1138,7 +1138,7 @@ def test_phase_remove_with_summaries_needs_force(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(tmp_path, "### Phase 1: X\n**Goal:** x\n")
     phase_dir = _create_phase_dir(tmp_path, "01-x")
-    (phase_dir / "SUMMARY.md").write_text("done")
+    (phase_dir / "SUMMARY.md").write_text("done", encoding="utf-8")
 
     with pytest.raises(PhaseValidationError, match="force"):
         phase_remove(tmp_path, "1")
@@ -1162,8 +1162,8 @@ def test_phase_complete_success(tmp_path: Path) -> None:
     )
 
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("plan")
-    (phase_dir / "a-SUMMARY.md").write_text("done")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
     _create_phase_dir(tmp_path, "02-build")
 
     result = phase_complete(tmp_path, "1")
@@ -1202,8 +1202,8 @@ def test_phase_complete_uses_roadmap_for_unscaffolded_next_phase(tmp_path: Path)
     )
 
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("plan")
-    (phase_dir / "a-SUMMARY.md").write_text("done")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
 
     result = phase_complete(tmp_path, "1")
 
@@ -1226,7 +1226,7 @@ def test_phase_complete_not_found(tmp_path: Path) -> None:
 def test_phase_complete_incomplete(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("plan")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
 
     with pytest.raises(PhaseIncompleteError):
         phase_complete(tmp_path, "1")
@@ -1240,8 +1240,8 @@ def test_milestone_complete_success(tmp_path: Path) -> None:
     _create_roadmap(tmp_path, "## Milestone v1.0: Test\n### Phase 1: X\n**Goal:** x\n")
 
     phase_dir = _create_phase_dir(tmp_path, "01-x")
-    (phase_dir / "a-PLAN.md").write_text("plan")
-    (phase_dir / "a-SUMMARY.md").write_text("---\none-liner: Did the thing\n---\n## Task 1\nDone")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("---\none-liner: Did the thing\n---\n## Task 1\nDone", encoding="utf-8")
 
     result = milestone_complete(tmp_path, "v1.0", name="Test Milestone")
     assert result.version == "v1.0"
@@ -1268,8 +1268,8 @@ def test_milestone_complete_counts_unscaffolded_roadmap_phases(tmp_path: Path) -
     )
 
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("plan")
-    (phase_dir / "a-SUMMARY.md").write_text("---\none-liner: Done\n---\n")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("---\none-liner: Done\n---\n", encoding="utf-8")
 
     with pytest.raises(MilestoneIncompleteError):
         milestone_complete(tmp_path, "v1.0", name="Test")
@@ -1280,7 +1280,7 @@ def test_milestone_complete_incomplete_phases(tmp_path: Path) -> None:
     _create_roadmap(tmp_path, "## v1.0\n")
 
     phase_dir = _create_phase_dir(tmp_path, "01-x")
-    (phase_dir / "a-PLAN.md").write_text("plan")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
 
     with pytest.raises(MilestoneIncompleteError):
         milestone_complete(tmp_path, "v1.0")
@@ -1322,10 +1322,10 @@ def test_phase_remove_remaps_current_phase_state_after_renumbering(tmp_path: Pat
 
     _create_phase_dir(tmp_path, "01-setup")
     derivation_dir = _create_phase_dir(tmp_path, "02-derivation")
-    (derivation_dir / "02-01-PLAN.md").write_text("plan")
-    (derivation_dir / "02-02-PLAN.md").write_text("plan")
+    (derivation_dir / "02-01-PLAN.md").write_text("plan", encoding="utf-8")
+    (derivation_dir / "02-02-PLAN.md").write_text("plan", encoding="utf-8")
     validation_dir = _create_phase_dir(tmp_path, "03-validation")
-    (validation_dir / "03-01-PLAN.md").write_text("plan")
+    (validation_dir / "03-01-PLAN.md").write_text("plan", encoding="utf-8")
 
     phase_remove(tmp_path, "2")
 
@@ -1376,9 +1376,9 @@ def test_phase_remove_integer_renumbers_decimal_roadmap_references(tmp_path: Pat
 
     _create_phase_dir(tmp_path, "01-setup")
     main_dir = _create_phase_dir(tmp_path, "02-main")
-    (main_dir / "02-01-PLAN.md").write_text("plan")
+    (main_dir / "02-01-PLAN.md").write_text("plan", encoding="utf-8")
     hotfix_dir = _create_phase_dir(tmp_path, "02.1-hotfix")
-    (hotfix_dir / "02.1-01-PLAN.md").write_text("plan")
+    (hotfix_dir / "02.1-01-PLAN.md").write_text("plan", encoding="utf-8")
 
     phase_remove(tmp_path, "1")
 
@@ -1419,8 +1419,8 @@ def test_progress_render_json(tmp_path: Path) -> None:
     _create_roadmap(tmp_path, "## v1.0: Test\n")
 
     phase_dir = _create_phase_dir(tmp_path, "01-x")
-    (phase_dir / "a-PLAN.md").write_text("plan")
-    (phase_dir / "a-SUMMARY.md").write_text("done")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
 
     result = progress_render(tmp_path, "json")
     assert result.percent == 100
@@ -1433,7 +1433,7 @@ def test_progress_render_bar(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(tmp_path, "## v1.0: Test\n")
     phase_dir = _create_phase_dir(tmp_path, "01-x")
-    (phase_dir / "a-PLAN.md").write_text("plan")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
 
     result = progress_render(tmp_path, "bar")
     assert result.percent == 0
@@ -1444,8 +1444,8 @@ def test_progress_render_table(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     _create_roadmap(tmp_path, "## v1.0: Test\n")
     phase_dir = _create_phase_dir(tmp_path, "01-x")
-    (phase_dir / "a-PLAN.md").write_text("plan")
-    (phase_dir / "a-SUMMARY.md").write_text("done")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
 
     result = progress_render(tmp_path, "table")
     assert "| Phase |" in result.rendered
@@ -1458,8 +1458,8 @@ def test_progress_render_table(tmp_path: Path) -> None:
 def test_phase_plan_index_basic(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("---\nwave: 1\n---\n## Task 1\nDo stuff")
-    (phase_dir / "b-PLAN.md").write_text("---\nwave: 2\ndepends_on: [a]\n---\n## Task 1\nMore stuff")
+    (phase_dir / "a-PLAN.md").write_text("---\nwave: 1\n---\n## Task 1\nDo stuff", encoding="utf-8")
+    (phase_dir / "b-PLAN.md").write_text("---\nwave: 2\ndepends_on: [a]\n---\n## Task 1\nMore stuff", encoding="utf-8")
 
     result = phase_plan_index(tmp_path, "1")
     assert result.phase == "01"
@@ -1472,8 +1472,8 @@ def test_phase_plan_index_basic(tmp_path: Path) -> None:
 def test_phase_plan_index_rejects_scalar_dependency_fields(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("---\nwave: 1\ndepends_on: []\nfiles_modified: []\n---\n## Task 1\nDo stuff")
-    (phase_dir / "b-PLAN.md").write_text("---\nwave: 2\ndepends_on: a\nfiles_modified: []\n---\n## Task 1\nMore stuff")
+    (phase_dir / "a-PLAN.md").write_text("---\nwave: 1\ndepends_on: []\nfiles_modified: []\n---\n## Task 1\nDo stuff", encoding="utf-8")
+    (phase_dir / "b-PLAN.md").write_text("---\nwave: 2\ndepends_on: a\nfiles_modified: []\n---\n## Task 1\nMore stuff", encoding="utf-8")
 
     result = phase_plan_index(tmp_path, "1")
     assert result.validation.valid is False
@@ -1493,7 +1493,7 @@ def test_phase_plan_index_detects_checkpoint_tasks_without_interactive_flag(tmp_
               <name>Review the checkpoint</name>
             </task>
             """
-        )
+        ), encoding="utf-8"
     )
 
     result = phase_plan_index(tmp_path, "1")
@@ -1504,7 +1504,7 @@ def test_phase_plan_index_detects_checkpoint_tasks_without_interactive_flag(tmp_
 def test_validate_phase_waves_reports_malformed_frontmatter(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("---\nwave: [\n---\n## Task 1\nDo stuff")
+    (phase_dir / "a-PLAN.md").write_text("---\nwave: [\n---\n## Task 1\nDo stuff", encoding="utf-8")
 
     result = validate_phase_waves(tmp_path, "1")
     assert result.validation.valid is False
@@ -1514,7 +1514,7 @@ def test_validate_phase_waves_reports_malformed_frontmatter(tmp_path: Path) -> N
 def test_validate_phase_waves_rejects_coercive_wave_values(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("---\nwave: true\n---\n## Task 1\nDo stuff")
+    (phase_dir / "a-PLAN.md").write_text("---\nwave: true\n---\n## Task 1\nDo stuff", encoding="utf-8")
 
     result = validate_phase_waves(tmp_path, "1")
 
@@ -1525,7 +1525,7 @@ def test_validate_phase_waves_rejects_coercive_wave_values(tmp_path: Path) -> No
 def test_phase_plan_index_rejects_coercive_wave_values(tmp_path: Path) -> None:
     _setup_project(tmp_path)
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("---\nwave: 1.5\n---\n## Task 1\nDo stuff")
+    (phase_dir / "a-PLAN.md").write_text("---\nwave: 1.5\n---\n## Task 1\nDo stuff", encoding="utf-8")
 
     result = phase_plan_index(tmp_path, "1")
 
@@ -1572,8 +1572,8 @@ def test_phase_complete_sets_current_plan_to_em_dash(tmp_path: Path) -> None:
     )
 
     phase_dir = _create_phase_dir(tmp_path, "01-setup")
-    (phase_dir / "a-PLAN.md").write_text("plan")
-    (phase_dir / "a-SUMMARY.md").write_text("done")
+    (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase_dir / "a-SUMMARY.md").write_text("done", encoding="utf-8")
     _create_phase_dir(tmp_path, "02-build")
 
     phase_complete(tmp_path, "1")

@@ -168,15 +168,15 @@ def gpd_project(tmp_path: Path) -> Path:
     planning.mkdir()
 
     # Write state files
-    (planning / "state.json").write_text(json.dumps(_STATE_JSON, indent=2))
-    (planning / "STATE.md").write_text(_STATE_MD)
+    (planning / "state.json").write_text(json.dumps(_STATE_JSON, indent=2), encoding="utf-8")
+    (planning / "STATE.md").write_text(_STATE_MD, encoding="utf-8")
 
     # Create phase directory with plans and one summary
     phase_dir = planning / "phases" / "01-setup"
     phase_dir.mkdir(parents=True)
     for i in range(1, 4):
-        (phase_dir / f"plan-{i:02d}.md").write_text(f"# Plan {i}\nDo step {i}.")
-    (phase_dir / "summary-01.md").write_text("# Summary 1\nCompleted step 1.")
+        (phase_dir / f"plan-{i:02d}.md").write_text(f"# Plan {i}\nDo step {i}.", encoding="utf-8")
+    (phase_dir / "summary-01.md").write_text("# Summary 1\nCompleted step 1.", encoding="utf-8")
 
     return tmp_path
 

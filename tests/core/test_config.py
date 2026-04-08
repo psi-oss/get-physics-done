@@ -124,7 +124,7 @@ class TestLoadConfig:
 
     def test_empty_object(self, tmp_path: Path):
         (tmp_path / "GPD").mkdir()
-        (tmp_path / "GPD" / "config.json").write_text("{}")
+        (tmp_path / "GPD" / "config.json").write_text("{}", encoding="utf-8")
         cfg = load_config(tmp_path)
         assert cfg.model_profile == ModelProfile.REVIEW
 
@@ -143,7 +143,7 @@ class TestLoadConfig:
                         "session_usd_budget": 2.25,
                     },
                 }
-            )
+            ), encoding="utf-8"
         )
         cfg = load_config(tmp_path)
         assert cfg.model_profile == ModelProfile.DEEP_THEORY
@@ -164,7 +164,7 @@ class TestLoadConfig:
         invalid_value: str,
     ) -> None:
         (tmp_path / "GPD").mkdir()
-        (tmp_path / "GPD" / "config.json").write_text(json.dumps({"autonomy": invalid_value}))
+        (tmp_path / "GPD" / "config.json").write_text(json.dumps({"autonomy": invalid_value}), encoding="utf-8")
 
         with pytest.raises(ConfigError, match="Invalid config.json values"):
             load_config(tmp_path)
@@ -177,7 +177,7 @@ class TestLoadConfig:
     ) -> None:
         (tmp_path / "GPD").mkdir()
         (tmp_path / "GPD" / "config.json").write_text(
-            json.dumps({"execution": {"project_usd_budget": invalid_budget}}),
+            json.dumps({"execution": {"project_usd_budget": invalid_budget}}),, encoding="utf-8"
         )
 
         with pytest.raises(ConfigError, match="Invalid config.json values"):
@@ -197,7 +197,7 @@ class TestLoadConfig:
                     "git": {"branching_strategy": "per-phase"},
                     "workflow": {"research": False, "verifier": False},
                 }
-            )
+            ), encoding="utf-8"
         )
         cfg = load_config(tmp_path)
         assert cfg.commit_docs is False
@@ -214,7 +214,7 @@ class TestLoadConfig:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         (tmp_path / "GPD").mkdir()
-        (tmp_path / "GPD" / "config.json").write_text(json.dumps({"commit_docs": True}))
+        (tmp_path / "GPD" / "config.json").write_text(json.dumps({"commit_docs": True}), encoding="utf-8")
         monkeypatch.setattr("gpd.core.config._planning_dir_is_gitignored", lambda _: True)
 
         cfg = load_config(tmp_path)
@@ -223,7 +223,7 @@ class TestLoadConfig:
 
     def test_malformed_json_raises(self, tmp_path: Path):
         (tmp_path / "GPD").mkdir()
-        (tmp_path / "GPD" / "config.json").write_text("{bad json")
+        (tmp_path / "GPD" / "config.json").write_text("{bad json", encoding="utf-8")
         with pytest.raises(ConfigError, match="Malformed config.json"):
             load_config(tmp_path)
 
@@ -244,7 +244,7 @@ class TestLoadConfig:
             for descriptor in _RUNTIME_DESCRIPTORS
         }
         (tmp_path / "GPD" / "config.json").write_text(
-            json.dumps({"model_overrides": overrides})
+            json.dumps({"model_overrides": overrides}), encoding="utf-8"
         )
         cfg = load_config(tmp_path)
         assert cfg.model_overrides == overrides
@@ -252,7 +252,7 @@ class TestLoadConfig:
     def test_invalid_model_overrides_runtime_raises(self, tmp_path: Path):
         (tmp_path / "GPD").mkdir()
         (tmp_path / "GPD" / "config.json").write_text(
-            json.dumps({"model_overrides": {"unknown-runtime": {"tier-1": "foo"}}})
+            json.dumps({"model_overrides": {"unknown-runtime": {"tier-1": "foo"}}}), encoding="utf-8"
         )
         with pytest.raises(ConfigError, match="model_overrides contains unknown runtime"):
             load_config(tmp_path)
@@ -261,7 +261,7 @@ class TestLoadConfig:
         runtime_name = _RUNTIME_DESCRIPTORS[0].runtime_name
         (tmp_path / "GPD").mkdir()
         (tmp_path / "GPD" / "config.json").write_text(
-            json.dumps({"model_overrides": {runtime_name: {"tier-x": "foo"}}})
+            json.dumps({"model_overrides": {runtime_name: {"tier-x": "foo"}}}), encoding="utf-8"
         )
         expected_match = re.escape(f"model_overrides['{runtime_name}'] contains unknown tier")
         with pytest.raises(ConfigError, match=expected_match):
@@ -275,7 +275,7 @@ class TestLoadConfig:
         runtime_name = _RUNTIME_DESCRIPTORS[0].runtime_name
         (tmp_path / "GPD").mkdir()
         (tmp_path / "GPD" / "config.json").write_text(
-            json.dumps({"model_overrides": {runtime_name: {"tier-1": "gpt-5.4"}}})
+            json.dumps({"model_overrides": {runtime_name: {"tier-1": "gpt-5.4"}}}), encoding="utf-8"
         )
 
         _valid_runtime_names.cache_clear()
@@ -409,7 +409,7 @@ class TestResolveModel:
                         for runtime_descriptor in _RUNTIME_DESCRIPTORS
                     },
                 }
-            )
+            ), encoding="utf-8"
         )
         model = resolve_model(tmp_path, "gpd-planner", runtime=descriptor.runtime_name)
         assert model == f"{descriptor.runtime_name}-tier-1"
@@ -427,7 +427,7 @@ class TestResolveModel:
                         foreign_descriptor.runtime_name: {"tier-1": f"{foreign_descriptor.runtime_name}-tier-1"}
                     }
                 }
-            )
+            ), encoding="utf-8"
         )
         model = resolve_model(tmp_path, "gpd-planner", runtime=descriptor.runtime_name)
         assert model is None
@@ -446,7 +446,7 @@ class TestResolveModel:
                         descriptor.runtime_name: {"tier-1": f"{descriptor.runtime_name}-tier-1"}
                     }
                 }
-            )
+            ), encoding="utf-8"
         )
 
         model = resolve_model(tmp_path, "gpd-planner", runtime=display_name)
@@ -458,7 +458,7 @@ class TestResolveTier:
     def test_project_resolve_tier_uses_profile(self, tmp_path: Path):
         (tmp_path / "GPD").mkdir()
         (tmp_path / "GPD" / "config.json").write_text(
-            json.dumps({"model_profile": "paper-writing"})
+            json.dumps({"model_profile": "paper-writing"}), encoding="utf-8"
         )
         tier = resolve_tier(tmp_path, "gpd-project-researcher")
         assert tier == ModelTier.TIER_3

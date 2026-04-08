@@ -2268,7 +2268,7 @@ class TestVerifyReferences:
         from gpd.core.frontmatter import verify_references
 
         f = tmp_path / "test.md"
-        f.write_text("No file refs here.\n")
+        f.write_text("No file refs here.\n", encoding="utf-8")
         result = verify_references(tmp_path, f)
         assert result.valid is True
         assert result.total == 0
@@ -2277,9 +2277,9 @@ class TestVerifyReferences:
         from gpd.core.frontmatter import verify_references
 
         (tmp_path / "src").mkdir()
-        (tmp_path / "src" / "main.py").write_text("print('hi')")
+        (tmp_path / "src" / "main.py").write_text("print('hi')", encoding="utf-8")
         f = tmp_path / "test.md"
-        f.write_text("See `src/main.py` for details.\n")
+        f.write_text("See `src/main.py` for details.\n", encoding="utf-8")
         result = verify_references(tmp_path, f)
         assert result.valid is True
         assert result.found == 1
@@ -2288,7 +2288,7 @@ class TestVerifyReferences:
         from gpd.core.frontmatter import verify_references
 
         f = tmp_path / "test.md"
-        f.write_text("See `src/missing.py` for details.\n")
+        f.write_text("See `src/missing.py` for details.\n", encoding="utf-8")
         result = verify_references(tmp_path, f)
         assert result.valid is False
         assert "src/missing.py" in result.missing
@@ -2297,9 +2297,9 @@ class TestVerifyReferences:
         from gpd.core.frontmatter import verify_references
 
         (tmp_path / "docs").mkdir()
-        (tmp_path / "docs" / "README.md").write_text("# Docs")
+        (tmp_path / "docs" / "README.md").write_text("# Docs", encoding="utf-8")
         f = tmp_path / "test.md"
-        f.write_text("@docs/README.md\n")
+        f.write_text("@docs/README.md\n", encoding="utf-8")
         result = verify_references(tmp_path, f)
         assert result.valid is True
         assert result.found == 1
@@ -2308,7 +2308,7 @@ class TestVerifyReferences:
         from gpd.core.frontmatter import verify_references
 
         f = tmp_path / "test.md"
-        f.write_text("See `http://example.com/foo.py`.\n")
+        f.write_text("See `http://example.com/foo.py`.\n", encoding="utf-8")
         result = verify_references(tmp_path, f)
         assert result.total == 0
 
@@ -2316,7 +2316,7 @@ class TestVerifyReferences:
         from gpd.core.frontmatter import verify_references
 
         f = tmp_path / "test.md"
-        f.write_text("Use `${PROJECT}/src/foo.py` or `{{base}}/bar.py`.\n")
+        f.write_text("Use `${PROJECT}/src/foo.py` or `{{base}}/bar.py`.\n", encoding="utf-8")
         result = verify_references(tmp_path, f)
         assert result.total == 0
 
@@ -2339,16 +2339,16 @@ class TestVerifyArtifacts:
         from gpd.core.frontmatter import verify_artifacts
 
         f = tmp_path / "plan.md"
-        f.write_text("---\ntitle: test\n---\n\nNo artifacts.\n")
+        f.write_text("---\ntitle: test\n---\n\nNo artifacts.\n", encoding="utf-8")
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is False
         assert any("contract not found" in issue.lower() for artifact in result.artifacts for issue in artifact.issues)
 
     def test_contract_deliverable_exists(self, tmp_path):
         (tmp_path / "figures").mkdir()
-        (tmp_path / "figures" / "main.png").write_text("figure-bytes")
+        (tmp_path / "figures" / "main.png").write_text("figure-bytes", encoding="utf-8")
         f = tmp_path / "plan.md"
-        f.write_text(_valid_plan_contract_frontmatter() + "Body.\n")
+        f.write_text(_valid_plan_contract_frontmatter() + "Body.\n", encoding="utf-8")
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is True
         assert result.passed_count == 1
@@ -2377,7 +2377,7 @@ class TestVerifyArtifacts:
     def test_contract_deliverable_without_verifiable_path_fails_closed(self, tmp_path):
         f = tmp_path / "plan.md"
         content = _valid_plan_contract_frontmatter().replace("      path: figures/main.png\n", "", 1) + "Body.\n"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
 
         result = verify_artifacts(tmp_path, f)
 
@@ -2390,29 +2390,29 @@ class TestVerifyArtifacts:
 
     def test_contract_deliverable_missing(self, tmp_path):
         f = tmp_path / "plan.md"
-        f.write_text(_valid_plan_contract_frontmatter() + "Body.\n")
+        f.write_text(_valid_plan_contract_frontmatter() + "Body.\n", encoding="utf-8")
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is False
 
     def test_contract_deliverable_must_contain_check(self, tmp_path):
         (tmp_path / "figures").mkdir()
-        (tmp_path / "figures" / "main.png").write_text("benchmark evidence\nreference within tolerance\n")
+        (tmp_path / "figures" / "main.png").write_text("benchmark evidence\nreference within tolerance\n", encoding="utf-8")
         f = tmp_path / "plan.md"
         content = _valid_plan_contract_frontmatter(
             deliverable_must_contain=["benchmark evidence", "reference within tolerance"]
         ) + "Body.\n"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is True
 
     def test_contract_deliverable_missing_required_fragment(self, tmp_path):
         (tmp_path / "figures").mkdir()
-        (tmp_path / "figures" / "main.png").write_text("benchmark evidence only\n")
+        (tmp_path / "figures" / "main.png").write_text("benchmark evidence only\n", encoding="utf-8")
         f = tmp_path / "plan.md"
         content = _valid_plan_contract_frontmatter(
             deliverable_must_contain=["benchmark evidence", "reference within tolerance"]
         ) + "Body.\n"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is False
         assert any("Missing pattern: reference within tolerance" in i for a in result.artifacts for i in a.issues)
@@ -2440,7 +2440,7 @@ class TestVerifyArtifacts:
             "    disconfirming_observations: [The expected benchmark target is not the decisive observable]\n"
             "---\n\nBody.\n"
         )
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         result = verify_artifacts(tmp_path, f)
         assert result.all_passed is False
         assert any("missing claims" in issue for artifact in result.artifacts for issue in artifact.issues)
@@ -2529,7 +2529,7 @@ class TestVerifyPlanStructure:
             "</task>\n"
         )
         f = tmp_path / "plan.md"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         result = verify_plan_structure(tmp_path, f)
         assert result.valid is True
         assert result.task_count == 1
@@ -2540,7 +2540,7 @@ class TestVerifyPlanStructure:
         from gpd.core.frontmatter import verify_plan_structure
 
         f = tmp_path / "plan.md"
-        f.write_text("---\nphase: 01-test\n---\n\nBody.\n")
+        f.write_text("---\nphase: 01-test\n---\n\nBody.\n", encoding="utf-8")
         result = verify_plan_structure(tmp_path, f)
         assert result.valid is False
         assert any("Missing required" in e for e in result.errors)
@@ -2556,7 +2556,7 @@ class TestVerifyPlanStructure:
             "</task>\n"
         )
         f = tmp_path / "plan.md"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         result = verify_plan_structure(tmp_path, f)
         assert any("missing <name>" in e for e in result.errors)
 
@@ -2565,7 +2565,7 @@ class TestVerifyPlanStructure:
 
         content = _valid_plan_contract_frontmatter().replace("wave: 1\n", "wave: 2\n") + "Body.\n"
         f = tmp_path / "plan.md"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         result = verify_plan_structure(tmp_path, f)
         assert any("Wave > 1" in w for w in result.warnings)
 
@@ -2581,7 +2581,7 @@ class TestVerifyPlanStructure:
             "</task>\n"
         )
         f = tmp_path / "plan.md"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         result = verify_plan_structure(tmp_path, f)
         assert any("checkpoint" in e.lower() for e in result.errors)
 
@@ -2600,7 +2600,7 @@ class TestVerifyPlanStructure:
             "</task>\n"
         )
         f = tmp_path / "plan.md"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         result = verify_plan_structure(tmp_path, f)
         assert any("interactive is true" in e for e in result.errors)
 
@@ -2635,7 +2635,7 @@ class TestVerifyPlanStructure:
             "</task>\n"
         )
         f = tmp_path / "plan.md"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         result = verify_plan_structure(tmp_path, f)
         assert result.valid is False
         assert any("contract: missing acceptance_tests" in error for error in result.errors)
@@ -2702,7 +2702,7 @@ class TestVerifyPlanStructure:
             "</task>\n"
         )
         f = tmp_path / "plan.md"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         result = verify_plan_structure(tmp_path, f)
         assert result.valid is False
         assert any("applies_to unknown target claim-missing" in error for error in result.errors)
@@ -2724,7 +2724,7 @@ class TestVerifyPlanStructure:
             + "</task>\n"
         )
         f = tmp_path / "plan.md"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
         result = verify_plan_structure(tmp_path, f)
         assert result.valid is False
         assert any(error.startswith("must_haves:") for error in result.errors)
@@ -2757,7 +2757,7 @@ class TestVerifyPlanStructure:
             + "</task>\n"
         )
         f = tmp_path / "plan.md"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
 
         result = verify_plan_structure(tmp_path, f)
 
@@ -2778,7 +2778,7 @@ class TestVerifyPlanStructure:
             + "</task>\n"
         )
         f = tmp_path / "plan.md"
-        f.write_text(content)
+        f.write_text(content, encoding="utf-8")
 
         result = verify_plan_structure(tmp_path, f)
 

@@ -73,7 +73,7 @@ class TestGenerateSlug:
 
 class TestVerifyPathExists:
     def test_file_exists(self, tmp_path: Path):
-        (tmp_path / "test.txt").write_text("hello")
+        (tmp_path / "test.txt").write_text("hello", encoding="utf-8")
         result = cmd_verify_path_exists(tmp_path, "test.txt")
         assert result.exists is True
         assert result.type == "file"
@@ -91,7 +91,7 @@ class TestVerifyPathExists:
 
     def test_absolute_path(self, tmp_path: Path):
         f = tmp_path / "abs.txt"
-        f.write_text("content")
+        f.write_text("content", encoding="utf-8")
         result = cmd_verify_path_exists(tmp_path, str(f))
         assert result.exists is True
 
@@ -106,7 +106,7 @@ class TestVerifyPathExists:
 class TestSummaryExtract:
     def _write_summary(self, tmp_path: Path, content: str) -> str:
         summary = tmp_path / "test-SUMMARY.md"
-        summary.write_text(content)
+        summary.write_text(content, encoding="utf-8")
         return "test-SUMMARY.md"
 
     def test_basic_extract(self, tmp_path: Path):
@@ -253,7 +253,7 @@ class TestHistoryDigest:
             "patterns-established:\n  - test-driven\n"
             "key-decisions:\n  - Use Python 3.11\n"
             "methods:\n  added:\n    - spectral-method\n"
-            "---\n\n# Setup Summary\n"
+            "---\n\n# Setup Summary\n", encoding="utf-8"
         )
         (phases_dir / "02-core" / "02-SUMMARY.md").write_text(
             "---\n"
@@ -261,7 +261,7 @@ class TestHistoryDigest:
             "phase: 2\n"
             "provides:\n  - solver\n"
             "patterns-established:\n  - convention-lock\n"
-            "---\n\n# Core Summary\n"
+            "---\n\n# Core Summary\n", encoding="utf-8"
         )
 
     def test_full_digest(self, tmp_path: Path):
@@ -337,9 +337,9 @@ class TestRegressionCheck:
         for name in ("01-setup", "02-core"):
             d = phases / name
             d.mkdir(parents=True)
-            (d / f"{name}-01-PLAN.md").write_text("---\nwave: 1\n---\n\n# Plan\n")
+            (d / f"{name}-01-PLAN.md").write_text("---\nwave: 1\n---\n\n# Plan\n", encoding="utf-8")
             (d / f"{name}-01-SUMMARY.md").write_text(
-                f"---\nphase: {name[:2]}\nconventions:\n  - metric = mostly-minus\n---\n\n# Summary\n"
+                f"---\nphase: {name[:2]}\nconventions:\n  - metric = mostly-minus\n---\n\n# Summary\n", encoding="utf-8"
             )
 
     def test_passing_check(self, tmp_path: Path):
@@ -353,7 +353,7 @@ class TestRegressionCheck:
         # Add a conflicting convention in phase 2
         phase2_dir = tmp_path / "GPD" / "phases" / "02-core"
         (phase2_dir / "02-core-01-SUMMARY.md").write_text(
-            "---\nconventions:\n  - metric = mostly-plus\n---\n\n# Summary\n"
+            "---\nconventions:\n  - metric = mostly-plus\n---\n\n# Summary\n", encoding="utf-8"
         )
         result = cmd_regression_check(tmp_path)
         assert result.passed is False
@@ -365,7 +365,7 @@ class TestRegressionCheck:
         self._setup_complete_phases(tmp_path)
         phase1_dir = tmp_path / "GPD" / "phases" / "01-setup"
         (phase1_dir / "01-setup-VERIFICATION.md").write_text(
-            "---\nstatus: gaps_found\nscore: 2/5 checks verified\n---\n\n# Verification\n"
+            "---\nstatus: gaps_found\nscore: 2/5 checks verified\n---\n\n# Verification\n", encoding="utf-8"
         )
         result = cmd_regression_check(tmp_path)
         assert result.passed is False
@@ -377,7 +377,7 @@ class TestRegressionCheck:
         self._setup_complete_phases(tmp_path)
         phase2_dir = tmp_path / "GPD" / "phases" / "02-core"
         (phase2_dir / "02-core-01-SUMMARY.md").write_text(
-            "---\nconventions:\n  - metric = mostly-plus\n---\n\n# Summary\n"
+            "---\nconventions:\n  - metric = mostly-plus\n---\n\n# Summary\n", encoding="utf-8"
         )
         result = cmd_regression_check(tmp_path, phase="1")
         assert result.passed is True
@@ -387,7 +387,7 @@ class TestRegressionCheck:
         self._setup_complete_phases(tmp_path)
         phase1_dir = tmp_path / "GPD" / "phases" / "01-setup"
         (phase1_dir / "01-setup-VERIFICATION.md").write_text(
-            "---\nstatus: validating\nscore: 2/5 checks verified\n---\n\n# Verification\n"
+            "---\nstatus: validating\nscore: 2/5 checks verified\n---\n\n# Verification\n", encoding="utf-8"
         )
         result = cmd_regression_check(tmp_path)
         assert result.passed is False
@@ -402,8 +402,8 @@ class TestRegressionCheck:
             name = f"{str(i).zfill(2)}-phase{i}"
             d = phases / name
             d.mkdir(parents=True)
-            (d / f"{name}-01-PLAN.md").write_text("---\nwave: 1\n---\n")
-            (d / f"{name}-01-SUMMARY.md").write_text(f"---\nphase: {i}\n---\n")
+            (d / f"{name}-01-PLAN.md").write_text("---\nwave: 1\n---\n", encoding="utf-8")
+            (d / f"{name}-01-SUMMARY.md").write_text(f"---\nphase: {i}\n---\n", encoding="utf-8")
         result = cmd_regression_check(tmp_path, quick=True)
         assert result.phases_checked == 2
 
@@ -419,7 +419,7 @@ class TestRegressionCheck:
 class TestValidateReturn:
     def _write_return(self, tmp_path: Path, yaml_block: str) -> Path:
         f = tmp_path / "output.md"
-        f.write_text(f"# Result\n\n```yaml\n{yaml_block}```\n")
+        f.write_text(f"# Result\n\n```yaml\n{yaml_block}```\n", encoding="utf-8")
         return f
 
     def test_valid_return(self, tmp_path: Path):
@@ -515,7 +515,7 @@ class TestValidateReturn:
 
     def test_no_return_block(self, tmp_path: Path):
         f = tmp_path / "no_return.md"
-        f.write_text("# Just a regular file\n\nNo gpd_return here.\n")
+        f.write_text("# Just a regular file\n\nNo gpd_return here.\n", encoding="utf-8")
         result = cmd_validate_return(f)
         assert result.passed is False
         assert "No gpd_return YAML block found" in result.errors

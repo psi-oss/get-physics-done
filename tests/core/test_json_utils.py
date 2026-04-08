@@ -151,7 +151,7 @@ def test_json_set_creates_file(tmp_path):
 
 def test_json_set_updates_existing(tmp_path):
     fp = tmp_path / "data.json"
-    fp.write_text(json.dumps({"existing": "val"}))
+    fp.write_text(json.dumps({"existing": "val"}), encoding="utf-8")
     json_set(str(fp), "new_key", "new_val")
     data = json.loads(fp.read_text())
     assert data["existing"] == "val"
@@ -189,7 +189,7 @@ def test_json_set_malformed_existing_json_does_not_overwrite_file(tmp_path):
 def test_json_set_out_of_range_index_no_write(tmp_path):
     """json_set must not write when a list index is out of range (updated=False)."""
     fp = tmp_path / 'data.json'
-    fp.write_text(json.dumps({'items': ['a', 'b']}))
+    fp.write_text(json.dumps({'items': ['a', 'b']}), encoding="utf-8")
     original = fp.read_text()
     result = json_set(str(fp), 'items[99]', '"new"')
     assert result['updated'] is False
@@ -200,7 +200,7 @@ def test_json_set_out_of_range_index_no_write(tmp_path):
 def test_json_set_out_of_range_deep_nested_no_write(tmp_path):
     """Deeply nested list with OOB index must not rewrite the file."""
     fp = tmp_path / 'data.json'
-    fp.write_text(json.dumps({"root": {"nested": {"arr": ["only_one"]}}}))
+    fp.write_text(json.dumps({"root": {"nested": {"arr": ["only_one"]}}}), encoding="utf-8")
     original = fp.read_text()
     result = json_set(str(fp), 'root.nested.arr[99]', '"val"')
     assert result['updated'] is False
@@ -210,7 +210,7 @@ def test_json_set_out_of_range_deep_nested_no_write(tmp_path):
 def test_json_set_out_of_range_negative_index_no_write(tmp_path):
     """Negative out-of-range list index must not rewrite the file."""
     fp = tmp_path / 'data.json'
-    fp.write_text(json.dumps({'arr': ['only']}))
+    fp.write_text(json.dumps({'arr': ['only']}), encoding="utf-8")
     original = fp.read_text()
     result = json_set(str(fp), 'arr[-99]', '"val"')
     assert result['updated'] is False
@@ -223,8 +223,8 @@ def test_json_set_out_of_range_negative_index_no_write(tmp_path):
 def test_json_merge_files_basic(tmp_path):
     f1 = tmp_path / "a.json"
     f2 = tmp_path / "b.json"
-    f1.write_text(json.dumps({"task_1": "abc"}))
-    f2.write_text(json.dumps({"task_2": "def"}))
+    f1.write_text(json.dumps({"task_1": "abc"}), encoding="utf-8")
+    f2.write_text(json.dumps({"task_2": "def"}), encoding="utf-8")
     out = str(tmp_path / "merged.json")
     result = json_merge_files(out, [str(f1), str(f2)])
     assert result["merged"] == 2
@@ -235,8 +235,8 @@ def test_json_merge_files_basic(tmp_path):
 def test_json_merge_files_overwrites_on_conflict(tmp_path):
     f1 = tmp_path / "a.json"
     f2 = tmp_path / "b.json"
-    f1.write_text(json.dumps({"key": "old"}))
-    f2.write_text(json.dumps({"key": "new"}))
+    f1.write_text(json.dumps({"key": "old"}), encoding="utf-8")
+    f2.write_text(json.dumps({"key": "new"}), encoding="utf-8")
     out = str(tmp_path / "merged.json")
     json_merge_files(out, [str(f1), str(f2)])
     merged = json.loads(Path(out).read_text())
@@ -245,7 +245,7 @@ def test_json_merge_files_overwrites_on_conflict(tmp_path):
 
 def test_json_merge_files_skips_missing(tmp_path):
     f1 = tmp_path / "a.json"
-    f1.write_text(json.dumps({"only": "this"}))
+    f1.write_text(json.dumps({"only": "this"}), encoding="utf-8")
     out = str(tmp_path / "merged.json")
     json_merge_files(out, [str(f1), str(tmp_path / "nonexistent.json")])
     merged = json.loads(Path(out).read_text())
@@ -359,8 +359,8 @@ def test_cli_json_merge_files(tmp_path):
     f1 = tmp_path / "a.json"
     f2 = tmp_path / "b.json"
     out = tmp_path / "out.json"
-    f1.write_text(json.dumps({"x": 1}))
-    f2.write_text(json.dumps({"y": 2}))
+    f1.write_text(json.dumps({"x": 1}), encoding="utf-8")
+    f2.write_text(json.dumps({"y": 2}), encoding="utf-8")
     result = runner.invoke(app, ["json", "merge-files", "--out", str(out), str(f1), str(f2)])
     assert result.exit_code == 0
     data = json.loads(out.read_text())

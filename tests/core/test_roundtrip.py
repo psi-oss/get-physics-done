@@ -47,14 +47,14 @@ def _create_phase(tmp_path: Path, name: str) -> Path:
 def _write_roadmap(tmp_path: Path, content: str) -> Path:
     p = tmp_path / "GPD" / "ROADMAP.md"
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(textwrap.dedent(content))
+    p.write_text(textwrap.dedent(content), encoding="utf-8")
     return p
 
 
 def _write_state(tmp_path: Path, content: str) -> Path:
     p = tmp_path / "GPD" / "STATE.md"
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(textwrap.dedent(content))
+    p.write_text(textwrap.dedent(content), encoding="utf-8")
     return p
 
 
@@ -116,7 +116,7 @@ class TestPhaseLifecycle:
         )
         for num, name in [("01", "setup"), ("02", "derivation"), ("03", "validation")]:
             d = _create_phase(tmp_path, f"{num}-{name}")
-            (d / f"{num}-01-PLAN.md").write_text("# Plan 1")
+            (d / f"{num}-01-PLAN.md").write_text("# Plan 1", encoding="utf-8")
             (d / f"{num}-01-SUMMARY.md").write_text(
                 f'---\nphase: "{num}"\nplan: "01"\ndepth: full\nprovides: []\ncompleted: "2026-02-23"\none-liner: "Summary {num}"\n---\n\n# Summary 1\n',
                 encoding="utf-8",
@@ -178,7 +178,7 @@ class TestPhaseRemoveRenumber:
         _setup_project(tmp_path)
         for num, name in [("01", "setup"), ("02", "derivation"), ("03", "validation")]:
             d = _create_phase(tmp_path, f"{num}-{name}")
-            (d / f"{num}-01-PLAN.md").write_text("# Plan")
+            (d / f"{num}-01-PLAN.md").write_text("# Plan", encoding="utf-8")
         _write_roadmap(
             tmp_path,
             """\
@@ -232,7 +232,7 @@ class TestPhaseRemoveRenumber:
     def test_refuses_remove_with_summaries_without_force(self, tmp_path: Path) -> None:
         self._create_fixture(tmp_path)
         d = tmp_path / "GPD" / "phases" / "02-derivation"
-        (d / "02-01-SUMMARY.md").write_text("# Summary")
+        (d / "02-01-SUMMARY.md").write_text("# Summary", encoding="utf-8")
 
         with pytest.raises(Exception, match="force"):
             phase_remove(tmp_path, "2")
@@ -372,7 +372,7 @@ class TestMultiLevelDecimalPhases:
             "03-results",
         ]:
             d = _create_phase(tmp_path, name)
-            (d / "PLAN.md").write_text("---\n---\n# Plan\n")
+            (d / "PLAN.md").write_text("---\n---\n# Plan\n", encoding="utf-8")
 
         result = list_phases(tmp_path)
         dirs = result.directories
@@ -439,9 +439,9 @@ class TestMilestoneLifecycle:
         # Create phases with plans and summaries
         for num, name in [("01", "setup"), ("02", "build")]:
             d = _create_phase(tmp_path, f"{num}-{name}")
-            (d / f"{num}-01-PLAN.md").write_text("---\nwave: 1\n---\n# Plan\n## Task 1\nDo it")
+            (d / f"{num}-01-PLAN.md").write_text("---\nwave: 1\n---\n# Plan\n## Task 1\nDo it", encoding="utf-8")
             (d / f"{num}-01-SUMMARY.md").write_text(
-                f'---\none-liner: "Phase {num} done"\ncompleted: 2026-02-23\n---\n# Summary'
+                f'---\none-liner: "Phase {num} done"\ncompleted: 2026-02-23\n---\n# Summary', encoding="utf-8"
             )
 
         # Complete phases
@@ -471,7 +471,7 @@ class TestMilestoneLifecycle:
         _write_roadmap(tmp_path, "## v1.0\n")
 
         d = _create_phase(tmp_path, "01-x")
-        (d / "a-PLAN.md").write_text("plan")
+        (d / "a-PLAN.md").write_text("plan", encoding="utf-8")
         # No summary — phase incomplete
 
         with pytest.raises(MilestoneIncompleteError):
@@ -483,9 +483,9 @@ class TestMilestoneLifecycle:
         _write_roadmap(tmp_path, "## Milestone v1.0: Core\n### Phase 1: X\n**Goal:** x\n")
 
         d = _create_phase(tmp_path, "01-x")
-        (d / "a-PLAN.md").write_text("plan")
+        (d / "a-PLAN.md").write_text("plan", encoding="utf-8")
         (d / "a-SUMMARY.md").write_text(
-            '---\none-liner: "Established ground state framework"\ncompleted: 2026-02-23\n---\n'
+            '---\none-liner: "Established ground state framework"\ncompleted: 2026-02-23\n---\n', encoding="utf-8"
         )
 
         result = milestone_complete(tmp_path, "v1.0", name="Core")
@@ -504,11 +504,11 @@ class TestProgressRoundTrip:
         _write_roadmap(tmp_path, "## v1.0: Test\n")
 
         d1 = _create_phase(tmp_path, "01-first")
-        (d1 / "a-PLAN.md").write_text("plan")
-        (d1 / "a-SUMMARY.md").write_text("done")
+        (d1 / "a-PLAN.md").write_text("plan", encoding="utf-8")
+        (d1 / "a-SUMMARY.md").write_text("done", encoding="utf-8")
 
         d2 = _create_phase(tmp_path, "02-second")
-        (d2 / "a-PLAN.md").write_text("plan")
+        (d2 / "a-PLAN.md").write_text("plan", encoding="utf-8")
 
         json_result = progress_render(tmp_path, "json")
         assert json_result.percent == 50
@@ -541,11 +541,11 @@ class TestPlanIndexWaveValidation:
         d = _create_phase(tmp_path, "01-setup")
 
         # Wave 1: two independent plans
-        (d / "a-PLAN.md").write_text("---\nwave: 1\ndepends_on: []\n---\n## Task 1\nFirst")
-        (d / "b-PLAN.md").write_text("---\nwave: 1\ndepends_on: []\n---\n## Task 1\nSecond")
+        (d / "a-PLAN.md").write_text("---\nwave: 1\ndepends_on: []\n---\n## Task 1\nFirst", encoding="utf-8")
+        (d / "b-PLAN.md").write_text("---\nwave: 1\ndepends_on: []\n---\n## Task 1\nSecond", encoding="utf-8")
 
         # Wave 2: depends on both wave 1 plans
-        (d / "c-PLAN.md").write_text("---\nwave: 2\ndepends_on:\n  - a\n  - b\n---\n## Task 1\nThird")
+        (d / "c-PLAN.md").write_text("---\nwave: 2\ndepends_on:\n  - a\n  - b\n---\n## Task 1\nThird", encoding="utf-8")
 
         index = phase_plan_index(tmp_path, "1")
         assert len(index.plans) == 3
@@ -562,9 +562,9 @@ class TestPlanIndexWaveValidation:
         """
         _setup_project(tmp_path)
         d = _create_phase(tmp_path, "01-setup")
-        (d / "a-PLAN.md").write_text('---\nwave: 1\ndepends_on: []\nfiles_modified: ["src/main.py"]\n---\n# A\n')
+        (d / "a-PLAN.md").write_text('---\nwave: 1\ndepends_on: []\nfiles_modified: ["src/main.py"]\n---\n# A\n', encoding="utf-8")
         (d / "b-PLAN.md").write_text(
-            '---\nwave: 1\ndepends_on: []\nfiles_modified: ["src/main.py", "src/test.py"]\n---\n# B\n'
+            '---\nwave: 1\ndepends_on: []\nfiles_modified: ["src/main.py", "src/test.py"]\n---\n# B\n', encoding="utf-8"
         )
 
         index = phase_plan_index(tmp_path, "1")
@@ -576,7 +576,7 @@ class TestPlanIndexWaveValidation:
         d = _create_phase(tmp_path, "01-setup")
         for name in ["a", "b", "c"]:
             (d / f"{name}-PLAN.md").write_text(
-                f'---\nwave: 1\ndepends_on: []\nfiles_modified: ["shared.py"]\n---\n# {name.upper()}\n'
+                f'---\nwave: 1\ndepends_on: []\nfiles_modified: ["shared.py"]\n---\n# {name.upper()}\n', encoding="utf-8"
             )
 
         index = phase_plan_index(tmp_path, "1")
@@ -601,7 +601,7 @@ class TestCrossModuleConsistency:
             """,
         )
         d = _create_phase(tmp_path, "01-quantum-setup")
-        (d / "a-PLAN.md").write_text("plan")
+        (d / "a-PLAN.md").write_text("plan", encoding="utf-8")
 
         found = find_phase(tmp_path, "1")
         assert found is not None
@@ -623,7 +623,7 @@ class TestCrossModuleConsistency:
             """,
         )
         d = _create_phase(tmp_path, "01-quantum-setup")
-        (d / "a-PLAN.md").write_text("plan")
+        (d / "a-PLAN.md").write_text("plan", encoding="utf-8")
 
         found = find_phase(tmp_path, "1")
         assert found is not None
@@ -653,8 +653,8 @@ class TestCrossModuleConsistency:
         )
 
         d1 = _create_phase(tmp_path, "01-done")
-        (d1 / "a-PLAN.md").write_text("plan")
-        (d1 / "a-SUMMARY.md").write_text("done")
+        (d1 / "a-PLAN.md").write_text("plan", encoding="utf-8")
+        (d1 / "a-SUMMARY.md").write_text("done", encoding="utf-8")
 
         _create_phase(tmp_path, "02-pending")
 
