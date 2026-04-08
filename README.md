@@ -555,6 +555,7 @@ Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 1.1.0). h
 Papers that cite or acknowledge use of GPD. If your paper should be listed here, open a pull request.
 
 - C. Ferko, J. Halverson, V. Jejjala and B. Robinson, *Topological Effects in Neural Network Field Theory* (2026), [arXiv:2604.02313](https://arxiv.org/abs/2604.02313).
+- V. G. Filev, *Holographic entanglement entropy, Wilson loops, and neural networks* (2026), [arXiv:2604.05970](https://arxiv.org/abs/2604.05970).
 
 ## Star History
 
