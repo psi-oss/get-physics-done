@@ -45,6 +45,8 @@ from gpd.core.contract_validation import validate_project_contract
 from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import GPDError, ValidationError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, validate_frontmatter
+from gpd.core.knowledge_migration import discover_knowledge_migration
+from gpd.core.knowledge_runtime import discover_knowledge_docs
 from gpd.core.observability import gpd_span
 from gpd.core.public_surface_contract import (
     local_cli_doctor_global_command,
@@ -185,6 +187,101 @@ def check_project_structure(cwd: Path) -> HealthCheck:
 
     status = CheckStatus.FAIL if issues else CheckStatus.OK
     return HealthCheck(status=status, label="Project Structure", details=details, issues=issues)
+
+
+def check_knowledge_inventory(cwd: Path) -> HealthCheck:
+    """Summarize knowledge-doc inventory, freshness, and supersession health."""
+    from gpd.core.tool_preflight import build_plan_tool_preflight
+
+    layout = ProjectLayout(cwd)
+    knowledge_dir = layout.knowledge_dir
+    discovery = discover_knowledge_docs(cwd)
+    migration_inventory = discover_knowledge_migration(cwd)
+    by_id = discovery.by_id()
+
+    stable_records = [record for record in discovery.records if record.status == "stable"]
+    active_records = [record for record in discovery.records if record.runtime_active]
+    stale_review_records = [
+        record
+        for record in stable_records
+        if record.review_fresh is False or record.runtime_active is False
+    ]
+    broken_supersession_records = [
+        record
+        for record in discovery.records
+        if record.status == "superseded" and record.superseded_by not in by_id
+    ]
+    plans_with_knowledge_deps: list[str] = []
+    plan_knowledge_issue_files: list[str] = []
+    plan_knowledge_dependency_issue_count = 0
+    plan_knowledge_blocker_count = 0
+    plan_knowledge_warning_count = 0
+    plan_dependency_warnings: list[str] = []
+
+    if layout.phases_dir.is_dir():
+        phase_dirs = sorted((d for d in layout.phases_dir.iterdir() if d.is_dir()), key=lambda d: phase_sort_key(d.name))
+        for phase_dir in phase_dirs:
+            plan_files = sorted((f for f in phase_dir.iterdir() if f.is_file() and layout.is_plan_file(f.name)), key=lambda f: f.name)
+            for plan_path in plan_files:
+                preflight = build_plan_tool_preflight(plan_path)
+                if not preflight.knowledge_deps and preflight.knowledge_gate == "off":
+                    continue
+
+                rel_plan_path = plan_path.relative_to(cwd.resolve(strict=False)).as_posix()
+                plans_with_knowledge_deps.append(rel_plan_path)
+                non_ok_checks = [check for check in preflight.knowledge_dependency_checks if check.status != "ok"]
+                if not non_ok_checks:
+                    continue
+
+                plan_knowledge_issue_files.append(rel_plan_path)
+                for check in non_ok_checks:
+                    plan_knowledge_dependency_issue_count += 1
+                    if check.blocking:
+                        plan_knowledge_blocker_count += 1
+                    else:
+                        plan_knowledge_warning_count += 1
+                    plan_dependency_warnings.append(f"{rel_plan_path}: {check.detail}")
+
+    details: dict[str, object] = {
+        "knowledge_dir_present": knowledge_dir.is_dir(),
+        "knowledge_doc_count": len(discovery.records),
+        "stable_knowledge_doc_count": len(stable_records),
+        "runtime_active_count": len(active_records),
+        "status_counts": discovery.status_counts(),
+        "discovery_warning_count": len(discovery.warnings),
+        "migration_doc_count": len(migration_inventory.records),
+        "migration_classification_counts": migration_inventory.classification_counts(),
+        "migration_warning_count": len(migration_inventory.warnings),
+        "stale_review_count": len(stale_review_records),
+        "stale_review_files": [record.path for record in stale_review_records],
+        "missing_supersession_target_count": len(broken_supersession_records),
+        "missing_supersession_target_files": [
+            f"{record.path} -> {record.superseded_by}" for record in broken_supersession_records
+        ],
+        "plans_with_knowledge_deps_count": len(plans_with_knowledge_deps),
+        "plans_with_knowledge_deps": plans_with_knowledge_deps,
+        "plan_knowledge_dependency_issue_count": plan_knowledge_dependency_issue_count,
+        "plan_knowledge_warning_count": plan_knowledge_warning_count,
+        "plan_knowledge_blocker_count": plan_knowledge_blocker_count,
+        "plan_knowledge_issue_files": plan_knowledge_issue_files,
+    }
+    if not knowledge_dir.is_dir():
+        details["reason"] = "no_knowledge_dir"
+
+    warnings: list[str] = list(discovery.warnings)
+    warnings.extend(migration_inventory.warnings)
+    if stale_review_records:
+        stale_paths = ", ".join(record.path for record in stale_review_records)
+        warnings.append(f"{len(stale_review_records)} stable knowledge doc(s) have stale reviews: {stale_paths}")
+    if broken_supersession_records:
+        broken_refs = ", ".join(f"{record.path} -> {record.superseded_by}" for record in broken_supersession_records)
+        warnings.append(
+            f"{len(broken_supersession_records)} superseded knowledge doc(s) point to missing targets: {broken_refs}"
+        )
+    warnings.extend(plan_dependency_warnings)
+
+    status = CheckStatus.WARN if warnings else CheckStatus.OK
+    return HealthCheck(status=status, label="Knowledge Inventory", details=details, warnings=warnings)
 
 
 def check_storage_paths(cwd: Path) -> HealthCheck:
@@ -826,6 +923,7 @@ def _apply_fixes(
 _ALL_CHECKS: list[tuple[str, object]] = [
     ("environment", check_environment),
     ("project_structure", check_project_structure),
+    ("knowledge_inventory", check_knowledge_inventory),
     ("storage_paths", check_storage_paths),
     ("state_validity", check_state_validity),
     ("compaction", check_compaction_needed),
@@ -865,6 +963,7 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
                 check_labels = {
                     "environment": "Environment",
                     "project_structure": "Project Structure",
+                    "knowledge_inventory": "Knowledge Inventory",
                     "storage_paths": "Storage-Path Policy",
                     "state_validity": "State Validity",
                     "compaction": "State Compaction",

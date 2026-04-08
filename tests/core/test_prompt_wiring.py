@@ -1187,6 +1187,11 @@ def test_progress_workflow_surfaces_contract_load_and_validation_state() -> None
 
     assert "project_contract_validation" in workflow_text
     assert "project_contract_load_info" in workflow_text
+    assert "knowledge_doc_count" in workflow_text
+    assert "stable_knowledge_doc_count" in workflow_text
+    assert "knowledge_doc_status_counts" in workflow_text
+    assert "derived_knowledge_doc_count" in workflow_text
+    assert "knowledge_doc_warnings" in workflow_text
     assert "authoritative only when `project_contract_gate.authoritative` is true" in workflow_text
     assert "structured load status, warnings, and blockers for the contract" in workflow_text
     status_scan = 'grep -l -E "^(status: (gaps_found|human_needed|expert_needed)|session_status: diagnosed)$"'
@@ -1201,6 +1206,10 @@ def test_progress_workflow_surfaces_contract_load_and_validation_state() -> None
     assert "status: (gaps_found|diagnosed|human_needed|expert_needed)" not in command_text
     assert "`session_status: diagnosed`" in workflow_text
     assert "`session_status: diagnosed`" not in command_text
+    assert "HEALTH.summary.warn > 0" in workflow_text
+    assert "HEALTH.summary.fail > 0" in workflow_text
+    assert "non-empty `issues` array" not in workflow_text
+    assert "## Knowledge Status" in workflow_text
     assert "GPD/phases/[current-phase-dir]/*-VERIFICATION.md" in workflow_text
     assert "GPD/phases/[current-phase-dir]/*-VERIFICATION.md" not in command_text
 
@@ -1223,6 +1232,54 @@ def test_planning_prompts_keep_contract_gate_in_light_mode_and_all_modes() -> No
         in workflow_text
     )
     assert "Human review does not replace those requirements." in checker_agent
+
+
+def test_stable_knowledge_remains_background_only_across_planning_verification_and_execution() -> None:
+    planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
+    plan_phase = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
+    verify_workflow = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
+    verify_phase = (WORKFLOWS_DIR / "verify-phase.md").read_text(encoding="utf-8")
+    execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
+    execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+
+    assert "Treat stable knowledge docs surfaced through `active_reference_context` and `reference_artifacts_content` as reviewed background syntheses." in planner_prompt
+    assert (
+        "Use explicit `knowledge_deps` when a plan materially depends on a reviewed knowledge doc and downstream gating should be enforced; keep implicit stable background advisory only."
+        in planner_prompt
+    )
+    assert (
+        "they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence."
+        in planner_prompt
+    )
+    assert "Stable knowledge docs may appear inside `{active_reference_context}` and `{reference_artifacts_content}`." in plan_phase
+    assert (
+        "If a plan materially depends on a reviewed knowledge doc and that reliance must be gateable downstream, express it with explicit `knowledge_deps`; keep implicit stable background advisory only."
+        in plan_phase
+    )
+    assert (
+        "they do not override `convention_lock`, `project_contract`, the PLAN `contract`, or direct evidence."
+        in plan_phase
+    )
+    assert (
+        "Stable knowledge docs that appear there are reviewed background synthesis: use them to clarify definitions, assumptions, and caveats only when they agree with stronger sources, and never as decisive evidence on their own."
+        in verify_workflow
+    )
+    assert (
+        "Stable knowledge docs that surface through this context are reviewed background synthesis only: they may guide check selection and interpretation, but they do not override the contract, the gate, or decisive evidence."
+        in verify_phase
+    )
+    assert (
+        "Stable knowledge docs may be present in that content as reviewed background, but they do not override the contract, conventions, or decisive evidence requirements."
+        in execute_plan
+    )
+    assert (
+        "Stable knowledge docs may appear only through those shared reference surfaces as reviewed background; they do not become a separate authority tier."
+        in execute_phase
+    )
+    assert (
+        "Treat any stable knowledge docs surfaced in those fields as reviewed background only: they may inform interpretation, but they do not override the contract, proof audits, or decisive evidence."
+        in execute_phase
+    )
 
 
 def test_plan_checker_requires_contract_gate_and_reference_artifacts() -> None:
@@ -1265,6 +1322,8 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
     assert "Paper Writing" not in roadmap_template
     assert "@{GPD_INSTALL_DIR}/templates/roadmap.md" in roadmapper_agent
     assert "@{GPD_INSTALL_DIR}/templates/state.md" in roadmapper_agent
+    assert "If literature/SUMMARY.md provided:" in roadmapper_agent
+    assert "literature/SUMMARY.md content" in roadmapper_agent
     assert "Contract coverage" in roadmapper_agent
     assert "Phase Details" in roadmapper_agent
     assert "Active Calculations" in roadmapper_agent
@@ -1282,6 +1341,21 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
     assert "For each phase, include explicit contract coverage in ROADMAP.md" in new_milestone
     assert "Do NOT skip the initial scoping-contract approval gate." in new_project
     assert "Do NOT skip the requirement to show contract coverage in the roadmap." in new_project
+
+
+def test_research_prompt_surfaces_use_canonical_literature_outputs() -> None:
+    project_researcher = (AGENTS_DIR / "gpd-project-researcher.md").read_text(encoding="utf-8")
+    research_synthesizer = (AGENTS_DIR / "gpd-research-synthesizer.md").read_text(encoding="utf-8")
+    phase_researcher = (AGENTS_DIR / "gpd-phase-researcher.md").read_text(encoding="utf-8")
+    roadmapper_agent = (AGENTS_DIR / "gpd-roadmapper.md").read_text(encoding="utf-8")
+
+    for content in (project_researcher, research_synthesizer, phase_researcher, roadmapper_agent):
+        assert "GPD/research/" not in content
+
+    assert "GPD/literature/" in project_researcher
+    assert "GPD/literature/SUMMARY.md" in research_synthesizer
+    assert "GPD/literature/SUMMARY.md" in phase_researcher
+    assert "If literature/SUMMARY.md provided:" in roadmapper_agent
 
 
 def test_new_project_minimal_mode_and_planning_wiring_allow_coarse_scoped_decomposition() -> None:

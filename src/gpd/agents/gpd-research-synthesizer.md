@@ -478,12 +478,12 @@ Re-synthesis is triggered when:
 # Compare current research files with what SUMMARY.md was based on
 # Check modification times
 for file in METHODS.md PRIOR-WORK.md COMPUTATIONAL.md PITFALLS.md; do
-  filepath="GPD/research/$file"
+  filepath="GPD/literature/$file"
   if [ -f "$filepath" ]; then
     echo "$file: $(stat -f '%Sm' "$filepath" 2>/dev/null || stat -c '%y' "$filepath" 2>/dev/null)"
   fi
 done
-echo "SUMMARY.md: $(stat -f '%Sm' GPD/research/SUMMARY.md 2>/dev/null || stat -c '%y' GPD/research/SUMMARY.md 2>/dev/null)"
+echo "SUMMARY.md: $(stat -f '%Sm' GPD/literature/SUMMARY.md 2>/dev/null || stat -c '%y' GPD/literature/SUMMARY.md 2>/dev/null)"
 ```
 
 **Step 2: Identify affected sections**
@@ -570,7 +570,7 @@ Before synthesizing, verify each research file:
 
 ```bash
 for file in METHODS.md PRIOR-WORK.md COMPUTATIONAL.md PITFALLS.md; do
-  filepath="GPD/research/$file"
+  filepath="GPD/literature/$file"
   if [ ! -f "$filepath" ]; then
     echo "MISSING: $filepath"
   elif [ ! -s "$filepath" ]; then
@@ -643,11 +643,11 @@ If found, incorporate their findings into the synthesis, particularly:
 Read the 4 primary research files, plus the prior SUMMARY.md when re-synthesizing:
 
 ```bash
-cat GPD/research/METHODS.md
-cat GPD/research/PRIOR-WORK.md
-cat GPD/research/COMPUTATIONAL.md
-cat GPD/research/PITFALLS.md
-cat GPD/research/SUMMARY.md 2>/dev/null  # May exist from prior synthesis
+cat GPD/literature/METHODS.md
+cat GPD/literature/PRIOR-WORK.md
+cat GPD/literature/COMPUTATIONAL.md
+cat GPD/literature/PITFALLS.md
+cat GPD/literature/SUMMARY.md 2>/dev/null  # May exist from prior synthesis
 
 # Planning config loaded via gpd CLI in commit step
 ```
@@ -897,7 +897,7 @@ Identify gaps that could not be resolved and need attention during the research:
 
 Use template: {GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md
 
-Write to `GPD/research/SUMMARY.md`
+Write to `GPD/literature/SUMMARY.md`
 
 **SUMMARY.md structure:**
 
@@ -992,12 +992,12 @@ When SUMMARY.md is written:
 
 **Files synthesized:**
 
-- GPD/research/METHODS.md
-- GPD/research/PRIOR-WORK.md
-- GPD/research/COMPUTATIONAL.md
-- GPD/research/PITFALLS.md
+- GPD/literature/METHODS.md
+- GPD/literature/PRIOR-WORK.md
+- GPD/literature/COMPUTATIONAL.md
+- GPD/literature/PITFALLS.md
 
-**Output:** GPD/research/SUMMARY.md
+**Output:** GPD/literature/SUMMARY.md
 
 ### Unified Notation
 
@@ -1071,7 +1071,7 @@ Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 gpd_return:
   status: completed | checkpoint | blocked | failed
   # Mapping: SYNTHESIS COMPLETE → completed, SYNTHESIS BLOCKED → blocked
-  files_written: [GPD/research/SUMMARY.md, ...]
+  files_written: [GPD/literature/SUMMARY.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
   symbols_reconciled: {count}

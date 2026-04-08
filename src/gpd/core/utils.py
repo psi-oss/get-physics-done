@@ -9,6 +9,7 @@ import os
 import re
 import tempfile
 import time
+import unicodedata
 from collections.abc import Hashable, Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -40,6 +41,7 @@ __all__ = [
     "dedupe_preserve_order",
     "file_lock",
     "generate_slug",
+    "normalize_ascii_slug",
     "is_phase_complete",
     "matching_phase_artifact_count",
     "phase_normalize",
@@ -180,10 +182,22 @@ def generate_slug(text: str) -> str | None:
 
     "Hello World!" -> "hello-world", "" -> None.
     """
-    if not text:
+    return normalize_ascii_slug(text)
+
+
+def normalize_ascii_slug(value: object) -> str | None:
+    """Generate a lowercase ASCII slug from arbitrary text.
+
+    Unicode input is normalized, stripped to ASCII, and collapsed to
+    hyphen-separated tokens. Empty output returns ``None``.
+    """
+    if value is None:
         return None
-    slug = re.sub(r"[^a-z0-9]+", "-", text.lower())
-    return slug.strip("-") or None
+    normalized = unicodedata.normalize("NFKD", str(value).strip().casefold())
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_text)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug or None
 
 
 def dedupe_preserve_order(values: Iterable[_HashableT]) -> list[_HashableT]:

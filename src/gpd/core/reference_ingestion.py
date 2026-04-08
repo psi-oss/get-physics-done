@@ -9,6 +9,7 @@ from pathlib import Path
 
 import yaml
 
+from gpd.core.knowledge_runtime import KnowledgeDocRuntimeRecord, discover_knowledge_docs
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_artifacts
 from gpd.mcp.paper.bibliography import CitationSource, parse_citation_source_payload
 
@@ -251,6 +252,8 @@ class ArtifactReferenceIngestion:
     citation_sources: list[CitationSourceRecord] = field(default_factory=list)
     citation_source_files: list[str] = field(default_factory=list)
     citation_source_warnings: list[str] = field(default_factory=list)
+    knowledge_docs: list[KnowledgeDocRuntimeRecord] = field(default_factory=list)
+    knowledge_doc_warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -520,12 +523,71 @@ def _ingest_citation_source_sidecar(cwd: Path, path: Path, result: ArtifactRefer
     result.citation_source_files.append(rel_path)
 
 
-def _ingest_citation_source_sidecars(cwd: Path, result: ArtifactReferenceIngestion) -> None:
-    literature_dir = cwd / "GPD" / "literature"
+def _review_root_from_files(review_files: list[str]) -> Path | None:
+    """Return the review directory implied by the selected review files."""
+    for rel_path in review_files:
+        parts = Path(rel_path).parts
+        if len(parts) >= 2 and parts[0] == "GPD" and parts[1] == "literature":
+            return Path("GPD") / "literature"
+    for rel_path in review_files:
+        parts = Path(rel_path).parts
+        if len(parts) >= 2 and parts[0] == "GPD" and parts[1] == "research":
+            return Path("GPD") / "research"
+    return None
+
+
+def _ingest_citation_source_sidecars(
+    cwd: Path,
+    *,
+    review_files: list[str],
+    result: ArtifactReferenceIngestion,
+) -> None:
+    review_root = _review_root_from_files(review_files)
+    if review_root is None:
+        return
+    literature_dir = cwd / review_root
     if not literature_dir.exists():
         return
     for path in sorted(literature_dir.glob("*-CITATION-SOURCES.json")):
         _ingest_citation_source_sidecar(cwd, path, result)
+
+
+def _ingest_knowledge_docs(
+    cwd: Path,
+    *,
+    knowledge_doc_files: list[str],
+    result: ArtifactReferenceIngestion,
+) -> None:
+    inventory = discover_knowledge_docs(cwd)
+    result.knowledge_doc_warnings.extend(inventory.warnings)
+    by_path = inventory.by_path()
+    selected_records = [by_path[rel_path] for rel_path in knowledge_doc_files if rel_path in by_path]
+    selected_records.sort(key=lambda item: (item.path, item.knowledge_id))
+    for record in selected_records:
+        if not record.runtime_active:
+            continue
+        result.knowledge_docs.append(record)
+        source_artifacts = [record.path]
+        _append_unique(source_artifacts, record.approval_artifact_path)
+        coverage_bits = list(record.covered_topics[:2]) if record.covered_topics else [record.topic]
+        why_it_matters = "Stable reviewed knowledge synthesis"
+        if coverage_bits:
+            why_it_matters = f"{why_it_matters}; covers {', '.join(coverage_bits)}"
+        if record.open_gaps:
+            why_it_matters = f"{why_it_matters}; open gaps: {', '.join(record.open_gaps[:2])}"
+        result.references.append(
+            ArtifactReference(
+                id=record.knowledge_id,
+                locator=record.title,
+                aliases=[record.topic] if record.topic else [],
+                kind="spec",
+                role="background",
+                why_it_matters=why_it_matters,
+                required_actions=["use"],
+                source_artifacts=source_artifacts,
+                source_kind="knowledge_doc",
+            )
+        )
 
 
 def _extract_section(content: str, heading: str) -> str | None:
@@ -1024,6 +1086,7 @@ def ingest_reference_artifacts(
     *,
     literature_review_files: list[str],
     research_map_reference_files: list[str],
+    knowledge_doc_files: list[str] | None = None,
 ) -> ArtifactReferenceIngestion:
     """Parse durable literature/research-map artifacts into anchor context."""
 
@@ -1045,7 +1108,8 @@ def ingest_reference_artifacts(
             continue
         _ingest_reference_map(content, rel_path, result)
 
-    _ingest_citation_source_sidecars(cwd, result)
+    _ingest_knowledge_docs(cwd, knowledge_doc_files=knowledge_doc_files or [], result=result)
+    _ingest_citation_source_sidecars(cwd, review_files=literature_review_files, result=result)
     _populate_intake_from_references(result)
     result.references.sort(key=lambda item: (item.must_surface is False, item.role, item.id))
     return result

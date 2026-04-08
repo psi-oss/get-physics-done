@@ -26,6 +26,7 @@ from tests.doc_surface_contracts import (
     assert_beginner_startup_routing_contract,
     assert_cost_advisory_contract,
     assert_cost_surface_discoverability,
+    assert_health_command_public_contract,
     assert_help_command_all_extract_contract,
     assert_help_command_quick_start_extract_contract,
     assert_help_command_single_command_extract_contract,
@@ -401,6 +402,12 @@ def test_progress_prompt_runs_preflight_after_init_context() -> None:
     assert workflow.index("INIT=$(gpd --raw init progress --include state,roadmap,project,config)") < workflow.index(
         "CONTEXT=$(gpd --raw validate command-context progress \"$ARGUMENTS\")"
     )
+
+
+def test_health_prompt_documents_the_real_raw_health_report_shape() -> None:
+    health_command = (COMMANDS_DIR / "health.md").read_text(encoding="utf-8")
+
+    assert_health_command_public_contract(health_command)
 
 
 def test_progress_prompt_requires_project_not_roadmap() -> None:

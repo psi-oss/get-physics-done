@@ -20,7 +20,7 @@ Continuation equivalent of new-project. Research project exists, PROJECT.md has 
 **Creates/Updates:**
 
 - `GPD/PROJECT.md` — updated with new milestone goals
-- `GPD/research/` — domain and literature research (optional, NEW research objectives only)
+- `GPD/literature/` — domain and literature survey (optional, NEW research objectives only)
 - `GPD/REQUIREMENTS.md` — scoped requirements for this milestone
 - `GPD/ROADMAP.md` — phase structure (continues numbering)
 - `GPD/STATE.md` — reset for new milestone

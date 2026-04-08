@@ -304,10 +304,10 @@ def test_new_project_parallel_researchers_write_to_disjoint_artifacts() -> None:
     outputs = {output for task in tasks for output in _extract_output_paths(task)}
 
     expected = {
-        "GPD/research/PRIOR-WORK.md",
-        "GPD/research/METHODS.md",
-        "GPD/research/COMPUTATIONAL.md",
-        "GPD/research/PITFALLS.md",
+        "GPD/literature/PRIOR-WORK.md",
+        "GPD/literature/METHODS.md",
+        "GPD/literature/COMPUTATIONAL.md",
+        "GPD/literature/PITFALLS.md",
     }
 
     assert expected <= outputs
@@ -321,14 +321,14 @@ def test_new_project_parallel_researchers_write_to_disjoint_artifacts() -> None:
 
     content = _read(path)
     synth = _find_single_task(path, "gpd-research-synthesizer")
-    _assert_spawn_contract(synth, ("GPD/research/SUMMARY.md",))
+    _assert_spawn_contract(synth, ("GPD/literature/SUMMARY.md",))
     assert "GPD/PROJECT.md" in synth.text
     assert "GPD/config.json" in synth.text
-    assert "GPD/research/SUMMARY.md (if re-synthesizing an existing survey)" in synth.text
+    assert "GPD/literature/SUMMARY.md (if re-synthesizing an existing survey)" in synth.text
     assert "Do not trust the runtime handoff status by itself." in content
     assert "If a scout reports success but its `expected_artifacts` entry" in content
-    assert "`GPD/research/{FILE}`" in content
-    assert "If the synthesizer reports success but `GPD/research/SUMMARY.md` is missing" in content
+    assert "`GPD/literature/{FILE}`" in content
+    assert "If the synthesizer reports success but `GPD/literature/SUMMARY.md` is missing" in content
     assert "Do not proceed with a partial literature survey" in content
     assert "Do not synthesize from incomplete scout output" in content
     assert "Do not fabricate a fallback summary in the main context" in content
@@ -341,7 +341,7 @@ def test_new_project_roadmapper_uses_spawn_contract_and_artifact_gate() -> None:
 
     _assert_spawn_contract(roadmapper, ("GPD/ROADMAP.md", "GPD/STATE.md"), shared_state_policy="direct")
     assert "GPD/REQUIREMENTS.md" in roadmapper.text
-    assert "GPD/research/SUMMARY.md" in roadmapper.text
+    assert "GPD/literature/SUMMARY.md" in roadmapper.text
     assert "allowed_paths:" in roadmapper.text
     assert "If the roadmapper reports `## ROADMAP CREATED`" in content
     assert "`GPD/ROADMAP.md` or `GPD/STATE.md` is missing" in content
@@ -367,20 +367,20 @@ def test_new_milestone_research_and_roadmapper_gate_success_path_artifacts() -> 
 
     assert content.count("<spawn_contract>") >= 3
     assert "Do not trust the runtime handoff status by itself." in content
-    assert "If a scout reports success but its `expected_artifacts` entry (`GPD/research/{FILE}`) is missing" in content
-    assert "If the synthesizer reports success but `GPD/research/SUMMARY.md` is missing" in content
+    assert "If a scout reports success but its `expected_artifacts` entry (`GPD/literature/{FILE}`) is missing" in content
+    assert "If the synthesizer reports success but `GPD/literature/SUMMARY.md` is missing" in content
     assert "If the roadmapper reports `## ROADMAP CREATED` but `GPD/ROADMAP.md` or `GPD/STATE.md` is missing" in content
     assert "shared_state_policy: return_only" in content
 
     assert 'subagent_type="gpd-project-researcher"' in content
-    assert "GPD/research/{FILE}" in content
+    assert "GPD/literature/{FILE}" in content
     assert "expected_artifacts:" in content
     assert "PRIOR-WORK.md" in content
     assert "METHODS.md" in content
     assert "COMPUTATIONAL.md" in content
     assert "PITFALLS.md" in content
     assert 'subagent_type="gpd-research-synthesizer"' in content
-    assert "GPD/research/SUMMARY.md" in content
+    assert "GPD/literature/SUMMARY.md" in content
     assert 'subagent_type="gpd-roadmapper"' in content
     assert "GPD/ROADMAP.md" in content
     assert "GPD/STATE.md" in content

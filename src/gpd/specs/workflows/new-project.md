@@ -1228,10 +1228,10 @@ Display stage banner:
 Surveying [research domain] landscape...
 ```
 
-Create research directory:
+Create literature directory:
 
 ```bash
-mkdir -p GPD/research
+mkdir -p GPD/literature
 ```
 
 **Determine project context:**
@@ -1291,16 +1291,16 @@ Your PRIOR-WORK.md feeds into research planning. Be precise:
 </quality_gate>
 
 <output>
-Write to: GPD/research/PRIOR-WORK.md
+Write to: GPD/literature/PRIOR-WORK.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/PRIOR-WORK.md
 </output>
 <spawn_contract>
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - GPD/research/PRIOR-WORK.md
+    - GPD/literature/PRIOR-WORK.md
 expected_artifacts:
-  - GPD/research/PRIOR-WORK.md
+  - GPD/literature/PRIOR-WORK.md
 shared_state_policy: return_only
 </spawn_contract>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Prior work research")
@@ -1343,16 +1343,16 @@ Your METHODS.md feeds into approach selection. Categorize clearly:
 </quality_gate>
 
 <output>
-Write to: GPD/research/METHODS.md
+Write to: GPD/literature/METHODS.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/METHODS.md
 </output>
 <spawn_contract>
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - GPD/research/METHODS.md
+    - GPD/literature/METHODS.md
 expected_artifacts:
-  - GPD/research/METHODS.md
+  - GPD/literature/METHODS.md
 shared_state_policy: return_only
 </spawn_contract>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Methods research")
@@ -1396,16 +1396,16 @@ Your COMPUTATIONAL.md informs the computational strategy. Include:
 </quality_gate>
 
 <output>
-Write to: GPD/research/COMPUTATIONAL.md
+Write to: GPD/literature/COMPUTATIONAL.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/COMPUTATIONAL.md
 </output>
 <spawn_contract>
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - GPD/research/COMPUTATIONAL.md
+    - GPD/literature/COMPUTATIONAL.md
 expected_artifacts:
-  - GPD/research/COMPUTATIONAL.md
+  - GPD/literature/COMPUTATIONAL.md
 shared_state_policy: return_only
 </spawn_contract>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Computational approaches research")
@@ -1449,16 +1449,16 @@ Your PITFALLS.md prevents wasted effort. For each pitfall:
 </quality_gate>
 
 <output>
-Write to: GPD/research/PITFALLS.md
+Write to: GPD/literature/PITFALLS.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/PITFALLS.md
 </output>
 <spawn_contract>
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - GPD/research/PITFALLS.md
+    - GPD/literature/PITFALLS.md
 expected_artifacts:
-  - GPD/research/PITFALLS.md
+  - GPD/literature/PITFALLS.md
 shared_state_policy: return_only
 </spawn_contract>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Pitfalls research")
@@ -1481,15 +1481,15 @@ Synthesize literature survey outputs into SUMMARY.md.
 Read these files:
 - GPD/PROJECT.md
 - GPD/config.json
-- GPD/research/PRIOR-WORK.md
-- GPD/research/METHODS.md
-- GPD/research/COMPUTATIONAL.md
-- GPD/research/PITFALLS.md
-- GPD/research/SUMMARY.md (if re-synthesizing an existing survey)
+- GPD/literature/PRIOR-WORK.md
+- GPD/literature/METHODS.md
+- GPD/literature/COMPUTATIONAL.md
+- GPD/literature/PITFALLS.md
+- GPD/literature/SUMMARY.md (if re-synthesizing an existing survey)
 </research_files>
 
 <output>
-Write to: GPD/research/SUMMARY.md
+Write to: GPD/literature/SUMMARY.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md
 Do NOT commit — the orchestrator handles commits.
 </output>
@@ -1497,17 +1497,17 @@ Do NOT commit — the orchestrator handles commits.
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - GPD/research/SUMMARY.md
+    - GPD/literature/SUMMARY.md
 expected_artifacts:
-  - GPD/research/SUMMARY.md
+  - GPD/literature/SUMMARY.md
 shared_state_policy: return_only
 </spawn_contract>
 ", subagent_type="gpd-research-synthesizer", model="{synthesizer_model}", readonly=false, description="Synthesize research")
 ```
 
-**Artifact gate:** If a scout reports success but its `expected_artifacts` entry (`GPD/research/{FILE}`) is missing, treat that scout as incomplete. If the synthesizer reports success but `GPD/research/SUMMARY.md` is missing, treat that handoff as incomplete. Do not trust the runtime handoff status by itself.
+**Artifact gate:** If a scout reports success but its `expected_artifacts` entry (`GPD/literature/{FILE}`) is missing, treat that scout as incomplete. If the synthesizer reports success but `GPD/literature/SUMMARY.md` is missing, treat that handoff as incomplete. Do not trust the runtime handoff status by itself.
 
-**If the synthesizer agent fails to spawn or returns an error:** Retry once if `GPD/research/SUMMARY.md` is missing. If the summary artifact is still missing after the retry, STOP and surface the blocker. Do not fabricate a fallback summary in the main context when the chosen survey path asked for a synthesized research brief.
+**If the synthesizer agent fails to spawn or returns an error:** Retry once if `GPD/literature/SUMMARY.md` is missing. If the summary artifact is still missing after the retry, STOP and surface the blocker. Do not fabricate a fallback summary in the main context when the chosen survey path asked for a synthesized research brief.
 
 Display research complete banner and key findings:
 
@@ -1522,19 +1522,19 @@ Display research complete banner and key findings:
 **Standard Methods:** [from SUMMARY.md]
 **Watch Out For:** [from SUMMARY.md]
 
-Files: `GPD/research/`
+Files: `GPD/literature/`
 ```
 
 **Commit research files:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files GPD/research/PRIOR-WORK.md GPD/research/METHODS.md GPD/research/COMPUTATIONAL.md GPD/research/PITFALLS.md GPD/research/SUMMARY.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/literature/PRIOR-WORK.md GPD/literature/METHODS.md GPD/literature/COMPUTATIONAL.md GPD/literature/PITFALLS.md GPD/literature/SUMMARY.md 2>&1) || true
 echo "$PRE_CHECK"
 
 gpd commit "docs: literature survey complete" \
-  --files GPD/research/PRIOR-WORK.md GPD/research/METHODS.md \
-  GPD/research/COMPUTATIONAL.md GPD/research/PITFALLS.md \
-  GPD/research/SUMMARY.md
+  --files GPD/literature/PRIOR-WORK.md GPD/literature/METHODS.md \
+  GPD/literature/COMPUTATIONAL.md GPD/literature/PITFALLS.md \
+  GPD/literature/SUMMARY.md
 ```
 
 **Checkpoint step 6:**
@@ -1568,7 +1568,7 @@ Read PROJECT.md and `GPD/state.json` and extract:
 - Decisive outputs, deliverables, and forbidden proxies from the contract
 - Must-read references, prior outputs, and known baselines from the contract
 
-**If literature survey exists:** Read research/METHODS.md and PRIOR-WORK.md and extract available approaches.
+**If literature survey exists:** Read GPD/literature/METHODS.md and GPD/literature/PRIOR-WORK.md and extract available approaches.
 
 **If auto mode:**
 
@@ -1738,7 +1738,7 @@ task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and in
 - `GPD/PROJECT.md` — Project definition and research question
 - `GPD/state.json` — Approved project contract in `project_contract`
 - `GPD/REQUIREMENTS.md` — Derived requirements
-- `GPD/research/SUMMARY.md` — Literature survey (if exists)
+- `GPD/literature/SUMMARY.md` — Literature survey (if exists)
 - `GPD/config.json` — Project configuration
 
 </planning_context>
@@ -1935,7 +1935,7 @@ Read these files:
 - GPD/PROJECT.md — Project definition, physics subfield, theoretical framework
 - GPD/ROADMAP.md — Phase structure (what conventions will be needed)
 - GPD/REQUIREMENTS.md — Research requirements
-- GPD/research/SUMMARY.md — Literature survey (if exists)
+- GPD/literature/SUMMARY.md — Literature survey (if exists)
 </project_context>
 
 <mode>
@@ -2033,7 +2033,7 @@ Present completion with next steps:
 |----------------|-----------------------------|
 | Project        | `GPD/PROJECT.md`      |
 | Config         | `GPD/config.json`     |
-| Literature     | `GPD/research/`       |
+| Literature     | `GPD/literature/`     |
 | Requirements   | `GPD/REQUIREMENTS.md` |
 | Roadmap        | `GPD/ROADMAP.md`      |
 | Conventions    | `GPD/CONVENTIONS.md`  |
@@ -2064,7 +2064,7 @@ gpd:discuss-phase 1 — gather context and clarify approach
 
 - `GPD/PROJECT.md`
 - `GPD/config.json`
-- `GPD/research/` (if literature survey selected)
+- `GPD/literature/` (if literature survey selected)
   - `PRIOR-WORK.md`
   - `METHODS.md`
   - `COMPUTATIONAL.md`

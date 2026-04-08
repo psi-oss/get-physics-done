@@ -162,7 +162,7 @@ Use `active_reference_context` from init JSON as a mandatory input to verificati
 
 - If it names a benchmark, prior artifact, or must-read reference, verification must explicitly check it or report why it could not.
 - Treat `effective_reference_intake` as the structured source of must-read refs, prior outputs, baselines, user anchors, and context gaps. `active_reference_context` is the readable rendering of that ledger, not its substitute.
-- Treat `reference_artifacts_content` as supporting evidence for what comparisons remain decisive.
+- Treat `reference_artifacts_content` as supporting evidence for what comparisons remain decisive. Stable knowledge docs that appear there are reviewed background synthesis: use them to clarify definitions, assumptions, and caveats only when they agree with stronger sources, and never as decisive evidence on their own.
 - Background literature may be reduced by mode; anchor checks may not.
 </step>
 

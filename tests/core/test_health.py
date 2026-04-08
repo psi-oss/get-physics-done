@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -15,6 +16,7 @@ import gpd.core.health as health_module
 from gpd.core.constants import ProjectLayout
 from gpd.core.contract_validation import validate_project_contract
 from gpd.core.errors import ValidationError
+from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
 from gpd.core.health import (
     CheckStatus,
     DoctorReport,
@@ -30,6 +32,7 @@ from gpd.core.health import (
     check_convention_lock,
     check_environment,
     check_git_status,
+    check_knowledge_inventory,
     check_latest_return,
     check_orphans,
     check_plan_frontmatter,
@@ -674,6 +677,155 @@ class TestCheckProjectStructure:
         assert result.status == CheckStatus.OK
 
 
+class TestCheckKnowledgeInventory:
+    def test_missing_knowledge_dir_is_ok(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+
+        result = check_knowledge_inventory(cwd)
+
+        assert result.status == CheckStatus.OK
+        assert result.details["knowledge_dir_present"] is False
+        assert result.details["knowledge_doc_count"] == 0
+        assert result.details["stable_knowledge_doc_count"] == 0
+        assert result.details["runtime_active_count"] == 0
+        assert result.details["status_counts"] == {"draft": 0, "in_review": 0, "stable": 0, "superseded": 0}
+        assert result.details["reason"] == "no_knowledge_dir"
+        assert result.warnings == []
+
+    def test_reports_counts_staleness_supersession_and_skipped_docs(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        knowledge_dir = cwd / "GPD" / "knowledge"
+        knowledge_dir.mkdir(parents=True, exist_ok=True)
+
+        stable_base_body = "Trusted knowledge body.\n"
+        stable_base_content = _knowledge_doc_content(
+            body=stable_base_body,
+            knowledge_id="K-renormalization-group-fixed-points",
+            status="stable",
+        )
+        stable_hash = compute_knowledge_reviewed_content_sha256(stable_base_content)
+        _write_knowledge_doc(
+            knowledge_dir / "K-renormalization-group-fixed-points.md",
+            body=stable_base_body,
+            reviewed_content_sha256=stable_hash,
+        )
+
+        stale_body = "Trusted knowledge body.\nEdited after review.\n"
+        stale_base_content = _knowledge_doc_content(
+            body=stable_base_body,
+            knowledge_id="K-renormalization-group-stale",
+            status="stable",
+        )
+        stale_hash = compute_knowledge_reviewed_content_sha256(stale_base_content)
+        _write_knowledge_doc(
+            knowledge_dir / "K-renormalization-group-stale.md",
+            knowledge_id="K-renormalization-group-stale",
+            body=stale_body,
+            reviewed_content_sha256=stale_hash,
+        )
+
+        _write_knowledge_doc(
+            knowledge_dir / "K-renormalization-group-superseded.md",
+            knowledge_id="K-renormalization-group-superseded",
+            status="superseded",
+            superseded_by="K-renormalization-group-missing-target",
+        )
+
+        (knowledge_dir / "K-invalid-knowledge.md").write_text(
+            "---\nknowledge_schema_version: 1\nknowledge_id: K-invalid-knowledge\n---\ninvalid\n",
+            encoding="utf-8",
+        )
+
+        result = check_knowledge_inventory(cwd)
+
+        assert result.status == CheckStatus.WARN
+        assert result.details["knowledge_dir_present"] is True
+        assert result.details["knowledge_doc_count"] == 3
+        assert result.details["stable_knowledge_doc_count"] == 2
+        assert result.details["runtime_active_count"] == 1
+        assert result.details["status_counts"] == {"draft": 0, "in_review": 0, "stable": 2, "superseded": 1}
+        assert result.details["discovery_warning_count"] == 1
+        assert result.details["migration_doc_count"] == 4
+        assert result.details["migration_classification_counts"] == {
+            "canonical": 3,
+            "upgradeable": 0,
+            "blocked": 1,
+        }
+        assert result.details["migration_warning_count"] == 1
+        assert result.details["stale_review_count"] == 1
+        assert result.details["stale_review_files"] == ["GPD/knowledge/K-renormalization-group-stale.md"]
+        assert result.details["missing_supersession_target_count"] == 1
+        assert result.details["missing_supersession_target_files"] == [
+            "GPD/knowledge/K-renormalization-group-superseded.md -> K-renormalization-group-missing-target"
+        ]
+        assert any("skipping knowledge doc GPD/knowledge/K-invalid-knowledge.md" in warning for warning in result.warnings)
+        assert any("stale reviews" in warning for warning in result.warnings)
+        assert any("missing targets" in warning for warning in result.warnings)
+
+    def test_reports_migration_diagnostics_for_upgradeable_and_blocked_docs(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        knowledge_dir = cwd / "GPD" / "knowledge"
+        knowledge_dir.mkdir(parents=True, exist_ok=True)
+
+        stable_body = "Trusted knowledge body.\n"
+        stable_base_content = _knowledge_doc_content(
+            body=stable_body,
+            knowledge_id="K-renormalization-group-fixed-points",
+            status="stable",
+        )
+        stable_hash = compute_knowledge_reviewed_content_sha256(stable_base_content)
+        _write_knowledge_doc(
+            knowledge_dir / "K-renormalization-group-fixed-points.md",
+            body=stable_body,
+            reviewed_content_sha256=stable_hash,
+        )
+        shutil.copytree(
+            Path(__file__).resolve().parents[1] / "fixtures" / "knowledge" / "upgradeable",
+            knowledge_dir,
+            dirs_exist_ok=True,
+        )
+        shutil.copytree(
+            Path(__file__).resolve().parents[1] / "fixtures" / "knowledge" / "blocked",
+            knowledge_dir,
+            dirs_exist_ok=True,
+        )
+
+        result = check_knowledge_inventory(cwd)
+
+        assert result.status == CheckStatus.WARN
+        assert result.details["migration_doc_count"] == 3
+        assert result.details["migration_classification_counts"] == {
+            "canonical": 1,
+            "upgradeable": 1,
+            "blocked": 1,
+        }
+        assert result.details["migration_warning_count"] == 2
+        assert any("upgradeable" in warning for warning in result.warnings)
+        assert any("blocked" in warning for warning in result.warnings)
+
+    def test_reports_plan_level_explicit_knowledge_dependency_issues(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        phase_dir = cwd / "GPD" / "phases" / "01-setup"
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        plan_content = _canonical_plan_frontmatter().replace(
+            "---\n\nFixture plan body.\n",
+            "knowledge_gate: warn\nknowledge_deps:\n  - K-missing-dependency\n---\n\nFixture plan body.\n",
+        )
+        (phase_dir / "01-PLAN.md").write_text(plan_content, encoding="utf-8")
+
+        result = check_knowledge_inventory(cwd)
+
+        assert result.status == CheckStatus.WARN
+        assert result.details["plans_with_knowledge_deps_count"] == 1
+        assert result.details["plans_with_knowledge_deps"] == ["GPD/phases/01-setup/01-PLAN.md"]
+        assert result.details["plan_knowledge_dependency_issue_count"] == 1
+        assert result.details["plan_knowledge_warning_count"] == 1
+        assert result.details["plan_knowledge_blocker_count"] == 0
+        assert result.details["plan_knowledge_issue_files"] == ["GPD/phases/01-setup/01-PLAN.md"]
+        assert any("GPD/phases/01-setup/01-PLAN.md:" in warning for warning in result.warnings)
+        assert any("K-missing-dependency" in warning for warning in result.warnings)
+
+
 class TestCheckStoragePaths:
     def test_clean_project_is_ok(self, tmp_path: Path, monkeypatch) -> None:
         monkeypatch.setattr(ProjectStorageLayout, "project_root_is_temporary", lambda self: False)
@@ -1134,6 +1286,17 @@ class TestCheckStateValidity:
 
 
 class TestRunHealth:
+    def test_run_health_includes_knowledge_inventory_check(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+
+        report = run_health(cwd, fix=False)
+
+        knowledge_check = next(check for check in report.checks if check.label == "Knowledge Inventory")
+
+        assert knowledge_check.status == CheckStatus.OK
+        assert knowledge_check.details["knowledge_dir_present"] is False
+        assert knowledge_check.details["reason"] == "no_knowledge_dir"
+
     def test_read_only_health_does_not_recover_intent_marker_and_keeps_state_unchanged(
         self, tmp_path: Path
     ) -> None:
@@ -2070,6 +2233,84 @@ def _bootstrap_health_project(tmp_path: Path) -> Path:
     (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
     (planning / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     return tmp_path
+
+
+def _knowledge_doc_content(
+    *,
+    knowledge_id: str = "K-renormalization-group-fixed-points",
+    status: str = "stable",
+    title: str = "Renormalization Group Fixed Points",
+    topic: str = "renormalization-group",
+    body: str = "Trusted knowledge body.\n",
+    superseded_by: str | None = None,
+) -> str:
+    lines = [
+        "---",
+        "knowledge_schema_version: 1",
+        f"knowledge_id: {knowledge_id}",
+        f"title: {title}",
+        f"topic: {topic}",
+        f"status: {status}",
+        "created_at: 2026-04-07T12:00:00Z",
+        "updated_at: 2026-04-07T12:00:00Z",
+        "sources:",
+        "  - source_id: source-main",
+        "    kind: paper",
+        "    locator: Doe et al., 2024",
+        "    title: Renormalization Group Fixed Points",
+        "    why_it_matters: Reviewed source that anchors the topic",
+        "coverage_summary:",
+        "  covered_topics: [fixed points, scaling]",
+        "  excluded_topics: [numerical implementation details]",
+        "  open_gaps: [none]",
+    ]
+    if superseded_by is not None:
+        lines.append(f"superseded_by: {superseded_by}")
+    lines.extend(["---", "", body, ""])
+    return "\n".join(lines)
+
+
+def _write_knowledge_doc(
+    path: Path,
+    *,
+    knowledge_id: str = "K-renormalization-group-fixed-points",
+    status: str = "stable",
+    title: str = "Renormalization Group Fixed Points",
+    topic: str = "renormalization-group",
+    body: str = "Trusted knowledge body.\n",
+    reviewed_content_sha256: str | None = None,
+    superseded_by: str | None = None,
+) -> None:
+    base_content = _knowledge_doc_content(
+        knowledge_id=knowledge_id,
+        status=status,
+        title=title,
+        topic=topic,
+        body=body,
+        superseded_by=superseded_by,
+    )
+    if reviewed_content_sha256 is None and status in {"stable", "in_review"}:
+        reviewed_content_sha256 = compute_knowledge_reviewed_content_sha256(base_content)
+
+    lines = base_content.splitlines()
+    if reviewed_content_sha256 is not None:
+        review_lines = [
+            "review:",
+            "  reviewed_at: 2026-04-07T12:00:00Z",
+            "  review_round: 1",
+            "  reviewer_kind: human",
+            "  reviewer_id: gpd-reviewer",
+            "  decision: approved",
+            "  summary: Reviewed and accepted for downstream use",
+            f"  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md",
+            "  approval_artifact_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            f"  reviewed_content_sha256: {reviewed_content_sha256}",
+            "  stale: false",
+        ]
+        insert_at = lines.index("---", 1)
+        lines = [*lines[:insert_at], *review_lines, *lines[insert_at:]]
+
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _write_intent_recovery_state(

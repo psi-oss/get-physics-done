@@ -171,7 +171,7 @@ gpd config set workflow.research false
 ```
 
 ```bash
-mkdir -p GPD/research
+mkdir -p GPD/literature
 ```
 
 Spawn 4 parallel gpd-project-researcher agents. Each uses this template with dimension-specific fields:
@@ -199,7 +199,7 @@ Focus ONLY on what's needed for the NEW research questions.
 <quality_gate>{GATES}</quality_gate>
 
 <output>
-Write to: GPD/research/{FILE}
+Write to: GPD/literature/{FILE}
 Use template: {GPD_INSTALL_DIR}/templates/research-project/{FILE}
 </output>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="{DIMENSION} survey")
@@ -212,9 +212,9 @@ Add this contract inside each spawned scout prompt when adapting it:
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - GPD/research/{FILE}
+    - GPD/literature/{FILE}
 expected_artifacts:
-  - GPD/research/{FILE}
+  - GPD/literature/{FILE}
 shared_state_policy: return_only
 </spawn_contract>
 ```
@@ -233,7 +233,7 @@ Before trusting the scout handoff, re-read the expected output files from disk a
 
 **If any research agent fails to spawn or returns an error:** Check which output files were created. For each missing file, note the gap and continue with available outputs. If 3+ agents failed, offer: 1) Retry all agents, 2) Skip literature survey entirely (user selects "Skip survey"), 3) Stop. If 1-2 agents failed, proceed with the synthesizer using available files.
 
-**Artifact gate:** If a scout reports success but its `expected_artifacts` entry (`GPD/research/{FILE}`) is missing, treat that scout as incomplete. Offer: 1) Retry the missing scout in the same write scope, 2) Execute that scout's research in the main context, 3) Continue without that artifact only if the remaining survey still answers the milestone decision.
+**Artifact gate:** If a scout reports success but its `expected_artifacts` entry (`GPD/literature/{FILE}`) is missing, treat that scout as incomplete. Offer: 1) Retry the missing scout in the same write scope, 2) Execute that scout's research in the main context, 3) Continue without that artifact only if the remaining survey still answers the milestone decision.
 
 After all 4 complete (or partial completion handled), spawn synthesizer:
 
@@ -246,14 +246,14 @@ Synthesize literature survey outputs into SUMMARY.md.
 
 <files_to_read>
 Read these files using the file_read tool:
-- GPD/research/PRIOR-WORK.md
-- GPD/research/METHODS.md
-- GPD/research/COMPUTATIONAL.md
-- GPD/research/PITFALLS.md
+- GPD/literature/PRIOR-WORK.md
+- GPD/literature/METHODS.md
+- GPD/literature/COMPUTATIONAL.md
+- GPD/literature/PITFALLS.md
 </files_to_read>
 
 <output>
-Write to: GPD/research/SUMMARY.md
+Write to: GPD/literature/SUMMARY.md
 Use template: {GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md
 Do NOT commit — the orchestrator handles commits.
 </output>
@@ -267,16 +267,16 @@ Add this contract inside the spawned synthesizer prompt when adapting it:
 write_scope:
   mode: scoped_write
   allowed_paths:
-    - GPD/research/SUMMARY.md
+    - GPD/literature/SUMMARY.md
 expected_artifacts:
-  - GPD/research/SUMMARY.md
+  - GPD/literature/SUMMARY.md
 shared_state_policy: return_only
 </spawn_contract>
 ```
 
 **If the synthesizer agent fails to spawn or returns an error:** Check if individual research files exist. If they do, create a minimal SUMMARY.md in the main context by extracting key findings from each file. Proceed with available research.
 
-**Artifact gate:** If the synthesizer reports success but `GPD/research/SUMMARY.md` is missing, treat the handoff as incomplete. Offer: 1) Retry synthesizer, 2) Create SUMMARY.md in the main context from the scout artifacts, 3) Stop and review the missing inputs.
+**Artifact gate:** If the synthesizer reports success but `GPD/literature/SUMMARY.md` is missing, treat the handoff as incomplete. Offer: 1) Retry synthesizer, 2) Create SUMMARY.md in the main context from the scout artifacts, 3) Stop and review the missing inputs.
 
 Display key findings from SUMMARY.md:
 
@@ -293,10 +293,10 @@ Display key findings from SUMMARY.md:
 **Commit literature survey:**
 
 ```bash
-PRE_CHECK=$(gpd pre-commit-check --files GPD/research/PRIOR-WORK.md GPD/research/METHODS.md GPD/research/COMPUTATIONAL.md GPD/research/PITFALLS.md GPD/research/SUMMARY.md 2>&1) || true
+PRE_CHECK=$(gpd pre-commit-check --files GPD/literature/PRIOR-WORK.md GPD/literature/METHODS.md GPD/literature/COMPUTATIONAL.md GPD/literature/PITFALLS.md GPD/literature/SUMMARY.md 2>&1) || true
 echo "$PRE_CHECK"
 
-gpd commit "docs: complete literature survey" --files GPD/research/PRIOR-WORK.md GPD/research/METHODS.md GPD/research/COMPUTATIONAL.md GPD/research/PITFALLS.md GPD/research/SUMMARY.md
+gpd commit "docs: complete literature survey" --files GPD/literature/PRIOR-WORK.md GPD/literature/METHODS.md GPD/literature/COMPUTATIONAL.md GPD/literature/PITFALLS.md GPD/literature/SUMMARY.md
 ```
 
 **If "Skip survey":** Continue to Step 8.
@@ -402,7 +402,7 @@ Read these files using the file_read tool before proceeding:
 - GPD/PROJECT.md
 - GPD/state.json
 - GPD/REQUIREMENTS.md
-- GPD/research/SUMMARY.md (if exists, skip if not found)
+- GPD/literature/SUMMARY.md (if exists, skip if not found)
 - GPD/config.json
 - GPD/MILESTONES.md (if exists, skip if not found)
 - Files named in `effective_reference_intake.must_include_prior_outputs` when they exist
@@ -514,7 +514,7 @@ gpd commit "docs: create milestone v[X.Y] roadmap ([N] phases)" --files GPD/ROAD
 | Artifact       | Location                    |
 |----------------|-----------------------------|
 | Project        | `GPD/PROJECT.md`      |
-| Literature     | `GPD/research/`       |
+| Literature     | `GPD/literature/`     |
 | Objectives     | `GPD/REQUIREMENTS.md`   |
 | Roadmap        | `GPD/ROADMAP.md`      |
 

@@ -105,7 +105,16 @@ def test_planner_and_checker_examples_surface_concrete_contract_anchors() -> Non
     assert (
         "conclusion_clauses: [\"Benchmark agreement stays within tolerance at every approved sample\"]" not in checker_prompt
     )
-    assert "Treat `effective_reference_intake` and `active_reference_context` only as readable projections" in checker_prompt
+    assert (
+        "Treat stable knowledge docs surfaced through the shared reference context as reviewed background syntheses only."
+        in checker_prompt
+    )
+    assert (
+        "They may refine assumptions or method choice when they agree with stronger sources, but they do not override "
+        "`convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, "
+        "proof-review artifacts, or direct benchmark/result evidence."
+        in checker_prompt
+    )
     assert "GPD/phases/00-baseline/00-01-SUMMARY.md" in checker_prompt
     assert "GPD/phases/00-baseline/00-01-SUMMARY.md#gauge-unit-and-notation-conventions" in checker_prompt
 

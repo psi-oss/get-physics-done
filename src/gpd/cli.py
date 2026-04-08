@@ -25,6 +25,7 @@ import shlex
 import sys
 from collections.abc import Callable, Mapping
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, NoReturn
 
 import typer
@@ -35,6 +36,7 @@ from rich.text import Text
 
 from gpd.adapters.runtime_catalog import normalize_runtime_name
 from gpd.command_labels import canonical_command_label, validated_public_command_prefix
+from gpd.core.arxiv_source_download import normalize_arxiv_id
 from gpd.core.cli_args import (
     normalize_root_global_cli_options as _normalize_root_global_cli_options,
 )
@@ -113,6 +115,7 @@ from gpd.core.surface_phrases import (
     recovery_resume_action,
     tangent_branch_later_follow_up_lines,
 )
+from gpd.core.utils import normalize_ascii_slug
 from gpd.core.workflow_presets import (
     get_workflow_preset,
     list_workflow_presets,
@@ -5876,10 +5879,15 @@ def _resolve_bibliography_path(
 def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Path | None, str | None]:
     """Return a single literature-review citation-source sidecar if it is unambiguous."""
     literature_dir = project_root / "GPD" / "literature"
-    if not literature_dir.is_dir():
+    legacy_research_dir = project_root / "GPD" / "research"
+    if literature_dir.is_dir():
+        search_dir = literature_dir
+    elif legacy_research_dir.is_dir():
+        search_dir = legacy_research_dir
+    else:
         return None, None
 
-    matches = sorted(path for path in literature_dir.rglob("*-CITATION-SOURCES.json") if path.is_file())
+    matches = sorted(path for path in search_dir.rglob("*-CITATION-SOURCES.json") if path.is_file())
     if not matches:
         return None, None
     if len(matches) == 1:
@@ -5889,7 +5897,7 @@ def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Pa
     remaining = len(matches) - 3
     suffix = f", ... (+{remaining} more)" if remaining > 0 else ""
     warning = (
-        "Multiple literature-review citation-source sidecars found; "
+        f"Multiple {'literature-review' if search_dir == literature_dir else 'legacy research'} citation-source sidecars found; "
         "pass --citation-sources explicitly: "
         f"{preview}{suffix}"
     )
@@ -6057,6 +6065,97 @@ def _has_sensitivity_explicit_inputs(arguments: str | None) -> bool:
     return _has_flag_value(tokens, "--target") and _has_flag_value(tokens, "--params")
 
 
+_DIGEST_KNOWLEDGE_PATH_SUFFIXES = {
+    ".bib",
+    ".csv",
+    ".ipynb",
+    ".json",
+    ".markdown",
+    ".md",
+    ".pdf",
+    ".py",
+    ".rst",
+    ".tex",
+    ".txt",
+    ".tsv",
+    ".yaml",
+    ".yml",
+}
+
+
+def _looks_like_digest_knowledge_topic_token(token: str) -> bool:
+    """Return True for a non-empty topic-like token."""
+    if not token or token.startswith("-"):
+        return False
+    if _looks_like_digest_knowledge_path_token(token) or _looks_like_digest_knowledge_arxiv_token(token):
+        return False
+    return any(character.isalpha() for character in token)
+
+
+def _looks_like_digest_knowledge_path_token(token: str) -> bool:
+    """Return True for a token that looks like an explicit path input."""
+    if not token or token.startswith("-"):
+        return False
+    if token.startswith(("./", "../", "~/", "/", "@")):
+        return True
+    if os.sep in token or (os.altsep is not None and os.altsep in token):
+        return True
+    return Path(token).suffix.lower() in _DIGEST_KNOWLEDGE_PATH_SUFFIXES
+
+
+def _looks_like_digest_knowledge_arxiv_token(token: str) -> bool:
+    """Return True for a token that normalizes as an arXiv identifier."""
+    if not token or token.startswith("-"):
+        return False
+    try:
+        normalize_arxiv_id(token)
+    except ValueError:
+        return False
+    return True
+
+
+def _looks_like_review_knowledge_id_token(token: str) -> bool:
+    """Return True for a canonical knowledge identifier token."""
+    if not token or token.startswith("-") or not token.startswith("K-"):
+        return False
+    slug = token[2:]
+    return bool(slug) and normalize_ascii_slug(slug) == slug
+
+
+def _looks_like_review_knowledge_path_token(token: str) -> bool:
+    """Return True for an explicit knowledge-document path token."""
+    if not token or token.startswith("-"):
+        return False
+    if not _looks_like_digest_knowledge_path_token(token):
+        return False
+    path = Path(token)
+    return (
+        path.suffix.lower() == ".md"
+        and path.stem.startswith("K-")
+        and normalize_ascii_slug(path.stem[2:]) == path.stem[2:]
+    )
+
+
+def _has_digest_knowledge_explicit_inputs(arguments: str | None) -> bool:
+    """Digest-knowledge standalone mode needs an explicit topic, path, or arXiv input."""
+    tokens = _split_command_arguments(arguments)
+    return any(
+        _looks_like_digest_knowledge_topic_token(token)
+        or _looks_like_digest_knowledge_path_token(token)
+        or _looks_like_digest_knowledge_arxiv_token(token)
+        for token in tokens
+    )
+
+
+def _has_review_knowledge_explicit_inputs(arguments: str | None) -> bool:
+    """Review-knowledge standalone mode needs an explicit knowledge path or canonical knowledge id."""
+    tokens = _split_command_arguments(arguments)
+    return any(
+        _looks_like_review_knowledge_path_token(token) or _looks_like_review_knowledge_id_token(token)
+        for token in tokens
+    )
+
+
 _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None], bool]]] = {
     "gpd:compare-experiment": (["prediction, dataset path, or phase identifier"], _has_simple_positional_inputs),
     "gpd:compare-results": (["phase, artifact, or comparison target"], _has_simple_positional_inputs),
@@ -6064,6 +6163,14 @@ _PROJECT_AWARE_EXPLICIT_INPUTS: dict[str, tuple[list[str], Callable[[str | None]
     "gpd:dimensional-analysis": (["phase number or file path"], _has_simple_positional_inputs),
     "gpd:discover": (["phase number or standalone topic"], _has_discover_explicit_inputs),
     "gpd:explain": (["concept, result, method, notation, or paper"], _has_simple_positional_inputs),
+    "gpd:digest-knowledge": (
+        ["knowledge file path, source file path, arXiv ID, or topic"],
+        _has_digest_knowledge_explicit_inputs,
+    ),
+    "gpd:review-knowledge": (
+        ["knowledge document path or canonical K-* knowledge id"],
+        _has_review_knowledge_explicit_inputs,
+    ),
     "gpd:limiting-cases": (["phase number or file path"], _has_simple_positional_inputs),
     "gpd:literature-review": (["topic or research question"], _has_simple_positional_inputs),
     "gpd:numerical-convergence": (["phase number or file path"], _has_simple_positional_inputs),
@@ -6358,7 +6465,19 @@ def _build_command_context_preflight(
     from gpd.core.constants import ProjectLayout
 
     cwd = _get_cwd()
-    command, public_command_name = _resolve_registry_command(command_name)
+    try:
+        command, public_command_name = _resolve_registry_command(command_name)
+    except Exception:
+        canonical_command_name = _canonical_command_name(command_name)
+        if canonical_command_name != "gpd:review-knowledge":
+            raise
+        command = SimpleNamespace(
+            name=canonical_command_name,
+            context_mode="project-aware",
+            argument_hint="knowledge document path or canonical K-* knowledge id",
+            project_reentry_capable=False,
+        )
+        public_command_name = canonical_command_name
     context_cwd = _status_command_cwd(cwd) if _command_supports_project_reentry(command) else _project_scoped_cwd(cwd)
     layout = ProjectLayout(context_cwd)
     project_exists = layout.project_md.exists()

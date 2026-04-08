@@ -17,6 +17,12 @@ def _read(relative_path: str) -> str:
     return (_repo_root() / relative_path).read_text(encoding="utf-8")
 
 
+def _section(content: str, start_marker: str, end_marker: str) -> str:
+    start = content.index(start_marker) + len(start_marker)
+    end = content.index(end_marker, start)
+    return content[start:end]
+
+
 def _help_command_inventory(*contents: str) -> set[str]:
     surfaces: set[str] = set()
     pattern = re.compile(r"(?m)(?<![A-Za-z0-9-])(?:gpd:|/gpd:|gpd\s+)([a-z0-9-]+)\b")
@@ -76,3 +82,27 @@ def test_help_workflow_keeps_concise_local_cli_surface_note() -> None:
 
     assert "Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly." in help_workflow
     assert "The bootstrap installer owns Node.js / Python / `venv` prerequisites; use `gpd --help`" not in help_workflow
+
+
+def test_help_workflow_files_and_structure_and_knowledge_lifecycle_coverages() -> None:
+    help_workflow = _read("src/gpd/specs/workflows/help.md")
+    files_section = _section(help_workflow, "## Files & Structure", "## Workflow Modes")
+
+    assert "literature/" in files_section
+    assert "knowledge/" in files_section
+    assert "reviews/" in files_section
+    assert "research/" not in files_section
+
+    assert "The literature survey lives under `GPD/literature/`, and reviewed knowledge docs live under `GPD/knowledge/` with review artifacts in `GPD/knowledge/reviews/`." in help_workflow
+    assert "Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open" in help_workflow
+    assert "If the target is `stable` or `superseded`, route the user to `gpd:review-knowledge`" in help_workflow
+    assert "Stable knowledge is already visible through the shared runtime reference surfaces, but it remains reviewed background synthesis rather than a separate authority tier" in help_workflow
+    assert "Migration/backfill for older or provisional docs remains deferred; use canonical `GPD/knowledge/{knowledge_id}.md` targets for now." in help_workflow
+    assert "stable` docs can later become `superseded`; superseded docs remain addressable and traceable rather than disappearing" in help_workflow
+    assert "Example topic: `gpd:digest-knowledge \"renormalization group fixed points\"`" in help_workflow
+    assert "Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`" in help_workflow
+    assert "Example legacy arXiv: `gpd:digest-knowledge hep-th/9901001`" in help_workflow
+    assert "Example source file: `gpd:digest-knowledge ./notes/rg-notes.md`" in help_workflow
+    assert "Example explicit knowledge path: `gpd:digest-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md`" in help_workflow
+    assert "Stable knowledge is already visible through the shared runtime reference surfaces" in help_workflow
+    assert "Stable knowledge is available through the shared runtime reference surfaces" in help_workflow

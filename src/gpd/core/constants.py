@@ -36,7 +36,9 @@ __all__ = [
     "EXECUTION_LINEAGE_REDUCER_VERSION",
     "EXECUTION_LINEAGE_SCHEMA_VERSION",
     "HOME_DATA_DIR_NAME",
+    "KNOWLEDGE_DIR_NAME",
     "LITERATURE_DIR_NAME",
+    "KNOWLEDGE_DIR_NAME",
     "MILESTONES_DIR_NAME",
     "MILESTONES_FILENAME",
     "MIN_PYTHON_MAJOR",
@@ -177,8 +179,14 @@ MILESTONES_DIR_NAME = "milestones"
 TODOS_DIR_NAME = "todos"
 """Subdirectory under GPD/ for todo items."""
 
+KNOWLEDGE_DIR_NAME = "knowledge"
+"""Subdirectory under GPD/ for reviewed knowledge documents."""
+
 LITERATURE_DIR_NAME = "literature"
 """Subdirectory under GPD/ for literature review files."""
+
+KNOWLEDGE_DIR_NAME = "knowledge"
+"""Subdirectory under GPD/ for knowledge documents."""
 
 RESEARCH_MAP_DIR_NAME = "research-map"
 """Subdirectory under GPD/ for theory/research map files."""
@@ -509,6 +517,10 @@ class ProjectLayout:
     @property
     def todos_dir(self) -> Path:
         return self.gpd / TODOS_DIR_NAME
+
+    @property
+    def knowledge_dir(self) -> Path:
+        return self.gpd / KNOWLEDGE_DIR_NAME
 
     @property
     def literature_dir(self) -> Path:

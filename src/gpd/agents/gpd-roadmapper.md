@@ -874,7 +874,7 @@ Orchestrator provides:
 - PROJECT.md content (central physics question, scope, constraints)
 - state.json / approved project contract content (decisive outputs, anchors, forbidden proxies)
 - REQUIREMENTS.md content (v1 research objectives with REQ-IDs)
-- research/SUMMARY.md content (if exists - literature review, known results, suggested approaches)
+- literature/SUMMARY.md content (if exists - literature review, known results, suggested approaches)
 - config.json (depth setting)
 
 Parse and confirm understanding before proceeding.
@@ -902,7 +902,7 @@ Total v1: 11 objectives
 
 ## Step 3: Load Research Context (if exists)
 
-If research/SUMMARY.md provided:
+If literature/SUMMARY.md provided:
 
 - Extract known results and established methods
 - Note open questions and potential obstacles

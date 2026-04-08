@@ -231,6 +231,11 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:sensitivity-analysis` - Rank which inputs matter most
 - `gpd:error-propagation` - Track uncertainties through a calculation chain
 
+### Knowledge authoring
+
+- `gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]` - Create or update a draft knowledge doc from a topic, arXiv paper, source file, or explicit `GPD/knowledge/` path
+- `gpd:review-knowledge [knowledge path|knowledge id]` - Review a knowledge doc, write the review artifact, and promote fresh approved drafts to stable
+
 ### Writing and publication
 
 - `gpd:literature-review [topic]` - Create a structured literature review
@@ -831,6 +836,38 @@ Structured literature review for a physics research topic.
 
 Usage: `gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`
 
+**`gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]`**
+Create or update a knowledge document draft from a topic, paper, source file, or explicit knowledge path.
+
+- Accepts an explicit knowledge-doc path, a source file path, a modern or legacy arXiv ID, or a topic string
+- Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target or stops on ambiguity
+- Reopens existing draft knowledge docs in place and routes approval or stable-state requests to `gpd:review-knowledge`
+- Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open
+- If the target is `stable` or `superseded`, route the user to `gpd:review-knowledge`
+- Stable knowledge is already visible through the shared runtime reference surfaces, but it remains reviewed background synthesis rather than a separate authority tier
+- Migration/backfill for older or provisional docs remains deferred; use canonical `GPD/knowledge/{knowledge_id}.md` targets for now.
+
+- Example topic: `gpd:digest-knowledge "renormalization group fixed points"`
+- Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`
+- Example legacy arXiv: `gpd:digest-knowledge hep-th/9901001`
+- Example source file: `gpd:digest-knowledge ./notes/rg-notes.md`
+- Example explicit knowledge path: `gpd:digest-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md`
+
+Usage: `gpd:digest-knowledge "renormalization group fixed points"`
+
+**`gpd:review-knowledge [knowledge path or knowledge id]`**
+Review a knowledge document, record typed approval evidence, and promote a fresh approved draft to stable.
+
+- Resolves an exact existing knowledge target by canonical path or knowledge id
+- Writes a deterministic review artifact under `GPD/knowledge/reviews/`
+- Records review round, reviewer identity, approval artifact hash, reviewed content hash, and stale state
+- Promotes the document to `stable` only when the review is fresh and explicitly approved
+- Keeps `needs_changes` and `rejected` outcomes in the review loop without pretending they are stable
+- `stable` docs can later become `superseded`; superseded docs remain addressable and traceable rather than disappearing
+- Stable knowledge is available through the shared runtime reference surfaces, but it does not override stronger evidence or explicit dependency gates
+
+Usage: `gpd:review-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md` or `gpd:review-knowledge K-renormalization-group-fixed-points`
+
 ### Optional Local CLI Add-Ons
 
 **Workflow presets**
@@ -1085,6 +1122,8 @@ Show this command reference.
 
 ## Files & Structure
 
+The literature survey lives under `GPD/literature/`, and reviewed knowledge docs live under `GPD/knowledge/` with review artifacts in `GPD/knowledge/reviews/`.
+
 ```
 GPD/
 |-- PROJECT.md            # Research question, framework, parameters
@@ -1093,12 +1132,15 @@ GPD/
 |-- STATE.md              # Project memory & context
 |-- MILESTONES.md         # Milestone history
 |-- config.json           # Workflow mode & gates
-|-- research/             # Literature survey results
+|-- literature/           # Literature survey results and citation artifacts
 |   |-- PRIOR-WORK.md     # Established results in the field
 |   |-- METHODS.md        # Standard methods and tools
 |   |-- COMPUTATIONAL.md  # Computational approaches and tools
 |   |-- PITFALLS.md       # Known pitfalls and open problems
 |   +-- SUMMARY.md        # Synthesized survey
+|-- knowledge/            # Knowledge docs and typed review artifacts
+|   |-- K-*.md            # Draft, in_review, stable, or superseded knowledge docs
+|   +-- reviews/          # Deterministic review artifacts
 |-- research-map/         # Theory map (existing research projects)
 |   |-- FORMALISM.md      # Mathematical framework and key equations
 |   |-- REFERENCES.md     # Key papers and their relationships

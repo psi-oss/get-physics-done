@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
 from gpd.core.tool_preflight import (
     PlanToolPreflightError,
     build_plan_tool_preflight,
@@ -77,6 +78,83 @@ def _write_tool_requirement_plan(plan_path: Path, command: str, *, plan_id: str)
         "Body.\n",
         encoding="utf-8",
     )
+
+
+def _write_knowledge_doc(
+    tmp_path: Path,
+    *,
+    knowledge_id: str,
+    status: str = "stable",
+    superseded_by: str | None = None,
+    stale: bool = False,
+) -> Path:
+    knowledge_dir = tmp_path / "GPD" / "knowledge"
+    knowledge_dir.mkdir(parents=True, exist_ok=True)
+    path = knowledge_dir / f"{knowledge_id}.md"
+    base_content = (
+        "---\n"
+        "knowledge_schema_version: 1\n"
+        f"knowledge_id: {knowledge_id}\n"
+        "title: Knowledge Dependency Fixture\n"
+        "topic: dependency-testing\n"
+        f"status: {status}\n"
+        "created_at: 2026-04-07T12:00:00Z\n"
+        "updated_at: 2026-04-07T12:00:00Z\n"
+        "sources:\n"
+        "  - source_id: source-main\n"
+        "    kind: paper\n"
+        "    locator: Author et al., 2026\n"
+        "    title: Benchmark Reference\n"
+        "    why_it_matters: Trusted source for the topic\n"
+        "coverage_summary:\n"
+        "  covered_topics: [dependency-testing]\n"
+        "  excluded_topics: [implementation]\n"
+        "  open_gaps: [none]\n"
+    )
+    if superseded_by is not None:
+        base_content += f"superseded_by: {superseded_by}\n"
+    base_content += "---\n\nTrusted knowledge body.\n"
+    reviewed_content_sha256 = compute_knowledge_reviewed_content_sha256(base_content)
+    if status in {"stable", "in_review", "superseded"}:
+        content = base_content.replace(
+            "---\n\n",
+            (
+                "review:\n"
+                "  reviewed_at: 2026-04-07T13:00:00Z\n"
+                "  review_round: 1\n"
+                "  reviewer_kind: workflow\n"
+                "  reviewer_id: gpd-review-knowledge\n"
+                "  decision: approved\n"
+                "  summary: Stable review approved.\n"
+                f"  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md\n"
+                f"  approval_artifact_sha256: {'a' * 64}\n"
+                f"  reviewed_content_sha256: {reviewed_content_sha256}\n"
+                f"  stale: {'true' if stale else 'false'}\n"
+                "---\n\n"
+            ),
+        )
+    else:
+        content = base_content
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def _plan_with_knowledge_controls(
+    *,
+    knowledge_gate: str | None = None,
+    knowledge_deps: list[str] | None = None,
+) -> str:
+    fixture = (
+        Path(__file__).resolve().parents[1] / "fixtures" / "stage0" / "plan_with_contract.md"
+    ).read_text(encoding="utf-8")
+    metadata_block = ""
+    if knowledge_gate is not None:
+        metadata_block += f"knowledge_gate: {knowledge_gate}\n"
+    if knowledge_deps is not None:
+        metadata_block += "knowledge_deps:\n"
+        for dep in knowledge_deps:
+            metadata_block += f"  - {dep}\n"
+    return fixture.replace("interactive: false\n", f"interactive: false\n{metadata_block}", 1)
 
 
 def test_parse_plan_tool_requirements_normalizes_mathematica_alias() -> None:
@@ -197,6 +275,166 @@ def test_build_plan_tool_preflight_without_requirements_passes(tmp_path: Path) -
     assert result.passed is True
     assert result.requirements == []
     assert result.guidance == "No machine-checkable specialized tool requirements declared."
+
+
+def test_build_plan_tool_preflight_keeps_knowledge_gate_off_silent(
+    tmp_path: Path,
+) -> None:
+    _write_knowledge_doc(tmp_path, knowledge_id="K-dependency-off", status="draft")
+    plan_path = tmp_path / "01-01-PLAN.md"
+    plan_path.write_text(
+        _plan_with_knowledge_controls(
+            knowledge_gate="off",
+            knowledge_deps=["K-dependency-off"],
+        ),
+        encoding="utf-8",
+    )
+
+    result = build_plan_tool_preflight(plan_path)
+
+    assert result.passed is True
+    assert result.knowledge_gate == "off"
+    assert result.knowledge_deps == ["K-dependency-off"]
+    assert result.knowledge_dependency_checks == []
+    assert result.warnings == []
+    assert result.blocking_conditions == []
+
+
+def test_build_plan_tool_preflight_warns_but_does_not_fail_on_missing_knowledge_dependency(
+    tmp_path: Path,
+) -> None:
+    plan_path = tmp_path / "01-01-PLAN.md"
+    plan_path.write_text(
+        _plan_with_knowledge_controls(
+            knowledge_gate="warn",
+            knowledge_deps=["K-missing-dependency"],
+        ),
+        encoding="utf-8",
+    )
+
+    result = build_plan_tool_preflight(plan_path)
+
+    assert result.passed is True
+    assert result.knowledge_gate == "warn"
+    assert result.knowledge_dependency_checks[0].status == "missing"
+    assert result.knowledge_dependency_checks[0].blocking is False
+    assert any("K-missing-dependency" in warning for warning in result.warnings)
+    assert result.blocking_conditions == []
+
+
+def test_build_plan_tool_preflight_blocks_on_superseded_knowledge_dependency(
+    tmp_path: Path,
+) -> None:
+    _write_knowledge_doc(tmp_path, knowledge_id="K-next", status="stable")
+    _write_knowledge_doc(
+        tmp_path,
+        knowledge_id="K-legacy",
+        status="superseded",
+        superseded_by="K-next",
+    )
+    plan_path = tmp_path / "01-01-PLAN.md"
+    plan_path.write_text(
+        _plan_with_knowledge_controls(
+            knowledge_gate="block",
+            knowledge_deps=["K-legacy"],
+        ),
+        encoding="utf-8",
+    )
+
+    result = build_plan_tool_preflight(plan_path)
+
+    assert result.passed is False
+    assert result.knowledge_gate == "block"
+    assert result.knowledge_dependency_checks[0].status == "superseded"
+    assert result.knowledge_dependency_checks[0].blocking is True
+    assert result.knowledge_dependency_checks[0].successor == "K-next"
+    assert result.blocking_conditions[0].startswith("K-legacy:")
+    assert "superseded by K-next" in result.warnings[0]
+
+
+def test_build_plan_tool_preflight_combines_tool_blockers_and_knowledge_warnings(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr("gpd.core.tool_preflight.shutil.which", lambda _name: None)
+    plan_path = tmp_path / "01-01-PLAN.md"
+    plan_path.write_text(
+        (
+            "---\n"
+            "phase: 01-test\n"
+            "plan: 01\n"
+            "type: execute\n"
+            "wave: 1\n"
+            "depends_on: []\n"
+            "files_modified: []\n"
+            "interactive: false\n"
+            "knowledge_gate: warn\n"
+            "knowledge_deps:\n"
+            "  - K-missing-dependency\n"
+            "tool_requirements:\n"
+            "  - id: wolfram-cas\n"
+            "    tool: wolfram\n"
+            "    purpose: Symbolic tensor reduction\n"
+            "    required: true\n"
+            "conventions:\n"
+            "  units: natural\n"
+            "  metric: (+,-,-,-)\n"
+            "  coordinates: Cartesian\n"
+            "contract:\n"
+            "  schema_version: 1\n"
+            "  scope:\n"
+            "    question: What benchmark must this plan recover?\n"
+            "  context_intake:\n"
+            "    must_read_refs: [ref-main]\n"
+            "    must_include_prior_outputs: [GPD/phases/00-baseline/00-01-SUMMARY.md]\n"
+            "  claims:\n"
+            "    - id: claim-main\n"
+            "      statement: Recover the benchmark value within tolerance\n"
+            "      deliverables: [deliv-main]\n"
+            "      acceptance_tests: [test-main]\n"
+            "      references: [ref-main]\n"
+            "  deliverables:\n"
+            "    - id: deliv-main\n"
+            "      kind: figure\n"
+            "      path: figures/main.png\n"
+            "      description: Main benchmark figure\n"
+            "  references:\n"
+            "    - id: ref-main\n"
+            "      kind: paper\n"
+            "      locator: Author et al., Journal, 2024\n"
+            "      role: benchmark\n"
+            "      why_it_matters: Published comparison target\n"
+            "      applies_to: [claim-main]\n"
+            "      must_surface: true\n"
+            "      required_actions: [read, compare, cite]\n"
+            "  acceptance_tests:\n"
+            "    - id: test-main\n"
+            "      subject: claim-main\n"
+            "      kind: benchmark\n"
+            "      procedure: Compare against the benchmark reference\n"
+            "      pass_condition: Matches reference within tolerance\n"
+            "      evidence_required: [deliv-main, ref-main]\n"
+            "  forbidden_proxies:\n"
+            "    - id: fp-main\n"
+            "      subject: claim-main\n"
+            "      proxy: Qualitative trend match without numerical comparison\n"
+            "      reason: Would allow false progress without the decisive benchmark\n"
+            "  uncertainty_markers:\n"
+            "    weakest_anchors: [Reference tolerance interpretation]\n"
+            "    disconfirming_observations: [Benchmark agreement disappears after normalization fix]\n"
+            "---\n\n"
+            "Body.\n"
+        ),
+        encoding="utf-8",
+    )
+
+    result = build_plan_tool_preflight(plan_path)
+
+    assert result.passed is False
+    assert any(check.blocking for check in result.checks)
+    assert result.knowledge_dependency_checks[0].status == "missing"
+    assert any("K-missing-dependency" in warning for warning in result.warnings)
+    assert any("wolframscript not found on PATH" in blocker for blocker in result.blocking_conditions)
 
 
 def test_build_plan_tool_preflight_rejects_duplicate_requirement_ids(

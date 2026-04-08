@@ -9,6 +9,7 @@ Core operations:
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import subprocess
 from copy import deepcopy
@@ -36,6 +37,7 @@ from gpd.contracts import (
     parse_contract_results_data_artifact,
     parse_project_contract_data_strict,
 )
+from gpd.core import knowledge_docs as _knowledge_docs
 from gpd.core.constants import (
     PLAN_SUFFIX,
     STANDALONE_PLAN,
@@ -48,7 +50,13 @@ from gpd.core.observability import instrument_gpd_function
 from gpd.core.root_resolution import resolve_project_root
 from gpd.core.strict_yaml import load_strict_yaml
 from gpd.core.tool_preflight import PlanToolPreflightError, parse_plan_tool_requirements
-from gpd.core.utils import matching_phase_artifact_count, phase_artifact_display_name, phase_artifact_id, safe_read_file
+from gpd.core.utils import (
+    matching_phase_artifact_count,
+    normalize_ascii_slug,
+    phase_artifact_display_name,
+    phase_artifact_id,
+    safe_read_file,
+)
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -64,10 +72,12 @@ __all__ = [
     "splice_frontmatter",
     "deep_merge_frontmatter",
     "parse_contract_block",
+    "compute_knowledge_reviewed_content_sha256",
     # Schema validation
     "FRONTMATTER_SCHEMAS",
     "FrontmatterValidation",
     "validate_frontmatter",
+    "validate_knowledge_frontmatter",
     # Verification result types
     "FileCheckResult",
     "SummaryVerification",
@@ -90,6 +100,7 @@ __all__ = [
 PLAN_FRONTMATTER_TYPES = ("execute", "tdd")
 SUMMARY_DEPTH_VALUES = ("minimal", "standard", "full", "complex")
 VERIFICATION_REPORT_STATUSES = ("passed", "gaps_found", "expert_needed", "human_needed")
+KNOWLEDGE_GATE_VALUES = ("off", "warn", "block")
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -190,7 +201,7 @@ def splice_frontmatter(content: str, updates: dict) -> str:
     Preserves the body and detects CRLF vs LF line endings from the original
     content.  If *content* has no frontmatter block, one is prepended.
     """
-    meta, body = extract_frontmatter(content)
+    meta, _body = extract_frontmatter(content)
     meta.update(updates)
 
     eol = "\r\n" if "\r\n" in content else "\n"
@@ -382,7 +393,196 @@ FRONTMATTER_SCHEMAS: dict[str, dict[str, list[str]]] = {
     "verification": {
         "required": ["phase", "verified", "status", "score"],
     },
+    "knowledge": {
+        "required": [
+            "knowledge_schema_version",
+            "knowledge_id",
+            "title",
+            "topic",
+            "status",
+            "created_at",
+            "updated_at",
+            "sources",
+            "coverage_summary",
+        ],
+    },
 }
+
+
+def validate_knowledge_frontmatter(
+    content: str,
+    source_path: Path | None = None,
+) -> FrontmatterValidation:
+    """Validate knowledge frontmatter against the strict knowledge-doc schema."""
+
+    meta, body = extract_frontmatter(content)
+    required = FRONTMATTER_SCHEMAS["knowledge"]["required"]
+    missing = [f for f in required if _resolve_field(meta, f) is None]
+    present = [f for f in required if _resolve_field(meta, f) is not None]
+
+    errors: list[str] = []
+
+    unknown_fields = sorted(set(meta) - _KNOWLEDGE_TOP_LEVEL_FIELDS)
+    for field_name in unknown_fields:
+        errors.append(f"knowledge.{field_name}: unsupported field")
+
+    if meta.get("knowledge_schema_version") != 1:
+        errors.append("knowledge.knowledge_schema_version: must be the literal integer 1")
+
+    _validate_knowledge_string_field(meta, "knowledge_id", errors)
+    knowledge_id = meta.get("knowledge_id")
+    if isinstance(knowledge_id, str):
+        slug = knowledge_id.strip()
+        if not slug.startswith("K-") or not slug[2:] or normalize_ascii_slug(slug[2:]) != slug[2:]:
+            errors.append("knowledge.knowledge_id: must use canonical K-{ascii-hyphen-slug} format")
+
+    _validate_knowledge_string_field(meta, "title", errors)
+    _validate_knowledge_string_field(meta, "topic", errors)
+
+    status = meta.get("status")
+    if not isinstance(status, str) or not status.strip():
+        errors.append("knowledge.status: expected a non-empty string")
+        status_value = ""
+    else:
+        status_value = status.strip()
+        if status_value not in _KNOWLEDGE_STATUS_VALUES:
+            errors.append("knowledge.status: must be one of draft, in_review, stable, superseded")
+
+    created_at = _validate_knowledge_datetime_field(meta, "created_at", errors)
+    updated_at = _validate_knowledge_datetime_field(meta, "updated_at", errors)
+    if created_at is not None and updated_at is not None and updated_at < created_at:
+        errors.append("knowledge.updated_at must be on or after knowledge.created_at")
+
+    sources = meta.get("sources")
+    if not isinstance(sources, list):
+        errors.append("knowledge.sources: expected a list")
+        sources = []
+    elif not sources:
+        errors.append("knowledge.sources: must contain at least one source record")
+    for index, source in enumerate(sources):
+        if not isinstance(source, dict):
+            errors.append(f"knowledge.sources[{index}]: expected an object")
+            continue
+        allowed_source_fields = {
+            "source_id",
+            "kind",
+            "locator",
+            "title",
+            "why_it_matters",
+            "source_artifacts",
+            "reference_id",
+            "arxiv_id",
+            "doi",
+            "url",
+        }
+        for field_name in sorted(set(source) - allowed_source_fields):
+            errors.append(f"knowledge.sources[{index}].{field_name}: unsupported field")
+        _validate_knowledge_string_field(source, "source_id", errors)
+        _validate_knowledge_string_field(source, "locator", errors)
+        _validate_knowledge_string_field(source, "title", errors)
+        _validate_knowledge_string_field(source, "why_it_matters", errors)
+        source_kind = source.get("kind")
+        if source_kind is not None:
+            if not isinstance(source_kind, str) or not source_kind.strip():
+                errors.append(f"knowledge.sources[{index}].kind: expected a non-empty string")
+            elif source_kind.strip() not in ("paper", "dataset", "prior_artifact", "spec", "website", "other"):
+                errors.append(
+                    f"knowledge.sources[{index}].kind: must be one of paper, dataset, prior_artifact, spec, website, other"
+                )
+        source_artifacts = source.get("source_artifacts", [])
+        if source_artifacts is not None:
+            if not isinstance(source_artifacts, list):
+                errors.append(f"knowledge.sources[{index}].source_artifacts: expected a list")
+            else:
+                for artifact_index, artifact in enumerate(source_artifacts):
+                    if not isinstance(artifact, str) or not artifact.strip():
+                        errors.append(
+                            f"knowledge.sources[{index}].source_artifacts[{artifact_index}]: expected a non-empty string"
+                        )
+                    elif Path(artifact).is_absolute():
+                        errors.append(
+                            f"knowledge.sources[{index}].source_artifacts[{artifact_index}]: must be project-relative"
+                        )
+        for optional_field in ("reference_id", "arxiv_id", "doi", "url"):
+            optional_value = source.get(optional_field)
+            if optional_value is not None and (not isinstance(optional_value, str) or not optional_value.strip()):
+                errors.append(f"knowledge.sources[{index}].{optional_field}: expected a string")
+
+    coverage_summary = meta.get("coverage_summary")
+    if not isinstance(coverage_summary, dict):
+        errors.append("knowledge.coverage_summary: expected an object")
+    else:
+        allowed_summary_fields = {"covered_topics", "excluded_topics", "open_gaps"}
+        for field_name in sorted(set(coverage_summary) - allowed_summary_fields):
+            errors.append(f"knowledge.coverage_summary.{field_name}: unsupported field")
+        for field_name in ("covered_topics", "excluded_topics", "open_gaps"):
+            _validate_knowledge_string_list_field(
+                coverage_summary.get(field_name),
+                field_name=f"coverage_summary.{field_name}",
+                errors=errors,
+            )
+
+    review = meta.get("review")
+    current_content_sha256 = compute_knowledge_reviewed_content_sha256(content)
+    if status_value == "draft":
+        if review is not None:
+            errors.append("knowledge.review is forbidden when status is draft")
+    elif status_value == "in_review":
+        if review is not None:
+            _validate_knowledge_review_block(
+                review,
+                status=status_value,
+                current_content_sha256=current_content_sha256,
+                errors=errors,
+            )
+    elif status_value == "stable":
+        if review is None:
+            errors.append("knowledge.review is required when status is stable")
+        else:
+            _validate_knowledge_review_block(
+                review,
+                status=status_value,
+                current_content_sha256=current_content_sha256,
+                errors=errors,
+            )
+    elif status_value == "superseded":
+        if review is not None:
+            _validate_knowledge_review_block(
+                review,
+                status=status_value,
+                current_content_sha256=current_content_sha256,
+                errors=errors,
+            )
+
+        superseded_by = meta.get("superseded_by")
+        if not isinstance(superseded_by, str) or not superseded_by.strip():
+            errors.append("knowledge.superseded_by: expected a non-empty string")
+        else:
+            slug = superseded_by.strip()
+            if not slug.startswith("K-") or not slug[2:] or normalize_ascii_slug(slug[2:]) != slug[2:]:
+                errors.append("knowledge.superseded_by: must use canonical K-{ascii-hyphen-slug} format")
+            if slug == knowledge_id:
+                errors.append("knowledge.superseded_by must reference a different knowledge_id")
+    else:
+        if meta.get("superseded_by") is not None:
+            errors.append(f"knowledge.superseded_by is forbidden when status is {status_value or 'invalid'}")
+
+    if status_value in {"draft", "in_review", "stable"} and meta.get("superseded_by") is not None:
+        errors.append(f"knowledge.superseded_by is forbidden when status is {status_value}")
+
+    if source_path is not None and source_path.stem != str(knowledge_id or ""):
+        errors.append(
+            f"knowledge_id must match the filename stem ({source_path.stem!r} != {knowledge_id!r})"
+        )
+
+    return FrontmatterValidation(
+        valid=len(missing) == 0 and not errors,
+        missing=missing,
+        present=present,
+        errors=errors,
+        schema_name="knowledge",
+    )
+
 
 UNSUPPORTED_FRONTMATTER_FIELDS: dict[str, dict[str, str]] = {
     "plan": {
@@ -421,6 +621,346 @@ _PLAN_CONTRACT_EXPLICIT_COLLECTION_FIELDS: tuple[tuple[str, str], ...] = ()
 
 def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+_KNOWLEDGE_STATUS_VALUES = ("draft", "in_review", "stable", "superseded")
+_KNOWLEDGE_TOP_LEVEL_FIELDS = {
+    "knowledge_schema_version",
+    "knowledge_id",
+    "title",
+    "topic",
+    "status",
+    "created_at",
+    "updated_at",
+    "sources",
+    "coverage_summary",
+    "review",
+    "superseded_by",
+}
+_KNOWLEDGE_REVIEW_CANONICAL_FIELDS = {
+    "reviewed_at",
+    "review_round",
+    "reviewer_kind",
+    "reviewer_id",
+    "decision",
+    "summary",
+    "approval_artifact_path",
+    "approval_artifact_sha256",
+    "reviewed_content_sha256",
+    "stale",
+}
+_KNOWLEDGE_REVIEW_LEGACY_FIELDS = {
+    "reviewed_at",
+    "reviewer",
+    "decision",
+    "summary",
+    "evidence_path",
+    "evidence_sha256",
+    "audit_artifact_path",
+    "commit_sha",
+    "trace_id",
+}
+_KNOWLEDGE_REVIEW_DECISION_VALUES = ("approved", "needs_changes", "rejected")
+def _parse_iso8601_datetime(value: object) -> datetime | None:
+    """Parse an ISO 8601 timestamp or return ``None`` when invalid."""
+
+    if isinstance(value, datetime):
+        return value
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    try:
+        return datetime.fromisoformat(stripped.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _is_lower_hex_sha256(value: object) -> bool:
+    """Return True when *value* is a lowercase SHA-256 digest string."""
+
+    return isinstance(value, str) and len(value) == 64 and value == value.lower() and all(
+        character in "0123456789abcdef" for character in value
+    )
+
+
+def _validate_knowledge_string_field(meta: dict[str, object], field_name: str, errors: list[str]) -> None:
+    """Append an error when a required field is not a non-empty string."""
+
+    value = meta.get(field_name)
+    if not isinstance(value, str) or not value.strip():
+        errors.append(f"knowledge.{field_name}: expected a non-empty string")
+
+
+def _validate_knowledge_string_list_field(
+    value: object,
+    *,
+    field_name: str,
+    errors: list[str],
+) -> None:
+    """Append an error when a field is not a list of non-empty strings."""
+
+    if not isinstance(value, list):
+        errors.append(f"knowledge.{field_name}: expected a list")
+        return
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or not item.strip():
+            errors.append(f"knowledge.{field_name}: entry {index} must be a non-empty string")
+
+
+def _validate_knowledge_datetime_field(meta: dict[str, object], field_name: str, errors: list[str]) -> datetime | None:
+    """Append an error when a required field is not an ISO 8601 timestamp."""
+
+    value = meta.get(field_name)
+    parsed = _parse_iso8601_datetime(value)
+    if parsed is None:
+        errors.append(f"knowledge.{field_name}: expected an ISO 8601 timestamp")
+    return parsed
+
+
+def _validate_knowledge_sha256_field(meta: dict[str, object], field_name: str, errors: list[str]) -> str | None:
+    """Append an error when a required field is not a lowercase SHA-256 digest."""
+
+    value = meta.get(field_name)
+    if not _is_lower_hex_sha256(value):
+        errors.append(f"knowledge.review.{field_name}: expected a lowercase 64-hex sha256 digest")
+        return None
+    return str(value)
+
+
+def _validate_knowledge_project_relative_path(
+    meta: dict[str, object],
+    field_name: str,
+    errors: list[str],
+) -> str | None:
+    """Append an error when a required field is not a project-relative path."""
+
+    value = meta.get(field_name)
+    if not isinstance(value, str) or not value.strip():
+        errors.append(f"knowledge.review.{field_name}: expected a non-empty string")
+        return None
+    stripped = value.strip()
+    if Path(stripped).is_absolute():
+        errors.append(f"knowledge.review.{field_name}: must be a project-relative path")
+        return None
+    return stripped
+
+
+def _knowledge_review_uses_canonical_contract(review: dict[str, object]) -> bool:
+    """Return whether the review block is using the Step 4 contract shape."""
+
+    return bool(set(review) & (_KNOWLEDGE_REVIEW_CANONICAL_FIELDS - _KNOWLEDGE_REVIEW_LEGACY_FIELDS))
+
+
+def _validate_knowledge_review_block(
+    review: object,
+    *,
+    status: str,
+    current_content_sha256: str,
+    errors: list[str],
+) -> None:
+    """Validate the knowledge review block against the requested lifecycle state."""
+
+    if not isinstance(review, dict):
+        errors.append("knowledge.review: expected an object")
+        return
+
+    review_field_names = set(review)
+    allowed_fields = _KNOWLEDGE_REVIEW_CANONICAL_FIELDS | _KNOWLEDGE_REVIEW_LEGACY_FIELDS
+    unknown_fields = sorted(review_field_names - allowed_fields)
+    for field_name in unknown_fields:
+        errors.append(f"knowledge.review.{field_name}: unsupported field")
+
+    reviewed_at = _validate_knowledge_datetime_field(review, "reviewed_at", errors)
+    decision = review.get("decision")
+    if not isinstance(decision, str) or not decision.strip():
+        errors.append("knowledge.review.decision: expected a non-empty string")
+        decision_value = None
+    else:
+        decision_value = decision.strip()
+        if decision_value not in _KNOWLEDGE_REVIEW_DECISION_VALUES:
+            errors.append("knowledge.review.decision: must be one of approved, needs_changes, rejected")
+
+    summary = review.get("summary")
+    if not isinstance(summary, str) or not summary.strip():
+        errors.append("knowledge.review.summary: expected a non-empty string")
+
+    canonical_contract = _knowledge_review_uses_canonical_contract(review)
+
+    if canonical_contract:
+        if not isinstance(review.get("reviewer_kind"), str) or not review.get("reviewer_kind", "").strip():
+            errors.append("knowledge.review.reviewer_kind: expected a non-empty string")
+        if not isinstance(review.get("reviewer_id"), str) or not review.get("reviewer_id", "").strip():
+            errors.append("knowledge.review.reviewer_id: expected a non-empty string")
+        if reviewed_at is None:
+            errors.append("knowledge.review.reviewed_at: expected an ISO 8601 timestamp")
+        review_round = review.get("review_round")
+        if type(review_round) is not int or review_round < 1:
+            errors.append("knowledge.review.review_round: expected an integer >= 1")
+        _validate_knowledge_project_relative_path(review, "approval_artifact_path", errors)
+        _validate_knowledge_sha256_field(review, "approval_artifact_sha256", errors)
+        if _validate_knowledge_sha256_field(review, "reviewed_content_sha256", errors) is None and review.get(
+            "reviewed_content_sha256"
+        ) is not None:
+            errors.append("knowledge.review.approval_artifact_sha256: expected a lowercase 64-hex sha256 digest")
+        stale = review.get("stale")
+        if type(stale) is not bool:
+            errors.append("knowledge.review.stale: expected a boolean")
+    else:
+        if not isinstance(review.get("reviewer"), str) or not review.get("reviewer", "").strip():
+            errors.append("knowledge.review.reviewer: expected a non-empty string")
+        if reviewed_at is None:
+            errors.append("knowledge.review.reviewed_at: expected an ISO 8601 timestamp")
+        evidence_path = review.get("evidence_path")
+        audit_artifact_path = review.get("audit_artifact_path")
+        commit_sha = review.get("commit_sha")
+        trace_id = review.get("trace_id")
+        if not any(
+            isinstance(value, str) and value.strip()
+            for value in (evidence_path, audit_artifact_path, commit_sha, trace_id)
+        ):
+            errors.append(
+                "knowledge.review: requires at least one concrete evidence pointer: "
+                "evidence_path, audit_artifact_path, commit_sha, or trace_id"
+            )
+        evidence_sha256 = review.get("evidence_sha256")
+        if evidence_sha256 is not None and not _is_lower_hex_sha256(evidence_sha256):
+            errors.append("knowledge.review.evidence_sha256: expected a lowercase 64-hex sha256 digest")
+        if audit_artifact_path is not None and (
+            not isinstance(audit_artifact_path, str) or not audit_artifact_path.strip() or Path(audit_artifact_path).is_absolute()
+        ):
+            errors.append("knowledge.review.audit_artifact_path: must be a project-relative path")
+        # Legacy review records do not carry the Step 4 freshness contract.
+        if review.get("stale") is not None and type(review.get("stale")) is not bool:
+            errors.append("knowledge.review.stale: expected a boolean")
+
+    if decision_value == "approved":
+        if status == "draft":
+            errors.append("knowledge.review.decision: approved review is forbidden when status is draft")
+        elif status == "in_review":
+            if canonical_contract:
+                if review.get("stale") is not True:
+                    errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
+            elif review.get("stale") is False:
+                errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
+        elif status == "stable":
+            if canonical_contract:
+                if review.get("stale") is not False:
+                    errors.append("knowledge.review.stale: approved stable docs must be marked stale: false")
+                if not isinstance(review.get("approval_artifact_path"), str) or not review.get("approval_artifact_path", "").strip():
+                    errors.append("knowledge.review.approval_artifact_path: expected a project-relative path")
+                if not _is_lower_hex_sha256(review.get("approval_artifact_sha256")):
+                    errors.append("knowledge.review.approval_artifact_sha256: expected a lowercase 64-hex sha256 digest")
+                if not _is_lower_hex_sha256(review.get("reviewed_content_sha256")):
+                    errors.append("knowledge.review.reviewed_content_sha256: expected a lowercase 64-hex sha256 digest")
+                if review.get("reviewed_content_sha256") is not None and review.get("reviewed_content_sha256") != current_content_sha256:
+                    errors.append(
+                        "knowledge.review.reviewed_content_sha256 does not match the current trusted content hash"
+                    )
+            else:
+                # Legacy stable records remain accepted for backward compatibility, but they do not
+                # participate in the Step 4 freshness contract.
+                if not any(
+                    isinstance(value, str) and value.strip()
+                    for value in (
+                        review.get("evidence_path"),
+                        review.get("audit_artifact_path"),
+                        review.get("commit_sha"),
+                        review.get("trace_id"),
+                    )
+                ):
+                    errors.append(
+                        "knowledge.review: requires at least one concrete evidence pointer: "
+                        "evidence_path, audit_artifact_path, commit_sha, or trace_id"
+                    )
+    if status == "stable" and not canonical_contract:
+        if review is None:
+            errors.append("knowledge.review is required when status is stable")
+        elif decision_value != "approved":
+            errors.append("knowledge.review.decision must be approved when status is stable")
+    if status == "in_review" and review is not None and canonical_contract and decision_value == "approved" and review.get("stale") is not True:
+        errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
+
+
+def _knowledge_reviewed_content_projection(meta: dict[str, object], body: str) -> dict[str, object]:
+    """Return the canonical content projection used for knowledge freshness hashing."""
+
+    return {
+        "knowledge_schema_version": meta.get("knowledge_schema_version"),
+        "knowledge_id": meta.get("knowledge_id"),
+        "title": meta.get("title"),
+        "topic": meta.get("topic"),
+        "sources": meta.get("sources"),
+        "coverage_summary": meta.get("coverage_summary"),
+        "body": body.replace("\r\n", "\n"),
+    }
+
+
+def _normalize_knowledge_review_inputs(
+    knowledge_doc_or_content: object,
+    *,
+    body_text: str = "",
+    meta: dict[str, object] | None = None,
+    body: str | None = None,
+) -> tuple[dict[str, object], str]:
+    """Return ``(meta, body_text)`` for any supported knowledge-review input form."""
+
+    effective_body = body_text or (body if body is not None else "")
+    if meta is not None:
+        if not isinstance(meta, dict):
+            raise TypeError("meta must be a mapping")
+        return meta, effective_body
+    if isinstance(knowledge_doc_or_content, str):
+        extracted_meta, extracted_body = extract_frontmatter(knowledge_doc_or_content)
+        return extracted_meta, effective_body or extracted_body
+    if isinstance(knowledge_doc_or_content, dict):
+        return knowledge_doc_or_content, effective_body
+    if hasattr(knowledge_doc_or_content, "model_dump"):
+        return knowledge_doc_or_content.model_dump(mode="python"), effective_body
+    raise TypeError("expected a knowledge document, content string, or metadata mapping")
+
+
+def compute_knowledge_reviewed_content_sha256(
+    knowledge_doc_or_content: object,
+    *,
+    body_text: str = "",
+    meta: dict[str, object] | None = None,
+    body: str | None = None,
+) -> str:
+    """Compute the canonical hash of the trust-bearing knowledge-doc projection."""
+
+    normalized_meta, normalized_body = _normalize_knowledge_review_inputs(
+        knowledge_doc_or_content,
+        body_text=body_text,
+        meta=meta,
+        body=body,
+    )
+    projection = _knowledge_reviewed_content_projection(normalized_meta, normalized_body)
+    encoded = json.dumps(projection, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return _sha256_text(encoded)
+
+
+def _compat_knowledge_reviewed_content_projection(
+    knowledge_doc_or_content: object,
+    *,
+    body_text: str = "",
+    meta: dict[str, object] | None = None,
+    body: str | None = None,
+) -> dict[str, object]:
+    """Compatibility wrapper for the knowledge-doc projection helper."""
+
+    normalized_meta, normalized_body = _normalize_knowledge_review_inputs(
+        knowledge_doc_or_content,
+        body_text=body_text,
+        meta=meta,
+        body=body,
+    )
+    return _knowledge_reviewed_content_projection(normalized_meta, normalized_body)
+
+
+_knowledge_docs.compute_knowledge_reviewed_content_sha256 = compute_knowledge_reviewed_content_sha256
+_knowledge_docs.knowledge_reviewed_content_projection = _compat_knowledge_reviewed_content_projection
 
 
 def _resolve_contract_artifact_path(
@@ -624,6 +1164,63 @@ def _validate_non_empty_string_list_field(meta: dict[str, object], field_name: s
     for index, item in enumerate(value):
         if not isinstance(item, str) or not item.strip():
             errors.append(f"{field_name}: entry {index} must be a non-empty string")
+
+
+def _validate_knowledge_deps_field(meta: dict[str, object], errors: list[str]) -> None:
+    """Append validation errors for the optional top-level ``knowledge_deps`` field."""
+
+    field_name = "knowledge_deps"
+    if field_name not in meta:
+        return
+    value = meta.get(field_name)
+    if not isinstance(value, list):
+        errors.append(f"{field_name}: expected a list")
+        return
+
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str):
+            errors.append(f"{field_name}: entry {index} must be a non-empty string")
+            continue
+        knowledge_id = item.strip()
+        if not knowledge_id:
+            errors.append(f"{field_name}: entry {index} must be a non-empty string")
+            continue
+        if (
+            not knowledge_id.startswith("K-")
+            or not knowledge_id[2:]
+            or normalize_ascii_slug(knowledge_id[2:]) != knowledge_id[2:]
+        ):
+            errors.append(
+                f"{field_name}: entry {index} must use canonical K-{{ascii-hyphen-slug}} format"
+            )
+            continue
+        if knowledge_id in seen and knowledge_id not in duplicates:
+            duplicates.append(knowledge_id)
+        seen.add(knowledge_id)
+
+    if duplicates:
+        joined = ", ".join(duplicates)
+        errors.append(f"{field_name}: duplicate ids are not allowed: {joined}")
+
+
+def _validate_knowledge_gate_field(meta: dict[str, object], errors: list[str]) -> None:
+    """Append validation errors for the optional top-level ``knowledge_gate`` field."""
+
+    field_name = "knowledge_gate"
+    if field_name not in meta:
+        return
+    value = meta.get(field_name)
+    if not isinstance(value, str):
+        errors.append(f"{field_name}: expected a string")
+        return
+    gate_value = value.strip()
+    if not gate_value:
+        errors.append(f"{field_name}: expected a non-empty string")
+        return
+    if gate_value not in KNOWLEDGE_GATE_VALUES:
+        errors.append(f"{field_name}: must be one of off, warn, block")
 
 
 def _plan_contract_ref_fragment_error(plan_contract_ref: str) -> str | None:
@@ -1402,6 +1999,9 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
         available = ", ".join(FRONTMATTER_SCHEMAS)
         raise FrontmatterValidationError(f"Unknown schema: {schema_name}. Available: {available}")
 
+    if schema_name == "knowledge":
+        return validate_knowledge_frontmatter(content, source_path=source_path)
+
     meta, _ = extract_frontmatter(content)  # may raise FrontmatterParseError
     required = schema["required"]
 
@@ -1452,6 +2052,10 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
         errors.extend(f"contract: {issue}" for issue in resolution.errors)
     elif "contract" in meta:
         errors.append("contract: expected an object")
+
+    if schema_name == "plan":
+        _validate_knowledge_deps_field(meta, errors)
+        _validate_knowledge_gate_field(meta, errors)
 
     if schema_name == "plan" and "tool_requirements" in meta:
         try:

@@ -9,7 +9,6 @@ import logging
 import re
 import secrets
 import time
-import unicodedata
 from collections import deque
 from datetime import UTC, datetime
 
@@ -19,7 +18,7 @@ from pydantic import ValidationError as _PydanticValidationError
 from gpd.contracts import VerificationEvidence
 from gpd.core.errors import DuplicateResultError, ResultError, ResultNotFoundError
 from gpd.core.observability import instrument_gpd_function
-from gpd.core.utils import phase_normalize, phase_unpad
+from gpd.core.utils import normalize_ascii_slug, phase_normalize, phase_unpad
 
 __all__ = [
     "RESULT_FIELDS",
@@ -328,14 +327,6 @@ def _result_has_upstream_dependency(
     return False
 
 
-def _normalize_ascii_slug(value: object) -> str:
-    """Return an ASCII-safe slug token for stable identifier construction."""
-    normalized = unicodedata.normalize("NFKD", str(value or "").strip().casefold())
-    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
-    slug = re.sub(r"[^a-z0-9]+", "-", ascii_text)
-    return re.sub(r"-+", "-", slug).strip("-")
-
-
 def _stable_derivation_result_id(state: dict, derivation_slug: str, *, phase: str | None = None) -> str:
     """Build a deterministic result ID from the current phase and derivation slug."""
     resolved_phase = phase
@@ -345,7 +336,7 @@ def _stable_derivation_result_id(state: dict, derivation_slug: str, *, phase: st
         resolved_phase = str(raw_phase) if raw_phase is not None else "0"
 
     phase_token = phase_normalize(str(resolved_phase)).replace(".", "_")
-    slug_token = _normalize_ascii_slug(derivation_slug)
+    slug_token = normalize_ascii_slug(derivation_slug)
     if not slug_token:
         raise ResultError("derivation_slug must normalize to a non-empty ASCII identifier")
     return f"R-{phase_token}-{slug_token}"

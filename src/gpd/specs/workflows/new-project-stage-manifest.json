@@ -157,11 +157,11 @@
         "GPD/state.json",
         "GPD/config.json",
         "GPD/CONVENTIONS.md",
-        "GPD/research/PRIOR-WORK.md",
-        "GPD/research/METHODS.md",
-        "GPD/research/COMPUTATIONAL.md",
-        "GPD/research/PITFALLS.md",
-        "GPD/research/SUMMARY.md"
+        "GPD/literature/PRIOR-WORK.md",
+        "GPD/literature/METHODS.md",
+        "GPD/literature/COMPUTATIONAL.md",
+        "GPD/literature/PITFALLS.md",
+        "GPD/literature/SUMMARY.md"
       ],
       "produced_state": [
         "project artifacts",

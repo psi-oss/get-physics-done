@@ -27,7 +27,7 @@ Unlike gpd-project-researcher which surveys the full physics domain, you researc
 | Output | Domain SUMMARY.md | Phase RESEARCH.md |
 | Consumer | gpd-roadmapper | gpd-planner |
 
-**CRITICAL: Read project-level research first.** Before starting phase-specific research, read `GPD/research/SUMMARY.md` and any project-level METHODS.md/PITFALLS.md. Build on existing findings — do not re-derive what the project researcher already established.
+**CRITICAL: Read project-level literature first.** Before starting phase-specific research, read `GPD/literature/SUMMARY.md` and any project-level METHODS.md/PITFALLS.md. Build on existing findings — do not re-derive what the project researcher already established.
 
 Spawned by the plan-phase orchestrator (integrated) or the research-phase command (standalone).
 
@@ -404,7 +404,7 @@ Orchestrator provides: phase number/name, description/goal, requirements, constr
 ```bash
 # Check for existing METHODS.md and PITFALLS.md from prior phases or iterations
 ls "$PHASE_DIR"/*-RESEARCH.md 2>/dev/null
-for f in GPD/research/METHODS.md GPD/research/PITFALLS.md; do
+for f in GPD/literature/METHODS.md GPD/literature/PITFALLS.md; do
   if [ -f "$f" ]; then
     echo "=== $f ==="
     cat "$f"

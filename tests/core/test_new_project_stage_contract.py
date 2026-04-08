@@ -71,11 +71,11 @@ def test_new_project_stage_contract_loads_and_preserves_stage_order() -> None:
         "GPD/state.json",
         "GPD/config.json",
         "GPD/CONVENTIONS.md",
-        "GPD/research/PRIOR-WORK.md",
-        "GPD/research/METHODS.md",
-        "GPD/research/COMPUTATIONAL.md",
-        "GPD/research/PITFALLS.md",
-        "GPD/research/SUMMARY.md",
+        "GPD/literature/PRIOR-WORK.md",
+        "GPD/literature/METHODS.md",
+        "GPD/literature/COMPUTATIONAL.md",
+        "GPD/literature/PITFALLS.md",
+        "GPD/literature/SUMMARY.md",
     )
     assert "references/research/questioning.md" not in contract.stages[2].loaded_authorities
 

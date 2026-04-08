@@ -113,6 +113,30 @@ def _add_plan_conventions(content: str) -> str:
     )
 
 
+def _plan_frontmatter_with_knowledge_controls(
+    *,
+    knowledge_deps: object | None = None,
+    knowledge_gate: str | None = None,
+) -> str:
+    metadata = ""
+    if knowledge_gate is not None:
+        metadata += f"knowledge_gate: {knowledge_gate}\n"
+    if knowledge_deps is not None:
+        if isinstance(knowledge_deps, list):
+            metadata += "knowledge_deps:\n"
+            for dep in knowledge_deps:
+                metadata += f"  - {dep}\n"
+        else:
+            metadata += f"knowledge_deps: {knowledge_deps}\n"
+    if not metadata:
+        return _valid_plan_contract_frontmatter() + "Body.\n"
+    return _valid_plan_contract_frontmatter().replace(
+        "conventions:\n",
+        f"{metadata}conventions:\n",
+        1,
+    ) + "Body.\n"
+
+
 def _plan_contract_frontmatter_with_explicit_semantic_sections() -> str:
     return _valid_plan_contract_frontmatter(
         extra_contract_lines=(
@@ -777,6 +801,63 @@ class TestValidateFrontmatter:
 
         assert result.valid is True
         assert result.errors == []
+
+    def test_plan_accepts_knowledge_dependency_controls(self):
+        content = _plan_frontmatter_with_knowledge_controls(
+            knowledge_gate="warn",
+            knowledge_deps=["K-renormalization-group-fixed-points"],
+        )
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is True
+        assert result.errors == []
+
+    @pytest.mark.parametrize(
+        ("knowledge_deps", "expected_error"),
+        [
+            ("K-renormalization-group-fixed-points", "knowledge_deps: expected a list"),
+            (
+                ["renormalization-group"],
+                "knowledge_deps: entry 0 must use canonical K-{ascii-hyphen-slug} format",
+            ),
+            (
+                ["K-renormalization-group-fixed-points", "K-renormalization-group-fixed-points"],
+                "knowledge_deps: duplicate ids are not allowed: K-renormalization-group-fixed-points",
+            ),
+        ],
+    )
+    def test_plan_rejects_invalid_knowledge_deps(
+        self,
+        knowledge_deps: object,
+        expected_error: str,
+    ) -> None:
+        content = _plan_frontmatter_with_knowledge_controls(knowledge_deps=knowledge_deps)
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert expected_error in result.errors
+
+    @pytest.mark.parametrize(
+        ("knowledge_gate", "expected_error"),
+        [
+            ("", "knowledge_gate: expected a string"),
+            ("maybe", "knowledge_gate: must be one of off, warn, block"),
+            ("blocker", "knowledge_gate: must be one of off, warn, block"),
+        ],
+    )
+    def test_plan_rejects_invalid_knowledge_gate_values(
+        self,
+        knowledge_gate: str,
+        expected_error: str,
+    ) -> None:
+        content = _plan_frontmatter_with_knowledge_controls(knowledge_gate=knowledge_gate)
+
+        result = validate_frontmatter(content, "plan")
+
+        assert result.valid is False
+        assert expected_error in result.errors
 
     def test_summary_with_source_path_resolves_project_root_relative_sibling_plan_contract(
         self,
