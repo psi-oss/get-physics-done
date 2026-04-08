@@ -131,13 +131,13 @@ async def test_manual_multipass_rejects_missing_bibtex_when_citations_require_it
             pdf_path.write_bytes(b"%PDF-fresh")
         return _FakeProcess(returncode=next(returncodes), stdout=b"compile output", stderr=b"")
 
-    def fake_find(binary: str) -> str | None:
-        if binary == "pdflatex":
+    def fake_find_compiler(name: str) -> str | None:
+        if name == "pdflatex":
             return "/usr/bin/pdflatex"
         return None
 
     monkeypatch.setattr("gpd.mcp.paper.compiler.asyncio.create_subprocess_exec", fake_create_subprocess_exec)
-    monkeypatch.setattr("gpd.mcp.paper.compiler._which", fake_find)
+    monkeypatch.setattr("gpd.mcp.paper.compiler.find_latex_compiler", fake_find_compiler)
     monkeypatch.setattr("gpd.utils.latex.try_autofix", lambda tex, log: AutoFixResult())
 
     result = await _compile_manual_multipass(tex_path, tmp_path, "pdflatex")
@@ -167,13 +167,13 @@ async def test_manual_multipass_rejects_missing_bibtex_even_after_autofix(
             pdf_path.write_bytes(b"%PDF-fresh")
         return _FakeProcess(returncode=next(returncodes), stdout=b"compile output", stderr=b"")
 
-    def fake_find(binary: str) -> str | None:
-        if binary == "pdflatex":
+    def fake_find_compiler(name: str) -> str | None:
+        if name == "pdflatex":
             return "/usr/bin/pdflatex"
         return None
 
     monkeypatch.setattr("gpd.mcp.paper.compiler.asyncio.create_subprocess_exec", fake_create_subprocess_exec)
-    monkeypatch.setattr("gpd.mcp.paper.compiler._which", fake_find)
+    monkeypatch.setattr("gpd.mcp.paper.compiler.find_latex_compiler", fake_find_compiler)
     monkeypatch.setattr(
         "gpd.utils.latex.try_autofix",
         lambda tex, log: AutoFixResult(

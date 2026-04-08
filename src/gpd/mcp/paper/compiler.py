@@ -366,6 +366,7 @@ class CompilationResult:
     pdf_path: Path | None = None
     error: str | None = None
     log: str | None = None
+    warning: str | None = None
 
 
 async def compile_paper(tex_path: Path, output_dir: Path, compiler: str = "pdflatex") -> CompilationResult:
@@ -411,6 +412,20 @@ async def _compile_with_latexmk(
 
     logger.info("Compiling with latexmk: %s", " ".join(cmd))
 
+    pdf_path = output_dir / f"{tex_path.stem}.pdf"
+
+    def _pdf_signature() -> tuple[int, int] | None:
+        """Return (size, mtime_ns) if the PDF exists, else None."""
+        if not pdf_path.exists():
+            return None
+        try:
+            stat = pdf_path.stat()
+        except OSError:
+            return None
+        return stat.st_size, stat.st_mtime_ns
+
+    initial_signature = _pdf_signature()
+
     try:
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -425,16 +440,39 @@ async def _compile_with_latexmk(
             await process.wait()
             return CompilationResult(success=False, error="Compilation timed out after 120 seconds")
 
-        pdf_path = output_dir / f"{tex_path.stem}.pdf"
         log_content = stdout.decode(errors="replace") + stderr.decode(errors="replace")
 
-        if pdf_path.exists():
+        # Freshness check: PDF must exist and differ from the pre-run snapshot.
+        current_signature = _pdf_signature()
+        pdf_is_fresh = (
+            current_signature is not None
+            and (initial_signature is None or current_signature != initial_signature)
+        )
+
+        if pdf_is_fresh:
+            # Fresh PDF produced. latexmk exit code 12 means "failure in
+            # some part of making files" but pdflatex may still produce a
+            # valid PDF (e.g., unresolved references in nonstop mode).
+            # The freshness check confirms the PDF is real, not stale.
             if process.returncode == 0:
                 return CompilationResult(success=True, pdf_path=pdf_path)
             return CompilationResult(
+                success=True,
+                pdf_path=pdf_path,
+                warning=f"latexmk exited with code {process.returncode} — PDF was produced but check the log for issues",
+                log=log_content[-5000:],
+            )
+
+        # No fresh PDF. A stale file may sit on disk from an earlier build.
+        if pdf_path.exists():
+            if process.returncode != 0:
+                error = f"latexmk exited with code {process.returncode}"
+            else:
+                error = "latexmk finished without producing a fresh PDF"
+            return CompilationResult(
                 success=False,
                 pdf_path=pdf_path,
-                error=f"latexmk exited with code {process.returncode}",
+                error=error,
                 log=log_content[-5000:],
             )
 
