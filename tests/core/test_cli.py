@@ -2497,6 +2497,24 @@ def _plan_with_tool_requirements(tool_requirements_block: str) -> str:
     return fixture.replace("interactive: false\n", f"interactive: false\n{tool_requirements_block}", 1)
 
 
+def _plan_with_knowledge_controls(
+    *,
+    knowledge_gate: str | None = None,
+    knowledge_deps: list[str] | None = None,
+) -> str:
+    fixture = (
+        Path(__file__).resolve().parents[1] / "fixtures" / "stage0" / "plan_with_contract.md"
+    ).read_text(encoding="utf-8")
+    metadata_block = ""
+    if knowledge_gate is not None:
+        metadata_block += f"knowledge_gate: {knowledge_gate}\n"
+    if knowledge_deps is not None:
+        metadata_block += "knowledge_deps:\n"
+        for dep in knowledge_deps:
+            metadata_block += f"  - {dep}\n"
+    return fixture.replace("interactive: false\n", f"interactive: false\n{metadata_block}", 1)
+
+
 def test_validate_plan_preflight_passes_when_no_specialized_tools_are_declared(tmp_path: Path) -> None:
     plan_path = tmp_path / "01-01-PLAN.md"
     plan_path.write_text(
@@ -2567,6 +2585,50 @@ def test_validate_plan_preflight_allows_missing_optional_wolfram_with_fallback(
     assert payload["passed"] is True
     assert payload["requirements"][0]["tool"] == "wolfram"
     assert payload["requirements"][0]["blocking"] is False
+
+
+def test_validate_plan_preflight_warns_on_missing_knowledge_dependency(
+    tmp_path: Path,
+) -> None:
+    plan_path = tmp_path / "01-01-PLAN.md"
+    plan_path.write_text(
+        _plan_with_knowledge_controls(
+            knowledge_gate="warn",
+            knowledge_deps=["K-missing-dependency"],
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["--raw", "validate", "plan-preflight", str(plan_path)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["knowledge_gate"] == "warn"
+    assert payload["passed"] is True
+    assert payload["knowledge_dependency_checks"][0]["status"] == "missing"
+    assert any("K-missing-dependency" in warning for warning in payload["warnings"])
+
+
+def test_validate_plan_preflight_blocks_on_missing_knowledge_dependency(
+    tmp_path: Path,
+) -> None:
+    plan_path = tmp_path / "01-01-PLAN.md"
+    plan_path.write_text(
+        _plan_with_knowledge_controls(
+            knowledge_gate="block",
+            knowledge_deps=["K-missing-dependency"],
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["--raw", "validate", "plan-preflight", str(plan_path)])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["knowledge_gate"] == "block"
+    assert payload["passed"] is False
+    assert payload["knowledge_dependency_checks"][0]["status"] == "missing"
+    assert any("K-missing-dependency" in blocker for blocker in payload["blocking_conditions"])
 
 
 def test_resolve_model_help_lists_supported_runtime_ids():
