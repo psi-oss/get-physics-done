@@ -82,7 +82,7 @@ Extract **phase goal** from ROADMAP.md (the research outcome to verify, not task
 **Verification independence:** Load only what the verifier needs to judge results on their own merits. See @{GPD_INSTALL_DIR}/references/verification/meta/verification-independence.md.
 
 If `derived_manuscript_proof_review_status` is present, use it as the structured freshness summary for any manuscript-local proof-bearing artifact and keep the corresponding `*-PROOF-REDTEAM.md` artifact authoritative for pass/fail decisions.
-If `project_contract_gate.visible` is true, keep `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, and `protocol_bundle_context` in the verifier context even when `project_contract_gate.authoritative` is false. They remain visible carry-forward context, not authoritative scope, until the gate clears.
+If `project_contract_gate.visible` is true, keep `project_contract`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, and `protocol_bundle_context` in the verifier context even when `project_contract_gate.authoritative` is false. They remain visible carry-forward context, not authoritative scope, until the gate clears. Stable knowledge docs that surface through this context are reviewed background synthesis only: they may guide check selection and interpretation, but they do not override the contract, the gate, or decisive evidence.
 
 **INCLUDE in verification context:**
 

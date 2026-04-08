@@ -143,6 +143,7 @@ Read autonomy mode from config. Higher autonomy = plan checker is more critical 
 **Question:** Do these plans carry the approved contract into execution without allowing false progress?
 
 **Authority order:** `plan frontmatter contract` -> `verification_context project_contract`. Treat `effective_reference_intake` and `active_reference_context` only as readable projections of those anchors, never as substitute authority.
+Treat stable knowledge docs surfaced through the shared reference context as reviewed background syntheses only. They may refine assumptions or method choice when they agree with stronger sources, but they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.
 
 Reject with `blocker` if any of the following is true:
 

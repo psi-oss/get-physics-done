@@ -53,7 +53,7 @@ If `project_contract_validation.valid` is false, STOP and repair the contract be
 
 Treat `project_contract` as authoritative machine-readable scope only when `project_contract_gate.authoritative` is true. Do not execute from PLAN markdown alone if the contract or active-anchor ledger says a decisive reference, prior output, or forbidden proxy still constrains the work.
 
-Treat `effective_reference_intake` as the structured carry-forward ledger for must-read refs, baselines, prior outputs, user anchors, and context gaps. Use `active_reference_context` and `reference_artifacts_content` to interpret that ledger quickly, not to replace it with prose-only reconstruction.
+Treat `effective_reference_intake` as the structured carry-forward ledger for must-read refs, baselines, prior outputs, user anchors, and context gaps. Use `active_reference_context` and `reference_artifacts_content` to interpret that ledger quickly, not to replace it with prose-only reconstruction. Stable knowledge docs may be present in that content as reviewed background, but they do not override the contract, conventions, or decisive evidence requirements.
 </step>
 
 <step name="load_protocol_bundle_context">

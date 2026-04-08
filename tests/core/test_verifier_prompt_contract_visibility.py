@@ -209,6 +209,11 @@ def test_verify_work_template_sets_balanced_default_and_concrete_examples() -> N
     verify_work = _read_verify_work_template()
 
     assert "- `research_mode=balanced` (default): Keep the full contract-critical floor and the balanced review cadence." in verify_work
+    assert (
+        "Stable knowledge docs that appear there are reviewed background synthesis: use them to clarify definitions, "
+        "assumptions, and caveats only when they agree with stronger sources, and never as decisive evidence on their own."
+        in verify_work
+    )
     assert "plan_contract_ref: GPD/phases/01-benchmark/01-plan-PLAN.md#/contract" in verify_work
     assert 'name: "benchmark comparison"' in verify_work
     assert 'reference_ids: ["reference-main"]' in verify_work

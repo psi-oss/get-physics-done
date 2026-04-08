@@ -1225,6 +1225,46 @@ def test_planning_prompts_keep_contract_gate_in_light_mode_and_all_modes() -> No
     assert "Human review does not replace those requirements." in checker_agent
 
 
+def test_stable_knowledge_remains_background_only_across_planning_verification_and_execution() -> None:
+    planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
+    plan_phase = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
+    verify_workflow = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
+    verify_phase = (WORKFLOWS_DIR / "verify-phase.md").read_text(encoding="utf-8")
+    execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
+    execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+
+    assert "Treat stable knowledge docs surfaced through `active_reference_context` and `reference_artifacts_content` as reviewed background syntheses." in planner_prompt
+    assert (
+        "they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence."
+        in planner_prompt
+    )
+    assert "Stable knowledge docs may appear inside `{active_reference_context}` and `{reference_artifacts_content}`." in plan_phase
+    assert (
+        "they do not override `convention_lock`, `project_contract`, the PLAN `contract`, or direct evidence."
+        in plan_phase
+    )
+    assert (
+        "Stable knowledge docs that appear there are reviewed background synthesis: use them to clarify definitions, assumptions, and caveats only when they agree with stronger sources, and never as decisive evidence on their own."
+        in verify_workflow
+    )
+    assert (
+        "Stable knowledge docs that surface through this context are reviewed background synthesis only: they may guide check selection and interpretation, but they do not override the contract, the gate, or decisive evidence."
+        in verify_phase
+    )
+    assert (
+        "Stable knowledge docs may be present in that content as reviewed background, but they do not override the contract, conventions, or decisive evidence requirements."
+        in execute_plan
+    )
+    assert (
+        "Stable knowledge docs may appear only through those shared reference surfaces as reviewed background; they do not become a separate authority tier."
+        in execute_phase
+    )
+    assert (
+        "Treat any stable knowledge docs surfaced in those fields as reviewed background only: they may inform interpretation, but they do not override the contract, proof audits, or decisive evidence."
+        in execute_phase
+    )
+
+
 def test_plan_checker_requires_contract_gate_and_reference_artifacts() -> None:
     checker_agent = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
     workflow_text = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")

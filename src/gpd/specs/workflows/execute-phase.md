@@ -37,7 +37,7 @@ If `project_contract_validation.valid` is false, STOP and show the explicit `pro
 
 Treat `project_contract` as the authoritative machine-readable execution contract only when `project_contract_gate.authoritative` is true.
 Treat `effective_reference_intake` as the carry-forward anchor ledger for refs, baselines, prior outputs, and unresolved context gaps.
-Use `active_reference_context` and `reference_artifacts_content` to interpret that ledger, not to replace it with markdown-only guesses.
+Use `active_reference_context` and `reference_artifacts_content` to interpret that ledger, not to replace it with markdown-only guesses. Stable knowledge docs may appear only through those shared reference surfaces as reviewed background; they do not become a separate authority tier.
 Before launching any plan, require that the selected `PLAN.md` passes `gpd validate plan-preflight <PLAN.md>` when specialized tool requirements are declared.
 
 When `parallelization` is false, plans within a wave execute sequentially.
@@ -1542,7 +1542,7 @@ Re-verify Phase {PHASE_NUMBER} after gap closure.
 	- Roadmap: GPD/ROADMAP.md
 	</files_to_read>
 
-	Rebuild the structured phase context with `gpd --raw init phase-op {PHASE_NUMBER}` and keep `project_contract`, `project_contract_gate`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, and `phase_proof_review_status` visible while re-checking the remaining gaps.
+	Rebuild the structured phase context with `gpd --raw init phase-op {PHASE_NUMBER}` and keep `project_contract`, `project_contract_gate`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, and `phase_proof_review_status` visible while re-checking the remaining gaps. Treat any stable knowledge docs surfaced in those fields as reviewed background only: they may inform interpretation, but they do not override the contract, proof audits, or decisive evidence.
 
 	Focus on the gaps that were previously marked failed, partial, blocked, or otherwise unresolved in the previous verification. If the prior report carries `session_status: diagnosed`, use the recorded root causes and missing actions as the starting point for re-verification. For proof-bearing work, re-check every required `*-PROOF-REDTEAM.md` artifact and keep the phase blocked until those audits report `status: passed`.
 	Check whether the gap closure plans have resolved each issue.
