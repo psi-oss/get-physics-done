@@ -1322,6 +1322,8 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
     assert "Paper Writing" not in roadmap_template
     assert "@{GPD_INSTALL_DIR}/templates/roadmap.md" in roadmapper_agent
     assert "@{GPD_INSTALL_DIR}/templates/state.md" in roadmapper_agent
+    assert "If literature/SUMMARY.md provided:" in roadmapper_agent
+    assert "literature/SUMMARY.md content" in roadmapper_agent
     assert "Contract coverage" in roadmapper_agent
     assert "Phase Details" in roadmapper_agent
     assert "Active Calculations" in roadmapper_agent
@@ -1339,6 +1341,21 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
     assert "For each phase, include explicit contract coverage in ROADMAP.md" in new_milestone
     assert "Do NOT skip the initial scoping-contract approval gate." in new_project
     assert "Do NOT skip the requirement to show contract coverage in the roadmap." in new_project
+
+
+def test_research_prompt_surfaces_use_canonical_literature_outputs() -> None:
+    project_researcher = (AGENTS_DIR / "gpd-project-researcher.md").read_text(encoding="utf-8")
+    research_synthesizer = (AGENTS_DIR / "gpd-research-synthesizer.md").read_text(encoding="utf-8")
+    phase_researcher = (AGENTS_DIR / "gpd-phase-researcher.md").read_text(encoding="utf-8")
+    roadmapper_agent = (AGENTS_DIR / "gpd-roadmapper.md").read_text(encoding="utf-8")
+
+    for content in (project_researcher, research_synthesizer, phase_researcher, roadmapper_agent):
+        assert "GPD/research/" not in content
+
+    assert "GPD/literature/" in project_researcher
+    assert "GPD/literature/SUMMARY.md" in research_synthesizer
+    assert "GPD/literature/SUMMARY.md" in phase_researcher
+    assert "If literature/SUMMARY.md provided:" in roadmapper_agent
 
 
 def test_new_project_minimal_mode_and_planning_wiring_allow_coarse_scoped_decomposition() -> None:

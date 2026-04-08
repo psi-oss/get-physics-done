@@ -67,17 +67,28 @@ def test_digest_knowledge_workflow_documents_deterministic_target_resolution_and
     assert _contains_any(workflow, "hep-th/9901001", "legacy arxiv", "legacy arXiv")
 
 
-def test_digest_knowledge_templates_keep_runtime_ingestion_deferred() -> None:
+def test_digest_knowledge_templates_keep_non_runtime_deferrals_explicit() -> None:
     knowledge_template = _read(KNOWLEDGE_TEMPLATE_PATH)
     knowledge_schema = _read(KNOWLEDGE_SCHEMA_PATH)
 
-    runtime_deferral_markers = (
-        "runtime ingestion into planner, verifier, or executor context",
-        "runtime ingestion",
-        "downstream runtime consumption",
+    deferral_markers = (
+        "migration/backfill",
+        "alias repair",
+        "beginner onboarding",
+        "automatic promotion of a draft to stable without review",
     )
 
-    assert _contains_any(knowledge_template, *runtime_deferral_markers)
-    assert _contains_any(knowledge_schema, *runtime_deferral_markers)
+    assert _contains_any(knowledge_template, *deferral_markers)
+    assert _contains_any(knowledge_schema, *deferral_markers)
+    assert not _contains_any(
+        knowledge_template,
+        "runtime ingestion into planner, verifier, or executor context",
+        "downstream runtime consumption",
+    )
+    assert not _contains_any(
+        knowledge_schema,
+        "runtime ingestion into planner, verifier, or executor context",
+        "downstream runtime consumption",
+    )
     assert _contains_any(knowledge_template, "review-knowledge", "review approval", "stable promotion")
     assert _contains_any(knowledge_schema, "review-knowledge", "review approval", "stable promotion")

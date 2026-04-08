@@ -10,6 +10,7 @@ from gpd.core.knowledge_docs import (
     KnowledgeDocData,
     parse_knowledge_doc_data_strict,
 )
+from gpd.core.knowledge_migration import classify_knowledge_doc_migration
 from gpd.core.utils import normalize_ascii_slug
 
 __all__ = [
@@ -188,7 +189,9 @@ def discover_knowledge_docs(project_root: Path) -> KnowledgeDocDiscovery:
             meta, body = extract_frontmatter(content)
             parsed = parse_knowledge_doc_data_strict(meta, source_path=path)
         except Exception as exc:  # pragma: no cover - fail-closed warning path
-            discovery.warnings.append(f"skipping knowledge doc {rel_path}: {exc}")
+            migration_report = classify_knowledge_doc_migration(project_root, path, content=content)
+            migration_hint = migration_report.summary()
+            discovery.warnings.append(f"skipping knowledge doc {rel_path}: {exc}; {migration_hint}")
             continue
         del body
         discovery.records.append(_record_from_parsed_doc(rel_path, parsed, content))

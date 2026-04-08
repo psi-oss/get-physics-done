@@ -97,6 +97,7 @@ def test_help_workflow_files_and_structure_and_knowledge_lifecycle_coverages() -
     assert "Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open" in help_workflow
     assert "If the target is `stable` or `superseded`, route the user to `gpd:review-knowledge`" in help_workflow
     assert "Stable knowledge is already visible through the shared runtime reference surfaces, but it remains reviewed background synthesis rather than a separate authority tier" in help_workflow
+    assert "Migration/backfill for older or provisional docs remains deferred; use canonical `GPD/knowledge/{knowledge_id}.md` targets for now." in help_workflow
     assert "stable` docs can later become `superseded`; superseded docs remain addressable and traceable rather than disappearing" in help_workflow
     assert "Example topic: `gpd:digest-knowledge \"renormalization group fixed points\"`" in help_workflow
     assert "Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`" in help_workflow

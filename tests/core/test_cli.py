@@ -6540,6 +6540,65 @@ def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(t
     assert mock_build.await_args.kwargs["citation_sources"][0].title == "Auto Reference"
 
 
+def test_paper_build_auto_discovers_legacy_research_citation_sources_sidecar_when_literature_is_missing(
+    tmp_path: Path,
+) -> None:
+    nested_cwd = tmp_path / "notes"
+    nested_cwd.mkdir()
+    (tmp_path / "GPD").mkdir()
+    paper_dir = tmp_path / "paper"
+    paper_dir.mkdir()
+    (paper_dir / "PAPER-CONFIG.json").write_text(
+        json.dumps(
+            {
+                "title": "Configured Paper",
+                "authors": [{"name": "A. Researcher"}],
+                "abstract": "Abstract.",
+                "sections": [{"title": "Intro", "content": "Hello."}],
+                "figures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    research_dir = tmp_path / "GPD" / "research"
+    research_dir.mkdir(parents=True)
+    (research_dir / "topic-CITATION-SOURCES.json").write_text(
+        json.dumps(
+            [
+                {
+                    "reference_id": "ref-legacy",
+                    "source_type": "paper",
+                    "title": "Legacy Reference",
+                    "authors": ["A. Author"],
+                    "year": "2023",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result_payload = MagicMock()
+    result_payload.manifest_path = paper_dir / "ARTIFACT-MANIFEST.json"
+    result_payload.bibliography_audit_path = None
+    result_payload.pdf_path = paper_dir / "configured_paper.pdf"
+    result_payload.success = True
+    result_payload.errors = []
+
+    with (
+        patch("gpd.mcp.paper.compiler.detect_latex_toolchain", return_value=_toolchain_capability()),
+        patch("gpd.mcp.paper.compiler.build_paper", new=AsyncMock(return_value=result_payload)) as mock_build,
+    ):
+        result = runner.invoke(app, ["--raw", "--cwd", str(nested_cwd), "paper-build"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["citation_sources_path"] == "../GPD/research/topic-CITATION-SOURCES.json"
+    assert any("temporary directory" in warning for warning in payload["warnings"])
+    assert mock_build.await_args.kwargs["citation_sources"] is not None
+    assert mock_build.await_args.kwargs["citation_sources"][0].title == "Legacy Reference"
+
+
 def test_paper_build_warns_when_multiple_literature_citation_sidecars_exist(tmp_path: Path) -> None:
     paper_dir = tmp_path / "paper"
     paper_dir.mkdir()

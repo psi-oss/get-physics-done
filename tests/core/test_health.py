@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -744,6 +745,13 @@ class TestCheckKnowledgeInventory:
         assert result.details["runtime_active_count"] == 1
         assert result.details["status_counts"] == {"draft": 0, "in_review": 0, "stable": 2, "superseded": 1}
         assert result.details["discovery_warning_count"] == 1
+        assert result.details["migration_doc_count"] == 4
+        assert result.details["migration_classification_counts"] == {
+            "canonical": 3,
+            "upgradeable": 0,
+            "blocked": 1,
+        }
+        assert result.details["migration_warning_count"] == 1
         assert result.details["stale_review_count"] == 1
         assert result.details["stale_review_files"] == ["GPD/knowledge/K-renormalization-group-stale.md"]
         assert result.details["missing_supersession_target_count"] == 1
@@ -753,6 +761,47 @@ class TestCheckKnowledgeInventory:
         assert any("skipping knowledge doc GPD/knowledge/K-invalid-knowledge.md" in warning for warning in result.warnings)
         assert any("stale reviews" in warning for warning in result.warnings)
         assert any("missing targets" in warning for warning in result.warnings)
+
+    def test_reports_migration_diagnostics_for_upgradeable_and_blocked_docs(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        knowledge_dir = cwd / "GPD" / "knowledge"
+        knowledge_dir.mkdir(parents=True, exist_ok=True)
+
+        stable_body = "Trusted knowledge body.\n"
+        stable_base_content = _knowledge_doc_content(
+            body=stable_body,
+            knowledge_id="K-renormalization-group-fixed-points",
+            status="stable",
+        )
+        stable_hash = compute_knowledge_reviewed_content_sha256(stable_base_content)
+        _write_knowledge_doc(
+            knowledge_dir / "K-renormalization-group-fixed-points.md",
+            body=stable_body,
+            reviewed_content_sha256=stable_hash,
+        )
+        shutil.copytree(
+            Path(__file__).resolve().parents[1] / "fixtures" / "knowledge" / "upgradeable",
+            knowledge_dir,
+            dirs_exist_ok=True,
+        )
+        shutil.copytree(
+            Path(__file__).resolve().parents[1] / "fixtures" / "knowledge" / "blocked",
+            knowledge_dir,
+            dirs_exist_ok=True,
+        )
+
+        result = check_knowledge_inventory(cwd)
+
+        assert result.status == CheckStatus.WARN
+        assert result.details["migration_doc_count"] == 3
+        assert result.details["migration_classification_counts"] == {
+            "canonical": 1,
+            "upgradeable": 1,
+            "blocked": 1,
+        }
+        assert result.details["migration_warning_count"] == 2
+        assert any("upgradeable" in warning for warning in result.warnings)
+        assert any("blocked" in warning for warning in result.warnings)
 
     def test_reports_plan_level_explicit_knowledge_dependency_issues(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)

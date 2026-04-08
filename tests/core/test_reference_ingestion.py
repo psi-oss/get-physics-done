@@ -5,15 +5,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
 from gpd.core.reference_ingestion import (
     _extract_section,
     ingest_manuscript_reference_status,
+)
+from gpd.core.reference_ingestion import (
     ingest_reference_artifacts as _ingest_reference_artifacts,
 )
 from gpd.core.state import default_state_dict
-
-import pytest
 
 
 def _bootstrap_project(tmp_path: Path) -> Path:
@@ -766,3 +768,43 @@ def test_ingest_reference_artifacts_emits_warning_for_invalid_knowledge_doc(tmp_
     assert result.knowledge_docs == []
     assert result.knowledge_doc_warnings
     assert "K-broken.md" in result.knowledge_doc_warnings[0]
+
+
+def test_ingest_reference_artifacts_reads_legacy_research_review_sidecars_when_literature_is_missing(
+    tmp_path: Path,
+) -> None:
+    _bootstrap_project(tmp_path)
+    research_dir = tmp_path / "GPD" / "research"
+    research_dir.mkdir(parents=True)
+    (research_dir / "LEGACY-REVIEW.md").write_text(
+        "# Legacy Review\n\n"
+        "## Active References\n\n"
+        "| Anchor ID | Anchor | Type | Source / Locator | Why It Matters | Contract Subject IDs | Required Action | Carry Forward To |\n"
+        "| --------- | ------ | ---- | ---------------- | -------------- | -------------------- | --------------- | ---------------- |\n"
+        "| ref-legacy | legacy-token | benchmark | Legacy Doc | Legacy anchor | claim-legacy | read | planning |\n",
+        encoding="utf-8",
+    )
+    _write_citation_sources_sidecar(
+        research_dir,
+        "LEGACY-REVIEW.md",
+        [
+            {
+                "reference_id": "ref-legacy",
+                "source_type": "paper",
+                "title": "Legacy Reference",
+                "authors": ["A. Author"],
+                "year": "2024",
+            }
+        ],
+    )
+
+    result = ingest_reference_artifacts(
+        tmp_path,
+        literature_review_files=["GPD/research/LEGACY-REVIEW.md"],
+        research_map_reference_files=[],
+    )
+
+    assert result.citation_source_files == ["GPD/research/LEGACY-REVIEW-CITATION-SOURCES.json"]
+    assert [source.reference_id for source in result.citation_sources] == ["ref-legacy"]
+    assert [ref.id for ref in result.references] == ["ref-legacy"]
+    assert result.references[0].source_artifacts == ["GPD/research/LEGACY-REVIEW.md"]

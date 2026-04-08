@@ -1257,6 +1257,100 @@ class TestInitPlanPhase:
         assert "K-work-in-progress" not in ctx["active_reference_context"]
         assert "non-stable knowledge doc(s) remain inventory-visible only" in ctx["active_reference_context"]
 
+    def test_prefers_literature_review_files_over_legacy_research_when_both_exist(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_project_contract_state(tmp_path)
+
+        literature_dir = tmp_path / "GPD" / "literature"
+        literature_dir.mkdir()
+        (literature_dir / "canonical-REVIEW.md").write_text(
+            "# Literature Review\n\nCanonical details.\n",
+            encoding="utf-8",
+        )
+        (literature_dir / "canonical-CITATION-SOURCES.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "reference_id": "ref-canonical",
+                        "source_type": "paper",
+                        "title": "Canonical Reference",
+                        "authors": ["A. Author"],
+                        "year": "2026",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        research_dir = tmp_path / "GPD" / "research"
+        research_dir.mkdir()
+        (research_dir / "legacy-REVIEW.md").write_text(
+            "# Legacy Review\n\nLegacy details.\n",
+            encoding="utf-8",
+        )
+        (research_dir / "legacy-CITATION-SOURCES.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "reference_id": "ref-legacy",
+                        "source_type": "paper",
+                        "title": "Legacy Reference",
+                        "authors": ["A. Author"],
+                        "year": "2024",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        ctx = init_plan_phase(tmp_path, "2")
+
+        assert ctx["literature_review_files"] == ["GPD/literature/canonical-REVIEW.md"]
+        assert ctx["citation_source_files"] == ["GPD/literature/canonical-CITATION-SOURCES.json"]
+        assert "Canonical details." in ctx["reference_artifacts_content"]
+        assert "Legacy details." not in ctx["reference_artifacts_content"]
+        assert "GPD/research/legacy-REVIEW.md" not in ctx["reference_artifact_files"]
+
+    def test_falls_back_to_legacy_research_review_files_when_literature_is_missing(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_project_contract_state(tmp_path)
+
+        research_dir = tmp_path / "GPD" / "research"
+        research_dir.mkdir()
+        (research_dir / "legacy-REVIEW.md").write_text(
+            "# Legacy Review\n\nLegacy details.\n",
+            encoding="utf-8",
+        )
+        (research_dir / "legacy-CITATION-SOURCES.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "reference_id": "ref-legacy",
+                        "source_type": "paper",
+                        "title": "Legacy Reference",
+                        "authors": ["A. Author"],
+                        "year": "2024",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        ctx = init_plan_phase(tmp_path, "2")
+
+        assert ctx["literature_review_files"] == ["GPD/research/legacy-REVIEW.md"]
+        assert ctx["citation_source_files"] == ["GPD/research/legacy-CITATION-SOURCES.json"]
+        assert "Legacy details." in ctx["reference_artifacts_content"]
+        assert "GPD/research/legacy-REVIEW.md" in ctx["reference_artifact_files"]
+
     def test_does_not_bootstrap_manuscript_proof_review_manifest(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _create_phase_dir(tmp_path, "02-analysis")

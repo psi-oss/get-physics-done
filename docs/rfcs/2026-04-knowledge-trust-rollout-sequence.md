@@ -1,19 +1,20 @@
 # Knowledge Trust Rollout Sequence
 
-Status: companion rollout note for the Phase 0 scope-lock RFC
+Status: historical rollout note for the Phase 0 scope-lock RFC
 Date: 2026-04-07
 
-This note describes the intended commit-and-push order for building knowledge-trust
-without overstating what is implemented on the remote branch.
+This note records the intended commit-and-push order used while knowledge-trust
+was being built.
 
-The feature should remain experimental until the push and promotion blockers listed
-below are cleared.
+It is retained for rollout provenance. The implemented branch has since moved
+beyond the original experimental posture, but the sequence is still useful as a
+historical reference for how the feature was staged.
 
 ## Delivery Principle
 
-Knowledge trust should not advance as a single large push.
+Knowledge trust did not advance as a single large push.
 
-The safe order is:
+The safe order at that stage was:
 
 1. lock scope
 2. repair honesty and any help or test mismatches before public exposure
@@ -38,8 +39,8 @@ The safe order is:
 
 ## Push And Promotion Blockers
 
-The branch should not be treated as more than experimental until all of these are
-addressed:
+At that stage, the branch was not to be treated as more than experimental until
+all of these were addressed:
 
 1. help inventory and public docs match implemented behavior
 2. filename, ID, and storage rules are explicit and enforced
@@ -51,7 +52,7 @@ addressed:
 
 ## Operational Guardrails
 
-During rollout:
+During that rollout:
 
 1. do not register or advertise a public command unless help inventory and tests are
    updated in the same change
@@ -64,16 +65,16 @@ During rollout:
 
 ## Migration Posture
 
-Phase 0 does not define automatic migration.
+Phase 0 did not define automatic migration.
 
-If any experimental knowledge documents appear before the naming, schema, and
-lifecycle phases are complete, they should be treated as provisional artifacts that
-may need later migration.
+If any experimental knowledge documents appeared before the naming, schema, and
+lifecycle phases were complete, they were to be treated as provisional artifacts
+that might need later migration.
 
-Migration rules belong to the later hardening phases, after the canonical contracts
-exist.
+Migration rules belonged to the later hardening phases, after the canonical
+contracts existed.
 
 ## Promotion Rule
 
-Until the blockers are cleared, knowledge trust should be described only as
+Until the blockers were cleared, knowledge trust was described only as
 experimental scaffolding.

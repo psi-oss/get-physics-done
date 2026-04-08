@@ -45,6 +45,7 @@ from gpd.core.contract_validation import validate_project_contract
 from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
 from gpd.core.errors import GPDError, ValidationError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, validate_frontmatter
+from gpd.core.knowledge_migration import discover_knowledge_migration
 from gpd.core.knowledge_runtime import discover_knowledge_docs
 from gpd.core.observability import gpd_span
 from gpd.core.public_surface_contract import (
@@ -195,6 +196,7 @@ def check_knowledge_inventory(cwd: Path) -> HealthCheck:
     layout = ProjectLayout(cwd)
     knowledge_dir = layout.knowledge_dir
     discovery = discover_knowledge_docs(cwd)
+    migration_inventory = discover_knowledge_migration(cwd)
     by_id = discovery.by_id()
 
     stable_records = [record for record in discovery.records if record.status == "stable"]
@@ -247,6 +249,9 @@ def check_knowledge_inventory(cwd: Path) -> HealthCheck:
         "runtime_active_count": len(active_records),
         "status_counts": discovery.status_counts(),
         "discovery_warning_count": len(discovery.warnings),
+        "migration_doc_count": len(migration_inventory.records),
+        "migration_classification_counts": migration_inventory.classification_counts(),
+        "migration_warning_count": len(migration_inventory.warnings),
         "stale_review_count": len(stale_review_records),
         "stale_review_files": [record.path for record in stale_review_records],
         "missing_supersession_target_count": len(broken_supersession_records),
@@ -264,6 +269,7 @@ def check_knowledge_inventory(cwd: Path) -> HealthCheck:
         details["reason"] = "no_knowledge_dir"
 
     warnings: list[str] = list(discovery.warnings)
+    warnings.extend(migration_inventory.warnings)
     if stale_review_records:
         stale_paths = ", ".join(record.path for record in stale_review_records)
         warnings.append(f"{len(stale_review_records)} stable knowledge doc(s) have stale reviews: {stale_paths}")

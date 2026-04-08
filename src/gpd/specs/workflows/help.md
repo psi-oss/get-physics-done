@@ -845,6 +845,7 @@ Create or update a knowledge document draft from a topic, paper, source file, or
 - Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open
 - If the target is `stable` or `superseded`, route the user to `gpd:review-knowledge`
 - Stable knowledge is already visible through the shared runtime reference surfaces, but it remains reviewed background synthesis rather than a separate authority tier
+- Migration/backfill for older or provisional docs remains deferred; use canonical `GPD/knowledge/{knowledge_id}.md` targets for now.
 
 - Example topic: `gpd:digest-knowledge "renormalization group fixed points"`
 - Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`

@@ -1,14 +1,15 @@
 # Knowledge Trust Phase 0: Scope Lock RFC
 
-Status: experimental, non-binding scope lock
+Status: historical scope-lock RFC, retained for rollout provenance
 Date: 2026-04-07
 
-This RFC defines the intended role of knowledge-trust artifacts before any public
-command, schema, layout, or runtime contract is treated as shipped.
+This RFC captures the original role definition for knowledge-trust artifacts
+before the implemented branch had stable public command, schema, layout, or
+runtime contracts.
 
-This document does not change the current runtime behavior. It exists to prevent
-artifact overlap, schema churn, and misleading public claims while the feature is
-still being built.
+It is retained for historical context. The current runtime behavior is defined
+by the shipped code and later rollout steps; this document exists to preserve the
+original scope lock and avoid misreading it as the current product contract.
 
 ## Problem Statement
 
@@ -66,9 +67,10 @@ Knowledge documents must not:
 
 ## Future Artifact Posture
 
-`GPD/knowledge/` is the proposed future artifact family name used by this RFC.
+`GPD/knowledge/` is the artifact family name used by this RFC.
 
-In Phase 0 it is only a proposal. This RFC does not establish:
+In the original Phase 0 rollout it was only a proposal. This RFC does not
+establish:
 
 - a canonical directory contract
 - a canonical filename or ID contract
@@ -129,11 +131,11 @@ Phase 0 explicitly does not attempt to provide:
 
 ## Rollout Posture
 
-Until later phases land, knowledge trust must be treated only as experimental
-scaffolding.
+In the original rollout, knowledge trust was treated only as experimental
+scaffolding until later phases landed.
 
-It must not be promoted beyond that status until all of the following are real and
-tested:
+It was not to be promoted beyond that status until all of the following were
+real and tested:
 
 1. naming and schema contracts
 2. real authoring and update behavior

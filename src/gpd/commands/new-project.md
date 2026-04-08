@@ -29,7 +29,7 @@ If no project config exists yet, start with physics questioning, surface a prese
 
 - `GPD/PROJECT.md` — project context
 - `GPD/config.json` — workflow preferences
-- `GPD/research/` — optional domain and literature research
+- `GPD/literature/` — optional domain and literature survey
 - `GPD/REQUIREMENTS.md` — scoped requirements
 - `GPD/ROADMAP.md` — phase structure
 - `GPD/STATE.md` — project memory
@@ -73,7 +73,7 @@ Check `$ARGUMENTS` for flags:
 
 - `GPD/PROJECT.md`
 - `GPD/config.json`
-- `GPD/research/` (if research selected)
+- `GPD/literature/` (if literature survey selected)
   - `PRIOR-WORK.md`
   - `METHODS.md`
   - `COMPUTATIONAL.md`

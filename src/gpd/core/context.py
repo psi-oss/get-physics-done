@@ -56,6 +56,7 @@ from gpd.core.continuation import (
 )
 from gpd.core.errors import ValidationError
 from gpd.core.extras import approximation_list
+from gpd.core.knowledge_runtime import discover_knowledge_docs
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
 from gpd.core.phases import _milestone_completion_snapshot
 from gpd.core.project_reentry import (
@@ -68,7 +69,6 @@ from gpd.core.proof_review import (
     resolve_phase_proof_review_status,
 )
 from gpd.core.protocol_bundles import render_protocol_bundle_context, select_protocol_bundles
-from gpd.core.knowledge_runtime import discover_knowledge_docs
 from gpd.core.reference_ingestion import ingest_manuscript_reference_status, ingest_reference_artifacts
 from gpd.core.results import result_list
 from gpd.core.resume_surface import (
@@ -100,6 +100,7 @@ logger = logging.getLogger(__name__)
 # Research file extensions for project detection.
 _RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90"})
 _LITERATURE_DIR_NAME = "literature"
+_LEGACY_RESEARCH_DIR_NAME = "research"
 _REFERENCE_MAP_DOCS = ("REFERENCES.md", "VALIDATION.md")
 _LITERATURE_INCLUDE_LIMIT = 2
 _RESEARCH_MAP_INCLUDE_LIMIT = 4
@@ -497,6 +498,17 @@ def _sorted_markdown_files(directory: Path) -> list[Path]:
         )
     except FileNotFoundError:
         return []
+
+
+def _preferred_review_dir(cwd: Path) -> Path | None:
+    """Return the canonical review directory, falling back to legacy research only when needed."""
+    literature_dir = cwd / PLANNING_DIR_NAME / _LITERATURE_DIR_NAME
+    if literature_dir.is_dir():
+        return literature_dir
+    legacy_research_dir = cwd / PLANNING_DIR_NAME / _LEGACY_RESEARCH_DIR_NAME
+    if legacy_research_dir.is_dir():
+        return legacy_research_dir
+    return None
 
 
 def _relative_posix(cwd: Path, path: Path) -> str:
@@ -941,8 +953,8 @@ def _append_contract_warnings(lines: list[str], warnings: list[str]) -> None:
 
 def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
     """Collect durable reference artifacts for downstream planning and verification."""
-    literature_dir = cwd / PLANNING_DIR_NAME / _LITERATURE_DIR_NAME
-    literature_paths = _sorted_markdown_files(literature_dir)
+    review_dir = _preferred_review_dir(cwd)
+    literature_paths = _sorted_markdown_files(review_dir) if review_dir is not None else []
     research_map_dir = cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
     research_map_paths = _sorted_markdown_files(research_map_dir)
     knowledge_inventory = discover_knowledge_docs(cwd)

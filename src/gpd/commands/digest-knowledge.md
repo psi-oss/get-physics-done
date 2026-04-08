@@ -117,6 +117,6 @@ Report the resolved target, whether the action was create or update, and any cla
 - [ ] Canonical target resolved or ambiguity surfaced
 - [ ] Workflow-owned behavior delegated cleanly
 - [ ] Draft-only boundary preserved
-- [ ] Result reported without overclaiming review or runtime ingestion
+- [ ] Result reported without overclaiming review or automatic promotion
 
 </success_criteria>

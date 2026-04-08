@@ -295,14 +295,14 @@ The following conditional rules are mandatory:
 
 ## Explicit Deferrals
 
-Public command registration and shared help coverage are part of the supported authoring surface now. The remaining runtime-facing behaviors are still deferred:
+Public command registration and shared help coverage are part of the supported authoring surface now. Stable reviewed knowledge is already visible through the shared runtime reference surfaces. The remaining deferred behaviors are:
 
-1. runtime ingestion into planner/verifier/executor context
-2. automatic migration of older knowledge files
-3. `knowledge_deps` or `related_artifacts` as accepted frontmatter fields
-4. project-wide mandatory `GPD/knowledge/` creation
-5. heuristic filename repair
-6. implicit ID aliasing between differently named files
+1. migration/backfill for older knowledge files
+2. alias repair or heuristic filename repair for legacy docs
+3. beginner onboarding exposure
+4. automatic promotion of a draft to stable without review
+5. `knowledge_deps` or `related_artifacts` as accepted frontmatter fields
+6. project-wide mandatory `GPD/knowledge/` creation
 7. path-only discovery across `GPD/`
 
 These belong to later execution and hardening phases.

@@ -523,8 +523,29 @@ def _ingest_citation_source_sidecar(cwd: Path, path: Path, result: ArtifactRefer
     result.citation_source_files.append(rel_path)
 
 
-def _ingest_citation_source_sidecars(cwd: Path, result: ArtifactReferenceIngestion) -> None:
-    literature_dir = cwd / "GPD" / "literature"
+def _review_root_from_files(review_files: list[str]) -> Path | None:
+    """Return the review directory implied by the selected review files."""
+    for rel_path in review_files:
+        parts = Path(rel_path).parts
+        if len(parts) >= 2 and parts[0] == "GPD" and parts[1] == "literature":
+            return Path("GPD") / "literature"
+    for rel_path in review_files:
+        parts = Path(rel_path).parts
+        if len(parts) >= 2 and parts[0] == "GPD" and parts[1] == "research":
+            return Path("GPD") / "research"
+    return None
+
+
+def _ingest_citation_source_sidecars(
+    cwd: Path,
+    *,
+    review_files: list[str],
+    result: ArtifactReferenceIngestion,
+) -> None:
+    review_root = _review_root_from_files(review_files)
+    if review_root is None:
+        return
+    literature_dir = cwd / review_root
     if not literature_dir.exists():
         return
     for path in sorted(literature_dir.glob("*-CITATION-SOURCES.json")):
@@ -1088,7 +1109,7 @@ def ingest_reference_artifacts(
         _ingest_reference_map(content, rel_path, result)
 
     _ingest_knowledge_docs(cwd, knowledge_doc_files=knowledge_doc_files or [], result=result)
-    _ingest_citation_source_sidecars(cwd, result)
+    _ingest_citation_source_sidecars(cwd, review_files=literature_review_files, result=result)
     _populate_intake_from_references(result)
     result.references.sort(key=lambda item: (item.must_surface is False, item.role, item.id))
     return result

@@ -36,7 +36,7 @@ coverage_summary:
   covered_topics:
     - fixed-point stability
   excluded_topics:
-    - downstream runtime ingestion
+    - migration/backfill for older or provisional docs
   open_gaps:
     - review approval
 ---
@@ -99,17 +99,18 @@ not a claim that the old synthesis is still current.
 
 The public authoring command and help coverage are part of the supported surface
 now. The following behaviors are intentionally out of scope for Phase 1 and
-later runtime phases, even if they may appear in future work:
+later rollout hardening work, even if they may appear in future work:
 
-- runtime ingestion into planner, verifier, or executor context
+- migration/backfill for older or provisional docs
+- alias repair or filename/ID normalization for legacy docs
 - beginner onboarding exposure
-- automatic migration
 - `knowledge_deps` and `related_artifacts` frontmatter support
 - implicit discovery outside the canonical `knowledge` layout contract
 - automatic promotion of a draft to stable without review
 
 ## Notes
 
-Use this file as the authoring-facing template only. The schema rules, validation
-logic, and any future runtime integration must be defined and implemented
-separately before this document can be treated as anything more than a template.
+Use this file as the authoring-facing template only. The schema rules and
+validation logic are defined separately, and any future migration/backfill or
+onboarding behavior must be implemented separately before this document can be
+treated as anything more than a template.
