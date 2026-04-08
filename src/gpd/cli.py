@@ -4489,7 +4489,13 @@ def question_resolve(
 
     with file_lock(state_path):
         state = _load_mutation_state_snapshot(cwd)
-        res = question_resolve(state, " ".join(text))
+        joined = " ".join(text)
+        res = question_resolve(state, joined)
+        if res == 0:
+            _error(
+                f'No open question matching "{joined}". '
+                "Pass the question text (or a unique substring), not an ID."
+            )
         save_state_json_locked(cwd, state)
     _output(res)
 
@@ -4541,7 +4547,13 @@ def calculation_complete(
 
     with file_lock(state_path):
         state = _load_mutation_state_snapshot(cwd)
-        res = calculation_complete(state, " ".join(text))
+        joined = " ".join(text)
+        res = calculation_complete(state, joined)
+        if res == 0:
+            _error(
+                f'No active calculation matching "{joined}". '
+                "Pass the calculation text (or a unique substring), not an ID."
+            )
         save_state_json_locked(cwd, state)
     _output(res)
 
