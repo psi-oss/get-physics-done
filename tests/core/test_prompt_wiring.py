@@ -198,6 +198,7 @@ AGENT_REFERENCE_TOKENS = {
         "references/verification/core/verification-core.md",
         "templates/proof-redteam-schema.md",
         "references/verification/core/proof-redteam-protocol.md",
+        "references/publication/peer-review-panel.md",
     ],
     "gpd-review-physics.md": [
         "references/shared/shared-protocols.md",
@@ -859,6 +860,10 @@ def test_publication_commands_accept_documented_manuscript_layouts() -> None:
 
 def test_proof_contract_prompts_surface_explicit_theorem_fields_and_review_bindings() -> None:
     plan_schema = (TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
+    proof_schema = (TEMPLATES_DIR / "proof-redteam-schema.md").read_text(encoding="utf-8")
+    proof_protocol = (
+        REFERENCES_DIR / "verification" / "core" / "proof-redteam-protocol.md"
+    ).read_text(encoding="utf-8")
     peer_review = (WORKFLOWS_DIR / "peer-review.md").read_text(encoding="utf-8")
     check_proof = (AGENTS_DIR / "gpd-check-proof.md").read_text(encoding="utf-8")
 
@@ -888,12 +893,15 @@ def test_proof_contract_prompts_surface_explicit_theorem_fields_and_review_bindi
     )
     assert "every `proof_audits[].claim_id` must also appear in `claims_reviewed`" in peer_review
 
-    assert "must exactly match the active theorem-bearing Stage 1 claim IDs under review" in check_proof
-    assert "must be non-empty, every entry must resolve to a readable proof artifact" in check_proof
-    assert "must exactly bind to the active review context supplied by the orchestrator" in check_proof
     assert "{GPD_INSTALL_DIR}/templates/proof-redteam-schema.md" in check_proof
     assert "{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md" in check_proof
     assert "@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md" not in check_proof
+    assert "proof_artifact_paths: [path, ...]" in proof_schema
+    assert "manuscript_path" in proof_schema
+    assert "manuscript_sha256" in proof_schema
+    assert "round" in proof_schema
+    assert "Treat each proof audit as a one-shot run." in proof_protocol
+    assert "`peer-review` owns manuscript binding" in proof_protocol
 
 
 def test_write_paper_and_arxiv_submission_keep_the_build_boundary_explicit() -> None:
