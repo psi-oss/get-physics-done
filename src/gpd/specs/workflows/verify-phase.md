@@ -174,6 +174,38 @@ Missing artifact, missing theorem inventory, or `status != passed` is a blocking
 When runtime delegation is available and a required audit is missing, malformed, or stale, spawn `gpd-check-proof` once to repair that gap before finalizing the verdict. If the proof critic cannot produce a passed audit, keep the target blocked rather than inferring theorem-proof alignment from the main verifier context.
 </step>
 
+<step name="proof_redteam_repair">
+When the proof-obligation gate finds a missing, stale, malformed, or non-passing proof-redteam artifact, resolve the proof-critic model and spawn a fresh repair handoff once.
+
+```bash
+CHECK_PROOF_MODEL=$(gpd resolve-model gpd-check-proof)
+```
+
+> Runtime delegation rule: this is a single-turn handoff. If the spawned agent needs user input, it must checkpoint and return; do not keep the original run waiting inside the same task. Never trust the return text alone.
+
+```
+task(
+  subagent_type="gpd-check-proof",
+  model="{check_proof_model}",
+  readonly=false,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
+Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
+
+Operate in proof-redteam repair mode with a fresh context.
+If the runtime needs user input, return `status: checkpoint` instead of waiting inside the spawned run.
+
+Write to:
+- `${phase_dir}/${phase_number}-PROOF-REDTEAM.md`
+
+Read the proof-bearing plan or claim artifacts, the relevant PLAN contract slice, and any current verification artifact before repairing the audit.
+Return `status: checkpoint` if the runtime needs user input instead of waiting inside the spawned run.",
+  description="Repair proof redteam artifact for phase {phase_number}"
+)
+```
+
+After the repair run returns, re-open `${phase_dir}/${phase_number}-PROOF-REDTEAM.md` from disk and confirm the artifact exists and reports `status: passed` before continuing. If the artifact is still missing, stale, malformed, or not passed, keep the phase blocked.
+</step>
+
 <step name="batch_verification_triage">
 **For phases with 10+ checks, use batch verification to reduce researcher burden.**
 

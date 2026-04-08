@@ -630,6 +630,12 @@ flowchart TD
 - `src/gpd/agents/{gpd-review-math,gpd-check-proof,gpd-review-physics}.md -> src/gpd/specs/references/verification/core/verification-core.md`
   `include`
 
+- `src/gpd/agents/gpd-check-proof.md -> src/gpd/specs/templates/proof-redteam-schema.md`
+  `include`
+
+- `src/gpd/agents/gpd-check-proof.md -> src/gpd/specs/references/verification/core/proof-redteam-protocol.md`
+  `include`
+
 - `src/gpd/agents/{gpd-bibliographer,gpd-paper-writer,gpd-referee}.md -> src/gpd/specs/references/publication/publication-pipeline-modes.md`
   `include`
 

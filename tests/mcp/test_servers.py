@@ -1194,6 +1194,22 @@ class TestSkillsServer:
             "Primary debugger agent.\n",
             encoding="utf-8",
         )
+        (agents_dir / "gpd-check-proof.md").write_text(
+            "---\n"
+            "name: gpd-check-proof\n"
+            "description: Red-team theorem proofs against their stated claims, parameters, hypotheses, quantifiers, and conclusion clauses, then writes a fail-closed proof audit artifact.\n"
+            "---\n"
+            "\n"
+            "Proof critique kernel.\n"
+            "Read {GPD_INSTALL_DIR}/references/shared/shared-protocols.md, "
+            "{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md, "
+            "{GPD_INSTALL_DIR}/references/physics-subfields.md, "
+            "{GPD_INSTALL_DIR}/references/verification/core/verification-core.md, "
+            "{GPD_INSTALL_DIR}/templates/proof-redteam-schema.md, "
+            "{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md, "
+            "{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md.\n",
+            encoding="utf-8",
+        )
 
         with (
             patch("gpd.registry.COMMANDS_DIR", commands_dir),
@@ -1209,13 +1225,14 @@ class TestSkillsServer:
         from gpd.mcp.servers.skills_server import list_skills
 
         result = list_skills()
-        assert result["count"] == 6
+        assert result["count"] == 7
         names = {s["name"] for s in result["skills"]}
         # The MCP skills server exposes the canonical registry index, not a
         # runtime-specific discoverable install surface.
         assert "gpd-execute-phase" in names
         assert "gpd-plan-phase" in names
         assert "gpd-peer-review" in names
+        assert "gpd-check-proof" in names
         assert "gpd-slides" in names
         assert "gpd-debugger" in names
         assert "gpd-help" in names
@@ -1568,6 +1585,24 @@ class TestSkillsServer:
         assert "review-contract:" not in result["content"]
         assert all(not entry["path"].startswith("/") for entry in result["schema_documents"])
         assert all(not entry["path"].startswith("/") for entry in result["contract_documents"])
+
+    def test_get_skill_surfaces_dedicated_proof_redteam_schema_and_contract_docs(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-check-proof")
+        schema_documents = {Path(entry["path"]).name: entry for entry in result["schema_documents"]}
+        contract_documents = {Path(entry["path"]).name: entry for entry in result["contract_documents"]}
+
+        assert "error" not in result
+        assert any(path.endswith("proof-redteam-schema.md") for path in result["schema_references"])
+        assert any(path.endswith("proof-redteam-protocol.md") for path in result["contract_references"])
+        assert "proof-redteam-schema.md" in schema_documents
+        assert "Proof Redteam" in schema_documents["proof-redteam-schema.md"]["body"]
+        assert "proof-redteam-protocol.md" in contract_documents
+        assert "Proof Redteam Protocol" in contract_documents["proof-redteam-protocol.md"]["body"]
+        assert any(path.endswith("peer-review-panel.md") for path in result["contract_references"])
+        assert "Treat `content` as the wrapper/context surface." in result["loading_hint"]
+        assert "Load `schema_documents` and `contract_documents` too when present" in result["loading_hint"]
 
     def test_get_skill_resume_work_surfaces_project_reentry_metadata(self):
         from gpd.mcp.servers.skills_server import get_skill
@@ -1931,7 +1966,7 @@ class TestSkillsServer:
         from gpd.mcp.servers.skills_server import get_skill_index
 
         result = get_skill_index()
-        assert result["total_skills"] == 6
+        assert result["total_skills"] == 7
         assert "index_text" in result
         assert "gpd-execute-phase" in result["index_text"]
         assert "gpd-peer-review" in result["index_text"]

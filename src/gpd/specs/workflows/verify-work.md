@@ -122,6 +122,7 @@ task(
   model="{check_proof_model}",
   readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
+Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
 
 Write to:
 - `${phase_dir}/${phase_number}-PROOF-REDTEAM.md`

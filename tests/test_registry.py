@@ -1561,6 +1561,26 @@ class TestRegistryPromptIncludeInlining:
         assert any(path.endswith("review-ledger-schema.md") for path in review_reader["transitive_schema_references"])
         assert any(path.endswith("referee-decision-schema.md") for path in review_reader["transitive_schema_references"])
 
+    def test_check_proof_registry_surface_preserves_lightweight_path_mentions(self) -> None:
+        skill = registry.get_skill("gpd-check-proof")
+
+        assert skill.source_kind == "agent"
+        assert skill.path.endswith("gpd-check-proof.md")
+        self._assert_lightweight_source_surface(
+            skill,
+            (
+                "references/shared/shared-protocols.md",
+                "references/orchestration/agent-infrastructure.md",
+                "references/physics-subfields.md",
+                "references/verification/core/verification-core.md",
+                "templates/proof-redteam-schema.md",
+                "references/verification/core/proof-redteam-protocol.md",
+                "references/publication/peer-review-panel.md",
+            ),
+        )
+        assert "Proof-redteam" in skill.content
+        assert "Manuscript review on demand only" in skill.content
+
     def test_paper_writer_registry_surface_preserves_lightweight_path_mentions(self) -> None:
         skill = registry.get_skill("gpd-paper-writer")
 

@@ -40,6 +40,13 @@ MODEL_OMISSION_FRAGMENT = (
 )
 READONLY_FALSE_FRAGMENT = "readonly=false"
 READONLY_RUNTIME_NOTE_FRAGMENT = "Always pass `readonly=false` for file-producing agents."
+ONE_SHOT_WAIT_PHRASES = (
+    "wait for user confirmation",
+    "ask the user then continue",
+    "pause here for approval",
+    "wait here for approval",
+    "hold for user confirmation",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +164,11 @@ def _assert_spawn_contract(
     assert f"shared_state_policy: {shared_state_policy}" in task.text
     for output in expected_outputs:
         assert output in task.text
+
+
+def _assert_one_shot_spawn_prompt(task: TaskBlock) -> None:
+    for phrase in ONE_SHOT_WAIT_PHRASES:
+        assert phrase not in task.text
 
 
 def test_agent_delegation_reference_defines_canonical_task_contract() -> None:
@@ -421,12 +433,28 @@ def test_peer_review_stages_use_fresh_context_and_stage_artifacts() -> None:
     assert "GPD/review/STAGE-literature{round_suffix}.json" in referee.text
     assert "GPD/review/STAGE-math{round_suffix}.json" in referee.text
     assert "GPD/review/PROOF-REDTEAM{round_suffix}.md" in check_proof.text
+    _assert_one_shot_spawn_prompt(check_proof)
     assert "GPD/review/STAGE-physics{round_suffix}.json" in referee.text
     assert "GPD/review/STAGE-interestingness{round_suffix}.json" in referee.text
     assert "GPD/review/REVIEW-LEDGER{round_suffix}.json" in referee.text
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in referee.text
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in referee.text
     assert "GPD/REFEREE-REPORT{round_suffix}.tex" in referee.text
+
+
+def test_check_proof_spawn_prompts_stay_one_shot_in_verification_and_derivation_flows() -> None:
+    verify_work_check_proof = _find_single_task(WORKFLOWS_DIR / "verify-work.md", "gpd-check-proof")
+    derive_equation_check_proof = _find_single_task(WORKFLOWS_DIR / "derive-equation.md", "gpd-check-proof")
+
+    assert "templates/proof-redteam-schema.md" in verify_work_check_proof.text
+    assert "references/verification/core/proof-redteam-protocol.md" in verify_work_check_proof.text
+    assert "Return `status: checkpoint` instead of waiting for user input inside this run." in verify_work_check_proof.text
+    _assert_one_shot_spawn_prompt(verify_work_check_proof)
+    assert "templates/proof-redteam-schema.md" in derive_equation_check_proof.text
+    assert "references/verification/core/proof-redteam-protocol.md" in derive_equation_check_proof.text
+    assert "Operate in proof-redteam mode with a fresh context." in derive_equation_check_proof.text
+    assert "If the runtime needs user input, return `status: checkpoint` instead of waiting inside this run." in derive_equation_check_proof.text
+    _assert_one_shot_spawn_prompt(derive_equation_check_proof)
 
 
 def test_referee_response_template_uses_round_suffixed_decision_artifacts() -> None:

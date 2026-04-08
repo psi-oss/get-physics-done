@@ -37,6 +37,9 @@ def test_verification_workflows_fail_closed_on_missing_proof_coverage() -> None:
     assert "<step name=\"proof_obligation_gate\">" in verify_phase
     assert "fail the target if a named parameter or hypothesis disappears from the proof" in verify_phase
     assert "spawn `gpd-check-proof` once to repair that gap" in verify_phase
+    assert "wait for user confirmation" not in verify_phase
+    assert "ask the user then continue" not in verify_phase
+    assert "pause here for approval" not in verify_phase
 
     assert "Targeted flags narrow the optional check mix only." in verify_work
     assert "require a canonical `*-PROOF-REDTEAM.md` artifact" in verify_work

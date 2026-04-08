@@ -196,7 +196,8 @@ AGENT_REFERENCE_TOKENS = {
         "references/orchestration/agent-infrastructure.md",
         "references/physics-subfields.md",
         "references/verification/core/verification-core.md",
-        "references/publication/peer-review-panel.md",
+        "templates/proof-redteam-schema.md",
+        "references/verification/core/proof-redteam-protocol.md",
     ],
     "gpd-review-physics.md": [
         "references/shared/shared-protocols.md",
@@ -890,6 +891,9 @@ def test_proof_contract_prompts_surface_explicit_theorem_fields_and_review_bindi
     assert "must exactly match the active theorem-bearing Stage 1 claim IDs under review" in check_proof
     assert "must be non-empty, every entry must resolve to a readable proof artifact" in check_proof
     assert "must exactly bind to the active review context supplied by the orchestrator" in check_proof
+    assert "{GPD_INSTALL_DIR}/templates/proof-redteam-schema.md" in check_proof
+    assert "{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md" in check_proof
+    assert "@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md" not in check_proof
 
 
 def test_write_paper_and_arxiv_submission_keep_the_build_boundary_explicit() -> None:

@@ -500,6 +500,28 @@ class TestSkillsServerIntegration:
         assert "Load `schema_documents` and `contract_documents` too when present" in result["loading_hint"]
         assert "It already embeds the model-visible `Command Requirements` section." in result["loading_hint"]
 
+    def test_get_skill_check_proof_surfaces_dedicated_proof_redteam_schema_and_contract_docs(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-check-proof")
+        direct_paths = {entry["path"] for entry in result["referenced_files"]}
+        schema_documents = {Path(entry["path"]).name: entry for entry in result["schema_documents"]}
+        contract_documents = {Path(entry["path"]).name: entry for entry in result["contract_documents"]}
+
+        assert "error" not in result
+        assert result["reference_count"] == len(direct_paths)
+        assert any(path.endswith("proof-redteam-schema.md") for path in direct_paths)
+        assert any(path.endswith("proof-redteam-protocol.md") for path in direct_paths)
+        assert any(path.endswith("proof-redteam-schema.md") for path in result["schema_references"])
+        assert any(path.endswith("proof-redteam-protocol.md") for path in result["contract_references"])
+        assert "proof-redteam-schema.md" in schema_documents
+        assert "Proof Redteam" in schema_documents["proof-redteam-schema.md"]["body"]
+        assert "proof-redteam-protocol.md" in contract_documents
+        assert "Proof Redteam Protocol" in contract_documents["proof-redteam-protocol.md"]["body"]
+        assert any(path.endswith("peer-review-panel.md") for path in result["contract_references"])
+        assert "Treat `content` as the wrapper/context surface." in result["loading_hint"]
+        assert "Load `schema_documents` and `contract_documents` too when present" in result["loading_hint"]
+
     def test_get_skill_surfaces_template_backed_schema_documents_for_writing_and_resume(self):
         from gpd.mcp.servers.skills_server import get_skill
 

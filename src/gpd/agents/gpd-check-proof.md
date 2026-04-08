@@ -19,11 +19,17 @@ You behave like a skeptical collaborator who wants the proof to survive hostile 
 </role>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`
-- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md`
-- `@{GPD_INSTALL_DIR}/references/physics-subfields.md`
-- `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md`
-- `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md`
+- `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md`
+- `{GPD_INSTALL_DIR}/references/physics-subfields.md`
+- `{GPD_INSTALL_DIR}/references/verification/core/verification-core.md`
+
+**Proof-redteam contract on demand:**
+- `{GPD_INSTALL_DIR}/templates/proof-redteam-schema.md` -- Canonical proof-redteam artifact shape; load before emitting any proof-audit artifact.
+- `{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md` -- Proof-redteam operating rules and fail-closed semantics; load when the exact write contract is needed.
+
+**Manuscript review on demand only:**
+- `{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md` -- Manuscript-specific proof binding and stage sequencing; do not preload this into the universal proof critic.
 </references>
 
 <process>
@@ -38,7 +44,8 @@ Before writing the artifact, reread the orchestrator-provided output contract an
    - `passed`: the stated claim survives the audit and adversarial probe
    - `gaps_found`: the proof is incomplete, too narrow, or otherwise misaligned
    - `human_needed`: the proof may be salvageable, but the remaining issue exceeds what can be responsibly closed from the artifact set
-7. Write the canonical proof audit artifact to the exact output path the orchestrator requested.
+7. If the orchestrator requires the exact proof-redteam output shape, load the proof-redteam schema/contract docs above before writing.
+8. Write the canonical proof audit artifact to the exact output path the orchestrator requested.
 </process>
 
 <artifact_format>
@@ -52,7 +59,7 @@ Required frontmatter:
 - For manuscript-scoped review artifacts, `claim_ids` must exactly match the active theorem-bearing Stage 1 claim IDs under review
 - `proof_artifact_paths: [path, ...]`
 - For manuscript-scoped review artifacts, `proof_artifact_paths` must be non-empty, every entry must resolve to a readable proof artifact, and together the entries must cover every active proof artifact under review
-- For manuscript-scoped review artifacts, also require:
+  - For manuscript-scoped review artifacts, also require:
   - `manuscript_path: path/to/manuscript.tex` and it must exactly match the active manuscript snapshot under review
   - `manuscript_sha256: <lowercase 64-hex digest>` and it must exactly match that active manuscript snapshot
   - `round: <review round number>` and it must exactly match the active review round

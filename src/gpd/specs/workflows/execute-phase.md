@@ -628,8 +628,10 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
      model="{check_proof_model}",
      readonly=false,
      prompt="First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
+Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
 
        Operate in proof-redteam mode with a fresh context.
+       If the runtime needs user input, return `status: checkpoint` instead of waiting inside this run.
 
        Write to: {phase_dir}/{plan_id}-PROOF-REDTEAM.md
 

@@ -161,6 +161,7 @@ When proof-bearing review is active:
 - spawn the auxiliary proof-critique agent `gpd-check-proof`
 - `gpd-check-proof` must write the auxiliary audit artifact `GPD/review/PROOF-REDTEAM{round_suffix}.md`
 - the `gpd-check-proof` task must carry the active `manuscript_path`, `manuscript_sha256`, `round`, theorem-bearing `claim_ids`, and `proof_artifact_paths`, and the emitted frontmatter must echo those values exactly
+- this proof audit is manuscript-bound: the auxiliary critic must use the active Stage 1 manuscript snapshot and claim map from this review round, not any phase-local shortcut
 - later stages must read that artifact alongside the normal staged-review JSON files
 - the Stage 3 math artifact must emit exactly one `proof_audits[]` entry for each reviewed theorem-bearing claim, and every `proof_audits[].claim_id` must also appear in `claims_reviewed`
 - missing or malformed proof-redteam artifacts are hard blockers
@@ -361,9 +362,10 @@ task(
   model="{check_proof_model}",
   readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
-Then read {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md before writing any proof audit artifact.
+Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
 
 Operate in adversarial proof-critique mode with a fresh context.
+If the runtime needs user input, return `status: checkpoint` instead of waiting inside this run.
 
 Target journal: {target_journal}
 Round: {round}
