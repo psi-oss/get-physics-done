@@ -57,6 +57,7 @@ Planning requires an approved `project_contract`. If `project_contract_gate.auth
 Keep `project_contract` as the grounding ledger. Use `effective_reference_intake` and `active_reference_context` only as readable projections of the same anchors.
 Treat stable knowledge docs surfaced through `active_reference_context` and `reference_artifacts_content` as reviewed background syntheses. They may clarify assumptions, caveats, and method choice when they agree with stronger sources, but they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.
 If stable knowledge materially shapes the plan, surface it explicitly in existing plan structures or prose; do not invent a separate knowledge authority or ledger.
+Use explicit `knowledge_deps` when a plan materially depends on a reviewed knowledge doc and downstream gating should be enforced; keep implicit stable background advisory only.
 Treat `approach_policy` as execution policy only. Keep `scope.in_scope` populated and `contract.context_intake` concrete enough to audit.
 For proof-bearing work, use an explicit non-`other` `claim_kind` with auditable hypotheses, quantified variables, and named parameters.
 </contract_visibility_requirements>
@@ -112,6 +113,7 @@ Output is consumed by gpd:execute-phase. Plans need frontmatter, XML tasks, rigo
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
 Stable knowledge docs may appear in the shared reference surfaces above. Treat them as reviewed background synthesis only: they can shape assumptions and method choice when consistent with stronger sources, but they do not override `convention_lock`, `project_contract`, the PLAN `contract`, or direct evidence.
+If a plan materially depends on a reviewed knowledge doc and the reliance must be gateable downstream, express that dependency with explicit `knowledge_deps`; otherwise keep the knowledge implicit and advisory.
 
 **Phase Context:**
 Revisions MUST still honor user decisions.

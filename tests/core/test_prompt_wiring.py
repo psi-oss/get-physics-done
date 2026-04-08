@@ -1235,10 +1235,18 @@ def test_stable_knowledge_remains_background_only_across_planning_verification_a
 
     assert "Treat stable knowledge docs surfaced through `active_reference_context` and `reference_artifacts_content` as reviewed background syntheses." in planner_prompt
     assert (
+        "Use explicit `knowledge_deps` when a plan materially depends on a reviewed knowledge doc and downstream gating should be enforced; keep implicit stable background advisory only."
+        in planner_prompt
+    )
+    assert (
         "they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence."
         in planner_prompt
     )
     assert "Stable knowledge docs may appear inside `{active_reference_context}` and `{reference_artifacts_content}`." in plan_phase
+    assert (
+        "If a plan materially depends on a reviewed knowledge doc and that reliance must be gateable downstream, express it with explicit `knowledge_deps`; keep implicit stable background advisory only."
+        in plan_phase
+    )
     assert (
         "they do not override `convention_lock`, `project_contract`, the PLAN `contract`, or direct evidence."
         in plan_phase
