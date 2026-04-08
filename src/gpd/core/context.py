@@ -68,6 +68,7 @@ from gpd.core.proof_review import (
     resolve_phase_proof_review_status,
 )
 from gpd.core.protocol_bundles import render_protocol_bundle_context, select_protocol_bundles
+from gpd.core.knowledge_runtime import discover_knowledge_docs
 from gpd.core.reference_ingestion import ingest_manuscript_reference_status, ingest_reference_artifacts
 from gpd.core.results import result_list
 from gpd.core.resume_surface import (
@@ -102,6 +103,7 @@ _LITERATURE_DIR_NAME = "literature"
 _REFERENCE_MAP_DOCS = ("REFERENCES.md", "VALIDATION.md")
 _LITERATURE_INCLUDE_LIMIT = 2
 _RESEARCH_MAP_INCLUDE_LIMIT = 4
+_KNOWLEDGE_INCLUDE_LIMIT = 2
 _REFERENCE_ROLE_PRIORITY = {
     "benchmark": 0,
     "must_consider": 1,
@@ -788,6 +790,8 @@ def _canonicalize_project_contract(
 def _render_active_reference_context(
     active_references: list[dict[str, object]],
     effective_intake: dict[str, list[str]],
+    stable_knowledge_doc_files: list[str],
+    knowledge_doc_status_counts: dict[str, int],
     literature_review_files: list[str],
     research_map_reference_files: list[str],
     contract_validation: dict[str, object] | None = None,
@@ -813,7 +817,7 @@ def _render_active_reference_context(
                 f"why: {ref['why_it_matters']}{source_note}"
             )
     else:
-        if literature_review_files or research_map_reference_files:
+        if stable_knowledge_doc_files or literature_review_files or research_map_reference_files:
             lines.append("- No structured anchors parsed yet; raw reference artifacts are available below.")
         else:
             lines.append("- None confirmed in `state.json.project_contract.references` yet.")
@@ -884,13 +888,29 @@ def _render_active_reference_context(
         lines.extend(f"- Gap: {item}" for item in effective_intake["context_gaps"])
 
     lines.append("")
+    lines.append("## Stable Knowledge Documents")
+    if stable_knowledge_doc_files:
+        lines.extend(f"- Knowledge doc: {path}" for path in stable_knowledge_doc_files)
+    else:
+        lines.append("- No runtime-active stable knowledge docs found yet.")
+    suppressed_count = sum(
+        count for status, count in knowledge_doc_status_counts.items() if status != "stable"
+    )
+    if suppressed_count:
+        lines.append(
+            f"- {suppressed_count} non-stable knowledge doc(s) remain inventory-visible only and are excluded from active carry-forward context."
+        )
+
+    lines.append("")
     lines.append("## Reference Artifacts Available")
+    if stable_knowledge_doc_files:
+        lines.extend(f"- Stable knowledge: {path}" for path in stable_knowledge_doc_files)
     if literature_review_files:
         lines.extend(f"- Literature review: {path}" for path in literature_review_files)
     if research_map_reference_files:
         lines.extend(f"- Research map: {path}" for path in research_map_reference_files)
-    if not literature_review_files and not research_map_reference_files:
-        lines.append("- No literature-review or research-map anchor artifacts found yet.")
+    if not stable_knowledge_doc_files and not literature_review_files and not research_map_reference_files:
+        lines.append("- No stable knowledge, literature-review, or research-map anchor artifacts found yet.")
 
     return "\n".join(lines)
 
@@ -925,6 +945,7 @@ def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
     literature_paths = _sorted_markdown_files(literature_dir)
     research_map_dir = cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
     research_map_paths = _sorted_markdown_files(research_map_dir)
+    knowledge_inventory = discover_knowledge_docs(cwd)
     prioritized_research_map_paths = [
         research_map_dir / name for name in _REFERENCE_MAP_DOCS if (research_map_dir / name).is_file()
     ]
@@ -933,9 +954,18 @@ def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
 
     literature_review_files = [_relative_posix(cwd, path) for path in literature_paths]
     research_map_reference_files = [_relative_posix(cwd, path) for path in prioritized_research_map_paths]
+    knowledge_doc_files = [record.path for record in knowledge_inventory.records]
+    stable_knowledge_doc_files = [
+        record.path
+        for record in knowledge_inventory.records
+        if record.status == "stable" and record.is_fresh_approved
+    ]
+    stable_knowledge_paths = [cwd / rel_path for rel_path in stable_knowledge_doc_files]
+    knowledge_doc_status_counts = knowledge_inventory.status_counts()
 
     content_sections: list[str] = []
     selected_artifacts = [
+        *stable_knowledge_paths[:_KNOWLEDGE_INCLUDE_LIMIT],
         *prioritized_research_map_paths[:_RESEARCH_MAP_INCLUDE_LIMIT],
         *literature_paths[:_LITERATURE_INCLUDE_LIMIT],
     ]
@@ -950,7 +980,12 @@ def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
         "literature_review_count": len(literature_review_files),
         "research_map_reference_files": research_map_reference_files,
         "research_map_reference_count": len(research_map_reference_files),
-        "reference_artifact_files": [*research_map_reference_files, *literature_review_files],
+        "knowledge_doc_files": knowledge_doc_files,
+        "knowledge_doc_count": len(knowledge_doc_files),
+        "stable_knowledge_doc_files": stable_knowledge_doc_files,
+        "stable_knowledge_doc_count": len(stable_knowledge_doc_files),
+        "knowledge_doc_status_counts": knowledge_doc_status_counts,
+        "reference_artifact_files": [*stable_knowledge_doc_files, *research_map_reference_files, *literature_review_files],
         "reference_artifacts_content": "\n\n".join(content_sections) if content_sections else None,
     }
 
@@ -967,6 +1002,7 @@ def _build_reference_runtime_context(
         cwd,
         literature_review_files=list(artifact_payload["literature_review_files"]),
         research_map_reference_files=list(artifact_payload["research_map_reference_files"]),
+        knowledge_doc_files=list(artifact_payload["stable_knowledge_doc_files"]),
     )
     manuscript_reference_status = ingest_manuscript_reference_status(cwd)
     manuscript_proof_review_status = resolve_manuscript_proof_review_status(
@@ -974,6 +1010,7 @@ def _build_reference_runtime_context(
         persist_manifest=persist_manuscript_proof_review_manifest,
     )
     derived_references = [ref.to_context_dict() for ref in artifact_ingestion.references]
+    derived_knowledge_docs = [record.to_context_dict() for record in artifact_ingestion.knowledge_docs]
     derived_citation_sources = [item.to_context_dict() for item in artifact_ingestion.citation_sources]
     derived_manuscript_reference_status = {
         record.reference_id: record.to_context_dict()
@@ -1044,6 +1081,9 @@ def _build_reference_runtime_context(
         "effective_reference_intake": surfaced_effective_reference_intake,
         "derived_active_references": derived_references,
         "derived_active_reference_count": len(derived_references),
+        "derived_knowledge_docs": derived_knowledge_docs,
+        "derived_knowledge_doc_count": len(derived_knowledge_docs),
+        "knowledge_doc_warnings": list(artifact_ingestion.knowledge_doc_warnings),
         "citation_source_files": list(artifact_ingestion.citation_source_files),
         "citation_source_count": len(artifact_ingestion.citation_source_files),
         "citation_source_warnings": list(artifact_ingestion.citation_source_warnings),
@@ -1061,6 +1101,8 @@ def _build_reference_runtime_context(
         "active_reference_context": _render_active_reference_context(
             surfaced_active_references,
             surfaced_effective_reference_intake,
+            list(artifact_payload["stable_knowledge_doc_files"]),
+            dict(artifact_payload["knowledge_doc_status_counts"]),
             artifact_payload["literature_review_files"],
             artifact_payload["research_map_reference_files"],
             project_contract_validation,

@@ -35,6 +35,7 @@ from gpd.core.context import (
     load_config,
 )
 from gpd.core.errors import ConfigError, ValidationError
+from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
@@ -758,6 +759,76 @@ def _write_research_map_anchor_files(tmp_path: Path) -> None:
     )
 
 
+def _write_knowledge_doc(
+    tmp_path: Path,
+    *,
+    knowledge_id: str = "K-renormalization-group-fixed-points",
+    status: str = "stable",
+    body: str = "Trusted knowledge body.\n",
+) -> None:
+    knowledge_dir = tmp_path / "GPD" / "knowledge"
+    knowledge_dir.mkdir(parents=True, exist_ok=True)
+    path = knowledge_dir / f"{knowledge_id}.md"
+    base_content = (
+        "---\n"
+        "knowledge_schema_version: 1\n"
+        f"knowledge_id: {knowledge_id}\n"
+        "title: Renormalization Group Fixed Points\n"
+        "topic: renormalization-group\n"
+        f"status: {status}\n"
+        "created_at: 2026-04-07T12:00:00Z\n"
+        "updated_at: 2026-04-07T12:00:00Z\n"
+        "sources:\n"
+        "  - source_id: source-main\n"
+        "    kind: paper\n"
+        "    locator: Author et al., 2024\n"
+        "    title: Benchmark Reference\n"
+        "    why_it_matters: Trusted source for the topic\n"
+        "coverage_summary:\n"
+        "  covered_topics: [fixed points]\n"
+        "  excluded_topics: [implementation]\n"
+        "  open_gaps: [none]\n"
+        "---\n\n"
+        f"{body}"
+    )
+    reviewed_content_sha256 = compute_knowledge_reviewed_content_sha256(base_content)
+    if status == "stable":
+        content = base_content.replace(
+            "---\n\n",
+            "review:\n"
+            "  reviewed_at: 2026-04-07T13:00:00Z\n"
+            "  review_round: 1\n"
+            "  reviewer_kind: workflow\n"
+            "  reviewer_id: gpd-review-knowledge\n"
+            "  decision: approved\n"
+            "  summary: Stable review approved.\n"
+            f"  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md\n"
+            f"  approval_artifact_sha256: {'a' * 64}\n"
+            f"  reviewed_content_sha256: {reviewed_content_sha256}\n"
+            "  stale: false\n"
+            "---\n\n",
+        )
+    elif status == "in_review":
+        content = base_content.replace(
+            "---\n\n",
+            "review:\n"
+            "  reviewed_at: 2026-04-07T13:00:00Z\n"
+            "  review_round: 1\n"
+            "  reviewer_kind: workflow\n"
+            "  reviewer_id: gpd-review-knowledge\n"
+            "  decision: approved\n"
+            "  summary: Needs re-review after edits.\n"
+            f"  approval_artifact_path: GPD/knowledge/reviews/{knowledge_id}-R1-REVIEW.md\n"
+            f"  approval_artifact_sha256: {'a' * 64}\n"
+            f"  reviewed_content_sha256: {reviewed_content_sha256}\n"
+            "  stale: true\n"
+            "---\n\n",
+        )
+    else:
+        content = base_content
+    path.write_text(content, encoding="utf-8")
+
+
 # ─── Helper Tests ──────────────────────────────────────────────────────────────
 
 
@@ -955,6 +1026,8 @@ class TestInitExecutePhase:
                 "context_gaps": [],
                 "crucial_inputs": [],
             },
+            stable_knowledge_doc_files=[],
+            knowledge_doc_status_counts={},
             literature_review_files=[],
             research_map_reference_files=[],
             contract_validation={
@@ -1154,6 +1227,35 @@ class TestInitPlanPhase:
         assert "GPD/research-map/VALIDATION.md" in ctx["reference_artifact_files"]
         assert "benchmark details" in ctx["reference_artifacts_content"]
         assert "anchor registry" in ctx["reference_artifacts_content"]
+
+    def test_surfaces_stable_knowledge_docs_in_runtime_reference_payload(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "02-analysis")
+        _write_project_contract_state(tmp_path)
+        _write_knowledge_doc(tmp_path, status="stable")
+        _write_knowledge_doc(
+            tmp_path,
+            knowledge_id="K-work-in-progress",
+            status="in_review",
+            body="Draft knowledge body.\n",
+        )
+
+        ctx = init_plan_phase(tmp_path, "2")
+
+        assert "GPD/knowledge/K-renormalization-group-fixed-points.md" in ctx["knowledge_doc_files"]
+        assert ctx["knowledge_doc_count"] == 2
+        assert ctx["stable_knowledge_doc_files"] == ["GPD/knowledge/K-renormalization-group-fixed-points.md"]
+        assert ctx["stable_knowledge_doc_count"] == 1
+        assert ctx["knowledge_doc_status_counts"]["stable"] == 1
+        assert ctx["knowledge_doc_status_counts"]["in_review"] == 1
+        assert ctx["derived_knowledge_doc_count"] == 1
+        assert ctx["derived_knowledge_docs"][0]["knowledge_id"] == "K-renormalization-group-fixed-points"
+        assert ctx["knowledge_doc_warnings"] == []
+        assert "GPD/knowledge/K-renormalization-group-fixed-points.md" in ctx["reference_artifact_files"]
+        assert "Trusted knowledge body." in ctx["reference_artifacts_content"]
+        assert "Draft knowledge body." not in ctx["reference_artifacts_content"]
+        assert "K-work-in-progress" not in ctx["active_reference_context"]
+        assert "non-stable knowledge doc(s) remain inventory-visible only" in ctx["active_reference_context"]
 
     def test_does_not_bootstrap_manuscript_proof_review_manifest(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -2219,6 +2321,28 @@ class TestInitVerifyWork:
 
         assert ctx["project_contract"]["references"][0]["role"] == "benchmark"
         assert "## Active Reference Registry" in ctx["active_reference_context"]
+
+    def test_verify_work_surfaces_derived_stable_knowledge_docs(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-setup")
+        _write_knowledge_doc(tmp_path, status="stable")
+        _write_knowledge_doc(
+            tmp_path,
+            knowledge_id="K-work-in-progress",
+            status="draft",
+            body="Draft knowledge body.\n",
+        )
+
+        ctx = init_verify_work(tmp_path, "1")
+
+        assert ctx["knowledge_doc_count"] == 2
+        assert ctx["derived_knowledge_doc_count"] == 1
+        assert ctx["derived_knowledge_docs"][0]["status"] == "stable"
+        assert ctx["knowledge_doc_warnings"] == []
+        assert "GPD/knowledge/K-renormalization-group-fixed-points.md" in ctx["reference_artifact_files"]
+        assert "GPD/knowledge/K-work-in-progress.md" not in ctx["reference_artifact_files"]
+        assert "Draft knowledge body." not in ctx["reference_artifacts_content"]
+        assert "non-stable knowledge doc(s) remain inventory-visible only" in ctx["active_reference_context"]
 
     def test_exposes_selected_protocol_bundle_ids(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
