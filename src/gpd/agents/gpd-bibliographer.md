@@ -540,17 +540,48 @@ Load that reference for entry type examples, the full journal abbreviation table
 
 ```
 PROJECT_ROOT/
+├── GPD/
+│   └── references/
+│       └── bibliography-db.json  # Persistent bibliography database (JSON)
 ├── references/
-│   ├── references.bib          # Main bibliography file
-│   ├── references-verified.log  # Verification log
-│   └── references-pending.md    # Unverified citations needing resolution
+│   ├── references.bib            # Main bibliography file (generated from DB)
+│   ├── references-verified.log   # Verification log
+│   └── references-pending.md     # Unverified citations needing resolution
 ```
+
+### Bibliography Database
+
+The bibliography database (`GPD/references/bibliography-db.json`) is the persistent store
+for all reference metadata, status tracking, and cross-reference links. It is backed by
+the `BibliographyDB` class in `gpd.mcp.paper.bibliography_db`.
+
+**What the database tracks per entry:**
+
+- **Identity**: bib_key, title, authors, year, source_type
+- **Identifiers**: arxiv_id, doi, url, inspire_key
+- **Status**: read_status (unread/skimmed/read/studied), cited (bool), relevance (critical/supporting/background/tangential), verification (verified/pending/suspect/not_found)
+- **Links**: cited_by, cites, related_to (cross-references to other entries)
+- **Context**: tags, notes, project_phases
+
+**Workflow integration:**
+
+- When adding a verified citation, also add it to the database via `add_from_citation_source()`
+- When verifying entries, update the database via `set_verification()`
+- Use `get_unverified_entries()` to find entries needing verification
+- Use `lookup_by_arxiv()` or `lookup_by_doi()` for deduplication before adding
+- Export entries for BibTeX generation via `export_citation_sources()`
+- Save the database after every batch of changes
 
 ### Adding a New Citation
 
 1. **Extract citation request** from context (paper draft, derivation, SUMMARY.md)
-2. **Run hallucination detection** (Steps 1-5 from protocol above)
-3. **If VERIFIED or CORRECTED:**
+2. **Check bibliography database** for duplicates:
+   - `lookup_by_arxiv()` if arXiv ID available
+   - `lookup_by_doi()` if DOI available
+   - `search()` by title/author if no identifier
+   - If already in database, update status if needed and skip to step 5
+3. **Run hallucination detection** (Steps 1-5 from protocol above)
+4. **If VERIFIED or CORRECTED:**
    - Format BibTeX entry per journal standards
    - Add verification comment:
      ```bibtex
@@ -561,9 +592,12 @@ PROJECT_ROOT/
      ```
    - Append to `references.bib`
    - Log verification in `references-verified.log`
-4. **If NOT FOUND, SUSPECT, or AMBIGUOUS:**
+   - Add to bibliography database with `add_from_citation_source()`, setting `verification=verified`
+5. **If NOT FOUND, SUSPECT, or AMBIGUOUS:**
    - Add to `references-pending.md` with details
    - Do NOT add to `references.bib`
+   - Add to bibliography database with `verification=suspect` or `verification=not_found`
+6. **Save the bibliography database** after all additions
 
 ### Deduplication
 
@@ -766,6 +800,9 @@ Parse the request or orchestrator instructions to determine mode.
 **Locate existing bibliography infrastructure.**
 
 ```bash
+# Find bibliography database
+ls GPD/references/bibliography-db.json 2>/dev/null
+
 # Find .bib files
 find . -name "*.bib" -not -path "./.git/*" 2>/dev/null
 
@@ -776,6 +813,11 @@ find . -name "*.tex" -not -path "./.git/*" 2>/dev/null
 ls references/references-verified.log 2>/dev/null
 ls references/references-pending.md 2>/dev/null
 ```
+
+**If no bibliography database exists:**
+
+- It will be auto-created on first load by `load_bibliography_db(project_root)`
+- If a `references.bib` already exists, consider importing its entries into the database
 
 **If no .bib file exists:**
 
@@ -788,6 +830,7 @@ ls references/references-pending.md 2>/dev/null
 - Read it fully to understand existing entries
 - Note citation key conventions already in use
 - Count entries and check for obvious formatting issues
+- Cross-check against the bibliography database; add any missing entries to the DB
   </step>
 
 <step name="execute_mode">
