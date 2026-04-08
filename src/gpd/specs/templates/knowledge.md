@@ -9,10 +9,10 @@ Knowledge documents are reviewed, project-scoped topic syntheses. They are not
 convention ledgers, not literature reviews, not research maps, not result stores,
 and not verification artifacts.
 
-Use this template for the canonical markdown body of a knowledge document. The
-frontmatter shown below reflects the intended schema shape; it is intentionally
-strict and should be treated as the only accepted structure when the knowledge-doc
-schema lands.
+Use this template for the canonical markdown body of a knowledge document
+authored through `gpd:digest-knowledge`. The frontmatter shown below matches the
+enforced schema and should be treated as the only accepted structure for draft
+create/update work in this phase.
 
 ## Frontmatter
 
@@ -90,12 +90,11 @@ heuristics.
 
 ## Deferred Behaviors
 
-The following behaviors are intentionally out of scope for Phase 1 and later
-runtime phases, even if they may appear in future work:
+The public authoring command and help coverage are part of the supported surface
+now. The following behaviors are intentionally out of scope for Phase 1 and
+later runtime phases, even if they may appear in future work:
 
 - runtime ingestion into planner, verifier, or executor context
-- public command registration
-- help inventory exposure
 - beginner onboarding exposure
 - automatic migration
 - `knowledge_deps` and `related_artifacts` frontmatter support

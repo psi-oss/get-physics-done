@@ -1,104 +1,214 @@
 <purpose>
-Create or update a reviewed knowledge document in `GPD/knowledge/`. Light path: research the topic, write a Draft, present for user review, promote to Stable on approval.
+Author or update a project knowledge document with a truthful, deterministic create/update workflow.
+
+This workflow handles the draft-authoring half of the knowledge-doc lifecycle only:
+
+- classify the user input as a knowledge path, source path, arXiv identifier, or topic
+- resolve one canonical `knowledge_id` and one canonical file path
+- create a new draft knowledge doc or update an existing draft in place
+- validate the result against the strict `knowledge` frontmatter schema
+
+This workflow does not claim downstream runtime ingestion, planner/verifier trust propagation, or review-state promotion. Those behaviors are explicitly deferred to later phases.
+
+Called from `gpd:digest-knowledge`.
 </purpose>
 
-<required_reading>
-@{GPD_INSTALL_DIR}/templates/knowledge.md
-</required_reading>
+<core_principle>
+A knowledge document is only useful if its identity is deterministic, its target is unambiguous, and its lifecycle claims are honest.
+
+If the input does not clearly map to a single knowledge-doc target, the workflow must stop and ask. If the target already exists as stable or superseded, the workflow must not silently repurpose it as a draft authoring target.
+</core_principle>
 
 <process>
 
-<step name="detect_input">
-Determine input type from the argument:
-
-- **arXiv ID** (matches `DDDD.DDDDD` pattern): fetch the paper via web_search/web_fetch
-- **File path** (exists on disk): read the file as source material
-- **Topic string** (everything else): research the topic via web_search
-
-</step>
-
-<step name="check_existing">
-Check if `GPD/knowledge/` exists and scan for existing knowledge docs on this topic:
+<step name="load_context" priority="first">
+Load the project and command context before choosing a target:
 
 ```bash
-find GPD/knowledge -name "*.md" 2>/dev/null || echo "NO_KNOWLEDGE_DIR"
+INIT=$(gpd --raw init progress --include state,config)
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd initialization failed: $INIT"
+  # STOP — display the error to the user and do not proceed.
+fi
 ```
 
-If a related doc exists, ask the user: update the existing doc or create a new one?
-</step>
+Parse JSON for:
 
-<step name="assign_id">
-Determine the next sequential ID:
+- `commit_docs`
+- `state_exists`
+- `project_exists`
+- `project_contract`
+- `project_contract_gate`
+- `project_contract_load_info`
+- `project_contract_validation`
+- `contract_intake`
+- `effective_reference_intake`
+- `active_reference_context`
+- `reference_artifact_files`
+- `reference_artifacts_content`
+
+Read mode settings if needed for authoring depth:
 
 ```bash
-ls GPD/knowledge/K-*.md 2>/dev/null | sort | tail -1
+AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
+RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
 ```
 
-If no docs exist, start with `K-001`. Otherwise increment from the highest existing number.
+Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. If the gate is blocked, keep the contract visible as context but do not promote it to approved knowledge truth.
 </step>
 
-<step name="research">
-Research the topic thoroughly:
+<step name="classify_input">
+Classify the command argument(s) into one of four input classes:
 
-1. If arXiv paper: read the paper, extract key results, equations, conventions
-2. If topic: search for authoritative sources (textbooks, review articles, seminal papers)
-3. For every method or result cited, read the actual source — do not rely on training knowledge alone
-4. Identify convention choices and flag any clashes between sources
-5. Note traps and subtleties — what could go wrong if someone uses this knowledge carelessly?
+1. `knowledge_path`
+2. `source_path`
+3. `arxiv_id`
+4. `topic`
 
-Cross-reference with `GPD/CONVENTIONS.md` to ensure consistency with project conventions.
+Classification rules:
+
+- `knowledge_path` means an explicit path under `GPD/knowledge/` pointing to a `.md` file
+- `source_path` means an explicit file path outside the knowledge tree that exists and can be read as source material
+- `arxiv_id` means a modern or legacy arXiv identifier, including accepted prefixes handled by the shared arXiv normalizer
+  - modern example: `2401.12345` or `2401.12345v2`
+  - legacy example: `hep-th/9901001`
+- `topic` means a free-form subject string that is not already an explicit file or arXiv target
+
+If the same input could plausibly be classified in more than one way, stop and ask for clarification instead of guessing.
+
+Examples of ambiguity that must stop:
+
+- a token that is both a plausible filename stem and a plausible topic
+- a path-like input that could point either to a knowledge doc or to a source artifact
+- multiple existing knowledge docs that could all be the intended update target
 </step>
 
-<step name="write_draft">
-Create `GPD/knowledge/` directory if needed:
+<step name="resolve_target">
+Resolve a single canonical target from the classified input.
+
+Resolution order:
+
+1. explicit `knowledge_path`
+2. exact existing `knowledge_id`
+3. exact existing source match when the source resolves uniquely
+4. new deterministic `knowledge_id` derived from the normalized topic or canonical title
+
+Target rules:
+
+- The canonical knowledge directory is `GPD/knowledge/`
+- The canonical file name is `GPD/knowledge/{knowledge_id}.md`
+- `knowledge_id` must remain stable once chosen
+- use the shared ASCII slug normalizer and the shared arXiv normalizer rather than inventing new parsing logic
+
+If a target resolves to more than one candidate, stop and ask one focused clarification question.
+Do not pick a candidate by ordering, recency, or filename heuristics.
+</step>
+
+<step name="branch_on_existing_target">
+Decide whether the target should be created or updated.
+
+### Create
+
+Use create mode when:
+
+- no knowledge doc exists at the resolved path
+- or the user explicitly requested a new draft target
+
+### Update
+
+Use update mode when:
+
+- the resolved target exists and is a draft knowledge doc
+- and the user intends to revise that draft rather than start a new one
+
+### Stop
+
+Do not author into the target when:
+
+- the target exists and is `stable`
+- the target exists and is `superseded`
+- the target would require review-state promotion
+- the target would require changing the canonical `knowledge_id`
+
+In those cases, stop and route the user to the later lifecycle phase instead of silently mutating the document into a different state.
+</step>
+
+<step name="author_draft">
+Write or rewrite the draft knowledge document with strict, machine-readable frontmatter and a concise body.
+
+Minimum required frontmatter:
+
+- `knowledge_schema_version`
+- `knowledge_id`
+- `title`
+- `topic`
+- `status`
+- `created_at`
+- `updated_at`
+- `sources`
+- `coverage_summary`
+
+Conditional fields:
+
+- do not invent `review` in this phase
+- do not invent `superseded_by` in this phase
+- do not add undeclared keys
+
+Content rules:
+
+- keep the title and topic honest and narrow
+- preserve the canonical `knowledge_id`
+- record structured sources rather than free-form source prose
+- record what is covered, what is excluded, and what remains open
+- if the source is an arXiv paper, normalize the arXiv identifier before writing it into source metadata
+- if the source is an explicit file path, keep it project-relative when possible and avoid inventing unsupported references
+
+If updating an existing draft, preserve the identity and revise only the content that changed.
+If creating a new doc, initialize it as `status: draft`.
+</step>
+
+<step name="validate_schema">
+Validate the generated markdown against the strict `knowledge` schema before considering the task complete.
+
+Use the repo's frontmatter validator against the final file:
 
 ```bash
-mkdir -p GPD/knowledge
+gpd frontmatter validate GPD/knowledge/{knowledge_id}.md --schema knowledge
 ```
 
-Write the knowledge document following the template at `{GPD_INSTALL_DIR}/templates/knowledge.md`.
+Validation must confirm:
 
-Set `status: Draft` in the frontmatter. All sections are required — if you don't have content for a section, write "None identified" rather than omitting it.
+- filename stem matches `knowledge_id`
+- `knowledge_schema_version` is `1`
+- required fields are present
+- `sources` is structured and non-empty
+- `coverage_summary` is structured
+- draft lifecycle rules are satisfied
 
-```bash
-gpd commit "docs: add knowledge doc K-{NNN}-{slug} (Draft)" --files "GPD/knowledge/K-{NNN}-{slug}.md"
-```
+If validation fails, fix the file and re-run validation until it passes.
 </step>
 
-<step name="present_for_review">
-Present the Draft to the user:
+<step name="defer_out_of_scope">
+This workflow intentionally defers the following behaviors:
 
-1. Summarize what the document covers (2-3 sentences)
-2. List the key results found
-3. Flag any conventions that required a choice
-4. Flag any traps or subtleties discovered
-5. Ask: "Review this knowledge document. Should I mark it Stable, revise it, or leave as Draft?"
+- review approval and evidence capture
+- `stable` lifecycle promotion
+- supersession and replacement policy
+- runtime ingestion into planner/verifier/executor context
+- help inventory and command registration, which are handled by the command wrapper and help surfaces
 
+If the user asks for any of those behaviors, do not fake them. Stop and route to the later phase that owns them.
 </step>
 
-<step name="handle_review">
-Based on user response:
+<step name="finish">
+When the draft is valid:
 
-**"Stable" / approve:**
-- Update frontmatter: `status: Stable`, `last_reviewed: [today]`, `review_rounds: 1`
-- Commit: `gpd commit "docs: mark K-{NNN}-{slug} Stable" --files "GPD/knowledge/K-{NNN}-{slug}.md"`
+1. report the canonical file path
+2. report whether the document was created or updated
+3. summarize the input class that was resolved
+4. summarize any clarification that was required
 
-**Revise / changes requested:**
-- Apply the requested changes
-- Re-present for review
-- Loop until approved or user says to leave as Draft
-
-**"Leave as Draft":**
-- No changes. The document remains Draft for future review.
-
+Do not claim downstream trust or ingestion. This step only establishes an honest draft knowledge document.
 </step>
 
 </process>
-
-<success_criteria>
-- Knowledge document exists in `GPD/knowledge/` with valid frontmatter
-- All template sections present (even if "None identified")
-- Conventions cross-referenced with CONVENTIONS.md
-- Status reflects actual review state (Draft if unreviewed, Stable if user approved)
-- Committed to git
-</success_criteria>

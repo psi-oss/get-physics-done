@@ -7,9 +7,10 @@ type: knowledge-schema
 
 Canonical source of truth for knowledge-doc frontmatter and naming rules.
 
-Use this file when you author, revise, or validate a knowledge document. Do not
-invent ad-hoc keys, let filename and ID drift apart, or treat the schema as
-permissive prose. Knowledge docs are closed, versioned artifacts.
+Use this file when you author, revise, or validate a knowledge document through
+`gpd:digest-knowledge` or direct frontmatter validation. Do not invent ad-hoc
+keys, let filename and ID drift apart, or treat the schema as permissive prose.
+Knowledge docs are closed, versioned artifacts.
 
 ---
 
@@ -287,17 +288,18 @@ The following conditional rules are mandatory:
 
 ## Explicit Deferrals
 
-Phase 1/2 knowledge docs do not yet promise:
+Public command registration and shared help coverage are part of the supported
+authoring surface now. The remaining runtime-facing behaviors are still
+deferred:
 
 1. `under_review` as a shipped status
 2. automatic migration of older knowledge files
 3. `knowledge_deps` or `related_artifacts` as accepted frontmatter fields
-4. command registration or help inventory exposure
-5. runtime ingestion into planner/verifier/executor context
-6. project-wide mandatory `GPD/knowledge/` creation
-7. heuristic filename repair
-8. implicit ID aliasing between differently named files
-9. path-only discovery across `GPD/`
+4. runtime ingestion into planner/verifier/executor context
+5. project-wide mandatory `GPD/knowledge/` creation
+6. heuristic filename repair
+7. implicit ID aliasing between differently named files
+8. path-only discovery across `GPD/`
 
 These belong to later execution and hardening phases.
 

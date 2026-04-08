@@ -231,6 +231,10 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:sensitivity-analysis` - Rank which inputs matter most
 - `gpd:error-propagation` - Track uncertainties through a calculation chain
 
+### Knowledge authoring
+
+- `gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]` - Create or update a knowledge document draft
+
 ### Writing and publication
 
 - `gpd:literature-review [topic]` - Create a structured literature review
@@ -830,6 +834,16 @@ Structured literature review for a physics research topic.
 - Creates structured review with key papers, methods, and gaps
 
 Usage: `gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`
+
+**`gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]`**
+Create or update a knowledge document draft for a reviewed topic.
+
+- Accepts an explicit knowledge-doc path, a source file path, a modern or legacy arXiv ID, or a topic string
+- Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target or stops on ambiguity
+- Reopens existing draft knowledge docs in place and keeps lifecycle/review handling for later phases
+- Does not claim runtime planner, verifier, or executor ingestion yet
+
+Usage: `gpd:digest-knowledge "renormalization group fixed points"`
 
 ### Optional Local CLI Add-Ons
 
