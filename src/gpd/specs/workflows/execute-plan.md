@@ -1,5 +1,6 @@
 <purpose>
 Execute a research plan (`PLAN.md` or `*-PLAN.md`) -- carry out derivations, calculations, simulations, or analysis -- and create the matching outcome summary (`SUMMARY.md` or `*-SUMMARY.md`).
+`execute-phase.md` owns wave-level routing and fanout; this workflow owns the selected plan's local execution semantics, bounded gates, and summary emission.
 </purpose>
 
 <required_reading>
@@ -20,6 +21,8 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 ```
+
+This workflow assumes `execute-phase.md` already selected the plan and wave. It does not re-decide wave routing or specialist selection.
 
 Extract from bootstrap init JSON: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `review_cadence`, `research_mode`, `parallelization`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `platform`.
 

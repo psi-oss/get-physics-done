@@ -293,6 +293,9 @@ def test_execute_phase_requires_state_return_envelope_and_handoff_spot_checks() 
     assert "State updates returned (NOT written to STATE.md directly)" in executor.text
     assert "Executor subagents MUST NOT write STATE.md directly." in content
     assert "Verify expected output files, the structured return envelope, and git commits" in content
+    assert "pre_execution_specialists" in content
+    assert '# task(subagent_type="gpd-notation-coordinator"' not in content
+    assert '# task(subagent_type="gpd-experiment-designer"' not in content
 
 
 def test_parameter_sweep_executor_uses_spawn_contract_and_return_only_state_updates() -> None:

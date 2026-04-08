@@ -35,12 +35,18 @@ def test_execute_phase_workflow_refreshes_stage_context_in_order() -> None:
 
     assert "BOOTSTRAP_INIT=$(load_execute_phase_stage phase_bootstrap)" in workflow_text
     assert "WAVE_PLANNING_INIT=$(load_execute_phase_stage wave_planning)" in workflow_text
+    assert "PRE_EXECUTION_INIT=$(load_execute_phase_stage pre_execution_specialists)" in workflow_text
     assert "WAVE_DISPATCH_INIT=$(load_execute_phase_stage wave_dispatch)" in workflow_text
     assert workflow_text.index("BOOTSTRAP_INIT=$(load_execute_phase_stage phase_bootstrap)") < workflow_text.index(
         "WAVE_PLANNING_INIT=$(load_execute_phase_stage wave_planning)"
     )
     assert workflow_text.index("WAVE_PLANNING_INIT=$(load_execute_phase_stage wave_planning)") < workflow_text.index(
+        "PRE_EXECUTION_INIT=$(load_execute_phase_stage pre_execution_specialists)"
+    )
+    assert workflow_text.index("PRE_EXECUTION_INIT=$(load_execute_phase_stage pre_execution_specialists)") < workflow_text.index(
         "WAVE_DISPATCH_INIT=$(load_execute_phase_stage wave_dispatch)"
     )
     assert 'gpd --raw init execute-phase "${PHASE_ARG}" --include state,config' not in workflow_text
-
+    assert "execute-plan.md owns plan-local execution semantics" in workflow_text
+    assert "# task(subagent_type=\"gpd-notation-coordinator\"" not in workflow_text
+    assert "# task(subagent_type=\"gpd-experiment-designer\"" not in workflow_text

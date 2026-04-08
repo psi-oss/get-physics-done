@@ -3257,6 +3257,10 @@ def test_stage5_execution_surfaces_use_bounded_review_cadence_and_first_result_g
         in execute_plan
     )
     assert "Do NOT narrow just because a wave advanced or one proxy passed." in execute_phase
+    assert "pre_execution_specialists" in execute_phase
+    assert "PRE_EXECUTION_INIT=$(load_execute_phase_stage pre_execution_specialists)" in execute_phase
+    assert '# task(subagent_type="gpd-notation-coordinator"' not in execute_phase
+    assert '# task(subagent_type="gpd-experiment-designer"' not in execute_phase
     assert "What decisive evidence is still owed before downstream work is trustworthy?" in resume_work
     assert "Pattern D: Auto-bounded" in executor_agent
     assert "Canonical continuation fields define the public resume vocabulary" in resume_work
