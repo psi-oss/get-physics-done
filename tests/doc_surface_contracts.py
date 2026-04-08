@@ -123,6 +123,7 @@ __all__ = [
     "assert_cost_advisory_contract",
     "assert_cost_surface_discoverability",
     "assert_execution_observability_surface_contract",
+    "assert_health_command_public_contract",
     "assert_help_command_quick_start_extract_contract",
     "assert_help_workflow_quick_start_taxonomy_contract",
     "assert_help_workflow_runtime_reference_contract",
@@ -340,6 +341,19 @@ def assert_execution_observability_surface_contract(content: str) -> None:
         ),
         label="read-only execution checks wording",
     )
+
+
+def assert_health_command_public_contract(content: str) -> None:
+    assert "Parse JSON output containing:" in content
+    assert "`overall`: top-level `CheckStatus` for the full report" in content
+    assert "`summary`: `HealthSummary` with `ok`, `warn`, `fail`, and `total`" in content
+    assert (
+        "`checks`: Array of `HealthCheck` objects with `status`, `label`, `details`, `issues`, and `warnings`"
+        in content
+    )
+    assert "`fixes_applied`: top-level list of auto-applied fix descriptions" in content
+    assert "Array of `{name, status, message, fixed}`" not in content
+    assert "Object with `total`, `passed`, `warnings`, `failures`, `fixed`" not in content
 
 
 def assert_help_start_tour_ordering_contract(content: str) -> None:

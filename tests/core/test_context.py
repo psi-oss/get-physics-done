@@ -2929,6 +2929,27 @@ class TestInitProgress:
         assert ctx["project_contract"]["references"][0]["must_surface"] is True
         assert "10.1234/benchmark-figure-2" in ctx["active_reference_context"]
 
+    def test_progress_surfaces_knowledge_inventory_and_runtime_counts(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_knowledge_doc(tmp_path, status="stable")
+        _write_knowledge_doc(
+            tmp_path,
+            knowledge_id="K-work-in-progress",
+            status="in_review",
+            body="Draft knowledge body.\n",
+        )
+
+        ctx = init_progress(tmp_path)
+
+        assert ctx["knowledge_doc_count"] == 2
+        assert ctx["stable_knowledge_doc_count"] == 1
+        assert ctx["knowledge_doc_status_counts"]["stable"] == 1
+        assert ctx["knowledge_doc_status_counts"]["in_review"] == 1
+        assert ctx["derived_knowledge_doc_count"] == 1
+        assert ctx["knowledge_doc_warnings"] == []
+        assert "GPD/knowledge/K-renormalization-group-fixed-points.md" in ctx["knowledge_doc_files"]
+        assert ctx["stable_knowledge_doc_files"] == ["GPD/knowledge/K-renormalization-group-fixed-points.md"]
+
     def test_progress_surfaces_derived_state_memory(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
         _write_structured_state_memory(tmp_path)

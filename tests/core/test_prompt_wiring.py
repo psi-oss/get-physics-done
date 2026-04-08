@@ -1187,6 +1187,11 @@ def test_progress_workflow_surfaces_contract_load_and_validation_state() -> None
 
     assert "project_contract_validation" in workflow_text
     assert "project_contract_load_info" in workflow_text
+    assert "knowledge_doc_count" in workflow_text
+    assert "stable_knowledge_doc_count" in workflow_text
+    assert "knowledge_doc_status_counts" in workflow_text
+    assert "derived_knowledge_doc_count" in workflow_text
+    assert "knowledge_doc_warnings" in workflow_text
     assert "authoritative only when `project_contract_gate.authoritative` is true" in workflow_text
     assert "structured load status, warnings, and blockers for the contract" in workflow_text
     status_scan = 'grep -l -E "^(status: (gaps_found|human_needed|expert_needed)|session_status: diagnosed)$"'
@@ -1201,6 +1206,10 @@ def test_progress_workflow_surfaces_contract_load_and_validation_state() -> None
     assert "status: (gaps_found|diagnosed|human_needed|expert_needed)" not in command_text
     assert "`session_status: diagnosed`" in workflow_text
     assert "`session_status: diagnosed`" not in command_text
+    assert "HEALTH.summary.warn > 0" in workflow_text
+    assert "HEALTH.summary.fail > 0" in workflow_text
+    assert "non-empty `issues` array" not in workflow_text
+    assert "## Knowledge Status" in workflow_text
     assert "GPD/phases/[current-phase-dir]/*-VERIFICATION.md" in workflow_text
     assert "GPD/phases/[current-phase-dir]/*-VERIFICATION.md" not in command_text
 
