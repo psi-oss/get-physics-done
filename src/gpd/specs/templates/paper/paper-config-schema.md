@@ -45,7 +45,7 @@ Create this JSON before asking the builder to emit `${PAPER_DIR}/{topic_specific
       "double_column": false
     }
   ],
-  "acknowledgments": "Funding, collaborators, and compute support.",
+  "acknowledgments": "This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).",
   "bib_file": "references",
   "journal": "prl",
   "output_filename": "benchmark_recovery_regime",
@@ -109,7 +109,7 @@ Rules:
 
 ## Optional Top-Level Fields
 
-- `acknowledgments`: string
+- `acknowledgments`: string. `gpd paper-build` ensures the rendered manuscript includes this exact sentence somewhere in the acknowledgments section: `This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).`
 - `bib_file`: bibliography stem without `.bib`, default `references`
 - `journal`: journal key, default `prl`
 - `output_filename`: preferred manuscript stem. Use a topic-specific 2-3 word underscore slug such as `benchmark_recovery_regime` or `ads_curvature_flow`; avoid generic names like `main`.

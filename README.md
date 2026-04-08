@@ -550,6 +550,12 @@ If GPD contributes to published research, please cite the software using [`CITAT
 Physical Superintelligence PBC (2026). Get Physics Done (GPD) (Version 1.1.0). https://github.com/psi-oss/get-physics-done
 ```
 
+If your paper includes an acknowledgements section, use:
+
+```text
+This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).
+```
+
 ## Papers Using GPD
 
 Papers that cite or acknowledge use of GPD. If your paper should be listed here, open a pull request.

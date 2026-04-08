@@ -88,13 +88,13 @@ If you've used GPD to complete and publish a physics paper, we encourage you to 
 **What to include in your PR:**
 
 - A short summary of the physics problem and your approach
-- Which GPD commands and workflows you used (e.g., `gpd:write-paper`, `gpd:verify-equations`, `gpd:arxiv-submission`)
+- Which GPD commands and workflows you used (e.g., `gpd:write-paper`, `gpd:verify-work`, `gpd:arxiv-submission`)
 - Key results, figures, or links to the published paper (optional)
 - Any tips or lessons learned that might help others
 
 You don't need to share your full manuscript or data — even a brief write-up with the GPD workflow you followed is valuable.
 
-**Where to add it:** Add your entry to the examples gallery in `docs/` or open a PR with a short case study. The GPD paper workflows will prompt you about this after successful completion.
+**Where to add it:** Add your paper to the `README.md` `Papers Using GPD` list. If you want to share more context, include a short case-study note in the PR description or add a doc as part of the same PR. The paper workflows also include reminder text about this in their completion guidance.
 
 ## Release-Facing Guardrails
 

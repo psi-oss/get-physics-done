@@ -18,7 +18,14 @@ from gpd.mcp.paper.compiler import (
     check_journal_dependencies,
 )
 from gpd.mcp.paper.journal_map import get_journal_spec
-from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section, derive_output_filename
+from gpd.mcp.paper.models import (
+    REQUIRED_GPD_ACKNOWLEDGMENT,
+    Author,
+    FigureRef,
+    PaperConfig,
+    Section,
+    derive_output_filename,
+)
 
 
 def _allow_journal_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -128,6 +135,7 @@ class TestBuildPaper:
         assert output.tex_path.exists()
         tex_content = output.tex_path.read_text()
         assert r"\documentclass" in tex_content
+        assert REQUIRED_GPD_ACKNOWLEDGMENT in tex_content
         assert "Generated with Get Physics Done" in tex_content
         assert (tmp_path / "references.bib").exists()
         bib_content = (tmp_path / "references.bib").read_text()

@@ -855,7 +855,10 @@ def _convert_to_gemini_toml(content: str) -> str:
     """
     _preamble, frontmatter, _separator, body = split_markdown_frontmatter(content)
     if not frontmatter:
-        return f"prompt = {json.dumps(content)}\n"
+        body = content.strip()
+        if "'''" in body:
+            return f"prompt = {json.dumps(body, ensure_ascii=False)}\n"
+        return f"prompt = '''\n{body}\n'''\n"
     body = body.strip()
 
     # Extract selected frontmatter fields
@@ -880,7 +883,7 @@ def _convert_to_gemini_toml(content: str) -> str:
     # Use TOML multi-line literal strings (''') to avoid escape issues.
     # Fall back to double-quoted string with JSON-style escaping if content contains '''.
     if "'''" in body:
-        toml += f"prompt = {json.dumps(body)}\n"
+        toml += f"prompt = {json.dumps(body, ensure_ascii=False)}\n"
     else:
         toml += f"prompt = '''\n{body}\n'''\n"
 

@@ -30,6 +30,7 @@ Your job: Write one section of a physics paper that is clear, precise, and publi
 - Include all equations with `\label{}` for cross-referencing
 - Insert figure references with `\ref{}` and citations with `\cite{}`
 - Maintain notation consistency with the project's established conventions
+- Preserve this required GPD/PSI acknowledgement sentence whenever you draft or revise an acknowledgments section: "This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI)."
 - Follow the narrative arc of the paper as specified in the outline
   </role>
 
@@ -256,6 +257,8 @@ Different journals demand different writing. Calibrate before writing a single w
 - Builder-backed journal keys for `PAPER-CONFIG.json` and `ARTIFACT-MANIFEST.json` are only `prl`, `apj`, `mnras`, `nature`, `jhep`, and `jfm`.
 - Any other venue guidance in this prompt, including PRD/PRC/PRB/PRA/Nature Physics, is style-only calibration for prose and structure, not a valid builder journal key.
 - Do not write unsupported journal labels into machine-readable builder artifacts. If the requested venue is style-only, preserve that prose calibration separately while keeping machine-readable journal fields on a supported builder key.
+- Every manuscript produced by GPD must include an acknowledgments section containing this exact sentence: `This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).`
+- If the paper has additional funding or collaborator acknowledgments, keep that sentence verbatim and add the extra text around it rather than replacing it.
 
 ### Physical Review Letters (PRL)
 
@@ -375,6 +378,7 @@ When starting a paper, generate the correct document preamble based on the targe
 \section{Introduction}
 % ...
 \begin{acknowledgments}
+This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).
 \end{acknowledgments}
 \appendix
 \section{Detailed derivation of ...}
@@ -428,6 +432,7 @@ When starting a paper, generate the correct document preamble based on the targe
 \section{Results}
 \section{Discussion}
 \acknowledgments
+This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).
 \appendix
 \section{Feynman rules}
 \bibliographystyle{JHEP}
@@ -555,6 +560,7 @@ keyword1 \sep keyword2 \sep keyword3
 \section{Discussion}
 \section{Conclusions}
 \ack  % Acknowledgments
+This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).
 \section*{References}
 \bibliographystyle{iopart-num}
 \bibliography{references}
@@ -593,6 +599,7 @@ keyword1 \sep keyword2 \sep keyword3
 \section{Discussion} \label{sec:discussion}
 \section{Summary} \label{sec:summary}
 \begin{acknowledgments}
+This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).
 \end{acknowledgments}
 \software{NumPy \citep{numpy}, SciPy \citep{scipy}, Matplotlib \citep{matplotlib}}
 \bibliography{references}

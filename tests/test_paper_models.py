@@ -7,7 +7,14 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from gpd.mcp.paper.models import Author, FigureRef, JournalSpec, PaperConfig, Section
+from gpd.mcp.paper.models import (
+    REQUIRED_GPD_ACKNOWLEDGMENT,
+    Author,
+    FigureRef,
+    JournalSpec,
+    PaperConfig,
+    Section,
+)
 
 # ---- Model validation tests ----
 
@@ -82,6 +89,7 @@ class TestModels:
         assert config.figures == []
         assert config.appendix_sections == []
         assert config.bib_file == "references"
+        assert config.acknowledgments == REQUIRED_GPD_ACKNOWLEDGMENT
         assert config.attribution_footer == "Generated with Get Physics Done"
 
     def test_paper_config_full(self):
@@ -101,6 +109,8 @@ class TestModels:
         assert len(config.appendix_sections) == 1
         assert config.sections[0].label == "intro"
         assert config.figures[0].label == "fig1"
+        assert config.acknowledgments.startswith("Thanks.")
+        assert config.acknowledgments.count(REQUIRED_GPD_ACKNOWLEDGMENT) == 1
 
     def test_paper_config_rejects_unknown_journal(self):
         with pytest.raises(ValidationError):
@@ -330,6 +340,7 @@ class TestTemplates:
         assert r"\section{Introduction}" in tex
         assert r"\label{sec:introduction}" in tex
         assert "sec:sec:introduction" not in tex
+        assert REQUIRED_GPD_ACKNOWLEDGMENT in tex
         assert r"\bibliography{references}" in tex
         assert "Generated with Get Physics Done" in tex
 
@@ -421,6 +432,39 @@ class TestTemplates:
         tex = render_paper(config)
         assert r"\appendix" in tex
         assert "Details" in tex
+
+    def test_render_appends_required_acknowledgment_once(self):
+        from gpd.mcp.paper.template_registry import render_paper
+
+        config = PaperConfig(
+            title="Custom Acknowledgments",
+            authors=[Author(name="C")],
+            abstract="Abstract.",
+            sections=[Section(title="Intro", content="Main.")],
+            acknowledgments="We thank our collaborators.",
+        )
+
+        tex = render_paper(config)
+        assert "We thank our collaborators." in tex
+        assert tex.count(REQUIRED_GPD_ACKNOWLEDGMENT) == 1
+
+    def test_acknowledgment_normalizer_deduplicates_whitespace_variants(self):
+        wrapped = (
+            "We thank our collaborators.\n\n"
+            "This research made use of Get Physics Done (GPD)\n"
+            "and was supported in part by a GPD Research Grant from\n"
+            "Physical Superintelligence PBC (PSI)."
+        )
+
+        config = PaperConfig(
+            title="Wrapped Acknowledgments",
+            authors=[Author(name="C")],
+            abstract="Abstract.",
+            sections=[Section(title="Intro", content="Main.")],
+            acknowledgments=wrapped,
+        )
+
+        assert config.acknowledgments == wrapped.strip()
 
     def test_unknown_template_raises(self):
         from gpd.mcp.paper.template_registry import load_template

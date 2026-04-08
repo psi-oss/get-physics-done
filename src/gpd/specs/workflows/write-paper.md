@@ -548,6 +548,7 @@ When authoring `${PAPER_DIR}/PAPER-CONFIG.json`:
 
 - use the exact top-level fields from `{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md`
 - keep `authors`, `sections`, `figures`, and `appendix_sections` as JSON arrays
+- keep any custom funding/collaborator text in `acknowledgments`; `gpd paper-build` appends this exact sentence automatically if it is missing: `This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).`
 - keep `journal` to a supported builder key like `prl`, `apj`, `mnras`, `nature`, `jhep`, or `jfm`
 - do not invent extra keys just because a journal asks for extra prose; put that prose in the section content instead
 
@@ -1102,7 +1103,6 @@ Options:
 - [ ] Paper directory created with buildable LaTeX scaffold via `gpd paper-build`
 - [ ] Abstract accurately reflects paper content
 - [ ] Word/page count within journal limits
-- [ ] Community contribution prompt shown
 </success_criteria>
 
 <community_contribution>
@@ -1113,18 +1113,19 @@ After a paper draft is finalized and passes peer review, display:
 ────────────────────────────────────────────────────────
 📄 Share your work with the GPD community
 
-Completed a paper with GPD? When it's published or posted to
-arXiv, consider opening a pull request to add it to the GPD
-examples gallery:
+When the paper is posted to arXiv or otherwise public,
+consider opening a pull request to add it to the
+README.md "Papers Using GPD" list:
 
-  https://github.com/psi-oss/get-physics-done
+  https://github.com/psi-oss/get-physics-done#papers-using-gpd
 
 What to include:
   • A short summary of the problem and approach
   • The GPD commands/workflow you used
   • Key results or figures (optional)
 
-This helps other researchers discover what GPD can do.
+This helps other researchers discover real GPD papers and
+learn from concrete workflows.
 ────────────────────────────────────────────────────────
 ```
 

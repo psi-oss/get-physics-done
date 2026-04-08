@@ -21,6 +21,10 @@ ReviewIssueId = Annotated[str, Field(pattern=r"^REF-[A-Za-z0-9][A-Za-z0-9_-]*$")
 BuilderJournalKey = Literal["prl", "apj", "mnras", "nature", "jhep", "jfm"]
 _LEGACY_LABEL_PREFIXES = ("sec:", "fig:", "app:")
 _BIB_FILE_STEM_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+REQUIRED_GPD_ACKNOWLEDGMENT = (
+    "This research made use of Get Physics Done (GPD) and was supported in part by a "
+    "GPD Research Grant from Physical Superintelligence PBC (PSI)."
+)
 
 
 def _require_nonempty_text(value: str, *, field_name: str) -> str:
@@ -42,6 +46,19 @@ def _normalize_label_id(value: str, *, allow_blank: bool) -> str:
                 f"label must omit the legacy {prefix!r} prefix; use the bare identifier because the renderer adds it"
             )
     return normalized
+
+
+def normalize_acknowledgments(value: str) -> str:
+    """Ensure the required GPD acknowledgment is always present exactly once."""
+
+    normalized = value.strip()
+    if not normalized:
+        return REQUIRED_GPD_ACKNOWLEDGMENT
+    normalized_compact = " ".join(normalized.split())
+    required_compact = " ".join(REQUIRED_GPD_ACKNOWLEDGMENT.split())
+    if required_compact in normalized_compact:
+        return normalized
+    return f"{normalized}\n\n{REQUIRED_GPD_ACKNOWLEDGMENT}"
 
 
 class Author(BaseModel):
@@ -483,7 +500,7 @@ class PaperConfig(BaseModel):
     abstract: str
     sections: list[Section]
     figures: list[FigureRef] = Field(default_factory=list)
-    acknowledgments: str = ""
+    acknowledgments: str = REQUIRED_GPD_ACKNOWLEDGMENT
     bib_file: str = "references"
     journal: BuilderJournalKey = "prl"
     appendix_sections: list[Section] = Field(default_factory=list)
@@ -518,6 +535,11 @@ class PaperConfig(BaseModel):
         if normalized in {".", ".."} or "/" in normalized or "\\" in normalized:
             raise ValueError("output_filename must be a filename stem, not a path")
         return normalized
+
+    @model_validator(mode="after")
+    def _ensure_required_acknowledgment(self) -> PaperConfig:
+        self.acknowledgments = normalize_acknowledgments(self.acknowledgments)
+        return self
 
 
 _MAX_FILENAME_LENGTH = 60

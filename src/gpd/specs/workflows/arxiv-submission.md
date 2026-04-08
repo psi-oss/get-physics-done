@@ -496,7 +496,7 @@ If `${MAIN_BASENAME}` is not at root level of tarball: repackage.
 ### Pre-submission Checklist (Manual)
 
 - [ ] Author list is correct and complete
-- [ ] Acknowledgments are up to date
+- [ ] Acknowledgments are up to date, including: `This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).`
 - [ ] arXiv category selected (e.g., hep-th, cond-mat.str-el, quant-ph)
 - [ ] License selected (typically CC BY 4.0 for new submissions)
 - [ ] ORCID iDs added for all authors (optional but recommended)
@@ -623,7 +623,6 @@ Upload this file directly to https://arxiv.org/submit
 - [ ] No unresolved placeholders (RESULT PENDING, MISSING: citations, TODO/FIXME)
 - [ ] Submission manifest committed (tarball NOT committed — binary artifact)
 - [ ] *.tar.gz added to .gitignore
-- [ ] Community contribution prompt shown
 </success_criteria>
 
 <community_contribution>
@@ -634,10 +633,11 @@ After a successful submission package is generated, display:
 ────────────────────────────────────────────────────────
 📄 Share your work with the GPD community
 
-Published a paper using GPD? Consider opening a pull request
-to add it to the GPD examples gallery:
+Once the paper is posted to arXiv or otherwise public,
+consider opening a pull request to add it to the
+README.md "Papers Using GPD" list:
 
-  https://github.com/psi-oss/get-physics-done
+  https://github.com/psi-oss/get-physics-done#papers-using-gpd
 
 What to include:
   • A short summary of the problem and approach

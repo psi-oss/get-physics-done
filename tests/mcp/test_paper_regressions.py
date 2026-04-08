@@ -85,6 +85,28 @@ def test_templates_handle_empty_authors_without_dangling_breaks() -> None:
     assert "\\\\[6pt]" not in nature_match.group(1).strip()
 
 
+def test_render_paper_injects_required_acknowledgment_even_if_validation_was_bypassed() -> None:
+    from gpd.mcp.paper.models import REQUIRED_GPD_ACKNOWLEDGMENT, Author, PaperConfig, Section
+    from gpd.mcp.paper.template_registry import render_paper
+
+    config = PaperConfig.model_construct(
+        title="Constructed Paper",
+        authors=[Author(name="Jane Doe")],
+        abstract="Abstract.",
+        sections=[Section(title="Intro", content="Content.")],
+        figures=[],
+        acknowledgments="",
+        bib_file="references",
+        journal="prl",
+        appendix_sections=[],
+        attribution_footer="Generated with Get Physics Done",
+        output_filename=None,
+    )
+
+    tex = render_paper(config)
+    assert REQUIRED_GPD_ACKNOWLEDGMENT in tex
+
+
 def test_build_artifact_manifest_captures_tex_and_optional_bib(tmp_path) -> None:
     from gpd.mcp.paper.artifact_manifest import build_artifact_manifest
     from gpd.mcp.paper.models import Author, PaperConfig, Section

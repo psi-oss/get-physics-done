@@ -13,7 +13,7 @@ from importlib.resources import files
 
 from jinja2 import BaseLoader, Environment, TemplateNotFound
 
-from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section
+from gpd.mcp.paper.models import Author, FigureRef, PaperConfig, Section, normalize_acknowledgments
 from gpd.utils.latex import clean_latex_fences, fix_bibliography_conflict, sanitize_latex
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,7 @@ def render_paper(config: PaperConfig) -> str:
         abstract=clean_latex_fences(config.abstract),
         sections=sections,
         figures=figures,
-        acknowledgments=clean_latex_fences(config.acknowledgments) if config.acknowledgments else None,
+        acknowledgments=clean_latex_fences(normalize_acknowledgments(config.acknowledgments)),
         bib_file=config.bib_file,
         appendix_sections=appendix_sections,
         attribution_footer=clean_latex_fences(config.attribution_footer),

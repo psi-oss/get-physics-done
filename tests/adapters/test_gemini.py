@@ -221,6 +221,7 @@ class TestConvertToGeminiToml:
         result = _convert_to_gemini_toml("Just a prompt body")
         assert "prompt" in result
         assert "Just a prompt body" in result
+        assert "prompt = '''" in result
 
     def test_extracts_description(self) -> None:
         content = "---\nname: test\ndescription: My description\n---\nPrompt body"
@@ -274,6 +275,12 @@ class TestConvertToGeminiToml:
         assert "prompt" in result
         # The prompt is JSON-encoded, not wrapped in '''
         assert "prompt = '''" not in result
+
+    def test_no_frontmatter_with_non_bmp_unicode_uses_literal_prompt(self) -> None:
+        result = _convert_to_gemini_toml("📄 Prompt body")
+
+        assert "prompt = '''" in result
+        assert "\\ud83d" not in result
 
 
 class TestRewriteGeminiShellWorkflowGuidance:
