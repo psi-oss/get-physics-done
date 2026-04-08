@@ -100,6 +100,7 @@ __all__ = [
 PLAN_FRONTMATTER_TYPES = ("execute", "tdd")
 SUMMARY_DEPTH_VALUES = ("minimal", "standard", "full", "complex")
 VERIFICATION_REPORT_STATUSES = ("passed", "gaps_found", "expert_needed", "human_needed")
+KNOWLEDGE_GATE_VALUES = ("off", "warn", "block")
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -1165,6 +1166,63 @@ def _validate_non_empty_string_list_field(meta: dict[str, object], field_name: s
             errors.append(f"{field_name}: entry {index} must be a non-empty string")
 
 
+def _validate_knowledge_deps_field(meta: dict[str, object], errors: list[str]) -> None:
+    """Append validation errors for the optional top-level ``knowledge_deps`` field."""
+
+    field_name = "knowledge_deps"
+    if field_name not in meta:
+        return
+    value = meta.get(field_name)
+    if not isinstance(value, list):
+        errors.append(f"{field_name}: expected a list")
+        return
+
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str):
+            errors.append(f"{field_name}: entry {index} must be a non-empty string")
+            continue
+        knowledge_id = item.strip()
+        if not knowledge_id:
+            errors.append(f"{field_name}: entry {index} must be a non-empty string")
+            continue
+        if (
+            not knowledge_id.startswith("K-")
+            or not knowledge_id[2:]
+            or normalize_ascii_slug(knowledge_id[2:]) != knowledge_id[2:]
+        ):
+            errors.append(
+                f"{field_name}: entry {index} must use canonical K-{{ascii-hyphen-slug}} format"
+            )
+            continue
+        if knowledge_id in seen and knowledge_id not in duplicates:
+            duplicates.append(knowledge_id)
+        seen.add(knowledge_id)
+
+    if duplicates:
+        joined = ", ".join(duplicates)
+        errors.append(f"{field_name}: duplicate ids are not allowed: {joined}")
+
+
+def _validate_knowledge_gate_field(meta: dict[str, object], errors: list[str]) -> None:
+    """Append validation errors for the optional top-level ``knowledge_gate`` field."""
+
+    field_name = "knowledge_gate"
+    if field_name not in meta:
+        return
+    value = meta.get(field_name)
+    if not isinstance(value, str):
+        errors.append(f"{field_name}: expected a string")
+        return
+    gate_value = value.strip()
+    if not gate_value:
+        errors.append(f"{field_name}: expected a non-empty string")
+        return
+    if gate_value not in KNOWLEDGE_GATE_VALUES:
+        errors.append(f"{field_name}: must be one of off, warn, block")
+
+
 def _plan_contract_ref_fragment_error(plan_contract_ref: str) -> str | None:
     """Return a user-facing fragment error for ``plan_contract_ref`` when invalid."""
 
@@ -1994,6 +2052,10 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
         errors.extend(f"contract: {issue}" for issue in resolution.errors)
     elif "contract" in meta:
         errors.append("contract: expected an object")
+
+    if schema_name == "plan":
+        _validate_knowledge_deps_field(meta, errors)
+        _validate_knowledge_gate_field(meta, errors)
 
     if schema_name == "plan" and "tool_requirements" in meta:
         try:
