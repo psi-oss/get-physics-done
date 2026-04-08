@@ -44,6 +44,7 @@ from gpd.core.constants import (
 )
 from gpd.core.contract_validation import _format_schema_error
 from gpd.core.errors import GPDError
+from gpd.core.knowledge_docs import parse_knowledge_doc_data_strict
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.root_resolution import resolve_project_root
 from gpd.core.strict_yaml import load_strict_yaml
@@ -64,10 +65,12 @@ __all__ = [
     "splice_frontmatter",
     "deep_merge_frontmatter",
     "parse_contract_block",
+    "parse_knowledge_doc_data_strict",
     # Schema validation
     "FRONTMATTER_SCHEMAS",
     "FrontmatterValidation",
     "validate_frontmatter",
+    "validate_knowledge_frontmatter",
     # Verification result types
     "FileCheckResult",
     "SummaryVerification",
@@ -382,7 +385,55 @@ FRONTMATTER_SCHEMAS: dict[str, dict[str, list[str]]] = {
     "verification": {
         "required": ["phase", "verified", "status", "score"],
     },
+    "knowledge": {
+        "required": [
+            "knowledge_schema_version",
+            "knowledge_id",
+            "title",
+            "topic",
+            "status",
+            "created_at",
+            "updated_at",
+            "sources",
+            "coverage_summary",
+        ],
+    },
 }
+
+
+def _knowledge_doc_validation_errors(
+    meta: dict[str, object],
+    *,
+    source_path: Path | None = None,
+) -> list[str]:
+    errors: list[str] = []
+
+    try:
+        parse_knowledge_doc_data_strict(meta, source_path=source_path)
+    except (PydanticValidationError, TypeError, ValueError) as exc:
+        errors.extend(_prefixed_validation_errors("knowledge", exc))
+    return errors
+
+
+def validate_knowledge_frontmatter(
+    content: str,
+    source_path: Path | None = None,
+) -> FrontmatterValidation:
+    """Validate knowledge frontmatter against the strict knowledge-doc schema."""
+
+    meta, _ = extract_frontmatter(content)
+    required = FRONTMATTER_SCHEMAS["knowledge"]["required"]
+    missing = [f for f in required if _resolve_field(meta, f) is None]
+    present = [f for f in required if _resolve_field(meta, f) is not None]
+    errors = _knowledge_doc_validation_errors(meta, source_path=source_path)
+    return FrontmatterValidation(
+        valid=len(missing) == 0 and not errors,
+        missing=missing,
+        present=present,
+        errors=errors,
+        schema_name="knowledge",
+    )
+
 
 UNSUPPORTED_FRONTMATTER_FIELDS: dict[str, dict[str, str]] = {
     "plan": {
@@ -1401,6 +1452,9 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
     if schema is None:
         available = ", ".join(FRONTMATTER_SCHEMAS)
         raise FrontmatterValidationError(f"Unknown schema: {schema_name}. Available: {available}")
+
+    if schema_name == "knowledge":
+        return validate_knowledge_frontmatter(content, source_path=source_path)
 
     meta, _ = extract_frontmatter(content)  # may raise FrontmatterParseError
     required = schema["required"]
