@@ -12,7 +12,8 @@ and not verification artifacts.
 Use this template for the canonical markdown body of a knowledge document
 authored through `gpd:digest-knowledge`. The frontmatter shown below matches the
 enforced schema and should be treated as the only accepted structure for draft
-create/update work in this phase.
+create/update work in this phase. Promotion to `stable` is handled by
+`gpd:review-knowledge`, not by this draft-authoring workflow.
 
 ## Frontmatter
 
@@ -37,7 +38,7 @@ coverage_summary:
   excluded_topics:
     - downstream runtime ingestion
   open_gaps:
-    - reviewer sign-off
+    - review approval
 ---
 ```
 
@@ -45,10 +46,11 @@ Rules:
 
 - `knowledge_schema_version` must be `1`.
 - `knowledge_id` must be the filename stem exactly.
-- `status` must be one of `draft`, `stable`, or `superseded`.
+- `status` must be one of `draft`, `in_review`, `stable`, or `superseded`.
 - `sources` must be a list of typed records, not free-form strings.
 - `coverage_summary` must remain structured and machine-readable.
 - `updated_at` should reflect the latest substantive edit to the document.
+- `stable` requires a fresh approved review record and must not be used by the draft authoring workflow.
 
 ## Title And Scope
 
@@ -76,9 +78,13 @@ remains unresolved.
 
 This section is required only for `stable` documents.
 
-Document the review evidence in a typed and auditable way. Include the reviewer,
-review timestamp, decision, a concise summary, and at least one concrete evidence
-pointer such as an artifact path, commit SHA, trace ID, or audit artifact path.
+Document the review evidence in a typed and auditable way. Include the review
+round, reviewer kind, reviewer identity, review timestamp, decision, a concise
+summary, a canonical approval artifact path, the artifact hash, the reviewed
+content hash, and whether the approval is stale.
+
+If the document is still in review, preserve any prior review record but mark it
+stale when the content has changed or when a new round is needed.
 
 ## Supersession
 
@@ -86,7 +92,8 @@ This section is required only for `superseded` documents.
 
 Record the document that replaces this one and keep the original file in place as
 historical record. Supersession should be explicit and should not rely on filename
-heuristics.
+heuristics. Keep the trust boundary honest: supersession is a replacement record,
+not a claim that the old synthesis is still current.
 
 ## Deferred Behaviors
 
@@ -99,6 +106,7 @@ later runtime phases, even if they may appear in future work:
 - automatic migration
 - `knowledge_deps` and `related_artifacts` frontmatter support
 - implicit discovery outside the canonical `knowledge` layout contract
+- automatic promotion of a draft to stable without review
 
 ## Notes
 

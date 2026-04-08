@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from gpd.core.utils import normalize_ascii_slug
 
@@ -15,12 +18,16 @@ __all__ = [
     "KnowledgeDocData",
     "KnowledgeReviewRecord",
     "KnowledgeSourceRecord",
+    "compute_knowledge_reviewed_content_sha256",
+    "knowledge_reviewed_content_projection",
     "parse_knowledge_doc_data_strict",
 ]
 
-_KNOWLEDGE_STATUS_VALUES = ("draft", "stable", "superseded")
+_KNOWLEDGE_STATUS_VALUES = ("draft", "in_review", "stable", "superseded")
 _KNOWLEDGE_SOURCE_KIND_VALUES = ("paper", "dataset", "prior_artifact", "spec", "website", "other")
 _KNOWLEDGE_REVIEW_DECISION_VALUES = ("approved", "needs_changes", "rejected")
+_KNOWLEDGE_REVIEWER_KIND_VALUES = ("human", "agent", "workflow")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _normalize_required_text(value: object) -> str:
@@ -72,6 +79,21 @@ def _normalize_knowledge_id(value: object) -> str:
     return normalized
 
 
+def _normalize_project_relative_path(value: object, field_name: str) -> str:
+    normalized = _normalize_required_text(value)
+    path = Path(normalized)
+    if path.is_absolute() or any(part == ".." for part in path.parts):
+        raise ValueError(f"{field_name} must be a project-relative path")
+    return normalized
+
+
+def _normalize_sha256_digest(value: object, field_name: str) -> str:
+    normalized = _normalize_required_text(value)
+    if not _SHA256_RE.fullmatch(normalized):
+        raise ValueError(f"{field_name} must be a lowercase 64-hex sha256 digest")
+    return normalized
+
+
 class KnowledgeSourceRecord(BaseModel):
     """Typed provenance record for one source referenced by a knowledge doc."""
 
@@ -111,8 +133,7 @@ class KnowledgeSourceRecord(BaseModel):
     @model_validator(mode="after")
     def _validate_source_artifacts(self) -> KnowledgeSourceRecord:
         for artifact in self.source_artifacts:
-            if Path(artifact).is_absolute():
-                raise ValueError("source_artifacts entries must be project-relative paths")
+            _normalize_project_relative_path(artifact, "source_artifacts entry")
         return self
 
 
@@ -122,18 +143,33 @@ class KnowledgeReviewRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reviewed_at: datetime
-    reviewer: str
+    review_round: int
+    reviewer_kind: Literal["human", "agent", "workflow"]
+    reviewer_id: str
     decision: Literal["approved", "needs_changes", "rejected"]
     summary: str
-    evidence_path: str | None = None
-    evidence_sha256: str | None = None
-    audit_artifact_path: str | None = None
-    commit_sha: str | None = None
-    trace_id: str | None = None
+    approval_artifact_path: str
+    approval_artifact_sha256: str
+    reviewed_content_sha256: str
+    stale: bool
 
-    @field_validator("reviewer", "summary", mode="before")
+    @field_validator("review_round", mode="before")
     @classmethod
-    def _normalize_required_fields(cls, value: object) -> object:
+    def _normalize_review_round(cls, value: object) -> object:
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ValueError("expected a positive integer")
+        if value < 1:
+            raise ValueError("expected a positive integer")
+        return value
+
+    @field_validator("reviewer_kind", mode="before")
+    @classmethod
+    def _normalize_reviewer_kind(cls, value: object) -> object:
+        return _normalize_choice(value, _KNOWLEDGE_REVIEWER_KIND_VALUES)
+
+    @field_validator("reviewer_id", "summary", mode="before")
+    @classmethod
+    def _normalize_required_text_fields(cls, value: object) -> object:
         return _normalize_required_text(value)
 
     @field_validator("decision", mode="before")
@@ -141,19 +177,22 @@ class KnowledgeReviewRecord(BaseModel):
     def _normalize_decision(cls, value: object) -> object:
         return _normalize_choice(value, _KNOWLEDGE_REVIEW_DECISION_VALUES)
 
-    @field_validator("evidence_path", "evidence_sha256", "audit_artifact_path", "commit_sha", "trace_id", mode="before")
+    @field_validator("approval_artifact_path", mode="before")
     @classmethod
-    def _normalize_optional_fields(cls, value: object) -> object:
-        return _normalize_optional_text(value)
+    def _normalize_approval_artifact_path(cls, value: object) -> object:
+        return _normalize_project_relative_path(value, "approval_artifact_path")
 
-    @model_validator(mode="after")
-    def _validate_evidence(self) -> KnowledgeReviewRecord:
-        if not any((self.evidence_path, self.audit_artifact_path, self.commit_sha, self.trace_id)):
-            raise ValueError(
-                "review requires at least one concrete evidence pointer: "
-                "evidence_path, audit_artifact_path, commit_sha, or trace_id"
-            )
-        return self
+    @field_validator("approval_artifact_sha256", "reviewed_content_sha256", mode="before")
+    @classmethod
+    def _normalize_sha256_fields(cls, value: object, info: ValidationInfo) -> object:
+        return _normalize_sha256_digest(value, str(info.field_name))
+
+    @field_validator("stale", mode="before")
+    @classmethod
+    def _normalize_stale(cls, value: object) -> object:
+        if not isinstance(value, bool):
+            raise ValueError("expected a boolean")
+        return value
 
 
 class KnowledgeCoverageSummary(BaseModel):
@@ -180,7 +219,7 @@ class KnowledgeDocData(BaseModel):
     knowledge_id: str
     title: str
     topic: str
-    status: Literal["draft", "stable", "superseded"]
+    status: Literal["draft", "in_review", "stable", "superseded"]
     created_at: datetime
     updated_at: datetime
     sources: list[KnowledgeSourceRecord]
@@ -220,11 +259,20 @@ class KnowledgeDocData(BaseModel):
                 raise ValueError("review is forbidden when status is draft")
             if self.superseded_by is not None:
                 raise ValueError("superseded_by is forbidden when status is draft")
+        elif self.status == "in_review":
+            if self.superseded_by is not None:
+                raise ValueError("superseded_by is forbidden when status is in_review")
+            if self.review is not None and self.review.decision == "approved" and not self.review.stale:
+                raise ValueError("review.stale must be true when status is in_review and review.decision is approved")
         elif self.status == "stable":
             if self.review is None:
                 raise ValueError("review is required when status is stable")
             if self.review.decision != "approved":
                 raise ValueError("review.decision must be approved when status is stable")
+            if self.review.stale:
+                raise ValueError("review.stale must be false when status is stable")
+            if self.review.review_round < 1:
+                raise ValueError("review.review_round must be a positive integer when status is stable")
             if self.superseded_by is not None:
                 raise ValueError("superseded_by is forbidden when status is stable")
         else:
@@ -234,6 +282,37 @@ class KnowledgeDocData(BaseModel):
                 raise ValueError("superseded_by must reference a different knowledge_id")
 
         return self
+
+
+def knowledge_reviewed_content_projection(
+    knowledge_doc: KnowledgeDocData,
+    *,
+    body_text: str = "",
+) -> dict[str, object]:
+    """Return the canonical trusted-content projection used for review freshness."""
+
+    normalized_body = body_text.replace("\r\n", "\n").replace("\r", "\n")
+    return {
+        "knowledge_schema_version": knowledge_doc.knowledge_schema_version,
+        "knowledge_id": knowledge_doc.knowledge_id,
+        "title": knowledge_doc.title,
+        "topic": knowledge_doc.topic,
+        "sources": [source.model_dump(mode="python") for source in knowledge_doc.sources],
+        "coverage_summary": knowledge_doc.coverage_summary.model_dump(mode="python"),
+        "body_text": normalized_body,
+    }
+
+
+def compute_knowledge_reviewed_content_sha256(
+    knowledge_doc: KnowledgeDocData,
+    *,
+    body_text: str = "",
+) -> str:
+    """Compute the canonical hash for the reviewed knowledge-document content."""
+
+    projection = knowledge_reviewed_content_projection(knowledge_doc, body_text=body_text)
+    payload = json.dumps(projection, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def parse_knowledge_doc_data_strict(

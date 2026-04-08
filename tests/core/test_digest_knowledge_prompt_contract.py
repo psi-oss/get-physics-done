@@ -44,15 +44,18 @@ def test_digest_knowledge_is_same_stem_wired_and_help_indexed() -> None:
 
     assert "gpd:digest-knowledge" in command_index
     assert "gpd:digest-knowledge" in detailed_reference
+    assert "gpd:review-knowledge" in command_index
+    assert "gpd:review-knowledge" in detailed_reference
 
 
-def test_digest_knowledge_workflow_requires_explicit_create_or_update_branching() -> None:
+def test_digest_knowledge_workflow_remains_draft_only_and_routes_review_requests() -> None:
     workflow = _read(DIGEST_WORKFLOW_PATH)
 
-    assert _contains_any(workflow, "create new draft", "create draft", "create")
-    assert _contains_any(workflow, "update existing draft", "update draft", "update")
-    assert _contains_any(workflow, "stop on ambiguity", "ambiguous", "multiple plausible", "ask the user")
-    assert _contains_any(workflow, "draft", "existing target", "existing doc")
+    assert _contains_any(workflow, "draft-authoring half", "draft-only", "draft authoring")
+    assert _contains_any(workflow, "create a new draft", "update an existing draft", "update existing draft")
+    assert _contains_any(workflow, "route approval", "route the user to `gpd:review-knowledge`", "review-knowledge")
+    assert _contains_any(workflow, "stable or superseded", "stable target", "superseded target")
+    assert _contains_any(workflow, "does not claim downstream runtime ingestion", "planner/verifier trust propagation")
 
 
 def test_digest_knowledge_workflow_documents_deterministic_target_resolution_and_input_validation() -> None:
@@ -64,7 +67,7 @@ def test_digest_knowledge_workflow_documents_deterministic_target_resolution_and
     assert _contains_any(workflow, "hep-th/9901001", "legacy arxiv", "legacy arXiv")
 
 
-def test_digest_knowledge_templates_keep_runtime_ingestion_deferred_but_not_public_exposure_deferred() -> None:
+def test_digest_knowledge_templates_keep_runtime_ingestion_deferred() -> None:
     knowledge_template = _read(KNOWLEDGE_TEMPLATE_PATH)
     knowledge_schema = _read(KNOWLEDGE_SCHEMA_PATH)
 
@@ -76,7 +79,5 @@ def test_digest_knowledge_templates_keep_runtime_ingestion_deferred_but_not_publ
 
     assert _contains_any(knowledge_template, *runtime_deferral_markers)
     assert _contains_any(knowledge_schema, *runtime_deferral_markers)
-    assert "public command registration" not in knowledge_template
-    assert "help inventory exposure" not in knowledge_template
-    assert "public command registration" not in knowledge_schema
-    assert "help inventory exposure" not in knowledge_schema
+    assert _contains_any(knowledge_template, "review-knowledge", "review approval", "stable promotion")
+    assert _contains_any(knowledge_schema, "review-knowledge", "review approval", "stable promotion")

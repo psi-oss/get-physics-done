@@ -7,8 +7,9 @@ This workflow handles the draft-authoring half of the knowledge-doc lifecycle on
 - resolve one canonical `knowledge_id` and one canonical file path
 - create a new draft knowledge doc or update an existing draft in place
 - validate the result against the strict `knowledge` frontmatter schema
+- stop and route approval, promotion, or stable-target mutation requests to `gpd:review-knowledge`
 
-This workflow does not claim downstream runtime ingestion, planner/verifier trust propagation, or review-state promotion. Those behaviors are explicitly deferred to later phases.
+This workflow does not claim downstream runtime ingestion or planner/verifier trust propagation. Review approval and stable promotion are handled by `gpd:review-knowledge`, and downstream runtime consumption remains deferred to later phases.
 
 Called from `gpd:digest-knowledge`.
 </purpose>
@@ -16,7 +17,7 @@ Called from `gpd:digest-knowledge`.
 <core_principle>
 A knowledge document is only useful if its identity is deterministic, its target is unambiguous, and its lifecycle claims are honest.
 
-If the input does not clearly map to a single knowledge-doc target, the workflow must stop and ask. If the target already exists as stable or superseded, the workflow must not silently repurpose it as a draft authoring target.
+If the input does not clearly map to a single knowledge-doc target, the workflow must stop and ask. If the target already exists as stable or superseded, the workflow must not silently repurpose it as a draft authoring target. Route that request to `gpd:review-knowledge` instead.
 </core_principle>
 
 <process>
@@ -130,7 +131,7 @@ Do not author into the target when:
 - the target would require review-state promotion
 - the target would require changing the canonical `knowledge_id`
 
-In those cases, stop and route the user to the later lifecycle phase instead of silently mutating the document into a different state.
+In those cases, stop and route the user to `gpd:review-knowledge` instead of silently mutating the document into a different state.
 </step>
 
 <step name="author_draft">
@@ -184,6 +185,7 @@ Validation must confirm:
 - `sources` is structured and non-empty
 - `coverage_summary` is structured
 - draft lifecycle rules are satisfied
+- `stable` and `superseded` targets are not being authored through this workflow
 
 If validation fails, fix the file and re-run validation until it passes.
 </step>
@@ -208,7 +210,7 @@ When the draft is valid:
 3. summarize the input class that was resolved
 4. summarize any clarification that was required
 
-Do not claim downstream trust or ingestion. This step only establishes an honest draft knowledge document.
+Do not claim downstream trust, approval, or ingestion. This step only establishes an honest draft knowledge document.
 </step>
 
 </process>

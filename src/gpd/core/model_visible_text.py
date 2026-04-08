@@ -51,6 +51,9 @@ REVIEW_CONTRACT_CONDITIONAL_WHENS = (
 REVIEW_CONTRACT_PREFLIGHT_CHECKS = (
     "command_context",
     "project_state",
+    "knowledge_target",
+    "knowledge_document",
+    "knowledge_review_freshness",
     "roadmap",
     "conventions",
     "research_artifacts",

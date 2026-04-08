@@ -1,6 +1,6 @@
 ---
 name: gpd:digest-knowledge
-description: Create or update a project knowledge document from a topic, source file, arXiv ID, or existing knowledge path
+description: Create or update a draft project knowledge document from a topic, source file, arXiv ID, or existing knowledge path
 argument-hint: "[topic | source file | arXiv ID | GPD/knowledge/K-*.md]"
 context_mode: project-aware
 allowed-tools:
@@ -14,7 +14,7 @@ allowed-tools:
 ---
 
 <objective>
-Create or update a knowledge document from an explicit topic, source file, arXiv ID, or existing knowledge document path, while keeping the wrapper thin and the workflow authoritative.
+Create or update a draft knowledge document from an explicit topic, source file, arXiv ID, or existing knowledge document path, while keeping the wrapper thin and the workflow authoritative.
 
 **Orchestrator role:** Validate command context, gather the local project state needed to resolve a canonical target, classify the input, and then delegate the actual create/update decision-making to the workflow-owned `digest-knowledge` instructions.
 
@@ -69,16 +69,18 @@ Interpret `$ARGUMENTS` as one of:
 4. free-form topic or question
 
 If the request is materially ambiguous, stop and ask one focused clarification question instead of guessing.
+If the user is asking to promote a doc to `stable`, approve it, or mutate an existing stable target, route them to `gpd:review-knowledge` instead of pretending `digest-knowledge` can own that lifecycle step.
 
 ## 2. Resolve The Target
 
 Prefer deterministic resolution over implicit repair:
 
 1. reuse an explicit `GPD/knowledge/K-*.md` path if provided
-2. update an existing knowledge doc only when the target is exact and unambiguous
+2. update an existing knowledge doc only when the target is exact, unambiguous, and already draft
 3. otherwise create a new draft target from a normalized `knowledge_id`
 
 If more than one existing knowledge doc is plausible, stop and ask for clarification.
+If the resolved target exists and is `stable` or `superseded`, do not repurpose it here; route the user to `gpd:review-knowledge` for promotion, revision, or replacement guidance.
 
 ## 3. Delegate The Workflow
 
@@ -95,6 +97,8 @@ Digest knowledge from {input_kind}: {input_summary}
 - Contract-critical anchors: {active_reference_context}
 
 Keep the knowledge-specific resolution, synthesis, and draft-writing rules in the workflow-owned `digest-knowledge` instructions. This wrapper should only classify, resolve, and route.
+
+If the requested action belongs to review, approval, or stable-state mutation, explicitly point to `gpd:review-knowledge` rather than overloading this wrapper.
 </objective>
 ```
 
@@ -112,6 +116,7 @@ Report the resolved target, whether the action was create or update, and any cla
 - [ ] Input classified explicitly
 - [ ] Canonical target resolved or ambiguity surfaced
 - [ ] Workflow-owned behavior delegated cleanly
+- [ ] Draft-only boundary preserved
 - [ ] Result reported without overclaiming review or runtime ingestion
 
 </success_criteria>
