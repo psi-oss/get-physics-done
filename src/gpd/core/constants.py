@@ -527,10 +527,6 @@ class ProjectLayout:
         return self.gpd / LITERATURE_DIR_NAME
 
     @property
-    def knowledge_dir(self) -> Path:
-        return self.gpd / KNOWLEDGE_DIR_NAME
-
-    @property
     def research_map_dir(self) -> Path:
         return self.gpd / RESEARCH_MAP_DIR_NAME
 
