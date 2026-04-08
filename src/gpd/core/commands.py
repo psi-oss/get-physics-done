@@ -143,6 +143,7 @@ class RegressionCheckResult(BaseModel):
     passed: bool
     issues: list[RegressionIssue] = Field(default_factory=list)
     phases_checked: int = 0
+    warning: str | None = None
 
 
 class ValidateReturnResult(BaseModel):
@@ -657,7 +658,7 @@ def cmd_regression_check(cwd: Path, *, phase: str | None = None, quick: bool = F
             key=cmp_to_key(lambda a, b: compare_phase_numbers(a.name, b.name)),
         )
     except FileNotFoundError:
-        return RegressionCheckResult(passed=True, issues=[], phases_checked=0)
+        return RegressionCheckResult(passed=True, issues=[], phases_checked=0, warning="No completed phases found to check")
 
     layout = ProjectLayout(cwd)
     completed_dirs: list[Path] = []
@@ -669,10 +670,10 @@ def cmd_regression_check(cwd: Path, *, phase: str | None = None, quick: bool = F
             completed_dirs.append(d)
 
     if not completed_dirs:
-        return RegressionCheckResult(passed=True, issues=[], phases_checked=0)
+        return RegressionCheckResult(passed=True, issues=[], phases_checked=0, warning="No completed phases found to check")
     completed_dirs = [d for d in completed_dirs if _matches_phase_scope(d.name, phase)]
     if not completed_dirs:
-        return RegressionCheckResult(passed=True, issues=[], phases_checked=0)
+        return RegressionCheckResult(passed=True, issues=[], phases_checked=0, warning="No completed phases found to check")
 
     if quick and len(completed_dirs) > 2:
         completed_dirs = completed_dirs[-2:]
