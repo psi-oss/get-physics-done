@@ -158,7 +158,7 @@ def _check_and_notify_update(cwd: str | None = None) -> None:
             return
         installed = latest_cache.get("installed", "?")
         latest = latest_cache.get("latest", "?")
-        sys.stderr.write(f"[GPD] Update available: v{installed} \u2192 v{latest}. Run: {cmd}\n")
+        sys.stderr.write(f"[GPD] Update available: v{installed} -> v{latest}. Run: {cmd}\n")
 
 
 def _notification_state_path(cwd: str) -> Path:

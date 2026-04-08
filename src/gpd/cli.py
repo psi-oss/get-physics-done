@@ -132,6 +132,17 @@ if TYPE_CHECKING:
 
 # ─── Output helpers ─────────────────────────────────────────────────────────
 
+# BUG-013: On Windows, Rich Console emits Unicode characters (em-dash, arrows)
+# that cp1252 cannot encode. Reconfigure stdout/stderr to UTF-8 before Console
+# objects are created so both CLI and test imports benefit.
+if sys.platform == "win32":
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            try:
+                _stream.reconfigure(encoding="utf-8")
+            except Exception:  # noqa: BLE001
+                pass
+
 console = Console()
 err_console = Console(stderr=True)
 logger = logging.getLogger(__name__)
