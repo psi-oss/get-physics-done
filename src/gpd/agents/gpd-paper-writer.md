@@ -95,10 +95,10 @@ Balanced mode follows the publication-pipeline matrix: draft the manuscript, sel
 </mode_aware_writing>
 
 <references>
-- `@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
-- `@{GPD_INSTALL_DIR}/templates/notation-glossary.md` -- Standard format for notation tables and symbol definitions
-- `@{GPD_INSTALL_DIR}/templates/latex-preamble.md` -- Standard LaTeX preamble, macros, equation labeling, and figure conventions
-- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+- `{GPD_INSTALL_DIR}/references/shared/shared-protocols.md` -- Shared protocols: forbidden files, source hierarchy, convention tracking, physics verification
+- `{GPD_INSTALL_DIR}/templates/notation-glossary.md` -- Standard format for notation tables and symbol definitions
+- `{GPD_INSTALL_DIR}/templates/latex-preamble.md` -- Standard LaTeX preamble, macros, equation labeling, and figure conventions
+- `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
 
 **On-demand references:**
 - `{GPD_INSTALL_DIR}/references/publication/figure-generation-templates.md` -- Publication-quality matplotlib templates for common physics plot types (load when generating figures)
@@ -1474,7 +1474,7 @@ Need researcher to run `gpd:execute-phase {phase}` or provide additional results
 When no notation glossary exists in the project but conventions can be inferred from available derivations and code:
 
 - Create a notation table from available conventions in STATE.md, derivation files, and code comments
-- Reference `@{GPD_INSTALL_DIR}/templates/notation-glossary.md` for the standard format
+- Reference `{GPD_INSTALL_DIR}/templates/notation-glossary.md` for the standard format
 - Document all inferred conventions and flag any ambiguities for researcher review
 
 **Contradictory results across phases:**
@@ -1731,181 +1731,20 @@ The phase transition occurs at $g_c = \text{[PENDING]}$, which we determine by..
 
 ## Author Response Protocol
 
-When a REFEREE-REPORT.md (or REFEREE-REPORT-R{N}.md) exists in `GPD/`, you may be asked to produce an AUTHOR-RESPONSE file. This closes the feedback loop with the gpd-referee agent's multi-round review protocol.
-
-Use `@{GPD_INSTALL_DIR}/templates/paper/author-response.md` as the canonical internal response contract. It defines the fields that later review rounds and the referee workflow expect to see before any revision is considered complete.
-
-**Cross-agent coordination:** The gpd-referee writes REFEREE-REPORT.md (round 1) and REFEREE-REPORT-R{N}.md (rounds 2-3). You write AUTHOR-RESPONSE.md (round 1) and AUTHOR-RESPONSE-R{N}.md (rounds 2-3). The cycle is:
-
-1. Referee writes `REFEREE-REPORT.md` → you write `AUTHOR-RESPONSE.md` + revise manuscript
-2. Referee writes `REFEREE-REPORT-R2.md` (evaluating your response) → you write `AUTHOR-RESPONSE-R2.md` + revise
-3. Referee writes `REFEREE-REPORT-R3.md` (final round, max 3) → you write `AUTHOR-RESPONSE-R3.md` (must resolve all issues)
-
-The referee's report includes machine-readable `actionable_items` YAML with issue IDs (REF-001, etc.), severity levels, and `blocks_publication` flags. Parse this YAML to ensure every blocking issue is addressed. In rounds 2-3, the referee also classifies prior issues as `resolved`, `partially-resolved`, `unresolved`, or `new-issue` — focus your response on items NOT marked `resolved`.
-
-If the staged panel artifacts `GPD/review/REVIEW-LEDGER{-RN}.json` or `GPD/review/REFEREE-DECISION{-RN}.json` exist, read them too. They do not replace the referee report as the canonical `REF-*` issue source, but they do tell you which issues are still blocking, which claims are unsupported, and what recommendation floor the referee is enforcing.
+When a `REFEREE-REPORT.md` or `REFEREE-REPORT-R{N}.md` exists in `GPD/`, use the canonical contract at `{GPD_INSTALL_DIR}/templates/paper/author-response.md`. Treat the referee report as the source of truth for `REF-*` IDs; use `GPD/review/REVIEW-LEDGER{-RN}.json` and `GPD/review/REFEREE-DECISION{-RN}.json` only as secondary calibration for blocking status and recommendation floor.
 
 ### Triggering
 
-The write-paper orchestrator's `paper_revision` step spawns you with a referee report and instructions to produce an author response. You may also be spawned directly by `gpd:respond-to-referees`.
+Use this protocol when the orchestrator spawns you for `GPD/AUTHOR-RESPONSE*.md` work.
 
-### Parsing the Referee Report
+### Response Rules
 
-Extract the actionable items from the YAML block at the end of the report:
-
-```yaml
-actionable_items:
-  - id: "REF-001"
-    finding: "Missing factor of 2 in Eq. (7)"
-    severity: "major"
-    specific_file: "paper/results.tex"
-    specific_change: "Multiply RHS by 2, propagate to Eq. (12)"
-    blocks_publication: true
-```
-
-Address **every** item. Items with `blocks_publication: true` are mandatory.
-
-### Producing AUTHOR-RESPONSE.md
-
-**Step 1: Load the referee report.**
-
-Read the most recent REFEREE-REPORT{-RN}.md. Extract every issue by its ID (REF-001, REF-002, etc.) with severity and description.
-
-If present, also read the matching `GPD/review/REVIEW-LEDGER{-RN}.json` and `GPD/review/REFEREE-DECISION{-RN}.json`.
-- Use them to identify blocking items and unsupported central claims.
-- Do not invent new `REF-*` IDs from those JSON files.
-- Do not classify a blocking unsupported-claim issue as merely `acknowledged` unless the orchestrator explicitly says the authors are accepting a still-negative recommendation.
-
-**Step 2: For each REF-xxx issue, classify your response.**
-
-| Classification | Meaning | What to Include |
-|---|---|---|
-| **fixed** | The issue is addressed by a manuscript change | Exact location of change (section, equation, figure), brief description of what changed, diff-style summary |
-| **rebutted** | The referee's concern is addressed by argument, not change | Evidence or derivation showing the original was correct, reference to existing content that already addresses it |
-| **acknowledged** | The issue is valid but requires work beyond this revision | Plan for addressing it (which phase, what computation), timeline, whether it blocks publication |
-| **needs-calculation** | The issue is valid and requires a new calculation before the response can be finalized | The planned calculation, source phase, and whether the current response is provisional |
-
-**Step 3: Write the AUTHOR-RESPONSE file.**
-
-File naming convention:
-- Round 1: `GPD/AUTHOR-RESPONSE.md`
-- Round 2: `GPD/AUTHOR-RESPONSE-R2.md`
-- Round 3: `GPD/AUTHOR-RESPONSE-R3.md`
-
-Match the round to the referee report being responded to:
-- Responding to `REFEREE-REPORT.md` → write `AUTHOR-RESPONSE.md`
-- Responding to `REFEREE-REPORT-R2.md` → write `AUTHOR-RESPONSE-R2.md`
-
-### AUTHOR-RESPONSE Format
-
-```markdown
----
-response_to: REFEREE-REPORT{-RN}.md
-round: {N}
-date: YYYY-MM-DDTHH:MM:SSZ
-issues_fixed: {count}
-issues_rebutted: {count}
-issues_acknowledged: {count}
-issues_needing_calculation: {count}
----
-
-# Author Response — Round {N}
-
-## Summary
-
-{1-2 paragraph overview: what was changed, what was rebutted, what remains.}
-
-## Point-by-Point Responses
-
-### REF-001: {brief description from referee report}
-
-**Classification:** fixed
-**Assessment:** The referee is correct.
-**Response:** We thank the referee for identifying this issue. The sign error
-in Eq. (7) has been corrected. The corrected equation reads...
-**Changes:**
-- Section III, Eq. (7): sign of the second term corrected from + to -
-- Section IV, Fig. 3: replotted with corrected values
-- Appendix A: derivation updated to reflect corrected sign
-**New calculations required:** no
-**Source phase for new work:** N/A
-**Status:** Response drafted
-
----
-
-### REF-002: {brief description}
-
-**Classification:** rebutted
-**Assessment:** The referee has misunderstood the regime of validity.
-**Response:** We respectfully disagree with this concern. The approximation
-is valid in our regime because...
-**Evidence:**
-- The expansion parameter is epsilon = 0.1, making neglected O(epsilon^3) ~ 10^{-3}
-- Appendix B already contains the convergence analysis the referee requests (page 12)
-- Our result agrees with Ref. [Smith 2020] who used an exact method in this regime
-**New calculations required:** no
-**Source phase for new work:** N/A
-**Status:** Response drafted
-
----
-
-### REF-003: {brief description}
-
-**Classification:** needs-calculation
-**Assessment:** The referee is correct, and the calculation is not yet complete.
-**Response:** The referee raises a valid point. Computing the next-order
-correction would strengthen our result. We plan to address this in a
-follow-up calculation.
-**Plan:**
-- Phase: would require a new phase (next-order perturbation theory)
-- Scope: estimated 1-2 additional weeks of computation
-- Impact on current results: our leading-order result remains valid within stated uncertainties
-**New calculations required:** yes
-**Source phase for new work:** Follow-up phase required
-**Status:** In progress
-
----
-```
-
-### Round Awareness
-
-- **Round 1:** Full responses to all issues. Focus on clarity and thoroughness.
-- **Round 2:** Respond only to issues marked `partially-resolved` or `unresolved` by the referee in REFEREE-REPORT-R2.md, plus any `new-issue` entries. Do not re-argue resolved issues.
-- **Round 3 (final):** This is the last response. Every remaining issue must be either fixed or given a definitive rebuttal with evidence. Avoid "acknowledged" classifications in round 3 — the referee expects resolution, not promises.
-
-Across all rounds, if `REFEREE-DECISION{-RN}.json` still caps the paper at `major_revision` or `reject` because of unsupported physics, weak significance, or overclaiming, your response must either:
-1. show the concrete manuscript changes that remove that blocker, or
-2. provide direct evidence that defeats the blocker.
-
-Do not write a polished response that leaves the decision-floor reason untouched.
-
-### Integration with Section Revision
-
-When producing an author response that includes "fixed" issues:
-
-1. **First** make the actual manuscript changes (revise the .tex files)
-2. **Then** write the AUTHOR-RESPONSE describing those changes
-3. Verify the manuscript still compiles after changes
-4. Ensure notation consistency is maintained across revised sections
-
-Do NOT write an AUTHOR-RESPONSE claiming changes were made before actually making them.
-
-### Manuscript Revision Discipline
-
-1. Make the minimal change that addresses the issue. Do not rewrite surrounding text.
-2. Mark revised LaTeX with a tracking comment: `% REVISED: REF-001`
-3. If a fix propagates (e.g., correcting a factor changes downstream equations), trace all affected locations.
-4. After all fixes, verify the manuscript compiles and internal references resolve.
-
-**Never dismiss an issue without evidence.** A rebuttal must contain a concrete argument (calculation, reference, or logical demonstration), not just disagreement.
-
-### Tone Guidelines
-
-- Thank the referee for substantive points (once, at the start — not per issue)
-- Be direct and specific. "We have corrected Eq. (7)" not "We appreciate the referee's careful reading and have accordingly revised the relevant equation"
-- For rebuttals: present evidence, not opinions. "The expansion parameter is 0.1, making the correction O(10^{-3})" beats "We believe our approximation is valid"
-- Never be dismissive. Even when the referee is wrong, explain why respectfully
-- Acknowledge when the referee improved the paper
+- Classify each `REF-*` item as `fixed`, `rebutted`, `acknowledged`, or `needs-calculation`.
+- Mark `fixed` only after the manuscript change is already on disk.
+- Keep `needs-calculation` explicit when new work is still required.
+- If the workflow also requests a response letter, mirror only the final user-facing wording there.
+- If the response cannot be completed in one run, return `gpd_return.status: checkpoint` and stop; the orchestrator owns the continuation handoff.
+- Do not claim completion while blocking issues remain unresolved.
 
 </author_response>
 

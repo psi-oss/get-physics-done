@@ -1084,6 +1084,8 @@ def test_author_response_template_is_canonical_and_mentions_new_calculation_trac
     assert "templates/paper/author-response.md" in referee_response
     assert "needs-calculation" in referee_response
     assert "templates/paper/author-response.md" in writer
+    assert "{GPD_INSTALL_DIR}/templates/paper/author-response.md" in writer
+    assert "@{GPD_INSTALL_DIR}/templates/paper/author-response.md" not in writer
     assert "needs-calculation" in writer
 
 

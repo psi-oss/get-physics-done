@@ -1017,7 +1017,15 @@ When revising a paper in response to referee reports:
    - Category: major concern, minor concern, question, suggestion
    - Affected section(s) of the manuscript
 
-2. **Produce `GPD/AUTHOR-RESPONSE{round_suffix}.md`:** Spawn a paper-writer agent to produce the structured author response that the gpd-referee expects for multi-round review:
+2. **Spawn section revision agents first:** For each major concern requiring manuscript changes, spawn a paper-writer agent with:
+   - The specific referee point
+   - The current section text
+   - The planned response
+   - Any new calculations or results needed
+
+   Treat the manuscript edit as the source of truth for any `fixed` classification. A point is not `fixed` until the corresponding section file changes have landed on disk.
+
+3. **Produce paired response artifacts after the edits land:** Spawn a paper-writer agent to produce the structured author response and response letter that the gpd-referee expects for multi-round review:
 
    @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
@@ -1028,32 +1036,24 @@ When revising a paper in response to referee reports:
      subagent_type="gpd-paper-writer",
      model="{writer_model}",
      readonly=false,
-     prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\nRead the canonical <author_response> protocol at {GPD_INSTALL_DIR}/templates/paper/author-response.md. Produce an AUTHOR-RESPONSE file.\n\n<autonomy_mode>{AUTONOMY}</autonomy_mode>\n<research_mode>{RESEARCH_MODE}</research_mode>\n" +
+     prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\nRead the canonical <author_response> protocol at {GPD_INSTALL_DIR}/templates/paper/author-response.md and the canonical referee response template at {GPD_INSTALL_DIR}/templates/paper/referee-response.md. Produce both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`.\n\n<autonomy_mode>{AUTONOMY}</autonomy_mode>\n<research_mode>{RESEARCH_MODE}</research_mode>\n" +
        "Referee report: GPD/REFEREE-REPORT{round_suffix}.md\n" +
        "Review ledger (if present): GPD/review/REVIEW-LEDGER{round_suffix}.json\n" +
        "Decision artifact (if present): GPD/review/REFEREE-DECISION{round_suffix}.json\n" +
-       "Manuscript tree: all .tex files under ${PAPER_DIR} recursively, rooted at the manifest-resolved manuscript directory\n" +
+       "Manuscript tree: all .tex files under ${PAPER_DIR} recursively, rooted at the manifest-resolved manuscript directory, after the section revision agents have landed their edits\n" +
        "Round: {N}\n\n" +
-       "For each REF-xxx issue, classify as fixed/rebutted/acknowledged/needs-calculation. Use the JSON artifacts to identify blocking issues and decision-floor reasons, but keep REF-xxx IDs from the report.\n" +
+       "For each REF-xxx issue, classify as fixed/rebutted/acknowledged/needs-calculation only after the corresponding manuscript edits exist on disk. Use fixed only for issues whose section changes are already present; otherwise use acknowledged or needs-calculation.\n" +
        "If an issue needs new work, keep `New calculations required` and `Source phase for new work` explicit in the author-response tracker.\n" +
-       "Write to GPD/AUTHOR-RESPONSE{round_suffix}.md",
+       "Write to GPD/AUTHOR-RESPONSE{round_suffix}.md and GPD/review/REFEREE_RESPONSE{round_suffix}.md",
      description="Author response: round {N}"
    )
    ```
 
-   **If the author-response agent fails to spawn or returns an error:** Check if `GPD/AUTHOR-RESPONSE{round_suffix}.md` was written (agents write files first). If it exists, proceed to section revision. If not, offer: 1) Retry the agent, 2) Draft the author response in the main context using the referee report and manuscript, 3) Skip structured response and proceed directly to section revisions.
+   **If the response-artifact agent fails to spawn or returns an error:** Check if both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` were written (agents write files first). If both exist, proceed to calculation tracking and consistency checks. If not, offer: 1) Retry the agent, 2) Draft the response artifacts in the main context using the referee report and revised manuscript, 3) Skip structured response and proceed directly to calculation tracking.
 
    The `GPD/AUTHOR-RESPONSE{round_suffix}.md` tracker uses REF-xxx issue IDs matching the referee report, with classifications (fixed/rebutted/acknowledged/needs-calculation), specific change locations, and source-phase tracking for any new work. When present, `REVIEW-LEDGER{round_suffix}.json` and `REFEREE-DECISION{round_suffix}.json` provide the blocking-issue and recommendation-floor context that the response must resolve. See the canonical `templates/paper/author-response.md` contract and the gpd-paper-writer's `<author_response>` section for the full format.
 
-   Also create `GPD/review/REFEREE_RESPONSE{round_suffix}.md` (the human-readable response letter source) using the `templates/paper/referee-response.md` template for the actual journal submission cover letter.
-
    Treat `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md` as the response success gate. If either artifact is missing after the writer returns, the response is not complete.
-
-3. **Spawn section revision agents:** For each major concern requiring manuscript changes, spawn a paper-writer agent with:
-   - The specific referee point
-   - The current section text
-   - The planned response
-   - Any new calculations or results needed
 
 4. **Track new calculations:** If referee requests require new derivations or simulations, create tasks in `${PAPER_DIR}/REVISION_TASKS.md` and route to appropriate phases.
 

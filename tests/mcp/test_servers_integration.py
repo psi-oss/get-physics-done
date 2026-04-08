@@ -522,6 +522,22 @@ class TestSkillsServerIntegration:
         assert "continue-here.md" in pause_schema_documents
         assert "<persistent_state>" in pause_schema_documents["continue-here.md"]["body"]
 
+    def test_get_skill_surfaces_lightweight_paper_writer_reference_paths(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        paper_writer = get_skill("gpd-paper-writer")
+        paper_writer_template_references = set(paper_writer["template_references"])
+        paper_writer_referenced_paths = {entry["path"] for entry in paper_writer["referenced_files"]}
+
+        assert "error" not in paper_writer
+        assert any(path.endswith("shared-protocols.md") for path in paper_writer_referenced_paths)
+        assert any(path.endswith("agent-infrastructure.md") for path in paper_writer_referenced_paths)
+        assert any(path.endswith("publication-pipeline-modes.md") for path in paper_writer_referenced_paths)
+        assert any(path.endswith("notation-glossary.md") for path in paper_writer_template_references)
+        assert any(path.endswith("latex-preamble.md") for path in paper_writer_template_references)
+        assert any(path.endswith("figure-generation-templates.md") for path in paper_writer_referenced_paths)
+        assert any(path.endswith("author-response.md") for path in paper_writer_template_references)
+
     def test_get_skill_index_complete(self):
         from gpd.mcp.servers.skills_server import get_skill_index
 

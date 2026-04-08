@@ -347,6 +347,21 @@ def test_agent_infrastructure_requires_concrete_next_actions_and_continuation_bl
     assert "## > Next Up" in infra
 
 
+def test_paper_writer_uses_lightweight_path_mentions_for_metadata_only_reference_packs() -> None:
+    writer_text = (AGENTS_DIR / "gpd-paper-writer.md").read_text(encoding="utf-8")
+
+    for path in (
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "templates/notation-glossary.md",
+        "templates/latex-preamble.md",
+    ):
+        lightweight = f"{{GPD_INSTALL_DIR}}/{path}"
+        eager = f"@{{GPD_INSTALL_DIR}}/{path}"
+        assert lightweight in writer_text
+        assert eager not in writer_text
+
+
 def test_continuation_format_scopes_clear_to_resolved_runtime_followups() -> None:
     continuation = (REFERENCES_DIR / "orchestration" / "continuation-format.md").read_text(encoding="utf-8")
 

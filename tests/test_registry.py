@@ -1549,6 +1549,25 @@ class TestRegistryPromptIncludeInlining:
             assert any(path.endswith("review-ledger-schema.md") for path in skill["schema_references"])
             assert any(path.endswith("referee-decision-schema.md") for path in skill["schema_references"])
 
+    def test_paper_writer_registry_surface_preserves_lightweight_path_mentions(self) -> None:
+        skill = registry.get_skill("gpd-paper-writer")
+
+        assert skill.source_kind == "agent"
+        assert skill.path.endswith("gpd-paper-writer.md")
+        for path in (
+            "references/shared/shared-protocols.md",
+            "references/orchestration/agent-infrastructure.md",
+            "templates/notation-glossary.md",
+            "templates/latex-preamble.md",
+            "references/publication/publication-pipeline-modes.md",
+            "references/publication/figure-generation-templates.md",
+            "templates/paper/author-response.md",
+        ):
+            lightweight = f"{{GPD_INSTALL_DIR}}/{path}"
+            eager = f"@{{GPD_INSTALL_DIR}}/{path}"
+            assert lightweight in skill.content
+            assert eager not in skill.content
+
 
 class TestNonMdFilesIgnored:
     """Tests that non-.md files are ignored during discovery."""
