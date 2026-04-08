@@ -2134,6 +2134,96 @@ class TestReviewValidationCommands:
         assert checks["project_exists"]["passed"] is False
         assert checks["explicit_inputs"]["passed"] is True
 
+    def test_command_context_review_knowledge_requires_explicit_inputs_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-outside-review-knowledge"
+        outside_dir.mkdir()
+        monkeypatch.chdir(outside_dir)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(outside_dir), "validate", "command-context", "review-knowledge"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:review-knowledge"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is False
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is False
+
+    def test_command_context_review_knowledge_accepts_explicit_knowledge_path_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-outside-review-knowledge-path"
+        outside_dir.mkdir()
+        knowledge_dir = outside_dir / "GPD" / "knowledge"
+        knowledge_dir.mkdir(parents=True)
+        knowledge_file = knowledge_dir / "K-renormalization-group-fixed-points.md"
+        knowledge_file.write_text("knowledge doc\n", encoding="utf-8")
+        monkeypatch.chdir(outside_dir)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(outside_dir),
+                "validate",
+                "command-context",
+                "review-knowledge",
+                str(knowledge_file.relative_to(outside_dir)),
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:review-knowledge"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is True
+
+    def test_command_context_review_knowledge_accepts_explicit_knowledge_id_without_project(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        outside_dir = tmp_path.parent / f"{tmp_path.name}-outside-review-knowledge-id"
+        outside_dir.mkdir()
+        knowledge_dir = outside_dir / "GPD" / "knowledge"
+        knowledge_dir.mkdir(parents=True)
+        knowledge_file = knowledge_dir / "K-renormalization-group-fixed-points.md"
+        knowledge_file.write_text("knowledge doc\n", encoding="utf-8")
+        monkeypatch.chdir(outside_dir)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(outside_dir),
+                "validate",
+                "command-context",
+                "review-knowledge",
+                "K-renormalization-group-fixed-points",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:review-knowledge"
+        assert payload["context_mode"] == "project-aware"
+        assert payload["passed"] is True
+        assert checks["project_exists"]["passed"] is False
+        assert checks["explicit_inputs"]["passed"] is True
+
     def test_review_preflight_write_paper_strict(self) -> None:
         result = runner.invoke(
             app,

@@ -7,8 +7,8 @@ type: knowledge-schema
 
 Canonical source of truth for knowledge-doc frontmatter and naming rules.
 
-Use this file when you author, revise, or validate a knowledge document through
-`gpd:digest-knowledge` or direct frontmatter validation. Do not invent ad-hoc
+Use this file when you author, revise, review, or validate a knowledge document through
+`gpd:digest-knowledge`, `gpd:review-knowledge`, or direct frontmatter validation. Do not invent ad-hoc
 keys, let filename and ID drift apart, or treat the schema as permissive prose.
 Knowledge docs are closed, versioned artifacts.
 
@@ -119,6 +119,7 @@ status: draft
 Allowed values:
 
 - `draft`
+- `in_review`
 - `stable`
 - `superseded`
 
@@ -126,9 +127,10 @@ Rules:
 
 - `status` is required and must use one of the allowed lowercase literals.
 - `draft` is the default authoring state.
-- `stable` means the document has been reviewed and carries typed evidence.
+- `in_review` means the document is awaiting approval or re-review and may carry a stale prior review record.
+- `stable` means the document has a fresh approved review record and carries typed evidence.
 - `superseded` means the document has been replaced by a newer knowledge doc.
-- `under_review` is intentionally deferred for now and is not part of v1.
+- `under_review` is intentionally not used; `in_review` is the supported review state for v1.
 
 ---
 
@@ -217,11 +219,15 @@ All list-valued subfields must remain YAML lists.
 ```yaml
 review:
   reviewed_at: "2026-04-07T12:00:00Z"
-  reviewer: gpd-knowledge-reviewer
+  review_round: 1
+  reviewer_kind: human
+  reviewer_id: gpd-knowledge-reviewer
   decision: approved
   summary: "The document is reviewed and ready for downstream use."
-  evidence_path: "GPD/knowledge/reviews/K-renormalization-group-fixed-points-REVIEW.md"
-  evidence_sha256: "[optional sha256]"
+  approval_artifact_path: "GPD/knowledge/reviews/K-renormalization-group-fixed-points-R1-REVIEW.md"
+  approval_artifact_sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  reviewed_content_sha256: "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+  stale: false
 ```
 
 Rules:
@@ -230,19 +236,15 @@ Rules:
 - `review` is required for `stable`.
 - `review` must be a typed object, not a freeform string.
 - `stable` without typed review evidence is invalid.
-- The review object should include reviewer identity, review timestamp, decision, and
-  at least one concrete evidence pointer.
-- `evidence_path`, `audit_artifact_path`, `commit_sha`, or `trace_id` are acceptable
-  evidence anchors when present, but at least one concrete evidence pointer must exist.
-
-Recommended fields:
-
-- `reviewed_at`
-- `reviewer`
-- `decision`
-- `summary`
-- `evidence_path`
-- `evidence_sha256`
+- `review_round` must be a positive integer and should increase with each re-review.
+- `reviewer_kind` and `reviewer_id` must identify who approved or reviewed the doc.
+- `approval_artifact_path` must point at the canonical review artifact under `GPD/knowledge/reviews/`, and `approval_artifact_sha256` must match that artifact.
+- `approval_artifact_sha256` and `reviewed_content_sha256` must be lowercase 64-hex digests.
+- `reviewed_content_sha256` must identify the exact trusted content projection that was approved.
+- `stale` marks whether the review is still current with respect to the document body and trusted metadata.
+- `stable` requires `decision: approved`, `stale: false`, and the hash/artifact fields to be present and current.
+- `in_review` may retain a prior approved review, but if that review is no longer current it should be marked `stale: true`.
+- At least one concrete approval artifact path or hash-bound evidence pointer must exist.
 
 ---
 
@@ -254,11 +256,10 @@ superseded_by: K-renormalization-group-fixed-points-v2
 
 Rules:
 
-- `superseded_by` is optional for `draft` and `stable`.
+- `superseded_by` is optional for `draft`, `in_review`, and `stable`.
 - `superseded_by` is required when `status: superseded`.
 - `superseded_by` must reference another knowledge document ID, not a prose title.
-- `superseded` docs preserve their history in place; do not delete or rewrite away the
-  prior record.
+- `superseded` docs preserve their history in place; do not delete or rewrite away the prior record.
 
 ---
 
@@ -269,37 +270,40 @@ The following conditional rules are mandatory:
 1. `status: draft`
    - `review` must be absent.
    - `superseded_by` must be absent.
-2. `status: stable`
+2. `status: in_review`
+   - `superseded_by` must be absent.
+   - `review`, when present, may preserve prior approval evidence but any approved record must be marked `stale: true` until a fresh review is recorded.
+3. `status: stable`
    - `review` must be present and non-empty.
+   - `review.decision` must be `approved`.
+   - `review.stale` must be `false`.
+   - `review.reviewed_content_sha256` must match the current trusted content projection.
    - `sources` must be non-empty.
-3. `status: superseded`
+4. `status: superseded`
    - `superseded_by` must be present and non-empty.
    - `review` must remain present if it existed before supersession.
    - The document must preserve historical content rather than collapsing into an
      in-place rewrite without trace.
-4. `updated_at`
+5. `updated_at`
    - must not precede `created_at`.
-5. `knowledge_id`
+6. `knowledge_id`
    - must equal the filename stem.
-6. `knowledge_schema_version`
+7. `knowledge_schema_version`
    - must be exactly `1`.
 
 ---
 
 ## Explicit Deferrals
 
-Public command registration and shared help coverage are part of the supported
-authoring surface now. The remaining runtime-facing behaviors are still
-deferred:
+Public command registration and shared help coverage are part of the supported authoring surface now. The remaining runtime-facing behaviors are still deferred:
 
-1. `under_review` as a shipped status
+1. runtime ingestion into planner/verifier/executor context
 2. automatic migration of older knowledge files
 3. `knowledge_deps` or `related_artifacts` as accepted frontmatter fields
-4. runtime ingestion into planner/verifier/executor context
-5. project-wide mandatory `GPD/knowledge/` creation
-6. heuristic filename repair
-7. implicit ID aliasing between differently named files
-8. path-only discovery across `GPD/`
+4. project-wide mandatory `GPD/knowledge/` creation
+5. heuristic filename repair
+6. implicit ID aliasing between differently named files
+7. path-only discovery across `GPD/`
 
 These belong to later execution and hardening phases.
 

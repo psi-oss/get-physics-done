@@ -234,6 +234,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 ### Knowledge authoring
 
 - `gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]` - Create or update a knowledge document draft
+- `gpd:review-knowledge [knowledge path|knowledge id]` - Review, approve, or re-review a knowledge document
 
 ### Writing and publication
 
@@ -840,10 +841,23 @@ Create or update a knowledge document draft for a reviewed topic.
 
 - Accepts an explicit knowledge-doc path, a source file path, a modern or legacy arXiv ID, or a topic string
 - Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target or stops on ambiguity
-- Reopens existing draft knowledge docs in place and keeps lifecycle/review handling for later phases
+- Reopens existing draft knowledge docs in place and routes approval or stable-state requests to `gpd:review-knowledge`
+- If the target is stable, superseded, or needs approval, route the user to `gpd:review-knowledge`
 - Does not claim runtime planner, verifier, or executor ingestion yet
 
 Usage: `gpd:digest-knowledge "renormalization group fixed points"`
+
+**`gpd:review-knowledge [knowledge path or knowledge id]`**
+Review a knowledge document, record typed approval evidence, and promote a fresh approved draft to stable.
+
+- Resolves an exact existing knowledge target by canonical path or knowledge id
+- Writes a deterministic review artifact under `GPD/knowledge/reviews/`
+- Records review round, reviewer identity, approval artifact hash, reviewed content hash, and stale state
+- Promotes the document to `stable` only when the review is fresh and explicitly approved
+- Keeps `needs_changes` and `rejected` outcomes in the review loop without pretending they are stable
+- Does not claim runtime ingestion yet
+
+Usage: `gpd:review-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md` or `gpd:review-knowledge K-renormalization-group-fixed-points`
 
 ### Optional Local CLI Add-Ons
 
