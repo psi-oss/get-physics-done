@@ -418,7 +418,7 @@ def test_new_project_parallel_researchers_write_to_disjoint_artifacts() -> None:
     assert "Do not trust the runtime handoff status by itself." in content
     assert "If a scout reports success but its `expected_artifacts` entry" in content
     assert "`GPD/literature/{FILE}`" in content
-    assert "If the synthesizer reports success but `GPD/literature/SUMMARY.md` is missing" in content
+    assert "If `completed`, verify `GPD/literature/SUMMARY.md` exists and is named in the fresh return." in content
     assert "Do not proceed with a partial literature survey" in content
     assert "Do not synthesize from incomplete scout output" in content
     assert "Do not fabricate a fallback summary in the main context" in content
@@ -506,7 +506,7 @@ def test_new_milestone_research_and_roadmapper_gate_success_path_artifacts() -> 
     assert content.count("<spawn_contract>") >= 3
     assert "Do not trust the runtime handoff status by itself." in content
     assert "If a scout reports success but its `expected_artifacts` entry (`GPD/literature/{FILE}`) is missing" in content
-    assert "If the synthesizer reports success but `GPD/literature/SUMMARY.md` is missing" in content
+    assert "If the synthesizer reports `gpd_return.status: completed`, verify that `GPD/literature/SUMMARY.md` is readable and named in `gpd_return.files_written`." in content
     assert "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`." in content
     assert "If any expected artifact is missing from disk or from `gpd_return.files_written`, treat the handoff as incomplete and request a fresh continuation." in content
     assert "GPD/REQUIREMENTS.md" in content

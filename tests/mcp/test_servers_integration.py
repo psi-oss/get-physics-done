@@ -629,6 +629,46 @@ class TestSkillsServerIntegration:
         assert "pause here for approval" not in result["content"]
         assert "ask the user then continue" not in result["content"]
 
+    def test_get_skill_research_synthesizer_and_literature_bootstrap_surfaces_remain_projected(self):
+        from gpd import registry
+        from gpd.mcp.servers.skills_server import get_skill
+
+        summary_contract = {
+            "write_scope": {"mode": "scoped_write", "allowed_paths": ["GPD/literature/SUMMARY.md"]},
+            "expected_artifacts": ["GPD/literature/SUMMARY.md"],
+            "shared_state_policy": "return_only",
+        }
+
+        synthesizer = get_skill("gpd-research-synthesizer")
+        new_project = get_skill("gpd-new-project")
+        new_milestone = get_skill("gpd-new-milestone")
+
+        assert "error" not in synthesizer
+        assert synthesizer["name"] == "gpd-research-synthesizer"
+        assert synthesizer["allowed_tools_surface"] == "agent.tools"
+        assert synthesizer["content_authority"] == "canonical"
+        assert synthesizer["structured_metadata_authority"] == {
+            "content": "canonical",
+            "allowed_tools": "mirrored",
+            "agent_policy": "mirrored",
+        }
+        assert "This agent writes only `GPD/literature/SUMMARY.md`;" in synthesizer["content"]
+        assert "files_written` must list only files actually written in this run." in synthesizer["content"]
+        assert "Use only status names: `completed` | `checkpoint` | `blocked` | `failed`." in synthesizer["content"]
+        assert "gpd_return:" in synthesizer["content"]
+
+        expected_project_spawn_contracts = [dict(contract) for contract in registry.get_command("gpd:new-project").spawn_contracts]
+        expected_milestone_spawn_contracts = [
+            dict(contract) for contract in registry.get_command("gpd:new-milestone").spawn_contracts
+        ]
+
+        assert new_project["spawn_contracts"] == expected_project_spawn_contracts
+        assert new_milestone["spawn_contracts"] == expected_milestone_spawn_contracts
+        assert summary_contract in new_project["spawn_contracts"]
+        assert summary_contract in new_milestone["spawn_contracts"]
+        assert new_project["structured_metadata_authority"]["spawn_contracts"] == "mirrored"
+        assert new_milestone["structured_metadata_authority"]["spawn_contracts"] == "mirrored"
+
     def test_get_skill_surfaces_template_backed_schema_documents_for_writing_and_resume(self):
         from gpd.mcp.servers.skills_server import get_skill
 

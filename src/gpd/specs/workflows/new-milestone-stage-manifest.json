@@ -12,7 +12,6 @@
       "required_init_fields": [
         "researcher_model",
         "synthesizer_model",
-        "roadmapper_model",
         "commit_docs",
         "autonomy",
         "research_mode",
@@ -68,7 +67,6 @@
       "required_init_fields": [
         "researcher_model",
         "synthesizer_model",
-        "roadmapper_model",
         "commit_docs",
         "autonomy",
         "research_mode",
@@ -204,8 +202,7 @@
         "GPD/PROJECT.md",
         "GPD/STATE.md",
         "GPD/REQUIREMENTS.md",
-        "GPD/ROADMAP.md",
-        "GPD/literature"
+        "GPD/ROADMAP.md"
       ],
       "produced_state": [
         "requirements draft",

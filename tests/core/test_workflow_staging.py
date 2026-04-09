@@ -444,7 +444,6 @@ def test_known_init_fields_for_quick_cover_task_bootstrap_and_reference_context(
             {
                 "researcher_model",
                 "synthesizer_model",
-                "roadmapper_model",
                 "commit_docs",
                 "autonomy",
                 "research_mode",
@@ -502,6 +501,8 @@ def test_known_init_fields_for_new_stage_aware_workflows_cover_required_context(
     assert known_init_fields is not None
     for field in expected_fields:
         assert field in known_init_fields
+    if workflow_id == "new-milestone":
+        assert "planning_exists" not in known_init_fields
 
 
 def test_validate_workflow_stage_manifest_payload_loads_research_phase_manifest() -> None:
@@ -563,10 +564,12 @@ def test_validate_workflow_stage_manifest_payload_loads_new_milestone_manifest()
     assert "references/research/questioning.md" in manifest.stage("milestone_bootstrap").must_not_eager_load
     assert "templates/project.md" in manifest.stage("milestone_bootstrap").must_not_eager_load
     assert "templates/requirements.md" in manifest.stage("milestone_bootstrap").must_not_eager_load
+    assert "roadmapper_model" not in manifest.stage("milestone_bootstrap").required_init_fields
     assert manifest.stage("survey_objectives").loaded_authorities == (
         "workflows/new-milestone.md",
         "references/research/questioning.md",
     )
+    assert "roadmapper_model" not in manifest.stage("survey_objectives").required_init_fields
     assert "contract_intake" in manifest.stage("survey_objectives").required_init_fields
     assert "effective_reference_intake" in manifest.stage("survey_objectives").required_init_fields
     assert "reference_artifacts_content" in manifest.stage("survey_objectives").required_init_fields
@@ -591,7 +594,6 @@ def test_validate_workflow_stage_manifest_payload_loads_new_milestone_manifest()
         "GPD/STATE.md",
         "GPD/REQUIREMENTS.md",
         "GPD/ROADMAP.md",
-        "GPD/literature",
     )
     assert manifest.stage("roadmap_authoring").checkpoints == (
         "objectives finalized",

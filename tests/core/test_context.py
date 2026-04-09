@@ -2527,6 +2527,7 @@ class TestInitNewMilestone:
         ctx = init_new_milestone(tmp_path)
         assert ctx["current_milestone"] == "v1.0"
         assert ctx["current_milestone_name"] == "Setup Phase"
+        assert "planning_exists" not in ctx
 
     def test_surfaces_project_contract_and_effective_reference_context(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -2548,6 +2549,25 @@ class TestInitNewMilestone:
         assert "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
         assert "Benchmark Ref 2024" in ctx["active_reference_context"]
         assert "GPD/research-map/REFERENCES.md" in ctx["reference_artifact_files"]
+
+    def test_new_milestone_stage_bootstrap_filters_payload(self, tmp_path: Path) -> None:
+        from gpd.core.workflow_staging import load_workflow_stage_manifest
+
+        _setup_project(tmp_path)
+        _create_roadmap(tmp_path, "## Milestone v1.0: Setup Phase\n")
+        _write_project_contract_state(tmp_path)
+
+        manifest = load_workflow_stage_manifest("new-milestone")
+        stage = manifest.get_stage("milestone_bootstrap")
+
+        ctx = init_new_milestone(tmp_path, stage="milestone_bootstrap")
+
+        assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["staged_loading"]["workflow_id"] == "new-milestone"
+        assert ctx["staged_loading"]["stage_id"] == "milestone_bootstrap"
+        assert ctx["staged_loading"]["writes_allowed"] == []
+        assert "planning_exists" not in ctx
+        assert "roadmapper_model" not in ctx
 
     def test_does_not_bootstrap_manuscript_proof_review_manifest(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -2628,6 +2648,7 @@ class TestInitNewMilestone:
         assert "contract_intake" in ctx
         assert "effective_reference_intake" in ctx
         assert "reference_artifacts_content" in ctx
+        assert "roadmapper_model" not in ctx
 
     def test_new_milestone_stage_roadmap_authoring_filters_payload(self, tmp_path: Path) -> None:
         from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -2660,7 +2681,6 @@ class TestInitNewMilestone:
             "GPD/STATE.md",
             "GPD/REQUIREMENTS.md",
             "GPD/ROADMAP.md",
-            "GPD/literature",
         ]
         assert ctx["staged_loading"]["checkpoints"] == [
             "objectives finalized",

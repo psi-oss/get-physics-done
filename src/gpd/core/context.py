@@ -3168,10 +3168,6 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
     config = load_config(cwd)
     milestone = _try_get_milestone_info(cwd)
     base_result = {
-        # Models
-        "researcher_model": _resolve_model(cwd, "gpd-project-researcher", config),
-        "synthesizer_model": _resolve_model(cwd, "gpd-research-synthesizer", config),
-        "roadmapper_model": _resolve_model(cwd, "gpd-roadmapper", config),
         # Config
         "commit_docs": config["commit_docs"],
         "autonomy": config["autonomy"],
@@ -3190,6 +3186,14 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
 
     if stage is None:
         result = dict(base_result)
+        result.update(
+            {
+                # Models
+                "researcher_model": _resolve_model(cwd, "gpd-project-researcher", config),
+                "synthesizer_model": _resolve_model(cwd, "gpd-research-synthesizer", config),
+                "roadmapper_model": _resolve_model(cwd, "gpd-roadmapper", config),
+            }
+        )
         result.update(_build_reference_runtime_context(cwd))
         result.update(_build_state_memory_runtime_context(cwd))
         return result
@@ -3210,6 +3214,11 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
 
     required_fields = set(stage_def.required_init_fields)
     staged_source = dict(base_result)
+    staged_source["researcher_model"] = _resolve_model(cwd, "gpd-project-researcher", config)
+    if "synthesizer_model" in required_fields:
+        staged_source["synthesizer_model"] = _resolve_model(cwd, "gpd-research-synthesizer", config)
+    if "roadmapper_model" in required_fields:
+        staged_source["roadmapper_model"] = _resolve_model(cwd, "gpd-roadmapper", config)
 
     needs_full_reference_context = bool(required_fields & _NEW_MILESTONE_REFERENCE_RUNTIME_FIELDS)
     needs_contract_gate_context = bool(required_fields & _NEW_MILESTONE_CONTRACT_GATE_FIELDS)

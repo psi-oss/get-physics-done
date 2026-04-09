@@ -140,3 +140,20 @@ def test_rejects_scalar_where_continuation_update_requires_mapping() -> None:
 
     assert result.passed is False
     assert any("continuation_update" in error for error in result.errors)
+
+
+def test_accepts_synthesizer_style_completed_return_with_summary_only_file_list() -> None:
+    content = _wrap_return_block(
+        "  status: completed\n"
+        "  files_written: [GPD/literature/SUMMARY.md]\n"
+        "  issues: []\n"
+        "  next_actions: []\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is True
+    assert result.fields["status"] == "completed"
+    assert result.fields["files_written"] == ["GPD/literature/SUMMARY.md"]
+    assert result.fields["issues"] == []
+    assert result.fields["next_actions"] == []

@@ -30,6 +30,11 @@ from gpd.registry import (
 from gpd.specs import SPECS_DIR as CANONICAL_SPECS_DIR
 
 NEW_PROJECT_COMMAND_PATH = Path(__file__).resolve().parents[1] / "src" / "gpd" / "commands" / "new-project.md"
+RESEARCH_SYNTHESIZER_SUMMARY_CONTRACT = {
+    "write_scope": {"mode": "scoped_write", "allowed_paths": ["GPD/literature/SUMMARY.md"]},
+    "expected_artifacts": ["GPD/literature/SUMMARY.md"],
+    "shared_state_policy": "return_only",
+}
 
 
 def _write_review_contract_command(tmp_path: Path, file_name: str, review_contract_body: str) -> Path:
@@ -2151,6 +2156,29 @@ class TestPublicAPI:
         assert command.staged_loading.stages[0].must_not_eager_load == ("references/research/questioning.md",)
         assert command.staged_loading.stages[0].writes_allowed == ()
         assert command.staged_loading.stages[0].next_stages == ()
+
+    def test_research_synthesizer_surface_keeps_canonical_summary_return_contract_visible(self) -> None:
+        registry.invalidate_cache()
+
+        synthesizer = registry.get_skill("gpd-research-synthesizer")
+        new_project = registry.get_skill("gpd-new-project")
+        new_milestone = registry.get_skill("gpd-new-milestone")
+        new_project_command = registry.get_command("gpd:new-project")
+        new_milestone_command = registry.get_command("gpd:new-milestone")
+
+        assert synthesizer.source_kind == "agent"
+        assert synthesizer.path.endswith("gpd-research-synthesizer.md")
+        assert "This agent writes only `GPD/literature/SUMMARY.md`;" in synthesizer.content
+        assert "files_written` must list only files actually written in this run." in synthesizer.content
+        assert "Use only status names: `completed` | `checkpoint` | `blocked` | `failed`." in synthesizer.content
+        assert "gpd_return:" in synthesizer.content
+
+        assert new_project.spawn_contracts == new_project_command.spawn_contracts
+        assert new_milestone.spawn_contracts == new_milestone_command.spawn_contracts
+        assert RESEARCH_SYNTHESIZER_SUMMARY_CONTRACT in new_project.spawn_contracts
+        assert RESEARCH_SYNTHESIZER_SUMMARY_CONTRACT in new_milestone.spawn_contracts
+        assert new_project.spawn_contracts[4] == RESEARCH_SYNTHESIZER_SUMMARY_CONTRACT
+        assert new_milestone.spawn_contracts[1] == RESEARCH_SYNTHESIZER_SUMMARY_CONTRACT
 
     def test_get_command_plan_phase_surfaces_staged_loading_manifest(self) -> None:
         from tempfile import TemporaryDirectory

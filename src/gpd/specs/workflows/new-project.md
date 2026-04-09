@@ -1469,11 +1469,11 @@ shared_state_policy: return_only
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Pitfalls research")
 ```
 
-**Handle scout returns:** Route on `gpd_return.status` and `gpd_return.files_written`. If `checkpoint`, present it to the user, collect the response, and spawn a fresh continuation; do not keep the original scout alive. If `blocked` or `failed`, surface the blocker and retry only once. If `completed`, verify the expected artifact exists on disk and is named in the fresh `gpd_return.files_written`. Treat any preexisting scout file as stale unless the same path appears in the fresh return. Do not trust runtime completion text alone.
+**Handle scout returns:** Route on the full canonical `gpd_return` envelope (`status`, `files_written`, `issues`, and `next_actions`), and fail closed unless `gpd_return.status` is typed and the expected artifact is freshly named in `gpd_return.files_written`. If `checkpoint`, present it to the user, collect the response, and spawn a fresh continuation; do not keep the original scout alive. If `blocked`, surface the blocker, stop this scout path, and do not treat it as a retryable success. If `failed`, surface the failure and retry only once. If `completed`, verify the expected artifact exists on disk and is named in the fresh `gpd_return.files_written`. Treat any preexisting scout file as stale unless the same path appears in the fresh return. Do not trust runtime completion text alone.
 
 **If any research agent fails to spawn or returns an error:** Verify which required scout artifacts exist (`PRIOR-WORK.md`, `METHODS.md`, `COMPUTATIONAL.md`, `PITFALLS.md`). Retry only the missing scout tasks once. If any required research file is still missing after the retry, STOP this survey path and present the missing artifacts. Do not proceed with a partial literature survey. Do not synthesize from incomplete scout output. Do not silently downgrade to manual main-context research.
 
-After all 4 agents complete (or partial completion handled), spawn synthesizer to create SUMMARY.md:
+After all 4 scout artifacts are present on disk and each fresh `gpd_return.files_written` proves its expected artifact, spawn synthesizer to create SUMMARY.md:
 
 ```
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
@@ -1512,11 +1512,11 @@ shared_state_policy: return_only
 ", subagent_type="gpd-research-synthesizer", model="{synthesizer_model}", readonly=false, description="Synthesize research")
 ```
 
-**Handle the synthesizer return:** Route on `gpd_return.status` and `gpd_return.files_written`. If `checkpoint`, present it to the user, collect the response, and spawn a fresh continuation after the response. If `blocked` or `failed`, surface the blocker and retry once. If `completed`, verify `GPD/literature/SUMMARY.md` exists and is named in the fresh return. Do not trust runtime completion text alone.
+**Handle the synthesizer return:** Route on the full canonical `gpd_return` envelope (`status`, `files_written`, `issues`, and `next_actions`), and fail closed unless `gpd_return.status` is typed and `GPD/literature/SUMMARY.md` is freshly named in `gpd_return.files_written`. If `checkpoint`, present it to the user, collect the response, and spawn a fresh continuation after the response. If `blocked`, surface the blocker and stop this synth path until it is resolved. If `failed`, surface the failure and retry once. If `completed`, verify `GPD/literature/SUMMARY.md` exists and is named in the fresh return. Do not trust runtime completion text alone.
 
 **Artifact gate:** If a scout reports success but its `expected_artifacts` entry (`GPD/literature/{FILE}`) is missing, treat that scout as incomplete. If the synthesizer reports success but `GPD/literature/SUMMARY.md` is missing, treat that handoff as incomplete. Do not trust the runtime handoff status by itself.
 
-**If the synthesizer agent fails to spawn or returns an error:** Retry once if `GPD/literature/SUMMARY.md` is missing. If the summary artifact is still missing after the retry, STOP and surface the blocker. Do not fabricate a fallback summary in the main context when the chosen survey path asked for a synthesized research brief.
+**If the synthesizer agent fails to spawn or returns an error:** Treat any preexisting `GPD/literature/SUMMARY.md` as stale. Retry once only to obtain a fresh typed `gpd_return` that names `GPD/literature/SUMMARY.md` in `gpd_return.files_written`. If the summary artifact is still missing, or the retry does not produce a fresh typed return naming it, STOP and surface the blocker. Do not fabricate a fallback summary in the main context when the chosen survey path asked for a synthesized research brief.
 
 Display research complete banner and key findings:
 
