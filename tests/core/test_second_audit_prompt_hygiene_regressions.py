@@ -164,12 +164,14 @@ def test_literature_and_research_commands_trim_inline_methodology_blocks() -> No
     literature = (COMMANDS_DIR / "literature-review.md").read_text(encoding="utf-8")
     research_phase = (COMMANDS_DIR / "research-phase.md").read_text(encoding="utf-8")
 
+    assert "Run the literature-review workflow as a thin wrapper" in literature
+    assert "Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly." in literature
     assert "A physics literature review is not a bibliography." not in literature
     assert "Method A lineage: paper1 -> paper2 -> paper3" not in literature
     assert "What do I not know that I don't know?" not in research_phase
     assert "What mathematical methods and computational tools form the standard approach?" not in research_phase
     assert "Research depth follows the workflow-owned `research_mode`." in research_phase
-    assert "Active Anchor Registry" in literature
+    assert "Active Anchor Registry" not in literature
 
 
 def test_shared_context_budget_guidance_stays_runtime_neutral() -> None:

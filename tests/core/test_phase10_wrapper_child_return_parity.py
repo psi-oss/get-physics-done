@@ -7,14 +7,8 @@ COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 
 CASES = (
     (
-        "research-phase.md",
-        "gpd-phase-researcher",
-        "{phase_dir}/{phase_number}-RESEARCH.md",
-        ("RESEARCH COMPLETE", "CHECKPOINT REACHED", "RESEARCH INCONCLUSIVE"),
-    ),
-    (
         "literature-review.md",
-        "gpd-literature-reviewer",
+        "",
         "GPD/literature/{slug}-REVIEW.md",
         ("REVIEW COMPLETE", "CHECKPOINT REACHED", "REVIEW INCONCLUSIVE"),
     ),
@@ -30,15 +24,12 @@ def test_wrapper_child_return_contract_is_typed_and_thin(
 ) -> None:
     text = (COMMANDS_DIR / command_name).read_text(encoding="utf-8")
 
-    assert f"read {{GPD_AGENTS_DIR}}/{agent_name}.md for your role and instructions" in text
-    assert "workflow-owned child-return contract" in text
-    assert "gpd_return.status: completed" in text
-    assert "gpd_return.status: checkpoint" in text
-    assert "artifact gate" in text
-    assert "fresh continuation run" in text
-    assert f"Write to: {artifact_token}" in text
-    assert "Do not branch on heading text here." in text
+    assert "Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly." in text
+    assert "The workflow owns staged loading, scope fixing, artifact gating, and citation verification." in text
+    assert "workflow-owned child-return contract" not in text
+    assert "gpd_return.status: completed" not in text
+    assert "gpd_return.status: checkpoint" not in text
+    assert f"Write to: {artifact_token}" not in text
 
     for marker in heading_markers:
         assert marker not in text
-

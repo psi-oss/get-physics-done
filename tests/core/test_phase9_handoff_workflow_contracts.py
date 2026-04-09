@@ -40,12 +40,28 @@ def test_plan_phase_uses_structured_status_and_artifact_gating_for_research_and_
 def test_research_phase_routes_on_typed_status_and_expected_artifacts() -> None:
     workflow = _read(WORKFLOWS_DIR / "research-phase.md")
 
-    assert "Human-readable headings such as `## RESEARCH COMPLETE` and `## CHECKPOINT REACHED` are presentation only; route on `gpd_return.status` and the artifact gate." in workflow
+    assert (
+        "Human-readable headings such as `## RESEARCH COMPLETE` and `## CHECKPOINT REACHED` are presentation only; route on `gpd_return.status`, `gpd_return.files_written`, and the artifact gate."
+        in workflow
+    )
     assert "gpd_return.status: completed" in workflow
     assert "gpd_return.status: checkpoint" in workflow
     assert "gpd_return.status: blocked` or `failed" in workflow
     assert "gpd_return.files_written" in workflow
     assert "If `gpd_return.status: completed` but the `expected_artifacts` entry (`RESEARCH.md`) is missing" in workflow
+
+
+def test_map_research_routes_on_typed_status_and_expected_artifacts() -> None:
+    workflow = _read(WORKFLOWS_DIR / "map-research.md")
+
+    assert "Each mapper agent is a one-shot file-producing handoff." in workflow
+    assert "Route on `gpd_return.status`, then verify `gpd_return.files_written` against the expected artifacts before accepting the run." in workflow
+    assert workflow.count("<spawn_contract>") >= 4
+    assert "shared_state_policy: return_only" in workflow
+    assert "gpd_return.status: completed" in workflow
+    assert "gpd_return.files_written" in workflow
+    assert "gpd --raw config get research_mode" not in workflow
+    assert 'RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default balanced)' in workflow
 
 
 def test_verify_work_uses_frontmatter_session_lookup_and_canonical_verification_status() -> None:

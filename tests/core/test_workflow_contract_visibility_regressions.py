@@ -50,20 +50,13 @@ def test_contract_gate_is_visible_before_authoritative_use(
     assert workflow.index(surface_line) < workflow.index("project_contract_gate.authoritative")
 
 
-@pytest.mark.parametrize(
-    ("command_name", "surface_marker"),
-    [
-        ("literature-review.md", "Extract `commit_docs`"),
-        ("research-phase.md", "Extract from init JSON:"),
-    ],
-)
-def test_command_contract_gate_is_visible_before_authoritative_use(command_name: str, surface_marker: str) -> None:
-    commands_dir = REPO_ROOT / "src/gpd/commands"
-    command = (commands_dir / command_name).read_text(encoding="utf-8")
-    surface_line = next(line for line in command.splitlines() if surface_marker in line)
+def test_literature_review_workflow_surfaces_contract_gate_before_deferred_reference_artifacts() -> None:
+    workflow = _workflow_text("literature-review.md")
+    surface_line = next(line for line in workflow.splitlines() if "Parse JSON for:" in line)
 
     assert "project_contract_gate" in surface_line
-    assert command.index(surface_line) < command.index("project_contract_gate.authoritative")
+    assert workflow.index(surface_line) < workflow.index("project_contract_gate.authoritative")
+    assert workflow.index(surface_line) < workflow.index("Do not use `reference_artifact_files` or `reference_artifacts_content` yet.")
 
 
 def test_write_paper_surfaces_manuscript_reference_status_before_using_it() -> None:

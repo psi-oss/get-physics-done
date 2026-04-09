@@ -10,9 +10,12 @@ import pytest
 from gpd.core.context import init_write_paper
 from gpd.core.workflow_staging import (
     EXECUTE_PHASE_STAGE_MANIFEST_PATH,
+    LITERATURE_REVIEW_STAGE_MANIFEST_PATH,
+    MAP_RESEARCH_STAGE_MANIFEST_PATH,
     NEW_PROJECT_STAGE_MANIFEST_PATH,
     PLAN_PHASE_STAGE_MANIFEST_PATH,
     QUICK_STAGE_MANIFEST_PATH,
+    RESEARCH_PHASE_STAGE_MANIFEST_PATH,
     invalidate_workflow_stage_manifest_cache,
     known_init_fields_for_workflow,
     load_workflow_stage_manifest,
@@ -33,6 +36,9 @@ def _workflow_payload(workflow_id: str) -> dict[str, object]:
         ("new-project", NEW_PROJECT_STAGE_MANIFEST_PATH),
         ("plan-phase", PLAN_PHASE_STAGE_MANIFEST_PATH),
         ("quick", QUICK_STAGE_MANIFEST_PATH),
+        ("literature-review", LITERATURE_REVIEW_STAGE_MANIFEST_PATH),
+        ("research-phase", RESEARCH_PHASE_STAGE_MANIFEST_PATH),
+        ("map-research", MAP_RESEARCH_STAGE_MANIFEST_PATH),
         ("verify-work", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "verify-work-stage-manifest.json"),
         ("write-paper", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "write-paper-stage-manifest.json"),
         ("peer-review", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "peer-review-stage-manifest.json"),
@@ -381,6 +387,61 @@ def test_known_init_fields_for_quick_cover_task_bootstrap_and_reference_context(
     assert "project_contract_gate" in known_init_fields
     assert "contract_intake" in known_init_fields
     assert "reference_artifacts_content" in known_init_fields
+
+
+@pytest.mark.parametrize(
+    ("workflow_id", "expected_fields"),
+    [
+        (
+            "literature-review",
+            {
+                "topic",
+                "slug",
+                "commit_docs",
+                "project_contract_gate",
+                "contract_intake",
+                "effective_reference_intake",
+                "active_reference_context",
+                "reference_artifacts_content",
+                "derived_manuscript_proof_review_status",
+            },
+        ),
+        (
+            "research-phase",
+            {
+                "executor_model",
+                "phase_found",
+                "phase_dir",
+                "project_contract_gate",
+                "active_reference_context",
+                "reference_artifacts_content",
+                "state_content",
+                "roadmap_content",
+            },
+        ),
+        (
+            "map-research",
+            {
+                "mapper_model",
+                "research_map_dir",
+                "existing_maps",
+                "project_contract_gate",
+                "active_reference_context",
+                "reference_artifacts_content",
+                "derived_manuscript_proof_review_status",
+            },
+        ),
+    ],
+)
+def test_known_init_fields_for_new_stage_aware_workflows_cover_required_context(
+    workflow_id: str,
+    expected_fields: set[str],
+) -> None:
+    known_init_fields = known_init_fields_for_workflow(workflow_id)
+
+    assert known_init_fields is not None
+    for field in expected_fields:
+        assert field in known_init_fields
 
 
 def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -> None:

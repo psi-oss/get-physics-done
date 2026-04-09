@@ -335,12 +335,13 @@ def test_literature_review_surfaces_publish_closed_citation_source_contract() ->
     agent_doc = (repo_root / "src/gpd/agents/gpd-literature-reviewer.md").read_text(encoding="utf-8")
     workflow_doc = (repo_root / "src/gpd/specs/workflows/literature-review.md").read_text(encoding="utf-8")
 
-    assert "machine-readable, strict `CITATION-SOURCES.json` sidecar" in command_doc
-    assert "strict `CitationSource` records keyed by stable `reference_id`" in command_doc
+    assert "Run the literature-review workflow as a thin wrapper" in command_doc
+    assert "matching `GPD/literature/{slug}-CITATION-SOURCES.json` sidecar" in command_doc
     assert "closed contract is:" in agent_doc
     assert "Extra keys are rejected by the downstream parser." in agent_doc
     assert "strict `CitationSource` objects" in workflow_doc
     assert "Extra keys are rejected" in workflow_doc
+    assert "Only read or propagate the deferred reference-artifact context after the scope has been fixed." in workflow_doc
 
 
 def test_ingest_reference_artifacts_handles_sidecars_deterministically(tmp_path: Path) -> None:

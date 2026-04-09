@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "workflow_id": "research-phase",
+  "stages": [
+    {
+      "id": "phase_bootstrap",
+      "order": 1,
+      "purpose": "phase validation, existing research routing, and model/bootstrap setup",
+      "mode_paths": [
+        "workflows/research-phase.md"
+      ],
+      "required_init_fields": [
+        "commit_docs",
+        "autonomy",
+        "research_mode",
+        "phase_found",
+        "phase_dir",
+        "phase_number",
+        "phase_name",
+        "phase_slug",
+        "padded_phase",
+        "has_research",
+        "has_context",
+        "has_plans",
+        "has_verification",
+        "has_validation",
+        "state_exists",
+        "roadmap_exists",
+        "planning_exists",
+        "platform",
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation"
+      ],
+      "loaded_authorities": [
+        "workflows/research-phase.md",
+        "references/orchestration/model-profile-resolution.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "references/shared/shared-protocols.md",
+        "references/research/researcher-shared.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/orchestration/runtime-delegation-note.md"
+      ],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "shell",
+        "task"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "phase bootstrap state",
+        "existing research routing state"
+      ],
+      "next_stages": [
+        "research_handoff"
+      ],
+      "checkpoints": [
+        "phase is validated",
+        "existing research is routed before respawn",
+        "runtime delegation note remains deferred"
+      ]
+    },
+    {
+      "id": "research_handoff",
+      "order": 2,
+      "purpose": "assemble the phase research handoff, spawn the researcher, and gate the fresh artifact",
+      "mode_paths": [
+        "workflows/research-phase.md"
+      ],
+      "required_init_fields": [
+        "commit_docs",
+        "autonomy",
+        "review_cadence",
+        "research_mode",
+        "parallelization",
+        "max_unattended_minutes_per_plan",
+        "max_unattended_minutes_per_wave",
+        "checkpoint_after_n_tasks",
+        "checkpoint_after_first_load_bearing_result",
+        "checkpoint_before_downstream_dependent_tasks",
+        "phase_found",
+        "phase_dir",
+        "phase_number",
+        "phase_name",
+        "phase_slug",
+        "padded_phase",
+        "has_research",
+        "has_context",
+        "has_plans",
+        "has_verification",
+        "has_validation",
+        "state_exists",
+        "roadmap_exists",
+        "planning_exists",
+        "platform",
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+        "contract_intake",
+        "effective_reference_intake",
+        "active_reference_context",
+        "reference_artifact_files",
+        "reference_artifacts_content",
+        "knowledge_doc_files",
+        "knowledge_doc_count",
+        "stable_knowledge_doc_files",
+        "stable_knowledge_doc_count",
+        "knowledge_doc_status_counts",
+        "derived_knowledge_docs",
+        "derived_knowledge_doc_count",
+        "knowledge_doc_warnings",
+        "state_load_source",
+        "state_integrity_issues",
+        "convention_lock",
+        "convention_lock_count",
+        "intermediate_results",
+        "intermediate_result_count",
+        "approximations",
+        "approximation_count",
+        "propagated_uncertainties",
+        "propagated_uncertainty_count",
+        "derived_convention_lock",
+        "derived_convention_lock_count",
+        "derived_intermediate_results",
+        "derived_intermediate_result_count",
+        "derived_approximations",
+        "derived_approximation_count",
+        "selected_protocol_bundle_ids",
+        "protocol_bundle_count",
+        "protocol_bundle_context",
+        "protocol_bundle_verifier_extensions",
+        "current_execution",
+        "has_live_execution",
+        "execution_review_pending",
+        "execution_pre_fanout_review_pending",
+        "execution_skeptical_requestioning_required",
+        "execution_downstream_locked",
+        "execution_blocked",
+        "execution_resumable",
+        "execution_paused_at",
+        "current_execution_resume_file",
+        "session_resume_file",
+        "recorded_session_resume_file",
+        "missing_session_resume_file",
+        "execution_resume_file",
+        "execution_resume_file_source",
+        "resume_projection",
+        "current_hostname",
+        "current_platform",
+        "session_hostname",
+        "session_platform",
+        "session_last_date",
+        "session_stopped_at",
+        "machine_change_detected",
+        "machine_change_notice",
+        "literature_review_files",
+        "literature_review_count",
+        "research_map_reference_files",
+        "research_map_reference_count",
+        "derived_active_references",
+        "derived_active_reference_count",
+        "citation_source_files",
+        "citation_source_count",
+        "citation_source_warnings",
+        "derived_citation_sources",
+        "derived_citation_source_count",
+        "active_references",
+        "active_reference_count",
+        "derived_manuscript_reference_status",
+        "derived_manuscript_reference_status_count",
+        "derived_manuscript_proof_review_status",
+        "state_content",
+        "config_content",
+        "roadmap_content"
+      ],
+      "loaded_authorities": [
+        "workflows/research-phase.md",
+        "references/orchestration/model-profile-resolution.md",
+        "references/orchestration/runtime-delegation-note.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "references/shared/shared-protocols.md",
+        "references/research/researcher-shared.md",
+        "references/orchestration/agent-infrastructure.md"
+      ],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "shell",
+        "task"
+      ],
+      "writes_allowed": [
+        "GPD/phases/XX-name/XX-RESEARCH.md"
+      ],
+      "produced_state": [
+        "phase research handoff state",
+        "research artifact gating state"
+      ],
+      "next_stages": [],
+      "checkpoints": [
+        "reference and contract context are visible to the handoff",
+        "runtime delegation note is loaded only for the child handoff",
+        "fresh RESEARCH artifact is required before completion"
+      ]
+    }
+  ]
+}

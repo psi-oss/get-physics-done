@@ -103,6 +103,12 @@ from gpd.core.workflow_staging import (
     load_arxiv_submission_stage_contract,
 )
 from gpd.core.workflow_staging import (
+    LITERATURE_REVIEW_INIT_FIELDS as _LITERATURE_REVIEW_INIT_FIELDS,
+)
+from gpd.core.workflow_staging import (
+    MAP_RESEARCH_INIT_FIELDS as _MAP_RESEARCH_INIT_FIELDS,
+)
+from gpd.core.workflow_staging import (
     PLAN_PHASE_CONTRACT_GATE_FIELDS as _PLAN_PHASE_CONTRACT_GATE_FIELDS,
 )
 from gpd.core.workflow_staging import (
@@ -128,6 +134,9 @@ from gpd.core.workflow_staging import (
 )
 from gpd.core.workflow_staging import (
     QUICK_REFERENCE_RUNTIME_FIELDS as _QUICK_REFERENCE_RUNTIME_FIELDS,
+)
+from gpd.core.workflow_staging import (
+    RESEARCH_PHASE_INIT_FIELDS as _RESEARCH_PHASE_INIT_FIELDS,
 )
 
 logger = logging.getLogger(__name__)
@@ -795,12 +804,14 @@ def _ignore_dirs() -> frozenset[str]:
 __all__ = [
     "init_arxiv_submission",
     "init_execute_phase",
+    "init_literature_review",
     "init_map_research",
     "init_milestone_op",
     "init_peer_review",
     "init_new_milestone",
     "init_new_project",
     "init_phase_op",
+    "init_research_phase",
     "init_plan_phase",
     "init_progress",
     "init_quick",
@@ -3815,9 +3826,19 @@ def init_arxiv_submission(cwd: Path, stage: str | None = None) -> dict:
     return staged_payload
 
 
-def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None = None) -> dict:
+def init_phase_op(
+    cwd: Path,
+    phase: str | None = None,
+    includes: set[str] | None = None,
+    stage: str | None = None,
+) -> dict:
     """Assemble context for generic phase operations (parameter sweep, etc.)."""
     includes = includes or set()
+    if stage is not None and includes:
+        raise ValueError(
+            "gpd init phase-op does not allow --include together with --stage; "
+            "stage payloads already declare their required context."
+        )
     config = load_config(cwd)
     phase_info = _try_find_phase(cwd, phase) if phase else None
 
@@ -3870,7 +3891,85 @@ def init_phase_op(cwd: Path, phase: str | None = None, includes: set[str] | None
     if "roadmap" in includes:
         result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
 
-    return result
+    if stage is None:
+        return result
+
+    from gpd.core.workflow_staging import load_workflow_stage_manifest
+
+    manifest = load_workflow_stage_manifest("research-phase", known_init_fields=_RESEARCH_PHASE_INIT_FIELDS)
+    try:
+        stage_def = manifest.stage_by_id(stage)
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown research-phase stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
+        ) from exc
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in result]
+    if missing_fields:
+        raise ValueError(
+            f"research-phase stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
+        )
+
+    staged_payload = {field: result[field] for field in stage_def.required_init_fields}
+    staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
+    return staged_payload
+
+
+def init_research_phase(
+    cwd: Path,
+    phase: str | None = None,
+    includes: set[str] | None = None,
+    stage: str | None = None,
+) -> dict:
+    """Assemble context for research-phase planning and investigation."""
+    return init_phase_op(cwd, phase=phase, includes=includes, stage=stage)
+
+
+def init_literature_review(cwd: Path, topic: str | None = None, stage: str | None = None) -> dict:
+    """Assemble context for literature review orchestration."""
+    config = load_config(cwd)
+    normalized_topic = topic.strip() if isinstance(topic, str) and topic.strip() else None
+    slug = _generate_slug(normalized_topic)
+    if normalized_topic and slug is None:
+        slug = "literature-review"
+    if slug:
+        slug = slug[:40]
+
+    result: dict[str, object] = {
+        "topic": normalized_topic,
+        "slug": slug,
+        "commit_docs": config["commit_docs"],
+        "state_exists": _state_exists(cwd),
+        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "research_mode": config["research_mode"],
+        "autonomy": config["autonomy"],
+        "roadmap_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}"),
+        "platform": _detect_platform(cwd),
+    }
+    result.update(_build_reference_runtime_context(cwd))
+
+    if stage is None:
+        return result
+
+    from gpd.core.workflow_staging import load_workflow_stage_manifest
+
+    manifest = load_workflow_stage_manifest("literature-review", known_init_fields=_LITERATURE_REVIEW_INIT_FIELDS)
+    try:
+        stage_def = manifest.stage_by_id(stage)
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown literature-review stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
+        ) from exc
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in result]
+    if missing_fields:
+        raise ValueError(
+            f"literature-review stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
+        )
+
+    staged_payload = {field: result[field] for field in stage_def.required_init_fields}
+    staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
+    return staged_payload
 
 
 def init_todos(cwd: Path, area: str | None = None) -> dict:
@@ -3985,7 +4084,7 @@ def init_milestone_op(cwd: Path) -> dict:
     }
 
 
-def init_map_research(cwd: Path) -> dict:
+def init_map_research(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for research mapping."""
     config = load_config(cwd)
 
@@ -4017,7 +4116,25 @@ def init_map_research(cwd: Path) -> dict:
         "platform": _detect_platform(cwd),
     }
     result.update(_build_reference_runtime_context(cwd))
-    return result
+
+    if stage is None:
+        return result
+
+    from gpd.core.workflow_staging import load_workflow_stage_manifest
+
+    manifest = load_workflow_stage_manifest("map-research", known_init_fields=_MAP_RESEARCH_INIT_FIELDS)
+    try:
+        stage_def = manifest.stage_by_id(stage)
+    except KeyError as exc:
+        raise ValueError(f"Unknown map-research stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}.") from exc
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in result]
+    if missing_fields:
+        raise ValueError(f"map-research stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
+
+    staged_payload = {field: result[field] for field in stage_def.required_init_fields}
+    staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
+    return staged_payload
 
 
 def init_progress(

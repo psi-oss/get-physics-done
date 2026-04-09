@@ -71,12 +71,9 @@ def _assert_contains_fragments(text: str, *fragments: str) -> None:
 
 COMMAND_SPAWN_TOKENS = {
     "explain.md": ["gpd-explainer", "gpd-bibliographer"],
-    "literature-review.md": ["gpd-literature-reviewer"],
     "debug.md": ["gpd-debugger"],
-    "map-research.md": ["gpd-research-mapper"],
     "plan-phase.md": ["gpd-planner"],
     "quick.md": ["gpd-planner", "gpd-executor"],
-    "research-phase.md": ["gpd-phase-researcher"],
 }
 
 WORKFLOW_SPAWN_TOKENS = {
@@ -1450,8 +1447,16 @@ def test_reference_workflows_require_anchor_registry_propagation() -> None:
     assert "project_contract_load_info" in literature_workflow
     assert "project_contract_validation" in literature_workflow
     assert "authoritative only when `project_contract_gate.authoritative` is true" in literature_workflow
+    assert "Do not frontload reference artifacts before the scope is fixed." in literature_workflow
+    assert "Do not use `reference_artifact_files` or `reference_artifacts_content` yet." in literature_workflow
+    assert "load_scoped_reference_artifacts" in literature_workflow
     assert "include `bibtex_key` only when it is already known and verified" in literature_workflow
-    assert "Active Anchor Registry" in literature_command
+    load_context_line = next(line for line in literature_workflow.splitlines() if "Parse JSON for:" in line)
+    assert "reference_artifact_files" not in load_context_line
+    assert "reference_artifacts_content" not in load_context_line
+    assert "Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly." in literature_command
+    assert "The workflow owns staged loading, scope fixing, artifact gating, and citation verification." in literature_command
+    assert "Active Anchor Registry" not in literature_command
     assert "active_anchors" in literature_agent
     assert "GPD/literature/{slug}-CITATION-SOURCES.json" in literature_agent
     assert "compatible with the `CitationSource` shape" in literature_agent
@@ -1477,20 +1482,19 @@ def test_reference_workflows_require_anchor_registry_propagation() -> None:
     assert "project_contract_validation" in map_workflow
     assert "reference_artifacts_content" in map_workflow
     assert "authoritative only when `project_contract_gate.authoritative` is true" in map_workflow
-    assert "Contract-critical anchors, decisive benchmarks, prior artifacts" in map_command
+    assert "Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/map-research.md`." in map_command
+    assert "project_contract_load_info" not in map_command
+    assert "reference_artifacts_content" not in map_command
     assert "REFERENCES.md is an anchor registry" in mapper_agent
 
 
 def test_file_producing_command_surfaces_use_canonical_spawn_contract() -> None:
     literature = (COMMANDS_DIR / "literature-review.md").read_text(encoding="utf-8")
     debug = (COMMANDS_DIR / "debug.md").read_text(encoding="utf-8")
-    research = (COMMANDS_DIR / "research-phase.md").read_text(encoding="utf-8")
     respond = (COMMANDS_DIR / "respond-to-referees.md").read_text(encoding="utf-8")
 
     for content, agent_name, file_token in (
-        (literature, "gpd-literature-reviewer", "GPD/literature/{slug}-REVIEW.md"),
         (debug, "gpd-debugger", "GPD/debug/{slug}.md"),
-        (research, "gpd-phase-researcher", "{phase_dir}/{phase_number}-RESEARCH.md"),
     ):
         assert f"read {{GPD_AGENTS_DIR}}/{agent_name}.md for your role and instructions" in content
         assert "readonly=false" in content
@@ -1498,7 +1502,29 @@ def test_file_producing_command_surfaces_use_canonical_spawn_contract() -> None:
         assert f"@{file_token}" not in content
         assert "Fresh 200k context" not in content
 
+    assert "gpd --raw validate command-context literature-review" in literature
+    assert "Follow `@{GPD_INSTALL_DIR}/workflows/literature-review.md` exactly." in literature
+    assert "First, read {GPD_AGENTS_DIR}/gpd-literature-reviewer.md for your role and instructions" not in literature
+    assert "Write to: GPD/literature/{slug}-REVIEW.md" not in literature
+
     assert "Fresh 200k context" not in respond
+
+
+def test_research_phase_command_delegates_file_path_and_return_routing_to_the_workflow() -> None:
+    command = (COMMANDS_DIR / "research-phase.md").read_text(encoding="utf-8")
+    workflow = (WORKFLOWS_DIR / "research-phase.md").read_text(encoding="utf-8")
+
+    assert "Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/research-phase.md`." in command
+    assert "gpd --raw init phase-op --include state,config" not in command
+    assert "Research depth follows the workflow-owned `research_mode`." in command
+    assert "gpd_return.status: completed" not in command
+    assert "gpd_return.files_written" not in command
+    assert 'BOOTSTRAP_INIT=$(load_research_phase_stage phase_bootstrap "${PHASE}")' in workflow
+    assert 'HANDOFF_INIT=$(load_research_phase_stage research_handoff "${phase_number}")' in workflow
+    assert 'gpd --raw init research-phase "${phase_arg}" --stage "${stage_name}"' in workflow
+    assert "Write to: {phase_dir}/{phase_number}-RESEARCH.md" in workflow
+    assert "gpd_return.files_written" in workflow
+    assert 'RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default balanced)' in workflow
 
 
 def test_revision_and_audit_workflows_verify_artifacts_before_trusting_success_text() -> None:
@@ -1564,6 +1590,8 @@ def test_discover_command_does_not_emit_phase_only_commit_placeholders_for_stand
 def test_workflows_use_raw_json_when_shell_snippets_pipe_cli_output_into_gpd_json_get() -> None:
     research_workflow = (WORKFLOWS_DIR / "research-phase.md").read_text(encoding="utf-8")
     research_command = (COMMANDS_DIR / "research-phase.md").read_text(encoding="utf-8")
+    map_workflow = (WORKFLOWS_DIR / "map-research.md").read_text(encoding="utf-8")
+    map_command = (COMMANDS_DIR / "map-research.md").read_text(encoding="utf-8")
     progress_workflow = (WORKFLOWS_DIR / "progress.md").read_text(encoding="utf-8")
     progress_command = (COMMANDS_DIR / "progress.md").read_text(encoding="utf-8")
     gaps_workflow = (WORKFLOWS_DIR / "plan-milestone-gaps.md").read_text(encoding="utf-8")
@@ -1579,8 +1607,17 @@ def test_workflows_use_raw_json_when_shell_snippets_pipe_cli_output_into_gpd_jso
 
     assert 'PHASE_INFO=$(gpd --raw roadmap get-phase "${phase_number}")' in research_workflow
     assert 'gpd --raw state snapshot | gpd json get .decisions --default "[]"' in research_workflow
-    assert 'PHASE_INFO=$(gpd --raw roadmap get-phase "${phase_number}")' in research_command
-    assert 'gpd --raw state snapshot | gpd json get .decisions --default "[]"' in research_command
+    assert 'BOOTSTRAP_INIT=$(load_research_phase_stage phase_bootstrap "${PHASE}")' in research_workflow
+    assert 'HANDOFF_INIT=$(load_research_phase_stage research_handoff "${phase_number}")' in research_workflow
+    assert 'RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default balanced)' in research_workflow
+    assert 'gpd --raw config get research_mode' not in research_workflow
+    assert 'gpd --raw init phase-op --include state,config "${PHASE}"' not in research_command
+    assert 'BOOTSTRAP_INIT=$(load_map_research_stage map_bootstrap)' in map_workflow
+    assert 'MAPPER_AUTHORING_INIT=$(load_map_research_stage mapper_authoring)' in map_workflow
+    assert 'gpd --raw init map-research --stage "${stage_name}"' in map_workflow
+    assert 'RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default balanced)' in map_workflow
+    assert 'gpd --raw config get research_mode' not in map_workflow
+    assert 'gpd --raw init map-research' not in map_command
     assert "ROADMAP=$(gpd --raw roadmap analyze)" in progress_workflow
     assert "ROADMAP=$(gpd --raw roadmap analyze)" not in progress_command
     assert (
@@ -1660,12 +1697,10 @@ def test_research_phase_uses_resolved_phase_dir_for_artifact_paths_and_context_l
     research_workflow = (WORKFLOWS_DIR / "research-phase.md").read_text(encoding="utf-8")
     research_command = (COMMANDS_DIR / "research-phase.md").read_text(encoding="utf-8")
 
-    assert 'INIT=$(gpd --raw init phase-op --include state,config "$ARGUMENTS")' in research_command
-    assert 'ls "${phase_dir}/"*-RESEARCH.md 2>/dev/null' in research_command
-    assert 'cat "${phase_dir}/"*-CONTEXT.md 2>/dev/null' in research_command
     assert "Write to: {phase_dir}/{phase_number}-RESEARCH.md" in research_workflow
-    assert "Write to: {phase_dir}/{phase_number}-RESEARCH.md" in research_command
-    assert "Research file path: {phase_dir}/{phase_number}-RESEARCH.md" in research_command
+    assert "Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/research-phase.md`." in research_command
+    assert "Write to: {phase_dir}/{phase_number}-RESEARCH.md" not in research_command
+    assert "Research file path: {phase_dir}/{phase_number}-RESEARCH.md" not in research_command
     assert "GPD/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md" not in research_workflow
     assert "GPD/phases/${PHASE}-{slug}/${PHASE}-RESEARCH.md" not in research_command
 

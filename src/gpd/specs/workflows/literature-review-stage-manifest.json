@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "workflow_id": "literature-review",
+  "stages": [
+    {
+      "id": "review_bootstrap",
+      "order": 1,
+      "purpose": "topic intake, scope confirmation, and contract-gate bootstrap",
+      "mode_paths": [
+        "workflows/literature-review.md"
+      ],
+      "required_init_fields": [
+        "commit_docs",
+        "state_exists",
+        "project_exists",
+        "roadmap_exists",
+        "topic",
+        "slug",
+        "research_mode",
+        "autonomy",
+        "platform",
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+        "contract_intake",
+        "effective_reference_intake",
+        "active_reference_context"
+      ],
+      "loaded_authorities": [
+        "workflows/literature-review.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/orchestration/runtime-delegation-note.md"
+      ],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "find_files",
+        "search_files",
+        "shell",
+        "task",
+        "web_fetch",
+        "web_search"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "review scope",
+        "topic routing state"
+      ],
+      "next_stages": [
+        "scope_locked"
+      ],
+      "checkpoints": [
+        "topic and purpose confirmed",
+        "contract gate stays visible before broadening the search",
+        "reference artifacts remain deferred until scope is fixed"
+      ]
+    },
+    {
+      "id": "scope_locked",
+      "order": 2,
+      "purpose": "load scoped reference artifacts and assemble the review handoff",
+      "mode_paths": [
+        "workflows/literature-review.md"
+      ],
+      "required_init_fields": [
+        "commit_docs",
+        "state_exists",
+        "project_exists",
+        "roadmap_exists",
+        "topic",
+        "slug",
+        "research_mode",
+        "autonomy",
+        "platform",
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+        "contract_intake",
+        "effective_reference_intake",
+        "active_reference_context",
+        "reference_artifact_files",
+        "reference_artifacts_content",
+        "literature_review_files",
+        "literature_review_count",
+        "research_map_reference_files",
+        "research_map_reference_count",
+        "derived_active_references",
+        "derived_active_reference_count",
+        "derived_knowledge_docs",
+        "derived_knowledge_doc_count",
+        "knowledge_doc_files",
+        "knowledge_doc_count",
+        "stable_knowledge_doc_files",
+        "stable_knowledge_doc_count",
+        "knowledge_doc_status_counts",
+        "knowledge_doc_warnings",
+        "selected_protocol_bundle_ids",
+        "protocol_bundle_count",
+        "protocol_bundle_context",
+        "active_references",
+        "active_reference_count"
+      ],
+      "loaded_authorities": [
+        "workflows/literature-review.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/orchestration/runtime-delegation-note.md"
+      ],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "find_files",
+        "search_files",
+        "shell",
+        "task",
+        "web_fetch",
+        "web_search"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "scoped reference intake",
+        "review handoff state"
+      ],
+      "next_stages": [
+        "review_handoff"
+      ],
+      "checkpoints": [
+        "reference artifacts loaded only after scope is fixed",
+        "active anchors remain scoped",
+        "reviewer handoff is ready"
+      ]
+    },
+    {
+      "id": "review_handoff",
+      "order": 3,
+      "purpose": "delegate the literature review, citation-source sidecar, and any checkpoint artifacts",
+      "mode_paths": [
+        "workflows/literature-review.md"
+      ],
+      "required_init_fields": [
+        "commit_docs",
+        "state_exists",
+        "project_exists",
+        "roadmap_exists",
+        "topic",
+        "slug",
+        "research_mode",
+        "autonomy",
+        "platform",
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+        "contract_intake",
+        "effective_reference_intake",
+        "active_reference_context",
+        "reference_artifact_files",
+        "reference_artifacts_content",
+        "literature_review_files",
+        "literature_review_count",
+        "research_map_reference_files",
+        "research_map_reference_count",
+        "derived_active_references",
+        "derived_active_reference_count",
+        "derived_knowledge_docs",
+        "derived_knowledge_doc_count",
+        "knowledge_doc_files",
+        "knowledge_doc_count",
+        "stable_knowledge_doc_files",
+        "stable_knowledge_doc_count",
+        "knowledge_doc_status_counts",
+        "knowledge_doc_warnings",
+        "citation_source_files",
+        "citation_source_count",
+        "citation_source_warnings",
+        "derived_citation_sources",
+        "derived_citation_source_count",
+        "selected_protocol_bundle_ids",
+        "protocol_bundle_count",
+        "protocol_bundle_verifier_extensions",
+        "protocol_bundle_context",
+        "active_references",
+        "active_reference_count",
+        "derived_manuscript_reference_status",
+        "derived_manuscript_reference_status_count",
+        "derived_manuscript_proof_review_status"
+      ],
+      "loaded_authorities": [
+        "workflows/literature-review.md",
+        "references/orchestration/runtime-delegation-note.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "find_files",
+        "search_files",
+        "shell",
+        "task",
+        "web_fetch",
+        "web_search"
+      ],
+      "writes_allowed": [
+        "GPD/literature/slug-REVIEW.md",
+        "GPD/literature/slug-CITATION-SOURCES.json",
+        "GPD/literature/slug-STATE.yaml",
+        "GPD/literature/slug-CONTINUATION.md"
+      ],
+      "produced_state": [
+        "review artifact state",
+        "citation sidecar state"
+      ],
+      "next_stages": [
+        "completion_gate"
+      ],
+      "checkpoints": [
+        "typed child-return contract is active",
+        "review and citation sidecar write targets are explicit",
+        "checkpoint artifacts stay one-shot and file-backed"
+      ]
+    },
+    {
+      "id": "completion_gate",
+      "order": 4,
+      "purpose": "verify review completion and sidecar freshness before presenting results",
+      "mode_paths": [
+        "workflows/literature-review.md"
+      ],
+      "required_init_fields": [
+        "commit_docs",
+        "topic",
+        "slug",
+        "platform"
+      ],
+      "loaded_authorities": [
+        "workflows/literature-review.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "references/shared/shared-protocols.md",
+        "references/orchestration/agent-infrastructure.md",
+        "references/orchestration/runtime-delegation-note.md"
+      ],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "shell"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "review completion state"
+      ],
+      "next_stages": [],
+      "checkpoints": [
+        "review markdown exists",
+        "citation-source sidecar exists",
+        "completion is routed through typed child-return state"
+      ]
+    }
+  ]
+}

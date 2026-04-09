@@ -424,6 +424,36 @@ def test_new_project_parallel_researchers_write_to_disjoint_artifacts() -> None:
     assert "Do not fabricate a fallback summary in the main context" in content
 
 
+def test_map_research_parallel_mappers_use_spawn_contracts_and_return_only_artifacts() -> None:
+    path = WORKFLOWS_DIR / "map-research.md"
+    content = _read(path)
+    tasks = _task_blocks_by_agent(path, "gpd-research-mapper")
+    outputs = {output for task in tasks for output in _extract_output_paths(task)}
+
+    expected = {
+        "GPD/research-map/FORMALISM.md",
+        "GPD/research-map/REFERENCES.md",
+        "GPD/research-map/ARCHITECTURE.md",
+        "GPD/research-map/STRUCTURE.md",
+        "GPD/research-map/CONVENTIONS.md",
+        "GPD/research-map/VALIDATION.md",
+        "GPD/research-map/CONCERNS.md",
+    }
+
+    assert expected <= outputs
+    assert len(outputs) == len(set(outputs))
+    assert len(tasks) == 4
+    assert content.count("<spawn_contract>") >= 4
+    assert "Route on `gpd_return.status`, then verify `gpd_return.files_written` against the expected artifacts before accepting the run." in content
+    assert "gpd --raw config get research_mode" not in content
+    assert 'RESEARCH_MODE=$(echo "$BOOTSTRAP_INIT" | gpd json get .research_mode --default balanced)' in content
+
+    for task in tasks:
+        task_outputs = tuple(_extract_output_paths(task))
+        assert len(task_outputs) in (1, 2)
+        _assert_spawn_contract(task, task_outputs)
+
+
 def test_new_project_roadmapper_uses_spawn_contract_and_artifact_gate() -> None:
     path = WORKFLOWS_DIR / "new-project.md"
     content = _read(path)

@@ -4,6 +4,8 @@ Conduct a systematic literature review for a physics research topic. Map the int
 Also emit a machine-readable `GPD/literature/{slug}-CITATION-SOURCES.json` sidecar containing strict `CitationSource` records keyed by stable `reference_id` values so paper-writing can reuse the discovered references without manual transcription.
 
 Called from gpd:literature-review command.
+
+This workflow owns the staged init, scope fixing, deferred reference-artifact loading, and artifact gate. Do not frontload reference artifacts before the scope is fixed.
 </purpose>
 
 <core_principle>
@@ -47,14 +49,31 @@ A physics literature review is not a bibliography. It is a structured map of who
 **Load project context (if available):**
 
 ```bash
-INIT=$(gpd --raw init progress --include state,config)
+load_literature_review_stage() {
+  local stage_name="$1"
+  shift
+  local init_payload=""
+
+  init_payload=$(gpd --raw init literature-review "$@" --stage "$stage_name" 2>/dev/null)
+  if [ $? -ne 0 ] || [ -z "$init_payload" ]; then
+    echo "ERROR: staged gpd initialization failed for stage '${stage_name}': ${init_payload}"
+    return 1
+  fi
+
+  printf '%s' "$init_payload"
+  return 0
+}
+
+BOOTSTRAP_INIT=$(load_literature_review_stage review_bootstrap "$ARGUMENTS")
 if [ $? -ne 0 ]; then
-  echo "ERROR: gpd initialization failed: $INIT"
+  echo "ERROR: gpd initialization failed: $BOOTSTRAP_INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifact_files`, `reference_artifacts_content`.
+Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `topic`, `slug`.
+
+Do not use `reference_artifact_files` or `reference_artifacts_content` yet. Keep them deferred until the review scope is fixed so reference artifacts cannot broaden the topic before the user has chosen it.
 
 **Read mode settings:**
 
@@ -75,7 +94,6 @@ RESEARCH_MODE=$(gpd --raw config get research_mode 2>/dev/null | gpd json get .v
 - **If `state_exists` is true:** Extract `convention_lock` for notation context (helps identify which conventions are used in papers being reviewed). Extract active research topic, phase context, and any contract-critical references from `active_reference_context`.
 - **If `state_exists` is false** (standalone usage): Proceed — the user will specify the topic directly.
 - Treat `effective_reference_intake` as the machine-readable carry-forward ledger for anchors, prior outputs, baselines, user-mandated context, and unresolved gaps. Re-surface those items in the review even if the broader search expands beyond them.
-- Use `reference_artifacts_content` as supporting evidence when existing literature/research-map artifacts already pin down benchmark values, prior outputs, or anchor wording that should remain stable.
 - Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. If the gate is blocked, keep the contract visible as context but do not promote it to approved review truth.
 
 Project context helps focus the review on conventions and methods relevant to the current research.
@@ -96,6 +114,23 @@ Define explicit include/exclude boundaries:
 - Exclude: tangential fields, historical reviews (unless depth=comprehensive)
 - Record any contract-critical anchor that must be surfaced even if it falls outside the default search breadth
   </step>
+
+<step name="load_scoped_reference_artifacts">
+Once the scope is fixed, surface only the reference artifacts that remain relevant to the agreed topic.
+
+```bash
+SCOPE_LOCKED_INIT=$(load_literature_review_stage scope_locked "${topic:-$ARGUMENTS}")
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd initialization failed: $SCOPE_LOCKED_INIT"
+  exit 1
+fi
+```
+
+- Parse the staged refresh for `reference_artifact_files`, `reference_artifacts_content`, `literature_review_files`, `research_map_reference_files`, `knowledge_doc_files`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, and `active_references`.
+- If `reference_artifact_files` is populated, read those files now and keep only the entries that support the confirmed scope.
+- If `reference_artifacts_content` is available, use it now as supporting evidence for already-scoped anchors, baselines, prior outputs, and citation reuse.
+- Do not use deferred reference artifacts to reopen the scope question.
+</step>
 
 <step name="identify_foundations">
 **Phase 1: Foundational Works**
@@ -397,7 +432,7 @@ Then write `GPD/literature/{slug}-CITATION-SOURCES.json` as a JSON array of stri
 - `year` when available
 - `arxiv_id`, `doi`, `url`, `journal`, `volume`, and `pages` when available
 
-Keep the sidecar synchronized with the review's Full Reference List, keep `reference_id` stable across reruns, and do not add extra keys. Downstream `gpd paper-build --citation-sources` rejects unknown fields, so the sidecar must stay aligned with the published contract before it reaches the build step.
+Keep the sidecar synchronized with the review's Full Reference List, keep `reference_id` stable across reruns, and do not add extra keys. Downstream `gpd paper-build --citation-sources` rejects unknown fields, so the sidecar must stay aligned with the published contract before it reaches the build step. Only read or propagate the deferred reference-artifact context after the scope has been fixed.
 Extra keys are rejected by the downstream parser.
 
 </step>
@@ -406,6 +441,16 @@ Extra keys are rejected by the downstream parser.
 **Phase 8: Citation Verification**
 
 Spawn the bibliographer agent to verify all citations collected during the review. The bibliographer has the hallucination detection protocol, INSPIRE/ADS/arXiv search capability, and BibTeX management expertise needed for citation verification.
+
+```bash
+REVIEW_HANDOFF_INIT=$(load_literature_review_stage review_handoff "${topic:-$ARGUMENTS}")
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd initialization failed: $REVIEW_HANDOFF_INIT"
+  exit 1
+fi
+```
+
+Parse the staged refresh for `citation_source_files`, `derived_citation_sources`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_references`, `derived_manuscript_reference_status`, and `derived_manuscript_proof_review_status` before spawning the bibliographer or accepting a completed review handoff.
 
 Resolve bibliographer model:
 
@@ -457,15 +502,23 @@ Return a typed `gpd_return` envelope. Use `status: completed` when the bibliogra
 <step name="return_results">
 Return to orchestrator through the typed child-return contract. Route on `gpd_return.status` and the artifact gate; the `## REVIEW COMPLETE` and `## CHECKPOINT REACHED` headings are presentation only.
 
+```bash
+COMPLETION_GATE_INIT=$(load_literature_review_stage completion_gate "${topic:-$ARGUMENTS}")
+if [ $? -ne 0 ]; then
+  echo "ERROR: gpd initialization failed: $COMPLETION_GATE_INIT"
+  exit 1
+fi
+```
+
+Parse the completion refresh for `topic`, `slug`, and any final presentation/runtime fields before presenting results.
+
 On completion:
 
 - Verify `GPD/literature/{slug}-REVIEW.md` exists on disk
-- If emitted, verify `GPD/literature/{slug}-CITATION-SOURCES.json` exists on disk
-- Return `gpd_return.status: completed` with:
-  - `files_written: [GPD/literature/{slug}-REVIEW.md]`
-  - `issues: []`
-  - `next_actions: [recommended follow-up actions or reading path]`
-  - `papers_reviewed`, `field_assessment`, and citation verification details as needed
+- Verify `GPD/literature/{slug}-CITATION-SOURCES.json` exists on disk and remains aligned with the review's Full Reference List
+- Return `gpd_return.status: completed` only when the review is named in `gpd_return.files_written` and the sidecar is present, readable, and aligned on disk
+- Include `papers_reviewed`, `field_assessment`, and citation verification details as needed
+- If either artifact is missing, malformed, or stale, return `gpd_return.status: blocked` or `failed` instead of `completed`
 
 On checkpoint:
 
