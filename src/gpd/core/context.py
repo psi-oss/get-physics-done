@@ -71,7 +71,7 @@ from gpd.core.proof_review import (
     resolve_phase_proof_review_status,
 )
 from gpd.core.protocol_bundles import render_protocol_bundle_context, select_protocol_bundles
-from gpd.core.publication_runtime import resolve_publication_runtime_snapshot
+from gpd.core.publication_runtime import publication_runtime_snapshot_context
 from gpd.core.reference_ingestion import ingest_manuscript_reference_status, ingest_reference_artifacts
 from gpd.core.results import result_list
 from gpd.core.resume_surface import (
@@ -97,7 +97,10 @@ from gpd.core.utils import phase_sort_key as _phase_sort_key
 from gpd.core.utils import safe_read_file as _safe_read_file
 from gpd.core.utils import safe_read_file_truncated as _safe_read_file_truncated
 from gpd.core.workflow_staging import (
+    ARXIV_SUBMISSION_BOOTSTRAP_FIELDS,
+    ARXIV_SUBMISSION_SNAPSHOT_FIELDS,
     PEER_REVIEW_INIT_FIELDS,
+    load_arxiv_submission_stage_contract,
 )
 from gpd.core.workflow_staging import (
     PLAN_PHASE_CONTRACT_GATE_FIELDS as _PLAN_PHASE_CONTRACT_GATE_FIELDS,
@@ -790,6 +793,7 @@ def _ignore_dirs() -> frozenset[str]:
 
 
 __all__ = [
+    "init_arxiv_submission",
     "init_execute_phase",
     "init_map_research",
     "init_milestone_op",
@@ -940,9 +944,7 @@ def _resolve_reentry_context(
         "project_reentry_mode": resolution.mode,
         "project_reentry_requires_selection": resolution.requires_user_selection,
         "project_reentry_selected_candidate": (
-            resolution.selected_candidate.model_dump(mode="json")
-            if resolution.selected_candidate is not None
-            else None
+            resolution.selected_candidate.model_dump(mode="json") if resolution.selected_candidate is not None else None
         ),
         "project_reentry_candidates": [candidate.model_dump(mode="json") for candidate in resolution.candidates],
     }
@@ -966,7 +968,6 @@ def _normalize_phase_name(phase: str) -> str:
     Delegates to :func:`gpd.core.utils.phase_normalize`.
     """
     return _phase_normalize_impl(phase)
-
 
 
 def _find_phase_artifact(phase_dir: Path, suffix: str, standalone: str | None = None) -> str | None:
@@ -1112,10 +1113,7 @@ def _load_project_contract(cwd: Path) -> tuple[ResearchContract | None, dict[str
                     "Using project_contract from %s because the primary state.json was unavailable or unreadable",
                     source_path,
                 )
-            elif any(
-                "primary state.json was missing" in str(item)
-                for item in load_info.get("warnings") or []
-            ):
+            elif any("primary state.json was missing" in str(item) for item in load_info.get("warnings") or []):
                 logger.warning(
                     "Using project_contract from %s because the primary state.json was missing",
                     source_path,
@@ -1131,9 +1129,7 @@ def _load_project_contract(cwd: Path) -> tuple[ResearchContract | None, dict[str
 def _sorted_markdown_files(directory: Path) -> list[Path]:
     """Return markdown files in a directory, sorted by name."""
     try:
-        return sorted(
-            path for path in directory.iterdir() if path.is_file() and path.suffix == ".md"
-        )
+        return sorted(path for path in directory.iterdir() if path.is_file() and path.suffix == ".md")
     except FileNotFoundError:
         return []
 
@@ -1543,9 +1539,7 @@ def _render_active_reference_context(
         lines.extend(f"- Knowledge doc: {path}" for path in stable_knowledge_doc_files)
     else:
         lines.append("- No runtime-active stable knowledge docs found yet.")
-    suppressed_count = sum(
-        count for status, count in knowledge_doc_status_counts.items() if status != "stable"
-    )
+    suppressed_count = sum(count for status, count in knowledge_doc_status_counts.items() if status != "stable")
     if suppressed_count:
         lines.append(
             f"- {suppressed_count} non-stable knowledge doc(s) remain inventory-visible only and are excluded from active carry-forward context."
@@ -1606,9 +1600,7 @@ def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
     research_map_reference_files = [_relative_posix(cwd, path) for path in prioritized_research_map_paths]
     knowledge_doc_files = [record.path for record in knowledge_inventory.records]
     stable_knowledge_doc_files = [
-        record.path
-        for record in knowledge_inventory.records
-        if record.status == "stable" and record.is_fresh_approved
+        record.path for record in knowledge_inventory.records if record.status == "stable" and record.is_fresh_approved
     ]
     stable_knowledge_paths = [cwd / rel_path for rel_path in stable_knowledge_doc_files]
     knowledge_doc_status_counts = knowledge_inventory.status_counts()
@@ -1635,7 +1627,11 @@ def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
         "stable_knowledge_doc_files": stable_knowledge_doc_files,
         "stable_knowledge_doc_count": len(stable_knowledge_doc_files),
         "knowledge_doc_status_counts": knowledge_doc_status_counts,
-        "reference_artifact_files": [*stable_knowledge_doc_files, *research_map_reference_files, *literature_review_files],
+        "reference_artifact_files": [
+            *stable_knowledge_doc_files,
+            *research_map_reference_files,
+            *literature_review_files,
+        ],
         "reference_artifacts_content": "\n\n".join(content_sections) if content_sections else None,
     }
 
@@ -1663,8 +1659,7 @@ def _build_reference_runtime_context(
     derived_knowledge_docs = [record.to_context_dict() for record in artifact_ingestion.knowledge_docs]
     derived_citation_sources = [item.to_context_dict() for item in artifact_ingestion.citation_sources]
     derived_manuscript_reference_status = {
-        record.reference_id: record.to_context_dict()
-        for record in manuscript_reference_status.reference_status
+        record.reference_id: record.to_context_dict() for record in manuscript_reference_status.reference_status
     }
     active_references = _merge_active_references(_serialize_active_references(contract), derived_references)
     effective_reference_intake = _merge_reference_intake(
@@ -1723,7 +1718,9 @@ def _build_reference_runtime_context(
             )
 
     return {
-        "project_contract": visible_context_contract.model_dump(mode="json") if visible_context_contract is not None else None,
+        "project_contract": visible_context_contract.model_dump(mode="json")
+        if visible_context_contract is not None
+        else None,
         "project_contract_validation": project_contract_validation,
         "project_contract_load_info": project_contract_load_info,
         "project_contract_gate": project_contract_gate,
@@ -1828,11 +1825,12 @@ def _build_publication_bootstrap_runtime_context(
         persist_manifest=persist_manuscript_proof_review_manifest,
     )
     derived_manuscript_reference_status = {
-        record.reference_id: record.to_context_dict()
-        for record in manuscript_reference_status.reference_status
+        record.reference_id: record.to_context_dict() for record in manuscript_reference_status.reference_status
     }
     return {
-        "project_contract": visible_context_contract.model_dump(mode="json") if visible_context_contract is not None else None,
+        "project_contract": visible_context_contract.model_dump(mode="json")
+        if visible_context_contract is not None
+        else None,
         "project_contract_validation": project_contract_validation,
         "project_contract_load_info": project_contract_load_info,
         "project_contract_gate": project_contract_gate,
@@ -1854,6 +1852,19 @@ def _build_publication_bootstrap_runtime_context(
     }
 
 
+def _build_publication_runtime_snapshot_context(
+    cwd: Path,
+    *,
+    persist_manuscript_proof_review_manifest: bool = False,
+) -> dict[str, object]:
+    """Build the canonical publication snapshot payload used by publication commands."""
+
+    return publication_runtime_snapshot_context(
+        cwd,
+        persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
+    )
+
+
 def _build_peer_review_runtime_context(
     cwd: Path,
     *,
@@ -1862,13 +1873,20 @@ def _build_peer_review_runtime_context(
     """Build the shared publication runtime payload for peer-review init and staging."""
 
     result = dict(
-        _build_reference_runtime_context(cwd, persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest)
+        _build_reference_runtime_context(
+            cwd, persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest
+        )
     )
     result.update(
-        resolve_publication_runtime_snapshot(
+        _build_publication_bootstrap_runtime_context(
+            cwd, persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest
+        )
+    )
+    result.update(
+        _build_publication_runtime_snapshot_context(
             cwd,
             persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
-        ).to_context_dict(cwd)
+        )
     )
     return result
 
@@ -1982,10 +2000,7 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
         has_active_resume_target
         and session_hostname
         and session_platform
-        and (
-            session_hostname != current_hostname
-            or session_platform != current_platform
-        )
+        and (session_hostname != current_hostname or session_platform != current_platform)
     )
     machine_change_notice = None
     if machine_change_detected:
@@ -2010,9 +2025,7 @@ def _build_execution_runtime_context(cwd: Path) -> dict[str, object]:
             )
         ),
         "execution_pre_fanout_review_pending": bool(snapshot and snapshot.pre_fanout_review_pending),
-        "execution_skeptical_requestioning_required": bool(
-            snapshot and snapshot.skeptical_requestioning_required
-        ),
+        "execution_skeptical_requestioning_required": bool(snapshot and snapshot.skeptical_requestioning_required),
         "execution_downstream_locked": bool(snapshot and snapshot.downstream_locked),
         "execution_blocked": bool(snapshot and snapshot.blocked_reason),
         "execution_resumable": is_resumable,
@@ -2114,7 +2127,11 @@ def _select_active_resume_candidate(
     active_kind = active_resume_kind.strip()
     if not active_kind:
         return None
-    active_pointer = active_resume_pointer.strip() if isinstance(active_resume_pointer, str) and active_resume_pointer.strip() else None
+    active_pointer = (
+        active_resume_pointer.strip()
+        if isinstance(active_resume_pointer, str) and active_resume_pointer.strip()
+        else None
+    )
 
     if active_pointer is not None:
         for candidate in resume_candidates:
@@ -2242,8 +2259,7 @@ def _build_resume_read_state(
 
     if isinstance(resume_projection.handoff_resume_file, str) and resume_projection.handoff_resume_file:
         if not any(
-            candidate.get("resume_pointer") == resume_projection.handoff_resume_file
-            for candidate in resume_candidates
+            candidate.get("resume_pointer") == resume_projection.handoff_resume_file for candidate in resume_candidates
         ):
             candidate = {
                 "source": "session_resume_file",
@@ -2310,7 +2326,9 @@ def _build_resume_read_state(
                 )
             )
 
-    hydrated_resume_candidates = [_hydrate_resume_result(candidate, result_lookup_by_id) for candidate in resume_candidates]
+    hydrated_resume_candidates = [
+        _hydrate_resume_result(candidate, result_lookup_by_id) for candidate in resume_candidates
+    ]
 
     if handoff_primary:
         active_resume_kind = "continuity_handoff"
@@ -2424,9 +2442,7 @@ def _promote_auto_selected_recent_bounded_segment(
         ),
     }
     bounded_segment = {
-        key: value
-        for key, value in bounded_segment.items()
-        if not isinstance(value, str) or value.strip()
+        key: value for key, value in bounded_segment.items() if not isinstance(value, str) or value.strip()
     }
 
     raw_candidate = build_resume_segment_candidate(bounded_segment, source="recent_project")
@@ -2543,6 +2559,7 @@ def _resolve_model(
     runtime: str | None = None,
 ) -> str | None:
     """Resolve the runtime-specific model override for an agent type."""
+
     def _normalize_runtime_local(value: object) -> str | None:
         if isinstance(value, str):
             normalized = value.strip()
@@ -2646,8 +2663,7 @@ def init_execute_phase(
     """
     if not phase:
         raise ValidationError(
-            "phase is required for init execute-phase. "
-            "Provide a phase identifier such as '1', '03', or '3.1'."
+            "phase is required for init execute-phase. Provide a phase identifier such as '1', '03', or '3.1'."
         )
 
     includes = includes or set()
@@ -2931,8 +2947,7 @@ def init_plan_phase(
     """
     if not phase:
         raise ValidationError(
-            "phase is required for init plan-phase. "
-            "Provide a phase identifier such as '1', '03', or '3.1'."
+            "phase is required for init plan-phase. Provide a phase identifier such as '1', '03', or '3.1'."
         )
 
     includes = includes or set()
@@ -3042,9 +3057,7 @@ def init_plan_phase(
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
-        raise ValueError(
-            f"plan-phase stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
-        )
+        raise ValueError(f"plan-phase stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
 
     staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
@@ -3132,9 +3145,7 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in result]
     if missing_fields:
-        raise ValueError(
-            f"new-project stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
-        )
+        raise ValueError(f"new-project stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
 
     staged_payload = {field: result[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
@@ -3360,7 +3371,11 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
         missing_continuity_handoff_file = None
     derived_execution_head = continuation_state.get("derived_execution_head")
     if not isinstance(derived_execution_head, dict):
-        derived_execution_head = execution_context.get("current_execution") if isinstance(execution_context.get("current_execution"), dict) else None
+        derived_execution_head = (
+            execution_context.get("current_execution")
+            if isinstance(execution_context.get("current_execution"), dict)
+            else None
+        )
     resume_candidates = continuation_state.get("resume_candidates")
     if not isinstance(resume_candidates, list):
         resume_candidates = []
@@ -3486,9 +3501,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
     staged_source = canonicalize_resume_public_payload(staged_source)
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
-        raise ValueError(
-            f"resume-work stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
-        )
+        raise ValueError(f"resume-work stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
 
     staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
@@ -3557,9 +3570,7 @@ def init_sync_state(cwd: Path, *, prefer_mode: str | None = None, stage: str | N
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
-        raise ValueError(
-            f"sync-state stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
-        )
+        raise ValueError(f"sync-state stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
 
     staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
@@ -3570,8 +3581,7 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
     """Assemble context for work verification."""
     if not phase:
         raise ValidationError(
-            "phase is required for init verify-work. "
-            "Provide a phase identifier such as '1', '03', or '3.1'."
+            "phase is required for init verify-work. Provide a phase identifier such as '1', '03', or '3.1'."
         )
 
     config = load_config(cwd)
@@ -3642,9 +3652,7 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
-        raise ValueError(
-            f"verify-work stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
-        )
+        raise ValueError(f"verify-work stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
 
     staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
@@ -3665,6 +3673,7 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
     if stage is None:
         result = dict(base_result)
         result.update(_build_publication_bootstrap_runtime_context(cwd))
+        result.update(_build_publication_runtime_snapshot_context(cwd))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -3707,9 +3716,7 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
-        raise ValueError(
-            f"write-paper stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
-        )
+        raise ValueError(f"write-paper stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
 
     staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
@@ -3729,7 +3736,9 @@ def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
     }
     if stage is None:
         result = dict(base_result)
-        result.update(_build_peer_review_runtime_context(cwd))
+        result.update(_build_reference_runtime_context(cwd))
+        result.update(_build_publication_bootstrap_runtime_context(cwd))
+        result.update(_build_publication_runtime_snapshot_context(cwd))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -3751,14 +3760,54 @@ def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
     if required_fields & _PEER_REVIEW_REFERENCE_RUNTIME_FIELDS:
         staged_source.update(_build_reference_runtime_context(cwd))
     if required_fields & _PEER_REVIEW_PUBLICATION_RUNTIME_FIELDS:
-        staged_source.update(
-            resolve_publication_runtime_snapshot(cwd).to_context_dict(cwd)
-        )
+        staged_source.update(_build_publication_runtime_snapshot_context(cwd))
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
+    if missing_fields:
+        raise ValueError(f"peer-review stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
+
+    staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
+    staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
+    return staged_payload
+
+
+def init_arxiv_submission(cwd: Path, stage: str | None = None) -> dict:
+    """Assemble context for arXiv submission packaging."""
+    config = load_config(cwd)
+    base_result: dict[str, object] = {
+        "commit_docs": config["commit_docs"],
+        "state_exists": _state_exists(cwd),
+        "project_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}"),
+        "autonomy": config["autonomy"],
+        "research_mode": config["research_mode"],
+        "platform": _detect_platform(cwd),
+    }
+    if stage is None:
+        result = dict(base_result)
+        result.update(_build_publication_bootstrap_runtime_context(cwd))
+        result.update(_build_publication_runtime_snapshot_context(cwd))
+        return result
+
+    manifest = load_arxiv_submission_stage_contract()
+    try:
+        stage_def = manifest.stage_by_id(stage)
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown arxiv-submission stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
+        ) from exc
+
+    required_fields = set(stage_def.required_init_fields)
+    staged_source = dict(base_result)
+
+    if required_fields & ARXIV_SUBMISSION_BOOTSTRAP_FIELDS:
+        staged_source.update(_build_publication_bootstrap_runtime_context(cwd))
+    if required_fields & ARXIV_SUBMISSION_SNAPSHOT_FIELDS:
+        staged_source.update(_build_publication_runtime_snapshot_context(cwd))
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
         raise ValueError(
-            f"peer-review stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
+            f"arxiv-submission stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
         )
 
     staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}

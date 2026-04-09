@@ -412,8 +412,10 @@ def test_update_workflow_uses_runtime_placeholders_for_cache_paths() -> None:
 
 
 def test_referee_response_round_suffix_convention_is_consistent() -> None:
+    write_paper = _read("src/gpd/specs/workflows/write-paper.md")
     peer_review = _read("src/gpd/specs/workflows/peer-review.md")
     respond = _read("src/gpd/specs/workflows/respond-to-referees.md")
+    arxiv = _read("src/gpd/specs/workflows/arxiv-submission.md")
     author_response = _read("src/gpd/specs/templates/paper/author-response.md")
     template = _read("src/gpd/specs/templates/paper/referee-response.md")
 
@@ -430,8 +432,14 @@ def test_referee_response_round_suffix_convention_is_consistent() -> None:
     assert "REFEREE_RESPONSE_R2.md" not in respond
     assert "REFEREE_RESPONSE_R2.md" not in template
     assert "paper/referee-reports" not in respond
-    assert "publication-review-round-artifacts.md" in peer_review
+    assert "publication-manuscript-root-preflight.md" in peer_review
     assert "${MANUSCRIPT_ROOT}/REFEREE_RESPONSE" not in peer_review
+    assert "publication-bootstrap-preflight.md" in write_paper
+    assert "publication-response-writer-handoff.md" in write_paper
+    assert "publication-bootstrap-preflight.md" in respond
+    assert "publication-response-writer-handoff.md" in respond
+    assert "publication-bootstrap-preflight.md" in arxiv
+    assert "publication-response-writer-handoff.md" not in arxiv
 
 
 def test_bibliography_template_tracks_live_references_bib_path() -> None:

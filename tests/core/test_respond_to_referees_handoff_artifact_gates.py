@@ -27,8 +27,7 @@ def test_respond_to_referees_response_letter_generation_stays_file_backed_and_fr
     source = WORKFLOW.read_text(encoding="utf-8")
 
     assert (
-        "Treat those files as complete only if the expected mirrored artifacts exist on disk and the latest paper-writer turn named the revised section file plus both response artifacts in its fresh `gpd_return.files_written`."
+        "Treat those files as complete only if the expected mirrored artifacts exist on disk and the orchestrator has aggregated every section handoff: the revised section file exists, both response artifacts exist, and the fresh child `gpd_return.files_written` for that section names all required outputs."
         in source
     )
     assert "Do not rely on stale pre-existing edits or prose completion alone." in source
-

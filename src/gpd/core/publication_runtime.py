@@ -30,6 +30,7 @@ __all__ = [
     "PublicationReviewArtifacts",
     "PublicationRuntimeSnapshot",
     "publication_blockers_for_project",
+    "publication_runtime_snapshot_context",
     "resolve_latest_publication_response_artifacts",
     "resolve_latest_publication_review_artifacts",
     "resolve_publication_runtime_snapshot",
@@ -186,9 +187,8 @@ class PublicationRuntimeSnapshot:
             "manuscript_root": _relative_path(project_root, artifacts.manuscript_root),
             "manuscript_entrypoint": _relative_path(project_root, artifacts.manuscript_entrypoint),
             "artifact_manifest_path": _relative_path(project_root, artifacts.artifact_manifest),
-            "bibliography_audit_path": reference_status.bibliography_audit_path or _relative_path(
-                project_root, artifacts.bibliography_audit
-            ),
+            "bibliography_audit_path": reference_status.bibliography_audit_path
+            or _relative_path(project_root, artifacts.bibliography_audit),
             "reproducibility_manifest_path": _relative_path(project_root, artifacts.reproducibility_manifest),
             "manuscript_reference_status_warnings": list(reference_status.reference_status_warnings),
             "derived_manuscript_reference_status": derived_reference_status,
@@ -459,3 +459,16 @@ def resolve_publication_runtime_snapshot(
         latest_response_artifacts=latest_response_artifacts,
         publication_blockers=publication_blockers,
     )
+
+
+def publication_runtime_snapshot_context(
+    project_root: Path,
+    *,
+    persist_manuscript_proof_review_manifest: bool = False,
+) -> dict[str, object]:
+    """Return the canonical publication runtime snapshot as a context payload."""
+
+    return resolve_publication_runtime_snapshot(
+        project_root,
+        persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest,
+    ).to_context_dict(project_root)

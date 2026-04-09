@@ -1,0 +1,297 @@
+{
+  "schema_version": 1,
+  "workflow_id": "arxiv-submission",
+  "stages": [
+    {
+      "id": "bootstrap",
+      "order": 1,
+      "purpose": "publication bootstrap, manuscript target resolution, and fail-closed latest-review gating",
+      "mode_paths": [
+        "workflows/arxiv-submission.md"
+      ],
+      "required_init_fields": [
+        "commit_docs",
+        "state_exists",
+        "project_exists",
+        "autonomy",
+        "research_mode",
+        "platform",
+        "manuscript_resolution_status",
+        "manuscript_resolution_detail",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+        "manuscript_reference_status_warnings",
+        "derived_manuscript_reference_status",
+        "derived_manuscript_reference_status_count",
+        "derived_manuscript_proof_review_status",
+        "publication_blockers",
+        "publication_blocker_count",
+        "latest_review_round",
+        "latest_review_round_suffix",
+        "latest_review_ledger",
+        "latest_referee_decision",
+        "latest_review_artifacts"
+      ],
+      "loaded_authorities": [
+        "workflows/arxiv-submission.md",
+        "references/publication/publication-bootstrap-preflight.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "references/publication/publication-review-round-artifacts.md",
+        "references/publication/publication-response-artifacts.md",
+        "references/publication/peer-review-reliability.md"
+      ],
+      "allowed_tools": [
+        "file_read",
+        "find_files",
+        "search_files",
+        "shell",
+        "task"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "bootstrap routing state",
+        "manuscript target state"
+      ],
+      "next_stages": [
+        "manuscript_preflight"
+      ],
+      "checkpoints": [
+        "manuscript target resolved",
+        "latest review gate visible"
+      ]
+    },
+    {
+      "id": "manuscript_preflight",
+      "order": 2,
+      "purpose": "manuscript-root refresh, bibliography freshness, and compiler smoke-check readiness",
+      "mode_paths": [
+        "workflows/arxiv-submission.md"
+      ],
+      "required_init_fields": [
+        "commit_docs",
+        "state_exists",
+        "project_exists",
+        "autonomy",
+        "research_mode",
+        "platform",
+        "manuscript_resolution_status",
+        "manuscript_resolution_detail",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+        "manuscript_reference_status_warnings",
+        "derived_manuscript_reference_status",
+        "derived_manuscript_reference_status_count",
+        "derived_manuscript_proof_review_status",
+        "publication_blockers",
+        "publication_blocker_count",
+        "latest_review_round",
+        "latest_review_round_suffix",
+        "latest_review_ledger",
+        "latest_referee_decision",
+        "latest_review_artifacts"
+      ],
+      "loaded_authorities": [
+        "workflows/arxiv-submission.md",
+        "templates/paper/publication-manuscript-root-preflight.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "references/publication/publication-review-round-artifacts.md",
+        "references/publication/publication-response-artifacts.md",
+        "references/publication/peer-review-reliability.md"
+      ],
+      "allowed_tools": [
+        "file_read",
+        "file_write",
+        "shell",
+        "task"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "manuscript preflight state",
+        "build freshness state"
+      ],
+      "next_stages": [
+        "review_gate"
+      ],
+      "checkpoints": [
+        "manuscript build refreshed",
+        "bibliography audit clean"
+      ]
+    },
+    {
+      "id": "review_gate",
+      "order": 3,
+      "purpose": "latest review-round validation and submission clearance",
+      "mode_paths": [
+        "workflows/arxiv-submission.md"
+      ],
+      "required_init_fields": [
+        "commit_docs",
+        "state_exists",
+        "project_exists",
+        "autonomy",
+        "research_mode",
+        "platform",
+        "manuscript_resolution_status",
+        "manuscript_resolution_detail",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+        "manuscript_reference_status_warnings",
+        "derived_manuscript_reference_status",
+        "derived_manuscript_reference_status_count",
+        "derived_manuscript_proof_review_status",
+        "publication_blockers",
+        "publication_blocker_count",
+        "latest_review_round",
+        "latest_review_round_suffix",
+        "latest_review_ledger",
+        "latest_referee_decision",
+        "latest_review_artifacts"
+      ],
+      "loaded_authorities": [
+        "workflows/arxiv-submission.md",
+        "references/publication/publication-review-round-artifacts.md",
+        "references/publication/peer-review-reliability.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [],
+      "allowed_tools": [
+        "file_read",
+        "shell",
+        "task"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "latest review gate state",
+        "submission clearance state"
+      ],
+      "next_stages": [
+        "package"
+      ],
+      "checkpoints": [
+        "latest review artifacts complete",
+        "submission recommendation floor satisfied"
+      ]
+    },
+    {
+      "id": "package",
+      "order": 4,
+      "purpose": "submission-tree construction, figure handling, metadata checks, and tarball assembly",
+      "mode_paths": [
+        "workflows/arxiv-submission.md"
+      ],
+      "required_init_fields": [
+        "commit_docs",
+        "state_exists",
+        "project_exists",
+        "autonomy",
+        "research_mode",
+        "platform",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+        "derived_manuscript_reference_status",
+        "derived_manuscript_reference_status_count",
+        "derived_manuscript_proof_review_status",
+        "publication_blockers",
+        "publication_blocker_count",
+        "latest_review_round",
+        "latest_review_round_suffix",
+        "latest_review_ledger",
+        "latest_referee_decision",
+        "latest_review_artifacts"
+      ],
+      "loaded_authorities": [
+        "workflows/arxiv-submission.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "references/publication/publication-review-round-artifacts.md",
+        "references/publication/peer-review-reliability.md"
+      ],
+      "allowed_tools": [
+        "file_read",
+        "file_write",
+        "shell",
+        "task"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "submission package state",
+        "submission artifact state"
+      ],
+      "next_stages": [
+        "finalize"
+      ],
+      "checkpoints": [
+        "submission tree assembled",
+        "tarball verifiable at root"
+      ]
+    },
+    {
+      "id": "finalize",
+      "order": 5,
+      "purpose": "final checklist presentation and submission handoff",
+      "mode_paths": [
+        "workflows/arxiv-submission.md"
+      ],
+      "required_init_fields": [
+        "commit_docs",
+        "state_exists",
+        "project_exists",
+        "autonomy",
+        "research_mode",
+        "platform",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+        "derived_manuscript_reference_status",
+        "derived_manuscript_reference_status_count",
+        "derived_manuscript_proof_review_status",
+        "publication_blockers",
+        "publication_blocker_count",
+        "latest_review_round",
+        "latest_review_round_suffix",
+        "latest_review_ledger",
+        "latest_referee_decision",
+        "latest_review_artifacts"
+      ],
+      "loaded_authorities": [
+        "workflows/arxiv-submission.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [],
+      "allowed_tools": [
+        "file_read",
+        "shell",
+        "task"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "submission checklist state",
+        "final submission state"
+      ],
+      "next_stages": [],
+      "checkpoints": [
+        "submission checklist presented",
+        "manual submission steps identified"
+      ]
+    }
+  ]
+}

@@ -86,9 +86,9 @@ gpd validate review-preflight write-paper --strict
 ```
 
 If review preflight exits nonzero because of missing project state, missing roadmap, degraded review integrity, missing research artifacts, or non-review-ready reproducibility coverage, STOP and show the blocking issues before drafting.
-Apply the shared manuscript-root bootstrap contract exactly:
+Apply the shared publication bootstrap preflight exactly:
 
-@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md
+@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md
 
 Keep the current `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, and `active_reference_context` visible throughout the staged review; the contract is authoritative only when `project_contract_gate.authoritative` is true.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of proof-review freshness for theorem-bearing results; keep passed proof-redteam artifacts authoritative for strict drafting decisions.
@@ -1049,7 +1049,7 @@ When revising a paper in response to referee reports:
      subagent_type="gpd-paper-writer",
      model="{writer_model}",
      readonly=false,
-     prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\nRead the canonical <author_response> protocol at {GPD_INSTALL_DIR}/templates/paper/author-response.md, the canonical referee response template at {GPD_INSTALL_DIR}/templates/paper/referee-response.md, and the shared response-artifact contract at {GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md. Produce both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`.\n\n<autonomy_mode>{AUTONOMY}</autonomy_mode>\n<research_mode>{RESEARCH_MODE}</research_mode>\n" +
+     prompt="First, read {GPD_AGENTS_DIR}/gpd-paper-writer.md for your role and instructions.\n\nRead the canonical <author_response> protocol at {GPD_INSTALL_DIR}/templates/paper/author-response.md, the canonical referee response template at {GPD_INSTALL_DIR}/templates/paper/referee-response.md, and the shared publication response-writer handoff at {GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md. Produce both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`.\n\n<autonomy_mode>{AUTONOMY}</autonomy_mode>\n<research_mode>{RESEARCH_MODE}</research_mode>\n" +
        "Referee report: GPD/REFEREE-REPORT{round_suffix}.md\n" +
        "Review ledger (if present): GPD/review/REVIEW-LEDGER{round_suffix}.json\n" +
        "Decision artifact (if present): GPD/review/REFEREE-DECISION{round_suffix}.json\n" +
@@ -1062,15 +1062,14 @@ When revising a paper in response to referee reports:
    )
    ```
 
-   Apply the shared publication round and response contracts exactly:
+   Apply the shared publication response-writer handoff exactly:
 
-   @{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md
-   @{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md
+   @{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md
 
-   **If the response-artifact agent fails to spawn or returns an error:** Check the agent's typed `gpd_return.status` first. If it returned `status: completed`, verify that `gpd_return.files_written` names both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`, and verify both files exist on disk. If it returned `status: checkpoint`, treat that as a fresh continuation handoff rather than completion. If it returned `status: blocked` or `status: failed`, treat the response as incomplete. Do not accept preexisting response files as a substitute for a successful spawn; the round remains incomplete until a fresh typed return names both outputs and both files exist on disk.
+   **If the response-handoff agent fails to spawn or returns an error:** Check the agent's typed `gpd_return.status` first. If it returned `status: completed`, verify that `gpd_return.files_written` names both `GPD/AUTHOR-RESPONSE{round_suffix}.md` and `GPD/review/REFEREE_RESPONSE{round_suffix}.md`, and verify both files exist on disk. If it returned `status: checkpoint`, treat that as a fresh continuation handoff rather than completion. If it returned `status: blocked` or `status: failed`, treat the response as incomplete. Do not accept preexisting response files as a substitute for a successful spawn; the round remains incomplete until a fresh typed return names both outputs and both files exist on disk.
    Treat `GPD/AUTHOR-RESPONSE{round_suffix}.md`, `GPD/review/REFEREE_RESPONSE{round_suffix}.md`, and the writer's typed `gpd_return` envelope as the response success gate. If the shared gate is not satisfied, offer: 1) Retry the agent, 2) Draft the response artifacts in the main context using the referee report and revised manuscript, 3) Skip structured response and proceed directly to calculation tracking.
 
-   See the canonical `templates/paper/author-response.md` and `templates/paper/referee-response.md` contracts plus the shared response-artifact contract for the full response-tracker format.
+   See the canonical `templates/paper/author-response.md` and `templates/paper/referee-response.md` contracts plus the shared publication response-writer handoff for the full response-tracker format.
 
 4. **Track new calculations:** If referee requests require new derivations or simulations, create tasks in `${PAPER_DIR}/REVISION_TASKS.md` and route to appropriate phases.
 

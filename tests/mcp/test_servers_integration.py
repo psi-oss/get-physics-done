@@ -599,21 +599,21 @@ class TestSkillsServerIntegration:
                 "@{GPD_INSTALL_DIR}/templates/latex-preamble.md",
                 "@{GPD_INSTALL_DIR}/references/publication/figure-generation-templates.md",
                 "@{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md",
-                "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md",
-                "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md",
+                "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md",
                 "@{GPD_INSTALL_DIR}/templates/paper/author-response.md",
+                "@{GPD_INSTALL_DIR}/templates/paper/referee-response.md",
             }
         )
         assert paper_writer_template_references == {
             "@{GPD_INSTALL_DIR}/templates/notation-glossary.md",
             "@{GPD_INSTALL_DIR}/templates/latex-preamble.md",
             "@{GPD_INSTALL_DIR}/templates/paper/author-response.md",
+            "@{GPD_INSTALL_DIR}/templates/paper/referee-response.md",
         }
         assert paper_writer["schema_references"] == ["@{GPD_INSTALL_DIR}/templates/paper/author-response.md"]
         assert paper_writer["schema_documents"]
         assert any(path.endswith("verification-core.md") for path in paper_writer_transitive_paths)
-        assert any(path.endswith("publication-review-round-artifacts.md") for path in paper_writer_referenced_paths)
-        assert any(path.endswith("publication-response-artifacts.md") for path in paper_writer_referenced_paths)
+        assert any(path.endswith("publication-response-writer-handoff.md") for path in paper_writer_referenced_paths)
 
     def test_get_skill_surfaces_referee_reference_paths_and_transitive_metadata(self):
         from gpd.mcp.servers.skills_server import get_skill

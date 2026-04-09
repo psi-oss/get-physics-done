@@ -8,12 +8,18 @@ AGENTS_DIR = Path("src/gpd/agents")
 REFERENCES_DIR = Path("src/gpd/specs/references")
 TEMPLATES_DIR = Path("src/gpd/specs/templates")
 PUBLICATION_SHARED_PREFLIGHT = TEMPLATES_DIR / "paper" / "publication-manuscript-root-preflight.md"
-PUBLICATION_SHARED_PREFLIGHT_INCLUDE = "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md"
+PUBLICATION_BOOTSTRAP_PREFLIGHT = REFERENCES_DIR / "publication" / "publication-bootstrap-preflight.md"
+PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = (
+    "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
+)
 PUBLICATION_ROUND_ARTIFACTS_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
 )
 PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md"
+)
+PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE = (
+    "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
 )
 PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
 OWNED_COMMANDS = (
@@ -87,6 +93,7 @@ def test_write_paper_workflow_drops_authoring_note_placeholders() -> None:
 
 def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrappers() -> None:
     shared_preflight = PUBLICATION_SHARED_PREFLIGHT.read_text(encoding="utf-8")
+    bootstrap_preflight = PUBLICATION_BOOTSTRAP_PREFLIGHT.read_text(encoding="utf-8")
 
     assert (
         "strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and "
@@ -96,6 +103,9 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
     assert "Do not use ad hoc wildcard discovery or first-match filename scans." in shared_preflight
     assert "bibliography_audit_clean" in shared_preflight
     assert "reproducibility_ready" in shared_preflight
+    assert "publication-manuscript-root-preflight.md" in bootstrap_preflight
+    assert "publication-review-round-artifacts.md" in bootstrap_preflight
+    assert "publication-response-artifacts.md" in bootstrap_preflight
 
     for path in (
         COMMANDS_DIR / "write-paper.md",
@@ -104,7 +114,7 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
         COMMANDS_DIR / "arxiv-submission.md",
     ):
         text = path.read_text(encoding="utf-8")
-        assert text.count(PUBLICATION_SHARED_PREFLIGHT_INCLUDE) == 0, path
+        assert text.count(PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE) == 0, path
         assert text.count(PUBLICATION_ROUND_ARTIFACTS_INCLUDE) == 0, path
         assert text.count(PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE) == 0, path
         assert text.count(PUBLICATION_REVIEW_RELIABILITY_INCLUDE) == 0, path
@@ -116,23 +126,34 @@ def test_publication_commands_keep_shared_manuscript_root_preflight_out_of_wrapp
         WORKFLOWS_DIR / "arxiv-submission.md",
     ):
         text = path.read_text(encoding="utf-8")
-        assert text.count(PUBLICATION_SHARED_PREFLIGHT_INCLUDE) == 1, path
-        expected_round_counts = {
+        expected_bootstrap_counts = {
             "write-paper.md": 1,
             "peer-review.md": 0,
             "respond-to-referees.md": 1,
             "arxiv-submission.md": 1,
         }
-        expected_response_counts = {
+        assert text.count(PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE) == expected_bootstrap_counts[path.name], path
+        expected_round_counts = {
+            "write-paper.md": 1,
+            "peer-review.md": 0,
+            "respond-to-referees.md": 0,
+            "arxiv-submission.md": 1,
+        }
+        expected_response_artifact_counts = {}
+        expected_response_handoff_counts = {
             "write-paper.md": 1,
             "respond-to-referees.md": 1,
         }
 
         assert text.count(PUBLICATION_ROUND_ARTIFACTS_INCLUDE) >= expected_round_counts[path.name], path
-        if path.name in expected_response_counts:
-            assert text.count(PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE) >= expected_response_counts[path.name], path
+        if path.name in expected_response_artifact_counts:
+            assert text.count(PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE) >= expected_response_artifact_counts[path.name], path
         else:
             assert PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE not in text, path
+        if path.name in expected_response_handoff_counts:
+            assert text.count(PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE) >= expected_response_handoff_counts[path.name], path
+        else:
+            assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in text, path
         if path.name in {"peer-review.md", "respond-to-referees.md", "arxiv-submission.md"}:
             assert text.count(PUBLICATION_REVIEW_RELIABILITY_INCLUDE) >= 1, path
         else:
@@ -192,9 +213,9 @@ def test_write_paper_command_defers_the_route_list_to_the_workflow() -> None:
 
     assert "Routes to the write-paper workflow:" not in write_paper
     assert "@{GPD_INSTALL_DIR}/workflows/write-paper.md" in write_paper
-    assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE in write_paper_workflow
+    assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in write_paper_workflow
     assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in write_paper_workflow
-    assert PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE in write_paper_workflow
+    assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md" in write_paper_workflow
 
 
 def test_debug_workflow_path_note_is_not_self_contradictory() -> None:

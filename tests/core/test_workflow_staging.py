@@ -36,6 +36,7 @@ def _workflow_payload(workflow_id: str) -> dict[str, object]:
         ("verify-work", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "verify-work-stage-manifest.json"),
         ("write-paper", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "write-paper-stage-manifest.json"),
         ("peer-review", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "peer-review-stage-manifest.json"),
+        ("arxiv-submission", NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "arxiv-submission-stage-manifest.json"),
         ("execute-phase", EXECUTE_PHASE_STAGE_MANIFEST_PATH),
     ],
 )
@@ -414,6 +415,7 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
     assert manifest.stages[2].loaded_authorities == (
         "workflows/peer-review.md",
         "references/publication/publication-review-round-artifacts.md",
+        "references/publication/publication-response-artifacts.md",
     )
     assert manifest.stages[3].loaded_authorities == (
         "workflows/peer-review.md",
@@ -422,7 +424,6 @@ def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -
     assert manifest.stages[4].loaded_authorities == (
         "workflows/peer-review.md",
         "references/publication/peer-review-panel.md",
-        "templates/paper/publication-manuscript-root-preflight.md",
         "templates/paper/review-ledger-schema.md",
         "templates/paper/referee-decision-schema.md",
     )
@@ -584,6 +585,36 @@ def test_validate_workflow_stage_manifest_payload_loads_execute_phase_manifest_s
     assert "references/orchestration/artifact-surfacing.md" in manifest.stages[2].loaded_authorities
     assert manifest.staged_loading_payload("phase_bootstrap")["next_stages"] == ["wave_planning"]
     assert manifest.staged_loading_payload("wave_dispatch")["checkpoints"] == []
+
+
+def test_arxiv_submission_stage_manifest_path_is_reserved_for_staged_loading() -> None:
+    manifest_path = resolve_workflow_stage_manifest_path("arxiv-submission")
+
+    assert manifest_path == NEW_PROJECT_STAGE_MANIFEST_PATH.parent / "arxiv-submission-stage-manifest.json"
+
+
+def test_arxiv_submission_stage_manifest_can_be_loaded_when_present() -> None:
+    manifest_path = resolve_workflow_stage_manifest_path("arxiv-submission")
+
+    if not manifest_path.exists():
+        pytest.skip("arxiv-submission stage manifest has not landed yet")
+
+    manifest = validate_workflow_stage_manifest_payload(
+        json.loads(manifest_path.read_text(encoding="utf-8")),
+        expected_workflow_id="arxiv-submission",
+    )
+
+    assert manifest.stage_ids() == (
+        "bootstrap",
+        "manuscript_preflight",
+        "review_gate",
+        "package",
+        "finalize",
+    )
+    assert "references/publication/publication-bootstrap-preflight.md" in manifest.stage("bootstrap").loaded_authorities
+    assert "references/publication/publication-review-round-artifacts.md" in manifest.stage("review_gate").loaded_authorities
+    assert "references/publication/peer-review-reliability.md" in manifest.stage("review_gate").loaded_authorities
+    assert "references/publication/publication-response-writer-handoff.md" not in manifest.stage("review_gate").loaded_authorities
 
 @pytest.mark.parametrize(
     ("mutator", "message"),

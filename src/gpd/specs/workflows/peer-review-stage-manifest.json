@@ -182,7 +182,8 @@
       ],
       "loaded_authorities": [
         "workflows/peer-review.md",
-        "references/publication/publication-review-round-artifacts.md"
+        "references/publication/publication-review-round-artifacts.md",
+        "references/publication/publication-response-artifacts.md"
       ],
       "conditional_authorities": [],
       "must_not_eager_load": [
@@ -347,7 +348,6 @@
       "loaded_authorities": [
         "workflows/peer-review.md",
         "references/publication/peer-review-panel.md",
-        "templates/paper/publication-manuscript-root-preflight.md",
         "templates/paper/review-ledger-schema.md",
         "templates/paper/referee-decision-schema.md"
       ],

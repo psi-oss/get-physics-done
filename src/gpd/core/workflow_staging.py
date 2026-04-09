@@ -599,12 +599,66 @@ PEER_REVIEW_INIT_FIELDS = frozenset(
         "platform",
     }
 )
+ARXIV_SUBMISSION_BOOTSTRAP_FIELDS = frozenset(
+    {
+        "commit_docs",
+        "state_exists",
+        "project_exists",
+        "autonomy",
+        "research_mode",
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+        "selected_protocol_bundle_ids",
+        "protocol_bundle_context",
+        "active_reference_context",
+        "derived_manuscript_reference_status",
+        "derived_manuscript_reference_status_count",
+        "derived_manuscript_proof_review_status",
+        "platform",
+    }
+)
+ARXIV_SUBMISSION_SNAPSHOT_FIELDS = frozenset(
+    {
+        "manuscript_resolution_status",
+        "manuscript_resolution_detail",
+        "manuscript_root",
+        "manuscript_entrypoint",
+        "artifact_manifest_path",
+        "bibliography_audit_path",
+        "reproducibility_manifest_path",
+        "manuscript_reference_status_warnings",
+        "publication_blockers",
+        "publication_blocker_count",
+        "latest_review_round",
+        "latest_review_round_suffix",
+        "latest_review_ledger",
+        "latest_referee_decision",
+        "latest_referee_report_md",
+        "latest_referee_report_tex",
+        "latest_proof_redteam",
+        "latest_review_artifacts",
+        "latest_response_round",
+        "latest_response_round_suffix",
+        "latest_author_response",
+        "latest_referee_response",
+        "latest_response_artifacts",
+    }
+)
+ARXIV_SUBMISSION_INIT_FIELDS = frozenset(
+    {
+        *ARXIV_SUBMISSION_BOOTSTRAP_FIELDS,
+        *ARXIV_SUBMISSION_SNAPSHOT_FIELDS,
+    }
+)
 _DEFAULT_KNOWN_INIT_FIELDS_BY_WORKFLOW = {
     "resume-work": RESUME_WORK_INIT_FIELDS,
     "sync-state": SYNC_STATE_INIT_FIELDS,
     "new-project": NEW_PROJECT_INIT_FIELDS,
     "new-milestone": NEW_MILESTONE_INIT_FIELDS,
     "peer-review": PEER_REVIEW_INIT_FIELDS,
+    "arxiv-submission": ARXIV_SUBMISSION_INIT_FIELDS,
     "plan-phase": PLAN_PHASE_INIT_FIELDS,
     "quick": QUICK_INIT_FIELDS,
     "verify-work": VERIFY_WORK_INIT_FIELDS,
@@ -862,7 +916,9 @@ def known_init_fields_for_workflow(workflow_id: str | None) -> frozenset[str] | 
     return _DEFAULT_KNOWN_INIT_FIELDS_BY_WORKFLOW.get(normalized_workflow_id)
 
 
-def _validate_conditional_authorities(raw: object, *, stage_index: int) -> tuple[WorkflowStageConditionalAuthority, ...]:
+def _validate_conditional_authorities(
+    raw: object, *, stage_index: int
+) -> tuple[WorkflowStageConditionalAuthority, ...]:
     if not isinstance(raw, list):
         raise ValueError(f"stages[{stage_index}].conditional_authorities must be a list")
 
@@ -927,7 +983,9 @@ def _validate_stage(
     loaded_authorities = tuple(
         _normalize_manifest_doc_path(authority, label=f"stages[{index}].loaded_authorities[{authority_index}]")
         for authority_index, authority in enumerate(
-            _require_string_tuple(raw["loaded_authorities"], label=f"stages[{index}].loaded_authorities", allow_empty=True)
+            _require_string_tuple(
+                raw["loaded_authorities"], label=f"stages[{index}].loaded_authorities", allow_empty=True
+            )
         )
     )
     conditional_authorities = _validate_conditional_authorities(
@@ -937,12 +995,16 @@ def _validate_stage(
     must_not_eager_load = tuple(
         _normalize_manifest_doc_path(authority, label=f"stages[{index}].must_not_eager_load[{authority_index}]")
         for authority_index, authority in enumerate(
-            _require_string_tuple(raw["must_not_eager_load"], label=f"stages[{index}].must_not_eager_load", allow_empty=True)
+            _require_string_tuple(
+                raw["must_not_eager_load"], label=f"stages[{index}].must_not_eager_load", allow_empty=True
+            )
         )
     )
     allowed_tools_values = tuple(
         canonical(tool.strip())
-        for tool in _require_string_tuple(raw["allowed_tools"], label=f"stages[{index}].allowed_tools", allow_empty=True)
+        for tool in _require_string_tuple(
+            raw["allowed_tools"], label=f"stages[{index}].allowed_tools", allow_empty=True
+        )
     )
     writes_allowed = tuple(
         _normalize_write_path(write_path, label=f"stages[{index}].writes_allowed[{write_index}]")
@@ -1024,9 +1086,7 @@ def validate_workflow_stage_manifest_payload(
 
     workflow_id = _normalize_workflow_id(raw["workflow_id"])
     if expected_workflow_id is not None and workflow_id != expected_workflow_id:
-        raise ValueError(
-            f"workflow stage manifest workflow_id must be {expected_workflow_id!r}, got {workflow_id!r}"
-        )
+        raise ValueError(f"workflow stage manifest workflow_id must be {expected_workflow_id!r}, got {workflow_id!r}")
 
     stages_raw = raw["stages"]
     if not isinstance(stages_raw, list) or not stages_raw:
@@ -1064,9 +1124,7 @@ def validate_workflow_stage_manifest_payload(
             if next_stage in stage_id_set and order_by_id[next_stage] <= stage.order
         )
         if backward_next:
-            raise ValueError(
-                f"stage {stage.id!r} must only point to later stages; got {', '.join(backward_next)}"
-            )
+            raise ValueError(f"stage {stage.id!r} must only point to later stages; got {', '.join(backward_next)}")
 
     return WorkflowStageManifest(schema_version=schema_version, workflow_id=workflow_id, stages=stages)
 
@@ -1181,7 +1239,18 @@ def validate_execute_phase_stage_contract_payload(raw: object) -> WorkflowStageM
     return validate_workflow_stage_manifest_payload(raw, expected_workflow_id="execute-phase")
 
 
+def load_arxiv_submission_stage_contract() -> WorkflowStageManifest:
+    return load_workflow_stage_manifest("arxiv-submission")
+
+
+def validate_arxiv_submission_stage_contract_payload(raw: object) -> WorkflowStageManifest:
+    return validate_workflow_stage_manifest_payload(raw, expected_workflow_id="arxiv-submission")
+
+
 __all__ = [
+    "ARXIV_SUBMISSION_BOOTSTRAP_FIELDS",
+    "ARXIV_SUBMISSION_INIT_FIELDS",
+    "ARXIV_SUBMISSION_SNAPSHOT_FIELDS",
     "NEW_PROJECT_INIT_FIELDS",
     "NEW_PROJECT_STAGE_MANIFEST_PATH",
     "NEW_MILESTONE_INIT_FIELDS",
@@ -1217,6 +1286,7 @@ __all__ = [
     "load_new_project_stage_contract_from_path",
     "load_new_milestone_stage_contract",
     "load_new_milestone_stage_contract_from_path",
+    "load_arxiv_submission_stage_contract",
     "load_execute_phase_stage_contract",
     "load_execute_phase_stage_contract_from_path",
     "load_workflow_stage_manifest",
@@ -1225,6 +1295,7 @@ __all__ = [
     "resolve_workflow_stage_manifest_path",
     "validate_new_project_stage_contract_payload",
     "validate_new_milestone_stage_contract_payload",
+    "validate_arxiv_submission_stage_contract_payload",
     "validate_execute_phase_stage_contract_payload",
     "validate_workflow_stage_manifest_payload",
 ]

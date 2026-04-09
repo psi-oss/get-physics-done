@@ -104,8 +104,7 @@ Balanced mode follows the publication-pipeline matrix: draft the manuscript, sel
 - `{GPD_INSTALL_DIR}/references/publication/figure-generation-templates.md` -- Publication-quality matplotlib templates for common physics plot types (load when generating figures)
 - `{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md` -- Mode adaptation for paper structure, derivation detail, figure strategy, and literature integration by autonomy and research_mode (load when calibrating writing approach)
 - `{GPD_INSTALL_DIR}/references/publication/paper-writer-cookbook.md` -- Journal calibration, LaTeX scaffold patterns, figure sizing, and example framing guidance (load when choosing venue-specific structure or preamble details)
-- `{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md` -- Canonical round-suffix and sibling-artifact naming for publication review and response rounds (load when drafting response-round artifacts)
-- `{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md` -- Canonical paired `AUTHOR-RESPONSE` / `REFEREE_RESPONSE` contract and response-round success gate (load when drafting referee-response artifacts)
+- `{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md` -- Canonical paired `AUTHOR-RESPONSE` / `REFEREE_RESPONSE` handoff and response-round success gate (load when drafting referee-response artifacts)
 </references>
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
@@ -1194,7 +1193,7 @@ The phase transition occurs at $g_c = \text{[PENDING]}$, which we determine by..
 
 ## Author Response Protocol
 
-When a `REFEREE-REPORT.md` or `REFEREE-REPORT-R{N}.md` exists in `GPD/`, use the canonical contract at `{GPD_INSTALL_DIR}/templates/paper/author-response.md` together with `{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md` and `{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md`. Treat the referee report as the source of truth for `REF-*` IDs; use `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json` only as secondary calibration for blocking status and recommendation floor.
+When a `REFEREE-REPORT.md` or `REFEREE-REPORT-R{N}.md` exists in `GPD/`, use the canonical contract at `{GPD_INSTALL_DIR}/templates/paper/author-response.md` together with `{GPD_INSTALL_DIR}/templates/paper/referee-response.md` and the shared publication response-writer handoff at `{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md`. Treat the referee report as the source of truth for `REF-*` IDs; use `GPD/review/REVIEW-LEDGER{round_suffix}.json` and `GPD/review/REFEREE-DECISION{round_suffix}.json` only as secondary calibration for blocking status and recommendation floor.
 
 ### Triggering
 

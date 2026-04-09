@@ -87,6 +87,7 @@ def test_peer_review_workflow_defers_stage_authorities_until_the_manifest_stages
     assert manifest.stages[2].loaded_authorities == (
         "workflows/peer-review.md",
         "references/publication/publication-review-round-artifacts.md",
+        "references/publication/publication-response-artifacts.md",
     )
     assert panel_execution.loaded_authorities == (
         "workflows/peer-review.md",

@@ -65,7 +65,7 @@ Reference notes:
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
 Before writing `REVIEW-LEDGER{round_suffix}.json` or `REFEREE-DECISION{round_suffix}.json`, re-open `{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`, `{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md`, and `{GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md`. Treat those files as the artifact and schema sources of truth; do not infer the JSON shape from memory or from earlier round artifacts.
-When the review depends on revision-round response artifacts, also re-open `{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md` and `{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md`. Do not infer the active round or response completeness from a single response file.
+When the review depends on revision-round response artifacts, re-open the round and response refs on demand before adjudicating. Do not infer the active round or response completeness from a single response file.
 
 <panel_adjudication>
 

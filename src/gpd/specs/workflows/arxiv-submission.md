@@ -1,25 +1,30 @@
 <purpose>
-Prepare a completed paper for arXiv submission. The submission gate requires a successful `gpd paper-build` for the resolved manuscript root, then handles LaTeX validation, bibliography flattening, figure format checking, \input resolution, metadata verification, ancillary file packaging, and tarball generation. Output: a submission-ready .tar.gz and a checklist of manual steps remaining.
+Prepare a completed paper for arXiv submission.
+
+This workflow is staged:
+
+1. `bootstrap`
+2. `manuscript_preflight`
+3. `review_gate`
+4. `package`
+5. `finalize`
+
+Keep only arXiv-specific rules inline. Use the shared publication bootstrap reference for manuscript-root resolution, latest-review gating, and fail-closed paired artifact handling.
+
+Output: a submission-ready `arxiv-submission.tar.gz` and a manual submission checklist.
 </purpose>
 
 <required_reading>
-Read all files referenced by the invoking prompt's execution_context before starting.
+Read all files referenced by the invoking prompt's `execution_context` before starting.
+Also read the shared publication bootstrap reference before resolving the manuscript target:
+
+@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md
 </required_reading>
 
 <process>
 
-<step name="init" priority="first">
-**Locate paper directory and load project context:**
-
-```bash
-INIT=$(gpd --raw init phase-op)
-if [ $? -ne 0 ]; then
-  echo "ERROR: gpd initialization failed: $INIT"
-  # STOP — display the error to the user and do not proceed.
-fi
-```
-
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`.
+<step name="bootstrap" priority="first">
+**Resolve the manuscript target and publication bootstrap context.**
 
 Run centralized context preflight before continuing:
 
@@ -45,46 +50,22 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-If review preflight exits nonzero because of missing project state, missing manuscript, missing compiled manuscript, unresolved publication blockers, degraded review integrity, missing conventions, missing staged review artifacts, or stale theorem-proof review state, STOP and fix those blockers before packaging. If `derived_manuscript_reference_status` is present, use it as a first-pass summary of reference coverage and citation freshness, but keep the resolved manuscript root's `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` authoritative for strict packaging decisions.
-If `derived_manuscript_proof_review_status` is present, use it as the first-pass summary of theorem-proof freshness for the resolved manuscript, but keep the manuscript-root proof-redteam and publication artifacts authoritative for strict packaging decisions.
-Strict preflight also requires `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` beside the resolved manuscript entry point. Treat those files as manuscript-root artifact gates. If `$ARGUMENTS` resolves to an explicit manuscript under `paper/`, `manuscript/`, or `draft/`, those review artifacts must come from that same resolved manuscript root, not from legacy `GPD/paper/` copies or some other manuscript directory.
-Treat `gpd paper-build` as the authoritative step that regenerates `BIBLIOGRAPHY-AUDIT.json` for the resolved manuscript root. Do not package stale audit artifacts, even if the bibliography only changed indirectly through a citation-source handoff.
+Use the shared publication bootstrap reference as the source of truth for manuscript-root resolution, latest-review discovery, and paired response gating. Do not duplicate those contracts here.
+If review preflight exits nonzero because of missing project state, missing manuscript, missing compiled manuscript, unresolved publication blockers, degraded review integrity, missing conventions, missing staged review artifacts, or stale theorem-proof review state, STOP and fix those blockers before packaging.
+If `derived_manuscript_proof_review_status` is present, use it as the first-pass theorem-proof freshness for the resolved manuscript, but keep the manuscript-root proof review artifacts authoritative for strict packaging decisions.
+Strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and `reproducibility-manifest.json` from the resolved manuscript directory itself. The same resolved manuscript root is also the strict preflight source of truth for packaging.
 
-Apply the shared manuscript-root artifact gates, peer-review reliability, and round-artifact contract exactly:
-
-@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md
-@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md
-@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md
-
-Those shared references own the canonical manuscript-root and round-artifact policy for arXiv packaging. The local workflow below adds only submission-specific build, review-clearance, and tarball gates.
-Strict preflight also requires the latest round-specific `GPD/review/REVIEW-LEDGER*.json` / `GPD/review/REFEREE-DECISION*.json` pair as authoritative submission-gate input. Missing either artifact is a hard stop. That pair must validate against the active manuscript, and packaging may continue only when the latest recommendation is `accept` or `minor_revision` with no unresolved blocking issues. A latest `major_revision` or `reject` decision is a hard stop for submission packaging. For theorem-bearing manuscripts, `manuscript_proof_review` must also already be cleared; arXiv packaging is not allowed to repair or waive a stale proof review.
-Use `publication-review-round-artifacts.md` and `peer-review-reliability.md` as the canonical source of truth for which latest-round review artifacts count. The local rule above only adds the submission recommendation floor.
-
-**Resolve manuscript target from $ARGUMENTS:**
+Resolve the manuscript target from `$ARGUMENTS`:
 
 1. If `$ARGUMENTS` specifies a `.tex` file, set `resolved_main_tex` to that file and `resolved_dir` to its parent directory.
-2. If `$ARGUMENTS` specifies a directory, resolve the canonical manuscript `.tex` entrypoint under that directory (prefer the path recorded in `ARTIFACT-MANIFEST.json`, otherwise the `PAPER-CONFIG.json`-derived stem), set `resolved_main_tex` to that entry point, and `resolved_dir` to the directory.
-   If no manuscript `.tex` entrypoint exists there, STOP. Do not silently pick an arbitrary `*.tex` file from that directory.
-3. Otherwise, inspect only the documented manuscript roots `paper/`, `manuscript/`, and `draft/` in that order. If exactly one supported root resolves cleanly, use it. If multiple supported roots are present or the manuscript root is ambiguous, STOP and require an explicit manuscript path or a repaired manuscript-root state; do not silently rank one root above another.
+2. If `$ARGUMENTS` specifies a directory, resolve the canonical manuscript `.tex` entrypoint under that directory from `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json` if needed.
+3. Otherwise inspect only the documented manuscript roots `paper/`, `manuscript/`, and `draft/` in that order.
+4. If the manuscript root is ambiguous or missing, STOP and require an explicit manuscript path or a repaired manuscript-root state.
+5. Do not fall back to `find` or arbitrary wildcard matching outside the documented default roots.
 
-4. If still not found, STOP. Do not fall back to `find` or arbitrary wildcard matching outside the documented default roots.
+Then run the centralized publication preflight and review preflight checks. If the latest review artifacts are missing, incomplete, stale, or blocked, or if the manuscript-root gates fail, stop before any packaging work starts.
 
-```bash
-# Regression guardrail wording retained for test alignment:
-# Do not fall back to `find` or arbitrary globbing outside the documented default roots.
-```
-
-**If no paper found:**
-
-```
-No paper directory found. Searched: paper/, manuscript/, draft/
-
-Run gpd:write-paper first to generate a manuscript from research results.
-```
-
-Exit.
-
-**Set working paths:**
+Set:
 
 ```bash
 PAPER_DIR="${resolved_dir}"
@@ -95,554 +76,91 @@ SUBMISSION_DIR="arxiv-submission"
 ```
 </step>
 
-<step name="paper_build_gate">
-**Require the built manuscript contract before packaging:**
+<step name="manuscript_preflight">
+**Refresh the manuscript-root build contract before packaging.**
 
-The resolved manuscript must already have been materialized by `gpd paper-build`. If `${PAPER_DIR}/PAPER-CONFIG.json` exists, refresh the manuscript and artifact manifest with `gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"` before packaging. If `derived_manuscript_reference_status` is present, use it as a fast sanity check for whether citation state is likely fresh or stale, but do not package on that basis alone. If the build artifacts are missing, stale, or invalid, STOP and tell the user to run `gpd paper-build` first. In strict mode, the bibliography audit must also satisfy `bibliography_audit_clean`; unresolved bibliography issues are submission blockers even if the JSON file exists. Do not treat manual `pdflatex` runs as the source of build truth.
-</step>
-
-<step name="paper_quality_gate">
-**Run the paper-quality submission gate before packaging:**
-
-Use the resolved manuscript root as the scoring source of truth. The same resolved manuscript root is also the strict preflight source of truth for `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the compiled PDF. Only rely on that strict-preflight source of truth after the paper-build gate above has succeeded. If `PAPER_DIR` is not already the project's `paper/` directory, create a temporary scratch project root that mirrors `GPD/` and exposes the resolved manuscript directory as `paper/` for scoring, then run:
-
-```bash
-QUALITY_ROOT="."
-if [ "${PAPER_DIR}" != "paper" ] && [ "${PAPER_DIR}" != "./paper" ]; then
-  QUALITY_ROOT=$(mktemp -d)
-  ln -s "$(pwd)/GPD" "${QUALITY_ROOT}/GPD"
-  ln -s "$(cd "${PAPER_DIR}" && pwd)" "${QUALITY_ROOT}/paper"
-fi
-
-FORCE_SUBMISSION=false
-case " $ARGUMENTS " in
-  *" --force "*) FORCE_SUBMISSION=true ;;
-esac
-
-QUALITY_REPORT=$(gpd --raw validate paper-quality --from-project "${QUALITY_ROOT}" 2>&1)
-QUALITY_STATUS=$?
-```
-
-If `QUALITY_STATUS != 0` and `FORCE_SUBMISSION` is false, STOP and show the report. arXiv packaging is blocked until the paper-quality gate passes for the resolved manuscript target.
-
-If `QUALITY_STATUS != 0` and `FORCE_SUBMISSION` is true, show the failing quality report, state clearly that packaging is continuing only because the user explicitly forced submission, and keep that warning in the final checklist.
-
-If `QUALITY_STATUS == 0`, continue normally and carry the reported score/status into the final summary.
-</step>
-
-<step name="validate_latex">
-**Run an optional local compiler smoke check after the built manuscript is validated:**
-
-```bash
-# Cross-platform detection: PATH first, then Windows-specific locations
-if command -v pdflatex >/dev/null 2>&1; then
-  PDFLATEX_AVAILABLE=true
-elif [ -n "$WINDIR" ]; then
-  for DIR in \
-    "$LOCALAPPDATA/Programs/MiKTeX/miktex/bin/x64" \
-    "$PROGRAMFILES/MiKTeX/miktex/bin/x64" \
-    "$PROGRAMFILES/texlive"/*/bin/windows \
-    "$PROGRAMFILES/texlive"/*/bin/win64 \
-    "C:/texlive"/*/bin/windows \
-    "C:/texlive"/*/bin/win64; do
-    if [ -f "$DIR/pdflatex.exe" ]; then
-      export PATH="$DIR:$PATH"
-      PDFLATEX_AVAILABLE=true
-      break
-    fi
-  done
-  [ -z "$PDFLATEX_AVAILABLE" ] && PDFLATEX_AVAILABLE=false
-else
-  PDFLATEX_AVAILABLE=false
-fi
-```
-
-**If `PDFLATEX_AVAILABLE` is false:**
-
-```
-WARNING: pdflatex is not available, so local compilation smoke checks will be skipped.
-The paper-build artifact contract still allows packaging to continue.
-```
-
-**If pdflatex is available, compile:**
-
-If `${PAPER_DIR}/PAPER-CONFIG.json` exists, refresh the manuscript and artifact manifest first:
+Treat `gpd paper-build` as authoritative for `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json`. If `${PAPER_DIR}/PAPER-CONFIG.json` exists, refresh the manuscript before packaging:
 
 ```bash
 gpd paper-build "${PAPER_DIR}/PAPER-CONFIG.json" --output-dir "${PAPER_DIR}"
 ```
 
-```bash
-cd "${PAPER_DIR}"
-pdflatex -interaction=nonstopmode "${MAIN_BASENAME}" 2>&1 | tail -30
-bibtex "${MAIN_STEM}" 2>&1 | tail -15
-pdflatex -interaction=nonstopmode "${MAIN_BASENAME}" 2>&1 | tail -10
-pdflatex -interaction=nonstopmode "${MAIN_BASENAME}" 2>&1 | tail -10
-```
+In strict mode, `bibliography_audit_clean` and `reproducibility_ready` must pass before the workflow continues. Do not package stale audit artifacts.
+Strict preflight also requires `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` beside the resolved manuscript entry point.
 
-**Parse compilation output for issues:**
-
-| Issue | Severity | Action |
-|-------|----------|--------|
-| `! LaTeX Error` | BLOCKER | Must fix before proceeding |
-| `! Undefined control sequence` | BLOCKER | Missing package or typo |
-| `LaTeX Warning: Reference .* undefined` | ERROR | Fix cross-references |
-| `LaTeX Warning: Citation .* undefined` | ERROR | Fix bibliography |
-| `Overfull \\hbox` | WARNING | Note but continue |
-| `Missing figure` | ERROR | Locate or regenerate figure |
-
-**If BLOCKER or ERROR found:**
-
-```
-## LaTeX Compilation Issues
-
-| Issue | File | Line | Severity |
-|-------|------|------|----------|
-| {description} | {file} | {line} | {severity} |
-
-Fix these issues before packaging. The paper must compile cleanly.
-```
-
-Ask user: "Fix issues and retry?" or "Abort?"
-
-**If clean:** Continue to next step.
+If `pdflatex` is available, run a local smoke check after the refreshed manuscript is in place. Any LaTeX error, undefined control sequence, missing reference, or missing figure is a hard stop. If `pdflatex` is not available, report that the smoke check was skipped and continue only if the manuscript-root contract remains clean.
 </step>
 
-<step name="verify_bibliography">
-**Check bibliography completeness:**
+<step name="review_gate">
+**Require the latest review-round evidence before submission packaging.**
 
-```bash
-# Use submission build directory instead of /tmp for intermediate files
-mkdir -p "${SUBMISSION_DIR}/build"
+Load the shared latest-round publication contract:
 
-# Extract all \cite{} keys from manuscript .tex files recursively
-grep -rho --include='*.tex' '\\cite[tp]*{[^}]*}' "${PAPER_DIR}" | \
-  sed 's/\\cite[tp]*{//;s/}//;s/,/\n/g' | sort -u > "${SUBMISSION_DIR}/build/cited_keys.txt"
+@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md
+@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md
 
-# Extract all keys from bibliography files under the manuscript root
-grep -rh '^@' --include='*.bib' "${PAPER_DIR}" 2>/dev/null | \
-  sed 's/@[^{]*{//;s/,$//' | sort -u > "${SUBMISSION_DIR}/build/bib_keys.txt"
+Require the latest `GPD/review/REVIEW-LEDGER*.json` and `GPD/review/REFEREE-DECISION*.json` pair for the active manuscript. Packaging may continue only when the latest recommendation is `accept` or `minor_revision` and there are no unresolved blocking issues.
+Strict preflight also requires the latest round-specific `GPD/review/REVIEW-LEDGER*.json` / `GPD/review/REFEREE-DECISION*.json` pair as authoritative submission-gate input.
 
-# Find missing
-comm -23 "${SUBMISSION_DIR}/build/cited_keys.txt" "${SUBMISSION_DIR}/build/bib_keys.txt" > "${SUBMISSION_DIR}/build/missing_refs.txt"
-```
+If the manuscript is theorem-bearing, `manuscript_proof_review` must also already be cleared. Require a current `PROOF-REDTEAM*.md` artifact. A stale or missing proof review is a hard stop.
 
-**If missing references found:**
-
-```
-## Missing Bibliography Entries
-
-The following citation keys appear in \cite{} but not in the .bib file:
-{list of missing keys}
-
-Fix the .bib file before proceeding.
-```
-
-**Verify `.bbl` exists** (generated by bibtex in the previous step):
-
-```bash
-ls "${PAPER_DIR}/${MAIN_STEM}.bbl" 2>/dev/null
-```
-
-If missing: re-run bibtex. If still missing: error — bibliography cannot be flattened.
-</step>
-
-<step name="flatten_inputs">
-**Resolve all \input and \include commands recursively:**
-
-Read `${MAIN_SOURCE}`. For each `\input{file}` or `\include{file}`:
-
-1. Resolve path relative to the file containing the `\input`/`\include` first; if that fails, try the same relative path from `${PAPER_DIR}`. Permit nested subdirectories and append `.tex` when the extension is omitted.
-2. Read the referenced file contents
-3. Replace the `\input{}`/`\include{}` line with the file contents
-4. For `\include{}`: preserve `\clearpage` behavior by wrapping with `\clearpage` before and after
-5. Recurse into inserted content for nested `\input`
-
-Write the flattened result to `${SUBMISSION_DIR}/${MAIN_BASENAME}`.
-
-**Inline the bibliography:**
-
-1. Find the `\bibliography{...}` command in flattened `${MAIN_BASENAME}`
-2. Replace it with contents of `${MAIN_STEM}.bbl`
-3. Remove `\bibliographystyle{}` line
-4. Verify: no remaining `\bibliography` commands in the output
-
-```bash
-grep -c '\\bibliography{' "${SUBMISSION_DIR}/${MAIN_BASENAME}"
-# Must be 0
-```
-</step>
-
-<step name="validate_figures">
-**Check each figure for arXiv compatibility:**
-
-```bash
-# Extract all \includegraphics paths
-grep -oh '\\includegraphics\[[^]]*\]{[^}]*}\|\\includegraphics{[^}]*}' \
-  "${SUBMISSION_DIR}/${MAIN_BASENAME}" | sed 's/.*{//;s/}//'
-```
-
-For each figure file:
-
-| Format | Check | Action |
-|--------|-------|--------|
-| TIFF | arXiv rejects TIFF | Convert to PNG: `convert {file}.tiff {file}.png` |
-| EPS | Verify embedded fonts | Warn if fonts not embedded |
-| PNG/JPG | Check resolution | Warn if < 150 DPI (figures) or < 300 DPI (text) |
-| PDF | Supported with pdflatex | Ensure `\pdfoutput=1` on first line |
-
-**Copy figures to submission directory:**
-
-```bash
-# Copy each referenced figure, preserving relative paths if needed
-# arXiv prefers flat structure — move all figures to submission root or figures/
-mkdir -p "${SUBMISSION_DIR}/figures"
-```
-
-**If PDF figures present:** Verify `\pdfoutput=1` is on line 1 of `${MAIN_BASENAME}`. Add if missing.
-
-**Report:**
-
-```
-## Figure Validation
-
-| Figure | Format | Size | Status |
-|--------|--------|------|--------|
-| {name} | {fmt} | {size} | OK / WARNING |
-
-{Any conversion actions taken}
-```
-</step>
-
-<step name="check_metadata">
-**Validate arXiv metadata requirements:**
-
-**Abstract length:**
-
-```bash
-# Extract abstract from tex
-# Content between \begin{abstract} and \end{abstract}
-```
-
-Count characters (excluding LaTeX commands). Warn if > 1920 characters (arXiv limit).
-
-**Title:**
-
-Extract from `\title{}`. Warn if it contains complex LaTeX commands (arXiv metadata field accepts limited markup).
-
-**Author list:**
-
-Extract from `\author{}`. Verify at least one author present.
-
-**File sizes:**
-
-```bash
-# Total package must be < 50MB
-# Individual files must be < 10MB
-du -sh "${SUBMISSION_DIR}"
-find "${SUBMISSION_DIR}" -size +10M
-```
-
-**\pdfoutput directive:**
-
-If using pdflatex (PDF figures present), verify `\pdfoutput=1` appears before `\documentclass`.
-
-**Placeholder check:**
-
-Scan for unresolved placeholders that should not appear in a submission:
-
-```bash
-# Check for RESULT PENDING markers (incomplete results from paper-writer)
-grep -rn --include='*.tex' "RESULT PENDING\|\\\\text{\\[PENDING\\]}" "${PAPER_DIR}" 2>/dev/null
-
-# Check for MISSING: citation markers (unresolved bibliographer requests)
-grep -rn --include='*.tex' "\\\\cite{MISSING:" "${PAPER_DIR}" 2>/dev/null
-
-# Check for TODO/FIXME comments that should be resolved
-grep -rn --include='*.tex' "TODO\|FIXME\|XXX" "${PAPER_DIR}" 2>/dev/null
-```
-
-**GATE: Unresolved placeholders block submission.**
-
-```bash
-PENDING=$(grep -rcE --include='*.tex' "RESULT PENDING|\\\\text\{\\[PENDING\\]\}" "${PAPER_DIR}" 2>/dev/null || echo 0)
-MISSING=$(grep -rc --include='*.tex' "\\\\cite{MISSING:" "${PAPER_DIR}" 2>/dev/null || echo 0)
-TODO=$(grep -rcE --include='*.tex' "TODO|FIXME|XXX" "${PAPER_DIR}" 2>/dev/null || echo 0)
-BLOCKER_COUNT=$(( PENDING + MISSING ))
-```
-
-If `BLOCKER_COUNT > 0`:
-
-```
-ERROR: ${BLOCKER_COUNT} unresolved placeholder(s) block submission.
-
-RESULT PENDING markers (${PENDING}):
-$(grep -rn --include='*.tex' "RESULT PENDING" "${PAPER_DIR}" 2>/dev/null)
-
-MISSING citation markers (${MISSING}):
-$(grep -rn --include='*.tex' "\\cite{MISSING:" "${PAPER_DIR}" 2>/dev/null)
-
-A paper with [PENDING] values or \cite{MISSING:...} markers is not submission-ready.
-
-Options:
-  1. Run gpd:write-paper to resolve remaining placeholders
-  2. Manually fix the markers and re-run gpd:arxiv-submission
-  3. Abort submission
-
-HALTING — do NOT proceed to flatten_inputs.
-```
-
-Do NOT proceed past this step. This is a hard gate — no override in any mode.
-
-If `TODO > 0`: **WARNING** (advisory, not blocking) — report TODO/FIXME count.
-
-If `BLOCKER_COUNT == 0`: Continue to next step.
-</step>
-
-<step name="handle_ancillary">
-**Package ancillary files (computational scripts, data, notebooks):**
-
-Check for ancillary materials:
-
-```bash
-ls scripts/ data/ notebooks/ code/ 2>/dev/null
-```
-
-If ancillary files exist:
-
-1. Create `${SUBMISSION_DIR}/anc/` directory
-2. Copy relevant files: scripts, data files, notebooks
-3. Create `${SUBMISSION_DIR}/anc/README.md` with:
-   - Brief description of each file
-   - Execution instructions (dependencies, runtime)
-   - Relationship to paper results (which figure/table each script produces)
-
-If no ancillary files: skip silently.
-</step>
-
-<step name="clean_auxiliary">
-**Remove LaTeX auxiliary files from submission directory:**
-
-```bash
-# Remove build artifacts that should not be submitted
-for EXT in aux log out toc blg brf synctex.gz fdb_latexmk fls nav snm vrb; do
-  rm -f "${SUBMISSION_DIR}"/*.${EXT}
-done
-```
-
-Also remove:
-- `.git*` files
-- Editor backup files (`*~`, `*.swp`)
-- macOS metadata (`.DS_Store`)
-- Build directories (`build/`, `_minted-*/`)
-</step>
-
-<step name="generate_metadata">
-**Create 00README.XXX for multi-file submissions:**
-
-Count files in submission directory. If > 1 file (excluding 00README.XXX):
-
-```
-${MAIN_BASENAME} -- Main LaTeX file
-figures/       -- Figure files
-anc/           -- Ancillary files (code, data)
-```
-
-Only list directories/files that actually exist.
-If the submission directory contains only `${MAIN_BASENAME}`, skip `00README.XXX` entirely.
+Do not mix round suffixes across review artifacts, response artifacts, or manuscript-root outputs.
 </step>
 
 <step name="package">
-**Create submission tarball:**
+**Create the arXiv submission tree.**
 
-```bash
-mkdir -p "${SUBMISSION_DIR}"
-tar czf arxiv-submission.tar.gz -C "${SUBMISSION_DIR}" .
-ls -lh arxiv-submission.tar.gz
-```
+Keep the packaging rules arXiv-specific and deterministic:
 
-**Verify tarball:**
+1. Flatten all `\input{}` and `\include{}` chains into a single submission root file.
+2. Inline the `.bbl` bibliography and remove any remaining `\bibliography{}` commands.
+3. Copy or convert figures into arXiv-compatible formats only.
+4. Reject unresolved placeholders such as `RESULT PENDING`, `\cite{MISSING:...}`, or unresolved `TODO` / `FIXME` markers.
+5. Package ancillary files only when they are present and relevant.
+6. Remove LaTeX auxiliary files, editor backups, and metadata noise from the submission tree.
+7. Generate `00README.XXX` only when the submission contains more than one file.
 
-```bash
-# List contents to verify structure
-tar tzf arxiv-submission.tar.gz | head -30
-# Verify the manuscript entrypoint is at root level (arXiv requirement)
-tar tzf arxiv-submission.tar.gz | grep "^${MAIN_BASENAME}$"
-```
+Use these arXiv-specific checks:
 
-If `${MAIN_BASENAME}` is not at root level of tarball: repackage.
+| Issue | Action |
+|---|---|
+| TIFF figures | Convert to PNG before packaging |
+| PDF figures | Keep only if the manuscript is using `pdflatex` and `\pdfoutput=1` is present before `\documentclass` |
+| EPS figures | Warn if fonts are not embedded |
+| Abstract too long | Warn if the abstract exceeds the arXiv metadata limit |
+| Total package size | Fail if the package exceeds the arXiv limit |
+| Missing bibliography flattening | Fail closed |
+
+If the manuscript root is not already `paper/`, stage the package in a temporary submission tree that preserves the resolved manuscript root as the upload entrypoint and keeps the root-level file layout flat.
 </step>
 
-<step name="present_checklist">
-**Present submission checklist:**
+<step name="finalize">
+**Create the tarball and present the submission checklist.**
 
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- GPD > arXiv SUBMISSION READY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Create `arxiv-submission.tar.gz`, verify that the main manuscript file is at the tarball root, and present a final checklist with:
 
-**Package:** arxiv-submission.tar.gz ({size})
-**Files:** {count} files ({figure_count} figures)
-**Quality Score:** {score}/100 ({status}) — see `{GPD_INSTALL_DIR}/references/publication/paper-quality-scoring.md`
+- package path and size
+- figure count
+- quality score / status, if available
+- LaTeX smoke-check status
+- bibliography flattening status
+- figure compatibility status
+- placeholder scan status
+- `\pdfoutput=1` status
+- manual submission steps still required
 
-### Automated Checks
-
-| Check | Status |
-|-------|--------|
-| LaTeX compilation smoke check | {PASS/FAIL/SKIP} |
-| Bibliography (.bbl inlined) | {PASS/FAIL} |
-| Figures (arXiv-compatible) | {PASS/FAIL} |
-| Abstract length (< 1920 chars) | {PASS/WARN} |
-| Title (no complex LaTeX) | {PASS/WARN} |
-| File size (< 50MB total) | {PASS/FAIL} |
-| \pdfoutput=1 | {PASS/N/A} |
-| No .bib files (flattened to .bbl) | {PASS/FAIL} |
-| No RESULT PENDING placeholders | {PASS/FAIL} |
-| No MISSING: citation markers | {PASS/FAIL} |
-| No TODO/FIXME comments | {PASS/WARN} |
-| Paper-quality gate | {PASS/FAIL/FORCED} |
-
-### Pre-submission Checklist (Manual)
-
-- [ ] Author list is correct and complete
-- [ ] Acknowledgments are up to date, including: `This research made use of Get Physics Done (GPD) and was supported in part by a GPD Research Grant from Physical Superintelligence PBC (PSI).`
-- [ ] arXiv category selected (e.g., hep-th, cond-mat.str-el, quant-ph)
-- [ ] License selected (typically CC BY 4.0 for new submissions)
-- [ ] ORCID iDs added for all authors (optional but recommended)
-- [ ] Cross-list categories identified (if applicable)
-
-### Submission Steps
-
-1. Go to https://arxiv.org/submit
-2. Upload `arxiv-submission.tar.gz`
-3. Verify PDF renders correctly in arXiv preview
-4. Add metadata (title, abstract, authors, categories)
-5. Review and submit
-
-### After Submission
-
-- Note the arXiv identifier (e.g., 2602.XXXXX)
-- Update PROJECT.md with submission status
-- Monitor for processing issues (arXiv emails within 24h)
-```
-
+Do not treat prose-only success as complete. The tarball must exist on disk and the manuscript-root / latest-review gates must still be satisfied.
 </step>
-
-<step name="commit">
-**Commit submission manifest (NOT the tarball):**
-
-Tarballs are binary artifacts that bloat the git repository. Instead, commit a manifest file that records what was packaged and where the tarball is located on disk.
-
-**1. Create submission manifest:**
-
-Write `${SUBMISSION_DIR}/SUBMISSION-MANIFEST.md`:
-
-```markdown
-# arXiv Submission Manifest
-
-**Generated:** {YYYY-MM-DD HH:MM}
-**Tarball:** arxiv-submission.tar.gz ({size})
-**Tarball location:** {absolute path to tarball}
-
-## Contents
-
-| File | Size | Description |
-|------|------|-------------|
-{for each file in tarball: name, size, description}
-
-## Checks Passed
-
-- LaTeX compilation smoke check: {PASS/FAIL/SKIP}
-- Bibliography flattened: {PASS/FAIL}
-- Figures validated: {PASS/FAIL}
-- Abstract length: {PASS/WARN}
-- Total size: {size} (limit: 50MB)
-
-## Regenerate
-
-To regenerate the tarball from source:
-
-\`\`\`bash
-gpd:arxiv-submission {resolved_manuscript_target}
-\`\`\`
-```
-
-**2. Add .gitignore entry for tarballs:**
-
-Check if `*.tar.gz` is already in `.gitignore`. If not, append:
-
-```bash
-if ! grep -q '*.tar.gz' .gitignore 2>/dev/null; then
-  echo '*.tar.gz' >> .gitignore
-fi
-```
-
-**3. Commit manifest and gitignore (not the tarball):**
-
-```bash
-COMMIT_FILES=("${SUBMISSION_DIR}/SUBMISSION-MANIFEST.md" ".gitignore")
-if [ -f "${SUBMISSION_DIR}/00README.XXX" ]; then
-  COMMIT_FILES+=("${SUBMISSION_DIR}/00README.XXX")
-fi
-
-PRE_CHECK=$(gpd pre-commit-check --files "${COMMIT_FILES[@]}" 2>&1) || true
-echo "$PRE_CHECK"
-
-gpd commit \
-  "docs: prepare arXiv submission package" \
-  --files "${COMMIT_FILES[@]}"
-```
-
-**4. Inform user of tarball location:**
-
-```
-Tarball NOT committed to git (binary artifact).
-Location: {absolute path}/arxiv-submission.tar.gz
-
-Upload this file directly to https://arxiv.org/submit
-```
-
-</step>
-
-</process>
-
-<failure_handling>
-
-- **LaTeX won't compile:** Present errors clearly, suggest fixes. Do not package a broken submission.
-- **Missing .bbl file:** Re-run bibtex. If bibliography database missing, suggest running `gpd:write-paper` first.
-- **Figures missing:** List missing figures with their `\includegraphics` paths. Check if they exist elsewhere in the project.
-- **Package too large (> 50MB):** Suggest reducing figure resolution, compressing images, or moving large data to ancillary files.
-- **pdflatex not available:** Skip the local smoke check and keep packaging aligned with the `paper-build` contract. Offer installation guidance if the user wants local verification, but do not imply the submission is blocked solely by the missing compiler.
-
-</failure_handling>
-
-<success_criteria>
-
-- [ ] Paper directory located
-- [ ] LaTeX compiles without errors when a local compiler is available; otherwise smoke check is skipped
-- [ ] All \input/\include commands resolved (flattened)
-- [ ] Bibliography flattened from .bib/.bbl to inline .bbl
-- [ ] All figures in arXiv-compatible formats
-- [ ] Abstract under 1920 characters
-- [ ] File sizes within arXiv limits
-- [ ] Paper-quality gate passed, or the user explicitly forced packaging after seeing the failing report
-- [ ] 00README.XXX generated only for multi-file submissions
-- [ ] Submission tarball created with the manuscript entrypoint at tarball root
-- [ ] Pre-submission checklist presented
-- [ ] No unresolved placeholders (RESULT PENDING, MISSING: citations, TODO/FIXME)
-- [ ] Submission manifest committed (tarball NOT committed — binary artifact)
-- [ ] *.tar.gz added to .gitignore
-</success_criteria>
 
 <community_contribution>
 
-After a successful submission package is generated, display:
+After the arXiv package is finalized, display:
 
 ```
 ────────────────────────────────────────────────────────
 📄 Share your work with the GPD community
 
-Once the paper is posted to arXiv or otherwise public,
+When the paper is posted to arXiv or otherwise public,
 consider opening a pull request to add it to the
 README.md "Papers Using GPD" list:
 
@@ -653,11 +171,13 @@ What to include:
   • The GPD commands/workflow you used
   • Key results or figures (optional)
 
-Even a brief write-up helps other researchers see what GPD
-can do and how to apply it to their own work.
+This helps other researchers discover real GPD papers and
+learn from concrete workflows.
 ────────────────────────────────────────────────────────
 ```
 
-This prompt is informational only. Do not block submission on it.
+This prompt is informational only. Do not block the submission workflow on it.
 
 </community_contribution>
+
+</process>

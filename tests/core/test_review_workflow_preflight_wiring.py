@@ -5,12 +5,14 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
-PUBLICATION_SHARED_PREFLIGHT_INCLUDE = "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md"
+PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE = (
+    "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md"
+)
+PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE = (
+    "@{GPD_INSTALL_DIR}/references/publication/publication-response-writer-handoff.md"
+)
 PUBLICATION_ROUND_ARTIFACTS_INCLUDE = (
     "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
-)
-PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE = (
-    "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md"
 )
 PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
 
@@ -31,9 +33,9 @@ def test_write_paper_workflow_runs_centralized_review_preflight() -> None:
 
     assert "gpd validate review-preflight write-paper --strict" in workflow
     assert "Run the centralized review preflight before continuing:" in workflow
-    assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE in workflow
+    assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in workflow
+    assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE in workflow
     assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in workflow
-    assert PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE in workflow
     assert "artifacts copied from another manuscript root" in shared_preflight
     assert "Do not use ad hoc wildcard discovery or first-match filename scans." in shared_preflight
     assert "gpd paper-build" in shared_preflight
@@ -56,10 +58,9 @@ def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> Non
     assert "missing referee report source when provided as a path" in workflow
     assert "Any spawned agent that needs user input must return `status: checkpoint` and stop" in workflow
     assert "Do not ask the child agent to wait inside the same run" in workflow
-    assert "Apply the shared manuscript-root bootstrap contract exactly:" in workflow
-    assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE in workflow
-    assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in workflow
-    assert PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE in workflow
+    assert "Apply the shared publication bootstrap preflight exactly:" in workflow
+    assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in workflow
+    assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE in workflow
     assert "bibliography_audit_clean" in shared_preflight
     assert "reproducibility_ready" in shared_preflight
     assert "Treat those files as complete only if the expected mirrored artifacts exist on disk" in workflow
@@ -75,15 +76,11 @@ def test_arxiv_submission_workflow_runs_centralized_review_preflight() -> None:
 
     assert 'gpd validate review-preflight arxiv-submission "$ARGUMENTS" --strict' in workflow
     assert "gpd validate review-preflight arxiv-submission --strict" in workflow
-    assert (
-        "Apply the shared manuscript-root preflight, peer-review reliability, and round-artifact contract exactly:" in workflow
-        or "Apply the shared manuscript-root artifact gates, peer-review reliability, and round-artifact contract exactly:"
-        in workflow
-    )
-    assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE in workflow
+    assert "Use the shared publication bootstrap reference as the source of truth" in workflow
+    assert "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md" in workflow
     assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in workflow
     assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in workflow
-    assert PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE not in workflow
+    assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in workflow
     assert (
         "For a resumed manuscript, strict preflight reads `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and "
         "`reproducibility-manifest.json` from the resolved manuscript directory itself."
@@ -93,7 +90,7 @@ def test_arxiv_submission_workflow_runs_centralized_review_preflight() -> None:
     assert "reproducibility_ready" in shared_preflight
     assert "Strict preflight also requires `ARTIFACT-MANIFEST.json` and `BIBLIOGRAPHY-AUDIT.json` beside the resolved manuscript entry point." in workflow
     assert "Strict preflight also requires the latest round-specific `GPD/review/REVIEW-LEDGER*.json` / `GPD/review/REFEREE-DECISION*.json` pair as authoritative submission-gate input." in workflow
-    assert "latest recommendation is `accept` or `minor_revision` with no unresolved blocking issues" in workflow
+    assert "latest recommendation is `accept` or `minor_revision` and there are no unresolved blocking issues" in workflow
     assert "`manuscript_proof_review` must also already be cleared" in workflow
     assert "The same resolved manuscript root is also the strict preflight source of truth" in workflow
     assert "If `$ARGUMENTS` specifies a `.tex` file, set `resolved_main_tex` to that file" in workflow
@@ -114,19 +111,19 @@ def test_peer_review_workflow_runs_centralized_review_preflight_with_explicit_ar
 def test_publication_review_workflows_reference_shared_manuscript_root_contract() -> None:
     for command_name in ("respond-to-referees.md", "arxiv-submission.md"):
         command_text = _command_text(command_name)
-        assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE not in command_text
+        assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE not in command_text
         assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE not in command_text
-        assert PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE not in command_text
+        assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in command_text
         assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE not in command_text
 
     for workflow_name in ("respond-to-referees.md", "arxiv-submission.md"):
         workflow_text = _workflow_text(workflow_name)
-        assert PUBLICATION_SHARED_PREFLIGHT_INCLUDE in workflow_text
-        assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in workflow_text
+        assert PUBLICATION_BOOTSTRAP_PREFLIGHT_INCLUDE in workflow_text
         if workflow_name == "respond-to-referees.md":
-            assert PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE in workflow_text
+            assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE in workflow_text
         else:
-            assert PUBLICATION_RESPONSE_ARTIFACTS_INCLUDE not in workflow_text
+            assert PUBLICATION_RESPONSE_WRITER_HANDOFF_INCLUDE not in workflow_text
+            assert PUBLICATION_ROUND_ARTIFACTS_INCLUDE in workflow_text
         assert PUBLICATION_REVIEW_RELIABILITY_INCLUDE in workflow_text
 
 

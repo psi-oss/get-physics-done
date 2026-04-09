@@ -7,12 +7,7 @@ from gpd.core.workflow_staging import validate_workflow_stage_manifest_payload
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
-
-LEGACY_PUBLICATION_FILES = {
-    "references/publication/publication-artifact-gates.md",
-    "references/publication/review-round-artifact-contract.md",
-    "references/publication/response-artifact-contract.md",
-}
+REFERENCES_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "references" / "publication"
 
 
 def _load_manifest(workflow_name: str) -> object:
@@ -91,7 +86,36 @@ def test_peer_review_stage_manifest_uses_canonical_publication_contracts() -> No
     assert artifact_discovery.loaded_authorities == (
         "workflows/peer-review.md",
         "references/publication/publication-review-round-artifacts.md",
+        "references/publication/publication-response-artifacts.md",
     )
     assert "references/publication/peer-review-panel.md" in final_adjudication.loaded_authorities
     assert "templates/paper/review-ledger-schema.md" in final_adjudication.loaded_authorities
     assert "templates/paper/referee-decision-schema.md" in final_adjudication.loaded_authorities
+
+
+def test_publication_bootstrap_preflight_uses_canonical_publication_contracts() -> None:
+    source = (REFERENCES_DIR / "publication-bootstrap-preflight.md").read_text(encoding="utf-8")
+
+    assert "Canonical workflow-facing bootstrap and preflight reference for publication tasks." in source
+    assert "publication-manuscript-root-preflight.md" in source
+    assert "publication-review-round-artifacts.md" in source
+    assert "publication-response-artifacts.md" in source
+    assert "publication-artifact-gates.md" not in source
+
+
+def test_publication_response_writer_handoff_uses_canonical_completion_gate() -> None:
+    source = (REFERENCES_DIR / "publication-response-writer-handoff.md").read_text(encoding="utf-8")
+
+    assert "Canonical workflow-facing handoff and completion reference for spawned response-writing work." in source
+    assert "publication-response-artifacts.md" in source
+    assert "status: checkpoint" in source
+    assert "gpd_return.files_written" in source
+    assert "publication-artifact-gates.md" not in source
+
+
+def test_publication_review_wrapper_guidance_points_to_the_new_shared_refs() -> None:
+    source = (REFERENCES_DIR / "publication-review-wrapper-guidance.md").read_text(encoding="utf-8")
+
+    assert "publication-bootstrap-preflight.md" in source
+    assert "publication-response-writer-handoff.md" in source
+    assert "publication-artifact-gates.md" not in source

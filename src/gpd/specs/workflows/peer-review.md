@@ -40,11 +40,7 @@ RESEARCH_MODE=$(echo "$INIT" | gpd json get .research_mode --default balanced)
 Treat `project_contract_gate` as authoritative. Use `project_contract` and `contract_intake` only when `project_contract_gate.authoritative` is true; otherwise keep them as diagnostics/context and rely on `effective_reference_intake`, `reference_artifacts_content`, and `active_reference_context` as carry-forward evidence. Stage 1 stays manuscript-first, but later adjudication must not ignore either the approved contract or the active anchor ledger.
 If `derived_manuscript_reference_status` is present, use it as a first-pass manuscript-local summary of reference coverage, citation readiness, and audit freshness. Keep the manuscript-root publication artifacts authoritative for strict decisions: `ARTIFACT-MANIFEST.json`, `BIBLIOGRAPHY-AUDIT.json`, and the reproducibility manifest still decide pass/fail.
 If `derived_manuscript_proof_review_status` is present, use it as the first-pass manuscript-local summary of theorem/proof freshness and keep the manuscript-root proof-redteam artifacts authoritative for strict decisions.
-Apply the shared manuscript-root bootstrap contract exactly:
-
-@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md
-
-That shared reference owns the manuscript-root artifact policy for this workflow. The local steps below add only peer-review-specific routing, proof-review, and adjudication rules.
+The shared manuscript-root bootstrap contract is applied in preflight. The local steps below add only peer-review-specific routing, proof-review, and adjudication rules.
 
 Run centralized context preflight before continuing:
 
@@ -109,6 +105,10 @@ Use `protocol_bundle_context` from init JSON as additive review guidance.
 
 <step name="preflight">
 **Run the executable review preflight checks before spawning the review panel:**
+
+Apply the shared manuscript-root bootstrap contract exactly:
+
+@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md
 
 ```bash
 gpd validate review-preflight peer-review "$ARGUMENTS" --strict
@@ -583,7 +583,7 @@ task(
   model="{referee_model}",
   readonly=false,
   prompt="First, read {GPD_AGENTS_DIR}/gpd-referee.md for your role and instructions.
-Then read {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md, {GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md, {GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md, {GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md, and {GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md before you write any adjudication artifacts.
+Then read {GPD_INSTALL_DIR}/references/publication/peer-review-panel.md, {GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md, and {GPD_INSTALL_DIR}/templates/paper/referee-decision-schema.md before you write any adjudication artifacts.
 
 Act as the final adjudicating referee for the staged peer-review panel.
 

@@ -1678,9 +1678,9 @@ class TestRegistryPromptIncludeInlining:
                 "references/publication/publication-pipeline-modes.md",
                 "references/publication/paper-writer-cookbook.md",
                 "references/publication/figure-generation-templates.md",
-                "references/publication/publication-review-round-artifacts.md",
-                "references/publication/publication-response-artifacts.md",
+                "references/publication/publication-response-writer-handoff.md",
                 "templates/paper/author-response.md",
+                "templates/paper/referee-response.md",
             ),
         )
 

@@ -34,7 +34,7 @@ def test_arxiv_submission_command_stays_thin_and_only_eagerly_loads_the_workflow
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md" not in command_text
-    assert "@{GPD_INSTALL_DIR}/templates/paper/publication-manuscript-root-preflight.md" not in command_text
+    assert "@{GPD_INSTALL_DIR}/references/publication/publication-bootstrap-preflight.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/templates/paper/artifact-manifest-schema.md" not in command_text

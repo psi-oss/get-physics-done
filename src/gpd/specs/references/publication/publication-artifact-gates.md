@@ -1,8 +1,4 @@
 ---
-load_when:
-  - "publication artifact gates"
-  - "manuscript-root review gate"
-  - "submission gate"
 type: publication-artifact-gates
 tier: 2
 context_cost: low
@@ -10,7 +6,9 @@ context_cost: low
 
 # Publication Artifact Gates
 
-Compatibility entry point for manuscript-root and latest-round publication gating.
+Legacy bridge for manuscript-root and latest-round publication gating.
+
+This file is retained only for transitional compatibility. It is not a live authority and should not be loaded by new prompt wiring.
 
 Canonical sources:
 
