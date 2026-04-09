@@ -203,6 +203,13 @@ class TestStatusMetadata:
         label = _read_model_label({"model": {"display_name": "Opus 4.6"}, "context_window": {"context_window_size": 1_000_000}})
         assert label == "Opus 4.6 (1M context)"
 
+    def test_read_model_label_uses_canonical_fallback_keys_when_policy_is_sparse(self) -> None:
+        label = _read_model_label(
+            {"model": {"display_name": "Opus 4.6"}, "context_window": {"context_window_size": 1_000_000}},
+            SimpleNamespace(model_keys=(), context_window_size_keys=()),
+        )
+        assert label == "Opus 4.6 (1M context)"
+
     def test_read_workspace_label_prefers_project_relative_path(self, tmp_path: Path) -> None:
         project = tmp_path / "project"
         current = project / "src" / "gpd"
@@ -1330,6 +1337,30 @@ class TestMain:
     def test_context_window_supports_remaining_percent_alias(self) -> None:
         output = self._run_main({"context_window": {"remainingPercent": 20}})
         assert "100%" in output
+
+    def test_context_window_uses_canonical_aliases_when_policy_is_sparse(self) -> None:
+        captured = io.StringIO()
+        sparse_policy = SimpleNamespace(
+            workspace_keys=(),
+            project_dir_keys=(),
+            runtime_session_id_keys=(),
+            model_keys=(),
+            context_window_size_keys=(),
+            context_remaining_keys=(),
+        )
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps({"context_window": {"remaining_percentage": 0}}))),
+            patch("sys.stdout", captured),
+            patch("gpd.hooks.statusline._hook_payload_policy", return_value=sparse_policy),
+            patch("gpd.hooks.statusline._read_runtime_hints", return_value=_runtime_hints_payload(_visibility_state())),
+            patch("gpd.hooks.statusline._read_position", return_value=""),
+            patch("gpd.hooks.statusline._read_current_task", return_value=""),
+            patch("gpd.hooks.statusline._read_execution_state", return_value={}),
+            patch("gpd.hooks.statusline._check_update", return_value=""),
+        ):
+            main()
+
+        assert "100%" in captured.getvalue()
 
     def test_string_model_workspace_and_context_payloads_do_not_crash(self) -> None:
         output = self._run_main(

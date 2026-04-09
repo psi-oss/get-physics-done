@@ -124,7 +124,6 @@ from gpd.core.workflow_presets import (
     list_workflow_presets,
     preview_workflow_preset_application,
 )
-from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use
 from gpd.mcp.managed_integrations import WOLFRAM_MANAGED_INTEGRATION
 
 if TYPE_CHECKING:
@@ -6305,6 +6304,13 @@ def _build_recoverable_workspace_guidance(*, init_command: str) -> str:
         f"Open the right project, use `{local_cli_resume_recent_command()}` to rediscover it, or "
         f"initialize a new project with `{init_command}` in the runtime surface or `gpd init new-project` in the local CLI."
     )
+
+
+def detect_runtime_for_gpd_use(*, cwd: Path | None = None, home: Path | None = None) -> str | None:
+    """Resolve the installed-surface runtime via the hook-owned detector."""
+    from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use as _detect_runtime_for_gpd_use
+
+    return _detect_runtime_for_gpd_use(cwd=cwd, home=home)
 
 
 def _active_runtime_command_prefix(*, cwd: Path | None = None) -> str | None:

@@ -55,6 +55,7 @@ def ordered_update_cache_candidates(
     from gpd.hooks.runtime_detect import (
         RUNTIME_UNKNOWN,
         get_update_cache_candidates,
+        normalize_runtime_name,
         should_consider_update_cache_candidate,
         supported_runtime_names,
     )
@@ -81,7 +82,11 @@ def ordered_update_cache_candidates(
         )
     ]
     runtime_names = supported_runtime_names()
-    if active_runtime in (None, "", RUNTIME_UNKNOWN) and resolved_preferred_runtime in runtime_names:
+    explicit_active_runtime = normalize_runtime_name(active_installed_runtime)
+    no_active_runtime = (
+        explicit_active_runtime is None if active_installed_runtime is not None else active_runtime in (None, "", RUNTIME_UNKNOWN)
+    )
+    if no_active_runtime and resolved_preferred_runtime in runtime_names:
         preferred_candidates = [
             candidate for candidate in relevant_candidates if getattr(candidate, "runtime", None) == resolved_preferred_runtime
         ]

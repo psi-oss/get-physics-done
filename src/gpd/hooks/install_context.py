@@ -144,7 +144,7 @@ def resolve_hook_lookup_context(
     normalized_preferred_runtime = normalize_runtime_hint(preferred_runtime)
     project_root = resolve_project_root(resolved_cwd) if resolved_cwd is not None else None
     active_runtime_target = None
-    if active_runtime_hint is not None:
+    if active_runtime_hint is not None and (active_installed_runtime is not None or detected_runtime_hint is not None):
         active_runtime_target = detect_runtime_install_target(active_runtime_hint, cwd=resolved_cwd, home=resolved_home)
         if active_runtime_target is None and project_root is not None and project_root != resolved_cwd:
             active_runtime_target = detect_runtime_install_target(
@@ -162,7 +162,7 @@ def resolve_hook_lookup_context(
         runtime_hint=runtime_hint,
     )
     active_runtime = normalize_runtime_hint(detect_active_runtime_with_gpd_install(cwd=lookup_cwd, home=resolved_home))
-    if active_runtime is None and active_runtime_hint is not None:
+    if active_runtime is None and active_runtime_hint is not None and (active_installed_runtime is not None or detected_runtime_hint is not None):
         install_target = detect_runtime_install_target(active_runtime_hint, cwd=lookup_cwd, home=resolved_home)
         if install_target is not None:
             active_runtime = active_runtime_hint

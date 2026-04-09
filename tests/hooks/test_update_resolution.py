@@ -92,6 +92,33 @@ def test_ordered_update_cache_candidates_prefers_preferred_runtime_then_fallback
     assert candidates == [preferred_candidate, fallback_candidate]
 
 
+def test_ordered_update_cache_candidates_treats_explicit_unknown_runtime_as_no_active_runtime(
+    tmp_path: Path,
+) -> None:
+    preferred_candidate = SimpleNamespace(path=tmp_path / "codex.json", runtime="codex", scope="local")
+    fallback_candidate = SimpleNamespace(path=tmp_path / "fallback.json", runtime=None, scope=None)
+    unrelated_candidate = SimpleNamespace(path=tmp_path / "claude.json", runtime="claude-code", scope="global")
+
+    with (
+        patch(
+            "gpd.hooks.runtime_detect.get_update_cache_candidates",
+            return_value=[unrelated_candidate, fallback_candidate, preferred_candidate],
+        ),
+        patch("gpd.hooks.runtime_detect.should_consider_update_cache_candidate", return_value=True),
+        patch(
+            "gpd.hooks.update_resolution.resolve_update_cache_inputs",
+            return_value=(tmp_path, tmp_path / "home", "claude-code", "codex"),
+        ),
+    ):
+        candidates = ordered_update_cache_candidates(
+            cwd=str(tmp_path),
+            active_installed_runtime="unknown",
+            preferred_runtime="codex",
+        )
+
+    assert candidates == [preferred_candidate, fallback_candidate]
+
+
 def test_ordered_update_cache_candidates_falls_back_to_other_runtime_when_preferred_cache_is_absent(
     tmp_path: Path,
 ) -> None:
