@@ -30,6 +30,7 @@ from gpd.core.context import (
     init_progress,
     init_quick,
     init_resume,
+    init_sync_state,
     init_todos,
     init_verify_work,
     load_config,
@@ -2291,6 +2292,74 @@ class TestInitNewProject:
     def test_stage_rejection_is_clean(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="Unknown new-project stage"):
             init_new_project(tmp_path, stage="does-not-exist")
+
+    def test_resume_work_stage_resume_bootstrap_filters_payload(self, tmp_path: Path) -> None:
+        from gpd.core.workflow_staging import load_workflow_stage_manifest
+
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+        _write_literature_review_anchor_file(tmp_path)
+
+        manifest = load_workflow_stage_manifest("resume-work")
+        stage = manifest.get_stage("resume_bootstrap")
+
+        ctx = init_resume(tmp_path, stage="resume_bootstrap")
+
+        assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["staged_loading"]["workflow_id"] == "resume-work"
+        assert ctx["staged_loading"]["stage_id"] == "resume_bootstrap"
+        assert "templates/state-json-schema.md" in ctx["staged_loading"]["must_not_eager_load"]
+        assert "reference_artifacts_content" not in ctx
+        assert "active_reference_context" not in ctx
+        assert "project_contract_gate" not in ctx
+
+    def test_resume_work_stage_state_restore_filters_payload(self, tmp_path: Path) -> None:
+        from gpd.core.workflow_staging import load_workflow_stage_manifest
+
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+
+        manifest = load_workflow_stage_manifest("resume-work")
+        stage = manifest.get_stage("state_restore")
+
+        ctx = init_resume(tmp_path, stage="state_restore")
+
+        assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["project_contract_gate"]["visible"] is True
+        assert "reference_artifacts_content" not in ctx
+
+    def test_sync_state_stage_sync_bootstrap_filters_payload(self, tmp_path: Path) -> None:
+        from gpd.core.workflow_staging import load_workflow_stage_manifest
+
+        _setup_project(tmp_path)
+
+        manifest = load_workflow_stage_manifest("sync-state")
+        stage = manifest.get_stage("sync_bootstrap")
+
+        ctx = init_sync_state(tmp_path, stage="sync_bootstrap")
+
+        assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["staged_loading"]["workflow_id"] == "sync-state"
+        assert ctx["staged_loading"]["stage_id"] == "sync_bootstrap"
+        assert "templates/state-json-schema.md" in ctx["staged_loading"]["must_not_eager_load"]
+        assert "state_md_content" not in ctx
+        assert "state_json_content" not in ctx
+
+    def test_sync_state_stage_conflict_analysis_filters_payload(self, tmp_path: Path) -> None:
+        from gpd.core.workflow_staging import load_workflow_stage_manifest
+
+        _setup_project(tmp_path)
+        _write_project_contract_state(tmp_path)
+
+        manifest = load_workflow_stage_manifest("sync-state")
+        stage = manifest.get_stage("conflict_analysis")
+
+        ctx = init_sync_state(tmp_path, stage="conflict_analysis")
+
+        assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["project_contract_gate"]["visible"] is True
+        assert "state_json_content" in ctx
+        assert "state_md_content" in ctx
 
 
 # ─── init_new_milestone ───────────────────────────────────────────────────────

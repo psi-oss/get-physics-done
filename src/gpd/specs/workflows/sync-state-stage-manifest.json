@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "workflow_id": "sync-state",
+  "stages": [
+    {
+      "id": "sync_bootstrap",
+      "order": 1,
+      "purpose": "state-file existence detection and reconciliation path selection",
+      "mode_paths": [
+        "workflows/sync-state.md"
+      ],
+      "required_init_fields": [
+        "prefer_mode",
+        "state_md_exists",
+        "state_json_exists",
+        "state_json_backup_exists",
+        "state_load_source",
+        "state_integrity_issues",
+        "platform"
+      ],
+      "loaded_authorities": [
+        "workflows/sync-state.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "templates/state-json-schema.md"
+      ],
+      "allowed_tools": [
+        "file_read",
+        "file_write",
+        "find_files",
+        "search_files",
+        "shell"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "reconciliation path",
+        "bootstrap integrity summary"
+      ],
+      "next_stages": [
+        "single_source_recovery",
+        "conflict_analysis"
+      ],
+      "checkpoints": [
+        "state file availability established",
+        "bootstrap keeps schema deferred"
+      ]
+    },
+    {
+      "id": "single_source_recovery",
+      "order": 2,
+      "purpose": "missing-file regeneration from the single authoritative surviving source",
+      "mode_paths": [
+        "workflows/sync-state.md"
+      ],
+      "required_init_fields": [
+        "prefer_mode",
+        "state_md_exists",
+        "state_json_exists",
+        "state_json_backup_exists",
+        "state_md_content",
+        "state_json_content",
+        "state_json_backup_content",
+        "state_load_source",
+        "state_integrity_issues",
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation"
+      ],
+      "loaded_authorities": [
+        "templates/state-json-schema.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [],
+      "allowed_tools": [
+        "file_read",
+        "file_write",
+        "find_files",
+        "search_files",
+        "shell"
+      ],
+      "writes_allowed": [
+        "GPD/STATE.md",
+        "GPD/state.json",
+        "GPD/state.json.bak"
+      ],
+      "produced_state": [
+        "single-source recovery result"
+      ],
+      "next_stages": [
+        "reconcile_and_validate"
+      ],
+      "checkpoints": [
+        "missing mirror regenerated through authoritative code path"
+      ]
+    },
+    {
+      "id": "conflict_analysis",
+      "order": 3,
+      "purpose": "deterministic comparison of mirrored fields under schema authority",
+      "mode_paths": [
+        "workflows/sync-state.md"
+      ],
+      "required_init_fields": [
+        "prefer_mode",
+        "state_md_exists",
+        "state_json_exists",
+        "state_json_backup_exists",
+        "state_md_content",
+        "state_json_content",
+        "state_json_backup_content",
+        "state_load_source",
+        "state_integrity_issues",
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation"
+      ],
+      "loaded_authorities": [
+        "templates/state-json-schema.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [],
+      "allowed_tools": [
+        "file_read",
+        "file_write",
+        "find_files",
+        "search_files",
+        "shell"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "conflict matrix",
+        "reconciliation decision"
+      ],
+      "next_stages": [
+        "reconcile_and_validate"
+      ],
+      "checkpoints": [
+        "schema outranks timestamps",
+        "comparison covers mirrored fields explicitly"
+      ]
+    },
+    {
+      "id": "reconcile_and_validate",
+      "order": 4,
+      "purpose": "apply the chosen repair path, validate both state files, and optionally commit",
+      "mode_paths": [
+        "workflows/sync-state.md"
+      ],
+      "required_init_fields": [
+        "prefer_mode",
+        "state_md_exists",
+        "state_json_exists",
+        "state_json_backup_exists",
+        "state_md_content",
+        "state_json_content",
+        "state_json_backup_content",
+        "state_load_source",
+        "state_integrity_issues",
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation"
+      ],
+      "loaded_authorities": [
+        "templates/state-json-schema.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [],
+      "allowed_tools": [
+        "file_read",
+        "file_write",
+        "find_files",
+        "search_files",
+        "shell"
+      ],
+      "writes_allowed": [
+        "GPD/STATE.md",
+        "GPD/state.json",
+        "GPD/state.json.bak"
+      ],
+      "produced_state": [
+        "reconciled state pair",
+        "validation status"
+      ],
+      "next_stages": [],
+      "checkpoints": [
+        "reconciled state validates",
+        "commit remains optional caller-controlled tail work"
+      ]
+    }
+  ]
+}

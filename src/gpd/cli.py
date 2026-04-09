@@ -4320,11 +4320,40 @@ def init_quick(
 
 
 @init_app.command("resume")
-def init_resume() -> None:
+def init_resume(
+    stage: str | None = typer.Option(
+        None,
+        "--stage",
+        help="Load the staged resume-work context for a specific stage id.",
+    ),
+) -> None:
     """Assemble context for resuming previous work."""
     from gpd.core.context import init_resume
 
-    _output(init_resume(_get_cwd()))
+    _output(init_resume(_get_cwd(), stage=stage))
+
+
+@init_app.command("sync-state")
+def init_sync_state(
+    prefer: str | None = typer.Option(
+        None,
+        "--prefer",
+        help="Preferred mirrored-field authority for sync-state: md or json.",
+    ),
+    stage: str | None = typer.Option(
+        None,
+        "--stage",
+        help="Load the staged sync-state context for a specific stage id.",
+    ),
+) -> None:
+    """Assemble context for state reconciliation."""
+    from gpd.core.context import init_sync_state
+
+    try:
+        payload = init_sync_state(_get_cwd(), prefer_mode=prefer, stage=stage)
+    except ValueError as exc:
+        _error(str(exc))
+    _output(payload)
 
 
 @init_app.command("verify-work")

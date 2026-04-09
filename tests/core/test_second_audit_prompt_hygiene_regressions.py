@@ -185,3 +185,15 @@ def test_settings_workflow_reuses_one_terminal_follow_up_list() -> None:
     assert settings_workflow.count("For normal-terminal follow-up around these settings:") == 1
     assert "reuse the normal-terminal follow-up list from the `present_settings` step" in settings_workflow
     assert settings_workflow.count("gpd validate unattended-readiness --runtime <runtime> --autonomy <mode>") == 1
+
+
+def test_sync_state_workflow_keeps_optional_commit_outside_core_reconcile_path() -> None:
+    sync_state = (WORKFLOWS_DIR / "sync-state.md").read_text(encoding="utf-8")
+
+    assert "This workflow is intentionally fail-closed" in sync_state
+    assert "No state files found. Run gpd:new-project" in sync_state
+    assert "Proceed with reconciliation? (y/n)" not in sync_state
+    assert "determine which source is more recent" not in sync_state
+    assert "Only if the operator explicitly asks to commit the reconciled state" in sync_state
+    assert sync_state.index("<step name=\"reconcile\">") < sync_state.index("<step name=\"optional_commit\">")
+    assert sync_state.index("gpd --raw state validate") < sync_state.index("<step name=\"optional_commit\">")

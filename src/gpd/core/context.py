@@ -230,6 +230,142 @@ _PLAN_PHASE_INIT_FIELDS = frozenset(
         *_PLAN_PHASE_FILE_CONTENT_FIELDS,
     }
 )
+_RESUME_BASE_INIT_FIELDS = frozenset(
+    {
+        "workspace_root",
+        "project_root",
+        "project_root_source",
+        "project_root_auto_selected",
+        "project_reentry_mode",
+        "project_reentry_requires_selection",
+        "project_reentry_selected_candidate",
+        "project_reentry_candidates",
+        "workspace_state_exists",
+        "workspace_roadmap_exists",
+        "workspace_project_exists",
+        "workspace_planning_exists",
+        "state_exists",
+        "roadmap_exists",
+        "project_exists",
+        "planning_exists",
+        "has_interrupted_agent",
+        "interrupted_agent_id",
+        "commit_docs",
+        "autonomy",
+        "review_cadence",
+        "research_mode",
+        "resume_surface_schema_version",
+        "active_bounded_segment",
+        "derived_execution_head",
+        "derived_execution_head_resume_file",
+        "continuity_handoff_file",
+        "recorded_continuity_handoff_file",
+        "missing_continuity_handoff_file",
+        "has_continuity_handoff",
+        "active_resume_kind",
+        "active_resume_origin",
+        "active_resume_pointer",
+        "active_resume_result",
+        "resume_candidates",
+        "current_hostname",
+        "current_platform",
+        "session_hostname",
+        "session_platform",
+        "session_last_date",
+        "session_stopped_at",
+        "machine_change_detected",
+        "machine_change_notice",
+        "execution_review_pending",
+        "execution_pre_fanout_review_pending",
+        "execution_skeptical_requestioning_required",
+        "execution_downstream_locked",
+        "execution_blocked",
+        "execution_resumable",
+        "execution_paused_at",
+        "current_execution_resume_file",
+        "session_resume_file",
+        "recorded_session_resume_file",
+        "missing_session_resume_file",
+        "execution_resume_file",
+        "execution_resume_file_source",
+        "platform",
+    }
+)
+_RESUME_CONTRACT_GATE_FIELDS = frozenset(
+    {
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+    }
+)
+_RESUME_REFERENCE_RUNTIME_FIELDS = frozenset(
+    {
+        "contract_intake",
+        "effective_reference_intake",
+        "active_reference_context",
+        "reference_artifact_files",
+        "reference_artifacts_content",
+    }
+)
+_RESUME_STRUCTURED_STATE_FIELDS = frozenset(
+    {
+        "state_load_source",
+        "state_integrity_issues",
+        "convention_lock",
+        "convention_lock_count",
+        "intermediate_results",
+        "intermediate_result_count",
+        "approximations",
+        "approximation_count",
+        "propagated_uncertainties",
+        "propagated_uncertainty_count",
+    }
+)
+_RESUME_STATE_MEMORY_FIELDS = frozenset(
+    {
+        "derived_convention_lock",
+        "derived_convention_lock_count",
+        "derived_intermediate_results",
+        "derived_intermediate_result_count",
+        "derived_approximations",
+        "derived_approximation_count",
+    }
+)
+_RESUME_FILE_CONTENT_FIELDS = frozenset(
+    {
+        "state_content",
+        "project_content",
+        "roadmap_content",
+        "derivation_state_content",
+        "continuity_handoff_content",
+    }
+)
+_SYNC_STATE_BASE_INIT_FIELDS = frozenset(
+    {
+        "prefer_mode",
+        "state_md_exists",
+        "state_json_exists",
+        "state_json_backup_exists",
+        "platform",
+    }
+)
+_SYNC_STATE_FILE_CONTENT_FIELDS = frozenset(
+    {
+        "state_md_content",
+        "state_json_content",
+        "state_json_backup_content",
+    }
+)
+_SYNC_STATE_STRUCTURED_STATE_FIELDS = frozenset({"state_load_source", "state_integrity_issues"})
+_SYNC_STATE_CONTRACT_GATE_FIELDS = frozenset(
+    {
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+    }
+)
 _VERIFY_WORK_STAGE_ALLOWED_TOOLS = frozenset(
     {
         "ask_user",
@@ -2404,6 +2540,69 @@ def _build_plan_phase_file_context(
     return result
 
 
+def _build_resume_file_context(
+    cwd: Path,
+    *,
+    continuity_handoff_file: str | None = None,
+    include_state: bool = False,
+    include_project: bool = False,
+    include_roadmap: bool = False,
+    include_derivation_state: bool = False,
+    include_continuity_handoff: bool = False,
+) -> dict[str, object]:
+    """Build file-content payloads for resume-work init surfaces."""
+    result: dict[str, object] = {}
+    planning = cwd / PLANNING_DIR_NAME
+
+    if include_state:
+        result["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
+    if include_project:
+        result["project_content"] = _safe_read_file_truncated(planning / PROJECT_FILENAME)
+    if include_roadmap:
+        result["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
+    if include_derivation_state:
+        result["derivation_state_content"] = _safe_read_file_truncated(planning / "DERIVATION-STATE.md")
+
+    if include_continuity_handoff:
+        handoff_path: Path | None = None
+        if isinstance(continuity_handoff_file, str) and continuity_handoff_file.strip():
+            candidate = Path(continuity_handoff_file).expanduser()
+            if not candidate.is_absolute():
+                candidate = cwd / candidate
+            try:
+                candidate.resolve(strict=False).relative_to(cwd.resolve(strict=False))
+            except ValueError:
+                handoff_path = None
+            else:
+                handoff_path = candidate
+        result["continuity_handoff_content"] = (
+            _safe_read_file_truncated(handoff_path) if handoff_path is not None else None
+        )
+
+    return result
+
+
+def _build_sync_state_file_context(
+    cwd: Path,
+    *,
+    include_state_md: bool = False,
+    include_state_json: bool = False,
+    include_state_json_backup: bool = False,
+) -> dict[str, object]:
+    """Build file-content payloads for sync-state init surfaces."""
+    result: dict[str, object] = {}
+    planning = cwd / PLANNING_DIR_NAME
+
+    if include_state_md:
+        result["state_md_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
+    if include_state_json:
+        result["state_json_content"] = _safe_read_file_truncated(planning / "state.json")
+    if include_state_json_backup:
+        result["state_json_backup_content"] = _safe_read_file_truncated(planning / STATE_JSON_BACKUP_FILENAME)
+
+    return result
+
+
 def init_plan_phase(
     cwd: Path,
     phase: str | None,
@@ -2714,7 +2913,7 @@ def init_quick(cwd: Path, description: str | None = None) -> dict:
     return result
 
 
-def init_resume(cwd: Path, *, data_root: Path | None = None) -> dict:
+def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None = None) -> dict:
     """Assemble context for resuming work."""
     requested_cwd = cwd.expanduser().resolve(strict=False)
     workspace_planning_exists = _path_exists(requested_cwd, PLANNING_DIR_NAME)
@@ -2783,7 +2982,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None) -> dict:
     if not isinstance(active_resume_result, dict):
         active_resume_result = None
 
-    result = {
+    base_result = {
         "workspace_root": reentry_metadata["workspace_root"],
         "project_root": reentry_metadata["project_root"],
         "project_root_source": reentry_metadata["project_root_source"],
@@ -2833,16 +3032,143 @@ def init_resume(cwd: Path, *, data_root: Path | None = None) -> dict:
         # Platform
         "platform": _detect_platform(effective_cwd),
     }
-    result.update(_build_reference_runtime_context(effective_cwd))
     execution_public = {
         key: value
         for key, value in execution_context.items()
         if key != "resume_projection" and key not in RESUME_COMPATIBILITY_ALIAS_FIELDS
     }
-    result.update(execution_public)
-    if recent_bounded_segment_promoted and not bool(result.get("execution_resumable")):
-        result["execution_resumable"] = True
-    return canonicalize_resume_public_payload(result)
+    base_result.update(execution_public)
+    if recent_bounded_segment_promoted and not bool(base_result.get("execution_resumable")):
+        base_result["execution_resumable"] = True
+
+    if stage is None:
+        result = dict(base_result)
+        result.update(_build_reference_runtime_context(effective_cwd))
+        return canonicalize_resume_public_payload(result)
+
+    from gpd.core.workflow_staging import load_workflow_stage_manifest
+
+    manifest = load_workflow_stage_manifest(
+        "resume-work",
+        allowed_tools={"ask_user", "file_read", "file_write", "shell"},
+    )
+    try:
+        stage_def = manifest.stage_by_id(stage)
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown resume-work stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
+        ) from exc
+
+    required_fields = set(stage_def.required_init_fields)
+    staged_source = dict(base_result)
+    needs_full_reference_context = bool(required_fields & _RESUME_REFERENCE_RUNTIME_FIELDS)
+    needs_contract_gate_context = bool(required_fields & _RESUME_CONTRACT_GATE_FIELDS)
+
+    if needs_full_reference_context:
+        staged_source.update(_build_reference_runtime_context(effective_cwd))
+    elif needs_contract_gate_context:
+        staged_source.update(_build_new_project_contract_runtime_context(effective_cwd))
+
+    if required_fields & _RESUME_STRUCTURED_STATE_FIELDS:
+        staged_source.update(_build_structured_state_runtime_context(effective_cwd))
+
+    if required_fields & _RESUME_STATE_MEMORY_FIELDS:
+        staged_source.update(_build_state_memory_runtime_context(effective_cwd))
+
+    if required_fields & _RESUME_FILE_CONTENT_FIELDS:
+        staged_source.update(
+            _build_resume_file_context(
+                effective_cwd,
+                continuity_handoff_file=continuity_handoff_file,
+                include_state="state_content" in required_fields,
+                include_project="project_content" in required_fields,
+                include_roadmap="roadmap_content" in required_fields,
+                include_derivation_state="derivation_state_content" in required_fields,
+                include_continuity_handoff="continuity_handoff_content" in required_fields,
+            )
+        )
+
+    staged_source = canonicalize_resume_public_payload(staged_source)
+    missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
+    if missing_fields:
+        raise ValueError(
+            f"resume-work stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
+        )
+
+    staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
+    staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
+    return staged_payload
+
+
+def init_sync_state(cwd: Path, *, prefer_mode: str | None = None, stage: str | None = None) -> dict:
+    """Assemble context for state reconciliation."""
+    normalized_prefer = prefer_mode.strip() if isinstance(prefer_mode, str) and prefer_mode.strip() else None
+    if normalized_prefer not in {None, "md", "json"}:
+        raise ValueError("sync-state prefer mode must be one of: md, json")
+
+    base_result = {
+        "prefer_mode": normalized_prefer,
+        "state_md_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_MD_FILENAME}"),
+        "state_json_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/state.json"),
+        "state_json_backup_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{STATE_JSON_BACKUP_FILENAME}"),
+        "platform": _detect_platform(cwd),
+    }
+
+    if stage is None:
+        result = dict(base_result)
+        result.update(_build_structured_state_runtime_context(cwd))
+        result.update(_build_new_project_contract_runtime_context(cwd))
+        result.update(
+            _build_sync_state_file_context(
+                cwd,
+                include_state_md=True,
+                include_state_json=True,
+                include_state_json_backup=True,
+            )
+        )
+        return result
+
+    from gpd.core.workflow_staging import load_workflow_stage_manifest
+
+    manifest = load_workflow_stage_manifest(
+        "sync-state",
+        allowed_tools={"ask_user", "file_read", "file_write", "shell", "find_files", "search_files"},
+    )
+    try:
+        stage_def = manifest.stage_by_id(stage)
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown sync-state stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
+        ) from exc
+
+    required_fields = set(stage_def.required_init_fields)
+    staged_source = dict(base_result)
+
+    if required_fields & _SYNC_STATE_STRUCTURED_STATE_FIELDS:
+        staged_source.update(_build_structured_state_runtime_context(cwd))
+
+    if required_fields & _SYNC_STATE_CONTRACT_GATE_FIELDS:
+        staged_source.update(_build_new_project_contract_runtime_context(cwd))
+
+    if required_fields & _SYNC_STATE_FILE_CONTENT_FIELDS:
+        staged_source.update(
+            _build_sync_state_file_context(
+                cwd,
+                include_state_md="state_md_content" in required_fields,
+                include_state_json="state_json_content" in required_fields,
+                include_state_json_backup="state_json_backup_content" in required_fields,
+            )
+        )
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
+    if missing_fields:
+        raise ValueError(
+            f"sync-state stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
+        )
+
+    staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
+    staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
+    return staged_payload
 
 
 def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> dict:

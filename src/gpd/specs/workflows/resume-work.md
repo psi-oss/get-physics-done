@@ -57,9 +57,8 @@ The shared resume resolver distinguishes canonical continuation authority, conti
 
 The shared resume resolver is canonical-first: `state.json.continuation` wins, the canonical bounded segment and recorded handoff fields define the primary resume target, and the derived execution head only fills compatibility gaps when bounded-segment state is missing. Do not treat a single `.continue-here.md` file or compatibility snapshot as the sole authority.
 
-**If `state_exists` is true:** Proceed to load_state
-**If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md
-**If `planning_exists` is false:** This is a new project - route to gpd:new-project
+**If `planning_exists` is false:** This is a new project - route to gpd:new-project and do not attempt STATE.md reconstruction.
+**If `state_exists` is false but `roadmap_exists` or `project_exists` is true:** Offer to reconstruct STATE.md from the existing project artifacts.
 
 If `active_resume_kind="bounded_segment"` and `active_bounded_segment` exists, treat that as the primary bounded resume target. The derived execution head may still project the bounded segment when canonical continuation is missing or incomplete, but it does not define a second resume system.
 
@@ -111,7 +110,7 @@ cat GPD/PROJECT.md
 - `project_contract_load_info` and `project_contract_validation` remain visible gate inputs and diagnostics; they explain why the gate is blocked, but they are not the authority themselves.
 - `effective_reference_intake` is the authoritative carry-forward ledger for must-read refs, prior outputs, baselines, user anchors, and context gaps.
 - `active_reference_context` and `reference_artifacts_content` are readability aids for that ledger, not substitutes for it.
-- Do not reconstruct contract-critical anchors only from `STATE.md` / `PROJECT.md` prose when INIT already provided the structured ledger.
+- Do not reconstruct contract-critical anchors only from `STATE.md` / `PROJECT.md` prose when INIT already provided the structured ledger, and do not use reconstruction to override a missing planning workspace.
 - If the current readable `state.json` carries a malformed `project_contract`, surface that primary-state block. Do not silently promote `state.json.bak` as the current authoritative contract while the live state file is still readable.
 - If `project_contract_gate.authoritative` is false, present that contract as visible-but-blocked and route the next action to contract repair before planning or execution.
 
@@ -364,6 +363,10 @@ Present complete research project status to user:
 <step name="determine_next_action">
 Based on project state, determine the most logical next action:
 
+**If `project_contract_gate.authoritative` is false:**
+-> Primary: Repair the blocked contract or state-integrity issue before planning or execution
+-> Option: Inspect the blocked contract context and supporting diagnostics without resuming downstream work
+
 **If `active_resume_kind="bounded_segment"` and `active_bounded_segment` exists:**
 -> Primary: Continue the bounded execution segment using its current cursor, checkpoint cause, downstream-lock state, and resume preconditions
 -> If `checkpoint_reason=first_result`, `checkpoint_reason=pre_fanout`, or skeptical re-questioning is required: treat the next action as a review/replan decision whenever decisive evidence is still missing, not a routine execution resume
@@ -373,10 +376,6 @@ Based on project state, determine the most logical next action:
 **If `derived_execution_head` exists and `execution_resumable` is false:**
 -> Primary: Treat the live snapshot as advisory continuity context only and prefer a valid recorded handoff or repair action
 -> Option: Inspect the live gate state without claiming the bounded segment is directly resumable
-
-**If `project_contract_gate.authoritative` is false:**
--> Primary: Repair the blocked contract or state-integrity issue before planning or execution
--> Option: Inspect the blocked contract context and supporting diagnostics without resuming downstream work
 
 **If interrupted agent exists:**
 -> Primary: Resume interrupted agent (Task tool with resume parameter)
@@ -390,7 +389,7 @@ Based on project state, determine the most logical next action:
 -> Primary: Repair or recreate the recorded handoff artifact before treating it as a resumable local target
 -> Option: Inspect advisory live execution context or other recorded recovery state without claiming a bounded segment is active
 
-**If incomplete plan (PLAN without SUMMARY):**
+**If incomplete plan (PLAN without SUMMARY) and no higher-priority blocker is active:**
 -> Primary: Complete the incomplete plan
 -> Option: Abandon and move on
 
@@ -509,7 +508,7 @@ This ensures the canonical continuation payload reflects the resumed handoff sta
 </process>
 
 <reconstruction>
-If STATE.md is missing but other artifacts exist:
+If STATE.md is missing but other artifacts exist and `planning_exists` is true:
 
 "STATE.md missing. Reconstructing from artifacts..."
 
@@ -520,6 +519,8 @@ If STATE.md is missing but other artifacts exist:
 5. Check current execution snapshot -> Session continuity
 
 Reconstruct and write STATE.md, then proceed normally.
+
+If `planning_exists` is false, skip reconstruction and route to `gpd:new-project` instead.
 
 This handles cases where:
 

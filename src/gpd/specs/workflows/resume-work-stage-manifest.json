@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "workflow_id": "resume-work",
+  "stages": [
+    {
+      "id": "resume_bootstrap",
+      "order": 1,
+      "purpose": "reentry resolution, canonical resume selection, and immediate recovery summary",
+      "mode_paths": [
+        "workflows/resume-work.md"
+      ],
+      "required_init_fields": [
+        "workspace_root",
+        "project_root",
+        "project_root_source",
+        "project_root_auto_selected",
+        "project_reentry_mode",
+        "project_reentry_requires_selection",
+        "project_reentry_selected_candidate",
+        "project_reentry_candidates",
+        "workspace_state_exists",
+        "workspace_roadmap_exists",
+        "workspace_project_exists",
+        "workspace_planning_exists",
+        "state_exists",
+        "roadmap_exists",
+        "project_exists",
+        "planning_exists",
+        "has_interrupted_agent",
+        "interrupted_agent_id",
+        "commit_docs",
+        "autonomy",
+        "review_cadence",
+        "research_mode",
+        "resume_surface_schema_version",
+        "active_bounded_segment",
+        "derived_execution_head",
+        "derived_execution_head_resume_file",
+        "continuity_handoff_file",
+        "recorded_continuity_handoff_file",
+        "missing_continuity_handoff_file",
+        "has_continuity_handoff",
+        "active_resume_kind",
+        "active_resume_origin",
+        "active_resume_pointer",
+        "active_resume_result",
+        "resume_candidates",
+        "current_hostname",
+        "current_platform",
+        "session_hostname",
+        "session_platform",
+        "session_last_date",
+        "session_stopped_at",
+        "machine_change_detected",
+        "machine_change_notice",
+        "execution_review_pending",
+        "execution_pre_fanout_review_pending",
+        "execution_skeptical_requestioning_required",
+        "execution_downstream_locked",
+        "execution_blocked",
+        "execution_resumable",
+        "execution_paused_at",
+        "platform"
+      ],
+      "loaded_authorities": [
+        "workflows/resume-work.md",
+        "references/orchestration/resume-vocabulary.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "references/orchestration/continuation-format.md",
+        "references/orchestration/state-portability.md",
+        "templates/state-json-schema.md"
+      ],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "file_write",
+        "shell"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "reentry selection",
+        "recovery summary"
+      ],
+      "next_stages": [
+        "state_restore"
+      ],
+      "checkpoints": [
+        "selected workspace recovered",
+        "canonical resume target surfaced",
+        "advisory continuity kept subordinate"
+      ]
+    },
+    {
+      "id": "state_restore",
+      "order": 2,
+      "purpose": "state authority restoration, contract gate visibility, and blocked-contract routing",
+      "mode_paths": [
+        "workflows/resume-work.md"
+      ],
+      "required_init_fields": [
+        "state_exists",
+        "roadmap_exists",
+        "project_exists",
+        "planning_exists",
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+        "contract_intake",
+        "effective_reference_intake",
+        "active_reference_context",
+        "state_load_source",
+        "state_integrity_issues",
+        "state_content",
+        "project_content"
+      ],
+      "loaded_authorities": [
+        "references/orchestration/state-portability.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "references/orchestration/continuation-format.md",
+        "templates/state-json-schema.md"
+      ],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "file_write",
+        "shell"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "state authority summary",
+        "contract repair gate"
+      ],
+      "next_stages": [
+        "derivation_restore",
+        "resume_routing"
+      ],
+      "checkpoints": [
+        "canonical state source identified",
+        "blocked contract outranks downstream routing"
+      ]
+    },
+    {
+      "id": "derivation_restore",
+      "order": 3,
+      "purpose": "derivation-history restoration and continuity-anchor recovery",
+      "mode_paths": [
+        "workflows/resume-work.md"
+      ],
+      "required_init_fields": [
+        "derived_convention_lock",
+        "derived_convention_lock_count",
+        "derived_intermediate_results",
+        "derived_intermediate_result_count",
+        "derived_approximations",
+        "derived_approximation_count",
+        "derivation_state_content",
+        "continuity_handoff_content"
+      ],
+      "loaded_authorities": [
+        "references/orchestration/continuation-format.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "templates/state-json-schema.md"
+      ],
+      "allowed_tools": [
+        "file_read",
+        "file_write",
+        "shell"
+      ],
+      "writes_allowed": [],
+      "produced_state": [
+        "derivation restoration summary",
+        "continuity anchor summary"
+      ],
+      "next_stages": [
+        "resume_routing"
+      ],
+      "checkpoints": [
+        "derivation history summarized",
+        "last-result continuity anchor surfaced"
+      ]
+    },
+    {
+      "id": "resume_routing",
+      "order": 4,
+      "purpose": "incomplete-work detection, next-step selection, and fail-closed downstream routing",
+      "mode_paths": [
+        "workflows/resume-work.md"
+      ],
+      "required_init_fields": [
+        "state_exists",
+        "roadmap_exists",
+        "project_exists",
+        "planning_exists",
+        "active_resume_kind",
+        "active_resume_pointer",
+        "active_resume_result",
+        "resume_candidates",
+        "execution_resumable",
+        "execution_review_pending",
+        "execution_pre_fanout_review_pending",
+        "execution_skeptical_requestioning_required",
+        "execution_downstream_locked",
+        "execution_blocked",
+        "execution_paused_at",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+        "roadmap_content",
+        "continuity_handoff_content"
+      ],
+      "loaded_authorities": [
+        "references/orchestration/continuation-format.md"
+      ],
+      "conditional_authorities": [],
+      "must_not_eager_load": [
+        "templates/state-json-schema.md"
+      ],
+      "allowed_tools": [
+        "ask_user",
+        "file_read",
+        "file_write",
+        "shell"
+      ],
+      "writes_allowed": [
+        "GPD/state.json",
+        "GPD/STATE.md"
+      ],
+      "produced_state": [
+        "resume choice",
+        "continuation update"
+      ],
+      "next_stages": [],
+      "checkpoints": [
+        "blocked repair precedes planning or execution",
+        "advisory incomplete-plan scan stays subordinate"
+      ]
+    }
+  ]
+}

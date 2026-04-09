@@ -2452,8 +2452,13 @@ def test_review_and_verification_prompts_explicitly_surface_schema_sources_and_c
     assert "Canonical schema for `${PAPER_DIR}/reproducibility-manifest.json`:" in write_paper
     assert "Canonical reconciliation contract:" in sync_state
     assert "state-json-schema.md` itself" in sync_state
+    assert "state.json is authoritative for structured fields" in sync_state
+    assert "This workflow is intentionally fail-closed" in sync_state
+    assert "optional_commit" in sync_state
     assert "save_state_markdown" in sync_state
     assert "gpd --raw state snapshot" not in sync_state
+    assert "Proceed with reconciliation? (y/n)" not in sync_state
+    assert "determine which source is more recent" not in sync_state
     assert (
         "Keep the current `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, "
         "and `active_reference_context` visible throughout the staged review" in write_paper

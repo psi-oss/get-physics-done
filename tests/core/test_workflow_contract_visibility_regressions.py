@@ -5,9 +5,12 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters.install_utils import expand_at_includes
+from gpd.core.public_surface_contract import resume_authority_fields
+from tests.doc_surface_contracts import resume_authority_public_vocabulary_intro, resume_compat_alias_fields
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
+COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 
 
 def _workflow_text(name: str) -> str:
@@ -137,6 +140,85 @@ def test_help_resume_surface_stays_user_facing() -> None:
     assert "compat_resume_surface" not in workflow
     assert "session.resume_file" not in workflow
     assert "shared resume-surface resolver owns canonical candidate kind/origin semantics" not in workflow
+
+
+def test_resume_work_keeps_public_resume_vocabulary_and_nested_compatibility_intake_separate() -> None:
+    resume_work_command = expand_at_includes(
+        (COMMANDS_DIR / "resume-work.md").read_text(encoding="utf-8"),
+        REPO_ROOT / "src/gpd",
+        "/runtime/",
+    )
+    resume_work_workflow = expand_at_includes(_workflow_text("resume-work.md"), REPO_ROOT / "src/gpd", "/runtime/")
+
+    assert resume_authority_public_vocabulary_intro() in resume_work_command
+    assert resume_authority_public_vocabulary_intro() in resume_work_workflow
+    assert "compatibility-only intake fields stay internal" in resume_work_command.lower()
+    assert "compatibility-only intake fields stay internal" in resume_work_workflow.lower()
+    assert "compat_resume_surface" not in resume_work_command
+    assert "compat_resume_surface" not in resume_work_workflow
+    assert "session_resume_file" not in resume_work_command
+    assert "session_resume_file" not in resume_work_workflow
+    assert resume_authority_fields() == (
+        "active_resume_kind",
+        "active_resume_origin",
+        "active_resume_pointer",
+        "active_bounded_segment",
+        "derived_execution_head",
+        "active_resume_result",
+        "continuity_handoff_file",
+        "recorded_continuity_handoff_file",
+        "missing_continuity_handoff_file",
+        "resume_candidates",
+    )
+    assert not any(alias in resume_authority_fields() for alias in resume_compat_alias_fields())
+
+
+def test_sync_state_keeps_state_json_authority_before_markdown_repair() -> None:
+    raw_sync_state_command = (COMMANDS_DIR / "sync-state.md").read_text(encoding="utf-8")
+    raw_sync_state_workflow = _workflow_text("sync-state.md")
+    sync_state_command = expand_at_includes(
+        raw_sync_state_command,
+        REPO_ROOT / "src/gpd",
+        "/runtime/",
+    )
+    sync_state_workflow = expand_at_includes(raw_sync_state_workflow, REPO_ROOT / "src/gpd", "/runtime/")
+
+    assert "@{GPD_INSTALL_DIR}/workflows/sync-state.md" in raw_sync_state_command
+    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" not in raw_sync_state_command
+    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" in raw_sync_state_workflow
+    assert "`state.json` is the authoritative store for structured state" in raw_sync_state_workflow
+    assert "`STATE.md` is the human-readable projection" in raw_sync_state_workflow
+
+    for content in (sync_state_command, sync_state_workflow):
+        assert "# state.json Schema" in content
+        assert "Authoritative vs Derived" in content
+        assert "Markdown is only used as a recovery source when `state.json` is missing or unreadable." in content
+        assert "do not invent a field-by-field merge" in content
+
+
+def test_resume_workflow_routes_new_projects_before_state_reconstruction() -> None:
+    workflow = _workflow_text("resume-work.md")
+
+    new_project_line = "**If `planning_exists` is false:** This is a new project - route to gpd:new-project and do not attempt STATE.md reconstruction."
+    reconstruction_line = "If STATE.md is missing but other artifacts exist and `planning_exists` is true:"
+
+    assert new_project_line in workflow
+    assert reconstruction_line in workflow
+    assert workflow.index(new_project_line) < workflow.index(reconstruction_line)
+
+
+def test_resume_workflow_prioritizes_blocked_contract_repair_before_resume_targets_and_incomplete_plan_completion() -> None:
+    workflow = _workflow_text("resume-work.md")
+
+    blocked_contract_line = "**If `project_contract_gate.authoritative` is false:**"
+    bounded_segment_line = "**If `active_resume_kind=\"bounded_segment\"` and `active_bounded_segment` exists:**"
+    incomplete_plan_line = "**If incomplete plan (PLAN without SUMMARY) and no higher-priority blocker is active:**"
+
+    assert blocked_contract_line in workflow
+    assert bounded_segment_line in workflow
+    assert incomplete_plan_line in workflow
+    assert workflow.index(blocked_contract_line) < workflow.index(bounded_segment_line)
+    assert workflow.index(blocked_contract_line) < workflow.index(incomplete_plan_line)
 
 
 def test_arxiv_submission_does_not_instruct_unsupported_explicit_submission_root() -> None:

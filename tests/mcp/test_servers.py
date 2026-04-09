@@ -1729,6 +1729,53 @@ class TestSkillsServer:
         assert result["project_reentry_capable"] is True
         assert result["argument_hint"] == ""
 
+    @pytest.mark.parametrize(
+        ("skill_name", "visible_token"),
+        [
+            ("gpd-resume-work", "Canonical continuation fields define the public resume vocabulary"),
+            ("gpd-sync-state", "Canonical reconciliation contract:"),
+        ],
+    )
+    def test_get_skill_resume_and_sync_state_keep_prompt_visibility_without_staged_loading_sidecar(
+        self,
+        skill_name: str,
+        visible_token: str,
+    ) -> None:
+        from gpd.mcp.servers.skills_server import get_skill
+        from gpd.registry import CommandDef, SkillDef
+
+        command = CommandDef(
+            name=skill_name.replace("gpd-", "gpd:"),
+            description="Resume." if skill_name == "gpd-resume-work" else "Sync state.",
+            argument_hint="",
+            requires={},
+            allowed_tools=["file_read", "shell"],
+            content=f"{visible_token} Body.",
+            path=f"/tmp/{skill_name}.md",
+            source="commands",
+            context_mode="project-required",
+            project_reentry_capable=skill_name == "gpd-resume-work",
+        )
+        skill = SkillDef(
+            name=skill_name,
+            description=command.description,
+            content=command.content,
+            category="session",
+            path=command.path,
+            source_kind="command",
+            registry_name=skill_name.removeprefix("gpd-"),
+        )
+
+        with (
+            patch("gpd.mcp.servers.skills_server._resolve_skill", return_value=skill),
+            patch("gpd.mcp.servers.skills_server.content_registry.get_command", return_value=command),
+        ):
+            result = get_skill(skill_name)
+
+        assert "staged_loading" not in result
+        assert visible_token in result["content"]
+        assert result["allowed_tools_surface"] == "command.allowed-tools"
+
     def test_get_skill_new_project_surfaces_staged_loading_sidecar(self):
         from gpd import registry
         from gpd.mcp.servers.skills_server import get_skill
