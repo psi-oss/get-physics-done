@@ -1670,6 +1670,7 @@ class TestRegistryPromptIncludeInlining:
                 "templates/notation-glossary.md",
                 "templates/latex-preamble.md",
                 "references/publication/publication-pipeline-modes.md",
+                "references/publication/paper-writer-cookbook.md",
                 "references/publication/figure-generation-templates.md",
                 "templates/paper/author-response.md",
             ),

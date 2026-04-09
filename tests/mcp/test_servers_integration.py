@@ -594,6 +594,7 @@ class TestSkillsServerIntegration:
             {
                 "@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md",
                 "@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md",
+                "@{GPD_INSTALL_DIR}/references/publication/paper-writer-cookbook.md",
                 "@{GPD_INSTALL_DIR}/templates/notation-glossary.md",
                 "@{GPD_INSTALL_DIR}/templates/latex-preamble.md",
                 "@{GPD_INSTALL_DIR}/references/publication/figure-generation-templates.md",

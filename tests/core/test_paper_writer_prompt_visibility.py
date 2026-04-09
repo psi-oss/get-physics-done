@@ -45,6 +45,7 @@ def test_paper_writer_prompt_keeps_lazy_authoring_contract_paths_visible() -> No
 
     assert "{GPD_INSTALL_DIR}/references/shared/shared-protocols.md" in source
     assert "{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md" in source
+    assert "{GPD_INSTALL_DIR}/references/publication/paper-writer-cookbook.md" in source
     assert "{GPD_INSTALL_DIR}/templates/notation-glossary.md" in source
     assert "{GPD_INSTALL_DIR}/templates/latex-preamble.md" in source
     assert "{GPD_INSTALL_DIR}/references/publication/figure-generation-templates.md" in source

@@ -160,6 +160,7 @@ AGENT_REFERENCE_TOKENS = {
         "references/shared/shared-protocols.md",
         "references/orchestration/agent-infrastructure.md",
         "references/publication/publication-pipeline-modes.md",
+        "references/publication/paper-writer-cookbook.md",
         "templates/notation-glossary.md",
         "templates/latex-preamble.md",
         "references/publication/figure-generation-templates.md",
@@ -235,6 +236,7 @@ AGENT_REFERENCE_TOKENS = {
         "references/physics-subfields.md",
         "references/verification/core/verification-core.md",
         "references/publication/publication-pipeline-modes.md",
+        "references/publication/referee-review-playbook.md",
         "references/publication/peer-review-panel.md",
         "templates/paper/referee-report.tex",
     ],
@@ -536,12 +538,6 @@ def test_review_commands_expose_typed_contracts() -> None:
 
     assert write_paper.review_contract is not None
     assert write_paper.review_contract.review_mode == "publication"
-    assert (
-        "manuscript scaffold target (existing draft or bootstrap target)"
-        in write_paper.review_contract.required_evidence
-    )
-    assert "manuscript-root artifact manifest" in write_paper.review_contract.required_evidence
-    assert "manuscript-root reproducibility manifest" in write_paper.review_contract.required_evidence
     assert "${PAPER_DIR}/ARTIFACT-MANIFEST.json" in write_paper.review_contract.required_outputs
     assert "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json" in write_paper.review_contract.required_outputs
     assert "${PAPER_DIR}/reproducibility-manifest.json" in write_paper.review_contract.required_outputs
@@ -549,6 +545,7 @@ def test_review_commands_expose_typed_contracts() -> None:
     assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in write_paper.review_contract.required_outputs
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in write_paper.review_contract.required_outputs
     assert "GPD/REFEREE-REPORT{round_suffix}.tex" in write_paper.review_contract.required_outputs
+    assert write_paper.review_contract.required_evidence == []
     assert "command_context" in write_paper.review_contract.preflight_checks
     assert "verification_reports" in write_paper.review_contract.preflight_checks
     assert "manuscript" in write_paper.review_contract.preflight_checks
@@ -558,34 +555,17 @@ def test_review_commands_expose_typed_contracts() -> None:
     assert "reproducibility_manifest" in write_paper.review_contract.preflight_checks
     assert "reproducibility_ready" in write_paper.review_contract.preflight_checks
     assert "manuscript_proof_review" in write_paper.review_contract.preflight_checks
-    assert write_paper.review_contract.stage_artifacts == [
-        "GPD/review/CLAIMS{round_suffix}.json",
-        "GPD/review/STAGE-reader{round_suffix}.json",
-        "GPD/review/STAGE-literature{round_suffix}.json",
-        "GPD/review/STAGE-math{round_suffix}.json",
-        "GPD/review/STAGE-physics{round_suffix}.json",
-        "GPD/review/STAGE-interestingness{round_suffix}.json",
-        "GPD/review/REVIEW-LEDGER{round_suffix}.json",
-        "GPD/review/REFEREE-DECISION{round_suffix}.json",
-    ]
+    assert write_paper.review_contract.stage_artifacts == []
     assert [
         {
             "when": requirement.when,
             "required_outputs": list(requirement.required_outputs),
-            "required_evidence": list(requirement.required_evidence),
-            "blocking_conditions": list(requirement.blocking_conditions),
-            "blocking_preflight_checks": list(requirement.blocking_preflight_checks),
-            "stage_artifacts": list(requirement.stage_artifacts),
         }
         for requirement in write_paper.review_contract.conditional_requirements
     ] == [
         {
             "when": "theorem-bearing claims are present",
             "required_outputs": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
-            "required_evidence": [],
-            "blocking_conditions": [],
-            "blocking_preflight_checks": [],
-            "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
         }
     ]
 

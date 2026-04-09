@@ -4308,6 +4308,24 @@ def init_new_milestone() -> None:
     _output(init_new_milestone(_get_cwd()))
 
 
+@init_app.command("write-paper")
+def init_write_paper(
+    stage: str | None = typer.Option(
+        None,
+        "--stage",
+        help="Load the staged write-paper context for a specific stage id.",
+    ),
+) -> None:
+    """Assemble context for manuscript authoring."""
+    from gpd.core.context import init_write_paper
+
+    try:
+        payload = init_write_paper(_get_cwd(), stage=stage)
+    except ValueError as exc:
+        _error(str(exc))
+    _output(payload)
+
+
 @init_app.command("quick")
 def init_quick(
     description: list[str] = typer.Argument(None, help="Task description"),

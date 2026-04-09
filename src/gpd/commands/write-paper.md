@@ -11,23 +11,10 @@ review-contract:
     - "${PAPER_DIR}/ARTIFACT-MANIFEST.json"
     - "${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json"
     - "${PAPER_DIR}/reproducibility-manifest.json"
-    - "GPD/review/CLAIMS{round_suffix}.json"
-    - "GPD/review/STAGE-reader{round_suffix}.json"
-    - "GPD/review/STAGE-literature{round_suffix}.json"
-    - "GPD/review/STAGE-math{round_suffix}.json"
-    - "GPD/review/STAGE-physics{round_suffix}.json"
-    - "GPD/review/STAGE-interestingness{round_suffix}.json"
     - "GPD/review/REVIEW-LEDGER{round_suffix}.json"
     - "GPD/review/REFEREE-DECISION{round_suffix}.json"
     - "GPD/REFEREE-REPORT{round_suffix}.md"
     - "GPD/REFEREE-REPORT{round_suffix}.tex"
-  required_evidence:
-    - manuscript scaffold target (existing draft or bootstrap target)
-    - phase summaries or milestone digest
-    - verification reports
-    - manuscript-root bibliography audit
-    - manuscript-root artifact manifest
-    - manuscript-root reproducibility manifest
   blocking_conditions:
     - missing project state
     - missing roadmap
@@ -48,20 +35,9 @@ review-contract:
     - reproducibility_manifest
     - reproducibility_ready
     - manuscript_proof_review
-  stage_artifacts:
-    - "GPD/review/CLAIMS{round_suffix}.json"
-    - "GPD/review/STAGE-reader{round_suffix}.json"
-    - "GPD/review/STAGE-literature{round_suffix}.json"
-    - "GPD/review/STAGE-math{round_suffix}.json"
-    - "GPD/review/STAGE-physics{round_suffix}.json"
-    - "GPD/review/STAGE-interestingness{round_suffix}.json"
-    - "GPD/review/REVIEW-LEDGER{round_suffix}.json"
-    - "GPD/review/REFEREE-DECISION{round_suffix}.json"
   conditional_requirements:
     - when: theorem-bearing claims are present
       required_outputs:
-        - "GPD/review/PROOF-REDTEAM{round_suffix}.md"
-      stage_artifacts:
         - "GPD/review/PROOF-REDTEAM{round_suffix}.md"
 allowed-tools:
   - file_read
@@ -97,16 +73,8 @@ Follow the included workflow file exactly.
 </process>
 
 <success_criteria>
-- [ ] Project context loaded and research artifacts cataloged
-- [ ] Paper-readiness audit passed (0 critical gaps or user approved)
-- [ ] Paper scope established (journal, type, key result, audience)
-- [ ] Detailed outline created and approved
-- [ ] All sections drafted by gpd-paper-writer agents (Results first, Abstract last)
-- [ ] Every equation numbered, defined, and contextualized
-- [ ] Every figure captioned and discussed in text
-- [ ] Citations verified via gpd-bibliographer (no hallucinated references)
-- [ ] Manuscript-root review artifacts refreshed (`${PAPER_DIR}/ARTIFACT-MANIFEST.json`, `${PAPER_DIR}/BIBLIOGRAPHY-AUDIT.json`, `${PAPER_DIR}/reproducibility-manifest.json`)
-- [ ] Pre-submission staged peer review completed with final gpd-referee adjudication
-- [ ] Internal consistency verified (notation, cross-references, conventions)
-- [ ] Paper directory created with buildable LaTeX structure
+- [ ] Workflow ran end to end
+- [ ] Final manuscript artifacts exist on disk
+- [ ] Final review artifacts exist on disk when staged review runs
+- [ ] Theorem-bearing manuscripts retain the proof-redteam gate
 </success_criteria>

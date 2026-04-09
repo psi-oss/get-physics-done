@@ -266,6 +266,22 @@ def test_validate_workflow_stage_manifest_payload_loads_write_paper_manifest() -
     )
 
 
+def test_known_init_fields_for_write_paper_cover_bootstrap_and_deferred_publication_context() -> None:
+    known_init_fields = known_init_fields_for_workflow("write-paper")
+
+    assert known_init_fields is not None
+    assert "commit_docs" in known_init_fields
+    assert "project_contract_gate" in known_init_fields
+    assert "project_contract_load_info" in known_init_fields
+    assert "project_contract_validation" in known_init_fields
+    assert "selected_protocol_bundle_ids" in known_init_fields
+    assert "protocol_bundle_context" in known_init_fields
+    assert "active_reference_context" in known_init_fields
+    assert "reference_artifacts_content" in known_init_fields
+    assert "state_content" in known_init_fields
+    assert "requirements_content" in known_init_fields
+
+
 def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -> None:
     manifest = validate_workflow_stage_manifest_payload(
         _workflow_payload("peer-review"),

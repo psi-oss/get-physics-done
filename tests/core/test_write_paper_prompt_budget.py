@@ -34,6 +34,10 @@ def test_write_paper_command_stays_thin_and_only_eagerly_loads_the_workflow() ->
     assert "@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/templates/paper/paper-config-schema.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/templates/paper/review-ledger-schema.md" not in command_text
+    assert "required_evidence:" not in command_text
+    assert "stage_artifacts:" not in command_text
+    assert "GPD/review/CLAIMS{round_suffix}.json" not in command_text
+    assert "GPD/review/STAGE-reader{round_suffix}.json" not in command_text
     assert "Follow the included workflow file exactly." in command_text
     assert metrics.expanded_line_count > workflow.expanded_line_count
     assert metrics.expanded_char_count > workflow.expanded_char_count

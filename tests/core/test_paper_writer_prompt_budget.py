@@ -26,6 +26,7 @@ def test_gpd_paper_writer_prompt_stays_within_expected_budget_and_keeps_contract
     assert "{GPD_INSTALL_DIR}/templates/paper/author-response.md" in source
     assert "{GPD_INSTALL_DIR}/references/shared/shared-protocols.md" in source
     assert "{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md" in source
+    assert "{GPD_INSTALL_DIR}/references/publication/paper-writer-cookbook.md" in source
     assert "{GPD_INSTALL_DIR}/references/publication/figure-generation-templates.md" in source
     assert "{GPD_INSTALL_DIR}/references/publication/publication-pipeline-modes.md" in source
     assert "@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md" not in source

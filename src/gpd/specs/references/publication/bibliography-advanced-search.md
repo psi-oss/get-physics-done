@@ -109,3 +109,37 @@ Do not load this reference for:
 - ordinary `.bib` deduplication or normalization
 - manuscript `\cite{}` key audits
 - routine hallucination or retraction checks
+
+## Verification Extensions
+
+Use this pack when the bibliography task needs a deeper pass than ordinary key resolution:
+
+1. Extract the author, title fragment, year, venue, and claim context.
+2. Search authoritative sources first: INSPIRE, ADS, arXiv, DOI.
+3. Verify that the metadata and cited claim actually match.
+4. If the paper exists but the metadata is wrong, correct the entry and report it.
+5. If no match exists, classify the citation as suspect or not found instead of guessing.
+
+## Hallucination Patterns
+
+Common failure modes include:
+
+- plausible author plus fabricated title
+- real paper with wrong year or venue
+- merged metadata from multiple papers
+- arXiv ID that points to a different paper
+- conference proceedings confused with the journal version
+
+If any of these appear, prefer a checkpoint or a pending-resolution report over silent correction.
+
+## Retraction and Missing-Citation Checks
+
+Before adding or auditing a citation, check whether the paper has been retracted or superseded. If a manuscript uses a specific equation, method, or numerical value from the literature, verify the actual source of that claim rather than a nearby review or later summary.
+
+Keep the downstream compact report fields available:
+
+- verification status
+- correction status
+- pending-resolution status
+- `resolved_markers` for `MISSING:` placeholders
+- journal-formatting notes

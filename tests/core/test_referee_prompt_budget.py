@@ -33,10 +33,12 @@ def test_gpd_referee_prompt_keeps_publication_path_mentions_without_eager_schema
     )
 
     assert "references/publication/peer-review-panel.md" in referee
+    assert "references/publication/referee-review-playbook.md" in referee
     assert "templates/paper/review-ledger-schema.md" in referee
     assert "templates/paper/referee-decision-schema.md" in referee
     assert "templates/paper/referee-report.tex" in referee
     assert "Peer Review Panel Protocol" not in expanded
+    assert "Referee Review Playbook" not in expanded
     assert "Review Ledger Schema" not in expanded
     assert "Referee Decision Schema" not in expanded
     assert "Referee Report Template" not in expanded

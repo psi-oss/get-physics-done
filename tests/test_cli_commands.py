@@ -1090,6 +1090,26 @@ review_summary:
         assert "project_contract_load_info" in payload
         assert "project_contract_validation" in payload
 
+    def test_write_paper_init_stage_surfaces_bootstrap_payload(self, gpd_project: Path) -> None:
+        (gpd_project / "GPD" / "PROJECT.md").write_text("# Project\n\nDraft manuscript.\n", encoding="utf-8")
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
+        state["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        (gpd_project / "GPD" / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "init", "write-paper", "--stage", "paper_bootstrap"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["staged_loading"]["workflow_id"] == "write-paper"
+        assert payload["staged_loading"]["stage_id"] == "paper_bootstrap"
+        assert "reference_artifacts_content" not in payload
+        assert "state_content" not in payload
+        assert "derived_manuscript_reference_status" in payload
+
 
 class TestReviewValidationCommands:
     def test_review_contract_uses_typed_registry_surface(self) -> None:
@@ -1111,6 +1131,7 @@ class TestReviewValidationCommands:
         assert "GPD/review/REFEREE-DECISION{round_suffix}.json" in payload["review_contract"]["required_outputs"]
         assert "GPD/REFEREE-REPORT{round_suffix}.md" in payload["review_contract"]["required_outputs"]
         assert "GPD/REFEREE-REPORT{round_suffix}.tex" in payload["review_contract"]["required_outputs"]
+        assert payload["review_contract"]["required_evidence"] == []
         assert payload["review_contract"]["preflight_checks"] == [
             "command_context",
             "project_state",
@@ -1126,16 +1147,7 @@ class TestReviewValidationCommands:
             "reproducibility_ready",
             "manuscript_proof_review",
         ]
-        assert payload["review_contract"]["stage_artifacts"] == [
-            "GPD/review/CLAIMS{round_suffix}.json",
-            "GPD/review/STAGE-reader{round_suffix}.json",
-            "GPD/review/STAGE-literature{round_suffix}.json",
-            "GPD/review/STAGE-math{round_suffix}.json",
-            "GPD/review/STAGE-physics{round_suffix}.json",
-            "GPD/review/STAGE-interestingness{round_suffix}.json",
-            "GPD/review/REVIEW-LEDGER{round_suffix}.json",
-            "GPD/review/REFEREE-DECISION{round_suffix}.json",
-        ]
+        assert payload["review_contract"]["stage_artifacts"] == []
         assert payload["review_contract"]["conditional_requirements"] == [
             {
                 "when": "theorem-bearing claims are present",
@@ -1143,15 +1155,9 @@ class TestReviewValidationCommands:
                 "required_evidence": [],
                 "blocking_conditions": [],
                 "blocking_preflight_checks": [],
-                "stage_artifacts": ["GPD/review/PROOF-REDTEAM{round_suffix}.md"],
+                "stage_artifacts": [],
             }
         ]
-        assert "manuscript scaffold target (existing draft or bootstrap target)" in payload["review_contract"]["required_evidence"]
-        assert "phase summaries or milestone digest" in payload["review_contract"]["required_evidence"]
-        assert "verification reports" in payload["review_contract"]["required_evidence"]
-        assert "manuscript-root bibliography audit" in payload["review_contract"]["required_evidence"]
-        assert "manuscript-root artifact manifest" in payload["review_contract"]["required_evidence"]
-        assert "manuscript-root reproducibility manifest" in payload["review_contract"]["required_evidence"]
 
     def test_review_contract_peer_review_uses_typed_registry_surface(self) -> None:
         result = runner.invoke(
@@ -1186,13 +1192,15 @@ class TestReviewValidationCommands:
             "reproducibility_ready",
             "manuscript_proof_review",
         ]
-        assert "existing manuscript" in payload["review_contract"]["required_evidence"]
-        assert "phase summaries or milestone digest" in payload["review_contract"]["required_evidence"]
-        assert "verification reports" in payload["review_contract"]["required_evidence"]
-        assert "manuscript-root bibliography audit" in payload["review_contract"]["required_evidence"]
-        assert "manuscript-root artifact manifest" in payload["review_contract"]["required_evidence"]
-        assert "manuscript-root reproducibility manifest" in payload["review_contract"]["required_evidence"]
-        assert "manuscript-root publication artifacts" in payload["review_contract"]["required_evidence"]
+        assert payload["review_contract"]["required_evidence"] == [
+            "existing manuscript",
+            "phase summaries or milestone digest",
+            "verification reports",
+            "manuscript-root bibliography audit",
+            "manuscript-root artifact manifest",
+            "manuscript-root reproducibility manifest",
+            "manuscript-root publication artifacts",
+        ]
         assert payload["review_contract"]["stage_artifacts"] == [
             "GPD/review/CLAIMS{round_suffix}.json",
             "GPD/review/STAGE-reader{round_suffix}.json",

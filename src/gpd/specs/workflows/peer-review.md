@@ -13,6 +13,7 @@ Peer review should be staged, evidence-aware, and fail-closed on unsupported sci
 6. Whether the paper should be accepted, revised, or rejected
 
 Each stage runs in a fresh subagent context and writes a compact artifact. The final referee decides only after reading those artifacts.
+If any spawned reviewer or proof auditor needs user input, it must return `status: checkpoint` and stop. The orchestrator presents the checkpoint and spawns a fresh continuation handoff after the user responds. Do not keep the same spawned run alive waiting for confirmation.
 </core_principle>
 
 <process>
@@ -634,6 +635,7 @@ Return REVIEW COMPLETE with recommendation, confidence, issue counts, and whethe
 ```
 
 If the referee agent fails to spawn or returns an error, STOP and report the failure. Do not silently skip final adjudication.
+Do not trust the referee's success text until the ledger, decision, and report files all exist on disk and validate. A returned recommendation without the files is incomplete.
 </step>
 
 <step name="stage_recovery_6">

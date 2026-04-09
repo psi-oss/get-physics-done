@@ -34,6 +34,9 @@ def test_respond_to_referees_workflow_runs_centralized_review_preflight() -> Non
     assert 'gpd validate review-preflight respond-to-referees "$ARGUMENTS" --strict' in workflow
     assert "gpd validate review-preflight respond-to-referees --strict" in workflow
     assert "missing referee report source when provided as a path" in workflow
+    assert "Any spawned agent that needs user input must return `status: checkpoint` and stop" in workflow
+    assert "Do not ask the child agent to wait inside the same run" in workflow
+    assert "Treat those files as complete only if the expected mirrored artifacts exist on disk" in workflow
     assert "${PAPER_DIR}/response-letter.tex" in workflow
     assert "${PAPER_DIR}/{section}.tex" in workflow
 
@@ -59,6 +62,9 @@ def test_peer_review_workflow_runs_centralized_review_preflight_with_explicit_ar
 
     assert 'gpd validate review-preflight peer-review "$ARGUMENTS" --strict' in workflow
     assert "gpd validate review-preflight peer-review --strict" not in workflow
+    assert "If any spawned reviewer or proof auditor needs user input, it must return `status: checkpoint` and stop." in workflow
+    assert "Do not keep the same spawned run alive waiting for confirmation." in workflow
+    assert "Do not trust the referee's success text until the ledger, decision, and report files all exist on disk and validate." in workflow
 
 
 def test_publication_review_wrappers_reference_shared_wrapper_guidance() -> None:

@@ -33,6 +33,7 @@ from gpd.core.context import (
     init_sync_state,
     init_todos,
     init_verify_work,
+    init_write_paper,
     load_config,
 )
 from gpd.core.errors import ConfigError, ValidationError
@@ -40,7 +41,7 @@ from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
 from gpd.core.recent_projects import record_recent_project
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.resume_surface import RESUME_COMPATIBILITY_ALIAS_FIELDS
-from gpd.core.workflow_staging import NEW_PROJECT_INIT_FIELDS
+from gpd.core.workflow_staging import NEW_PROJECT_INIT_FIELDS, load_workflow_stage_manifest
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
@@ -2360,6 +2361,72 @@ class TestInitNewProject:
         assert ctx["project_contract_gate"]["visible"] is True
         assert "state_json_content" in ctx
         assert "state_md_content" in ctx
+
+    def test_write_paper_bootstrap_stays_small_without_stage(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nPaper target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        _write_manuscript_proof_review_artifacts(tmp_path)
+
+        ctx = init_write_paper(tmp_path)
+
+        assert ctx["project_exists"] is True
+        assert "staged_loading" not in ctx
+        assert "reference_artifacts_content" not in ctx
+        assert "state_content" not in ctx
+        assert "current_execution" not in ctx
+        assert "derived_manuscript_reference_status" in ctx
+        assert "derived_manuscript_proof_review_status" in ctx
+        assert "protocol_bundle_context" in ctx
+
+    def test_write_paper_stage_paper_bootstrap_filters_payload(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        (tmp_path / "GPD" / "PROJECT.md").write_text("# Project\n\nPaper target.\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+
+        manifest = load_workflow_stage_manifest("write-paper")
+        stage = manifest.get_stage("paper_bootstrap")
+
+        ctx = init_write_paper(tmp_path, stage="paper_bootstrap")
+
+        assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["staged_loading"]["workflow_id"] == "write-paper"
+        assert ctx["staged_loading"]["stage_id"] == "paper_bootstrap"
+        assert "reference_artifacts_content" not in ctx
+        assert "state_content" not in ctx
+        assert "derived_convention_lock" not in ctx
+
+    def test_write_paper_stage_outline_and_scaffold_loads_deferred_context(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        planning = tmp_path / "GPD"
+        (planning / "PROJECT.md").write_text("# Project\n\nPaper target.\n", encoding="utf-8")
+        (planning / "STATE.md").write_text("# State\n\nReady.\n", encoding="utf-8")
+        (planning / "ROADMAP.md").write_text("# Roadmap\n\n## Milestone v1.0\n", encoding="utf-8")
+        (planning / "REQUIREMENTS.md").write_text("# Requirements\n\n- Verified evidence\n", encoding="utf-8")
+        _write_project_contract_state(tmp_path)
+        _write_literature_review_anchor_file(tmp_path)
+        _write_research_map_anchor_files(tmp_path)
+        _write_structured_state_memory(tmp_path)
+
+        manifest = load_workflow_stage_manifest("write-paper")
+        stage = manifest.get_stage("outline_and_scaffold")
+
+        ctx = init_write_paper(tmp_path, stage="outline_and_scaffold")
+
+        assert set(ctx) == set(stage.required_init_fields) | {"staged_loading"}
+        assert ctx["staged_loading"]["stage_id"] == "outline_and_scaffold"
+        assert "Reference and Anchor Map" in ctx["reference_artifacts_content"]
+        assert "Universal crossing window" in ctx["reference_artifacts_content"]
+        assert "Milestone v1.0" in ctx["roadmap_content"]
+        assert "Verified evidence" in ctx["requirements_content"]
+        assert ctx["derived_convention_lock_count"] == 2
+        assert ctx["derived_intermediate_result_count"] == 1
+
+    def test_write_paper_stage_rejects_unknown_stage(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+
+        with pytest.raises(ValueError, match="Unknown write-paper stage 'bogus'"):
+            init_write_paper(tmp_path, stage="bogus")
 
 
 # ─── init_new_milestone ───────────────────────────────────────────────────────
