@@ -499,7 +499,7 @@ def validate_knowledge_frontmatter(
                         errors.append(
                             f"knowledge.sources[{index}].source_artifacts[{artifact_index}]: expected a non-empty string"
                         )
-                    elif Path(artifact).is_absolute():
+                    elif _is_absolute_path(artifact):
                         errors.append(
                             f"knowledge.sources[{index}].source_artifacts[{artifact_index}]: must be project-relative"
                         )
@@ -623,6 +623,22 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _is_absolute_path(path_text: str) -> bool:
+    """Cross-platform absolute-path check for string paths.
+
+    ``Path(x).is_absolute()`` uses the *native* platform flavour, so on Linux
+    it will **not** recognise ``C:\\foo`` as absolute (and vice-versa for
+    ``/foo`` on Windows).  This helper covers both families:
+
+    * ``/foo``  -> True on every OS  (Unix absolute)
+    * ``C:\\foo`` or ``C:/foo`` -> True on Windows via ``Path``
+    * ``relative/path`` -> False everywhere
+    """
+    if path_text.startswith("/"):
+        return True
+    return Path(path_text).is_absolute()
+
+
 _KNOWLEDGE_STATUS_VALUES = ("draft", "in_review", "stable", "superseded")
 _KNOWLEDGE_TOP_LEVEL_FIELDS = {
     "knowledge_schema_version",
@@ -741,7 +757,7 @@ def _validate_knowledge_project_relative_path(
         errors.append(f"knowledge.review.{field_name}: expected a non-empty string")
         return None
     stripped = value.strip()
-    if Path(stripped).is_absolute():
+    if _is_absolute_path(stripped):
         errors.append(f"knowledge.review.{field_name}: must be a project-relative path")
         return None
     return stripped
@@ -828,7 +844,7 @@ def _validate_knowledge_review_block(
         if evidence_sha256 is not None and not _is_lower_hex_sha256(evidence_sha256):
             errors.append("knowledge.review.evidence_sha256: expected a lowercase 64-hex sha256 digest")
         if audit_artifact_path is not None and (
-            not isinstance(audit_artifact_path, str) or not audit_artifact_path.strip() or Path(audit_artifact_path).is_absolute()
+            not isinstance(audit_artifact_path, str) or not audit_artifact_path.strip() or _is_absolute_path(audit_artifact_path)
         ):
             errors.append("knowledge.review.audit_artifact_path: must be a project-relative path")
         # Legacy review records do not carry the Step 4 freshness contract.
@@ -970,7 +986,7 @@ def _resolve_contract_artifact_path(
     path_text: str,
 ) -> tuple[Path | None, str | None]:
     artifact_path = Path(path_text)
-    if artifact_path.is_absolute():
+    if _is_absolute_path(path_text):
         return None, "must be a project-relative path"
 
     anchor_dir = artifact_dir or project_root
@@ -1270,7 +1286,7 @@ def _plan_contract_ref_path_error(plan_contract_ref: str) -> str | None:
         return "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"
 
     relative_plan_path = Path(path_text[2:] if path_text.startswith("./") else path_text)
-    if relative_plan_path.is_absolute():
+    if _is_absolute_path(path_text[2:] if path_text.startswith("./") else path_text):
         return "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"
     if any(part == ".." for part in relative_plan_path.parts):
         return "plan_contract_ref: must not traverse parent directories"
