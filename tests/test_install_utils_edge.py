@@ -1063,9 +1063,9 @@ class TestWriteSettings:
         target = tmp_path / "settings.json"
         target.write_text('{"original": true}', encoding="utf-8")
 
-        # Patch rename to fail
-        with patch.object(Path, "rename", side_effect=OSError("rename failed")):
-            with pytest.raises(OSError, match="rename failed"):
+        # Patch replace to fail (write_settings uses Path.replace for atomic overwrite)
+        with patch.object(Path, "replace", side_effect=OSError("replace failed")):
+            with pytest.raises(OSError, match="replace failed"):
                 write_settings(target, {"new": True})
 
         # Original should be intact (write_text succeeded on .tmp, rename failed)
