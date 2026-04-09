@@ -210,5 +210,5 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${GPD_WEB_TOKEN}" \
             https://api.github.com/repos/physicalsuperintelligence/gpd-web/dispatches \
-            -d '{"event_type":"rebuild-gpd","client_payload":{"source":"github","version":"main","image_tag":"staging"}}'
+            -d '{"event_type":"rebuild-gpd","client_payload":{"source":"github","repo":"psi-oss/get-physics-done","version":"${{ github.sha }}","image_tag":"staging"}}'
           echo "Dispatched staging rebuild to gpd-web"
