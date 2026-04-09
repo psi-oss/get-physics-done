@@ -3356,6 +3356,7 @@ def query_search(
     equation: str | None = typer.Option(None, "--equation", help="Search by equation"),
     text: str | None = typer.Option(None, "--text", help="Full-text search"),
     phase_range: str | None = typer.Option(None, "--phase-range", help="Phase range filter (e.g. 10-20)"),
+    scope: str = typer.Option("summary", "--scope", help="Search scope: summary (default), phase, all"),
 ) -> None:
     """Search across phases by provides/requires/text."""
     from gpd.core.query import query as query_search
@@ -3369,6 +3370,7 @@ def query_search(
             equation=equation,
             text=text,
             phase_range=phase_range,
+            scope=scope,
         )
     )
 
