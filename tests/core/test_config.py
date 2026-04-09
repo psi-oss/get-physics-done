@@ -462,3 +462,11 @@ class TestResolveTier:
         )
         tier = resolve_tier(tmp_path, "gpd-project-researcher")
         assert tier == ModelTier.TIER_3
+
+    def test_phase_researcher_resolve_tier_defaults_to_tier_2(self, tmp_path: Path) -> None:
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text("{}", encoding="utf-8")
+
+        tier = resolve_tier(tmp_path, "gpd-phase-researcher")
+
+        assert tier == ModelTier.TIER_2

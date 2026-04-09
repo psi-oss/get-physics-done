@@ -412,9 +412,29 @@ def test_known_init_fields_for_quick_cover_task_bootstrap_and_reference_context(
                 "executor_model",
                 "phase_found",
                 "phase_dir",
+                "phase_number",
+                "phase_name",
+                "phase_slug",
+                "padded_phase",
+                "commit_docs",
+                "autonomy",
+                "research_mode",
                 "project_contract_gate",
+                "project_contract_load_info",
+                "project_contract_validation",
+                "contract_intake",
+                "effective_reference_intake",
                 "active_reference_context",
+                "reference_artifact_files",
                 "reference_artifacts_content",
+                "selected_protocol_bundle_ids",
+                "protocol_bundle_context",
+                "protocol_bundle_verifier_extensions",
+                "current_execution",
+                "derived_manuscript_proof_review_status",
+                "literature_review_files",
+                "research_map_reference_files",
+                "config_content",
                 "state_content",
                 "roadmap_content",
             },
@@ -442,6 +462,53 @@ def test_known_init_fields_for_new_stage_aware_workflows_cover_required_context(
     assert known_init_fields is not None
     for field in expected_fields:
         assert field in known_init_fields
+
+
+def test_validate_workflow_stage_manifest_payload_loads_research_phase_manifest() -> None:
+    manifest = validate_workflow_stage_manifest_payload(
+        _workflow_payload("research-phase"),
+        expected_workflow_id="research-phase",
+    )
+
+    assert manifest.workflow_id == "research-phase"
+    assert manifest.stage_ids() == ("phase_bootstrap", "research_handoff")
+    assert manifest.stage("phase_bootstrap").loaded_authorities == (
+        "workflows/research-phase.md",
+        "references/orchestration/model-profile-resolution.md",
+    )
+    assert "references/orchestration/runtime-delegation-note.md" in manifest.stage(
+        "phase_bootstrap"
+    ).must_not_eager_load
+    assert "reference_artifacts_content" not in manifest.stage("phase_bootstrap").required_init_fields
+    assert manifest.stage("research_handoff").loaded_authorities == (
+        "workflows/research-phase.md",
+        "references/orchestration/model-profile-resolution.md",
+        "references/orchestration/runtime-delegation-note.md",
+    )
+    assert manifest.stage("research_handoff").required_init_fields[:4] == (
+        "commit_docs",
+        "autonomy",
+        "review_cadence",
+        "research_mode",
+    )
+    assert "contract_intake" in manifest.stage("research_handoff").required_init_fields
+    assert "effective_reference_intake" in manifest.stage("research_handoff").required_init_fields
+    assert "reference_artifact_files" in manifest.stage("research_handoff").required_init_fields
+    assert "reference_artifacts_content" in manifest.stage("research_handoff").required_init_fields
+    assert "selected_protocol_bundle_ids" in manifest.stage("research_handoff").required_init_fields
+    assert "protocol_bundle_context" in manifest.stage("research_handoff").required_init_fields
+    assert "protocol_bundle_verifier_extensions" in manifest.stage("research_handoff").required_init_fields
+    assert "current_execution" in manifest.stage("research_handoff").required_init_fields
+    assert "derived_manuscript_proof_review_status" in manifest.stage("research_handoff").required_init_fields
+    assert "config_content" in manifest.stage("research_handoff").required_init_fields
+    assert "state_content" in manifest.stage("research_handoff").required_init_fields
+    assert "roadmap_content" in manifest.stage("research_handoff").required_init_fields
+    assert manifest.stage("research_handoff").writes_allowed == ("GPD/phases/XX-name/XX-RESEARCH.md",)
+    assert manifest.stage("research_handoff").checkpoints == (
+        "reference and contract context are visible to the handoff",
+        "runtime delegation note is loaded only for the child handoff",
+        "fresh RESEARCH artifact is required before completion",
+    )
 
 
 def test_validate_workflow_stage_manifest_payload_loads_peer_review_manifest() -> None:

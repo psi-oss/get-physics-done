@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import importlib
+import json
 import re
 import sys
 import tomllib
@@ -234,6 +235,16 @@ def test_managed_mcp_server_keys_match_public_descriptors_and_infra_inventory() 
 
     assert GPD_MCP_SERVER_KEYS == descriptor_keys
     assert GPD_MCP_SERVER_KEYS == infra_keys
+
+
+def test_gpd_skills_infra_health_check_tracks_the_research_vertical() -> None:
+    descriptor = json.loads(_read("infra/gpd-skills.json"))
+    health_check = descriptor["health_check"]
+
+    assert health_check["tool"] == "list_skills"
+    assert health_check["input"] == {}
+    assert "gpd-execute-phase" in health_check["expect"]
+    assert "gpd-research-phase" in health_check["expect"]
 
 
 def test_optional_wolfram_bridge_stays_outside_builtin_public_mcp_surface() -> None:

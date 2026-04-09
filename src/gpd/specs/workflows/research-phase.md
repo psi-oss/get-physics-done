@@ -1,7 +1,7 @@
 <purpose>
 Research mathematical methods, physical principles, and computational tools needed to approach a phase. Spawns gpd-phase-researcher with phase context.
 
-Standalone research command. For most workflows, use `gpd:plan-phase` which integrates research automatically.
+Standalone, one-shot research command. For most workflows, use `gpd:plan-phase` which integrates research automatically.
 </purpose>
 
 <process>
@@ -89,6 +89,8 @@ gpd --raw state snapshot | gpd json get .decisions --default "[]"
 
 Load the heavier handoff slice only after phase validation, existing-research routing, and context gathering are complete:
 
+This is a one-shot handoff: if the researcher needs user input, it must return a checkpoint rather than wait in place.
+
 ```bash
 HANDOFF_INIT=$(load_research_phase_stage research_handoff "${phase_number}")
 if [ $? -ne 0 ]; then
@@ -97,7 +99,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse the staged refresh for `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifact_files`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `state_content`, `config_content`, and `roadmap_content` before assembling the child handoff.
+Use the staged refresh for `contract_intake`, `effective_reference_intake`, `active_reference_context`, `reference_artifact_files`, `reference_artifacts_content`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `state_content`, `config_content`, and `roadmap_content` before assembling the child handoff.
 
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
@@ -189,19 +191,19 @@ Human-readable headings such as `## RESEARCH COMPLETE` and `## CHECKPOINT REACHE
 
 - **Artifact gate:** If `gpd_return.status: completed` but the `expected_artifacts` entry (`RESEARCH.md`) is missing from the phase directory or absent from `gpd_return.files_written`, treat the handoff as incomplete. Offer: 1) Retry researcher, 2) Execute the research in the main context, 3) Abort.
 - `gpd_return.status: completed` -- Display summary, offer: Plan/Dig deeper/Review/Done
-- `gpd_return.status: checkpoint` -- Present to user, collect the response, and spawn a fresh continuation run
+- `gpd_return.status: checkpoint` -- Present the checkpoint to the user, collect the response, and spawn a fresh continuation handoff. Do not resume the same spawned run.
 - `gpd_return.status: blocked` or `failed` -- Show attempts, offer: Add context/Try different approach/Manual
 
 ## Step 6: Spawn Continuation Researcher
 
 ```markdown
 <objective>
-Continue research for Phase {phase_number}: {phase_name}
+Continue research as a fresh continuation handoff for Phase {phase_number}: {phase_name}
 </objective>
 
 <prior_state>
 Research file path: {phase_dir}/{phase_number}-RESEARCH.md
-Read that file before continuing so you inherit the prior research state instead of relying on an inline `@...` attachment.
+Read that file before continuing so you inherit the prior research state instead of relying on inline prompt state.
 </prior_state>
 
 <checkpoint_response>

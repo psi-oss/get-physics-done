@@ -20,7 +20,7 @@
   "health_check": {
     "tool": "list_skills",
     "input": {},
-    "expect": "contains gpd-execute-phase"
+    "expect": "contains gpd-execute-phase and gpd-research-phase"
   },
   "alternatives": {
     "python_module": {

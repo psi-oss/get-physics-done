@@ -446,6 +446,8 @@ class TestSkillsServerIntegration:
         assert "gpd-debug" in names or "gpd-debugger" in names
         assert "gpd-discover" in names
         assert "gpd-peer-review" in names
+        assert "gpd-research-phase" in names
+        assert "gpd-phase-researcher" in names
 
         # Each skill has expected shape
         for skill in result["skills"]:
@@ -462,6 +464,16 @@ class TestSkillsServerIntegration:
         names = {skill["name"] for skill in result["skills"]}
         assert {"gpd-consistency-checker", "gpd-plan-checker", "gpd-verifier"}.issubset(names)
         assert all(skill["category"] == "verification" for skill in result["skills"])
+
+    def test_list_skills_by_category_keeps_research_vertical_visible(self):
+        from gpd.mcp.servers.skills_server import list_skills
+
+        result = list_skills(category="research")
+
+        assert result["count"] > 0
+        names = {skill["name"] for skill in result["skills"]}
+        assert {"gpd-research-phase", "gpd-phase-researcher", "gpd-project-researcher"}.issubset(names)
+        assert all(skill["category"] == "research" for skill in result["skills"])
 
     def test_debug_command_and_debugger_agent_surfaces_remain_available(self):
         from gpd.mcp.servers.skills_server import get_skill, list_skills
@@ -556,6 +568,22 @@ class TestSkillsServerIntegration:
         assert any(path.endswith("peer-review-panel.md") for path in result["contract_references"])
         assert "Treat `content` as the wrapper/context surface." in result["loading_hint"]
         assert "Load `schema_documents` and `contract_documents` too when present" in result["loading_hint"]
+
+    def test_get_skill_research_phase_surfaces_staged_loading_sidecar(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-research-phase")
+
+        assert "error" not in result
+        assert result["name"] == "gpd-research-phase"
+        assert result["category"] == "research"
+        assert result["staged_loading"]["workflow_id"] == "research-phase"
+        assert result["staged_loading"]["stages"][0]["id"] == "phase_bootstrap"
+        assert result["staged_loading"]["stages"][0]["loaded_authorities"] == [
+            "workflows/research-phase.md",
+            "references/orchestration/model-profile-resolution.md",
+        ]
+        assert result["structured_metadata_authority"]["staged_loading"] == "mirrored"
 
     def test_get_skill_surfaces_template_backed_schema_documents_for_writing_and_resume(self):
         from gpd.mcp.servers.skills_server import get_skill

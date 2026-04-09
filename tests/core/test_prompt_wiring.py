@@ -1759,6 +1759,24 @@ def test_phase_research_and_verification_surfaces_keep_anchor_checks_mandatory()
     )
 
 
+def test_phase_researcher_prompt_keeps_the_one_shot_handoff_and_return_contract_visible() -> None:
+    phase_researcher = (AGENTS_DIR / "gpd-phase-researcher.md").read_text(encoding="utf-8")
+    research_workflow = (WORKFLOWS_DIR / "research-phase.md").read_text(encoding="utf-8")
+    research_command = (COMMANDS_DIR / "research-phase.md").read_text(encoding="utf-8")
+
+    assert "## RESEARCH COMPLETE" in phase_researcher
+    assert "## RESEARCH BLOCKED" in phase_researcher
+    assert "gpd_return:" in phase_researcher
+    assert "status: completed | checkpoint | blocked | failed" in phase_researcher
+    assert "This is a one-shot handoff" in research_workflow
+    assert "return a checkpoint rather than wait in place" in research_workflow
+    assert "expected_artifacts" in research_workflow
+    assert "Do not trust the runtime handoff status by itself." in research_workflow
+    assert "gpd_return.files_written" in research_workflow
+    assert "Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/research-phase.md`." in research_command
+    assert 'gpd --raw init research-phase "${phase_arg}" --stage "${stage_name}"' in research_workflow
+
+
 def test_workflows_surface_structured_proof_review_statuses() -> None:
     verify_workflow = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
     verify_phase = (WORKFLOWS_DIR / "verify-phase.md").read_text(encoding="utf-8")

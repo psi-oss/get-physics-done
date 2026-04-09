@@ -173,7 +173,7 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
         "health_check": {
             "tool": "list_skills",
             "input": {},
-            "expect": "contains gpd-execute-phase",
+            "expect": "contains gpd-execute-phase and gpd-research-phase",
         },
     },
     "gpd-state": {

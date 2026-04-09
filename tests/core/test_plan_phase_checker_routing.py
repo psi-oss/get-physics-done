@@ -56,6 +56,18 @@ def test_plan_phase_reloads_each_stage_and_validates_only_fresh_plan_files() -> 
     assert "Before the checker loop, validate only the fresh plan artifacts named by the planner return:" in source
 
 
+def test_plan_phase_researcher_checkpoint_path_is_a_fresh_continuation_handoff() -> None:
+    source = PLAN_PHASE.read_text(encoding="utf-8")
+
+    assert "## 5.1 Handle Researcher Checkpoint" in source
+    assert "Continue research as a fresh continuation handoff for Phase {phase_number}: {phase_name}" in source
+    assert "<checkpoint_response>" in source
+    assert 'description="Continue research Phase {phase_number}"' in source
+    assert "{phase_dir}/{phase_number}-RESEARCH.md" in source
+    assert "{phase_dir}/{phase}-RESEARCH.md" not in source
+    assert "After the continuation returns, rerun the same `gpd_return.files_written` and on-disk artifact gate above before advancing." in source
+
+
 def test_plan_phase_wrapper_stays_routing_only() -> None:
     command = (REPO_ROOT / "src/gpd/commands/plan-phase.md").read_text(encoding="utf-8")
 

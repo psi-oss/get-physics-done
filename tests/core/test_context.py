@@ -4248,3 +4248,56 @@ class TestInitPhaseOp:
             "research_mode",
             "staged_loading",
         }
+
+    def test_stage_research_handoff_returns_only_manifest_required_fields(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _setup_project(tmp_path)
+        _create_phase_dir(tmp_path, "01-test")
+        _install_fake_stage_manifest(
+            monkeypatch,
+            workflow_id="research-phase",
+            stages={
+                "bootstrap": [
+                    "phase_found",
+                    "phase_dir",
+                    "phase_number",
+                    "phase_name",
+                    "commit_docs",
+                    "research_mode",
+                ],
+                "research_handoff": [
+                    "commit_docs",
+                    "autonomy",
+                    "review_cadence",
+                    "research_mode",
+                    "phase_found",
+                    "phase_dir",
+                    "phase_number",
+                    "phase_name",
+                    "phase_slug",
+                    "padded_phase",
+                    "contract_intake",
+                    "effective_reference_intake",
+                    "active_reference_context",
+                    "reference_artifact_files",
+                    "reference_artifacts_content",
+                    "selected_protocol_bundle_ids",
+                    "protocol_bundle_context",
+                    "protocol_bundle_verifier_extensions",
+                    "current_execution",
+                    "config_content",
+                    "state_content",
+                    "roadmap_content",
+                ],
+            },
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=(
+                r"research-phase stage 'research_handoff' requires unavailable init field\(s\): "
+                r"config_content, state_content, roadmap_content"
+            ),
+        ):
+            init_research_phase(tmp_path, phase="1", stage="research_handoff")

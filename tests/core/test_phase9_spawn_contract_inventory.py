@@ -14,6 +14,7 @@ EXPECTED_WORKFLOW_COUNTS = {
     "new-milestone.md": 3,
     "new-project.md": 7,
     "parameter-sweep.md": 1,
+    "plan-phase.md": 2,
     "research-phase.md": 2,
     "verify-work.md": 1,
 }

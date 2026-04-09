@@ -1447,6 +1447,21 @@ class TestDiscovery:
         assert agent.tools == ["file_read", "file_write", "shell", "search_files", "find_files"]
         assert "gpd-consistency-checker" in registry.list_skills()
 
+    def test_research_phase_vertical_remains_registry_discoverable(self) -> None:
+        registry.invalidate_cache()
+
+        research_command = registry.get_command("gpd:research-phase")
+        research_skill = registry.get_skill("gpd-research-phase")
+        phase_researcher_skill = registry.get_skill("gpd-phase-researcher")
+
+        assert research_command.name == "gpd:research-phase"
+        assert research_command.context_mode == "project-required"
+        assert research_skill.name == "gpd-research-phase"
+        assert research_skill.category == "research"
+        assert phase_researcher_skill.name == "gpd-phase-researcher"
+        assert phase_researcher_skill.category == "research"
+        assert {"gpd-research-phase", "gpd-phase-researcher"}.issubset(registry.list_skills())
+
 class TestSkillDiscovery:
     """Tests for canonical skills derived from primary commands and agents."""
 
@@ -2332,6 +2347,49 @@ class TestPublicAPI:
         assert cmd.staged_loading.workflow_id == "execute-phase"
         assert cmd.staged_loading.stage_ids() == ("phase_bootstrap",)
         assert cmd.staged_loading.stages[0].loaded_authorities == ("workflows/execute-phase.md",)
+
+    def test_get_command_research_phase_surfaces_staged_loading_manifest(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        manifest_path = repo_root / "src" / "gpd" / "specs" / "workflows" / "research-phase-stage-manifest.json"
+        original_resolve_manifest_path = registry.resolve_workflow_stage_manifest_path
+        monkeypatch.setattr(
+            registry,
+            "resolve_workflow_stage_manifest_path",
+            lambda workflow_id: manifest_path
+            if workflow_id == "research-phase"
+            else original_resolve_manifest_path(workflow_id),
+        )
+        registry.invalidate_cache()
+
+        cmd = registry.get_command("research-phase")
+
+        assert cmd.staged_loading is not None
+        assert cmd.staged_loading.workflow_id == "research-phase"
+        assert cmd.staged_loading.stage_ids() == ("phase_bootstrap", "research_handoff")
+        assert cmd.staged_loading.stages[0].loaded_authorities == (
+            "workflows/research-phase.md",
+            "references/orchestration/model-profile-resolution.md",
+        )
+        assert "references/orchestration/runtime-delegation-note.md" in cmd.staged_loading.stages[0].must_not_eager_load
+        assert cmd.staged_loading.stages[1].loaded_authorities == (
+            "workflows/research-phase.md",
+            "references/orchestration/model-profile-resolution.md",
+            "references/orchestration/runtime-delegation-note.md",
+        )
+        assert cmd.staged_loading.stages[1].writes_allowed == ("GPD/phases/XX-name/XX-RESEARCH.md",)
+        assert "reference_artifacts_content" in cmd.staged_loading.stages[1].required_init_fields
+
+    def test_get_agent_phase_researcher_surfaces_one_shot_handoff_contract(self) -> None:
+        agent = registry.get_agent("gpd-phase-researcher")
+
+        assert agent.name == "gpd-phase-researcher"
+        assert "## Active Anchor References" in agent.system_prompt
+        assert "## Don't Re-Derive" in agent.system_prompt
+        assert "## RESEARCH COMPLETE" in agent.system_prompt
+        assert "## RESEARCH BLOCKED" in agent.system_prompt
+        assert "gpd_return:" in agent.system_prompt
+        assert "status: completed | checkpoint | blocked | failed" in agent.system_prompt
+        assert "RESEARCH.md" in agent.system_prompt
 
     def test_registry_cache_invalidation_clears_new_project_stage_manifest(self) -> None:
         registry.invalidate_cache()

@@ -277,12 +277,13 @@ Required 4-way tangent decision model:
 
 The planner template owns the detailed tangent decision model. The workflow only needs to surface an explicit checkpoint when the planner reports multiple viable approaches; do NOT silently branch, widen scope, or create detached side plans here.
 
-## 4.7 Refresh Research-Routing Context
+## 4.7 Refresh Research Handoff Context
 
-Load only the routing-time file surfaces needed to decide whether research should be reused, refreshed, or skipped:
+Load the staged handoff slice needed to assemble the researcher prompt. Do not use the lighter routing slice here:
 
 ```bash
-INIT=$(gpd --raw init plan-phase "$PHASE" --stage research_routing)
+INIT=$(gpd --raw init plan-phase "$PHASE" --stage planner_authoring)
+# Legacy routing slice: gpd --raw init plan-phase "$PHASE" --stage research_routing
 if [ $? -ne 0 ]; then
   echo "ERROR: staged plan-phase init failed: $INIT"
   exit 1
@@ -376,65 +377,53 @@ Research prompt:
 
 ```markdown
 <objective>
-Research how to approach Phase {phase_number}: {phase_name}
-Answer: "What mathematical methods, physical principles, and computational tools do I need to PLAN this phase rigorously?"
+Research Phase {phase_number}: {phase_name} well enough to plan it rigorously.
 </objective>
 
 <phase_context>
-IMPORTANT: If CONTEXT.md exists below, it contains user decisions from gpd:discuss-phase.
-
-- **Decisions** = Locked -- research THESE deeply, no alternatives
-- **Agent's Discretion** = Freedom areas -- research options, recommend
-- **Deferred Ideas** = Out of scope -- ignore
-
 {context_content}
 </phase_context>
 
 <additional_context>
-**Phase description:** {phase_description}
-**Requirements:** {requirements}
-**Prior decisions:** {decisions}
-**Project contract:** {project_contract}
-**Active references:** {active_reference_context}
-**Reference artifacts:** {reference_artifacts_content}
+Phase description: {phase_description}
+Requirements: {requirements}
+Prior decisions: {decisions}
+Project contract: {project_contract}
+Active references: {active_reference_context}
+Reference artifacts: {reference_artifacts_content}
 </additional_context>
 
 <research_mode>{RESEARCH_MODE}</research_mode>
 
-<physics_research_focus>
-
-**Research depth by mode:**
-- **explore:** COMPREHENSIVE — survey ALL viable methods, compare 3+ approaches, include failed approaches from literature, broad literature search (10+ papers), identify unexplored angles. Surface independent alternatives as tangent candidates; do NOT assume they all become branch-like plans or git-backed hypothesis branches.
-- **balanced** (default): STANDARD — identify best approach, document known difficulties, targeted literature (5-7 key papers)
-- **exploit:** MINIMAL — method-specific details only (parameters, convergence criteria, implementation notes). Skip broad survey. Only papers directly relevant to the exact computation. Suppress optional side questions unless the user explicitly asks to explore them.
-- **adaptive:** Use explore-style until prior decisive evidence or an explicit approach lock shows the method family is stable. Then narrow to a balanced or exploit-style pass for the locked method, treating unresolved alternatives as tangent candidates instead of implicit branches.
-
-**Tangent control while researching:**
-- If you find multiple viable approaches, present them as tangent candidates for the planner's 4-way decision model rather than assuming extra branches or side plans.
-- If a side question is optional rather than contract-critical, label it clearly as optional.
-- In exploit mode, mention optional tangents only when the user explicitly requested them or the main approach is blocked. Do not present branch creation as the default exploit-mode fallback.
-
-**Core research areas (all modes):**
-- **Mathematical framework:** Identify the governing equations, symmetry groups, relevant Hilbert spaces, or variational principles
-- **Known solutions:** Find exact solutions, standard approximations (perturbative, WKB, mean-field), and their regimes of validity
-- **Limiting cases:** Identify all limiting cases that must be recovered (classical limit, weak-coupling, non-relativistic, thermodynamic limit, etc.)
-- **Computational methods:** Survey numerical approaches (finite element, Monte Carlo, spectral methods) and existing packages
-- **Literature:** Key papers, textbook treatments, and review articles relevant to this phase
-- **Dimensional analysis:** Identify natural scales and dimensionless parameters that govern the physics
-</physics_research_focus>
+<hypothesis_constraint>
+If this phase belongs to a hypothesis branch, include the hypothesis constraint block below verbatim. Otherwise omit this section.
+{hypothesis_constraint}
+</hypothesis_constraint>
 
 <output>
-Write to: {phase_dir}/{phase}-RESEARCH.md
+Write to: {phase_dir}/{phase_number}-RESEARCH.md
 </output>
+
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - {phase_dir}/{phase_number}-RESEARCH.md
+expected_artifacts:
+  - {phase_dir}/{phase_number}-RESEARCH.md
+shared_state_policy: return_only
+</spawn_contract>
 ```
 
 ```
+RESEARCH_RETURN=$(
 task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-phase-researcher.md for your role and instructions.\n\n" + research_prompt,
   subagent_type="gpd-phase-researcher",
   model="{researcher_model}",
   readonly=false,
-  description="Research Phase {phase}"
+  description="Research Phase {phase_number}"
+)
 )
 ```
 
@@ -444,30 +433,73 @@ task(
 
 Human-readable headings such as `## RESEARCH COMPLETE` and `## RESEARCH BLOCKED` are presentation only. Route on `gpd_return.status` and the artifact gate below.
 
-- **`gpd_return.status: completed`:** Verify RESEARCH.md exists (below) and that `gpd_return.files_written` names it, then display confirmation and continue to step 6
-- **`gpd_return.status: checkpoint`:** Display blocker, offer: 1) Provide context, 2) Skip research, 3) Abort
+- **`gpd_return.status: completed`:** Verify the returned files and the on-disk artifact before accepting completion, then display confirmation and continue to step 6.
+- **`gpd_return.status: checkpoint`:** Present the checkpoint, collect the response, and spawn a fresh continuation handoff. Do not wait inside the child run.
 - **`gpd_return.status: blocked` or `failed`:** Display blocker, offer: 1) Provide context, 2) Skip research, 3) Abort
 
 **Verify RESEARCH.md was written (guard against silent researcher failure):**
 
 ```bash
-if ! ls "${PHASE_DIR}"/*-RESEARCH.md 1>/dev/null 2>&1; then
-  echo "WARNING: Researcher agent returned but RESEARCH.md was not created."
+EXPECTED_RESEARCH_FILE="${PHASE_DIR}/${PHASE_NUMBER}-RESEARCH.md"
+RESEARCH_FILES=$(echo "$RESEARCH_RETURN" | gpd json list .gpd_return.files_written --default "")
+if ! printf '%s\n' "$RESEARCH_FILES" | grep -Fxq "$EXPECTED_RESEARCH_FILE"; then
+  echo "ERROR: researcher returned completed without naming ${EXPECTED_RESEARCH_FILE}"
+  exit 1
+fi
+if [ ! -r "$EXPECTED_RESEARCH_FILE" ]; then
+  echo "ERROR: researcher returned completed but ${EXPECTED_RESEARCH_FILE} is missing or unreadable"
+  exit 1
 fi
 ```
 
-If RESEARCH.md is missing after the researcher returned, present:
+## 5.1 Handle Researcher Checkpoint
 
+If the researcher returns `gpd_return.status: checkpoint`, present the checkpoint to the user and spawn a fresh continuation handoff:
+
+```markdown
+<objective>
+Continue research as a fresh continuation handoff for Phase {phase_number}: {phase_name}
+</objective>
+
+<prior_state>
+Research file path: {phase_dir}/{phase_number}-RESEARCH.md
+Read that file before continuing so you inherit the prior research state instead of relying on inline prompt state.
+</prior_state>
+
+<checkpoint_response>
+**Type:** {checkpoint_type}
+**Response:** {user_response}
+</checkpoint_response>
+
+<hypothesis_constraint>
+If this phase belongs to a hypothesis branch, include the hypothesis constraint block below verbatim. Otherwise omit this section.
+{hypothesis_constraint}
+</hypothesis_constraint>
+
+<spawn_contract>
+write_scope:
+  mode: scoped_write
+  allowed_paths:
+    - {phase_dir}/{phase_number}-RESEARCH.md
+expected_artifacts:
+  - {phase_dir}/{phase_number}-RESEARCH.md
+shared_state_policy: return_only
+</spawn_contract>
 ```
-WARNING: Researcher completed but did not write RESEARCH.md.
 
-Options:
-1. Retry research (re-spawn researcher)
-2. Continue without research (planner will have no research context)
-3. Abort
+```bash
+RESEARCH_RETURN=$(
+task(
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-phase-researcher.md for your role and instructions.\n\n" + continuation_prompt,
+  subagent_type="gpd-phase-researcher",
+  model="{researcher_model}",
+  readonly=false,
+  description="Continue research Phase {phase_number}"
+)
+)
 ```
 
-Wait for user decision before proceeding to step 6.
+After the continuation returns, rerun the same `gpd_return.files_written` and on-disk artifact gate above before advancing.
 
 ## 5.5. Experiment Design (Numerical/Computational Phases)
 
