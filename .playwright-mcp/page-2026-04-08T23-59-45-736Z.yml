@@ -1,0 +1,371 @@
+- generic [ref=e2]:
+  - region
+  - generic [ref=e3]:
+    - link "Skip to content" [ref=e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=e6]:
+      - heading "Navigation Menu" [level=2] [ref=e7]
+      - generic [ref=e8]:
+        - link "Homepage" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img [ref=e11]
+        - generic [ref=e13]:
+          - navigation "Global" [ref=e16]:
+            - list [ref=e17]:
+              - listitem [ref=e18]:
+                - button "Platform" [ref=e20] [cursor=pointer]:
+                  - text: Platform
+                  - img [ref=e21]
+              - listitem [ref=e23]:
+                - button "Solutions" [ref=e25] [cursor=pointer]:
+                  - text: Solutions
+                  - img [ref=e26]
+              - listitem [ref=e28]:
+                - button "Resources" [ref=e30] [cursor=pointer]:
+                  - text: Resources
+                  - img [ref=e31]
+              - listitem [ref=e33]:
+                - button "Open Source" [ref=e35] [cursor=pointer]:
+                  - text: Open Source
+                  - img [ref=e36]
+              - listitem [ref=e38]:
+                - button "Enterprise" [ref=e40] [cursor=pointer]:
+                  - text: Enterprise
+                  - img [ref=e41]
+              - listitem [ref=e43]:
+                - link "Pricing" [ref=e44] [cursor=pointer]:
+                  - /url: https://github.com/pricing
+                  - generic [ref=e45]: Pricing
+          - generic [ref=e46]:
+            - button "Search or jump to…" [ref=e49] [cursor=pointer]:
+              - img [ref=e51]
+            - link "Sign in" [ref=e54] [cursor=pointer]:
+              - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fpsi-oss%2Fget-physics-done%2Fcompare%2Fmain...harden-staged-new-project-wiring%3Fexpand%3D1
+            - link "Sign up" [ref=e55] [cursor=pointer]:
+              - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E%2Fcompare%2Fshow&source=header-repo&source_repo=psi-oss%2Fget-physics-done
+            - button "Appearance settings" [ref=e58] [cursor=pointer]:
+              - img
+  - main [ref=e62]:
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e66]:
+          - img [ref=e67]
+          - link "psi-oss" [ref=e70] [cursor=pointer]:
+            - /url: /psi-oss
+          - generic [ref=e71]: /
+          - strong [ref=e72]:
+            - link "get-physics-done" [ref=e73] [cursor=pointer]:
+              - /url: /psi-oss/get-physics-done
+          - generic [ref=e74]: Public
+        - generic [ref=e75]:
+          - list:
+            - listitem [ref=e76]:
+              - link "You must be signed in to change notification settings" [ref=e77] [cursor=pointer]:
+                - /url: /login?return_to=%2Fpsi-oss%2Fget-physics-done
+                - img [ref=e78]
+                - text: Notifications
+            - listitem [ref=e80]:
+              - link "Fork 106" [ref=e81] [cursor=pointer]:
+                - /url: /login?return_to=%2Fpsi-oss%2Fget-physics-done
+                - img [ref=e82]
+                - text: Fork
+                - generic "106" [ref=e84]
+            - listitem [ref=e85]:
+              - link "You must be signed in to star a repository" [ref=e87] [cursor=pointer]:
+                - /url: /login?return_to=%2Fpsi-oss%2Fget-physics-done
+                - img [ref=e88]
+                - text: Star
+                - generic "716 users starred this repository" [ref=e90]: "716"
+      - navigation "Repository" [ref=e91]:
+        - list [ref=e92]:
+          - listitem [ref=e93]:
+            - link "Code" [ref=e94] [cursor=pointer]:
+              - /url: /psi-oss/get-physics-done
+              - img [ref=e95]
+              - generic [ref=e97]: Code
+          - listitem [ref=e98]:
+            - link "Issues 4" [ref=e99] [cursor=pointer]:
+              - /url: /psi-oss/get-physics-done/issues
+              - img [ref=e100]
+              - generic [ref=e103]: Issues
+              - generic "4" [ref=e104]
+          - listitem [ref=e105]:
+            - link "Pull requests 10" [ref=e106] [cursor=pointer]:
+              - /url: /psi-oss/get-physics-done/pulls
+              - img [ref=e107]
+              - generic [ref=e109]: Pull requests
+              - generic "10" [ref=e110]
+          - listitem [ref=e111]:
+            - link "Discussions" [ref=e112] [cursor=pointer]:
+              - /url: /psi-oss/get-physics-done/discussions
+              - img [ref=e113]
+              - generic [ref=e115]: Discussions
+          - listitem [ref=e116]:
+            - link "Actions" [ref=e117] [cursor=pointer]:
+              - /url: /psi-oss/get-physics-done/actions
+              - img [ref=e118]
+              - generic [ref=e120]: Actions
+          - listitem [ref=e121]:
+            - link "Projects" [ref=e122] [cursor=pointer]:
+              - /url: /psi-oss/get-physics-done/projects
+              - img [ref=e123]
+              - generic [ref=e125]: Projects
+          - listitem [ref=e126]:
+            - link "Security and quality" [ref=e127] [cursor=pointer]:
+              - /url: /psi-oss/get-physics-done/security
+              - img [ref=e128]
+              - generic [ref=e130]: Security and quality
+          - listitem [ref=e131]:
+            - link "Insights" [ref=e132] [cursor=pointer]:
+              - /url: /psi-oss/get-physics-done/pulse
+              - img [ref=e133]
+              - generic [ref=e135]: Insights
+    - generic [ref=e138]:
+      - generic [ref=e139]:
+        - heading "Comparing changes" [level=1] [ref=e140]
+        - generic [ref=e141]:
+          - text: Choose two branches to see what’s changed or to start a new pull request. If you need to, you can also
+          - button "compare across forks" [ref=e142] [cursor=pointer]
+          - text: or
+          - link "learn more about diff comparisons" [ref=e143] [cursor=pointer]:
+            - /url: https://docs.github.com/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-comparing-branches-in-pull-requests#three-dot-and-two-dot-git-diff-comparisons
+          - text: .
+      - generic [ref=e144]:
+        - img [ref=e145]
+        - group [ref=e148]:
+          - 'generic "base: main" [ref=e149] [cursor=pointer]':
+            - generic [ref=e151]:
+              - text: "base:"
+              - generic [ref=e152]: main
+            - generic:
+              - img
+        - generic [ref=e154]:
+          - 'img "Three-dot diff: changes since branches diverged" [ref=e155]'
+          - generic [ref=e157]: ...
+        - group [ref=e159]:
+          - 'generic "compare: harden-staged-new-project-wiring" [ref=e160] [cursor=pointer]':
+            - generic [ref=e162]:
+              - text: "compare:"
+              - generic [ref=e163]: harden-staged-new-project-wiring
+            - generic:
+              - img
+        - generic [ref=e165]:
+          - generic:
+            - strong [ref=e166]: Checking mergeability…
+            - text: Don’t worry, you can still create the pull request.
+      - list [ref=e168]:
+        - listitem [ref=e169]:
+          - img [ref=e170]
+          - text: 7 commits
+        - listitem [ref=e172]:
+          - img [ref=e173]
+          - text: 60 files changed
+        - listitem [ref=e175]:
+          - img [ref=e176]
+          - text: 1 contributor
+      - generic [ref=e179]:
+        - img [ref=e181]
+        - generic [ref=e183]:
+          - heading "Commits on Apr 8, 2026" [level=3] [ref=e184]
+          - list [ref=e185]:
+            - listitem [ref=e186]:
+              - generic [ref=e187]:
+                - paragraph [ref=e188]:
+                  - 'link "refactor: slim plan checker prompt surface" [ref=e189] [cursor=pointer]':
+                    - /url: /psi-oss/get-physics-done/commit/77c8e8a31983befa3c47d766a093c5945b909efd
+                - generic [ref=e190]:
+                  - link "@SergioHC95" [ref=e193] [cursor=pointer]:
+                    - /url: /SergioHC95
+                    - img "@SergioHC95" [ref=e194]
+                  - generic [ref=e195]:
+                    - link "SergioHC95" [ref=e196] [cursor=pointer]:
+                      - /url: /psi-oss/get-physics-done/commits?author=SergioHC95
+                    - text: committed Apr 8, 20264 hours ago
+              - generic [ref=e197]:
+                - generic [ref=e198]:
+                  - button "Copy the full SHA" [ref=e201] [cursor=pointer]:
+                    - img [ref=e202]
+                  - link "77c8e8a" [ref=e207] [cursor=pointer]:
+                    - /url: /psi-oss/get-physics-done/commit/77c8e8a31983befa3c47d766a093c5945b909efd
+                    - generic [ref=e209]: 77c8e8a
+                - link "Browse the repository at this point in the history" [ref=e212] [cursor=pointer]:
+                  - /url: /psi-oss/get-physics-done/tree/77c8e8a31983befa3c47d766a093c5945b909efd
+                  - img
+            - listitem [ref=e213]:
+              - generic [ref=e214]:
+                - paragraph [ref=e215]:
+                  - 'link "refactor: harden plan checker routing contracts" [ref=e216] [cursor=pointer]':
+                    - /url: /psi-oss/get-physics-done/commit/6dc52a1b82c9ef77c2d6287b4da922bccedaad89
+                - generic [ref=e217]:
+                  - link "@SergioHC95" [ref=e220] [cursor=pointer]:
+                    - /url: /SergioHC95
+                    - img "@SergioHC95" [ref=e221]
+                  - generic [ref=e222]:
+                    - link "SergioHC95" [ref=e223] [cursor=pointer]:
+                      - /url: /psi-oss/get-physics-done/commits?author=SergioHC95
+                    - text: committed Apr 8, 20264 hours ago
+              - generic [ref=e224]:
+                - generic [ref=e225]:
+                  - button "Copy the full SHA" [ref=e228] [cursor=pointer]:
+                    - img [ref=e229]
+                  - link "6dc52a1" [ref=e234] [cursor=pointer]:
+                    - /url: /psi-oss/get-physics-done/commit/6dc52a1b82c9ef77c2d6287b4da922bccedaad89
+                    - generic [ref=e236]: 6dc52a1
+                - link "Browse the repository at this point in the history" [ref=e239] [cursor=pointer]:
+                  - /url: /psi-oss/get-physics-done/tree/6dc52a1b82c9ef77c2d6287b4da922bccedaad89
+                  - img
+            - listitem [ref=e240]:
+              - generic [ref=e241]:
+                - paragraph [ref=e242]:
+                  - 'link "refactor: slim debugger contract vertical" [ref=e243] [cursor=pointer]':
+                    - /url: /psi-oss/get-physics-done/commit/f0fbbd8f344934266b976b248c18e7422fdcb722
+                - generic [ref=e244]:
+                  - link "@SergioHC95" [ref=e247] [cursor=pointer]:
+                    - /url: /SergioHC95
+                    - img "@SergioHC95" [ref=e248]
+                  - generic [ref=e249]:
+                    - link "SergioHC95" [ref=e250] [cursor=pointer]:
+                      - /url: /psi-oss/get-physics-done/commits?author=SergioHC95
+                    - text: committed Apr 8, 20263 hours ago
+              - generic [ref=e251]:
+                - generic [ref=e252]:
+                  - button "Copy the full SHA" [ref=e255] [cursor=pointer]:
+                    - img [ref=e256]
+                  - link "f0fbbd8" [ref=e261] [cursor=pointer]:
+                    - /url: /psi-oss/get-physics-done/commit/f0fbbd8f344934266b976b248c18e7422fdcb722
+                    - generic [ref=e263]: f0fbbd8
+                - link "Browse the repository at this point in the history" [ref=e266] [cursor=pointer]:
+                  - /url: /psi-oss/get-physics-done/tree/f0fbbd8f344934266b976b248c18e7422fdcb722
+                  - img
+            - listitem [ref=e267]:
+              - generic [ref=e268]:
+                - paragraph [ref=e269]:
+                  - 'link "refactor: slim consistency checker contract seam" [ref=e270] [cursor=pointer]':
+                    - /url: /psi-oss/get-physics-done/commit/96435dc42a822fbfb9e6d6de8de63d501ea29aea
+                - generic [ref=e271]:
+                  - link "@SergioHC95" [ref=e274] [cursor=pointer]:
+                    - /url: /SergioHC95
+                    - img "@SergioHC95" [ref=e275]
+                  - generic [ref=e276]:
+                    - link "SergioHC95" [ref=e277] [cursor=pointer]:
+                      - /url: /psi-oss/get-physics-done/commits?author=SergioHC95
+                    - text: committed Apr 8, 20263 hours ago
+              - generic [ref=e278]:
+                - generic [ref=e279]:
+                  - button "Copy the full SHA" [ref=e282] [cursor=pointer]:
+                    - img [ref=e283]
+                  - link "96435dc" [ref=e288] [cursor=pointer]:
+                    - /url: /psi-oss/get-physics-done/commit/96435dc42a822fbfb9e6d6de8de63d501ea29aea
+                    - generic [ref=e290]: 96435dc
+                - link "Browse the repository at this point in the history" [ref=e293] [cursor=pointer]:
+                  - /url: /psi-oss/get-physics-done/tree/96435dc42a822fbfb9e6d6de8de63d501ea29aea
+                  - img
+            - listitem [ref=e294]:
+              - generic [ref=e295]:
+                - paragraph [ref=e296]:
+                  - 'link "refactor: harden verify-work verifier seam" [ref=e297] [cursor=pointer]':
+                    - /url: /psi-oss/get-physics-done/commit/f19b44217f0f049c306eff2ae627b17b73266986
+                - generic [ref=e298]:
+                  - link "@SergioHC95" [ref=e301] [cursor=pointer]:
+                    - /url: /SergioHC95
+                    - img "@SergioHC95" [ref=e302]
+                  - generic [ref=e303]:
+                    - link "SergioHC95" [ref=e304] [cursor=pointer]:
+                      - /url: /psi-oss/get-physics-done/commits?author=SergioHC95
+                    - text: committed Apr 8, 20262 hours ago
+              - generic [ref=e305]:
+                - generic [ref=e306]:
+                  - button "Copy the full SHA" [ref=e309] [cursor=pointer]:
+                    - img [ref=e310]
+                  - link "f19b442" [ref=e315] [cursor=pointer]:
+                    - /url: /psi-oss/get-physics-done/commit/f19b44217f0f049c306eff2ae627b17b73266986
+                    - generic [ref=e317]: f19b442
+                - link "Browse the repository at this point in the history" [ref=e320] [cursor=pointer]:
+                  - /url: /psi-oss/get-physics-done/tree/f19b44217f0f049c306eff2ae627b17b73266986
+                  - img
+            - listitem [ref=e321]:
+              - generic [ref=e322]:
+                - paragraph [ref=e323]:
+                  - 'link "refactor: slim verifier return seam" [ref=e324] [cursor=pointer]':
+                    - /url: /psi-oss/get-physics-done/commit/3a73c92fdff634d5cc5a03b2a83d49ee2e5ee50f
+                - generic [ref=e325]:
+                  - link "@SergioHC95" [ref=e328] [cursor=pointer]:
+                    - /url: /SergioHC95
+                    - img "@SergioHC95" [ref=e329]
+                  - generic [ref=e330]:
+                    - link "SergioHC95" [ref=e331] [cursor=pointer]:
+                      - /url: /psi-oss/get-physics-done/commits?author=SergioHC95
+                    - text: committed Apr 8, 20261 hour ago
+              - generic [ref=e332]:
+                - generic [ref=e333]:
+                  - button "Copy the full SHA" [ref=e336] [cursor=pointer]:
+                    - img [ref=e337]
+                  - link "3a73c92" [ref=e342] [cursor=pointer]:
+                    - /url: /psi-oss/get-physics-done/commit/3a73c92fdff634d5cc5a03b2a83d49ee2e5ee50f
+                    - generic [ref=e344]: 3a73c92
+                - link "Browse the repository at this point in the history" [ref=e347] [cursor=pointer]:
+                  - /url: /psi-oss/get-physics-done/tree/3a73c92fdff634d5cc5a03b2a83d49ee2e5ee50f
+                  - img
+            - listitem [ref=e348]:
+              - generic [ref=e349]:
+                - paragraph [ref=e350]:
+                  - 'link "refactor: tighten execute-phase ownership seam" [ref=e351] [cursor=pointer]':
+                    - /url: /psi-oss/get-physics-done/commit/bf7d84ea4b314b61a41608e064d4da8da785434e
+                - generic [ref=e352]:
+                  - link "@SergioHC95" [ref=e355] [cursor=pointer]:
+                    - /url: /SergioHC95
+                    - img "@SergioHC95" [ref=e356]
+                  - generic [ref=e357]:
+                    - link "SergioHC95" [ref=e358] [cursor=pointer]:
+                      - /url: /psi-oss/get-physics-done/commits?author=SergioHC95
+                    - text: committed Apr 8, 20269 minutes ago
+              - generic [ref=e359]:
+                - generic [ref=e360]:
+                  - button "Copy the full SHA" [ref=e363] [cursor=pointer]:
+                    - img [ref=e364]
+                  - link "bf7d84e" [ref=e369] [cursor=pointer]:
+                    - /url: /psi-oss/get-physics-done/commit/bf7d84ea4b314b61a41608e064d4da8da785434e
+                    - generic [ref=e371]: bf7d84e
+                - link "Browse the repository at this point in the history" [ref=e374] [cursor=pointer]:
+                  - /url: /psi-oss/get-physics-done/tree/bf7d84ea4b314b61a41608e064d4da8da785434e
+                  - img
+      - generic "Loading Files" [ref=e376]:
+        - generic [ref=e378]:
+          - img [ref=e379]
+          - generic [ref=e382]: Loading
+  - contentinfo [ref=e383]:
+    - heading "Footer" [level=2] [ref=e384]
+    - generic [ref=e385]:
+      - generic [ref=e386]:
+        - link "GitHub Homepage" [ref=e387] [cursor=pointer]:
+          - /url: https://github.com
+          - img [ref=e388]
+        - generic [ref=e390]: © 2026 GitHub, Inc.
+      - navigation "Footer" [ref=e391]:
+        - heading "Footer navigation" [level=3] [ref=e392]
+        - list "Footer navigation" [ref=e393]:
+          - listitem [ref=e394]:
+            - link "Terms" [ref=e395] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+          - listitem [ref=e396]:
+            - link "Privacy" [ref=e397] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+          - listitem [ref=e398]:
+            - link "Security" [ref=e399] [cursor=pointer]:
+              - /url: https://github.com/security
+          - listitem [ref=e400]:
+            - link "Status" [ref=e401] [cursor=pointer]:
+              - /url: https://www.githubstatus.com/
+          - listitem [ref=e402]:
+            - link "Community" [ref=e403] [cursor=pointer]:
+              - /url: https://github.community/
+          - listitem [ref=e404]:
+            - link "Docs" [ref=e405] [cursor=pointer]:
+              - /url: https://docs.github.com/
+          - listitem [ref=e406]:
+            - link "Contact" [ref=e407] [cursor=pointer]:
+              - /url: https://support.github.com?tags=dotcom-footer
+          - listitem [ref=e408]:
+            - button "Manage cookies" [ref=e410] [cursor=pointer]
+          - listitem [ref=e411]:
+            - button "Do not share my personal information" [ref=e413] [cursor=pointer]

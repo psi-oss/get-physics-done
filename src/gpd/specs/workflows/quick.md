@@ -141,11 +141,14 @@ Return `gpd_return.status: completed` with plan path. The `## PLANNING COMPLETE`
 
 After planner returns:
 
-1. Verify plan exists at `${QUICK_DIR}/${next_num}-PLAN.md`
-2. Extract plan count (typically 1 for quick tasks)
-3. Report: "Plan created: ${QUICK_DIR}/${next_num}-PLAN.md"
+1. Route on `gpd_return.status`, not on headings.
+2. Verify plan exists at `${QUICK_DIR}/${next_num}-PLAN.md` and that the same path appears in `gpd_return.files_written`.
+3. Treat any preexisting plan file as stale unless the child reported that exact path in `gpd_return.files_written` for this run.
+4. Extract plan count (typically 1 for quick tasks).
+5. Report: "Plan created: ${QUICK_DIR}/${next_num}-PLAN.md"
 
-If plan not found, error: "Planner failed to create ${next_num}-PLAN.md"
+If `gpd_return.status` is `checkpoint`, present the checkpoint and spawn a fresh continuation handoff after the user responds.
+If the plan file is missing, unreadable, stale, or absent from `gpd_return.files_written`, error: "Planner failed to create ${next_num}-PLAN.md"
 
 ---
 

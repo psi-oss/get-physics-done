@@ -438,6 +438,9 @@ Use `templates/planner-subagent-prompt.md` to build the gap_closure planner hand
 > Runtime delegation rule: the planner is single-shot. If it needs user input, it checkpoints and returns. Do not keep the same planner run open across user interaction.
 
 Before treating the handoff as complete, verify that the expected `PLAN.md` files exist in the phase directory.
+After the planner returns, route on `gpd_return.status`, not on headings. If `gpd_return.status` is `completed`, verify that the expected `PLAN.md` files exist in the phase directory and that each expected path appears in `gpd_return.files_written` before treating the handoff as complete.
+If `gpd_return.status` is `checkpoint`, present the checkpoint, collect user input, and spawn a fresh planner continuation instead of waiting inside the same run.
+If the planner reports `blocked` or `failed`, or if the expected `PLAN.md` files are missing, unreadable, stale, or absent from `gpd_return.files_written`, keep the session fail-closed and offer retry or manual plan creation.
 
 If the planner fails to spawn or returns an error, check whether any `PLAN.md` files were written. If plans exist, continue to `verify_gap_plans`. If no plans exist, offer retry, manual plan creation, or skipping gap closure.
 </step>

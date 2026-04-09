@@ -588,11 +588,11 @@ task(
 
 ## 9. Handle Planner Return
 
-**If the planner agent fails to spawn or returns an error:** Check if any PLAN.md files were written to the phase directory (agents write files first). If plans exist, proceed as if `gpd_return.status: completed`. If no plans, offer: 1) Retry planner, 2) Create plans in the main context, 3) Abort.
+**If the planner agent fails to spawn or returns an error:** Do not infer completion from files that already exist on disk. Treat any preexisting `PLAN.md` artifacts as a stale baseline unless this run returns a fresh typed `gpd_return` that names them in `gpd_return.files_written`. If no fresh planner return is available, keep the handoff incomplete. Offer: 1) Retry planner, 2) Create plans in the main context, 3) Abort.
 
 Human-readable headings such as `## PLANNING COMPLETE`, `## CHECKPOINT REACHED`, and `## PLANNING INCONCLUSIVE` are presentation only. Route on the planner's structured `gpd_return.status`, `gpd_return.files_written`, and the on-disk artifact check.
 
-- **`gpd_return.status: completed`:** Before accepting the success state, verify that at least one readable `*-PLAN.md` artifact exists in `${PHASE_DIR}` and that `gpd_return.files_written` names the same file set. Do not accept the planner return text alone. If the planner says complete but no plan files are present, treat the handoff as incomplete and request a fresh continuation. Display plan count. If `AUTONOMY=supervised`, show the written draft plans and get user confirmation before advancing to checker or next-step output. If `--skip-verify` or `plan_checker_enabled` is false (from init): skip to step 13 only when no proof-bearing plans were written. Proof-bearing plans still require checker review or an equivalent main-context audit before planning is considered complete. Otherwise: step 10.
+- **`gpd_return.status: completed`:** Before accepting the success state, verify that at least one readable `*-PLAN.md` artifact exists in `${PHASE_DIR}` and that `gpd_return.files_written` names the same file set. Do not accept the planner return text alone. Use the init snapshot (`has_plans`, `plan_count`) as the stale baseline: a plan file that already existed before this handoff only counts as fresh output if this planner return explicitly names it in `gpd_return.files_written`. If the planner says complete but no plan files are present, treat the handoff as incomplete and request a fresh continuation. Display plan count. If `AUTONOMY=supervised`, show the written draft plans and get user confirmation before advancing to checker or next-step output. If `--skip-verify` or `plan_checker_enabled` is false (from init): skip to step 13 only when no proof-bearing plans were written. Proof-bearing plans still require checker review or an equivalent main-context audit before planning is considered complete. Otherwise: step 10.
 - **`gpd_return.status: checkpoint`:** Present to user, get response, spawn a fresh planner continuation handoff. Do not route planner checkpoints into the checker revision loop.
 - **`gpd_return.status: blocked` or `failed`:** Show attempts, offer: Add context / Retry / Manual
 
@@ -743,7 +743,7 @@ Human-readable headings such as `## VERIFICATION PASSED`, `## ISSUES FOUND`, and
      Partial approval (attempt {iteration_count}/3): {N_approved} plans approved, {N_blocked} need revision
      ```
 
-  5. Send ONLY the blocked plans to the revision loop (step 12). Pass the checker's blocker details as `{structured_issues_from_checker}`. Do NOT re-check already-approved plans unless their inputs change during revision.
+  5. Send ONLY the blocked plans to the revision loop (step 12). Pass the checker's blocker details as `{structured_issues_from_checker}`. Do NOT re-check already-approved plans unless their inputs change during revision, and do not treat preexisting blocked-plan files as revised unless the fresh planner return names them in `gpd_return.files_written`.
   6. After revision + re-check cycle, if the re-check returns `gpd_return.status: completed` for the revised plans, merge approved sets and proceed to step 13. If it returns `gpd_return.status: checkpoint` again, repeat. If `gpd_return.status: failed`, enter standard revision loop for remaining plans.
   7. Approved plans from partial approval are final only after the plan-ID reconciliation checks pass.
 
@@ -768,18 +768,18 @@ Track `iteration_count` (starts at 1 after initial plan + check).
 
 Display: `Checker found issues, revising plan (attempt {N}/3)...`
 
-```bash
-# If PARTIAL APPROVAL: only load blocked plans (stored in BLOCKED_PLANS list from step 11)
-# If ISSUES FOUND: load all plans
-if [ -n "$BLOCKED_PLANS" ]; then
-  PLANS_CONTENT=""
-  for plan_id in $BLOCKED_PLANS; do
-    PLANS_CONTENT="${PLANS_CONTENT}$(cat "${PHASE_DIR}"/*-${plan_id}-PLAN.md 2>/dev/null)"
-  done
-else
-  PLANS_CONTENT=$(cat "${PHASE_DIR}"/*-PLAN.md 2>/dev/null)
-fi
-```
+  ```bash
+  # If PARTIAL APPROVAL: only load blocked plans (stored in BLOCKED_PLANS list from step 11)
+  # If ISSUES FOUND: load all plans
+  if [ -n "$BLOCKED_PLANS" ]; then
+    PLANS_CONTENT=""
+    for plan_id in $BLOCKED_PLANS; do
+      PLANS_CONTENT="${PLANS_CONTENT}$(cat "${PHASE_DIR}"/*-${plan_id}-PLAN.md 2>/dev/null)"
+    done
+  else
+    PLANS_CONTENT=$(cat "${PHASE_DIR}"/*-PLAN.md 2>/dev/null)
+  fi
+  ```
 
 Before spawning the revision planner, confirm that every `plan_id` in `BLOCKED_PLANS` maps to exactly one readable `*-PLAN.md` file in `${PHASE_DIR}`. If any blocked ID is missing or ambiguous, stop and report the reconciliation failure rather than inventing a fallback mapping.
 
@@ -820,7 +820,7 @@ task(
 )
 ```
 
-**If the revision planner agent fails to spawn or returns an error:** Check if any revised PLAN.md files were written. If revisions exist, proceed to re-check (step 10). If no revisions, offer: 1) Retry revision planner, 2) Apply revisions manually in the main context using checker feedback, 3) Force proceed with current plans despite checker issues.
+**If the revision planner agent fails to spawn or returns an error:** Do not proceed to re-check just because revised `PLAN.md` files exist on disk. Treat any such files as incomplete until a fresh typed planner return explicitly names them in `gpd_return.files_written`. If no fresh revision return is available, keep the loop fail-closed and offer: 1) Retry revision planner, 2) Apply revisions manually in the main context using checker feedback, 3) Force proceed with current plans despite checker issues.
 
 After planner returns -> spawn checker again (step 10), increment iteration_count. If revising from PARTIAL APPROVAL, only pass the revised plans (not already-approved plans) to the checker.
 

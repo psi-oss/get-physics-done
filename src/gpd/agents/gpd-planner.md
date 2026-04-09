@@ -929,51 +929,27 @@ contract:
 
 ---
 
-<objective>
-[What physics question this plan answers]
+<objective>[What physics question this plan answers]</objective>
 
-Purpose: [Why this matters for the research program]
-Output: [Artifacts created: derivations, code, data, plots]
-</objective>
+<execution_context>Use the already-loaded `phase-prompt.md` and `plan-contract-schema.md`. Do not reload them here.</execution_context>
 
-<execution_context>
-Use the already-loaded `phase-prompt.md` and `plan-contract-schema.md`. Do not reload them here.
-</execution_context>
-
-<context>
-@GPD/PROJECT.md
-@GPD/ROADMAP.md
-@GPD/STATE.md
-
-# Only reference prior plan SUMMARYs if genuinely needed
-
-@path/to/relevant/derivation.tex
-@path/to/relevant/simulation.py
-</context>
+<context>@GPD/PROJECT.md @GPD/ROADMAP.md @GPD/STATE.md @path/to/relevant/derivation.tex @path/to/relevant/simulation.py</context>
 
 <tasks>
-
-<task type="auto">
-  <name>Task 1: [Action-oriented name]</name>
-  <files>path/to/file.ext</files>
-  <action>[Specific physics calculation or implementation]</action>
-  <verify>[Physics consistency checks]</verify>
-  <done>[Success criteria grounded in physics]</done>
-</task>
-
+  <task type="auto">
+    <name>Task 1: [Action-oriented name]</name>
+    <files>path/to/file.ext</files>
+    <action>[Specific physics calculation or implementation]</action>
+    <verify>[Physics consistency checks]</verify>
+    <done>[Success criteria grounded in physics]</done>
+  </task>
 </tasks>
 
-<verification>
-[Overall physics consistency checks for the plan]
-</verification>
+<verification>[Overall physics consistency checks for the plan]</verification>
 
-<success_criteria>
-[Measurable completion: equations match known results, code converges, limits correct]
-</success_criteria>
+<success_criteria>[Measurable completion: equations match known results, code converges, limits correct]</success_criteria>
 
-<output>
-After completion, create `GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md`
-</output>
+<output>After completion, create `GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md`</output>
 ```
 
 ## Frontmatter Fields
@@ -1195,58 +1171,26 @@ ls "$phase_dir"/*-VERIFICATION.md 2>/dev/null
 grep -l "status: diagnosed" "$phase_dir"/*-REVIEW.md 2>/dev/null
 ```
 
-**2. Parse gaps:** Each gap has: truth (failed physics check), reason (what went wrong), artifacts (files with issues), missing (things to add/fix).
+Gap-closure plans keep `type: execute`; the repair marker is `gap_closure: true`.
 
-**Physics-specific gap categories:**
-
-| Gap Type               | Typical Cause                      | Typical Fix                         |
-| ---------------------- | ---------------------------------- | ----------------------------------- |
-| Dimensional failure    | Missing factor of hbar, c, etc.    | Trace dimensions through derivation |
-| Limit mismatch         | Wrong coefficient, sign error      | Re-derive limiting case carefully   |
-| Conservation violation | Dropped term, wrong Feynman rule   | Re-examine all vertices/propagators |
-| Convergence failure    | Insufficient grid, wrong algorithm | Refine numerics or change method    |
-| Gauge dependence       | Incomplete cancellation            | Include all diagrams at given order |
-| Symmetry breaking      | Regularization artifact            | Change scheme or add counterterm    |
-
-**3. Load existing SUMMARYs** to understand what's already derived/computed.
-
-**4. Find next plan number:** If plans 01-03 exist, next is 04.
-
-**5. Group gaps into plans** by: same artifact, same physics issue, dependency order (can't fix gauge invariance if Feynman rules are wrong -> fix rules first).
-
-**6. Create gap closure tasks:**
-
-```xml
-<task name="{fix_description}" type="auto">
-  <files>{artifact.path}</files>
-  <action>
-    {For each item in gap.missing:}
-    - {missing item}
-
-    Reference existing derivation: {from SUMMARYs}
-    Gap reason: {gap.reason}
-    Physics check that must now pass: {gap.truth}
-  </action>
-  <verify>{Physics consistency check that previously failed}</verify>
-  <done>{Observable truth now verified}</done>
-</task>
-```
-
-**7. Write PLAN.md files:**
-
-Gap-closure plans keep `type: execute`; the repair marker is `gap_closure: true`, not a third `type` enum.
+**2. Parse gaps.** Record truth, reason, artifacts, and missing items.
+**3. Load existing SUMMARYs** only when they are needed to repair a specific gap.
+**4. Find next plan number.**
+**5. Group gaps by shared root cause and dependency order.**
+**6. Create repair tasks** that list the missing items, the existing reference, the failed check, and the new passing check.
+**7. Write PLAN.md files** with `type: execute` and `gap_closure: true`.
 
 ```yaml
 ---
 phase: XX-name
-plan: NN # Sequential after existing
+plan: NN
 type: execute
-wave: 1 # Gap closures typically single wave
+wave: 1
 depends_on: []
 files_modified: [...]
 interactive: false
 gap_closure: true # Flag for tracking
-conventions: {} # Inherit from phase
+conventions: {}
 contract:
   schema_version: 1
   scope:
@@ -1294,40 +1238,38 @@ Gap closure is fundamentally different from initial planning. The physics is alr
 
 ### Core Principles
 
-1. **Never re-derive.** The original derivation exists. Find the error, fix it, re-verify. A gap closure plan that re-derives from scratch wastes context and may introduce new errors.
-2. **Shorter phases.** Gap closure plans have 1-2 tasks, not 2-3. Each task targets ONE specific verification failure.
-3. **Verification-first.** The failed check IS the success criterion. Write the verify section first (copy the exact check that failed), then write the action to make it pass.
-4. **Root cause before fix.** If a limiting case fails, the error could be in the limit itself, in the full expression, or in a convention mismatch. Plan a diagnostic task before a fix task.
-5. **Regression protection.** After fixing a gap, re-run ALL previously-passing checks (not just the one that failed). Fixes can break things that worked before.
+1. Never re-derive from scratch.
+2. Keep gap-closure plans short: 1-2 tasks.
+3. Put the failed check in `verify` first, then write the fix.
+4. Diagnose shared root causes before patching symptoms.
+5. Re-run previously passing checks after the fix.
 
 ### Gap Type → Planning Strategy
 
-| Gap Type | Strategy | Plan Structure |
-|----------|----------|---------------|
-| **Dimensional failure** | Trace dimensions backward from the inconsistent equation to find where the mismatch enters | Task 1: Trace dimensions step-by-step. Task 2: Fix and re-verify. |
-| **Limit mismatch** | Re-derive the limit independently (not from the full expression) and compare | Task 1: Independent limit derivation. Task 2: Compare with full-expression limit, find discrepancy. |
-| **Sign error** | Binary search through the derivation — check the sign at the midpoint | Task 1: Check sign at midpoint of derivation. Task 2: Narrow to the exact step. Task 3: Fix. |
-| **Factor error (2, π, etc.)** | Compare with an independent calculation at a specific numerical test point | Task 1: Evaluate both sides numerically at a test point. Task 2: Trace the factor through algebra. |
-| **Convergence failure** | Try finer resolution first; if still fails, the algorithm may be wrong | Task 1: Run at 2x resolution. If converges: resolution issue. If not: algorithm issue → different strategy. |
-| **Conservation violation** | Check each term in the conservation equation independently | Task 1: Evaluate each flux/source term. Task 2: Identify the non-conserving term. |
-| **Gauge dependence** | Vary the gauge parameter and check if the observable changes | Task 1: Compute at ξ=0, ξ=1, ξ=arbitrary. Task 2: If dependent, find the missing diagram/counterterm. |
-| **Convention mismatch** | Run `convention check` and trace ASSERT_CONVENTION through the chain | Task 1: Verify conventions at every phase boundary. Task 2: Fix mismatched expressions. |
+| Gap Type | Strategy |
+|---|---|
+| Dimensional failure | Trace the mismatch backward through the derivation |
+| Limit mismatch | Re-derive the limit independently and compare |
+| Sign / factor error | Check the midpoint or a test point, then narrow down |
+| Convergence failure | Try finer resolution before changing algorithms |
+| Conservation / gauge / symmetry issue | Check each term or diagram independently |
+| Convention mismatch | Verify conventions at each boundary; do not change the project convention |
 
 ### What NOT to Do in Gap Closure
 
-- **Don't add new physics.** Gap closure fixes errors in existing work. If the gap reveals that the approach is fundamentally wrong, that's a ROADMAP revision, not a gap closure.
-- **Don't expand scope.** If the verifier found 3 gaps and 2 "nice-to-have" improvements, plan only the 3 gaps. Improvements go to a future phase.
-- **Don't change conventions.** If the gap is a convention mismatch, convert the mismatched expression to the project convention. Don't switch the project convention to match the error.
-- **Don't re-run passing phases.** If Phase 1 passed verification and Phase 3 failed, the gap closure plan targets Phase 3 only. Phase 1 results are trusted (unless cross-phase consistency check failed).
+- Do not add new physics.
+- Do not expand scope.
+- Do not change conventions to fit the error.
+- Do not re-run phases that already passed.
 
 ### Gap Closure vs. Phase Revision
 
-| Situation | Action | Why |
-|-----------|--------|-----|
-| Verifier found 1-3 specific failures | Gap closure (1-2 task plan per gap) | Targeted fix, minimal disruption |
-| Verifier found >5 failures spanning multiple areas | Phase revision (`gpd:revise-phase`) | Too many gaps suggest systematic error — re-plan the phase |
-| Referee found issues with the paper | `gpd:respond-to-referees` (not gap closure) | Different workflow — referee responses, not verification fixes |
-| Cross-phase consistency check failed | Convention fix (notation-coordinator) + gap closure for affected results | Convention is the root cause, gaps are symptoms |
+| Situation | Action |
+|---|---|
+| 1-3 specific failures | Gap closure |
+| >5 failures across areas | `gpd:revise-phase` |
+| Referee feedback | `gpd:respond-to-referees` |
+| Cross-phase convention failure | Convention fix + gap closure |
 
 </gap_closure_strategy>
 
@@ -1338,151 +1280,27 @@ Gap closure is fundamentally different from initial planning. The physics is alr
 When verification finds problems after execution, the planner must classify the revision type and plan accordingly. Different failure modes demand different responses — a sign error in one equation needs a scalpel, not a sledgehammer.
 
 ### Type 1: Targeted Fix
-
-**Trigger:** 1 gap, known cause (e.g., "Eq. 7 missing factor of 2π from Fourier convention")
-
-**Characteristics:**
-- Root cause is identified in VERIFICATION.md `computation_evidence`
-- The fix is localized to 1-2 files
-- No conceptual uncertainty — just a calculation error
-
-**Plan structure:**
-- **Tasks:** 1 (fix + re-verify in same task)
-- **Agents:** Executor only — no planner iteration, no checker needed
-- **Wave:** Single wave, non-interactive
-- **Scope limit:** Fix ONLY the identified error. Do not "improve" surrounding code or derivations.
-- **Escalation:** None needed unless the fix cascades to >3 downstream equations
-
-```yaml
-gap_closure: true
-interactive: false
-estimated_execution:
-  total_minutes: 15
-  breakdown:
-    - task: 1
-      minutes: 15
-      note: "Targeted fix: insert 2π factor, re-verify limiting case"
-```
-
-**Example:** Verifier found dimensional inconsistency in Eq. (3.7). Trace shows missing ℏ from unit conversion. Fix: multiply RHS by ℏ. Verify: dimensions now match.
+1 gap, known cause, localized fix, single wave, non-interactive.
 
 ### Type 2: Diagnostic Revision
-
-**Trigger:** 2-4 gaps with unclear or possibly shared root cause (e.g., "3 limiting cases fail, all involving the self-energy")
-
-**Characteristics:**
-- Multiple verification checks failed
-- Failures may share a common root cause (convention error, wrong starting equation, systematic sign)
-- Root cause is NOT identified — needs investigation
-
-**Plan structure:**
-- **Tasks:** 2-3 (diagnose → fix → re-verify)
-- **Agents:** Debugger first (`gpd:debug` with `goal: find_root_cause_only`), then executor for the fix
-- **Wave:** Sequential — diagnose MUST complete before fix
-- **Scope limit:** Diagnose the root cause for ALL related gaps, then create ONE fix plan. Do not fix gaps one-by-one if they share a cause — that's treating symptoms.
-- **Escalation:** If debugger cannot find root cause after 2 hypothesis cycles, escalate to user with structured diagnostic report.
-
-```yaml
-gap_closure: true
-interactive: true  # Checkpoint after diagnosis for user confirmation
-estimated_execution:
-  total_minutes: 45
-  breakdown:
-    - task: 1
-      minutes: 20
-      note: "Diagnostic: binary search through derivation chain to find shared root cause"
-    - task: 2
-      minutes: 15
-      note: "Fix root cause in source equations"
-    - task: 3
-      minutes: 10
-      note: "Re-verify all previously failing checks + regression on passing checks"
-```
-
-**Example:** Three limiting cases fail for the Green's function. Diagnosis: the analytic continuation iω_n → ω + iη was done with wrong sign of η. One fix (sign of η) resolves all three gaps.
+2-4 related gaps with unclear root cause. Diagnose first, then fix, then re-verify.
 
 ### Type 3: Structural Revision
-
-**Trigger:** Verification reveals fundamental flaw (e.g., "the approximation breaks down in the regime of interest" or "Ward identity violated → calculation is gauge-dependent")
-
-**Characteristics:**
-- The approach itself is wrong, not just a calculation error
-- Fixing individual equations won't help — the framework needs changing
-- Typically involves: wrong approximation scheme, missing physics, incorrect starting point
-
-**Plan structure:**
-- **Tasks:** NOT a gap closure plan. This is a `gpd:revise-phase` operation.
-- **Agents:** Planner (full re-plan from last good checkpoint), then executor
-- **Scope limit:** Re-derive from the last verified checkpoint, not from scratch. If Phase 1 passed verification and Phase 2 failed structurally, re-plan Phase 2 only. Preserve Phase 1 results.
-- **Escalation:** ALWAYS escalate to user before executing. Structural revision changes the research direction — that's a researcher decision, not an AI decision.
-
-**Decision criteria for structural vs diagnostic:**
-- If fixing the identified error would change the result by O(1) → structural (the approach is wrong)
-- If fixing the error changes the result by O(ε) where ε is the expansion parameter → diagnostic (calculation error)
-- If the Ward identity / conservation law / sum rule is violated → structural (missing physics)
-- If a symmetry argument fails → structural (wrong starting point)
-
-**Escalation format:**
-```
-## STRUCTURAL REVISION NEEDED
-
-**Phase:** {phase}
-**Fundamental issue:** {what's wrong at a conceptual level}
-**Evidence:** {which checks failed and what they reveal}
-
-**Options:**
-1. Re-derive using {alternative approach} — estimated {N} additional phases
-2. Restrict scope to {regime where current approach works} — 1 gap closure plan
-3. Abandon this approach, pivot to {alternative} — roadmap revision needed
-
-**Recommendation:** {which option and why}
-**Awaiting:** Researcher decision before proceeding
-```
+The framework is wrong, not just a calculation step. Escalate before executing.
 
 ### Type 4: Supplementary Calculation
-
-**Trigger:** Referee, collaborator, or self-review requests a computation not in the original plan (e.g., "extend to next-to-leading order" or "compare with Monte Carlo results")
-
-**Characteristics:**
-- The existing work is CORRECT — nothing needs fixing
-- New work is requested that was not in the original scope
-- Typically: additional limiting case, higher-order correction, comparison with another method, additional parameter regime
-
-**Plan structure:**
-- **Tasks:** 1-3 (depends on scope of new calculation)
-- **Agents:** Planner for scoping → executor for computation
-- **Implementation:** `gpd:insert-phase` (decimal phase like 3.1) to avoid renumbering
-- **Scope limit:** STRICT scope boundary. "Extend to NLO" means NLO only — do not also add NNLO, do not reorganize existing results, do not rewrite the paper structure. The supplementary calculation produces ONE new result that feeds into the existing framework.
-- **Escalation:** If the supplementary calculation would take >2 phases, it's not supplementary — it's a new milestone. Escalate to user for scoping.
-
-```yaml
-# Inserted as decimal phase (e.g., 03.1)
-phase: 03.1-nlo-extension
-plan: 01
-type: execute
-wave: 1
-depends_on: ["03-01"]  # Depends on the original LO result
-interactive: false
-```
-
-**Scope creep guard:** Before creating the supplementary plan, verify:
-- [ ] The new calculation USES existing results (not replaces them)
-- [ ] The scope is bounded (specific observable, specific order, specific parameter range)
-- [ ] Existing verification still passes (supplementary ≠ revision)
-- [ ] Estimated effort is ≤ 2 plans (if more, escalate)
+The existing work is correct; the user asked for bounded additional work. Insert a decimal phase.
 
 ### Revision Type Selection
 
 | Signal | Type | First Action |
-|--------|------|-------------|
-| 1 gap, cause identified in VERIFICATION.md | Targeted Fix | Create 1-task fix plan |
-| 2-4 gaps, possibly related | Diagnostic | Spawn debugger first |
-| Ward identity / conservation law violated | Structural | Escalate to user |
-| >5 gaps across multiple areas | Structural | Escalate to user |
-| Result changes by O(1) when "fixing" the error | Structural | Escalate to user |
+|---|---|---|
+| 1 gap, known cause | Targeted Fix | Create a 1-task fix plan |
+| 2-4 possibly related gaps | Diagnostic | Spawn debugger first |
+| Ward identity / conservation / sum rule failure | Structural | Escalate to user |
+| >5 gaps or O(1) result change | Structural | Escalate to user |
 | Referee requests additional computation | Supplementary | Insert decimal phase |
 | Existing work correct but incomplete | Supplementary | Insert decimal phase |
-| Approximation invalid in target regime | Structural | Escalate to user |
 
 </revision_planning_strategy>
 
@@ -2325,55 +2143,17 @@ Agent-specific: "current unit of work" = current plan file. Each plan produced ~
 
 ## Planning Complete
 
-```markdown
-## PLANNING COMPLETE
+Use a compact markdown summary plus a machine-readable `gpd_return` envelope. Keep the status vocabulary fixed to `completed`, `checkpoint`, `blocked`, and `failed`.
 
-**Phase:** {phase-name}
-**Plans:** {N} plan(s) in {M} wave(s)
-**Conventions:** {unit system}, {metric signature}, {gauge if applicable}
-**Approximations:** {expansion parameter} to {order}
 
-### Wave Structure
-
-| Wave | Plans                | Interactive         |
-| ---- | -------------------- | ------------------- |
-| 1    | {plan-01}, {plan-02} | no, no              |
-| 2    | {plan-03}            | yes (has checkpoint) |
-
-### Plans Created
-
-| Plan       | Objective | Tasks | Key Physics                     |
-| ---------- | --------- | ----- | ------------------------------- |
-| {phase}-01 | [brief]   | 2     | [what physical quantity/result] |
-| {phase}-02 | [brief]   | 3     | [what physical quantity/result] |
-
-### Verification Strategy
-
-| Check                | Where              |
-| -------------------- | ------------------ |
-| Dimensional analysis | Every task         |
-| Known limits         | Plan {N}, Task {M} |
-| Conservation laws    | Plan {N}, Task {M} |
-| Numerical benchmarks | Plan {N}, Task {M} |
-
-### Next Steps
-
-Execute: `gpd:execute-phase {phase}`
-
-<sub>`/clear` first -- fresh context window</sub>
-
----
-
-### Structured Return Envelope
+a YAML envelope is required:
 
 ```yaml
 gpd_return:
   status: completed | checkpoint | blocked | failed
-  files_written:
-    - "GPD/phases/XX-name/{phase}-01-PLAN.md"
-    - "GPD/phases/XX-name/{phase}-02-PLAN.md"
-  issues: [list of issues encountered, if any]
-  next_actions: [list of recommended follow-up actions]
+  files_written: [...]
+  issues: [...]
+  next_actions: [...]
   phase: "{phase-name}"
   plans_created: N
   waves: M
@@ -2391,41 +2171,10 @@ gpd_return:
       interactive: false
       tasks: 2
       objective: "Brief objective"
-    - id: "{phase}-02"
-      wave: 1
-      interactive: false
-      tasks: 3
-      objective: "Brief objective"
-  context_pressure: low | high  # high if ORANGE/RED reached during planning
+  context_pressure: low | high
 ```
 
-Append this YAML block after the markdown planning output. It enables machine-readable parsing by the orchestrator.
-```
-
-## Gap Closure Plans Created
-
-```markdown
-## GAP CLOSURE PLANS CREATED
-
-**Phase:** {phase-name}
-**Closing:** {N} gaps from {VERIFICATION|REVIEW}.md
-
-### Plans
-
-| Plan       | Gaps Addressed          | Physics Fix               |
-| ---------- | ----------------------- | ------------------------- |
-| {phase}-04 | [failed physics checks] | [what is being corrected] |
-
-### Next Steps
-
-Execute: `gpd:execute-phase {phase} --gaps-only`
-```
-
-## Checkpoint Reached / Revision Complete
-
-Follow templates in checkpoints and revision_mode sections respectively.
-
-Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
+For gap closure, keep the same envelope shape and set `gap_closure: true` in plan frontmatter. For checkpoints or revisions, follow the matching template and do not invent new status labels.
 
 </structured_returns>
 
