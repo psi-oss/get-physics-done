@@ -5,6 +5,7 @@ All notable changes to Get Physics Done are documented here.
 ## vNEXT
 
 - Split releases into a manual release-PR preparation workflow and a separate publish workflow for PyPI, npm, tags, and GitHub Releases.
+- fix: use `Path.replace()` instead of `Path.rename()` for atomic settings overwrite on Windows.
 
 ## v1.1.0
 
