@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "phase": "10",
+  "source_authority": "checked-in fixture-backed tests",
+  "source_master_plan": "tmp/handoff-bundle/MASTER-BUG-CAMPAIGN-PLAN.md",
+  "reconstruction_scope": "checked_in_fixture_covered_subset",
+  "status": "covered_subset_reconstructed_not_promoted",
+  "strict_phase10_exit_criteria_met": false,
+  "family_count": 5,
+  "families": [
+    {
+      "family_id": "state-progress-contradictions",
+      "priority_family": "state/progress contradictions",
+      "oracle_path": "repro/10-oracles/state-progress-contradictions.json",
+      "script_path": "repro/10-scripts/state-progress-contradictions.sh",
+      "transcript_path": "repro/10-transcripts/state-progress-contradictions.txt",
+      "command": "uv run pytest -q -n 0 tests/test_bug_phase_read_model_alignment.py tests/core/test_projection_state.py",
+      "expected_pytest_pass_count": 8,
+      "covered_fixture_count": 5,
+      "promotion_status": "not_promoted_partial_reconstruction"
+    },
+    {
+      "family_id": "query-vs-result-blindness",
+      "priority_family": "query-vs-result blindness",
+      "oracle_path": "repro/10-oracles/query-vs-result-blindness.json",
+      "script_path": "repro/10-scripts/query-vs-result-blindness.sh",
+      "transcript_path": "repro/10-transcripts/query-vs-result-blindness.txt",
+      "command": "uv run pytest -q -n 0 tests/core/test_projection_query_result.py",
+      "expected_pytest_pass_count": 5,
+      "covered_fixture_count": 4,
+      "promotion_status": "not_promoted_partial_reconstruction"
+    },
+    {
+      "family_id": "phase-content-blindness",
+      "priority_family": "phase-content blindness",
+      "oracle_path": "repro/10-oracles/phase-content-blindness.json",
+      "script_path": "repro/10-scripts/phase-content-blindness.sh",
+      "transcript_path": "repro/10-transcripts/phase-content-blindness.txt",
+      "command": "uv run pytest -q -n 0 tests/core/test_projection_phase_verify.py",
+      "expected_pytest_pass_count": 4,
+      "covered_fixture_count": 4,
+      "promotion_status": "not_promoted_partial_reconstruction"
+    },
+    {
+      "family_id": "unsupported-cli-surface-drift",
+      "priority_family": "unsupported CLI surface drift",
+      "oracle_path": "repro/10-oracles/unsupported-cli-surface-drift.json",
+      "script_path": "repro/10-scripts/unsupported-cli-surface-drift.sh",
+      "transcript_path": "repro/10-transcripts/unsupported-cli-surface-drift.txt",
+      "command": "uv run pytest -q -n 0 tests/core/test_projection_query_result.py::test_projection_query_result_bridge_mutation_matches_positive_snapshot tests/test_bug_runtime_recovery_contract.py",
+      "expected_pytest_pass_count": 10,
+      "covered_fixture_count": 3,
+      "promotion_status": "not_promoted_partial_reconstruction"
+    },
+    {
+      "family_id": "convention-placeholder-completeness",
+      "priority_family": "convention placeholder completeness",
+      "oracle_path": "repro/10-oracles/convention-placeholder-completeness.json",
+      "script_path": "repro/10-scripts/convention-placeholder-completeness.sh",
+      "transcript_path": "repro/10-transcripts/convention-placeholder-completeness.txt",
+      "command": "uv run pytest -q -n 0 tests/test_bug_placeholder_sentinel_normalization.py tests/core/test_projection_config_contract.py::test_placeholder_conventions_projection_oracle_treats_literal_not_set_as_unset",
+      "expected_pytest_pass_count": 3,
+      "covered_fixture_count": 2,
+      "promotion_status": "not_promoted_partial_reconstruction"
+    }
+  ],
+  "blocking_gaps": [
+    "Original repro/10 exact scripts, full transcripts, and copy-run results were not present in the frozen source bundle.",
+    "Current artifacts do not satisfy the master plan's 2/2 anchor-copy plus 1/1 confirmatory-copy promotion rule."
+  ]
+}

@@ -11,8 +11,8 @@
 - Phase 08 Repro Packetization: `partial_reconstructed`
   - gap: Only checked-in Phase 09 live subset reconstructed; full 203/250 Phase 08 corpus absent.
 - Phase 09 Fixture Construction: `tracked`
-- Phase 10 CLI Fast-Path Anchor Repro: `missing_exact_repro_artifacts`
-  - gap: No durable repro/10 scripts, oracles, transcripts, or wave summary found.
+- Phase 10 CLI Fast-Path Anchor Repro: `covered_subset_reconstructed_not_promoted`
+  - gap: Covered fixture subset reconstructed; strict Phase 10 copy-run transcripts remain absent.
 - Phase 11 Mutation And Ordering Repro: `imported_external_summary`
 - Phase 12 Breadth Sweep: `imported_external_summary`
 - Phase 13 MCP / Sandbox / Environment Characterization: `imported_external_summary`
