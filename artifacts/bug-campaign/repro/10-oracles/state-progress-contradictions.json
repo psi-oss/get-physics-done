@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "phase": "10",
+  "family_id": "state-progress-contradictions",
+  "priority_family": "state/progress contradictions",
+  "reconstruction_scope": "checked_in_fixture_covered_subset",
+  "source_authority": "checked-in fixture-backed tests",
+  "command": "uv run pytest -q -n 0 tests/test_bug_phase_read_model_alignment.py tests/core/test_projection_state.py",
+  "source_tests": [
+    "tests/test_bug_phase_read_model_alignment.py",
+    "tests/core/test_projection_state.py"
+  ],
+  "fixture_coverage": {
+    "positive": [
+      "completed-phase/positive",
+      "plan-only/positive",
+      "empty-phase/positive"
+    ],
+    "mutation": [
+      "plan-only/mutation",
+      "empty-phase/mutation"
+    ],
+    "covered_fixture_count": 5
+  },
+  "assertion_surface": [
+    "roadmap_analyze",
+    "progress_render",
+    "state_snapshot",
+    "verify_phase_completeness",
+    "get_phase_info"
+  ],
+  "expected_outcome": "pytest exit code 0 for the current fixed behavior",
+  "expected_pytest_pass_count": 8,
+  "known_gaps": [],
+  "phase10_exit_criteria": {
+    "anchor_copy_runs_required": 2,
+    "confirmatory_copy_runs_required": 1,
+    "strict_phase10_criteria_met": false,
+    "promotion_status": "not_promoted_partial_reconstruction",
+    "blocking_gap": "The archived Phase 10 2/2 anchor-copy and 1/1 confirmatory-copy transcripts are absent; this oracle covers the checked-in fixture subset only."
+  }
+}

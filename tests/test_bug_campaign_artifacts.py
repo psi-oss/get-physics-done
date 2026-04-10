@@ -86,7 +86,8 @@ def test_bug_campaign_scorecards_and_phase_status_expose_unclosed_gates() -> Non
     phase_status = json.loads((CAMPAIGN_ROOT / "phase-status.json").read_text(encoding="utf-8"))
     phase_rows = {row["phase"]: row for row in phase_status["phase_statuses"]}
 
-    assert phase_rows["10"]["status"] == "missing_exact_repro_artifacts"
+    assert phase_rows["10"]["status"] == "covered_subset_reconstructed_not_promoted"
+    assert phase_rows["10"]["strict_phase10_exit_criteria_met"] is False
     assert phase_rows["18"]["status"] == "scorecards_generated_not_closed"
 
     for filename in (
@@ -101,3 +102,25 @@ def test_bug_campaign_scorecards_and_phase_status_expose_unclosed_gates() -> Non
     family_closure = json.loads((SCORECARD_ROOT / "family-closure.json").read_text(encoding="utf-8"))
     assert family_closure["closed_phase15_family_count"] < family_closure["phase15_family_count"]
     assert all(not family["closed"] for family in family_closure["families"])
+
+
+def test_bug_campaign_phase10_reconstruction_is_fixture_covered_subset_only() -> None:
+    summary = json.loads((CAMPAIGN_ROOT / "repro" / "10-wave-summary.json").read_text(encoding="utf-8"))
+
+    assert summary["reconstruction_scope"] == "checked_in_fixture_covered_subset"
+    assert summary["strict_phase10_exit_criteria_met"] is False
+    assert summary["status"] == "covered_subset_reconstructed_not_promoted"
+    assert summary["family_count"] == 5
+
+    for family in summary["families"]:
+        assert family["promotion_status"] == "not_promoted_partial_reconstruction"
+        assert family["expected_pytest_pass_count"] > 0
+        assert (CAMPAIGN_ROOT / family["oracle_path"]).exists()
+        assert (CAMPAIGN_ROOT / family["script_path"]).exists()
+        assert (CAMPAIGN_ROOT / family["transcript_path"]).exists()
+
+    query_oracle = json.loads(
+        (CAMPAIGN_ROOT / "repro" / "10-oracles" / "query-vs-result-blindness.json").read_text(encoding="utf-8")
+    )
+    assert query_oracle["known_gaps"][0]["class"] == "projection-gap-expected"
+    assert query_oracle["phase10_exit_criteria"]["strict_phase10_criteria_met"] is False

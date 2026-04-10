@@ -1,0 +1,16 @@
+# Phase 10 Normalized Transcript: query-vs-result blindness
+
+```
+$ uv run pytest -q -n 0 tests/core/test_projection_query_result.py
+```
+
+- expected_exit_code: `0`
+- normalized_pytest_result: `5 passed`
+- transcript_policy: `normalized_command_transcript`
+- reconstruction_scope: `checked_in_fixture_covered_subset`
+- strict_phase10_criteria_met: `false`
+- historical_transcript_gap: `Original Phase 10 2/2 anchor-copy and 1/1 confirmatory-copy transcripts are absent.`
+
+The live verification step for this artifact increment reruns the command above;
+pytest timing and worker-specific temporary paths are intentionally excluded from
+this normalized transcript.

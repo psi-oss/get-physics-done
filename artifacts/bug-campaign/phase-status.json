@@ -86,8 +86,14 @@
     {
       "phase": "10",
       "name": "CLI Fast-Path Anchor Repro",
-      "status": "missing_exact_repro_artifacts",
-      "gap": "No durable repro/10 scripts, oracles, transcripts, or wave summary found."
+      "status": "covered_subset_reconstructed_not_promoted",
+      "evidence": [
+        "repro/10-wave-summary.json",
+        "repro/10-wave-summary.md"
+      ],
+      "gap": "Covered fixture subset reconstructed; strict Phase 10 copy-run transcripts remain absent.",
+      "reconstructed_family_count": 5,
+      "strict_phase10_exit_criteria_met": false
     },
     {
       "phase": "11",

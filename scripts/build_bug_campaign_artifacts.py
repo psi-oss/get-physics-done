@@ -163,6 +163,162 @@ PHASE16_SLUG_TO_FAMILY = {
     "placeholder-conventions": "config-contract",
 }
 
+PHASE10_FAMILIES = (
+    {
+        "family_id": "state-progress-contradictions",
+        "priority_family": "state/progress contradictions",
+        "oracle_filename": "state-progress-contradictions.json",
+        "script_filename": "state-progress-contradictions.sh",
+        "transcript_filename": "state-progress-contradictions.txt",
+        "pytest_args": [
+            "tests/test_bug_phase_read_model_alignment.py",
+            "tests/core/test_projection_state.py",
+        ],
+        "expected_pytest_pass_count": 8,
+        "source_tests": [
+            "tests/test_bug_phase_read_model_alignment.py",
+            "tests/core/test_projection_state.py",
+        ],
+        "positive_fixtures": [
+            "completed-phase/positive",
+            "plan-only/positive",
+            "empty-phase/positive",
+        ],
+        "mutation_fixtures": [
+            "plan-only/mutation",
+            "empty-phase/mutation",
+        ],
+        "assertion_surface": [
+            "roadmap_analyze",
+            "progress_render",
+            "state_snapshot",
+            "verify_phase_completeness",
+            "get_phase_info",
+        ],
+    },
+    {
+        "family_id": "query-vs-result-blindness",
+        "priority_family": "query-vs-result blindness",
+        "oracle_filename": "query-vs-result-blindness.json",
+        "script_filename": "query-vs-result-blindness.sh",
+        "transcript_filename": "query-vs-result-blindness.txt",
+        "pytest_args": ["tests/core/test_projection_query_result.py"],
+        "expected_pytest_pass_count": 5,
+        "source_tests": ["tests/core/test_projection_query_result.py"],
+        "positive_fixtures": [
+            "query-registry-drift/positive",
+            "context-indexing/positive",
+            "bridge-vs-cli/positive",
+        ],
+        "mutation_fixtures": ["bridge-vs-cli/mutation"],
+        "assertion_surface": [
+            "gpd --raw query search",
+            "gpd --raw query assumptions",
+            "gpd --raw query deps",
+            "gpd --raw result search",
+            "gpd --raw result deps",
+        ],
+        "known_gaps": [
+            {
+                "class": "projection-gap-expected",
+                "fixtures": [
+                    "query-registry-drift/positive",
+                    "context-indexing/positive",
+                    "bridge-vs-cli/positive",
+                    "bridge-vs-cli/mutation",
+                ],
+            }
+        ],
+    },
+    {
+        "family_id": "phase-content-blindness",
+        "priority_family": "phase-content blindness",
+        "oracle_filename": "phase-content-blindness.json",
+        "script_filename": "phase-content-blindness.sh",
+        "transcript_filename": "phase-content-blindness.txt",
+        "pytest_args": ["tests/core/test_projection_phase_verify.py"],
+        "expected_pytest_pass_count": 4,
+        "source_tests": ["tests/core/test_projection_phase_verify.py"],
+        "positive_fixtures": [
+            "summary-missing-return/positive",
+            "mutation-ordering/positive",
+        ],
+        "mutation_fixtures": [
+            "summary-missing-return/mutation",
+            "mutation-ordering/mutation",
+        ],
+        "assertion_surface": [
+            "verify_phase_completeness",
+            "phase_plan_index",
+            "get_phase_info",
+            "get_progress",
+        ],
+        "known_gaps": [
+            {
+                "class": "allowlisted-projection-diff",
+                "fixtures": [
+                    "summary-missing-return/positive",
+                    "summary-missing-return/mutation",
+                    "mutation-ordering/positive",
+                    "mutation-ordering/mutation",
+                ],
+            }
+        ],
+    },
+    {
+        "family_id": "unsupported-cli-surface-drift",
+        "priority_family": "unsupported CLI surface drift",
+        "oracle_filename": "unsupported-cli-surface-drift.json",
+        "script_filename": "unsupported-cli-surface-drift.sh",
+        "transcript_filename": "unsupported-cli-surface-drift.txt",
+        "pytest_args": [
+            "tests/core/test_projection_query_result.py::test_projection_query_result_bridge_mutation_matches_positive_snapshot",
+            "tests/test_bug_runtime_recovery_contract.py",
+        ],
+        "expected_pytest_pass_count": 10,
+        "source_tests": [
+            "tests/core/test_projection_query_result.py",
+            "tests/test_bug_runtime_recovery_contract.py",
+        ],
+        "positive_fixtures": [
+            "bridge-vs-cli/positive",
+            "config-readback/positive",
+        ],
+        "mutation_fixtures": ["bridge-vs-cli/mutation"],
+        "assertion_surface": [
+            "runtime_cli",
+            "gpd --raw doctor --runtime",
+            "gpd --raw query search",
+            "gpd --raw result search",
+        ],
+    },
+    {
+        "family_id": "convention-placeholder-completeness",
+        "priority_family": "convention placeholder completeness",
+        "oracle_filename": "convention-placeholder-completeness.json",
+        "script_filename": "convention-placeholder-completeness.sh",
+        "transcript_filename": "convention-placeholder-completeness.txt",
+        "pytest_args": [
+            "tests/test_bug_placeholder_sentinel_normalization.py",
+            "tests/core/test_projection_config_contract.py::test_placeholder_conventions_projection_oracle_treats_literal_not_set_as_unset",
+        ],
+        "expected_pytest_pass_count": 3,
+        "source_tests": [
+            "tests/test_bug_placeholder_sentinel_normalization.py",
+            "tests/core/test_projection_config_contract.py",
+        ],
+        "positive_fixtures": ["placeholder-conventions/positive"],
+        "mutation_fixtures": ["placeholder-conventions/mutation"],
+        "assertion_surface": [
+            "convention_list",
+            "convention_check",
+            "convention_set",
+            "check_convention_lock",
+            "suggest_next",
+        ],
+    },
+)
+
 TEXT_SPLIT_RE = re.compile(r"[;]\s+")
 TOKEN_RE = re.compile(r"[A-Za-z0-9:_$-]+")
 
@@ -1156,6 +1312,171 @@ def phase08_packet_markdown(family: Mapping[str, object], queue: Sequence[Mappin
     return "\n".join(lines)
 
 
+def phase10_pytest_command(family: Mapping[str, object]) -> str:
+    return "uv run pytest -q -n 0 " + " ".join(string_list(family.get("pytest_args")))
+
+
+def phase10_script_content(family: Mapping[str, object]) -> str:
+    command = phase10_pytest_command(family)
+    return f"""#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${{BASH_SOURCE[0]}}")/../../../.." && pwd)"
+cd "$REPO_ROOT"
+
+{command}
+"""
+
+
+def phase10_oracle(family: Mapping[str, object]) -> dict[str, object]:
+    positive_fixtures = string_list(family.get("positive_fixtures"))
+    mutation_fixtures = string_list(family.get("mutation_fixtures"))
+    return {
+        "schema_version": 1,
+        "phase": "10",
+        "family_id": family.get("family_id"),
+        "priority_family": family.get("priority_family"),
+        "reconstruction_scope": "checked_in_fixture_covered_subset",
+        "source_authority": "checked-in fixture-backed tests",
+        "command": phase10_pytest_command(family),
+        "source_tests": string_list(family.get("source_tests")),
+        "fixture_coverage": {
+            "positive": positive_fixtures,
+            "mutation": mutation_fixtures,
+            "covered_fixture_count": len(positive_fixtures) + len(mutation_fixtures),
+        },
+        "assertion_surface": string_list(family.get("assertion_surface")),
+        "expected_outcome": "pytest exit code 0 for the current fixed behavior",
+        "expected_pytest_pass_count": family.get("expected_pytest_pass_count"),
+        "known_gaps": list(coerce_sequence(family.get("known_gaps"))),
+        "phase10_exit_criteria": {
+            "anchor_copy_runs_required": 2,
+            "confirmatory_copy_runs_required": 1,
+            "strict_phase10_criteria_met": False,
+            "promotion_status": "not_promoted_partial_reconstruction",
+            "blocking_gap": (
+                "The archived Phase 10 2/2 anchor-copy and 1/1 confirmatory-copy transcripts are absent; "
+                "this oracle covers the checked-in fixture subset only."
+            ),
+        },
+    }
+
+
+def phase10_transcript_text(family: Mapping[str, object]) -> str:
+    command = phase10_pytest_command(family)
+    return f"""# Phase 10 Normalized Transcript: {family.get("priority_family")}
+
+```
+$ {command}
+```
+
+- expected_exit_code: `0`
+- normalized_pytest_result: `{family.get("expected_pytest_pass_count")} passed`
+- transcript_policy: `normalized_command_transcript`
+- reconstruction_scope: `checked_in_fixture_covered_subset`
+- strict_phase10_criteria_met: `false`
+- historical_transcript_gap: `Original Phase 10 2/2 anchor-copy and 1/1 confirmatory-copy transcripts are absent.`
+
+The live verification step for this artifact increment reruns the command above;
+pytest timing and worker-specific temporary paths are intentionally excluded from
+this normalized transcript.
+"""
+
+
+def phase10_wave_summary_markdown(summary: Mapping[str, object]) -> str:
+    lines = [
+        "# Phase 10 Wave Summary",
+        "",
+        "- reconstruction_scope: `checked_in_fixture_covered_subset`",
+        f"- strict_phase10_exit_criteria_met: `{str(summary.get('strict_phase10_exit_criteria_met')).lower()}`",
+        f"- family_count: `{summary.get('family_count')}`",
+        "",
+        "## Families",
+        "",
+    ]
+    for family in coerce_sequence(summary.get("families")):
+        if not isinstance(family, Mapping):
+            continue
+        lines.extend(
+            (
+                f"- `{family.get('family_id')}`",
+                f"  - priority_family: `{family.get('priority_family')}`",
+                f"  - oracle: `{family.get('oracle_path')}`",
+                f"  - script: `{family.get('script_path')}`",
+                f"  - transcript: `{family.get('transcript_path')}`",
+                f"  - promotion_status: `{family.get('promotion_status')}`",
+            )
+        )
+    lines.extend(
+        (
+            "",
+            "## Blocking Gap",
+            "",
+            "The checked-in fixture subset makes the priority families runnable and regression-guarded, "
+            "but the missing historical Phase 10 copy-run transcripts still block strict deterministic promotion.",
+        )
+    )
+    return "\n".join(lines)
+
+
+def write_phase10_reconstruction() -> dict[str, object]:
+    oracle_root = REPRO_ROOT / "10-oracles"
+    script_root = REPRO_ROOT / "10-scripts"
+    transcript_root = REPRO_ROOT / "10-transcripts"
+    family_rows: list[dict[str, object]] = []
+
+    for family in PHASE10_FAMILIES:
+        oracle_path = oracle_root / str(family["oracle_filename"])
+        script_path = script_root / str(family["script_filename"])
+        transcript_path = transcript_root / str(family["transcript_filename"])
+        oracle = phase10_oracle(family)
+
+        write_json(oracle_path, oracle)
+        write_text(script_path, phase10_script_content(family))
+        script_path.chmod(0o755)
+        write_text(transcript_path, phase10_transcript_text(family))
+        family_rows.append(
+            {
+                "family_id": family["family_id"],
+                "priority_family": family["priority_family"],
+                "oracle_path": oracle_path.relative_to(OUTPUT_ROOT).as_posix(),
+                "script_path": script_path.relative_to(OUTPUT_ROOT).as_posix(),
+                "transcript_path": transcript_path.relative_to(OUTPUT_ROOT).as_posix(),
+                "command": oracle["command"],
+                "expected_pytest_pass_count": oracle["expected_pytest_pass_count"],
+                "covered_fixture_count": coerce_mapping(oracle["fixture_coverage"]).get("covered_fixture_count"),
+                "promotion_status": "not_promoted_partial_reconstruction",
+            }
+        )
+
+    summary = {
+        "schema_version": 1,
+        "phase": "10",
+        "source_authority": "checked-in fixture-backed tests",
+        "source_master_plan": "tmp/handoff-bundle/MASTER-BUG-CAMPAIGN-PLAN.md",
+        "reconstruction_scope": "checked_in_fixture_covered_subset",
+        "status": "covered_subset_reconstructed_not_promoted",
+        "strict_phase10_exit_criteria_met": False,
+        "family_count": len(family_rows),
+        "families": family_rows,
+        "blocking_gaps": [
+            "Original repro/10 exact scripts, full transcripts, and copy-run results were not present in the "
+            "frozen source bundle.",
+            "Current artifacts do not satisfy the master plan's 2/2 anchor-copy plus 1/1 confirmatory-copy "
+            "promotion rule.",
+        ],
+    }
+    write_json(REPRO_ROOT / "10-wave-summary.json", summary)
+    write_text(REPRO_ROOT / "10-wave-summary.md", phase10_wave_summary_markdown(summary))
+    return {
+        "status": summary["status"],
+        "strict_phase10_exit_criteria_met": summary["strict_phase10_exit_criteria_met"],
+        "family_count": summary["family_count"],
+        "evidence": ["repro/10-wave-summary.json", "repro/10-wave-summary.md"],
+        "gap": "Covered fixture subset reconstructed; strict Phase 10 copy-run transcripts remain absent.",
+    }
+
+
 def import_external_repro_artifacts() -> dict[str, object]:
     imported: list[str] = []
     missing: list[str] = []
@@ -1386,6 +1707,7 @@ def write_scorecards(
 
 def write_phase_status(
     phase08: Mapping[str, object],
+    phase10: Mapping[str, object],
     external_repro: Mapping[str, object],
 ) -> None:
     imported = set(string_list(external_repro.get("imported")))
@@ -1440,8 +1762,11 @@ def write_phase_status(
         {
             "phase": "10",
             "name": "CLI Fast-Path Anchor Repro",
-            "status": "missing_exact_repro_artifacts",
-            "gap": "No durable repro/10 scripts, oracles, transcripts, or wave summary found.",
+            "status": phase10.get("status"),
+            "evidence": string_list(phase10.get("evidence")),
+            "gap": phase10.get("gap"),
+            "reconstructed_family_count": phase10.get("family_count"),
+            "strict_phase10_exit_criteria_met": phase10.get("strict_phase10_exit_criteria_met"),
         },
         {
             "phase": "11",
@@ -1511,10 +1836,11 @@ def main() -> None:
     write_taxonomy_contract()
     findings, normalized, registry = write_taxonomy_ledgers(verified, candidates)
     phase08 = write_phase08_reconstruction()
+    phase10 = write_phase10_reconstruction()
     external_repro = import_external_repro_artifacts()
     write_phase15_registry()
     write_scorecards(verified, findings, normalized, registry, phase08, external_repro)
-    write_phase_status(phase08, external_repro)
+    write_phase_status(phase08, phase10, external_repro)
 
 
 if __name__ == "__main__":
