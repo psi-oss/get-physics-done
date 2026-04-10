@@ -10,12 +10,11 @@ from gpd import registry
 from gpd.adapters.install_utils import project_markdown_for_runtime
 from gpd.adapters.runtime_catalog import get_runtime_descriptor, iter_runtime_descriptors
 from gpd.core.model_visible_text import (
-    REVIEW_CONTRACT_REQUIRED_STATES,
     agent_visibility_note,
     command_visibility_note,
     review_contract_visibility_note,
 )
-from gpd.registry import _parse_spawn_contracts
+from gpd.registry import _frontmatter_parts, _load_frontmatter_mapping, _parse_spawn_contracts
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
@@ -31,16 +30,33 @@ VERIFIER_BUDGET_BY_NATIVE_INCLUDE_SUPPORT = {
     True: (900, 60_000),
     False: (6_500, 430_000),
 }
-COMMAND_SURFACES = {
-    "plan-phase": (command_visibility_note(),),
-    "new-project": (command_visibility_note(),),
-    "execute-phase": (command_visibility_note(),),
-    "verify-work": (
-        command_visibility_note(),
-        review_contract_visibility_note(),
-        f"required_state: {REVIEW_CONTRACT_REQUIRED_STATES[0]}",
-    ),
-}
+
+
+def _read(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+def _command_frontmatter(command_name: str) -> dict[str, object]:
+    frontmatter, _body = _frontmatter_parts(_read(COMMANDS_DIR / f"{command_name}.md"))
+    assert frontmatter is not None, f"{command_name} is missing command frontmatter"
+    return _load_frontmatter_mapping(frontmatter, error_prefix=f"Malformed frontmatter for {command_name}")
+
+
+def _contract_bearing_command_surfaces() -> dict[str, tuple[str, ...]]:
+    surfaces: dict[str, tuple[str, ...]] = {}
+    for command_name in registry.list_commands():
+        meta = _command_frontmatter(command_name)
+        fragments = [command_visibility_note()]
+        review_contract = meta.get("review-contract")
+        if isinstance(review_contract, dict):
+            fragments.append(review_contract_visibility_note())
+            if "required_state" in review_contract:
+                fragments.append("required_state:")
+        if meta.get("agent") or "review-contract" in meta or "allowed-tools" in meta or "requires" in meta:
+            surfaces[command_name] = tuple(fragments)
+    return surfaces
+
+
+COMMAND_SURFACES = _contract_bearing_command_surfaces()
 PLAN_AGENT_SURFACES = {
     "gpd-planner": (
         agent_visibility_note(),
@@ -66,10 +82,6 @@ RESULT_AGENT_SURFACES = {
         "comparison_verdicts",
     ),
 }
-
-
-def _read(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
 
 
 def _project_markdown(path: Path, runtime: str, *, is_agent: bool) -> str:

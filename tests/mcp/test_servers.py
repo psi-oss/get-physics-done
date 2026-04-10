@@ -3372,7 +3372,7 @@ class TestVerificationServer:
         assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
         assert benchmark["request_template"]["observed"]["metric_value"] is None
         assert benchmark["request_template"]["observed"]["threshold_value"] is None
-        assert benchmark["request_template"]["artifact_content"] is None
+        assert "artifact_content" not in benchmark["request_template"]
 
     def test_suggest_contract_checks_from_proof_contract(self):
         from gpd.mcp.servers.verification_server import suggest_contract_checks
