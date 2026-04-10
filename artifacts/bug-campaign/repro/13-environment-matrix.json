@@ -1,0 +1,1182 @@
+{
+  "phase": 13,
+  "lane": "environment_characterization",
+  "axes": [
+    "raw_cli",
+    "runtime_bridge",
+    "mcp_tool_surface",
+    "config_dir",
+    "sandbox_permission_profile",
+    "serial_vs_parallel"
+  ],
+  "cases": [
+    {
+      "case_id": "ENV-01",
+      "case_name": "empty-phase",
+      "primary_axis": "env_scaffold",
+      "final_classification": "environment_contract_bug",
+      "preconditions": [
+        "The positive and mutation fixtures were copied into the shard run root at /tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace and /tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/mutation/workspace.",
+        "Both copied workspaces preserved the same workspace bytes and the same GPD/STATE.md and GPD/ROADMAP.md scaffold.",
+        "The only fixture-level diff between the source fixtures is metadata in fixture.json (fixture_id, fixture_kind, fixture_role, mutation_axis, order, paired_fixture_id, and workspace_path).",
+        "The sandbox blocked the default uv cache path on the first attempt, so the checks had to run through the unrestricted uv run gpd path.",
+        "The copied workspaces contain no materialized GPD/phases/* inventory."
+      ],
+      "cells": [
+        {
+          "axis": "inventory_scaffold",
+          "status": "clean_miss",
+          "reason_code": "clean_miss",
+          "commands_run": [
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace progress",
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/mutation/workspace progress",
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace phase list",
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/mutation/workspace phase list"
+          ],
+          "observed_surfaces": [
+            "Both copies returned phases: [], total_plans: 0, total_summaries: 0, percent: 0, state_progress_percent: 0, and diverged: false.",
+            "Both copies returned phase list directories: [] and count: 0."
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/mutation/workspace",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace/GPD/STATE.md",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/mutation/workspace/GPD/STATE.md",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace/GPD/ROADMAP.md",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/mutation/workspace/GPD/ROADMAP.md",
+            "tests/fixtures/handoff-bundle/empty-phase/positive/fixture.json",
+            "tests/fixtures/handoff-bundle/empty-phase/mutation/fixture.json"
+          ],
+          "blocker_id": null,
+          "notes": "The scaffold is empty in the same way on both copies; there is no positive/mutation divergence at the progress or inventory level."
+        },
+        {
+          "axis": "phase_index",
+          "status": "clean_miss",
+          "reason_code": "clean_miss",
+          "commands_run": [
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace phase index 01",
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/mutation/workspace phase index 01"
+          ],
+          "observed_surfaces": [
+            "Both copies returned phase: 01, plans: [], waves: {}, incomplete: [], has_checkpoints: false, and validation.valid: true."
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/mutation/workspace",
+            "tests/fixtures/handoff-bundle/empty-phase/positive/fixture.json",
+            "tests/fixtures/handoff-bundle/empty-phase/mutation/fixture.json"
+          ],
+          "blocker_id": null,
+          "notes": "The roadmap/index surface accepts the empty scaffold and treats phase 01 as valid even though no phase directories exist."
+        },
+        {
+          "axis": "phase_binding",
+          "status": "blocked",
+          "reason_code": "not_product_local",
+          "commands_run": [
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace phase validate-waves 01",
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/mutation/workspace phase validate-waves 01",
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace verify phase 01",
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/mutation/workspace verify phase 01"
+          ],
+          "observed_surfaces": [
+            "Both copies returned validation.valid: false with error: Phase not found for phase validate-waves 01.",
+            "Both copies returned errors: ['Phase not found: 01'] for verify phase 01."
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/mutation/workspace",
+            "tests/fixtures/handoff-bundle/empty-phase/positive/fixture.json",
+            "tests/fixtures/handoff-bundle/empty-phase/mutation/fixture.json"
+          ],
+          "blocker_id": "BLK-01-empty-phase-missing-phase-inventory",
+          "notes": "This is the only failing surface. The failure is caused by the absence of a materialized phase inventory, not by any positive/mutation workspace difference."
+        }
+      ],
+      "blockers": [
+        {
+          "id": "BLK-01-empty-phase-missing-phase-inventory",
+          "kind": "environment_contract",
+          "description": "The copied fixtures do not contain any GPD/phases/* directories. gpd phase list is empty, gpd phase index 01 still validates the empty scaffold, but gpd phase validate-waves 01 and gpd verify phase 01 both return Phase not found.",
+          "exact_precondition": "A phase inventory must be materialized before verify phase or phase validate-waves can bind to phase 01; this fixture pair does not provide it.",
+          "replay_steps": [
+            "Copy the positive and mutation fixture workspaces into a fresh run root.",
+            "Run uv run gpd --raw --cwd <workspace> progress.",
+            "Run uv run gpd --raw --cwd <workspace> phase list.",
+            "Run uv run gpd --raw --cwd <workspace> phase index 01.",
+            "Run uv run gpd --raw --cwd <workspace> phase validate-waves 01.",
+            "Run uv run gpd --raw --cwd <workspace> verify phase 01."
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/mutation/workspace",
+            "tests/fixtures/handoff-bundle/empty-phase/positive/fixture.json",
+            "tests/fixtures/handoff-bundle/empty-phase/mutation/fixture.json"
+          ],
+          "classification_impact": "No product-local comparison is reachable from this scaffold; the failure is entirely determined by the missing phase inventory contract."
+        }
+      ],
+      "notes": "Positive and mutation are byte-identical at the workspace level and only differ in fixture metadata. The comparison is stable: progress and phase index are clean, while phase validate-waves and verify phase are blocked by the absent phase inventory. Final classification: environment_contract_bug."
+    },
+    {
+      "case_id": "ENV-02 bridge-vs-cli",
+      "case_name": "bridge-vs-cli",
+      "primary_axis": "runtime_bridge",
+      "source_fixture_ids": [
+        "FX-bridge-vs-cli-positive",
+        "FX-bridge-vs-cli-mutation"
+      ],
+      "source_reference_ids": [
+        "PK-BT-090-01"
+      ],
+      "final_classification": "bridge_bug",
+      "preconditions": {
+        "cwd": "/tmp/gpd-bug-campaign/phase-13/execution/runs/02-bridge-vs-cli",
+        "workspace_copy_state": "Copied the positive and mutation fixture workspaces into positive-workspace and mutation-workspace, then copied mutation/runtime/bridge-status.json into mutation-runtime/bridge-status.json.",
+        "invocation_surface": "Raw CLI via uv run gpd --raw --cwd <copy> resume; bridge-facing surface via mutation/runtime/bridge-status.json.",
+        "bridge_state": "cancelled on the bridge surface; usable on the CLI surface.",
+        "mcp_state": "Not sampled directly.",
+        "config_dir": "Project-local config inside each copied workspace.",
+        "sandbox_profile": "Default sandbox; the first uv probe hit /Users/sergio/.cache/uv/sdists-v9/.git permission denial before the unrestricted rerun.",
+        "parallelism": "serial",
+        "recent_project_payload": "clean / unused",
+        "comparator_surface": "raw_cli_vs_runtime_bridge"
+      },
+      "cells": [
+        {
+          "axis": "raw_cli",
+          "status": "clean_miss",
+          "reason_code": "clean_miss",
+          "commands_run": [
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/02-bridge-vs-cli/positive-workspace resume",
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/02-bridge-vs-cli/mutation-workspace resume"
+          ],
+          "observed_surfaces": [
+            "project_reentry_mode=current-workspace",
+            "project_reentry_selected_candidate.available=true",
+            "has_continuity_handoff=true",
+            "active_resume_kind=continuity_handoff",
+            "resume_candidates[0].resumable=false",
+            "commit_docs=true"
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/02-bridge-vs-cli/positive-workspace",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/02-bridge-vs-cli/mutation-workspace"
+          ],
+          "blocker_id": null,
+          "notes": "The first sandboxed uv probe failed on the home cache path. After an unrestricted rerun, the raw CLI anchor succeeded on both copied workspaces and returned the same continuity-handoff surface."
+        },
+        {
+          "axis": "runtime_bridge",
+          "status": "repro",
+          "reason_code": "repro_confirmed",
+          "commands_run": [
+            "sed -n '1,40p' /tmp/gpd-bug-campaign/phase-13/execution/runs/02-bridge-vs-cli/mutation-runtime/bridge-status.json"
+          ],
+          "observed_surfaces": [
+            "bridge_status=cancelled",
+            "cli_status=usable",
+            "error_signature=user cancelled MCP tool call",
+            "mutation_axis=bridge_cancellation_stub_added"
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/02-bridge-vs-cli/mutation-runtime/bridge-status.json",
+            "/Users/sergio/GitHub/get-physics-done/tests/fixtures/handoff-bundle/bridge-vs-cli/mutation/runtime/bridge-status.json"
+          ],
+          "blocker_id": null,
+          "notes": "The bridge-facing surface is explicitly cancelled while the CLI surface remains usable. That is a stable bridge-local mismatch."
+        }
+      ],
+      "blockers": [
+        {
+          "blocker_id": "BLK-02-uv-cache-denial",
+          "case_id": "ENV-02 bridge-vs-cli",
+          "reference_id": "sandboxed-uv-probe",
+          "classification": "environment_contract_bug",
+          "preconditions": {
+            "cwd": "/Users/sergio/GitHub/get-physics-done",
+            "workspace_copy_state": "Copied fixture workspaces under /tmp/gpd-bug-campaign/phase-13/execution/runs/02-bridge-vs-cli/.",
+            "invocation_surface": "uv run gpd --raw --cwd <copy> resume",
+            "bridge_state": "n/a",
+            "mcp_state": "n/a",
+            "config_dir": "n/a",
+            "sandbox_profile": "sandboxed uv cache access",
+            "parallelism": "serial",
+            "recent_project_payload": "clean",
+            "comparator_surface": "raw_cli_probe"
+          },
+          "trigger": "First sandboxed uv probe before escalation",
+          "observed_failure": "error: failed to open file `/Users/sergio/.cache/uv/sdists-v9/.git`: Operation not permitted (os error 1)",
+          "exact_unblock_condition": "Rerun the same uv command with unrestricted access so uv can read and populate its cache, or bypass the sandboxed cache boundary.",
+          "source_artifacts": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/02-bridge-vs-cli/positive-workspace",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/02-bridge-vs-cli/mutation-workspace",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/02-bridge-vs-cli/mutation-runtime/bridge-status.json"
+          ]
+        }
+      ],
+      "notes": "Raw CLI stayed usable on both copied fixture workspaces once uv was allowed to use its cache. The runtime bridge surface remained cancelled while the CLI surface stayed usable, so the case closes as a bridge bug with a recorded sandbox precondition for the first probe."
+    },
+    {
+      "phase": 13,
+      "lane": "environment_characterization",
+      "case_id": "ENV-03-direct-mcp-blocked-comparator",
+      "case_name": "ENV-03 direct-MCP / blocked comparator",
+      "primary_axis": "mcp_tool_surface",
+      "source_anchor": {
+        "direct_mcp": "mcp__gpd_state__get_state and mcp__gpd_conventions__convention_lock_status",
+        "cli_anchor_attempt": "uv run gpd is sandbox-blocked on /Users/sergio/.cache/uv/sdists-v9/.git",
+        "blocked_comparator_refs": [
+          "BR-BT-078",
+          "BR-BT-091",
+          "BR-BT-049",
+          "BR-BT-156",
+          "BR-BT-U157",
+          "BR-BT-U049",
+          "BR-BT-U074",
+          "BR-BT-U060",
+          "BR-BT-U007"
+        ]
+      },
+      "source_fixture_ids": [
+        "BT-078",
+        "BT-091",
+        "BT-049",
+        "BT-156",
+        "BT-U157",
+        "BT-U049",
+        "BT-U074",
+        "BT-U060",
+        "BT-U007"
+      ],
+      "source_reference_ids": [
+        "BR-BT-078",
+        "BR-BT-091",
+        "BR-BT-049",
+        "BR-BT-156",
+        "BR-BT-U157",
+        "BR-BT-U049",
+        "BR-BT-U074",
+        "BR-BT-U060",
+        "BR-BT-U007"
+      ],
+      "preconditions": {
+        "cwd": "/Users/sergio/GitHub/get-physics-done",
+        "workspace_copy_state": "direct MCP probes are read-only; a copied fixture workspace is required for the project-backed read",
+        "invocation_surface": "direct MCP tool calls plus a blocked raw CLI anchor probe",
+        "bridge_state": "direct MCP reachable; uv CLI anchor blocked before GPD starts",
+        "mcp_state": "reachable",
+        "config_dir": "project_dir must point at an initialized GPD workspace for a meaningful read",
+        "sandbox_profile": "default sandbox",
+        "parallelism": "serial",
+        "recent_project_payload": "clean",
+        "comparator_surface": "CLI anchor unavailable because uv run gpd is sandbox-blocked; comparator refs remain anchorless"
+      },
+      "cells": [
+        {
+          "axis": "mcp_tool_surface",
+          "status": "repro",
+          "reason_code": "repro_confirmed",
+          "commands_run": [
+            "mcp__gpd_state__get_state(project_dir=/Users/sergio/GitHub/get-physics-done)",
+            "mcp__gpd_conventions__convention_lock_status(project_dir=/Users/sergio/GitHub/get-physics-done)",
+            "mcp__gpd_state__get_state(project_dir=/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace)",
+            "mcp__gpd_conventions__convention_lock_status(project_dir=/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace)"
+          ],
+          "observed_surfaces": [
+            "repo-root direct MCP get_state returned No project state found",
+            "copied fixture workspace direct MCP get_state returned populated project state",
+            "copied fixture workspace convention lock status reported 3/18 fields set"
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/01-empty-phase/positive/workspace"
+          ],
+          "blocker_id": null,
+          "notes": "The MCP tool surface is live. The repo root lacks project state, but the copied fixture workspace is readable and returns authoritative project data."
+        },
+        {
+          "axis": "raw_cli",
+          "status": "blocked",
+          "reason_code": "sandbox_wrapper",
+          "commands_run": [
+            "uv run gpd --help",
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/03-direct-mcp-and-blocked/compare resume"
+          ],
+          "observed_surfaces": [
+            "error: failed to open file `/Users/sergio/.cache/uv/sdists-v9/.git`: Operation not permitted (os error 1)",
+            "gpd never started"
+          ],
+          "evidence_paths": [],
+          "blocker_id": "BLK-03-CLI-ANCHOR",
+          "notes": "There is no live terminal CLI anchor in this sandbox, so the direct MCP probe cannot be compared against a working raw CLI surface here."
+        },
+        {
+          "axis": "mcp_tool_surface",
+          "status": "blocked",
+          "reason_code": "not_product_local",
+          "commands_run": [],
+          "observed_surfaces": [
+            "BR-BT-078",
+            "anchor_candidate_id=VF-10-sorce-r03-014",
+            "block_reason_code=heuristic_only",
+            "family_title=Observe and trace surfaces diverge from execution reality"
+          ],
+          "evidence_paths": [
+            "tests/fixtures/handoff-bundle/blocked/BT-078.json"
+          ],
+          "blocker_id": "BLK-03-BT-078",
+          "notes": "Heuristic-only family with no manual candidate evidence in Phase 07."
+        },
+        {
+          "axis": "mcp_tool_surface",
+          "status": "blocked",
+          "reason_code": "not_product_local",
+          "commands_run": [],
+          "observed_surfaces": [
+            "BR-BT-091",
+            "anchor_candidate_id=VF-17-antonini-r01-037",
+            "block_reason_code=heuristic_only",
+            "family_title=Phase and roadmap surfaces misclassify available content"
+          ],
+          "evidence_paths": [
+            "tests/fixtures/handoff-bundle/blocked/BT-091.json"
+          ],
+          "blocker_id": "BLK-03-BT-091",
+          "notes": "Heuristic-only family with no manual candidate evidence in Phase 07."
+        },
+        {
+          "axis": "mcp_tool_surface",
+          "status": "blocked",
+          "reason_code": "not_product_local",
+          "commands_run": [],
+          "observed_surfaces": [
+            "BR-BT-049",
+            "anchor_candidate_id=VF-11-fadel-r02-035",
+            "block_reason_code=heuristic_only",
+            "family_title=Continuation/session visibility diverges across surfaces"
+          ],
+          "evidence_paths": [
+            "tests/fixtures/handoff-bundle/blocked/BT-049.json"
+          ],
+          "blocker_id": "BLK-03-BT-049",
+          "notes": "Heuristic-only family; no admitted canonical sibling or direct manual-repro evidence."
+        },
+        {
+          "axis": "mcp_tool_surface",
+          "status": "blocked",
+          "reason_code": "not_product_local",
+          "commands_run": [],
+          "observed_surfaces": [
+            "BR-BT-156",
+            "anchor_candidate_id=VF-22-yang-r01-007",
+            "block_reason_code=missing_stable_anchor",
+            "family_title=Runtime, docs, and CLI surface contracts diverge"
+          ],
+          "evidence_paths": [
+            "tests/fixtures/handoff-bundle/blocked/BT-156.json"
+          ],
+          "blocker_id": "BLK-03-BT-156",
+          "notes": "No stable anchor candidate or source workspace is available for packetization."
+        },
+        {
+          "axis": "mcp_tool_surface",
+          "status": "blocked",
+          "reason_code": "not_product_local",
+          "commands_run": [],
+          "observed_surfaces": [
+            "BR-BT-U157",
+            "anchor_candidate_id=VF-01-almheiri-r01-001",
+            "block_reason_code=unresolved_singleton",
+            "family_title=Unclassified defect family awaiting stronger invariant on unknown_surface"
+          ],
+          "evidence_paths": [
+            "tests/fixtures/handoff-bundle/blocked/BT-U157.json"
+          ],
+          "blocker_id": "BLK-03-BT-U157",
+          "notes": "Stable comparator surface is not named, so the family boundary cannot be frozen safely."
+        },
+        {
+          "axis": "mcp_tool_surface",
+          "status": "blocked",
+          "reason_code": "not_product_local",
+          "commands_run": [],
+          "observed_surfaces": [
+            "BR-BT-U049",
+            "anchor_candidate_id=VF-01-almheiri-r03-009",
+            "block_reason_code=unresolved_singleton",
+            "family_title=Mutation ordering or concurrency breaks semantic state on phase_add in write_path"
+          ],
+          "evidence_paths": [
+            "tests/fixtures/handoff-bundle/blocked/BT-U049.json"
+          ],
+          "blocker_id": "BLK-03-BT-U049",
+          "notes": "Race-shaped in form, but still blocked without a stable comparator surface."
+        },
+        {
+          "axis": "mcp_tool_surface",
+          "status": "blocked",
+          "reason_code": "not_product_local",
+          "commands_run": [],
+          "observed_surfaces": [
+            "BR-BT-U074",
+            "anchor_candidate_id=VF-03-shahbazi-r01-002",
+            "block_reason_code=missing_stable_anchor",
+            "family_title=Phase and roadmap surfaces misclassify available content via health [artifact_missing] in missing_artifact"
+          ],
+          "evidence_paths": [
+            "tests/fixtures/handoff-bundle/blocked/BT-U074.json"
+          ],
+          "blocker_id": "BLK-03-BT-U074",
+          "notes": "Still entangled with missing-artifact or artifact-boundary uncertainty."
+        },
+        {
+          "axis": "mcp_tool_surface",
+          "status": "blocked",
+          "reason_code": "not_product_local",
+          "commands_run": [],
+          "observed_surfaces": [
+            "BR-BT-U060",
+            "anchor_candidate_id=VF-08-liu-r03-010",
+            "block_reason_code=missing_replay_anchor",
+            "family_title=Observe and trace surfaces diverge from execution reality via state_snapshot [observability_drift]"
+          ],
+          "evidence_paths": [
+            "tests/fixtures/handoff-bundle/blocked/BT-U060.json"
+          ],
+          "blocker_id": "BLK-03-BT-U060",
+          "notes": "The seed lacks a stable replay anchor such as a concrete surface or grounded authority chain."
+        },
+        {
+          "axis": "mcp_tool_surface",
+          "status": "blocked",
+          "reason_code": "not_product_local",
+          "commands_run": [],
+          "observed_surfaces": [
+            "BR-BT-U007",
+            "anchor_candidate_id=VF-16-collier-r01-005",
+            "block_reason_code=proxy_only_signal",
+            "family_title=Continuation/session visibility diverges across surfaces via state_snapshot [projection_only_signal] in report_projection"
+          ],
+          "evidence_paths": [
+            "tests/fixtures/handoff-bundle/blocked/BT-U007.json"
+          ],
+          "blocker_id": "BLK-03-BT-U007",
+          "notes": "Only a projection or proxy signal exists; there is no direct replayable assertion yet."
+        }
+      ],
+      "blockers": [
+        {
+          "blocker_id": "BLK-03-CLI-ANCHOR",
+          "case_id": "ENV-03-direct-mcp-blocked-comparator",
+          "reference_id": "CLI-ANCHOR",
+          "classification": "not_product_local",
+          "preconditions": {
+            "cwd": "/Users/sergio/GitHub/get-physics-done",
+            "workspace_copy_state": "copied fixture workspace available for direct MCP reads",
+            "invocation_surface": "raw CLI comparator probe",
+            "bridge_state": "uv fails before GPD starts",
+            "mcp_state": "reachable",
+            "config_dir": "project_dir must be set if the comparator is project-backed",
+            "sandbox_profile": "default sandbox",
+            "parallelism": "serial",
+            "recent_project_payload": "clean",
+            "comparator_surface": "no live CLI anchor in this sandbox"
+          },
+          "trigger": "Attempt to run `uv run gpd` as the terminal comparator",
+          "observed_failure": "uv cannot open `/Users/sergio/.cache/uv/sdists-v9/.git` and GPD never starts",
+          "exact_unblock_condition": "Use a runtime where uv cache access is permitted or supply a non-sandboxed CLI anchor.",
+          "source_artifacts": []
+        },
+        {
+          "blocker_id": "BLK-03-BT-078",
+          "case_id": "ENV-03-direct-mcp-blocked-comparator",
+          "reference_id": "BR-BT-078",
+          "bug_type_id": "BT-078",
+          "anchor_candidate_id": "VF-10-sorce-r03-014",
+          "block_reason_code": "heuristic_only",
+          "family_kind": "canonical",
+          "family_title": "Observe and trace surfaces diverge from execution reality",
+          "classification": "not_product_local",
+          "preconditions": {
+            "cwd": "/Users/sergio/GitHub/get-physics-done",
+            "workspace_copy_state": "copied fixture workspace available for direct MCP reads",
+            "invocation_surface": "direct MCP comparison against a stable CLI sibling",
+            "bridge_state": "uv CLI anchor unavailable in this sandbox",
+            "mcp_state": "reachable",
+            "config_dir": "project_dir must be initialized for meaningful replay",
+            "sandbox_profile": "default sandbox",
+            "parallelism": "serial",
+            "recent_project_payload": "clean",
+            "comparator_surface": "anchorless until a stable sibling or manual replay exists"
+          },
+          "trigger": "Replay the family against a stable comparator surface",
+          "observed_failure": "The canonical family has no manual candidate evidence in Phase 07.",
+          "exact_unblock_condition": "Attach the family to an admitted canonical sibling or supply direct manual-repro evidence later.",
+          "source_report": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/10-sorce-r03/REPORT.md",
+          "source_workspace": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/10-sorce-r03",
+          "source_artifacts": [
+            "tests/fixtures/handoff-bundle/blocked/BT-078.json"
+          ]
+        },
+        {
+          "blocker_id": "BLK-03-BT-091",
+          "case_id": "ENV-03-direct-mcp-blocked-comparator",
+          "reference_id": "BR-BT-091",
+          "bug_type_id": "BT-091",
+          "anchor_candidate_id": "VF-17-antonini-r01-037",
+          "block_reason_code": "heuristic_only",
+          "family_kind": "canonical",
+          "family_title": "Phase and roadmap surfaces misclassify available content",
+          "classification": "not_product_local",
+          "preconditions": {
+            "cwd": "/Users/sergio/GitHub/get-physics-done",
+            "workspace_copy_state": "copied fixture workspace available for direct MCP reads",
+            "invocation_surface": "direct MCP comparison against a stable CLI sibling",
+            "bridge_state": "uv CLI anchor unavailable in this sandbox",
+            "mcp_state": "reachable",
+            "config_dir": "project_dir must be initialized for meaningful replay",
+            "sandbox_profile": "default sandbox",
+            "parallelism": "serial",
+            "recent_project_payload": "clean",
+            "comparator_surface": "anchorless until a stable sibling or manual replay exists"
+          },
+          "trigger": "Replay the family against a stable comparator surface",
+          "observed_failure": "The canonical family has no manual candidate evidence in Phase 07.",
+          "exact_unblock_condition": "Attach the family to an admitted canonical sibling or supply direct manual-repro evidence later.",
+          "source_report": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/17-antonini-r01/REPORT.md",
+          "source_workspace": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/17-antonini-r01",
+          "source_artifacts": [
+            "tests/fixtures/handoff-bundle/blocked/BT-091.json"
+          ]
+        },
+        {
+          "blocker_id": "BLK-03-BT-049",
+          "case_id": "ENV-03-direct-mcp-blocked-comparator",
+          "reference_id": "BR-BT-049",
+          "bug_type_id": "BT-049",
+          "anchor_candidate_id": "VF-11-fadel-r02-035",
+          "block_reason_code": "heuristic_only",
+          "family_kind": "canonical",
+          "family_title": "Continuation/session visibility diverges across surfaces",
+          "classification": "not_product_local",
+          "preconditions": {
+            "cwd": "/Users/sergio/GitHub/get-physics-done",
+            "workspace_copy_state": "copied fixture workspace available for direct MCP reads",
+            "invocation_surface": "direct MCP comparison against a stable CLI sibling",
+            "bridge_state": "uv CLI anchor unavailable in this sandbox",
+            "mcp_state": "reachable",
+            "config_dir": "project_dir must be initialized for meaningful replay",
+            "sandbox_profile": "default sandbox",
+            "parallelism": "serial",
+            "recent_project_payload": "clean",
+            "comparator_surface": "anchorless until a stable sibling or manual replay exists"
+          },
+          "trigger": "Replay the family against a stable comparator surface",
+          "observed_failure": "The family remains heuristic only and lacks direct manual candidate evidence.",
+          "exact_unblock_condition": "Attach the family to an admitted canonical sibling or supply direct manual-repro evidence later.",
+          "source_report": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/11-fadel-r02-report.md",
+          "source_workspace": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/11-fadel-r02",
+          "source_artifacts": [
+            "tests/fixtures/handoff-bundle/blocked/BT-049.json"
+          ]
+        },
+        {
+          "blocker_id": "BLK-03-BT-156",
+          "case_id": "ENV-03-direct-mcp-blocked-comparator",
+          "reference_id": "BR-BT-156",
+          "bug_type_id": "BT-156",
+          "anchor_candidate_id": "VF-22-yang-r01-007",
+          "block_reason_code": "missing_stable_anchor",
+          "family_kind": "canonical",
+          "family_title": "Runtime, docs, and CLI surface contracts diverge",
+          "classification": "not_product_local",
+          "preconditions": {
+            "cwd": "/Users/sergio/GitHub/get-physics-done",
+            "workspace_copy_state": "copied fixture workspace available for direct MCP reads",
+            "invocation_surface": "direct MCP comparison against a stable CLI sibling",
+            "bridge_state": "uv CLI anchor unavailable in this sandbox",
+            "mcp_state": "reachable",
+            "config_dir": "project_dir must be initialized for meaningful replay",
+            "sandbox_profile": "default sandbox",
+            "parallelism": "serial",
+            "recent_project_payload": "clean",
+            "comparator_surface": "anchorless until a stable sibling or source workspace snapshot exists"
+          },
+          "trigger": "Replay the family against a stable comparator surface",
+          "observed_failure": "No stable anchor candidate or source workspace is available for packetization.",
+          "exact_unblock_condition": "Provide a stable anchor candidate and a source workspace snapshot.",
+          "source_report": "",
+          "source_workspace": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/22-yang-r01",
+          "source_artifacts": [
+            "tests/fixtures/handoff-bundle/blocked/BT-156.json"
+          ]
+        },
+        {
+          "blocker_id": "BLK-03-BT-U157",
+          "case_id": "ENV-03-direct-mcp-blocked-comparator",
+          "reference_id": "BR-BT-U157",
+          "bug_type_id": "BT-U157",
+          "anchor_candidate_id": "VF-01-almheiri-r01-001",
+          "block_reason_code": "unresolved_singleton",
+          "family_kind": "unresolved_singleton",
+          "family_title": "Unclassified defect family awaiting stronger invariant on unknown_surface",
+          "classification": "not_product_local",
+          "preconditions": {
+            "cwd": "/Users/sergio/GitHub/get-physics-done",
+            "workspace_copy_state": "copied fixture workspace available for direct MCP reads",
+            "invocation_surface": "direct MCP comparison against a stable CLI sibling",
+            "bridge_state": "uv CLI anchor unavailable in this sandbox",
+            "mcp_state": "reachable",
+            "config_dir": "project_dir must be initialized for meaningful replay",
+            "sandbox_profile": "default sandbox",
+            "parallelism": "serial",
+            "recent_project_payload": "clean",
+            "comparator_surface": "stable comparator surface not named"
+          },
+          "trigger": "Identify a stable comparator surface and replay the same assertion against it",
+          "observed_failure": "The current seed does not name a stable comparator surface, so the family boundary cannot be frozen safely.",
+          "exact_unblock_condition": "Identify a stable comparator surface and replay the same assertion against it.",
+          "source_report": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01/results/01-almheiri-r01-report.md",
+          "source_workspace": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01",
+          "source_artifacts": [
+            "tests/fixtures/handoff-bundle/blocked/BT-U157.json"
+          ]
+        },
+        {
+          "blocker_id": "BLK-03-BT-U049",
+          "case_id": "ENV-03-direct-mcp-blocked-comparator",
+          "reference_id": "BR-BT-U049",
+          "bug_type_id": "BT-U049",
+          "anchor_candidate_id": "VF-01-almheiri-r03-009",
+          "block_reason_code": "unresolved_singleton",
+          "family_kind": "unresolved_singleton",
+          "family_title": "Mutation ordering or concurrency breaks semantic state on phase_add in write_path",
+          "classification": "not_product_local",
+          "preconditions": {
+            "cwd": "/Users/sergio/GitHub/get-physics-done",
+            "workspace_copy_state": "copied fixture workspace available for direct MCP reads",
+            "invocation_surface": "direct MCP comparison against a stable CLI sibling",
+            "bridge_state": "uv CLI anchor unavailable in this sandbox",
+            "mcp_state": "reachable",
+            "config_dir": "project_dir must be initialized for meaningful replay",
+            "sandbox_profile": "default sandbox",
+            "parallelism": "serial",
+            "recent_project_payload": "clean",
+            "comparator_surface": "race-shaped but still missing a stable comparator"
+          },
+          "trigger": "Identify a stable comparator surface and replay the same assertion against it",
+          "observed_failure": "The current seed does not name a stable comparator surface, so the family boundary cannot be frozen safely.",
+          "exact_unblock_condition": "Identify a stable comparator surface and replay the same assertion against it.",
+          "source_report": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/04-wang-r01-report.md",
+          "source_workspace": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r03",
+          "source_artifacts": [
+            "tests/fixtures/handoff-bundle/blocked/BT-U049.json"
+          ]
+        },
+        {
+          "blocker_id": "BLK-03-BT-U074",
+          "case_id": "ENV-03-direct-mcp-blocked-comparator",
+          "reference_id": "BR-BT-U074",
+          "bug_type_id": "BT-U074",
+          "anchor_candidate_id": "VF-03-shahbazi-r01-002",
+          "block_reason_code": "missing_stable_anchor",
+          "family_kind": "unresolved_singleton",
+          "family_title": "Phase and roadmap surfaces misclassify available content via health [artifact_missing] in missing_artifact",
+          "classification": "not_product_local",
+          "preconditions": {
+            "cwd": "/Users/sergio/GitHub/get-physics-done",
+            "workspace_copy_state": "copied fixture workspace available for direct MCP reads",
+            "invocation_surface": "direct MCP comparison against a stable CLI sibling",
+            "bridge_state": "uv CLI anchor unavailable in this sandbox",
+            "mcp_state": "reachable",
+            "config_dir": "project_dir must be initialized for meaningful replay",
+            "sandbox_profile": "default sandbox",
+            "parallelism": "serial",
+            "recent_project_payload": "clean",
+            "comparator_surface": "anchorless until a controlled positive fixture and mutation exist"
+          },
+          "trigger": "Reproduce the same assertion with controlled positive and missing-artifact fixtures",
+          "observed_failure": "The row is still entangled with missing-artifact or artifact-boundary uncertainty.",
+          "exact_unblock_condition": "Reproduce the same assertion with a controlled positive fixture and a controlled missing-artifact mutation.",
+          "source_report": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/03-shahbazi-r01/REPORT.md",
+          "source_workspace": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/03-shahbazi-r01",
+          "source_artifacts": [
+            "tests/fixtures/handoff-bundle/blocked/BT-U074.json"
+          ]
+        },
+        {
+          "blocker_id": "BLK-03-BT-U060",
+          "case_id": "ENV-03-direct-mcp-blocked-comparator",
+          "reference_id": "BR-BT-U060",
+          "bug_type_id": "BT-U060",
+          "anchor_candidate_id": "VF-08-liu-r03-010",
+          "block_reason_code": "missing_replay_anchor",
+          "family_kind": "unresolved_singleton",
+          "family_title": "Observe and trace surfaces diverge from execution reality via state_snapshot [observability_drift]",
+          "classification": "not_product_local",
+          "preconditions": {
+            "cwd": "/Users/sergio/GitHub/get-physics-done",
+            "workspace_copy_state": "copied fixture workspace available for direct MCP reads",
+            "invocation_surface": "direct MCP comparison against a stable CLI sibling",
+            "bridge_state": "uv CLI anchor unavailable in this sandbox",
+            "mcp_state": "reachable",
+            "config_dir": "project_dir must be initialized for meaningful replay",
+            "sandbox_profile": "default sandbox",
+            "parallelism": "serial",
+            "recent_project_payload": "clean",
+            "comparator_surface": "missing replay anchor"
+          },
+          "trigger": "Ground the same observation in a named surface and authority path",
+          "observed_failure": "The seed lacks a stable replay anchor such as a concrete surface or grounded authority chain.",
+          "exact_unblock_condition": "Ground the same observation in a named surface and authority path.",
+          "source_report": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/08-liu-r03-report.md",
+          "source_workspace": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/08-liu-r03",
+          "source_artifacts": [
+            "tests/fixtures/handoff-bundle/blocked/BT-U060.json"
+          ]
+        },
+        {
+          "blocker_id": "BLK-03-BT-U007",
+          "case_id": "ENV-03-direct-mcp-blocked-comparator",
+          "reference_id": "BR-BT-U007",
+          "bug_type_id": "BT-U007",
+          "anchor_candidate_id": "VF-16-collier-r01-005",
+          "block_reason_code": "proxy_only_signal",
+          "family_kind": "unresolved_singleton",
+          "family_title": "Continuation/session visibility diverges across surfaces via state_snapshot [projection_only_signal] in report_projection",
+          "classification": "not_product_local",
+          "preconditions": {
+            "cwd": "/Users/sergio/GitHub/get-physics-done",
+            "workspace_copy_state": "copied fixture workspace available for direct MCP reads",
+            "invocation_surface": "direct MCP comparison against a stable CLI sibling",
+            "bridge_state": "uv CLI anchor unavailable in this sandbox",
+            "mcp_state": "reachable",
+            "config_dir": "project_dir must be initialized for meaningful replay",
+            "sandbox_profile": "default sandbox",
+            "parallelism": "serial",
+            "recent_project_payload": "clean",
+            "comparator_surface": "proxy-only signal with no direct replayable assertion"
+          },
+          "trigger": "Replace the proxy-only signal with a direct command-backed or fixture-backed observation",
+          "observed_failure": "Only a projection or proxy signal exists; there is no direct replayable assertion yet.",
+          "exact_unblock_condition": "Replace the proxy-only signal with a direct command-backed or fixture-backed observation.",
+          "source_report": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/16-collier-r01-report.md",
+          "source_workspace": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/16-collier-r01",
+          "source_artifacts": [
+            "tests/fixtures/handoff-bundle/blocked/BT-U007.json"
+          ]
+        }
+      ],
+      "final_classification": "not_product_local",
+      "notes": "Direct MCP calls are reachable and stable in this runtime. The raw CLI anchor is sandbox-blocked, and every blocked comparator reference remains unresolved without a stable replay surface. BT-U049 is the only race-shaped reference, but it is still blocked and stays in not_product_local until a comparator exists."
+    },
+    {
+      "case_id": "ENV-04-config-dir-and-writability",
+      "case_name": "ENV-04 config-dir / writability",
+      "primary_axis": "config_dir",
+      "final_classification": "environment_contract_bug",
+      "preconditions": {
+        "cwd": "/tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace",
+        "workspace_copy_state": "copied from tests/fixtures/handoff-bundle/config-readback/positive/workspace; source workspace left untouched",
+        "invocation_surface": "uv run gpd --raw --cwd <copy>",
+        "bridge_state": "direct CLI reachable only through unrestricted uv in this sandbox",
+        "mcp_state": "not used",
+        "config_dir": "local target resolves to <copy>/.codex; global target resolves to /Users/sergio/.codex",
+        "sandbox_profile": "default sandbox blocks uv access to /Users/sergio/.cache/uv/sdists-v9/.git; unrestricted uv required",
+        "parallelism": "serial",
+        "recent_project_payload": "clean / not sampled",
+        "comparator_surface": "local doctor vs global doctor on the same copied workspace",
+        "global_target_writability": "/Users/sergio/.codex is writable on this host, so the historic fail path does not trigger here"
+      },
+      "cells": [
+        {
+          "axis": "sandbox_permission_profile",
+          "status": "blocked",
+          "reason_code": "sandbox_wrapper",
+          "commands_run": [
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace doctor --runtime codex --local"
+          ],
+          "observed_surfaces": [
+            "sandbox denied access to /Users/sergio/.cache/uv/sdists-v9/.git before gpd started"
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace",
+            "/Users/sergio/GitHub/get-physics-done/tests/fixtures/handoff-bundle/config-readback/positive/workspace/journal.md"
+          ],
+          "blocker_id": "BLK-04-uv-cache-denial",
+          "notes": "The first sandboxed probe could not reach GPD product logic; the unrestricted uv rerun was required."
+        },
+        {
+          "axis": "config_dir",
+          "status": "repro",
+          "reason_code": "repro_confirmed",
+          "commands_run": [
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace init resume",
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace doctor --runtime codex --local"
+          ],
+          "observed_surfaces": [
+            "project_root_source=current_workspace",
+            "project_reentry_mode=current-workspace",
+            "project_root=/private/tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace",
+            "local doctor target=/private/tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace/.codex",
+            "local Runtime Config Target reports exists=false and will be created during install"
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace/HANDOFF.md",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace/journal.md",
+            "/Users/sergio/GitHub/get-physics-done/src/gpd/adapters/runtime_catalog.py",
+            "/Users/sergio/GitHub/get-physics-done/src/gpd/core/health.py"
+          ],
+          "blocker_id": null,
+          "notes": "The copied fixture resolves the runtime config directory to the workspace-local .codex path for local doctor, and init resume stays on the current workspace."
+        },
+        {
+          "axis": "global_writability",
+          "status": "clean_miss",
+          "reason_code": "global_writability",
+          "commands_run": [
+            "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace doctor --runtime codex --global",
+            "stat -f '%Sp %Su %Sg %N' /Users/sergio/.codex"
+          ],
+          "observed_surfaces": [
+            "global doctor target=/Users/sergio/.codex",
+            "global Runtime Config Target reports install_state=owned_complete and manifest_state=ok",
+            "/Users/sergio/.codex permissions=drwxr-xr-x sergio staff"
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace/HANDOFF.md",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace/journal.md",
+            "/Users/sergio/GitHub/get-physics-done/tests/fixtures/handoff-bundle/config-readback/positive/workspace/HANDOFF.md",
+            "/Users/sergio/GitHub/get-physics-done/tests/fixtures/handoff-bundle/config-readback/positive/workspace/journal.md"
+          ],
+          "blocker_id": null,
+          "notes": "The current host does not reproduce the historical not-writable failure. The fixture still documents the failure mode, but here the global target is writable so doctor stays warn-only."
+        }
+      ],
+      "blockers": [
+        {
+          "blocker_id": "BLK-04-uv-cache-denial",
+          "case_id": "ENV-04-config-dir-and-writability",
+          "classification": "environment_contract_bug",
+          "preconditions": {
+            "cwd": "/tmp/gpd-bug-campaign/phase-13/execution/runs/04-config-dir-and-writability/workspace",
+            "workspace_copy_state": "copied-fixture-workspace",
+            "invocation_surface": "uv run gpd --raw --cwd <copy>",
+            "bridge_state": "uv wrapper blocked before gpd starts",
+            "mcp_state": "not used",
+            "config_dir": "project-local and global targets both unresolved until gpd starts",
+            "sandbox_profile": "default sandbox",
+            "parallelism": "serial",
+            "recent_project_payload": "clean",
+            "comparator_surface": "sandboxed wrapper vs unrestricted uv rerun"
+          },
+          "trigger": "sandboxed uv invocation against the copied config-readback workspace",
+          "observed_failure": "Operation not permitted on /Users/sergio/.cache/uv/sdists-v9/.git before GPD starts",
+          "exact_unblock_condition": "rerun the same uv command with unrestricted permissions or use the already-unrestricted uv path that bypasses the blocked cache access",
+          "source_artifacts": [
+            "/Users/sergio/GitHub/get-physics-done/tests/fixtures/handoff-bundle/config-readback/positive/workspace/journal.md",
+            "/Users/sergio/GitHub/get-physics-done/tests/fixtures/handoff-bundle/config-readback/positive/workspace/HANDOFF.md"
+          ]
+        }
+      ],
+      "notes": [
+        "The copied config-readback fixture is internally coherent: GPD/config.json, GPD/state.json, and GPD/state.json.bak agree on the project contract and commit_docs=false.",
+        "The local/global split is target-scoped, not project-corruption scoped: local doctor resolves to the workspace-local .codex target, while global doctor resolves to /Users/sergio/.codex.",
+        "The current host differs from the historical unwritable-global fixture because /Users/sergio/.codex is writable here, so the global failure is a clean miss on this machine even though the failure mode remains valid for unwritable hosts.",
+        "Final classification: environment_contract_bug."
+      ]
+    },
+    {
+      "schema_version": 1,
+      "case_id": "ENV-05",
+      "case_name": "sandbox / wrapper / uv cache",
+      "primary_axis": "sandbox_permission_profile",
+      "final_classification": "environment_contract_bug",
+      "preconditions": [
+        {
+          "id": "P-01",
+          "kind": "wrapper_cache_access",
+          "statement": "The wrapper path must be able to open uv's home cache. In this sandbox it cannot, so the wrapper fails before gpd.cli starts.",
+          "evidence": "uv run gpd --help fails with Operation not permitted on /Users/sergio/.cache/uv/sdists-v9/.git"
+        },
+        {
+          "id": "P-02",
+          "kind": "cache_redirect_fallback",
+          "statement": "Redirecting UV_CACHE_DIR to /tmp is not sufficient here. uv then panics in system-configuration and never reaches the product CLI.",
+          "evidence": "UV_CACHE_DIR=/tmp/gpd-uv-cache uv run gpd --help reports Attempted to create a NULL object"
+        },
+        {
+          "id": "P-03",
+          "kind": "bridge_contract",
+          "statement": "The runtime bridge is only a valid comparator when it is invoked with --runtime, --config-dir, and --install-scope, and the target config dir contains a complete gpd-file-manifest.json for the same runtime and scope.",
+          "evidence": "A complete local codex install at /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/bridge-target/.codex reaches the local CLI help surface."
+        },
+        {
+          "id": "P-04",
+          "kind": "bridge_fail_close",
+          "statement": "If the manifest is missing, the bridge rejects the config dir before gpd.cli.entrypoint runs.",
+          "evidence": "Manifestless clone at /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/bridge-target-missing/.codex is rejected as missing install manifest"
+        },
+        {
+          "id": "P-05",
+          "kind": "global_target_writability",
+          "statement": "A global Codex readiness check also requires /Users/sergio/.codex to be writable.",
+          "evidence": "Exploration report and runtime-cli tests record /Users/sergio/.codex as the global writability boundary"
+        }
+      ],
+      "cells": [
+        {
+          "axis": "wrapper_path",
+          "status": "blocked",
+          "reason_code": "sandbox_wrapper",
+          "commands_run": [
+            "cd /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace && uv run gpd --help"
+          ],
+          "observed_surfaces": [
+            "error: failed to open file `/Users/sergio/.cache/uv/sdists-v9/.git`: Operation not permitted (os error 1)"
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/05-sandbox-wrapper-and-uv.md",
+            "/tmp/gpd-bug-campaign/phase-13/execution/05-sandbox-wrapper-and-uv.json",
+            "/tmp/gpd-bug-campaign/phase-13/exploration/04-sandbox-wrapper-preconditions.md",
+            "/tmp/gpd-bug-campaign/phase-13/exploration/report.md",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace/src/gpd/runtime_cli.py"
+          ],
+          "blocker_id": "BLK-01",
+          "notes": "The launcher fails before any GPD product logic starts."
+        },
+        {
+          "axis": "cache_redirect",
+          "status": "blocked",
+          "reason_code": "sandbox_wrapper",
+          "commands_run": [
+            "cd /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace && UV_CACHE_DIR=/tmp/gpd-uv-cache uv run gpd --help"
+          ],
+          "observed_surfaces": [
+            "Attempted to create a NULL object",
+            "Tokio executor failed, was there a panic?"
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/05-sandbox-wrapper-and-uv.md",
+            "/tmp/gpd-bug-campaign/phase-13/execution/05-sandbox-wrapper-and-uv.json",
+            "/tmp/gpd-bug-campaign/phase-13/exploration/04-sandbox-wrapper-preconditions.md",
+            "/tmp/gpd-bug-campaign/phase-13/exploration/report.md"
+          ],
+          "blocker_id": "BLK-02",
+          "notes": "Cache redirection changes the failure mode but still blocks before the product CLI is usable."
+        },
+        {
+          "axis": "runtime_bridge_precondition",
+          "status": "blocked",
+          "reason_code": "not_product_local",
+          "commands_run": [
+            "cd /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace && PYTHONPATH=src .venv/bin/python -m gpd.runtime_cli --runtime codex --config-dir /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/bridge-target-missing/.codex --install-scope local --help"
+          ],
+          "observed_surfaces": [
+            "GPD runtime bridge rejected missing install manifest at `/private/tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/bridge-target-missing/.codex`"
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/05-sandbox-wrapper-and-uv.md",
+            "/tmp/gpd-bug-campaign/phase-13/execution/05-sandbox-wrapper-and-uv.json",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace/src/gpd/runtime_cli.py",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace/tests/test_runtime_install_smoke.py",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace/tests/test_runtime_cli.py"
+          ],
+          "blocker_id": "BLK-03",
+          "notes": "The bridge fail-closes correctly when the install manifest is missing. That is the correct separator between environment failure and product failure."
+        },
+        {
+          "axis": "runtime_bridge_control",
+          "status": "clean_miss",
+          "reason_code": "clean_miss",
+          "commands_run": [
+            "cd /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace && PYTHONPATH=src .venv/bin/python -c \"from pathlib import Path; from tests.runtime_install_helpers import seed_complete_runtime_install; seed_complete_runtime_install(Path('/tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/bridge-target/.codex'), runtime='codex', install_scope='local')\"",
+            "cd /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace && PYTHONPATH=src .venv/bin/python -m gpd.runtime_cli --runtime codex --config-dir /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/bridge-target/.codex --install-scope local --help"
+          ],
+          "observed_surfaces": [
+            "Usage: python -m gpd.gpd [OPTIONS] COMMAND [ARGS]...",
+            "local CLI command list including resume, progress, health, doctor, suggest, and install"
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/05-sandbox-wrapper-and-uv.md",
+            "/tmp/gpd-bug-campaign/phase-13/execution/05-sandbox-wrapper-and-uv.json",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace/src/gpd/runtime_cli.py",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace/tests/runtime_install_helpers.py",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace/tests/test_runtime_install_smoke.py",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace/tests/test_runtime_cli.py"
+          ],
+          "blocker_id": null,
+          "notes": "The bridge reaches the local CLI once the install contract is satisfied."
+        }
+      ],
+      "blockers": [
+        {
+          "id": "BLK-01",
+          "kind": "sandbox_cache_denial",
+          "trigger": "uv attempts to open /Users/sergio/.cache/uv/sdists-v9/.git inside the sandbox",
+          "signature": "Operation not permitted (os error 1)",
+          "impact": "The wrapper exits before reaching gpd.cli.",
+          "replay": "cd /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace && uv run gpd --help"
+        },
+        {
+          "id": "BLK-02",
+          "kind": "uv_runtime_panic",
+          "trigger": "UV_CACHE_DIR is redirected to /tmp but uv still panics in system-configuration",
+          "signature": "Attempted to create a NULL object; Tokio executor failed, was there a panic?",
+          "impact": "The wrapper still never reaches gpd.cli.",
+          "replay": "cd /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace && UV_CACHE_DIR=/tmp/gpd-uv-cache uv run gpd --help"
+        },
+        {
+          "id": "BLK-03",
+          "kind": "bridge_fail_close",
+          "trigger": "The runtime bridge is invoked against a manifestless config dir",
+          "signature": "GPD runtime bridge rejected missing install manifest",
+          "impact": "The bridge exits 127 before gpd.cli.entrypoint runs.",
+          "replay": "cd /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/workspace && PYTHONPATH=src .venv/bin/python -m gpd.runtime_cli --runtime codex --config-dir /tmp/gpd-bug-campaign/phase-13/execution/runs/05-sandbox-wrapper-and-uv/bridge-target-missing/.codex --install-scope local --help"
+        }
+      ],
+      "notes": [
+        "The local bridge control confirms the product CLI is reachable once the install contract is complete.",
+        "The missing-manifest bridge rejection confirms the bridge itself fail-closes before product logic when the contract is incomplete.",
+        "This case is environment_contract_bug because the failure lives at the wrapper/cache boundary, not in gpd.cli."
+      ]
+    },
+    {
+      "case_id": "ENV-06-serial-vs-parallel-noise",
+      "case_name": "ENV-06 serial-vs-parallel recent-project noise",
+      "source_anchor": "PK-BT-071-01",
+      "source_fixture_ids": [
+        "FX-resume-recent-noise-positive",
+        "FX-resume-recent-noise-mutation"
+      ],
+      "source_reference_ids": [
+        "BT-071"
+      ],
+      "primary_axis": "serial_vs_parallel",
+      "preconditions": {
+        "cwd": "/tmp/gpd-bug-campaign/phase-13/execution/runs/06-serial-vs-parallel-noise/mutation-workspace",
+        "workspace_copy_state": "copied-fixture-workspace",
+        "invocation_surface": "uv run gpd --raw --cwd <copy> resume --recent",
+        "bridge_state": "local_cli",
+        "mcp_state": "n/a",
+        "config_dir": "project-local",
+        "sandbox_profile": "unrestricted_uv_after_sandbox_denial",
+        "parallelism": "serial",
+        "recent_project_payload": "normalized machine-local sidecar with three /tmp/noise rows",
+        "comparator_surface": "empty-machine-local-index vs machine-local recent-project list"
+      },
+      "cells": [
+        {
+          "axis": "serial_control",
+          "status": "clean_miss",
+          "reason_code": "clean_miss",
+          "commands_run": [
+            "env GPD_DATA_DIR=/tmp/gpd-bug-campaign/phase-13/execution/runs/06-serial-vs-parallel-noise/empty-machine-local uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/06-serial-vs-parallel-noise/mutation-workspace resume --recent"
+          ],
+          "observed_surfaces": [
+            "count=0",
+            "mode=idle",
+            "decision_source=no-recovery",
+            "project_reentry_mode=current-workspace"
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/06-serial-vs-parallel-noise/empty-machine-local"
+          ],
+          "blocker_id": null,
+          "notes": "Empty machine-local state keeps the comparator on the current workspace and does not introduce a recent-project selection."
+        },
+        {
+          "axis": "serial_noise_injected",
+          "status": "repro",
+          "reason_code": "environment_noise",
+          "commands_run": [
+            "env GPD_DATA_DIR=/tmp/gpd-bug-campaign/phase-13/execution/runs/06-serial-vs-parallel-noise/mutation-machine-local uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-13/execution/runs/06-serial-vs-parallel-noise/mutation-workspace resume --recent"
+          ],
+          "observed_surfaces": [
+            "count=3",
+            "mode=recent-projects",
+            "decision_source=forced-recent-projects",
+            "project_reentry_mode=current-workspace",
+            "project_root_auto_selected=false"
+          ],
+          "evidence_paths": [
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/06-serial-vs-parallel-noise/mutation-machine-local/recent-projects/index.json",
+            "/tmp/gpd-bug-campaign/phase-13/execution/runs/06-serial-vs-parallel-noise/mutation-workspace"
+          ],
+          "blocker_id": null,
+          "notes": "The normalized sidecar changes only the machine-local selection surface. The workspace bytes remain unchanged."
+        },
+        {
+          "axis": "parallel_stress",
+          "status": "not_sampled",
+          "reason_code": "insufficient_time",
+          "commands_run": [],
+          "observed_surfaces": [],
+          "evidence_paths": [],
+          "blocker_id": null,
+          "notes": "No meaningful parallel stress pass was needed once the machine-local recent-project payload was shown to dominate the observable surface."
+        }
+      ],
+      "blockers": [
+        {
+          "blocker_id": "BLK-06-uv-cache-denial",
+          "case_id": "ENV-06-serial-vs-parallel-noise",
+          "reference_id": "BT-071",
+          "classification": "not_product_local",
+          "preconditions": {
+            "cwd": "/tmp/gpd-bug-campaign/phase-13/execution/runs/06-serial-vs-parallel-noise",
+            "workspace_copy_state": "copied-fixture-workspace",
+            "invocation_surface": "uv run gpd --raw",
+            "bridge_state": "local_cli",
+            "mcp_state": "n/a",
+            "config_dir": "project-local",
+            "sandbox_profile": "sandboxed_uv",
+            "parallelism": "serial",
+            "recent_project_payload": "fixture sidecar not yet normalized",
+            "comparator_surface": "uv cache path access"
+          },
+          "trigger": "sandboxed uv replay of the copied workspace",
+          "observed_failure": "uv failed before gpd logic started because it could not open /Users/sergio/.cache/uv/sdists-v9/.git",
+          "exact_unblock_condition": "rerun with unrestricted uv or point UV_CACHE_DIR at a writable path",
+          "source_artifacts": []
+        }
+      ],
+      "notes": [
+        "The raw fixture sidecar at tests/fixtures/handoff-bundle/resume-recent-noise/mutation/machine-local/recent-projects.json is evidence of machine-local noise, but the runtime consumes GPD_DATA_DIR/recent-projects/index.json with rows-shaped JSON.",
+        "Normalizing the sidecar into that runtime index shape changed only the recent-project selector. It did not reveal a workspace-local race or a stable product comparator.",
+        "Final classification: not_product_local."
+      ],
+      "final_classification": "not_product_local"
+    }
+  ],
+  "blockers": [
+    "BLK-01-empty-phase-missing-phase-inventory",
+    "BLK-02-uv-cache-denial",
+    "BLK-03-CLI-ANCHOR",
+    "BLK-03-BT-078",
+    "BLK-03-BT-091",
+    "BLK-03-BT-049",
+    "BLK-03-BT-156",
+    "BLK-03-BT-U157",
+    "BLK-03-BT-U049",
+    "BLK-03-BT-U074",
+    "BLK-03-BT-U060",
+    "BLK-03-BT-U007",
+    "BLK-04-uv-cache-denial",
+    "BLK-01",
+    "BLK-02",
+    "BLK-03",
+    "BLK-06-uv-cache-denial"
+  ],
+  "summary": {
+    "case_count": 6,
+    "classification_counts": {
+      "bridge_bug": 1,
+      "environment_contract_bug": 3,
+      "race_flaky": 0,
+      "not_product_local": 2
+    },
+    "blocker_count": 17
+  }
+}

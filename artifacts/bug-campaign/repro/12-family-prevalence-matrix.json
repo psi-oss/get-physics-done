@@ -1,0 +1,1085 @@
+[
+  {
+    "family_id": "bridge-vs-cli",
+    "family_title": "bridge-vs-cli",
+    "anchor_candidate_id": "VF-17-antonini-r01-040",
+    "anchor_experiment_slug": "17-antonini",
+    "sampled_instances": 2,
+    "repro_instances": 2,
+    "clean_miss_instances": 0,
+    "clean_miss_outside_anchor_instances": 0,
+    "blocked_instances": 0,
+    "prevalence_score": [
+      2,
+      100,
+      2,
+      0
+    ],
+    "confidence": "high",
+    "promotion_state": "promoted",
+    "stop_state": "closed",
+    "candidate_ids": [
+      "VF-17-antonini-r01-040",
+      "new-project",
+      "suggest-next",
+      "minimax_conditional_hrt"
+    ],
+    "packet_ids": [
+      "PK-BT-090-01",
+      "20-hubeny-r03"
+    ],
+    "commands_run": [
+      "uv run gpd --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/01-17-antonini/17-antonini-r03 validate command-context gpd:resume-work",
+      "uv run gpd --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/01-17-antonini/17-antonini-r03 validate command-context gpd:resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/01-17-antonini/17-antonini-r03 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/05-20-hubeny-plus-05-silverstein/20-hubeny-r03 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/05-20-hubeny-plus-05-silverstein/20-hubeny-r03 suggest",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/05-20-hubeny-plus-05-silverstein/20-hubeny-r03 suggest-next",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/05-20-hubeny-plus-05-silverstein/20-hubeny-r03 query deps minimax_conditional_hrt",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/05-20-hubeny-plus-05-silverstein/20-hubeny-r03 result deps minimax_conditional_hrt"
+    ],
+    "17-antonini": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "PK-BT-090-01"
+      ],
+      "candidate_ids": [
+        "VF-17-antonini-r01-040"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "18-he": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "16-collier": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "04-wang": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "21-weng": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "20-hubeny": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "20-hubeny-r03"
+      ],
+      "candidate_ids": [
+        "new-project",
+        "suggest-next",
+        "minimax_conditional_hrt"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "05-silverstein": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "07-maxfield": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    }
+  },
+  {
+    "family_id": "completed-phase",
+    "family_title": "completed-phase",
+    "anchor_candidate_id": "VF-17-antonini-r02-006",
+    "anchor_experiment_slug": "17-antonini",
+    "sampled_instances": 2,
+    "repro_instances": 2,
+    "clean_miss_instances": 0,
+    "clean_miss_outside_anchor_instances": 0,
+    "blocked_instances": 0,
+    "prevalence_score": [
+      2,
+      100,
+      1,
+      0
+    ],
+    "confidence": "medium",
+    "promotion_state": "promoted",
+    "stop_state": "closed",
+    "candidate_ids": [
+      "VF-17-antonini-r02-006",
+      "16-collier-r02"
+    ],
+    "packet_ids": [
+      "PK-BT-218-01",
+      "PK-BT-204-01",
+      "PK-BT-199-01",
+      "PK-BT-086-01",
+      "16-collier-r02:validate-review-preflight-gpd:verify-work-01+03+04",
+      "16-collier-r02:verify-phase-01+verify-phase-04+phase-index-01+phase-validate-waves-01"
+    ],
+    "commands_run": [
+      "uv run gpd --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/01-17-antonini/17-antonini-r02 verify phase 04",
+      "uv run gpd --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/01-17-antonini/17-antonini-r03 verify phase 05",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 verify phase 01",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 verify phase 04",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 phase index 01",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 phase validate-waves 01",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 validate review-preflight gpd:verify-work 01",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 init verify-work 01",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 validate review-preflight gpd:verify-work 03",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 init verify-work 03"
+    ],
+    "17-antonini": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "PK-BT-218-01",
+        "PK-BT-204-01",
+        "PK-BT-199-01",
+        "PK-BT-086-01"
+      ],
+      "candidate_ids": [
+        "VF-17-antonini-r02-006"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "18-he": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "16-collier": {
+      "status": "repro",
+      "confidence": "medium",
+      "packet_ids": [
+        "16-collier-r02:validate-review-preflight-gpd:verify-work-01+03+04",
+        "16-collier-r02:verify-phase-01+verify-phase-04+phase-index-01+phase-validate-waves-01"
+      ],
+      "candidate_ids": [
+        "16-collier-r02"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "04-wang": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "21-weng": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "20-hubeny": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "05-silverstein": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "07-maxfield": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    }
+  },
+  {
+    "family_id": "config-readback",
+    "family_title": "config-readback",
+    "anchor_candidate_id": "04-wang-r01",
+    "anchor_experiment_slug": "04-wang",
+    "sampled_instances": 2,
+    "repro_instances": 0,
+    "clean_miss_instances": 2,
+    "clean_miss_outside_anchor_instances": 1,
+    "blocked_instances": 0,
+    "prevalence_score": [
+      0,
+      0,
+      2,
+      -1
+    ],
+    "confidence": "high",
+    "promotion_state": "held",
+    "stop_state": "closed",
+    "candidate_ids": [
+      "04-wang-r01",
+      "04-wang-r02",
+      "04-wang-r03",
+      "21-weng-r01",
+      "21-weng-r02",
+      "21-weng-r03"
+    ],
+    "packet_ids": [
+      "04-wang-r01:health+convention-check",
+      "04-wang-r02:health+convention-check",
+      "04-wang-r03:health+convention-check",
+      "21-weng-r01:health+convention-check",
+      "21-weng-r02:health+convention-check",
+      "21-weng-r03:health+convention-check"
+    ],
+    "commands_run": [
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r01 health",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r02 health",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r03 health",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r01 convention check",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r02 convention check",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r03 convention check",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r01 health",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r02 health",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r03 health",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r01 convention check",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r02 convention check",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r03 convention check"
+    ],
+    "17-antonini": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "18-he": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "16-collier": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "04-wang": {
+      "status": "clean_miss",
+      "confidence": "high",
+      "packet_ids": [
+        "04-wang-r01:health+convention-check",
+        "04-wang-r02:health+convention-check",
+        "04-wang-r03:health+convention-check"
+      ],
+      "candidate_ids": [
+        "04-wang-r01",
+        "04-wang-r02",
+        "04-wang-r03"
+      ],
+      "reason_code": "clean_miss"
+    },
+    "21-weng": {
+      "status": "clean_miss",
+      "confidence": "high",
+      "packet_ids": [
+        "21-weng-r01:health+convention-check",
+        "21-weng-r02:health+convention-check",
+        "21-weng-r03:health+convention-check"
+      ],
+      "candidate_ids": [
+        "21-weng-r01",
+        "21-weng-r02",
+        "21-weng-r03"
+      ],
+      "reason_code": "clean_miss"
+    },
+    "20-hubeny": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "05-silverstein": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "07-maxfield": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    }
+  },
+  {
+    "family_id": "context-indexing",
+    "family_title": "context-indexing",
+    "anchor_candidate_id": "16-collier-r02",
+    "anchor_experiment_slug": "16-collier",
+    "sampled_instances": 3,
+    "repro_instances": 3,
+    "clean_miss_instances": 0,
+    "clean_miss_outside_anchor_instances": 0,
+    "blocked_instances": 0,
+    "prevalence_score": [
+      3,
+      100,
+      2,
+      0
+    ],
+    "confidence": "high",
+    "promotion_state": "promoted",
+    "stop_state": "closed",
+    "candidate_ids": [
+      "16-collier-r02",
+      "04-wang-r01",
+      "04-wang-r02",
+      "04-wang-r03",
+      "21-weng-r01",
+      "21-weng-r02",
+      "21-weng-r03"
+    ],
+    "packet_ids": [
+      "16-collier-r02:observe-sessions+observe-show",
+      "16-collier-r02:result-list+result-deps-R-02+query-deps-R-05+query-search-candidate+query-assumptions-truncation",
+      "04-wang-r03:phase-context+hand-off+query-search+query-assumptions",
+      "04-wang-r03:observe-sessions+observe-show",
+      "21-weng-r03:phase-context+hand-off+query-search+query-assumptions",
+      "21-weng-r03:observe-sessions+observe-show"
+    ],
+    "commands_run": [
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 observe sessions",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 observe show",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 result list",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 result downstream R-02-gap-bound",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 query deps R-05-ml-window",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 query search --text candidate",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 query assumptions truncation",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r03 query search --text RES-ADS3-EOW-GAP",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r03 query search --text AdS3",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r03 query assumptions AdS3",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r03 observe sessions",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r03 observe show",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r03 query search --text jt-kdv-transseries-2026",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r03 query search --text AdS3",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r03 query assumptions AdS3",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r03 observe sessions",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r03 observe show"
+    ],
+    "17-antonini": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "18-he": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "16-collier": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "16-collier-r02:observe-sessions+observe-show",
+        "16-collier-r02:result-list+result-deps-R-02+query-deps-R-05+query-search-candidate+query-assumptions-truncation"
+      ],
+      "candidate_ids": [
+        "16-collier-r02"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "04-wang": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "04-wang-r03:phase-context+hand-off+query-search+query-assumptions",
+        "04-wang-r03:observe-sessions+observe-show"
+      ],
+      "candidate_ids": [
+        "04-wang-r01",
+        "04-wang-r02",
+        "04-wang-r03"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "21-weng": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "21-weng-r03:phase-context+hand-off+query-search+query-assumptions",
+        "21-weng-r03:observe-sessions+observe-show"
+      ],
+      "candidate_ids": [
+        "21-weng-r01",
+        "21-weng-r02",
+        "21-weng-r03"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "20-hubeny": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "05-silverstein": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "07-maxfield": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    }
+  },
+  {
+    "family_id": "placeholder-conventions",
+    "family_title": "placeholder-conventions",
+    "anchor_candidate_id": "04-wang-r01",
+    "anchor_experiment_slug": "18-he",
+    "sampled_instances": 2,
+    "repro_instances": 1,
+    "clean_miss_instances": 1,
+    "clean_miss_outside_anchor_instances": 1,
+    "blocked_instances": 0,
+    "prevalence_score": [
+      1,
+      50,
+      2,
+      -1
+    ],
+    "confidence": "high",
+    "promotion_state": "promoted",
+    "stop_state": "closed",
+    "candidate_ids": [
+      "04-wang-r01",
+      "04-wang-r02",
+      "04-wang-r03",
+      "21-weng-r01",
+      "21-weng-r02",
+      "21-weng-r03"
+    ],
+    "packet_ids": [
+      "04-wang-r01:convention-check",
+      "04-wang-r02:convention-check",
+      "04-wang-r03:convention-check",
+      "21-weng-r01:convention-check",
+      "21-weng-r02:convention-check",
+      "21-weng-r03:convention-check"
+    ],
+    "commands_run": [
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r01 convention check",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r02 convention check",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r03 convention check",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r01 convention check",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r02 convention check",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r03 convention check"
+    ],
+    "17-antonini": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "18-he": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "16-collier": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "04-wang": {
+      "status": "clean_miss",
+      "confidence": "high",
+      "packet_ids": [
+        "04-wang-r01:convention-check",
+        "04-wang-r02:convention-check",
+        "04-wang-r03:convention-check"
+      ],
+      "candidate_ids": [
+        "04-wang-r01",
+        "04-wang-r02",
+        "04-wang-r03"
+      ],
+      "reason_code": "clean_miss"
+    },
+    "21-weng": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "21-weng-r01:convention-check",
+        "21-weng-r02:convention-check",
+        "21-weng-r03:convention-check"
+      ],
+      "candidate_ids": [
+        "21-weng-r01",
+        "21-weng-r02",
+        "21-weng-r03"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "20-hubeny": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "05-silverstein": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "07-maxfield": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    }
+  },
+  {
+    "family_id": "plan-only",
+    "family_title": "plan-only",
+    "anchor_candidate_id": "16-collier-r02",
+    "anchor_experiment_slug": "17-antonini",
+    "sampled_instances": 1,
+    "repro_instances": 1,
+    "clean_miss_instances": 0,
+    "clean_miss_outside_anchor_instances": 0,
+    "blocked_instances": 0,
+    "prevalence_score": [
+      1,
+      100,
+      2,
+      0
+    ],
+    "confidence": "high",
+    "promotion_state": "promoted",
+    "stop_state": "closed",
+    "candidate_ids": [
+      "16-collier-r02"
+    ],
+    "packet_ids": [
+      "16-collier-r02:validate-review-preflight-gpd:verify-work-04+init-verify-work-04",
+      "16-collier-r02:verify-phase-04+phase-index-01+phase-validate-waves-01"
+    ],
+    "commands_run": [
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 validate review-preflight gpd:verify-work 04",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 init verify-work 04",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 verify phase 04",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 phase index 01",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 phase validate-waves 01"
+    ],
+    "17-antonini": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "18-he": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "16-collier": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "16-collier-r02:validate-review-preflight-gpd:verify-work-04+init-verify-work-04",
+        "16-collier-r02:verify-phase-04+phase-index-01+phase-validate-waves-01"
+      ],
+      "candidate_ids": [
+        "16-collier-r02"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "04-wang": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "21-weng": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "20-hubeny": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "05-silverstein": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "07-maxfield": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    }
+  },
+  {
+    "family_id": "query-registry-drift",
+    "family_title": "query-registry-drift",
+    "anchor_candidate_id": "18-he-r01",
+    "anchor_experiment_slug": "17-antonini",
+    "sampled_instances": 4,
+    "repro_instances": 4,
+    "clean_miss_instances": 0,
+    "clean_miss_outside_anchor_instances": 0,
+    "blocked_instances": 0,
+    "prevalence_score": [
+      4,
+      100,
+      2,
+      0
+    ],
+    "confidence": "high",
+    "promotion_state": "promoted",
+    "stop_state": "closed",
+    "candidate_ids": [
+      "18-he-r01",
+      "18-he-r02",
+      "18-he-r03",
+      "16-collier-r02",
+      "04-wang-r01",
+      "04-wang-r02",
+      "04-wang-r03",
+      "21-weng-r01",
+      "21-weng-r02",
+      "21-weng-r03"
+    ],
+    "packet_ids": [
+      "18-he-r01:state-snapshot+resume+result-list+query-deps",
+      "18-he-r02:state-snapshot+resume+result-list+result-show+query-deps+query-search",
+      "18-he-r03:state-snapshot+resume+result-list+query-deps",
+      "16-collier-r02:result-list+result-downstream-R-02+result-search-candidate+result-search-gap",
+      "16-collier-r02:query-deps-R-05+query-search-candidate+query-assumptions-truncation",
+      "04-wang-r01:result-list+query-deps+query-search",
+      "04-wang-r02:result-list+query-deps+query-search",
+      "04-wang-r03:result-list+query-deps+query-search",
+      "21-weng-r01:result-list+query-deps+query-search",
+      "21-weng-r02:result-list+query-deps+query-search",
+      "21-weng-r03:result-list+query-deps+query-search"
+    ],
+    "commands_run": [
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r01 state snapshot",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r01 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r01 result list",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r01 query deps R-01-classical-triangle",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r02 state snapshot",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r02 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r02 result list",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r02 result show R-01-classical-triangle",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r02 query deps R-01-classical-triangle",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r02 query search",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r03 state snapshot",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r03 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r03 result list",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r03 query deps r-loop-universality-4d",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 result list",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 result downstream R-02-gap-bound",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 result search --text candidate",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 result search --text gap",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 query deps R-05-ml-window",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 query search --text candidate",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/03-16-collier/workspaces/16-collier-r02 query assumptions truncation",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r01 result list",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r02 result list",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r03 result list",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r01 query deps scope-limited-verdict",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r02 query deps eow-wormhole-ensemble",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r03 query deps RES-ADS3-EOW-GAP",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r01 query search --text scope-limited-verdict",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r02 query search --text eow-wormhole-ensemble",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/04-wang-r03 query search --text RES-ADS3-EOW-GAP",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r01 result list",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r02 result list",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r03 result list",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r01 query deps R-03-BENCHMARK-GAP",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r02 query deps jt-kdv-transseries-2026",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r03 query deps jt-kdv-transseries-2026",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r01 query search --text R-03-BENCHMARK-GAP",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r02 query search --text jt-kdv-transseries-2026",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/04-04-wang-plus-21-weng/21-weng-r03 query search --text jt-kdv-transseries-2026"
+    ],
+    "17-antonini": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "18-he": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "18-he-r01:state-snapshot+resume+result-list+query-deps",
+        "18-he-r02:state-snapshot+resume+result-list+result-show+query-deps+query-search",
+        "18-he-r03:state-snapshot+resume+result-list+query-deps"
+      ],
+      "candidate_ids": [
+        "18-he-r01",
+        "18-he-r02",
+        "18-he-r03"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "16-collier": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "16-collier-r02:result-list+result-downstream-R-02+result-search-candidate+result-search-gap",
+        "16-collier-r02:query-deps-R-05+query-search-candidate+query-assumptions-truncation"
+      ],
+      "candidate_ids": [
+        "16-collier-r02"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "04-wang": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "04-wang-r01:result-list+query-deps+query-search",
+        "04-wang-r02:result-list+query-deps+query-search",
+        "04-wang-r03:result-list+query-deps+query-search"
+      ],
+      "candidate_ids": [
+        "04-wang-r01",
+        "04-wang-r02",
+        "04-wang-r03"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "21-weng": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "21-weng-r01:result-list+query-deps+query-search",
+        "21-weng-r02:result-list+query-deps+query-search",
+        "21-weng-r03:result-list+query-deps+query-search"
+      ],
+      "candidate_ids": [
+        "21-weng-r01",
+        "21-weng-r02",
+        "21-weng-r03"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "20-hubeny": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "05-silverstein": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "07-maxfield": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    }
+  },
+  {
+    "family_id": "resume-handoff",
+    "family_title": "resume-handoff",
+    "anchor_candidate_id": "VF-17-antonini-r02-006",
+    "anchor_experiment_slug": "17-antonini",
+    "sampled_instances": 3,
+    "repro_instances": 3,
+    "clean_miss_instances": 0,
+    "clean_miss_outside_anchor_instances": 0,
+    "blocked_instances": 0,
+    "prevalence_score": [
+      3,
+      100,
+      2,
+      0
+    ],
+    "confidence": "high",
+    "promotion_state": "promoted",
+    "stop_state": "closed",
+    "candidate_ids": [
+      "VF-17-antonini-r02-006",
+      "VF-17-antonini-r03-006",
+      "18-he-r01",
+      "18-he-r02",
+      "18-he-r03",
+      "hei_characterization_2026",
+      "minimax_conditional_hrt"
+    ],
+    "packet_ids": [
+      "PK-BT-044-01",
+      "PK-BT-182-01",
+      "PK-BT-166-01",
+      "PK-BT-035-01",
+      "PK-BT-057-01",
+      "PK-BT-042-01",
+      "PK-BT-043-01",
+      "18-he-r01:state-snapshot+resume",
+      "18-he-r02:state-snapshot+resume",
+      "18-he-r03:state-snapshot+resume",
+      "20-hubeny-r01",
+      "20-hubeny-r03"
+    ],
+    "commands_run": [
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/01-17-antonini/17-antonini-r01 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/01-17-antonini/17-antonini-r02 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/01-17-antonini/17-antonini-r03 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r01 state snapshot",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r01 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r02 state snapshot",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r02 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r03 state snapshot",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/02-18-he/18-he-r03 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/05-20-hubeny-plus-05-silverstein/20-hubeny-r01 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/05-20-hubeny-plus-05-silverstein/20-hubeny-r01 state snapshot",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/05-20-hubeny-plus-05-silverstein/20-hubeny-r03 resume",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/05-20-hubeny-plus-05-silverstein/20-hubeny-r03 state snapshot"
+    ],
+    "17-antonini": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "PK-BT-044-01",
+        "PK-BT-182-01",
+        "PK-BT-166-01",
+        "PK-BT-035-01",
+        "PK-BT-057-01",
+        "PK-BT-042-01",
+        "PK-BT-043-01"
+      ],
+      "candidate_ids": [
+        "VF-17-antonini-r02-006",
+        "VF-17-antonini-r03-006"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "18-he": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "18-he-r01:state-snapshot+resume",
+        "18-he-r02:state-snapshot+resume",
+        "18-he-r03:state-snapshot+resume"
+      ],
+      "candidate_ids": [
+        "18-he-r01",
+        "18-he-r02",
+        "18-he-r03"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "16-collier": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "04-wang": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "21-weng": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "20-hubeny": {
+      "status": "repro",
+      "confidence": "high",
+      "packet_ids": [
+        "20-hubeny-r01",
+        "20-hubeny-r03"
+      ],
+      "candidate_ids": [
+        "hei_characterization_2026",
+        "minimax_conditional_hrt"
+      ],
+      "reason_code": "repro_confirmed"
+    },
+    "05-silverstein": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "07-maxfield": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    }
+  },
+  {
+    "family_id": "summary-missing-return",
+    "family_title": "summary-missing-return",
+    "anchor_candidate_id": "01-anchor-literature-and-benchmark-statements/01-01-SUMMARY.md",
+    "anchor_experiment_slug": null,
+    "sampled_instances": 1,
+    "repro_instances": 0,
+    "clean_miss_instances": 1,
+    "clean_miss_outside_anchor_instances": 1,
+    "blocked_instances": 0,
+    "prevalence_score": [
+      0,
+      0,
+      2,
+      -1
+    ],
+    "confidence": "high",
+    "promotion_state": "held",
+    "stop_state": "closed",
+    "candidate_ids": [
+      "01-anchor-literature-and-benchmark-statements/01-01-SUMMARY.md"
+    ],
+    "packet_ids": [
+      "20-hubeny-r02"
+    ],
+    "commands_run": [
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/05-20-hubeny-plus-05-silverstein/20-hubeny-r02 frontmatter validate --schema summary GPD/phases/01-anchor-literature-and-benchmark-statements/01-01-SUMMARY.md",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/05-20-hubeny-plus-05-silverstein/20-hubeny-r02 validate-return GPD/phases/01-anchor-literature-and-benchmark-statements/01-01-SUMMARY.md",
+      "uv run gpd --raw --cwd /tmp/gpd-bug-campaign/phase-12/execution/runs/05-20-hubeny-plus-05-silverstein/20-hubeny-r02 health"
+    ],
+    "17-antonini": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "18-he": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "16-collier": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "04-wang": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "21-weng": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "20-hubeny": {
+      "status": "clean_miss",
+      "confidence": "high",
+      "packet_ids": [
+        "20-hubeny-r02"
+      ],
+      "candidate_ids": [
+        "01-anchor-literature-and-benchmark-statements/01-01-SUMMARY.md"
+      ],
+      "reason_code": "clean_miss"
+    },
+    "05-silverstein": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    },
+    "07-maxfield": {
+      "status": "not_sampled",
+      "confidence": "low",
+      "packet_ids": [],
+      "candidate_ids": [],
+      "reason_code": null
+    }
+  }
+]

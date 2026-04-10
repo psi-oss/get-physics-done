@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "phase_statuses": [
+    {
+      "phase": "00",
+      "name": "Campaign Freeze",
+      "status": "complete",
+      "evidence": [
+        "campaign/00-charter.md"
+      ]
+    },
+    {
+      "phase": "01",
+      "name": "Taxonomy Contract",
+      "status": "complete",
+      "evidence": [
+        "taxonomy/01-taxonomy-spec.md"
+      ]
+    },
+    {
+      "phase": "02",
+      "name": "Candidate Ledger",
+      "status": "complete",
+      "evidence": [
+        "taxonomy/02-candidates.jsonl"
+      ]
+    },
+    {
+      "phase": "03",
+      "name": "Atomization",
+      "status": "complete",
+      "evidence": [
+        "taxonomy/03-atomic-findings.jsonl"
+      ]
+    },
+    {
+      "phase": "04",
+      "name": "Evidence Normalization",
+      "status": "complete",
+      "evidence": [
+        "taxonomy/04-normalized-findings.jsonl"
+      ]
+    },
+    {
+      "phase": "05",
+      "name": "Disposition Triage",
+      "status": "complete",
+      "evidence": [
+        "taxonomy/05-product-findings.jsonl"
+      ]
+    },
+    {
+      "phase": "06",
+      "name": "Cluster Seeding",
+      "status": "complete",
+      "evidence": [
+        "taxonomy/06-cluster-seeds.jsonl"
+      ]
+    },
+    {
+      "phase": "07",
+      "name": "Bug Type Registry",
+      "status": "complete",
+      "evidence": [
+        "taxonomy/07-bug-type-registry.json"
+      ]
+    },
+    {
+      "phase": "08",
+      "name": "Repro Packetization",
+      "status": "partial_reconstructed",
+      "evidence": [
+        "repro/08-family-manifest.json"
+      ],
+      "gap": "Only checked-in Phase 09 live subset reconstructed; full 203/250 Phase 08 corpus absent.",
+      "reconstructed_packet_count": 73
+    },
+    {
+      "phase": "09",
+      "name": "Fixture Construction",
+      "status": "tracked",
+      "evidence": [
+        "tests/fixtures/handoff-bundle/manifest.json"
+      ]
+    },
+    {
+      "phase": "10",
+      "name": "CLI Fast-Path Anchor Repro",
+      "status": "missing_exact_repro_artifacts",
+      "gap": "No durable repro/10 scripts, oracles, transcripts, or wave summary found."
+    },
+    {
+      "phase": "11",
+      "name": "Mutation And Ordering Repro",
+      "status": "imported_external_summary",
+      "evidence": [
+        "repro/11-mutation-summary.md"
+      ]
+    },
+    {
+      "phase": "12",
+      "name": "Breadth Sweep",
+      "status": "imported_external_summary",
+      "evidence": [
+        "repro/12-family-prevalence-matrix.json"
+      ]
+    },
+    {
+      "phase": "13",
+      "name": "MCP / Sandbox / Environment Characterization",
+      "status": "imported_external_summary",
+      "evidence": [
+        "repro/13-environment-matrix.json"
+      ]
+    },
+    {
+      "phase": "14",
+      "name": "Flake Soak And Residual Heuristics",
+      "status": "imported_external_summary",
+      "evidence": [
+        "repro/14-flake-dossier.md"
+      ]
+    },
+    {
+      "phase": "15",
+      "name": "Fix Verification Contract",
+      "status": "tracked_with_registry_hardened",
+      "evidence": [
+        "artifacts/phases/15-verification-contract/verification/fixes/index.json"
+      ]
+    },
+    {
+      "phase": "16",
+      "name": "Cross-Surface Consistency Oracle",
+      "status": "tracked",
+      "evidence": [
+        "tests/phase16_projection_oracle_helpers.py"
+      ]
+    },
+    {
+      "phase": "17",
+      "name": "Nightly Matrix And Benchmarks",
+      "status": "tracked",
+      "evidence": [
+        "benchmarks/phase17_thresholds.json",
+        ".github/workflows/nightly-handoff-bundle.yml"
+      ]
+    },
+    {
+      "phase": "18",
+      "name": "Scorecards And Closure Gates",
+      "status": "scorecards_generated_not_closed",
+      "evidence": [
+        "artifacts/verification/scorecards/family-closure.json"
+      ]
+    }
+  ]
+}
