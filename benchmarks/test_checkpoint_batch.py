@@ -12,6 +12,7 @@ not inferred from the benchmark timings.
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import statistics
@@ -297,6 +298,23 @@ def test_checkpoint_batch_sources_repair_rounds_from_watchdog_and_batch_artifact
     assert watchdog["kind"] == "gpd-stress-test-watchdog-summary"
     assert isinstance(batch_artifact.get("experiments"), dict)
     assert threshold_repair_round_count == 4
+
+
+def test_phase17_batch_repair_round_constant_uses_batch_loader() -> None:
+    assert _shared_helpers is not None
+    module_ast = ast.parse(Path(_shared_helpers.__file__).read_text(encoding="utf-8"))
+    assignments = [
+        statement
+        for statement in module_ast.body
+        if isinstance(statement, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "PHASE17_BATCH_REPAIR_ROUND_COUNT" for target in statement.targets)
+    ]
+
+    assert len(assignments) == 1
+    value = assignments[0].value
+    assert isinstance(value, ast.Call)
+    assert isinstance(value.func, ast.Name)
+    assert value.func.id == "load_phase17_batch_repair_rounds"
 
 
 def test_checkpoint_batch_first_generation_latency(

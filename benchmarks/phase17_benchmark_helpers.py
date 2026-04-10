@@ -633,4 +633,4 @@ __all__ = [
 ]
 
 
-PHASE17_BATCH_REPAIR_ROUND_COUNT = load_phase17_watchdog_repair_rounds()
+PHASE17_BATCH_REPAIR_ROUND_COUNT = load_phase17_batch_repair_rounds()
