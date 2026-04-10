@@ -668,6 +668,7 @@ def main(argv: list[str] | None = None) -> int:
         manifest_install_scope = manifest_scope_payload.get("install_scope")
         if not isinstance(manifest_install_scope, str):
             manifest_install_scope = None
+    has_managed_install_markers = config_dir_has_managed_install_markers(config_dir)
     failure = _classify_bridge_failure(
         runtime=runtime,
         config_dir=config_dir,
@@ -678,9 +679,23 @@ def main(argv: list[str] | None = None) -> int:
         manifest_runtime=manifest_runtime,
         manifest_scope_status=manifest_scope_status,
         manifest_install_scope=manifest_install_scope,
-        missing=adapter.missing_install_artifacts(config_dir),
-        has_managed_install_markers=config_dir_has_managed_install_markers(config_dir),
+        missing=None,
+        has_managed_install_markers=has_managed_install_markers,
     )
+    if failure is None:
+        failure = _classify_bridge_failure(
+            runtime=runtime,
+            config_dir=config_dir,
+            install_scope=options.install_scope,
+            explicit_target=repair_explicit_target,
+            cli_cwd=cli_cwd,
+            manifest_status=manifest_status,
+            manifest_runtime=manifest_runtime,
+            manifest_scope_status=manifest_scope_status,
+            manifest_install_scope=manifest_install_scope,
+            missing=adapter.missing_install_artifacts(config_dir),
+            has_managed_install_markers=has_managed_install_markers,
+        )
     if failure is not None:
         return _emit_bridge_failure(failure)
 

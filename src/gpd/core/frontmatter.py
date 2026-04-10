@@ -275,6 +275,10 @@ def _source_path_project_root(source_path: Path | None) -> Path | None:
 
     if source_path is None:
         return None
+    source_dir = source_path.parent.resolve(strict=False)
+    for candidate in (source_dir, *source_dir.parents):
+        if (candidate / "GPD").is_dir():
+            return candidate
     return resolve_project_root(source_path.parent, require_layout=False)
 
 

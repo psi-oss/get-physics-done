@@ -158,7 +158,7 @@ def remove_empty_json_object_file(path: Path) -> bool:
         return False
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return False
     if payload != {}:
         return False
@@ -1630,7 +1630,7 @@ def tracked_hook_paths_from_manifest(config_dir: Path) -> set[str]:
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return set()
 
     if not isinstance(manifest, dict):
@@ -1744,7 +1744,7 @@ def save_local_patches(
     fallback_snapshot = False
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         fallback_snapshot = True
     else:
         if isinstance(manifest, dict):

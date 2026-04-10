@@ -462,7 +462,7 @@ class RuntimeAdapter(abc.ABC):
         manifest_path = target_dir / MANIFEST_NAME
         try:
             parsed = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, OSError, json.JSONDecodeError):
+        except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError):
             return {}
         return parsed if isinstance(parsed, dict) else {}
 
