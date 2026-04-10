@@ -1187,7 +1187,11 @@ def _unsupported_frontmatter_errors(schema_name: str, meta: dict[str, object]) -
 
 
 def _validate_non_empty_string_list_field(meta: dict[str, object], field_name: str, errors: list[str]) -> None:
-    """Append validation errors when a field is not a list of non-empty strings."""
+    """Append validation errors when a field is not a list of non-empty strings.
+
+    Integer and float values are coerced to strings in-place so that
+    YAML ``depends_on: [5]`` (parsed as ``[5]``) is accepted.
+    """
     if field_name not in meta:
         return
     value = meta.get(field_name)
@@ -1195,6 +1199,9 @@ def _validate_non_empty_string_list_field(meta: dict[str, object], field_name: s
         errors.append(f"{field_name}: expected a list")
         return
     for index, item in enumerate(value):
+        if isinstance(item, (int, float)) and not isinstance(item, bool):
+            value[index] = str(item)
+            item = value[index]
         if not isinstance(item, str) or not item.strip():
             errors.append(f"{field_name}: entry {index} must be a non-empty string")
 

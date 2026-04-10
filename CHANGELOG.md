@@ -15,6 +15,7 @@ All notable changes to Get Physics Done are documented here.
 - fix: use `Path.replace()` instead of `Path.rename()` for atomic settings overwrite on Windows.
 - Fix agent docs: `approximation add` and `uncertainty add` use positional arguments, not `--name`/`--quantity` flags (agent-infrastructure.md, sensitivity-analysis.md, error-propagation.md).
 - Fix catastrophic state reset: `_normalize_state_schema({})` now emits the integrity sentinel that triggers backup recovery, preventing silent data loss when `state.json` contains an empty object.
+- Accept integer and float values in `depends_on` and `files_modified` frontmatter lists by coercing them to strings during validation.
 - Add `--answer` flag to `gpd question resolve` so resolved questions and their answers are preserved in `state.json` and `STATE.md` instead of being silently discarded.
 
 ## v1.1.0
