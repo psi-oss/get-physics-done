@@ -216,7 +216,7 @@ def _load_manifest_codex_skills_dir(target_dir: Path) -> Path | None:
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return None
 
     if not isinstance(manifest, dict):
@@ -237,7 +237,7 @@ def _load_manifest_codex_generated_skill_dirs(target_dir: Path) -> tuple[str, ..
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return ()
 
     if not isinstance(manifest, dict):
@@ -289,7 +289,7 @@ def _load_manifest_tracked_codex_skill_dirs(target_dir: Path) -> tuple[str, ...]
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return ()
 
     if not isinstance(manifest, dict):
@@ -360,7 +360,7 @@ def _load_manifest_install_scope(target_dir: Path) -> str | None:
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return None
 
     if not isinstance(manifest, dict):

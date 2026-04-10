@@ -5,8 +5,6 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = REPO_ROOT / "tests" / "fixtures" / "handoff-bundle" / "manifest.json"
-PHASE08_QUEUE_PATH = Path("/tmp/gpd-bug-campaign/repro/08-repro-queue.json")
-PHASE08_BLOCKED_PATH = Path("/tmp/gpd-bug-campaign/repro/08-blocked-candidates.json")
 
 
 def _load_manifest() -> dict[str, object]:
@@ -14,8 +12,18 @@ def _load_manifest() -> dict[str, object]:
 
 
 def _load_phase08() -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]]]:
-    queue = json.loads(PHASE08_QUEUE_PATH.read_text(encoding="utf-8"))["queue"]
-    blocked = json.loads(PHASE08_BLOCKED_PATH.read_text(encoding="utf-8"))["blocked_families"]
+    manifest = _load_manifest()
+    queue: list[dict[str, object]] = []
+    for fixture in manifest["fixtures"]:
+        packet_ids = fixture["packet_ids"]
+        bug_type_ids = fixture["bug_type_ids"]
+        assert len(packet_ids) == len(bug_type_ids)
+        queue.extend(
+            {"packet_id": packet_id, "bug_type_id": bug_type_id}
+            for packet_id, bug_type_id in zip(packet_ids, bug_type_ids, strict=True)
+        )
+
+    blocked = manifest["blocked_references"]
     return (
         {str(row["packet_id"]): row for row in queue},
         {str(row["bug_type_id"]): row for row in blocked},

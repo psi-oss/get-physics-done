@@ -510,7 +510,7 @@ def _load_manifest_opencode_generated_command_files(target_dir: Path) -> tuple[s
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return ()
 
     if not isinstance(manifest, dict):
@@ -539,7 +539,7 @@ def _load_manifest_opencode_command_files(target_dir: Path) -> tuple[str, ...]:
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return ()
 
     if not isinstance(manifest, dict):
@@ -863,7 +863,7 @@ def uninstall_opencode(target_dir: Path, *, config_dir: Path, allow_empty_config
     if manifest_file.exists():
         try:
             manifest_payload = json.loads(manifest_file.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             manifest_payload = {}
         if isinstance(manifest_payload, dict):
             state = manifest_payload.get("gpd_runtime_permissions")
