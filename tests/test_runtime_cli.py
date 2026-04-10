@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -214,7 +215,7 @@ def test_runtime_cli_ancestor_local_repair_command_targets_resolved_install(
 
     captured = capsys.readouterr()
     assert exit_code == 127
-    assert f"--target-dir {config_dir}" in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
     assert f"{BOOTSTRAP_COMMAND} {adapter.install_flag} --local" in captured.err
 
 
@@ -257,7 +258,7 @@ def test_runtime_cli_prefers_nearest_broken_local_install_over_farther_complete_
     captured = capsys.readouterr()
     assert exit_code == 127
     assert f"GPD runtime install incomplete for {adapter.display_name} at `{nearer_config_dir}`." in captured.err
-    assert f"--target-dir {nearer_config_dir}" in captured.err
+    assert f"--target-dir {shlex.quote(str(nearer_config_dir))}" in captured.err
     assert str(farther_config_dir) not in captured.err
 
 
@@ -291,7 +292,7 @@ def test_runtime_cli_preserves_custom_global_target_in_incomplete_install_repair
     assert exit_code == 127
     assert f"GPD runtime install incomplete for {adapter.display_name}" in captured.err
     assert "--global" in captured.err
-    assert f"--target-dir {config_dir}" in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
 
 
 @pytest.mark.parametrize(
@@ -343,7 +344,7 @@ def test_runtime_cli_treats_env_overridden_global_target_as_global_repair_target
     assert exit_code == 127
     assert f"GPD runtime install incomplete for {adapter.display_name}" in captured.err
     assert "--global" in captured.err
-    assert f"--target-dir {config_dir}" not in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" not in captured.err
 
 
 @pytest.mark.parametrize("runtime_value", ["", 123, "not-a-runtime"])
@@ -467,7 +468,7 @@ def test_runtime_cli_preserves_custom_global_target_in_missing_runtime_repair_gu
     assert exit_code == 127
     assert "GPD runtime bridge rejected incomplete install manifest" in captured.err
     assert "--global" in captured.err
-    assert f"--target-dir {config_dir}" in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
 
 
 def test_codex_custom_global_install_seeding_stays_within_temp_root(monkeypatch, tmp_path: Path) -> None:
@@ -522,7 +523,7 @@ def test_runtime_cli_preserves_custom_global_target_in_malformed_runtime_repair_
     assert exit_code == 127
     assert "GPD runtime bridge rejected malformed install manifest" in captured.err
     assert "--global" in captured.err
-    assert f"--target-dir {config_dir}" in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
 
 
 def test_runtime_cli_manifest_scoped_local_candidate_matching_does_not_consult_home(
@@ -932,7 +933,8 @@ def test_runtime_cli_reexecs_from_installed_package_using_forwarded_cli_cwd(
     checkout_root = tmp_path / "checkout"
     checkout_src = checkout_root / "src"
     (checkout_src / "gpd").mkdir(parents=True)
-    checkout_python = checkout_root / ".venv" / "bin" / "python"
+    venv_python_rel = Path("Scripts") / "python.exe" if os.name == "nt" else Path("bin") / "python"
+    checkout_python = checkout_root / ".venv" / venv_python_rel
     checkout_python.parent.mkdir(parents=True)
     checkout_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
     forwarded_cwd = checkout_root / "workspace" / "nested"
@@ -1343,7 +1345,7 @@ def test_runtime_cli_preserves_custom_global_target_in_untrusted_manifest_repair
     assert exit_code == 127
     assert "GPD runtime bridge rejected unreadable install manifest" in captured.err
     assert "--global" in captured.err
-    assert f"--target-dir {config_dir}" in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
@@ -1508,7 +1510,7 @@ def test_runtime_cli_forwarded_cli_cwd_drives_local_repair_guidance(
 
     captured = capsys.readouterr()
     assert exit_code == 127
-    assert f"--target-dir {config_dir}" in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
     assert f"{BOOTSTRAP_COMMAND} {adapter.install_flag} --local" in captured.err
 
 
@@ -1547,7 +1549,7 @@ def test_runtime_cli_fails_when_resolved_local_config_dir_manifest_runtime_misma
     assert exit_code == 127
     assert f"GPD runtime bridge mismatch for {adapter.display_name}" in captured.err
     assert f"{get_adapter(foreign_runtime).display_name} (`{foreign_runtime}`)" in captured.err
-    assert f"--target-dir {config_dir}" in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
     assert f"{BOOTSTRAP_COMMAND} {get_adapter(foreign_runtime).install_flag} --local" in captured.err
 
 
@@ -1587,7 +1589,7 @@ def test_runtime_cli_fails_when_explicit_target_manifest_runtime_mismatches(
     assert exit_code == 127
     assert f"GPD runtime bridge mismatch for {adapter.display_name}" in captured.err
     assert f"{get_adapter(foreign_runtime).display_name} (`{foreign_runtime}`)" in captured.err
-    assert f"--target-dir {config_dir}" in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
     assert f"{BOOTSTRAP_COMMAND} {get_adapter(foreign_runtime).install_flag} --local" in captured.err
 
 
@@ -1668,7 +1670,7 @@ def test_runtime_cli_preserves_custom_global_target_in_mismatch_repair_guidance_
     assert f"GPD runtime bridge mismatch for {get_adapter(descriptor.runtime_name).display_name}" in captured.err
     assert f"{get_adapter(foreign_runtime).display_name} (`{foreign_runtime}`)" in captured.err
     assert "--global" in captured.err
-    assert f"--target-dir {config_dir}" in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
@@ -1884,6 +1886,9 @@ def test_runtime_cli_does_not_treat_marker_only_canonical_global_dir_as_local_wh
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    if os.name == "nt":
+        monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
     canonical_global_dir = resolve_global_config_dir(descriptor, home=home, environ={})
     _mark_complete_install(canonical_global_dir, runtime=descriptor.runtime_name, install_scope="global")
@@ -1930,6 +1935,9 @@ def test_runtime_cli_does_not_treat_marker_only_env_global_dir_as_local_ancestor
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    if os.name == "nt":
+        monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
     workspace = tmp_path / "workspace"
     override_dir = workspace / descriptor.config_dir_name

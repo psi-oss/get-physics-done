@@ -862,7 +862,7 @@ def test_main_expands_tilde_workspace_and_project_dir(tmp_path: Path) -> None:
     payload = {"type": "agent-turn-complete", "workspace": {"cwd": "~/project/src", "project_dir": "~/project"}}
 
     with (
-        patch.dict("os.environ", {"HOME": str(home)}),
+        patch.dict("os.environ", {"HOME": str(home), "USERPROFILE": str(home)}),
         patch("sys.stdin", io.StringIO(json.dumps(payload))),
         patch("gpd.hooks.notify._trigger_update_check") as mock_trigger,
         patch("gpd.hooks.notify._check_and_notify_update") as mock_notify,

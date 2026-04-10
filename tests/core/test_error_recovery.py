@@ -760,15 +760,12 @@ class TestSafeParseFunctions:
         """Reading a directory returns None (not raise)."""
         assert safe_read_file(tmp_path) is None
 
-    def test_safe_read_file_permission_error(self, tmp_path: Path) -> None:
+    def test_safe_read_file_permission_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Reading a file with permission error returns None."""
         f = tmp_path / "noperm.txt"
         f.write_text("content", encoding="utf-8")
-        f.chmod(0o000)
-        try:
-            assert safe_read_file(f) is None
-        finally:
-            f.chmod(0o644)
+        monkeypatch.setattr("pathlib.Path.read_text", lambda *a, **kw: (_ for _ in ()).throw(PermissionError("denied")))
+        assert safe_read_file(f) is None
 
 
 # ===================================================================

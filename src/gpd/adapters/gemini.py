@@ -1280,7 +1280,7 @@ class GeminiAdapter(RuntimeAdapter):
         policy_path.parent.mkdir(parents=True, exist_ok=True)
         policy_path.write_text(_render_gemini_policy_toml(bridge_command), encoding="utf-8")
         self._managed_runtime_files = [
-            str(policy_path.relative_to(target_dir)),
+            policy_path.relative_to(target_dir).as_posix(),
         ]
 
         policy_dir_setting = str(policy_path.parent.resolve())
@@ -1553,7 +1553,7 @@ class GeminiAdapter(RuntimeAdapter):
         if has_authoritative_manifest:
             policy_files = _normalize_string_list(managed_runtime_files)
             if not policy_files:
-                policy_files = [str(_managed_gemini_policy_path(target_dir).relative_to(target_dir))]
+                policy_files = [_managed_gemini_policy_path(target_dir).relative_to(target_dir).as_posix()]
             for rel_path in policy_files:
                 candidate = target_dir / rel_path
                 if candidate.exists():

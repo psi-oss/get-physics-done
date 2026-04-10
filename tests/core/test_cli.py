@@ -165,7 +165,8 @@ def test_raw_version_subcommand_outputs_json():
 
 def test_entrypoint_reexecs_from_checkout_when_running_outside_checkout(tmp_path: Path, monkeypatch) -> None:
     checkout = _make_checkout(tmp_path, "9.9.9")
-    checkout_python = checkout / ".venv" / "bin" / "python"
+    venv_python_rel = Path("Scripts") / "python.exe" if os.name == "nt" else Path("bin") / "python"
+    checkout_python = checkout / ".venv" / venv_python_rel
     checkout_python.parent.mkdir(parents=True)
     checkout_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
     managed_cli = tmp_path / "managed" / "site-packages" / "gpd" / "cli.py"
@@ -1195,10 +1196,10 @@ def test_resume_recent_raw_surfaces_machine_local_recent_projects(
     parsed = json.loads(result.output)
 
     assert parsed["count"] == 2
-    assert parsed["projects"][0]["project_root"] == str(resumable_root)
+    assert parsed["projects"][0]["project_root"] == resumable_root.as_posix()
     assert parsed["projects"][0]["resumable"] is True
     assert parsed["projects"][0]["status"] == "resumable"
-    assert parsed["projects"][1]["project_root"] == str(unavailable_root)
+    assert parsed["projects"][1]["project_root"] == unavailable_root.as_posix()
     assert parsed["projects"][1]["available"] is False
     assert parsed["projects"][1]["status"] == "unavailable"
 
@@ -1281,7 +1282,7 @@ def test_resume_recent_raw_downgrades_missing_handoff_rows_to_non_resumable(
     parsed = json.loads(result.output)
 
     assert parsed["count"] == 1
-    assert parsed["projects"][0]["project_root"] == str(project_root)
+    assert parsed["projects"][0]["project_root"] == project_root.as_posix()
     assert parsed["projects"][0]["resume_file_available"] is False
     assert parsed["projects"][0]["resume_file_reason"] == "resume file missing"
     assert parsed["projects"][0]["resumable"] is False
@@ -6235,7 +6236,8 @@ def test_resolve_review_preflight_manuscript_directory_uses_manifest_declared_en
     )
 
     assert resolved == manuscript
-    assert detail.endswith("/paper resolved to " + str(manuscript))
+    assert "/paper resolved to" in detail
+    assert "curvature_flow_bounds.tex" in detail
 
 
 def test_resolve_review_preflight_manuscript_reports_ambiguous_project_state(tmp_path: Path) -> None:
@@ -6415,7 +6417,8 @@ def test_resolve_review_preflight_manuscript_uses_workspace_cwd_for_relative_tar
     )
 
     assert resolved == manuscript
-    assert detail == f"{manuscript} present"
+    assert detail.endswith("present")
+    assert "curvature_flow_bounds.tex" in detail
 
 
 def test_resolve_review_preflight_manuscript_nested_supported_directory_resolves_via_supported_root(
@@ -6457,7 +6460,8 @@ def test_resolve_review_preflight_manuscript_nested_supported_directory_resolves
     )
 
     assert resolved == manuscript
-    assert detail.endswith("/paper/sections resolved to " + str(manuscript))
+    assert "paper/sections resolved to" in detail
+    assert "curvature_flow_bounds.tex" in detail
 
 
 def test_resolve_review_preflight_manuscript_rejects_nested_supported_directory_when_entrypoint_lives_elsewhere(

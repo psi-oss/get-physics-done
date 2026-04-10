@@ -768,7 +768,8 @@ class TestBuildHookCommand:
             explicit_target=True,
         )
 
-        assert command == f"/custom/venv/bin/python {tmp_path / 'hooks' / 'statusline.py'}"
+        expected_path = str(tmp_path / 'hooks' / 'statusline.py').replace("\\", "/")
+        assert command == f"/custom/venv/bin/python {expected_path}"
 
     def test_gpd_python_override_beats_other_resolution(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("GPD_PYTHON", "/env/override/python")
@@ -778,7 +779,8 @@ class TestBuildHookCommand:
 
     def test_defaults_to_hidden_home_venv_when_gpd_home_is_unset(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         fake_home = tmp_path / "home"
-        managed_python = fake_home / HOME_DATA_DIR_NAME / "venv" / "bin" / "python"
+        venv_python_rel = Path("Scripts") / "python.exe" if os.name == "nt" else Path("bin") / "python"
+        managed_python = fake_home / HOME_DATA_DIR_NAME / "venv" / venv_python_rel
         managed_python.parent.mkdir(parents=True)
         managed_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
 
@@ -793,7 +795,8 @@ class TestBuildHookCommand:
 
     def test_prefers_managed_gpd_python_outside_checkout(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         managed_home = tmp_path / "managed-home"
-        managed_python = managed_home / "venv" / "bin" / "python"
+        venv_python_rel = Path("Scripts") / "python.exe" if os.name == "nt" else Path("bin") / "python"
+        managed_python = managed_home / "venv" / venv_python_rel
         managed_python.parent.mkdir(parents=True)
         managed_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
 
@@ -809,7 +812,8 @@ class TestBuildHookCommand:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         managed_home = tmp_path / "managed-home"
-        managed_python = managed_home / "venv" / "bin" / "python"
+        venv_python_rel = Path("Scripts") / "python.exe" if os.name == "nt" else Path("bin") / "python"
+        managed_python = managed_home / "venv" / venv_python_rel
         managed_python.parent.mkdir(parents=True)
         managed_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
 
@@ -827,14 +831,15 @@ class TestBuildHookCommand:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         managed_home = tmp_path / "managed-home"
-        managed_python = managed_home / "venv" / "bin" / "python"
+        venv_python_rel = Path("Scripts") / "python.exe" if os.name == "nt" else Path("bin") / "python"
+        managed_python = managed_home / "venv" / venv_python_rel
         managed_python.parent.mkdir(parents=True)
         managed_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
 
         monkeypatch.delenv("GPD_PYTHON", raising=False)
         monkeypatch.setenv("GPD_HOME", str(managed_home))
         checkout_root = tmp_path / "repo"
-        checkout_python = checkout_root / ".venv" / "bin" / "python"
+        checkout_python = checkout_root / ".venv" / venv_python_rel
         checkout_python.parent.mkdir(parents=True)
         checkout_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
         monkeypatch.setattr("gpd.adapters.install_utils.sys.executable", "/managed/gpd/venv/bin/python")
@@ -852,7 +857,8 @@ class TestBuildHookCommand:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         managed_home = tmp_path / "managed-home"
-        managed_python = managed_home / "venv" / "bin" / "python"
+        venv_python_rel = Path("Scripts") / "python.exe" if os.name == "nt" else Path("bin") / "python"
+        managed_python = managed_home / "venv" / venv_python_rel
         managed_python.parent.mkdir(parents=True)
         managed_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
 
@@ -1063,9 +1069,9 @@ class TestWriteSettings:
         target = tmp_path / "settings.json"
         target.write_text('{"original": true}', encoding="utf-8")
 
-        # Patch rename to fail
-        with patch.object(Path, "rename", side_effect=OSError("rename failed")):
-            with pytest.raises(OSError, match="rename failed"):
+        # Patch replace to fail (write_settings uses Path.replace for atomic overwrite)
+        with patch.object(Path, "replace", side_effect=OSError("replace failed")):
+            with pytest.raises(OSError, match="replace failed"):
                 write_settings(target, {"new": True})
 
         # Original should be intact (write_text succeeded on .tmp, rename failed)

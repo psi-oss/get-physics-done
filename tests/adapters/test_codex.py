@@ -1021,7 +1021,8 @@ class TestRuntimePermissions:
         adapter.install(gpd_root, target, is_global=False)
 
         content = (target / "config.toml").read_text(encoding="utf-8")
-        assert f'notify = ["{selected_python}", ".codex/hooks/notify.py"]' in content
+        parsed_config = tomllib.loads(content)
+        assert parsed_config["notify"] == [selected_python, ".codex/hooks/notify.py"]
         assert 'notify = ["python3", ".codex/hooks/notify.py"]' not in content
 
     def test_install_uses_gpd_python_override_for_notify_and_mcp(

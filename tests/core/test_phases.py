@@ -373,7 +373,7 @@ def test_phase_add(tmp_path: Path) -> None:
     assert "new-feature" in result.slug
     assert (tmp_path / result.directory).is_dir()
 
-    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text()
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
     assert "Phase 2: New Feature" in roadmap
 
 
@@ -882,7 +882,7 @@ def test_phase_remove_basic(tmp_path: Path) -> None:
     assert result.removed == "2"
     assert result.roadmap_updated is True
 
-    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text()
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
     assert "Phase 2: Second" not in roadmap
 
 
@@ -1007,12 +1007,12 @@ def test_phase_remove_integer_removes_descendant_subtree_and_clears_removed_curr
     remaining = sorted(d.name for d in phases_dir.iterdir() if d.is_dir())
     assert remaining == ["01-setup", "02-validation"]
 
-    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text()
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
     assert "### Phase 2: Validation" in roadmap
     assert "### Phase 2.1:" not in roadmap
     assert "### Phase 2.1.1:" not in roadmap
 
-    state = (tmp_path / "GPD" / "STATE.md").read_text()
+    state = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
     assert "**Current Phase:** 02" in state
     assert "**Current Phase Name:** Validation" in state
     assert "**Current Plan:** \u2014" in state
@@ -1075,7 +1075,7 @@ def test_phase_remove_decimal_removes_descendants_and_renumbers_later_subtree_re
     assert (phases_dir / "03.1-follow-up" / "03.1-01-PLAN.md").exists()
     assert (phases_dir / "03.1.1-follow-up-detail" / "03.1.1-01-PLAN.md").exists()
 
-    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text()
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
     assert "### Phase 3.1: Follow-up" in roadmap
     assert "### Phase 3.1.1: Follow-up Detail" in roadmap
     assert "- [ ] Phase 3.1.1: Follow-up Detail" in roadmap
@@ -1211,7 +1211,7 @@ def test_phase_complete_uses_roadmap_for_unscaffolded_next_phase(tmp_path: Path)
     assert result.next_phase_name == "Build"
     assert result.is_last_phase is False
 
-    state = (tmp_path / "GPD" / "STATE.md").read_text()
+    state = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
     assert "**Current Phase:** 02" in state
     assert "**Current Phase Name:** Build" in state
     assert "**Status:** Ready to plan" in state
@@ -1329,14 +1329,14 @@ def test_phase_remove_remaps_current_phase_state_after_renumbering(tmp_path: Pat
 
     phase_remove(tmp_path, "2")
 
-    state = (tmp_path / "GPD" / "STATE.md").read_text()
+    state = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
     assert "**Current Phase:** 02" in state
     assert "**Current Phase Name:** Validation" in state
     assert "**Total Phases:** 2" in state
     assert "**Current Plan:** \u2014" in state
     assert "**Total Plans in Phase:** 1" in state
 
-    state_json = json.loads((tmp_path / "GPD" / "state.json").read_text())
+    state_json = json.loads((tmp_path / "GPD" / "state.json").read_text(encoding="utf-8"))
     assert state_json["position"]["current_phase"] == "02"
     assert state_json["position"]["current_phase_name"] == "Validation"
     assert state_json["position"]["total_phases"] == 2
@@ -1382,7 +1382,7 @@ def test_phase_remove_integer_renumbers_decimal_roadmap_references(tmp_path: Pat
 
     phase_remove(tmp_path, "1")
 
-    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text()
+    roadmap = (tmp_path / "GPD" / "ROADMAP.md").read_text(encoding="utf-8")
     assert "### Phase 1: Main" in roadmap
     assert "### Phase 1.1: Hotfix" in roadmap
     assert "- [ ] Phase 1.1: Hotfix" in roadmap
@@ -1578,7 +1578,7 @@ def test_phase_complete_sets_current_plan_to_em_dash(tmp_path: Path) -> None:
 
     phase_complete(tmp_path, "1")
 
-    state = (tmp_path / "GPD" / "STATE.md").read_text()
+    state = (tmp_path / "GPD" / "STATE.md").read_text(encoding="utf-8")
     assert "**Current Plan:** \u2014" in state
     assert "Not started" not in state
 

@@ -8,7 +8,7 @@ EXECUTE_PLAN = ROOT / "src" / "gpd" / "specs" / "workflows" / "execute-plan.md"
 
 
 def _read(path: Path) -> str:
-    return path.read_text()
+    return path.read_text(encoding="utf-8")
 
 
 def _section(text: str, start_marker: str, end_marker: str | None = None) -> str:
