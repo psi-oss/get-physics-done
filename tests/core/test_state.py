@@ -528,6 +528,80 @@ def test_normalize_state_schema_irrecoverable_reset_drops_unknown_top_level_keys
     assert any("schema normalization: irrecoverable validation failure; reset to defaults" in issue for issue in issues)
 
 
+def test_normalize_state_schema_empty_dict_emits_reset_sentinel() -> None:
+    """An empty dict {} must emit the irrecoverable-reset sentinel so backup recovery triggers."""
+    normalized, issues = _normalize_state_schema({})
+
+    assert normalized["position"]["progress_percent"] == 0  # got defaults
+    assert any(
+        "schema normalization: irrecoverable validation failure; reset to defaults" in issue
+        for issue in issues
+    )
+
+
+def test_normalize_state_schema_none_returns_defaults_without_issues() -> None:
+    """None input (fresh project) must return clean defaults with no integrity issues."""
+    normalized, issues = _normalize_state_schema(None)
+
+    assert normalized["position"]["progress_percent"] == 0
+    assert issues == []
+
+
+def test_state_validate_recovers_backup_when_primary_is_empty_dict(tmp_path: Path) -> None:
+    """When state.json contains {}, backup recovery must restore the valid backup."""
+    baseline = default_state_dict()
+    # NOTE: current_phase is intentionally left as None (the default).
+    # Setting it to a phase like "07" would trigger state_validate's
+    # filesystem cross-check (state.py lines 4753-4776), which verifies
+    # that a matching phase directory exists under phases_dir.  In a
+    # bare tmp_path that directory does not exist, so the check would
+    # add an issue and make valid=False.  This test targets backup
+    # recovery, not filesystem consistency, so we avoid that path.
+    baseline["open_questions"] = ["Important question"]
+    save_state_json(tmp_path, baseline)
+    save_state_markdown(tmp_path, generate_state_markdown(baseline))
+    layout = ProjectLayout(tmp_path)
+
+    # Corrupt primary to {}, keep backup valid
+    layout.state_json.write_text("{}\n", encoding="utf-8")
+    layout.state_json_backup.write_text(
+        json.dumps(baseline, indent=2) + "\n", encoding="utf-8"
+    )
+
+    validation = state_validate(tmp_path)
+
+    assert validation.valid is True
+    assert validation.integrity_status == "warning"
+    assert any(
+        "state.json root was recovered from state.json.bak" in warning
+        for warning in validation.warnings
+    )
+
+
+def test_mutation_snapshot_graceful_fallback_when_primary_and_backup_are_empty_dict(
+    tmp_path: Path,
+) -> None:
+    """When both state.json and state.json.bak are {}, load must not crash and must return defaults."""
+    recovered_state = default_state_dict()
+    recovered_state["position"]["current_phase"] = "05"
+    recovered_state["position"]["status"] = "Executing"
+    save_state_json(tmp_path, recovered_state)
+    save_state_markdown(tmp_path, generate_state_markdown(recovered_state))
+    layout = ProjectLayout(tmp_path)
+
+    # Corrupt both primary and backup to {}
+    layout.state_json.write_text("{}\n", encoding="utf-8")
+    layout.state_json_backup.write_text("{}\n", encoding="utf-8")
+
+    loaded = _load_state_snapshot_for_mutation(tmp_path)
+
+    # Must not crash; both {} normalize to defaults with sentinel, but
+    # backup recovery does not fire (backup also has sentinel), so the
+    # primary's normalized defaults are returned as-is.
+    assert isinstance(loaded, dict)
+    assert "position" in loaded
+
+
 def test_ensure_state_schema_strips_claim_extra_keys_without_dropping_claim():
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["notes"] = "harmless"

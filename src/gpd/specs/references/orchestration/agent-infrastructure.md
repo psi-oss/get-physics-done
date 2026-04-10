@@ -480,12 +480,12 @@ Track approximations, uncertainties, open questions, and active calculations:
 
 ```bash
 # Approximation tracking
-gpd approximation add --name "<name>" [--validity-range "<range>"] [--controlling-param "<param>"] [--current-value "<val>"] [--status "<status>"]
+gpd approximation add "<name>" [--validity-range "<range>"] [--controlling-param "<param>"] [--current-value "<val>"] [--status "<status>"]
 gpd approximation list
 gpd approximation check
 
 # Uncertainty tracking
-gpd uncertainty add --quantity "<quantity>" [--value "<value>"] [--uncertainty "<uncertainty>"] [--phase "<N>"] [--method "<method>"]
+gpd uncertainty add "<quantity>" [--value "<value>"] [--uncertainty "<uncertainty>"] [--phase "<N>"] [--method "<method>"]
 gpd uncertainty list
 
 # Open question tracking (positional text args)

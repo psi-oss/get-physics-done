@@ -1803,8 +1803,12 @@ def _normalize_state_schema(
     project_root: Path | None = None,
 ) -> tuple[dict, list[str]]:
     """Normalize a raw state dict and capture integrity-affecting coercions."""
-    if not raw:
+    if raw is None:
         return default_state_dict(), []
+    if not raw:  # {} case — emit sentinel to trigger backup recovery
+        return default_state_dict(), [
+            "schema normalization: irrecoverable validation failure; reset to defaults"
+        ]
     if not isinstance(raw, dict):
         return default_state_dict(), [f"state root must be an object, got {type(raw).__name__}"]
 

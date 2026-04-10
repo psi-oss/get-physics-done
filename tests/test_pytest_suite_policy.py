@@ -118,9 +118,8 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
     assert isinstance(include, list)
 
     assert jobs["pytest"].get("needs") is None
-    trigger_job = jobs["trigger-staging-rebuild"]
-    assert isinstance(trigger_job, dict)
-    assert trigger_job["needs"] == ["pytest"]
+    # trigger-staging-rebuild moved to staging-rebuild.yml (workflow_run trigger)
+    assert "trigger-staging-rebuild" not in jobs
 
     assert strategy["fail-fast"] is False
     assert len(include) == sum(CI_CATEGORY_SHARD_COUNTS.values())
