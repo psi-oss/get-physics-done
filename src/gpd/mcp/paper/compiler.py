@@ -11,6 +11,7 @@ import asyncio
 import logging
 import os
 import platform
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -276,6 +277,120 @@ def _reference_bibtex_keys_from_audit(audit: BibliographyAudit | None) -> dict[s
         if entry.reference_id:
             reference_bibtex_keys[entry.reference_id] = entry.key
     return reference_bibtex_keys
+
+
+class CitationCoherenceResult:
+    """Result of comparing .tex citations against .bib entries."""
+
+    __slots__ = (
+        "tex_cite_keys",
+        "bib_entry_keys",
+        "unreferenced_bib_keys",
+        "unresolved_cite_keys",
+        "warnings",
+    )
+
+    def __init__(
+        self,
+        tex_cite_keys: set[str],
+        bib_entry_keys: set[str],
+        unreferenced_bib_keys: set[str],
+        unresolved_cite_keys: set[str],
+        warnings: list[str],
+    ) -> None:
+        self.tex_cite_keys = tex_cite_keys
+        self.bib_entry_keys = bib_entry_keys
+        self.unreferenced_bib_keys = unreferenced_bib_keys
+        self.unresolved_cite_keys = unresolved_cite_keys
+        self.warnings = warnings
+
+
+_NOCITE_STAR_RE = re.compile(r"\\nocite\{\s*\*\s*\}")
+_BIB_KEY_RE = re.compile(r"@\w+\s*\{\s*([^,\s]+)\s*,")
+
+
+def check_citation_bib_coherence(
+    tex_content: str,
+    bib_content: str,
+) -> CitationCoherenceResult:
+    """Compare citation commands in rendered .tex against entries in .bib.
+
+    Operates on in-memory strings only -- no disk I/O.  Designed to run
+    inside ``build_paper()`` between the TeX render step and the artifact
+    manifest step.
+
+    Handles ``\\nocite{*}`` (standard LaTeX: all bib entries are considered
+    referenced).  Splits multi-key citations (``\\cite{a,b,c}``).
+    """
+    from gpd.core.paper_quality import _CITE_CMD_PREFIX_WITH_NOCITE
+
+    all_cite_re = re.compile(
+        _CITE_CMD_PREFIX_WITH_NOCITE
+        + r"(?:\[[^\]]*\])*"  # optional [] arguments (natbib)
+        + r"\{([^}]*)\}"  # capture the key list
+    )
+
+    # Detect \nocite{*} -- all bib entries are considered referenced
+    nocite_star = bool(_NOCITE_STAR_RE.search(tex_content))
+
+    # Parse all \cite-family commands from .tex
+    tex_cite_keys: set[str] = set()
+    for match in all_cite_re.finditer(tex_content):
+        for key in match.group(1).split(","):
+            stripped = key.strip()
+            if stripped:
+                tex_cite_keys.add(stripped)
+
+    # Parse all @type{key, entries from .bib
+    bib_entry_keys: set[str] = set()
+    for match in _BIB_KEY_RE.finditer(bib_content):
+        key = match.group(1).strip()
+        if key:
+            bib_entry_keys.add(key)
+
+    # If \nocite{*} is present, all bib entries count as referenced
+    if nocite_star:
+        unreferenced: set[str] = set()
+    else:
+        unreferenced = bib_entry_keys - tex_cite_keys
+
+    unresolved = tex_cite_keys - bib_entry_keys
+    # Remove the special "*" key from unresolved (it's a \nocite{*} artifact)
+    unresolved.discard("*")
+
+    warnings: list[str] = []
+
+    if bib_entry_keys and not tex_cite_keys and not nocite_star:
+        warnings.append(
+            f"Bibliography contains {len(bib_entry_keys)} entries but the "
+            f"manuscript body has zero \\cite{{}} commands. The bibliography "
+            f"will not appear in the compiled paper."
+        )
+    elif unreferenced:
+        sorted_keys = sorted(unreferenced)
+        preview = ", ".join(sorted_keys[:5])
+        suffix = f" (+{len(sorted_keys) - 5} more)" if len(sorted_keys) > 5 else ""
+        warnings.append(
+            f"{len(unreferenced)} bibliography entries are never cited: "
+            f"{preview}{suffix}"
+        )
+
+    if unresolved:
+        sorted_keys = sorted(unresolved)
+        preview = ", ".join(sorted_keys[:5])
+        suffix = f" (+{len(sorted_keys) - 5} more)" if len(sorted_keys) > 5 else ""
+        warnings.append(
+            f"{len(unresolved)} \\cite{{}} keys have no matching bibliography "
+            f"entry: {preview}{suffix}"
+        )
+
+    return CitationCoherenceResult(
+        tex_cite_keys=tex_cite_keys,
+        bib_entry_keys=bib_entry_keys,
+        unreferenced_bib_keys=unreferenced,
+        unresolved_cite_keys=unresolved,
+        warnings=warnings,
+    )
 
 
 def check_tex_file(
@@ -732,8 +847,20 @@ async def build_paper(
     tex_path = output_dir / f"{output_stem}.tex"
     if tex_path.exists():
         logger.warning("Skipping .tex write — %s already exists. Delete it to regenerate.", tex_path)
+        # BUG-076 fix: read on-disk content so the coherence check audits
+        # the file that will actually be compiled, not the freshly rendered
+        # string which may differ after manual edits or scaffold-once reruns.
+        tex_content = await asyncio.to_thread(tex_path.read_text, encoding="utf-8")
     else:
         await asyncio.to_thread(tex_path.write_text, tex_content, encoding="utf-8")
+
+    # --- Citation-bibliography coherence check (BUG-076) ---
+    citation_warnings: list[str] = []
+    if bib_content:
+        coherence = check_citation_bib_coherence(tex_content, bib_content)
+        for w in coherence.warnings:
+            logger.warning("Citation coherence: %s", w)
+        citation_warnings = coherence.warnings
 
     manifest = build_artifact_manifest(
         config,
@@ -765,6 +892,7 @@ async def build_paper(
             manifest=manifest,
             success=False,
             errors=errors,
+            citation_warnings=citation_warnings,
         )
 
     # 5. Compile
@@ -801,4 +929,5 @@ async def build_paper(
         manifest=manifest,
         success=final_success,
         errors=errors,
+        citation_warnings=citation_warnings,
     )

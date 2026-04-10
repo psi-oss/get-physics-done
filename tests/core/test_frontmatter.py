@@ -1281,7 +1281,8 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any(error.startswith("must_haves:") for error in result.errors)
 
-    def test_summary_rejects_non_string_provides_entries(self):
+    def test_summary_coerces_integer_provides_entries(self):
+        """Integer provides entries are coerced to strings (FULL-019)."""
         content = (
             "---\n"
             "phase: 01\n"
@@ -1290,6 +1291,23 @@ class TestValidateFrontmatter:
             "provides:\n"
             "  - solver\n"
             "  - 12\n"
+            "completed: 2025-01-01\n"
+            "---\n\nBody."
+        )
+        result = validate_frontmatter(content, "summary")
+
+        assert "provides: entry 1 must be a non-empty string" not in result.errors
+
+    def test_summary_rejects_non_coercible_provides_entries(self):
+        """Boolean provides entries are still rejected (not coerced)."""
+        content = (
+            "---\n"
+            "phase: 01\n"
+            "plan: 01\n"
+            "depth: standard\n"
+            "provides:\n"
+            "  - solver\n"
+            "  - true\n"
             "completed: 2025-01-01\n"
             "---\n\nBody."
         )
@@ -2844,3 +2862,38 @@ class TestSelfCheckRegexBoundaries:
         from gpd.core.frontmatter import _SELF_CHECK_PASS
 
         assert _SELF_CHECK_PASS.search("compass") is None
+
+
+# ─── FULL-019: depends_on integer coercion ───────────────────────────────────
+
+
+def test_validate_non_empty_string_list_field_coerces_integers():
+    """FULL-019: depends_on: [5] should be accepted after int-to-str coercion."""
+    from gpd.core.frontmatter import _validate_non_empty_string_list_field
+
+    meta: dict[str, object] = {"depends_on": [5, "PLAN-02"]}
+    errors: list[str] = []
+    _validate_non_empty_string_list_field(meta, "depends_on", errors)
+    assert errors == []
+    assert meta["depends_on"] == ["5", "PLAN-02"]
+
+
+def test_validate_non_empty_string_list_field_rejects_bool():
+    """Booleans must not be coerced (isinstance(True, int) is True in Python)."""
+    from gpd.core.frontmatter import _validate_non_empty_string_list_field
+
+    meta: dict[str, object] = {"depends_on": [True]}
+    errors: list[str] = []
+    _validate_non_empty_string_list_field(meta, "depends_on", errors)
+    assert len(errors) == 1
+
+
+def test_validate_non_empty_string_list_field_coerces_float():
+    """Float phase numbers like 72.1 (decimal phases) should be coerced."""
+    from gpd.core.frontmatter import _validate_non_empty_string_list_field
+
+    meta: dict[str, object] = {"depends_on": [72.1]}
+    errors: list[str] = []
+    _validate_non_empty_string_list_field(meta, "depends_on", errors)
+    assert errors == []
+    assert meta["depends_on"] == ["72.1"]

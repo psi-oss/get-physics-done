@@ -30,6 +30,7 @@ from gpd.core.frontmatter import (
 )
 from gpd.core.manuscript_artifacts import locate_publication_artifact, resolve_current_manuscript_resolution
 from gpd.core.paper_quality import (
+    _CITE_CMD_PREFIX,
     BinaryCheck,
     CitationsQualityInput,
     CompletenessQualityInput,
@@ -49,7 +50,7 @@ __all__ = ["build_paper_quality_input"]
 
 
 _PLACEHOLDER_RE = re.compile(r"TODO|FIXME|PENDING|TBD|\\text\{\[PENDING\]\}")
-_MISSING_CITE_RE = re.compile(r"\\cite\{MISSING:")
+_MISSING_CITE_RE = re.compile(_CITE_CMD_PREFIX + r"(?:\[[^\]]*\])*\{MISSING:")
 _ABSTRACT_RE = re.compile(
     r"(\\begin\{abstract\}[\s\S]*?\\end\{abstract\}|^\s{0,3}#{1,6}\s*abstract\b)",
     re.IGNORECASE | re.MULTILINE,
@@ -63,7 +64,7 @@ _CONCLUSION_RE = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 _SUPPLEMENT_RE = re.compile(r"appendix|supplement", re.IGNORECASE)
-_CITE_RE = re.compile(r"\\cite\{([^}]*)\}")
+_CITE_RE = re.compile(_CITE_CMD_PREFIX + r"(?:\[[^\]]*\])*\{([^}]*)\}")
 _BIB_ENTRY_RE = re.compile(r"@\w+\s*\{\s*([^,\s]+)\s*,")
 _DERIVATION_ARTIFACT_RE = re.compile(r"(?i)^derivation-(?!state\.).+\.(?:md|markdown|tex|py)$")
 _DERIVATION_ARTIFACT_SUFFIXES = (".md", ".markdown", ".tex", ".py")

@@ -311,8 +311,8 @@ Save to: `${target_phase_dir}/ERROR-BUDGET.md`.
 Add the final result with error bars to `propagated_uncertainties` in state.json:
 
 ```bash
-gpd uncertainty add \
-  --quantity "{symbol}" --value "{central_value}" \
+gpd uncertainty add "{symbol}" \
+  --value "{central_value}" \
   --uncertainty "{delta}" --phase "{phase}" --method "error-propagation"
 ```
 
