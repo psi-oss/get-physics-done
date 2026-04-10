@@ -1847,6 +1847,7 @@ def _normalize_state_schema(
     removed_top_level_keys: set[str] = set()
     while True:
         try:
+            removed_validation_paths = set()
             validated = ResearchState.model_validate(normalized).model_dump()
             integrity_issues.extend(validation_findings)
             return _mirror_continuation_state(validated), integrity_issues
@@ -1866,6 +1867,23 @@ def _normalize_state_schema(
                             validation_findings.append(issue)
                         nested_removed = True
                         continue
+                    # Nested field removal failed (e.g. missing required field).
+                    # If the error path traverses a list, remove the entire
+                    # malformed list element instead of letting it cascade to
+                    # top-level section removal.
+                    list_parent_loc = _find_list_parent_loc(normalized, loc)
+                    if list_parent_loc is not None and list_parent_loc not in removed_validation_paths:
+                        if _remove_validation_error_path(normalized, list_parent_loc):
+                            removed_validation_paths.add(list_parent_loc)
+                            removed_validation_paths.add(loc)
+                            issue = (
+                                f'schema normalization: dropped malformed list entry '
+                                f'"{_format_validation_location(list_parent_loc)}": {message}'
+                            )
+                            if issue not in validation_findings:
+                                validation_findings.append(issue)
+                            nested_removed = True
+                            continue
                 if loc:
                     top_level_keys.add(str(loc[0]))
 
@@ -1981,6 +1999,32 @@ def _normalize_state_schema_with_backup_project_contract(
 
 def _format_validation_location(loc: tuple[object, ...]) -> str:
     return ".".join(str(part) for part in loc)
+
+
+def _find_list_parent_loc(payload: object, loc: tuple[object, ...]) -> tuple[object, ...] | None:
+    """Find the nearest ancestor loc whose terminal step is a list index.
+
+    For loc ``('approximations', 1, 'name')``, returns ``('approximations', 1)``
+    because ``payload['approximations']`` is a list and index 1 identifies the
+    element to remove.
+
+    Returns ``None`` when *loc* does not traverse through any list.
+    """
+    container: object = payload
+    for i, part in enumerate(loc[:-1]):
+        if isinstance(container, dict):
+            if part not in container:
+                return None
+            container = container[part]
+        elif isinstance(container, list):
+            if isinstance(part, int) and 0 <= part < len(container):
+                # This is a list index -- the loc up to and including this index
+                # would remove the list element.
+                return loc[: i + 1]
+            return None
+        else:
+            return None
+    return None
 
 
 def _remove_validation_error_path(payload: object, loc: tuple[object, ...]) -> bool:

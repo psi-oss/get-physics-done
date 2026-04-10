@@ -14,6 +14,7 @@ from gpd.core import state as state_module
 from gpd.core.constants import STATE_JSON_BACKUP_FILENAME, ProjectLayout
 from gpd.core.continuation import ContinuationBoundedSegment
 from gpd.core.state import (
+    _find_list_parent_loc,
     _load_recent_projects_index,
     _load_state_snapshot_for_mutation,
     _normalize_state_schema,
@@ -3408,3 +3409,112 @@ def test_advance_plan_marks_phase_complete_on_last_plan(tmp_path):
     assert result.advanced is False
     assert result.reason == "last_plan"
     assert result.status == "ready_for_verification"
+
+
+# ---------------------------------------------------------------------------
+# FULL-002 Bug B: list-element-level normalization
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_preserves_valid_list_entries_when_one_is_malformed():
+    """Bug B (FULL-002): one malformed approximation must not destroy valid siblings."""
+    valid_entry = {"name": "Large-N", "validity_range": "N >> 1", "status": "valid",
+                   "controlling_param": "N", "current_value": ""}
+    malformed_entry = {"label": "bad", "description": "wrong schema"}  # missing required 'name'
+
+    normalized, issues = _normalize_state_schema({
+        "approximations": [valid_entry, malformed_entry],
+    })
+
+    # The valid entry must survive
+    assert len(normalized["approximations"]) == 1
+    assert normalized["approximations"][0]["name"] == "Large-N"
+    # An integrity issue must be logged for the malformed entry
+    assert any("dropped malformed list entry" in issue for issue in issues)
+
+
+def test_normalize_preserves_empty_list_when_all_entries_malformed():
+    """Bug B (FULL-002): all-malformed entries should leave an empty list, not delete the section.
+
+    Regression test for stale-index collision: after removing bad_0 at index 0,
+    bad_1 shifts to index 0.  Without clearing removed_validation_paths per pass,
+    the shifted element's loc collides with the already-recorded loc, causing it
+    to be skipped and the entire section to be removed instead.
+    """
+    bad_1 = {"label": "X", "description": "no name field"}
+    bad_2 = {"scope": "global"}  # also missing required 'name'
+
+    normalized, issues = _normalize_state_schema({
+        "approximations": [bad_1, bad_2],
+    })
+
+    # Section must still exist as an empty list
+    assert "approximations" in normalized
+    assert normalized["approximations"] == []
+    assert any("dropped malformed list entry" in issue for issue in issues)
+
+
+def test_normalize_removes_multiple_malformed_list_entries():
+    """Bug B (FULL-002): multiple malformed entries removed; valid ones survive."""
+    valid_1 = {"name": "Weak coupling", "validity_range": "g << 1", "status": "valid",
+               "controlling_param": "g", "current_value": "0.1"}
+    valid_2 = {"name": "Planar limit", "validity_range": "N -> inf", "status": "valid",
+               "controlling_param": "N", "current_value": ""}
+    bad_1 = {"label": "oops"}
+    bad_2 = {"scope": "UV"}
+
+    normalized, issues = _normalize_state_schema({
+        "approximations": [valid_1, bad_1, valid_2, bad_2],
+    })
+
+    assert len(normalized["approximations"]) == 2
+    names = {a["name"] for a in normalized["approximations"]}
+    assert names == {"Weak coupling", "Planar limit"}
+
+
+def test_normalize_preserves_valid_uncertainties_when_one_is_malformed():
+    """Bug B (FULL-002): same fix applies to propagated_uncertainties list."""
+    valid = {"quantity": "mass", "value": "1.0 GeV", "uncertainty": "0.01 GeV",
+             "phase": "1", "method": "propagation"}
+    malformed = {"label": "bad"}  # missing required 'quantity'
+
+    normalized, issues = _normalize_state_schema({
+        "propagated_uncertainties": [valid, malformed],
+    })
+
+    assert len(normalized["propagated_uncertainties"]) == 1
+    assert normalized["propagated_uncertainties"][0]["quantity"] == "mass"
+    assert any("dropped malformed list entry" in issue for issue in issues)
+
+
+def test_normalize_still_removes_top_level_section_for_non_list_errors():
+    """Regression guard: non-list validation errors still go through top-level removal."""
+    # 'position' is a dict (Position model), not a list. If it has a deeply invalid
+    # field that can't be nested-removed, it should still be handled by the existing
+    # top-level removal path.
+    normalized, issues = _normalize_state_schema({
+        "position": {"current_phase": [1, 2, 3]},  # current_phase expects str, not list
+    })
+
+    # Position should be reset to defaults (either dropped and re-defaulted, or
+    # the string coercion path handles it). The key point: no crash, and the
+    # output is valid.
+    assert "position" in normalized
+
+
+def test_find_list_parent_loc_returns_list_index_ancestor():
+    payload = {"approximations": [{"name": "ok"}, {"label": "bad"}]}
+    result = _find_list_parent_loc(payload, ("approximations", 1, "name"))
+    assert result == ("approximations", 1)
+
+
+def test_find_list_parent_loc_returns_none_for_non_list_path():
+    payload = {"position": {"current_phase": "1"}}
+    result = _find_list_parent_loc(payload, ("position", "current_phase"))
+    assert result is None
+
+
+def test_find_list_parent_loc_returns_none_for_missing_key():
+    payload = {"approximations": [{"name": "ok"}]}
+    result = _find_list_parent_loc(payload, ("missing_key", 0, "name"))
+    assert result is None
