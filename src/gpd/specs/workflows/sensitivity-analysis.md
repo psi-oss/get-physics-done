@@ -524,8 +524,8 @@ Save to:
 Update `propagated_uncertainties` via the CLI (which properly syncs STATE.md and state.json):
 
 ```bash
-gpd uncertainty add \
-  --quantity "{target quantity}" --value "{nominal_value}" \
+gpd uncertainty add "{target quantity}" \
+  --value "{nominal_value}" \
   --uncertainty "{total_uncertainty}" --phase "{phase}" --method "sensitivity-analysis"
 ```
 
@@ -533,13 +533,13 @@ Run this for the target quantity and for each parameter whose sensitivity-derive
 
 ```bash
 # Target quantity
-gpd uncertainty add \
-  --quantity "{symbol}" --value "{f_nominal}" \
+gpd uncertainty add "{symbol}" \
+  --value "{f_nominal}" \
   --uncertainty "{delta_f}" --phase "${phase_number}" --method "sensitivity-analysis"
 
 # Dominant parameter contribution (if separately tracked)
-gpd uncertainty add \
-  --quantity "{symbol}_from_{dominant_param}" --value "{delta_f_dominant}" \
+gpd uncertainty add "{symbol}_from_{dominant_param}" \
+  --value "{delta_f_dominant}" \
   --uncertainty "{delta_f_dominant}" --phase "${phase_number}" --method "sensitivity-analysis"
 ```
 
