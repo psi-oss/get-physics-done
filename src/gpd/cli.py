@@ -4778,8 +4778,9 @@ def question_list() -> None:
 @question_app.command("resolve")
 def question_resolve(
     text: list[str] = typer.Argument(..., help="Question text to resolve"),
+    answer: str | None = typer.Option(None, "--answer", "-a", help="Answer text to record with the resolved question"),
 ) -> None:
-    """Mark a question as resolved."""
+    """Mark a question as resolved, optionally recording the answer."""
     from gpd.core.constants import ProjectLayout
     from gpd.core.extras import question_resolve
     from gpd.core.state import save_state_json_locked
@@ -4791,7 +4792,7 @@ def question_resolve(
     with file_lock(state_path):
         state = _load_mutation_state_snapshot(cwd)
         joined = " ".join(text)
-        res = question_resolve(state, joined)
+        res = question_resolve(state, joined, answer=answer)
         if res == 0:
             _error(
                 f'No open question matching "{joined}". '
@@ -8296,7 +8297,8 @@ def paper_build(
         "toolchain": toolchain,
         "warnings": list(storage_check.warnings)
         + [warning for warning in toolchain["warnings"] if warning not in storage_check.warnings]
-        + ([citation_source_warning] if citation_source_warning else []),
+        + ([citation_source_warning] if citation_source_warning else [])
+        + list(getattr(result, "citation_warnings", [])),
     }
     _output(payload)
     if not result.success:
