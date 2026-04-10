@@ -458,6 +458,7 @@ class ResearchState(BaseModel):
     active_calculations: list[str | dict] = Field(default_factory=list)
     intermediate_results: list[IntermediateResult | str] = Field(default_factory=list)
     open_questions: list[str | dict] = Field(default_factory=list)
+    resolved_questions: list[dict] = Field(default_factory=list)
     performance_metrics: PerformanceMetrics = Field(default_factory=PerformanceMetrics)
     decisions: list[Decision] = Field(default_factory=list)
     approximations: list[Approximation] = Field(default_factory=list)
@@ -2535,6 +2536,21 @@ def generate_state_markdown(raw: dict) -> str:
         for q in s["open_questions"]:
             p(f"- {_item_text(q)}")
     p("")
+
+    resolved = s.get("resolved_questions") or []
+    if resolved:
+        p("## Resolved Questions")
+        p("")
+        for rq in resolved:
+            if isinstance(rq, dict):
+                q_text = rq.get("question", "")
+                a_text = rq.get("answer", "")
+                p(f"- **Q:** {q_text}")
+                if a_text:
+                    p(f"  **A:** {a_text}")
+            else:
+                p(f"- {rq}")
+        p("")
 
     p("## Performance Metrics")
     p("")

@@ -9,6 +9,7 @@ All notable changes to Get Physics Done are documented here.
 - Split releases into a manual release-PR preparation workflow and a separate publish workflow for PyPI, npm, tags, and GitHub Releases.
 - fix: use `Path.replace()` instead of `Path.rename()` for atomic settings overwrite on Windows.
 - Fix catastrophic state reset: `_normalize_state_schema({})` now emits the integrity sentinel that triggers backup recovery, preventing silent data loss when `state.json` contains an empty object.
+- Add `--answer` flag to `gpd question resolve` so resolved questions and their answers are preserved in `state.json` and `STATE.md` instead of being silently discarded.
 
 ## v1.1.0
 

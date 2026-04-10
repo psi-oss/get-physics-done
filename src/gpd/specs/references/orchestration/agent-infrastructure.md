@@ -491,7 +491,7 @@ gpd uncertainty list
 # Open question tracking (positional text args)
 gpd question add <question text>
 gpd question list
-gpd question resolve <question text to match>
+gpd question resolve <question text to match> [--answer "<answer text>"]
 
 # Active calculation tracking (positional text args)
 gpd calculation add <description text>

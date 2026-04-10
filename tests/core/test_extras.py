@@ -239,6 +239,37 @@ def test_question_resolve_too_short():
         question_resolve({}, "ab")
 
 
+def test_question_resolve_with_answer_records_resolution():
+    """FULL-005: answer text must be recorded in resolved_questions."""
+    state: dict = {}
+    question_add(state, "What is the coupling constant?")
+    removed = question_resolve(state, "What is the coupling constant?", answer="g = 0.3")
+    assert removed == 1
+    assert len(state["open_questions"]) == 0
+    assert len(state["resolved_questions"]) == 1
+    assert state["resolved_questions"][0]["question"] == "What is the coupling constant?"
+    assert state["resolved_questions"][0]["answer"] == "g = 0.3"
+
+
+def test_question_resolve_without_answer_no_resolved_entry():
+    """Without --answer, no resolved_questions entry is created (backward compat)."""
+    state: dict = {}
+    question_add(state, "Some question here")
+    removed = question_resolve(state, "Some question here")
+    assert removed == 1
+    assert "resolved_questions" not in state
+
+
+def test_question_resolve_answer_with_substring_match():
+    """Answer recording works with substring match too."""
+    state: dict = {}
+    question_add(state, "What is the coupling constant in QCD?")
+    removed = question_resolve(state, "coupling constant", answer="alpha_s = 0.118")
+    assert removed == 1
+    assert state["resolved_questions"][0]["question"] == "What is the coupling constant in QCD?"
+    assert state["resolved_questions"][0]["answer"] == "alpha_s = 0.118"
+
+
 # ─── calculation_add / list / complete ───────────────────────────────────────
 
 

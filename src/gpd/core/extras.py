@@ -539,11 +539,14 @@ def question_list(state: dict) -> list[str | dict]:
     return list(state.get("open_questions", []))
 
 
-def question_resolve(state: dict, text: str) -> int:
+def question_resolve(state: dict, text: str, *, answer: str | None = None) -> int:
     """Resolve (remove) an open question matching the given text.
 
     First tries exact match (case-insensitive), then falls back to
     word-boundary substring match. Removes only the first match.
+
+    When *answer* is provided, the resolved question and its answer are
+    recorded in ``state["resolved_questions"]`` before removal.
 
     Raises ValueError if text is empty or too short (< 3 chars).
     Returns the number of questions removed (0 or 1).
@@ -559,12 +562,19 @@ def question_resolve(state: dict, text: str) -> int:
     questions: list[object] = state["open_questions"]
     before = len(questions)
 
+    def _resolve_at(idx: int) -> int:
+        q_text = _item_text(questions[idx])
+        questions.pop(idx)
+        if answer is not None:
+            resolved = state.setdefault("resolved_questions", [])
+            resolved.append({"question": q_text, "answer": answer})
+        return before - len(questions)
+
     # Try exact match (case-insensitive)
     for i, q in enumerate(questions):
         q_text = _item_text(q)
         if q_text.lower() == text.lower():
-            questions.pop(i)
-            return before - len(questions)
+            return _resolve_at(i)
 
     # Fall back to substring match with word-boundary-like assertions
     escaped = re.escape(text)
@@ -572,8 +582,7 @@ def question_resolve(state: dict, text: str) -> int:
     for i, q in enumerate(questions):
         q_text = _item_text(q)
         if pattern.search(q_text):
-            questions.pop(i)
-            return before - len(questions)
+            return _resolve_at(i)
 
     return 0
 
