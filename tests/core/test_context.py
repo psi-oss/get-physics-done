@@ -843,6 +843,23 @@ def _write_structured_state_memory(tmp_path: Path) -> None:
     (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
+def _write_placeholder_heavy_structured_state_memory(tmp_path: Path) -> None:
+    """Persist a convention lock with placeholder-heavy values into state.json."""
+    from gpd.core.state import default_state_dict
+
+    state = default_state_dict()
+    state["convention_lock"].update(
+        {
+            "metric_signature": "mostly-plus",
+            "fourier_convention": "not set",
+            "natural_units": "[not set]",
+            "gauge_choice": "\u2014",
+            "coordinate_system": "Cartesian",
+        }
+    )
+    (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+
 def _write_current_execution(tmp_path: Path, payload: dict[str, object]) -> None:
     observability = tmp_path / "GPD" / "observability"
     observability.mkdir(parents=True, exist_ok=True)
@@ -1210,6 +1227,24 @@ class TestInitExecutePhase:
         assert ctx["derived_intermediate_results"][0]["equation"] == "E = mc^2"
         assert ctx["derived_approximation_count"] == 1
         assert ctx["derived_approximations"][0]["name"] == "weak coupling"
+
+    def test_surfaces_material_convention_counts_with_placeholders(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        phase_dir = _create_phase_dir(tmp_path, "01-setup")
+        (phase_dir / "a-PLAN.md").write_text("plan", encoding="utf-8")
+        _write_placeholder_heavy_structured_state_memory(tmp_path)
+
+        ctx = init_verify_work(tmp_path, "1")
+
+        assert ctx["convention_lock"]["fourier_convention"] == "not set"
+        assert ctx["convention_lock"]["natural_units"] == "[not set]"
+        assert ctx["convention_lock"]["gauge_choice"] == "\u2014"
+        assert ctx["convention_lock_count"] == 2
+        assert ctx["derived_convention_lock_count"] == 2
+        assert ctx["derived_convention_lock"] == {
+            "metric_signature": "mostly-plus",
+            "coordinate_system": "Cartesian",
+        }
 
     def test_does_not_bootstrap_manuscript_proof_review_manifest(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

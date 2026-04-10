@@ -1340,8 +1340,36 @@ def roadmap_analyze(cwd: Path) -> RoadmapAnalysis:
 
         # Find current and next phase
         current_phase = next((p for p in phases if p.disk_status in ("planned", "partial")), None)
+        if current_phase is None:
+            state_content = safe_read_file(layout.state_md)
+            if state_content is not None:
+                state_phase = _extract_state_field(state_content, "Current Phase")
+                if state_phase is not None:
+                    try:
+                        _validate_phase_number(state_phase)
+                    except PhaseValidationError:
+                        pass
+                    else:
+                        normalized_state_phase = phase_normalize(state_phase)
+                        current_phase = next(
+                            (
+                                p
+                                for p in phases
+                                if compare_phase_numbers(phase_normalize(p.number), normalized_state_phase) == 0
+                            ),
+                            None,
+                        )
+        current_phase_number = current_phase.number if current_phase else None
         next_phase = next(
-            (p for p in phases if p.disk_status in ("empty", "no_directory", "discussed", "researched")),
+            (
+                p
+                for p in phases
+                if p.disk_status in ("empty", "no_directory", "discussed", "researched")
+                and (
+                    current_phase_number is None
+                    or compare_phase_numbers(phase_normalize(p.number), phase_normalize(current_phase_number)) != 0
+                )
+            ),
             None,
         )
 

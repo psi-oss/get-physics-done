@@ -1,0 +1,18 @@
+{
+  "entries": [
+    {
+      "path": "/tmp/noise/project-alpha",
+      "status": "recoverable"
+    },
+    {
+      "path": "/tmp/noise/project-beta",
+      "status": "recoverable"
+    },
+    {
+      "path": "/tmp/noise/project-gamma",
+      "status": "stale"
+    }
+  ],
+  "mutation_axis": "recent_project_noise_injected",
+  "note": "Adds machine-local recent-project noise beside the copied workspace without mutating the source snapshot."
+}

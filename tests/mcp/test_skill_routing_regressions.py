@@ -142,6 +142,28 @@ def test_route_skill_uses_live_registry_names_for_missing_manual_keyword_routes(
         assert route_skill("reapply local patches after update")["suggestion"] == "gpd-reapply-patches"
 
 
+def test_route_skill_uses_phrase_level_routes_for_onboarding_and_setup_commands() -> None:
+    from gpd.mcp.servers.skills_server import route_skill
+
+    with patch(
+        "gpd.mcp.servers.skills_server._load_skill_index",
+        return_value=[
+            _skill("gpd-help", category="help", registry_name="help"),
+            _skill("gpd-execute-phase", category="execution", registry_name="execute-phase"),
+            _skill("gpd-map-research", category="research", registry_name="map-research"),
+            _skill("gpd-set-tier-models", category="settings", registry_name="set-tier-models"),
+            _skill("gpd-start", category="help", registry_name="start"),
+            _skill("gpd-tour", category="help", registry_name="tour"),
+        ],
+    ):
+        assert route_skill("map an existing folder before planning")["suggestion"] == "gpd-map-research"
+        assert route_skill("refresh the research map")["suggestion"] == "gpd-map-research"
+        assert route_skill("pin exact tier models for this runtime")["suggestion"] == "gpd-set-tier-models"
+        assert route_skill("guided first run for a new folder")["suggestion"] == "gpd-start"
+        assert route_skill("want a guided overview of the main commands")["suggestion"] == "gpd-tour"
+        assert route_skill("guided first run for a new folder")["suggestion"] != "gpd-execute-phase"
+
+
 def test_canonicalize_command_surface_rewrites_real_command_examples_only() -> None:
     from gpd.mcp.servers.skills_server import _canonicalize_command_surface
 

@@ -1,0 +1,126 @@
+{
+  "generated_at": "2026-04-09T21:09:29Z",
+  "status": "corrected",
+  "entries": [
+    {
+      "citation_key": "AntoniniSasietaSwingle2023",
+      "arxiv_id": "2307.14416",
+      "title": "Cosmology from random entanglement",
+      "authors": [
+        "Stefano Antonini",
+        "Martin Sasieta",
+        "Brian Swingle"
+      ],
+      "journal_ref": "JHEP 11 (2023) 188",
+      "arxiv_url": "https://arxiv.org/abs/2307.14416",
+      "journal_url": "https://link.springer.com/article/10.1007/JHEP11%282023%29188",
+      "verification_notes": [
+        "Verified title and authors on the arXiv abstract page.",
+        "Cross-checked the journal publication metadata on the JHEP/Springer article page.",
+        "Noted that the latest arXiv version is v4 and explicitly reports corrected equations (4.17) and (4.19)."
+      ],
+      "status": "verified"
+    },
+    {
+      "citation_key": "ManuNarayanPaul2021",
+      "arxiv_id": "2012.07351",
+      "title": "Cosmological singularities, entanglement and quantum extremal surfaces",
+      "authors": [
+        "A. Manu",
+        "K. Narayan",
+        "Partha Paul"
+      ],
+      "journal_ref": "JHEP 04 (2021) 200",
+      "arxiv_url": "https://arxiv.org/abs/2012.07351",
+      "verification_notes": [
+        "Verified title, authors, and related DOI on the arXiv abstract page."
+      ],
+      "status": "verified"
+    },
+    {
+      "citation_key": "FrenkelHartnollKruthoffShi2020",
+      "arxiv_id": "2004.01192",
+      "title": "Holographic flows from CFT to the Kasner universe",
+      "authors": [
+        "Alexander Frenkel",
+        "Sean A. Hartnoll",
+        "Jorrit Kruthoff",
+        "Zhengyan D. Shi"
+      ],
+      "journal_ref": "JHEP 08 (2020) 003",
+      "arxiv_url": "https://arxiv.org/abs/2004.01192",
+      "verification_notes": [
+        "Verified title, authors, and related DOI on the arXiv abstract page."
+      ],
+      "status": "verified"
+    },
+    {
+      "citation_key": "EngelhardtHertogHorowitz2014",
+      "arxiv_id": "1404.2309",
+      "title": "Holographic Signatures of Cosmological Singularities",
+      "authors": [
+        "Netta Engelhardt",
+        "Thomas Hertog",
+        "Gary T. Horowitz"
+      ],
+      "journal_ref": "Phys. Rev. Lett. 113 (2014) 121602",
+      "arxiv_url": "https://arxiv.org/abs/1404.2309",
+      "verification_notes": [
+        "Verified title, authors, and journal reference on the arXiv abstract page."
+      ],
+      "status": "verified"
+    },
+    {
+      "citation_key": "NarayanSainiYadav2024",
+      "arxiv_id": "2404.00761",
+      "title": "Cosmological singularities, holographic complexity and entanglement",
+      "authors": [
+        "K. Narayan",
+        "Hitesh K. Saini",
+        "Gopal Yadav"
+      ],
+      "journal_ref": "JHEP 07 (2024) 125",
+      "arxiv_url": "https://arxiv.org/abs/2404.00761",
+      "journal_url": "https://link.springer.com/article/10.1007/JHEP07%282024%29125",
+      "verification_notes": [
+        "Verified title and authors on the arXiv abstract page.",
+        "Cross-checked the journal publication metadata on the JHEP/Springer article page."
+      ],
+      "status": "verified"
+    },
+    {
+      "citation_key": "SahuVanRaamsdonk2025",
+      "arxiv_id": "2411.14673",
+      "title": "Holographic black hole cosmologies",
+      "authors": [
+        "Abhisek Sahu",
+        "Mark Van Raamsdonk"
+      ],
+      "journal_ref": "JHEP 05 (2025) 233",
+      "arxiv_url": "https://arxiv.org/abs/2411.14673",
+      "journal_url": "https://doi.org/10.1007/JHEP05(2025)233",
+      "verification_notes": [
+        "Verified title and authors on the arXiv abstract page.",
+        "Cross-checked the journal publication metadata through indexed journal metadata for the DOI."
+      ],
+      "status": "verified"
+    }
+  ],
+  "corrections": [
+    {
+      "artifact": "GPD/STATE.md",
+      "previous": "Antonini 2023 was described as a dS/dS entropy-matching result with S_{dS} = S_{ent}.",
+      "corrected": "Antonini 2023 is now described as an entangled-pair-of-CFTs construction with big-bang/big-crunch AdS cosmologies and entanglement-wedge encoding."
+    },
+    {
+      "artifact": "GPD/STATE.md",
+      "previous": "Sahu 2025 was treated as a singularity-diagnostic extension.",
+      "corrected": "Sahu 2025 is now described as a nearby entangled multi-CFT cosmology benchmark."
+    },
+    {
+      "artifact": "GPD/phases/01-literature-anchors-and-entangled-cft-setup/01-SUMMARY.md",
+      "previous": "The benchmark set omitted Engelhardt-Hertog-Horowitz 2014.",
+      "corrected": "The corrected benchmark set explicitly includes Engelhardt-Hertog-Horowitz 2014 as the direct boundary-correlator diagnostic anchor."
+    }
+  ]
+}

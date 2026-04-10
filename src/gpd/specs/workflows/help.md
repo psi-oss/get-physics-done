@@ -60,7 +60,7 @@ Phase {N} complete:
 Publication workflow:
   gpd:peer-review         — Run manuscript peer review inside the current project
   gpd:arxiv-submission    — Package only after review passes and the paper-build contract succeeds
-  gpd doctor --runtime <runtime> --local|--global — Check runtime-local paper-toolchain readiness for the paper/manuscript workflow preset. Add `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
+  gpd doctor — Check runtime-local paper-toolchain readiness from your normal terminal. Use the local CLI add-ons section below when you need the preset-specific doctor flags or executable probes. Inspect the preset with `gpd presets list`, preview it with `gpd presets show <preset>`, and apply it from your normal terminal with `gpd presets apply <preset>` or through your runtime-specific settings command; failed preset rows degrade `write-paper`, but `paper-build` remains the build contract and `arxiv-submission` requires the built manuscript
   gpd integrations status wolfram — Inspect the shared optional Wolfram integration config only; this does not prove local Mathematica availability or plan readiness, and optional doctor probes do not change that
 ```
 
@@ -136,7 +136,7 @@ Depending on the runtime, those names may be rendered with slash prefixes, dolla
 - Use these names inside the installed agent/runtime command surface.
 - Use `gpd --help` to inspect the executable local install/readiness/permissions/diagnostics surface directly.
 - Use `gpd permissions status --runtime <runtime> --autonomy balanced` when you want the read-only runtime-owned approval/alignment snapshot from your normal terminal.
-- Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict, `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment, and `--live-executable-probes` if you also want cheap local executable probes such as `pdflatex --version` or `wolframscript -version`.
+- Use `gpd doctor` to check the selected install target and runtime-local readiness signals. Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` for the unattended or overnight verdict and `gpd permissions sync --runtime <runtime> --autonomy balanced` when runtime-owned permissions need realignment. If you also want cheap local executable probes or the preset-specific doctor flags, use the local CLI add-ons section below from your normal terminal.
 - If you need to validate whether a public runtime command can run in the current workspace, use `gpd validate command-context gpd:<name>`.
 - If a plan declares specialized `tool_requirements`, use `gpd validate plan-preflight <PLAN.md>` from your normal terminal before execution.
 - For a normal-terminal, current-workspace read-only recovery snapshot without launching the runtime, use `gpd resume`.
@@ -550,12 +550,14 @@ Check research status and intelligently route to next action.
 - Offers to execute next plan or create it if missing
 - Detects 100% milestone completion
 - Use `--brief` when returning and you only need orientation
-- Use `--reconcile` when state appears out of sync with disk artifacts
+- Use `--reconcile` only on the runtime `gpd:progress` surface when state appears out of sync with disk artifacts
+- The local CLI `gpd progress` is a separate read-only renderer and uses `json|bar|table` instead of these runtime flags
 
 Usage: `gpd:progress`
-Usage: `gpd:progress --full` (detailed view with all phase artifacts)
-Usage: `gpd:progress --brief` (compact one-line status)
-Usage: `gpd:progress --reconcile` (fix diverged STATE.md and state.json)
+Usage: `gpd:progress --full` (detailed runtime view with all phase artifacts)
+Usage: `gpd:progress --brief` (compact runtime orientation)
+Usage: `gpd:progress --reconcile` (runtime-only state-vs-disk reconciliation mode)
+Local CLI: `gpd progress json|bar|table` (read-only render formats)
 
 ### Session Management
 

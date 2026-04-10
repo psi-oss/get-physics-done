@@ -13,6 +13,16 @@ from gpd.core.root_resolution import (
 )
 
 
+def _make_project_root(project: Path) -> None:
+    gpd_dir = project / "GPD"
+    gpd_dir.mkdir(parents=True)
+    (gpd_dir / "state.json").write_text("{}", encoding="utf-8")
+    (gpd_dir / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (gpd_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (gpd_dir / "phases").mkdir()
+
+
 def test_normalize_workspace_hint_resolves_explicit_path(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -53,7 +63,7 @@ def test_resolve_project_roots_prefers_verified_workspace_over_unverified_explic
     project = tmp_path / "project"
     workspace = project / "src" / "notes"
     missing_project_dir = tmp_path / "not-a-project"
-    (project / "GPD").mkdir(parents=True)
+    _make_project_root(project)
     workspace.mkdir(parents=True)
 
     resolution = resolve_project_roots(workspace, project_dir=missing_project_dir)
@@ -113,6 +123,42 @@ def test_resolve_project_roots_ignores_a_file_named_gpd(tmp_path: Path) -> None:
     assert resolution.has_project_layout is False
     assert resolution.walk_up_steps == 0
     assert resolve_project_root(workspace, require_layout=True) is None
+
+
+def test_resolve_project_roots_prefers_stronger_ancestor_over_nested_empty_gpd_stub(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    workspace = project / "workspace" / "notes"
+    nested_stub = workspace / "GPD"
+    _make_project_root(project)
+    nested_stub.mkdir(parents=True)
+    workspace.mkdir(parents=True, exist_ok=True)
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == project.resolve(strict=False)
+    assert resolution.basis == RootResolutionBasis.WORKSPACE
+    assert resolution.confidence == RootResolutionConfidence.HIGH
+    assert resolution.has_project_layout is True
+    assert resolution.walk_up_steps == 2
+
+
+def test_resolve_project_roots_falls_back_to_nearest_bare_gpd_when_no_stronger_ancestor_exists(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    (workspace / "GPD").mkdir(parents=True)
+
+    resolution = resolve_project_roots(workspace)
+
+    assert resolution is not None
+    assert resolution.project_root == workspace.resolve(strict=False)
+    assert resolution.basis == RootResolutionBasis.WORKSPACE
+    assert resolution.confidence == RootResolutionConfidence.HIGH
+    assert resolution.has_project_layout is True
+    assert resolution.walk_up_steps == 0
 
 
 def test_resolve_project_root_require_layout_rejects_unverified_fallback(tmp_path: Path) -> None:

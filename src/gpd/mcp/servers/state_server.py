@@ -22,13 +22,14 @@ from gpd.core.errors import GPDError
 from gpd.core.health import run_health
 from gpd.core.observability import gpd_span
 from gpd.core.phases import progress_render
+from gpd.core.root_resolution import resolve_project_root
 from gpd.core.state import (
     _project_contract_runtime_payload_for_state,
     peek_state_json,
     state_advance_plan,
     state_validate,
 )
-from gpd.core.utils import is_phase_complete
+from gpd.core.utils import is_phase_complete, matching_phase_artifact_count
 from gpd.mcp.servers import (
     ABSOLUTE_PROJECT_DIR_SCHEMA,
     configure_mcp_logging,
@@ -52,16 +53,19 @@ def load_state_json(cwd: Path) -> dict | None:
     stable even when the underlying state read path evolves.
     """
 
+    project_root = resolve_project_root(cwd, require_layout=True) or cwd.expanduser().resolve(strict=False)
+
     state_obj, _issues, state_source = peek_state_json(
-        cwd,
+        project_root,
         recover_intent=False,
         surface_blocked_project_contract=True,
+        acquire_lock=False,
     )
     if state_obj is None:
         return None
 
     project_contract_load_info, project_contract_validation, project_contract_gate = _project_contract_runtime_payload_for_state(
-        cwd,
+        project_root,
         state_obj=state_obj,
         state_source=state_source,
     )
@@ -138,7 +142,7 @@ def get_phase_info(project_dir: AbsoluteProjectDirInput, phase: str) -> dict:
             if info is None:
                 return stable_mcp_error(f"Phase {phase} not found")
             plan_count = len(info.plans)
-            summary_count = len(info.summaries)
+            summary_count = matching_phase_artifact_count(info.plans, info.summaries)
             return stable_mcp_response(
                 {
                     "phase_number": info.phase_number,

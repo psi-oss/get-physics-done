@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "bug_id": "f3-placeholder-sentinel-normalization",
+  "family_id": "placeholder-sentinel-normalization",
+  "family_title": "Placeholder / sentinel normalization",
+  "phase": 15,
+  "wave": "lane-3",
+  "status": "ready",
+  "scope": {
+    "in_scope": [
+      "literal 'not set' placeholder normalization in convention surfaces",
+      "material convention suggestion parity"
+    ],
+    "out_of_scope": [
+      "paused-work suggestion priority as a separate family"
+    ],
+    "question": "Do placeholder sentinels behave as unset across convention_list, convention_check, convention_set, and suggest_next?"
+  },
+  "source": {
+    "anchor_fixture": "tests/fixtures/handoff-bundle/placeholder-conventions/positive/workspace",
+    "fixture_id": "FX-placeholder-conventions-positive",
+    "paired_fixture_id": "FX-placeholder-conventions-mutation",
+    "regressions": [
+      "tests/core/test_handoff_bundle_parity_regressions.py",
+      "tests/core/test_state.py",
+      "tests/core/test_conventions.py",
+      "tests/core/test_suggest.py",
+      "tests/core/test_context.py"
+    ],
+    "packet_ids": [
+      "PK-BT-098-01",
+      "PK-BT-097-01",
+      "PK-BT-099-01",
+      "PK-BT-100-01"
+    ],
+    "bug_type_ids": [
+      "BT-098",
+      "BT-097",
+      "BT-099",
+      "BT-100"
+    ]
+  },
+  "exact_repro": {
+    "surface": "convention_list + convention_check on a fixture workspace with literal 'not set' placeholders injected into missing convention slots",
+    "assertions": [
+      "set_count == 3",
+      "unset_count == 15",
+      "missing_count == 15",
+      "placeholder entries report is_set=false while preserving the literal sentinel text"
+    ]
+  },
+  "exact_fix": {
+    "surface": "convention_set on a placeholder-backed ConventionLock",
+    "assertions": [
+      "updated is true without --force",
+      "previous == 'not set'",
+      "the field value is rewritten to the requested material convention"
+    ]
+  },
+  "adjacent_checks": [
+    {
+      "surface": "suggest_next",
+      "assertions": [
+        "actions include 'set-conventions'",
+        "missing_conventions preserves canonical ordering",
+        "status remains 'Ready to plan'"
+      ]
+    }
+  ],
+  "verification": {
+    "contract_test": "tests/test_bug_placeholder_sentinel_normalization.py",
+    "fixture_mode": "positive",
+    "adjacent_family": "suggestion parity only"
+  },
+  "red_exact_repro": true,
+  "green_exact_fix": true,
+  "green_adjacent_checks": true,
+  "notes": [
+    "Paused-work suggestion priority is intentionally not split out as a separate family.",
+    "The contract is fixture-backed and uses the existing pytest tree only."
+  ]
+}

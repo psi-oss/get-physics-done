@@ -1,0 +1,4 @@
+{
+  "mutation_axis": "summary_and_verification_removed",
+  "note": "Removes summary/verification-style artifacts but keeps plan material to preserve a plan-only contrast."
+}

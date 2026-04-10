@@ -123,7 +123,7 @@ VALUE_ALIASES: dict[str, dict[str, str]] = {
 }
 
 # Values that should be treated as "unset" (prevent string-vs-null confusion)
-_BOGUS_VALUES = frozenset({"", "null", "undefined", "none"})
+_BOGUS_VALUES = frozenset({"", "null", "undefined", "none", "not set"})
 
 # Regex for ASSERT_CONVENTION lines:
 #   <!-- ASSERT_CONVENTION: key=value, key=value -->  (Markdown)

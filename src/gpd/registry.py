@@ -1376,6 +1376,8 @@ _SKILL_CATEGORY_MAP: dict[str, str] = {
     "gpd-research": "research",
     "gpd-discover": "research",
     "gpd-explain": "help",
+    "gpd-start": "help",
+    "gpd-tour": "help",
     "gpd-map": "exploration",
     "gpd-show": "exploration",
     "gpd-progress": "status",

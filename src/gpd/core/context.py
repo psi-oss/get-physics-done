@@ -56,6 +56,7 @@ from gpd.core.continuation import (
     normalize_continuation_reference,
     resolve_continuation,
 )
+from gpd.core.conventions import is_bogus_value
 from gpd.core.errors import ValidationError
 from gpd.core.extras import approximation_list
 from gpd.core.knowledge_runtime import discover_knowledge_docs
@@ -851,6 +852,22 @@ def _structured_state_objects(value: object) -> list[dict[str, object]]:
     return structured
 
 
+def _has_structured_state_value(value: object) -> bool:
+    """Return whether a structured state value is materially set."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped or stripped == "\u2014" or stripped.casefold() == "[not set]":
+            return False
+        return not is_bogus_value(stripped)
+    if isinstance(value, Mapping):
+        return bool(value)
+    if isinstance(value, (list, tuple, set)):
+        return bool(value)
+    return True
+
+
 def _build_structured_state_runtime_context(cwd: Path) -> dict[str, object]:
     """Build structured canonical state slices for init payloads."""
     state, state_issues, state_source = _peek_state_json(cwd, recover_intent=False)
@@ -878,7 +895,9 @@ def _build_structured_state_runtime_context(cwd: Path) -> dict[str, object]:
         "state_load_source": source,
         "state_integrity_issues": list(state_issues or []),
         "convention_lock": structured_convention_lock,
-        "convention_lock_count": len(structured_convention_lock),
+        "convention_lock_count": sum(
+            1 for value in structured_convention_lock.values() if _has_structured_state_value(value)
+        ),
         "intermediate_results": intermediate_results,
         "intermediate_result_count": len(intermediate_results),
         "approximations": approximations,
@@ -1900,17 +1919,6 @@ def _build_peer_review_runtime_context(
         )
     )
     return result
-
-
-def _has_structured_state_value(value: object) -> bool:
-    """Return whether a derived state value should be surfaced."""
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, (list, tuple, set, dict)):
-        return bool(value)
-    return True
 
 
 def _build_state_memory_runtime_context(cwd: Path) -> dict[str, object]:

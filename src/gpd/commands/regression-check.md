@@ -1,7 +1,7 @@
 ---
 name: gpd:regression-check
 description: Scan completed phase summaries and verifications for convention conflicts and verification-state regressions
-argument-hint: "[phase number to limit scope, or empty for all]"
+argument-hint: "[phase] [--quick]"
 context_mode: project-required
 allowed-tools:
   - file_read
@@ -22,6 +22,8 @@ This command does **not** re-run physics, numerical, dimensional, or contract ve
 
 Use `gpd:verify-work <phase>` when a flagged phase needs actual re-verification.
 
+The local CLI `--quick` flag is a wrapper-only scope reducer: it keeps the two most recent completed phases after any phase filter is applied, but it does not change the audit rules.
+
 Output: structured CLI/JSON result with `passed`, `phases_checked`, and `issues`.
 </objective>
 
@@ -33,7 +35,7 @@ Output: structured CLI/JSON result with `passed`, `phases_checked`, and `issues`
 Scope: $ARGUMENTS (optional)
 - If a number (e.g., "3"): scan only that completed phase
 - If empty: scan all completed phases
-- Local `gpd regression-check --quick` additionally limits the scan to the two most recent completed phases
+- Local CLI flag `--quick` additionally limits the scan to the two most recent completed phases after scope filtering
 
 @GPD/STATE.md
 @GPD/ROADMAP.md

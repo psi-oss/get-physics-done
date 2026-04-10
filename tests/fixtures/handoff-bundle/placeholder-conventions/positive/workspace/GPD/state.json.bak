@@ -1,0 +1,674 @@
+{
+  "project_reference": {
+    "project_md_updated": null,
+    "core_research_question": "Which quantum-information ingredients are sufficient to recover the leading Ryu-Takayanagi formula, and which steps still require semiclassical gravitational input?",
+    "current_focus": "Phase 01 \u2014 Literature and anchor map for RT from quantum information"
+  },
+  "project_contract": {
+    "schema_version": 1,
+    "scope": {
+      "question": "Which quantum-information ingredients are sufficient to recover the leading Ryu-Takayanagi formula and identify the first controlled corrections, and which steps still require bulk gravitational input?",
+      "in_scope": [
+        "Map the logical chain linking holographic entanglement entropy, operator-algebra quantum error correction, JLMS relative entropy, entanglement wedge reconstruction, and tensor-network toy models.",
+        "Benchmark each step against foundational and recent arXiv anchors relevant to the RT formula from a quantum-information viewpoint."
+      ],
+      "out_of_scope": [
+        "Deriving bulk Einstein equations or the gravitational replica trick from first principles.",
+        "Full quantum extremal surface or island computations beyond identifying where they modify the RT story.",
+        "Explicit numerical AdS/CFT calculations for specific holographic CFT states."
+      ],
+      "unresolved_questions": [
+        "Can the leading area term be derived from quantum-information structure alone without importing semiclassical geometric input?",
+        "Which recent modular-flow or entropy-inequality results materially tighten the RT-from-QI story rather than merely repackage known structure?"
+      ]
+    },
+    "context_intake": {
+      "must_read_refs": [
+        "Ref-RT06",
+        "Ref-ADH14",
+        "Ref-JLMS15",
+        "Ref-DHW16",
+        "Ref-HNQTWY16",
+        "Ref-Gao24"
+      ],
+      "must_include_prior_outputs": [],
+      "user_asserted_anchors": [
+        "Ref-RT06",
+        "Ref-Gao24"
+      ],
+      "known_good_baselines": [
+        "Ref-RT06",
+        "Ref-DHW16"
+      ],
+      "context_gaps": [
+        "Decisive recent 2025-2026 anchor beyond the current 2024 modular-flow paper still needs literature expansion.",
+        "Need sharper discrimination between genuine derivation of the area term and explanatory reformulations."
+      ],
+      "crucial_inputs": [
+        "Foundational arXiv literature on holographic entanglement entropy and quantum error correction.",
+        "Recent arXiv work on modular flow or holographic entropy inequalities that could expose new quantum-information constraints."
+      ]
+    },
+    "approach_policy": {
+      "formulations": [
+        "Operator-algebra quantum error correction / subregion-subregion duality.",
+        "Relative entropy and modular flow arguments in semiclassical AdS/CFT.",
+        "Random tensor network and entropy-inequality toy models as controlled heuristics."
+      ],
+      "allowed_estimator_families": [
+        "entropic identities",
+        "operator-algebra reconstruction arguments",
+        "tensor-network minimal-cut analyses tied back to explicit assumptions"
+      ],
+      "forbidden_estimator_families": [
+        "analogy-only arguments that never isolate the source of the area term",
+        "toy-model matches presented as derivations without checking imported geometric input"
+      ],
+      "allowed_fit_families": [
+        "anchor-by-anchor logical comparison",
+        "proof-style dependency tracing between claims and references"
+      ],
+      "forbidden_fit_families": [
+        "citation-dump summaries without a dependency graph",
+        "qualitative consensus statements unsupported by explicit anchors"
+      ],
+      "stop_and_rethink_conditions": [
+        "Every candidate quantum-information derivation still assumes the bulk area term or semiclassical geometry as an input.",
+        "Recent literature only extends entanglement wedge reconstruction after the RT formula, leaving the core derivation question untouched."
+      ]
+    },
+    "observables": [
+      {
+        "id": "obs-rt",
+        "name": "Leading Ryu-Takayanagi area term",
+        "kind": "other",
+        "definition": "Identify which quantum-information inputs reproduce or fail to reproduce S_A = Area(gamma_A)/(4 G_N).",
+        "regime": null,
+        "units": null
+      },
+      {
+        "id": "obs-ew",
+        "name": "Entanglement wedge reconstruction criterion",
+        "kind": "other",
+        "definition": "Whether the boundary subregion A supports reconstruction of operators in the bulk entanglement wedge a via JLMS/OAQEC reasoning.",
+        "regime": null,
+        "units": null
+      },
+      {
+        "id": "obs-frontier",
+        "name": "Frontier constraint set",
+        "kind": "classification",
+        "definition": "Classify recent modular-flow and entropy-inequality results as genuine advances, heuristic support, or orthogonal structure.",
+        "regime": null,
+        "units": null
+      }
+    ],
+    "claims": [
+      {
+        "id": "claim-main",
+        "statement": "A literature-grounded dependency map can distinguish which parts of the RT story follow from quantum-information structure and which parts still rely on semiclassical gravitational input.",
+        "claim_kind": "result",
+        "observables": [
+          "obs-rt",
+          "obs-ew",
+          "obs-frontier"
+        ],
+        "deliverables": [
+          "deliv-synthesis",
+          "deliv-gap-map"
+        ],
+        "acceptance_tests": [
+          "test-anchor-map",
+          "test-gap-audit",
+          "test-false-progress"
+        ],
+        "references": [
+          "Ref-RT06",
+          "Ref-ADH14",
+          "Ref-JLMS15",
+          "Ref-DHW16",
+          "Ref-HNQTWY16",
+          "Ref-Gao24"
+        ],
+        "parameters": [],
+        "hypotheses": [],
+        "quantifiers": [],
+        "conclusion_clauses": [],
+        "proof_deliverables": []
+      }
+    ],
+    "deliverables": [
+      {
+        "id": "deliv-synthesis",
+        "kind": "report",
+        "path": null,
+        "description": "Synthesis note that traces the RT formula, JLMS, OAQEC, entanglement wedge reconstruction, and tensor-network models through an explicit dependency chain.",
+        "must_contain": [
+          "anchor-by-anchor dependency map",
+          "explicit statement of imported semiclassical inputs",
+          "recent-paper placement"
+        ]
+      },
+      {
+        "id": "deliv-gap-map",
+        "kind": "note",
+        "path": null,
+        "description": "Gap analysis separating genuine derivation, controlled heuristic support, and open conjectural steps in the RT-from-quantum-information program.",
+        "must_contain": [
+          "false-progress rejection criteria",
+          "frontier open questions",
+          "next-phase research directions"
+        ]
+      }
+    ],
+    "acceptance_tests": [
+      {
+        "id": "test-anchor-map",
+        "subject": "claim-main",
+        "kind": "benchmark",
+        "procedure": "Check that each logical step in the synthesis is explicitly tied to at least one approved arXiv anchor and that missing steps remain marked as gaps.",
+        "pass_condition": "No major RT-from-QI claim is left without an anchor or an explicit uncertainty label.",
+        "evidence_required": [
+          "deliv-synthesis",
+          "Ref-RT06",
+          "Ref-ADH14",
+          "Ref-JLMS15",
+          "Ref-DHW16",
+          "Ref-HNQTWY16",
+          "Ref-Gao24"
+        ],
+        "automation": "human"
+      },
+      {
+        "id": "test-gap-audit",
+        "subject": "claim-main",
+        "kind": "consistency",
+        "procedure": "Verify that the deliverables distinguish between leading RT, bulk entropy corrections, entanglement wedge reconstruction, and frontier constraints without conflating them.",
+        "pass_condition": "Each of the four layers is assigned a status: derived, heuristic, or unresolved, with rationale.",
+        "evidence_required": [
+          "deliv-synthesis",
+          "deliv-gap-map"
+        ],
+        "automation": "human"
+      },
+      {
+        "id": "test-false-progress",
+        "subject": "claim-main",
+        "kind": "proxy",
+        "procedure": "Reject any conclusion that treats tensor-network minimal cuts or qualitative QEC analogies as a full derivation unless the imported geometric assumptions are enumerated.",
+        "pass_condition": "False-progress modes are named explicitly and excluded from the success claim.",
+        "evidence_required": [
+          "deliv-gap-map",
+          "Ref-HNQTWY16",
+          "Ref-ADH14"
+        ],
+        "automation": "human"
+      }
+    ],
+    "references": [
+      {
+        "id": "Ref-RT06",
+        "kind": "paper",
+        "locator": "Shinsei Ryu and Tadashi Takayanagi, Holographic Derivation of Entanglement Entropy from AdS/CFT, arXiv:hep-th/0603001",
+        "aliases": [
+          "RT06"
+        ],
+        "role": "benchmark",
+        "why_it_matters": "Foundational statement of the leading RT formula to be explained from quantum-information structure.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "compare",
+          "cite"
+        ]
+      },
+      {
+        "id": "Ref-ADH14",
+        "kind": "paper",
+        "locator": "Ahmed Almheiri, Xi Dong, and Daniel Harlow, Bulk Locality and Quantum Error Correction in AdS/CFT, arXiv:1411.7041",
+        "aliases": [
+          "ADH14",
+          "OAQEC"
+        ],
+        "role": "method",
+        "why_it_matters": "Introduces the QEC language that motivates subregion duality and the RT/QEC connection.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "use",
+          "cite"
+        ]
+      },
+      {
+        "id": "Ref-JLMS15",
+        "kind": "paper",
+        "locator": "Daniel L. Jafferis, Aitor Lewkowycz, Juan Maldacena, and S. Josephine Suh, Relative entropy equals bulk relative entropy, arXiv:1512.06431",
+        "aliases": [
+          "JLMS15"
+        ],
+        "role": "method",
+        "why_it_matters": "Connects boundary relative entropy to bulk relative entropy and underlies entanglement wedge reconstruction logic.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "use",
+          "cite"
+        ]
+      },
+      {
+        "id": "Ref-DHW16",
+        "kind": "paper",
+        "locator": "Xi Dong, Daniel Harlow, and Aron C. Wall, Reconstruction of Bulk Operators within the Entanglement Wedge in Gauge-Gravity Duality, arXiv:1601.05416",
+        "aliases": [
+          "DHW16",
+          "EW reconstruction"
+        ],
+        "role": "method",
+        "why_it_matters": "Sharpens the QI route from JLMS/QEC to entanglement wedge reconstruction.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "use",
+          "cite"
+        ]
+      },
+      {
+        "id": "Ref-HNQTWY16",
+        "kind": "paper",
+        "locator": "Patrick Hayden, Sepehr Nezami, Xiao-Liang Qi, Nathaniel Thomas, Michael Walter, and Zhao Yang, Holographic duality from random tensor networks, arXiv:1601.01694",
+        "aliases": [
+          "RTN16",
+          "random tensor networks"
+        ],
+        "role": "method",
+        "why_it_matters": "Provides the cleanest quantum-information toy model reproducing RT and its bulk-entropy correction structure.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "compare",
+          "cite"
+        ]
+      },
+      {
+        "id": "Ref-Gao24",
+        "kind": "paper",
+        "locator": "Ping Gao, Modular flow in JT gravity and entanglement wedge reconstruction, arXiv:2402.18655",
+        "aliases": [
+          "Gao24"
+        ],
+        "role": "must_consider",
+        "why_it_matters": "Recent modular-flow result relevant to the frontier of entanglement wedge reconstruction from an information-theoretic angle.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "compare",
+          "cite"
+        ]
+      }
+    ],
+    "forbidden_proxies": [
+      {
+        "id": "fp-1",
+        "subject": "claim-main",
+        "proxy": "Treating random tensor network minimal cuts as a derivation of the bulk area term without enumerating the geometric assumptions built into the network.",
+        "reason": "This would blur the difference between heuristic toy-model support and a true derivation."
+      },
+      {
+        "id": "fp-2",
+        "subject": "claim-main",
+        "proxy": "Equating entanglement wedge reconstruction with a derivation of the RT formula itself.",
+        "reason": "Reconstruction usually presupposes semiclassical ingredients that already know about RT or JLMS."
+      }
+    ],
+    "links": [
+      {
+        "id": "link-1",
+        "source": "claim-main",
+        "target": "deliv-synthesis",
+        "relation": "supports",
+        "verified_by": [
+          "test-anchor-map",
+          "test-gap-audit"
+        ]
+      },
+      {
+        "id": "link-2",
+        "source": "claim-main",
+        "target": "deliv-gap-map",
+        "relation": "supports",
+        "verified_by": [
+          "test-gap-audit",
+          "test-false-progress"
+        ]
+      },
+      {
+        "id": "link-3",
+        "source": "claim-main",
+        "target": "Ref-RT06",
+        "relation": "benchmarks",
+        "verified_by": [
+          "test-anchor-map"
+        ]
+      },
+      {
+        "id": "link-4",
+        "source": "claim-main",
+        "target": "Ref-Gao24",
+        "relation": "benchmarks",
+        "verified_by": [
+          "test-anchor-map",
+          "test-gap-audit"
+        ]
+      }
+    ],
+    "uncertainty_markers": {
+      "weakest_anchors": [
+        "Whether any existing quantum-information argument derives the leading area term without importing semiclassical geometry.",
+        "How much recent modular-flow work changes the derivation question rather than the post-RT reconstruction story."
+      ],
+      "unvalidated_assumptions": [
+        "Large-N semiclassical factorization is sufficient background for the entire argument chain.",
+        "Toy-model tensor networks preserve the same notion of geometric area as semiclassical gravity."
+      ],
+      "competing_explanations": [
+        "The RT formula may fundamentally require the gravitational replica trick, with quantum information providing only consistency checks and reconstruction structure.",
+        "The main quantum-information insight may be about subregion duality and corrections, not the origin of the leading area term."
+      ],
+      "disconfirming_observations": [
+        "Each proposed quantum-information derivation step can be shown to assume the area term or equivalent semiclassical input upstream.",
+        "Recent frontier papers improve modular reconstruction but leave the RT origin untouched."
+      ]
+    }
+  },
+  "position": {
+    "current_phase": "02",
+    "current_phase_name": "JLMS and operator algebra QEC backbone for entanglement wedge reconstruction",
+    "total_phases": 4,
+    "current_plan": null,
+    "total_plans_in_phase": null,
+    "status": "Ready to plan",
+    "last_activity": "2026-04-09",
+    "last_activity_desc": null,
+    "progress_percent": 100,
+    "paused_at": null
+  },
+  "active_calculations": [
+    "Dependency map: RT leading term versus JLMS, OAQEC, and entanglement wedge reconstruction",
+    "Heuristic gap audit: random tensor networks and modular-flow advances"
+  ],
+  "intermediate_results": [
+    {
+      "id": "R-01-01-8vira8e",
+      "equation": "S(A) = Area(gamma_A)/(4 G_N)",
+      "description": "Leading Ryu-Takayanagi formula for static semiclassical states",
+      "units": "dimensionless entropy",
+      "validity": "static semiclassical AdS/CFT",
+      "phase": "01",
+      "depends_on": [],
+      "verified": true,
+      "verification_records": [
+        {
+          "verified_at": "2026-04-09T11:29:56.311788+00:00",
+          "verifier": null,
+          "method": "manual",
+          "confidence": "medium",
+          "evidence_path": null,
+          "trace_id": null,
+          "commit_sha": null,
+          "notes": null,
+          "claim_id": null,
+          "deliverable_id": null,
+          "acceptance_test_id": null,
+          "reference_id": null,
+          "forbidden_proxy_id": null,
+          "proof_claim_id": null,
+          "covered_hypothesis_ids": [],
+          "missing_hypothesis_ids": [],
+          "covered_parameter_symbols": [],
+          "missing_parameter_symbols": [],
+          "uncovered_conclusion_clause_ids": [],
+          "quantifier_status": null,
+          "counterexample_status": null,
+          "proof_artifact_path": null,
+          "proof_artifact_sha256": null,
+          "claim_statement_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "R-02-01-93spcbe",
+      "equation": "S_rel^CFT(A) = S_rel^bulk(a)",
+      "description": "JLMS relative entropy equality in the semiclassical code-subspace regime",
+      "units": "dimensionless relative entropy",
+      "validity": "semiclassical code subspace",
+      "phase": "02",
+      "depends_on": [
+        "R-01-01-8vira8e"
+      ],
+      "verified": false,
+      "verification_records": []
+    },
+    {
+      "id": "R-02-02-9boq83b",
+      "equation": "O_a reconstructed from A",
+      "description": "Entanglement wedge reconstruction follows from JLMS plus operator-algebra QEC in the code subspace",
+      "units": "conceptual statement",
+      "validity": "semiclassical code subspace with subregion duality",
+      "phase": "02",
+      "depends_on": [
+        "R-02-01-93spcbe"
+      ],
+      "verified": false,
+      "verification_records": []
+    },
+    {
+      "id": "R-03-01-9lv6dcc",
+      "equation": "S(A) = mincut(A) + S_bulk",
+      "description": "Random tensor networks reproduce RT-like minimal-cut structure with a bulk entropy correction",
+      "units": "dimensionless entropy",
+      "validity": "toy-model tensor-network regime",
+      "phase": "03",
+      "depends_on": [
+        "R-01-01-8vira8e"
+      ],
+      "verified": false,
+      "verification_records": []
+    },
+    {
+      "id": "R-04-01-9qs2c18",
+      "equation": "QI arguments explain reconstruction and corrections better than the origin of the leading area term",
+      "description": "Current frontier assessment: the main gap remains the derivation of the leading geometric area contribution",
+      "units": "conceptual statement",
+      "validity": "based on the current anchor set through Gao24",
+      "phase": "04",
+      "depends_on": [
+        "R-02-02-9boq83b",
+        "R-03-01-9lv6dcc"
+      ],
+      "verified": false,
+      "verification_records": []
+    }
+  ],
+  "open_questions": [
+    "Can the leading area term be derived from quantum-information structure alone without importing semiclassical geometric input?",
+    "Which recent modular-flow or entropy-inequality results materially tighten the RT-from-QI story rather than merely repackage known structure?",
+    "Can any known quantum-information argument derive the leading RT area term without importing semiclassical geometry?",
+    "How much of the JLMS plus operator-algebra QEC chain is logically independent of the RT formula itself?",
+    "Which post-2024 modular-flow or entropy-inequality papers materially change the RT derivation question rather than only the reconstruction story?"
+  ],
+  "performance_metrics": {
+    "rows": []
+  },
+  "decisions": [
+    {
+      "phase": "01",
+      "summary": "Anchor the project on explicit arXiv references from RT06 through Gao24",
+      "rationale": "Keeps the RT-from-QI story tied to auditable literature rather than analogy-driven summaries"
+    },
+    {
+      "phase": "03",
+      "summary": "Treat random tensor networks as heuristic support rather than a derivation of the area term",
+      "rationale": "The toy model reproduces RT-like structure, but the geometric input is not eliminated and must stay visible as an imported assumption"
+    },
+    {
+      "phase": "04",
+      "summary": "Working hypothesis: current QI results explain reconstruction and corrections better than the origin of the leading area term",
+      "rationale": "The present anchor set supports a frontier gap analysis more strongly than a clean QI-only derivation claim"
+    },
+    {
+      "phase": "01",
+      "summary": "Keep RT06 as benchmark input and do not collapse downstream reconstruction results into an origin derivation.",
+      "rationale": "The current anchor chain still needs the leading semiclassical formula as a target rather than a consequence."
+    },
+    {
+      "phase": "01",
+      "summary": "Carry tensor-network and modular-flow anchors forward as heuristic support and frontier constraints, not as closing proofs.",
+      "rationale": "The present evidence base still supports the gap analysis more strongly than a QI-only derivation claim."
+    },
+    {
+      "phase": "01",
+      "summary": "Keep RT06 as benchmark input and do not collapse downstream reconstruction results into an origin derivation.",
+      "rationale": "The current anchor chain still needs the leading semiclassical formula as a target rather than a consequence."
+    },
+    {
+      "phase": "01",
+      "summary": "Carry tensor-network and modular-flow anchors forward as heuristic support and frontier constraints, not as closing proofs.",
+      "rationale": "The present evidence base still supports the gap analysis more strongly than a QI-only derivation claim."
+    }
+  ],
+  "approximations": [
+    {
+      "name": "Semiclassical large-N bulk limit",
+      "validity_range": "large N, small G_N, code-subspace regime",
+      "controlling_param": "1/N and G_N",
+      "current_value": "assumed baseline",
+      "status": "Valid"
+    },
+    {
+      "name": "Random tensor networks as heuristic stand-ins for geometry",
+      "validity_range": "structural intuition, not full derivation",
+      "controlling_param": "fidelity of network-to-geometry mapping",
+      "current_value": "heuristic only",
+      "status": "Marginal"
+    }
+  ],
+  "convention_lock": {
+    "metric_signature": "mostly-plus (-,+,+,+) for Lorentzian bulk conventions",
+    "fourier_convention": null,
+    "natural_units": "hbar = c = k_B = 1",
+    "gauge_choice": null,
+    "regularization_scheme": null,
+    "renormalization_scheme": null,
+    "coordinate_system": "boundary time t with spatial region A; bulk AdS uses Poincare coordinates (z,t,vec{x}) unless a cited anchor specifies otherwise",
+    "spin_basis": null,
+    "state_normalization": null,
+    "coupling_convention": null,
+    "index_positioning": null,
+    "time_ordering": null,
+    "commutation_convention": null,
+    "levi_civita_sign": null,
+    "generator_normalization": null,
+    "covariant_derivative_sign": null,
+    "gamma_matrix_convention": null,
+    "creation_annihilation_order": null,
+    "custom_conventions": {}
+  },
+  "propagated_uncertainties": [
+    {
+      "quantity": "QI-only derivation status of the RT area term",
+      "value": "unresolved",
+      "uncertainty": "high conceptual uncertainty",
+      "phase": "01",
+      "method": "anchor-paper audit"
+    },
+    {
+      "quantity": "Frontier literature coverage beyond 2024",
+      "value": "one confirmed recent anchor",
+      "uncertainty": "incomplete search coverage",
+      "phase": "01",
+      "method": "initial arXiv scan"
+    }
+  ],
+  "pending_todos": [],
+  "blockers": [],
+  "session": {
+    "last_date": "2026-04-09T12:24:31.346840+00:00",
+    "hostname": "Sergios-MacBook-Pro",
+    "platform": "Darwin 25.3.0 arm64",
+    "stopped_at": "Session 5 probed repair paths, reran validators, audited dependency/state surfaces, and updated journal.md, report.md, and HANDOFF.md",
+    "resume_file": "HANDOFF.md",
+    "last_result_id": "R-04-01-9qs2c18"
+  },
+  "continuation": {
+    "schema_version": 1,
+    "handoff": {
+      "resume_file": "HANDOFF.md",
+      "stopped_at": "Session 5 probed repair paths, reran validators, audited dependency/state surfaces, and updated journal.md, report.md, and HANDOFF.md",
+      "last_result_id": "R-04-01-9qs2c18",
+      "recorded_at": "2026-04-09T12:24:31.346840+00:00",
+      "recorded_by": "state_record_session"
+    },
+    "bounded_segment": null,
+    "machine": {
+      "recorded_at": "2026-04-09T12:24:31.346840+00:00",
+      "hostname": "Sergios-MacBook-Pro",
+      "platform": "Darwin 25.3.0 arm64"
+    }
+  },
+  "_version": 1,
+  "_synced_at": "2026-04-09T12:17:57.603304+00:00"
+}

@@ -58,6 +58,58 @@ def _write_state(tmp_path: Path, content: str) -> Path:
     return p
 
 
+def test_roadmap_analyze_does_not_duplicate_current_phase_in_next_phase(tmp_path: Path) -> None:
+    _setup_project(tmp_path)
+    _write_roadmap(
+        tmp_path,
+        """\
+        ## Milestone v1.0: Initial Setup
+
+        ### Phase 1: Setup
+        **Goal:** Get started
+        **Plans:** 1 plans
+
+        ### Phase 2: Research
+        **Goal:** Investigate the next step
+        **Plans:** 0 plans
+
+        ### Phase 3: Validation
+        **Goal:** Validate the result
+        **Plans:** 0 plans
+        """,
+    )
+    _write_state(
+        tmp_path,
+        """\
+        # Research State
+
+        ## Current Position
+
+        **Current Phase:** 2
+        **Current Phase Name:** Research
+        **Total Phases:** 3
+        **Current Plan:** 1
+        **Total Plans in Phase:** 1
+        **Status:** in_progress
+        **Last Activity:** 2026-02-23
+        **Last Activity Description:** Started
+        """,
+    )
+
+    phase1 = _create_phase(tmp_path, "01-setup")
+    (phase1 / "01-01-PLAN.md").write_text("plan", encoding="utf-8")
+    (phase1 / "01-01-SUMMARY.md").write_text("summary", encoding="utf-8")
+
+    phase2 = _create_phase(tmp_path, "02-research")
+    (phase2 / "02-01-RESEARCH.md").write_text("notes", encoding="utf-8")
+
+    result = roadmap_analyze(tmp_path)
+
+    assert result.current_phase == "2"
+    assert result.next_phase == "3"
+    assert result.current_phase != result.next_phase
+
+
 # ─── Phase Create → List → Complete Lifecycle ────────────────────────────────
 
 
@@ -664,3 +716,43 @@ class TestCrossModuleConsistency:
         assert progress.total_summaries == analysis.total_summaries
         assert progress.total_plans == analysis.total_plans
         assert analysis.completed_phases == 1
+
+    def test_roadmap_analyze_falls_back_to_state_current_phase(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        _write_roadmap(
+            tmp_path,
+            """\
+            ## Milestone v1.0: Test
+
+            ### Phase 1: Ready
+
+            **Goal:** Finish the first phase
+
+            ### Phase 2: Planning
+
+            **Goal:** Prepare the next phase
+            """,
+        )
+        _write_state(
+            tmp_path,
+            """\
+            # Research State
+
+            ## Current Position
+
+            **Current Phase:** 2
+            **Current Phase Name:** Planning
+            **Status:** in_progress
+            **Last Activity:** 2026-02-23
+            **Last Activity Description:** Waiting on plan artifacts
+            """,
+        )
+
+        ready = _create_phase(tmp_path, "01-ready")
+        (ready / "01-01-PLAN.md").write_text("plan", encoding="utf-8")
+        (ready / "01-01-SUMMARY.md").write_text("done", encoding="utf-8")
+        _create_phase(tmp_path, "02-planning")
+
+        analysis = roadmap_analyze(tmp_path)
+        assert analysis.current_phase == "2"
+        assert analysis.next_phase is None

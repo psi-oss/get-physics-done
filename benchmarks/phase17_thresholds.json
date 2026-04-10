@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "default_mode": "pilot",
+  "registry": {
+    "pilot": [
+      "completed-phase/positive",
+      "empty-phase/mutation",
+      "query-registry-drift/positive",
+      "summary-missing-return/mutation",
+      "resume-recent-noise/mutation",
+      "placeholder-conventions/mutation",
+      "bridge-vs-cli/mutation"
+    ],
+    "full": [
+      "completed-phase/positive",
+      "plan-only/positive",
+      "plan-only/mutation",
+      "empty-phase/positive",
+      "empty-phase/mutation",
+      "query-registry-drift/positive",
+      "context-indexing/positive",
+      "bridge-vs-cli/positive",
+      "bridge-vs-cli/mutation",
+      "summary-missing-return/positive",
+      "summary-missing-return/mutation",
+      "mutation-ordering/positive",
+      "mutation-ordering/mutation",
+      "resume-handoff/positive",
+      "resume-handoff/mutation",
+      "resume-recent-noise/positive",
+      "resume-recent-noise/mutation",
+      "config-readback/positive",
+      "placeholder-conventions/positive",
+      "placeholder-conventions/mutation"
+    ],
+    "checkpoint": [
+      "completed-phase/positive",
+      "plan-only/positive",
+      "plan-only/mutation",
+      "empty-phase/positive",
+      "empty-phase/mutation",
+      "query-registry-drift/positive",
+      "context-indexing/positive",
+      "bridge-vs-cli/positive",
+      "bridge-vs-cli/mutation",
+      "summary-missing-return/positive",
+      "summary-missing-return/mutation",
+      "mutation-ordering/positive",
+      "mutation-ordering/mutation",
+      "resume-handoff/positive",
+      "resume-handoff/mutation",
+      "resume-recent-noise/positive",
+      "resume-recent-noise/mutation",
+      "config-readback/positive",
+      "placeholder-conventions/positive",
+      "placeholder-conventions/mutation"
+    ]
+  },
+  "thresholds": {
+    "p95_latency_ms": 500,
+    "index_freshness_stale_reads": 0,
+    "resume_recent_noise_count": 3,
+    "repair_round_count": 4
+  },
+  "metric_sources": {
+    "p95_latency_ms": "Raw sample durations from time.perf_counter_ns() around the hot path.",
+    "index_freshness_stale_reads": "Mutation-then-read freshness checks in the query/index benchmark path.",
+    "resume_recent_noise_count": "The bounded machine-local recent-project rows injected by the resume-recent-noise fixture.",
+    "repair_round_count": "The watchdog summary and checkpoint batch payloads expose repair_rounds, attempt_count, and attempt_results."
+  },
+  "timing": {
+    "clock": "time.perf_counter_ns",
+    "warmup_runs": 1,
+    "sample_runs": 7
+  },
+  "notes": [
+    "The pilot registry is intentionally small and explicit.",
+    "The full and checkpoint registries mirror the 20 live Phase 16 cases.",
+    "Benchmark timing excludes fixture copying and CLI bootstrap work."
+  ]
+}

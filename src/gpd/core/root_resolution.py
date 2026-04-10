@@ -16,7 +16,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from gpd.core.constants import ProjectLayout
+from gpd.core.constants import (
+    REQUIRED_PLANNING_DIRS,
+    REQUIRED_PLANNING_FILES,
+    STATE_JSON_BACKUP_FILENAME,
+    ProjectLayout,
+)
 
 __all__ = [
     "ProjectRootResolution",
@@ -84,14 +89,40 @@ def normalize_workspace_hint(value: Path | str | None) -> Path | None:
 
 
 def _walk_project_root(candidate: Path | None) -> tuple[Path | None, int]:
-    """Walk *candidate* and its ancestors until a ``GPD/`` layout is found."""
+    """Walk *candidate* and its ancestors until the best ``GPD/`` layout is found."""
 
     if candidate is None:
         return None, 0
 
+    best_verified: tuple[int, int, Path] | None = None
+    best_bare: tuple[int, Path] | None = None
+
     for steps, path in enumerate((candidate, *candidate.parents)):
-        if ProjectLayout(path).gpd.is_dir():
-            return path, steps
+        layout = ProjectLayout(path)
+        if not layout.gpd.is_dir():
+            continue
+
+        marker_count = sum(
+            1
+            for name in REQUIRED_PLANNING_FILES
+            if (layout.gpd / name).exists()
+        )
+        marker_count += sum(1 for name in REQUIRED_PLANNING_DIRS if (layout.gpd / name).is_dir())
+        if (layout.gpd / STATE_JSON_BACKUP_FILENAME).exists():
+            marker_count += 1
+
+        if marker_count > 0:
+            if best_verified is None or (marker_count, -steps) > (best_verified[0], -best_verified[1]):
+                best_verified = (marker_count, steps, path)
+            continue
+
+        if best_bare is None or steps < best_bare[0]:
+            best_bare = (steps, path)
+
+    if best_verified is not None:
+        return best_verified[2], best_verified[1]
+    if best_bare is not None:
+        return best_bare[1], best_bare[0]
     return None, 0
 
 

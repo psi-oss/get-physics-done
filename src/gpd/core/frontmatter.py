@@ -51,6 +51,7 @@ from gpd.core.root_resolution import resolve_project_root
 from gpd.core.strict_yaml import load_strict_yaml
 from gpd.core.tool_preflight import PlanToolPreflightError, parse_plan_tool_requirements
 from gpd.core.utils import (
+    is_phase_complete,
     matching_phase_artifact_count,
     normalize_ascii_slug,
     phase_artifact_display_name,
@@ -2563,11 +2564,12 @@ def verify_phase_completeness(cwd: Path, phase: str) -> PhaseCompleteness:
     if orphans:
         warnings.append(f"Summaries without plans: {', '.join(orphans)}")
 
+    summary_count = matching_phase_artifact_count(plans, summaries)
     return PhaseCompleteness(
-        complete=len(errors) == 0,
+        complete=is_phase_complete(len(plans), summary_count),
         phase_number=phase_info.phase_number,
         plan_count=len(plans),
-        summary_count=matching_phase_artifact_count(plans, summaries),
+        summary_count=summary_count,
         incomplete_plans=incomplete,
         orphan_summaries=orphans,
         errors=errors,

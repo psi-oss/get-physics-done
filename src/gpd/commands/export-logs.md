@@ -1,7 +1,7 @@
 ---
 name: gpd:export-logs
 description: Export session logs and traces to files for external review or archival
-argument-hint: "[--format jsonl|json|markdown] [--session <id>] [--last N] [--no-traces] [--output-dir <path>]"
+argument-hint: "[--format jsonl|json|markdown] [--session <id>] [--last N] [--command <label>] [--phase <phase>] [--category <name>] [--no-traces] [--output-dir <path>]"
 context_mode: project-required
 allowed-tools:
   - file_read
@@ -16,6 +16,8 @@ Export GPD observability session logs and execution traces to files for external
 
 Reads session event streams from `GPD/observability/sessions/` and trace logs from `GPD/traces/`, applies optional filters, and writes the results to `GPD/exports/logs/` (or a custom directory).
 
+The local-only CLI passthrough filters `--command`, `--phase`, and `--category` are forwarded to the underlying export command; they only narrow what gets exported.
+
 **Formats:**
 
 - `jsonl` (default): Raw JSONL — one JSON object per line, suitable for machine consumption or log-processing pipelines
@@ -27,6 +29,8 @@ Reads session event streams from `GPD/observability/sessions/` and trace logs fr
 - `--session <id>`: Export only a specific session
 - `--last N`: Export only the N most recent sessions
 - `--command <label>`: Export only sessions for a given command
+- `--phase <phase>`: Export only events from the matching phase
+- `--category <name>`: Export only events from the matching category
 - `--no-traces`: Exclude execution traces (only export observability events)
 - `--output-dir <path>`: Write files to a custom directory instead of `GPD/exports/logs/`
 </objective>
@@ -37,6 +41,7 @@ Reads session event streams from `GPD/observability/sessions/` and trace logs fr
 
 <context>
 Format and filters: $ARGUMENTS (all optional)
+Local-only CLI passthrough filters: `--command`, `--phase`, and `--category`
 
 @GPD/STATE.md
 </context>

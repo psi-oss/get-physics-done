@@ -776,7 +776,7 @@ def _cli_epilog() -> str:
 
 app = _GPDTyper(
     name="gpd",
-    help="GPD — Get Physics Done: local install, readiness, validation, permissions, observability, and diagnostics CLI",
+    help="GPD local bridge: local install, readiness, validation, permissions, observability, recovery, cost, presets, diagnostics, and shared Wolfram integration CLI",
     no_args_is_help=True,
     add_completion=True,
     epilog=_cli_epilog(),
@@ -1199,7 +1199,7 @@ def roadmap_get_phase(
     """Get detailed roadmap entry for a phase."""
     from gpd.core.phases import roadmap_get_phase
 
-    _output(roadmap_get_phase(_get_cwd(), phase_num))
+    _output(roadmap_get_phase(_project_scoped_cwd(), phase_num))
 
 
 @roadmap_app.command("analyze")
@@ -1207,7 +1207,7 @@ def roadmap_analyze() -> None:
     """Analyze roadmap structure, dependencies, and coverage."""
     from gpd.core.phases import roadmap_analyze
 
-    _output(roadmap_analyze(_get_cwd()))
+    _output(roadmap_analyze(_project_scoped_cwd()))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1972,12 +1972,12 @@ def _recent_project_sort_key(row: dict[str, object]) -> tuple[int, int, int, int
     return _candidate_sort_key(candidate)
 
 
-def _load_recent_projects_rows() -> list[dict[str, object]]:
+def _load_recent_projects_rows(*, last: int | None = None) -> list[dict[str, object]]:
     """Load the recent-project index, preferring the shared helper module when present."""
     from gpd.core.recent_projects import RecentProjectsError, list_recent_projects
 
     try:
-        raw_rows = list_recent_projects(_recent_projects_data_root())
+        raw_rows = list_recent_projects(_recent_projects_data_root(), last=last)
     except RecentProjectsError as exc:
         raise GPDError(str(exc)) from exc
 
@@ -2379,7 +2379,7 @@ def resume(
     """Summarize local recovery state or list machine-local recent projects."""
     if recent:
         try:
-            rows = _annotate_recent_project_rows(_load_recent_projects_rows())
+            rows = _annotate_recent_project_rows(_load_recent_projects_rows(last=20))
         except GPDError as exc:
             _error(str(exc))
         recovery_advice = _resume_recovery_advice(recent_rows=rows, force_recent=True)
@@ -2747,11 +2747,23 @@ def result_persist_derived(
     )
 
 
-def _load_state_dict() -> dict:
-    """Load recoverable project state as a plain dictionary for read-only commands."""
-    from gpd.core.state import load_state_json
+def _load_state_dict(cwd: Path | None = None) -> dict:
+    """Load project state as a plain dictionary for read-only commands.
 
-    data = load_state_json(_get_cwd())
+    This path is intentionally non-mutating so read-only surfaces do not create
+    lockfiles, recovery writes, or nested stub directories when probing nested
+    workspaces.
+    """
+
+    from gpd.core.state import peek_state_json
+
+    project_cwd = _project_scoped_cwd(cwd)
+    data, _issues, _state_source = peek_state_json(
+        project_cwd,
+        recover_intent=False,
+        surface_blocked_project_contract=True,
+        acquire_lock=False,
+    )
     if data is None:
         return {}
     if not isinstance(data, dict):
@@ -3272,7 +3284,7 @@ def health(
     """Run the project health diagnostic."""
     from gpd.core.health import run_health
 
-    report = run_health(_get_cwd(), fix=fix)
+    report = run_health(_project_scoped_cwd(), fix=fix)
     _output(report)
     if report.overall == "fail":
         raise typer.Exit(code=1)
@@ -3324,10 +3336,7 @@ def doctor(
         else "local"
     )
     if target_dir is None and not global_install and not local_install:
-        detected_target, detected_scope = _resolve_detected_runtime_target(normalized_runtime)
-        if detected_target is not None and detected_scope is not None:
-            resolved_target = detected_target
-            install_scope = detected_scope
+        resolved_target = _get_adapter_or_error(normalized_runtime, action="doctor").resolve_target_dir(False, _get_cwd())
     _output(
         run_doctor(
             specs_dir=SPECS_DIR,
@@ -3362,7 +3371,7 @@ def query_search(
 
     _output(
         query_search(
-            _get_cwd(),
+            _project_scoped_cwd(),
             provides=provides,
             requires=requires,
             affects=affects,
@@ -3380,7 +3389,7 @@ def query_deps(
     """Show what provides and requires a given result identifier."""
     from gpd.core.query import query_deps
 
-    _output(query_deps(_get_cwd(), identifier))
+    _output(query_deps(_project_scoped_cwd(), identifier))
 
 
 @query_app.command("assumptions")
@@ -3393,7 +3402,7 @@ def query_assumptions(
     text = " ".join(assumption) if assumption else ""
     if not text.strip():
         _error("Usage: gpd query assumptions <search-term>")
-    _output(query_assumptions(_get_cwd(), text))
+    _output(query_assumptions(_project_scoped_cwd(), text))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -7617,7 +7626,7 @@ def validate_consistency() -> None:
     """Validate cross-phase consistency."""
     from gpd.core.health import run_health
 
-    report = run_health(_get_cwd())
+    report = run_health(_project_scoped_cwd())
     _output(report)
     if report.overall == "fail":
         raise typer.Exit(code=1)
@@ -8083,7 +8092,7 @@ def history_digest() -> None:
     """Build a digest of project history from phase SUMMARY files."""
     from gpd.core.commands import cmd_history_digest
 
-    _output(cmd_history_digest(_get_cwd()))
+    _output(cmd_history_digest(_project_scoped_cwd()))
 
 
 @app.command("sync-phase-checkpoints")
@@ -8123,7 +8132,7 @@ def regression_check(
     """Check for regressions across completed phases, optionally limited to one phase."""
     from gpd.core.commands import cmd_regression_check
 
-    result = cmd_regression_check(_get_cwd(), phase=phase, quick=quick)
+    result = cmd_regression_check(_project_scoped_cwd(), phase=phase, quick=quick)
     _output(result)
     if not result.passed:
         raise typer.Exit(code=1)

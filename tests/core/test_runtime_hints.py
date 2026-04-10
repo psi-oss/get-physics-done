@@ -1784,6 +1784,75 @@ def test_build_runtime_hint_payload_rediscovery_branch_handles_non_resumable_cur
     assert any("suggest-next" in action for action in payload.next_actions)
 
 
+def test_build_runtime_hint_payload_surfaces_recent_project_missing_handoff_provenance(
+    tmp_path: Path, monkeypatch
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    data_root = tmp_path / "data"
+    recent_project_root = tmp_path / "recent-project"
+    recent_project_root.mkdir()
+    missing_resume_file = "GPD/phases/04/.continue-here.md"
+    current_project = {
+        "source": "recent_project",
+        "project_root": recent_project_root.resolve(strict=False).as_posix(),
+        "resume_file": missing_resume_file,
+        "resume_file_available": False,
+        "resume_file_reason": "resume file missing",
+        "resumable": False,
+        "recoverable": False,
+        "last_session_at": "2026-03-27T12:05:00+00:00",
+        "stopped_at": "Phase 04",
+        "hostname": "builder-04",
+        "platform": "Linux 6.1 x86_64",
+        "resume_target_kind": "handoff",
+        "source_kind": "continuation.handoff",
+    }
+    fake_reentry = SimpleNamespace(
+        resolved_project_root=recent_project_root.resolve(strict=False),
+        auto_selected=True,
+        mode="recent-projects",
+        selected_candidate=current_project,
+        candidates=[current_project],
+    )
+
+    monkeypatch.setattr(
+        "gpd.core.runtime_hints._resume_context",
+        lambda _cwd, data_root=None: {
+            "planning_exists": True,
+            "state_exists": True,
+            "roadmap_exists": True,
+            "project_exists": True,
+            "resume_candidates": [],
+            "has_live_execution": False,
+        },
+    )
+    monkeypatch.setattr("gpd.core.runtime_hints.resolve_project_reentry", lambda *args, **kwargs: fake_reentry)
+    monkeypatch.setattr(
+        "gpd.core.runtime_hints._selected_reentry_candidate",
+        lambda *args, **kwargs: current_project,
+    )
+
+    payload = build_runtime_hint_payload(
+        workspace,
+        data_root=data_root,
+        include_cost=False,
+        include_workflow_presets=False,
+    )
+
+    assert payload.recovery["current_project"] is not None
+    assert payload.recovery["current_project"]["session_hostname"] == "builder-04"
+    assert payload.recovery["current_project"]["session_platform"] == "Linux 6.1 x86_64"
+    assert payload.recovery["current_project"]["session_last_date"] == "2026-03-27T12:05:00+00:00"
+    assert payload.recovery["current_project"]["session_stopped_at"] == "Phase 04"
+    assert payload.orientation["session_hostname"] == "builder-04"
+    assert payload.orientation["session_platform"] == "Linux 6.1 x86_64"
+    assert payload.orientation["session_last_date"] == "2026-03-27T12:05:00+00:00"
+    assert payload.orientation["session_stopped_at"] == "Phase 04"
+    assert payload.orientation["recorded_continuity_handoff_file"] == missing_resume_file
+    assert payload.orientation["missing_continuity_handoff_file"] == missing_resume_file
+
+
 def test_build_runtime_hint_payload_formats_generic_runtime_follow_up_when_runtime_detection_fails(
     tmp_path: Path, monkeypatch
 ) -> None:

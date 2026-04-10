@@ -1,0 +1,4 @@
+{
+  "mutation_axis": "phase_inventory_pruned",
+  "note": "Removes phase artifact content to force an explicitly empty-phase inventory while preserving the same anchor workspace."
+}

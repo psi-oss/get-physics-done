@@ -1,0 +1,134 @@
+{
+  "actual_assertions": [
+    "`gpd convention list` and `gpd convention check` still show only 3/18 canonical conventions set.",
+    "Another small GPD quirk: after `STATE.md` synchronized the unset convention slots as the literal string `not set`, `gpd convention set` treated them as already populated unless `--force` was used.",
+    "`gpd convention set` and `gpd convention list` worked as advertised.",
+    "`gpd convention list`, `gpd convention check`, and `gpd health` still count literal `not set` placeholders as fully populated conventions."
+  ],
+  "anchor_candidate_ids": [
+    "VF-01-almheiri-r01-008",
+    "VF-09-deboer-r03-005",
+    "VF-15-rath-r01-007",
+    "VF-18-he-r01-007"
+  ],
+  "bug_type_ids": [
+    "BT-098",
+    "BT-097",
+    "BT-099",
+    "BT-100"
+  ],
+  "command_recipes": [
+    [
+      "gpd convention list",
+      "gpd convention check"
+    ],
+    [
+      "gpd convention set"
+    ],
+    [
+      "gpd convention set",
+      "gpd convention list"
+    ],
+    [
+      "gpd convention list",
+      "gpd convention check",
+      "gpd health"
+    ]
+  ],
+  "evidence_links": [
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/10-sorce-r01-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/15-rath-r01-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/15-rath-r02-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/18-he-r01-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01/HANDOFF.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01/results/01-almheiri-r01-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/06-chen-r01/HANDOFF.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/06-chen-r01/results/06-chen-r01-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/09-deboer-r03",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/09-deboer-r03/HANDOFF.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/09-deboer-r03/REPORT.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/10-sorce-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/10-sorce-r01/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/12-rangamani-r03/REPORT.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/12-rangamani-r03/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/15-rath-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/15-rath-r01/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/15-rath-r02/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/17-antonini-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/17-antonini-r01/REPORT.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/17-antonini-r01/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/18-he-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/18-he-r01/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/19-hartman-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/19-hartman-r01/REPORT.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/19-hartman-r01/journal.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/20-hubeny-r02/journal.md",
+    "phase-06/seed-CS-0001",
+    "phase-06/seed-CS-0002",
+    "phase-06/seed-CS-0003",
+    "phase-06/seed-CS-0004",
+    "phase-06/seed-CS-0007",
+    "phase-06/seed-CS-0008",
+    "phase-06/seed-CS-0009",
+    "phase-06/seed-CS-0014",
+    "phase-06/seed-CS-0015",
+    "phase-06/seed-CS-0016",
+    "phase-06/seed-CS-0533"
+  ],
+  "expected_assertions": [
+    "`convention_set` should satisfy the `placeholder_semantics` contract against `material_convention_values`.",
+    "`convention_check` should satisfy the `placeholder_semantics` contract against `material_convention_values`.",
+    "`convention_set` should satisfy the `placeholder_semantics` contract against `material_convention_values`.",
+    "`convention_list` should satisfy the `placeholder_semantics` contract against `material_convention_values`."
+  ],
+  "fixture_id": "FX-placeholder-conventions-mutation",
+  "fixture_kind": "mutation",
+  "fixture_path": "tests/fixtures/handoff-bundle/placeholder-conventions/mutation",
+  "fixture_role": "contrast",
+  "fixture_root": "tests/fixtures/handoff-bundle/placeholder-conventions/mutation",
+  "fixture_slug": "placeholder-conventions",
+  "interface_classes": [
+    "cli"
+  ],
+  "mutation_axis": "placeholder_values_injected",
+  "order": 10,
+  "packet_ids": [
+    "PK-BT-098-01",
+    "PK-BT-097-01",
+    "PK-BT-099-01",
+    "PK-BT-100-01"
+  ],
+  "paired_fixture_id": "FX-placeholder-conventions-positive",
+  "positive_only_justification": "",
+  "primary_interface_class": "cli",
+  "priority_band": [
+    "critical",
+    "high"
+  ],
+  "priority_score": 1079,
+  "source_reports": [
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/15-rath-r01-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/18-he-r01-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01/results/01-almheiri-r01-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/09-deboer-r03/REPORT.md"
+  ],
+  "source_workspaces": [
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/01-almheiri-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/09-deboer-r03",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/15-rath-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/18-he-r01"
+  ],
+  "starting_snapshot_hashes": [
+    "564b01649b581b9edcf5cf5af1bf97ea2db7e4486b96cacea3743af4e877803b",
+    "5b465abc46d358db17ae21850af054e3253275188420a9a6e6df562c271b2b3a",
+    "97e069e8af7ff72228f3acc1db1bd5e8be7f4ea2adc36771e2e012cbf2c5c4a6",
+    "99bd471e061f545a2de86f153fa9723570f11941f8cb94e1193a5a47e5f66149"
+  ],
+  "status": "live",
+  "workspace_byte_count": 165641,
+  "workspace_file_count": 17,
+  "workspace_path": "tests/fixtures/handoff-bundle/placeholder-conventions/mutation/workspace",
+  "workspace_sha256": "f760368b98306a2291a2e7e56f6591d1cab952811b308bd5a87bf68eb77aed30"
+}

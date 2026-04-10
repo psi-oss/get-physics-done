@@ -308,6 +308,22 @@ def _recent_project_resume_family(
     return None, None
 
 
+def _recent_project_provenance_fields(current_project: dict[str, object]) -> dict[str, object]:
+    """Return session/provenance fields derived from one recent-project row."""
+
+    provenance: dict[str, object] = {}
+    for target_field, source_field in (
+        ("session_hostname", "hostname"),
+        ("session_platform", "platform"),
+        ("session_last_date", "last_session_at"),
+        ("session_stopped_at", "stopped_at"),
+    ):
+        value = _normalized_row_text(current_project, source_field)
+        if value is not None:
+            provenance[target_field] = value
+    return provenance
+
+
 def _resume_context_has_local_target(payload: dict[str, object]) -> bool:
     """Return whether one resume payload already exposes a local recovery target."""
     return resume_payload_has_local_recovery_target(payload)
@@ -355,8 +371,14 @@ def _hydrate_resume_context_from_recent_project(
         if not str(hydrated.get("recorded_continuity_handoff_file") or "").strip():
             hydrated["recorded_continuity_handoff_file"] = resume_file
     elif hydration_kind == RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF and not resume_file_available:
+        if not str(hydrated.get("recorded_continuity_handoff_file") or "").strip():
+            hydrated["recorded_continuity_handoff_file"] = resume_file
         if not str(hydrated.get("missing_continuity_handoff_file") or "").strip():
             hydrated["missing_continuity_handoff_file"] = resume_file
+
+    for field_name, field_value in _recent_project_provenance_fields(current_project).items():
+        if not str(hydrated.get(field_name) or "").strip():
+            hydrated[field_name] = field_value
 
     resume_candidates = hydrated.get("resume_candidates")
     candidate = build_resume_candidate(
@@ -565,7 +587,11 @@ def build_runtime_hint_payload(
     recovery = (
         {
             "current_project": (
-                {**current_project, "summary": _selected_project_summary(reentry, current_project)}
+                {
+                    **current_project,
+                    **_recent_project_provenance_fields(current_project),
+                    "summary": _selected_project_summary(reentry, current_project),
+                }
                 if current_project is not None and reentry is not None
                 else None
             ),
@@ -588,6 +614,8 @@ def build_runtime_hint_payload(
         orientation["project_root_source"] = _suggestion_text(reentry, "source")
         orientation["project_root_auto_selected"] = _strict_bool_value(getattr(reentry, "auto_selected", None)) is True
         orientation["project_reentry_mode"] = _suggestion_text(reentry, "mode")
+        if current_project is not None:
+            orientation.update(_recent_project_provenance_fields(current_project))
     surface_session_id = _current_session_id_for_surface(project_root)
 
     normalized_latex_capability = _normalize_latex_capability(latex_capability)

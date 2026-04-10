@@ -16,6 +16,7 @@ from pathlib import Path
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.command_labels import canonical_command_label
+from gpd.contracts import ConventionLock
 from gpd.core.constants import (
     LITERATURE_DIR_NAME,
     PHASES_DIR_NAME,
@@ -560,6 +561,35 @@ def _conventions_are_ready(cwd: Path) -> bool:
     return all(convention_lock.get(key) and not is_bogus_value(convention_lock.get(key)) for key in CORE_CONVENTIONS)
 
 
+def _missing_conventions_from_state(state: dict[str, object]) -> tuple[str, ...]:
+    """Return canonical missing convention keys from a loaded state payload."""
+    convention_lock = state.get("convention_lock")
+    if not isinstance(convention_lock, dict):
+        return ()
+
+    try:
+        lock = ConventionLock.model_validate(convention_lock)
+    except PydanticValidationError:
+        return ()
+
+    from gpd.core.conventions import convention_check
+
+    return tuple(entry.key for entry in convention_check(lock).missing)
+
+
+def _format_missing_conventions_reason(missing: tuple[str, ...]) -> str:
+    """Format a readable missing-convention recommendation without truncating the count."""
+    from gpd.core.conventions import CONVENTION_LABELS
+
+    labels = [CONVENTION_LABELS.get(key, key.replace("_", " ").title()) for key in missing]
+    preview_count = min(4, len(labels))
+    preview = ", ".join(labels[:preview_count])
+    if len(labels) > preview_count:
+        preview += f", and {len(labels) - preview_count} more"
+    plural = "field" if len(labels) == 1 else "fields"
+    return f"{len(labels)} convention {plural} missing: {preview} — define before calculations"
+
+
 def _publication_submission_is_strictly_ready(cwd: Path, manuscript_entrypoint: Path | None) -> bool:
     if manuscript_entrypoint is None:
         return False
@@ -904,22 +934,18 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
         )
 
     # ── 10. Convention gaps ─────────────────────────────────────────────
-    if state:
-        convention_lock = state.get("convention_lock")
-        if isinstance(convention_lock, dict):
-            from gpd.core.conventions import is_bogus_value
-
-            missing = [k for k in CORE_CONVENTIONS if not convention_lock.get(k) or is_bogus_value(convention_lock.get(k))]
-            if missing:
-                ctx_kwargs["missing_conventions"] = tuple(missing)
-                suggestions.append(
-                    _MutableRecommendation(
-                        action="set-conventions",
-                        priority=6,
-                        command=format_command("validate-conventions"),
-                        reason=f"Core conventions not set: {', '.join(missing)} — define before calculations",
-                    )
+    if state and not any(s.action == "resume" for s in suggestions):
+        missing = _missing_conventions_from_state(state)
+        if missing:
+            ctx_kwargs["missing_conventions"] = missing
+            suggestions.append(
+                _MutableRecommendation(
+                    action="set-conventions",
+                    priority=6,
+                    command=format_command("validate-conventions"),
+                    reason=_format_missing_conventions_reason(missing),
                 )
+            )
 
     # ── 11. No roadmap yet ──────────────────────────────────────────────
     if not roadmap_exists:
