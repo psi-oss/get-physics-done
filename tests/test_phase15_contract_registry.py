@@ -17,12 +17,16 @@ def test_phase15_contract_registry_matches_on_disk_index() -> None:
     assert on_disk == index
     assert index["schema_version"] == 1
     assert index["phase"] == "15"
-    assert index["wave"] == "F5"
+    assert index["wave"] == "F2-F5"
     assert index["artifact_root"] == "artifacts/phases/15-verification-contract/verification/fixes"
     assert [family["family_id"] for family in index["families"]] == list(phase15_family_ids())
     assert [family["bug_id"] for family in index["families"]] == list(phase15_family_ids())
     assert len(index["families"]) == 8
     assert len({family["artifact_path"] for family in index["families"]}) == 8
+    assert {family["status"] for family in index["families"]} == {"closed", "ready", "verified"}
+    for family in index["families"]:
+        assert Path(family["contract_test"]).exists()
+        assert Path(family["artifact_path"]).exists()
     assert index["checklist_items"] == list(phase15_checklist_items())
 
 

@@ -12,7 +12,7 @@ from pathlib import Path
 
 PHASE15_SCHEMA_VERSION = 1
 PHASE15_PHASE = "15"
-PHASE15_WAVE = "F5"
+PHASE15_WAVE = "F2-F5"
 PHASE15_ARTIFACT_ROOT = Path("artifacts/phases/15-verification-contract/verification/fixes")
 PHASE15_INDEX_PATH = PHASE15_ARTIFACT_ROOT / "index.json"
 PHASE15_PR_TEMPLATE_PATH = Path(".github/pull_request_template.md")
@@ -45,6 +45,7 @@ PHASE15_FAMILIES: tuple[Phase15ContractFamily, ...] = (
         family_title="phase/read-model alignment",
         contract_test="tests/test_bug_phase_read_model_alignment.py",
         artifact_path=str(PHASE15_ARTIFACT_ROOT / "phase-read-model-alignment.json"),
+        status="verified",
     ),
     Phase15ContractFamily(
         bug_id="placeholder-sentinel-normalization",
@@ -52,6 +53,7 @@ PHASE15_FAMILIES: tuple[Phase15ContractFamily, ...] = (
         family_title="placeholder/sentinel normalization",
         contract_test="tests/test_bug_placeholder_sentinel_normalization.py",
         artifact_path=str(PHASE15_ARTIFACT_ROOT / "placeholder-sentinel-normalization.json"),
+        status="ready",
     ),
     Phase15ContractFamily(
         bug_id="nested-root-readonly-probe-parity",
@@ -59,6 +61,8 @@ PHASE15_FAMILIES: tuple[Phase15ContractFamily, ...] = (
         family_title="nested-root read-only probe parity",
         contract_test="tests/test_bug_nested_root_readonly_probe_parity.py",
         artifact_path=str(PHASE15_ARTIFACT_ROOT / "nested-root-readonly-probe-parity.json"),
+        status="closed",
+        classification="projection_bug",
     ),
     Phase15ContractFamily(
         bug_id="resume-recent-selection-control",
@@ -66,6 +70,7 @@ PHASE15_FAMILIES: tuple[Phase15ContractFamily, ...] = (
         family_title="resume recent selection control",
         contract_test="tests/test_bug_resume_state_continuity.py",
         artifact_path=str(PHASE15_ARTIFACT_ROOT / "resume-recent-selection-control.json"),
+        status="closed",
     ),
     Phase15ContractFamily(
         bug_id="canonical-session-continuation-access",
@@ -73,6 +78,7 @@ PHASE15_FAMILIES: tuple[Phase15ContractFamily, ...] = (
         family_title="canonical session / continuation access",
         contract_test="tests/test_bug_resume_state_continuity.py",
         artifact_path=str(PHASE15_ARTIFACT_ROOT / "canonical-session-continuation-access.json"),
+        status="closed",
     ),
     Phase15ContractFamily(
         bug_id="runtime-bridge-classification",
@@ -80,6 +86,8 @@ PHASE15_FAMILIES: tuple[Phase15ContractFamily, ...] = (
         family_title="runtime bridge classification",
         contract_test="tests/test_bug_runtime_recovery_contract.py",
         artifact_path=str(PHASE15_ARTIFACT_ROOT / "runtime-bridge-classification.json"),
+        status="closed",
+        classification="cross_surface_recovery_contract",
     ),
     Phase15ContractFamily(
         bug_id="doctor-target-readiness-contract",
@@ -87,6 +95,8 @@ PHASE15_FAMILIES: tuple[Phase15ContractFamily, ...] = (
         family_title="doctor target / readiness contract",
         contract_test="tests/test_bug_runtime_recovery_contract.py",
         artifact_path=str(PHASE15_ARTIFACT_ROOT / "doctor-target-readiness-contract.json"),
+        status="closed",
+        classification="cross_surface_recovery_contract",
     ),
     Phase15ContractFamily(
         bug_id="observability-degraded-visibility",
@@ -94,6 +104,8 @@ PHASE15_FAMILIES: tuple[Phase15ContractFamily, ...] = (
         family_title="observability degraded visibility",
         contract_test="tests/test_bug_runtime_recovery_contract.py",
         artifact_path=str(PHASE15_ARTIFACT_ROOT / "observability-degraded-visibility.json"),
+        status="closed",
+        classification="cross_surface_recovery_contract",
     ),
 )
 

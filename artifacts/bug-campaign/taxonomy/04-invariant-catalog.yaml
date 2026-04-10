@@ -1,0 +1,14 @@
+schema_version: 1
+invariants:
+  artifact-provenance-propagation: 28
+  citation-reference-propagation: 39
+  interface-contract-parity: 96
+  mutation-ordering-durability: 214
+  observability-lifecycle: 3
+  placeholder-sentinel-normalization: 49
+  registry-query-visibility: 496
+  resume-session-continuity: 1386
+  runtime-bridge-parity: 273
+  state-projection-parity: 2934
+  unknown: 1313
+  validation-contract-precision: 905

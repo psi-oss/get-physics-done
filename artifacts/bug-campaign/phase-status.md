@@ -1,0 +1,23 @@
+# Bug Campaign Phase Status
+
+- Phase 00 Campaign Freeze: `complete`
+- Phase 01 Taxonomy Contract: `complete`
+- Phase 02 Candidate Ledger: `complete`
+- Phase 03 Atomization: `complete`
+- Phase 04 Evidence Normalization: `complete`
+- Phase 05 Disposition Triage: `complete`
+- Phase 06 Cluster Seeding: `complete`
+- Phase 07 Bug Type Registry: `complete`
+- Phase 08 Repro Packetization: `partial_reconstructed`
+  - gap: Only checked-in Phase 09 live subset reconstructed; full 203/250 Phase 08 corpus absent.
+- Phase 09 Fixture Construction: `tracked`
+- Phase 10 CLI Fast-Path Anchor Repro: `missing_exact_repro_artifacts`
+  - gap: No durable repro/10 scripts, oracles, transcripts, or wave summary found.
+- Phase 11 Mutation And Ordering Repro: `imported_external_summary`
+- Phase 12 Breadth Sweep: `imported_external_summary`
+- Phase 13 MCP / Sandbox / Environment Characterization: `imported_external_summary`
+- Phase 14 Flake Soak And Residual Heuristics: `imported_external_summary`
+- Phase 15 Fix Verification Contract: `tracked_with_registry_hardened`
+- Phase 16 Cross-Surface Consistency Oracle: `tracked`
+- Phase 17 Nightly Matrix And Benchmarks: `tracked`
+- Phase 18 Scorecards And Closure Gates: `scorecards_generated_not_closed`

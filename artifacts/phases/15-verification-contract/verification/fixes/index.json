@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "phase": "15",
-  "wave": "F5",
+  "wave": "F2-F5",
   "artifact_root": "artifacts/phases/15-verification-contract/verification/fixes",
   "families": [
     {
@@ -10,7 +10,7 @@
       "family_title": "phase/read-model alignment",
       "contract_test": "tests/test_bug_phase_read_model_alignment.py",
       "artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/phase-read-model-alignment.json",
-      "status": "planned",
+      "status": "verified",
       "classification": "verification_contract"
     },
     {
@@ -19,7 +19,7 @@
       "family_title": "placeholder/sentinel normalization",
       "contract_test": "tests/test_bug_placeholder_sentinel_normalization.py",
       "artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/placeholder-sentinel-normalization.json",
-      "status": "planned",
+      "status": "ready",
       "classification": "verification_contract"
     },
     {
@@ -28,8 +28,8 @@
       "family_title": "nested-root read-only probe parity",
       "contract_test": "tests/test_bug_nested_root_readonly_probe_parity.py",
       "artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/nested-root-readonly-probe-parity.json",
-      "status": "planned",
-      "classification": "verification_contract"
+      "status": "closed",
+      "classification": "projection_bug"
     },
     {
       "bug_id": "resume-recent-selection-control",
@@ -37,7 +37,7 @@
       "family_title": "resume recent selection control",
       "contract_test": "tests/test_bug_resume_state_continuity.py",
       "artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/resume-recent-selection-control.json",
-      "status": "planned",
+      "status": "closed",
       "classification": "verification_contract"
     },
     {
@@ -46,7 +46,7 @@
       "family_title": "canonical session / continuation access",
       "contract_test": "tests/test_bug_resume_state_continuity.py",
       "artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/canonical-session-continuation-access.json",
-      "status": "planned",
+      "status": "closed",
       "classification": "verification_contract"
     },
     {
@@ -55,8 +55,8 @@
       "family_title": "runtime bridge classification",
       "contract_test": "tests/test_bug_runtime_recovery_contract.py",
       "artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/runtime-bridge-classification.json",
-      "status": "planned",
-      "classification": "verification_contract"
+      "status": "closed",
+      "classification": "cross_surface_recovery_contract"
     },
     {
       "bug_id": "doctor-target-readiness-contract",
@@ -64,8 +64,8 @@
       "family_title": "doctor target / readiness contract",
       "contract_test": "tests/test_bug_runtime_recovery_contract.py",
       "artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/doctor-target-readiness-contract.json",
-      "status": "planned",
-      "classification": "verification_contract"
+      "status": "closed",
+      "classification": "cross_surface_recovery_contract"
     },
     {
       "bug_id": "observability-degraded-visibility",
@@ -73,8 +73,8 @@
       "family_title": "observability degraded visibility",
       "contract_test": "tests/test_bug_runtime_recovery_contract.py",
       "artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/observability-degraded-visibility.json",
-      "status": "planned",
-      "classification": "verification_contract"
+      "status": "closed",
+      "classification": "cross_surface_recovery_contract"
     }
   ],
   "checklist_items": [

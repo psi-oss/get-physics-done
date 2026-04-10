@@ -1,0 +1,592 @@
+cluster_id,normalized_surface_id,broken_invariant_id,trigger_precondition,environment_scope,atomic_finding_count,candidate_count
+CS-0001,cli:gpd.suggest,state-projection-parity,gpd suggest,product_local_or_unknown,553,77
+CS-0002,unknown,unknown,unknown,product_local_or_unknown,368,134
+CS-0003,cli:gpd.resume,resume-session-continuity,gpd resume,product_local_or_unknown,343,56
+CS-0004,cli:gpd.state.validate,validation-contract-precision,gpd state validate,product_local_or_unknown,224,48
+CS-0005,unknown,state-projection-parity,unknown,product_local_or_unknown,218,92
+CS-0006,cli:gpd.phase.index,state-projection-parity,gpd phase index 01,product_local_or_unknown,185,10
+CS-0007,cli:gpd.resume,state-projection-parity,gpd resume,product_local_or_unknown,183,55
+CS-0008,raw:gpd.resume,resume-session-continuity,gpd resume --raw,product_local_or_unknown,150,17
+CS-0009,cli:gpd.progress,state-projection-parity,gpd progress,product_local_or_unknown,141,26
+CS-0010,cli:gpd.health,unknown,gpd health,product_local_or_unknown,125,36
+CS-0011,unknown,resume-session-continuity,unknown,product_local_or_unknown,111,60
+CS-0012,unknown,validation-contract-precision,unknown,product_local_or_unknown,110,46
+CS-0013,cli:gpd.phase.add,unknown,gpd phase add,product_local_or_unknown,77,24
+CS-0014,cli:gpd.health,state-projection-parity,gpd health,product_local_or_unknown,66,30
+CS-0015,unknown,state-projection-parity,GPD/state.json,product_local_or_unknown,66,18
+CS-0016,unknown,state-projection-parity,GPD/STATE.md,product_local_or_unknown,63,11
+CS-0017,cli:gpd.state.load,state-projection-parity,gpd state load,product_local_or_unknown,55,11
+CS-0018,unknown,unknown,GPD/state.json,product_local_or_unknown,53,18
+CS-0019,cli:gpd.state.validate,state-projection-parity,gpd state validate,product_local_or_unknown,52,27
+CS-0020,unknown,registry-query-visibility,unknown,product_local_or_unknown,52,25
+CS-0021,cli:gpd.roadmap.analyze,state-projection-parity,gpd roadmap analyze,product_local_or_unknown,51,16
+CS-0022,raw:gpd.resume,state-projection-parity,gpd resume --raw,product_local_or_unknown,51,13
+CS-0023,cli:gpd.verify.phase,unknown,gpd verify phase 01,product_local_or_unknown,50,7
+CS-0024,cli:gpd.validate.summary-contract,validation-contract-precision,gpd validate summary-contract,product_local_or_unknown,48,4
+CS-0025,cli:gpd.health,validation-contract-precision,gpd health,product_local_or_unknown,47,29
+CS-0026,cli:gpd.state.validate,resume-session-continuity,gpd state validate,product_local_or_unknown,47,19
+CS-0027,raw:gpd.resume,state-projection-parity,gpd --raw resume,product_local_or_unknown,45,10
+CS-0028,cli:gpd.state.update-progress,state-projection-parity,gpd state update-progress,product_local_or_unknown,44,9
+CS-0029,unknown,resume-session-continuity,GPD/config.json,product_local_or_unknown,43,8
+CS-0030,cli:gpd.init.new-project,unknown,gpd init new-project,product_local_or_unknown,42,10
+CS-0031,cli:gpd.phase.add,state-projection-parity,gpd phase add,product_local_or_unknown,41,23
+CS-0032,unknown,state-projection-parity,GPD/config.json,product_local_or_unknown,41,11
+CS-0033,cli:gpd.resume,registry-query-visibility,gpd resume,product_local_or_unknown,39,28
+CS-0034,cli:gpd.state.record-session,resume-session-continuity,gpd state record-session,product_local_or_unknown,39,4
+CS-0035,unknown,state-projection-parity,GPD/ROADMAP.md,product_local_or_unknown,39,6
+CS-0036,unknown,mutation-ordering-durability,GPD/CONVENTIONS.md,product_local_or_unknown,38,3
+CS-0037,unknown,resume-session-continuity,GPD/state.json,product_local_or_unknown,38,10
+CS-0038,unknown,state-projection-parity,GPD/phases/,product_local_or_unknown,38,6
+CS-0039,cli:gpd.health,resume-session-continuity,gpd health,product_local_or_unknown,36,17
+CS-0040,unknown,resume-session-continuity,GPD/STATE.md,product_local_or_unknown,35,6
+CS-0041,cli:gpd.state.snapshot,state-projection-parity,gpd state snapshot,product_local_or_unknown,31,11
+CS-0042,cli:gpd.resume,resume-session-continuity,gpd resume,runtime_boundary,30,22
+CS-0043,cli:gpd.validate.project-contract,validation-contract-precision,gpd validate project-contract,product_local_or_unknown,30,6
+CS-0044,cli:gpd.convention.check,unknown,gpd convention check,product_local_or_unknown,27,4
+CS-0045,cli:gpd.suggest,state-projection-parity,gpd suggest,runtime_boundary,27,21
+CS-0046,cli:gpd.state.set-project-contract,validation-contract-precision,gpd state set-project-contract -,product_local_or_unknown,26,5
+CS-0047,unknown:runtime-bridge,state-projection-parity,GPD/ROADMAP.md,environment_or_sandbox,26,1
+CS-0048,cli:gpd.validate.plan-contract,validation-contract-precision,gpd validate plan-contract,product_local_or_unknown,25,3
+CS-0049,cli:gpd.validate.review-preflight,validation-contract-precision,gpd validate review-preflight verify-work 01 --strict,product_local_or_unknown,24,5
+CS-0050,cli:gpd.frontmatter.get,validation-contract-precision,gpd frontmatter get,product_local_or_unknown,23,1
+CS-0051,cli:gpd.health,registry-query-visibility,gpd health,product_local_or_unknown,23,17
+CS-0052,cli:gpd.suggest,state-projection-parity,gpd suggest,environment_or_sandbox,23,21
+CS-0053,cli:gpd.verify.phase,state-projection-parity,gpd verify phase 01,product_local_or_unknown,23,8
+CS-0054,raw:gpd.health,state-projection-parity,gpd --raw health,product_local_or_unknown,23,5
+CS-0055,raw:gpd.state.snapshot,state-projection-parity,gpd --raw state snapshot,product_local_or_unknown,23,1
+CS-0056,cli:gpd.suggest,registry-query-visibility,gpd suggest,product_local_or_unknown,22,17
+CS-0057,cli:gpd.observe.sessions,unknown,gpd observe sessions --last 5,product_local_or_unknown,21,4
+CS-0058,cli:gpd.progress,state-projection-parity,gpd progress --help,product_local_or_unknown,21,3
+CS-0059,runtime:gpd.execute-phase,validation-contract-precision,gpd validate command-context gpd:execute-phase,product_local_or_unknown,21,1
+CS-0060,runtime:gpd.main,unknown,gpd-main,environment_or_sandbox,21,5
+CS-0061,runtime:gpd.progress,state-projection-parity,gpd-progress,product_local_or_unknown,21,3
+CS-0062,cli:gpd.convention.set,unknown,gpd convention set,product_local_or_unknown,20,6
+CS-0063,cli:gpd.init.new-project,state-projection-parity,gpd init new-project,product_local_or_unknown,20,10
+CS-0064,unknown,runtime-bridge-parity,unknown,runtime_boundary,20,5
+CS-0065,unknown,validation-contract-precision,GPD/state.json,product_local_or_unknown,20,7
+CS-0066,cli:gpd.init.plan-phase,state-projection-parity,gpd init plan-phase 01 --stage phase_bootstrap,product_local_or_unknown,19,5
+CS-0067,cli:gpd.health,runtime-bridge-parity,gpd health,runtime_boundary,18,15
+CS-0068,cli:gpd.init.plan-phase,unknown,gpd init plan-phase 01 --stage phase_bootstrap,product_local_or_unknown,18,6
+CS-0069,cli:gpd.validate.unattended-readiness,runtime-bridge-parity,gpd validate unattended-readiness --runtime codex --local,runtime_boundary,18,2
+CS-0070,unknown,state-projection-parity,GPD tools still do not function here,product_local_or_unknown,18,1
+CS-0071,unknown,resume-session-continuity,GPD/phases/01-anchor-literature-and-contour-question/CONTEXT.md,product_local_or_unknown,17,1
+CS-0072,unknown,unknown,GPD/CONVENTIONS.md,product_local_or_unknown,17,3
+CS-0073,unknown,validation-contract-precision,GPD/STATE.md,product_local_or_unknown,17,3
+CS-0074,cli:gpd.frontmatter.validate,validation-contract-precision,gpd frontmatter validate --schema summary .../SUMMARY.md,product_local_or_unknown,16,1
+CS-0075,cli:gpd.progress.table,state-projection-parity,gpd progress table,product_local_or_unknown,16,3
+CS-0076,cli:gpd.query.deps,registry-query-visibility,gpd query deps qfc-core,product_local_or_unknown,16,1
+CS-0077,raw:gpd.health,validation-contract-precision,gpd --raw health,product_local_or_unknown,16,2
+CS-0078,raw:gpd.init.resume,resume-session-continuity,gpd --raw init resume,product_local_or_unknown,16,1
+CS-0079,raw:gpd.resume,resume-session-continuity,gpd --raw resume,product_local_or_unknown,16,3
+CS-0080,raw:gpd.state.snapshot,state-projection-parity,gpd state snapshot --raw,product_local_or_unknown,16,1
+CS-0081,raw:gpd.uncertainty.list,unknown,gpd --raw uncertainty list,product_local_or_unknown,16,1
+CS-0082,unknown,unknown,git check-ignore -v,product_local_or_unknown,16,3
+CS-0083,cli:gpd.observe.sessions,resume-session-continuity,gpd observe sessions --last 5,product_local_or_unknown,15,4
+CS-0084,cli:gpd.state.validate,registry-query-visibility,gpd state validate,product_local_or_unknown,15,9
+CS-0085,unknown,mutation-ordering-durability,unknown,product_local_or_unknown,15,14
+CS-0086,unknown,registry-query-visibility,GPD/config.json,product_local_or_unknown,15,9
+CS-0087,unknown,resume-session-continuity,GPD/PROJECT.md,product_local_or_unknown,15,4
+CS-0088,unknown,state-projection-parity,GPD/CHECKPOINTS.md,product_local_or_unknown,15,3
+CS-0089,unknown,state-projection-parity,GPD/phases,product_local_or_unknown,15,2
+CS-0090,unknown,unknown,GPD/phases,product_local_or_unknown,15,1
+CS-0091,unknown,unknown,GPD/phases/,product_local_or_unknown,15,3
+CS-0092,cli:gpd.init.resume,resume-session-continuity,gpd init resume,product_local_or_unknown,14,2
+CS-0093,cli:gpd.phase.add,resume-session-continuity,gpd phase add,product_local_or_unknown,14,6
+CS-0094,cli:gpd.phase.index,state-projection-parity,gpd phase index 01,runtime_boundary,14,7
+CS-0095,cli:gpd.query.deps,registry-query-visibility,gpd query deps,product_local_or_unknown,14,3
+CS-0096,cli:gpd.state.validate,runtime-bridge-parity,gpd state validate,runtime_boundary,14,7
+CS-0097,raw:gpd.resume,registry-query-visibility,gpd resume --raw,product_local_or_unknown,14,9
+CS-0098,runtime:gpd.execute-phase,state-projection-parity,gpd:execute-phase,product_local_or_unknown,14,3
+CS-0099,unknown,placeholder-sentinel-normalization,GPD/phases/05-bootstrap-stress-test-placeholder-phase/,product_local_or_unknown,14,2
+CS-0100,cli:gpd.health,unknown,gpd health --fix,product_local_or_unknown,13,4
+CS-0101,raw:gpd.init.new-project,unknown,gpd --raw init new-project,product_local_or_unknown,13,1
+CS-0102,raw:gpd.init.progress,state-projection-parity,gpd --raw init progress,product_local_or_unknown,13,2
+CS-0103,raw:gpd.verify.summary,unknown,gpd verify summary --raw,product_local_or_unknown,13,1
+CS-0104,unknown,citation-reference-propagation,GPD/PROJECT.md,product_local_or_unknown,13,1
+CS-0105,unknown,registry-query-visibility,GPD/state.json,product_local_or_unknown,13,9
+CS-0106,cli:gpd.init.new-project,resume-session-continuity,gpd init new-project,product_local_or_unknown,12,3
+CS-0107,cli:gpd.init.plan-phase,validation-contract-precision,gpd init plan-phase 01 --stage phase_bootstrap,product_local_or_unknown,12,5
+CS-0108,cli:gpd.init.progress,state-projection-parity,gpd init progress --include config,product_local_or_unknown,12,1
+CS-0109,cli:gpd.phase.index,registry-query-visibility,gpd phase index 01,product_local_or_unknown,12,6
+CS-0110,cli:gpd.state.patch,unknown,gpd state patch,product_local_or_unknown,12,8
+CS-0111,cli:gpd.verify.phase,resume-session-continuity,gpd verify phase 01,product_local_or_unknown,12,4
+CS-0112,runtime:gpd.resume,state-projection-parity,gpd:resume,product_local_or_unknown,12,1
+CS-0113,unknown,state-projection-parity,GPD/PROJECT.md,product_local_or_unknown,12,6
+CS-0114,cli:gpd.approximation.list,unknown,gpd approximation list,product_local_or_unknown,11,2
+CS-0115,cli:gpd.convention.list,unknown,gpd convention list,product_local_or_unknown,11,5
+CS-0116,cli:gpd.observe.event,unknown,gpd observe event,product_local_or_unknown,11,4
+CS-0117,cli:gpd.query.deps,registry-query-visibility,gpd query deps modular-bootstrap-comparison,product_local_or_unknown,11,1
+CS-0118,cli:gpd.result.deps,mutation-ordering-durability,gpd result deps R-01-farrelly-parallel,product_local_or_unknown,11,3
+CS-0119,unknown,registry-query-visibility,GPD/state.json.bak,product_local_or_unknown,11,2
+CS-0120,cli:gpd.history-digest,unknown,gpd history-digest,product_local_or_unknown,10,1
+CS-0121,cli:gpd.progress,state-projection-parity,gpd progress --reconcile,product_local_or_unknown,10,3
+CS-0122,cli:gpd.result.list,unknown,gpd result list,product_local_or_unknown,10,5
+CS-0123,cli:gpd.suggest,mutation-ordering-durability,gpd suggest,product_local_or_unknown,10,8
+CS-0124,cli:gpd.validate.unattended-readiness,state-projection-parity,gpd validate unattended-readiness --runtime codex --local,runtime_boundary,10,3
+CS-0125,raw:gpd.progress,state-projection-parity,gpd progress --raw,product_local_or_unknown,10,2
+CS-0126,raw:gpd.state.update,resume-session-continuity,"gpd --raw state update current_focus ""Session 4 stale-state probe""",product_local_or_unknown,10,2
+CS-0127,raw:gpd.state.validate,validation-contract-precision,gpd --raw state validate,product_local_or_unknown,10,4
+CS-0128,unknown,state-projection-parity,GPD/state.json.bak,product_local_or_unknown,10,2
+CS-0129,unknown,unknown,GPD/config.json,product_local_or_unknown,10,4
+CS-0130,unknown:runtime-bridge,resume-session-continuity,GPD/config.json,runtime_boundary,10,5
+CS-0131,cli:gpd.init.execute-phase,unknown,gpd init execute-phase 01 --stage phase_bootstrap,product_local_or_unknown,9,3
+CS-0132,cli:gpd.phase.add,mutation-ordering-durability,gpd phase add,product_local_or_unknown,9,8
+CS-0133,cli:gpd.result.search,unknown,gpd result search crossed-product,product_local_or_unknown,9,1
+CS-0134,cli:gpd.state.patch,unknown,gpd state patch Status ...,product_local_or_unknown,9,3
+CS-0135,cli:gpd.suggest,interface-contract-parity,gpd suggest,product_local_or_unknown,9,7
+CS-0136,cli:gpd.validate.plan-contract,state-projection-parity,gpd validate plan-contract,product_local_or_unknown,9,3
+CS-0137,cli:gpd.validate.summary-contract,state-projection-parity,gpd validate summary-contract,product_local_or_unknown,9,4
+CS-0138,cli:gpd.verify.phase,unknown,gpd verify phase 1,product_local_or_unknown,9,3
+CS-0139,raw:gpd.health,runtime-bridge-parity,gpd --raw health,runtime_boundary,9,2
+CS-0140,raw:gpd.resume,resume-session-continuity,gpd resume --raw,runtime_boundary,9,5
+CS-0141,unknown,resume-session-continuity,GPD/phases,product_local_or_unknown,9,1
+CS-0142,unknown,runtime-bridge-parity,GPD/phases/01-literature-anchor-inventory-and-saddle-taxonomy/,runtime_boundary,9,1
+CS-0143,unknown,state-projection-parity,GPD/,product_local_or_unknown,9,2
+CS-0144,unknown,validation-contract-precision,GPD/PROJECT.md,product_local_or_unknown,9,2
+CS-0145,cli:gpd.calculation.list,unknown,gpd calculation list,product_local_or_unknown,8,1
+CS-0146,cli:gpd.init.execute-phase,validation-contract-precision,gpd init execute-phase 01 --stage phase_bootstrap,product_local_or_unknown,8,3
+CS-0147,cli:gpd.init.new-project,runtime-bridge-parity,gpd init new-project,runtime_boundary,8,5
+CS-0148,cli:gpd.init.plan-phase,unknown,gpd init plan-phase 1 --stage phase_bootstrap,product_local_or_unknown,8,2
+CS-0149,cli:gpd.observe.event,resume-session-continuity,gpd observe event,product_local_or_unknown,8,4
+CS-0150,cli:gpd.observe.sessions,state-projection-parity,gpd observe sessions --last 5,product_local_or_unknown,8,2
+CS-0151,cli:gpd.observe.sessions,unknown,gpd observe sessions,product_local_or_unknown,8,2
+CS-0152,cli:gpd.phase.add,validation-contract-precision,gpd phase add,product_local_or_unknown,8,8
+CS-0153,cli:gpd.progress.json,state-projection-parity,gpd progress json,product_local_or_unknown,8,2
+CS-0154,cli:gpd.result,unknown,gpd result *,product_local_or_unknown,8,1
+CS-0155,cli:gpd.roadmap.analyze,state-projection-parity,gpd roadmap analyze,runtime_boundary,8,6
+CS-0156,cli:gpd.state.compact,unknown,gpd state compact,product_local_or_unknown,8,2
+CS-0157,cli:gpd.state.record-session,resume-session-continuity,"gpd state record-session --stopped-at ""Session 5 deeper state, dependency, and readiness audit complete; phase 01 still ready to plan"" --resume-file HANDOFF.md --last-result-id R-CRIT-01",product_local_or_unknown,8,1
+CS-0158,cli:gpd.state.record-session,state-projection-parity,gpd state record-session,product_local_or_unknown,8,3
+CS-0159,cli:gpd.state.set-project-contract,validation-contract-precision,gpd state set-project-contract GPD/project_contract.json,product_local_or_unknown,8,1
+CS-0160,cli:gpd.state.validate,mutation-ordering-durability,gpd state validate,product_local_or_unknown,8,8
+CS-0161,cli:gpd.validate.command-context,state-projection-parity,gpd validate command-context progress,product_local_or_unknown,8,3
+CS-0162,cli:gpd.validate.plan-contract,validation-contract-precision,gpd validate plan-contract ...01-01-PLAN.md,product_local_or_unknown,8,1
+CS-0163,cli:gpd.validate.review-preflight,state-projection-parity,gpd validate review-preflight verify-work 01 --strict,product_local_or_unknown,8,5
+CS-0164,cli:gpd.validate.unattended-readiness,resume-session-continuity,gpd validate unattended-readiness --runtime codex --local,runtime_boundary,8,3
+CS-0165,raw:gpd.resume,state-projection-parity,gpd --raw resume,runtime_boundary,8,5
+CS-0166,runtime:gpd.execute-phase,runtime-bridge-parity,gpd:execute-phase,runtime_boundary,8,2
+CS-0167,unknown,unknown,GPD/phases/01-map-the-quantum-information-derivations-of-rt/01-01-PLAN.md,product_local_or_unknown,8,1
+CS-0168,unknown:runtime-bridge,runtime-bridge-parity,GPD tools still return `user cancelled MCP tool call,runtime_boundary,8,1
+CS-0169,cli:gpd.convention.list,state-projection-parity,gpd convention list,product_local_or_unknown,7,5
+CS-0170,cli:gpd.health,state-projection-parity,gpd health --fix,product_local_or_unknown,7,6
+CS-0171,cli:gpd.init.new-project,registry-query-visibility,gpd init new-project,product_local_or_unknown,7,5
+CS-0172,cli:gpd.init.new-project,state-projection-parity,gpd init new-project --stage post_scope,product_local_or_unknown,7,2
+CS-0173,cli:gpd.init.new-project,validation-contract-precision,gpd init new-project,product_local_or_unknown,7,5
+CS-0174,cli:gpd.init.phase-op,state-projection-parity,gpd init phase-op 01,product_local_or_unknown,7,2
+CS-0175,cli:gpd.init.plan-phase,unknown,gpd init plan-phase 1,product_local_or_unknown,7,2
+CS-0176,cli:gpd.init.plan-phase,validation-contract-precision,gpd init plan-phase 1 --stage phase_bootstrap,product_local_or_unknown,7,2
+CS-0177,cli:gpd.phase.add,registry-query-visibility,gpd phase add,product_local_or_unknown,7,4
+CS-0178,cli:gpd.phase.list,state-projection-parity,gpd phase list,product_local_or_unknown,7,1
+CS-0179,cli:gpd.state.record-session,resume-session-continuity,gpd state record-session --resume-file HANDOFF.md --last-result-id rst-qfc-exact,product_local_or_unknown,7,1
+CS-0180,cli:gpd.validate.consistency,validation-contract-precision,gpd validate consistency,product_local_or_unknown,7,3
+CS-0181,cli:gpd.validate.project-contract,resume-session-continuity,gpd validate project-contract,product_local_or_unknown,7,2
+CS-0182,raw:gpd.progress,state-projection-parity,gpd --raw progress,product_local_or_unknown,7,2
+CS-0183,raw:gpd.resume,resume-session-continuity,gpd --raw resume --recent,product_local_or_unknown,7,1
+CS-0184,raw:gpd.roadmap.analyze,state-projection-parity,gpd roadmap analyze --raw,product_local_or_unknown,7,1
+CS-0185,runtime:gpd.add-phase,state-projection-parity,gpd:add-phase,product_local_or_unknown,7,1
+CS-0186,unknown,mutation-ordering-durability,Git Status.uncommitted_files = 1,product_local_or_unknown,7,1
+CS-0187,unknown,resume-session-continuity,GPD artifacts as the source draft,product_local_or_unknown,7,1
+CS-0188,unknown,unknown,GPD/PROJECT.md,product_local_or_unknown,7,3
+CS-0189,unknown,unknown,GPD/STATE.md,product_local_or_unknown,7,2
+CS-0190,unknown:runtime-bridge,state-projection-parity,GPD MCP tool failure is broader than it first looked,runtime_boundary,7,1
+CS-0191,cli:gpd.convention.list,validation-contract-precision,gpd convention list,product_local_or_unknown,6,4
+CS-0192,cli:gpd.convention.set,state-projection-parity,gpd convention set,product_local_or_unknown,6,3
+CS-0193,cli:gpd.frontmatter.validate,validation-contract-precision,gpd frontmatter validate --schema verification GPD/phases/01-core-holographic-constructions-and-anchor-papers/01-VERIFICATION.md,product_local_or_unknown,6,1
+CS-0194,cli:gpd.health,resume-session-continuity,gpd health,runtime_boundary,6,6
+CS-0195,cli:gpd.init.execute-phase,state-projection-parity,gpd init execute-phase 01 --stage phase_bootstrap,product_local_or_unknown,6,3
+CS-0196,cli:gpd.init.plan-phase,registry-query-visibility,gpd init plan-phase 01 --stage phase_bootstrap,product_local_or_unknown,6,5
+CS-0197,cli:gpd.init.plan-phase,state-projection-parity,gpd init plan-phase 1 --stage phase_bootstrap,product_local_or_unknown,6,2
+CS-0198,cli:gpd.observe.sessions,registry-query-visibility,gpd observe sessions --last 5,product_local_or_unknown,6,4
+CS-0199,cli:gpd.phase.add,runtime-bridge-parity,gpd phase add,environment_or_sandbox,6,6
+CS-0200,cli:gpd.phase.complete,unknown,gpd phase complete 01,product_local_or_unknown,6,1
+CS-0201,cli:gpd.progress,state-projection-parity,gpd progress,runtime_boundary,6,5
+CS-0202,cli:gpd.result.list,state-projection-parity,gpd result list,product_local_or_unknown,6,4
+CS-0203,cli:gpd.result.show,unknown,gpd result show,product_local_or_unknown,6,2
+CS-0204,cli:gpd.resume,mutation-ordering-durability,gpd resume,product_local_or_unknown,6,6
+CS-0205,cli:gpd.resume,resume-session-continuity,gpd resume,environment_or_sandbox,6,6
+CS-0206,cli:gpd.resume,resume-session-continuity,gpd resume --recent,product_local_or_unknown,6,5
+CS-0207,cli:gpd.state.load,registry-query-visibility,gpd state load,product_local_or_unknown,6,4
+CS-0208,cli:gpd.state.snapshot,registry-query-visibility,gpd state snapshot,product_local_or_unknown,6,6
+CS-0209,cli:gpd.summary-extract.SUMMARY,state-projection-parity,gpd summary-extract SUMMARY.md,product_local_or_unknown,6,2
+CS-0210,cli:gpd.validate.project-contract,state-projection-parity,gpd validate project-contract,product_local_or_unknown,6,2
+CS-0211,cli:gpd.verify.phase,runtime-bridge-parity,gpd verify phase 01,runtime_boundary,6,3
+CS-0212,raw:gpd.health,resume-session-continuity,gpd --raw health,product_local_or_unknown,6,2
+CS-0213,raw:gpd.health,state-projection-parity,gpd health --raw,product_local_or_unknown,6,3
+CS-0214,raw:gpd.resume,mutation-ordering-durability,gpd --raw resume,product_local_or_unknown,6,6
+CS-0215,raw:gpd.resume,registry-query-visibility,gpd --raw resume,product_local_or_unknown,6,4
+CS-0216,raw:gpd.state.snapshot,state-projection-parity,gpd --raw state snapshot,runtime_boundary,6,1
+CS-0217,runtime:gpd.execute-phase,validation-contract-precision,gpd:execute-phase,product_local_or_unknown,6,2
+CS-0218,runtime:gpd.new-project,state-projection-parity,GPD sources and command metadata say the public runtime command `gpd:new-project` should create `GPD/PROJECT,runtime_boundary,6,1
+CS-0219,unknown,artifact-provenance-propagation,unknown,product_local_or_unknown,6,4
+CS-0220,unknown,citation-reference-propagation,GPD/state.json,product_local_or_unknown,6,2
+CS-0221,unknown,citation-reference-propagation,unknown,product_local_or_unknown,6,6
+CS-0222,unknown,mutation-ordering-durability,GPD/state.json,product_local_or_unknown,6,6
+CS-0223,unknown,registry-query-visibility,GPD/STATE.md,product_local_or_unknown,6,4
+CS-0224,unknown,resume-session-continuity,GPD/CHECKPOINTS.md,product_local_or_unknown,6,2
+CS-0225,unknown,runtime-bridge-parity,GPD runtime claims on 2026-04-09,runtime_boundary,6,1
+CS-0226,unknown,unknown,GPD command observations:,product_local_or_unknown,6,1
+CS-0227,unknown,validation-contract-precision,GPD/state.json.bak,product_local_or_unknown,6,1
+CS-0228,unknown:runtime-bridge,state-projection-parity,GPD/config.json,runtime_boundary,6,2
+CS-0229,cli:gpd.calculation.list,resume-session-continuity,gpd calculation list,product_local_or_unknown,5,1
+CS-0230,cli:gpd.convention.set,validation-contract-precision,gpd convention set,product_local_or_unknown,5,4
+CS-0231,cli:gpd.health,interface-contract-parity,gpd health,product_local_or_unknown,5,5
+CS-0232,cli:gpd.history-digest,registry-query-visibility,gpd history-digest,product_local_or_unknown,5,1
+CS-0233,cli:gpd.init.plan-phase,runtime-bridge-parity,gpd init plan-phase 01 --stage phase_bootstrap,runtime_boundary,5,2
+CS-0234,cli:gpd.phase.add,runtime-bridge-parity,gpd phase add,runtime_boundary,5,4
+CS-0235,cli:gpd.query.deps,registry-query-visibility,gpd query deps lit-filter-constraints,product_local_or_unknown,5,2
+CS-0236,cli:gpd.query.deps,registry-query-visibility,gpd query deps openclosed-vtqft,product_local_or_unknown,5,3
+CS-0237,cli:gpd.query.deps,registry-query-visibility,gpd query deps r-loop-universality-4d,product_local_or_unknown,5,2
+CS-0238,cli:gpd.query.search,registry-query-visibility,gpd query search --text singularity,product_local_or_unknown,5,1
+CS-0239,cli:gpd.result.add,unknown,gpd result add --verified,product_local_or_unknown,5,2
+CS-0240,cli:gpd.result.deps,unknown,gpd result deps,product_local_or_unknown,5,2
+CS-0241,cli:gpd.result.deps,unknown,gpd result deps minimax_conditional_hrt,product_local_or_unknown,5,1
+CS-0242,cli:gpd.root,resume-session-continuity,gpd,product_local_or_unknown,5,2
+CS-0243,cli:gpd.state.patch,state-projection-parity,gpd state patch Status ...,product_local_or_unknown,5,3
+CS-0244,cli:gpd.state.patch,validation-contract-precision,gpd state patch,product_local_or_unknown,5,5
+CS-0245,cli:gpd.state.record-session,resume-session-continuity,"gpd state record-session --stopped-at ""Session 3 validation and dependency audit complete; phase 01 still ready to plan"" --resume-file HANDOFF.md --last-result-id R-CRIT-01",product_local_or_unknown,5,1
+CS-0246,cli:gpd.state.set-project-contract,resume-session-continuity,gpd state set-project-contract -,product_local_or_unknown,5,2
+CS-0247,cli:gpd.state.set-project-contract,state-projection-parity,gpd state set-project-contract GPD/project_contract.json,product_local_or_unknown,5,1
+CS-0248,cli:gpd.state.set-project-contract,validation-contract-precision,gpd state set-project-contract,product_local_or_unknown,5,1
+CS-0249,cli:gpd.state.update,unknown,"gpd state update ""Core research question"" ...",product_local_or_unknown,5,1
+CS-0250,cli:gpd.verify.phase,state-projection-parity,gpd verify phase 1,product_local_or_unknown,5,1
+CS-0251,cli:gpd.verify.references,resume-session-continuity,gpd verify references HANDOFF.md,product_local_or_unknown,5,1
+CS-0252,raw:gpd.init.sync-state,unknown,gpd --raw init sync-state,product_local_or_unknown,5,2
+CS-0253,raw:gpd.state.validate,mutation-ordering-durability,gpd --raw state validate,product_local_or_unknown,5,1
+CS-0254,runtime:gpd.main,runtime-bridge-parity,gpd-main,runtime_boundary,5,1
+CS-0255,runtime:gpd.main,state-projection-parity,gpd-main,environment_or_sandbox,5,3
+CS-0256,unknown,interface-contract-parity,unknown,product_local_or_unknown,5,5
+CS-0257,unknown,interface-contract-parity,unknown,runtime_boundary,5,4
+CS-0258,unknown,placeholder-sentinel-normalization,GPD/phases/02-bootstrap-command-surface-placeholder-phase/,product_local_or_unknown,5,1
+CS-0259,unknown,runtime-bridge-parity,GPD/phases/01-fix-the-ds3-saddle-dictionary/01-01-PLAN.md,runtime_boundary,5,1
+CS-0260,unknown,state-projection-parity,GPD/ROADMAP.md,runtime_boundary,5,1
+CS-0261,unknown,state-projection-parity,GPD/phase-checkpoints/,product_local_or_unknown,5,1
+CS-0262,unknown,state-projection-parity,Git Status,product_local_or_unknown,5,1
+CS-0263,unknown,state-projection-parity,unknown,runtime_boundary,5,2
+CS-0264,unknown,unknown,GPD ledger carried one genuinely stale value set: both propagated uncertainties were tagged as last updated in phase `03` even though the workspace remains at phase `01,product_local_or_unknown,5,1
+CS-0265,unknown,unknown,GPD tools are still unusable here,product_local_or_unknown,5,1
+CS-0266,unknown,unknown,GPD uncertainty tags that had incorrectly pointed to phase `03` instead of the bootstrap literature audit stage,product_local_or_unknown,5,1
+CS-0267,unknown,validation-contract-precision,GPD/phases,product_local_or_unknown,5,1
+CS-0268,unknown:runtime-bridge,registry-query-visibility,GPD/config.json,runtime_boundary,5,3
+CS-0269,unknown:runtime-bridge,runtime-bridge-parity,"GPD MCP state and convention tools all return `""user cancelled MCP tool call""",runtime_boundary,5,1
+CS-0270,unknown:runtime-bridge,runtime-bridge-parity,GPD interface in this sandbox,environment_or_sandbox,5,1
+CS-0271,unknown:runtime-bridge,runtime-bridge-parity,GPD/state.json,runtime_boundary,5,3
+CS-0272,cli:gpd.calculation.list,registry-query-visibility,gpd calculation list,product_local_or_unknown,4,2
+CS-0273,cli:gpd.calculation.list,validation-contract-precision,gpd calculation list,product_local_or_unknown,4,1
+CS-0274,cli:gpd.convention.set,mutation-ordering-durability,gpd convention set,product_local_or_unknown,4,4
+CS-0275,cli:gpd.convention.set,resume-session-continuity,gpd convention set,product_local_or_unknown,4,1
+CS-0276,cli:gpd.convention.set,resume-session-continuity,gpd convention set --force coordinate_system ...,product_local_or_unknown,4,1
+CS-0277,cli:gpd.convention.set,unknown,gpd convention set --force coordinate_system ...,product_local_or_unknown,4,2
+CS-0278,cli:gpd.frontmatter.get,resume-session-continuity,gpd frontmatter get,product_local_or_unknown,4,1
+CS-0279,cli:gpd.frontmatter.get,state-projection-parity,gpd frontmatter get,product_local_or_unknown,4,1
+CS-0280,cli:gpd.frontmatter.validate,state-projection-parity,gpd frontmatter validate --schema summary .../SUMMARY.md,product_local_or_unknown,4,1
+CS-0281,cli:gpd.health,mutation-ordering-durability,gpd health,product_local_or_unknown,4,4
+CS-0282,cli:gpd.health,runtime-bridge-parity,gpd health,environment_or_sandbox,4,4
+CS-0283,cli:gpd.history-digest,runtime-bridge-parity,gpd history-digest,runtime_boundary,4,1
+CS-0284,cli:gpd.history-digest,validation-contract-precision,gpd history-digest,product_local_or_unknown,4,2
+CS-0285,cli:gpd.init.new-project,unknown,gpd init new-project --help,product_local_or_unknown,4,1
+CS-0286,cli:gpd.init.plan-phase,registry-query-visibility,gpd init plan-phase 01,product_local_or_unknown,4,2
+CS-0287,cli:gpd.init.plan-phase,unknown,gpd init plan-phase 01,product_local_or_unknown,4,3
+CS-0288,cli:gpd.init.resume,state-projection-parity,gpd init resume,product_local_or_unknown,4,2
+CS-0289,cli:gpd.init.verify-work,unknown,gpd init verify-work 01,product_local_or_unknown,4,2
+CS-0290,cli:gpd.init.verify-work,validation-contract-precision,gpd init verify-work 01,product_local_or_unknown,4,2
+CS-0291,cli:gpd.observe.event,registry-query-visibility,gpd observe event,product_local_or_unknown,4,4
+CS-0292,cli:gpd.observe.event,runtime-bridge-parity,gpd observe event,runtime_boundary,4,4
+CS-0293,cli:gpd.observe.event,state-projection-parity,gpd observe event,product_local_or_unknown,4,4
+CS-0294,cli:gpd.phase.complete,unknown,gpd phase complete,product_local_or_unknown,4,1
+CS-0295,cli:gpd.phase.find,unknown,gpd phase find 01,product_local_or_unknown,4,2
+CS-0296,cli:gpd.progress,interface-contract-parity,gpd progress,product_local_or_unknown,4,3
+CS-0297,cli:gpd.progress,registry-query-visibility,gpd progress,product_local_or_unknown,4,4
+CS-0298,cli:gpd.result.add,unknown,gpd result add,product_local_or_unknown,4,1
+CS-0299,cli:gpd.result.deps,resume-session-continuity,gpd result deps minimax_conditional_hrt,product_local_or_unknown,4,1
+CS-0300,cli:gpd.resume,interface-contract-parity,gpd resume,product_local_or_unknown,4,4
+CS-0301,cli:gpd.resume,interface-contract-parity,gpd resume,runtime_boundary,4,4
+CS-0302,cli:gpd.resume,registry-query-visibility,gpd resume,runtime_boundary,4,4
+CS-0303,cli:gpd.resume,state-projection-parity,gpd resume,runtime_boundary,4,3
+CS-0304,cli:gpd.state,unknown,gpd state --help,product_local_or_unknown,4,1
+CS-0305,cli:gpd.state.get,resume-session-continuity,gpd state get continuation,product_local_or_unknown,4,1
+CS-0306,cli:gpd.state.patch,state-projection-parity,gpd state patch,product_local_or_unknown,4,3
+CS-0307,cli:gpd.state.patch,unknown,gpd state patch project_reference.core_research_question ...,product_local_or_unknown,4,1
+CS-0308,cli:gpd.state.record-session,resume-session-continuity,gpd state record-session,runtime_boundary,4,3
+CS-0309,cli:gpd.state.set-project-contract,resume-session-continuity,gpd state set-project-contract GPD/project_contract.json,product_local_or_unknown,4,1
+CS-0310,cli:gpd.state.update-progress,mutation-ordering-durability,gpd state update-progress,product_local_or_unknown,4,4
+CS-0311,cli:gpd.summary-extract.SUMMARY,resume-session-continuity,gpd summary-extract SUMMARY.md,product_local_or_unknown,4,2
+CS-0312,cli:gpd.validate.plan-contract,state-projection-parity,gpd validate plan-contract ...01-01-PLAN.md,product_local_or_unknown,4,1
+CS-0313,cli:gpd.validate.summary-contract,registry-query-visibility,gpd validate summary-contract,product_local_or_unknown,4,2
+CS-0314,cli:gpd.verify.phase,validation-contract-precision,gpd verify phase 01,product_local_or_unknown,4,2
+CS-0315,raw:gpd.result.show,unknown,gpd result show --raw,product_local_or_unknown,4,1
+CS-0316,raw:gpd.resume,interface-contract-parity,gpd --raw resume,product_local_or_unknown,4,4
+CS-0317,raw:gpd.resume,interface-contract-parity,gpd resume --raw,product_local_or_unknown,4,2
+CS-0318,raw:gpd.state.get,resume-session-continuity,gpd --raw state get continuation,product_local_or_unknown,4,1
+CS-0319,raw:gpd.summary-extract,unknown,gpd summary-extract --raw,product_local_or_unknown,4,1
+CS-0320,runtime:gpd.new-project,runtime-bridge-parity,GPD sources and command metadata say the public runtime command `gpd:new-project` should create `GPD/PROJECT,runtime_boundary,4,1
+CS-0321,runtime:gpd.suggest-next,interface-contract-parity,gpd validate command-context gpd:suggest-next,product_local_or_unknown,4,1
+CS-0322,unknown,artifact-provenance-propagation,GPD artifact edits here stay invisible to `git status,product_local_or_unknown,4,1
+CS-0323,unknown,registry-query-visibility,unknown,runtime_boundary,4,4
+CS-0324,unknown,resume-session-continuity,"GPD state"" to ""workspace already points at a GPD project""",product_local_or_unknown,4,1
+CS-0325,unknown,resume-session-continuity,GPD/phases/,product_local_or_unknown,4,3
+CS-0326,unknown,state-projection-parity,GPD command observations:,product_local_or_unknown,4,1
+CS-0327,unknown,state-projection-parity,GPD/STATE.md,runtime_boundary,4,4
+CS-0328,unknown,state-projection-parity,GPD/phases/01-map-the-quantum-information-derivations-of-rt/,product_local_or_unknown,4,1
+CS-0329,unknown,validation-contract-precision,GPD command observations:,product_local_or_unknown,4,1
+CS-0330,unknown,validation-contract-precision,GPD/phases/01-map-the-quantum-information-derivations-of-rt/,product_local_or_unknown,4,1
+CS-0331,unknown:runtime-bridge,resume-session-continuity,GPD state/convention tools still return `user cancelled MCP tool call,runtime_boundary,4,1
+CS-0332,unknown:runtime-bridge,runtime-bridge-parity,GPD MCP probes remain unavailable,runtime_boundary,4,1
+CS-0333,unknown:runtime-bridge,runtime-bridge-parity,GPD MCP tools for state,runtime_boundary,4,1
+CS-0334,unknown:runtime-bridge,state-projection-parity,"GPD MCP state and convention tools all return `""user cancelled MCP tool call""",runtime_boundary,4,1
+CS-0335,unknown:runtime-bridge,state-projection-parity,GPD interface in this sandbox,environment_or_sandbox,4,1
+CS-0336,cli:gpd.calculation.list,state-projection-parity,gpd calculation list,product_local_or_unknown,3,1
+CS-0337,cli:gpd.convention.check,mutation-ordering-durability,gpd convention check,product_local_or_unknown,3,3
+CS-0338,cli:gpd.convention.check,validation-contract-precision,gpd convention check,product_local_or_unknown,3,2
+CS-0339,cli:gpd.convention.list,mutation-ordering-durability,gpd convention list,product_local_or_unknown,3,3
+CS-0340,cli:gpd.convention.set,unknown,gpd convention set metric_signature mostly-plus,product_local_or_unknown,3,1
+CS-0341,cli:gpd.health,placeholder-sentinel-normalization,gpd health,product_local_or_unknown,3,3
+CS-0342,cli:gpd.health,state-projection-parity,gpd health,runtime_boundary,3,2
+CS-0343,cli:gpd.init.execute-phase,registry-query-visibility,gpd init execute-phase 01 --stage phase_bootstrap,product_local_or_unknown,3,3
+CS-0344,cli:gpd.init.new-project,validation-contract-precision,gpd init new-project --stage scope_intake,product_local_or_unknown,3,1
+CS-0345,cli:gpd.init.phase-op,validation-contract-precision,gpd init phase-op 01,product_local_or_unknown,3,1
+CS-0346,cli:gpd.init.plan-phase,resume-session-continuity,gpd init plan-phase 01 --stage phase_bootstrap,product_local_or_unknown,3,2
+CS-0347,cli:gpd.init.progress,state-projection-parity,gpd init progress,product_local_or_unknown,3,2
+CS-0348,cli:gpd.init.resume,registry-query-visibility,gpd init resume,product_local_or_unknown,3,2
+CS-0349,cli:gpd.phase.add,citation-reference-propagation,gpd phase add,product_local_or_unknown,3,2
+CS-0350,cli:gpd.phase.add,registry-query-visibility,"gpd phase add ""Benchmark modular-flow literature survey""",product_local_or_unknown,3,1
+CS-0351,cli:gpd.phase.add,state-projection-parity,gpd phase add,runtime_boundary,3,3
+CS-0352,cli:gpd.phase.find,state-projection-parity,gpd phase find 01,product_local_or_unknown,3,1
+CS-0353,cli:gpd.progress,interface-contract-parity,gpd progress --reconcile,product_local_or_unknown,3,3
+CS-0354,cli:gpd.progress,mutation-ordering-durability,gpd progress,product_local_or_unknown,3,3
+CS-0355,cli:gpd.query.deps,registry-query-visibility,gpd query deps lit-open-map,product_local_or_unknown,3,1
+CS-0356,cli:gpd.question.list,unknown,gpd question list,product_local_or_unknown,3,1
+CS-0357,cli:gpd.result,state-projection-parity,gpd result ...,product_local_or_unknown,3,1
+CS-0358,cli:gpd.result.deps,mutation-ordering-durability,gpd result deps R-01-farrelly-parallel,runtime_boundary,3,3
+CS-0359,cli:gpd.result.deps,resume-session-continuity,gpd result deps,product_local_or_unknown,3,1
+CS-0360,cli:gpd.result.deps,state-projection-parity,gpd result deps,product_local_or_unknown,3,1
+CS-0361,cli:gpd.state.get,state-projection-parity,gpd state get continuation,product_local_or_unknown,3,1
+CS-0362,cli:gpd.state.load,state-projection-parity,gpd state load,runtime_boundary,3,3
+CS-0363,cli:gpd.state.record-session,resume-session-continuity,gpd state record-session --stopped-at 2026-04-09T15:45:00Z --resume-file journal.md --last-result-id lit-open-map,product_local_or_unknown,3,1
+CS-0364,cli:gpd.state.record-session,resume-session-continuity,gpd state record-session --stopped-at 2026-04-09T21:15:08Z --resume-file HANDOFF.md --last-result-id minimax_conditional_hrt,product_local_or_unknown,3,1
+CS-0365,cli:gpd.state.record-session,resume-session-continuity,gpd state record-session --stopped-at 2026-04-09T21:27:19Z --resume-file journal.md --last-result-id jt-kdv-transseries-2026,product_local_or_unknown,3,1
+CS-0366,cli:gpd.state.record-session,state-projection-parity,"gpd state record-session --stopped-at ""Session 4 deep audit checkpoint complete; cold-start contradictions still under test""",product_local_or_unknown,3,1
+CS-0367,cli:gpd.state.record-session,state-projection-parity,gpd state record-session --stopped-at 2026-04-09T23:53:26Z --resume-file HANDOFF.md --last-result-id lit-filter-constraints,product_local_or_unknown,3,1
+CS-0368,cli:gpd.state.update-progress,state-projection-parity,gpd state update-progress,runtime_boundary,3,3
+CS-0369,cli:gpd.suggest,placeholder-sentinel-normalization,gpd suggest,product_local_or_unknown,3,3
+CS-0370,cli:gpd.summary-extract.GPD,state-projection-parity,gpd summary-extract GPD/phases/01-core-holographic-constructions-and-anchor-papers/SUMMARY.md --field one_liner --field key_results --field conventions --field affects,product_local_or_unknown,3,1
+CS-0371,cli:gpd.validate.command-context,state-projection-parity,gpd validate command-context progress,runtime_boundary,3,3
+CS-0372,cli:gpd.validate.command-context,validation-contract-precision,gpd validate command-context new-project,product_local_or_unknown,3,1
+CS-0373,cli:gpd.validate.consistency,state-projection-parity,gpd validate consistency,product_local_or_unknown,3,2
+CS-0374,cli:gpd.validate.plan-contract,validation-contract-precision,gpd validate plan-contract .../01-01-PLAN.md,product_local_or_unknown,3,1
+CS-0375,cli:gpd.validate.project-contract,validation-contract-precision,gpd validate project-contract - --mode approved,product_local_or_unknown,3,1
+CS-0376,cli:gpd.validate.review-preflight,mutation-ordering-durability,gpd validate review-preflight verify-work 01 --strict,product_local_or_unknown,3,3
+CS-0377,cli:gpd.validate.review-preflight,runtime-bridge-parity,gpd validate review-preflight verify-work 01 --strict,runtime_boundary,3,3
+CS-0378,cli:gpd.validate.summary-contract,runtime-bridge-parity,gpd validate summary-contract,runtime_boundary,3,2
+CS-0379,cli:gpd.validate.unattended-readiness,registry-query-visibility,gpd validate unattended-readiness --runtime codex --local,runtime_boundary,3,1
+CS-0380,raw:gpd.health,mutation-ordering-durability,gpd --raw health,product_local_or_unknown,3,2
+CS-0381,raw:gpd.health,registry-query-visibility,gpd --raw health,product_local_or_unknown,3,2
+CS-0382,raw:gpd.observe.sessions,resume-session-continuity,gpd --raw observe sessions,product_local_or_unknown,3,1
+CS-0383,raw:gpd.resume,state-projection-parity,gpd --raw resume --recent,product_local_or_unknown,3,3
+CS-0384,raw:gpd.state.load,state-projection-parity,gpd --raw state load,product_local_or_unknown,3,1
+CS-0385,raw:gpd.state.patch,mutation-ordering-durability,"gpd --raw state patch current_focus ""Patch partial probe"" project_contract nope",product_local_or_unknown,3,1
+CS-0386,raw:gpd.state.patch,state-projection-parity,gpd --raw state patch Status 'blocked on missing ROADMAP bootstrap',product_local_or_unknown,3,1
+CS-0387,raw:gpd.uncertainty.list,validation-contract-precision,gpd --raw uncertainty list,product_local_or_unknown,3,1
+CS-0388,raw:gpd.verify.summary,state-projection-parity,gpd verify summary --raw,product_local_or_unknown,3,1
+CS-0389,raw:gpd.verify.summary,validation-contract-precision,gpd verify summary --raw,product_local_or_unknown,3,1
+CS-0390,runtime:gpd.main,state-projection-parity,gpd-main,runtime_boundary,3,2
+CS-0391,unknown,artifact-provenance-propagation,GPD/state.json,product_local_or_unknown,3,3
+CS-0392,unknown,mutation-ordering-durability,GPD/phases/,product_local_or_unknown,3,2
+CS-0393,unknown,registry-query-visibility,GPD/CHECKPOINTS.md,product_local_or_unknown,3,3
+CS-0394,unknown,resume-session-continuity,GPD artifact edits here stay invisible to `git status,product_local_or_unknown,3,1
+CS-0395,unknown,resume-session-continuity,GPD state,product_local_or_unknown,3,1
+CS-0396,unknown,resume-session-continuity,GPD state` to,product_local_or_unknown,3,1
+CS-0397,unknown,runtime-bridge-parity,GPD/STATE.md,runtime_boundary,3,1
+CS-0398,unknown,runtime-bridge-parity,GPD/state.json,runtime_boundary,3,3
+CS-0399,unknown,runtime-bridge-parity,unknown,environment_or_sandbox,3,3
+CS-0400,unknown,state-projection-parity,GPD artifact edits here stay invisible to `git status,product_local_or_unknown,3,1
+CS-0401,unknown,state-projection-parity,"GPD state"" to ""workspace already points at a GPD project""",product_local_or_unknown,3,1
+CS-0402,unknown,state-projection-parity,GPD/phases/01-anchor-literature-and-contour-question/CONTEXT.md,product_local_or_unknown,3,1
+CS-0403,unknown,state-projection-parity,GPD/phases/01-map-the-quantum-information-derivations-of-rt/01-01-PLAN.md,product_local_or_unknown,3,1
+CS-0404,unknown,unknown,GPD result registry and marked them verified with medium confidence,product_local_or_unknown,3,1
+CS-0405,unknown,unknown,GPD starts,environment_or_sandbox,3,1
+CS-0406,unknown,unknown,GPD/STATE-ARCHIVE.md,product_local_or_unknown,3,1
+CS-0407,unknown,unknown,GPD/analysis/discrete-continuum-threshold-synthesis.md,product_local_or_unknown,3,1
+CS-0408,unknown,validation-contract-precision,GPD artifact edits here stay invisible to `git status,product_local_or_unknown,3,1
+CS-0409,unknown,validation-contract-precision,GPD surface in the entire initialization flow,product_local_or_unknown,3,1
+CS-0410,unknown,validation-contract-precision,GPD then demanded full proof-bearing claim structure: parameters,product_local_or_unknown,3,1
+CS-0411,unknown,validation-contract-precision,GPD/config.json,product_local_or_unknown,3,3
+CS-0412,unknown:runtime-bridge,mutation-ordering-durability,GPD/CONVENTIONS.md,runtime_boundary,3,2
+CS-0413,unknown:runtime-bridge,registry-query-visibility,GPD/state.json.bak,runtime_boundary,3,1
+CS-0414,unknown:runtime-bridge,resume-session-continuity,GPD MCP cross-check attempts through the state and convention servers still return `user cancelled MCP tool call,runtime_boundary,3,1
+CS-0415,unknown:runtime-bridge,resume-session-continuity,GPD MCP tool calls still return immediate cancellation,runtime_boundary,3,1
+CS-0416,unknown:runtime-bridge,runtime-bridge-parity,GPD/,runtime_boundary,3,1
+CS-0417,unknown:runtime-bridge,state-projection-parity,GPD MCP cross-check attempts through the state and convention servers still return `user cancelled MCP tool call,runtime_boundary,3,1
+CS-0418,unknown:runtime-bridge,state-projection-parity,GPD tools still do not function here,runtime_boundary,3,1
+CS-0419,unknown:runtime-bridge,state-projection-parity,GPD tools still return `user cancelled MCP tool call,runtime_boundary,3,1
+CS-0420,unknown:runtime-bridge,state-projection-parity,GPD/STATE.md,runtime_boundary,3,3
+CS-0421,unknown:runtime-bridge,state-projection-parity,unknown,runtime_boundary,3,3
+CS-0422,cli:gpd.approximation.check,state-projection-parity,gpd approximation check,product_local_or_unknown,2,1
+CS-0423,cli:gpd.approximation.check,unknown,gpd approximation check,product_local_or_unknown,2,1
+CS-0424,cli:gpd.convention.list,runtime-bridge-parity,gpd convention list,runtime_boundary,2,1
+CS-0425,cli:gpd.convention.set,mutation-ordering-durability,gpd convention set --force coordinate_system ...,product_local_or_unknown,2,1
+CS-0426,cli:gpd.convention.set,mutation-ordering-durability,gpd convention set metric_signature mostly-plus,product_local_or_unknown,2,1
+CS-0427,cli:gpd.convention.set,state-projection-parity,gpd convention set --force coordinate_system ...,product_local_or_unknown,2,1
+CS-0428,cli:gpd.convention.set,validation-contract-precision,gpd convention set --force coordinate_system ...,product_local_or_unknown,2,2
+CS-0429,cli:gpd.core.phases,state-projection-parity,gpd.core.phases.phase_add,product_local_or_unknown,2,1
+CS-0430,cli:gpd.doctor.codex,runtime-bridge-parity,gpd doctor --runtime codex,runtime_boundary,2,1
+CS-0431,cli:gpd.frontmatter.validate,registry-query-visibility,gpd frontmatter validate --schema summary .../SUMMARY.md,product_local_or_unknown,2,1
+CS-0432,cli:gpd.frontmatter.validate,state-projection-parity,gpd frontmatter validate --schema verification GPD/phases/01-core-holographic-constructions-and-anchor-papers/01-VERIFICATION.md,product_local_or_unknown,2,1
+CS-0433,cli:gpd.health,validation-contract-precision,gpd health --fix,product_local_or_unknown,2,2
+CS-0434,cli:gpd.history-digest,placeholder-sentinel-normalization,gpd history-digest,product_local_or_unknown,2,1
+CS-0435,cli:gpd.init.new-project,mutation-ordering-durability,gpd init new-project,product_local_or_unknown,2,2
+CS-0436,cli:gpd.init.new-project,runtime-bridge-parity,gpd init new-project,environment_or_sandbox,2,2
+CS-0437,cli:gpd.init.new-project,state-projection-parity,gpd init new-project,runtime_boundary,2,2
+CS-0438,cli:gpd.init.phase-op,runtime-bridge-parity,gpd init phase-op 01,runtime_boundary,2,1
+CS-0439,cli:gpd.init.phase-op,unknown,gpd init phase-op 01,product_local_or_unknown,2,2
+CS-0440,cli:gpd.init.plan-phase,registry-query-visibility,gpd init plan-phase 1,product_local_or_unknown,2,2
+CS-0441,cli:gpd.init.plan-phase,registry-query-visibility,gpd init plan-phase 1 --stage phase_bootstrap,product_local_or_unknown,2,2
+CS-0442,cli:gpd.init.plan-phase,resume-session-continuity,gpd init plan-phase 01,product_local_or_unknown,2,2
+CS-0443,cli:gpd.init.plan-phase,resume-session-continuity,gpd init plan-phase 01 --stage phase_bootstrap,runtime_boundary,2,2
+CS-0444,cli:gpd.init.plan-phase,runtime-bridge-parity,gpd init plan-phase 1,runtime_boundary,2,2
+CS-0445,cli:gpd.init.progress,registry-query-visibility,gpd init progress,product_local_or_unknown,2,1
+CS-0446,cli:gpd.init.verify-work,registry-query-visibility,gpd init verify-work 01,product_local_or_unknown,2,2
+CS-0447,cli:gpd.init.verify-work,state-projection-parity,gpd init verify-work 01,product_local_or_unknown,2,2
+CS-0448,cli:gpd.observe.sessions,artifact-provenance-propagation,gpd observe sessions --last 5,product_local_or_unknown,2,1
+CS-0449,cli:gpd.observe.sessions,runtime-bridge-parity,gpd observe sessions --last 5,runtime_boundary,2,2
+CS-0450,cli:gpd.observe.sessions,state-projection-parity,gpd observe sessions --last 5,runtime_boundary,2,1
+CS-0451,cli:gpd.phase.add,state-projection-parity,"gpd phase add ""Benchmark modular-flow literature survey""",product_local_or_unknown,2,1
+CS-0452,cli:gpd.phase.add,unknown,gpd phase add,environment_or_sandbox,2,2
+CS-0453,cli:gpd.phase.complete,artifact-provenance-propagation,gpd phase complete 01,product_local_or_unknown,2,1
+CS-0454,cli:gpd.phase.complete,state-projection-parity,gpd phase complete 01,product_local_or_unknown,2,1
+CS-0455,cli:gpd.phase.list,state-projection-parity,gpd phase list/find/index,product_local_or_unknown,2,1
+CS-0456,cli:gpd.progress,registry-query-visibility,gpd progress,runtime_boundary,2,2
+CS-0457,cli:gpd.query.deps,registry-query-visibility,gpd query deps,runtime_boundary,2,2
+CS-0458,cli:gpd.question.list,validation-contract-precision,gpd question list,product_local_or_unknown,2,1
+CS-0459,cli:gpd.result.deps,state-projection-parity,gpd result deps minimax_conditional_hrt,product_local_or_unknown,2,1
+CS-0460,cli:gpd.result.deps,unknown,gpd result deps lit-open-map,product_local_or_unknown,2,1
+CS-0461,cli:gpd.result.deps,unknown,gpd result deps res-islands,product_local_or_unknown,2,1
+CS-0462,cli:gpd.result.deps,validation-contract-precision,gpd result deps R-03-cross-construction-verdict,product_local_or_unknown,2,2
+CS-0463,cli:gpd.result.list,validation-contract-precision,gpd result list,product_local_or_unknown,2,2
+CS-0464,cli:gpd.result.search,unknown,gpd result search,product_local_or_unknown,2,1
+CS-0465,cli:gpd.result.show,registry-query-visibility,gpd result show,product_local_or_unknown,2,2
+CS-0466,cli:gpd.result.show,resume-session-continuity,gpd result show,product_local_or_unknown,2,2
+CS-0467,cli:gpd.result.show,resume-session-continuity,gpd result show,runtime_boundary,2,2
+CS-0468,cli:gpd.result.show,runtime-bridge-parity,gpd result show,runtime_boundary,2,2
+CS-0469,cli:gpd.result.show,unknown,gpd result show lit-filter-constraints,product_local_or_unknown,2,1
+CS-0470,cli:gpd.result.update,unknown,gpd result update,product_local_or_unknown,2,1
+CS-0471,cli:gpd.result.verify,resume-session-continuity,gpd result verify,product_local_or_unknown,2,1
+CS-0472,cli:gpd.result.verify,validation-contract-precision,gpd result verify,product_local_or_unknown,2,2
+CS-0473,cli:gpd.resume,resume-session-continuity,gpd resume --recent,runtime_boundary,2,2
+CS-0474,cli:gpd.roadmap.analyze,interface-contract-parity,gpd roadmap analyze,runtime_boundary,2,1
+CS-0475,cli:gpd.state,unknown,gpd state ...,product_local_or_unknown,2,1
+CS-0476,cli:gpd.state.add-decision,validation-contract-precision,gpd state add-decision,product_local_or_unknown,2,1
+CS-0477,cli:gpd.state.get,registry-query-visibility,gpd state get session,runtime_boundary,2,2
+CS-0478,cli:gpd.state.get,resume-session-continuity,gpd state get session,product_local_or_unknown,2,2
+CS-0479,cli:gpd.state.get,resume-session-continuity,gpd state get session,runtime_boundary,2,2
+CS-0480,cli:gpd.state.get,state-projection-parity,gpd state get current_phase,product_local_or_unknown,2,1
+CS-0481,cli:gpd.state.patch,citation-reference-propagation,gpd state patch,product_local_or_unknown,2,2
+CS-0482,cli:gpd.state.patch,interface-contract-parity,gpd state patch,product_local_or_unknown,2,2
+CS-0483,cli:gpd.state.patch,validation-contract-precision,gpd state patch project_reference.core_research_question ...,product_local_or_unknown,2,1
+CS-0484,cli:gpd.state.record-session,resume-session-continuity,"gpd state record-session --stopped-at ""Session 2 deep audit complete; phase 01 still ready to plan"" --resume-file HANDOFF.md --last-result-id R-CRIT-01",product_local_or_unknown,2,1
+CS-0485,cli:gpd.state.record-session,resume-session-continuity,"gpd state record-session --stopped-at ""Session 4 runtime and dependency edge-case audit complete; phase 01 still ready to plan"" --resume-file HANDOFF.md --last-result-id R-CRIT-01",runtime_boundary,2,1
+CS-0486,cli:gpd.state.record-session,resume-session-continuity,gpd state record-session --stopped-at 2026-04-09T23:53:26Z --resume-file HANDOFF.md --last-result-id lit-filter-constraints,product_local_or_unknown,2,1
+CS-0487,cli:gpd.state.record-session,state-projection-parity,gpd state record-session --resume-file HANDOFF.md,product_local_or_unknown,2,2
+CS-0488,cli:gpd.state.resolve-blocker,unknown,gpd state resolve-blocker,product_local_or_unknown,2,1
+CS-0489,cli:gpd.state.set-project-contract,registry-query-visibility,gpd state set-project-contract GPD/project_contract.json,product_local_or_unknown,2,1
+CS-0490,cli:gpd.state.set-project-contract,state-projection-parity,gpd state set-project-contract -,product_local_or_unknown,2,2
+CS-0491,cli:gpd.state.snapshot,registry-query-visibility,gpd state snapshot,runtime_boundary,2,2
+CS-0492,cli:gpd.state.update,resume-session-continuity,gpd state update,product_local_or_unknown,2,1
+CS-0493,cli:gpd.state.update,state-projection-parity,gpd state update,product_local_or_unknown,2,1
+CS-0494,cli:gpd.state.update,unknown,gpd state update,product_local_or_unknown,2,1
+CS-0495,cli:gpd.state.update-progress,mutation-ordering-durability,gpd state update-progress,runtime_boundary,2,2
+CS-0496,cli:gpd.state.validate,interface-contract-parity,gpd state validate,product_local_or_unknown,2,1
+CS-0497,cli:gpd.state.validate,mutation-ordering-durability,gpd state validate,environment_or_sandbox,2,2
+CS-0498,cli:gpd.state.validate,resume-session-continuity,gpd state validate,runtime_boundary,2,2
+CS-0499,cli:gpd.suggest,interface-contract-parity,gpd suggest,runtime_boundary,2,2
+CS-0500,cli:gpd.suggest.5,state-projection-parity,gpd suggest --limit 5,product_local_or_unknown,2,2
+CS-0501,cli:gpd.summary-extract,unknown,gpd summary-extract,product_local_or_unknown,2,1
+CS-0502,cli:gpd.summary-extract.GPD,runtime-bridge-parity,gpd summary-extract GPD/phases/01-core-holographic-constructions-and-anchor-papers/SUMMARY.md --field one_liner --field key_results --field conventions --field affects,runtime_boundary,2,1
+CS-0503,cli:gpd.summary-extract.SUMMARY,observability-lifecycle,gpd summary-extract SUMMARY.md,product_local_or_unknown,2,2
+CS-0504,cli:gpd.summary-extract.SUMMARY,unknown,gpd summary-extract SUMMARY.md,product_local_or_unknown,2,2
+CS-0505,cli:gpd.validate.consistency,resume-session-continuity,gpd validate consistency,product_local_or_unknown,2,1
+CS-0506,cli:gpd.validate.plan-contract,resume-session-continuity,gpd validate plan-contract,product_local_or_unknown,2,2
+CS-0507,cli:gpd.validate.plan-contract,runtime-bridge-parity,gpd validate plan-contract,runtime_boundary,2,2
+CS-0508,cli:gpd.validate.project-contract,registry-query-visibility,gpd validate project-contract,product_local_or_unknown,2,1
+CS-0509,cli:gpd.validate.review-preflight,registry-query-visibility,gpd validate review-preflight verify-work 01 --strict,product_local_or_unknown,2,2
+CS-0510,cli:gpd.validate.review-preflight,resume-session-continuity,gpd validate review-preflight verify-work 01 --strict,product_local_or_unknown,2,2
+CS-0511,cli:gpd.validate.summary-contract,resume-session-continuity,gpd validate summary-contract,product_local_or_unknown,2,2
+CS-0512,cli:gpd.verify.references,state-projection-parity,gpd verify references HANDOFF.md,product_local_or_unknown,2,1
+CS-0513,cli:gpd.verify.references,state-projection-parity,gpd verify references journal.md,product_local_or_unknown,2,1
+CS-0514,cli:gpd.verify.references,unknown,gpd verify references GPD/STATE.md,product_local_or_unknown,2,2
+CS-0515,cli:gpd.verify.references,validation-contract-precision,gpd verify references journal.md,product_local_or_unknown,2,1
+CS-0516,raw:gpd.health,state-projection-parity,gpd --raw health,runtime_boundary,2,2
+CS-0517,raw:gpd.init.new-project,resume-session-continuity,gpd init new-project --raw,product_local_or_unknown,2,1
+CS-0518,raw:gpd.init.new-project,unknown,gpd init new-project --raw,product_local_or_unknown,2,1
+CS-0519,raw:gpd.init.resume,state-projection-parity,gpd --raw init resume,product_local_or_unknown,2,1
+CS-0520,raw:gpd.init.sync-state,state-projection-parity,gpd init sync-state --raw,product_local_or_unknown,2,1
+CS-0521,raw:gpd.state.get,state-projection-parity,gpd --raw state get continuation,product_local_or_unknown,2,1
+CS-0522,raw:gpd.state.validate,interface-contract-parity,gpd state validate --raw,product_local_or_unknown,2,1
+CS-0523,raw:gpd.state.validate,resume-session-continuity,gpd --raw state validate,product_local_or_unknown,2,2
+CS-0524,raw:gpd.state.validate,state-projection-parity,gpd state validate --raw,product_local_or_unknown,2,1
+CS-0525,raw:gpd.suggest,state-projection-parity,gpd suggest --raw,product_local_or_unknown,2,2
+CS-0526,raw:gpd.verify.summary,resume-session-continuity,gpd verify summary --raw,product_local_or_unknown,2,1
+CS-0527,runtime:gpd.execute-phase,registry-query-visibility,gpd:execute-phase,product_local_or_unknown,2,1
+CS-0528,runtime:gpd.execute-phase,resume-session-continuity,gpd:execute-phase,product_local_or_unknown,2,2
+CS-0529,runtime:gpd.execute-phase,state-projection-parity,gpd:execute-phase,runtime_boundary,2,1
+CS-0530,runtime:gpd.main,registry-query-visibility,gpd-main,runtime_boundary,2,1
+CS-0531,runtime:gpd.main,resume-session-continuity,gpd-main,runtime_boundary,2,1
+CS-0532,runtime:gpd.main,runtime-bridge-parity,gpd-main,environment_or_sandbox,2,2
+CS-0533,runtime:gpd.new-project,resume-session-continuity,GPD sources and command metadata say the public runtime command `gpd:new-project` should create `GPD/PROJECT,runtime_boundary,2,1
+CS-0534,runtime:gpd.resume,registry-query-visibility,gpd:resume,product_local_or_unknown,2,1
+CS-0535,runtime:gpd.resume,resume-session-continuity,gpd validate command-context gpd:resume,product_local_or_unknown,2,1
+CS-0536,runtime:gpd.resume,state-projection-parity,gpd:resume,runtime_boundary,2,1
+CS-0537,runtime:gpd.resume-work,resume-session-continuity,gpd validate command-context gpd:resume-work,runtime_boundary,2,1
+CS-0538,runtime:gpd.start,validation-contract-precision,gpd validate command-context gpd:start,product_local_or_unknown,2,1
+CS-0539,unknown,artifact-provenance-propagation,GPD/phases/02-derive-the-candidate-entanglement-or-modular-entropy-observable-in-the-homogeneous-restricted-t-2-sector/notes/entropy-observable.md,product_local_or_unknown,2,1
+CS-0540,unknown,artifact-provenance-propagation,GPD/phases/03-assess-the-single-geometry-all-genus-proposal-against-established-jt-anchors/03-01-SUMMARY.md,product_local_or_unknown,2,1
+CS-0541,unknown,citation-reference-propagation,GPD state,product_local_or_unknown,2,2
+CS-0542,unknown,mutation-ordering-durability,GPD/CONVENTIONS.md,runtime_boundary,2,2
+CS-0543,unknown,mutation-ordering-durability,unknown,environment_or_sandbox,2,2
+CS-0544,unknown,placeholder-sentinel-normalization,GPD/config.json,product_local_or_unknown,2,2
+CS-0545,unknown,registry-query-visibility,GPD/phases/,product_local_or_unknown,2,2
+CS-0546,unknown,registry-query-visibility,GPD/phases/01-literature-anchor-inventory-and-saddle-taxonomy/,runtime_boundary,2,1
+CS-0547,unknown,registry-query-visibility,GPD/phases/01-map-the-quantum-information-derivations-of-rt/,product_local_or_unknown,2,1
+CS-0548,unknown,registry-query-visibility,GPD/state.json.bak,runtime_boundary,2,1
+CS-0549,unknown,resume-session-continuity,GPD metadata: the quantum expansion `\Theta` carries inverse-affine-length units,product_local_or_unknown,2,2
+CS-0550,unknown,resume-session-continuity,GPD/,product_local_or_unknown,2,2
+CS-0551,unknown,resume-session-continuity,GPD/config.json,runtime_boundary,2,2
+CS-0552,unknown,resume-session-continuity,GPD/phases/01-scaffold-recovery-and-literature-grounded-setup,product_local_or_unknown,2,1
+CS-0553,unknown,resume-session-continuity,GPD/phases/03-assess-the-single-geometry-all-genus-proposal-against-established-jt-anchors/03-01-SUMMARY.md,product_local_or_unknown,2,1
+CS-0554,unknown,resume-session-continuity,GPD/state.json.bak,product_local_or_unknown,2,1
+CS-0555,unknown,resume-session-continuity,unknown,environment_or_sandbox,2,2
+CS-0556,unknown,runtime-bridge-parity,GPD/config.json,runtime_boundary,2,2
+CS-0557,unknown,state-projection-parity,GPD conclusion: continuity can be repaired locally when the canonical `resume_file` is present,product_local_or_unknown,2,1
+CS-0558,unknown,state-projection-parity,GPD conclusion: the canonical continuation handoff now persists,product_local_or_unknown,2,1
+CS-0559,unknown,state-projection-parity,GPD during this session,product_local_or_unknown,2,1
+CS-0560,unknown,state-projection-parity,GPD layer is also still incomplete,product_local_or_unknown,2,2
+CS-0561,unknown,state-projection-parity,GPD state,product_local_or_unknown,2,1
+CS-0562,unknown,state-projection-parity,GPD state` to,product_local_or_unknown,2,1
+CS-0563,unknown,state-projection-parity,GPD/phases/01-literature-anchor-inventory-and-saddle-taxonomy/,runtime_boundary,2,1
+CS-0564,unknown,state-projection-parity,GPD/phases/01-scaffold-recovery-and-literature-grounded-setup,product_local_or_unknown,2,1
+CS-0565,unknown,state-projection-parity,GPD/phases/03-assess-the-single-geometry-all-genus-proposal-against-established-jt-anchors/03-01-SUMMARY.md,product_local_or_unknown,2,1
+CS-0566,unknown,state-projection-parity,git check-ignore -v,product_local_or_unknown,2,2
+CS-0567,unknown,state-projection-parity,git check-ignore -v GPD/,product_local_or_unknown,2,1
+CS-0568,unknown,unknown,GPD state,product_local_or_unknown,2,2
+CS-0569,unknown,unknown,GPD/CHECKPOINTS.md,product_local_or_unknown,2,1
+CS-0570,unknown,unknown,GPD/phases/01-map-the-quantum-information-derivations-of-rt/,product_local_or_unknown,2,1
+CS-0571,unknown,unknown,git check-ignore -v GPD/,product_local_or_unknown,2,1
+CS-0572,unknown,unknown,unknown,environment_or_sandbox,2,1
+CS-0573,unknown,validation-contract-precision,GPD tools are still unusable here,product_local_or_unknown,2,1
+CS-0574,unknown,validation-contract-precision,GPD/,product_local_or_unknown,2,1
+CS-0575,unknown,validation-contract-precision,GPD/CONVENTIONS.md,product_local_or_unknown,2,2
+CS-0576,unknown,validation-contract-precision,GPD/literature/SINGULARITY-DIAGNOSTICS.md,product_local_or_unknown,2,1
+CS-0577,unknown,validation-contract-precision,GPD/phases/,product_local_or_unknown,2,2
+CS-0578,unknown,validation-contract-precision,GPD/phases/01-scaffold-recovery-and-literature-grounded-setup,product_local_or_unknown,2,1
+CS-0579,unknown,validation-contract-precision,GPD/phases/03-assess-the-single-geometry-all-genus-proposal-against-established-jt-anchors/03-01-SUMMARY.md,product_local_or_unknown,2,1
+CS-0580,unknown:runtime-bridge,registry-query-visibility,GPD MCP probes remain unavailable,runtime_boundary,2,1
+CS-0581,unknown:runtime-bridge,registry-query-visibility,unknown,product_local_or_unknown,2,2
+CS-0582,unknown:runtime-bridge,resume-session-continuity,GPD MCP tools consistently cancel from this runtime while the bridge CLI remains usable,runtime_boundary,2,2
+CS-0583,unknown:runtime-bridge,resume-session-continuity,GPD/,runtime_boundary,2,1
+CS-0584,unknown:runtime-bridge,runtime-bridge-parity,GPD MCP tools remain unusable from this workspace,runtime_boundary,2,1
+CS-0585,unknown:runtime-bridge,runtime-bridge-parity,GPD command observations:,runtime_boundary,2,1
+CS-0586,unknown:runtime-bridge,runtime-bridge-parity,GPD/STATE.md,runtime_boundary,2,2
+CS-0587,unknown:runtime-bridge,runtime-bridge-parity,GPD/config.json,runtime_boundary,2,2
+CS-0588,unknown:runtime-bridge,runtime-bridge-parity,GPD/phases/01-literature-anchor-inventory-and-saddle-taxonomy/,runtime_boundary,2,1
+CS-0589,unknown:runtime-bridge,state-projection-parity,GPD MCP probes remain unavailable,runtime_boundary,2,1
+CS-0590,unknown:runtime-bridge,state-projection-parity,GPD MCP tool calls still return immediate cancellation,runtime_boundary,2,1
+CS-0591,unknown:runtime-bridge,state-projection-parity,GPD/,runtime_boundary,2,1
