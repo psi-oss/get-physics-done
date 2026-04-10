@@ -18,10 +18,11 @@ def _load_phase08() -> tuple[dict[str, dict[str, object]], dict[str, dict[str, o
         packet_ids = fixture["packet_ids"]
         bug_type_ids = fixture["bug_type_ids"]
         assert len(packet_ids) == len(bug_type_ids)
-        queue.extend(
-            {"packet_id": packet_id, "bug_type_id": bug_type_id}
-            for packet_id, bug_type_id in zip(packet_ids, bug_type_ids, strict=True)
-        )
+        for packet_id, bug_type_id in zip(packet_ids, bug_type_ids, strict=True):
+            packet_id = str(packet_id)
+            bug_type_id = str(bug_type_id)
+            assert packet_id.startswith(f"PK-{bug_type_id}-")
+            queue.append({"packet_id": packet_id, "bug_type_id": bug_type_id})
 
     blocked = manifest["blocked_references"]
     return (
