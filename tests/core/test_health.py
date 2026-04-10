@@ -38,6 +38,7 @@ from gpd.core.health import (
     check_orphans,
     check_plan_frontmatter,
     check_project_structure,
+    check_result_consistency,
     check_roadmap_consistency,
     check_state_validity,
     check_storage_paths,
@@ -2465,3 +2466,262 @@ class TestCheckLatestReturn:
         assert result.status == CheckStatus.FAIL
         assert "tasks_completed not a number" in result.issues[0] or "tasks_completed not a number" in " ".join(result.issues)
         assert "tasks_total not a number" in " ".join(result.issues)
+
+
+class TestCheckResultConsistency:
+    """Tests for the result-consistency health check."""
+
+    def test_no_state_returns_ok(self, tmp_path: Path) -> None:
+        """When state.json is absent, the check should gracefully return OK."""
+        result = check_result_consistency(tmp_path)
+        assert result.status == CheckStatus.OK
+        assert result.details.get("reason") == "no_state"
+
+    def test_empty_results_and_no_summaries_returns_ok(self, tmp_path: Path) -> None:
+        """When both registries are empty, there is nothing to mismatch."""
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "state.json").write_text(
+            json.dumps({"intermediate_results": []}),
+            encoding="utf-8",
+        )
+        result = check_result_consistency(tmp_path)
+        assert result.status == CheckStatus.OK
+        assert result.details["state_result_count"] == 0
+        assert result.details["summary_provides_count"] == 0
+
+    def test_matching_results_returns_ok(self, tmp_path: Path) -> None:
+        """When descriptions and provides match, check should return OK."""
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        phases = planning / "phases"
+        phase_dir = phases / "01-setup"
+        phase_dir.mkdir(parents=True)
+
+        state = {
+            "intermediate_results": [
+                {
+                    "id": "R-01-01",
+                    "description": "Hamiltonian eigenvalues",
+                    "phase": "01",
+                },
+            ],
+        }
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        summary_content = (
+            "---\n"
+            "provides:\n"
+            "  - Hamiltonian eigenvalues\n"
+            "---\n"
+            "# Summary\n"
+        )
+        (phase_dir / "SUMMARY.md").write_text(summary_content, encoding="utf-8")
+
+        result = check_result_consistency(tmp_path)
+        assert result.status == CheckStatus.OK
+        assert result.details["state_result_count"] == 1
+        assert result.details["summary_provides_count"] == 1
+        assert result.details["state_only_count"] == 0
+        assert result.details["summary_only_count"] == 0
+
+    def test_state_only_result_warns(self, tmp_path: Path) -> None:
+        """A result in state.json with no SUMMARY provides should warn."""
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "phases").mkdir()
+
+        state = {
+            "intermediate_results": [
+                {
+                    "id": "R-01-01",
+                    "description": "partition function",
+                    "phase": "01",
+                },
+            ],
+        }
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        result = check_result_consistency(tmp_path)
+        assert result.status == CheckStatus.WARN
+        assert result.details["state_only_count"] == 1
+        assert any("state.json result" in w for w in result.warnings)
+
+    def test_summary_only_provides_warns(self, tmp_path: Path) -> None:
+        """A SUMMARY provides with no state.json result should warn."""
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        phases = planning / "phases"
+        phase_dir = phases / "01-setup"
+        phase_dir.mkdir(parents=True)
+
+        state = {"intermediate_results": []}
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        summary_content = (
+            "---\n"
+            "provides:\n"
+            "  - correlation function\n"
+            "---\n"
+            "# Summary\n"
+        )
+        (phase_dir / "SUMMARY.md").write_text(summary_content, encoding="utf-8")
+
+        result = check_result_consistency(tmp_path)
+        assert result.status == CheckStatus.WARN
+        assert result.details["summary_only_count"] == 1
+        assert any("SUMMARY provides" in w for w in result.warnings)
+
+    def test_substring_match_is_accepted(self, tmp_path: Path) -> None:
+        """Substring matching should link related descriptions and provides."""
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        phases = planning / "phases"
+        phase_dir = phases / "01-setup"
+        phase_dir.mkdir(parents=True)
+
+        state = {
+            "intermediate_results": [
+                {
+                    "id": "R-01-01",
+                    "description": "energy spectrum",
+                    "phase": "01",
+                },
+            ],
+        }
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        # provides is a superset string containing the description
+        summary_content = (
+            "---\n"
+            "provides:\n"
+            "  - full energy spectrum for ground state\n"
+            "---\n"
+            "# Summary\n"
+        )
+        (phase_dir / "SUMMARY.md").write_text(summary_content, encoding="utf-8")
+
+        result = check_result_consistency(tmp_path)
+        assert result.status == CheckStatus.OK
+        assert result.details["state_only_count"] == 0
+        assert result.details["summary_only_count"] == 0
+
+    def test_case_insensitive_matching(self, tmp_path: Path) -> None:
+        """Matching should be case-insensitive."""
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        phases = planning / "phases"
+        phase_dir = phases / "01-setup"
+        phase_dir.mkdir(parents=True)
+
+        state = {
+            "intermediate_results": [
+                {
+                    "id": "R-01-01",
+                    "description": "Green Function",
+                    "phase": "01",
+                },
+            ],
+        }
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        summary_content = (
+            "---\n"
+            "provides:\n"
+            "  - green function\n"
+            "---\n"
+            "# Summary\n"
+        )
+        (phase_dir / "SUMMARY.md").write_text(summary_content, encoding="utf-8")
+
+        result = check_result_consistency(tmp_path)
+        assert result.status == CheckStatus.OK
+
+    def test_structured_provides_with_name_key(self, tmp_path: Path) -> None:
+        """Structured provides entries with 'name' key should be extracted."""
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        phases = planning / "phases"
+        phase_dir = phases / "01-setup"
+        phase_dir.mkdir(parents=True)
+
+        state = {
+            "intermediate_results": [
+                {
+                    "id": "R-01-01",
+                    "description": "dispersion relation",
+                    "phase": "01",
+                },
+            ],
+        }
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        summary_content = (
+            "---\n"
+            "provides:\n"
+            "  - name: dispersion relation\n"
+            "    format: equation\n"
+            "---\n"
+            "# Summary\n"
+        )
+        (phase_dir / "SUMMARY.md").write_text(summary_content, encoding="utf-8")
+
+        result = check_result_consistency(tmp_path)
+        assert result.status == CheckStatus.OK
+        assert result.details["state_only_count"] == 0
+        assert result.details["summary_only_count"] == 0
+
+    def test_results_without_description_are_skipped(self, tmp_path: Path) -> None:
+        """Results without descriptions should not cause false warnings."""
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "phases").mkdir()
+
+        state = {
+            "intermediate_results": [
+                {
+                    "id": "R-01-01",
+                    "equation": "E = mc^2",
+                    "phase": "01",
+                },
+            ],
+        }
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        result = check_result_consistency(tmp_path)
+        assert result.status == CheckStatus.OK
+        assert result.details["state_only_count"] == 0
+
+    def test_both_directions_mismatch(self, tmp_path: Path) -> None:
+        """Both state-only and summary-only mismatches should appear."""
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        phases = planning / "phases"
+        phase_dir = phases / "01-setup"
+        phase_dir.mkdir(parents=True)
+
+        state = {
+            "intermediate_results": [
+                {
+                    "id": "R-01-01",
+                    "description": "free energy",
+                    "phase": "01",
+                },
+            ],
+        }
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        summary_content = (
+            "---\n"
+            "provides:\n"
+            "  - scattering amplitude\n"
+            "---\n"
+            "# Summary\n"
+        )
+        (phase_dir / "SUMMARY.md").write_text(summary_content, encoding="utf-8")
+
+        result = check_result_consistency(tmp_path)
+        assert result.status == CheckStatus.WARN
+        assert result.details["state_only_count"] == 1
+        assert result.details["summary_only_count"] == 1
+        assert len(result.warnings) == 2

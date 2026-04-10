@@ -813,6 +813,108 @@ def check_checkpoint_tags(cwd: Path) -> HealthCheck:
     return HealthCheck(status=status, label="Checkpoint Tags", details=details, warnings=warnings)
 
 
+def check_result_consistency(cwd: Path) -> HealthCheck:
+    """Cross-validate state.json intermediate_results against SUMMARY provides.
+
+    Compares the two parallel result registries — ``intermediate_results`` in
+    ``state.json`` (written by ``gpd result add``) and ``provides`` frontmatter
+    in SUMMARY files (written by executor agents) — and warns on mismatches.
+
+    Conservative matching: an ``IntermediateResult.description`` is considered
+    matched if it appears as an exact case-insensitive substring of any SUMMARY
+    ``provides`` value, or vice-versa.
+    """
+    from gpd.core.query import collect_summaries, resolve_field
+    from gpd.core.results import result_list
+
+    warnings: list[str] = []
+    details: dict[str, object] = {}
+
+    # 1. Load state.json intermediate_results
+    state_obj, _state_source = _peek_normalized_state_for_health(cwd)
+    if state_obj is None:
+        return HealthCheck(
+            status=CheckStatus.OK,
+            label="Result Consistency",
+            details={"reason": "no_state"},
+        )
+
+    results = result_list(state_obj)
+    details["state_result_count"] = len(results)
+
+    # 2. Collect SUMMARY provides across all phases
+    summaries = collect_summaries(cwd)
+    all_provides: list[str] = []
+    for entry in summaries:
+        provides_values = resolve_field(entry.frontmatter, "provides")
+        for pv in provides_values:
+            if isinstance(pv, str):
+                all_provides.append(pv)
+            elif isinstance(pv, dict):
+                # Structured provides: extract "name" or "provides" keys
+                for key in ("name", "provides"):
+                    val = pv.get(key)
+                    if isinstance(val, str):
+                        all_provides.append(val)
+
+    details["summary_provides_count"] = len(all_provides)
+    provides_lower = [p.lower() for p in all_provides]
+
+    # 3. Compare: state results with no corresponding SUMMARY provides
+    state_only: list[str] = []
+    for result in results:
+        desc = result.description
+        if not desc:
+            continue
+        desc_lower = desc.lower()
+        matched = any(
+            desc_lower in prov or prov in desc_lower
+            for prov in provides_lower
+        )
+        if not matched:
+            state_only.append(f"{result.id}: {desc}")
+
+    # 4. Compare: SUMMARY provides with no corresponding state result
+    result_descriptions_lower = [
+        (r.description or "").lower()
+        for r in results
+        if r.description
+    ]
+    summary_only: list[str] = []
+    for provides_text in all_provides:
+        prov_lower = provides_text.lower()
+        matched = any(
+            prov_lower in desc or desc in prov_lower
+            for desc in result_descriptions_lower
+        )
+        if not matched:
+            summary_only.append(provides_text)
+
+    details["state_only_count"] = len(state_only)
+    details["summary_only_count"] = len(summary_only)
+
+    if state_only:
+        warnings.append(
+            f"{len(state_only)} state.json result(s) with no matching SUMMARY provides: "
+            + "; ".join(state_only[:5])
+            + (" ..." if len(state_only) > 5 else "")
+        )
+    if summary_only:
+        warnings.append(
+            f"{len(summary_only)} SUMMARY provides with no matching state.json result: "
+            + "; ".join(summary_only[:5])
+            + (" ..." if len(summary_only) > 5 else "")
+        )
+
+    status = CheckStatus.WARN if warnings else CheckStatus.OK
+    return HealthCheck(
+        status=status,
+        label="Result Consistency",
+        details=details,
+        warnings=warnings,
+    )
+
+
 # ─── Auto-Fix ────────────────────────────────────────────────────────────────
 
 
@@ -942,6 +1044,7 @@ _ALL_CHECKS: list[tuple[str, object]] = [
     ("config", check_config),
     ("checkpoint_tags", check_checkpoint_tags),
     ("git_status", check_git_status),
+    ("result_consistency", check_result_consistency),
 ]
 
 
@@ -982,6 +1085,7 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
                     "config": "Config",
                     "checkpoint_tags": "Checkpoint Tags",
                     "git_status": "Git Status",
+                    "result_consistency": "Result Consistency",
                 }
                 for name, check_fn in _ALL_CHECKS:
                     label = check_labels[name]
