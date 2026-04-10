@@ -331,7 +331,12 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert "from tests.ci_sharding import write_ci_shard_targets_file" in workflow
     assert "PYTEST_CATEGORY" in workflow
     assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in workflow
-    assert "needs: [pytest]" in workflow
+
+    # Staging rebuild trigger lives in a separate workflow (staging-rebuild.yml)
+    # to avoid showing as a skipped check on PRs. It gates on tests via workflow_run.
+    rebuild_workflow = (repo_root / ".github" / "workflows" / "staging-rebuild.yml").read_text(encoding="utf-8")
+    assert 'workflows: ["tests"]' in rebuild_workflow
+    assert "conclusion == 'success'" in rebuild_workflow
 
 
 def test_prepare_release_workflow_creates_release_pr_without_publishing() -> None:
