@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -137,7 +138,7 @@ def test_runtime_doctor_hint_uses_public_surface_contract_templates(monkeypatch:
     )
 
     assert runtime_doctor_hint(PRIMARY_RUNTIME, install_scope="local", target_dir=Path("/tmp/doctor-target")) == (
-        f"gpd doctor dynamic --runtime {PRIMARY_RUNTIME} --local --target-dir /tmp/doctor-target"
+        f"gpd doctor dynamic --runtime {PRIMARY_RUNTIME} --local --target-dir {shlex.quote(str(Path('/tmp/doctor-target')))}"
     )
     assert runtime_doctor_hint(PRIMARY_RUNTIME, install_scope="global", target_dir=None) == (
         f"gpd doctor dynamic --runtime {PRIMARY_RUNTIME} --global"

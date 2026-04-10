@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import tomllib
 from pathlib import Path
@@ -61,7 +62,8 @@ def _make_checkout_stub(tmp_path: Path) -> tuple[Path, Path]:
         '[project]\nname = "get-physics-done"\nversion = "9.9.9"\n',
         encoding="utf-8",
     )
-    checkout_python = checkout_root / ".venv" / "bin" / "python"
+    venv_python_rel = Path("Scripts") / "python.exe" if os.name == "nt" else Path("bin") / "python"
+    checkout_python = checkout_root / ".venv" / venv_python_rel
     checkout_python.parent.mkdir(parents=True, exist_ok=True)
     checkout_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
     return checkout_root, checkout_python

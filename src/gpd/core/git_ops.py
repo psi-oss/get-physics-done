@@ -150,13 +150,13 @@ def _expand_check_inputs(cwd: Path, files: list[str]) -> list[str]:
 
         if full_path.is_dir():
             for child in sorted(path for path in full_path.rglob("*") if path.is_file()):
-                resolved = str(child if input_path.is_absolute() else child.relative_to(cwd))
+                resolved = child.as_posix() if input_path.is_absolute() else child.relative_to(cwd).as_posix()
                 if resolved not in seen:
                     seen.add(resolved)
                     expanded.append(resolved)
             continue
 
-        normalized = str(input_path if input_path.is_absolute() else file_path)
+        normalized = str(input_path) if input_path.is_absolute() else Path(file_path).as_posix()
         if normalized not in seen:
             seen.add(normalized)
             expanded.append(normalized)

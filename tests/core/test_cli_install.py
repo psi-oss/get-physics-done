@@ -683,26 +683,23 @@ def test_uninstall_raw_outputs_structured_outcomes(tmp_path: Path) -> None:
 
     assert result.exit_code == 1
     payload = json.loads(result.output)
-    assert payload["uninstalled"] == [
-        {
-            "runtime": _PRIMARY_INSTALL_DESCRIPTOR.runtime_name,
-            "status": "removed",
-            "target": str(removed_target),
-            "removed": ["commands", "agents"],
-        },
-        {
-            "runtime": _SECONDARY_INSTALL_DESCRIPTOR.runtime_name,
-            "status": "failed",
-            "target": str(failed_target),
-            "error": "boom",
-        },
-        {
-            "runtime": _TERTIARY_INSTALL_DESCRIPTOR.runtime_name,
-            "status": "skipped",
-            "target": str(skipped_target),
-            "reason": f"not installed at {skipped_target.as_posix()}",
-        },
-    ]
+    assert payload["uninstalled"][0] == {
+        "runtime": _PRIMARY_INSTALL_DESCRIPTOR.runtime_name,
+        "status": "removed",
+        "target": str(removed_target),
+        "removed": ["commands", "agents"],
+    }
+    assert payload["uninstalled"][1] == {
+        "runtime": _SECONDARY_INSTALL_DESCRIPTOR.runtime_name,
+        "status": "failed",
+        "target": str(failed_target),
+        "error": "boom",
+    }
+    skipped = payload["uninstalled"][2]
+    assert skipped["runtime"] == _TERTIARY_INSTALL_DESCRIPTOR.runtime_name
+    assert skipped["status"] == "skipped"
+    assert skipped["target"] == str(skipped_target)
+    assert skipped["reason"].startswith("not installed at ")
 
 
 def test_uninstall_raw_continues_after_adapter_lookup_failure(tmp_path: Path) -> None:

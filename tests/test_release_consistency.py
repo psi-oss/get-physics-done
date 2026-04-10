@@ -493,6 +493,7 @@ def test_block_gpd_commit_hook_script_exists_and_is_executable() -> None:
     assert os.access(hook_script, os.X_OK), "scripts/block-gpd-commit.sh must be executable"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="requires bash")
 def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     """Integration: the hook script strips GPD/ files from the index."""
     repo_root = _repo_root()

@@ -76,6 +76,7 @@ class TestDetectLatexToolchain:
 
     def test_not_available(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("gpd.mcp.paper.compiler._which", lambda _: None)
+        monkeypatch.setattr("gpd.mcp.paper.compiler._find_in_windows_paths", lambda _: None)
         status = detect_latex_toolchain()
         assert status.available is False
         assert status.compiler_path is None
@@ -121,6 +122,7 @@ class TestDetectLatexToolchain:
             return mapping.get(binary)
 
         monkeypatch.setattr("gpd.mcp.paper.compiler._which", fake_find)
+        monkeypatch.setattr("gpd.mcp.paper.compiler._find_in_windows_paths", lambda _: None)
 
         status = detect_latex_toolchain()
 
@@ -176,6 +178,7 @@ class TestPaperToolchainCapability:
             return mapping.get(binary)
 
         monkeypatch.setattr("gpd.mcp.paper.compiler._which", fake_find)
+        monkeypatch.setattr("gpd.mcp.paper.compiler._find_in_windows_paths", lambda _: None)
 
         status = detect_latex_toolchain()
 

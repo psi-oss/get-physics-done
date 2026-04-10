@@ -633,7 +633,7 @@ def test_build_plan_tool_preflight_blocks_python_script_targets_outside_project_
     plan_path.parent.mkdir(parents=True, exist_ok=True)
     external_script = tmp_path / "outside.py"
     external_script.write_text("print('outside')\n", encoding="utf-8")
-    _write_tool_requirement_plan(plan_path, f"python3 {external_script}", plan_id="10a")
+    _write_tool_requirement_plan(plan_path, f"python3 {external_script.as_posix()}", plan_id="10a")
 
     result = build_plan_tool_preflight(plan_path)
 
@@ -641,7 +641,7 @@ def test_build_plan_tool_preflight_blocks_python_script_targets_outside_project_
     assert result.checks[0].available is False
     assert result.checks[0].blocking is True
     assert "repo-local script target must stay within the project roots" in result.checks[0].detail
-    assert str(external_script) in result.checks[0].detail
+    assert external_script.as_posix() in result.checks[0].detail
 
 
 @pytest.mark.parametrize(
@@ -1127,7 +1127,7 @@ def test_build_plan_tool_preflight_skips_leading_env_assignments_when_probing_co
     result = build_plan_tool_preflight(plan_path, requirements=requirements)
 
     assert result.passed is True
-    assert result.checks[0].detail == "mycmd found at /usr/local/bin/mycmd"
+    assert result.checks[0].detail == f"mycmd found at {Path('/usr/local/bin/mycmd').resolve(strict=False)}"
 
 
 def test_build_plan_tool_preflight_resolves_env_wrapped_command_to_real_executable(

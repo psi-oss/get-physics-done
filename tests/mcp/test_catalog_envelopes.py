@@ -155,13 +155,13 @@ def test_conventions_success_envelope() -> None:
     )
 
 
-def test_conventions_error_envelope() -> None:
+def test_conventions_error_envelope(fake_project_dir) -> None:
     from gpd.mcp.servers.conventions_server import convention_set
 
     with patch(
         "gpd.mcp.servers.conventions_server._update_lock_in_project",
         side_effect=TimeoutError("lock acquisition timed out"),
     ):
-        result = convention_set("/tmp/project", "metric_signature", "(+,-,-,-)")
+        result = convention_set(fake_project_dir, "metric_signature", "(+,-,-,-)")
 
     _assert_strict_envelope(result, {"error": "lock acquisition timed out"})

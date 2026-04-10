@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 from pathlib import Path
 
 import pytest
@@ -464,10 +465,10 @@ class TestInstall:
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         assert settings["theme"] == "solarized"
-        assert settings["statusLine"]["command"] == f"{selected_python} .gemini/hooks/statusline.py"
+        assert settings["statusLine"]["command"] == f"{shlex.quote(selected_python)} .gemini/hooks/statusline.py"
         session_start = settings.get("hooks", {}).get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
-        assert f"{selected_python} .gemini/hooks/check_update.py" in cmds
+        assert f"{shlex.quote(selected_python)} .gemini/hooks/check_update.py" in cmds
 
     def test_install_uses_gpd_python_override_for_hooks_and_mcp(
         self,
@@ -527,7 +528,7 @@ class TestInstall:
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         session_start = settings.get("hooks", {}).get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
-        assert cmds.count(f"{selected_python} .gemini/hooks/check_update.py") == 1
+        assert cmds.count(f"{shlex.quote(selected_python)} .gemini/hooks/check_update.py") == 1
         assert "python3 .gemini/hooks/check_update.py" not in cmds
 
     def test_install_preserves_non_gpd_check_update_hook(
@@ -584,10 +585,13 @@ class TestInstall:
 
         settings = json.loads((target / "settings.json").read_text(encoding="utf-8"))
         hook_python = hook_python_interpreter()
-        assert settings["statusLine"]["command"] == f"{hook_python} {(target / 'hooks' / 'statusline.py')}"
+        expected_statusline_path = str(target / 'hooks' / 'statusline.py').replace("\\", "/")
+        assert settings["statusLine"]["command"] == f"{shlex.quote(hook_python)} {expected_statusline_path}"
         session_start = settings.get("hooks", {}).get("SessionStart", [])
         cmds = [h.get("command", "") for entry in session_start for h in (entry.get("hooks") or [])]
-        assert f"{hook_python} {(target / 'hooks' / 'check_update.py')}" in cmds
+        expected_check_update_path = str(target / 'hooks' / 'check_update.py').replace("\\", "/")
+        expected_check_update_cmd = f"{shlex.quote(hook_python)} {expected_check_update_path}"
+        assert expected_check_update_cmd in cmds
 
     def test_install_preserves_existing_mcp_overrides(
         self,
@@ -750,7 +754,10 @@ class TestInstall:
         assert 'toolName = "run_shell_command"' in policy
         assert 'modes = ["autoEdit"]' in policy
         assert "allow_redirection = true" in policy
-        assert expected_gemini_bridge(target) in policy
+        import tomllib
+        parsed_policy = tomllib.loads(policy)
+        bridge = expected_gemini_bridge(target)
+        assert bridge in parsed_policy["rule"][0]["commandPrefix"]
         assert '"git init"' in policy
 
     def test_install_surfaces_shell_prefix_allowlist_in_model_facing_content(
@@ -1195,7 +1202,7 @@ class TestRuntimePermissions:
         assert wrapper.exists()
         assert '--approval-mode=yolo "$@"' in wrapper.read_text(encoding="utf-8")
         assert result["sync_applied"] is True
-        assert result["launch_command"] == str(wrapper)
+        assert result["launch_command"] == shlex.quote(str(wrapper))
         assert result["requires_relaunch"] is True
 
     def test_sync_runtime_permissions_non_yolo_removes_launcher_wrapper(

@@ -9,6 +9,8 @@ from types import SimpleNamespace
 import anyio
 import pytest
 
+from tests.mcp.conftest import FAKE_PROJECT_DIR
+
 from gpd.core.errors import GPDError
 from gpd.core.health import CheckStatus, HealthCheck, HealthReport, HealthSummary
 from gpd.core.state import default_state_dict
@@ -98,13 +100,13 @@ def test_state_server_tools_reject_non_absolute_project_dirs(tool_fn, kwargs: di
 @pytest.mark.parametrize(
     ("tool_fn", "patch_target", "kwargs"),
     [
-        (get_state, "gpd.mcp.servers.state_server.load_state_json", {"project_dir": "/tmp/fake"}),
-        (get_phase_info, "gpd.core.phases.find_phase", {"project_dir": "/tmp/fake", "phase": "01"}),
-        (advance_plan, "gpd.mcp.servers.state_server.state_advance_plan", {"project_dir": "/tmp/fake"}),
-        (get_progress, "gpd.mcp.servers.state_server.progress_render", {"project_dir": "/tmp/fake"}),
-        (validate_state, "gpd.mcp.servers.state_server.state_validate", {"project_dir": "/tmp/fake"}),
-        (run_health_check, "gpd.mcp.servers.state_server.run_health", {"project_dir": "/tmp/fake", "fix": False}),
-        (get_config, "gpd.mcp.servers.state_server.load_config", {"project_dir": "/tmp/fake"}),
+        (get_state, "gpd.mcp.servers.state_server.load_state_json", {"project_dir": FAKE_PROJECT_DIR}),
+        (get_phase_info, "gpd.core.phases.find_phase", {"project_dir": FAKE_PROJECT_DIR, "phase": "01"}),
+        (advance_plan, "gpd.mcp.servers.state_server.state_advance_plan", {"project_dir": FAKE_PROJECT_DIR}),
+        (get_progress, "gpd.mcp.servers.state_server.progress_render", {"project_dir": FAKE_PROJECT_DIR}),
+        (validate_state, "gpd.mcp.servers.state_server.state_validate", {"project_dir": FAKE_PROJECT_DIR}),
+        (run_health_check, "gpd.mcp.servers.state_server.run_health", {"project_dir": FAKE_PROJECT_DIR, "fix": False}),
+        (get_config, "gpd.mcp.servers.state_server.load_config", {"project_dir": FAKE_PROJECT_DIR}),
     ],
 )
 @pytest.mark.parametrize("error_factory", [lambda: GPDError("boom"), lambda: OSError("missing"), lambda: ValueError("bad")])
@@ -162,7 +164,7 @@ def test_get_state_reports_current_project_state_guidance(monkeypatch, tmp_path:
     }
 
 
-def test_run_health_check_preserves_latest_return_failure_details(monkeypatch) -> None:
+def test_run_health_check_preserves_latest_return_failure_details(monkeypatch, fake_project_dir) -> None:
     failing_check = HealthCheck(
         status=CheckStatus.FAIL,
         label="Latest Return Envelope",
@@ -182,7 +184,7 @@ def test_run_health_check_preserves_latest_return_failure_details(monkeypatch) -
 
     monkeypatch.setattr("gpd.mcp.servers.state_server.run_health", lambda *_args, **_kwargs: mock_report)
 
-    result = run_health_check("/fake/project")
+    result = run_health_check(fake_project_dir)
 
     assert result["checks"][0]["label"] == "Latest Return Envelope"
     assert result["checks"][0]["details"]["file"] == "01-setup/01-setup-01-SUMMARY.md"

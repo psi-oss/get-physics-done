@@ -18,7 +18,7 @@ def _assert_stable_envelope(result: object, expected_payload: dict[str, object])
     assert result == {"schema_version": 1, **expected_payload}
 
 
-def test_state_server_success_response_uses_strict_stable_envelope() -> None:
+def test_state_server_success_response_uses_strict_stable_envelope(fake_project_dir) -> None:
     from gpd.mcp.servers.state_server import get_state
 
     mock_state = {
@@ -30,25 +30,25 @@ def test_state_server_success_response_uses_strict_stable_envelope() -> None:
     }
 
     with patch("gpd.mcp.servers.state_server.load_state_json", return_value=mock_state):
-        result = get_state("/fake/project")
+        result = get_state(fake_project_dir)
 
     _assert_stable_envelope(result, mock_state)
 
 
-def test_state_server_error_response_uses_strict_stable_envelope() -> None:
+def test_state_server_error_response_uses_strict_stable_envelope(fake_project_dir) -> None:
     from gpd.mcp.servers.state_server import get_state
 
     with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=GPDError("boom")):
-        result = get_state("/fake/project")
+        result = get_state(fake_project_dir)
 
     _assert_stable_envelope(result, {"error": "boom"})
 
 
-def test_state_server_unexpected_exception_uses_strict_stable_error_envelope() -> None:
+def test_state_server_unexpected_exception_uses_strict_stable_error_envelope(fake_project_dir) -> None:
     from gpd.mcp.servers.state_server import get_config
 
     with patch("gpd.mcp.servers.state_server.load_config", side_effect=RuntimeError("unexpected boom")):
-        result = get_config("/fake/project")
+        result = get_config(fake_project_dir)
 
     _assert_stable_envelope(result, {"error": "unexpected boom"})
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.metadata
 import importlib.util
 import json
+import os
 import sys
 import tomllib
 from pathlib import Path
@@ -75,7 +76,8 @@ def test_resolve_checkout_python_prefers_checkout_local_virtualenv(tmp_path: Pat
     repo_root = _make_checkout(tmp_path, "9.9.9")
     nested = repo_root / "research" / "project"
     nested.mkdir(parents=True)
-    checkout_python = repo_root / ".venv" / "bin" / "python"
+    venv_python_rel = Path("Scripts") / "python.exe" if os.name == "nt" else Path("bin") / "python"
+    checkout_python = repo_root / ".venv" / venv_python_rel
     checkout_python.parent.mkdir(parents=True)
     checkout_python.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
 

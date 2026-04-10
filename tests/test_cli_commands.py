@@ -930,8 +930,8 @@ class TestInitCommands:
 
         assert result.exit_code == 0, result.output
         payload = json.loads(result.output)
-        assert payload["workspace_root"] == str(workspace.resolve())
-        assert payload["project_root"] == str(workspace.resolve())
+        assert payload["workspace_root"] == workspace.resolve().as_posix()
+        assert payload["project_root"] == workspace.resolve().as_posix()
         assert payload["project_root_source"] == "workspace"
         assert payload["project_root_auto_selected"] is False
         assert payload["config_content"] is not None
@@ -2167,7 +2167,7 @@ class TestReviewValidationCommands:
                 "validate",
                 "command-context",
                 "digest-knowledge",
-                str(knowledge_file.relative_to(outside_dir)),
+                knowledge_file.relative_to(outside_dir).as_posix(),
             ],
             catch_exceptions=False,
         )
@@ -2267,7 +2267,7 @@ class TestReviewValidationCommands:
                 "validate",
                 "command-context",
                 "review-knowledge",
-                str(knowledge_file.relative_to(outside_dir)),
+                knowledge_file.relative_to(outside_dir).as_posix(),
             ],
             catch_exceptions=False,
         )

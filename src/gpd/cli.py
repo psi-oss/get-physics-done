@@ -355,7 +355,7 @@ def _format_display_path_from_cwd(target: str | Path | None, *, cwd: Path) -> st
     except ValueError:
         if resolved_target.anchor and resolved_target.anchor == resolved_cwd.anchor:
             relative_text = os.path.relpath(resolved_target, resolved_cwd)
-            return "." if relative_text in ("", ".") else relative_text
+            return "." if relative_text in ("", ".") else Path(relative_text).as_posix()
         return _format_display_path(resolved_target)
 
     relative_text = relative.as_posix()
