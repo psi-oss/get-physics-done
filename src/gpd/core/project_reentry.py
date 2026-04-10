@@ -222,6 +222,10 @@ def _candidate_has_concrete_target(candidate: ProjectReentryCandidate) -> bool:
     return candidate.resumable or candidate.resume_file_available is True
 
 
+def _current_workspace_is_verified(candidate: ProjectReentryCandidate | None) -> bool:
+    return candidate is not None and candidate.source == "current_workspace" and candidate.project_exists is True
+
+
 def _normalize_recent_text(row: Mapping[str, object], *keys: str) -> str | None:
     for key in keys:
         value = row.get(key)
@@ -372,7 +376,7 @@ def resolve_project_reentry(
     auto_selected = False
     requires_user_selection = False
 
-    if current_candidate is not None:
+    if _current_workspace_is_verified(current_candidate):
         selected_project_root = current_candidate.project_root
         selected_source = current_candidate.source
         mode = "current-workspace"
@@ -385,6 +389,10 @@ def resolve_project_reentry(
     elif len(strong_recent) > 1:
         mode = "ambiguous-recent-projects"
         requires_user_selection = True
+    elif current_candidate is not None:
+        selected_project_root = current_candidate.project_root
+        selected_source = current_candidate.source
+        mode = "current-workspace"
     elif recent_candidates:
         mode = "recent-projects"
 
@@ -393,6 +401,14 @@ def resolve_project_reentry(
         candidate.model_copy(update={"auto_selectable": candidate.project_root in auto_selectable_roots})
         for candidate in sorted(candidates, key=_candidate_sort_key, reverse=True)
     ]
+
+    if selected_project_root is not None and selected_source is not None:
+        for index, candidate in enumerate(normalized_candidates):
+            if candidate.project_root == selected_project_root and candidate.source == selected_source:
+                if index != 0:
+                    selected_candidate = normalized_candidates.pop(index)
+                    normalized_candidates.insert(0, selected_candidate)
+                break
 
     return ProjectReentryResolution(
         workspace_root=workspace_root.as_posix() if workspace_root is not None else None,

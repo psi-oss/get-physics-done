@@ -125,6 +125,7 @@ __all__ = [
     "generate_state_markdown",
     "is_valid_status",
     "load_state_json",
+    "load_state_json_readonly",
     "parse_state_md",
     "parse_state_to_json",
     "save_state_markdown",
@@ -1336,7 +1337,7 @@ def state_extract_field(content: str, field_name: str) -> str | None:
     if not match:
         return None
     value = match.group(1).strip()
-    if value == "\u2014":
+    if value == "\u2014" or value.lower() in {"not set", "[not set]"}:
         return None
     return value
 
@@ -1598,17 +1599,17 @@ def parse_state_md(content: str) -> dict:
         rf = re.search(r"\*\*Resume file:\*\*\s*(.+)", sec)
         lr = re.search(r"\*\*Last result ID:\*\*\s*(.+)", sec)
         if ld:
-            session["last_date"] = ld.group(1).strip()
+            session["last_date"] = _strip_placeholder(ld.group(1))
         if hn:
-            session["hostname"] = hn.group(1).strip()
+            session["hostname"] = _strip_placeholder(hn.group(1))
         if pf:
-            session["platform"] = pf.group(1).strip()
+            session["platform"] = _strip_placeholder(pf.group(1))
         if sa:
-            session["stopped_at"] = sa.group(1).strip()
+            session["stopped_at"] = _strip_placeholder(sa.group(1))
         if rf:
-            session["resume_file"] = rf.group(1).strip()
+            session["resume_file"] = _strip_placeholder(rf.group(1))
         if lr:
-            session["last_result_id"] = lr.group(1).strip()
+            session["last_result_id"] = _strip_placeholder(lr.group(1))
 
     # Performance metrics table
     metrics: list[dict] = []
@@ -1707,11 +1708,11 @@ def parse_state_md(content: str) -> dict:
 
 
 def _strip_placeholder(value: str | None) -> str | None:
-    """Return None if *value* is a markdown placeholder (EM_DASH or '[Not set]')."""
+    """Return None if *value* is a markdown placeholder (EM_DASH, 'not set', or '[not set]')."""
     if value is None:
         return None
     stripped = value.strip()
-    if stripped == "\u2014" or stripped.lower() == "[not set]":
+    if stripped == "\u2014" or stripped.lower() in {"not set", "[not set]"}:
         return None
     return stripped
 
@@ -3576,6 +3577,26 @@ def load_state_json(cwd: Path, integrity_mode: str = "standard") -> dict | None:
     return state_obj
 
 
+def load_state_json_readonly(cwd: Path, integrity_mode: str = "standard") -> dict | None:
+    """Load visible state without recovery writes or lockfile creation.
+
+    This is the non-mutating probe path for read-only callers that need the
+    same visibility as ``load_state_json`` but must not create lockfiles,
+    recover intent markers, or persist normalized fallback content.
+    """
+
+    state_obj, integrity_issues, _state_source = peek_state_json(
+        cwd,
+        integrity_mode=integrity_mode,
+        recover_intent=False,
+        surface_blocked_project_contract=True,
+        acquire_lock=False,
+    )
+    if integrity_mode == "review" and integrity_issues:
+        return None
+    return state_obj
+
+
 def save_state_json_locked(
     cwd: Path,
     state_obj: dict,
@@ -3823,8 +3844,23 @@ def state_get(cwd: Path, section: str | None = None) -> StateGetResult:
     if not section:
         return StateGetResult(content=content)
 
-    # Normalize snake_case → space-separated (e.g. "current_phase" → "current phase")
-    section_norm = section.replace("_", " ")
+    section_norm = section.replace("_", " ").strip()
+    if section_norm.casefold() in {"session", "continuation", "handoff"}:
+        state_obj = load_state_json_readonly(cwd)
+        if isinstance(state_obj, dict):
+            canonical_value: object | None
+            if section_norm.casefold() == "session":
+                canonical_value = state_obj.get("session")
+            elif section_norm.casefold() == "continuation":
+                canonical_value = state_obj.get("continuation")
+            else:
+                continuation = state_obj.get("continuation")
+                canonical_value = continuation.get("handoff") if isinstance(continuation, dict) else None
+            if canonical_value is not None:
+                return StateGetResult(
+                    value=json.dumps(canonical_value, indent=2),
+                    section_name=section,
+                )
 
     # Try **field:** value
     field_escaped = re.escape(section_norm)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,15 @@ from gpd.adapters.install_utils import build_runtime_install_repair_command
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 
 _BRIDGE_RUNTIME_DESCRIPTOR = iter_runtime_descriptors()[0]
+REPO_ROOT = Path(__file__).resolve().parents[1]
+HANDOFF_BUNDLE_FIXTURES = REPO_ROOT / "tests" / "fixtures" / "handoff-bundle"
+
+
+def _copy_handoff_bundle_workspace(tmp_path: Path, slug: str, variant: str = "positive") -> Path:
+    source = HANDOFF_BUNDLE_FIXTURES / slug / variant / "workspace"
+    target = tmp_path / f"{slug}-{variant}"
+    shutil.copytree(source, target)
+    return target
 
 
 def test_runtime_cli_allows_help_passthrough_as_root_flag(
@@ -109,6 +119,55 @@ def test_runtime_cli_allows_version_passthrough_as_root_flag(
 
     assert exit_code == 0
     assert observed["argv"] == ["gpd", root_flag]
+
+
+def test_runtime_cli_hands_off_to_cli_on_fixture_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    workspace = _copy_handoff_bundle_workspace(tmp_path, "bridge-vs-cli")
+    runtime_name = _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name
+    adapter = runtime_cli.get_adapter(runtime_name)
+    config_dir = workspace / _BRIDGE_RUNTIME_DESCRIPTOR.config_dir_name
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / runtime_cli.get_shared_install_metadata().manifest_name).write_text(
+        json.dumps(
+            {
+                "runtime": runtime_name,
+                "install_scope": "local",
+                "install_target_dir": str(config_dir),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    observed: dict[str, object] = {}
+
+    def fake_entrypoint() -> int:
+        observed["argv"] = list(runtime_cli.sys.argv)
+        return 0
+
+    monkeypatch.chdir(workspace)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(adapter, "missing_install_artifacts", lambda target_dir: ())
+    monkeypatch.setattr("gpd.runtime_cli.get_adapter", lambda runtime_name: adapter)
+    monkeypatch.setattr("gpd.cli.entrypoint", fake_entrypoint)
+
+    exit_code = runtime_cli.main(
+        [
+            "--runtime",
+            runtime_name,
+            "--config-dir",
+            str(config_dir),
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ]
+    )
+
+    assert exit_code == 0
+    assert observed["argv"] == ["gpd", "state", "load"]
 
 
 @pytest.mark.parametrize(
@@ -253,6 +312,86 @@ def test_runtime_cli_repair_command_projection_respects_env_overridden_global_ta
     assert repair_command == expected
     assert "--global" in repair_command
     assert "--target-dir" not in repair_command
+
+
+@pytest.mark.parametrize(
+    ("manifest_state", "artifact_override", "expected_kind", "expected_phrase"),
+    [
+        (
+            {"runtime": _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name},
+            None,
+            runtime_cli._BridgeFailureKind.MISSING_INSTALL_SCOPE,
+            "The manifest must declare a non-empty `install_scope` field.",
+        ),
+        (
+            {
+                "runtime": next(
+                    item.runtime_name
+                    for item in iter_runtime_descriptors()
+                    if item.runtime_name != _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name
+                ),
+                "install_scope": "local",
+            },
+            None,
+            runtime_cli._BridgeFailureKind.RUNTIME_MISMATCH,
+            "GPD runtime bridge mismatch",
+        ),
+        (
+            {"runtime": _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name, "install_scope": "local"},
+            ("missing-artifact.txt",),
+            runtime_cli._BridgeFailureKind.MISSING_INSTALL_ARTIFACTS,
+            "Missing required install artifacts",
+        ),
+    ],
+)
+def test_runtime_cli_classifies_bridge_failures_with_stable_kinds(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    manifest_state: dict[str, object],
+    artifact_override: tuple[str, ...] | None,
+    expected_kind: runtime_cli._BridgeFailureKind,
+    expected_phrase: str,
+) -> None:
+    runtime_name = _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name
+    adapter = runtime_cli.get_adapter(runtime_name)
+    config_dir = tmp_path / _BRIDGE_RUNTIME_DESCRIPTOR.config_dir_name
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / runtime_cli.get_shared_install_metadata().manifest_name).write_text(
+        json.dumps(manifest_state),
+        encoding="utf-8",
+    )
+
+    if artifact_override is not None:
+        monkeypatch.setattr(adapter, "missing_install_artifacts", lambda target_dir: artifact_override)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+    monkeypatch.chdir(tmp_path)
+
+    manifest_status, _manifest_payload, manifest_runtime = runtime_cli.load_install_manifest_runtime_status(config_dir)
+    manifest_scope_status, manifest_scope_payload, manifest_install_scope = runtime_cli.load_install_manifest_scope_status(
+        config_dir
+    )
+    if manifest_scope_status == "ok":
+        manifest_install_scope = manifest_scope_payload.get("install_scope")
+        if not isinstance(manifest_install_scope, str):
+            manifest_install_scope = None
+
+    failure = runtime_cli._classify_bridge_failure(
+        runtime=runtime_name,
+        config_dir=config_dir,
+        install_scope="local",
+        explicit_target=False,
+        cli_cwd=tmp_path,
+        manifest_status=manifest_status,
+        manifest_runtime=manifest_runtime,
+        manifest_scope_status=manifest_scope_status,
+        manifest_install_scope=manifest_install_scope,
+        missing=artifact_override,
+        has_managed_install_markers=runtime_cli.config_dir_has_managed_install_markers(config_dir),
+    )
+
+    assert failure is not None
+    assert failure.kind is expected_kind
+    assert expected_phrase in failure.message
 
 
 @pytest.mark.parametrize(

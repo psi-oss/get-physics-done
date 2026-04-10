@@ -772,6 +772,113 @@ def test_derive_execution_visibility_uses_valid_progress_command_in_help_paths(
     assert all("--brief" not in suggestion.command for suggestion in visibility.suggested_next_commands)
 
 
+def test_derive_execution_visibility_marks_snapshot_only_visibility_when_lineage_head_is_malformed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    observability_dir = project / "GPD" / "observability"
+    observability_dir.mkdir(parents=True, exist_ok=True)
+    (observability_dir / "current-execution.json").write_text(
+        json.dumps(
+            {
+                "session_id": "sess-snapshot-only",
+                "phase": "03",
+                "plan": "01",
+                "segment_status": "active",
+                "current_task": "Inspect a live segment",
+                "updated_at": _iso_minutes_ago(1),
+            }
+        ),
+        encoding="utf-8",
+    )
+    (project / "GPD" / "lineage").mkdir(parents=True, exist_ok=True)
+    (project / "GPD" / "lineage" / "execution-head.json").write_text("{not valid json}", encoding="utf-8")
+
+    from gpd.core.observability import derive_execution_visibility
+
+    visibility = derive_execution_visibility(project)
+    assert visibility is not None
+    assert visibility.has_live_execution is True
+    assert visibility.visibility_mode == "snapshot-only"
+    assert visibility.status_classification == "active"
+    assert visibility.assessment == "snapshot-only active"
+    assert visibility.visibility_note is not None
+    assert "execution-head.json" in visibility.visibility_note
+    assert all(suggestion.command != "gpd observe show --session sess-snapshot-only --last 20" for suggestion in visibility.suggested_next_commands)
+    assert visibility.suggested_next_commands[0].command == "gpd observe sessions --last 5"
+
+
+def test_derive_execution_visibility_marks_trace_only_visibility_when_current_snapshot_is_malformed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    from gpd.core.execution_lineage import project_execution_lineage_head, write_execution_lineage_head
+
+    execution = {
+        "session_id": "sess-trace-only",
+        "phase": "03",
+        "plan": "01",
+        "segment_status": "waiting_review",
+        "waiting_for_review": True,
+        "updated_at": _iso_minutes_ago(3),
+    }
+    write_execution_lineage_head(
+        project,
+        project_execution_lineage_head(
+            execution,
+            last_applied_seq=7,
+            last_applied_event_id="evt-7",
+            recorded_at=_iso_minutes_ago(3),
+        ),
+    )
+    (project / "GPD" / "observability").mkdir(parents=True, exist_ok=True)
+    (project / "GPD" / "observability" / "current-execution.json").write_text("{not valid json}", encoding="utf-8")
+
+    from gpd.core.observability import derive_execution_visibility
+
+    visibility = derive_execution_visibility(project)
+    assert visibility is not None
+    assert visibility.has_live_execution is True
+    assert visibility.visibility_mode == "trace-only"
+    assert visibility.status_classification == "waiting"
+    assert visibility.assessment == "trace-only waiting"
+    assert visibility.visibility_note is not None
+    assert "current-execution.json" in visibility.visibility_note
+    assert visibility.suggested_next_commands[0].command == "gpd observe sessions --last 5"
+    assert all("--session" not in suggestion.command for suggestion in visibility.suggested_next_commands)
+
+
+def test_derive_execution_visibility_marks_degraded_visibility_for_malformed_live_files(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.chdir(project)
+
+    observability_dir = project / "GPD" / "observability"
+    observability_dir.mkdir(parents=True, exist_ok=True)
+    (observability_dir / "current-execution.json").write_text("{not valid json}", encoding="utf-8")
+    (project / "GPD" / "lineage").mkdir(parents=True, exist_ok=True)
+    (project / "GPD" / "lineage" / "execution-head.json").write_text("{also not valid json}", encoding="utf-8")
+
+    from gpd.core.observability import derive_execution_visibility
+
+    visibility = derive_execution_visibility(project)
+    assert visibility is not None
+    assert visibility.has_live_execution is False
+    assert visibility.visibility_mode == "degraded"
+    assert visibility.status_classification == "degraded"
+    assert visibility.assessment == "degraded"
+    assert visibility.visibility_note is not None
+    assert "current-execution.json" in visibility.visibility_note
+    assert "execution-head.json" in visibility.visibility_note
+    assert visibility.suggested_next_commands[0].command == "gpd observe sessions --last 5"
+    assert any("degraded" in step for step in visibility.suggested_next_steps)
+
+
 def test_derive_execution_visibility_surfaces_pending_tangent_without_new_classification(
     tmp_path: Path, monkeypatch
 ) -> None:

@@ -24,6 +24,7 @@ from gpd.core.health import (
     HealthCheck,
     HealthReport,
     HealthSummary,
+    RuntimeTargetAssessment,
     _doctor_check_latex_toolchain,
     _doctor_check_workflow_presets,
     build_unattended_readiness_result,
@@ -266,6 +267,32 @@ class TestHealthModels:
         restored = DoctorReport.model_validate(report.model_dump())
 
         assert restored.live_executable_probes is True
+
+    def test_doctor_report_roundtrip_preserves_target_assessment(self):
+        report = DoctorReport(
+            overall=CheckStatus.OK,
+            version="0.1.0",
+            summary=HealthSummary(ok=1, warn=0, fail=0, total=1),
+            target_assessment=RuntimeTargetAssessment(
+                config_dir="/tmp/runtime-target",
+                expected_runtime="runtime-under-test",
+                state="clean",
+                manifest_state="missing",
+                manifest_runtime=None,
+                has_managed_markers=False,
+                missing_install_artifacts=[],
+                readiness_state="ready",
+                readiness_message="/tmp/runtime-target is ready for a new GPD install.",
+            ),
+            checks=[HealthCheck(status=CheckStatus.OK, label="A")],
+        )
+
+        restored = DoctorReport.model_validate(report.model_dump())
+
+        assert restored.target_assessment is not None
+        assert restored.target_assessment.state == "clean"
+        assert restored.target_assessment.readiness_state == "ready"
+        assert restored.target_assessment.readiness_message == "/tmp/runtime-target is ready for a new GPD install."
 
     def test_extract_doctor_blockers_returns_only_failures(self):
         report = DoctorReport(
@@ -2170,8 +2197,15 @@ trigger:
 
         _report, checks = self._run_runtime_doctor(tmp_path, assessment=assessment, target_dir=target_dir)
 
+        assert assessment.readiness_state == "ready"
+        assert _report.target_assessment is not None
+        assert _report.target_assessment.state == "clean"
+        assert _report.target_assessment.readiness_state == "ready"
+        assert _report.target_assessment.readiness_message == f"{target_dir.resolve(strict=False)} is ready for a new GPD install."
         assert checks["Runtime Config Target"].status == CheckStatus.OK
         assert checks["Runtime Config Target"].details["install_state"] == "clean"
+        assert checks["Runtime Config Target"].details["target_readiness_state"] == "ready"
+        assert checks["Runtime Config Target"].details["target_assessment"]["state"] == "clean"
         assert checks["Runtime Config Target"].issues == []
         assert checks["Runtime Config Target"].warnings == []
 
@@ -2219,9 +2253,15 @@ trigger:
                 target_dir=assessment.config_dir,
             )
 
+            assert assessment.readiness_state == "blocked"
+            assert report.target_assessment is not None
+            assert report.target_assessment.state == install_state
+            assert report.target_assessment.readiness_state == "blocked"
             assert report.overall == CheckStatus.FAIL
             assert checks["Runtime Config Target"].status == CheckStatus.FAIL
             assert checks["Runtime Config Target"].details["install_state"] == install_state
+            assert checks["Runtime Config Target"].details["target_readiness_state"] == "blocked"
+            assert checks["Runtime Config Target"].details["target_assessment"]["state"] == install_state
             assert any(expected_issue in issue for issue in checks["Runtime Config Target"].issues)
 
 

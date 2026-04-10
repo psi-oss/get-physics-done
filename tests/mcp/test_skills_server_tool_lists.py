@@ -122,6 +122,41 @@ def test_list_skills_filters_consistency_checker_by_verification_category() -> N
     assert result["categories"] == ["help", "verification"]
 
 
+def test_list_skills_filters_beginner_help_entrypoints_by_help_category() -> None:
+    from gpd.mcp.servers.skills_server import list_skills
+
+    registry_module.invalidate_cache()
+    help_skill = registry_module.get_skill("gpd-help")
+    start_skill = registry_module.get_skill("gpd-start")
+    tour_skill = registry_module.get_skill("gpd-tour")
+
+    with patch(
+        "gpd.mcp.servers.skills_server._load_skill_index",
+        return_value=[help_skill, start_skill, tour_skill],
+    ):
+        result = list_skills(category="help")
+
+    assert result["count"] == 3
+    assert result["skills"] == [
+        {
+            "name": "gpd-help",
+            "category": "help",
+            "description": help_skill.description,
+        },
+        {
+            "name": "gpd-start",
+            "category": "help",
+            "description": start_skill.description,
+        },
+        {
+            "name": "gpd-tour",
+            "category": "help",
+            "description": tour_skill.description,
+        },
+    ]
+    assert result["categories"] == ["help"]
+
+
 def test_get_skill_command_surfaces_staged_loading_sidecar() -> None:
     from gpd.mcp.servers.skills_server import get_skill
 

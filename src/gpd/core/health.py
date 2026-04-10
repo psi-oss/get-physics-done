@@ -53,6 +53,7 @@ from gpd.core.public_surface_contract import (
     local_cli_doctor_local_command,
     local_cli_permissions_sync_command,
 )
+from gpd.core.root_resolution import resolve_project_root
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
 from gpd.core.state import (
     peek_state_json,
@@ -117,6 +118,22 @@ class HealthReport(BaseModel):
     summary: HealthSummary
     checks: list[HealthCheck] = Field(default_factory=list)
     fixes_applied: list[str] = Field(default_factory=list)
+
+
+class RuntimeTargetAssessment(BaseModel):
+    """Typed runtime target metadata derived from install assessment."""
+
+    model_config = ConfigDict(validate_assignment=True)
+
+    config_dir: str
+    expected_runtime: str | None = None
+    state: str
+    manifest_state: str
+    manifest_runtime: str | None = None
+    has_managed_markers: bool = False
+    missing_install_artifacts: list[str] = Field(default_factory=list)
+    readiness_state: str = "blocked"
+    readiness_message: str = ""
 
 
 # All thresholds, file lists, and return validation constants imported from constants.py
@@ -347,10 +364,12 @@ def _peek_normalized_state_for_health(cwd: Path) -> tuple[dict[str, object] | No
     ``project_contract`` payloads so approval blockers are reported as failures
     instead of being hidden by draft-scoping normalization.
     """
+    project_root = resolve_project_root(cwd, require_layout=True) or cwd.expanduser().resolve(strict=False)
     state_obj, _integrity_issues, state_source = peek_state_json(
-        cwd,
+        project_root,
         recover_intent=False,
         surface_blocked_project_contract=True,
+        acquire_lock=False,
     )
     if not isinstance(state_obj, dict):
         return None, state_source
@@ -1281,6 +1300,7 @@ class DoctorReport(BaseModel):
     runtime: str | None = None
     install_scope: str | None = None
     target: str | None = None
+    target_assessment: RuntimeTargetAssessment | None = None
     live_executable_probes: bool = False
     summary: HealthSummary
     checks: list[HealthCheck] = Field(default_factory=list)
@@ -1803,19 +1823,56 @@ def _doctor_active_runtime_settings_command(*, cwd: Path | None = None) -> str:
 
 def _doctor_runtime_install_issue(assessment: InstallTargetAssessment, runtime: str | None) -> str | None:
     """Return a user-facing issue for a non-ready install assessment."""
-    if assessment.state == "owned_incomplete":
-        missing = ", ".join(f"`{item}`" for item in assessment.missing_install_artifacts) or "required install artifacts"
-        return f"{assessment.config_dir} has an incomplete GPD install; missing artifacts: {missing}."
-    if assessment.state == "foreign_runtime":
-        owner = f"`{assessment.manifest_runtime}`" if assessment.manifest_runtime else "another runtime"
-        runtime_label = f"`{runtime}`" if runtime else "the selected runtime"
-        return f"{assessment.config_dir} belongs to {owner}, not {runtime_label}."
-    if assessment.state == "untrusted_manifest":
-        return f"{assessment.config_dir} has an untrusted GPD manifest and cannot be treated as a ready install target."
-    return None
+    if assessment.readiness_state == "ready":
+        return None
+    return assessment.readiness_message(runtime)
 
 
-def _doctor_check_runtime_target(target_dir: Path, *, runtime: str | None = None) -> HealthCheck:
+def _doctor_runtime_target_assessment(
+    assessment: InstallTargetAssessment,
+    *,
+    runtime: str | None,
+) -> RuntimeTargetAssessment:
+    """Convert the install assessment into typed runtime-target metadata."""
+    return RuntimeTargetAssessment(
+        config_dir=str(assessment.config_dir),
+        expected_runtime=assessment.expected_runtime,
+        state=assessment.state,
+        manifest_state=assessment.manifest_state,
+        manifest_runtime=assessment.manifest_runtime,
+        has_managed_markers=assessment.has_managed_markers,
+        missing_install_artifacts=list(assessment.missing_install_artifacts),
+        readiness_state=assessment.readiness_state,
+        readiness_message=assessment.readiness_message(runtime),
+    )
+
+
+def _doctor_runtime_target_details(
+    assessment: InstallTargetAssessment,
+    *,
+    runtime: str | None,
+) -> dict[str, object]:
+    """Return the structured details payload for the runtime config target."""
+    target_assessment = _doctor_runtime_target_assessment(assessment, runtime=runtime)
+    return {
+        "target": str(assessment.config_dir),
+        "install_state": assessment.state,
+        "target_readiness_state": target_assessment.readiness_state,
+        "target_readiness_message": target_assessment.readiness_message,
+        "target_assessment": target_assessment.model_dump(mode="python"),
+        "manifest_state": assessment.manifest_state,
+        "manifest_runtime": assessment.manifest_runtime,
+        "has_managed_markers": assessment.has_managed_markers,
+        "missing_install_artifacts": list(assessment.missing_install_artifacts),
+    }
+
+
+def _doctor_check_runtime_target(
+    target_dir: Path,
+    *,
+    runtime: str | None = None,
+    assessment: InstallTargetAssessment | None = None,
+) -> HealthCheck:
     """Verify the selected install target can be created or written."""
     resolved = target_dir.expanduser().resolve(strict=False)
     details: dict[str, object] = {
@@ -1841,16 +1898,8 @@ def _doctor_check_runtime_target(target_dir: Path, *, runtime: str | None = None
     elif not resolved.exists():
         warnings.append(f"{resolved} does not exist yet; GPD will create it during install.")
 
-    assessment = assess_install_target(resolved, expected_runtime=runtime)
-    details.update(
-        {
-            "install_state": assessment.state,
-            "manifest_state": assessment.manifest_state,
-            "manifest_runtime": assessment.manifest_runtime,
-            "has_managed_markers": assessment.has_managed_markers,
-            "missing_install_artifacts": list(assessment.missing_install_artifacts),
-        }
-    )
+    assessment = assessment or assess_install_target(resolved, expected_runtime=runtime)
+    details.update(_doctor_runtime_target_details(assessment, runtime=runtime))
 
     install_issue = _doctor_runtime_install_issue(assessment, runtime)
     if install_issue is not None:
@@ -2284,6 +2333,7 @@ def run_doctor(
         resolved_target_str: str | None = None
         normalized_scope: str | None = None
         normalized_runtime: str | None = None
+        target_assessment: RuntimeTargetAssessment | None = None
         if runtime is not None:
             runtime_context = resolve_doctor_runtime_readiness(
                 runtime,
@@ -2295,8 +2345,19 @@ def run_doctor(
             normalized_scope = runtime_context.install_scope
             resolved_target = runtime_context.target
             resolved_target_str = str(resolved_target)
+            install_target_assessment = assess_install_target(resolved_target, expected_runtime=normalized_runtime)
+            target_assessment = _doctor_runtime_target_assessment(
+                install_target_assessment,
+                runtime=normalized_runtime,
+            )
             checks.append(_doctor_check_runtime_launcher(normalized_runtime))
-            checks.append(_doctor_check_runtime_target(resolved_target, runtime=normalized_runtime))
+            checks.append(
+                _doctor_check_runtime_target(
+                    resolved_target,
+                    runtime=normalized_runtime,
+                    assessment=install_target_assessment,
+                )
+            )
             checks.append(_doctor_check_bootstrap_network_access())
             checks.append(
                 _doctor_check_provider_auth(
@@ -2326,6 +2387,7 @@ def run_doctor(
             runtime=normalized_runtime,
             install_scope=normalized_scope,
             target=resolved_target_str,
+            target_assessment=target_assessment,
             live_executable_probes=live_executable_probes,
             summary=HealthSummary(ok=ok_count, warn=warn_count, fail=fail_count, total=len(checks)),
             checks=checks,
@@ -2339,6 +2401,7 @@ __all__ = [
     "HealthCheck",
     "HealthReport",
     "HealthSummary",
+    "RuntimeTargetAssessment",
     "annotate_permissions_payload",
     "normalize_permissions_readiness_payload",
     "UnattendedReadinessCheck",

@@ -884,61 +884,64 @@ class TestInitCommands:
 
     def test_init_progress_can_skip_recent_project_reentry_for_projectless_config_bootstrap(
         self,
-        tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        workspace = tmp_path / "workspace"
-        candidate = tmp_path / "recoverable-project"
-        data_root = tmp_path / "data"
+        from tempfile import TemporaryDirectory
 
-        (workspace / "GPD" / "phases").mkdir(parents=True)
-        (workspace / "GPD" / "config.json").write_text(
-            json.dumps(
-                {
-                    "autonomy": "balanced",
-                    "review_cadence": "adaptive",
-                    "research_mode": "balanced",
-                }
-            ),
-            encoding="utf-8",
-        )
+        from gpd.core.context import init_progress as build_init_progress
 
-        gpd_dir = candidate / "GPD"
-        gpd_dir.mkdir(parents=True)
-        (gpd_dir / "STATE.md").write_text("# Research State\n", encoding="utf-8")
-        (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
-        (gpd_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
-        resume_file = gpd_dir / "phases" / "01" / ".continue-here.md"
-        resume_file.parent.mkdir(parents=True, exist_ok=True)
-        resume_file.write_text("resume\n", encoding="utf-8")
-        monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
-        record_recent_project(
-            candidate,
-            session_data={
-                "last_date": "2026-03-29T12:00:00+00:00",
-                "stopped_at": "Phase 01",
-                "resume_file": "GPD/phases/01/.continue-here.md",
-            },
-            store_root=data_root,
-        )
+        with TemporaryDirectory() as temp_dir:
+            sandbox_root = Path(temp_dir)
+            workspace = sandbox_root / "workspace"
+            candidate = sandbox_root / "recoverable-project"
+            data_root = sandbox_root / "data"
 
-        result = runner.invoke(
-            app,
-            ["--raw", "--cwd", str(workspace), "init", "progress", "--include", "config", "--no-project-reentry"],
-            catch_exceptions=False,
-        )
+            (workspace / "GPD" / "phases").mkdir(parents=True)
+            (workspace / "GPD" / "config.json").write_text(
+                json.dumps(
+                    {
+                        "autonomy": "balanced",
+                        "review_cadence": "adaptive",
+                        "research_mode": "balanced",
+                    }
+                ),
+                encoding="utf-8",
+            )
 
-        assert result.exit_code == 0, result.output
-        payload = json.loads(result.output)
-        assert payload["workspace_root"] == workspace.resolve().as_posix()
-        assert payload["project_root"] == workspace.resolve().as_posix()
-        assert payload["project_root_source"] == "workspace"
-        assert payload["project_root_auto_selected"] is False
-        assert payload["config_content"] is not None
-        assert payload["project_exists"] is False
-        assert "project_reentry_mode" not in payload
-        assert "project_reentry_candidates" not in payload
-        assert "project_reentry_selected_candidate" not in payload
+            gpd_dir = candidate / "GPD"
+            gpd_dir.mkdir(parents=True)
+            (gpd_dir / "STATE.md").write_text("# Research State\n", encoding="utf-8")
+            (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+            (gpd_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+            resume_file = gpd_dir / "phases" / "01" / ".continue-here.md"
+            resume_file.parent.mkdir(parents=True, exist_ok=True)
+            resume_file.write_text("resume\n", encoding="utf-8")
+            monkeypatch.setenv("GPD_DATA_DIR", str(data_root))
+            record_recent_project(
+                candidate,
+                session_data={
+                    "last_date": "2026-03-29T12:00:00+00:00",
+                    "stopped_at": "Phase 01",
+                    "resume_file": "GPD/phases/01/.continue-here.md",
+                },
+                store_root=data_root,
+            )
+
+            payload = build_init_progress(
+                workspace,
+                includes={"config"},
+                data_root=data_root,
+                include_project_reentry=False,
+            )
+            assert payload["workspace_root"] == str(workspace.resolve())
+            assert payload["project_root"] == str(workspace.resolve())
+            assert payload["project_root_source"] == "workspace"
+            assert payload["project_root_auto_selected"] is False
+            assert payload["config_content"] is not None
+            assert payload["project_exists"] is False
+            assert "project_reentry_mode" not in payload
+            assert "project_reentry_candidates" not in payload
+            assert "project_reentry_selected_candidate" not in payload
 
     def test_plan_phase_surfaces_artifact_derived_reference_context(self, gpd_project: Path) -> None:
         literature_dir = gpd_project / "GPD" / "literature"
@@ -1177,6 +1180,238 @@ review_summary:
         assert "reference_artifacts_content" not in payload
         assert "state_content" not in payload
         assert "derived_manuscript_reference_status" in payload
+
+
+class TestRoadmapCommands:
+    def test_roadmap_commands_resolve_project_root_like_progress(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        seen: dict[str, object] = {}
+        project_root = gpd_project.resolve()
+
+        def _progress_render(cwd: Path, fmt: str) -> dict[str, str]:
+            seen["progress"] = cwd
+            return {"cwd": str(cwd), "fmt": fmt}
+
+        def _roadmap_analyze(cwd: Path) -> dict[str, str]:
+            seen["analyze"] = cwd
+            return {"cwd": str(cwd)}
+
+        def _roadmap_get_phase(cwd: Path, phase_num: str) -> dict[str, str]:
+            seen["get_phase"] = (cwd, phase_num)
+            return {"cwd": str(cwd), "phase_num": phase_num}
+
+        monkeypatch.setattr("gpd.core.phases.progress_render", _progress_render)
+        monkeypatch.setattr("gpd.core.phases.roadmap_analyze", _roadmap_analyze)
+        monkeypatch.setattr("gpd.core.phases.roadmap_get_phase", _roadmap_get_phase)
+
+        progress_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "progress"],
+            catch_exceptions=False,
+        )
+        assert progress_result.exit_code == 0, progress_result.output
+        assert json.loads(progress_result.output) == {"cwd": str(project_root), "fmt": "json"}
+        assert seen["progress"] == project_root
+
+        analyze_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "roadmap", "analyze"],
+            catch_exceptions=False,
+        )
+        assert analyze_result.exit_code == 0, analyze_result.output
+        assert json.loads(analyze_result.output) == {"cwd": str(project_root)}
+        assert seen["analyze"] == project_root
+
+        get_phase_result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "roadmap", "get-phase", "01"],
+            catch_exceptions=False,
+        )
+        assert get_phase_result.exit_code == 0, get_phase_result.output
+        assert json.loads(get_phase_result.output) == {"cwd": str(project_root), "phase_num": "01"}
+        assert seen["get_phase"] == (project_root, "01")
+
+
+class TestReadOnlyCommandRouting:
+    @pytest.mark.parametrize(
+        ("command_args", "patch_target", "kind"),
+        [
+            (["--raw", "health"], "gpd.core.health.run_health", "health"),
+            (["--raw", "validate", "consistency"], "gpd.core.health.run_health", "health"),
+            (["--raw", "query", "search", "--text", "alpha"], "gpd.core.query.query", "query_search"),
+            (["--raw", "query", "deps", "R-01"], "gpd.core.query.query_deps", "query_deps"),
+            (["--raw", "query", "assumptions", "alpha", "beta"], "gpd.core.query.query_assumptions", "query_assumptions"),
+            (["--raw", "history-digest"], "gpd.core.commands.cmd_history_digest", "history_digest"),
+            (["--raw", "regression-check"], "gpd.core.commands.cmd_regression_check", "regression_check"),
+        ],
+    )
+    def test_project_scoped_read_only_commands_use_project_root(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        command_args: list[str],
+        patch_target: str,
+        kind: str,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+        project_root = gpd_project.resolve()
+        seen: dict[str, object] = {}
+
+        monkeypatch.setattr("gpd.cli._project_scoped_cwd", lambda cwd=None: project_root)
+
+        if kind == "health":
+            def _fake_run_health(cwd: Path, fix: bool = False):
+                seen["cwd"] = cwd
+                seen["fix"] = fix
+                return SimpleNamespace(
+                    overall="ok",
+                    model_dump=lambda mode="json", by_alias=True: {
+                        "cwd": str(cwd),
+                        "fix": fix,
+                        "overall": "ok",
+                    },
+                )
+
+            monkeypatch.setattr(patch_target, _fake_run_health)
+        elif kind == "query_search":
+            def _fake_query(cwd: Path, **kwargs: object):
+                seen["cwd"] = cwd
+                seen["kwargs"] = kwargs
+                return {"cwd": str(cwd), **kwargs}
+
+            monkeypatch.setattr(patch_target, _fake_query)
+        elif kind == "query_deps":
+            def _fake_query_deps(cwd: Path, identifier: str):
+                seen["cwd"] = cwd
+                seen["identifier"] = identifier
+                return {"cwd": str(cwd), "identifier": identifier}
+
+            monkeypatch.setattr(patch_target, _fake_query_deps)
+        elif kind == "query_assumptions":
+            def _fake_query_assumptions(cwd: Path, text: str):
+                seen["cwd"] = cwd
+                seen["text"] = text
+                return {"cwd": str(cwd), "text": text}
+
+            monkeypatch.setattr(patch_target, _fake_query_assumptions)
+        elif kind == "history_digest":
+            def _fake_history_digest(cwd: Path):
+                seen["cwd"] = cwd
+                return {"cwd": str(cwd)}
+
+            monkeypatch.setattr(patch_target, _fake_history_digest)
+        elif kind == "regression_check":
+            def _fake_regression_check(cwd: Path, phase: str | None = None, quick: bool = False):
+                seen["cwd"] = cwd
+                seen["phase"] = phase
+                seen["quick"] = quick
+                return SimpleNamespace(
+                    passed=True,
+                    model_dump=lambda mode="json", by_alias=True: {
+                        "cwd": str(cwd),
+                        "phase": phase,
+                        "quick": quick,
+                        "passed": True,
+                    },
+                )
+
+            monkeypatch.setattr(patch_target, _fake_regression_check)
+        else:  # pragma: no cover - guarded by parametrization
+            raise AssertionError(kind)
+
+        result = runner.invoke(app, ["--cwd", str(nested), *command_args], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["cwd"] == str(project_root)
+        assert seen["cwd"] == project_root
+        if kind == "health":
+            assert payload["fix"] is False
+            assert seen["fix"] is False
+        elif kind == "query_search":
+            assert payload["text"] == "alpha"
+            assert seen["kwargs"]["text"] == "alpha"
+        elif kind == "query_deps":
+            assert payload["identifier"] == "R-01"
+            assert seen["identifier"] == "R-01"
+        elif kind == "query_assumptions":
+            assert payload["text"] == "alpha beta"
+            assert seen["text"] == "alpha beta"
+        elif kind == "regression_check":
+            assert payload["passed"] is True
+            assert seen["quick"] is False
+
+
+class TestReadOnlyStateBackedLists:
+    @pytest.mark.parametrize(
+        ("command_args", "patch_target", "kind"),
+        [
+            (["--raw", "result", "list"], "gpd.core.results.result_list", "result_list"),
+            (["--raw", "approximation", "list"], "gpd.core.extras.approximation_list", "approximation_list"),
+            (["--raw", "uncertainty", "list"], "gpd.core.extras.uncertainty_list", "uncertainty_list"),
+            (["--raw", "question", "list"], "gpd.core.extras.question_list", "question_list"),
+            (["--raw", "calculation", "list"], "gpd.core.extras.calculation_list", "calculation_list"),
+        ],
+    )
+    def test_state_backed_read_only_lists_use_non_mutating_loader(
+        self,
+        gpd_project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        command_args: list[str],
+        patch_target: str,
+        kind: str,
+    ) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+        project_root = gpd_project.resolve()
+        seen: dict[str, object] = {}
+
+        monkeypatch.setattr("gpd.cli._project_scoped_cwd", lambda cwd=None: project_root)
+
+        def _fake_peek_state_json(
+            cwd: Path,
+            *,
+            integrity_mode: str = "standard",
+            recover_intent: bool = True,
+            surface_blocked_project_contract: bool = False,
+            acquire_lock: bool = True,
+        ):
+            seen["peek_cwd"] = cwd
+            seen["acquire_lock"] = acquire_lock
+            seen["recover_intent"] = recover_intent
+            seen["surface_blocked_project_contract"] = surface_blocked_project_contract
+            return ({"loaded_cwd": str(cwd)}, [], "state.json")
+
+        monkeypatch.setattr("gpd.core.state.peek_state_json", _fake_peek_state_json)
+
+        def _fake_state_reader(state: dict, *args: object, **kwargs: object):
+            seen["state"] = state
+            seen["args"] = args
+            seen["kwargs"] = kwargs
+            return {"cwd": state["loaded_cwd"], "kind": kind, "args": list(args), "kwargs": kwargs}
+
+        monkeypatch.setattr(patch_target, _fake_state_reader)
+
+        result = runner.invoke(app, ["--cwd", str(nested), *command_args], catch_exceptions=False)
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["cwd"] == str(project_root)
+        assert payload["kind"] == kind
+        assert seen["peek_cwd"] == project_root
+        assert seen["acquire_lock"] is False
+        assert seen["recover_intent"] is False
+        assert seen["surface_blocked_project_contract"] is True
 
 
 class TestReviewValidationCommands:
@@ -1465,34 +1700,31 @@ class TestReviewValidationCommands:
 
     def test_command_context_recovery_surfaces_accept_partial_recoverable_workspace(
         self,
-        tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        project = tmp_path / "recoverable-project"
-        nested = project / "workspace" / "notes"
-        gpd_dir = project / "GPD"
-        nested.mkdir(parents=True)
-        gpd_dir.mkdir()
-        (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
-        (gpd_dir / "STATE.md").write_text("# Research State\n", encoding="utf-8")
-        monkeypatch.chdir(nested)
+        from tempfile import TemporaryDirectory
 
-        for command_name in ("progress", "resume-work"):
-            result = runner.invoke(
-                app,
-                ["--raw", "--cwd", str(nested), "validate", "command-context", command_name],
-                catch_exceptions=False,
-            )
+        with TemporaryDirectory() as temp_dir:
+            sandbox_root = Path(temp_dir)
+            project = sandbox_root / "recoverable-project"
+            nested = project / "workspace" / "notes"
+            gpd_dir = project / "GPD"
+            nested.mkdir(parents=True)
+            gpd_dir.mkdir()
+            (gpd_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+            (gpd_dir / "STATE.md").write_text("# Research State\n", encoding="utf-8")
+            monkeypatch.setattr(cli_module, "_cwd", nested)
 
-            assert result.exit_code == (0 if command_name == "resume-work" else 1), result.output
-            payload = json.loads(result.output)
-            checks = {check["name"]: check for check in payload["checks"]}
-            assert payload["passed"] is (command_name == "resume-work")
-            assert payload["project_exists"] is False
-            assert checks["state_exists"]["passed"] is True
-            assert checks["roadmap_exists"]["passed"] is True
-            assert checks["project_exists"]["passed"] is False
-            assert checks["required_files"]["passed"] is (command_name == "resume-work")
+            for command_name in ("progress", "resume-work"):
+                preflight = cli_module._build_command_context_preflight(command_name)
+
+                checks = {check.name: check for check in preflight.checks}
+                assert preflight.passed is (command_name == "resume-work")
+                assert preflight.project_exists is False
+                assert checks["state_exists"].passed is True
+                assert checks["roadmap_exists"].passed is True
+                assert checks["project_exists"].passed is False
+                assert checks["required_files"].passed is (command_name == "resume-work")
 
     def test_command_context_plan_milestone_gaps_requires_globbed_files_in_project_root(
         self, gpd_project: Path

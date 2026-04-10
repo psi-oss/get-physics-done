@@ -1,0 +1,24 @@
+{
+  "journal": "jhep",
+  "manuscript": "manuscript/entangled-cft-singularities.tex",
+  "bibliography": "manuscript/references.bib",
+  "supporting_audits": [
+    "manuscript/BIBLIOGRAPHY-AUDIT.json",
+    "manuscript/reproducibility-manifest.json",
+    "manuscript/SELF-REVIEW.md"
+  ],
+  "source_artifacts": [
+    "GPD/PROJECT.md",
+    "GPD/STATE.md",
+    "GPD/state.json",
+    "GPD/literature/PRIOR-WORK.md",
+    "GPD/literature/SINGULARITY-DIAGNOSTICS.md",
+    "GPD/phases/01-core-holographic-constructions-and-anchor-papers/SUMMARY.md",
+    "GPD/phases/01-core-holographic-constructions-and-anchor-papers/01-VERIFICATION.md",
+    "HANDOFF.md"
+  ],
+  "claim_policy": {
+    "overclaim_guardrail": "Do not equate encoding, final-state control, or coarse-grained access with direct singularity resolution.",
+    "provisional_result": "R-01-DIAGNOSTIC-SPLIT remains provisional and is not upgraded in the manuscript."
+  }
+}

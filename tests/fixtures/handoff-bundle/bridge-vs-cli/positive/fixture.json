@@ -1,0 +1,64 @@
+{
+  "actual_assertions": [
+    "Decide whether the next pass should return to the science with Phase 02 or continue the tool stress test around `summary-extract`, `history-digest`, and the missing CLI command surfaces."
+  ],
+  "anchor_candidate_ids": [
+    "VF-17-antonini-r01-040"
+  ],
+  "bug_type_ids": [
+    "BT-090"
+  ],
+  "command_recipes": [
+    [
+      "GPD MCP tools consistently cancel from this runtime while the bridge CLI remains usable"
+    ]
+  ],
+  "evidence_links": [
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/results/03-shahbazi-r01-report.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/03-shahbazi-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/03-shahbazi-r01/REPORT.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/17-antonini-r01",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/17-antonini-r01/REPORT.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/17-antonini-r01/report.md",
+    "phase-06/seed-CS-0610",
+    "phase-06/seed-CS-0727"
+  ],
+  "expected_assertions": [
+    "`summary_extract` should classify phase content consistently with the accepted phase artifact inventory."
+  ],
+  "fixture_id": "FX-bridge-vs-cli-positive",
+  "fixture_kind": "positive",
+  "fixture_path": "tests/fixtures/handoff-bundle/bridge-vs-cli/positive",
+  "fixture_role": "anchor",
+  "fixture_root": "tests/fixtures/handoff-bundle/bridge-vs-cli/positive",
+  "fixture_slug": "bridge-vs-cli",
+  "interface_classes": [
+    "cli"
+  ],
+  "mutation_axis": null,
+  "order": 19,
+  "packet_ids": [
+    "PK-BT-090-01"
+  ],
+  "paired_fixture_id": "FX-bridge-vs-cli-mutation",
+  "positive_only_justification": "",
+  "primary_interface_class": "cli",
+  "priority_band": [
+    "medium"
+  ],
+  "priority_score": 121,
+  "source_reports": [
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/17-antonini-r01/REPORT.md"
+  ],
+  "source_workspaces": [
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/17-antonini-r01"
+  ],
+  "starting_snapshot_hashes": [
+    "0efd4676e3a975691e2c5c4742b670e208a094b9e98051e935698b46a7f85c82"
+  ],
+  "status": "live",
+  "workspace_byte_count": 191316,
+  "workspace_file_count": 30,
+  "workspace_path": "tests/fixtures/handoff-bundle/bridge-vs-cli/positive/workspace",
+  "workspace_sha256": "dd1d3ba85dc75fb1318f18307c9b686931a4ceb962b00fe80d966a08224d9aae"
+}

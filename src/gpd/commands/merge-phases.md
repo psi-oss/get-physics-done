@@ -41,7 +41,7 @@ Target phase: second argument (e.g., "2")
 <process>
 Execute the merge-phases workflow from @{GPD_INSTALL_DIR}/workflows/merge-phases.md end-to-end.
 
-If `--dry-run` flag is present, show the merge plan (which artifacts would move, which results would combine) without executing any changes.
+This wrapper runs the merge workflow directly. Any stopping points come from the workflow's own validation gates.
 
 The workflow handles:
 

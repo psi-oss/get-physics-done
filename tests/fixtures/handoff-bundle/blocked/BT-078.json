@@ -1,0 +1,20 @@
+{
+  "anchor_candidate_id": "VF-10-sorce-r03-014",
+  "block_reason_code": "heuristic_only",
+  "bug_type_id": "BT-078",
+  "evidence_links": [
+    "phase-06/seed-CS-0721",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/10-sorce-r03/REPORT.md",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/10-sorce-r03",
+    "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/10-sorce-r03/report.md"
+  ],
+  "family_kind": "canonical",
+  "family_title": "Observe and trace surfaces diverge from execution reality",
+  "missing_evidence": "Canonical family has no manual candidate evidence in Phase 07.",
+  "reference_id": "BR-BT-078",
+  "reference_path": "tests/fixtures/handoff-bundle/blocked/BT-078.json",
+  "source_report": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/10-sorce-r03/REPORT.md",
+  "source_workspace": "/Users/sergio/GitHub/gpd-stress-test/automation/runs/full-main-pass-20260409T013855/workspaces/10-sorce-r03",
+  "status": "blocked",
+  "unblock_condition": "Attach the family to an admitted canonical sibling or supply direct manual-repro evidence later."
+}

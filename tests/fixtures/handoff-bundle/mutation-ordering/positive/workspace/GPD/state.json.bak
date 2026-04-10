@@ -1,0 +1,492 @@
+{
+  "project_reference": {
+    "project_md_updated": "2026-04-09",
+    "core_research_question": "Can rQFC be reformulated and justified beyond braneworld holographic semiclassical gravity without losing the benchmark consequences already established in the literature?",
+    "current_focus": "Phase 01 benchmark ingredient ledger and comparison setup"
+  },
+  "project_contract": {
+    "schema_version": 1,
+    "scope": {
+      "question": "Can the restricted quantum focusing conjecture be extended beyond braneworld semiclassical gravity, and what minimal assumptions are sufficient?",
+      "in_scope": [
+        "Map non-braneworld settings where rQFC is already tested or plausibly provable",
+        "Isolate the model-independent ingredients behind the braneworld proof",
+        "Formulate a candidate extension strategy that matches known JT-gravity and d>2 consequences"
+      ],
+      "out_of_scope": [
+        "A full proof of the unrestricted QFC in arbitrary semiclassical gravity",
+        "Numerical checks unrelated to null deformations or generalized entropy"
+      ],
+      "unresolved_questions": [
+        "Which ingredients of the braneworld proof are indispensable rather than holographic conveniences?",
+        "What replaces higher-dimensional Einstein-dual control in generic non-braneworld settings?"
+      ]
+    },
+    "context_intake": {
+      "must_read_refs": [
+        "Ref-rqfc",
+        "Ref-inec",
+        "Ref-tests"
+      ],
+      "must_include_prior_outputs": [],
+      "user_asserted_anchors": [
+        "arXiv:2212.03881",
+        "arXiv:2310.14396",
+        "arXiv:2510.13961"
+      ],
+      "known_good_baselines": [
+        "arXiv:2212.03881"
+      ],
+      "context_gaps": [
+        "Need a precise non-braneworld formulation of the entropy-variation data required by the proof strategy"
+      ],
+      "crucial_inputs": [
+        "The braneworld proof structure in arXiv:2212.03881",
+        "The Theta -> 0 improved-energy-condition limit in arXiv:2310.14396",
+        "The JT-gravity and d>2 tests in arXiv:2510.13961"
+      ]
+    },
+    "approach_policy": {
+      "formulations": [
+        "Null-deformation analysis of generalized entropy and quantum expansion",
+        "Comparison between braneworld, JT-gravity, and generic QFT/CFT formulations"
+      ],
+      "allowed_estimator_families": [
+        "Analytic reduction to QNEC- or entropy-variation inequalities",
+        "Model-by-model comparison against published proofs and counterexamples"
+      ],
+      "forbidden_estimator_families": [
+        "Pure analogy to holography without checking entropy-functional control",
+        "Claims based only on unrestricted-QFC intuition after explicit counterexamples"
+      ],
+      "allowed_fit_families": [
+        "Minimal-assumption classification of proof ingredients"
+      ],
+      "forbidden_fit_families": [
+        "Ad hoc generalization that does not reproduce known benchmark cases"
+      ],
+      "stop_and_rethink_conditions": [
+        "A proposed extension cannot recover the braneworld proof ingredients or conflicts with the JT-gravity tests",
+        "The strategy relies on assumptions already falsified by counterexamples to the stronger QFC"
+      ]
+    },
+    "observables": [
+      {
+        "id": "obs-ingredients",
+        "name": "Minimal ingredient set for rQFC",
+        "kind": "classification",
+        "definition": "Classification of assumptions sufficient to derive rQFC-like inequalities beyond braneworlds",
+        "regime": null,
+        "units": null
+      },
+      {
+        "id": "obs-tests",
+        "name": "Non-braneworld benchmark cases",
+        "kind": "classification",
+        "definition": "Catalog of benchmark settings and whether the candidate ingredient set matches existing evidence",
+        "regime": null,
+        "units": null
+      }
+    ],
+    "claims": [
+      {
+        "id": "claim-main",
+        "statement": "A viable beyond-braneworld extension strategy for rQFC must reproduce the braneworld benchmark, remain consistent with the Theta -> 0 improved-energy-condition limit, and accommodate the JT-gravity / d>2 tests without invoking braneworld holography as an unexplained black box.",
+        "claim_kind": "result",
+        "observables": [
+          "obs-ingredients",
+          "obs-tests"
+        ],
+        "deliverables": [
+          "deliv-map",
+          "deliv-strategy"
+        ],
+        "acceptance_tests": [
+          "test-benchmark",
+          "test-consistency",
+          "test-review"
+        ],
+        "references": [
+          "Ref-rqfc",
+          "Ref-inec",
+          "Ref-tests"
+        ],
+        "parameters": [],
+        "hypotheses": [],
+        "quantifiers": [],
+        "conclusion_clauses": [],
+        "proof_deliverables": []
+      }
+    ],
+    "deliverables": [
+      {
+        "id": "deliv-map",
+        "kind": "note",
+        "path": "GPD/phases/01-literature-map/SUMMARY.md",
+        "description": "Literature map of restricted QFC ingredients and benchmark cases",
+        "must_contain": [
+          "braneworld proof ingredients",
+          "non-braneworld benchmark cases"
+        ]
+      },
+      {
+        "id": "deliv-strategy",
+        "kind": "report",
+        "path": "GPD/phases/03-extension-strategy/SUMMARY.md",
+        "description": "Candidate extension strategy beyond braneworlds",
+        "must_contain": [
+          "minimal assumptions",
+          "failure modes",
+          "comparison to JT gravity and d>2 tests"
+        ]
+      }
+    ],
+    "acceptance_tests": [
+      {
+        "id": "test-benchmark",
+        "subject": "claim-main",
+        "kind": "benchmark",
+        "procedure": "Check that the proposed strategy explicitly reproduces the benchmark logic and assumptions of Restricted Quantum Focusing (arXiv:2212.03881).",
+        "pass_condition": "Every indispensable step in the extension strategy maps to a corresponding benchmark ingredient or is justified as a controlled replacement.",
+        "evidence_required": [
+          "deliv-map",
+          "Ref-rqfc"
+        ],
+        "automation": "human"
+      },
+      {
+        "id": "test-consistency",
+        "subject": "claim-main",
+        "kind": "consistency",
+        "procedure": "Check consistency with the Theta -> 0 improved-energy-condition limit and with the JT-gravity / d>2 tests.",
+        "pass_condition": "No step contradicts arXiv:2310.14396 or arXiv:2510.13961, and the strategy explains why those settings are compatible with rQFC beyond braneworlds.",
+        "evidence_required": [
+          "deliv-strategy",
+          "Ref-inec",
+          "Ref-tests"
+        ],
+        "automation": "human"
+      },
+      {
+        "id": "test-review",
+        "subject": "deliv-strategy",
+        "kind": "human_review",
+        "procedure": "Review whether the strategy identifies concrete missing assumptions and explicit failure modes rather than generic optimism.",
+        "pass_condition": "The writeup names at least one decisive obstruction and at least one concrete next derivation target.",
+        "evidence_required": [
+          "deliv-strategy"
+        ],
+        "automation": "human"
+      }
+    ],
+    "references": [
+      {
+        "id": "Ref-rqfc",
+        "kind": "paper",
+        "locator": "Arvin Shahbazi-Moghaddam, Restricted Quantum Focusing, arXiv:2212.03881 (2023)",
+        "aliases": [
+          "restricted-qfc",
+          "braneworld benchmark"
+        ],
+        "role": "benchmark",
+        "why_it_matters": "Primary benchmark paper proving rQFC in braneworld semiclassical gravity subject to a technical assumption.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "compare",
+          "cite"
+        ]
+      },
+      {
+        "id": "Ref-inec",
+        "kind": "paper",
+        "locator": "Ido Ben-Dayan, The Quantum Focusing Conjecture and the Improved Energy Condition, arXiv:2310.14396 (2023)",
+        "aliases": [
+          "improved-energy-condition",
+          "theta-to-zero limit"
+        ],
+        "role": "method",
+        "why_it_matters": "Derives the Theta -> 0 improved energy condition from the restricted limit and indicates field-theory structure to preserve beyond braneworlds.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "compare",
+          "cite"
+        ]
+      },
+      {
+        "id": "Ref-tests",
+        "kind": "paper",
+        "locator": "Victor Franken, Sami Kaya, Francois Rondeau, Arvin Shahbazi-Moghaddam, Patrick Tran, Tests of restricted Quantum Focusing and a new CFT bound, arXiv:2510.13961 (2025)",
+        "aliases": [
+          "jt-tests",
+          "new-cft-bound"
+        ],
+        "role": "benchmark",
+        "why_it_matters": "Provides the latest non-braneworld benchmark evidence by proving rQFC in JT gravity and deriving a stronger d>2 consequence.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "compare",
+          "cite"
+        ]
+      }
+    ],
+    "forbidden_proxies": [
+      {
+        "id": "fp-main",
+        "subject": "claim-main",
+        "proxy": "Stating that any model with QNEC-like behavior probably satisfies rQFC",
+        "reason": "This would ignore the stronger structure singled out by the braneworld proof and the newer JT/CFT tests."
+      }
+    ],
+    "links": [
+      {
+        "id": "link-map",
+        "source": "claim-main",
+        "target": "deliv-map",
+        "relation": "supports",
+        "verified_by": [
+          "test-benchmark"
+        ]
+      },
+      {
+        "id": "link-strategy",
+        "source": "claim-main",
+        "target": "deliv-strategy",
+        "relation": "supports",
+        "verified_by": [
+          "test-consistency",
+          "test-review"
+        ]
+      },
+      {
+        "id": "link-ref-tests",
+        "source": "Ref-tests",
+        "target": "claim-main",
+        "relation": "benchmarks",
+        "verified_by": [
+          "test-consistency"
+        ]
+      }
+    ],
+    "uncertainty_markers": {
+      "weakest_anchors": [
+        "The minimal replacement for higher-dimensional Einstein-dual control in a general non-braneworld proof"
+      ],
+      "unvalidated_assumptions": [
+        "That the entropy-function variation data used in the braneworld proof admits a state-independent reformulation beyond holographic control"
+      ],
+      "competing_explanations": [
+        "The current non-braneworld successes may rely on low-dimensional or highly symmetric structure rather than a general mechanism"
+      ],
+      "disconfirming_observations": [
+        "A candidate extension requires assumptions stronger than those needed in the JT-gravity proof or fails to reproduce the strengthened d>2 consequence from arXiv:2510.13961"
+      ]
+    }
+  },
+  "position": {
+    "current_phase": "01",
+    "current_phase_name": "Benchmark braneworld rQFC proof and extract indispensable ingredients",
+    "total_phases": 5,
+    "current_plan": "1",
+    "total_plans_in_phase": 3,
+    "status": "Ready to plan",
+    "last_activity": "2026-04-09",
+    "last_activity_desc": "Session 5 reran validations, exercised write paths, and narrowed live GPD issues",
+    "progress_percent": 0,
+    "paused_at": null
+  },
+  "active_calculations": [
+    "Mapping the benchmark braneworld proof into a minimal ingredient ledger",
+    "Comparing the benchmark ledger against the `Theta -> 0` and JT/d>2 non-braneworld anchors",
+    "Benchmark ingredient ledger for arXiv:2212.03881",
+    "Theta -> 0 limit comparison against the improved energy condition",
+    "JT-gravity and d>2 consequence compatibility table"
+  ],
+  "intermediate_results": [
+    {
+      "id": "R-01-benchmark",
+      "equation": null,
+      "description": "Benchmark literature result: rQFC is proved in braneworld semiclassical gravity subject to a technical assumption",
+      "units": null,
+      "validity": "braneworld semiclassical gravity under the assumptions of arXiv:2212.03881",
+      "phase": "01",
+      "depends_on": [],
+      "verified": false,
+      "verification_records": []
+    },
+    {
+      "id": "R-02-inec",
+      "equation": "T_{kk} \\ge \\frac{hbar}{2\\pi A}\\left(S_{out}^{\\prime\\prime} - \\frac{1}{2}\\theta S_{out}^{\\prime}\\right)",
+      "description": "Theta -> 0 restricted limit gives the improved energy condition",
+      "units": "energy density",
+      "validity": "Theta -> 0 limit as in arXiv:2310.14396",
+      "phase": "02",
+      "depends_on": [
+        "R-01-benchmark"
+      ],
+      "verified": false,
+      "verification_records": []
+    },
+    {
+      "id": "R-02-jt",
+      "equation": null,
+      "description": "Non-braneworld benchmark result: rQFC is proved in a class of d=2 JT-gravity plus QFT models",
+      "units": null,
+      "validity": "class of JT-gravity models studied in arXiv:2510.13961",
+      "phase": "02",
+      "depends_on": [
+        "R-01-benchmark"
+      ],
+      "verified": false,
+      "verification_records": []
+    },
+    {
+      "id": "R-02-dgtwo",
+      "equation": null,
+      "description": "In d>2 a stronger consequence of rQFC constrains how quickly QNEC saturation can vanish as transverse area shrinks",
+      "units": null,
+      "validity": "broad class of d>2 states in arXiv:2510.13961",
+      "phase": "02",
+      "depends_on": [
+        "R-02-jt"
+      ],
+      "verified": false,
+      "verification_records": []
+    }
+  ],
+  "open_questions": [
+    "Which steps in arXiv:2212.03881 are indispensable rather than braneworld conveniences?",
+    "What exactly replaces higher-dimensional Einstein-dual control in a general non-braneworld proof?",
+    "How strong is the d>2 consequence of arXiv:2510.13961 as a constraint on any extension program?",
+    "Which step in the benchmark proof depends essentially on braneworld bulk Einstein dynamics?",
+    "Is the JT-gravity success in arXiv:2510.13961 low-dimensional accident or evidence for a general mechanism?",
+    "What exact small-area behavior in d>2 is forced by rQFC beyond ordinary QNEC saturation?"
+  ],
+  "performance_metrics": {
+    "rows": []
+  },
+  "decisions": [
+    {
+      "phase": "0",
+      "summary": "Anchor the project on the benchmark, limit, and latest non-braneworld test papers",
+      "rationale": "This preserves concrete scope and prevents the extension program from drifting into unanchored generality"
+    },
+    {
+      "phase": "0",
+      "summary": "Treat unrestricted QFC as a constraint source rather than the main target",
+      "rationale": "Known stronger-QFC failures should stress-test the restricted program, not redefine it"
+    }
+  ],
+  "approximations": [
+    {
+      "name": "Restricted limit as diagnostic probe",
+      "validity_range": "Theta close to 0 only",
+      "controlling_param": "Theta",
+      "current_value": "used only as a limiting-case benchmark",
+      "status": "valid for limiting-case analysis"
+    },
+    {
+      "name": "Semiclassical control of generalized entropy",
+      "validity_range": "semiclassical gravity regime",
+      "controlling_param": "backreaction strength relative to geometric area term",
+      "current_value": "model dependent across benchmarks",
+      "status": "needs explicit benchmarking"
+    }
+  ],
+  "convention_lock": {
+    "metric_signature": "mostly-plus",
+    "fourier_convention": null,
+    "natural_units": "c = k_B = 1 with G and hbar explicit unless quoting source formulas",
+    "gauge_choice": null,
+    "regularization_scheme": null,
+    "renormalization_scheme": null,
+    "coordinate_system": "affine null generators with transverse coordinates y on codimension-2 cuts",
+    "spin_basis": null,
+    "state_normalization": null,
+    "coupling_convention": null,
+    "index_positioning": null,
+    "time_ordering": null,
+    "commutation_convention": null,
+    "levi_civita_sign": null,
+    "generator_normalization": null,
+    "covariant_derivative_sign": null,
+    "gamma_matrix_convention": null,
+    "creation_annihilation_order": null,
+    "custom_conventions": {}
+  },
+  "propagated_uncertainties": [
+    {
+      "quantity": "Minimal replacement for Einstein-dual control",
+      "value": "not yet identified",
+      "uncertainty": "high",
+      "phase": "03",
+      "method": "cross-benchmark comparison"
+    },
+    {
+      "quantity": "Generality of JT-inspired ingredient set",
+      "value": "uncertain outside d=2",
+      "uncertainty": "high",
+      "phase": "03",
+      "method": "literature comparison"
+    }
+  ],
+  "pending_todos": [],
+  "blockers": [
+    "No callable local new-project write pass was exposed; project files had to be bootstrapped from the canonical GPD templates after state.json contract setup."
+  ],
+  "session": {
+    "last_date": "2026-04-09T17:34:35.974596+00:00",
+    "hostname": "Sergios-MacBook-Pro",
+    "platform": "Darwin 25.3.0 arm64",
+    "stopped_at": "Session 5 complete: reran validations, exercised write paths, and narrowed live GPD issues",
+    "resume_file": "HANDOFF.md",
+    "last_result_id": "R-02-dgtwo"
+  },
+  "continuation": {
+    "schema_version": 1,
+    "handoff": {
+      "resume_file": "HANDOFF.md",
+      "stopped_at": "Session 5 complete: reran validations, exercised write paths, and narrowed live GPD issues",
+      "last_result_id": "R-02-dgtwo",
+      "recorded_at": "2026-04-09T17:34:35.974596+00:00",
+      "recorded_by": "state_record_session"
+    },
+    "bounded_segment": null,
+    "machine": {
+      "recorded_at": "2026-04-09T17:34:35.974596+00:00",
+      "hostname": "Sergios-MacBook-Pro",
+      "platform": "Darwin 25.3.0 arm64"
+    }
+  },
+  "_version": 1,
+  "_synced_at": "2026-04-09T17:34:35.913805+00:00"
+}

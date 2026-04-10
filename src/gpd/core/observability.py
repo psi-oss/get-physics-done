@@ -195,6 +195,8 @@ class ExecutionVisibilityState(BaseModel):
 
     workspace_root: str | None = None
     has_live_execution: bool = False
+    visibility_mode: str = "idle"
+    visibility_note: str | None = None
     status_classification: str = "idle"
     assessment: str = "idle"
     possibly_stalled: bool = False
@@ -842,9 +844,21 @@ def _execution_visibility_next_commands(
     classification: str,
     snapshot: CurrentExecutionState | None,
     possibly_stalled: bool,
+    visibility_mode: str = "full",
 ) -> list[ExecutionVisibilitySuggestion]:
     suggestions: list[ExecutionVisibilitySuggestion] = []
     if snapshot is None:
+        if visibility_mode == "degraded":
+            return [
+                ExecutionVisibilitySuggestion(
+                    command="gpd observe sessions --last 5",
+                    reason="inspect recent observability sessions because the live execution telemetry is degraded",
+                ),
+                ExecutionVisibilitySuggestion(
+                    command="gpd progress bar",
+                    reason="cross-check workspace progress separately while the live execution telemetry is degraded",
+                ),
+            ]
         return [
             ExecutionVisibilitySuggestion(
                 command="gpd observe sessions --last 5",
@@ -860,6 +874,23 @@ def _execution_visibility_next_commands(
     session_scope = f" --session {snapshot.session_id}" if snapshot.session_id else ""
     observe_command = f"gpd observe show{session_scope} --last 20"
     recovery_command = recovery_local_snapshot_command()
+
+    if visibility_mode in {"snapshot-only", "trace-only"}:
+        mode_reason = (
+            "inspect recent observability sessions because only the compatibility snapshot is available"
+            if visibility_mode == "snapshot-only"
+            else "inspect recent observability sessions because only the lineage trace head is available"
+        )
+        return [
+            ExecutionVisibilitySuggestion(
+                command="gpd observe sessions --last 5",
+                reason=mode_reason,
+            ),
+            ExecutionVisibilitySuggestion(
+                command="gpd progress bar",
+                reason="cross-check workspace progress separately from the partial execution visibility",
+            ),
+        ]
 
     if classification == "blocked":
         suggestions.append(
@@ -960,24 +991,98 @@ def _execution_visibility_next_steps(
     ]
 
 
+def _execution_visibility_source_state(
+    layout: ProjectLayout,
+) -> tuple[CurrentExecutionState | None, str, str | None]:
+    authoritative_snapshot = get_current_execution(layout.root)
+    current_exists = layout.current_observability_execution.exists()
+    head_exists = layout.execution_lineage_head.exists()
+
+    current_raw = _read_current_execution_raw(layout) if current_exists else None
+    head_raw = _read_json(layout.execution_lineage_head) if head_exists else None
+
+    current_snapshot: CurrentExecutionState | None = None
+    head_snapshot: CurrentExecutionState | None = None
+    current_valid = False
+    head_valid = False
+    degraded_reasons: list[str] = []
+
+    if current_exists:
+        if isinstance(current_raw, dict):
+            try:
+                current_snapshot = CurrentExecutionState.model_validate(current_raw)
+            except Exception:
+                degraded_reasons.append("current-execution.json is malformed")
+            else:
+                current_valid = True
+        else:
+            degraded_reasons.append("current-execution.json is missing or unreadable")
+
+    if head_exists:
+        if isinstance(head_raw, dict):
+            try:
+                head_payload = ExecutionLineageHead.model_validate(head_raw)
+            except Exception:
+                degraded_reasons.append("execution-head.json is malformed")
+            else:
+                if isinstance(head_payload.execution, dict):
+                    try:
+                        head_snapshot = CurrentExecutionState.model_validate(head_payload.execution)
+                    except Exception:
+                        degraded_reasons.append("execution-head.json payload is malformed")
+                    else:
+                        head_valid = True
+                else:
+                    degraded_reasons.append("execution-head.json is incomplete")
+        else:
+            degraded_reasons.append("execution-head.json is missing or unreadable")
+
+    snapshot = authoritative_snapshot or head_snapshot or current_snapshot
+    if snapshot is None:
+        if current_exists or head_exists:
+            note = "; ".join(dict.fromkeys(degraded_reasons)) or "live execution telemetry is incomplete"
+            return None, "degraded", note
+        return None, "idle", None
+
+    if current_valid and head_valid:
+        return snapshot, "full", None
+    if current_valid and not head_exists:
+        return snapshot, "full", None
+    if head_valid and not current_exists:
+        return snapshot, "full", None
+    if current_valid and head_exists and not head_valid:
+        note = "; ".join(dict.fromkeys(degraded_reasons)) or "compatibility snapshot only"
+        return snapshot, "snapshot-only", note
+    if head_valid and current_exists and not current_valid:
+        note = "; ".join(dict.fromkeys(degraded_reasons)) or "lineage trace only"
+        return snapshot, "trace-only", note
+
+    note = "; ".join(dict.fromkeys(degraded_reasons)) or "live execution telemetry is incomplete"
+    return snapshot, "degraded", note
+
+
 def derive_execution_visibility(cwd: Path | None = None) -> ExecutionVisibilityState | None:
     """Derive a normalized local execution visibility payload from the current snapshot."""
     layout = _layout(cwd)
     if layout is None:
         return None
 
-    snapshot = get_current_execution(layout.root)
+    snapshot, visibility_mode, visibility_note = _execution_visibility_source_state(layout)
     if snapshot is None:
+        degraded = visibility_mode == "degraded"
         suggestions = _execution_visibility_next_commands(
             classification="idle",
             snapshot=None,
             possibly_stalled=False,
+            visibility_mode=visibility_mode,
         )
         return ExecutionVisibilityState(
             workspace_root=str(layout.root),
             has_live_execution=False,
-            status_classification="idle",
-            assessment="idle",
+            visibility_mode=visibility_mode,
+            visibility_note=visibility_note,
+            status_classification="degraded" if degraded else "idle",
+            assessment="degraded" if degraded else "idle",
             suggested_next_commands=suggestions,
             suggested_next_steps=_execution_visibility_next_steps(suggestions),
         )
@@ -986,7 +1091,12 @@ def derive_execution_visibility(cwd: Path | None = None) -> ExecutionVisibilityS
     age_minutes = _execution_visibility_age_minutes(snapshot.updated_at)
     age_label = _execution_visibility_age_label(snapshot.updated_at)
     possibly_stalled = classification == "active" and age_minutes is not None and age_minutes >= 30.0
-    assessment = "possibly stalled" if possibly_stalled else classification
+    if visibility_mode == "full":
+        assessment = "possibly stalled" if possibly_stalled else classification
+    elif visibility_mode in {"snapshot-only", "trace-only"}:
+        assessment = f"{visibility_mode} {classification}"
+    else:
+        assessment = visibility_mode
     current_task_progress: str | None = None
     if snapshot.current_task_index is not None and snapshot.current_task_total is not None:
         current_task_progress = f"{snapshot.current_task_index}/{snapshot.current_task_total}"
@@ -995,12 +1105,15 @@ def derive_execution_visibility(cwd: Path | None = None) -> ExecutionVisibilityS
         classification=classification,
         snapshot=snapshot,
         possibly_stalled=possibly_stalled,
+        visibility_mode=visibility_mode,
     )
     tangent_steps = _execution_visibility_tangent_steps(snapshot)
 
     return ExecutionVisibilityState(
         workspace_root=str(layout.root),
         has_live_execution=True,
+        visibility_mode=visibility_mode,
+        visibility_note=visibility_note,
         status_classification=classification,
         assessment=assessment,
         possibly_stalled=possibly_stalled,

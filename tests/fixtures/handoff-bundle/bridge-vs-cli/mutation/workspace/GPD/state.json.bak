@@ -1,0 +1,650 @@
+{
+  "project_reference": {
+    "project_md_updated": null,
+    "core_research_question": "Which boundary observables distinguish genuine singularity resolution from singularity encoding or coarse-graining in holographic cosmologies built from entangled CFT states?",
+    "current_focus": "Phase 01 literature anchors and diagnostic framing"
+  },
+  "project_contract": {
+    "schema_version": 1,
+    "scope": {
+      "question": "Which boundary observables distinguish singularity resolution from singularity encoding or coarse-grained loss of access in entangled-CFT cosmologies?",
+      "in_scope": [
+        "Compare the anchor entangled-CFT cosmology constructions using explicit boundary observables.",
+        "Separate geometric resolution claims from encoding and observer-access claims.",
+        "Produce a candidate singularity diagnostic for a later derivational phase."
+      ],
+      "out_of_scope": [
+        "Claiming a new UV completion of the cosmological singularity.",
+        "Running full bulk numerical simulations.",
+        "Phenomenological cosmology beyond the holographic models."
+      ],
+      "unresolved_questions": [
+        "Which observable provides the sharpest cross-model singularity diagnostic?",
+        "Does entanglement modify the singularity itself or only the degree of CFT access to it?",
+        "How closely can final-state projection be matched to ETW-brane or braneworld descriptions?"
+      ]
+    },
+    "context_intake": {
+      "must_read_refs": [
+        "Ref-1810",
+        "Ref-2102",
+        "Ref-2206",
+        "Ref-2405",
+        "Ref-2507"
+      ],
+      "must_include_prior_outputs": [
+        "GPD/literature/SUMMARY.md",
+        "GPD/literature/SINGULARITY-DIAGNOSTICS.md"
+      ],
+      "user_asserted_anchors": [
+        "arXiv:1810.10601",
+        "arXiv:2507.10649"
+      ],
+      "known_good_baselines": [
+        "GPD/literature/SINGULARITY-DIAGNOSTICS.md",
+        "arXiv:1810.10601"
+      ],
+      "context_gaps": [
+        "The literature does not yet give a single agreed definition of singularity resolution in these models."
+      ],
+      "crucial_inputs": [
+        "Large-subsystem entanglement probes of interior FRW evolution.",
+        "Closed-universe final-state wavefunction dictionary and coarse-grained observables.",
+        "BCFT strip realization of braneworld big-bang/big-crunch cosmology."
+      ]
+    },
+    "approach_policy": {
+      "formulations": [
+        "AdS/CFT microstate cosmology",
+        "braneworld and BCFT strip cosmology",
+        "closed-universe final-state projection"
+      ],
+      "allowed_estimator_families": [
+        "paper-anchored observable comparison",
+        "boundary-access classification"
+      ],
+      "forbidden_estimator_families": [
+        "proxy-only geometric storytelling",
+        "title-based thematic grouping without observable content"
+      ],
+      "allowed_fit_families": [
+        "observable-first cross-paper synthesis"
+      ],
+      "forbidden_fit_families": [
+        "claims that conflate encoding with resolution"
+      ],
+      "stop_and_rethink_conditions": [
+        "All candidate diagnostics reduce to observer-language without distinguishing the constructions.",
+        "The summary upgrades an encoding claim into a resolution claim without a new observable."
+      ]
+    },
+    "observables": [
+      {
+        "id": "obs-entanglement",
+        "name": "Entanglement-sensitive probe of cosmological interior",
+        "kind": "curve",
+        "definition": "Large-subsystem entanglement entropy or equivalent entanglement-sensitive boundary quantity tracking behind-the-horizon or closed-universe dynamics.",
+        "regime": null,
+        "units": null
+      },
+      {
+        "id": "obs-access",
+        "name": "Boundary access class to crunch data",
+        "kind": "classification",
+        "definition": "For each model, classify whether the CFT offers direct reconstruction, indirect coarse-grained access, or only a constrained final-state description of the singular region.",
+        "regime": null,
+        "units": null
+      }
+    ],
+    "claims": [
+      {
+        "id": "claim-main",
+        "statement": "The current entangled-CFT cosmology anchors support a three-way diagnostic split between resolved singularity, encoded singularity, and observer-limited access, and the strongest existing evidence currently favors encoding and access claims over direct singularity-resolution claims.",
+        "claim_kind": "result",
+        "observables": [
+          "obs-entanglement",
+          "obs-access"
+        ],
+        "deliverables": [
+          "deliv-matrix",
+          "deliv-summary"
+        ],
+        "acceptance_tests": [
+          "test-anchor-coverage",
+          "test-no-overclaim"
+        ],
+        "references": [
+          "Ref-1810",
+          "Ref-2102",
+          "Ref-2206",
+          "Ref-2405",
+          "Ref-2507"
+        ],
+        "parameters": [],
+        "hypotheses": [],
+        "quantifiers": [],
+        "conclusion_clauses": [],
+        "proof_deliverables": []
+      }
+    ],
+    "deliverables": [
+      {
+        "id": "deliv-matrix",
+        "kind": "report",
+        "path": "GPD/literature/SINGULARITY-DIAGNOSTICS.md",
+        "description": "Matrix comparing entanglement role, singularity claim, and boundary observable access across the anchor papers.",
+        "must_contain": [
+          "per-paper observables",
+          "singularity claim",
+          "open issue"
+        ]
+      },
+      {
+        "id": "deliv-summary",
+        "kind": "report",
+        "path": "GPD/literature/SUMMARY.md",
+        "description": "Bootstrap summary stating what the anchor literature does and does not establish about cosmological singularities from entangled CFTs.",
+        "must_contain": [
+          "resolution versus encoding distinction",
+          "next-step diagnostic"
+        ]
+      }
+    ],
+    "acceptance_tests": [
+      {
+        "id": "test-anchor-coverage",
+        "subject": "claim-main",
+        "kind": "human_review",
+        "procedure": "Check that each must-read anchor paper appears in the diagnostics matrix with its entanglement role, singularity claim, and observable access class.",
+        "pass_condition": "All five anchor papers are covered explicitly and none is summarized without an observable tag.",
+        "evidence_required": [
+          "deliv-matrix",
+          "Ref-1810",
+          "Ref-2102",
+          "Ref-2206",
+          "Ref-2405",
+          "Ref-2507"
+        ],
+        "automation": "human"
+      },
+      {
+        "id": "test-no-overclaim",
+        "subject": "claim-main",
+        "kind": "consistency",
+        "procedure": "Review the summary and verify that every statement about singularity resolution is backed by a source-level observable claim rather than by narrative paraphrase.",
+        "pass_condition": "No sentence upgrades encoding or access language into direct singularity-resolution language without explicit support.",
+        "evidence_required": [
+          "deliv-summary",
+          "deliv-matrix",
+          "Ref-2507",
+          "Ref-1810"
+        ],
+        "automation": "human"
+      }
+    ],
+    "references": [
+      {
+        "id": "Ref-1810",
+        "kind": "paper",
+        "locator": "arXiv:1810.10601",
+        "aliases": [
+          "Black Hole Microstate Cosmology"
+        ],
+        "role": "benchmark",
+        "why_it_matters": "Primary anchor for entanglement-sensitive probes of behind-the-horizon FRW dynamics.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "compare",
+          "cite"
+        ]
+      },
+      {
+        "id": "Ref-2102",
+        "kind": "paper",
+        "locator": "arXiv:2102.05057",
+        "aliases": [
+          "Cosmology from confinement?"
+        ],
+        "role": "background",
+        "why_it_matters": "Conceptual origin of the confinement-cosmology and cosmology-wormhole link.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "compare",
+          "cite"
+        ]
+      },
+      {
+        "id": "Ref-2206",
+        "kind": "paper",
+        "locator": "arXiv:2206.14821",
+        "aliases": [
+          "Accelerating Cosmology from a Holographic Wormhole"
+        ],
+        "role": "benchmark",
+        "why_it_matters": "Antonini-led anchor connecting entangled boundary states to accelerating cosmology.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "compare",
+          "cite"
+        ]
+      },
+      {
+        "id": "Ref-2405",
+        "kind": "paper",
+        "locator": "arXiv:2405.18465",
+        "aliases": [
+          "Magnetic Braneworlds: Cosmology and Wormholes"
+        ],
+        "role": "benchmark",
+        "why_it_matters": "Most explicit braneworld and BCFT realization of big-bang/big-crunch cosmology in the anchor set.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "compare",
+          "cite"
+        ]
+      },
+      {
+        "id": "Ref-2507",
+        "kind": "paper",
+        "locator": "arXiv:2507.10649",
+        "aliases": [
+          "The Baby Universe is Fine and the CFT Knows It"
+        ],
+        "role": "benchmark",
+        "why_it_matters": "Latest Antonini-led anchor on closed-universe encoding, final-state projection, and coarse-grained observables.",
+        "applies_to": [
+          "claim-main"
+        ],
+        "carry_forward_to": [
+          "planning",
+          "execution",
+          "verification",
+          "writing"
+        ],
+        "must_surface": true,
+        "required_actions": [
+          "read",
+          "compare",
+          "cite"
+        ]
+      }
+    ],
+    "forbidden_proxies": [
+      {
+        "id": "fp-main",
+        "subject": "claim-main",
+        "proxy": "Any statement that an entangled-CFT cosmology exists, without specifying the observable basis for the singularity claim.",
+        "reason": "This would collapse geometry, encoding, and observer access into a single vague success signal."
+      }
+    ],
+    "links": [
+      {
+        "id": "link-main-matrix",
+        "source": "claim-main",
+        "target": "deliv-matrix",
+        "relation": "supports",
+        "verified_by": [
+          "test-anchor-coverage"
+        ]
+      },
+      {
+        "id": "link-main-summary",
+        "source": "claim-main",
+        "target": "deliv-summary",
+        "relation": "supports",
+        "verified_by": [
+          "test-no-overclaim"
+        ]
+      }
+    ],
+    "uncertainty_markers": {
+      "weakest_anchors": [
+        "The literature does not use a single stable definition of singularity resolution."
+      ],
+      "unvalidated_assumptions": [
+        "More bulk entanglement should monotonically improve boundary access to crunch data across all constructions."
+      ],
+      "competing_explanations": [
+        "The papers may all preserve the singularity while changing only which observers or coarse-grained observables can access it."
+      ],
+      "disconfirming_observations": [
+        "A careful observable-by-observable comparison shows no difference between the claimed resolution regime and a merely encoded singular regime."
+      ]
+    }
+  },
+  "position": {
+    "current_phase": "01",
+    "current_phase_name": "Core holographic constructions and anchor papers",
+    "total_phases": 4,
+    "current_plan": "1",
+    "total_plans_in_phase": 1,
+    "status": "Complete",
+    "last_activity": "2026-04-09",
+    "last_activity_desc": null,
+    "progress_percent": 100,
+    "paused_at": null
+  },
+  "active_calculations": [
+    "Formulate a candidate criterion separating resolved singularities from encoded-but-unresolved singularities."
+  ],
+  "intermediate_results": [
+    {
+      "id": "R-01-ENT-PROBE",
+      "equation": "S_A(t) for sufficiently large boundary subregions probes behind-the-horizon FRW evolution",
+      "description": "Microstate-cosmology anchor from arXiv:1810.10601",
+      "units": "qualitative observable relation",
+      "validity": "within the holographic microstate constructions discussed in arXiv:1810.10601",
+      "phase": "01",
+      "depends_on": [],
+      "verified": true,
+      "verification_records": [
+        {
+          "verified_at": "2026-04-09T07:28:06.572635+00:00",
+          "verifier": null,
+          "method": "manual",
+          "confidence": "medium",
+          "evidence_path": null,
+          "trace_id": null,
+          "commit_sha": null,
+          "notes": null,
+          "claim_id": null,
+          "deliverable_id": null,
+          "acceptance_test_id": null,
+          "reference_id": null,
+          "forbidden_proxy_id": null,
+          "proof_claim_id": null,
+          "covered_hypothesis_ids": [],
+          "missing_hypothesis_ids": [],
+          "covered_parameter_symbols": [],
+          "missing_parameter_symbols": [],
+          "uncovered_conclusion_clause_ids": [],
+          "quantifier_status": null,
+          "counterexample_status": null,
+          "proof_artifact_path": null,
+          "proof_artifact_sha256": null,
+          "claim_statement_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "R-01-CONF-COSMO",
+      "equation": "Euclidean confinement or wormhole saddles admit Lorentzian big-bang or big-crunch cosmological continuations",
+      "description": "Conceptual confinement-to-cosmology bridge from arXiv:2102.05057",
+      "units": "qualitative construction statement",
+      "validity": "within the class of holographic models described in arXiv:2102.05057",
+      "phase": "01",
+      "depends_on": [],
+      "verified": true,
+      "verification_records": [
+        {
+          "verified_at": "2026-04-09T07:28:21.890830+00:00",
+          "verifier": null,
+          "method": "manual",
+          "confidence": "medium",
+          "evidence_path": null,
+          "trace_id": null,
+          "commit_sha": null,
+          "notes": null,
+          "claim_id": null,
+          "deliverable_id": null,
+          "acceptance_test_id": null,
+          "reference_id": null,
+          "forbidden_proxy_id": null,
+          "proof_claim_id": null,
+          "covered_hypothesis_ids": [],
+          "missing_hypothesis_ids": [],
+          "covered_parameter_symbols": [],
+          "missing_parameter_symbols": [],
+          "uncovered_conclusion_clause_ids": [],
+          "quantifier_status": null,
+          "counterexample_status": null,
+          "proof_artifact_path": null,
+          "proof_artifact_sha256": null,
+          "claim_statement_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "R-01-BCFT-BRANE",
+      "equation": "A BCFT strip path integral encodes a braneworld big-bang or big-crunch cosmology and a wormhole as different continuations of the same Euclidean saddle",
+      "description": "Doubly-holographic braneworld anchor from arXiv:2405.18465",
+      "units": "qualitative duality statement",
+      "validity": "within the magnetic braneworld and BCFT strip construction of arXiv:2405.18465",
+      "phase": "01",
+      "depends_on": [
+        "R-01-CONF-COSMO"
+      ],
+      "verified": true,
+      "verification_records": [
+        {
+          "verified_at": "2026-04-09T07:28:29.991820+00:00",
+          "verifier": null,
+          "method": "manual",
+          "confidence": "medium",
+          "evidence_path": null,
+          "trace_id": null,
+          "commit_sha": null,
+          "notes": null,
+          "claim_id": null,
+          "deliverable_id": null,
+          "acceptance_test_id": null,
+          "reference_id": null,
+          "forbidden_proxy_id": null,
+          "proof_claim_id": null,
+          "covered_hypothesis_ids": [],
+          "missing_hypothesis_ids": [],
+          "covered_parameter_symbols": [],
+          "missing_parameter_symbols": [],
+          "uncovered_conclusion_clause_ids": [],
+          "quantifier_status": null,
+          "counterexample_status": null,
+          "proof_artifact_path": null,
+          "proof_artifact_sha256": null,
+          "claim_statement_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "R-01-CLOSED-ENCODING",
+      "equation": "With sufficient bulk entanglement the closed-universe Hilbert space is encoded in the CFT, while the no-entanglement limit breaks direct holographic access",
+      "description": "Closed-universe encoding limit from arXiv:2507.10649",
+      "units": "qualitative encoding statement",
+      "validity": "within the closed-universe holographic framework of arXiv:2507.10649",
+      "phase": "01",
+      "depends_on": [],
+      "verified": true,
+      "verification_records": [
+        {
+          "verified_at": "2026-04-09T07:28:40.166809+00:00",
+          "verifier": null,
+          "method": "manual",
+          "confidence": "medium",
+          "evidence_path": null,
+          "trace_id": null,
+          "commit_sha": null,
+          "notes": null,
+          "claim_id": null,
+          "deliverable_id": null,
+          "acceptance_test_id": null,
+          "reference_id": null,
+          "forbidden_proxy_id": null,
+          "proof_claim_id": null,
+          "covered_hypothesis_ids": [],
+          "missing_hypothesis_ids": [],
+          "covered_parameter_symbols": [],
+          "missing_parameter_symbols": [],
+          "uncovered_conclusion_clause_ids": [],
+          "quantifier_status": null,
+          "counterexample_status": null,
+          "proof_artifact_path": null,
+          "proof_artifact_sha256": null,
+          "claim_statement_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "R-01-DIAGNOSTIC-SPLIT",
+      "equation": "Current anchor papers support encoding and access claims more strongly than direct singularity-resolution claims",
+      "description": "Bootstrap synthesis distinguishing resolution from encoding and coarse-grained access",
+      "units": "qualitative synthesis statement",
+      "validity": "within the bootstrap comparison of the five anchor papers",
+      "phase": "01",
+      "depends_on": [
+        "R-01-ENT-PROBE",
+        "R-01-BCFT-BRANE",
+        "R-01-CLOSED-ENCODING"
+      ],
+      "verified": false,
+      "verification_records": []
+    }
+  ],
+  "open_questions": [
+    "Which observable provides the sharpest cross-model singularity diagnostic?",
+    "Does entanglement modify the singularity itself or only the degree of CFT access to it?",
+    "How closely can final-state projection be matched to ETW-brane or braneworld descriptions?",
+    "Which boundary observable is the cleanest singularity diagnostic across microstate, braneworld, wormhole, and closed-universe constructions?",
+    "Does bulk entanglement change the fate of the cosmological singularity itself, or only the degree of CFT access to crunch data?",
+    "Can the closed-universe final-state projection picture be matched concretely to ETW-brane or braneworld descriptions?"
+  ],
+  "performance_metrics": {
+    "rows": []
+  },
+  "decisions": [
+    {
+      "phase": "01",
+      "summary": "Use a literature-first observable taxonomy before any new singularity claim.",
+      "rationale": "The anchor papers mix geometric, informational, and observer-access language; the project needs a common diagnostic vocabulary first."
+    },
+    {
+      "phase": "01",
+      "summary": "Keep direct resolution, encoded singularity, and observer-limited access as distinct claim levels.",
+      "rationale": "The anchor papers do not support collapsing those categories into one generic holographic success claim."
+    },
+    {
+      "phase": "01",
+      "summary": "Keep R-01-DIAGNOSTIC-SPLIT provisional after Phase 01 execution.",
+      "rationale": "The executed summary still lacks a cross-model observable that rules out an unresolved singularity."
+    }
+  ],
+  "approximations": [
+    {
+      "name": "Semiclassical large-N bulk description",
+      "validity_range": "large N, strong coupling, controlled higher-derivative corrections",
+      "controlling_param": "1/N and 1/lambda corrections",
+      "current_value": "qualitative only in bootstrap phase",
+      "status": "active"
+    },
+    {
+      "name": "Observable-first comparison across non-identical holographic models",
+      "validity_range": "only for papers with explicit boundary observables or access claims",
+      "controlling_param": "fidelity of source-level observable matching",
+      "current_value": "moderate confidence",
+      "status": "active"
+    }
+  ],
+  "convention_lock": {
+    "metric_signature": "(-,+,+,+) and analogous mostly-plus extension in AdS_5",
+    "fourier_convention": null,
+    "natural_units": "hbar = c = k_B = 1",
+    "gauge_choice": null,
+    "regularization_scheme": null,
+    "renormalization_scheme": null,
+    "coordinate_system": "boundary time t, FRW proper time tau, and explicit AdS radial coordinate only when fixed by the cited paper",
+    "spin_basis": null,
+    "state_normalization": null,
+    "coupling_convention": null,
+    "index_positioning": null,
+    "time_ordering": null,
+    "commutation_convention": null,
+    "levi_civita_sign": null,
+    "generator_normalization": null,
+    "covariant_derivative_sign": null,
+    "gamma_matrix_convention": null,
+    "creation_annihilation_order": null,
+    "custom_conventions": {}
+  },
+  "propagated_uncertainties": [
+    {
+      "quantity": "singularity diagnostic sharpness",
+      "value": "underdetermined at bootstrap",
+      "uncertainty": "high",
+      "phase": "01",
+      "method": "cross-paper comparison before dedicated derivation"
+    },
+    {
+      "quantity": "interpretation of closed-universe encoding limit",
+      "value": "contested",
+      "uncertainty": "medium-high",
+      "phase": "01",
+      "method": "comparison of arXiv:2507.10649 with earlier microstate and wormhole papers"
+    }
+  ],
+  "pending_todos": [],
+  "blockers": [],
+  "session": {
+    "last_date": "2026-04-09T07:42:12.351589+00:00",
+    "hostname": "Sergios-MacBook-Pro",
+    "platform": "Darwin 25.3.0 arm64",
+    "stopped_at": "2026-04-09T07:40:15Z",
+    "resume_file": "HANDOFF.md",
+    "last_result_id": "R-01-DIAGNOSTIC-SPLIT"
+  },
+  "continuation": {
+    "schema_version": 1,
+    "handoff": {
+      "resume_file": "HANDOFF.md",
+      "stopped_at": "2026-04-09T07:40:15Z",
+      "last_result_id": "R-01-DIAGNOSTIC-SPLIT",
+      "recorded_at": "2026-04-09T07:42:12.351589+00:00",
+      "recorded_by": "state_record_session"
+    },
+    "bounded_segment": null,
+    "machine": {
+      "recorded_at": "2026-04-09T07:42:12.351589+00:00",
+      "hostname": "Sergios-MacBook-Pro",
+      "platform": "Darwin 25.3.0 arm64"
+    }
+  },
+  "_version": 1,
+  "_synced_at": "2026-04-09T08:13:33.919531+00:00"
+}

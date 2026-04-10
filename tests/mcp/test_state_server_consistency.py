@@ -152,6 +152,39 @@ def test_load_state_json_strips_legacy_session_and_surfaces_contract_gate(monkey
     assert result["project_contract_gate"]["authoritative"] is True
 
 
+def test_load_state_json_uses_read_only_peek_without_locking(monkeypatch, tmp_path: Path) -> None:
+    state_obj = {
+        "position": {"current_phase": "01"},
+        "decisions": [],
+        "blockers": [],
+    }
+
+    seen: dict[str, object] = {}
+
+    def _peek_state_json(*args, **kwargs):
+        seen["args"] = args
+        seen["kwargs"] = kwargs
+        return state_obj, [], "state.json"
+
+    monkeypatch.setattr("gpd.mcp.servers.state_server.peek_state_json", _peek_state_json)
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server._project_contract_runtime_payload_for_state",
+        lambda *_args, **_kwargs: (
+            {"status": "loaded"},
+            {"valid": True},
+            {"authoritative": True},
+        ),
+    )
+
+    result = load_state_json(tmp_path)
+
+    assert result is not None
+    assert seen["args"] == (tmp_path,)
+    assert seen["kwargs"]["recover_intent"] is False
+    assert seen["kwargs"]["surface_blocked_project_contract"] is True
+    assert seen["kwargs"]["acquire_lock"] is False
+
+
 def test_get_state_reports_current_project_state_guidance(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr("gpd.mcp.servers.state_server.load_state_json", lambda *_args, **_kwargs: None)
 
@@ -190,6 +223,29 @@ def test_run_health_check_preserves_latest_return_failure_details(monkeypatch, f
     assert result["checks"][0]["issues"][0].endswith("malformed envelope")
 
 
+def test_health_peek_normalized_state_uses_read_only_peek_without_locking(monkeypatch, tmp_path: Path) -> None:
+    from gpd.core.health import _peek_normalized_state_for_health
+
+    state_obj = {"position": {"current_phase": "01"}}
+    seen: dict[str, object] = {}
+
+    def _peek_state_json(*args, **kwargs):
+        seen["args"] = args
+        seen["kwargs"] = kwargs
+        return state_obj, [], "STATE.md"
+
+    monkeypatch.setattr("gpd.core.health.peek_state_json", _peek_state_json)
+
+    result, source = _peek_normalized_state_for_health(tmp_path)
+
+    assert result == state_obj
+    assert source == "STATE.md"
+    assert seen["args"] == (tmp_path,)
+    assert seen["kwargs"]["recover_intent"] is False
+    assert seen["kwargs"]["surface_blocked_project_contract"] is True
+    assert seen["kwargs"]["acquire_lock"] is False
+
+
 def test_get_progress_does_not_mutate_checkpoint_shelf_artifacts(tmp_path: Path) -> None:
     """Progress reads should not create, update, or delete checkpoint shelf files."""
     cwd = tmp_path
@@ -226,3 +282,22 @@ def test_get_progress_does_not_mutate_checkpoint_shelf_artifacts(tmp_path: Path)
     assert stale_checkpoint.read_text(encoding="utf-8") == "stale checkpoint\n"
     assert stale_checkpoint.exists()
     assert checkpoints_index.read_text(encoding="utf-8") == "stale index\n"
+
+
+def test_get_phase_info_counts_only_matching_summary_identities(tmp_path: Path) -> None:
+    cwd = tmp_path
+    planning = cwd / "GPD"
+    planning.mkdir()
+    (planning / "phases").mkdir()
+    phase_dir = cwd / "GPD" / "phases" / "01-setup"
+    phase_dir.mkdir()
+    (phase_dir / "PLAN.md").write_text("# plan\n", encoding="utf-8")
+    (phase_dir / "01-setup-02-PLAN.md").write_text("# plan\n", encoding="utf-8")
+    (phase_dir / "SUMMARY.md").write_text("# summary\n", encoding="utf-8")
+    (phase_dir / "01-setup-99-SUMMARY.md").write_text("# summary\n", encoding="utf-8")
+
+    result = get_phase_info(str(cwd), "01")
+
+    assert result["plan_count"] == 2
+    assert result["summary_count"] == 1
+    assert result["complete"] is False
