@@ -813,6 +813,138 @@ def check_checkpoint_tags(cwd: Path) -> HealthCheck:
     return HealthCheck(status=status, label="Checkpoint Tags", details=details, warnings=warnings)
 
 
+# Minimum length for a provides/description string to participate in substring
+# matching.  Strings shorter than this are silently skipped to prevent trivial
+# single-character or two-character values (like "E" or "ds") from matching
+# virtually every result description.
+_MIN_PROVIDES_LENGTH = 3
+
+
+def check_result_consistency(cwd: Path) -> HealthCheck:
+    """Cross-validate state.json intermediate_results against SUMMARY provides.
+
+    Compares the two parallel result registries — ``intermediate_results`` in
+    ``state.json`` (written by ``gpd result add``) and ``provides`` frontmatter
+    in SUMMARY files (written by executor agents) — and warns on mismatches.
+
+    Conservative matching: an ``IntermediateResult.description`` is considered
+    matched if it appears as an exact case-insensitive substring of any SUMMARY
+    ``provides`` value, or vice-versa.  Strings shorter than
+    ``_MIN_PROVIDES_LENGTH`` are excluded from substring matching to avoid
+    trivial false positives.
+    """
+    from gpd.core.query import collect_summaries, resolve_field
+    from gpd.core.results import result_list
+
+    warnings: list[str] = []
+    details: dict[str, object] = {}
+
+    # 1. Load state.json intermediate_results
+    state_obj, _state_source = _peek_normalized_state_for_health(cwd)
+    if state_obj is None:
+        return HealthCheck(
+            status=CheckStatus.OK,
+            label="Result Consistency",
+            details={"reason": "no_state"},
+        )
+
+    # Wrap result_list in try/except — malformed state.json records would
+    # raise PydanticValidationError and crash the entire health-check run.
+    try:
+        results = result_list(state_obj)
+    except PydanticValidationError as exc:
+        return HealthCheck(
+            status=CheckStatus.WARN,
+            label="Result Consistency",
+            details={"error": "malformed_state_results"},
+            warnings=[
+                f"Cannot parse intermediate_results from state.json: {exc}"
+            ],
+        )
+    details["state_result_count"] = len(results)
+
+    # 2. Collect SUMMARY provides across all phases
+    summaries = collect_summaries(cwd)
+    all_provides: list[str] = []
+    for entry in summaries:
+        provides_values = resolve_field(entry.frontmatter, "provides")
+        for pv in provides_values:
+            if isinstance(pv, str):
+                # Guard: skip empty / whitespace-only provides strings.
+                # In Python, "" in "any string" is True, which would
+                # silently suppress all mismatch warnings.
+                if not pv.strip():
+                    continue
+                all_provides.append(pv)
+            elif isinstance(pv, dict):
+                # Structured provides: extract "name" or "provides" keys
+                for key in ("name", "provides"):
+                    val = pv.get(key)
+                    if isinstance(val, str) and val.strip():
+                        all_provides.append(val)
+
+    details["summary_provides_count"] = len(all_provides)
+    provides_lower = [p.lower() for p in all_provides]
+
+    # 3. Compare: state results with no corresponding SUMMARY provides
+    state_only: list[str] = []
+    for result in results:
+        desc = result.description
+        if not desc:
+            continue
+        desc_lower = desc.lower()
+        matched = any(
+            (desc_lower in prov or prov in desc_lower)
+            if len(prov) >= _MIN_PROVIDES_LENGTH and len(desc_lower) >= _MIN_PROVIDES_LENGTH
+            else prov == desc_lower
+            for prov in provides_lower
+        )
+        if not matched:
+            state_only.append(f"{result.id}: {desc}")
+
+    # 4. Compare: SUMMARY provides with no corresponding state result
+    result_descriptions_lower = [
+        (r.description or "").lower()
+        for r in results
+        if r.description
+    ]
+    summary_only: list[str] = []
+    for provides_text in all_provides:
+        prov_lower = provides_text.lower()
+        matched = any(
+            (prov_lower in desc or desc in prov_lower)
+            if len(prov_lower) >= _MIN_PROVIDES_LENGTH and len(desc) >= _MIN_PROVIDES_LENGTH
+            else prov_lower == desc
+            for desc in result_descriptions_lower
+        )
+        if not matched:
+            summary_only.append(provides_text)
+
+    details["state_only_count"] = len(state_only)
+    details["summary_only_count"] = len(summary_only)
+
+    if state_only:
+        warnings.append(
+            f"{len(state_only)} state.json result(s) with no matching SUMMARY provides: "
+            + "; ".join(state_only[:5])
+            + (" ..." if len(state_only) > 5 else "")
+        )
+    if summary_only:
+        warnings.append(
+            f"{len(summary_only)} SUMMARY provides with no matching state.json result: "
+            + "; ".join(summary_only[:5])
+            + (" ..." if len(summary_only) > 5 else "")
+        )
+
+    status = CheckStatus.WARN if warnings else CheckStatus.OK
+    return HealthCheck(
+        status=status,
+        label="Result Consistency",
+        details=details,
+        warnings=warnings,
+    )
+
+
 # ─── Auto-Fix ────────────────────────────────────────────────────────────────
 
 
@@ -942,6 +1074,7 @@ _ALL_CHECKS: list[tuple[str, object]] = [
     ("config", check_config),
     ("checkpoint_tags", check_checkpoint_tags),
     ("git_status", check_git_status),
+    ("result_consistency", check_result_consistency),
 ]
 
 
@@ -982,6 +1115,7 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
                     "config": "Config",
                     "checkpoint_tags": "Checkpoint Tags",
                     "git_status": "Git Status",
+                    "result_consistency": "Result Consistency",
                 }
                 for name, check_fn in _ALL_CHECKS:
                     label = check_labels[name]
@@ -2205,6 +2339,7 @@ __all__ = [
     "check_orphans",
     "check_plan_frontmatter",
     "check_project_structure",
+    "check_result_consistency",
     "check_roadmap_consistency",
     "check_state_validity",
     "check_storage_paths",
