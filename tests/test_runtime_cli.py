@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import shlex
@@ -67,6 +68,18 @@ def _runtime_env_vars_to_clear() -> set[str]:
 
 _RUNTIME_ENV_PREFIXES = _runtime_env_prefixes()
 _RUNTIME_ENV_VARS_TO_CLEAR = _runtime_env_vars_to_clear()
+_RUNTIME_DESCRIPTORS_WITH_GLOBAL_CONFIG_ENV = tuple(
+    descriptor
+    for descriptor in _RUNTIME_DESCRIPTORS
+    if descriptor.global_config.env_var or descriptor.global_config.env_dir_var or descriptor.global_config.env_file_var
+)
+def _adapter_install_accepts_skills_dir(runtime_name: str) -> bool:
+    return "skills_dir" in inspect.signature(get_adapter(runtime_name).install).parameters
+
+
+_RUNTIME_DESCRIPTORS_WITH_GLOBAL_SKILL_DIR = tuple(
+    descriptor for descriptor in _RUNTIME_DESCRIPTORS if _adapter_install_accepts_skills_dir(descriptor.runtime_name)
+)
 
 
 @pytest.fixture(autouse=True)
@@ -297,11 +310,7 @@ def test_runtime_cli_preserves_custom_global_target_in_incomplete_install_repair
 
 @pytest.mark.parametrize(
     "descriptor",
-    [
-        descriptor
-        for descriptor in _RUNTIME_DESCRIPTORS
-        if descriptor.global_config.env_var or descriptor.global_config.env_dir_var or descriptor.global_config.env_file_var
-    ],
+    _RUNTIME_DESCRIPTORS_WITH_GLOBAL_CONFIG_ENV,
     ids=lambda descriptor: descriptor.runtime_name,
 )
 def test_runtime_cli_treats_env_overridden_global_target_as_global_repair_target(
@@ -471,12 +480,21 @@ def test_runtime_cli_preserves_custom_global_target_in_missing_runtime_repair_gu
     assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
 
 
-def test_codex_custom_global_install_seeding_stays_within_temp_root(monkeypatch, tmp_path: Path) -> None:
-    outside_root = tmp_path.parent / "codex-skills-leak"
+@pytest.mark.parametrize(
+    "descriptor",
+    _RUNTIME_DESCRIPTORS_WITH_GLOBAL_SKILL_DIR,
+    ids=lambda descriptor: descriptor.runtime_name,
+)
+def test_runtime_custom_global_install_seeding_stays_within_temp_root(
+    monkeypatch,
+    tmp_path: Path,
+    descriptor,
+) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    outside_root = tmp_path.parent / f"{descriptor.runtime_name}-skills-leak"
     leak_skills_dir = outside_root / ".agents" / "skills"
-    monkeypatch.setenv("CODEX_SKILLS_DIR", str(leak_skills_dir))
+    monkeypatch.setenv(f"{descriptor.runtime_name.upper().replace('-', '_')}_SKILLS_DIR", str(leak_skills_dir))
 
-    adapter = get_adapter("codex")
     config_dir = tmp_path / "custom-global" / adapter.config_dir_name
     _mark_complete_install(config_dir, runtime=adapter.runtime_name, install_scope="global")
 
@@ -526,11 +544,13 @@ def test_runtime_cli_preserves_custom_global_target_in_malformed_runtime_repair_
     assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
 
 
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_manifest_scoped_local_candidate_matching_does_not_consult_home(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    descriptor,
 ) -> None:
-    adapter = get_adapter("codex")
+    adapter = get_adapter(descriptor.runtime_name)
     local_config_dir = tmp_path / adapter.config_dir_name
     global_config_dir = tmp_path / "custom-global" / adapter.config_dir_name
     local_config_dir.mkdir(parents=True, exist_ok=True)
@@ -567,12 +587,14 @@ def test_runtime_cli_manifest_scoped_local_candidate_matching_does_not_consult_h
     assert runtime_cli._is_matching_local_install_candidate(global_config_dir, runtime=adapter.runtime_name) is False
 
 
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_uses_manifest_explicit_target_for_repair_guidance(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    descriptor,
 ) -> None:
-    adapter = get_adapter("codex")
+    adapter = get_adapter(descriptor.runtime_name)
     config_dir = tmp_path / "custom-global" / adapter.config_dir_name
     config_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = config_dir / MANIFEST_NAME

@@ -1651,7 +1651,11 @@ def parse_contract_results_data_strict(value: object) -> ContractResults:
 
     if not isinstance(value, dict):
         raise ValueError("contract_results must be an object")
-    return ContractResults.model_validate(normalize_contract_results_input(value))
+    strict_input = normalize_contract_results_input(value)
+    errors = _collect_strict_contract_results_errors(strict_input)
+    if errors:
+        raise ValueError("; ".join(errors))
+    return ContractResults.model_validate(strict_input)
 
 
 def parse_contract_results_data_artifact(value: object) -> ContractResults:

@@ -628,6 +628,8 @@ Planner prompt:
 
 Use `templates/planner-subagent-prompt.md` here as the stage-local planner template and render its `## Standard Planning Template` section.
 
+Before spawning the planner, ensure the rendered prompt contains the model-visible PLAN contract schema-critical excerpt from that template, not merely a path reference to `templates/plan-contract-schema.md`.
+
 ```markdown
 Render the template's `## Standard Planning Template` into `filled_prompt` with these bindings:
 

@@ -21,6 +21,7 @@ from types import SimpleNamespace
 from gpd.adapters import iter_adapters
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from gpd.command_labels import runtime_public_command_prefixes
+from scripts.repo_graph_contract import load_contract, runtime_owned_excluded_graph_dirs
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -375,6 +376,19 @@ def test_loaded_runtime_descriptors_keep_public_command_surfaces_descriptor_owne
 
     assert all(public_prefixes)
     assert public_prefixes == {descriptor.command_prefix for descriptor in _RUNTIME_DESCRIPTORS}
+
+
+def test_repo_graph_contract_runtime_owned_excludes_follow_runtime_descriptors() -> None:
+    excluded_dirs = load_contract()["excluded_graph_dirs"]
+    expected_runtime_dirs = runtime_owned_excluded_graph_dirs()
+
+    assert isinstance(excluded_dirs, list)
+    assert expected_runtime_dirs == tuple(descriptor.config_dir_name for descriptor in _RUNTIME_DESCRIPTORS)
+    for runtime_dir in expected_runtime_dirs:
+        assert runtime_dir in excluded_dirs
+
+    stale_runtime_dirs = {".claude", ".gemini", ".codex", ".opencode"} - set(expected_runtime_dirs)
+    assert stale_runtime_dirs.isdisjoint(excluded_dirs)
 
 
 def test_runtime_public_command_prefixes_use_descriptor_public_surface(monkeypatch) -> None:

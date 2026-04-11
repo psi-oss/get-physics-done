@@ -10,6 +10,7 @@ import tests.conftest as tests_conftest
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
     CI_HOT_TEST_FILE_SPLITS,
+    CI_PYTEST_JOB_TIMEOUT_MINUTES,
     all_test_relpaths,
     build_ci_work_units,
     category_for_test_relpath,
@@ -110,6 +111,7 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
     }
     pytest_job = jobs["pytest"]
     assert isinstance(pytest_job, dict)
+    assert pytest_job["timeout-minutes"] == CI_PYTEST_JOB_TIMEOUT_MINUTES
     strategy = pytest_job["strategy"]
     assert isinstance(strategy, dict)
     matrix = strategy["matrix"]
@@ -155,6 +157,13 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
     assert "boosts root modules that have been slow on GitHub Actions" in tests_readme
     assert "splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, and `tests/hooks/test_runtime_detect.py`" in tests_readme
     assert "greedily rebalances those work units inside each category" in tests_readme
+
+
+def test_hotspot_split_targets_exist_and_request_multiple_parts() -> None:
+    all_relpaths = set(all_test_relpaths(tests_root=_repo_root() / "tests"))
+
+    assert set(CI_HOT_TEST_FILE_SPLITS) <= all_relpaths
+    assert all(split_count > 1 for split_count in CI_HOT_TEST_FILE_SPLITS.values())
 
 
 def test_hotspot_files_are_split_into_multiple_work_units() -> None:

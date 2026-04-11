@@ -15,6 +15,8 @@ CI_CATEGORY_SHARD_COUNTS = {
     "core": 5,
 }
 
+CI_PYTEST_JOB_TIMEOUT_MINUTES = 30
+
 # Observed GitHub Actions timings on 2026-04-07 showed that these files are the
 # real bottlenecks inside their category. Split them inside the file so the
 # category-local planners can spread the slow work rather than pinning one

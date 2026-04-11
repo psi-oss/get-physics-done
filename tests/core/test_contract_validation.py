@@ -398,6 +398,59 @@ def test_parse_contract_results_data_strict_rejects_evidence_scalar_and_case_dri
         )
 
 
+def test_parse_contract_results_data_strict_rejects_scalar_list_without_case_drift() -> None:
+    with pytest.raises(
+        ValueError,
+        match=r"claims\.claim-main\.evidence\.0\.covered_hypothesis_ids must be a list, not str",
+    ):
+        parse_contract_results_data_strict(
+            {
+                "claims": {
+                    "claim-main": {
+                        "status": "passed",
+                        "evidence": [
+                            {
+                                "confidence": "high",
+                                "covered_hypothesis_ids": "hyp-main",
+                            }
+                        ],
+                    }
+                },
+                "uncertainty_markers": {
+                    "weakest_anchors": ["anchor-1"],
+                    "unvalidated_assumptions": [],
+                    "competing_explanations": [],
+                    "disconfirming_observations": ["obs-1"],
+                },
+            }
+        )
+
+
+def test_parse_contract_results_data_strict_rejects_case_drift_without_scalar_list() -> None:
+    with pytest.raises(ValueError, match=r"claims\.claim-main\.status must use exact literal 'passed'"):
+        parse_contract_results_data_strict(
+            {
+                "claims": {
+                    "claim-main": {
+                        "status": "Passed",
+                        "evidence": [
+                            {
+                                "confidence": "high",
+                                "covered_hypothesis_ids": ["hyp-main"],
+                            }
+                        ],
+                    }
+                },
+                "uncertainty_markers": {
+                    "weakest_anchors": ["anchor-1"],
+                    "unvalidated_assumptions": [],
+                    "competing_explanations": [],
+                    "disconfirming_observations": ["obs-1"],
+                },
+            }
+        )
+
+
 def test_parse_contract_results_data_artifact_accepts_case_drift_and_string_list_drift() -> None:
     parsed = parse_contract_results_data_artifact(
         {
@@ -2836,7 +2889,7 @@ def test_contract_results_strict_mode_rejects_duplicate_linked_ids_and_actions()
         },
     }
 
-    with pytest.raises(ValidationError) as excinfo:
+    with pytest.raises(ValueError) as excinfo:
         parse_contract_results_data_strict(payload)
 
     message = str(excinfo.value)
@@ -2910,7 +2963,7 @@ def test_contract_results_strict_mode_rejects_proof_audit_blank_and_duplicate_li
         },
     }
 
-    with pytest.raises(ValidationError) as excinfo:
+    with pytest.raises(ValueError) as excinfo:
         parse_contract_results_data_strict(payload)
 
     message = str(excinfo.value)
@@ -3006,6 +3059,20 @@ def test_parse_contract_results_data_strict_matches_contract_results_model_valid
 def test_parse_contract_results_data_strict_rejects_non_mapping_input() -> None:
     with pytest.raises(ValueError, match="contract_results must be an object"):
         parse_contract_results_data_strict("not-a-dict")
+
+
+def test_parse_comparison_verdicts_data_strict_rejects_missing_subject_role() -> None:
+    with pytest.raises(ValueError, match=r"\[0\] subject_role is required"):
+        parse_comparison_verdicts_data_strict(
+            [
+                {
+                    "subject_id": "claim-main",
+                    "subject_kind": "claim",
+                    "comparison_kind": "cross_method",
+                    "verdict": "pass",
+                }
+            ]
+        )
 
 
 def test_plan_contract_schema_uses_supported_contract_enum_values() -> None:
