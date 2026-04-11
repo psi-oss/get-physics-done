@@ -50,6 +50,16 @@ def test_project_contract_schema_docs_surface_the_closed_contract_vocabularies()
             assert line in text, f"{schema_path.name} is missing: {line}"
 
 
+def test_state_schema_docs_name_pydantic_authority_and_state_md_import_surface() -> None:
+    text = _read(STATE_JSON_SCHEMA)
+
+    assert "canonical machine-readable state authority is the `ResearchState` Pydantic model" in text
+    assert "Source of truth: `ResearchState` and related Pydantic models in `gpd.core.state`" in text
+    assert "STATE.md is a rendered, human-editable import surface only" in text
+    assert "not the canonical state authority" in text
+    assert "This file is the authoritative machine-readable state" not in text
+
+
 def test_project_contract_schema_example_surfaces_research_contract_required_keys_and_proof_rules() -> None:
     text = _read(PROJECT_CONTRACT_SCHEMA)
 

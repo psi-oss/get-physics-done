@@ -13,6 +13,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from gpd.adapters.runtime_catalog import installed_runtime_for_surface
 from gpd.core.context import init_resume
 from gpd.core.costs import build_cost_summary, resolve_cost_advisory
 from gpd.core.observability import derive_execution_visibility, get_current_session_id
@@ -251,24 +252,7 @@ def _runtime_command(action: str, *, cwd: Path, runtime_name: str | None = None)
 
 
 def _installed_runtime_for_surface(cwd: Path) -> str | None:
-    try:
-        from gpd.hooks.runtime_detect import (
-            RUNTIME_UNKNOWN,
-            detect_runtime_for_gpd_use,
-            detect_runtime_install_target,
-        )
-
-        runtime_name = detect_runtime_for_gpd_use(cwd=cwd)
-        if (
-            not isinstance(runtime_name, str)
-            or not runtime_name.strip()
-            or runtime_name == RUNTIME_UNKNOWN
-            or detect_runtime_install_target(runtime_name, cwd=cwd) is None
-        ):
-            return None
-        return runtime_name
-    except Exception:
-        return None
+    return installed_runtime_for_surface(cwd)
 
 
 def _current_session_id_for_surface(project_root: Path) -> str | None:

@@ -1,13 +1,15 @@
 ---
 template_version: 1
-purpose: Canonical schema for GPD/state.json — the machine-readable research state sidecar
+purpose: Rendered schema reference for GPD/state.json — ResearchState/Pydantic is the canonical machine-readable state authority
 ---
 
 # state.json Schema
 
-Canonical schema for `GPD/state.json`. This file is the authoritative machine-readable state. STATE.md is a human-readable view generated from it.
+Rendered schema reference for `GPD/state.json`. The canonical machine-readable state authority is the `ResearchState` Pydantic model in `gpd.core.state`; this document describes that source for prompt and operator visibility.
 
-Source of truth: `default_state_dict()` in `gpd.core.state`.
+STATE.md is a rendered, human-editable import surface only. It may be parsed back into JSON by explicit sync/recovery workflows, but it is not the canonical state authority and must not override populated Pydantic-backed fields.
+
+Source of truth: `ResearchState` and related Pydantic models in `gpd.core.state`, with defaults supplied by `default_state_dict()`.
 
 ---
 
@@ -35,7 +37,7 @@ Source of truth: `default_state_dict()` in `gpd.core.state`.
 
 ### Authoritative vs Derived
 
-Fields marked **Authoritative** exist only in state.json (not representable in STATE.md markdown). When `sync_state_json()` merges markdown into JSON, it preserves these fields. If state.json is lost, these fields are irrecoverable from STATE.md alone — hence `state.json.bak` exists for crash recovery.
+Fields marked **Authoritative** are Pydantic-backed state fields whose canonical value lives in `ResearchState` / `GPD/state.json`; many are not representable in STATE.md markdown. When `sync_state_json()` imports edits from STATE.md into JSON, it must preserve populated canonical fields. If state.json is lost, JSON-only fields are irrecoverable from STATE.md alone — hence `state.json.bak` exists for crash recovery.
 
 ---
 

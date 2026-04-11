@@ -41,12 +41,22 @@ def test_verification_report_strict_pass_guidance_includes_reference_coverage_ru
 def test_verification_guidance_surfaces_the_same_canonical_suggestion_contract() -> None:
     research_verification = _read("src/gpd/specs/templates/research-verification.md")
     verify_workflow = _read("src/gpd/specs/workflows/verify-work.md")
+    verifier_prompt = _read("src/gpd/agents/gpd-verifier.md")
 
     expected_suggestion = "suggested_contract_checks"
 
     assert expected_suggestion in research_verification
     assert expected_suggestion not in verify_workflow
     assert "canonical verifier report content remains owned by `gpd-verifier`" in verify_workflow
+    for schema_key in (
+        "request_template",
+        "required_request_fields",
+        "schema_required_request_fields",
+        "schema_required_request_anyof_fields",
+        "supported_binding_fields",
+    ):
+        assert schema_key in verify_workflow
+        assert schema_key in verifier_prompt
 
 
 def test_verify_work_current_check_overlay_stays_separate_from_verifier_scaffold() -> None:

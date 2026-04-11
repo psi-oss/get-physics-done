@@ -108,7 +108,7 @@ def _adapter_aliases(descriptor: RuntimeDescriptor) -> tuple[str, ...]:
 def test_runtime_adapters_expose_same_public_method_surface() -> None:
     base_surface = _public_method_names(ADAPTER_ROOT / "base.py")
     method_surfaces = {
-        descriptor.runtime_name: _public_method_names(ADAPTER_ROOT / f"{descriptor.runtime_name.replace('-', '_')}.py")
+        descriptor.runtime_name: _public_method_names(ADAPTER_ROOT / f"{descriptor.adapter_module}.py")
         for descriptor in iter_runtime_descriptors()
     }
     adapter_specific_hooks = {"finish_install"}

@@ -171,6 +171,15 @@ def test_required_public_release_artifacts_exist() -> None:
     assert missing == []
 
 
+def test_changelog_vnext_bullets_are_unique() -> None:
+    changelog = (_repo_root() / "CHANGELOG.md").read_text(encoding="utf-8")
+    match = re.search(r"^## vNEXT\s*\n(.*?)(?=^## v|\Z)", changelog, re.M | re.S)
+    assert match is not None, "Missing ## vNEXT section in CHANGELOG.md"
+
+    bullets = [stripped for line in match.group(1).splitlines() if (stripped := line.strip()).startswith("- ")]
+    assert len(bullets) == len(set(bullets))
+
+
 def test_public_citation_metadata_uses_iso_release_date() -> None:
     repo_root = _repo_root()
     citation = (repo_root / "CITATION.cff").read_text(encoding="utf-8")

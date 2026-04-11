@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from gpd.contracts import ResearchContract, collect_plan_contract_integrity_errors
+from gpd.contracts import parse_project_contract_data_strict
 from gpd.core.contract_validation import parse_project_contract_data_salvage, validate_project_contract
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
@@ -65,6 +66,34 @@ def test_fast_contract_validation_salvage_surfaces_blank_list_normalization_find
     assert result.contract is not None
     assert result.contract.context_intake.must_read_refs == []
     assert "context_intake.must_read_refs was normalized from blank string to empty list" in result.recoverable_errors
+
+
+def test_fast_contract_validation_strict_rejects_blank_string_list_field_without_salvage() -> None:
+    contract = _load_contract_fixture()
+    contract["context_intake"]["must_read_refs"] = " "
+
+    result = parse_project_contract_data_strict(contract)
+
+    assert result.contract is None
+    assert "context_intake.must_read_refs must not be blank" in result.blocking_errors
+    assert result.recoverable_errors == []
+
+
+def test_fast_contract_validation_salvage_isolates_blank_string_list_field_recovery() -> None:
+    contract = _load_contract_fixture()
+    contract["context_intake"]["must_read_refs"] = " "
+    contract["context_intake"]["must_include_prior_outputs"] = ["phase-01-summary"]
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.contract.context_intake.must_read_refs == []
+    assert result.contract.context_intake.must_include_prior_outputs == ["phase-01-summary"]
+    assert result.blocking_errors == []
+    assert result.recoverable_errors == [
+        "context_intake.must_read_refs was normalized from blank string to empty list",
+        "context_intake.must_read_refs must not be blank",
+    ]
 
 
 def test_fast_contract_validation_salvage_normalizes_blank_nested_proof_lists() -> None:
