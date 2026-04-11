@@ -279,11 +279,10 @@ The planner template owns the detailed tangent decision model. The workflow only
 
 ## 4.7 Refresh Research Handoff Context
 
-Load the staged handoff slice needed to assemble the researcher prompt. Do not use the lighter routing slice here:
+Load the staged handoff slice (`planner_authoring`) needed to assemble the researcher prompt. Do not use the lighter `research_routing` slice here:
 
 ```bash
 INIT=$(gpd --raw init plan-phase "$PHASE" --stage planner_authoring)
-# Legacy routing slice: gpd --raw init plan-phase "$PHASE" --stage research_routing
 if [ $? -ne 0 ]; then
   echo "ERROR: staged plan-phase init failed: $INIT"
   exit 1

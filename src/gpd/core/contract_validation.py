@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import re
 from collections import defaultdict
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Literal, get_args, get_origin
@@ -58,6 +59,47 @@ __all__ = [
     "split_project_contract_schema_findings",
     "validate_project_contract",
 ]
+
+
+@dataclass(frozen=True)
+class _SchemaFindingMetadata:
+    loc: tuple[str | int, ...]
+    msg: str
+    error_type: str | None
+    input_value_type: str | None
+
+
+def _schema_finding_metadata_from_error(error: dict[str, object]) -> _SchemaFindingMetadata:
+    input_value = error.get("input")
+    return _SchemaFindingMetadata(
+        loc=tuple(error.get("loc", ())),
+        msg=str(error.get("msg", "")).strip(),
+        error_type=error.get("type"),
+        input_value_type=type(input_value).__name__ if "input" in error else None,
+    )
+
+
+def _metadata_location_string(metadata: _SchemaFindingMetadata) -> str:
+    parts = [str(part) for part in metadata.loc if str(part)]
+    if parts and parts[0] == "project_contract":
+        parts = parts[1:]
+    return ".".join(parts) or "project_contract"
+
+
+def _categories_from_metadata(metadata: _SchemaFindingMetadata) -> set[_ProjectContractSchemaFindingCategory]:
+    categories: set[_ProjectContractSchemaFindingCategory] = set()
+    location = _metadata_location_string(metadata)
+    if _is_canonical_authoritative_scalar_location(location):
+        categories.add(_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR)
+    error_type = metadata.error_type or ""
+    if error_type.endswith(".extra") or error_type == "value_error.extra":
+        categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
+    if error_type in {"type_error.list", "value_error.list", "type_error.dict", "value_error.dict"}:
+        categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
+    message = metadata.msg.lower()
+    if "must be a list" in message or "must be a valid list member" in message or "must be an object" in message:
+        categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
+    return categories
 
 
 _RECOVERABLE_SCHEMA_WARNING_PATTERNS = (
@@ -161,7 +203,11 @@ def _is_nested_collection_item_location(location: str | None) -> bool:
     return _schema_finding_location_depth(location) >= 2
 
 
-def _project_contract_schema_finding_categories(error: str) -> frozenset[_ProjectContractSchemaFindingCategory]:
+def _project_contract_schema_finding_categories(
+    error: str,
+    *,
+    metadata: _SchemaFindingMetadata | None = None,
+) -> frozenset[_ProjectContractSchemaFindingCategory]:
     """Classify one schema finding into semantic categories."""
 
     normalized_error = error.strip()
@@ -174,12 +220,16 @@ def _project_contract_schema_finding_categories(error: str) -> frozenset[_Projec
             categories.add(category)
 
     location, message = _split_schema_finding_location_and_message(normalized_error)
+    if metadata is not None:
+        location = _metadata_location_string(metadata)
+        message = metadata.msg
+        categories.update(_categories_from_metadata(metadata))
     if _matches_equivalent_recoverable_schema_finding(message=message):
         categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
     if _matches_equivalent_authoritative_schema_finding(location=location, message=message):
         categories.add(_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR)
 
-    nested_location = _schema_finding_location(normalized_error)
+    nested_location = location or _schema_finding_location(normalized_error)
     if nested_location is not None and _is_nested_collection_item_location(nested_location):
         if categories & {
             _ProjectContractSchemaFindingCategory.RECOVERABLE,
@@ -230,6 +280,12 @@ def _format_schema_error(error: dict[str, object]) -> str:
         return f"{location} must be a non-empty string"
 
     return f"{location}: {message}"
+
+
+def _format_schema_finding(error: dict[str, object]) -> tuple[str, _SchemaFindingMetadata]:
+    """Return a formatted schema finding and one-call structured metadata."""
+
+    return _format_schema_error(error), _schema_finding_metadata_from_error(error)
 
 
 def _schema_error_location(error: dict[str, object], *, path_prefix: str = "") -> str:
@@ -415,6 +471,7 @@ def _salvage_model_mapping(
                         "loc": (path_prefix, *loc),
                         "msg": error.get("msg"),
                         "input": error.get("input"),
+                        "type": error.get("type"),
                     }
                 )
                 field_value = cleaned.get(key)
@@ -458,6 +515,7 @@ def _salvage_model_mapping(
                                     "loc": (path_prefix, *item_loc),
                                     "msg": item_error.get("msg"),
                                     "input": item_error.get("input"),
+                                    "type": item_error.get("type"),
                                 }
                             )
                             if formatted_item_error not in item_errors_by_index[item_index]:
@@ -783,13 +841,17 @@ def split_project_contract_schema_findings(
     errors: list[str],
     *,
     allow_case_drift_recovery: bool = True,
+    metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Partition salvage findings into recoverable case-drift warnings and blocking errors."""
 
     recoverable: list[str] = []
     blocking: list[str] = []
     for error in errors:
-        categories = _project_contract_schema_finding_categories(error)
+        categories = _project_contract_schema_finding_categories(
+            error,
+            metadata=None if metadata_by_error is None else metadata_by_error.get(error),
+        )
         if _ProjectContractSchemaFindingCategory.NESTED_COLLECTION_ITEM_TRUNCATION in categories:
             blocking.append(error)
             continue

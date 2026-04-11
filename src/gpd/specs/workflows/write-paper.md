@@ -41,17 +41,17 @@ When `gpd --raw validate paper-quality --from-project .` runs, the journal is re
 <process>
 
 <step name="init" priority="first">
-**Load project context and resolve models:**
+**Load project context and resolve models (paper bootstrap stage):**
 
 ```bash
-INIT=$(gpd --raw init phase-op --include config)
+INIT=$(gpd --raw init write-paper --stage paper_bootstrap --include config)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.
 fi
 ```
 
-Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`.
+Parse JSON for: `commit_docs`, `state_exists`, `project_exists`, `autonomy`, `research_mode`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `derived_manuscript_reference_status`, `derived_manuscript_reference_status_count`, `derived_manuscript_proof_review_status`. These mirror the `paper_bootstrap` stage definition in `write-paper-stage-manifest.json`.
 
 **Load mode settings:**
 

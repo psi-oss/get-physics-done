@@ -1598,7 +1598,10 @@ class TestSkillsServer:
         assert "Referee Decision Schema" in schema_documents["referee-decision-schema.md"]["body"]
         assert "review-ledger-schema.md" not in contract_documents
         assert "Treat `content` as the wrapper/context surface." in result["loading_hint"]
-        assert "Load `schema_documents` and `contract_documents` too when present" in result["loading_hint"]
+        assert "schema_documents" in result["loading_hint"]
+        assert "contract_documents" in result["loading_hint"]
+        assert "inject" in result["loading_hint"]
+        assert "schema-bound" in result["loading_hint"]
         assert result["content_authority"] == "canonical"
         assert result["structured_metadata_authority"] == {
             "content": "canonical",
@@ -1691,7 +1694,10 @@ class TestSkillsServer:
         assert "Proof Redteam Protocol" in contract_documents["proof-redteam-protocol.md"]["body"]
         assert any(path.endswith("peer-review-panel.md") for path in result["contract_references"])
         assert "Treat `content` as the wrapper/context surface." in result["loading_hint"]
-        assert "Load `schema_documents` and `contract_documents` too when present" in result["loading_hint"]
+        assert "schema_documents" in result["loading_hint"]
+        assert "contract_documents" in result["loading_hint"]
+        assert "inject" in result["loading_hint"]
+        assert "schema-bound" in result["loading_hint"]
 
     def test_get_skill_resume_work_surfaces_project_reentry_metadata(self):
         from gpd.mcp.servers.skills_server import get_skill

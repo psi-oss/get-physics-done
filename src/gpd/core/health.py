@@ -1011,21 +1011,7 @@ def _apply_fixes(
         config_path = layout.config_json
         try:
             defaults = GPDProjectConfig()
-            config_dict = {
-                "model_profile": defaults.model_profile.value,
-                "autonomy": defaults.autonomy.value,
-                "research_mode": defaults.research_mode.value,
-                "commit_docs": defaults.commit_docs,
-                "branching_strategy": defaults.branching_strategy.value,
-                "phase_branch_template": defaults.phase_branch_template,
-                "milestone_branch_template": defaults.milestone_branch_template,
-                "workflow": {
-                    "research": defaults.research,
-                    "plan_checker": defaults.plan_checker,
-                    "verifier": defaults.verifier,
-                },
-                "parallelization": defaults.parallelization,
-            }
+            config_dict = defaults.to_storage_dict()
             config_path.parent.mkdir(parents=True, exist_ok=True)
             if config_path.exists():
                 import shutil

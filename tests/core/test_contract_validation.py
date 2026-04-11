@@ -32,6 +32,7 @@ from gpd.contracts import (
     parse_project_contract_data_strict,
 )
 from gpd.core.contract_validation import (
+    _format_schema_finding,
     is_authoritative_project_contract_schema_finding,
     is_repair_relevant_project_contract_schema_finding,
     split_project_contract_schema_findings,
@@ -91,6 +92,49 @@ def test_project_contract_schema_finding_helpers_keep_authoritative_and_blocking
         is_authoritative_project_contract_schema_finding("references.0.must_surface: boolean wording changed upstream")
         is False
     )
+
+
+def test_authoritative_schema_finding_ignores_prose_when_metadata_is_structured() -> None:
+    formatted, metadata = _format_schema_finding(
+        {"loc": ("project_contract", "schema_version"), "msg": "number must equal one", "type": "value_error.literal"}
+    )
+    recoverable, blocking = split_project_contract_schema_findings(
+        [formatted], metadata_by_error={formatted: metadata}
+    )
+    assert recoverable == []
+    assert blocking == [formatted]
+    assert is_authoritative_project_contract_schema_finding(formatted) is False
+
+
+def test_extra_input_schema_finding_uses_error_type_before_message_text() -> None:
+    formatted, metadata = _format_schema_finding(
+        {
+            "loc": ("project_contract", "scope", "prose"),
+            "msg": "unknown extra field noted in prose",
+            "type": "value_error.extra",
+        }
+    )
+    recoverable, blocking = split_project_contract_schema_findings(
+        [formatted], allow_case_drift_recovery=True, metadata_by_error={formatted: metadata}
+    )
+    assert recoverable == [formatted]
+    assert blocking == []
+    assert is_repair_relevant_project_contract_schema_finding(formatted) is False
+
+
+def test_schema_finding_metadata_does_not_leak_to_plain_string_classification() -> None:
+    formatted, metadata = _format_schema_finding(
+        {
+            "loc": ("project_contract", "scope", "prose"),
+            "msg": "unknown extra field noted in prose",
+            "type": "value_error.extra",
+        }
+    )
+    assert split_project_contract_schema_findings([formatted], metadata_by_error={formatted: metadata}) == (
+        [formatted],
+        [],
+    )
+    assert split_project_contract_schema_findings([formatted]) == ([], [formatted])
 
 
 def test_split_project_contract_schema_findings_separates_case_drift_from_blocking_errors() -> None:

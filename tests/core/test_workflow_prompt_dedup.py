@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from gpd.adapters.install_utils import expand_at_includes
@@ -147,3 +148,24 @@ def test_numerical_analysis_command_wrappers_stay_thin() -> None:
         assert "```python" not in command
         assert "| Method" not in command
         assert "## 1." not in command
+
+
+def test_write_paper_init_uses_paper_bootstrap_stage() -> None:
+    workflow = _read("write-paper.md")
+    manifest = json.loads(
+        (WORKFLOWS_DIR / "write-paper-stage-manifest.json").read_text(encoding="utf-8")
+    )
+
+    assert any(stage["id"] == "paper_bootstrap" for stage in manifest["stages"])
+    assert "gpd --raw init write-paper --stage paper_bootstrap --include config" in workflow
+
+
+def test_plan_phase_authoring_stage_declines_legacy_routing() -> None:
+    plan_phase = _read("plan-phase.md")
+    manifest = json.loads(
+        (WORKFLOWS_DIR / "plan-phase-stage-manifest.json").read_text(encoding="utf-8")
+    )
+
+    assert any(stage["id"] == "planner_authoring" for stage in manifest["stages"])
+    assert 'gpd --raw init plan-phase "$PHASE" --stage planner_authoring' in plan_phase
+    assert "Legacy routing" not in plan_phase

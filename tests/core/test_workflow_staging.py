@@ -907,3 +907,35 @@ def test_load_workflow_stage_manifest_from_path_respects_cache_invalidation(
 
     assert third is not first
     assert third.stages[0].purpose == "updated purpose"
+
+
+def test_load_workflow_stage_manifest_from_path_without_expected_workflow_accepts_custom_init_fields(
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "custom-stage-manifest.json"
+    manifest_payload = {
+        "schema_version": 1,
+        "workflow_id": "custom-workflow",
+        "stages": [
+            {
+                "id": "alpha",
+                "order": 1,
+                "purpose": "custom",
+                "mode_paths": ["workflows/new-project.md"],
+                "required_init_fields": ["custom_field"],
+                "loaded_authorities": [],
+                "conditional_authorities": [],
+                "must_not_eager_load": [],
+                "allowed_tools": ["file_read"],
+                "writes_allowed": ["GPD/STATE.md"],
+                "produced_state": [],
+                "next_stages": [],
+            }
+        ],
+    }
+    manifest_path.write_text(json.dumps(manifest_payload), encoding="utf-8")
+
+    manifest = load_workflow_stage_manifest_from_path(manifest_path)
+
+    assert manifest.workflow_id == "custom-workflow"
+    assert manifest.stages[0].required_init_fields == ("custom_field",)

@@ -23,6 +23,7 @@ from typer.testing import CliRunner
 from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.cli import app
+from gpd.core.config import GPDProjectConfig
 from gpd.core.constants import AGENT_ID_FILENAME, ENV_DATA_DIR
 from gpd.core.costs import UsageRecord, _profile_tier_mix, usage_ledger_path
 from gpd.core.recent_projects import record_recent_project
@@ -2812,6 +2813,8 @@ class TestConfigCommands:
         assert config["git"]["branching_strategy"] == "none"
         assert "brave_search" not in config
         assert "search_gitignored" not in config
+        defaults = GPDProjectConfig()
+        assert config == defaults.to_storage_dict()
 
     def test_permissions_sync_updates_installed_runtime(self, gpd_project: Path) -> None:
         adapter, target = _install_runtime(gpd_project, _ENV_OVERRIDE_DESCRIPTOR)

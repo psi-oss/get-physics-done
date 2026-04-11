@@ -1128,9 +1128,12 @@ def _normalize_tool_set(values: Iterable[str] | None) -> frozenset[str]:
     return frozenset(normalized)
 
 
-def _normalize_init_field_set(values: Iterable[str] | None, *, workflow_id: str) -> frozenset[str] | None:
+def _normalize_init_field_set(values: Iterable[str] | None, *, workflow_id: str | None) -> frozenset[str] | None:
     if values is None:
-        return _DEFAULT_KNOWN_INIT_FIELDS_BY_WORKFLOW.get(workflow_id)
+        if workflow_id is None:
+            return None
+        normalized_workflow_id = _normalize_workflow_id(workflow_id)
+        return _DEFAULT_KNOWN_INIT_FIELDS_BY_WORKFLOW.get(normalized_workflow_id)
     normalized: set[str] = set()
     for value in values:
         if not isinstance(value, str):
@@ -1392,7 +1395,7 @@ def _cache_key_tools(values: Iterable[str] | None) -> tuple[str, ...]:
     return tuple(sorted(_normalize_tool_set(values)))
 
 
-def _cache_key_init_fields(values: Iterable[str] | None, *, workflow_id: str) -> tuple[str, ...] | None:
+def _cache_key_init_fields(values: Iterable[str] | None, *, workflow_id: str | None) -> tuple[str, ...] | None:
     normalized = _normalize_init_field_set(values, workflow_id=workflow_id)
     return tuple(sorted(normalized)) if normalized is not None else None
 
@@ -1446,7 +1449,7 @@ def load_workflow_stage_manifest_from_path(
     workflow_id = _normalize_workflow_id(expected_workflow_id) if expected_workflow_id is not None else None
     normalized_init_fields = _cache_key_init_fields(
         known_init_fields if known_init_fields is not None else known_init_fields_for_workflow(workflow_id),
-        workflow_id=workflow_id or "new-project",
+        workflow_id=workflow_id,
     )
     return _load_workflow_stage_manifest_cached(
         manifest_path.as_posix(),

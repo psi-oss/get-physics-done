@@ -58,6 +58,41 @@ def _is_hygiene_artifact(rel_path: Path) -> bool:
     return False
 
 
+def _read_command_workflow_allowlist() -> tuple[set[str], set[str]]:
+    allowlist_path = REPO_ROOT / "docs" / "command-workflow-allowlist.md"
+    commands: set[str] = set()
+    workflows: set[str] = set()
+    section: str | None = None
+
+    for raw_line in allowlist_path.read_text().splitlines():
+        line = raw_line.strip()
+
+        if line.startswith("## Command-only"):
+            section = "command"
+            continue
+        if line.startswith("## Workflow-only"):
+            section = "workflow"
+            continue
+        if line.startswith("##"):
+            section = None
+            continue
+
+        if not line.startswith("-") or section is None:
+            continue
+
+        match = re.match(r"- `(?P<slug>[a-z0-9-]+)`", line)
+        if not match:
+            continue
+
+        slug = match.group("slug")
+        if section == "command":
+            commands.add(slug)
+        elif section == "workflow":
+            workflows.add(slug)
+
+    return commands, workflows
+
+
 def test_repo_hygiene_does_not_track_ignored_or_runtime_owned_artifacts() -> None:
     offenders = [path.as_posix() for path in _tracked_paths() if _is_hygiene_artifact(path)]
 
@@ -82,3 +117,31 @@ def test_gpd_utils_package_exposes_only_live_utility_modules() -> None:
 
     assert package_init.read_text().strip() == '"""Shared utility helpers for GPD internals."""\n\n__all__: list[str] = []'
     assert sorted(path.name for path in utils_dir.glob("*.py")) == ["__init__.py", "latex.py"]
+
+
+def test_repo_hygiene_no_python_bytecode_tracked() -> None:
+    offenders = [
+        path.as_posix()
+        for path in _tracked_paths()
+        if "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo", ".pyd"}
+    ]
+
+    assert not offenders, (
+        "Tracked bytecode or __pycache__ directories found in git index:\n"
+        + "\n".join(f"- {path}" for path in offenders)
+    )
+
+
+def test_command_workflow_parity_matches_allowlist() -> None:
+    command_docs = {path.stem for path in (REPO_ROOT / "src" / "gpd" / "commands").glob("*.md")}
+    workflow_docs = {
+        path.stem
+        for path in (REPO_ROOT / "src" / "gpd" / "specs" / "workflows").glob("*.md")
+    }
+
+    commands_without_workflow = command_docs - workflow_docs
+    workflows_without_command = workflow_docs - command_docs
+    allowed_commands, allowed_workflows = _read_command_workflow_allowlist()
+
+    assert commands_without_workflow == allowed_commands
+    assert workflows_without_command == allowed_workflows

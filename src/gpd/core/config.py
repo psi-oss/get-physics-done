@@ -400,6 +400,35 @@ class GPDProjectConfig(BaseModel):
 
         return normalized or None
 
+    def to_storage_dict(self) -> dict[str, object]:
+        """Return a canonical `config.json` payload for defaults."""
+
+        return {
+            "autonomy": self.autonomy.value,
+            "execution": {
+                "review_cadence": self.review_cadence.value,
+                "max_unattended_minutes_per_plan": self.max_unattended_minutes_per_plan,
+                "max_unattended_minutes_per_wave": self.max_unattended_minutes_per_wave,
+                "checkpoint_after_n_tasks": self.checkpoint_after_n_tasks,
+                "checkpoint_after_first_load_bearing_result": self.checkpoint_after_first_load_bearing_result,
+                "checkpoint_before_downstream_dependent_tasks": self.checkpoint_before_downstream_dependent_tasks,
+            },
+            "research_mode": self.research_mode.value,
+            "commit_docs": self.commit_docs,
+            "parallelization": self.parallelization,
+            "model_profile": self.model_profile.value,
+            "workflow": {
+                "research": self.research,
+                "plan_checker": self.plan_checker,
+                "verifier": self.verifier,
+            },
+            "git": {
+                "branching_strategy": self.branching_strategy.value,
+                "phase_branch_template": self.phase_branch_template,
+                "milestone_branch_template": self.milestone_branch_template,
+            },
+        }
+
 
 # ─── Config Loading ─────────────────────────────────────────────────────────────
 
