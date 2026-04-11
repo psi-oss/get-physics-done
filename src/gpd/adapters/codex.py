@@ -529,6 +529,8 @@ def _toml_value(value: object) -> str:
 
 def _inject_codex_command_runtime_note(content: str, launcher: str) -> str:
     """Prepend Codex-specific shell guidance to installed command skills."""
+    if "<codex_runtime_notes>" in content:
+        return content
     note = _CODEX_COMMAND_RUNTIME_NOTE.format(launcher=launcher)
     preamble, frontmatter, separator, body = split_markdown_frontmatter(content)
     if not frontmatter:

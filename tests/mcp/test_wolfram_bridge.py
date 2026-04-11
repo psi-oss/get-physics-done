@@ -257,6 +257,31 @@ def test_build_server_registers_expected_server_name() -> None:
     assert server.name == "gpd-wolfram"
 
 
+def test_parse_args_rejects_unsupported_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    from gpd.mcp.integrations.wolfram_bridge import _parse_args
+
+    monkeypatch.setattr(sys, "argv", ["gpd-mcp-wolfram", "--transport", "sse"])
+
+    with pytest.raises(SystemExit):
+        _parse_args()
+
+
+def test_parse_args_help_surfaces_stdio_transport(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    import sys
+
+    from gpd.mcp.integrations.wolfram_bridge import _parse_args
+
+    monkeypatch.setattr(sys, "argv", ["gpd-mcp-wolfram", "--help"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _parse_args()
+
+    assert exc_info.value.code == 0
+    assert "--transport {stdio}" in capsys.readouterr().out
+
+
 def test_pyproject_exposes_the_wolfram_console_script() -> None:
     from pathlib import Path
 

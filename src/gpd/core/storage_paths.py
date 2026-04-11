@@ -197,7 +197,7 @@ class ProjectStorageLayout:
         rel = path.relative_to(self.root)
         suffix = path.suffix.lower()
 
-        if any(segment in _SUSPICIOUS_INTERNAL_SEGMENTS for segment in rel.parts):
+        if any(segment.lower() in _SUSPICIOUS_INTERNAL_SEGMENTS for segment in rel.parts):
             return f"Suspicious durable-artifact path under {self.gpd.as_posix()}: {rel.as_posix()}"
 
         if (

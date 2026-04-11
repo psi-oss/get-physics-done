@@ -11,12 +11,14 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     from gpd.mcp.servers.verification_server import (
         _CONTRACT_PAYLOAD_INPUT_SCHEMA,
         _CONTRACT_SCOPE_INPUT_SCHEMA,
+        _RUN_CONTRACT_CHECK_REQUEST_SCHEMA,
         mcp,
     )
     from gpd.mcp.verification_contract_policy import (
         VERIFICATION_BINDING_FIELD_NAMES,
         VERIFICATION_BINDING_TARGETS,
         VERIFICATION_CONTRACT_POLICY_TEXT,
+        VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES,
         verification_contract_surface_summary_text,
         verification_server_description,
     )
@@ -63,7 +65,11 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     assert "request_template" in tools["suggest_contract_checks"].description
     assert "active_checks" in tools["suggest_contract_checks"].description
     assert "``contract`` must be an object" in tools["suggest_contract_checks"].description
-    assert "schema_required_request_fields" in tools["suggest_contract_checks"].description
+    request_schema_description = _RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"]
+    for field_name in VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES:
+        assert field_name in tools["suggest_contract_checks"].description
+        assert f"`{field_name}`" in VERIFICATION_CONTRACT_POLICY_TEXT
+        assert f"`{field_name}`" in request_schema_description
     assert "Nested object schemas are closed at every level" in VERIFICATION_CONTRACT_POLICY_TEXT
     assert "unknown top-level or nested keys" in VERIFICATION_CONTRACT_POLICY_TEXT
     assert "its absence is a blocker" in VERIFICATION_CONTRACT_POLICY_TEXT

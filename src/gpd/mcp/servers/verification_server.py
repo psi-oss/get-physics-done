@@ -73,6 +73,7 @@ from gpd.mcp.servers import (
 from gpd.mcp.verification_contract_policy import (
     VERIFICATION_BINDING_FIELD_NAMES,
     VERIFICATION_BINDING_TARGETS,
+    VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES,
     verification_contract_policy_text,
     verification_contract_surface_summary_text,
 )
@@ -1232,6 +1233,9 @@ _RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] = (
     "`schema_required_request_anyof_fields`, `optional_request_fields`, "
     "`supported_binding_fields`, and a safe `request_template`."
 )
+_RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] += " Hard request constraint fields surfaced by hints: " + ", ".join(
+    f"`{field_name}`" for field_name in VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES
+) + "."
 all_of_conditions: list[dict[str, object]] = []
 if _RUN_CONTRACT_CHECK_BINDING_CONDITIONS:
     all_of_conditions.extend(_RUN_CONTRACT_CHECK_BINDING_CONDITIONS)
@@ -1750,8 +1754,9 @@ def _suggest_contract_checks_description() -> str:
         "the model is reasoning about. "
         f"{verification_contract_surface_summary_text()} "
         "Use the canonical plan-contract schema for plan-style payloads; this tool returns the exact "
-        "request-shape metadata, including ``schema_required_request_fields``, "
-        "``schema_required_request_anyof_fields``, ``supported_binding_fields``, and a ``request_template`` safe "
+        "request-shape metadata, including ``required_request_fields``, "
+        "``schema_required_request_fields``, ``schema_required_request_anyof_fields``, "
+        "``optional_request_fields``, ``supported_binding_fields``, and a ``request_template`` safe "
         "to pass to ``run_contract_check(request=...)``. "
         "``active_checks`` is optional and must be ``list[str]`` with non-empty entries when provided. "
         "Supply already-enabled check ids or check keys so each suggestion can mark ``already_active`` "

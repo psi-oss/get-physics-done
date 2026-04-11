@@ -1301,18 +1301,37 @@ def _resolve_include_source_path(src_root: Path, include_path: str) -> Path | No
     specs_root = _specs_source_root(src_root)
     agents_root = _agents_source_root(src_root)
 
+    def _safe_relative_path(raw_path: str | Path) -> Path | None:
+        relative = Path(raw_path)
+        if not relative.parts or relative.is_absolute() or ".." in relative.parts:
+            return None
+        return relative
+
     if include_path.startswith("{GPD_INSTALL_DIR}/"):
         relative_path = include_path[len("{GPD_INSTALL_DIR}/") :]
-        return specs_root / relative_path
+        relative = _safe_relative_path(relative_path)
+        return specs_root / relative if relative is not None else None
     if include_path.startswith("{GPD_AGENTS_DIR}/"):
         relative_path = include_path[len("{GPD_AGENTS_DIR}/") :]
-        return agents_root / relative_path
-    if "get-physics-done/" in include_path:
-        relative_path = include_path.split("get-physics-done/", 1)[1]
-        return specs_root / relative_path
-    if "/agents/" in include_path:
-        relative_path = include_path.split("/agents/", 1)[1]
-        return agents_root / relative_path
+        relative = _safe_relative_path(relative_path)
+        return agents_root / relative if relative is not None else None
+
+    include_parts = Path(include_path).parts
+    if "get-physics-done" in include_parts:
+        root_index = include_parts.index("get-physics-done")
+        relative_parts = include_parts[root_index + 1 :]
+        if root_index > 0 and include_parts[root_index - 1] not in {".codex", ".claude", ".gemini", ".opencode"}:
+            return None
+        relative = _safe_relative_path(Path(*relative_parts)) if relative_parts else None
+        return specs_root / relative if relative is not None else None
+    for agents_index, part in enumerate(include_parts):
+        if part != "agents":
+            continue
+        if agents_index == 0 or include_parts[agents_index - 1] not in {".codex", ".claude", ".gemini", ".opencode"}:
+            continue
+        relative_parts = include_parts[agents_index + 1 :]
+        relative = _safe_relative_path(Path(*relative_parts)) if relative_parts else None
+        return agents_root / relative if relative is not None else None
     return None
 
 

@@ -181,6 +181,31 @@ def test_build_server_registers_expected_server_name() -> None:
     assert bridge.config.storage_path.is_absolute()
 
 
+def test_parse_args_rejects_unsupported_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    from gpd.mcp.servers.arxiv_bridge import _parse_args
+
+    monkeypatch.setattr(sys, "argv", ["gpd-mcp-arxiv", "--transport", "sse"])
+
+    with pytest.raises(SystemExit):
+        _parse_args()
+
+
+def test_parse_args_help_surfaces_stdio_transport(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    import sys
+
+    from gpd.mcp.servers.arxiv_bridge import _parse_args
+
+    monkeypatch.setattr(sys, "argv", ["gpd-mcp-arxiv", "--help"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        _parse_args()
+
+    assert exc_info.value.code == 0
+    assert "--transport {stdio}" in capsys.readouterr().out
+
+
 def test_module_entrypoint_runs_main(monkeypatch: pytest.MonkeyPatch) -> None:
     import asyncio
 

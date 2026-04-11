@@ -397,6 +397,26 @@ class TestMcpServerRunner:
         assert mcp.settings.port == 0
         assert calls == ["sse"]
 
+    def test_apply_mcp_settings_overrides_mutates_fake_settings(self):
+        from gpd.mcp.servers import apply_mcp_settings_overrides
+
+        mcp = SimpleNamespace(settings=SimpleNamespace(host="127.0.0.1", port=8123))
+
+        apply_mcp_settings_overrides(mcp, host="0.0.0.0", port=0)
+
+        assert mcp.settings.host == "0.0.0.0"
+        assert mcp.settings.port == 0
+
+    def test_apply_mcp_settings_overrides_leaves_unspecified_values(self):
+        from gpd.mcp.servers import apply_mcp_settings_overrides
+
+        mcp = SimpleNamespace(settings=SimpleNamespace(host="127.0.0.1", port=8123))
+
+        apply_mcp_settings_overrides(mcp)
+
+        assert mcp.settings.host == "127.0.0.1"
+        assert mcp.settings.port == 8123
+
 # ---------------------------------------------------------------------------
 # 1. Conventions server
 # ---------------------------------------------------------------------------

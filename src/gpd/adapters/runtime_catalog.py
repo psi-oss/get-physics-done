@@ -695,6 +695,7 @@ def _parse_hook_payload(entry: object, *, label: str) -> HookPayloadPolicy:
 
 @lru_cache(maxsize=1)
 def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
+    _load_runtime_catalog_schema_shape()
     raw_entries = _load_json_strict_no_duplicate_keys(_catalog_path())
     if not isinstance(raw_entries, list):
         raise ValueError("runtime catalog must be a JSON array")

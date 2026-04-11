@@ -15,10 +15,16 @@ from gpd.adapters.codex import (
     CodexAdapter,
     _convert_codex_tool_name,
     _convert_to_codex_skill,
+    _inject_codex_command_runtime_note,
     _normalize_codex_questioning,
     _tracked_codex_generated_skill_dirs,
 )
-from gpd.adapters.install_utils import build_runtime_cli_bridge_command, file_hash, hook_python_interpreter
+from gpd.adapters.install_utils import (
+    _resolve_include_source_path,
+    build_runtime_cli_bridge_command,
+    file_hash,
+    hook_python_interpreter,
+)
 from gpd.registry import load_agents_from_dir
 from tests.adapters.review_contract_test_utils import (
     assert_review_contract_prompt_surface,
@@ -232,6 +238,31 @@ class TestConvertToCodexSkill:
         fm = result.split("---")[1]
         tool_entries = [line.strip()[2:] for line in fm.splitlines() if line.strip().startswith("- ")]
         assert tool_entries == ["read_file", "shell"]
+
+    def test_runtime_note_injection_is_idempotent(self) -> None:
+        content = "---\nname: gpd-test\ndescription: D\n---\nBody"
+
+        once = _inject_codex_command_runtime_note(content, "python -m gpd.runtime_cli")
+        twice = _inject_codex_command_runtime_note(once, "python -m gpd.runtime_cli")
+
+        assert twice == once
+        assert twice.count("<codex_runtime_notes>") == 1
+
+    def test_include_source_path_requires_path_component_match(self, tmp_path: Path) -> None:
+        src_root = tmp_path / "src" / "gpd"
+
+        assert _resolve_include_source_path(src_root, "/tmp/not-get-physics-done/workflows/update.md") is None
+        assert _resolve_include_source_path(src_root, "/tmp/get-physics-done/workflows/update.md") is None
+        assert _resolve_include_source_path(src_root, "/tmp/agents/gpd-executor.md") is None
+
+        resolved = _resolve_include_source_path(
+            src_root,
+            "/tmp/.codex/get-physics-done/workflows/update.md",
+        )
+        agent_resolved = _resolve_include_source_path(src_root, "/tmp/.codex/agents/gpd-executor.md")
+
+        assert resolved == src_root / "workflows" / "update.md"
+        assert agent_resolved == src_root.parent / "agents" / "gpd-executor.md"
 
     def test_review_contract_is_prepended_to_skill_body(self) -> None:
         content = compile_review_contract_fixture_for_runtime("codex", command_name="test")

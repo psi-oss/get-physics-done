@@ -135,11 +135,18 @@ def run_mcp_server(mcp: object, description: str) -> None:
     parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=None)
     args = parser.parse_args()
-    if args.host:
-        mcp.settings.host = args.host  # type: ignore[union-attr]
-    if args.port is not None:
-        mcp.settings.port = args.port  # type: ignore[union-attr]
+    apply_mcp_settings_overrides(mcp, host=args.host, port=args.port)
     mcp.run(transport=args.transport)  # type: ignore[union-attr]
+
+
+def apply_mcp_settings_overrides(mcp: object, *, host: str | None = None, port: int | None = None) -> None:
+    """Apply optional CLI settings overrides to an MCP-like object."""
+
+    settings = mcp.settings
+    if host:
+        settings.host = host
+    if port is not None:
+        settings.port = port
 
 
 def published_tool_input_schema(tool: object) -> dict[str, object] | None:
@@ -285,6 +292,7 @@ __all__ = [
     "protocols_server",
     "resolve_absolute_project_dir",
     "run_mcp_server",
+    "apply_mcp_settings_overrides",
     "skills_server",
     "state_server",
     "published_tool_input_schema",

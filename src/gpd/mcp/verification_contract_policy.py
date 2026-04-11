@@ -24,12 +24,21 @@ VERIFICATION_BINDING_TARGETS = (
     "forbidden_proxy",
 )
 VERIFICATION_BINDING_FIELD_NAMES = tuple(f"binding.{target}_ids" for target in VERIFICATION_BINDING_TARGETS)
+VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES = (
+    "required_request_fields",
+    "schema_required_request_fields",
+    "schema_required_request_anyof_fields",
+    "optional_request_fields",
+    "supported_binding_fields",
+    "request_template",
+)
+VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT = ", ".join(
+    f"`{field_name}`" for field_name in VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES
+)
 
 _VERIFICATION_CONTRACT_POLICY_CLAUSES = (
     "Validate contract payloads whose `schema_version` is required and must equal `1`.",
-    "Use `required_request_fields`, `schema_required_request_fields`, "
-    "`schema_required_request_anyof_fields`, `optional_request_fields`, "
-    "`supported_binding_fields`, and `request_template` as the exact per-check request "
+    f"Use {VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT} as the exact per-check request "
     "shape; the supported binding fields are the canonical plural id arrays "
     + ", ".join(f"`{field}`" for field in VERIFICATION_BINDING_FIELD_NAMES)
     + ".",

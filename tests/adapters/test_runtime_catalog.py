@@ -124,6 +124,21 @@ def test_runtime_catalog_rejects_duplicate_json_keys(tmp_path: Path, monkeypatch
         runtime_catalog._load_catalog.cache_clear()
 
 
+def test_runtime_catalog_loader_validates_schema_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    schema_path = tmp_path / "runtime_catalog_schema.json"
+    schema_path.write_text(json.dumps({"schema_version": 1, "unexpected": []}), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_runtime_catalog_schema_path", lambda: schema_path)
+    runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
+    runtime_catalog._load_catalog.cache_clear()
+
+    try:
+        with pytest.raises(ValueError, match="runtime catalog schema contains unknown key"):
+            runtime_catalog.iter_runtime_descriptors()
+    finally:
+        runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
+        runtime_catalog._load_catalog.cache_clear()
+
+
 def test_resolve_global_config_dir_xdg_app_respects_explicit_empty_environ(monkeypatch) -> None:
     monkeypatch.setenv("OPENCODE_CONFIG_DIR", "/tmp/process-opencode-config")
     monkeypatch.setenv("OPENCODE_CONFIG", "/tmp/process-opencode/opencode.json")

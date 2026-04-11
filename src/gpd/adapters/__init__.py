@@ -41,6 +41,12 @@ def _load_adapter_class(runtime_name: str, *, adapter_module: str | None = None)
         matches.append(value)
 
     if len(matches) == 1:
+        adapter_runtime_name = matches[0]().runtime_name
+        if adapter_runtime_name != runtime_name:
+            raise RuntimeError(
+                f"Adapter runtime_name mismatch for catalog runtime {runtime_name!r}: "
+                f"loaded {adapter_runtime_name!r}"
+            )
         return matches[0]
     if not matches:
         raise RuntimeError(f"No RuntimeAdapter implementation found for runtime {runtime_name!r}")

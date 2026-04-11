@@ -197,11 +197,25 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
         next_is_idx = steps[index + 1][1]
         if is_idx and isinstance(current, list):
             try:
-                current = current[step_key]  # type: ignore[index]
-            except (IndexError, TypeError):
+                step_index = int(step_key)
+            except (TypeError, ValueError):
                 traversal_complete = False
                 break
+            if step_index < 0:
+                traversal_complete = False
+                break
+            while len(current) <= step_index:
+                current.append([] if next_is_idx else {})
+            if not isinstance(current[step_index], (dict, list)):
+                current[step_index] = [] if next_is_idx else {}
+            current = current[step_index]
+        elif is_idx:
+            traversal_complete = False
+            break
         elif isinstance(current, dict):
+            if not isinstance(step_key, str):
+                traversal_complete = False
+                break
             if step_key not in current or not isinstance(current[step_key], (dict, list)):
                 current[step_key] = [] if next_is_idx else {}  # type: ignore[index]
             current = current[step_key]  # type: ignore[index]
@@ -217,13 +231,20 @@ def json_set(file_path: str, path: str, value: str) -> dict[str, object]:
     final_key, final_is_idx = steps[-1]
     if final_is_idx and isinstance(current, list):
         try:
+            final_index = int(final_key)
+        except (TypeError, ValueError):
+            final_index = -1
+        if -len(current) <= final_index < len(current):
+            current[final_index] = parsed_value
+            updated = True
+    elif final_is_idx:
+        pass
+    elif isinstance(current, dict):
+        if isinstance(final_key, str):
             current[final_key] = parsed_value  # type: ignore[index]
             updated = True
-        except (IndexError, TypeError):
-            pass
-    elif not final_is_idx and isinstance(current, dict):
-        current[final_key] = parsed_value  # type: ignore[index]
-        updated = True
+    else:
+        pass
 
     if updated:
         fp.parent.mkdir(parents=True, exist_ok=True)

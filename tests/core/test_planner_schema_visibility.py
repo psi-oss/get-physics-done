@@ -29,6 +29,9 @@ def test_planner_role_owns_schema_visibility_and_workflows_use_the_short_role_pr
     for marker in required_markers:
         assert marker in planner_role
 
+    assert "@{GPD_INSTALL_DIR}/templates/phase-prompt.md" in planner_role
+    assert "@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md" in planner_role
+
     bootstrap = planner_role.partition("</role>")[0]
 
     assert "Keep this agent prompt lean." in planner_role

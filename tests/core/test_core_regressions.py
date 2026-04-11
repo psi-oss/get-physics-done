@@ -172,6 +172,18 @@ def test_json_set_reports_type_mismatch_errors(tmp_path: Path) -> None:
     assert "error" in result
 
 
+def test_json_set_extends_lists_for_missing_indices(tmp_path: Path) -> None:
+    from gpd.core.json_utils import json_set
+
+    fp = tmp_path / "data.json"
+    fp.write_text(json.dumps({"items": []}), encoding="utf-8")
+
+    result = json_set(str(fp), "items[2].name", '"third"')
+
+    assert result["updated"] is True
+    assert json.loads(fp.read_text(encoding="utf-8")) == {"items": [{}, {}, {"name": "third"}]}
+
+
 def test_check_latest_return_selects_latest_summary_file_deterministically(tmp_path: Path) -> None:
     from gpd.core.health import CheckStatus, check_latest_return
 
