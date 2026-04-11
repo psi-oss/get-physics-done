@@ -23,6 +23,7 @@ from gpd.adapters.runtime_catalog import (
     normalize_runtime_name,
     resolve_global_config_dir,
 )
+from scripts.validate_runtime_catalog_schema import validate_runtime_catalog_schema
 
 _RUNTIME_CATALOG_PATH = Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog.json"
 _RUNTIME_CATALOG_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog_schema.json"
@@ -213,14 +214,10 @@ def test_runtime_catalog_capability_parser_fields_align_with_schema_and_dataclas
     assert set(runtime_catalog._RUNTIME_CAPABILITY_FIELD_NAMES) == {
         field.name for field in fields(runtime_catalog.RuntimeCapabilityPolicy)
     }
-def test_runtime_catalog_schema_required_and_optional_keys_match_catalog_entries() -> None:
-    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
-    catalog_payload = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
-    allowed_entry_keys = set(schema["entry_required_keys"]) | set(schema["entry_optional_keys"])
 
-    for entry in catalog_payload:
-        assert set(schema["entry_required_keys"]) <= set(entry)
-        assert set(entry) <= allowed_entry_keys
+
+def test_runtime_catalog_schema_required_and_optional_keys_match_catalog_entries() -> None:
+    validate_runtime_catalog_schema()
 
 
 def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> None:

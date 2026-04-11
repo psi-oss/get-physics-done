@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cache
@@ -35,16 +36,7 @@ CI_MAX_SHARD_COUNT_TARGET = 20
 CI_FAST_PRIORITY_TEST_TARGETS = CI_SMOKE_TEST_TARGETS
 CI_HOTSPOT_SPLIT_COVERAGE_MIN_TOP_FILES = 12
 
-_RUNTIME_ADAPTER_TEST_MODULES = tuple(descriptor.adapter_module for descriptor in iter_runtime_descriptors())
-_RUNTIME_ADAPTER_TEST_FILE_SPLITS = {
-    f"adapters/test_{module}.py": 2 for module in _RUNTIME_ADAPTER_TEST_MODULES
-}
-
-# Observed GitHub Actions timings on 2026-04-07 showed that these files are the
-# real bottlenecks inside their category. Split them inside the file so the
-# category-local planners can spread the slow work rather than pinning one
-# thematic shard to a single expensive module.
-CI_HOT_TEST_FILE_SPLITS = {
+_CI_HOT_TEST_FILE_SPLITS_BASE = {
     "test_runtime_cli.py": 10,
     "test_cli_integration.py": 4,
     "test_registry.py": 4,
@@ -52,7 +44,6 @@ CI_HOT_TEST_FILE_SPLITS = {
     "test_install_utils_edge.py": 2,
     "test_install_edge_cases.py": 2,
     "test_update_workflow.py": 4,
-    **_RUNTIME_ADAPTER_TEST_FILE_SPLITS,
     "adapters/test_runtime_projected_prompt_parity.py": 2,
     "hooks/test_runtime_detect.py": 2,
     "hooks/test_statusline.py": 2,
@@ -67,6 +58,54 @@ CI_HOT_TEST_FILE_SPLITS = {
     "mcp/test_verification_contract_server_regressions.py": 2,
     "core/test_verification_contract_evidence.py": 2,
 }
+
+
+@cache
+def _runtime_adapter_test_modules() -> tuple[str, ...]:
+    try:
+        return tuple(descriptor.adapter_module for descriptor in iter_runtime_descriptors())
+    except FileNotFoundError:
+        warnings.warn("runtime catalog is unavailable; skipping runtime adapter hotspots", stacklevel=2)
+        return ()
+    except PermissionError:
+        warnings.warn("runtime catalog cannot be read; skipping runtime adapter hotspots", stacklevel=2)
+        return ()
+
+
+@cache
+def _runtime_adapter_test_file_splits() -> dict[str, int]:
+    return {f"adapters/test_{module}.py": 2 for module in _runtime_adapter_test_modules()}
+
+
+class _LazyHotTestFileSplits(Mapping[str, int]):
+    def __init__(self) -> None:
+        self._cache: dict[str, int] | None = None
+
+    def _resolved(self) -> dict[str, int]:
+        if self._cache is None:
+            merged = dict(_CI_HOT_TEST_FILE_SPLITS_BASE)
+            merged.update(_runtime_adapter_test_file_splits())
+            self._cache = merged
+        return self._cache
+
+    def __getitem__(self, key: str) -> int:
+        return self._resolved()[key]
+
+    def __iter__(self):
+        return iter(self._resolved())
+
+    def __len__(self) -> int:
+        return len(self._resolved())
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._resolved()!r})"
+
+
+# Observed GitHub Actions timings on 2026-04-07 showed that these files are the
+# real bottlenecks inside their category. Split them inside the file so the
+# category-local planners can spread the slow work rather than pinning one
+# thematic shard to a single expensive module.
+CI_HOT_TEST_FILE_SPLITS: Mapping[str, int] = _LazyHotTestFileSplits()
 
 CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS = {
     "test_runtime_cli.py": 6.0,

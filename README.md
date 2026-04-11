@@ -96,6 +96,10 @@ GPD is built to favor scientific rigor and critical thinking over agreeability. 
 
 We welcome contributions and feedback via GitHub issues or pull requests; if GPD is useful in your work, please star the repo, and share it with colleagues who might benefit.
 
+## Descriptor Authority
+
+Runtime/catalog schema ownership is captured in `docs/schema-registry-ownership.md`, including how `infra/gpd-*.json` is derived from the canonical builder `src/gpd/mcp/builtin_servers.py` (`build_public_descriptors()`). When you modify runtime capabilities, MCP servers, or any public schema, update the builder and this note before touching the generated JSON artifacts; `tests/test_schema_registry_ownership_note.py` keeps the note honest.
+
 ## Quick Start
 
 If you already know your runtime and are comfortable in a terminal, use this as the fast path. If not, go back to [Start Here](#start-here) and use the [Beginner Onboarding Hub](./docs/README.md) instead.

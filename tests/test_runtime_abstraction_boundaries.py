@@ -802,13 +802,21 @@ def test_adapter_runtime_identity_comes_from_catalog_not_literals() -> None:
     )
 
 
-def test_opencode_adapter_runtime_identity_calls_are_catalog_driven() -> None:
-    leaks = _scan_paths_for_pattern(
-        (REPO_ROOT / "src/gpd/adapters/opencode.py",),
-        re.compile(r'get_global_dir\("opencode"|replace_placeholders\([^)]*"opencode"'),
+def test_adapters_runtime_identity_calls_are_catalog_driven() -> None:
+    runtime_literals = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
+    literal_group = "|".join(re.escape(value) for value in runtime_literals)
+    identity_pattern = re.compile(
+        rf'get_global_dir\(["\'](?:{literal_group})["\']|replace_placeholders\([^)]*["\'](?:{literal_group})["\']'
     )
 
+    leaks: list[tuple[Path, int, str]] = []
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        adapter_path = REPO_ROOT / "src" / "gpd" / "adapters" / f"{descriptor.adapter_module}.py"
+        for line_no, line in enumerate(adapter_path.read_text(encoding="utf-8").splitlines(), start=1):
+            if identity_pattern.search(line):
+                leaks.append((adapter_path, line_no, line))
+
     assert leaks == [], (
-        "OpenCode adapter should derive runtime identity from the catalog in runtime wiring calls:\n"
+        "Runtime adapters should derive runtime identity from the catalog in wiring calls:\n"
         f"{_format_failures(leaks)}"
     )

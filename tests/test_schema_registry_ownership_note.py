@@ -19,8 +19,13 @@ def test_schema_registry_ownership_note_names_canonical_sources() -> None:
         "src/gpd/core/public_surface_contract.py",
         "src/gpd/core/model_visible_sections.py",
         "src/gpd/specs/templates/",
+        "infra/gpd-*.json",
     ]
 
     for canonical_path in canonical_paths:
         assert canonical_path in note
+        if "*" in canonical_path:
+            matches = tuple(REPO_ROOT.glob(canonical_path))
+            assert matches, f"No files match {canonical_path}"
+            continue
         assert (REPO_ROOT / canonical_path).exists()

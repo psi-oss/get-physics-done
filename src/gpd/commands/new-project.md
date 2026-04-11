@@ -41,32 +41,7 @@ If no project config exists yet, start with physics questioning, surface a prese
 </execution_context>
 
 <process>
-Read the workflow file defined above with `file_read` first.
-Follow the workflow file exactly before proceeding.
-
-Early visibility guard: before drafting or repairing any scoping contract, load and keep visible the compact hard-schema capsule from `{GPD_INSTALL_DIR}/templates/project-contract-schema.md`; do not expand it into prose or defer it until after drafting.
-
-After that, load late-stage authorities only when the workflow reaches the matching stage:
-- Read `{GPD_INSTALL_DIR}/references/research/questioning.md` only when entering the full questioning path.
-- Read `{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and `{GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md` only when preparing the approval gate and validating the raw scoping contract.
-- Read `{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md` only when authoring or repairing the scoping contract.
-- Read `{GPD_INSTALL_DIR}/templates/project.md` only when writing `GPD/PROJECT.md`.
-- Read `{GPD_INSTALL_DIR}/templates/requirements.md` only when writing `GPD/REQUIREMENTS.md`.
-- Read `{GPD_INSTALL_DIR}/references/ui/ui-brand.md` only when rendering branded completion or status blocks.
-
-Execute the workflow end-to-end. Preserve all workflow gates (validation, approvals, routing).
-
-## Flag Detection
-
-Check `$ARGUMENTS` for:
-
-- `--auto` — Structured synthesis plus scope approval.
-- `--minimal` — Fast staged-init with scope approval.
-- `--minimal @file.md` — Minimal mode driven by the supplied file.
-
-**If `--minimal` detected:** After Setup, route to the minimal staged initialization path. It keeps intake to one response, still requires a scoping contract with decisive outputs and anchors, and hands roadmap and conventions creation to the staged post-scope agents instead of building them directly in the main context. Keep one explicit scope approval at the scoping approval gate before the staged roadmap/conventions handoff.
-
-**If `--auto` detected:** After Setup, synthesize context from the provided document, repair blocking gaps only, present the scoping contract for approval, then run research → requirements → roadmap with smart defaults.
+Read the workflow file defined above with `file_read` first and follow it end-to-end.
 </process>
 
 <output>
@@ -85,36 +60,3 @@ Check `$ARGUMENTS` for:
 - `GPD/CONVENTIONS.md` (established by gpd-notation-coordinator)
 
 </output>
-
-<success_criteria>
-
-**Full mode success criteria:**
-- [ ] `GPD/` exists and the repo is initialized
-- [ ] Deep questioning captured the research context
-- [ ] Scoping contract captures decisive outputs, anchors, weakest assumptions, and unresolved gaps
-- [ ] Scoping contract is explicitly approved before requirements or roadmap generation
-- [ ] `PROJECT.md` created and committed
-- [ ] `config.json` created and committed
-- [ ] Literature survey completed if selected and committed
-- [ ] `REQUIREMENTS.md` created with REQ-IDs and committed
-- [ ] `ROADMAP.md` created with phases and requirement mappings and committed
-- [ ] `STATE.md` initialized
-- [ ] `CONVENTIONS.md` created via `gpd-notation-coordinator` and committed
-- [ ] Convention lock populated via `gpd convention set`
-- [ ] User told the next step is `gpd:discuss-phase 1`
-
-**Minimal mode success criteria (if `--minimal`):**
-
-- [ ] `GPD/` created and the repo initialized
-- [ ] Structured intake captured the core question, decisive outputs, anchors, and known gaps
-- [ ] Scoping contract approved before requirements or roadmap generation
-- [ ] `PROJECT.md` created from one description or input file and committed
-- [ ] `ROADMAP.md` created from the input and committed
-- [ ] `REQUIREMENTS.md` created with auto-generated REQ-IDs and committed
-- [ ] `STATE.md` initialized and committed
-- [ ] `config.json` created with defaults and committed
-- [ ] All files committed in one commit: `docs: initialize research project (minimal)`
-- [ ] Same directory structure and file set as full path
-- [ ] User offered "Discuss phase 1 now?"
-
-</success_criteria>

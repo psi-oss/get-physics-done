@@ -1,4 +1,9 @@
-"""Compatibility wrapper for runtime knowledge-doc discovery and lookup."""
+"""Compatibility wrapper for runtime knowledge-doc discovery and lookup.
+
+This module re-exports the runtime helpers under their legacy names and
+provides deterministic search and resolution helpers for sysadmin-facing
+code. New consumers should import from :mod:`gpd.core.knowledge_runtime`
+when gating on the raw discovery primitives."""
 
 from __future__ import annotations
 

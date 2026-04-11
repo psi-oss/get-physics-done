@@ -198,6 +198,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
+      - name: Validate runtime catalog schema
+        run: uv run python scripts/validate_runtime_catalog_schema.py
+
       - name: Resolve pytest shard targets
         env:
           PYTEST_CATEGORY: ${{ matrix.category }}

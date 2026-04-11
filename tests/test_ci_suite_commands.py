@@ -135,6 +135,17 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     assert 'pytest-xdist>=3.8.0' in pyproject
 
 
+def test_pytest_job_validates_runtime_catalog_schema_step() -> None:
+    workflow = _workflow_data()
+    steps = _job_steps(workflow, "pytest")
+
+    guard_steps = [step for step in steps if step.get("name") == "Validate runtime catalog schema"]
+    assert guard_steps, "Pytest job must include a runtime catalog validation step"
+    guard_step = guard_steps[0]
+    guard_run = str(guard_step.get("run", ""))
+    assert guard_run == "uv run python scripts/validate_runtime_catalog_schema.py"
+
+
 def test_ci_workflow_runs_fast_release_package_smoke_lane_before_full_shards() -> None:
     workflow = _workflow_data()
     jobs = workflow["jobs"]

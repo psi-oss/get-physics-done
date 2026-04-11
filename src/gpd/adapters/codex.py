@@ -53,7 +53,7 @@ from gpd.adapters.install_utils import (
     verify_installed,
     write_manifest,
 )
-from gpd.adapters.runtime_catalog import get_runtime_descriptor
+from gpd.adapters.runtime_catalog import RuntimeDescriptor, get_runtime_descriptor, iter_runtime_descriptors
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.core.observability import gpd_span
 from gpd.mcp import managed_integrations as _managed_integrations
@@ -124,9 +124,24 @@ def _read_codex_runtime_config(config_path: Path) -> tuple[dict[str, object] | N
     return parsed, None
 
 
+def _codex_adapter_module_name() -> str:
+    """Return the adapter module portion of this module's import path."""
+    return __name__.rsplit(".", 1)[-1]
+
+
+def _codex_runtime_descriptor() -> RuntimeDescriptor:
+    """Return the runtime descriptor owned by this adapter."""
+    adapter_module_name = _codex_adapter_module_name()
+    for descriptor in iter_runtime_descriptors():
+        if descriptor.adapter_module == adapter_module_name:
+            return descriptor
+    raise RuntimeError(f"No runtime catalog entry owns adapter module {adapter_module_name!r}")
+
+
 def _codex_config_dir_name() -> str:
     """Return the descriptor-backed Codex config dir name."""
-    return get_runtime_descriptor("codex").config_dir_name
+    runtime_name = getattr(_codex_runtime_descriptor(), "runtime_name", _codex_adapter_module_name())
+    return get_runtime_descriptor(runtime_name).config_dir_name
 
 
 _TOOL_REFERENCE_MAP = reference_translation_map(
@@ -170,7 +185,8 @@ def get_codex_global_dir() -> Path:
 
     Priority: CODEX_CONFIG_DIR > ~/.codex
     """
-    return Path(get_global_dir("codex"))
+    runtime_name = getattr(_codex_runtime_descriptor(), "runtime_name", _codex_adapter_module_name())
+    return Path(get_global_dir(runtime_name))
 
 
 def get_codex_skills_dir() -> Path:

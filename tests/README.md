@@ -142,6 +142,8 @@ flowchart TD
 
 ## Canonical Authority Chains
 
+The owning-path narrative here mirrors `docs/schema-registry-ownership.md` so duplication is minimized; that note describes how `infra/gpd-*.json` is regenerated from `src/gpd/mcp/builtin_servers.py::build_public_descriptors()` and remains the single source of truth for MCP descriptors.
+
 - `package.json -> bin/install.js`
   `authority`
   npm/bootstrap surface; `bin/install.js` reads the npm wrapper version, the pinned Python package version, and repository metadata.

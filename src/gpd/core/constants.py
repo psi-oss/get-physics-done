@@ -12,8 +12,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from gpd.core.return_contract import REQUIRED_RETURN_FIELDS, VALID_RETURN_STATUSES
-
 __all__ = [
     "ACTIVE_TRACE_FILENAME",
     "ANALYSIS_DIR_NAME",
@@ -61,7 +59,6 @@ __all__ = [
     "RECOMMENDED_PYTHON_VERSION",
     "REQUIRED_PLANNING_DIRS",
     "REQUIRED_PLANNING_FILES",
-    "REQUIRED_RETURN_FIELDS",
     "REQUIRED_SPECS_SUBDIRS",
     "REQUIREMENTS_FILENAME",
     "RESEARCH_MAP_DIR_NAME",
@@ -91,7 +88,6 @@ __all__ = [
     "TODOS_DIR_NAME",
     "TRACES_DIR_NAME",
     "UNCOMMITTED_FILES_THRESHOLD",
-    "VALID_RETURN_STATUSES",
     "VALIDATION_SUFFIX",
     "VERIFICATION_SUFFIX",
 ]

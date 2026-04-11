@@ -3,8 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from gpd.contracts import contract_from_data, contract_from_data_salvage
-from gpd.core.contract_validation import parse_project_contract_data_salvage, validate_project_contract
+from gpd.contracts import contract_from_data, contract_from_data_salvage, parse_project_contract_data_strict
+from gpd.core.contract_validation import (
+    parse_project_contract_data_salvage,
+    split_project_contract_schema_findings,
+    validate_project_contract,
+)
 from gpd.core.state import (
     ProjectLayout,
     default_state_dict,
@@ -136,3 +140,21 @@ def test_project_contract_salvage_reports_invalid_link_references() -> None:
     assert "link link-missing references unknown source missing-source" in result.errors
     assert "link link-missing references unknown target missing-target" in result.errors
     assert "link link-missing references unknown acceptance test missing-test" in result.errors
+
+
+def test_strict_project_contract_parse_rejects_extra_scope_keys_salvage_warns() -> None:
+    contract = _load_contract_fixture()
+    contract["scope"]["legacy_notes"] = "legacy field"
+
+    strict_result = parse_project_contract_data_strict(contract)
+
+    assert strict_result.contract is None
+    assert any("scope.legacy_notes" in error for error in strict_result.errors)
+
+    salvage_result = parse_project_contract_data_salvage(contract)
+
+    assert salvage_result.contract is not None
+    assert salvage_result.blocking_errors == []
+    recoverable, blocking = split_project_contract_schema_findings(salvage_result.recoverable_errors)
+    assert blocking == []
+    assert any("scope.legacy_notes" in error for error in recoverable)
