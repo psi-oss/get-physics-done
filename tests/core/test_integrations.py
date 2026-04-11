@@ -134,6 +134,43 @@ def test_wolfram_descriptor_respects_project_local_disable_and_endpoint_override
     assert descriptor.config_summary(env, cwd=tmp_path)["enabled"] is False
 
 
+def test_wolfram_descriptor_config_summary_reports_empty_endpoint_env_error() -> None:
+    descriptor = get_managed_integration("wolfram")
+    assert descriptor is not None
+
+    summary = descriptor.config_summary(
+        {
+            WOLFRAM_MCP_API_KEY_ENV_VAR: "secret",
+            WOLFRAM_MCP_ENDPOINT_ENV_VAR: "   ",
+        }
+    )
+
+    assert summary["configured"] is False
+    assert summary["endpoint"] is None
+    assert summary["endpoint_error"] == "GPD_WOLFRAM_MCP_ENDPOINT is set but empty"
+    assert summary["projected_environment"] == {}
+    assert summary["projected_environment_error"] == "GPD_WOLFRAM_MCP_ENDPOINT is set but empty"
+
+
+def test_wolfram_descriptor_config_summary_reports_project_environment_error(tmp_path: Path) -> None:
+    descriptor = get_managed_integration("wolfram")
+    assert descriptor is not None
+
+    config_path = tmp_path / "GPD" / "integrations.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(json.dumps({"wolfram": {"endpoint": "   "}}), encoding="utf-8")
+
+    summary = descriptor.config_summary({WOLFRAM_MCP_API_KEY_ENV_VAR: "secret"}, cwd=tmp_path)
+
+    assert summary["configured"] is False
+    assert summary["endpoint"] is None
+    assert summary["endpoint_error"] == "integrations.wolfram.endpoint must be a non-empty string"
+    assert summary["projected_environment"] == {}
+    assert summary["projected_environment_error"] == "integrations.wolfram.endpoint must be a non-empty string"
+    assert summary["project_configured"] is False
+    assert summary["enabled"] is False
+
+
 @pytest.mark.parametrize(
     "payload",
     [

@@ -9,7 +9,7 @@ Template for `GPD/phases/01-benchmark/{phase}-VERIFICATION.md` -- persistent res
 A conversational walkthrough of research results, checking derivation logic, physical intuition, edge cases, and overall soundness.
 Use `@{GPD_INSTALL_DIR}/templates/verification-report.md` for the canonical verification frontmatter contract. This template only adds the researcher-session body scaffold (`Current Check`, conversational logs, and diagnosis flow), so its verification-side `suggested_contract_checks` entries are part of the same canonical schema surface and must stay aligned with that shared schema instead of inventing a second checklist format.
 Keep the contract-backed frontmatter explicit: `uncertainty_markers` stay non-empty, theorem/proof claims remain `partial` or `blocked` until the proof audit is complete and every declared proof-specific acceptance test passes, and any active convention lock still requires a machine-readable `ASSERT_CONVENTION` comment after the YAML frontmatter.
-Legacy frontmatter aliases are forbidden in model-facing output; use only the canonical contract-ledger fields from `contract_results`.
+Legacy frontmatter aliases are forbidden in model-facing output; use only the canonical contract-ledger fields from `contract_results`. Before generating the report, make the strict `contract_results` requirements visible in your working context and fill every required ledger bucket (`claims`, `deliverables`, `acceptance_tests`, `references`, `forbidden_proxies`, `uncertainty_markers`) explicitly rather than relying on prose evidence.
 
 ---
 
@@ -289,7 +289,7 @@ and `forbidden_proxy_id` fields instead of leaving blanks. -->
 - Use `forbidden_proxy_id` for explicit proxy-rejection checks
 - Use `comparison_kind` / `comparison_reference_id` when the check should later emit a comparison verdict
 - Use `suggested_contract_checks` only when the verifier believes the contract omitted a decisive check, or when a decisive benchmark / cross-method check remains partial, not attempted, or still lacks a decisive verdict
-- Keep `suggested_contract_checks` schema-tight: only `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path` are valid keys, and when the entry comes from `suggest_contract_checks(contract)` the `check` value must copy the returned `check_key`
+- Keep `suggested_contract_checks` schema-tight: only `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path` are valid keys. Raw `suggest_contract_checks(contract)` output is verifier-tool metadata, not report frontmatter; transform it before writing projected report schemas by copying returned `check_key` into `check` and dropping unsupported keys.
 - `suggested_subject_kind` and `suggested_subject_id` travel together; if the missing check is not bound to a known contract target yet, omit both keys instead of leaving one blank
 
 **Summary:**

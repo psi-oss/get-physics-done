@@ -166,7 +166,7 @@ def _load_bibliography_audit(path: Path | None) -> BibliographyAudit | None:
 
 
 def _load_convention_lock(project_root: Path) -> ConventionLock | None:
-    payload = _load_json(project_root / "GPD" / "state.json")
+    payload = _load_json(ProjectLayout(project_root).state_json)
     lock_data = payload.get("convention_lock")
     if not isinstance(lock_data, dict):
         return None
@@ -293,7 +293,7 @@ def _best_effort_manuscript_root(project_root: Path) -> Path | None:
 
 
 def _derivation_artifacts(project_root: Path) -> list[Path]:
-    gpd_root = project_root / "GPD"
+    gpd_root = ProjectLayout(project_root).gpd
     if not gpd_root.exists():
         return []
     return sorted(
@@ -443,11 +443,10 @@ def _collect_comparison_verdicts(
     verdicts_by_key: dict[tuple[str, str | None, str | None, str], ComparisonVerdict] = {}
     parse_errors: list[str] = []
     layout = ProjectLayout(project_root)
-    phase_root = project_root / "GPD" / "phases"
 
     candidate_roots = [
-        phase_root,
-        project_root / "GPD" / "comparisons",
+        layout.phases_dir,
+        layout.comparisons_dir,
     ]
     if manuscript_root is not None:
         candidate_roots.append(manuscript_root)
@@ -455,7 +454,7 @@ def _collect_comparison_verdicts(
         if not root.exists():
             continue
         for path in sorted(root.rglob("*.md")):
-            if root == phase_root and not _is_contract_coverage_artifact(path, layout):
+            if root == layout.phases_dir and not _is_contract_coverage_artifact(path, layout):
                 continue
             meta = _extract_meta(path, parse_errors=parse_errors)
             for verdict in _parse_comparison_verdict_entries(meta.get("comparison_verdicts"), errors=parse_errors):
@@ -531,10 +530,10 @@ def _collect_contract_coverage(project_root: Path) -> _ContractCoverage:
     contract_results_alignment_ok = True
     frontmatter_parse_errors = False
 
-    phases_root = project_root / "GPD" / "phases"
+    layout = ProjectLayout(project_root)
+    phases_root = layout.phases_dir
     if not phases_root.exists():
         return _ContractCoverage()
-    layout = ProjectLayout(project_root)
 
     for path in sorted(phases_root.rglob("*.md")):
         if not _is_contract_coverage_artifact(path, layout):

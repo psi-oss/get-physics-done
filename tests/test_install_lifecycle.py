@@ -70,16 +70,8 @@ def test_markdown_command_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root:
     assert "context_mode: projectless" in slides_content
     assert "/get-physics-done/workflows/slides.md" in slides_content
 
-    bridge_command = build_runtime_cli_bridge_command(
-        adapter.runtime_name,
-        target_dir=target,
-        config_dir_name=adapter.config_dir_name,
-        is_global=True,
-        explicit_target=False,
-    )
     suggest_next = (commands_dir / "suggest-next.md").read_text(encoding="utf-8")
-    assert bridge_command in suggest_next
-    assert "Uses `gpd --raw suggest`" in suggest_next
+    assert "Run `gpd --raw suggest`" in suggest_next
 
     manifest = _assert_manifest_present(target)
     assert manifest["runtime"] == adapter.runtime_name

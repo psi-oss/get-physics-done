@@ -122,10 +122,6 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
             "observed.metric_value",
             "observed.threshold_value",
         ],
-        "schema_required_request_anyof_fields": [
-            ["metadata.source_reference_id"],
-            ["contract"],
-        ],
         "optional_request_fields": ["metadata.source_reference_id", "binding.*", "artifact_content"],
         "request_template": {
             "binding": {},
@@ -692,8 +688,8 @@ _CONTRACT_METADATA_INPUT_SCHEMA: dict[str, object] = _object_schema(
         "expected_behavior": _non_empty_string_or_null_schema(),
         "source_reference_id": _non_empty_string_or_null_schema(),
         "declared_family": _non_empty_string_or_null_schema(),
-        "allowed_families": _string_list_schema(),
-        "forbidden_families": _string_list_schema(),
+        "allowed_families": _string_list_or_null_schema(),
+        "forbidden_families": _string_list_or_null_schema(),
         "theorem_parameter_symbols": _string_list_or_null_schema(),
         "hypothesis_ids": _string_list_or_null_schema(),
         "quantifiers": _string_list_or_null_schema(),
@@ -1017,6 +1013,20 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         if field_name not in enriched_hint["optional_request_fields"]:
             enriched_hint["optional_request_fields"].append(field_name)
 
+    def _apply_family_policy_metadata(
+        allowed_families: Iterable[str] | None,
+        forbidden_families: Iterable[str] | None,
+    ) -> None:
+        allowed_family_values = list(allowed_families or [])
+        forbidden_family_values = list(forbidden_families or [])
+        if allowed_family_values:
+            metadata["allowed_families"] = allowed_family_values
+        if forbidden_family_values:
+            metadata["forbidden_families"] = forbidden_family_values
+        if len(allowed_family_values) == 1:
+            metadata["declared_family"] = allowed_family_values[0]
+            _demote_required_field("metadata.declared_family")
+
     if contract is None:
         return enriched_hint
 
@@ -1109,15 +1119,10 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
             enriched_hint["required_request_fields"] = ["binding.forbidden_proxy_ids"]
 
     elif check_key == "contract.fit_family_mismatch":
-        allowed_families = list(contract.approach_policy.allowed_fit_families)
-        forbidden_families = list(contract.approach_policy.forbidden_fit_families)
-        if allowed_families:
-            metadata["allowed_families"] = allowed_families
-        if forbidden_families:
-            metadata["forbidden_families"] = forbidden_families
-        if len(allowed_families) == 1:
-            metadata["declared_family"] = allowed_families[0]
-            _demote_required_field("metadata.declared_family")
+        _apply_family_policy_metadata(
+            contract.approach_policy.allowed_fit_families,
+            contract.approach_policy.forbidden_fit_families,
+        )
         fit_tests = _matching_acceptance_tests(
             contract,
             keywords=("fit", "residual", "extrapolat", "ansatz"),
@@ -1130,15 +1135,10 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         )
 
     elif check_key == "contract.estimator_family_mismatch":
-        allowed_families = list(contract.approach_policy.allowed_estimator_families)
-        forbidden_families = list(contract.approach_policy.forbidden_estimator_families)
-        if allowed_families:
-            metadata["allowed_families"] = allowed_families
-        if forbidden_families:
-            metadata["forbidden_families"] = forbidden_families
-        if len(allowed_families) == 1:
-            metadata["declared_family"] = allowed_families[0]
-            _demote_required_field("metadata.declared_family")
+        _apply_family_policy_metadata(
+            contract.approach_policy.allowed_estimator_families,
+            contract.approach_policy.forbidden_estimator_families,
+        )
         estimator_tests = _matching_acceptance_tests(
             contract,
             keywords=("estimator", "bootstrap", "jackknife", "posterior", "bias", "variance"),
@@ -1417,10 +1417,10 @@ def _normalize_contract_metadata(metadata: dict[str, object]) -> tuple[dict[str,
         "forbidden_families",
     ):
         if key in normalized:
-            error = _validate_string_list_field(normalized[key], field_name=f"metadata.{key}")
+            normalized_value, error = _validate_optional_string_list(normalized[key], field_name=f"metadata.{key}")
             if error is not None:
                 return {}, error
-            normalized[key] = _normalize_string_list(normalized[key])
+            normalized[key] = normalized_value
     for key in (
         "theorem_parameter_symbols",
         "hypothesis_ids",
@@ -3086,11 +3086,6 @@ def _is_authoritative_contract_parse_error(error: str) -> bool:
     return is_authoritative_project_contract_schema_finding(error)
 
 
-def _is_defaultable_singleton_contract_error(error: str) -> bool:
-    del error
-    return False
-
-
 def _recoverable_collection_list_shape_error(error: str, *, contract_raw: dict[str, object]) -> bool:
     if " must be a list, not str" not in error:
         return False
@@ -3168,7 +3163,6 @@ def _is_recoverable_contract_parse_error(error: str, *, contract_raw: dict[str, 
             _recoverable_collection_list_shape_error(error, contract_raw=contract_raw),
             _recoverable_mapping_list_shape_error(error, contract_raw=contract_raw),
             _is_case_drift_contract_parse_error(error),
-            _is_defaultable_singleton_contract_error(error),
         )
     )
 
@@ -3897,8 +3891,8 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 )
                 if error_message is not None:
                     return _error_result(error_message)
-                allowed = {str(item) for item in metadata.get("allowed_families", []) if isinstance(item, str)}
-                forbidden = {str(item) for item in metadata.get("forbidden_families", []) if isinstance(item, str)}
+                allowed = {str(item) for item in (metadata.get("allowed_families") or []) if isinstance(item, str)}
+                forbidden = {str(item) for item in (metadata.get("forbidden_families") or []) if isinstance(item, str)}
                 competing_checked, error = _validate_boolean(
                     observed.get("competing_family_checked"),
                     field_name="observed.competing_family_checked",
@@ -3942,8 +3936,8 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 )
                 if error_message is not None:
                     return _error_result(error_message)
-                allowed = {str(item) for item in metadata.get("allowed_families", []) if isinstance(item, str)}
-                forbidden = {str(item) for item in metadata.get("forbidden_families", []) if isinstance(item, str)}
+                allowed = {str(item) for item in (metadata.get("allowed_families") or []) if isinstance(item, str)}
+                forbidden = {str(item) for item in (metadata.get("forbidden_families") or []) if isinstance(item, str)}
                 bias_checked, error = _validate_boolean(observed.get("bias_checked"), field_name="observed.bias_checked")
                 if error is not None:
                     return error

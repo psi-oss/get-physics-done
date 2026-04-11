@@ -27,7 +27,7 @@ def test_execute_phase_command_stays_thin_and_only_eagerly_loads_the_workflow() 
     assert "@{GPD_INSTALL_DIR}/references/ui/ui-brand.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/templates/summary.md" not in command_text
     assert "@{GPD_INSTALL_DIR}/templates/contract-results-schema.md" not in command_text
-    assert "Read {GPD_INSTALL_DIR}/workflows/execute-phase.md first and follow it exactly." in command_text
+    assert "Follow the included workflow file exactly." in command_text
 
 
 def test_execute_phase_workflow_refreshes_stage_context_in_order() -> None:

@@ -479,6 +479,14 @@ class ProjectLayout:
         return self.gpd / LINEAGE_DIR_NAME
 
     @property
+    def review_dir(self) -> Path:
+        return self.gpd / "review"
+
+    @property
+    def comparisons_dir(self) -> Path:
+        return self.gpd / "comparisons"
+
+    @property
     def observability_sessions_dir(self) -> Path:
         return self.observability_dir / OBSERVABILITY_SESSIONS_DIR_NAME
 

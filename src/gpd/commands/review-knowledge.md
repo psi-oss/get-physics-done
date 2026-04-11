@@ -38,10 +38,6 @@ allowed-tools:
 
 <objective>
 Review a knowledge document and decide whether it can be promoted to stable, needs changes, or should remain under review.
-
-Keep the wrapper thin and let the workflow own target resolution, review artifact writing, freshness checks, and lifecycle updates.
-
-**Why subagent:** Review and promotion decisions burn context fast. Fresh context keeps the orchestrator lean.
 </objective>
 
 <execution_context>
@@ -58,28 +54,9 @@ Review target: $ARGUMENTS
 @GPD/knowledge/
 @GPD/knowledge/reviews/
 
-Resolve the target deterministically from the explicit argument:
-
-- an exact `GPD/knowledge/{knowledge_id}.md` path
-- or a canonical `K-*` knowledge_id that resolves to that path
-
-If the target is ambiguous, the workflow must stop and ask for clarification.
+Target may be an exact `GPD/knowledge/{knowledge_id}.md` path or canonical `K-*` knowledge_id.
 </context>
 
 <process>
-@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
-@{GPD_INSTALL_DIR}/templates/knowledge-schema.md
-@{GPD_INSTALL_DIR}/templates/knowledge.md
-
 Follow `@{GPD_INSTALL_DIR}/workflows/review-knowledge.md` exactly.
 </process>
-
-<success_criteria>
-- [ ] Review target resolved exactly from path or canonical knowledge_id
-- [ ] Review artifact written under `GPD/knowledge/reviews/`
-- [ ] Review metadata records round, reviewer identity, artifact path/hash, reviewed-content hash, and stale handling
-- [ ] `approved` promotes the document to `stable` only when the review is fresh
-- [ ] `needs_changes` and `rejected` keep or mark the document `in_review`
-- [ ] Validation fails closed on ambiguous targets or stale approved evidence
-- [ ] No automatic migration, beginner onboarding exposure, or full supersession orchestration is claimed
-</success_criteria>

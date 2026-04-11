@@ -3243,6 +3243,38 @@ class TestVerificationServer:
         assert result["schema_version"] == 1
         assert result["request_template"]["check_key"] == "contract.benchmark_reproduction"
 
+    def test_run_contract_check_benchmark_anchor_missing_is_insufficient_evidence(self):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        result = run_contract_check(
+            {
+                "check_key": "contract.benchmark_reproduction",
+                "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+            }
+        )
+
+        assert result["status"] == "insufficient_evidence"
+        assert "metadata.source_reference_id" in result["missing_inputs"]
+        assert result["request_guidance"]["schema_required_request_anyof_fields"] == []
+        assert result["request_guidance"]["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
+
+    def test_run_contract_check_accepts_null_family_metadata_lists(self):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        result = run_contract_check(
+            {
+                "check_key": "contract.fit_family_mismatch",
+                "metadata": {
+                    "declared_family": "power_law",
+                    "allowed_families": None,
+                    "forbidden_families": None,
+                },
+                "observed": {"selected_family": "power_law", "competing_family_checked": True},
+            }
+        )
+
+        assert result["status"] == "pass"
+
     def test_run_contract_check_rejects_whitespace_only_limit_metadata(self):
         from gpd.mcp.servers.verification_server import run_contract_check
 
@@ -3365,6 +3397,17 @@ class TestVerificationServer:
         assert result["schema_version"] == 1
         assert result["request_template"]["check_key"] == request_payload["check_key"]
         assert result["schema_required_request_fields"]
+
+    def test_run_contract_check_request_hint_expands_binding_wildcard(self):
+        from gpd.mcp.servers.verification_server import run_contract_check
+
+        result = run_contract_check({"check_key": "contract.benchmark_reproduction"})
+
+        request_guidance = result["request_guidance"]
+        assert "binding.*" not in request_guidance["optional_request_fields"]
+        assert "binding.claim_ids" in request_guidance["optional_request_fields"]
+        assert "binding.reference_ids" in request_guidance["optional_request_fields"]
+        assert "binding.claim_ids" in result["supported_binding_fields"]
 
     def test_run_contract_check_rejects_unknown_nested_contract_fields(self):
         from gpd.mcp.servers.verification_server import run_contract_check

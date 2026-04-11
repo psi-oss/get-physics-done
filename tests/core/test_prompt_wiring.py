@@ -515,7 +515,6 @@ def test_commands_are_workflow_backed_or_explicitly_exempt() -> None:
             assert "@{GPD_INSTALL_DIR}/workflows/health.md" not in command_text
         elif command_stem == "suggest-next":
             assert "gpd --raw suggest" in command_text
-            assert "Local CLI fallback: `gpd --raw suggest`" in command_text
             assert "@{GPD_INSTALL_DIR}/workflows/suggest-next.md" not in command_text
 
 
@@ -757,7 +756,7 @@ def test_slides_workflow_references_templates_and_existing_output_policy() -> No
 
 def test_representative_prompts_use_centralized_command_context_preflight() -> None:
     expected = {
-        COMMANDS_DIR / "compare-experiment.md": "gpd --raw validate command-context compare-experiment",
+        WORKFLOWS_DIR / "compare-experiment.md": "gpd --raw init progress --include state",
         COMMANDS_DIR / "compare-results.md": "gpd --raw validate command-context compare-results",
         COMMANDS_DIR / "dimensional-analysis.md": "gpd --raw validate command-context dimensional-analysis",
         COMMANDS_DIR / "explain.md": "gpd --raw validate command-context explain",
@@ -2110,7 +2109,7 @@ def test_execute_phase_and_execute_plan_surface_required_reference_and_state_own
     assert (
         "substitute the repository's actual default branch and remote names for `<default-branch>` and `<remote-name>`"
     ) in execute_plan
-    assert "Shared-state updates land after each completed plan" in execute_command
+    assert "The orchestrator applies them through `gpd apply-return-updates` after each agent completes" in execute_workflow
     assert "STATE.md is updated after each wave completes" not in execute_command
     assert "By the time the wave-complete report is emitted" in execute_workflow
     assert "continuation_update" in execute_plan

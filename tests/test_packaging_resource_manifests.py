@@ -24,12 +24,11 @@ def test_python_wheel_declares_runtime_markdown_json_tex_resources() -> None:
     hatch_wheel = _pyproject()["tool"]["hatch"]["build"]["targets"]["wheel"]
     artifacts = hatch_wheel["artifacts"]
 
-    assert "src/gpd/agents/*.md" in artifacts
-    assert "src/gpd/commands/*.md" in artifacts
-    assert "src/gpd/specs/**/*.md" in artifacts
-    assert "src/gpd/specs/**/*.json" in artifacts
-    assert "src/gpd/specs/**/*.tex" in artifacts
-    assert "src/gpd/mcp/paper/templates/*/*.tex" in artifacts
+    assert {"src/gpd/agents/*", "src/gpd/agents/**/*"} <= set(artifacts)
+    assert {"src/gpd/commands/*", "src/gpd/commands/**/*"} <= set(artifacts)
+    assert {"src/gpd/hooks/*", "src/gpd/hooks/**/*"} <= set(artifacts)
+    assert {"src/gpd/specs/*", "src/gpd/specs/**/*"} <= set(artifacts)
+    assert "src/gpd/mcp/paper/templates/**/*" in artifacts
     assert "src/gpd/adapters/*.json" in artifacts
     assert "src/gpd/core/*.json" in artifacts
 
@@ -43,6 +42,8 @@ def test_python_wheel_manifest_covers_known_runtime_resource_examples() -> None:
         Path("src/gpd/specs/workflows/plan-phase-stage-manifest.json"),
         Path("src/gpd/specs/templates/slides/main.tex"),
         Path("src/gpd/mcp/paper/templates/prl/prl_template.tex"),
+        Path("src/gpd/hooks/statusline.py"),
+        Path("src/gpd/hooks/check_update.py"),
         Path("src/gpd/adapters/runtime_catalog.json"),
         Path("src/gpd/core/public_surface_contract.json"),
     )

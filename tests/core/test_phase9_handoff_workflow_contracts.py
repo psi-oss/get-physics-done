@@ -28,11 +28,13 @@ def test_planner_template_routes_on_typed_gpd_return_status_not_heading_markers(
 
 def test_plan_phase_command_requires_contract_rules_before_planner_output() -> None:
     command = _read(COMMANDS_DIR / "plan-phase.md")
+    workflow = _read(WORKFLOWS_DIR / "plan-phase.md")
 
-    assert "hard validation rules must be model-visible before any planner authors PLAN output" in command
-    assert "must include the schema-critical excerpt, not merely a template path" in command
-    assert "post-hoc schema discovery" in command
+    assert "@{GPD_INSTALL_DIR}/workflows/plan-phase.md" in command
+    assert "model-visible PLAN contract schema-critical excerpt" in workflow
+    assert "not merely a path reference" in workflow
     assert "enforced later" not in command
+    assert "enforced later" not in workflow
 
 
 def test_planner_template_keeps_schema_critical_excerpt_model_visible() -> None:

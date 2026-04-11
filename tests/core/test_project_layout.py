@@ -32,6 +32,8 @@ def test_project_layout_file_properties(attribute: str, filename: str, tmp_path:
         ("phases_dir", "phases"),
         ("literature_dir", "literature"),
         ("knowledge_dir", "knowledge"),
+        ("review_dir", "review"),
+        ("comparisons_dir", "comparisons"),
         ("research_map_dir", "research-map"),
         ("scratch_dir", "tmp"),
     ],

@@ -11,6 +11,7 @@ from pathlib import Path
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.contracts import PROOF_AUDIT_REVIEWER, statement_looks_theorem_like
+from gpd.core.constants import ProjectLayout
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter
 from gpd.core.manuscript_artifacts import resolve_current_manuscript_entrypoint
 from gpd.core.publication_review_paths import resolve_review_manuscript_path, review_artifact_round
@@ -169,7 +170,7 @@ def manuscript_has_theorem_bearing_claim_inventory(
     if entrypoint is None:
         return False
 
-    review_dir = project_root / "GPD" / "review"
+    review_dir = ProjectLayout(project_root).review_dir
     if not review_dir.exists():
         return False
 
@@ -346,7 +347,7 @@ def resolve_manuscript_proof_review_status(
         _resolve_review_artifacts(project_root, review_anchor.proof_artifact_paths),
     )
     if review_anchor.proof_bearing:
-        proof_redteam_path = project_root / "GPD" / "review" / f"PROOF-REDTEAM{review_anchor.round_suffix}.md"
+        proof_redteam_path = ProjectLayout(project_root).review_dir / f"PROOF-REDTEAM{review_anchor.round_suffix}.md"
         watched_files = _with_extra_watched_files(watched_files, proof_redteam_path)
         if not proof_redteam_path.exists():
             return ProofReviewStatus(
@@ -609,7 +610,7 @@ def _with_extra_watched_files(*groups: tuple[Path, ...] | Path) -> tuple[Path, .
 
 
 def _latest_matching_math_review_anchor(project_root: Path, manuscript_entrypoint: Path) -> _MathReviewAnchor | None:
-    review_dir = project_root / "GPD" / "review"
+    review_dir = ProjectLayout(project_root).review_dir
     if not review_dir.exists():
         return None
 

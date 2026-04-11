@@ -1900,9 +1900,10 @@ _install_logger = logging.getLogger(__name__)
 def validate_package_integrity(gpd_root: Path) -> None:
     """Validate that the GPD package data directory contains required subdirs.
 
-    Raises ``FileNotFoundError`` if commands/, agents/, hooks/, or specs/ are missing.
+    Raises ``FileNotFoundError`` if required bundled content directories are missing.
     """
-    for required in ("commands", "agents", "hooks", "specs"):
+    required_dirs = ("commands", "agents", "hooks", "specs", *(f"specs/{name}" for name in GPD_CONTENT_DIRS))
+    for required in required_dirs:
         if not (gpd_root / required).is_dir():
             raise FileNotFoundError(
                 "Package integrity check failed: "

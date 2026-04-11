@@ -23,9 +23,9 @@ from gpd.core.health import run_health
 from gpd.core.observability import gpd_span
 from gpd.core.phases import progress_render
 from gpd.core.state import (
-    state_project_contract_runtime_payload,
     peek_state_json,
     state_advance_plan,
+    state_project_contract_runtime_payload,
     state_validate,
 )
 from gpd.core.utils import is_phase_complete

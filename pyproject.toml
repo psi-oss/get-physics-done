@@ -71,13 +71,16 @@ build-backend = "hatchling.build"
 packages = ["src/gpd"]
 artifacts = [
     "src/gpd/adapters/*.json",
-    "src/gpd/agents/*.md",
-    "src/gpd/commands/*.md",
     "src/gpd/core/*.json",
-    "src/gpd/mcp/paper/templates/*/*.tex",
-    "src/gpd/specs/**/*.json",
-    "src/gpd/specs/**/*.md",
-    "src/gpd/specs/**/*.tex",
+    "src/gpd/agents/*",
+    "src/gpd/agents/**/*",
+    "src/gpd/commands/*",
+    "src/gpd/commands/**/*",
+    "src/gpd/hooks/*",
+    "src/gpd/hooks/**/*",
+    "src/gpd/mcp/paper/templates/**/*",
+    "src/gpd/specs/*",
+    "src/gpd/specs/**/*",
 ]
 
 [tool.hatch.build.targets.wheel.force-include]

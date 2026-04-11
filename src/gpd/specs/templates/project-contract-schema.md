@@ -166,7 +166,7 @@ Project contracts must include at least one observable, claim, or deliverable.
 
 If `references[]` is present before approval and grounding is not already concrete, at least one reference must set `must_surface: true`.
 
-Every `must_surface: true` reference needs a concrete `locator` and concrete `applies_to[]` coverage of declared claim or deliverable IDs. Project-local paths in `locator` or `applies_to[]` evidence must resolve when `project_root` is available.
+Every `must_surface: true` reference needs a concrete `locator` and concrete `applies_to[]` coverage of declared claim or deliverable IDs. Project-local paths in `locator` or `applies_to[]` evidence require project-root-aware validation: they must resolve inside `project_root` when it is available, and validation cannot prove artifact grounding without that resolved project context.
 
 `uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty.
 

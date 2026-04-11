@@ -27,6 +27,7 @@ from gpd import registry
 from gpd.adapters import get_adapter, iter_runtime_descriptors
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.install_utils import (
+    GPD_CONTENT_DIRS,
     MANIFEST_NAME,
     expand_at_includes,
     validate_package_integrity,
@@ -231,9 +232,19 @@ class TestInstallCorruptedPackage:
         with pytest.raises(FileNotFoundError, match="specs"):
             validate_package_integrity(root)
 
+    def test_missing_specs_content_child_dir(self, tmp_path: Path) -> None:
+        root = tmp_path / "broken"
+        for d in ("commands", "agents", "hooks", "specs"):
+            (root / d).mkdir(parents=True)
+        for d in GPD_CONTENT_DIRS[1:]:
+            (root / "specs" / d).mkdir(parents=True)
+
+        with pytest.raises(FileNotFoundError, match=f"specs/{GPD_CONTENT_DIRS[0]}"):
+            validate_package_integrity(root)
+
     def test_all_dirs_present_passes(self, tmp_path: Path) -> None:
         root = tmp_path / "valid"
-        for d in ("commands", "agents", "hooks", "specs"):
+        for d in ("commands", "agents", "hooks", "specs", *(f"specs/{name}" for name in GPD_CONTENT_DIRS)):
             (root / d).mkdir(parents=True)
         # Should not raise
         validate_package_integrity(root)
@@ -913,11 +924,15 @@ class TestRegistryInvalidYaml:
 class TestExpandAtIncludesCircular:
     """Test circular include detection with 3-file cycle: A→B→C→A."""
 
+    def _include_path(self, tmp_path: Path, filename: str) -> str:
+        return f"{tmp_path}/{get_adapter(_PROBE_RUNTIME).config_dir_name}/get-physics-done/{filename}"
+
     def _make_src(self, tmp_path: Path, files: dict[str, str]) -> Path:
         gpd_dir = tmp_path / "get-physics-done"
-        gpd_dir.mkdir(parents=True, exist_ok=True)
+        source_dir = gpd_dir / "specs"
+        source_dir.mkdir(parents=True, exist_ok=True)
         for rel, content in files.items():
-            p = gpd_dir / rel
+            p = source_dir / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(content, encoding="utf-8")
         return gpd_dir
@@ -927,12 +942,12 @@ class TestExpandAtIncludesCircular:
         gpd_dir = self._make_src(
             tmp_path,
             {
-                "a.md": f"alpha\n@{tmp_path}/get-physics-done/b.md",
-                "b.md": f"beta\n@{tmp_path}/get-physics-done/c.md",
-                "c.md": f"gamma\n@{tmp_path}/get-physics-done/a.md",
+                "a.md": f"alpha\n@{self._include_path(tmp_path, 'b.md')}",
+                "b.md": f"beta\n@{self._include_path(tmp_path, 'c.md')}",
+                "c.md": f"gamma\n@{self._include_path(tmp_path, 'a.md')}",
             },
         )
-        content = f"@{tmp_path}/get-physics-done/a.md"
+        content = f"@{self._include_path(tmp_path, 'a.md')}"
         result = expand_at_includes(content, str(gpd_dir), "~/.test/")
 
         assert "alpha" in result
@@ -946,11 +961,11 @@ class TestExpandAtIncludesCircular:
             tmp_path,
             {
                 "d.md": "diamond-leaf",
-                "b.md": f"branch-b\n@{tmp_path}/get-physics-done/d.md",
-                "c.md": f"branch-c\n@{tmp_path}/get-physics-done/d.md",
+                "b.md": f"branch-b\n@{self._include_path(tmp_path, 'd.md')}",
+                "c.md": f"branch-c\n@{self._include_path(tmp_path, 'd.md')}",
             },
         )
-        content = f"@{tmp_path}/get-physics-done/b.md\n@{tmp_path}/get-physics-done/c.md"
+        content = f"@{self._include_path(tmp_path, 'b.md')}\n@{self._include_path(tmp_path, 'c.md')}"
         result = expand_at_includes(content, str(gpd_dir), "~/.test/")
 
         assert "branch-b" in result
@@ -966,10 +981,10 @@ class TestExpandAtIncludesCircular:
         """Include of a file with encoding errors produces an error comment."""
         gpd_dir = self._make_src(tmp_path, {})
         # Write a binary file that's not valid UTF-8
-        bad_file = tmp_path / "get-physics-done" / "binary.md"
+        bad_file = tmp_path / "get-physics-done" / "specs" / "binary.md"
         bad_file.write_bytes(b"\xff\xfe\x00\x01 invalid utf8")
 
-        content = f"@{tmp_path}/get-physics-done/binary.md"
+        content = f"@{self._include_path(tmp_path, 'binary.md')}"
         result = expand_at_includes(content, str(gpd_dir), "~/.test/")
         assert "include read error" in result
 
@@ -978,11 +993,11 @@ class TestExpandAtIncludesCircular:
         gpd_dir = self._make_src(
             tmp_path,
             {
-                "deep.md": f"deep-content\n@{tmp_path}/get-physics-done/deeper.md",
+                "deep.md": f"deep-content\n@{self._include_path(tmp_path, 'deeper.md')}",
                 "deeper.md": "should-not-expand",
             },
         )
-        content = f"@{tmp_path}/get-physics-done/deep.md"
+        content = f"@{self._include_path(tmp_path, 'deep.md')}"
         # depth=9 means deep.md expands at depth=10, but deeper.md at depth=10
         # hits the "depth == MAX" check inside expand_at_includes
         result = expand_at_includes(content, str(gpd_dir), "~/.test/", depth=9)

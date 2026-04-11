@@ -97,8 +97,25 @@ def test_research_verification_template_keeps_contract_results_and_scalar_exampl
 
     assert "evidence:\n        - verifier: gpd-verifier" in research_verification
     assert "Legacy frontmatter aliases are forbidden in model-facing output" in research_verification
+    assert "Before generating the report, make the strict `contract_results` requirements visible" in research_verification
+    assert "fill every required ledger bucket" in research_verification
     for legacy_alias in ("must_haves", "verification_inputs", "contract_evidence", "independently_confirmed"):
         assert legacy_alias not in research_verification
+
+
+def test_research_verification_template_requires_transforming_raw_contract_check_suggestions() -> None:
+    research_verification = _read("src/gpd/specs/templates/research-verification.md")
+
+    assert "Raw `suggest_contract_checks(contract)` output is verifier-tool metadata" in research_verification
+    assert "transform it before writing projected report schemas" in research_verification
+    assert "copying returned `check_key` into `check` and dropping unsupported keys" in research_verification
+
+
+def test_project_contract_schema_explains_project_root_dependent_grounding() -> None:
+    project_contract_schema = _read("src/gpd/specs/templates/project-contract-schema.md")
+
+    assert "Project-local paths in `locator` or `applies_to[]` evidence require project-root-aware validation" in project_contract_schema
+    assert "validation cannot prove artifact grounding without that resolved project context" in project_contract_schema
 
 
 def test_summary_template_keeps_reference_action_ledger_and_legacy_alias_note() -> None:

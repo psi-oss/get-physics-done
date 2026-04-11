@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
+from gpd.core.constants import ProjectLayout
 from gpd.core.frontmatter import extract_frontmatter
 from gpd.core.knowledge_docs import KnowledgeReviewRecord, KnowledgeSourceRecord, parse_knowledge_doc_data_strict
 from gpd.core.small_utils import relative_posix_path
@@ -47,8 +48,6 @@ def _canonical_knowledge_id(value: object) -> str | None:
 
 
 def _canonical_knowledge_path(project_root: Path, knowledge_id: str) -> str:
-    from gpd.core.constants import ProjectLayout
-
     layout = ProjectLayout(project_root)
     return relative_posix_path(project_root, layout.knowledge_dir / f"{knowledge_id}.md")
 
@@ -442,7 +441,7 @@ def discover_knowledge_migration(project_root: Path) -> KnowledgeDocMigrationInv
     """Discover all knowledge docs and classify them for dry-run migration."""
 
     layout_root = project_root.resolve(strict=False)
-    knowledge_dir = layout_root / "GPD" / "knowledge"
+    knowledge_dir = ProjectLayout(layout_root).knowledge_dir
     inventory = KnowledgeDocMigrationInventory()
     if not knowledge_dir.is_dir():
         return inventory

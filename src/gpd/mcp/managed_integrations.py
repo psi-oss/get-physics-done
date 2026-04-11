@@ -203,7 +203,26 @@ class ManagedIntegrationDescriptor:
         env: Mapping[str, str] | None = None,
         cwd: Path | None = None,
     ) -> dict[str, object]:
-        record = self.project_record(cwd)
+        endpoint_error = None
+        projected_environment_error = None
+        try:
+            record = self.project_record(cwd)
+            enabled = self.project_enabled(cwd)
+        except RuntimeError as exc:
+            record = None
+            enabled = False
+            projected_environment_error = str(exc)
+        try:
+            endpoint = self.resolved_endpoint(env, cwd=cwd)
+        except RuntimeError as exc:
+            endpoint = None
+            endpoint_error = str(exc)
+        try:
+            projected_environment = self.projected_environment(env, cwd=cwd)
+        except RuntimeError as exc:
+            projected_environment = {}
+            projected_environment_error = str(exc)
+        configured = False if endpoint_error or projected_environment_error or not enabled else self.api_key_present(env)
         return {
             "integration_id": self.integration_id,
             "managed_server_key": self.managed_server_key,
@@ -211,11 +230,13 @@ class ManagedIntegrationDescriptor:
             "api_key_env_var": self.api_key_env_var,
             "api_key_env_vars": list(self.api_key_env_vars),
             "endpoint_env_var": self.endpoint_env_var,
-            "endpoint": self.resolved_endpoint(env, cwd=cwd),
-            "projected_environment": self.projected_environment(env, cwd=cwd),
+            "endpoint": endpoint,
+            "endpoint_error": endpoint_error,
+            "projected_environment": projected_environment,
+            "projected_environment_error": projected_environment_error,
             "project_configured": record is not None,
-            "enabled": self.project_enabled(cwd),
-            "configured": self.is_configured(env, cwd=cwd),
+            "enabled": enabled,
+            "configured": configured,
         }
 
 
