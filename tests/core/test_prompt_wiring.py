@@ -439,6 +439,17 @@ def test_executor_prompt_defaults_to_return_only_shared_state_updates() -> None:
     assert "continuation_update:" in executor_completion
 
 
+def test_executor_prompt_uses_canonical_completion_schema_not_inline_copy() -> None:
+    executor = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
+    completion_section = executor[executor.index("### Completion Return Format") :]
+
+    assert "Append the structured YAML return envelope from `executor-completion.md`" in completion_section
+    assert "do not reconstruct the full schema from memory" in completion_section
+    assert "files_written: [list of file paths created or modified]" not in completion_section
+    assert "tasks_completed: N" not in completion_section
+    assert "contract_updates:" not in completion_section
+
+
 def test_referee_prompt_no_longer_claims_read_only_artifact_policy() -> None:
     referee = (AGENTS_DIR / "gpd-referee.md").read_text(encoding="utf-8")
 

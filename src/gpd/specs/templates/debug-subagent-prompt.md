@@ -82,25 +82,7 @@ goal: {find_root_cause_only | find_and_fix}
 
 ## Usage
 
-**From gpd:debug:**
-
-```python
-task(
-  prompt=filled_template,
-  subagent_type="gpd-debugger",
-  description="Debug {slug}"
-  # model parameter from profile tier — omit on single-model platforms
-)
-```
-
-**From debug (validation):**
-
-```python
-task(prompt=template, subagent_type="gpd-debugger", description="Debug VAL-001")
-# model parameter from profile tier — omit on single-model platforms
-```
-
-## <!-- task() subagent_type and model parameters are runtime-specific; the installer adapts them to the target platform's delegation mechanism. -->
+Delegate to `gpd-debugger` with a filled prompt and a short description such as `Debug {slug}` or `Debug VAL-001`. Runtime-specific adapters choose the concrete delegation call shape and model argument policy.
 
 ## Systematic Physics Debugging Strategy
 

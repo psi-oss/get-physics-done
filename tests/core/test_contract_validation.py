@@ -679,7 +679,7 @@ def test_parse_project_contract_data_salvage_reports_recoverable_findings() -> N
 
     assert result.contract is not None
     assert result.blocking_errors == []
-    assert "scope.legacy_notes: Extra inputs are not permitted" in result.recoverable_errors
+    assert any(error.startswith("scope.legacy_notes: Extra inputs are not permitted") for error in result.recoverable_errors)
     assert result.errors == result.recoverable_errors
 
 
@@ -855,7 +855,8 @@ def test_parse_project_contract_data_salvage_preserves_contract_with_top_level_e
 
     assert result.contract is not None
     assert result.blocking_errors == []
-    assert result.recoverable_errors == ["legacy_notes: Extra inputs are not permitted"]
+    assert len(result.recoverable_errors) == 1
+    assert result.recoverable_errors[0].startswith("legacy_notes: Extra inputs are not permitted")
     assert "legacy_notes" not in result.contract.model_dump()
 
 
@@ -922,7 +923,8 @@ def test_parse_project_contract_data_strict_rejects_recoverable_nested_extra_key
     result: ProjectContractParseResult = parse_project_contract_data_strict(contract)
 
     assert result.contract is None
-    assert result.errors == ["scope.legacy_notes: Extra inputs are not permitted"]
+    assert len(result.errors) == 1
+    assert result.errors[0].startswith("scope.legacy_notes: Extra inputs are not permitted")
 
 
 def test_parse_project_contract_data_strict_rejects_missing_schema_version() -> None:
@@ -963,6 +965,32 @@ def test_validate_project_contract_rejects_missing_decisive_targets_and_skeptici
     assert "project contract must include at least one observable, claim, or deliverable" in result.errors
     assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.errors
     assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.errors
+
+
+def test_validate_project_contract_rejects_scalar_list_drift_without_silent_salvage() -> None:
+    contract = _load_contract_fixture()
+    contract["context_intake"]["must_read_refs"] = "ref-main"
+
+    result = validate_project_contract(contract, mode="approved")
+    salvage_result = parse_project_contract_data_salvage(contract)
+
+    assert result.valid is False
+    assert "context_intake.must_read_refs must be a list, not str" in result.errors
+    assert salvage_result.contract is not None
+    assert "context_intake.must_read_refs must be a list, not str" in salvage_result.recoverable_errors
+
+
+def test_validate_project_contract_rejects_extra_fields_without_silent_salvage() -> None:
+    contract = _load_contract_fixture()
+    contract["scope"]["legacy_notes"] = "legacy drift"
+
+    result = validate_project_contract(contract, mode="approved")
+    salvage_result = parse_project_contract_data_salvage(contract)
+
+    assert result.valid is False
+    assert any(error.startswith("scope.legacy_notes: Extra inputs are not permitted") for error in result.errors)
+    assert salvage_result.contract is not None
+    assert any(error.startswith("scope.legacy_notes: Extra inputs are not permitted") for error in salvage_result.recoverable_errors)
 
 
 def test_validate_project_contract_warns_when_user_guidance_signals_are_missing() -> None:
@@ -2219,7 +2247,7 @@ def test_validate_project_contract_salvages_singleton_list_string_drift_at_valid
     contract["references"][0]["required_actions"] = ["Read", "Compare", "Cite"]
 
     parsed = ResearchContract.model_validate(contract)
-    result = validate_project_contract(contract, mode="approved")
+    result = validate_project_contract(contract)
 
     assert parsed.context_intake.must_include_prior_outputs == ["GPD/phases/00-baseline/00-01-SUMMARY.md"]
     assert parsed.references[0].role == "benchmark"
@@ -2473,7 +2501,7 @@ def test_validate_project_contract_rejects_extra_item_keys_without_dropping_sema
     result = validate_project_contract(contract)
 
     assert result.valid is True
-    assert "claims.0.notes: Extra inputs are not permitted" in result.warnings
+    assert any(error.startswith("claims.0.notes: Extra inputs are not permitted") for error in result.warnings)
 
 
 def test_validate_project_contract_rejects_top_level_extra_keys() -> None:
@@ -2483,7 +2511,7 @@ def test_validate_project_contract_rejects_top_level_extra_keys() -> None:
     result = validate_project_contract(contract)
 
     assert result.valid is True
-    assert "legacy_notes: Extra inputs are not permitted" in result.warnings
+    assert any(error.startswith("legacy_notes: Extra inputs are not permitted") for error in result.warnings)
 
 
 def test_validate_project_contract_ignores_nested_metadata_must_surface_without_false_boolean_error() -> None:
@@ -2493,7 +2521,7 @@ def test_validate_project_contract_ignores_nested_metadata_must_surface_without_
     result = validate_project_contract(contract)
 
     assert result.valid is True
-    assert "references.0.metadata: Extra inputs are not permitted" in result.warnings
+    assert any(error.startswith("references.0.metadata: Extra inputs are not permitted") for error in result.warnings)
     assert not any(
         "references.0.metadata.must_surface must be a boolean" in issue for issue in result.errors + result.warnings
     )
@@ -2635,7 +2663,7 @@ def test_validate_project_contract_preserves_recoverable_warnings_when_normaliza
     assert result.valid is False
     assert result.mode == "approved"
     assert "context_intake is required" in result.errors
-    assert "legacy_notes: Extra inputs are not permitted" in result.warnings
+    assert any(error.startswith("legacy_notes: Extra inputs are not permitted") for error in result.warnings)
 
 
 @pytest.mark.parametrize(

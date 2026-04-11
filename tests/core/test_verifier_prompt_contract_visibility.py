@@ -111,6 +111,18 @@ def test_verifier_prompt_reloads_the_canonical_schema_files_once() -> None:
     assert "from Step 2" not in verifier
 
 
+def test_verifier_prompt_names_schema_files_near_reload_instruction() -> None:
+    verifier = _read_verifier_prompt()
+    schema_list_index = verifier.index("Immediately before writing or validating `VERIFICATION.md`")
+    reload_index = verifier.index("Immediately before writing frontmatter")
+    reload_window = verifier[schema_list_index : reload_index + 180]
+
+    assert "templates/verification-report.md" in reload_window
+    assert "templates/contract-results-schema.md" in reload_window
+    assert "references/shared/canonical-schema-discipline.md" in reload_window
+    assert "schema paths from the on-demand schema list above" in reload_window
+
+
 def test_verifier_prompt_surfaces_schema_sources_before_the_verification_writer_section() -> None:
     verifier = _read_verifier_prompt()
     create_verification_section = verifier.index("## Create VERIFICATION.md")

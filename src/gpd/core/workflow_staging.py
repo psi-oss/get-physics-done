@@ -1195,7 +1195,8 @@ def _validate_stage(
     if unknown_keys:
         raise ValueError(f"stages[{index}] contains unexpected key(s): {', '.join(unknown_keys)}")
 
-    missing_keys = sorted(key for key in _ALLOWED_STAGE_KEYS if key not in raw)
+    required_stage_keys = _ALLOWED_STAGE_KEYS - {"checkpoints"}
+    missing_keys = sorted(key for key in required_stage_keys if key not in raw)
     if missing_keys:
         raise ValueError(f"stages[{index}] is missing required key(s): {', '.join(missing_keys)}")
 

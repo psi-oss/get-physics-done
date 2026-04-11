@@ -123,6 +123,18 @@ def test_ci_workflow_runs_fast_release_package_smoke_lane_before_full_shards() -
     )
 
 
+def test_publish_release_runs_release_workflow_inside_uv_environment() -> None:
+    workflow_text = (REPO_ROOT / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
+    invocations = [
+        line.strip()
+        for line in workflow_text.splitlines()
+        if "scripts/release_workflow.py" in line and not line.lstrip().startswith("#")
+    ]
+
+    assert invocations
+    assert all("uv run python scripts/release_workflow.py" in invocation for invocation in invocations)
+
+
 def test_tests_readme_documents_default_full_suite_and_category_named_runtime_informed_ci_shards() -> None:
     tests_readme = (REPO_ROOT / "tests" / "README.md").read_text(encoding="utf-8")
 
@@ -131,6 +143,9 @@ def test_tests_readme_documents_default_full_suite_and_category_named_runtime_in
     assert "Install `pytest-xdist` to opt into parallel runs" in tests_readme
     assert "raises xdist auto-worker selection toward the current CI shard fanout" in tests_readme
     assert "use `uv run pytest -n auto --dist=worksteal`" in tests_readme
+    assert "focused local contract-visibility smoke pass" in tests_readme
+    assert "separate CI release/package smoke lane stays under 3 minutes" in tests_readme
+    assert "uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/adapters/test_runtime_catalog.py" in tests_readme
     assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
     assert "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`" in tests_readme
     assert "boosts root modules that have been slow on GitHub Actions" in tests_readme

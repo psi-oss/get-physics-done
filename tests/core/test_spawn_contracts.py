@@ -608,3 +608,12 @@ def test_debug_subagent_template_continuations_use_explicit_file_reads() -> None
 
     assert "Read the file at GPD/debug/{slug}.md" in content
     assert "@GPD/debug/{slug}.md" not in content
+
+
+def test_debug_subagent_template_keeps_delegation_runtime_neutral() -> None:
+    content = _read(TEMPLATES_DIR / "debug-subagent-prompt.md")
+
+    assert "Delegate to `gpd-debugger`" in content
+    assert "Runtime-specific adapters choose the concrete delegation call shape" in content
+    assert "task(" not in content
+    assert "subagent_type" not in content

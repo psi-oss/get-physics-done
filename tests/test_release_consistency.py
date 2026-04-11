@@ -8,10 +8,12 @@ import re
 import shutil
 import subprocess
 import tomllib
+from importlib import import_module, resources
 from pathlib import Path
 
 import pytest
 
+from gpd.adapters.install_utils import HOOK_SCRIPTS, bundled_hook_relpaths
 from gpd.adapters.runtime_catalog import get_shared_install_metadata
 from scripts.release_workflow import (
     ReleaseError,
@@ -333,6 +335,27 @@ def test_public_cli_surface_is_unified() -> None:
     assert 'gpd = "gpd.cli:entrypoint"' in script_lines
     assert all(name == "gpd" or name.startswith("gpd-mcp-") for name in script_names)
     assert sorted(path.name for path in (repo_root / "src" / "gpd").glob("cli*.py")) == ["cli.py"]
+
+
+def test_project_script_targets_are_importable() -> None:
+    repo_root = _repo_root()
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+
+    for script_name, target in pyproject["project"]["scripts"].items():
+        module_name, separator, attribute_name = target.partition(":")
+        assert separator == ":", f"{script_name} must use module:attribute syntax"
+        assert getattr(import_module(module_name), attribute_name, None) is not None
+
+
+def test_packaged_resource_directories_and_hooks_are_importable() -> None:
+    required_resource_dirs = ("agents", "commands", "specs")
+    for resource_dir in required_resource_dirs:
+        assert resources.files("gpd").joinpath(resource_dir).is_dir()
+
+    hook_modules = {path.removesuffix(".py") for path in HOOK_SCRIPTS.values()}
+    assert {path.rsplit("/", 1)[-1].removesuffix(".py") for path in bundled_hook_relpaths()} >= hook_modules
+    for module_name in hook_modules:
+        assert import_module(f"gpd.hooks.{module_name}") is not None
 
 
 def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:

@@ -1069,51 +1069,7 @@ gpd commit \
 - {hash}: {message}
 ```
 
-Append the structured YAML return envelope defined in `executor-completion.md`:
-
-```yaml
-gpd_return:
-  status: completed | checkpoint | blocked | failed
-  files_written: [list of file paths created or modified]
-  issues: [list of issues encountered, if any]
-  next_actions: [list of recommended follow-up actions]
-  phase: "{phase}"
-  plan: "{plan}"
-  tasks_completed: N
-  tasks_total: M
-  duration_seconds: NNN
-```
-
-If the workflow asks for execution handoff or plan continuity, extend the same top-level envelope with:
-
-```yaml
-gpd_return:
-  state_updates:
-    advance_plan: true
-    update_progress: true
-    record_metric:
-      phase: "{phase}"
-      plan: "{plan}"
-      duration: NNN
-      tasks: N
-      files: N
-  contract_updates:
-    claim_id: { ... }
-    deliverable_id: { ... }
-  decisions:
-    - summary: "{decision summary}"
-      phase: "{phase}"
-  blockers:
-    - text: "{blocker text}"
-  continuation_update:
-    handoff:
-      recorded_at: "{timestamp}"
-      recorded_by: "gpd-executor"
-      stopped_at: "Completed {phase}-{plan}-PLAN.md"
-      resume_file: null
-      last_result_id: null
-    bounded_segment: null
-```
+Append the structured YAML return envelope from `executor-completion.md`, including optional `state_updates`, `contract_updates`, `decisions`, `blockers`, and `continuation_update` only when that canonical file or the invoking workflow requires them. If that file cannot be read, fail closed with only `gpd_return.status`, `files_written`, `issues`, and `next_actions`; do not reconstruct the full schema from memory.
 
 Keep these keys in the same `gpd_return` object. Do not invent a second return object.
 

@@ -3041,7 +3041,7 @@ def init_plan_phase(
 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(cwd))
-    elif needs_contract_gate_context:
+    if needs_contract_gate_context:
         staged_source.update(_build_new_project_contract_runtime_context(cwd))
 
     if required_fields & _PLAN_PHASE_STATE_MEMORY_FIELDS:
@@ -3225,7 +3225,7 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(cwd))
-    elif needs_contract_gate_context:
+    if needs_contract_gate_context:
         staged_source.update(_build_new_project_contract_runtime_context(cwd))
 
     if required_fields & _NEW_MILESTONE_STATE_MEMORY_FIELDS:
@@ -3496,7 +3496,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(effective_cwd))
-    elif needs_contract_gate_context:
+    if needs_contract_gate_context:
         staged_source.update(_build_new_project_contract_runtime_context(effective_cwd))
 
     if required_fields & _RESUME_STRUCTURED_STATE_FIELDS:
@@ -3661,7 +3661,7 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(cwd))
-    elif needs_contract_gate_context:
+    if needs_contract_gate_context:
         staged_source.update(_build_new_project_contract_runtime_context(cwd))
 
     if required_fields & _VERIFY_WORK_STRUCTURED_STATE_FIELDS:
@@ -3718,7 +3718,7 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(cwd))
-    elif needs_bootstrap_reference_context or needs_contract_gate_context:
+    if needs_bootstrap_reference_context or needs_contract_gate_context:
         staged_source.update(_build_publication_bootstrap_runtime_context(cwd))
 
     if required_fields & _WRITE_PAPER_STATE_MEMORY_FIELDS:
@@ -3777,10 +3777,8 @@ def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
 
     required_fields = set(stage_def.required_init_fields)
     staged_source = dict(base_result)
-    if required_fields & _PEER_REVIEW_REFERENCE_RUNTIME_FIELDS:
-        staged_source.update(_build_reference_runtime_context(cwd))
-    if required_fields & _PEER_REVIEW_PUBLICATION_RUNTIME_FIELDS:
-        staged_source.update(_build_publication_runtime_snapshot_context(cwd))
+    if required_fields & (_PEER_REVIEW_REFERENCE_RUNTIME_FIELDS | _PEER_REVIEW_PUBLICATION_RUNTIME_FIELDS):
+        staged_source.update(_build_peer_review_runtime_context(cwd))
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:

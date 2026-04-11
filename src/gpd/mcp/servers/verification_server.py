@@ -1163,12 +1163,6 @@ def _run_contract_request_requirement_condition_schema(check_key: str, hint: dic
     if not identifiers:
         return None
 
-    # Runtime validation below returns check-specific missing_inputs plus the same
-    # template-backed guidance exposed by suggest_contract_checks(). Keeping the
-    # transport schema focused on the stable request envelope prevents brittle
-    # pre-dispatch failures that cannot include that actionable guidance.
-    return None
-
     required_fields = list(hint.get("schema_required_request_fields", hint.get("required_request_fields", [])))
     anyof_groups = [
         [field for field in group if isinstance(field, str) and field]
