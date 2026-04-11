@@ -52,10 +52,10 @@ def ordered_update_cache_candidates(
     preferred_runtime: str | None = None,
 ) -> list[object]:
     """Return update-cache candidates in the shared precedence order."""
+    from gpd.adapters.runtime_catalog import normalize_runtime_name
     from gpd.hooks.runtime_detect import (
         RUNTIME_UNKNOWN,
         get_update_cache_candidates,
-        normalize_runtime_name,
         should_consider_update_cache_candidate,
         supported_runtime_names,
     )

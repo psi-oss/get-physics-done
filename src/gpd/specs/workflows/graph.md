@@ -221,7 +221,7 @@ gpd commit "docs: generate dependency graph" --files GPD/DEPENDENCY-GRAPH.md
 ───────────────────────────────────────────────────────────────
 
 **Also available:**
-- `gpd:show-phase <N>` -- inspect a specific phase in detail
+- `gpd --raw init phase-op <N>` -- inspect a specific phase in detail
 - `gpd:plan-phase <N>` -- plan an unstarted phase
 - `gpd:progress` -- overall research progress
 

@@ -122,6 +122,8 @@ class FrontmatterValidationError(GPDError, ValueError):
 _FRONTMATTER_RE = re.compile(r"^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)")
 _EMPTY_FRONTMATTER_RE = re.compile(r"^---[ \t]*\r?\n---[ \t]*(?:\r?\n|$)")
 _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = re.compile(r"^(?:[ \t]*\r?\n)+(?=---[ \t]*\r?\n)")
+FRONTMATTER_DELIMITER_RE = re.compile(r"^---[ \t]*(?:\r?\n)?$")
+LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE
 
 # Matches the full frontmatter block (including empty) for replacement operations.
 # Uses a lookahead so the trailing newline is preserved for the caller to reattach.

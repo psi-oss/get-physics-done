@@ -41,7 +41,7 @@ find_files: GPD/phases/*/*SUMMARY.md
 
 Use canonical phase helpers for verification artifacts:
 - `gpd phase list`
-- `gpd show-phase <phase-number>`
+- `gpd --raw init phase-op <phase-number>`
 - Do not preload raw `*-VERIFICATION.md` globs here.
 </context>
 

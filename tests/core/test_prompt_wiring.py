@@ -399,7 +399,7 @@ def test_executor_completion_examples_use_command_based_next_actions() -> None:
     completion = (REFERENCES_DIR / "execution" / "executor-completion.md").read_text(encoding="utf-8")
 
     assert '"gpd:execute-phase {phase}"' in completion
-    assert '"gpd:show-phase {phase}"' in completion
+    assert '"gpd --raw init phase-op {phase}"' in completion
     assert "gpd state validate" in completion
     assert "gpd:sync-state" in completion
     assert "file_edit tool" not in completion
@@ -1578,7 +1578,7 @@ def test_audit_milestone_uses_canonical_phase_helpers_instead_of_raw_glob_discov
     audit = (WORKFLOWS_DIR / "audit-milestone.md").read_text(encoding="utf-8")
 
     assert "gpd phase list" in audit
-    assert "gpd show-phase <phase-number>" in audit
+    assert "gpd --raw init phase-op <phase-number>" in audit
     assert "`find_files` `GPD/phases/*/*-VERIFICATION.md` by hand" in audit
     assert "cat GPD/phases/01-*/*-VERIFICATION.md" not in audit
     assert "cat GPD/phases/02-*/*-VERIFICATION.md" not in audit
@@ -1721,7 +1721,7 @@ def test_audit_milestone_command_does_not_preload_raw_verification_globs() -> No
 
     assert "find_files: GPD/phases/*/*SUMMARY.md" in audit_command
     assert "gpd phase list" in audit_command
-    assert "gpd show-phase <phase-number>" in audit_command
+    assert "gpd --raw init phase-op <phase-number>" in audit_command
     assert "find_files: GPD/phases/*/*-VERIFICATION.md" not in audit_command
 
 

@@ -6,12 +6,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from gpd.adapters.runtime_catalog import normalize_runtime_name
 from gpd.hooks.payload_roots import PayloadRoots
 from gpd.hooks.runtime_detect import (
     RUNTIME_UNKNOWN,
     SCOPE_LOCAL,
     detect_runtime_install_target,
-    normalize_runtime_name,
     supported_runtime_names,
 )
 

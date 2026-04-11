@@ -486,6 +486,21 @@ def test_shared_adapter_infrastructure_stays_runtime_agnostic() -> None:
     )
 
 
+def test_allowed_runtime_adapter_files_follow_runtime_catalog() -> None:
+    adapter_modules = {
+        adapter.__class__.__module__.rsplit(".", 1)[-1]
+        for adapter in iter_adapters()
+    }
+    expected_files = {
+        f"src/gpd/adapters/{module}.py" for module in adapter_modules
+    } | {
+        "src/gpd/adapters/runtime_catalog.py",
+        "src/gpd/adapters/runtime_catalog.json",
+    }
+
+    assert set(_ALLOWED_RUNTIME_ADAPTER_FILES) == expected_files
+
+
 def test_shared_canonical_surfaces_do_not_reference_runtime_install_artifacts() -> None:
     leaks = _scan_paths_for_pattern(_SHARED_RUNTIME_AGNOSTIC_PATHS, _RUNTIME_INSTALL_ARTIFACT_PATTERN)
 

@@ -460,7 +460,10 @@ def test_runtime_catalog_rejects_selection_flags_that_repeat_install_flag(
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
     payload[0]["selection_flags"] = [payload[0]["install_flag"]]
 
-    with pytest.raises(ValueError, match=r"selection_flags must not repeat install_flag"):
+    with pytest.raises(
+        ValueError,
+        match=r"(selection_flags must not repeat install_flag|duplicates normalized runtime selection token)",
+    ):
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
@@ -549,6 +552,49 @@ def test_runtime_catalog_rejects_duplicate_install_flag(tmp_path: Path, monkeypa
     payload[1]["install_flag"] = payload[0]["install_flag"]
 
     with pytest.raises(ValueError, match=r"runtime catalog contains duplicate install_flag"):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_normalized_selection_flag_duplicates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["selection_flags"] = ["--claude-code", "--claude_code"]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 0\.selection_flags\[1\] duplicates normalized runtime selection token",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_normalized_selection_alias_duplicates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["selection_aliases"] = [*payload[0]["selection_aliases"], "Claude-Code"]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 0\.selection_aliases\[3\] duplicates normalized runtime selection token",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_normalized_install_flag_conflicts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["install_flag"] = "--CLAUDE"
+    payload[0]["selection_flags"] = ["--claude"]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 0\.selection_flags\[0\] duplicates normalized runtime selection token",
+    ):
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 

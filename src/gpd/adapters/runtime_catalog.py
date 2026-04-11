@@ -705,35 +705,46 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
         payload = _require_mapping(entry, label=label)
         _require_allowed_keys(payload, label=label, allowed_keys=_RUNTIME_ENTRY_ALLOWED_KEYS)
         _require_keys(payload, label=label, required_keys=_RUNTIME_ENTRY_REQUIRED_KEYS)
+        runtime_name_value = _require_string(payload["runtime_name"], label=f"{label}.runtime_name")
+        command_prefix_value = _require_string(payload["command_prefix"], label=f"{label}.command_prefix")
+        install_flag_value = _require_string(payload["install_flag"], label=f"{label}.install_flag")
+        selection_flags_value = _require_string_tuple(
+            payload["selection_flags"],
+            label=f"{label}.selection_flags",
+            allow_empty=False,
+        )
+        selection_aliases_value = _require_string_tuple(
+            payload["selection_aliases"],
+            label=f"{label}.selection_aliases",
+            allow_empty=False,
+        )
+        _validate_runtime_descriptor_selection_tokens(
+            install_flag=install_flag_value,
+            selection_flags=selection_flags_value,
+            selection_aliases=selection_aliases_value,
+            label=label,
+        )
         descriptors.append(
             RuntimeDescriptor(
-                runtime_name=_require_string(payload["runtime_name"], label=f"{label}.runtime_name"),
+                runtime_name=runtime_name_value,
                 adapter_module=_parse_adapter_module(
                     payload.get("adapter_module"),
                     label=f"{label}.adapter_module",
-                    runtime_name=_require_string(payload["runtime_name"], label=f"{label}.runtime_name"),
+                    runtime_name=runtime_name_value,
                 ),
                 display_name=_require_string(payload["display_name"], label=f"{label}.display_name"),
                 priority=_require_int(payload["priority"], label=f"{label}.priority"),
                 config_dir_name=_require_string(payload["config_dir_name"], label=f"{label}.config_dir_name"),
-                install_flag=_require_string(payload["install_flag"], label=f"{label}.install_flag"),
+                install_flag=install_flag_value,
                 launch_command=_require_string(payload["launch_command"], label=f"{label}.launch_command"),
-                command_prefix=_require_string(payload["command_prefix"], label=f"{label}.command_prefix"),
+                command_prefix=command_prefix_value,
                 activation_env_vars=_require_string_tuple(
                     payload["activation_env_vars"],
                     label=f"{label}.activation_env_vars",
                     allow_empty=False,
                 ),
-                selection_flags=_require_string_tuple(
-                    payload["selection_flags"],
-                    label=f"{label}.selection_flags",
-                    allow_empty=False,
-                ),
-                selection_aliases=_require_string_tuple(
-                    payload["selection_aliases"],
-                    label=f"{label}.selection_aliases",
-                    allow_empty=False,
-                ),
+                selection_flags=selection_flags_value,
+                selection_aliases=selection_aliases_value,
                 global_config=_parse_global_config(payload["global_config"], label=f"{label}.global_config"),
                 capabilities=_parse_capabilities(
                     payload["capabilities"],
@@ -768,15 +779,15 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                 validated_command_surface=_parse_validated_command_surface(
                     payload.get("validated_command_surface"),
                     label=f"{label}.validated_command_surface",
-                    command_prefix=_require_string(payload["command_prefix"], label=f"{label}.command_prefix"),
+                    command_prefix=command_prefix_value,
                 ),
                 public_command_surface_prefix=_parse_public_command_surface_prefix(
                     payload.get("public_command_surface_prefix"),
                     label=f"{label}.public_command_surface_prefix",
-                    command_prefix=_require_string(payload["command_prefix"], label=f"{label}.command_prefix"),
+                    command_prefix=command_prefix_value,
                 ),
             )
-    )
+        )
     descriptors.sort(key=lambda descriptor: (descriptor.priority, descriptor.runtime_name))
     _validate_runtime_catalog_uniqueness(descriptors)
     _validate_runtime_catalog_help_example_scopes(descriptors)
@@ -857,6 +868,31 @@ def _alias_variants(value: str | None) -> set[str]:
     if "_" in normalized:
         variants.add(normalized.replace("_", "-"))
     return variants
+
+
+def _validate_runtime_descriptor_selection_tokens(
+    *,
+    install_flag: str,
+    selection_flags: tuple[str, ...],
+    selection_aliases: tuple[str, ...],
+    label: str,
+) -> None:
+    seen: set[str] = set()
+
+    def _check(value: str, field_label: str) -> None:
+        variants = sorted(_alias_variants(value))
+        duplicate = next((variant for variant in variants if variant in seen), None)
+        if duplicate is not None:
+            raise ValueError(
+                f"{field_label} duplicates normalized runtime selection token {duplicate!r}"
+            )
+        seen.update(variants)
+
+    _check(install_flag, f"{label}.install_flag")
+    for index, flag in enumerate(selection_flags):
+        _check(flag, f"{label}.selection_flags[{index}]")
+    for index, alias in enumerate(selection_aliases):
+        _check(alias, f"{label}.selection_aliases[{index}]")
 
 
 def normalize_runtime_name(value: str | None) -> str | None:

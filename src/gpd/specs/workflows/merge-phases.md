@@ -313,7 +313,7 @@ Phase {S}: {source_name} absorbed into Phase {T}: {target_name}
 ---
 
 **Also available:**
-- gpd:show-phase {T} -- inspect merged phase
+- `gpd --raw init phase-op {T}` -- inspect merged phase
 - gpd:execute-phase {T} -- execute pending plans
 - gpd:validate-conventions -- verify convention consistency
 

@@ -264,7 +264,7 @@ gpd_return:
     - "Lanczos solver required increased basis size (auto-fixed: Rule 2)"
   next_actions:
     - "gpd:execute-phase {phase}"
-    - "gpd:show-phase {phase}"
+    - "gpd --raw init phase-op {phase}"
   phase: "{phase}"
   plan: "{plan}"
   tasks_completed: N

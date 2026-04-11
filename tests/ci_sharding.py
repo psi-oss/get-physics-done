@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
+from gpd.adapters import iter_adapters
+
 CI_CATEGORY_SHARD_COUNTS = {
     "root": 9,
     "adapters": 2,
@@ -29,6 +31,13 @@ CI_SMOKE_TEST_TARGETS = (
 CI_TOTAL_SHARD_COUNT_TARGET = 19
 CI_MAX_SHARD_COUNT_TARGET = 20
 
+_RUNTIME_ADAPTER_TEST_MODULES = tuple(
+    adapter.__class__.__module__.rsplit(".", 1)[-1] for adapter in iter_adapters()
+)
+_RUNTIME_ADAPTER_TEST_FILE_SPLITS = {
+    f"adapters/test_{module}.py": 2 for module in _RUNTIME_ADAPTER_TEST_MODULES
+}
+
 # Observed GitHub Actions timings on 2026-04-07 showed that these files are the
 # real bottlenecks inside their category. Split them inside the file so the
 # category-local planners can spread the slow work rather than pinning one
@@ -41,9 +50,7 @@ CI_HOT_TEST_FILE_SPLITS = {
     "test_install_utils_edge.py": 2,
     "test_install_edge_cases.py": 2,
     "test_update_workflow.py": 4,
-    "adapters/test_codex.py": 2,
-    "adapters/test_gemini.py": 2,
-    "adapters/test_opencode.py": 2,
+    **_RUNTIME_ADAPTER_TEST_FILE_SPLITS,
     "hooks/test_runtime_detect.py": 2,
     "hooks/test_statusline.py": 2,
     "core/test_cli.py": 3,

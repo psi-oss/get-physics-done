@@ -19,6 +19,10 @@ import yaml
 from gpd.adapters.install_utils import expand_at_includes
 from gpd.adapters.tool_names import canonical
 from gpd.command_labels import canonical_command_label, canonical_skill_label, command_slug_from_label
+from gpd.core.frontmatter import (
+    FRONTMATTER_DELIMITER_RE,
+    LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE,
+)
 from gpd.core.model_visible_sections import render_model_visible_yaml_section
 from gpd.core.model_visible_text import (
     AGENT_ARTIFACT_WRITE_AUTHORITIES,
@@ -56,8 +60,6 @@ _MODEL_VISIBLE_INCLUDE_PATH_PREFIX = "{GPD_INSTALL_DIR}/__gpd_registry_include__
 
 # ─── Frontmatter parsing helpers ────────────────────────────────────────────
 
-_LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE = re.compile(r"^(?:[ \t]*\r?\n)+(?=---\r?\n)")
-_FRONTMATTER_DELIMITER_RE = re.compile(r"^---[ \t]*(?:\r?\n)?$")
 _MODEL_VISIBLE_INCLUDE_START_RE = re.compile(r"^[ \t]*<!-- \[included:.*?\] -->[ \t]*$")
 _MODEL_VISIBLE_INCLUDE_END_RE = re.compile(r"^[ \t]*<!-- \[end included\] -->[ \t]*$")
 _MODEL_VISIBLE_FENCE_RE = re.compile(r"^[ \t]*(?P<fence>`{3,}|~{3,})")
@@ -274,7 +276,7 @@ def _frontmatter_parts(text: str) -> tuple[str | None, str]:
     """Return raw frontmatter YAML and body from markdown text when present."""
 
     text = text.lstrip('﻿')
-    frontmatter_candidate = _LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE.sub("", text, count=1)
+    frontmatter_candidate = LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE.sub("", text, count=1)
     frontmatter_parts = _split_frontmatter_block(frontmatter_candidate)
     if frontmatter_parts is None:
         return None, text
@@ -320,7 +322,7 @@ def _split_frontmatter_block(text: str) -> tuple[str, str] | None:
 
 def _is_frontmatter_delimiter(line: str) -> bool:
     """Return whether *line* is a frontmatter delimiter line."""
-    return _FRONTMATTER_DELIMITER_RE.fullmatch(line) is not None
+    return FRONTMATTER_DELIMITER_RE.fullmatch(line) is not None
 
 
 def _format_frontmatter_field_subject(field_name: str, owner_name: str | None = None) -> str:
@@ -883,7 +885,7 @@ def render_command_requires_section(
     )
     return render_model_visible_yaml_section(
         heading="Command Requirements",
-        note=command_visibility_note(),
+        note=command_visibility_note(canonical_agent_names()),
         payload=normalized_payload,
     )
 

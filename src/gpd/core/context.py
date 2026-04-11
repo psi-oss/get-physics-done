@@ -2576,23 +2576,16 @@ def _resolve_model(
     active_runtime = runtime
     runtime_unknown = "unknown"
     normalize_runtime = _normalize_runtime_local
+    try:
+        from gpd.adapters.runtime_catalog import normalize_runtime_name
+        from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN
+
+        runtime_unknown = RUNTIME_UNKNOWN
+        normalize_runtime = normalize_runtime_name
+    except Exception:
+        pass
     if active_runtime is None:
-        try:
-            from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, normalize_runtime_name
-
-            runtime_unknown = RUNTIME_UNKNOWN
-            normalize_runtime = normalize_runtime_name
-        except Exception:
-            pass
         active_runtime = _detect_platform(cwd)
-    else:
-        try:
-            from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, normalize_runtime_name
-
-            runtime_unknown = RUNTIME_UNKNOWN
-            normalize_runtime = normalize_runtime_name
-        except Exception:
-            pass
     active_runtime = normalize_runtime(active_runtime)
     if active_runtime == runtime_unknown:
         active_runtime = None

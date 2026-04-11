@@ -16,8 +16,8 @@ Suggest the most impactful next action from current project state.
 </objective>
 
 <context>
-@GPD/STATE.md
-@GPD/ROADMAP.md
+@GPD/STATE.md (if present)
+@GPD/ROADMAP.md (if present)
 </context>
 
 <process>

@@ -27,7 +27,7 @@ Extract from init JSON: `phase_dir`, `phase_number`, `phase_name`, `phase_found`
 Phase not found. Available phases:
 [list from roadmap]
 
-Usage: gpd:show-phase <phase-number>
+Usage: gpd --raw init phase-op <phase-number>
 ```
 
 Exit.

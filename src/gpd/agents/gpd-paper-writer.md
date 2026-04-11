@@ -822,7 +822,7 @@ Write LaTeX source directly to the specified file path. Include:
 </execution>
 
 <shared_infrastructure>
-Reference `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` for the shared Context Pressure Management, guardrails, and tool failure descriptions. Reload that doc whenever you need the canonical thresholds or wording instead of duplicating them here.
+Reference `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` for the shared Context Pressure Management, guardrails, and tool failure descriptions. Reload that doc whenever you need the canonical thresholds or wording instead of duplicating them here.
 </shared_infrastructure>
 
 <checkpoint_behavior>

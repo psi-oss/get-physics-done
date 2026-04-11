@@ -1026,6 +1026,27 @@ def test_parse_project_contract_data_salvage_preserves_contract_with_top_level_e
     assert "legacy_notes" not in result.contract.model_dump()
 
 
+def test_parse_project_contract_data_strict_rejects_top_level_extra_keys() -> None:
+    contract = _load_contract_fixture()
+    contract["legacy_notes"] = "forwarded from a prior schema revision"
+
+    result: ProjectContractParseResult = parse_project_contract_data_strict(contract)
+
+    assert result.contract is None
+    assert len(result.errors) == 1
+    assert result.errors[0].startswith("legacy_notes: Extra inputs are not permitted")
+
+
+def test_validate_project_contract_draft_warns_on_top_level_extra_keys() -> None:
+    contract = _load_contract_fixture()
+    contract["legacy_notes"] = "forwarded from a prior schema revision"
+
+    result = validate_project_contract(contract, mode="draft")
+
+    assert result.valid is True
+    assert any(warning.startswith("legacy_notes: Extra inputs are not permitted") for warning in result.warnings)
+
+
 def test_parse_project_contract_data_strict_rejects_singleton_list_drift() -> None:
     contract = _load_contract_fixture()
     contract["context_intake"]["must_read_refs"] = "ref-benchmark"
