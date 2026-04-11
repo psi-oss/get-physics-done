@@ -6,6 +6,15 @@ from gpd.core.model_visible_sections import (
     MODEL_VISIBLE_CLOSED_SCHEMA_PHRASE,
     render_model_visible_note,
 )
+from gpd.core.review_contract_schema import (
+    REVIEW_CONTRACT_CONDITIONAL_WHENS,
+    REVIEW_CONTRACT_FRONTMATTER_KEY,
+    REVIEW_CONTRACT_MODES,
+    REVIEW_CONTRACT_PREFLIGHT_CHECKS,
+    REVIEW_CONTRACT_PROMPT_WRAPPER_KEY,
+    REVIEW_CONTRACT_REQUIRED_STATES,
+    REVIEW_CONTRACT_WRAPPER_KEYS,
+)
 
 __all__ = [
     "agent_visibility_note",
@@ -29,12 +38,6 @@ __all__ = [
     "skeptical_rigor_guardrails_section",
 ]
 
-REVIEW_CONTRACT_FRONTMATTER_KEY = "review-contract"
-REVIEW_CONTRACT_PROMPT_WRAPPER_KEY = "review_contract"
-REVIEW_CONTRACT_WRAPPER_KEYS = (
-    REVIEW_CONTRACT_PROMPT_WRAPPER_KEY,
-    REVIEW_CONTRACT_FRONTMATTER_KEY,
-)
 SKEPTICAL_RIGOR_GUARDRAILS_HEADING = "Scientific Rigor Guardrails"
 VALID_CONTEXT_MODES = ("global", "projectless", "project-aware", "project-required")
 AGENT_COMMIT_AUTHORITIES = ("direct", "orchestrator")
@@ -42,42 +45,6 @@ AGENT_SURFACES = ("public", "internal")
 AGENT_ROLE_FAMILIES = ("worker", "analysis", "verification", "review", "coordination")
 AGENT_ARTIFACT_WRITE_AUTHORITIES = ("scoped_write", "read_only")
 AGENT_SHARED_STATE_AUTHORITIES = ("return_only", "direct")
-REVIEW_CONTRACT_MODES = ("publication", "review")
-REVIEW_CONTRACT_REQUIRED_STATES = ("phase_executed",)
-REVIEW_CONTRACT_CONDITIONAL_WHENS = (
-    "theorem-bearing claims are present",
-    "theorem-bearing manuscripts are present",
-)
-REVIEW_CONTRACT_PREFLIGHT_CHECKS = (
-    "command_context",
-    "project_state",
-    "knowledge_target",
-    "knowledge_document",
-    "knowledge_review_freshness",
-    "roadmap",
-    "conventions",
-    "research_artifacts",
-    "verification_reports",
-    "manuscript",
-    "artifact_manifest",
-    "bibliography_audit",
-    "bibliography_audit_clean",
-    "compiled_manuscript",
-    "publication_blockers",
-    "review_ledger",
-    "review_ledger_valid",
-    "referee_decision",
-    "referee_decision_valid",
-    "publication_review_outcome",
-    "reproducibility_manifest",
-    "reproducibility_ready",
-    "manuscript_proof_review",
-    "referee_report_source",
-    "phase_lookup",
-    "phase_artifacts",
-    "phase_summaries",
-    "phase_proof_review",
-)
 def _join_disjunction(values: tuple[str, ...]) -> str:
     return " or ".join(f"`{value}`" for value in values)
 

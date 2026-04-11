@@ -572,6 +572,7 @@ def test_contract_check_request_templates_use_replace_me_sentinels_not_plausible
     assert "<replace-with-regime-label>" in serialized
     assert "<replace-with-expected-behavior>" in serialized
     assert "<replace-with-source-reference-id>" in serialized
+    assert "<replace-with-metric-value>" in serialized
     assert "<replace-with-threshold-value>" in serialized
     assert "<replace-with-declared-family>" in serialized
     assert "<replace-with-selected-family>" in serialized
@@ -579,6 +580,7 @@ def test_contract_check_request_templates_use_replace_me_sentinels_not_plausible
     assert "<replace-with-hypothesis-id>" in serialized
     assert "<replace-with-theorem-parameter-symbol>" in serialized
     assert "<replace-with-claim-statement>" in serialized
+    assert "<required:" not in serialized
 
 
 def test_run_contract_check_rejects_unreplaced_request_template_sentinels() -> None:

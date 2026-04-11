@@ -112,9 +112,10 @@ def _categories_from_metadata(metadata: _SchemaFindingMetadata) -> set[_ProjectC
         "must be a valid list member",
     }:
         categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
-    message = metadata.msg.lower()
-    if "must be a list" in message or "must be a valid list member" in message or "must be an object" in message:
-        categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
+    if not categories:
+        message = metadata.msg.lower()
+        if "must be a list" in message or "must be a valid list member" in message or "must be an object" in message:
+            categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
     canonical_value = metadata.ctx.get("canonical_value")
     if isinstance(canonical_value, str) and canonical_value.strip():
         categories.add(_ProjectContractSchemaFindingCategory.CASE_DRIFT)
@@ -239,14 +240,19 @@ def _project_contract_schema_finding_categories(
         location = _metadata_location_string(metadata)
         message = metadata.msg
         categories.update(_categories_from_metadata(metadata))
+        if not categories:
+            for category, patterns in _SCHEMA_FINDING_CATEGORY_PATTERNS:
+                if any(pattern.fullmatch(normalized_error) for pattern in patterns):
+                    categories.add(category)
     else:
         for category, patterns in _SCHEMA_FINDING_CATEGORY_PATTERNS:
             if any(pattern.fullmatch(normalized_error) for pattern in patterns):
                 categories.add(category)
-    if _matches_equivalent_recoverable_schema_finding(message=message):
-        categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
-    if _matches_equivalent_authoritative_schema_finding(location=location, message=message):
-        categories.add(_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR)
+    if metadata is None or not categories:
+        if _matches_equivalent_recoverable_schema_finding(message=message):
+            categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
+        if _matches_equivalent_authoritative_schema_finding(location=location, message=message):
+            categories.add(_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR)
 
     nested_location = location or _schema_finding_location(normalized_error)
     if nested_location is not None and _is_nested_collection_item_location(nested_location):
@@ -313,6 +319,17 @@ def _format_schema_finding(error: dict[str, object]) -> tuple[str, _SchemaFindin
     """Return a formatted schema finding and one-call structured metadata."""
 
     return _format_schema_error(error), _schema_finding_metadata_from_error(error)
+
+
+def _record_schema_finding(
+    error: dict[str, object],
+    *,
+    metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
+) -> str:
+    formatted, metadata = _format_schema_finding(error)
+    if metadata_by_error is not None:
+        metadata_by_error[formatted] = metadata
+    return formatted
 
 
 def _schema_error_location(error: dict[str, object], *, path_prefix: str = "") -> str:
@@ -489,6 +506,7 @@ def _salvage_model_mapping(
     default_value: dict[str, object] | None = None,
     required_fields: tuple[str, ...] = (),
     missing_is_default: bool = False,
+    metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
 ) -> tuple[dict[str, object] | None, bool]:
     if value is None:
         if missing_is_default and default_value is not None:
@@ -531,13 +549,15 @@ def _salvage_model_mapping(
                     blocked = True
                     progress = True
                     continue
-                formatted = _format_schema_error(
+                formatted = _record_schema_finding(
                     {
                         "loc": (path_prefix, *loc),
                         "msg": error.get("msg"),
                         "input": error.get("input"),
                         "type": error.get("type"),
-                    }
+                        "ctx": error.get("ctx"),
+                    },
+                    metadata_by_error=metadata_by_error,
                 )
                 field_value = cleaned.get(key)
                 item_model = _list_item_model(field)
@@ -549,6 +569,7 @@ def _salvage_model_mapping(
                         model=item_model,
                         errors=nested_errors,
                         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+                        metadata_by_error=metadata_by_error,
                     )
                     if salvaged_item is not None and not item_blocked:
                         cleaned[key] = [salvaged_item]
@@ -575,13 +596,15 @@ def _salvage_model_mapping(
                         if len(item_loc) > 1 and str(item_loc[0]) == key and isinstance(item_loc[1], int):
                             item_index = int(item_loc[1])
                             item_indexes.add(item_index)
-                            formatted_item_error = _format_schema_error(
+                            formatted_item_error = _record_schema_finding(
                                 {
                                     "loc": (path_prefix, *item_loc),
                                     "msg": item_error.get("msg"),
                                     "input": item_error.get("input"),
                                     "type": item_error.get("type"),
-                                }
+                                    "ctx": item_error.get("ctx"),
+                                },
+                                metadata_by_error=metadata_by_error,
                             )
                             if formatted_item_error not in item_errors_by_index[item_index]:
                                 item_errors_by_index[item_index].append(formatted_item_error)
@@ -597,6 +620,7 @@ def _salvage_model_mapping(
                                 model=item_model,
                                 errors=errors,
                                 canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+                                metadata_by_error=metadata_by_error,
                             )
                             if item_blocking:
                                 blocked = True
@@ -636,6 +660,7 @@ def _salvage_contract_collection(
     item_model: type[BaseModel],
     errors: list[str],
     canonical_authoritative_scalar_locations: set[str] | None = None,
+    metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
 ) -> tuple[list[dict[str, object]], bool]:
     path_prefix = field_name
     if not isinstance(value, list):
@@ -655,6 +680,7 @@ def _salvage_contract_collection(
             model=item_model,
             errors=errors,
             canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+            metadata_by_error=metadata_by_error,
         )
         if item_blocked:
             blocked = True
@@ -835,6 +861,7 @@ def salvage_project_contract(
             item_model=item_model,
             errors=errors,
             canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+            metadata_by_error=metadata_by_error,
         )
         normalized_contract[field_name] = normalized_items
 
@@ -844,6 +871,7 @@ def salvage_project_contract(
         model=ContractScope,
         errors=errors,
         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+        metadata_by_error=metadata_by_error,
     )
     if scope_blocked or scope is None:
         return None, errors, metadata_by_error
@@ -855,6 +883,7 @@ def salvage_project_contract(
         model=ContractContextIntake,
         errors=errors,
         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+        metadata_by_error=metadata_by_error,
     )
     if context_intake_blocked or context_intake is None:
         return None, errors, metadata_by_error
@@ -868,6 +897,7 @@ def salvage_project_contract(
             model=ContractApproachPolicy,
             errors=approach_policy_errors,
             canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+            metadata_by_error=metadata_by_error,
         )
         errors.extend(error for error in approach_policy_errors if error not in errors)
         if approach_policy_blocked or approach_policy is None:
@@ -882,6 +912,7 @@ def salvage_project_contract(
         errors=errors,
         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
         required_fields=("weakest_anchors", "disconfirming_observations"),
+        metadata_by_error=metadata_by_error,
     )
     if uncertainty_markers_blocked or uncertainty_markers is None:
         return None, errors, metadata_by_error
@@ -898,7 +929,7 @@ def salvage_project_contract(
         return ResearchContract.model_validate(normalized_contract), errors, metadata_by_error
     except PydanticValidationError as exc:
         for error in exc.errors():
-            formatted = _format_schema_error(error)
+            formatted = _record_schema_finding(error, metadata_by_error=metadata_by_error)
             if formatted not in errors:
                 errors.append(formatted)
         return None, errors, metadata_by_error

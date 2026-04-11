@@ -196,17 +196,13 @@ task(
   subagent_type="gpd-check-proof",
   model="{check_proof_model}",
   readonly=false,
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
-Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
-
-Operate in proof-redteam repair mode with a fresh context.
-If the runtime needs user input, return `status: checkpoint` instead of waiting inside the spawned run.
+  prompt="Read {GPD_AGENTS_DIR}/gpd-check-proof.md plus {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
+Work in a fresh proof-redteam repair context; if user input is needed, return `status: checkpoint`.
 
 Write to:
 - `${phase_dir}/${phase_number}-PROOF-REDTEAM.md`
 
-Read the proof-bearing plan or claim artifacts, the relevant PLAN contract slice, and any current verification artifact before repairing the audit.
-Return `status: checkpoint` if the runtime needs user input instead of waiting inside the spawned run.",
+Read the proof-bearing plan or claim artifacts, the relevant PLAN contract slice, and any current verification artifact before repairing the audit.",
   description="Repair proof redteam artifact for phase {phase_number}"
 )
 ```

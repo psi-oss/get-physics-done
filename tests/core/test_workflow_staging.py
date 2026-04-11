@@ -9,6 +9,8 @@ import pytest
 
 from gpd.core.context import init_write_paper
 from gpd.core.workflow_staging import (
+    ARXIV_SUBMISSION_BOOTSTRAP_FIELDS,
+    ARXIV_SUBMISSION_SNAPSHOT_FIELDS,
     EXECUTE_PHASE_STAGE_MANIFEST_PATH,
     LITERATURE_REVIEW_STAGE_MANIFEST_PATH,
     MAP_RESEARCH_STAGE_MANIFEST_PATH,
@@ -849,6 +851,26 @@ def test_arxiv_submission_stage_manifest_can_be_loaded_when_present() -> None:
     assert "references/publication/publication-review-round-artifacts.md" in manifest.stage("review_gate").loaded_authorities
     assert "references/publication/peer-review-reliability.md" in manifest.stage("review_gate").loaded_authorities
     assert "references/publication/publication-response-writer-handoff.md" not in manifest.stage("review_gate").loaded_authorities
+
+
+def test_arxiv_submission_stage_manifest_surfaces_bootstrap_and_snapshot_fields() -> None:
+    manifest_path = resolve_workflow_stage_manifest_path("arxiv-submission")
+
+    if not manifest_path.exists():
+        return
+
+    manifest = validate_workflow_stage_manifest_payload(
+        json.loads(manifest_path.read_text(encoding="utf-8")),
+        expected_workflow_id="arxiv-submission",
+    )
+
+    for stage_id in manifest.stage_ids():
+        required_fields = set(manifest.stage(stage_id).required_init_fields)
+        missing_bootstrap = ARXIV_SUBMISSION_BOOTSTRAP_FIELDS - required_fields
+        missing_snapshot = ARXIV_SUBMISSION_SNAPSHOT_FIELDS - required_fields
+        assert not missing_bootstrap, f"{stage_id} missing bootstrap fields: {', '.join(sorted(missing_bootstrap))}"
+        assert not missing_snapshot, f"{stage_id} missing snapshot fields: {', '.join(sorted(missing_snapshot))}"
+
 
 @pytest.mark.parametrize(
     ("mutator", "message"),

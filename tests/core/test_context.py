@@ -3642,6 +3642,41 @@ class TestInitMapResearch:
             "staged_loading",
         }
 
+    def test_stage_bootstrap_skips_reference_payload_when_not_required(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _setup_project(tmp_path)
+        _install_fake_stage_manifest(
+            monkeypatch,
+            workflow_id="map-research",
+            stages={
+                "bootstrap": [
+                    "mapper_model",
+                    "commit_docs",
+                    "research_mode",
+                    "has_maps",
+                ]
+            },
+        )
+
+        def _boom(*args: object, **kwargs: object) -> dict[str, object]:
+            raise AssertionError("reference context should not load for base-only stages")
+
+        monkeypatch.setattr("gpd.core.context._build_reference_runtime_context", _boom)
+
+        ctx = init_map_research(tmp_path, stage="bootstrap")
+
+        assert ctx["staged_loading"]["workflow_id"] == "map-research"
+        assert set(ctx) == {
+            "mapper_model",
+            "commit_docs",
+            "research_mode",
+            "has_maps",
+            "staged_loading",
+        }
+
 
 class TestInitLiteratureReview:
     def test_stage_loads_review_bootstrap_payload(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

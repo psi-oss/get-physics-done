@@ -64,14 +64,13 @@ class TestRuntimeIdentityFromCatalog:
     def test_get_opencode_global_dir_uses_catalog_runtime_identity(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured_runtime: dict[str, str] = {}
 
-        monkeypatch.setattr(
-            opencode_module,
-            "iter_runtime_descriptors",
-            lambda: (
-                SimpleNamespace(adapter_module="codex", runtime_name="codex"),
-                SimpleNamespace(adapter_module="opencode", runtime_name="opencode-catalog-runtime"),
-            ),
-        )
+        captured_adapter: dict[str, str] = {}
+
+        def fake_descriptor(adapter_module: str):
+            captured_adapter["module"] = adapter_module
+            return SimpleNamespace(runtime_name="opencode-catalog-runtime")
+
+        monkeypatch.setattr(opencode_module, "get_runtime_descriptor_for_adapter_module", fake_descriptor)
         monkeypatch.setattr(
             opencode_module,
             "get_global_dir",
@@ -87,6 +86,7 @@ class TestRuntimeIdentityFromCatalog:
         finally:
             opencode_module._runtime_name_from_catalog.cache_clear()
 
+        assert captured_adapter["module"] == opencode_module.__name__
         assert captured_runtime["runtime_name"] == "opencode-catalog-runtime"
         assert resolved == Path("/tmp/opencode-config")
 

@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
 from gpd.contracts import ResearchContract, collect_plan_contract_integrity_errors, parse_project_contract_data_strict
 from gpd.core.contract_validation import (
     is_authoritative_project_contract_schema_finding,
     parse_project_contract_data_salvage,
+    split_project_contract_schema_findings,
     validate_project_contract,
 )
 
@@ -137,6 +139,25 @@ def test_fast_contract_validation_classifies_must_surface_by_location_not_exact_
     assert is_authoritative_project_contract_schema_finding(
         "references.0.must_surface: Input should be a valid boolean"
     ) is True
+
+
+def test_fast_contract_validation_schema_findings_prefer_metadata_error_types() -> None:
+    error = "scope.legacy_notes: unexpected key"
+    metadata = SimpleNamespace(
+        loc=("project_contract", "scope", "legacy_notes"),
+        msg="unexpected key",
+        error_type="extra_forbidden",
+        ctx={},
+        input_value_type="str",
+    )
+
+    recoverable, blocking = split_project_contract_schema_findings(
+        [error],
+        metadata_by_error={error: metadata},
+    )
+
+    assert recoverable == [error]
+    assert blocking == []
 
 
 def test_fast_contract_validation_strict_rejects_nonblank_mapping_string_list_field_without_salvage() -> None:

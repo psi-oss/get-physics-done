@@ -125,11 +125,6 @@ def _read_codex_runtime_config(config_path: Path) -> tuple[dict[str, object] | N
     return parsed, None
 
 
-def _codex_adapter_module_name() -> str:
-    """Return the adapter module portion of this module's import path."""
-    return __name__.rsplit(".", 1)[-1]
-
-
 def _codex_runtime_descriptor() -> RuntimeDescriptor:
     """Return the runtime descriptor owned by this adapter."""
     return get_runtime_descriptor_for_adapter_module(__name__)

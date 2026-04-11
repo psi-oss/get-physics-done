@@ -65,22 +65,13 @@ Type these inside Gemini CLI, not in your normal terminal:
 
 If you are not sure what this folder is yet, start with `/gpd:start`.
 If you want a read-only walkthrough first, use `/gpd:tour`.
-
-Suggested order for beginners: `/gpd:help`, `/gpd:start`, `/gpd:tour`, then
-either `/gpd:new-project --minimal`, `/gpd:map-research`, or
-`/gpd:resume-work`.
-
-GPD is designed to favor scientific rigor and critical thinking. Treat preferred answers as hypotheses to test, and if a citation, artifact, or run result is missing, keep that gap explicit instead of inventing it.
+Beginner flow: `/gpd:help` → `/gpd:start` → `/gpd:tour`, then `/gpd:new-project --minimal`, `/gpd:map-research`, or `/gpd:resume-work`.
+GPD favors scientific rigor: treat answers as hypotheses and surface gaps instead of inventing them.
 
 ## Return to work
 
-- Use `/gpd:resume-work` when this folder already has GPD state and you want to
-  continue.
-- If you are not sure whether this folder already has GPD state, use
-  `/gpd:start` first.
-- If you need to reopen the project from your normal terminal first, use
-  `gpd resume` or `gpd resume --recent`, then open the right folder and run
-  `/gpd:resume-work`.
+- Use `/gpd:resume-work` when this folder already has GPD state; if unsure, start with `/gpd:start`.
+- If you need to reopen from your normal terminal, run `gpd resume` or `gpd resume --recent`, then open the folder and use `/gpd:resume-work`.
 
 ## Settings
 

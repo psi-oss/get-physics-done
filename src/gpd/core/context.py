@@ -110,6 +110,9 @@ from gpd.core.workflow_staging import (
     MAP_RESEARCH_INIT_FIELDS as _MAP_RESEARCH_INIT_FIELDS,
 )
 from gpd.core.workflow_staging import (
+    NEW_PROJECT_INIT_FIELDS as _NEW_PROJECT_INIT_FIELDS,
+)
+from gpd.core.workflow_staging import (
     PLAN_PHASE_CONTRACT_GATE_FIELDS as _PLAN_PHASE_CONTRACT_GATE_FIELDS,
 )
 from gpd.core.workflow_staging import (
@@ -614,6 +617,47 @@ _VERIFY_WORK_REFERENCE_RUNTIME_FIELDS = frozenset(
         "research_map_reference_count",
         "reference_artifact_files",
         "reference_artifacts_content",
+    }
+)
+_MAP_RESEARCH_REFERENCE_RUNTIME_FIELDS = frozenset(
+    {
+        "project_contract",
+        "project_contract_gate",
+        "project_contract_load_info",
+        "project_contract_validation",
+        "contract_intake",
+        "effective_reference_intake",
+        "active_reference_context",
+        "reference_artifact_files",
+        "reference_artifacts_content",
+        "literature_review_files",
+        "literature_review_count",
+        "research_map_reference_files",
+        "research_map_reference_count",
+        "knowledge_doc_files",
+        "knowledge_doc_count",
+        "stable_knowledge_doc_files",
+        "stable_knowledge_doc_count",
+        "knowledge_doc_status_counts",
+        "derived_active_references",
+        "derived_active_reference_count",
+        "derived_knowledge_docs",
+        "derived_knowledge_doc_count",
+        "knowledge_doc_warnings",
+        "citation_source_files",
+        "citation_source_count",
+        "citation_source_warnings",
+        "derived_citation_sources",
+        "derived_citation_source_count",
+        "derived_manuscript_reference_status",
+        "derived_manuscript_reference_status_count",
+        "derived_manuscript_proof_review_status",
+        "selected_protocol_bundle_ids",
+        "protocol_bundle_count",
+        "protocol_bundle_verifier_extensions",
+        "protocol_bundle_context",
+        "active_references",
+        "active_reference_count",
     }
 )
 _VERIFY_WORK_STRUCTURED_STATE_FIELDS = frozenset(
@@ -3145,7 +3189,7 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
     manifest = load_workflow_stage_manifest(
         "new-project",
         allowed_tools={"ask_user", "file_read", "file_write", "shell", "task"},
-        known_init_fields=set(result),
+        known_init_fields=_NEW_PROJECT_INIT_FIELDS,
     )
     try:
         stage_def = manifest.stage_by_id(stage)
@@ -4122,9 +4166,8 @@ def init_map_research(cwd: Path, stage: str | None = None) -> dict:
         # Platform
         "platform": _detect_platform(cwd),
     }
-    result.update(_build_reference_runtime_context(cwd))
-
     if stage is None:
+        result.update(_build_reference_runtime_context(cwd))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
@@ -4135,11 +4178,16 @@ def init_map_research(cwd: Path, stage: str | None = None) -> dict:
     except KeyError as exc:
         raise ValueError(f"Unknown map-research stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}.") from exc
 
-    missing_fields = [field for field in stage_def.required_init_fields if field not in result]
+    required_fields = set(stage_def.required_init_fields)
+    staged_source = dict(result)
+    if required_fields & _MAP_RESEARCH_REFERENCE_RUNTIME_FIELDS:
+        staged_source.update(_build_reference_runtime_context(cwd))
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
         raise ValueError(f"map-research stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
 
-    staged_payload = {field: result[field] for field in stage_def.required_init_fields}
+    staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
     return staged_payload
 

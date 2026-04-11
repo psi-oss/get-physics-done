@@ -214,6 +214,7 @@ When that applies, require:
   - `references[].role: definition | benchmark | method | must_consider | background | other`
   - `required_actions[]: read | use | compare | cite | avoid`
   - `links[].relation: supports | computes | visualizes | benchmarks | depends_on | evaluated_by | proves | uses_hypothesis | depends_on_lemma | other`
+- Closed-vocabulary enum fields use the exact lowercase literals shown here. Case drift such as `Theorem`, `Benchmark`, or `Read` fails strict validation.
 - `claims[].proof_deliverables[]` must be non-empty and reference declared deliverables.
 - `claims[].parameters[]`, `claims[].hypotheses[]`, and `claims[].conclusion_clauses[]` must each be non-empty.
 - `claims[].acceptance_tests[]` must include at least one proof-specific kind (`proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `claim_to_proof_alignment`, `lemma_dependency_closure`, or `counterexample_search`).

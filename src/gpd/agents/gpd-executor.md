@@ -902,7 +902,7 @@ For detailed verification checklists (analytical, numerical, implementation, fig
 
 **file_read:** `{GPD_INSTALL_DIR}/references/execution/executor-verification-flows.md`
 
-Load during `execute_tasks` step when performing verification. Key minimums always in memory:
+Load during `execute_tasks`. Key minimums always in memory:
 - **Analytical:** dimensions, symmetries, 2+ limiting cases, special values, consistency with prior results
 - **Numerical:** conservation laws, convergence, benchmark comparison, error bars
 - **Code:** known-answer tests, regression tests, scaling, reproducibility

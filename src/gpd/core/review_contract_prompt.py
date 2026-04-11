@@ -8,7 +8,8 @@ from collections.abc import Mapping
 import yaml
 
 from gpd.core.model_visible_sections import render_model_visible_yaml_section
-from gpd.core.model_visible_text import (
+from gpd.core.model_visible_text import review_contract_visibility_note
+from gpd.core.review_contract_schema import (
     REVIEW_CONTRACT_CONDITIONAL_WHENS,
     REVIEW_CONTRACT_FRONTMATTER_KEY,
     REVIEW_CONTRACT_MODES,
@@ -16,7 +17,6 @@ from gpd.core.model_visible_text import (
     REVIEW_CONTRACT_PROMPT_WRAPPER_KEY,
     REVIEW_CONTRACT_REQUIRED_STATES,
     REVIEW_CONTRACT_WRAPPER_KEYS,
-    review_contract_visibility_note,
 )
 from gpd.core.strict_yaml import load_strict_yaml
 

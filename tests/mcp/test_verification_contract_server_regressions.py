@@ -3466,7 +3466,7 @@ def test_run_contract_check_missing_shape_returns_template_backed_guidance() -> 
     guidance = result["request_guidance"]
     assert guidance["schema_required_request_fields"] == ["observed.metric_value", "observed.threshold_value"]
     assert guidance["schema_required_request_anyof_fields"] == [["metadata.source_reference_id"], ["contract"]]
-    assert guidance["request_template"]["observed"]["metric_value"] == "<required: observed.metric_value>"
+    assert guidance["request_template"]["observed"]["metric_value"] == "<replace-with-metric-value>"
 
 
 def test_suggest_contract_checks_prunes_demoted_anyof_branches() -> None:

@@ -140,7 +140,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "source_reference_id": _request_template_placeholder("source-reference-id"),
             },
             "observed": {
-                "metric_value": "<required: observed.metric_value>",
+                "metric_value": _request_template_placeholder("metric-value"),
                 "threshold_value": _request_template_placeholder("threshold-value"),
             },
         },

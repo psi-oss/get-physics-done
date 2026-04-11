@@ -551,7 +551,7 @@ Keep the canonical `plan-contract-schema.md` file as the authoritative contract 
 - `references` that ground claims, `forbidden_proxies` that reject insufficient progress, and `uncertainty_markers` that capture fragile assumptions.
 - Optional `approach_policy`, `observables`, and `links` sections only when concrete execution policy or resource wiring is needed.
 
-Keep this schema excerpt visible before emitting any `PLAN.md` frontmatter. The template/phase prompts load `plan-contract-schema.md` and `phase-prompt.md` once per run; do not restate them elsewhere.
+Keep this schema excerpt visible before emitting any `PLAN.md` frontmatter.
 
 <objective>[What physics question this plan answers]</objective>
 
@@ -802,6 +802,20 @@ Gap-closure plans keep `type: execute`; the repair marker is `gap_closure: true`
 **5. Group gaps by shared root cause and dependency order.**
 **6. Create repair tasks** that list the missing items, the existing reference, the failed check, and the new passing check.
 **7. Write PLAN.md files** with `type: execute` and `gap_closure: true`.
+
+```yaml
+type: execute
+gap_closure: true # Flag for tracking
+```
+
+```yaml
+contract:
+  scope:
+    question: "[Which failed verification or gap does this plan repair?]"
+    in_scope: ["Repair the failed verification for the published benchmark comparison"]
+  context_intake:
+    must_include_prior_outputs: ["GPD/phases/XX-name/XX-NN-SUMMARY.md"]
+```
 
 Gap-closure plans reuse the canonical schema above. Keep `gap_closure: true` in the frontmatter, populate `context_intake` with the failed verification summary and required `XX-NN-SUMMARY.md`, and focus `claims`, `deliverables`, `acceptance_tests`, `forbidden_proxies`, and `uncertainty_markers` on the specific repair and re-run check. Do not restate the full YAML block—refer back to the sample contract and the canonical `plan-contract-schema.md` file as the single source of truth.
 

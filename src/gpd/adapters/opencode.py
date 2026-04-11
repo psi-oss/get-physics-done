@@ -51,7 +51,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
 )
-from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import get_runtime_descriptor_for_adapter_module
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -112,11 +112,7 @@ _MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY = "opencode_generated_command_fil
 @lru_cache(maxsize=1)
 def _runtime_name_from_catalog() -> str:
     """Return the runtime identity owned by this adapter module."""
-    adapter_module = __name__.rsplit(".", maxsplit=1)[-1]
-    for descriptor in iter_runtime_descriptors():
-        if descriptor.adapter_module == adapter_module:
-            return descriptor.runtime_name
-    raise LookupError(f"No runtime catalog descriptor found for adapter module {adapter_module!r}")
+    return get_runtime_descriptor_for_adapter_module(__name__).runtime_name
 
 
 def get_opencode_global_dir(explicit_dir: str | None = None) -> Path:
@@ -256,8 +252,6 @@ def convert_frontmatter_for_opencode(content: str, path_prefix: str | None = Non
     new_frontmatter = "\n".join(new_lines).strip()
     return render_markdown_frontmatter(preamble, new_frontmatter, separator, body)
 
-
-convert_claude_to_opencode_frontmatter = convert_frontmatter_for_opencode
 
 
 def copy_flattened_commands(
@@ -1310,7 +1304,6 @@ __all__ = [
     "OpenCodeAdapter",
     "get_opencode_global_dir",
     "convert_tool_name",
-    "convert_claude_to_opencode_frontmatter",
     "convert_frontmatter_for_opencode",
     "configure_opencode_permissions",
     "copy_flattened_commands",

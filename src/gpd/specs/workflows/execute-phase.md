@@ -626,11 +626,8 @@ Parse the wave-dispatch fields used below: protocol bundles, live-execution/revi
      subagent_type="gpd-check-proof",
      model="{check_proof_model}",
      readonly=false,
-     prompt="First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
-Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
-
-       Operate in proof-redteam mode with a fresh context.
-       If the runtime needs user input, return `status: checkpoint` instead of waiting inside this run.
+     prompt="Read {GPD_AGENTS_DIR}/gpd-check-proof.md plus {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md before writing any proof audit artifact.
+       Work in a fresh proof-redteam context; if user input is needed, return `status: checkpoint`.
 
        Write to: {phase_dir}/{plan_id}-PROOF-REDTEAM.md
 

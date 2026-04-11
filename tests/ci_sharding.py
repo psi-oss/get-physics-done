@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import os
 import subprocess
-import sys
 import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
-import os
 
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 
@@ -28,7 +27,9 @@ CI_SMOKE_TEST_TARGETS = (
     "tests/test_repo_hygiene.py",
     "tests/test_schema_registry_ownership_note.py",
     "tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files",
-    "tests/adapters/test_runtime_catalog.py",
+    "tests/adapters/test_runtime_catalog.py::test_runtime_catalog_explicit_priority_order",
+    "tests/adapters/test_runtime_catalog.py::test_runtime_descriptor_resolves_from_adapter_module",
+    "tests/adapters/test_runtime_catalog.py::test_runtime_catalog_loader_validates_schema_json",
     "tests/core/test_contract_validation_fast_regressions.py",
     "tests/core/test_contract_schema_prompt_parity.py::test_plan_contract_schema_surfaces_canonical_research_contract_fields",
 )
