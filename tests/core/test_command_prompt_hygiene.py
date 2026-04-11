@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+import re
+from collections import Counter
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
+PROMPT_SOURCE_DIRS = (COMMANDS_DIR, WORKFLOWS_DIR)
+MACHINE_SPECIFIC_PATH_PATTERNS = (
+    re.compile(r"/Users/"),
+    re.compile(r"/home/"),
+    re.compile(r"[A-Za-z]:\\\\Users\\\\"),
+    re.compile(r"~/(?:\\.agents|\\.claude|\\.codex)/"),
+)
 
 
 def _commands_with_matching_workflows() -> list[str]:
@@ -15,6 +24,10 @@ def _commands_with_matching_workflows() -> list[str]:
         for command_path in COMMANDS_DIR.glob("*.md")
         if (WORKFLOWS_DIR / command_path.name).exists()
     )
+
+
+def _prompt_source_paths() -> list[Path]:
+    return sorted(path for directory in PROMPT_SOURCE_DIRS for path in directory.glob("*.md"))
 
 
 def test_commands_reference_their_workflow_file_once() -> None:
@@ -31,5 +44,40 @@ def test_workflows_do_not_repeat_runtime_delegation_note() -> None:
         count = path.read_text(encoding="utf-8").count(delegation_note)
         if count > 1:
             offenders[path.name] = count
+
+    assert offenders == {}
+
+
+def test_prompt_sources_do_not_embed_machine_specific_absolute_paths() -> None:
+    offenders: dict[str, list[str]] = {}
+
+    for path in _prompt_source_paths():
+        matches = [
+            pattern.pattern
+            for pattern in MACHINE_SPECIFIC_PATH_PATTERNS
+            if pattern.search(path.read_text(encoding="utf-8"))
+        ]
+        if matches:
+            offenders[path.relative_to(REPO_ROOT).as_posix()] = matches
+
+    assert offenders == {}
+
+
+def test_command_sources_do_not_repeat_exact_include_markers() -> None:
+    offenders: dict[str, dict[str, int]] = {}
+
+    for path in COMMANDS_DIR.glob("*.md"):
+        include_lines = [
+            line.strip()
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip().startswith("@{GPD_INSTALL_DIR}/")
+        ]
+        duplicates = {
+            line: count
+            for line, count in Counter(include_lines).items()
+            if count > 1
+        }
+        if duplicates:
+            offenders[path.name] = duplicates
 
     assert offenders == {}

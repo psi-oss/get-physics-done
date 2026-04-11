@@ -277,7 +277,7 @@ def project_root_from_payload(
             project_dir_trusted=shared_project_dir_trusted,
         )
     resolved_root = resolve_project_root(workspace_dir, project_dir=project_dir)
-    candidate_project_root = str(resolved_root) if resolved_root is not None else workspace_dir
+    candidate_project_root = str(resolved_root) if resolved_root is not None else (project_dir if project_dir else workspace_dir)
     return _authoritative_project_root(
         workspace_dir=workspace_dir,
         candidate_project_root=candidate_project_root,
@@ -340,6 +340,8 @@ def resolve_payload_roots(
         policy_getter=policy_getter,
         cwd=cwd,
     )
+    if not project_dir_present and not project_dir_trusted:
+        project_root = workspace_dir
     return PayloadRoots(
         workspace_dir=workspace_dir,
         project_root=project_root,

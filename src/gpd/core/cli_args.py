@@ -106,13 +106,18 @@ def normalize_root_global_cli_options(argv: list[str]) -> list[str]:
 def resolve_root_global_cli_cwd_from_argv(argv: list[str]) -> Path:
     """Resolve the effective CLI cwd from raw argv before Typer parses it."""
     raw_cwd = "."
-    global_args, _ = split_root_global_cli_options(argv)
-    for index, arg in enumerate(global_args):
-        if arg == "--cwd" and index + 1 < len(global_args):
-            raw_cwd = global_args[index + 1]
+    global_args, remaining_args = split_root_global_cli_options(argv)
+    scan_args = [*global_args, *remaining_args] if not global_args else global_args
+    index = 0
+    while index < len(scan_args):
+        arg = str(scan_args[index])
+        if arg == "--cwd" and index + 1 < len(scan_args):
+            raw_cwd = str(scan_args[index + 1])
+            index += 2
             continue
         if arg.startswith("--cwd="):
             raw_cwd = arg.split("=", 1)[1]
+        index += 1
 
     candidate = Path(raw_cwd).expanduser()
     if candidate.is_absolute():

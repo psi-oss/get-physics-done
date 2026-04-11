@@ -152,10 +152,11 @@ gpd_return:
   files_written: [GPD/debug/{slug}.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  session_file: GPD/debug/{slug}.md
+  extensions:
+    session_file: GPD/debug/{slug}.md
 ```
 
-The base fields required by agent-infrastructure are `status`, `files_written`, `issues`, and `next_actions`. `session_file` is debugger-specific visibility for the handoff. Use only the canonical status names.
+The base fields required by agent-infrastructure are `status`, `files_written`, `issues`, and `next_actions`. Put debugger-specific handoff visibility under `extensions.session_file`. Use only the canonical status names.
 
 ## ROOT CAUSE FOUND
 

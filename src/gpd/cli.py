@@ -112,7 +112,6 @@ from gpd.core.runtime_command_surfaces import (
     resolve_active_runtime_descriptor,
 )
 from gpd.core.surface_phrases import (
-    cost_inspect_action,
     recovery_action_lines,
     recovery_ladder_note,
     recovery_recent_action,
@@ -1298,7 +1297,12 @@ def _resume_runtime_commands(*, cwd: Path | None = None) -> tuple[str | None, st
     try:
         from gpd.adapters import get_adapter
 
-        runtime_name = installed_runtime_for_surface(cwd or _get_cwd())
+        runtime_cwd = cwd or _get_cwd()
+        runtime_name = installed_runtime_for_surface(runtime_cwd)
+        if runtime_name is None:
+            from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use
+
+            detect_runtime_for_gpd_use(cwd=runtime_cwd)
         if runtime_name is None:
             return None, None
         adapter = get_adapter(runtime_name)
@@ -3969,15 +3973,8 @@ def _cost_summary_project_root(summary: object) -> str | None:
     return None
 
 
-def _cost_next_action(advisory: dict[str, object]) -> str | None:
-    state = str(advisory.get("state", "") or "").strip()
-    if state in {"at_or_over_budget", "near_budget", "mixed"}:
-        return cost_inspect_action()
-    return None
-
-
 def _cost_advisory(summary: object) -> dict[str, object] | None:
-    from gpd.core.costs import resolve_cost_advisory
+    from gpd.core.costs import cost_advisory_next_action, resolve_cost_advisory
 
     structured_advisory = resolve_cost_advisory(summary)
     if structured_advisory is None:
@@ -3986,7 +3983,7 @@ def _cost_advisory(summary: object) -> dict[str, object] | None:
     advisory = structured_advisory.model_dump(mode="json")
     if not isinstance(advisory, dict):
         return None
-    next_action = _cost_next_action(advisory)
+    next_action = cost_advisory_next_action(advisory)
     if next_action is not None:
         advisory["next_action"] = next_action
     return advisory

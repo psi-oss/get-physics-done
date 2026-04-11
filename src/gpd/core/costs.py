@@ -29,6 +29,7 @@ from gpd.core.observability import get_current_session_id
 from gpd.core.root_resolution import normalize_workspace_hint, resolve_project_roots
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
 from gpd.core.small_utils import first_nonempty_stripped_string, utc_now_iso
+from gpd.core.surface_phrases import cost_inspect_action
 from gpd.core.utils import atomic_write, file_lock, safe_read_file
 
 __all__ = [
@@ -40,6 +41,7 @@ __all__ = [
     "PricingSnapshot",
     "UsageRecord",
     "build_cost_summary",
+    "cost_advisory_next_action",
     "cost_data_root",
     "list_usage_records",
     "load_pricing_snapshot",
@@ -1018,6 +1020,15 @@ def _budget_threshold_summary(
             "it stays advisory only and never stops work automatically."
         ),
     )
+
+
+def cost_advisory_next_action(advisory: dict[str, object]) -> str | None:
+    """Return the canonical follow-up action for a structured cost advisory."""
+
+    state = str(advisory.get("state", "") or "").strip()
+    if state in {"at_or_over_budget", "near_budget", "mixed"}:
+        return cost_inspect_action()
+    return None
 
 
 def resolve_cost_advisory(cost_summary: object | None) -> CostAdvisorySummary | None:

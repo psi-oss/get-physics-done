@@ -280,6 +280,7 @@ class TestExpandAtIncludes:
         assert "<!-- [included: gpd-shared.md] -->" in result
 
     def test_installed_style_nested_get_physics_done_includes_resolve_against_specs_root(self, tmp_path: Path) -> None:
+        descriptor = _RUNTIME_DESCRIPTORS[0]
         gpd_dir = self._make_src(
             tmp_path,
             {
@@ -289,14 +290,28 @@ class TestExpandAtIncludes:
         )
 
         result = expand_at_includes(
-            f"@{tmp_path}/runtime/get-physics-done/workflows/verify.md",
+            f"@{tmp_path}/{descriptor.config_dir_name}/get-physics-done/workflows/verify.md",
             gpd_dir,
-            f"{tmp_path}/runtime/",
-            runtime="codex",
+            f"{tmp_path}/{descriptor.config_dir_name}/",
+            runtime=descriptor.runtime_name,
         )
 
         assert "Canonical schema body" in result
         assert "@ include not resolved:" not in result.lower()
+
+    def test_installed_style_absolute_parent_traversal_is_rejected(self, tmp_path: Path) -> None:
+        descriptor = _RUNTIME_DESCRIPTORS[0]
+        gpd_dir = self._make_src(tmp_path, {"templates/schema.md": "Canonical schema body\n"})
+
+        result = expand_at_includes(
+            f"@{tmp_path}/{descriptor.config_dir_name}/get-physics-done/../templates/schema.md",
+            gpd_dir,
+            f"{tmp_path}/{descriptor.config_dir_name}/",
+            runtime=descriptor.runtime_name,
+        )
+
+        assert "Canonical schema body" not in result
+        assert "@ include not resolved:" in result.lower()
 
 
 # =========================================================================

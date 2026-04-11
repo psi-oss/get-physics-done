@@ -13,12 +13,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import call, patch
 
+from gpd.adapters.runtime_catalog import get_hook_payload_policy
 from gpd.hooks.runtime_detect import TodoCandidate, update_command_for_runtime
 from gpd.hooks.statusline import (
     _check_update,
     _context_bar,
     _execution_badge,
     _format_context_window_size,
+    _hook_payload_policy,
     _project_state_dir,
     _read_current_task,
     _read_execution_state,
@@ -132,6 +134,21 @@ def test_project_state_dir_ignores_stale_raw_project_hint_when_resolved_project_
     )
 
     assert result == str(project)
+
+
+def test_hook_payload_policy_prefers_installed_runtime_over_stale_local_runtime_dir(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / ".codex").mkdir(parents=True)
+
+    home = tmp_path / "home"
+    global_runtime_dir = home / ".claude"
+    _mark_complete_install(global_runtime_dir, runtime="claude-code", install_scope="global")
+
+    with patch("gpd.hooks.runtime_detect.Path.home", return_value=home):
+        policy = _hook_payload_policy(str(workspace))
+
+    assert policy == get_hook_payload_policy("claude-code")
 
 # ─── _context_bar edge cases ───────────────────────────────────────────────
 

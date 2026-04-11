@@ -1421,11 +1421,12 @@ gpd_return:
   files_written: []
   issues: [issue objects from Issue Format above]
   next_actions: [list of recommended follow-up actions]
-  approved_plans: [list of plan IDs that passed]
-  blocked_plans: [list of plan IDs needing revision or escalation]
-  dimensions_checked: [list of dimensions evaluated]
-  revision_round: 1-3  # current round number
-  revision_guidance: "specific feedback for planner"
+  extensions:
+    approved_plans: [list of plan IDs that passed]
+    blocked_plans: [list of plan IDs needing revision or escalation]
+    dimensions_checked: [list of dimensions evaluated]
+    revision_round: 1-3  # current round number
+    revision_guidance: "specific feedback for planner"
 ```
 
 When contract-gate failures or escalation diagnoses matter, represent them in the `issues` list and the markdown report above instead of inventing nested `gpd_return` payloads.

@@ -683,6 +683,8 @@ def _parse_public_command_surface_prefix(
     if value is None:
         return command_prefix
     prefix = _require_string(value, label=label)
+    if prefix != command_prefix:
+        raise ValueError(f"{label} must match command_prefix")
     return prefix
 
 

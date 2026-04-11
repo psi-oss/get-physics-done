@@ -3,7 +3,6 @@
 
 import hashlib
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -11,7 +10,6 @@ from types import SimpleNamespace
 
 from gpd.adapters.runtime_catalog import get_hook_payload_policy
 from gpd.core.constants import (
-    ENV_GPD_DEBUG,
     HOME_DATA_DIR_NAME,
     OBSERVABILITY_DIR_NAME,
     OBSERVABILITY_LAST_NOTIFY_FILENAME,
@@ -20,6 +18,7 @@ from gpd.core.constants import (
 from gpd.core.observability import humanize_execution_reason
 from gpd.core.root_resolution import resolve_project_root
 from gpd.core.utils import atomic_write, file_lock
+from gpd.hooks.debug import hook_debug as _debug
 from gpd.hooks.install_context import detect_self_owned_install
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
 from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping
@@ -30,11 +29,6 @@ from gpd.hooks.update_resolution import update_command_for_candidate as _shared_
 
 _PAUSED_SEGMENT_STATES = {"paused", "awaiting_user", "ready_to_continue"}
 _COMPLETED_SEGMENT_STATES = {"completed", "complete", "done", "finished"}
-
-
-def _debug(msg: str) -> None:
-    if os.environ.get(ENV_GPD_DEBUG):
-        sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 
 def _has_project_layout(cwd: str) -> bool:

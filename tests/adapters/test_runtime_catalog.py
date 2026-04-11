@@ -253,7 +253,7 @@ def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> N
             assert normalize_runtime_name(selection_alias) == runtime_name
 
 
-def test_runtime_catalog_allows_descriptor_public_prefix_to_differ_from_adapter_prefix(
+def test_runtime_catalog_rejects_descriptor_public_prefix_drift(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -263,11 +263,11 @@ def test_runtime_catalog_allows_descriptor_public_prefix_to_differ_from_adapter_
     codex["validated_command_surface"] = "public_runtime_slash_command"
     codex["public_command_surface_prefix"] = "$public-"
 
-    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
-    descriptor = next(item for item in descriptors if item.runtime_name == "codex")
-
-    assert descriptor.command_prefix == "/gpd"
-    assert descriptor.public_command_surface_prefix == "$public-"
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 2\.public_command_surface_prefix must match command_prefix",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
 def test_runtime_catalog_records_native_include_support() -> None:

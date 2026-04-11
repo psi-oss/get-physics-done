@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from gpd.core.return_contract import validate_gpd_return_markdown
+from gpd.core.return_contract import extract_gpd_return_block, validate_gpd_return_markdown
 
 
 def _wrap_return_block(yaml_body: str) -> str:
@@ -40,6 +40,28 @@ def test_accepts_nested_state_and_continuation_payloads() -> None:
     assert result.fields["state_updates"]["update_progress"] is True
     assert result.fields["continuation_update"]["handoff"]["recorded_by"] == "execute-plan"
     assert result.fields["continuation_update"]["bounded_segment"]["segment_id"] == "seg-01"
+
+
+def test_extracts_top_level_gpd_return_after_comments_and_document_marker() -> None:
+    content = """
+```yaml
+# parser should ignore this comment
+---
+gpd_return:
+  status: checkpoint
+  files_written: []
+  issues: []
+  next_actions: []
+```
+"""
+
+    block = extract_gpd_return_block(content)
+    result = validate_gpd_return_markdown(content)
+
+    assert block is not None
+    assert "gpd_return:" in block
+    assert result.passed is True
+    assert result.fields["status"] == "checkpoint"
 
 
 def test_accepts_typed_checker_plan_lists() -> None:
@@ -157,6 +179,44 @@ def test_accepts_synthesizer_style_completed_return_with_summary_only_file_list(
     assert result.fields["files_written"] == ["GPD/literature/SUMMARY.md"]
     assert result.fields["issues"] == []
     assert result.fields["next_actions"] == []
+
+
+def test_canonicalizes_case_drifted_status_to_lowercase() -> None:
+    content = _wrap_return_block(
+        "  status: Completed\n"
+        "  files_written: []\n"
+        "  issues: []\n"
+        "  next_actions: []\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is True
+    assert result.fields["status"] == "completed"
+
+
+def test_accepts_agent_specific_detail_under_extensions_mapping() -> None:
+    content = _wrap_return_block(
+        "  status: completed\n"
+        "  files_written: [GPD/CONVENTIONS.md]\n"
+        "  issues: []\n"
+        "  next_actions: []\n"
+        "  extensions:\n"
+        "    conventions_file: GPD/CONVENTIONS.md\n"
+        "    plans_created: 2\n"
+        "    conventions:\n"
+        "      metric: (+,-,-,-)\n"
+        "    approximations:\n"
+        "      - name: weak coupling\n"
+        "        order: leading\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is True
+    assert result.fields["extensions"]["conventions_file"] == "GPD/CONVENTIONS.md"
+    assert result.fields["extensions"]["plans_created"] == 2
+    assert result.fields["extensions"]["conventions"]["metric"] == "(+,-,-,-)"
 
 
 def test_nested_forbidden_key_error_includes_repair_hint() -> None:

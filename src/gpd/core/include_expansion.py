@@ -172,12 +172,31 @@ def _resolve_include_source_path(
 ) -> Path | None:
     specs_root = _specs_source_root(src_root)
     agents_root = _agents_source_root(src_root)
+    resolved_specs_root = specs_root.resolve(strict=False)
+    resolved_agents_root = agents_root.resolve(strict=False)
 
     def _safe_relative_path(raw_path: str | Path) -> Path | None:
         relative = Path(raw_path)
         if not relative.parts or relative.is_absolute() or ".." in relative.parts:
             return None
         return relative
+
+    def _source_relative_path(candidate: Path, *, resolved_root: Path) -> Path | None:
+        resolved_candidate = candidate.expanduser().resolve(strict=False)
+        try:
+            relative = resolved_candidate.relative_to(resolved_root)
+        except ValueError:
+            return None
+        return _safe_relative_path(relative)
+
+    candidate = Path(include_path).expanduser()
+    if candidate.is_absolute():
+        relative = _source_relative_path(candidate, resolved_root=resolved_specs_root)
+        if relative is not None:
+            return specs_root / relative
+        relative = _source_relative_path(candidate, resolved_root=resolved_agents_root)
+        if relative is not None:
+            return agents_root / relative
 
     if include_path.startswith("{GPD_INSTALL_DIR}/"):
         relative = _safe_relative_path(include_path[len("{GPD_INSTALL_DIR}/") :])

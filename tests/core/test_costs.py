@@ -10,6 +10,7 @@ import gpd.core.costs as costs
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.core.costs import (
     build_cost_summary,
+    cost_advisory_next_action,
     list_usage_records,
     pricing_snapshot_path,
     record_usage_from_runtime_payload,
@@ -765,6 +766,15 @@ def test_build_cost_summary_surfaces_structured_estimated_usd_advisory_without_b
     assert advisory.scope is None
     assert advisory.config_key is None
     assert "pricing snapshot" in advisory.message
+
+
+def test_cost_advisory_next_action_only_surfaces_for_attention_states() -> None:
+    expected = "Run `gpd cost` for the local usage/cost summary and any USD budget warnings."
+
+    assert cost_advisory_next_action({"state": "near_budget"}) == expected
+    assert cost_advisory_next_action({"state": "mixed"}) == expected
+    assert cost_advisory_next_action({"state": "estimated"}) is None
+    assert cost_advisory_next_action({"state": "unavailable"}) is None
 
 
 def test_build_cost_summary_surfaces_advisory_budget_thresholds(

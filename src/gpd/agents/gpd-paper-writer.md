@@ -983,13 +983,14 @@ gpd_return:
   files_written: [paper/sections/{section_file}.tex]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  section_name: "{section drafted}"
-  equations_added: N
-  figures_added: N
-  citations_added: N
-  journal_calibration: "{prl | apj | mnras | nature | jhep | jfm | style-only-other}"
-  framing_strategy: "{extension | alternative | resolution | first-application | systematic-study}"
-  context_pressure: null | "high"  # present when ORANGE threshold reached
+  extensions:
+    section_name: "{section drafted}"
+    equations_added: N
+    figures_added: N
+    citations_added: N
+    journal_calibration: "{prl | apj | mnras | nature | jhep | jfm | style-only-other}"
+    framing_strategy: "{extension | alternative | resolution | first-application | systematic-study}"
+    context_pressure: null | "high"  # present when ORANGE threshold reached
 ```
 
 For checkpoint or blocked returns, keep the same base fields and record only the files that actually landed on disk; if nothing was written yet, use `files_written: []`.

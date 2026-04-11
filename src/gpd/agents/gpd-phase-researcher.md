@@ -532,7 +532,8 @@ gpd_return:
   files_written: [$PHASE_DIR/$PADDED_PHASE-RESEARCH.md]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  confidence: HIGH | MEDIUM | LOW
+  extensions:
+    confidence: HIGH | MEDIUM | LOW
 ```
 
 </structured_returns>

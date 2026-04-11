@@ -1835,23 +1835,24 @@ gpd_return:
   issues: [...]
   next_actions: [...]
   phase: "{phase-name}"
-  plans_created: N
-  waves: M
-  conventions:
-    units: "natural"
-    metric: "(+,-,-,-)"
-    gauge: "Feynman"
-  approximations:
-    - name: "weak coupling"
-      parameter: "g << 1"
-      order: "next-to-leading"
-  plans:
-    - id: "{phase}-01"
-      wave: 1
-      interactive: false
-      tasks: 2
-      objective: "Brief objective"
-  context_pressure: low | high
+  extensions:
+    plans_created: N
+    waves: M
+    conventions:
+      units: "natural"
+      metric: "(+,-,-,-)"
+      gauge: "Feynman"
+    approximations:
+      - name: "weak coupling"
+        parameter: "g << 1"
+        order: "next-to-leading"
+    plans:
+      - id: "{phase}-01"
+        wave: 1
+        interactive: false
+        tasks: 2
+        objective: "Brief objective"
+    context_pressure: low | high
 ```
 
 For gap closure, keep the same envelope shape and set `gap_closure: true` in plan frontmatter. For checkpoints or revisions, follow the matching template and do not invent new status labels.

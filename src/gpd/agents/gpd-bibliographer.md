@@ -118,7 +118,8 @@ gpd_return:
   files_written: [references/references.bib, GPD/references-status.json]
   issues: [list of citation problems, if any]
   next_actions: [list of recommended follow-up actions]
-  entries_added: N
+  extensions:
+    entries_added: N
 ```
 
 ## Downstream Consumers

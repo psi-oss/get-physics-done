@@ -47,8 +47,8 @@ VALID_RETURN_STATUSES: frozenset[str] = frozenset({"completed", "checkpoint", "b
 REQUIRED_RETURN_FIELDS: tuple[str, ...] = ("status", "files_written", "issues", "next_actions")
 """Fields that must be present in every ``gpd_return`` envelope."""
 
-GPD_RETURN_BLOCK_RE = re.compile(r"```ya?ml\s*\n(gpd_return:\s*\n[\s\S]*?)```")
-"""Fence matcher for the canonical ``gpd_return`` YAML block."""
+GPD_RETURN_BLOCK_RE = re.compile(r"```ya?ml\s*\n([\s\S]*?)```")
+"""Fence matcher for YAML blocks that may contain the canonical ``gpd_return`` payload."""
 
 
 @dataclass(frozen=True)
@@ -91,6 +91,7 @@ RETURN_ENVELOPE_STATUS_CONTRACTS: dict[str, GpdReturnStatusContract] = {
             "blocked_plans",
             "continuation_update",
             "conventions_used",
+            "extensions",
         ),
     ),
     "checkpoint": GpdReturnStatusContract(
@@ -103,15 +104,16 @@ RETURN_ENVELOPE_STATUS_CONTRACTS: dict[str, GpdReturnStatusContract] = {
             "blocked_plans",
             "blockers",
             "continuation_update",
+            "extensions",
         ),
     ),
     "blocked": GpdReturnStatusContract(
         required_fields=REQUIRED_RETURN_FIELDS,
-        structured_fields=("approved_plans", "blocked_plans", "blockers", "continuation_update"),
+        structured_fields=("approved_plans", "blocked_plans", "blockers", "continuation_update", "extensions"),
     ),
     "failed": GpdReturnStatusContract(
         required_fields=REQUIRED_RETURN_FIELDS,
-        structured_fields=("approved_plans", "blocked_plans", "blockers", "continuation_update"),
+        structured_fields=("approved_plans", "blocked_plans", "blockers", "continuation_update", "extensions"),
     ),
 }
 """Explicit status-dependent contract structure for supported envelopes."""
@@ -142,6 +144,7 @@ class GpdReturnEnvelope(BaseModel):
     continuation_update: GpdReturnContinuationUpdate | None = None
     conventions_used: dict[str, object] | None = None
     checkpoint_hashes: list[dict[str, object]] | None = None
+    extensions: dict[str, object] | None = None
 
     @field_validator("status", mode="before")
     @classmethod
@@ -153,7 +156,7 @@ class GpdReturnEnvelope(BaseModel):
             raise ValueError(f"Invalid status '{value}'. Must be one of: {', '.join(sorted(VALID_RETURN_STATUSES))}")
         if not normalized:
             raise ValueError("status must be a non-empty string")
-        return normalized
+        return normalized.lower()
 
     @field_validator("files_written", "issues", "next_actions", mode="before")
     @classmethod
@@ -185,7 +188,7 @@ class GpdReturnEnvelope(BaseModel):
             raise ValueError(f"{info.field_name} not a number: {value!r}")
         return value
 
-    @field_validator("state_updates", "contract_updates", "conventions_used", mode="before")
+    @field_validator("state_updates", "contract_updates", "conventions_used", "extensions", mode="before")
     @classmethod
     def _validate_yaml_mapping(cls, value: object, info) -> dict[str, object] | None:
         if value is None:
@@ -208,6 +211,7 @@ class GpdReturnEnvelope(BaseModel):
             _validate_yaml_mapping(item, f"gpd_return.checkpoint_hashes[{index}]")
         return [dict(item) for item in value]
 
+
 class GpdReturnValidationResult(BaseModel):
     """Validation result for a ``gpd_return`` envelope embedded in markdown."""
 
@@ -221,8 +225,11 @@ class GpdReturnValidationResult(BaseModel):
 
 def extract_gpd_return_block(content: str) -> str | None:
     """Extract the canonical fenced YAML block containing ``gpd_return``."""
-    match = GPD_RETURN_BLOCK_RE.search(content)
-    return match.group(1) if match else None
+    for match in GPD_RETURN_BLOCK_RE.finditer(content):
+        yaml_block = match.group(1)
+        if re.search(r"(?m)^gpd_return:\s*", yaml_block):
+            return yaml_block
+    return None
 
 
 def validate_gpd_return_markdown(content: str) -> GpdReturnValidationResult:

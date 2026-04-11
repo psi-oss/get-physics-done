@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters import get_adapter
-from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command
+from gpd.adapters.install_utils import MANIFEST_NAME
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 
 
@@ -100,6 +100,8 @@ def test_external_skills_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: 
     assert (skills_dir / "gpd-start" / "SKILL.md").exists()
     assert (skills_dir / "gpd-tour" / "SKILL.md").exists()
     assert (skills_dir / "gpd-slides" / "SKILL.md").exists()
+    assert not (skills_dir / "gpd-health").exists()
+    assert not (skills_dir / "gpd-suggest-next").exists()
 
     help_skill = (skills_dir / "gpd-help" / "SKILL.md").read_text(encoding="utf-8")
     assert "context_mode:" in help_skill
@@ -113,16 +115,8 @@ def test_external_skills_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: 
     managed_external_command_dir_names = _managed_external_command_dir_names(adapter, target, manifest)
     assert managed_external_command_dir_names
     assert all(name.startswith("gpd-") for name in managed_external_command_dir_names)
-
-    suggest_next = (skills_dir / "gpd-suggest-next" / "SKILL.md").read_text(encoding="utf-8")
-    bridge_command = build_runtime_cli_bridge_command(
-        adapter.runtime_name,
-        target_dir=target,
-        config_dir_name=adapter.config_dir_name,
-        is_global=True,
-        explicit_target=False,
-    )
-    assert bridge_command in suggest_next
+    assert "gpd-health" not in managed_external_command_dir_names
+    assert "gpd-suggest-next" not in managed_external_command_dir_names
 
     preserved_skill = skills_dir / "gpd-user-keep"
     preserved_skill.mkdir()

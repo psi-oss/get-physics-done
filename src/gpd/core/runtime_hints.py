@@ -14,7 +14,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from gpd.core.context import init_resume
-from gpd.core.costs import build_cost_summary, resolve_cost_advisory
+from gpd.core.costs import build_cost_summary, cost_advisory_next_action, resolve_cost_advisory
 from gpd.core.observability import derive_execution_visibility, get_current_session_id
 from gpd.core.project_reentry import (
     project_reentry_candidate_summary,
@@ -42,7 +42,6 @@ from gpd.core.runtime_command_surfaces import format_active_runtime_command, ins
 from gpd.core.small_utils import utc_now_iso
 from gpd.core.surface_phrases import (
     command_follow_up_action,
-    cost_inspect_action,
     recovery_action_lines,
     tangent_branch_later_action,
     tangent_chooser_action,
@@ -430,19 +429,12 @@ def _workflow_next_actions(*, base_ready: bool) -> list[str]:
     return []
 
 
-def _cost_next_action(advisory: dict[str, object]) -> str | None:
-    state = str(advisory.get("state", "") or "").strip()
-    if state in {"at_or_over_budget", "near_budget", "mixed"}:
-        return cost_inspect_action()
-    return None
-
-
 def _cost_advisory(cost_summary: object) -> dict[str, object] | None:
     structured_advisory = resolve_cost_advisory(cost_summary)
     advisory = _model_dump(structured_advisory)
     if advisory is None:
         return None
-    next_action = _cost_next_action(advisory)
+    next_action = cost_advisory_next_action(advisory)
     if next_action is not None:
         advisory["next_action"] = next_action
     return advisory

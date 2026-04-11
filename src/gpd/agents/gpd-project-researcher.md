@@ -691,7 +691,8 @@ gpd_return:
   files_written: [GPD/literature/SUMMARY.md, GPD/literature/METHODS.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  confidence: HIGH | MEDIUM | LOW
+  extensions:
+    confidence: HIGH | MEDIUM | LOW
 ```
 
 Headings above are presentation only; route on gpd_return.status.

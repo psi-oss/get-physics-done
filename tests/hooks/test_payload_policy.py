@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -182,6 +183,36 @@ def test_resolve_hook_surface_runtime_prefers_nested_local_install_when_runtime_
             cwd=nested,
             surface="notify",
         )
+
+    assert runtime == "claude-code"
+
+
+def test_resolve_hook_surface_runtime_falls_back_to_installed_preferred_runtime_when_active_runtime_is_missing(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    home = tmp_path / "home"
+    workspace.mkdir()
+    home.mkdir()
+    hook_file = workspace / ".codex" / "hooks" / "notify.py"
+
+    with (
+        patch("gpd.hooks.payload_policy.hook_layout.detect_self_owned_install", return_value=None),
+        patch(
+            "gpd.hooks.payload_policy.hook_layout.resolve_hook_lookup_context",
+            return_value=HookLookupContext(
+                lookup_cwd=workspace,
+                resolved_home=home,
+                active_runtime=None,
+                preferred_runtime="claude-code",
+            ),
+        ),
+        patch(
+            "gpd.hooks.payload_policy.detect_runtime_install_target",
+            return_value=SimpleNamespace(config_dir=home / ".claude", install_scope="global"),
+        ),
+    ):
+        runtime = resolve_hook_surface_runtime(hook_file=hook_file, cwd=workspace, surface="notify")
 
     assert runtime == "claude-code"
 

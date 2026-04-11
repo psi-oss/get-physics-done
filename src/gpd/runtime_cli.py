@@ -30,6 +30,9 @@ from gpd.core.cli_args import (
     resolve_root_global_cli_cwd_from_argv as _resolve_cli_cwd_from_argv,
 )
 from gpd.core.cli_args import (
+    split_root_global_cli_options as _split_cli_options,
+)
+from gpd.core.cli_args import (
     validate_root_global_cli_passthrough as _validate_root_global_cli_passthrough,
 )
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
@@ -188,7 +191,7 @@ def _uses_effective_explicit_target(
 
     adapter = get_adapter(runtime)
     if install_scope == "global":
-        canonical_global_dir = adapter.resolve_global_config_dir(home=Path.home(), environ=os.environ)
+        canonical_global_dir = adapter.resolve_global_config_dir(home=Path.home(), environ={})
         return not _paths_equal(config_dir, canonical_global_dir)
 
     default_local_config_dir = adapter.resolve_local_config_dir(cli_cwd).resolve(strict=False)
@@ -217,6 +220,53 @@ def _build_repair_command(
             cli_cwd=cli_cwd,
         ),
     )
+
+
+def _normalize_bridge_gpd_args(argv: list[str]) -> list[str]:
+    """Normalize forwarded root-global ``--cwd`` flags before bridge dispatch."""
+
+    try:
+        passthrough_index = argv.index("--")
+    except ValueError:
+        passthrough_index = len(argv)
+
+    before_passthrough = list(argv[:passthrough_index])
+    passthrough = list(argv[passthrough_index:])
+    forwarded_cwd_args: list[str] = []
+    remaining_args: list[str] = []
+    index = 0
+
+    while index < len(before_passthrough):
+        arg = str(before_passthrough[index])
+        if arg == "--cwd":
+            forwarded_cwd_args.append(arg)
+            if index + 1 < len(before_passthrough):
+                forwarded_cwd_args.append(str(before_passthrough[index + 1]))
+                index += 2
+            else:
+                index += 1
+            continue
+        if arg.startswith("--cwd="):
+            forwarded_cwd_args.append(arg)
+            index += 1
+            continue
+        remaining_args.append(arg)
+        index += 1
+
+    root_global_args, command_args = _split_cli_options(remaining_args)
+    normalized_args = [*root_global_args, *forwarded_cwd_args, *command_args, *passthrough]
+    try:
+        _validate_root_global_cli_passthrough(normalized_args)
+    except ValueError as exc:
+        raise _BridgeArgumentError(str(exc)) from exc
+    return normalized_args
+
+
+def _normalized_bridge_raw_argv(raw_argv: list[str], gpd_args: list[str], normalized_gpd_args: list[str]) -> list[str]:
+    """Return the bridge argv with already-normalized forwarded CLI args."""
+
+    bridge_prefix = raw_argv[: len(raw_argv) - len(gpd_args)] if gpd_args else list(raw_argv)
+    return [*bridge_prefix, *normalized_gpd_args]
 
 
 def _maybe_reexec_from_checkout(raw_argv: list[str], *, cli_cwd: Path) -> None:
@@ -459,8 +509,13 @@ def main(argv: list[str] | None = None) -> int:
     except _BridgeArgumentError as exc:
         sys.stderr.write(_bridge_argument_error_message(str(exc)) + "\n")
         return 127
-    cli_cwd = _resolve_cli_cwd_from_argv(gpd_args)
-    _maybe_reexec_from_checkout(raw_argv, cli_cwd=cli_cwd)
+    try:
+        normalized_gpd_args = _normalize_bridge_gpd_args(gpd_args)
+    except _BridgeArgumentError as exc:
+        sys.stderr.write(_bridge_argument_error_message(str(exc)) + "\n")
+        return 127
+    cli_cwd = _resolve_cli_cwd_from_argv(normalized_gpd_args)
+    _maybe_reexec_from_checkout(_normalized_bridge_raw_argv(raw_argv, gpd_args, normalized_gpd_args), cli_cwd=cli_cwd)
     try:
         adapter = get_adapter(runtime)
     except KeyError as exc:
@@ -591,7 +646,7 @@ def main(argv: list[str] | None = None) -> int:
 
     original_argv = list(sys.argv)
     try:
-        sys.argv = ["gpd", *gpd_args]
+        sys.argv = ["gpd", *normalized_gpd_args]
         result = entrypoint()
     finally:
         sys.argv = original_argv

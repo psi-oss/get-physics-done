@@ -369,7 +369,7 @@ def test_runtime_cli_treats_env_overridden_global_target_as_global_repair_target
     assert exit_code == 127
     assert f"GPD runtime install incomplete for {adapter.display_name}" in captured.err
     assert "--global" in captured.err
-    assert f"--target-dir {shlex.quote(str(config_dir))}" not in captured.err
+    assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
 
 
 @pytest.mark.parametrize("runtime_value", ["", 123, "not-a-runtime"])
@@ -1106,10 +1106,10 @@ def test_runtime_cli_reexecs_from_installed_package_using_forwarded_cli_cwd(
         f"./{descriptor.config_dir_name}",
         "--install-scope",
         "local",
-        "state",
-        "load",
         "--cwd",
         str(forwarded_cwd),
+        "state",
+        "load",
     ]
     assert observed["execve_env"][ENV_GPD_DISABLE_CHECKOUT_REEXEC] == "1"
     assert observed["execve_env"]["PYTHONPATH"].split(os.pathsep)[:2] == [
@@ -1531,7 +1531,7 @@ def test_runtime_cli_resolves_local_config_dir_from_forwarded_cli_cwd(
 
     assert exit_code == 0
     assert observed["config_dir"] == config_dir
-    assert observed["argv"] == ["gpd", "state", "load", "--cwd", str(forwarded_cwd)]
+    assert observed["argv"] == ["gpd", "--cwd", str(forwarded_cwd), "state", "load"]
     assert observed["runtime"] == descriptor.runtime_name
     assert observed["disable_reexec"] == "1"
 
@@ -1582,7 +1582,7 @@ def test_runtime_cli_uses_last_repeated_forwarded_cli_cwd_for_bridge_resolution(
     )
 
     assert exit_code == 0
-    assert observed["argv"] == ["gpd", "state", "load", "--cwd", str(ignored_cwd), "--cwd", str(final_cwd)]
+    assert observed["argv"] == ["gpd", "--cwd", str(ignored_cwd), "--cwd", str(final_cwd), "state", "load"]
     assert observed["runtime"] == descriptor.runtime_name
     assert observed["disable_reexec"] == "1"
 

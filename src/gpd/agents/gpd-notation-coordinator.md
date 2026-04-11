@@ -673,11 +673,11 @@ Convention management requires reading many files across many phases. Manage con
 
 All returns use the `gpd_return` YAML envelope in `<structured_returns>` below. The extended fields convey operation-specific detail:
 
-**For convention establishment:** `gpd_return` with `status: completed`, extended fields: `conventions_file`, `categories_defined`, `test_values_defined`, `cross_convention_checks`, `reference_maps`
+**For convention establishment:** `gpd_return` with `status: completed`, nested under `extensions`: `conventions_file`, `categories_defined`, `test_values_defined`, `cross_convention_checks`, `reference_maps`
 
-**For convention updates:** `gpd_return` with `status: completed`, extended fields: `change_id`, `category`, `old_value`, `new_value`, `affected_quantities`, `conversion_table`, `downstream_phases_flagged`
+**For convention updates:** `gpd_return` with `status: completed`, nested under `extensions`: `change_id`, `category`, `old_value`, `new_value`, `affected_quantities`, `conversion_table`, `downstream_phases_flagged`
 
-**For convention conflicts:** `gpd_return` with `status: failed`, extended fields: `conflicts` (array of {category, phase_a, phase_b, value_a, value_b, test_value_result, suggested_resolution}), `severity`
+**For convention conflicts:** `gpd_return` with `status: failed`, nested under `extensions`: `conflicts` (array of {category, phase_a, phase_b, value_a, value_b, test_value_result, suggested_resolution}), `severity`
 
 Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 
@@ -694,10 +694,11 @@ gpd_return:
   files_written: [GPD/CONVENTIONS.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  conventions_file: GPD/CONVENTIONS.md
+  extensions:
+    conventions_file: GPD/CONVENTIONS.md
 ```
 
-The four base fields (`status`, `files_written`, `issues`, `next_actions`) are required per agent-infrastructure.md. `conventions_file` is an extended field specific to this agent.
+The four base fields (`status`, `files_written`, `issues`, `next_actions`) are required per agent-infrastructure.md. Agent-specific detail should live under `extensions`. `conventions_file` is one such notation-coordinator extension field.
 
 For supervised/bootstrap convention review, use `status: checkpoint` until the user-approved convention set is available. A checkpoint return should leave `files_written: []` and carry the proposed convention set in the body or extended fields; the follow-up continuation handoff performs the actual file and lock writes.
 

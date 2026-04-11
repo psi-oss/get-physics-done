@@ -11,7 +11,7 @@ from pathlib import Path
 
 from gpd.adapters.install_utils import CACHE_DIR_NAME, GPD_INSTALL_DIR_NAME, UPDATE_CACHE_FILENAME
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, normalize_runtime_name
-from gpd.core.constants import ENV_GPD_DEBUG
+from gpd.hooks.debug import hook_debug as _debug
 from gpd.hooks.install_context import should_prefer_self_owned_install
 from gpd.hooks.install_metadata import config_dir_has_complete_install
 
@@ -63,11 +63,6 @@ def _version_key(version: str) -> tuple[tuple[int, ...], int, int, str]:
     release = _trim_trailing_zero_segments(release) or (0,)
     rank, number = _suffix_rank(match.group("suffix"))
     return (release, rank, number, "")
-
-
-def _debug(msg: str) -> None:
-    if os.environ.get(ENV_GPD_DEBUG):
-        sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 
 def _self_config_dir() -> Path | None:

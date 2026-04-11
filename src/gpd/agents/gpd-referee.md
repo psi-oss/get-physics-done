@@ -1004,11 +1004,12 @@ gpd_return:
     - GPD/review/REVIEW-LEDGER{round_suffix}.json
   issues: [list of blocking or unresolved review issues, if any]
   next_actions: [list of recommended follow-up actions]
-  recommendation: "{accept | minor_revision | major_revision | reject}"
-  confidence: "{high | medium | low}"
-  major_issues: N
-  minor_issues: N
-  dimensions_evaluated: N  # out of 10
+  extensions:
+    recommendation: "{accept | minor_revision | major_revision | reject}"
+    confidence: "{high | medium | low}"
+    major_issues: N
+    minor_issues: N
+    dimensions_evaluated: N  # out of 10
 ```
 
 Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.

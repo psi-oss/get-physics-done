@@ -511,9 +511,10 @@ gpd_return:
   files_written: [list only files that actually landed on disk; use [] when no file was written]
   issues: [list of gaps or issues found, if any]
   next_actions: [list of recommended follow-up actions]
-  verification_status: passed | gaps_found | expert_needed | human_needed
-  score: "{N}/{M}"
-  confidence: HIGH | MEDIUM | LOW | UNRELIABLE
+  extensions:
+    verification_status: passed | gaps_found | expert_needed | human_needed
+    score: "{N}/{M}"
+    confidence: HIGH | MEDIUM | LOW | UNRELIABLE
 ```
 
 Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
