@@ -78,14 +78,6 @@ REVIEW_CONTRACT_PREFLIGHT_CHECKS = (
     "phase_summaries",
     "phase_proof_review",
 )
-_EPISTEMIC_GUARDRAIL_CLAUSES = (
-    "Apply scientific skepticism and critical thinking. Stress-test both the user's preferred explanation and your own first impression without treating the user as an adversary.",
-    "Prefer skeptical verification, disconfirming evidence, and explicit uncertainty over agreeable affirmation.",
-    "Do not claim any result, citation, file, or artifact exists unless you directly observed it in the provided context or produced it in this session.",
-    "If search, execution, or generation fails, report the failure plainly instead of inventing fallback content.",
-)
-
-
 def _join_disjunction(values: tuple[str, ...]) -> str:
     return " or ".join(f"`{value}`" for value in values)
 
@@ -107,7 +99,6 @@ def agent_visibility_note() -> str:
         f"`role_family` must be {_join_disjunction(AGENT_ROLE_FAMILIES)};",
         f"`artifact_write_authority` must be {_join_disjunction(AGENT_ARTIFACT_WRITE_AUTHORITIES)};",
         f"`shared_state_authority` must be {_join_disjunction(AGENT_SHARED_STATE_AUTHORITIES)}.",
-        *_EPISTEMIC_GUARDRAIL_CLAUSES,
     )
 
 
@@ -129,7 +120,6 @@ def command_visibility_note() -> str:
         agent_clause,
         "`project_reentry_capable` must be `true` or `false` and may be `true` only when `context_mode` is `project-required`.",
         "Missing required files or other decisive evidence are blocking for strong claims; do not treat omissions or proxies as success.",
-        *_EPISTEMIC_GUARDRAIL_CLAUSES,
     )
 
 
@@ -152,7 +142,6 @@ def review_contract_visibility_note() -> str:
         "List fields reject blank entries and duplicates.",
         "Each conditional requirement must declare at least one non-empty field.",
         "Missing required outputs or evidence must stay explicit; do not omit, invent, or replace them with proxies.",
-        *_EPISTEMIC_GUARDRAIL_CLAUSES,
     )
 
 

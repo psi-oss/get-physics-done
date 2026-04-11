@@ -31,7 +31,8 @@ def test_roadmapper_prompt_example_includes_required_base_return_fields() -> Non
     assert "files_written: [ROADMAP.md, STATE.md]" in envelope
     assert "issues: [list of issues encountered, if any]" in envelope
     assert "next_actions: [list of recommended follow-up actions]" in envelope
-    assert "phases_created: {count}" in envelope
+    assert "tasks_completed: {phases created}" in envelope
+    assert "tasks_total: {phases planned}" in envelope
     assert "base fields (status, files_written, issues, next_actions)" not in roadmapper
 
 

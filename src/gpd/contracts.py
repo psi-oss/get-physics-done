@@ -2868,7 +2868,6 @@ def parse_project_contract_data_salvage(data: object) -> ProjectContractParseRes
 def contract_from_data(
     data: object,
     *,
-    allow_recoverable_warnings: bool = False,
     require_draft_validity: bool = False,
     project_root: Path | None = None,
 ) -> ResearchContract | None:
@@ -2883,12 +2882,6 @@ def contract_from_data(
 
     if not isinstance(data, dict):
         return None
-    if allow_recoverable_warnings:
-        return contract_from_data_salvage(
-            data,
-            require_draft_validity=require_draft_validity,
-            project_root=project_root,
-        )
 
     strict_result = parse_project_contract_data_strict(data)
     if strict_result.contract is None or strict_result.errors:

@@ -1380,7 +1380,8 @@ def test_roadmap_template_and_workflows_surface_phase_contract_coverage() -> Non
     assert "gpd_return:" in roadmapper_agent
     assert "status: completed | checkpoint | blocked | failed" in roadmapper_agent
     assert "files_written: [ROADMAP.md, STATE.md]" in roadmapper_agent
-    assert "phases_created: {count}" in roadmapper_agent
+    assert "tasks_completed: {phases created}" in roadmapper_agent
+    assert "tasks_total: {phases planned}" in roadmapper_agent
     assert "gpd_return.files_written" in new_project_roadmapper
     assert "GPD/REQUIREMENTS.md" in new_project_roadmapper
     assert "do not rely on runtime completion text alone." in new_project_roadmapper

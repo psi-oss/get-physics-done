@@ -19,7 +19,6 @@ from pydantic import (
     Field,
     StrictStr,
     field_validator,
-    model_validator,
 )
 from pydantic import (
     ValidationError as PydanticValidationError,
@@ -121,7 +120,7 @@ RETURN_ENVELOPE_STATUS_CONTRACTS: dict[str, GpdReturnStatusContract] = {
 class GpdReturnEnvelope(BaseModel):
     """Typed machine-readable ``gpd_return`` payload."""
 
-    model_config = ConfigDict(extra="allow", strict=True)
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     status: StrictStr
     files_written: list[StrictStr]
@@ -208,14 +207,6 @@ class GpdReturnEnvelope(BaseModel):
                 raise ValueError(f"gpd_return.checkpoint_hashes[{index}] must be a mapping")
             _validate_yaml_mapping(item, f"gpd_return.checkpoint_hashes[{index}]")
         return [dict(item) for item in value]
-
-    @model_validator(mode="after")
-    def _validate_extra_fields(self) -> GpdReturnEnvelope:
-        extras = self.model_extra or {}
-        for field_name, value in extras.items():
-            _validate_yaml_native(value, f"gpd_return.{field_name}")
-        return self
-
 
 class GpdReturnValidationResult(BaseModel):
     """Validation result for a ``gpd_return`` envelope embedded in markdown."""

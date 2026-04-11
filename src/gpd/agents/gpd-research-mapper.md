@@ -754,10 +754,10 @@ gpd_return:
   files_written: [GPD/research-map/{focus}.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  focus: "theory | computation | methodology | status"
+  field_assessment: "theory | computation | methodology | status"
 ```
 
-The four base fields (`status`, `files_written`, `issues`, `next_actions`) are required per agent-infrastructure.md. `focus` is an extended field specific to this agent.
+The four base fields (`status`, `files_written`, `issues`, `next_actions`) are required per agent-infrastructure.md. Use `field_assessment` for the mapper focus; do not invent extra `gpd_return` keys.
 
 </structured_returns>
 

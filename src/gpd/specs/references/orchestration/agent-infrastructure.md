@@ -64,7 +64,7 @@ gpd_return:
   next_actions: [list of recommended follow-up actions]
 ```
 
-Agents may extend this with additional fields specific to their role (e.g., `phases_created`, `dimensions_checked`). The four base fields above are required on this envelope.
+Optional top-level fields are limited to the canonical parser fields surfaced in role prompts: `tasks_completed`, `tasks_total`, `duration_seconds`, `phase`, `plan`, `design_file`, `field_assessment`, `state_updates`, `contract_updates`, `decisions`, `approved_plans`, `blocked_plans`, `blockers`, `continuation_update`, `conventions_used`, and `checkpoint_hashes`. Do not invent extra keys.
 
 ### Next-Action Discipline
 

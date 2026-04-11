@@ -417,7 +417,7 @@ gpd_return:
   files_written: [GPD/research-map/{DOC1}.md, ...]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  focus: "theory | computation | methodology | status"
+  field_assessment: "theory | computation | methodology | status"
 ```
 
 **What you receive:** Typed return + file paths and line counts. NOT document contents.

@@ -2642,7 +2642,7 @@ def test_contract_from_data_strict_probe_rejects_nested_unknown_scope_fields() -
     contract = _load_project_contract_fixture()
     contract["scope"]["legacy_notes"] = "nested extra field"
 
-    assert contract_from_data(contract, allow_recoverable_warnings=False) is None
+    assert contract_from_data(contract) is None
 
 
 def test_contract_tools_reject_unknown_top_level_contract_fields() -> None:

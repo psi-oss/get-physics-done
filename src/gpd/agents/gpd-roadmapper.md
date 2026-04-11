@@ -879,7 +879,8 @@ gpd_return:
   files_written: [ROADMAP.md, STATE.md]
   issues: [list of issues encountered, if any]
   next_actions: [list of recommended follow-up actions]
-  phases_created: {count}
+  tasks_completed: {phases created}
+  tasks_total: {phases planned}
 ```
 
 Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.

@@ -177,3 +177,18 @@ gpd_return:
 
     assert not result.passed
     assert any("move this key under an allowed gpd_return field or remove it" in error for error in result.errors)
+
+
+def test_rejects_unknown_top_level_return_keys() -> None:
+    content = _wrap_return_block(
+        "  status: completed\n"
+        "  files_written: []\n"
+        "  issues: []\n"
+        "  next_actions: []\n"
+        "  phases_created: 3\n"
+    )
+
+    result = validate_gpd_return_markdown(content)
+
+    assert result.passed is False
+    assert any("phases_created" in error and "Extra inputs are not permitted" in error for error in result.errors)
