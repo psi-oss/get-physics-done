@@ -125,3 +125,13 @@ def test_bug_campaign_phase10_reconstruction_is_fixture_covered_subset_only() ->
     assert query_oracle["closed_gaps"][0]["class"] == "closed-by-result-registry-projection"
     assert query_oracle["expected_pytest_pass_count"] == 6
     assert query_oracle["phase10_exit_criteria"]["strict_phase10_criteria_met"] is False
+
+    phase_oracle = json.loads(
+        (CAMPAIGN_ROOT / "repro" / "10-oracles" / "phase-content-blindness.json").read_text(encoding="utf-8")
+    )
+    assert phase_oracle["known_gaps"] == []
+    assert phase_oracle["accepted_gaps"][0]["class"] == "accepted-by-phase-read-model-alignment-contract"
+
+    surface_parity = json.loads((SCORECARD_ROOT / "surface-parity.json").read_text(encoding="utf-8"))
+    assert surface_parity["allowlisted_diff_count"] == 6
+    assert surface_parity["unexpected_diff_count"] == 0

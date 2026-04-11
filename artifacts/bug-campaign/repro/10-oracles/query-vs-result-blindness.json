@@ -30,6 +30,7 @@
   "expected_outcome": "pytest exit code 0 for the current fixed behavior",
   "expected_pytest_pass_count": 6,
   "known_gaps": [],
+  "accepted_gaps": [],
   "closed_gaps": [
     {
       "class": "closed-by-result-registry-projection",
