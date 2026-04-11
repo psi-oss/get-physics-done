@@ -19,6 +19,7 @@ from gpd.registry import (
     AgentDef,
     CommandDef,
     SkillDef,
+    _canonical_skill_name_for_command,
     _parse_agent_file,
     _parse_command_file,
     _parse_frontmatter,
@@ -1481,6 +1482,23 @@ class TestDiscovery:
         assert reviewer_skill.name == "gpd-literature-reviewer"
         assert reviewer_skill.category == "research"
         assert {"gpd-literature-review", "gpd-literature-reviewer"}.issubset(registry.list_skills())
+
+
+def test_canonical_skill_namespace_replaces_colon_with_dash() -> None:
+    """Registry skills use the gpd-* namespace derived from command names."""
+    command = CommandDef(
+        name="gpd:sample-command",
+        description="Sample description",
+        argument_hint="",
+        requires={},
+        allowed_tools=[],
+        content="Body.",
+        path="commands/sample.md",
+        source="commands",
+    )
+
+    assert _canonical_skill_name_for_command(command) == "gpd-sample-command"
+
 
 class TestSkillDiscovery:
     """Tests for canonical skills derived from primary commands and agents."""

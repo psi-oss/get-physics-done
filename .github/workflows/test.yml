@@ -218,7 +218,7 @@ jobs:
           PYTEST_SHARD_TARGET_FILE: ${{ runner.temp }}/pytest-targets.txt
         run: |
           mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"
-          uv run pytest -q "${PYTEST_TARGETS[@]}"
+          uv run pytest -q --durations=20 --durations-min=0 "${PYTEST_TARGETS[@]}"
 
   # Staging rebuild trigger moved to staging-rebuild.yml so it doesn't
   # show as a skipped check on PRs.

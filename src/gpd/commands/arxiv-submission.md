@@ -81,7 +81,7 @@ Paper target: $ARGUMENTS (optional; when omitted, the workflow resolves the manu
 </context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/arxiv-submission.md` exactly.
+Follow the workflow file exactly before packaging.
 </process>
 
 <success_criteria>

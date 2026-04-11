@@ -28,18 +28,10 @@ Create or update a draft knowledge document from an explicit topic, source file,
 <context>
 Input: $ARGUMENTS
 
-Check for existing knowledge docs:
-
-```bash
-ls GPD/knowledge/*.md 2>/dev/null | head -10
-```
-
-Check for related source inputs when you already know the target family:
-
-```bash
-ls GPD/literature/*.md 2>/dev/null | head -10
-ls GPD/research-map/*.md 2>/dev/null | head -10
-```
+Quick reference:
+- `ls GPD/knowledge/*.md 2>/dev/null | head -10`
+- `ls GPD/literature/*.md 2>/dev/null | head -10`
+- `ls GPD/research-map/*.md 2>/dev/null | head -10`
 
 </context>
 
@@ -57,30 +49,28 @@ fi
 INIT=$(gpd --raw init progress --include state,roadmap,config)
 ```
 
-Extract `commit_docs`, `project_contract`, `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `active_reference_context`, and any existing `reference_artifact_files` from init JSON. Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true.
+Extract `commit_docs`, `project_contract`, `project_contract_gate`, `active_reference_context`, and any `reference_artifact_files` from `INIT`. Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true.
 
 ## 1. Classify The Request
 
-Interpret `$ARGUMENTS` as one of:
+Interpret `$ARGUMENTS` as:
 
 1. explicit knowledge document path
 2. explicit source file path
 3. arXiv identifier
 4. free-form topic or question
 
-If the request is materially ambiguous, stop and ask one focused clarification question instead of guessing.
-If the user is asking to promote a doc to `stable`, approve it, or mutate an existing stable target, route them to `gpd:review-knowledge` instead of pretending `digest-knowledge` can own that lifecycle step.
+If the request is unclear, ask a focused clarification question before proceeding. Route review/promotion requests (stable mutation or approval) to `gpd:review-knowledge`.
 
 ## 2. Resolve The Target
 
-Prefer deterministic resolution over implicit repair:
+Prefer deterministic resolution:
 
-1. reuse an explicit `GPD/knowledge/K-*.md` path if provided
-2. update an existing knowledge doc only when the target is exact, unambiguous, and already draft
+1. reuse an explicit `GPD/knowledge/K-*.md` path when provided
+2. update an existing knowledge doc only when the target is exact, unambiguous, and still draft
 3. otherwise create a new draft target from a normalized `knowledge_id`
 
-If more than one existing knowledge doc is plausible, stop and ask for clarification.
-If the resolved target exists and is `stable` or `superseded`, do not repurpose it here; route the user to `gpd:review-knowledge` for promotion, revision, or replacement guidance.
+If multiple candidates remain, ask for clarification. If the resolved target is `stable` or `superseded`, hand the request to `gpd:review-knowledge`.
 
 ## 3. Delegate The Workflow
 
@@ -102,7 +92,7 @@ If the requested action belongs to review, approval, or stable-state mutation, e
 </objective>
 ```
 
-If the workflow requires a spawned writer, delegate that work there and keep the wrapper focused on orchestration only.
+If a spawned writer is required, have the workflow-owned logic create it and keep this wrapper focused on orchestration.
 
 ## 4. Return Results
 

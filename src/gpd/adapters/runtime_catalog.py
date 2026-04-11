@@ -820,6 +820,23 @@ def list_runtime_names() -> list[str]:
     return [descriptor.runtime_name for descriptor in iter_runtime_descriptors()]
 
 
+def _alias_variants(value: str | None) -> set[str]:
+    if not isinstance(value, str):
+        return set()
+    normalized = value.strip().casefold()
+    if not normalized:
+        return set()
+    variants = {normalized}
+    if normalized.startswith("--"):
+        variants.add("--" + normalized.removeprefix("--").replace("_", "-"))
+        variants.add("--" + normalized.removeprefix("--").replace("-", "_"))
+    if "-" in normalized:
+        variants.add(normalized.replace("-", "_"))
+    if "_" in normalized:
+        variants.add(normalized.replace("_", "-"))
+    return variants
+
+
 def normalize_runtime_name(value: str | None) -> str | None:
     """Resolve a runtime id, display name, alias, or install flag to a canonical runtime name."""
     if not isinstance(value, str):
@@ -830,14 +847,17 @@ def normalize_runtime_name(value: str | None) -> str | None:
         return None
 
     for descriptor in iter_runtime_descriptors():
-        if normalized in {
-            descriptor.runtime_name.casefold(),
-            descriptor.display_name.casefold(),
-            descriptor.install_flag.casefold(),
-            *(flag.casefold() for flag in descriptor.selection_flags),
-            *(alias.casefold() for alias in descriptor.selection_aliases),
-        }:
-            return descriptor.runtime_name
+        candidates = (
+            descriptor.runtime_name,
+            descriptor.display_name,
+            descriptor.install_flag,
+            descriptor.adapter_module,
+            *descriptor.selection_flags,
+            *descriptor.selection_aliases,
+        )
+        for alias in candidates:
+            if normalized in _alias_variants(alias):
+                return descriptor.runtime_name
     return None
 
 
@@ -896,6 +916,12 @@ def _paths_equal(left: Path, right: Path) -> bool:
         return left.expanduser() == right.expanduser()
 
 
+def _xdg_config_home(environ: dict[str, str] | None) -> str | None:
+    if environ is not None:
+        return environ.get("XDG_CONFIG_HOME")
+    return os.environ.get("XDG_CONFIG_HOME")
+
+
 def resolve_global_config_dir(
     descriptor: RuntimeDescriptor,
     *,
@@ -920,7 +946,7 @@ def resolve_global_config_dir(
             config_path = env.get(policy.env_file_var)
             if config_path:
                 return Path(config_path).expanduser().parent
-        xdg_home = env.get("XDG_CONFIG_HOME")
+        xdg_home = _xdg_config_home(environ)
         if xdg_home and policy.xdg_subdir:
             return Path(xdg_home).expanduser() / policy.xdg_subdir
         return (home or Path.home()) / policy.home_subpath

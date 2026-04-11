@@ -22,7 +22,7 @@ from typer.testing import CliRunner
 
 from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
-from gpd.cli import _format_install_header_lines, _render_install_option_line, app
+from gpd.cli import _format_install_header_lines, _render_install_option_line, _target_dir_matches_global, app
 from gpd.core.health import CheckStatus, DoctorReport, HealthCheck, HealthSummary
 from gpd.core.onboarding_surfaces import beginner_startup_ladder_text
 from gpd.core.public_surface_contract import beginner_onboarding_hub_url
@@ -1120,6 +1120,24 @@ def test_install_single_runtime_forwards_is_global(tmp_path: Path):
     assert len(captured_calls) == 1
     assert captured_calls[0]["is_global"] is False
     assert captured_calls[0]["explicit_target"] is False
+
+
+def test_target_dir_matches_canonical_global_path(tmp_path: Path) -> None:
+    """Explicit target dirs that match a runtime's global path should be recognized as global."""
+    descriptor = _PRIMARY_INSTALL_DESCRIPTOR
+    global_target = tmp_path / "global-target"
+    local_target = tmp_path / "local-target"
+    global_target.mkdir(parents=True, exist_ok=True)
+    local_target.mkdir(parents=True, exist_ok=True)
+
+    mock_adapter = MagicMock()
+    mock_adapter.resolve_target_dir.side_effect = lambda is_global, cwd=None: (
+        global_target if is_global else local_target
+    )
+
+    with patch("gpd.adapters.get_adapter", return_value=mock_adapter):
+        assert _target_dir_matches_global(descriptor.runtime_name, str(global_target), action="install")
+        assert not _target_dir_matches_global(descriptor.runtime_name, str(local_target), action="install")
 
 
 def test_install_single_runtime_prefers_checkout_source_tree(tmp_path: Path):

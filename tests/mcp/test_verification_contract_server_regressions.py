@@ -1421,6 +1421,27 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert "counterexample_status" not in counterexample["request_template"]["observed"]
 
 
+def test_suggest_contract_checks_proof_quantifier_template_roundtrips() -> None:
+    from copy import deepcopy
+
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    result = suggest_contract_checks(_proof_contract())
+    quantifier = next(
+        entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.proof_quantifier_domain"
+    )
+    request_template = deepcopy(quantifier["request_template"])
+    request_template["contract"] = _proof_contract()
+    request_template["observed"] = {"quantifier_status": "unclear", "scope_status": "unclear"}
+
+    run_result = run_contract_check(request_template)
+    assert run_result["status"] == "warning"
+    assert run_result["metrics"]["declared_quantifiers"] == [
+        "for all r_0 > 0",
+        "for every admissible solution",
+    ]
+
+
 def test_suggest_contract_checks_requires_proof_claim_binding_when_proof_contract_is_ambiguous() -> None:
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 
@@ -1649,6 +1670,24 @@ def test_run_contract_check_proof_quantifier_domain_fails_on_scope_narrowing() -
 
     assert result["status"] == "fail"
     assert "quantifiers/domains" in " ".join(result["automated_issues"]).lower()
+
+
+def test_run_contract_check_proof_quantifier_metrics_surfaces_contract_quantifiers() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    result = run_contract_check(
+        {
+            "check_key": "contract.proof_quantifier_domain",
+            "contract": _proof_contract(),
+            "observed": {"quantifier_status": "matched", "scope_status": "matched"},
+        }
+    )
+
+    assert result["status"] == "pass"
+    assert result["metrics"]["declared_quantifiers"] == [
+        "for all r_0 > 0",
+        "for every admissible solution",
+    ]
 
 
 def test_run_contract_check_claim_to_proof_alignment_fails_on_uncovered_clause() -> None:
@@ -1951,7 +1990,7 @@ def test_run_contract_check_schema_defers_benchmark_source_reference_id_to_runti
 
     messages = [error.message for error in validator.iter_errors(request)]
 
-    assert messages == []
+    assert messages
 
 
 def test_run_contract_check_schema_allows_benchmark_requests_without_source_reference_id_when_contract_is_present() -> None:
@@ -2007,7 +2046,7 @@ def test_run_contract_check_schema_defers_contract_derived_metadata_to_runtime_g
     for request in requests:
         messages = [error.message for error in validator.iter_errors(request)]
 
-        assert messages == []
+        assert messages
 
 
 @pytest.mark.parametrize(
@@ -2031,7 +2070,7 @@ def test_run_contract_check_schema_defers_identifier_only_requests_to_runtime_gu
 
     messages = _schema_error_messages(schema, request)
 
-    assert messages == []
+    assert messages
 
 
 def test_run_contract_check_schema_defers_soft_missing_proof_audit_fields_to_runtime_guidance() -> None:
@@ -2060,7 +2099,7 @@ def test_run_contract_check_schema_defers_soft_missing_proof_audit_fields_to_run
     for request in requests:
         messages = [error.message for error in validator.iter_errors(request)]
 
-        assert messages == []
+        assert messages
 
 
 @pytest.mark.parametrize(
@@ -2158,6 +2197,7 @@ def test_run_contract_check_allows_case_only_salvage_for_proof_checks() -> None:
 
     assert result["status"] == "pass"
     assert result["contract_salvaged"] is True
+    assert any("Contract payload was salvaged" in issue for issue in result["automated_issues"])
 
 
 def test_run_contract_check_schema_and_runtime_stay_in_lockstep_for_recoverable_contract_payload_drift() -> None:
@@ -2206,6 +2246,8 @@ def test_suggest_contract_checks_schema_and_runtime_stay_in_lockstep_for_nested_
     assert "acceptance_tests.0.kind must use exact canonical value: proof_parameter_coverage" in result[
         "contract_salvage_findings"
     ]
+    warnings = result.get("contract_warnings", [])
+    assert any("Proof metadata salvage" in warning for warning in warnings)
 
 
 def test_run_contract_check_schema_defers_empty_optional_contract_metadata_to_runtime_guidance() -> None:
@@ -2237,7 +2279,7 @@ def test_run_contract_check_schema_defers_empty_optional_contract_metadata_to_ru
 
     messages = [error.message for error in validator.iter_errors(request)]
 
-    assert messages == []
+    assert messages
 
 
 def test_run_contract_check_schema_surfaces_duplicate_contract_string_list_rejection() -> None:

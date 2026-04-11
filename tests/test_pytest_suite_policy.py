@@ -111,7 +111,6 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
     }
     pytest_job = jobs["pytest"]
     assert isinstance(pytest_job, dict)
-    assert pytest_job["timeout-minutes"] == CI_PYTEST_JOB_TIMEOUT_MINUTES
     strategy = pytest_job["strategy"]
     assert isinstance(strategy, dict)
     matrix = strategy["matrix"]
@@ -147,7 +146,9 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
     assert "from tests.ci_sharding import write_ci_shard_targets_file" in resolve_targets_command
     assert "PYTEST_CATEGORY" in resolve_targets_command
     assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
-    assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in pytest_shard_command
+    assert '--durations=20' in pytest_shard_command
+    assert '--durations-min=0' in pytest_shard_command
+    assert 'uv run pytest -q --durations=20 --durations-min=0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
     assert "Default `uv run pytest` runs the full checked-in suite" in tests_readme
     assert "`uv run pytest -q` does the same with quieter output" in tests_readme
     assert "Install `pytest-xdist` to opt into parallel runs" in tests_readme
@@ -226,3 +227,21 @@ def test_split_categories_keep_runtime_informed_weight_spread_tight() -> None:
         average_weight = sum(shard_weights) / len(shard_weights)
 
         assert max(shard_weights) - min(shard_weights) <= average_weight * 0.1
+
+
+def test_category_shards_never_empty() -> None:
+    inventory = collected_test_inventory(repo_root=_repo_root())
+    work_units = build_ci_work_units(inventory)
+
+    for category, shard_total in CI_CATEGORY_SHARD_COUNTS.items():
+        planned_shards = plan_category_ci_shards(category=category, work_units=work_units)
+        assert len(planned_shards) == shard_total
+        for shard_targets in planned_shards:
+            assert shard_targets, f"{category} shard returned an empty target list"
+
+
+def test_pytest_job_timeout_parity() -> None:
+    workflow = _workflow_data()
+    pytest_job = workflow["jobs"]["pytest"]
+    assert isinstance(pytest_job, dict)
+    assert pytest_job["timeout-minutes"] == CI_PYTEST_JOB_TIMEOUT_MINUTES

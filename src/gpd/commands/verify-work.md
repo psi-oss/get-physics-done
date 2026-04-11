@@ -45,9 +45,7 @@ allowed-tools:
 <!-- Tool names and @ includes are runtime-specific; the installer rewrites paths for your runtime. -->
 
 <objective>
-Run the staged verification workflow for an executed phase.
-
-Output: `GPD/phases/XX-name/XX-VERIFICATION.md`. This workflow is only valid once the phase has reached the `phase_executed` state.
+Run the staged verification workflow for an executed phase and produce `GPD/phases/XX-name/XX-VERIFICATION.md`. This workflow is only valid once the phase reaches the `phase_executed` state.
 </objective>
 
 <execution_context>

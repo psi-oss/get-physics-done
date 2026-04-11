@@ -29,6 +29,7 @@ from gpd.hooks.runtime_detect import (
     TodoCandidate,
     UpdateCacheCandidate,
     _has_gpd_install,
+    _ordered_runtime_dirs_for_lookup,
     _runtime_from_manifest_or_path,
     all_runtime_dirs,
     detect_active_runtime,
@@ -921,6 +922,22 @@ class TestHelperDirs:
         assert candidates[0].path == custom_dir / "todos"
         assert candidates[0].runtime == RUNTIME_CODEX
         assert candidates[0].scope == SCOPE_LOCAL
+
+
+def test_ordered_runtime_dirs_for_lookup_dedupes_resolved_equivalent_paths(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / ".codex").mkdir()
+    equivalent_cwd = str(home / ".." / "home")
+
+    ordered_dirs = _ordered_runtime_dirs_for_lookup(
+        RUNTIME_CODEX,
+        cwd=equivalent_cwd,
+        home=home,
+    )
+
+    assert len(ordered_dirs) == 1
+    assert ordered_dirs[0][0].resolve(strict=False) == (home / ".codex").resolve(strict=False)
 
 
 class TestDetectInstallScope:

@@ -125,6 +125,19 @@ def test_resolve_global_config_dir_xdg_app_respects_explicit_empty_environ(monke
     assert resolved == Path("/tmp/home/.config/opencode")
 
 
+def test_resolve_global_config_dir_xdg_app_prefers_provided_environ(monkeypatch) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", "/tmp/real-xdg")
+    override = "/tmp/explicit-xdg"
+
+    resolved = resolve_global_config_dir(
+        get_runtime_descriptor("opencode"),
+        home=Path("/tmp/home"),
+        environ={"XDG_CONFIG_HOME": override},
+    )
+
+    assert resolved == Path(override) / "opencode"
+
+
 def test_runtime_catalog_explicit_priority_order() -> None:
     descriptors = iter_runtime_descriptors()
     assert [descriptor.runtime_name for descriptor in descriptors] == list_runtime_names()
@@ -297,6 +310,14 @@ def test_normalize_runtime_name_accepts_install_flags_outside_selection_flags(
         assert normalize_runtime_name("--codex-selection-only") == "codex"
     finally:
         runtime_catalog._load_catalog.cache_clear()
+
+
+def test_normalize_runtime_name_accepts_adapter_module_and_hyphen_variants() -> None:
+    descriptor = get_runtime_descriptor("claude-code")
+
+    assert normalize_runtime_name(descriptor.adapter_module) == "claude-code"
+    assert normalize_runtime_name("claude_code") == "claude-code"
+    assert normalize_runtime_name("--gemini_cli") == "gemini"
 
 
 def test_managed_install_surface_policy_is_derived_from_runtime_metadata() -> None:

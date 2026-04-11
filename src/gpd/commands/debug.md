@@ -15,8 +15,6 @@ Debug physics calculations using systematic isolation with subagent investigatio
 **Orchestrator role:** Gather symptoms, spawn gpd-debugger agent, handle checkpoints, spawn continuations.
 
 **Why subagent:** Investigation burns context fast. Fresh context keeps the orchestrator lean.
-
-Physics debugging differs fundamentally from software debugging. In software, a bug is deterministic: same input gives same wrong output. In physics calculations, errors can be subtle — a sign error that only matters in one regime, a factor of 2 from a symmetry argument, a gauge artifact that looks like a physical effect, a numerical instability that masquerades as a phase transition. The debugger must think like a physicist, not a programmer.
 </objective>
 
 <execution_context>

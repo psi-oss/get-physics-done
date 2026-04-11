@@ -8841,9 +8841,8 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
             soft_wrap=True,
         )
         if len(next_step_entries) == 1:
-            single_runtime_name, _ = results[0]
             (
-                _runtime_name,
+                single_runtime_name,
                 display_name,
                 launch_command,
                 help_command,
@@ -8852,15 +8851,10 @@ def _print_install_summary(results: list[tuple[str, dict[str, object]]]) -> None
                 new_project_command,
                 map_research_command,
             ) = next_step_entries[0]
-            resume_work_command = _get_adapter_or_error(single_runtime_name, action="install summary").format_command(
-                "resume-work"
-            )
-            suggest_next_command = _get_adapter_or_error(single_runtime_name, action="install summary").format_command(
-                "suggest-next"
-            )
-            pause_work_command = _get_adapter_or_error(single_runtime_name, action="install summary").format_command(
-                "pause-work"
-            )
+            runtime_adapter = _get_adapter_or_error(single_runtime_name, action="install summary")
+            resume_work_command = runtime_adapter.format_command("resume-work")
+            suggest_next_command = runtime_adapter.format_command("suggest-next")
+            pause_work_command = runtime_adapter.format_command("pause-work")
             console.print(
                 f"1. Open [bold]{display_name}[/] from your system terminal "
                 f"([{_INSTALL_ACCENT_COLOR} bold]{launch_command}[/]).",
@@ -9342,8 +9336,6 @@ def install(
     if failures:
         raise typer.Exit(code=1)
 
-
-install.__doc__ = _install_command_doc()
 
 
 # ═══════════════════════════════════════════════════════════════════════════

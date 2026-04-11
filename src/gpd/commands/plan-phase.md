@@ -26,15 +26,17 @@ Create executable phase prompts for a research phase.
 
 <context>
 Phase number: $ARGUMENTS (optional; auto-detects the next unplanned phase if omitted)
-Canonical contract schema and hard validation rules must be model-visible before any planner authors PLAN output. The staged planner prompt must include the schema-critical excerpt, not merely a template path, and every proof-bearing plan must surface the theorem statement, named parameters, hypotheses, quantifier/domain obligations, and intended conclusion clauses visibly enough that the checker can audit coverage without post-hoc schema discovery.
+- Canonical contract schema and hard validation rules must be model-visible before any planner authors PLAN output.
+- The staged planner prompt must include the schema-critical excerpt, not merely a template path.
+- Proof-bearing plans must surface the theorem statement, named parameters, hypotheses, quantifier/domain obligations, and intended conclusion clauses visibly enough for the checker.
 
 **Flags:**
 
-- `--research` -- Re-research even if `RESEARCH.md` exists
-- `--skip-research` -- Skip research and plan directly
-- `--gaps` -- Gap-closure mode (`VERIFICATION.md`, no research)
-- `--skip-verify` -- Skip the verification loop
-- `--light` -- Produce contract-plus-constraints plans only
+- `--research` — Re-research even if `RESEARCH.md` exists
+- `--skip-research` — Skip research and plan directly
+- `--gaps` — Gap-closure mode (`VERIFICATION.md`, no research)
+- `--skip-verify` — Skip the verification loop
+- `--light` — Produce contract-plus-constraints plans only
 
 Normalize the phase input before any directory lookups.
 </context>

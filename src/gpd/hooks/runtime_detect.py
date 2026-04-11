@@ -26,6 +26,7 @@ from gpd.adapters.runtime_catalog import (
     normalize_runtime_name as _normalize_runtime_name,
 )
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, HOME_DATA_DIR_NAME, TODOS_DIR_NAME
+from gpd.core.small_utils import paths_equal as _paths_equal
 from gpd.hooks.install_metadata import install_scope_from_manifest, load_install_manifest_runtime_status
 
 RUNTIME_UNKNOWN = "unknown"
@@ -386,7 +387,7 @@ def _ordered_runtime_dirs_for_lookup(
         ordered_dirs.append((install_target.config_dir, install_target.install_scope))
 
     for runtime_dir, scope in ((local_dir, SCOPE_LOCAL), (global_dir, SCOPE_GLOBAL)):
-        if any(existing_dir == runtime_dir for existing_dir, _existing_scope in ordered_dirs):
+        if any(_paths_equal(existing_dir, runtime_dir) for existing_dir, _existing_scope in ordered_dirs):
             continue
         ordered_dirs.append((runtime_dir, scope))
     return ordered_dirs
@@ -394,36 +395,30 @@ def _ordered_runtime_dirs_for_lookup(
 
 def _unique_paths(paths: list[Path]) -> list[Path]:
     """Return paths in order with duplicates removed."""
-    seen: set[Path] = set()
     unique: list[Path] = []
     for path in paths:
-        if path in seen:
+        if any(_paths_equal(path, existing) for existing in unique):
             continue
-        seen.add(path)
         unique.append(path)
     return unique
 
 
 def _unique_update_cache_candidates(candidates: list[UpdateCacheCandidate]) -> list[UpdateCacheCandidate]:
     """Return update-cache candidates in order with duplicate paths removed."""
-    seen: set[Path] = set()
     unique: list[UpdateCacheCandidate] = []
     for candidate in candidates:
-        if candidate.path in seen:
+        if any(_paths_equal(candidate.path, existing.path) for existing in unique):
             continue
-        seen.add(candidate.path)
         unique.append(candidate)
     return unique
 
 
 def _unique_todo_candidates(candidates: list[TodoCandidate]) -> list[TodoCandidate]:
     """Return todo candidates in order with duplicate paths removed."""
-    seen: set[Path] = set()
     unique: list[TodoCandidate] = []
     for candidate in candidates:
-        if candidate.path in seen:
+        if any(_paths_equal(candidate.path, existing.path) for existing in unique):
             continue
-        seen.add(candidate.path)
         unique.append(candidate)
     return unique
 

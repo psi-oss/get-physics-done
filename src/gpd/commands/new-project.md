@@ -13,9 +13,9 @@ allowed-tools:
 
 <context>
 **Flags:**
-- `--auto` — Automatic mode. Synthesizes a scoping contract from the supplied document, asks for one explicit scope approval, then runs research → requirements → roadmap with minimal follow-up interaction. Expects a research proposal document via @ reference.
-- `--minimal` — Fast staged-init mode. Uses one structured intake plus one scoping approval gate, then hands the roadmap and conventions to the staged post-scope agents with lean content. Scope, anchors, and decisive outputs are still required.
-- `--minimal @file.md` — Create project directly from a markdown file describing your research and staged continuation path. Parses research question, anchors, and key work chunks from the file.
+- `--auto` — Automatic mode: synthesize a scoping contract from one document, ask for a single scope approval, then run research → requirements → roadmap with minimal back-and-forth. Requires a research proposal markdown via `@`.
+- `--minimal` — Fast staged-init: one structured intake, one scoping approval gate, then hand the roadmap and conventions over to the post-scope agents with lean content. Decisive scope, anchors, and outputs are still required.
+- `--minimal @file.md` — Build the project directly from the supplied markdown description, parsing the research question, anchors, and the continuation plan inside.
 </context>
 
 <objective>
@@ -42,27 +42,27 @@ If no project config exists yet, start with physics questioning, surface a prese
 
 <process>
 **CRITICAL: First, read the full workflow file using the file_read tool:**
-Read {GPD_INSTALL_DIR}/workflows/new-project.md first and follow it exactly.
+Follow the workflow file exactly before proceeding.
 
 After that, load late-stage authorities only when the workflow reaches the matching stage:
-- Read {GPD_INSTALL_DIR}/references/research/questioning.md only when entering the full questioning path.
-- Read {GPD_INSTALL_DIR}/templates/project-contract-schema.md and {GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md only when preparing the approval gate and validating the raw scoping contract.
-- Read {GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md only when authoring or repairing the scoping contract.
-- Read {GPD_INSTALL_DIR}/templates/project.md only when writing `GPD/PROJECT.md`.
-- Read {GPD_INSTALL_DIR}/templates/requirements.md only when writing `GPD/REQUIREMENTS.md`.
-- Read {GPD_INSTALL_DIR}/references/ui/ui-brand.md only when rendering branded completion or status blocks.
+- Read `{GPD_INSTALL_DIR}/references/research/questioning.md` only when entering the full questioning path.
+- Read `{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and `{GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md` only when preparing the approval gate and validating the raw scoping contract.
+- Read `{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md` only when authoring or repairing the scoping contract.
+- Read `{GPD_INSTALL_DIR}/templates/project.md` only when writing `GPD/PROJECT.md`.
+- Read `{GPD_INSTALL_DIR}/templates/requirements.md` only when writing `GPD/REQUIREMENTS.md`.
+- Read `{GPD_INSTALL_DIR}/references/ui/ui-brand.md` only when rendering branded completion or status blocks.
 
 Execute the workflow end-to-end. Preserve all workflow gates (validation, approvals, routing).
 
 ## Flag Detection
 
-Check `$ARGUMENTS` for flags:
+Check `$ARGUMENTS` for:
 
-- **`--auto`** → Structured synthesis + scope approval
-- **`--minimal`** → Fast staged-init with scope approval
-- **`--minimal @file.md`** → Minimal mode with input file
+- `--auto` — Structured synthesis plus scope approval.
+- `--minimal` — Fast staged-init with scope approval.
+- `--minimal @file.md` — Minimal mode driven by the supplied file.
 
-**If `--minimal` detected:** After Setup, route to the **minimal staged initialization path**. It keeps intake to one response, still requires a scoping contract with decisive outputs and anchors, and then hands roadmap and conventions creation to the staged post-scope agents instead of building them directly in the main context.
+**If `--minimal` detected:** After Setup, route to the minimal staged initialization path. It keeps intake to one response, still requires a scoping contract with decisive outputs and anchors, and hands roadmap and conventions creation to the staged post-scope agents instead of building them directly in the main context.
 
 **If `--auto` detected:** After Setup, synthesize context from the provided document, repair blocking gaps only, present the scoping contract for approval, then run research → requirements → roadmap with smart defaults.
 </process>

@@ -3536,6 +3536,31 @@ def _contract_salvage_requires_repair(contract_salvage_errors: list[str]) -> boo
     return any(is_repair_relevant_project_contract_schema_finding(error) for error in contract_salvage_errors)
 
 
+_PROOF_SALVAGE_FIELDS = frozenset(
+    (
+        "parameters",
+        "hypotheses",
+        "quantifiers",
+        "conclusion_clauses",
+        "proof_deliverables",
+    )
+)
+
+
+def _proof_salvage_warning(contract_salvage_errors: list[str]) -> str | None:
+    if not contract_salvage_errors:
+        return None
+    for error in contract_salvage_errors:
+        if not error.startswith("claims."):
+            continue
+        if any(f".{field}" in error for field in _PROOF_SALVAGE_FIELDS):
+            return (
+                "Proof metadata salvage occurred; double-check that claim parameters, hypotheses, quantifiers, "
+                "and conclusion clauses still match the intended theorem before rerunning proof checks."
+            )
+    return None
+
+
 def _validate_benchmark_reference_binding(
     *,
     contract: ResearchContract | None,
@@ -3949,10 +3974,13 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
             status = "insufficient_evidence"
             evidence_directness = "metadata_only"
             if contract_salvage_errors:
+                summary = _summarize_contract_salvage_errors(contract_salvage_errors)
                 automated_issues.append(
-                    "Contract payload was salvaged before verification: "
-                    + _summarize_contract_salvage_errors(contract_salvage_errors)
+                    "Contract payload was salvaged before verification: " + summary
                 )
+                proof_warning = _proof_salvage_warning(contract_salvage_errors)
+                if proof_warning:
+                    automated_issues.append(proof_warning)
             automated_issues.extend(binding_issues)
 
             if check_meta.check_key == "contract.limit_recovery":
@@ -4352,10 +4380,15 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 )
                 if error_message is not None:
                     return _error_result(error_message)
+                declared_quantifiers = _normalized_unique_strings(quantifiers or [])
+                if not declared_quantifiers and proof_claim_id is not None and contract is not None:
+                    claim = _proof_claim_for_id(contract, proof_claim_id)
+                    if claim is not None:
+                        declared_quantifiers = _normalized_unique_strings(claim.quantifiers)
                 metrics.update(
                     {
                         "proof_claim_id": proof_claim_id,
-                        "declared_quantifiers": sorted(quantifiers or []),
+                        "declared_quantifiers": sorted(declared_quantifiers),
                         "uncovered_quantifiers": sorted(uncovered_quantifiers or []),
                         "quantifier_status": quantifier_status,
                         "scope_status": scope_status,
@@ -4654,10 +4687,14 @@ def suggest_contract_checks(
                 "contract_salvage_findings": list(contract_salvage_errors),
             }
             if contract_salvage_errors:
-                response["contract_warnings"] = [
+                warnings = [
                     "Contract payload was salvaged before check suggestion: "
                     + _summarize_contract_salvage_errors(contract_salvage_errors)
                 ]
+                proof_warning = _proof_salvage_warning(contract_salvage_errors)
+                if proof_warning:
+                    warnings.append(proof_warning)
+                response["contract_warnings"] = warnings
             return stable_mcp_response(response)
         except Exception as exc:  # pragma: no cover - defensive envelope
             if isinstance(exc, PydanticValidationError):

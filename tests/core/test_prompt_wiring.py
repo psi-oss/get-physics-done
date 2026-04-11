@@ -1094,7 +1094,7 @@ def test_new_project_defers_workflow_setup_until_after_scope_approval() -> None:
 def test_new_project_command_avoids_stale_workflow_line_counts() -> None:
     command_text = (COMMANDS_DIR / "new-project.md").read_text(encoding="utf-8")
 
-    assert "Read {GPD_INSTALL_DIR}/workflows/new-project.md first and follow it exactly." in command_text
+    assert "Follow the workflow file exactly before proceeding." in command_text
     assert "step-by-step instructions" not in command_text
     assert "lines)" not in command_text
 
