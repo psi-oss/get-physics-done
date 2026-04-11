@@ -1320,7 +1320,6 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
     if check_key in _PROOF_CHECK_KEYS:
         if "contract" not in enriched_hint["required_request_fields"]:
             enriched_hint["required_request_fields"].insert(0, "contract")
-        request_template.setdefault("contract", "<authoritative project contract>")
         enriched_hint["optional_request_fields"] = [
             field for field in enriched_hint["optional_request_fields"] if field not in enriched_hint["required_request_fields"]
         ]
@@ -3735,6 +3734,11 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 return error
             request_key_error = _validate_run_contract_check_request_keys(request)
             if request_key_error is not None:
+                check_key_hint = request.get("check_key")
+                if isinstance(check_key_hint, str):
+                    check_key_hint = check_key_hint.strip()
+                if check_key_hint:
+                    return _contract_check_error_result(request_key_error, check_key_hint)
                 return _error_result(request_key_error)
             check_key_value, error = _validate_check_identifier(request.get("check_key"), field_name="check_key")
             if error is not None:
@@ -3846,17 +3850,19 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
 
             missing_inputs: list[str] = []
             automated_issues: list[str] = []
+            contract_warnings: list[str] = []
             metrics: dict[str, object] = {}
             status = "insufficient_evidence"
             evidence_directness = "metadata_only"
             if contract_salvage_errors:
                 summary = _summarize_contract_salvage_errors(contract_salvage_errors)
-                automated_issues.append(
-                    "Contract payload was salvaged before verification: " + summary
-                )
+                warning_message = "Contract payload was salvaged before verification: " + summary
+                automated_issues.append(warning_message)
+                contract_warnings.append(warning_message)
                 proof_warning = _proof_salvage_warning(contract_salvage_errors)
                 if proof_warning:
                     automated_issues.append(proof_warning)
+                    contract_warnings.append(proof_warning)
             automated_issues.extend(binding_issues)
 
             if check_meta.check_key == "contract.limit_recovery":
@@ -4428,28 +4434,29 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     metadata=metadata,
                 )
 
-            return stable_mcp_response(
-                {
-                    "check_id": check_meta.check_id,
-                    "check_key": check_meta.check_key,
-                    "check_name": check_meta.name,
-                    "check_class": check_meta.check_class,
-                    "contract_aware": check_meta.contract_aware,
-                    "binding_targets": list(check_meta.binding_targets),
-                    "supported_binding_fields": _supported_binding_fields_for_targets(check_meta.binding_targets),
-                    "status": status,
-                    "evidence_directness": evidence_directness,
-                    "binding": binding,
-                    "missing_inputs": missing_inputs,
-                    "request_guidance": _contract_check_request_hint(check_meta.check_key, contract=contract),
-                    "automated_issues": automated_issues,
-                    "metrics": metrics,
-                    "contract_impacts": contract_impacts,
-                    "contract_salvaged": bool(contract_salvage_errors),
-                    "contract_salvage_findings": list(contract_salvage_errors),
-                    "guidance": check_meta.oracle_hint,
-                }
-            )
+            response_payload: dict[str, object] = {
+                "check_id": check_meta.check_id,
+                "check_key": check_meta.check_key,
+                "check_name": check_meta.name,
+                "check_class": check_meta.check_class,
+                "contract_aware": check_meta.contract_aware,
+                "binding_targets": list(check_meta.binding_targets),
+                "supported_binding_fields": _supported_binding_fields_for_targets(check_meta.binding_targets),
+                "status": status,
+                "evidence_directness": evidence_directness,
+                "binding": binding,
+                "missing_inputs": missing_inputs,
+                "request_guidance": _contract_check_request_hint(check_meta.check_key, contract=contract),
+                "automated_issues": automated_issues,
+                "metrics": metrics,
+                "contract_impacts": contract_impacts,
+                "contract_salvaged": bool(contract_salvage_errors),
+                "contract_salvage_findings": list(contract_salvage_errors),
+                "guidance": check_meta.oracle_hint,
+            }
+            if contract_warnings:
+                response_payload["contract_warnings"] = contract_warnings
+            return stable_mcp_response(response_payload)
         except Exception as exc:  # pragma: no cover - defensive envelope
             return _error_result(exc)
 

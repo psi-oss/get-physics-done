@@ -2850,7 +2850,7 @@ def _parse_project_contract_data(
 
     from gpd.core.contract_validation import _collect_list_shape_drift_errors, salvage_project_contract
 
-    contract, schema_findings = salvage_project_contract(data)
+    contract, schema_findings, schema_metadata = salvage_project_contract(data)
     list_shape_drift_errors = _collect_list_shape_drift_errors(data)
     if strict:
         from gpd.core.contract_validation import (
@@ -2862,6 +2862,7 @@ def _parse_project_contract_data(
         schema_warnings, schema_errors = split_project_contract_schema_findings(
             schema_findings,
             allow_case_drift_recovery=False,
+            metadata_by_error=schema_metadata,
         )
         blocking_errors = [
             *_collect_literal_case_drift_errors(data),
@@ -2891,6 +2892,7 @@ def _parse_project_contract_data(
     schema_warnings, schema_errors = split_project_contract_schema_findings(
         schema_findings,
         allow_case_drift_recovery=True,
+        metadata_by_error=schema_metadata,
     )
     recoverable_errors = [*schema_warnings, *list_shape_drift_errors, *_collect_project_contract_list_member_errors(data)]
     blocking_errors = [*schema_errors]

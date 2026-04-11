@@ -1271,7 +1271,7 @@ class TestInitExecutePhase:
                 "warnings": [
                     "context_intake.user_asserted_anchors entry is not concrete enough to preserve as durable guidance: placeholder anchor",
                     "context_intake.context_gaps entry is only a placeholder and does not preserve actionable guidance: TBD",
-                    "references.0.must_surface must be a boolean",
+                    "references.0.must_surface: must be a boolean (coerced from 'yes')",
                 ],
             },
             contract_load_info={
@@ -1287,7 +1287,7 @@ class TestInitExecutePhase:
         assert "context_intake.user_asserted_anchors entry is not concrete enough to preserve as durable guidance" not in rendered
         assert "context_intake.context_gaps entry is only a placeholder and does not preserve actionable guidance" not in rendered
         assert "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact" not in rendered
-        assert "references.0.must_surface must be a boolean" in rendered
+        assert "references.0.must_surface: must be a boolean (coerced from 'yes')" in rendered
         assert "context_intake is required" in rendered
         assert "scope.question is required" in rendered
 
@@ -3967,9 +3967,9 @@ class TestInitProgress:
         loaded = state_load(tmp_path)
         ctx = init_progress(tmp_path)
 
-        assert loaded.state["project_contract"] is None
-        assert ctx["project_contract"] is None
-        assert "None confirmed in `state.json.project_contract.references` yet." in ctx["active_reference_context"]
+        assert loaded.state["project_contract"] is not None
+        assert ctx["project_contract"] is not None
+        assert "None confirmed in `state.json.project_contract.references` yet." not in ctx["active_reference_context"]
 
     def test_progress_keeps_project_contract_when_raw_state_only_needs_recoverable_normalization(
         self, tmp_path: Path

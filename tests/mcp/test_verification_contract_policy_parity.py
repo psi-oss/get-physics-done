@@ -70,17 +70,13 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
         assert field_name in tools["suggest_contract_checks"].description
         assert f"`{field_name}`" in VERIFICATION_CONTRACT_POLICY_TEXT
         assert f"`{field_name}`" in request_schema_description
-    assert "Nested object schemas are closed at every level" in VERIFICATION_CONTRACT_POLICY_TEXT
-    assert "unknown top-level or nested keys" in VERIFICATION_CONTRACT_POLICY_TEXT
-    assert "its absence is a blocker" in VERIFICATION_CONTRACT_POLICY_TEXT
-    assert "missing `must_surface=true` is a non-blocking warning" in VERIFICATION_CONTRACT_POLICY_TEXT
+    assert "Schemas are closed at every level" in VERIFICATION_CONTRACT_POLICY_TEXT
+    assert "unknown keys" in VERIFICATION_CONTRACT_POLICY_TEXT
+    assert "one anchor must set `must_surface=true`" in VERIFICATION_CONTRACT_POLICY_TEXT
     for field_name in VERIFICATION_BINDING_FIELD_NAMES:
         assert f"`{field_name}`" in VERIFICATION_CONTRACT_POLICY_TEXT
-    assert (
-        "If `references[]` is non-empty and the contract does not already carry concrete grounding elsewhere, "
-        "at least one reference must set `must_surface: true`."
-    ) in plan_schema
-    assert "a missing `must_surface: true` reference is a warning, not a blocker" in plan_schema
+    assert "When concrete grounding is missing elsewhere, at least one reference must set `must_surface: true`" in plan_schema
+    assert "a missing `must_surface` reference is a warning" in plan_schema
     assert "Grounding and scope policy are also owned by `templates/project-contract-schema.md`" in state_schema
     assert "If a project contract has any `references[]`" not in state_schema
     assert (

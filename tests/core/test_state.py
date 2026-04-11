@@ -297,7 +297,6 @@ def test_normalize_state_schema_reports_coercive_project_contract_scalars():
 
     assert normalized["project_contract"] is None
     assert any("project_contract.schema_version must be the integer 1" in issue for issue in issues)
-    assert any("project_contract.references.0.must_surface must be a boolean" in issue for issue in issues)
     assert any(
         'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization'
         in issue
@@ -2313,14 +2312,10 @@ def test_state_load_recovers_backup_project_contract_when_primary_contract_is_bl
 
     loaded = state_load(tmp_path)
 
-    assert loaded.state["project_contract"] is None
+    assert loaded.state["project_contract"] is not None
+    assert loaded.state["project_contract"]["references"][0]["must_surface"] is True
     assert loaded.state_source == "state.json"
-    assert any(
-        "project_contract.references.0.must_surface must be a boolean"
-        in issue
-        for issue in loaded.integrity_issues
-    )
-    assert any(
+    assert not any(
         'dropped "project_contract" because authoritative scalar fields required normalization' in issue
         for issue in loaded.integrity_issues
     )

@@ -18,6 +18,7 @@ from gpd.hooks.check_update import (
     _do_check,
     _is_older_than,
     _read_installed_version,
+    _relevant_update_cache_candidates,
     _version_files,
     main,
 )
@@ -866,3 +867,40 @@ class TestMainThrottle:
         mock_popen.assert_called_once()
         spawned_argv = mock_popen.call_args.args[0]
         assert spawned_argv[-1] == str(workspace_cache)
+
+
+def test_relevant_update_cache_candidates_normalize_self_owned_runtime(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+    explicit_target = tmp_path / "custom-runtime-dir"
+    explicit_target.mkdir(parents=True)
+    cache_file = explicit_target / "cache" / "gpd-update-check.json"
+    cache_file.parent.mkdir(parents=True)
+    self_install = SimpleNamespace(
+        config_dir=explicit_target,
+        runtime="claude",
+        install_scope="local",
+        cache_file=cache_file,
+    )
+
+    with (
+        patch("gpd.hooks.install_context.detect_self_owned_install", return_value=self_install),
+        patch("gpd.hooks.check_update.should_prefer_self_owned_install", return_value=True),
+        patch("gpd.hooks.runtime_detect.detect_runtime_install_target", return_value=None),
+        patch(
+            "gpd.hooks.update_resolution.resolve_update_cache_inputs",
+            return_value=(workspace, home, "claude", "claude"),
+        ),
+        patch("gpd.hooks.update_resolution.ordered_update_cache_candidates", return_value=[]),
+    ):
+        candidates, primary = _relevant_update_cache_candidates(
+            self_config_dir=explicit_target,
+            resolved_cwd=workspace,
+            resolved_home=home,
+        )
+
+    assert candidates[0].runtime == "claude-code"
+    assert candidates[0].scope == "local"
+    assert primary == cache_file

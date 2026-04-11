@@ -17,11 +17,6 @@ from gpd.adapters.runtime_catalog import (
     iter_runtime_descriptors,
     list_runtime_names,
 )
-
-
-def _patch_catalog_descriptors(monkeypatch: pytest.MonkeyPatch, descriptors: tuple[RuntimeDescriptor, ...]) -> None:
-    monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: descriptors)
-    monkeypatch.setattr("gpd.adapters.base.iter_runtime_descriptors", lambda: descriptors)
 from gpd.adapters.tool_names import (
     CANONICAL_TOOL_NAMES,
     CONTEXTUAL_TOOL_REFERENCE_NAMES,
@@ -33,6 +28,9 @@ from gpd.adapters.tool_names import (
 )
 
 
+def _patch_catalog_descriptors(monkeypatch: pytest.MonkeyPatch, descriptors: tuple[RuntimeDescriptor, ...]) -> None:
+    monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: descriptors)
+    monkeypatch.setattr("gpd.adapters.base.iter_runtime_descriptors", lambda: descriptors)
 def _runtime_tool_maps() -> dict[str, dict[str, str]]:
     return {runtime: get_adapter(runtime).tool_name_map for runtime in list_runtimes()}
 
@@ -187,6 +185,28 @@ class TestRegistry:
         monkeypatch.setattr(adapters_module, "_REGISTRY", {})
 
         assert adapters_module.list_runtimes() == list_runtime_names()
+
+    def test_get_adapter_imports_declared_adapter_module_for_each_runtime(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        descriptors = tuple(iter_runtime_descriptors())
+        expected_modules = {f"gpd.adapters.{descriptor.adapter_module}" for descriptor in descriptors}
+        imported_modules: list[str] = []
+
+        original_import = adapters_module.import_module
+
+        def tracking_import(name: str) -> object:
+            imported_modules.append(name)
+            return original_import(name)
+
+        monkeypatch.setattr(adapters_module, "import_module", tracking_import)
+        monkeypatch.setattr(adapters_module, "_REGISTRY", {})
+
+        for descriptor in descriptors:
+            get_adapter(descriptor.runtime_name)
+
+        assert expected_modules <= set(imported_modules)
 
 
 class TestToolNames:

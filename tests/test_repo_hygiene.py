@@ -220,6 +220,18 @@ def test_command_workflow_parity_matches_allowlist() -> None:
     assert workflows_without_command == allowed_workflows
 
 
+def test_command_workflow_allowlist_entries_reference_existing_surfaces() -> None:
+    command_docs = {path.stem for path in (REPO_ROOT / "src" / "gpd" / "commands").glob("*.md")}
+    workflow_docs = {
+        path.stem
+        for path in (REPO_ROOT / "src" / "gpd" / "specs" / "workflows").glob("*.md")
+    }
+    allowed_commands, allowed_workflows = _read_command_workflow_allowlist()
+
+    assert allowed_commands <= command_docs
+    assert allowed_workflows <= workflow_docs
+
+
 def test_installed_specs_do_not_claim_to_be_unwired() -> None:
     offenders = [
         path.relative_to(REPO_ROOT).as_posix()

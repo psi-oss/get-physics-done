@@ -38,9 +38,9 @@ from gpd.core.contract_validation import (
     split_project_contract_schema_findings,
     validate_project_contract,
 )
-from gpd.mcp.verification_contract_policy import verification_contract_policy_text
 from gpd.core.referee_policy import RefereeDecisionInput
 from gpd.mcp.paper.models import ReviewFinding, ReviewIssue, ReviewIssueSeverity, ReviewRecommendation, ReviewStageKind
+from gpd.mcp.verification_contract_policy import verification_contract_policy_text
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "src" / "gpd" / "specs" / "templates"
@@ -123,6 +123,12 @@ def test_verification_contract_policy_surfaces_project_contract_validation_overl
 
 def test_project_contract_schema_finding_helpers_keep_authoritative_and_blocking_classes_distinct() -> None:
     assert is_authoritative_project_contract_schema_finding("schema_version must be the integer 1") is True
+    assert (
+        is_authoritative_project_contract_schema_finding(
+            "references.0.must_surface: must be a boolean (coerced from 'yes')"
+        )
+        is False
+    )
     assert is_authoritative_project_contract_schema_finding("references.0.must_surface must be a boolean") is True
     assert (
         is_authoritative_project_contract_schema_finding("schema_version: Input should be 1 [type=literal_error]")
@@ -1036,10 +1042,15 @@ def test_parse_project_contract_data_salvage_preserves_valid_siblings_when_one_c
     assert result.contract is not None
     assert any(item.id == sibling_id for item in getattr(result.contract, collection_name))
     if collection_name == "references":
-        assert result.blocking_errors == ["references.0.must_surface must be a boolean"]
+        assert result.blocking_errors == []
+        assert any(
+            "references.0.must_surface: must be a boolean (coerced from 'yes')" in error
+            for error in result.recoverable_errors
+        )
+        assert contract_from_data_salvage(contract) is not None
     else:
         assert any(expected_error in error for error in result.blocking_errors)
-    assert contract_from_data_salvage(contract) is None
+        assert contract_from_data_salvage(contract) is None
 
 
 def test_parse_project_contract_data_salvage_preserves_blocking_errors_for_wrong_collection_type() -> None:
@@ -2596,8 +2607,10 @@ def test_validate_project_contract_rejects_coercive_reference_must_surface_scala
 
     result = validate_project_contract(contract)
 
-    assert result.valid is False
-    assert result.errors == ["references.0.must_surface must be a boolean"]
+    assert result.valid is True
+    expected_warning = "references.0.must_surface: must be a boolean (coerced from 'yes')"
+    assert result.errors == []
+    assert expected_warning in result.warnings
 
 
 def test_validate_project_contract_rejects_coercive_schema_version_scalar() -> None:
@@ -3865,10 +3878,12 @@ def test_research_contract_accepts_structured_theorem_claim_fields() -> None:
 @pytest.mark.parametrize("schema_name", ("project-contract-schema.md", "state-json-schema.md"))
 def test_project_contract_schema_examples_are_validator_compatible(schema_name: str) -> None:
     schema_text = (TEMPLATES_DIR / schema_name).read_text(encoding="utf-8")
-    match = re.search(r"##+ `project_contract`\n\n```json\n(.*?)\n```", schema_text, re.DOTALL)
-
-    assert match is not None
-    contract = json.loads(match.group(1))
+    if schema_name == "state-json-schema.md":
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    else:
+        match = re.search(r"##+ `project_contract`\n\n```json\n(.*?)\n```", schema_text, re.DOTALL)
+        assert match is not None
+        contract = json.loads(match.group(1))
 
     parsed = ResearchContract.model_validate(contract)
     result = validate_project_contract(contract, mode="approved")

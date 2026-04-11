@@ -87,3 +87,14 @@ def test_runtime_catalog_entries_conform_to_schema_enums_and_nested_key_inventor
 
         for enum_field, allowed_values in capability_enums.items():
             assert capability_payload[enum_field] in set(allowed_values)
+
+
+def test_runtime_catalog_schema_required_optional_keys_partition_descriptor_fields() -> None:
+    schema = _load_schema()
+
+    required_keys = set(schema["entry_required_keys"])
+    optional_keys = set(schema["entry_optional_keys"])
+    descriptor_fields = {field.name for field in fields(runtime_catalog.RuntimeDescriptor)}
+
+    assert required_keys.isdisjoint(optional_keys)
+    assert required_keys | optional_keys == descriptor_fields

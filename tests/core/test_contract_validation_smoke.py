@@ -49,9 +49,21 @@ def test_validate_project_contract_smoke_rejects_coercive_reference_must_surface
 
     result = validate_project_contract(contract)
 
+    assert result.valid is True
+    expected_warning = "references.0.must_surface: must be a boolean (coerced from 'yes')"
+    assert result.errors == []
+    assert expected_warning in result.warnings
+
+def test_validate_project_contract_smoke_approved_rejects_coercive_reference_must_surface_scalar() -> None:
+    contract = _load_contract_fixture()
+    contract["references"][0]["must_surface"] = "yes"
+
+    result = validate_project_contract(contract, mode="approved")
+
     assert result.valid is False
-    assert result.errors == ["references.0.must_surface must be a boolean"]
-    assert result.warnings == []
+    expected_error = "references.0.must_surface: must be a boolean (coerced from 'yes')"
+    assert result.errors == [expected_error]
+    assert expected_error in result.warnings
     assert not any("unknown reference" in issue for issue in result.errors + result.warnings)
     assert not any(
         "must include at least one must_surface=true anchor" in issue for issue in result.errors + result.warnings

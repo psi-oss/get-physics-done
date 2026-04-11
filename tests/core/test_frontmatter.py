@@ -715,7 +715,10 @@ class TestParseContractBlock:
     def test_rejects_coercive_reference_must_surface_scalar(self):
         content = _valid_plan_contract_frontmatter().replace("must_surface: true", 'must_surface: "yes"', 1) + "Body.\n"
 
-        with pytest.raises(FrontmatterValidationError, match=r"references\.0\.must_surface must be a boolean"):
+        with pytest.raises(
+            FrontmatterValidationError,
+            match=r"references\.0\.must_surface: must be a boolean \(coerced from 'yes'\)",
+        ):
             parse_contract_block(content)
 
     def test_rejects_coercive_schema_version_scalar(self):
@@ -892,7 +895,10 @@ class TestValidateFrontmatter:
         result = validate_frontmatter(content, "plan")
 
         assert result.valid is False
-        assert "contract: references.0.must_surface must be a boolean" in result.errors
+        assert (
+            "contract: references.0.must_surface: must be a boolean (coerced from 'yes')"
+            in result.errors
+        )
 
     def test_plan_rejects_coercive_schema_version_scalar(self):
         content = _valid_plan_contract_frontmatter().replace("schema_version: 1\n", "schema_version: true\n", 1) + "Body.\n"

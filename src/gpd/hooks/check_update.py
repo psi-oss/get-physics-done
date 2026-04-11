@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from gpd.adapters.install_utils import CACHE_DIR_NAME, GPD_INSTALL_DIR_NAME, UPDATE_CACHE_FILENAME
-from gpd.adapters.runtime_catalog import get_shared_install_metadata
+from gpd.adapters.runtime_catalog import get_shared_install_metadata, normalize_runtime_name
 from gpd.core.constants import ENV_GPD_DEBUG
 from gpd.hooks.install_context import should_prefer_self_owned_install
 from gpd.hooks.install_metadata import config_dir_has_complete_install
@@ -287,12 +287,15 @@ def _relevant_update_cache_candidates(
             active_runtime=active_installed_runtime,
             workspace_path=workspace_path,
         ):
+            self_runtime = (
+                normalize_runtime_name(self_install.runtime) if self_install and self_install.runtime is not None else None
+            )
             self_candidate = (
                 UpdateCacheCandidate(path=self_config_dir / CACHE_DIR_NAME / UPDATE_CACHE_FILENAME)
                 if self_install is None
                 else UpdateCacheCandidate(
                     path=self_install.cache_file,
-                    runtime=self_install.runtime,
+                    runtime=self_runtime or self_install.runtime,
                     scope=self_install.install_scope,
                 )
             )

@@ -1088,7 +1088,10 @@ def test_validate_frontmatter_summary_with_source_path_reports_referenced_plan_c
     result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
 
     assert result.valid is False
-    assert "plan_contract_ref: referenced PLAN contract: references.0.must_surface must be a boolean" in result.errors
+    assert (
+        "plan_contract_ref: referenced PLAN contract: references.0.must_surface: must be a boolean (coerced from 'yes')"
+        in result.errors
+    )
 
 
 def test_validate_frontmatter_summary_with_source_path_reports_referenced_plan_contract_semantic_errors(

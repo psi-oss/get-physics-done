@@ -969,9 +969,8 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     assert "scope" in contract_schema["required"]
     for field_name in ("claims", "deliverables", "acceptance_tests", "references", "forbidden_proxies", "links"):
         assert "minItems" not in contract_schema["properties"][field_name]
-    assert "either `references` or explicit grounding context" in contract_schema["description"]
-    assert "`references[].must_surface=true` anchor" in contract_schema["description"]
-    assert "non-empty `forbidden_proxies`" in contract_schema["description"]
+    assert "schema_version" in contract_schema["description"]
+    assert "suggest_contract_checks" in contract_schema["description"]
 
     suggest_schema = _tool_input_schema(mcp, "suggest_contract_checks")
     assert suggest_schema["properties"]["project_dir"]["anyOf"] == [ABSOLUTE_PROJECT_DIR_SCHEMA, {"type": "null"}]
@@ -981,9 +980,8 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     assert "scope" in contract_schema["required"]
     for field_name in ("claims", "deliverables", "acceptance_tests", "references", "forbidden_proxies", "links"):
         assert "minItems" not in contract_schema["properties"][field_name]
-    assert "either `references` or explicit grounding context" in contract_schema["description"]
-    assert "`references[].must_surface=true` anchor" in contract_schema["description"]
-    assert "non-empty `forbidden_proxies`" in contract_schema["description"]
+    assert "schema_version" in contract_schema["description"]
+    assert "suggest_contract_checks" in contract_schema["description"]
     active_checks = suggest_schema["properties"]["active_checks"]
     assert active_checks["anyOf"][0]["type"] == "array"
     assert active_checks["anyOf"][0]["items"]["type"] == "string"
@@ -1060,6 +1058,26 @@ def test_suggest_contract_checks_exposes_claim_alignment_branches() -> None:
     assert "uncovered_conclusion_clause_ids" not in alignment["request_template"]["observed"]
 
 
+def test_suggest_contract_templates_avoid_placeholder_contract() -> None:
+    from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+    result = suggest_contract_checks(_proof_contract_fixture())
+    alignment = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.claim_to_proof_alignment")
+
+    assert alignment["request_template"].get("contract") is None
+
+
+def test_run_contract_check_shape_errors_expose_request_template_guidance() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    result = run_contract_check({"check_key": "contract.limit_recovery", "unknown_field": 1})
+
+    assert result["error"].startswith("request contains unsupported keys")
+    assert result.get("request_template")
+    assert result["request_template"].get("check_key") == "contract.limit_recovery"
+    assert "required_request_fields" in result
+
+
 def test_suggested_claim_alignment_template_is_runnable_without_clause_audit_preset() -> None:
     from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 
@@ -1130,7 +1148,7 @@ def test_public_descriptors_surface_contract_and_optional_dependency_visibility(
     verification = descriptors["gpd-verification"]
     assert verification["description"].startswith("GPD physics verification checks.")
     assert verification_contract_surface_summary_text() in verification["description"]
-    assert "Proof-oriented checks still require an authoritative contract payload." in verification["description"]
+    assert "never invent grounding or proof artifacts" in verification["description"]
 
 
 @pytest.mark.parametrize(

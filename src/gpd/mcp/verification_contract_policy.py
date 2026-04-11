@@ -8,11 +8,9 @@ VERIFICATION_SERVER_DESCRIPTION_INTRO = (
     "symmetry verification, and coverage gap analysis."
 )
 VERIFICATION_CONTRACT_SURFACE_SUMMARY_TEXT = (
-    "Contract-aware request surfaces are closed and schema-driven. The full contract payload "
-    "rules live on the `contract` input schema. Proof-oriented checks still require an "
-    "authoritative contract payload. Missing grounding, evidence, or proof artifacts stay explicit "
-    "and must not be invented. Use `suggest_contract_checks(...)` to surface the exact per-check "
-    "request metadata before calling `run_contract_check(...)`."
+    "Contract-aware requests follow the `contract` schema. "
+    "Always run `suggest_contract_checks(...)` to gather the per-check request metadata before "
+    "calling `run_contract_check(...)`, and never invent grounding or proof artifacts."
 )
 
 VERIFICATION_BINDING_TARGETS = (
@@ -35,44 +33,26 @@ VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES = (
 VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT = ", ".join(
     f"`{field_name}`" for field_name in VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES
 )
+VERIFICATION_BINDING_FIELD_TEXT = ", ".join(f"`{field}`" for field in VERIFICATION_BINDING_FIELD_NAMES)
 
 _VERIFICATION_CONTRACT_POLICY_CLAUSES = (
-    "Validate contract payloads whose `schema_version` is required and must equal `1`.",
-    f"Use {VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT} as the exact per-check request "
-    "shape; the supported binding fields are the canonical plural id arrays "
-    + ", ".join(f"`{field}`" for field in VERIFICATION_BINDING_FIELD_NAMES)
-    + ".",
-    "Proof-oriented checks require an authoritative contract payload.",
-    "Nested object schemas are closed at every level: unknown top-level or nested keys, "
-    "non-object sections, blank strings, and malformed members are hard errors; "
-    "recoverable normalization is limited to singleton string/list drift and "
-    "closed-enum case drift.",
-    "Plan-style contracts need non-empty `context_intake`, explicit non-empty "
-    "`uncertainty_markers.weakest_anchors` and "
-    "`uncertainty_markers.disconfirming_observations`, and project-scoping payloads "
-    "must keep non-empty `scope.in_scope` plus at least one decisive target in "
-    "`observables`, `claims`, or `deliverables`.",
-    "Non-scoping, non-exploratory plans require claims, deliverables, "
-    "`acceptance_tests`, non-empty `forbidden_proxies`, and either `references` or "
-    "explicit grounding context; scoping-only contracts may omit claims only when they "
-    "still preserve a target, unresolved question, or grounding input.",
-    "When `references[]` is present and no other concrete grounding exists, at least one "
-    "`references[].must_surface=true` anchor is required and its absence is a blocker; "
-    "otherwise missing `must_surface=true` is a non-blocking warning that should be repaired. "
-    "`references[].carry_forward_to` uses workflow scope labels only, never contract IDs, "
-    "and `references[].must_surface` requires non-empty `applies_to` and "
-    "`required_actions` lists.",
-    "Same-kind IDs must be unique, and target IDs must not be reused across "
-    "claim/deliverable/acceptance-test/reference kinds when that would make resolution ambiguous.",
-    "Contract context must stay consistent with metadata defaults and explicit metadata fields, "
-    "so benchmark anchors, regime labels, and family selections cannot contradict it.",
-    "Missing concrete grounding, evidence, prior outputs, references, baselines, or proof artifacts "
-    "are blockers to surface explicitly, never invitations to invent replacement content or inferred "
-    "completion state.",
-    "For proof-oriented checks, omit or exactly match derived "
-    "`metadata.expected_behavior`, `metadata.claim_statement`, "
-    "`metadata.hypothesis_ids`, `metadata.theorem_parameter_symbols`, and "
-    "`metadata.conclusion_clause_ids`.",
+    "Require `schema_version` to be the integer `1` in every payload.",
+    f"Use {VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT} plus {VERIFICATION_BINDING_FIELD_TEXT} to describe each per-check request.",
+    "Proof-oriented checks need an authoritative contract payload before execution.",
+    "Schemas are closed at every level; unknown keys, non-objects, blank strings, or malformed "
+    "members trigger hard errors; normalization only tolerates singletons and case drift.",
+    "Plan-style contracts must carry non-empty `context_intake`, `scope.in_scope`, and "
+    "`uncertainty_markers.weakest_anchors`, `uncertainty_markers.disconfirming_observations`, plus at least one decisive observables, claims, or deliverables.",
+    "Non-scoping, non-exploratory plans require claims, deliverables, acceptance tests, "
+    "non-empty `forbidden_proxies`, and either grounded references or explicit context anchors.",
+    "When `references[]` exists without other grounding, one anchor must set `must_surface=true`, "
+    "include `applies_to[]` coverage, concrete `required_actions[]`, and workflow-only scope labels.",
+    "IDs must stay unique and never reuse a target ID across claims, deliverables, acceptance tests, or references when that would blur resolution.",
+    "Contract context must match metadata defaults and declared metadata fields such as benchmark anchors, regimes, and families.",
+    "Missing concrete grounding, evidence, prior outputs, references, baselines, or proof artifacts are blockers and must not be fabricated.",
+    "Proof checks must omit or exactly match derived metadata keys `metadata.expected_behavior`, "
+    "`metadata.claim_statement`, `metadata.hypothesis_ids`, `metadata.theorem_parameter_symbols`, and `metadata.conclusion_clause_ids`.",
+    "Call `suggest_contract_checks(...)` before every `run_contract_check(...)`, using its metadata to populate the request template entries.",
 )
 
 VERIFICATION_CONTRACT_POLICY_TEXT = "Contract payload rules: " + " ".join(

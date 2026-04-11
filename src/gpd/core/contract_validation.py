@@ -315,6 +315,28 @@ def _schema_error_location(error: dict[str, object], *, path_prefix: str = "") -
     return ".".join(part for part in parts if part)
 
 
+_BOOLEAN_TEXT_CHOICES: dict[str, bool] = {
+    "1": True,
+    "true": True,
+    "yes": True,
+    "y": True,
+    "on": True,
+    "0": False,
+    "false": False,
+    "no": False,
+    "n": False,
+    "off": False,
+}
+
+
+def _coerce_common_bool_spelling(value: object) -> bool | None:
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized:
+            return _BOOLEAN_TEXT_CHOICES.get(normalized)
+    return None
+
+
 def _is_canonical_authoritative_scalar_location(location: str) -> bool:
     """Return whether one location is governed by a canonical authoritative scalar error."""
 
@@ -327,6 +349,7 @@ def _sanitize_contract_scalars(
     path_prefix: str = "",
     errors: list[str] | None = None,
     canonical_authoritative_scalar_locations: set[str] | None = None,
+    metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
 ) -> object:
     """Remove malformed coercive scalars so callers can reject them explicitly.
 
@@ -363,12 +386,29 @@ def _sanitize_contract_scalars(
                 continue
 
             if re.fullmatch(r"references\.\d+\.must_surface", location):
-                if type(raw_item) is not bool:
-                    sink.append(f"{location} must be a boolean")
-                    if canonical_authoritative_scalar_locations is not None:
-                        canonical_authoritative_scalar_locations.add(location)
+                if type(raw_item) is bool:
                     cleaned[raw_key] = raw_item
                     continue
+                coerced_bool = _coerce_common_bool_spelling(raw_item)
+                if coerced_bool is not None:
+                    location_parts = tuple(part for part in location.split(".") if part)
+                    formatted, metadata = _format_schema_finding(
+                        {
+                            "loc": location_parts,
+                            "msg": f"must be a boolean (coerced from {raw_item!r})",
+                            "type": "value_error.boolean_coercion",
+                            "input": raw_item,
+                            "ctx": {"coerced_value": coerced_bool},
+                        }
+                    )
+                    sink.append(formatted)
+                    if metadata_by_error is not None:
+                        metadata_by_error[formatted] = metadata
+                    cleaned[raw_key] = coerced_bool
+                    continue
+                sink.append(f"{location} must be a boolean")
+                if canonical_authoritative_scalar_locations is not None:
+                    canonical_authoritative_scalar_locations.add(location)
                 cleaned[raw_key] = raw_item
                 continue
 
@@ -377,6 +417,7 @@ def _sanitize_contract_scalars(
                 path_prefix=location,
                 errors=sink,
                 canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+                metadata_by_error=metadata_by_error,
             )
         return cleaned
 
@@ -387,6 +428,7 @@ def _sanitize_contract_scalars(
                 path_prefix=f"{path_prefix}.{index}" if path_prefix else str(index),
                 errors=sink,
                 canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+                metadata_by_error=metadata_by_error,
             )
             for index, item in enumerate(value)
         ]
@@ -739,9 +781,12 @@ def _collect_blank_list_normalization_findings(
     return findings
 
 
-def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContract | None, list[str]]:
+def salvage_project_contract(
+    contract: dict[str, object],
+) -> tuple[ResearchContract | None, list[str], dict[str, _SchemaFindingMetadata]]:
     errors: list[str] = []
     canonical_authoritative_scalar_locations: set[str] = set()
+    metadata_by_error: dict[str, _SchemaFindingMetadata] = {}
     errors.extend(_collect_literal_case_drift_errors(contract))
     raw_required_section_presence = {
         field_name: field_name in contract
@@ -751,9 +796,10 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         contract,
         errors=errors,
         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+        metadata_by_error=metadata_by_error,
     )
     if not isinstance(scalar_sanitized, dict):
-        return None, errors
+        return None, errors, metadata_by_error
 
     working = _strip_unknown_model_keys(scalar_sanitized, path_prefix="", model=ResearchContract, errors=errors)
     normalized_contract = copy.deepcopy(working)
@@ -765,7 +811,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         if field_name not in normalized_contract and not raw_required_section_presence[field_name]:
             missing_required_section_errors.append(_required_project_contract_section_error(field_name))
     if missing_required_section_errors:
-        return None, [*errors, *missing_required_section_errors]
+        return None, [*errors, *missing_required_section_errors], metadata_by_error
 
     collection_models: dict[str, type[BaseModel]] = {
         "observables": ContractObservable,
@@ -796,7 +842,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
     )
     if scope_blocked or scope is None:
-        return None, errors
+        return None, errors, metadata_by_error
     normalized_contract["scope"] = scope
 
     context_intake, context_intake_blocked = _salvage_model_mapping(
@@ -807,7 +853,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
     )
     if context_intake_blocked or context_intake is None:
-        return None, errors
+        return None, errors, metadata_by_error
     normalized_contract["context_intake"] = context_intake
 
     if "approach_policy" in normalized_contract:
@@ -834,7 +880,7 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
         required_fields=("weakest_anchors", "disconfirming_observations"),
     )
     if uncertainty_markers_blocked or uncertainty_markers is None:
-        return None, errors
+        return None, errors, metadata_by_error
     normalized_contract["uncertainty_markers"] = uncertainty_markers
 
     if "schema_version" in normalized_contract:
@@ -847,13 +893,13 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
             normalized_contract.pop("schema_version", None)
 
     try:
-        return ResearchContract.model_validate(normalized_contract), errors
+        return ResearchContract.model_validate(normalized_contract), errors, metadata_by_error
     except PydanticValidationError as exc:
         for error in exc.errors():
             formatted = _format_schema_error(error)
             if formatted not in errors:
                 errors.append(formatted)
-        return None, errors
+        return None, errors, metadata_by_error
 
 
 def split_project_contract_schema_findings(
@@ -867,9 +913,16 @@ def split_project_contract_schema_findings(
     recoverable: list[str] = []
     blocking: list[str] = []
     for error in errors:
+        metadata = None if metadata_by_error is None else metadata_by_error.get(error)
+        if metadata is not None and metadata.error_type == "value_error.boolean_coercion":
+            if allow_case_drift_recovery:
+                recoverable.append(error)
+            else:
+                blocking.append(error)
+            continue
         categories = _project_contract_schema_finding_categories(
             error,
-            metadata=None if metadata_by_error is None else metadata_by_error.get(error),
+            metadata=metadata,
         )
         if _ProjectContractSchemaFindingCategory.NESTED_COLLECTION_ITEM_TRUNCATION in categories:
             blocking.append(error)

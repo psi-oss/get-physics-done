@@ -37,6 +37,26 @@ def test_format_active_runtime_command_uses_descriptor_public_surface(monkeypatc
     assert format_active_runtime_command("help") == "/public:help"
 
 
+def test_format_active_runtime_command_requires_public_surface_prefix(monkeypatch) -> None:
+    descriptor = SimpleNamespace(
+        runtime_name="runtime-a",
+        public_command_surface_prefix=" ",
+        command_prefix="/adapter-only:",
+    )
+    monkeypatch.setattr(
+        runtime_command_surfaces_module,
+        "resolve_active_runtime_descriptor",
+        lambda **kwargs: descriptor,
+    )
+    monkeypatch.setattr(
+        "gpd.adapters.get_adapter",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("adapter formatting should not be used")),
+    )
+
+    with pytest.raises(ValueError, match="missing a public command surface prefix"):
+        format_active_runtime_command("help")
+
+
 def test_resolve_active_runtime_descriptor_normalizes_aliases_before_lookup() -> None:
     descriptor = next(
         item

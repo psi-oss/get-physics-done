@@ -854,10 +854,11 @@ def _classify_project_contract_payload(
             errors=missing_required_schema_errors,
             warnings=list(dict.fromkeys([*list_shape_drift_errors, *list_member_errors])),
         )
-    normalized_contract, schema_findings = salvage_project_contract(raw_contract)
+    normalized_contract, schema_findings, schema_metadata = salvage_project_contract(raw_contract)
     schema_warnings, schema_errors = split_project_contract_schema_findings(
         schema_findings,
         allow_case_drift_recovery=True,
+        metadata_by_error=schema_metadata,
     )
     schema_warnings = list(dict.fromkeys([*schema_warnings, *list_shape_drift_errors, *list_member_errors]))
     blocking_schema_errors = list(schema_errors)
@@ -2114,7 +2115,7 @@ def _normalize_project_contract_section(
 
     list_shape_drift_errors = _collect_list_shape_drift_errors(value)
     list_member_errors = _collect_project_contract_list_member_errors(value)
-    normalized_contract, errors = salvage_project_contract(value)
+    normalized_contract, errors, schema_metadata = salvage_project_contract(value)
     combined_errors = list(dict.fromkeys(errors))
     normalized_contract_dump = normalized_contract.model_dump() if normalized_contract is not None else None
     if list_shape_drift_errors:
@@ -2146,6 +2147,7 @@ def _normalize_project_contract_section(
         _schema_warnings, schema_errors = split_project_contract_schema_findings(
             combined_errors,
             allow_case_drift_recovery=allow_project_contract_salvage,
+            metadata_by_error=schema_metadata,
         )
         if schema_errors:
             integrity_issues.append(
@@ -2786,7 +2788,9 @@ def _recover_intent_locked(cwd: Path) -> None:
             resolved_parent = path.parent.resolve(strict=False)
         except OSError:
             return False
-        return resolved_parent == planning_dir and path.name.startswith(f"{target.name}.tmp.")
+        return resolved_parent == planning_dir and (
+            path.name.startswith(f"{target.name}.tmp.") or path.name == (".state-json-tmp" if target.name == "state.json" else ".state-md-tmp")
+        )
 
     paths_are_valid = _is_same_gpd_dir_temp(json_tmp, json_path) and _is_same_gpd_dir_temp(md_tmp, md_path)
     if not paths_are_valid:
@@ -3673,12 +3677,13 @@ def _preserved_visible_project_contract_for_json_save(cwd: Path, *, state_obj: d
     }:
         return None
 
-    candidate_contract, candidate_schema_findings = salvage_project_contract(candidate)
+    candidate_contract, candidate_schema_findings, candidate_schema_metadata = salvage_project_contract(candidate)
     if candidate_contract is None:
         return None
     _, candidate_schema_errors = split_project_contract_schema_findings(
         candidate_schema_findings,
         allow_case_drift_recovery=True,
+        metadata_by_error=candidate_schema_metadata,
     )
     if candidate_schema_errors:
         return None

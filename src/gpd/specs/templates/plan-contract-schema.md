@@ -32,10 +32,9 @@ Optional sections:
 - `links`
 
 Every list named above must contain objects, not strings.
-`context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections, not strings or lists.
-Do not add unknown keys at any level; strict validation rejects keys outside this schema.
-Salvage/repair flows may drop unknown keys while surfacing recoverable findings; strict validation treats those same unknown-key findings as blocking.
-`approach_policy` is execution policy only; it can constrain planning, but it does not by itself satisfy the hard grounding/anchor requirement.
+`context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections that must remain objects.
+Do not add unknown keys at any level; strict validation rejects them. Salvage/repair flows may drop unknown keys while surfacing recoverable findings.
+`approach_policy` constrains execution but does not provide grounding on its own.
 
 ---
 
@@ -301,25 +300,25 @@ Rules:
 
 ## Contract Alignment Rules
 
-- Reduced contracts are legal only when the plan is explicitly scoping or exploratory.
-- If the plan will execute, verify, or publish a concrete result, use the full non-scoping shape.
+- Reduced contracts are legal only when the plan is explicitly scoping or exploratory; otherwise use the full non-scoping shape that includes claims, deliverables, acceptance tests, and forbidden proxies.
 - A reduced contract still needs a real decision surface: preserve at least one target, open question, or carry-forward input instead of emitting a hollow scaffold.
-- If you are unsure, classify the plan as non-scoping and use the full shape.
-- `references[]` are mandatory only when the contract does not already expose enough grounding through `context_intake` or preserved scoping inputs. `context_gaps`, `crucial_inputs`, and `stop_and_rethink_conditions` keep uncertainty visible, but they do not satisfy the grounding/anchor requirement by themselves. When concrete grounding already exists, omit `references[]` rather than padding the contract with decorative anchors.
-- The schema still exposes semantic fields `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation`; their default is `other`. Omit them only when `other` is intended, and set the specific value explicitly when the semantics are already known.
-- For non-scoping plans, `claims[]`, `deliverables[]`, `acceptance_tests[]`, and `forbidden_proxies[]` are all required.
-- The defaultable semantic fields above do not relax the hard requirements on `context_intake` or `uncertainty_markers`, and they do not replace required contract targets for non-scoping plans.
-- For non-scoping plans, include `references[]` unless explicit grounding context survives elsewhere in the contract.
-- When a plan depends on traceable handoffs or decisive comparisons, surface `links[]` explicitly instead of burying the dependency in prose.
-- All ID cross-links must resolve to declared IDs. Unresolved IDs are validation errors, not TODO placeholders.
-- IDs must be unique across each section.
-- Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
+- If you are unsure, classify the plan as non-scoping and keep the full shape.
+- References are mandatory only when the contract does not already expose enough grounding through `context_intake` or preserved scoping inputs. `context_gaps`, `crucial_inputs`, and `stop_and_rethink_conditions` keep uncertainty visible but do not satisfy the grounding requirement on their own. When concrete grounding already exists, omit decorative references instead of padding the contract.
+- When concrete grounding is missing elsewhere, at least one reference must set `must_surface: true`; otherwise a missing `must_surface` reference is a warning, not a blocker.
+- The semantic fields `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation` default to `other`. Omit them only when `other` is intended and set a specific literal when the semantics are already known.
+- Surface `links[]` explicitly whenever the plan depends on traceable handoffs or decisive comparisons.
+- All ID cross-links must resolve to declared IDs, IDs must stay unique across sections, and you may not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`.
 - Canonical IDs and other required strings are trimmed before validation; blank-after-trim values are invalid.
-- A cross-reference must fail loudly if it points to an undeclared ID.
-- A non-object `contract:` value is invalid. Treat it as a schema error, not as “missing”.
-- If `references[]` is non-empty and the contract does not already carry concrete grounding elsewhere, at least one reference must set `must_surface: true`. When concrete grounding already exists, a missing `must_surface: true` reference is a warning, not a blocker.
-- Do not assume any contract field is optional unless the active PLAN validator or workflow explicitly says so.
+- A non-object `contract:` value is invalid; treat it as a schema error rather than “missing”.
+- Do not assume any contract field is optional unless the active PLAN validator or workflow explicitly allows it.
 
+## Contract Addendum Guidance
+
+When you append a contract addendum for the `draft`, `approved`, or `proof` stage, keep it compact:
+- `draft` addenda should note the missing gating anchors, blockers, or unresolved questions that keep the contract unapproved.
+- `approved` addenda should summarize the approved scope, decisive anchors/baselines, and the deliverables or acceptance tests that carry the approval.
+- `proof` addenda should list the proof-specific claim, deliverables, acceptance tests, and metadata that justify the proof stage.
+Limit each addendum to the status label plus one or two short bullets so the schema stays the authoritative source of truth; use this template for the detailed fields.
 ---
 
 ## Validation Commands
