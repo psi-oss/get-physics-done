@@ -28,6 +28,7 @@ from gpd.adapters.install_utils import (
 )
 from gpd.adapters.opencode import OpenCodeAdapter
 from gpd.adapters.runtime_catalog import (
+    RuntimeDescriptor,
     get_runtime_descriptor,
     get_shared_install_metadata,
     list_runtime_names,
@@ -42,6 +43,29 @@ RUNTIME_ALIAS_MAP = build_canonical_alias_map(adapter.tool_name_map for adapter 
 _SHARED_INSTALL = get_shared_install_metadata()
 _INSTALL_CACHE: dict[tuple[str, tuple[str, ...]], Path] = {}
 SUPPORTED_RUNTIME_NAMES = tuple(list_runtime_names())
+
+
+def _descriptor(runtime: str) -> RuntimeDescriptor:
+    return get_runtime_descriptor(runtime)
+
+
+def _runtime_command_path(target: Path, runtime: str, command_name: str) -> Path:
+    descriptor = _descriptor(runtime)
+    if descriptor.managed_install_surface == "flat_commands":
+        return target / "command" / f"gpd-{command_name}.md"
+    if descriptor.managed_install_surface == "external_commands":
+        return target.parent / "skills" / f"gpd-{command_name}" / "SKILL.md"
+    suffix = ".toml" if descriptor.agent_prompt_uses_dollar_templates else ".md"
+    return target / "commands" / "gpd" / f"{command_name}{suffix}"
+
+
+def _runtime_prompt_text(path: Path) -> str:
+    if path.suffix == ".toml":
+        parsed = tomllib.loads(path.read_text(encoding="utf-8"))
+        prompt = parsed.get("prompt")
+        assert isinstance(prompt, str)
+        return prompt
+    return path.read_text(encoding="utf-8")
 
 
 def expected_opencode_bridge(target: Path, *, is_global: bool = False, explicit_target: bool = False) -> str:
@@ -89,33 +113,21 @@ def _collect_textual_artifacts(root: Path) -> str:
 
 
 def _install_real_repo_for_runtime(tmp_path: Path, runtime: str, source_root: Path = REPO_GPD_ROOT) -> Path:
-    if runtime == "claude-code":
-        target = tmp_path / ".claude"
-        target.mkdir()
-        ClaudeCodeAdapter().install(source_root, target)
-        return target
-
-    if runtime == "codex":
-        target = tmp_path / ".codex"
-        target.mkdir()
+    target = tmp_path / _descriptor(runtime).config_dir_name
+    target.mkdir()
+    adapter = get_adapter(runtime)
+    if isinstance(adapter, CodexAdapter):
         skills = tmp_path / "skills"
         skills.mkdir()
-        CodexAdapter().install(source_root, target, is_global=False, skills_dir=skills)
+        adapter.install(source_root, target, is_global=False, skills_dir=skills)
         return target
-
-    if runtime == "gemini":
-        target = tmp_path / ".gemini"
-        target.mkdir()
+    if isinstance(adapter, GeminiAdapter):
         _install_gemini_for_tests(source_root, target)
         return target
-
-    if runtime == "opencode":
-        target = tmp_path / ".opencode"
-        target.mkdir()
-        OpenCodeAdapter().install(source_root, target)
+    if isinstance(adapter, (ClaudeCodeAdapter, OpenCodeAdapter)):
+        adapter.install(source_root, target)
         return target
-
-    raise AssertionError(f"Unsupported runtime {runtime}")
+    raise AssertionError(f"Unsupported adapter for runtime {runtime}: {type(adapter).__name__}")
 
 
 def _install_gemini_for_tests(gpd_root: Path, target: Path) -> GeminiAdapter:
@@ -201,60 +213,15 @@ def _canonicalize_runtime_markdown(content: str, *, runtime: str) -> str:
 
 
 def _read_compare_experiment_command(tmp_path: Path, target: Path, runtime: str) -> str:
-    if runtime == "claude-code":
-        return (target / "commands" / "gpd" / "compare-experiment.md").read_text(encoding="utf-8")
-
-    if runtime == "codex":
-        return (tmp_path / "skills" / "gpd-compare-experiment" / "SKILL.md").read_text(encoding="utf-8")
-
-    if runtime == "gemini":
-        parsed = tomllib.loads((target / "commands" / "gpd" / "compare-experiment.toml").read_text(encoding="utf-8"))
-        prompt = parsed.get("prompt")
-        assert isinstance(prompt, str)
-        return prompt
-
-    if runtime == "opencode":
-        return (target / "command" / "gpd-compare-experiment.md").read_text(encoding="utf-8")
-
-    raise AssertionError(f"Unsupported runtime {runtime}")
+    return _runtime_prompt_text(_runtime_command_path(target, runtime, "compare-experiment"))
 
 
 def _read_runtime_command_prompt(tmp_path: Path, target: Path, runtime: str, command_name: str) -> str:
-    if runtime == "claude-code":
-        return (target / "commands" / "gpd" / f"{command_name}.md").read_text(encoding="utf-8")
-
-    if runtime == "codex":
-        return (tmp_path / "skills" / f"gpd-{command_name}" / "SKILL.md").read_text(encoding="utf-8")
-
-    if runtime == "gemini":
-        parsed = tomllib.loads((target / "commands" / "gpd" / f"{command_name}.toml").read_text(encoding="utf-8"))
-        prompt = parsed.get("prompt")
-        assert isinstance(prompt, str)
-        return prompt
-
-    if runtime == "opencode":
-        return (target / "command" / f"gpd-{command_name}.md").read_text(encoding="utf-8")
-
-    raise AssertionError(f"Unsupported runtime {runtime}")
+    return _runtime_prompt_text(_runtime_command_path(target, runtime, command_name))
 
 
 def _read_runtime_update_surface(tmp_path: Path, target: Path, runtime: str) -> str:
-    if runtime == "claude-code":
-        return (target / "commands" / "gpd" / "update.md").read_text(encoding="utf-8")
-
-    if runtime == "codex":
-        return (tmp_path / "skills" / "gpd-update" / "SKILL.md").read_text(encoding="utf-8")
-
-    if runtime == "gemini":
-        parsed = tomllib.loads((target / "commands" / "gpd" / "update.toml").read_text(encoding="utf-8"))
-        prompt = parsed.get("prompt")
-        assert isinstance(prompt, str)
-        return prompt
-
-    if runtime == "opencode":
-        return (target / "command" / "gpd-update.md").read_text(encoding="utf-8")
-
-    raise AssertionError(f"Unsupported runtime {runtime}")
+    return _runtime_prompt_text(_runtime_command_path(target, runtime, "update"))
 
 
 def _read_runtime_agent_prompt(target: Path, runtime: str, agent_name: str) -> str:
@@ -317,12 +284,8 @@ def _assert_installed_contract_visibility(
     assert "GPD/REFEREE-REPORT{round_suffix}.md" in write_paper
     assert "GPD/REFEREE-REPORT{round_suffix}.tex" in write_paper
 
-    assert "Canonical contract schema and hard validation rules" in plan_phase
-    assert (
-        "every proof-bearing plan must surface the theorem statement, named parameters, hypotheses, "
-        "quantifier/domain obligations, and intended conclusion clauses visibly enough that a later audit can "
-        "detect missing coverage"
-    ) in plan_phase
+    assert "Read the workflow file defined above" in plan_phase
+    assert "Follow the included workflow file exactly." in plan_phase
 
     assert "`contract.context_intake` is required and must be a non-empty object" in plan_schema
     assert "`must_surface` is a boolean scalar. Use the YAML literals `true` and `false`" in plan_schema
@@ -380,7 +343,7 @@ def test_install_artifacts_pin_checkout_python_when_running_from_checkout(
 
     target = _install_real_repo_for_runtime(tmp_path, runtime)
     artifact_roots = [target]
-    if runtime == "codex":
+    if isinstance(get_adapter(runtime), CodexAdapter):
         artifact_roots.append(tmp_path / "skills")
 
     installed_text = "\n".join(_collect_textual_artifacts(root) for root in artifact_roots)
@@ -538,9 +501,13 @@ class TestCodexRoundtrip:
     def test_command_count_matches_source(self, installed: tuple[Path, Path]) -> None:
         """Number of skills matches source command count."""
         _, skills = installed
-        src_count = sum(1 for _ in (REPO_GPD_ROOT / "commands").rglob("*.md"))
-        skill_count = sum(1 for d in skills.iterdir() if d.is_dir() and d.name.startswith("gpd-"))
-        assert skill_count == src_count
+        expected_skills = {
+            f"gpd-{path.stem}"
+            for path in (REPO_GPD_ROOT / "commands").rglob("*.md")
+            if "local_cli_only: true" not in path.read_text(encoding="utf-8")
+        }
+        skill_dirs = {d.name for d in skills.iterdir() if d.is_dir() and d.name.startswith("gpd-")}
+        assert skill_dirs == expected_skills
 
     def test_agents_not_installed_as_skills(self, installed: tuple[Path, Path]) -> None:
         """Codex agents are registered as roles, not duplicated as discoverable skills."""
