@@ -2,6 +2,7 @@
 
 - reconstruction_scope: `checked_in_fixture_covered_subset`
 - strict_phase10_exit_criteria_met: `false`
+- post_fix_copy_run_criteria_met: `true`
 - family_count: `5`
 
 ## Families
@@ -39,4 +40,10 @@
 
 ## Blocking Gap
 
-The checked-in fixture subset makes the priority families runnable and regression-guarded, but the missing historical Phase 10 copy-run transcripts still block strict deterministic promotion.
+The checked-in fixture subset makes the priority families runnable and regression-guarded, but the missing historical Phase 10 failure transcripts still block retroactive failure-promotion claims.
+
+## Local Post-Fix Copy Runs
+
+- evidence_json: `repro/10-copy-run-evidence.json`
+- evidence_markdown: `repro/10-copy-run-evidence.md`
+- green_families: `5/5`

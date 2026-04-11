@@ -14,9 +14,12 @@
       "test_guard_present": true,
       "nightly_green_run_count": 0,
       "release_candidate_green_count": 0,
+      "local_nightly_equivalent_green_run_count": 10,
+      "local_release_candidate_equivalent_green_run_count": 2,
+      "local_closure_evidence_all_green": true,
       "unconverted_manual_repro_count": 1041,
       "closed": false,
-      "closure_reason": "Scorecard gates require durable nightly/release-candidate run history before closure."
+      "closure_reason": "Local 10/10 nightly-equivalent and 2/2 release-candidate-equivalent runs are green; official durable CI/release history and conversion of remaining manual-repro items still block closure."
     },
     {
       "family_id": "placeholder-sentinel-normalization",
@@ -27,9 +30,12 @@
       "test_guard_present": true,
       "nightly_green_run_count": 0,
       "release_candidate_green_count": 0,
+      "local_nightly_equivalent_green_run_count": 10,
+      "local_release_candidate_equivalent_green_run_count": 2,
+      "local_closure_evidence_all_green": true,
       "unconverted_manual_repro_count": 1041,
       "closed": false,
-      "closure_reason": "Scorecard gates require durable nightly/release-candidate run history before closure."
+      "closure_reason": "Local 10/10 nightly-equivalent and 2/2 release-candidate-equivalent runs are green; official durable CI/release history and conversion of remaining manual-repro items still block closure."
     },
     {
       "family_id": "query-result-registry-projection",
@@ -40,9 +46,12 @@
       "test_guard_present": true,
       "nightly_green_run_count": 0,
       "release_candidate_green_count": 0,
+      "local_nightly_equivalent_green_run_count": 10,
+      "local_release_candidate_equivalent_green_run_count": 2,
+      "local_closure_evidence_all_green": true,
       "unconverted_manual_repro_count": 1041,
       "closed": false,
-      "closure_reason": "Scorecard gates require durable nightly/release-candidate run history before closure."
+      "closure_reason": "Local 10/10 nightly-equivalent and 2/2 release-candidate-equivalent runs are green; official durable CI/release history and conversion of remaining manual-repro items still block closure."
     },
     {
       "family_id": "nested-root-readonly-probe-parity",
@@ -53,9 +62,12 @@
       "test_guard_present": true,
       "nightly_green_run_count": 0,
       "release_candidate_green_count": 0,
+      "local_nightly_equivalent_green_run_count": 10,
+      "local_release_candidate_equivalent_green_run_count": 2,
+      "local_closure_evidence_all_green": true,
       "unconverted_manual_repro_count": 1041,
       "closed": false,
-      "closure_reason": "Scorecard gates require durable nightly/release-candidate run history before closure."
+      "closure_reason": "Local 10/10 nightly-equivalent and 2/2 release-candidate-equivalent runs are green; official durable CI/release history and conversion of remaining manual-repro items still block closure."
     },
     {
       "family_id": "resume-recent-selection-control",
@@ -66,9 +78,12 @@
       "test_guard_present": true,
       "nightly_green_run_count": 0,
       "release_candidate_green_count": 0,
+      "local_nightly_equivalent_green_run_count": 10,
+      "local_release_candidate_equivalent_green_run_count": 2,
+      "local_closure_evidence_all_green": true,
       "unconverted_manual_repro_count": 1041,
       "closed": false,
-      "closure_reason": "Scorecard gates require durable nightly/release-candidate run history before closure."
+      "closure_reason": "Local 10/10 nightly-equivalent and 2/2 release-candidate-equivalent runs are green; official durable CI/release history and conversion of remaining manual-repro items still block closure."
     },
     {
       "family_id": "canonical-session-continuation-access",
@@ -79,9 +94,12 @@
       "test_guard_present": true,
       "nightly_green_run_count": 0,
       "release_candidate_green_count": 0,
+      "local_nightly_equivalent_green_run_count": 10,
+      "local_release_candidate_equivalent_green_run_count": 2,
+      "local_closure_evidence_all_green": true,
       "unconverted_manual_repro_count": 1041,
       "closed": false,
-      "closure_reason": "Scorecard gates require durable nightly/release-candidate run history before closure."
+      "closure_reason": "Local 10/10 nightly-equivalent and 2/2 release-candidate-equivalent runs are green; official durable CI/release history and conversion of remaining manual-repro items still block closure."
     },
     {
       "family_id": "runtime-bridge-classification",
@@ -92,9 +110,12 @@
       "test_guard_present": true,
       "nightly_green_run_count": 0,
       "release_candidate_green_count": 0,
+      "local_nightly_equivalent_green_run_count": 10,
+      "local_release_candidate_equivalent_green_run_count": 2,
+      "local_closure_evidence_all_green": true,
       "unconverted_manual_repro_count": 1041,
       "closed": false,
-      "closure_reason": "Scorecard gates require durable nightly/release-candidate run history before closure."
+      "closure_reason": "Local 10/10 nightly-equivalent and 2/2 release-candidate-equivalent runs are green; official durable CI/release history and conversion of remaining manual-repro items still block closure."
     },
     {
       "family_id": "doctor-target-readiness-contract",
@@ -105,9 +126,12 @@
       "test_guard_present": true,
       "nightly_green_run_count": 0,
       "release_candidate_green_count": 0,
+      "local_nightly_equivalent_green_run_count": 10,
+      "local_release_candidate_equivalent_green_run_count": 2,
+      "local_closure_evidence_all_green": true,
       "unconverted_manual_repro_count": 1041,
       "closed": false,
-      "closure_reason": "Scorecard gates require durable nightly/release-candidate run history before closure."
+      "closure_reason": "Local 10/10 nightly-equivalent and 2/2 release-candidate-equivalent runs are green; official durable CI/release history and conversion of remaining manual-repro items still block closure."
     },
     {
       "family_id": "observability-degraded-visibility",
@@ -118,9 +142,12 @@
       "test_guard_present": true,
       "nightly_green_run_count": 0,
       "release_candidate_green_count": 0,
+      "local_nightly_equivalent_green_run_count": 10,
+      "local_release_candidate_equivalent_green_run_count": 2,
+      "local_closure_evidence_all_green": true,
       "unconverted_manual_repro_count": 1041,
       "closed": false,
-      "closure_reason": "Scorecard gates require durable nightly/release-candidate run history before closure."
+      "closure_reason": "Local 10/10 nightly-equivalent and 2/2 release-candidate-equivalent runs are green; official durable CI/release history and conversion of remaining manual-repro items still block closure."
     }
   ]
 }

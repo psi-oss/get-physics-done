@@ -11,13 +11,14 @@
 - Phase 08 Repro Packetization: `partial_reconstructed`
   - gap: Only checked-in Phase 09 live subset reconstructed; full 203/250 Phase 08 corpus absent.
 - Phase 09 Fixture Construction: `tracked`
-- Phase 10 CLI Fast-Path Anchor Repro: `covered_subset_reconstructed_not_promoted`
-  - gap: Covered fixture subset reconstructed; strict Phase 10 copy-run transcripts remain absent.
+- Phase 10 CLI Fast-Path Anchor Repro: `covered_subset_post_fix_copy_runs_green_not_promoted`
+  - gap: Covered fixture subset has fresh local post-fix copy-run evidence; original historical failure copy-run transcripts remain absent.
 - Phase 11 Mutation And Ordering Repro: `imported_external_summary`
 - Phase 12 Breadth Sweep: `imported_external_summary`
 - Phase 13 MCP / Sandbox / Environment Characterization: `imported_external_summary`
 - Phase 14 Flake Soak And Residual Heuristics: `imported_external_summary`
 - Phase 15 Fix Verification Contract: `tracked_with_registry_hardened`
 - Phase 16 Cross-Surface Consistency Oracle: `tracked`
-- Phase 17 Nightly Matrix And Benchmarks: `tracked`
-- Phase 18 Scorecards And Closure Gates: `scorecards_generated_not_closed`
+- Phase 17 Nightly Matrix And Benchmarks: `local_nightly_equivalent_green`
+- Phase 18 Scorecards And Closure Gates: `local_closure_evidence_green_not_closed`
+  - gap: Local closure evidence is green; official durable CI/release history and unconverted manual-repro items still block closure.
