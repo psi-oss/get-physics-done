@@ -958,7 +958,7 @@ Verification: {Passed | Partial (N approved, M revised) | Passed with override |
 
 ---
 
-## >> Next Up
+## > Next Up
 
 **Execute Phase {X}** -- run all {N} plans
 

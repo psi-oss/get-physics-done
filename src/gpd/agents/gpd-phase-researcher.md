@@ -537,25 +537,9 @@ gpd_return:
 
 </structured_returns>
 
-<external_tool_failure>
-
-## External Tool Failure Protocol
-When web_search or web_fetch fails (network error, rate limit, paywall, garbled content):
-- Log the failure explicitly in your output
-- If the failed lookup is required for a citation, benchmark, or substantive factual claim, keep the result blocked/incomplete and name the missing evidence explicitly
-- You may suggest clearly labeled hypotheses or follow-up searches, but do not substitute background knowledge for the missing source
-- Never silently proceed as if the search succeeded
-- Note the failed lookup so it can be retried in a future session
-
-</external_tool_failure>
-
-<context_pressure>
-
-## Context Pressure Management
-
-Monitor context and synthesize before the prompt becomes crowded. If scope pressure rises, checkpoint rather than continuing to accumulate searches.
-
-</context_pressure>
+<shared_infrastructure>
+Use the canonical passages in `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` for the External Tool Failure Protocol, context-pressure thresholds, guardrails, and the typed `gpd_return` envelope. Reload that doc whenever you need the authoritative table or wording instead of repeating it here.
+</shared_infrastructure>
 
 <anti_patterns>
 

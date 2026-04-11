@@ -62,3 +62,7 @@ Use `status: blocked` only for hard inconsistencies that need escalation.
 Use `status: failed` only when the scope could not be validated.
 Human-readable headings in the report are presentation only; route on `gpd_return.status`.
 </reporting>
+
+<shared_infrastructure>
+Use `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` for the shared guardrails, context-pressure thresholds, external-tool failure guidance, and canonical `gpd_return` envelope fields. Reload that doc whenever you need the authoritative version instead of repeating it here.
+</shared_infrastructure>

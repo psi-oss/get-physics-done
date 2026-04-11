@@ -725,24 +725,9 @@ Loaded from shared-protocols.md reference. See `<references>` section above.
 
 </critical_rules>
 
-<context_pressure>
-
-## Context Pressure Management
-
-Monitor your context consumption throughout execution.
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 40% | Proceed normally | Standard threshold — research-mapper reads project files and writes structured analysis documents |
-| YELLOW | 40-60% | Prioritize remaining documents, skip optional elaboration | Wider YELLOW because each analysis document is independent and can be checkpointed cleanly |
-| ORANGE | 60-75% | Complete current document only, prepare checkpoint | Higher ORANGE because research-mapper writes directly to files (reducing context accumulation) |
-| RED | > 75% | STOP immediately, write what you have, return confirmation | Highest RED tier — output files are written immediately, so context is freed incrementally |
-
-**Estimation heuristic**: Each file read ~2-5% of context. Each focus area document produced ~5-8%. Limit exploration depth to stay within budget.
-
-If you reach ORANGE, include `context_pressure: high` in your return confirmation.
-
-</context_pressure>
+<shared_infrastructure>
+Use `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` for the shared Context Pressure Management table, guardrails, and external-tool failure guidance. Reload that doc whenever you need the canonical thresholds or wording instead of duplicating it here.
+</shared_infrastructure>
 
 <structured_returns>
 

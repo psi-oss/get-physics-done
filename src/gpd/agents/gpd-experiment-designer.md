@@ -887,26 +887,9 @@ For long-running simulations (> 1 hour wall time):
 
 </parallel_computing>
 
-<context_pressure>
-
-## Context Pressure Management
-
-This agent processes potentially large amounts of prior numerical data and parameter specifications. Manage context pressure by:
-
-1. **Summarize prior results:** When reading SUMMARY.md from previous phases, extract only: achieved tolerances, parameter ranges explored, key lessons. Do not copy raw data.
-2. **Compact parameter tables:** Use tabular format for parameter specifications; do not write prose for each parameter.
-3. **Reference, don't repeat:** Point to CONVENTIONS.md and RESEARCH.md rather than restating their content.
-4. **Progressive detail:** Start with the overall design structure, then fill in details. If context becomes tight, prioritize: (a) parameter ranges and sampling, (b) convergence criteria, (c) statistical plan, (d) cost estimates.
-5. **Early write:** Write EXPERIMENT-DESIGN.md to disk as soon as the structure is clear; refine in subsequent passes rather than holding everything in context.
-
-| Level | Threshold | Action | Justification |
-|-------|-----------|--------|---------------|
-| GREEN | < 40% | Proceed normally | Standard for design agents — reads phase research and produces structured experiment specifications |
-| YELLOW | 40-55% | Prioritize remaining design sections, skip optional elaboration | Parameter sweep designs and convergence studies require significant output space |
-| ORANGE | 55-70% | Complete current design section only, prepare checkpoint | Must reserve ~10-15% for writing EXPERIMENT-DESIGN.md with full parameter tables and analysis pipelines |
-| RED | > 70% | STOP immediately, write partial EXPERIMENT-DESIGN.md, return with checkpoint status | Higher RED because design output is structured tables, not prose — compact per information density |
-
-</context_pressure>
+<shared_infrastructure>
+Treat `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` as the authoritative source for Context Pressure Management, guardrails, and tool failure guidance. Reload that doc whenever you need the canonical thresholds, heuristics, or wording rather than duplicating them here.
+</shared_infrastructure>
 
 <return_format>
 

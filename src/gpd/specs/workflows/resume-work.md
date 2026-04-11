@@ -453,7 +453,7 @@ Based on user selection, route to appropriate workflow:
   ```
   ---
 
-  ## Next Up
+  ## > Next Up
 
   **{phase}-{plan}: [Plan Name]** -- [objective from PLAN.md]
 
@@ -469,7 +469,7 @@ Based on user selection, route to appropriate workflow:
   ```
   ---
 
-  ## Next Up
+  ## > Next Up
 
   **Phase [N]: [Name]** -- [Goal from ROADMAP.md]
 

@@ -555,7 +555,7 @@ were skipped. Use gpd:settings to adjust workflow preferences.
 
 ---------------------------------------------------------------
 
-## >> Next Up
+## > Next Up
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 ```
@@ -2089,7 +2089,7 @@ Present completion with next steps:
 
 ---------------------------------------------------------------
 
-## >> Next Up
+## > Next Up
 
 **Phase 1: [Phase Name]** — [Goal from ROADMAP.md]
 

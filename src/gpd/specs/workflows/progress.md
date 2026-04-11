@@ -316,7 +316,7 @@ Read its `<objective>` section.
 ```
 ---
 
-## >> Next Up
+## > Next Up
 
 **{phase}-{plan}: [Plan Name]** — [objective summary from PLAN.md]
 
@@ -338,7 +338,7 @@ Check if `{phase}-CONTEXT.md` exists in phase directory.
 ```
 ---
 
-## >> Next Up
+## > Next Up
 
 **Phase {N}: {Name}** — {Goal from ROADMAP.md}
 <sub>Context gathered, ready to plan</sub>
@@ -355,7 +355,7 @@ Check if `{phase}-CONTEXT.md` exists in phase directory.
 ```
 ---
 
-## >> Next Up
+## > Next Up
 
 **Phase {N}: {Name}** — {Goal from ROADMAP.md}
 
@@ -457,7 +457,7 @@ Read ROADMAP.md to get the next phase's name and goal.
 
 ## Phase {Z} Complete
 
-## >> Next Up
+## > Next Up
 
 **Phase {Z+1}: {Name}** — {Goal from ROADMAP.md}
 
@@ -485,7 +485,7 @@ Read ROADMAP.md to get the next phase's name and goal.
 
 All {N} phases finished!
 
-## >> Next Up
+## > Next Up
 
 **Complete Milestone** — archive results and prepare for next
 
@@ -516,7 +516,7 @@ Read MILESTONES.md to find the last completed milestone version.
 
 Ready to plan the next research direction.
 
-## >> Next Up
+## > Next Up
 
 **Start Next Milestone** — questioning -> literature survey -> objectives -> roadmap
 
