@@ -113,24 +113,21 @@ Rules:
 - `uncertainty_markers` must remain explicit in contract-backed outputs so the model sees unresolved anchors, competing explanations, and disconfirming observations before writing.
 - Every declared claim, deliverable, acceptance test, reference, and forbidden proxy ID from the referenced PLAN contract must appear in the matching section.
 - Section-specific status vocabularies are mandatory:
-- `claims`, `deliverables`, and `acceptance_tests` use `passed`, `partial`, `failed`, `blocked`, or `not_attempted`.
-- `references` use `completed`, `missing`, or `not_applicable`.
-- `forbidden_proxies` use `rejected`, `violated`, `unresolved`, or `not_applicable`.
-- `claims|deliverables|acceptance_tests -> passed|partial|failed|blocked|not_attempted`
-- `references -> completed|missing|not_applicable`
-- `forbidden_proxies -> rejected|violated|unresolved|not_applicable`
+  - `claims|deliverables|acceptance_tests -> passed|partial|failed|blocked|not_attempted`
+  - `references -> completed|missing|not_applicable`
+  - `forbidden_proxies -> rejected|violated|unresolved|not_applicable`
 - Do not silently omit unfinished work. Use the section-specific open-work status explicitly when a contract ID is still open.
 - `linked_ids` and evidence sub-IDs (`claim_id`, `deliverable_id`, `acceptance_test_id`, `reference_id`, `forbidden_proxy_id`) must point to declared contract IDs.
-- A claim is proof-bearing if any of these is true: `claim_kind` is `theorem|lemma|corollary|proposition|claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
+- A claim is proof-bearing when `claim_kind` is `theorem|lemma|corollary|proposition|claim`, the statement is theorem-like, proof fields are populated, or `observables[]` references a `proof_obligation` target.
 - `proof_audit` belongs on `contract_results.claims.<claim-id>` for theorem/proof claims. Do not move it to `deliverables` or `acceptance_tests`.
 - If a proof-bearing claim is marked `status: passed`, `proof_audit` is mandatory and `proof_audit.completeness` must be explicit.
 - `proof_audit.completeness: complete | incomplete`
 - `proof_audit.quantifier_status: matched | narrowed | mismatched | unclear`
 - `proof_audit.scope_status: matched | narrower_than_claim | mismatched | unclear`
 - `proof_audit.counterexample_status: none_found | counterexample_found | not_attempted | narrowed_claim`
-- `proof_audit.completeness: complete` is only valid when the audit has `reviewer: gpd-check-proof`, a non-empty `reviewed_at`, `proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, `claim_statement_sha256`, no missing hypotheses, no missing parameter symbols, no uncovered quantifiers, no uncovered conclusion clauses, `scope_status: matched`, `counterexample_status: none_found`, and `stale: false`.
-- A quantified proof-bearing claim must keep `proof_audit.quantifier_status` explicit; a passed quantified claim must use `quantifier_status: matched`.
-- A passed proof-bearing claim must carry `proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, and a `claim_statement_sha256` that matches the current claim statement so stale theorem text or proof-redteam artifacts cannot inherit an old proof audit silently.
+- `proof_audit.completeness: complete` is valid only with `reviewer: gpd-check-proof`, non-empty review/artifact/hash fields, no missing/uncovered proof obligations, `scope_status: matched`, `counterexample_status: none_found`, and `stale: false`.
+- A passed quantified proof-bearing claim must use `quantifier_status: matched`.
+- A passed proof-bearing claim must carry `proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, and a current `claim_statement_sha256`.
 - `proof_audit.proof_artifact_path` must match a declared `proof_deliverables` path, and `proof_audit.audit_artifact_path` must point to a proof-redteam artifact.
 - A passed proof-bearing claim must also have every declared proof-specific acceptance test in `claims[].acceptance_tests[]` passing; proof-bearing claims must declare at least one such test (`claim_to_proof_alignment`, `proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `lemma_dependency_closure`, or `counterexample_search`).
 - If a PLAN reference has `must_surface: true`, the ledger must include a matching `contract_results.references.<reference-id>` entry.
@@ -146,10 +143,10 @@ Rules:
   `completed_actions` and `missing_actions` must not overlap.
 - For `contract_results.forbidden_proxies`, `status: violated|unresolved` requires `notes` or non-empty `evidence` explaining the proxy issue.
 - For decisive acceptance tests, benchmark requirements must close with `comparison_kind: benchmark` and cross-method requirements must close with `comparison_kind: cross_method`; `prior_work`, `experiment`, `baseline`, and `other` do not satisfy those decisive mappings on their own.
-- For list-typed proof-audit fields (`covered_hypothesis_ids`, `missing_hypothesis_ids`, `covered_parameter_symbols`, `missing_parameter_symbols`, `uncovered_quantifiers`, `uncovered_conclusion_clause_ids`), even a single item must stay a YAML list. Scalar strings are invalid.
+- List-typed proof-audit fields (`covered_hypothesis_ids`, `missing_hypothesis_ids`, `covered_parameter_symbols`, `missing_parameter_symbols`, `uncovered_quantifiers`, `uncovered_conclusion_clause_ids`) must stay YAML lists even for one item.
 - `status`, `proof_audit.completeness`, and evidence literals such as `confidence`, `quantifier_status`, and `counterexample_status` use the exact lowercase literals shown here. Near-matches like `Passed` or `High` are invalid.
 - `evidence[].confidence: high | medium | low | unreliable`
-- Inside `evidence[]`, list-typed proof coverage fields (`covered_hypothesis_ids`, `missing_hypothesis_ids`, `covered_parameter_symbols`, `missing_parameter_symbols`, `uncovered_conclusion_clause_ids`) must stay YAML lists even when they contain a single item.
+- Inside `evidence[]`, list-typed proof coverage fields must also stay YAML lists.
 
 ---
 
@@ -172,19 +169,14 @@ comparison_verdicts:
 Rules:
 
 - `subject_id` must be a real ID from the referenced PLAN contract.
-- `subject_kind` must be `claim`, `deliverable`, `acceptance_test`, or `reference`, and it must match the actual contract ID kind referenced by `subject_id`.
-- `subject_kind: claim|deliverable|acceptance_test|reference`
+- `subject_kind: claim|deliverable|acceptance_test|reference`; it must match the actual contract ID kind referenced by `subject_id`.
 - Do not invent `artifact` or `other` subject kinds for contract-backed verdicts. If the thing you compared is a file, plot, or table, point the verdict at the deliverable or reference ID that owns it.
-- `subject_role` must be explicit on every verdict. Do not assume a missing role defaults to `decisive`.
-- `subject_role: decisive|supporting|supplemental|other`
+- `subject_role: decisive|supporting|supplemental|other`; it is required on every verdict.
 - Only `subject_role: decisive` satisfies a required decisive comparison or participates in pass/fail consistency checks against `contract_results`. `supporting` and `supplemental` verdicts are informative context only.
-- Benchmark acceptance tests require `comparison_kind: benchmark`; cross-method acceptance tests require `comparison_kind: cross_method`.
-- `comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other`
-- For list-typed ledger fields such as `linked_ids`, `completed_actions`, `missing_actions`, and all `uncertainty_markers` entries, even a single item must stay a YAML list. scalar strings are invalid: `linked_ids: claim-id` and `completed_actions: read` fail validation; use `linked_ids: [claim-id]` and `completed_actions: [read]`.
+- `comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other`; benchmark acceptance tests require `benchmark`, and cross-method acceptance tests require `cross_method`.
+- List-typed ledger fields such as `linked_ids`, `completed_actions`, `missing_actions`, and all `uncertainty_markers` entries must stay YAML lists even for one item.
 - If a decisive external anchor was used, include `reference_id`. If the decisive anchor is itself the compared subject, use `subject_kind: reference` and `subject_id: <reference-id>`.
-- If a decisive comparison is required, omitting its verdict makes the artifact incomplete.
-- If the decisive comparison is still open, emit `verdict: inconclusive` or `verdict: tension` instead of omitting the entry.
-- `verdict: pass|tension|fail|inconclusive`
+- `verdict: pass|tension|fail|inconclusive`; if a required decisive comparison is still open, use `inconclusive` or `tension` instead of omitting the entry.
 - A prose sentence like “agrees with literature” does not replace a verdict entry.
 - When a reference-backed decisive comparison is required, use `comparison_kind: benchmark`, `prior_work`, `experiment`, `baseline`, or `cross_method`. `comparison_kind: other` does not satisfy that requirement.
 - A decisive verdict is required whenever the PLAN contract includes an acceptance test with `kind: benchmark` or `kind: cross_method`, whenever a benchmark-style reference anchors the subject, whenever a reference lists `required_actions` containing `compare`, or whenever you performed a decisive comparison in practice.
@@ -193,7 +185,7 @@ Rules:
 
 ## Verification-Specific Note
 
-For `VERIFICATION.md`, keep the frontmatter compatible with `verification-report.md`.
+For `VERIFICATION.md`, use the same frontmatter surface as `verification-report.md`.
 If a decisive benchmark / cross-method check remains `partial`, `not_attempted`, or still lacks a decisive verdict, the frontmatter must also include structured `suggested_contract_checks` entries explaining the missing decisive work.
 The same requirement applies when a benchmark-style reference anchors the subject or a reference with `required_actions` containing `compare` is still incomplete.
 Each `suggested_contract_checks` entry may only use these keys: `check`, `reason`, `suggested_subject_kind`, `suggested_subject_id`, and `evidence_path`. Invented keys such as `check_id` fail validation. Copy the `check_key` returned by `suggest_contract_checks(contract)` into the frontmatter `check` field when you record one of those suggestions in `VERIFICATION.md`.

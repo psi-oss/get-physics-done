@@ -69,6 +69,11 @@ __all__ = [
     "ContractLink",
     "ContractUncertaintyMarkers",
     "ResearchContract",
+    "has_concrete_grounding_entries",
+    "has_concrete_must_surface_reference",
+    "is_concrete_reference_locator",
+    "is_context_intake_locator_grounding",
+    "is_project_artifact_path",
     "collect_plan_contract_integrity_errors",
     "collect_proof_bearing_claim_integrity_errors",
     "contract_has_explicit_context_intake",
@@ -481,6 +486,12 @@ def _is_project_artifact_path(value: str, *, project_root: Path | None = None) -
     return resolved.is_file()
 
 
+def is_project_artifact_path(value: str, *, project_root: Path | None = None) -> bool:
+    """Return whether *value* names a concrete project-local artifact path."""
+
+    return _is_project_artifact_path(value, project_root=project_root)
+
+
 def _is_unresolved_project_artifact_path(value: str) -> bool:
     """Return whether *value* names an artifact path that needs a project root."""
 
@@ -608,6 +619,17 @@ def _is_concrete_reference_locator(
     return False
 
 
+def is_concrete_reference_locator(
+    value: str,
+    *,
+    reference_kind: str,
+    project_root: Path | None = None,
+) -> bool:
+    """Return whether *value* concretely grounds the requested reference kind."""
+
+    return _is_concrete_reference_locator(value, reference_kind=reference_kind, project_root=project_root)
+
+
 def _is_context_intake_locator_grounding(
     value: str,
     *,
@@ -621,6 +643,21 @@ def _is_context_intake_locator_grounding(
             return False
         return _is_project_artifact_path(value, project_root=project_root)
     return _is_concrete_text_grounding(value, project_root=project_root)
+
+
+def is_context_intake_locator_grounding(
+    value: str,
+    *,
+    project_root: Path | None = None,
+    require_existing_project_artifacts: bool = False,
+) -> bool:
+    """Return whether a context-intake anchor/baseline is concrete enough to count."""
+
+    return _is_context_intake_locator_grounding(
+        value,
+        project_root=project_root,
+        require_existing_project_artifacts=require_existing_project_artifacts,
+    )
 
 
 def _has_concrete_grounding_entries(
@@ -653,6 +690,23 @@ def _has_concrete_grounding_entries(
     raise ValueError(f"Unsupported grounding field {field_name!r}")
 
 
+def has_concrete_grounding_entries(
+    values: list[str],
+    *,
+    field_name: str,
+    project_root: Path | None = None,
+    require_existing_project_artifacts: bool = False,
+) -> bool:
+    """Return whether any grounding entry is concrete for the requested field."""
+
+    return _has_concrete_grounding_entries(
+        values,
+        field_name=field_name,
+        project_root=project_root,
+        require_existing_project_artifacts=require_existing_project_artifacts,
+    )
+
+
 def _has_concrete_must_surface_reference(
     contract: ResearchContract,
     *,
@@ -677,6 +731,21 @@ def _has_concrete_must_surface_reference(
         if project_root is not None and _is_project_artifact_path(reference.locator, project_root=project_root):
             return True
     return False
+
+
+def has_concrete_must_surface_reference(
+    contract: ResearchContract,
+    *,
+    project_root: Path | None = None,
+    require_existing_project_artifacts: bool = False,
+) -> bool:
+    """Return whether the contract includes a concrete must_surface reference."""
+
+    return _has_concrete_must_surface_reference(
+        contract,
+        project_root=project_root,
+        require_existing_project_artifacts=require_existing_project_artifacts,
+    )
 
 
 PROJECT_CONTRACT_MAPPING_LIST_FIELDS: dict[str, tuple[str, ...]] = {

@@ -161,3 +161,50 @@ def test_command_workflow_parity_matches_allowlist() -> None:
 
     assert commands_without_workflow == allowed_commands
     assert workflows_without_command == allowed_workflows
+
+
+def test_installed_specs_do_not_claim_to_be_unwired() -> None:
+    offenders = [
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in sorted((REPO_ROOT / "src" / "gpd" / "specs").rglob("*.md"))
+        if "not wired into the current" in path.read_text(encoding="utf-8").lower()
+    ]
+
+    assert not offenders, "Installed spec docs should not carry ambiguous not-wired/dead-code language:\n" + "\n".join(
+        f"- {path}" for path in offenders
+    )
+
+
+def test_installed_spec_references_point_to_installed_assets_or_project_local_paths() -> None:
+    specs_dir = REPO_ROOT / "src" / "gpd" / "specs"
+    installed_roots = {"agents", "commands", "references", "templates", "workflows"}
+    project_local_prefixes = {"GPD/", "PROJECT.md", "CONVENTIONS.md", "PARAMETERS.md", "STATE.md", "state.json"}
+    link_pattern = re.compile(r"`(?P<path>(?:agents|commands|references|templates|workflows)/[^`]+\.(?:md|json|yaml|yml))`")
+    offenders: list[str] = []
+
+    for source_path in sorted(specs_dir.rglob("*.md")):
+        text = source_path.read_text(encoding="utf-8")
+        in_code_fence = False
+        for line in text.splitlines():
+            if line.strip().startswith("```"):
+                in_code_fence = not in_code_fence
+                continue
+            if in_code_fence:
+                continue
+            for match in link_pattern.finditer(line):
+                raw_path = match.group("path")
+                if any(char in raw_path for char in "*<>{}[]"):
+                    continue
+                if raw_path.startswith(tuple(project_local_prefixes)):
+                    continue
+                if source_path.parent.name == "templates" and raw_path.startswith("references/"):
+                    continue
+                if raw_path.split("/", 1)[0] not in installed_roots:
+                    continue
+                if not (specs_dir / raw_path).exists():
+                    rel_source = source_path.relative_to(REPO_ROOT).as_posix()
+                    offenders.append(f"{rel_source}: missing `{raw_path}`")
+
+    assert not offenders, "Installed spec references must point to installed assets or explicit project-local paths:\n" + "\n".join(
+        f"- {offender}" for offender in offenders
+    )

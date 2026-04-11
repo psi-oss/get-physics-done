@@ -6,6 +6,8 @@ import yaml
 
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
+    CI_HOT_TEST_FILE_SPLITS,
+    CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS,
     CI_MAX_SHARD_COUNT_TARGET,
     CI_SMOKE_JOB_TIMEOUT_MINUTES,
     CI_SMOKE_TEST_TARGETS,
@@ -193,6 +195,14 @@ def test_ci_sharding_constants_do_not_import_runtime_adapters() -> None:
 
     assert "from gpd.adapters import iter_adapters" not in source
     assert "iter_adapters()" not in source
+
+
+def test_ci_hot_test_file_targets_exist_without_collect_only() -> None:
+    configured_relpaths = set(CI_HOT_TEST_FILE_SPLITS) | set(CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS)
+
+    missing = sorted(relpath for relpath in configured_relpaths if not (REPO_ROOT / "tests" / relpath).is_file())
+
+    assert missing == []
 
 
 def test_ci_sharding_rejects_unknown_categories() -> None:

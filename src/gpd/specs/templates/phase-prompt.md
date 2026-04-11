@@ -11,6 +11,7 @@ Use the canonical schema below before drafting any `contract:` block.
 @{GPD_INSTALL_DIR}/templates/plan-contract-schema.md
 
 Quick contract rules:
+- `contract` must be a YAML object with `schema_version: 1`.
 - Put machine-checkable prerequisites in `tool_requirements`; keep human-only setup in `researcher_setup`. `tool_requirements[].id` values must be unique within the list.
 - Gap-closure plans still use `type: execute`; mark verification-repair plans with `gap_closure: true` instead of inventing a third plan type.
 - `scope.in_scope` must be populated in project-scoping plans, and `context_intake` anchors must be concrete enough to re-find later.

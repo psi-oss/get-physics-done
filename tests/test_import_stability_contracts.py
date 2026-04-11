@@ -30,10 +30,28 @@ def _top_level_imports(path: Path) -> list[str]:
     return imports
 
 
+def _imported_names_from_module(path: Path, module_name: str) -> list[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    names: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module == module_name:
+            names.extend(alias.name for alias in node.names)
+    return names
+
+
 def test_adapter_base_does_not_import_registry_at_module_import_time() -> None:
     imports = _top_level_imports(REPO_ROOT / "src" / "gpd" / "adapters" / "base.py")
 
     assert "gpd.registry" not in imports
+
+
+def test_contract_validation_uses_public_contract_imports() -> None:
+    imports = _imported_names_from_module(
+        REPO_ROOT / "src" / "gpd" / "core" / "contract_validation.py",
+        "gpd.contracts",
+    )
+
+    assert not [name for name in imports if name.startswith("_")]
 
 
 def test_registry_import_remains_stable_after_adapter_package_import() -> None:

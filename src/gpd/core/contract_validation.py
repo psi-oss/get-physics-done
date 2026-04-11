@@ -38,14 +38,14 @@ from gpd.contracts import (
     ContractScope,
     ContractUncertaintyMarkers,
     ResearchContract,
-    _has_concrete_grounding_entries,
-    _has_concrete_must_surface_reference,
-    _is_concrete_reference_locator,
-    _is_context_intake_locator_grounding,
-    _is_project_artifact_path,
     collect_contract_integrity_errors,
     collect_proof_bearing_claim_integrity_errors,
+    has_concrete_grounding_entries,
+    has_concrete_must_surface_reference,
+    is_concrete_reference_locator,
+    is_context_intake_locator_grounding,
     is_placeholder_only_guidance_text,
+    is_project_artifact_path,
     parse_project_contract_data_salvage,
     parse_project_contract_data_strict,
 )
@@ -1093,7 +1093,7 @@ def _must_read_ref_counts_as_guidance(
     for reference in contract.references:
         if reference.id != reference_id:
             continue
-        return _is_concrete_reference_locator(
+        return is_concrete_reference_locator(
             reference.locator,
             reference_kind=reference.kind,
             project_root=project_root,
@@ -1115,24 +1115,24 @@ def _has_approved_grounding_signal(
 
     return any(
         (
-            _has_concrete_must_surface_reference(
+            has_concrete_must_surface_reference(
                 contract,
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ),
-            _has_concrete_grounding_entries(
+            has_concrete_grounding_entries(
                 contract.context_intake.must_include_prior_outputs,
                 field_name="must_include_prior_outputs",
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ),
-            _has_concrete_grounding_entries(
+            has_concrete_grounding_entries(
                 contract.context_intake.user_asserted_anchors,
                 field_name="user_asserted_anchors",
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ),
-            _has_concrete_grounding_entries(
+            has_concrete_grounding_entries(
                 contract.context_intake.known_good_baselines,
                 field_name="known_good_baselines",
                 project_root=project_root,
@@ -1151,19 +1151,19 @@ def _has_non_reference_grounding_signal(
 
     return any(
         (
-            _has_concrete_grounding_entries(
+            has_concrete_grounding_entries(
                 contract.context_intake.must_include_prior_outputs,
                 field_name="must_include_prior_outputs",
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ),
-            _has_concrete_grounding_entries(
+            has_concrete_grounding_entries(
                 contract.context_intake.user_asserted_anchors,
                 field_name="user_asserted_anchors",
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ),
-            _has_concrete_grounding_entries(
+            has_concrete_grounding_entries(
                 contract.context_intake.known_good_baselines,
                 field_name="known_good_baselines",
                 project_root=project_root,
@@ -1180,7 +1180,7 @@ def _prior_output_counts_as_guidance(
 ) -> bool:
     """Return whether *value* is durable prior-output guidance."""
 
-    return _is_project_artifact_path(value, project_root=project_root)
+    return is_project_artifact_path(value, project_root=project_root)
 
 
 def _has_meaningful_guidance_text(values: list[str]) -> bool:
@@ -1206,13 +1206,13 @@ def _guidance_signal_flags(
             for value in contract.context_intake.must_include_prior_outputs
         ),
         "user_asserted_anchors": any(
-            _is_context_intake_locator_grounding(
+            is_context_intake_locator_grounding(
                 value, project_root=project_root, require_existing_project_artifacts=True
             )
             for value in contract.context_intake.user_asserted_anchors
         ),
         "known_good_baselines": any(
-            _is_context_intake_locator_grounding(
+            is_context_intake_locator_grounding(
                 value, project_root=project_root, require_existing_project_artifacts=True
             )
             for value in contract.context_intake.known_good_baselines
@@ -1248,13 +1248,13 @@ def _context_intake_guidance_warnings(
         ("known_good_baselines", contract.context_intake.known_good_baselines),
     ):
         for value in values:
-            if _is_context_intake_locator_grounding(
+            if is_context_intake_locator_grounding(
                 value,
                 project_root=project_root,
                 require_existing_project_artifacts=True,
             ):
                 continue
-            if _is_project_artifact_path(value, project_root=None):
+            if is_project_artifact_path(value, project_root=None):
                 if project_root is None:
                     warnings.append(
                         f"context_intake.{field_name} entry requires a resolved project_root "
@@ -1294,7 +1294,7 @@ def _must_surface_locator_warnings(
     for reference in contract.references:
         if not reference.must_surface:
             continue
-        if _is_concrete_reference_locator(
+        if is_concrete_reference_locator(
             reference.locator,
             reference_kind=reference.kind,
             project_root=project_root,
@@ -1317,7 +1317,7 @@ def _concrete_must_surface_targets(
     for reference in contract.references:
         if not reference.must_surface:
             continue
-        if not _is_concrete_reference_locator(
+        if not is_concrete_reference_locator(
             reference.locator,
             reference_kind=reference.kind,
             project_root=project_root,
@@ -1347,7 +1347,7 @@ def _split_approved_mode_must_surface_locator_findings(
     for reference in contract.references:
         if not reference.must_surface:
             continue
-        if _is_concrete_reference_locator(
+        if is_concrete_reference_locator(
             reference.locator,
             reference_kind=reference.kind,
             project_root=project_root,

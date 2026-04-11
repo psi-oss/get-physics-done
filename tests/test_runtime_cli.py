@@ -6,6 +6,7 @@ import inspect
 import json
 import os
 import shlex
+import subprocess
 import sys
 from pathlib import Path
 
@@ -73,6 +74,21 @@ _RUNTIME_DESCRIPTORS_WITH_GLOBAL_CONFIG_ENV = tuple(
     for descriptor in _RUNTIME_DESCRIPTORS
     if descriptor.global_config.env_var or descriptor.global_config.env_dir_var or descriptor.global_config.env_file_var
 )
+
+
+def test_runtime_cli_module_entrypoint_dispatches_main() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "gpd.runtime_cli"],
+        check=False,
+        capture_output=True,
+        env={**os.environ, "PYTHONPATH": str(GPD_ROOT.parent)},
+        text=True,
+    )
+
+    assert result.returncode == 127
+    assert "GPD runtime bridge rejected malformed bridge invocation" in result.stderr
+
+
 def _adapter_install_accepts_skills_dir(runtime_name: str) -> bool:
     return "skills_dir" in inspect.signature(get_adapter(runtime_name).install).parameters
 

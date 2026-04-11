@@ -31,7 +31,7 @@ CI_SMOKE_TEST_TARGETS = (
 CI_TOTAL_SHARD_COUNT_TARGET = 19
 CI_MAX_SHARD_COUNT_TARGET = 20
 
-_RUNTIME_ADAPTER_TEST_MODULES = tuple(descriptor.runtime_name for descriptor in iter_runtime_descriptors())
+_RUNTIME_ADAPTER_TEST_MODULES = tuple(descriptor.adapter_module for descriptor in iter_runtime_descriptors())
 _RUNTIME_ADAPTER_TEST_FILE_SPLITS = {
     f"adapters/test_{module}.py": 2 for module in _RUNTIME_ADAPTER_TEST_MODULES
 }
