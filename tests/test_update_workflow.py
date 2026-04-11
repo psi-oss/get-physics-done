@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from gpd.adapters import get_adapter
+from gpd.adapters.install_utils import _materialize_workflow_paths
 from gpd.adapters.runtime_catalog import (
     get_shared_install_metadata,
     iter_runtime_descriptors,
@@ -67,6 +68,40 @@ def test_reapply_patches_workflow_uses_runtime_config_placeholders() -> None:
         workspace_patch_path = f"./{descriptor.config_dir_name}/{_SHARED_INSTALL.patches_dir_name}"
         assert runtime_patch_path not in content
         assert workspace_patch_path not in content
+
+
+def test_materialize_workflow_paths_rewrites_canonical_global_dir_when_env_overrides(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptor = next(descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.runtime_name == "codex")
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    canonical_global_dir = resolve_global_config_dir(descriptor, home=home_dir, environ={})
+
+    override_dir = tmp_path / "env-override" / descriptor.config_dir_name
+    override_dir.mkdir(parents=True)
+    assert canonical_global_dir != override_dir
+
+    env_var = descriptor.global_config.env_var
+    assert env_var is not None
+    monkeypatch.setenv(env_var, str(override_dir))
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home_dir))
+
+    target_dir = tmp_path / "target" / descriptor.config_dir_name
+    target_dir.mkdir(parents=True)
+    content = f"Legacy global path {canonical_global_dir.as_posix()}"
+
+    rendered = _materialize_workflow_paths(
+        content,
+        target_dir=target_dir,
+        runtime=descriptor.runtime_name,
+        install_scope="--global",
+        explicit_target=True,
+    )
+
+    assert canonical_global_dir.as_posix() not in rendered
+    assert target_dir.as_posix() in rendered
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

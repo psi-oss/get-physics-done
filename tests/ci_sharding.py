@@ -7,8 +7,6 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
-from gpd.adapters import iter_adapters
-
 CI_CATEGORY_SHARD_COUNTS = {
     "root": 9,
     "adapters": 2,
@@ -25,14 +23,17 @@ CI_SMOKE_TEST_TARGETS = (
     "tests/test_repo_hygiene.py",
     "tests/test_schema_registry_ownership_note.py",
     "tests/adapters/test_runtime_catalog.py",
-    "tests/core/test_contract_validation.py",
+    "tests/core/test_contract_validation_fast_regressions.py",
     "tests/core/test_prompt_wiring.py",
 )
 CI_TOTAL_SHARD_COUNT_TARGET = 19
 CI_MAX_SHARD_COUNT_TARGET = 20
 
-_RUNTIME_ADAPTER_TEST_MODULES = tuple(
-    adapter.__class__.__module__.rsplit(".", 1)[-1] for adapter in iter_adapters()
+_RUNTIME_ADAPTER_TEST_MODULES = (
+    "claude_code",
+    "codex",
+    "gemini",
+    "opencode",
 )
 _RUNTIME_ADAPTER_TEST_FILE_SPLITS = {
     f"adapters/test_{module}.py": 2 for module in _RUNTIME_ADAPTER_TEST_MODULES
@@ -250,6 +251,8 @@ def plan_category_ci_shards(
         if inventory is None:
             inventory = collected_test_inventory(repo_root=repo_root)
         work_units = build_ci_work_units(inventory)
+    if category not in CI_CATEGORY_SHARD_COUNTS:
+        raise ValueError(f"unknown CI pytest category {category!r}; add it to CI_CATEGORY_SHARD_COUNTS")
     category_work_units = tuple(unit for unit in work_units if unit.category == category)
     if not category_work_units:
         raise ValueError(f"no work units matched category {category!r}")
@@ -279,6 +282,8 @@ def select_ci_shard_targets(
     repo_root: Path | None = None,
     inventory: Mapping[str, tuple[str, ...]] | None = None,
 ) -> tuple[str, ...]:
+    if category not in CI_CATEGORY_SHARD_COUNTS:
+        raise ValueError(f"unknown CI pytest category {category!r}; add it to CI_CATEGORY_SHARD_COUNTS")
     expected_total = CI_CATEGORY_SHARD_COUNTS[category]
     if shard_total != expected_total:
         raise ValueError(f"shard_total for {category!r} must equal {expected_total}")

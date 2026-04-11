@@ -630,6 +630,20 @@ class TestInstall:
         assert "[agents.gpd-executor]" in content
         assert 'config_file = "agents/gpd-executor.toml"' in content
 
+    def test_install_skips_local_cli_only_commands_as_skills(
+        self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        assert not (skills / "gpd-health").exists()
+        assert not (skills / "gpd-suggest-next").exists()
+        assert (skills / "gpd-help" / "SKILL.md").exists()
+
     def test_install_registers_agent_roles_in_config_toml(
         self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path
     ) -> None:
@@ -1066,8 +1080,28 @@ class TestRuntimePermissions:
 
         content = (target / "config.toml").read_text(encoding="utf-8")
         parsed_config = tomllib.loads(content)
-        assert parsed_config["notify"] == [selected_python, ".codex/hooks/notify.py"]
+        assert parsed_config["notify"] == [selected_python, (target / "hooks" / "notify.py").as_posix()]
         assert 'notify = ["python3", ".codex/hooks/notify.py"]' not in content
+
+    def test_reinstall_rewrites_absolute_managed_notify_without_wrapping(
+        self, adapter: CodexAdapter, gpd_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        target = tmp_path / ".codex"
+        target.mkdir()
+        old_path = (target / "hooks" / "notify.py").as_posix()
+        (target / "config.toml").write_text(
+            f'# GPD update notification\nnotify = ["python3", "{old_path}"]\n',
+            encoding="utf-8",
+        )
+        monkeypatch.delenv("GPD_PYTHON", raising=False)
+        monkeypatch.setattr("gpd.version.checkout_root", lambda start=None: None)
+
+        adapter.install(gpd_root, target, is_global=False)
+
+        content = (target / "config.toml").read_text(encoding="utf-8")
+        parsed_config = tomllib.loads(content)
+        assert parsed_config["notify"] == [hook_python_interpreter(), old_path]
+        assert "gpd-codex-notify-wrapper-v1" not in content
 
     def test_install_uses_gpd_python_override_for_notify_and_mcp(
         self,

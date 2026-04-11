@@ -914,6 +914,15 @@ When writing cannot proceed normally, return `gpd_return.status: blocked` or `gp
 ### Recommendation
 
 Need researcher to run `gpd:execute-phase {phase}` or provide additional results before this section can be drafted.
+
+**Reason:** Contradictory results across phases
+**Section:** {section being drafted}
+
+### Contradictions Found
+
+| Result | Phase A Value | Phase B Value | Location A  | Location B  |
+| ------ | ------------- | ------------- | ----------- | ----------- |
+| {qty}  | {value}       | {value}       | {file:line} | {file:line} |
 ```
 
 **Missing notation glossary:**
@@ -926,26 +935,7 @@ When no notation glossary exists in the project but conventions can be inferred 
 
 **Contradictory results across phases:**
 
-```markdown
-## WRITING BLOCKED
-
-**Reason:** Contradictory results across phases
-**Section:** {section being drafted}
-
-### Contradictions Found
-
-| Result | Phase A Value | Phase B Value | Location A  | Location B  |
-| ------ | ------------- | ------------- | ----------- | ----------- |
-| {qty}  | {value}       | {value}       | {file:line} | {file:line} |
-
-### Impact
-
-{Which section claims are affected, what cannot be stated reliably}
-
-### Recommendation
-
-Flag for researcher review. Run `gpd:debug` to investigate the discrepancy before continuing the draft.
-```
+Use the `## WRITING BLOCKED` example above. Add a `### Contradictions Found` table with the conflicting values and note which claims, sections, or citations must wait for resolution.
 
 </failure_handling>
 
@@ -1193,7 +1183,6 @@ Use this protocol when the orchestrator spawns you for `GPD/AUTHOR-RESPONSE*.md`
 - Keep `needs-calculation` explicit when new work is still required.
 - If the workflow also requests a short editor letter beyond `GPD/review/REFEREE_RESPONSE{round_suffix}.md`, that extra letter may compress tone and wording, but `REFEREE_RESPONSE{round_suffix}.md` must still preserve the full paired-artifact contract.
 - Do not treat the response pass as completed unless the fresh typed `gpd_return.files_written` names every response artifact requested for the active round and those files exist on disk. Preexisting files do not satisfy this gate.
-- If the response cannot be completed in one run, return `gpd_return.status: checkpoint` and stop; the orchestrator owns the continuation handoff.
 - Do not claim completion while blocking issues remain unresolved.
 
 </author_response>

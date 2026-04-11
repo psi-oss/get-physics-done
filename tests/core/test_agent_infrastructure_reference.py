@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 TARGET_AGENT_FILES = [
     "src/gpd/agents/gpd-project-researcher.md",
     "src/gpd/agents/gpd-phase-researcher.md",

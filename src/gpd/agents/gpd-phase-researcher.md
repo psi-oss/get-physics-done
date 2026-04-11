@@ -68,7 +68,7 @@ Research mode is workflow-owned. Do not query config or reread `init.json` from 
 </references>
 
 <upstream_input>
-**CONTEXT.md** (if exists) — User decisions from `gpd:discuss-phase`
+**Phase context file** (`CONTEXT.md` or any `*-CONTEXT.md`, if present) — User decisions from `gpd:discuss-phase`
 
 | Section | How You Use It |
 | --- | --- |
@@ -81,7 +81,7 @@ Research mode is workflow-owned. Do not query config or reread `init.json` from 
 - Treat contract-critical anchors as mandatory inputs, not optional background reading
 - If a benchmark or prior artifact is named there, explain exactly how this phase should use it
 - If a required anchor is missing or ambiguous, say so explicitly in `RESEARCH.md`
-- If `CONTEXT.md` exists, it constrains research. Do not explore alternatives to locked decisions.
+- If a phase context file exists, it constrains research. Do not explore alternatives to locked decisions.
 </upstream_input>
 
 <downstream_consumer>
@@ -89,7 +89,7 @@ Your RESEARCH.md is consumed by `gpd-planner`:
 
 | Section | How Planner Uses It |
 | --- | --- |
-| **`## User Constraints`** | First content section when `CONTEXT.md` exists. |
+| **`## User Constraints`** | First content section when a phase context file (CONTEXT.md or any `*-CONTEXT.md`) exists. |
 | **`## Active Anchor References`** | Immediately after `## User Constraints`. |
 | `## Mathematical Framework` | Techniques, formalisms, starting equations. |
 | `## Standard Approaches` | Methods and approximation schemes. |
@@ -359,7 +359,7 @@ done
 
 If prior `METHODS.md` or `PITFALLS.md` exist, read them to avoid duplicating work and to build on established findings.
 
-Then read `CONTEXT.md` if it exists (contains locked user decisions that constrain research scope):
+Then read any phase context files (`CONTEXT.md` and any `*-CONTEXT.md`) if they exist (they contain locked user decisions that constrain research scope):
 
 ```bash
 for f in "$PHASE_DIR"/*-CONTEXT.md; do
@@ -408,14 +408,14 @@ Based on phase description, identify what needs investigating:
 
 ## Step 5: Write RESEARCH.md
 
-**ALWAYS use file_write tool to persist to disk** — mandatory.
+**Persist `RESEARCH.md` via the `file_write` tool.** The orchestrator tracks writes through that tool, so do not create the file by other means.
 
-**CRITICAL: If CONTEXT.md exists, FIRST content section MUST be `## User Constraints`:**
+**CRITICAL: If a phase context file exists, FIRST content section MUST be `## User Constraints`:**
 
 ```markdown
 ## User Constraints
 
-See phase `CONTEXT.md` for locked decisions and user constraints that apply to this phase.
+See the phase context file (`CONTEXT.md` or any `*-CONTEXT.md`) for locked decisions and user constraints that apply to this phase.
 
 Key constraints affecting this research:
 - [Summarize locked decisions relevant to research scope]

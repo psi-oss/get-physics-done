@@ -122,6 +122,10 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
             "observed.metric_value",
             "observed.threshold_value",
         ],
+        "schema_required_request_anyof_fields": [
+            ["metadata.source_reference_id"],
+            ["contract"],
+        ],
         "optional_request_fields": ["metadata.source_reference_id", "binding.*", "artifact_content"],
         "request_template": {
             "binding": {},

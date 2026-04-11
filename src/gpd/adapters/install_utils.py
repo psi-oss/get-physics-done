@@ -360,7 +360,11 @@ def _materialize_workflow_paths(
     config_dir = resolved_target.as_posix()
     install_dir = (resolved_target / GPD_INSTALL_DIR_NAME).as_posix()
     descriptor = get_runtime_descriptor(runtime)
-    legacy_global_config_dir = resolve_global_config_dir(descriptor, home=Path.home()).as_posix()
+    legacy_global_config_dir = resolve_global_config_dir(
+        descriptor,
+        home=Path.home(),
+        environ={},
+    ).as_posix()
     if _normalize_install_scope_flag(install_scope) == "--global":
         global_config_dir = config_dir
     else:

@@ -1420,9 +1420,14 @@ def _planned_codex_skill_dirs(src_dir: Path, prefix: str) -> set[str]:
         if entry.is_dir():
             planned.update(_planned_codex_skill_dirs(entry, f"{prefix}-{entry.name}"))
             continue
-        if entry.suffix == ".md":
+        if entry.suffix == ".md" and not _markdown_has_local_cli_only_frontmatter(entry):
             planned.add(f"{prefix}-{entry.stem}")
     return planned
+
+
+def _markdown_has_local_cli_only_frontmatter(path: Path) -> bool:
+    _preamble, frontmatter, _separator, _body = split_markdown_frontmatter(path.read_text(encoding="utf-8"))
+    return any(line.strip() == "local_cli_only: true" for line in frontmatter.splitlines())
 
 
 def _render_commands_as_skills(
@@ -1455,6 +1460,8 @@ def _render_commands_as_skills(
                 )
             )
         elif entry.suffix == ".md":
+            if _markdown_has_local_cli_only_frontmatter(entry):
+                continue
             base_name = entry.stem
             skill_name = f"{prefix}-{base_name}"
             skill_dir = skills_dir / skill_name
@@ -2252,14 +2259,11 @@ def _configure_config_toml(
         toml_content = config_toml.read_text(encoding="utf-8")
 
     notify_hook = HOOK_SCRIPTS["notify"]
-
-    if is_global or explicit_target:
-        desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
-    else:
-        desired_path = f"{_codex_config_dir_name()}/hooks/{notify_hook}"
+    desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
     configured = _install_gpd_notify_config(
         toml_content,
         desired_path=desired_path,
+        target_dir=target_dir,
     )
     config_toml.write_text(
         _install_gpd_multi_agent_config(configured),
@@ -2342,6 +2346,7 @@ def _install_gpd_notify_config(
     toml_content: str,
     *,
     desired_path: str,
+    target_dir: Path | None = None,
 ) -> str:
     desired_line = _build_notify_line(desired_path)
     cleaned_lines: list[str] = []
@@ -2366,7 +2371,7 @@ def _install_gpd_notify_config(
             if insert_at is None:
                 insert_at = len(cleaned_lines)
             parsed = _parse_notify_assignment(line)
-            if pending_managed_block or _notify_assignment_is_gpd_managed(parsed):
+            if pending_managed_block or _notify_assignment_is_gpd_managed(parsed, target_dir=target_dir):
                 pending_managed_block = False
                 continue
             if parsed is not None:

@@ -304,9 +304,14 @@ class RuntimeAdapter(abc.ABC):
         """
         return self.resolve_global_config_dir()
 
-    def resolve_global_config_dir(self, *, home: Path | None = None) -> Path:
+    def resolve_global_config_dir(
+        self,
+        *,
+        home: Path | None = None,
+        environ: dict[str, str] | None = None,
+    ) -> Path:
         """Resolve the runtime's global config dir."""
-        return resolve_global_config_dir(self.runtime_descriptor, home=home)
+        return resolve_global_config_dir(self.runtime_descriptor, home=home, environ=environ)
 
     def resolve_local_config_dir(self, cwd: Path | None = None) -> Path:
         """Resolve the runtime's local config dir."""

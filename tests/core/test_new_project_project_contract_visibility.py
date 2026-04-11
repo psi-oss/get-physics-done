@@ -235,3 +235,10 @@ def test_new_project_schema_excerpt_mentions_canonical_tokens() -> None:
 
     missing = [token for token in tokens if token not in excerpt]
     assert not missing, f"project contract excerpt missing canonical tokens: {', '.join(missing)}"
+
+
+def test_new_project_prompts_models_to_read_schema_before_contract_draft() -> None:
+    new_project_text = NEW_PROJECT.read_text(encoding="utf-8")
+
+    assert "Before you draft the first `PROJECT_CONTRACT_JSON` payload" in new_project_text
+    assert "read the full `templates/project-contract-schema.md` via `file_read`" in new_project_text

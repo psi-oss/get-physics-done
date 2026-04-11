@@ -188,6 +188,29 @@ def test_ci_shard_selection_uses_supplied_static_inventory_without_collect_only(
     assert len(planned_root_nodeids) == len(set(planned_root_nodeids))
 
 
+def test_ci_sharding_constants_do_not_import_runtime_adapters() -> None:
+    source = (REPO_ROOT / "tests" / "ci_sharding.py").read_text(encoding="utf-8")
+
+    assert "from gpd.adapters import iter_adapters" not in source
+    assert "iter_adapters()" not in source
+
+
+def test_ci_sharding_rejects_unknown_categories() -> None:
+    inventory = {"experimental/test_new.py": ("tests/experimental/test_new.py::test_new",)}
+
+    try:
+        select_ci_shard_targets(
+            category="experimental",
+            shard_index=1,
+            shard_total=1,
+            inventory=inventory,
+        )
+    except ValueError as error:
+        assert "unknown CI pytest category" in str(error)
+    else:
+        raise AssertionError("unknown categories must fail closed")
+
+
 def test_build_ci_work_units_ignores_empty_static_inventory_entries() -> None:
     work_units = build_ci_work_units(
         {

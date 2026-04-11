@@ -115,7 +115,7 @@ Wait for response. From the single response, extract:
 #### M1.5. Synthesize And Approve The Scoping Contract
 
 Build a canonical scoping contract from the extracted input.
-Before you ask for approval, keep the contract as a literal JSON object for the `project_contract` subsection of `templates/project-contract-schema.md`, and use that schema as the canonical source of truth for the object rules. Do not restate the full contract rules here; keep only the approval-critical reminders below.
+Before you draft the first `PROJECT_CONTRACT_JSON` payload, read the full `templates/project-contract-schema.md` via `file_read` so you have seen every required field and rule. Before you ask for approval, keep the contract as a literal JSON object for the `project_contract` subsection of `templates/project-contract-schema.md`, and use that schema as the canonical source of truth for the object rules. Do not restate the full contract rules here; keep only the approval-critical reminders below.
 
 **Blocking fields that must be present before approval:**
 

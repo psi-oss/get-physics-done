@@ -644,6 +644,54 @@ def test_runtime_cli_uses_manifest_explicit_target_for_repair_guidance(
     assert str(config_dir) in captured.err
 
 
+@pytest.mark.parametrize(
+    "descriptor",
+    _RUNTIME_DESCRIPTORS_WITH_GLOBAL_CONFIG_ENV,
+    ids=lambda descriptor: descriptor.runtime_name,
+)
+def test_runtime_cli_enforces_target_dir_when_env_overrides_global_config(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    descriptor,
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    override_dir = tmp_path / "env-global" / descriptor.config_dir_name
+    override_dir.mkdir(parents=True, exist_ok=True)
+
+    canonical_global_dir = resolve_global_config_dir(descriptor, home=home, environ={})
+    assert canonical_global_dir != override_dir
+
+    env_key: str
+    env_value: str
+    global_config = descriptor.global_config
+    if global_config.env_var:
+        env_key = global_config.env_var
+        env_value = str(override_dir)
+    elif global_config.env_dir_var:
+        env_key = global_config.env_dir_var
+        env_value = str(override_dir)
+    else:
+        assert global_config.env_file_var is not None
+        env_key = global_config.env_file_var
+        env_value = str(override_dir / "config.json")
+        (override_dir / "config.json").write_text("", encoding="utf-8")
+
+    monkeypatch.setenv(env_key, env_value)
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+
+    command = runtime_cli._build_repair_command(
+        runtime=descriptor.runtime_name,
+        config_dir=override_dir,
+        install_scope="global",
+        explicit_target=False,
+        cli_cwd=home,
+    )
+
+    expected_target_arg = f"--target-dir {shlex.quote(str(override_dir))}"
+    assert expected_target_arg in command
+
+
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_dispatches_with_runtime_pin(monkeypatch, tmp_path: Path, descriptor) -> None:
     adapter = get_adapter(descriptor.runtime_name)

@@ -32,7 +32,7 @@ This is a one-shot handoff. If user input is needed, return `status: checkpoint`
 - Computational approach won't converge or scale
 - Limiting cases and consistency checks are absent
 - Scope exceeds context budget (quality will degrade)
-- **Plans contradict research decisions from CONTEXT.md**
+- **Plans contradict locked decisions recorded in CONTEXT.md or another phase `*-CONTEXT.md` file**
 - **Plans are missing contract-critical claims, anchors, disconfirming paths, or forbidden proxies**
 - **Plans ignore selected protocol bundle guidance for estimator guards, decisive artifacts, or verification paths**
 
@@ -44,7 +44,7 @@ You are NOT the executor or verifier -- you verify plans WILL work before execut
 </role>
 
 <upstream_input>
-**CONTEXT.md** (if exists) -- Researcher decisions from `gpd:discuss-phase`
+**Phase context file** (`CONTEXT.md` or any `*-CONTEXT.md`, if present) -- Researcher decisions from `gpd:discuss-phase`
 
 | Section                  | How You Use It                                                      |
 | ------------------------ | ------------------------------------------------------------------- |
@@ -52,7 +52,7 @@ You are NOT the executor or verifier -- you verify plans WILL work before execut
 | `## Agent's Discretion` | Freedom areas -- planner can choose approach, don't flag.           |
 | `## Deferred Ideas`      | Out of scope -- plans must NOT include these. Flag if present.      |
 
-If CONTEXT.md exists, add verification dimension: **Context Compliance**
+If a phase context file (CONTEXT.md or any `*-CONTEXT.md`) exists, add verification dimension: **Context Compliance**
 
 - Do plans honor locked research decisions?
 - Are deferred investigations excluded?
@@ -697,15 +697,14 @@ issue:
   fix_hint: "Add Pade resummation as fallback, or estimate 3rd-order contribution to bound error, or add non-perturbative cross-check"
 ```
 
-## Dimension 15: Context Compliance (if CONTEXT.md exists)
+## Dimension 15: Context Compliance (if a phase context file exists)
 
 **Question:** Do plans honor researcher decisions from gpd:discuss-phase?
 
-**Only check if CONTEXT.md was provided in the verification context.**
+**Only check if a context file (CONTEXT.md or any other `*-CONTEXT.md`) was provided in the verification context.**
 
 **Process:**
-
-1. Parse CONTEXT.md sections: Decisions, Agent's Discretion, Deferred Ideas
+1. Parse each context file's sections: Decisions, Agent's Discretion, Deferred Ideas
 2. For each locked Decision, find implementing task(s)
 3. Verify no tasks implement Deferred Ideas (scope creep)
 4. Verify Discretion areas are handled (planner's choice is valid)
@@ -844,7 +843,7 @@ Extract from init JSON: `phase_dir`, `phase_number`, `has_plans`, `plan_count`.
 
 Convention loading: see agent-infrastructure.md Convention Loading Protocol.
 
-Orchestrator provides CONTEXT.md content in the verification prompt. If provided, parse for locked decisions, discretion areas, deferred ideas.
+Orchestrator provides phase context content (CONTEXT.md or any `*-CONTEXT.md`) in the verification prompt. If provided, parse for locked decisions, discretion areas, deferred ideas.
 
 ```bash
 ls "$phase_dir"/*-PLAN.md 2>/dev/null
@@ -1201,7 +1200,7 @@ Use when: Persistent blockers indicate the chosen approach is fundamentally prob
 3. Classify each blocker pattern (stuck/oscillating/late-emerging) to help the user diagnose
 4. Present ALL options (A-D) — do not pre-select for the user
 5. If the user chooses Option A (override), record the override in state.json so the executor knows which checks were waived
-6. If the user chooses Option B (guidance), feed the guidance directly to the planner as a locked decision (same as CONTEXT.md Decisions)
+6. If the user chooses Option B (guidance), feed the guidance directly to the planner as a locked decision (same as in CONTEXT.md or other `*-CONTEXT.md` Decisions)
 
 </verification_process>
 
@@ -1559,7 +1558,7 @@ Plan verification complete when:
 - [ ] Path to publication assessed (interpretable, communicable results)
 - [ ] Failure modes identified (contingency for critical paths)
 - [ ] Computational environment validated (no assumed tools without confirmation)
-- [ ] Context compliance checked (if CONTEXT.md provided):
+- [ ] Context compliance checked (if a phase context file such as CONTEXT.md or any `*-CONTEXT.md` was provided):
   - [ ] Locked decisions have implementing tasks
   - [ ] No tasks contradict locked decisions
   - [ ] Deferred ideas not included in plans

@@ -939,7 +939,7 @@ Use template: `{GPD_INSTALL_DIR}/templates/research-project/SUMMARY.md`.
 
 ### Suggested Phase Structure
 
-### Research Flags
+### Roadmap research flags
 
 [Roadmap implications from Step 7]
 
