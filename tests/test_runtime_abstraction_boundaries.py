@@ -820,3 +820,34 @@ def test_adapters_runtime_identity_calls_are_catalog_driven() -> None:
         "Runtime adapters should derive runtime identity from the catalog in wiring calls:\n"
         f"{_format_failures(leaks)}"
     )
+
+
+def test_runtime_catalog_json_is_only_read_at_adapter_and_hook_boundaries() -> None:
+    catalog_path_literal_pattern = re.compile(r"runtime_catalog(?:_schema)?\.json")
+    allowed_files = {
+        "bin/install.js",
+        "docs/schema-registry-ownership.md",
+        "package.json",
+        "pyproject.toml",
+        "scripts/validate_runtime_catalog_schema.py",
+        "src/gpd/adapters/runtime_catalog.py",
+        "tests/README.md",
+        "tests/adapters/test_runtime_catalog.py",
+        "tests/adapters/test_runtime_catalog_schema_contract.py",
+        "tests/test_runtime_abstraction_boundaries.py",
+        "tests/test_bootstrap_installer.py",
+        "tests/test_packaging_resource_manifests.py",
+        "tests/test_release_consistency.py",
+        "tests/test_runtime_catalog_bootstrap_contract.py",
+        "tests/test_schema_registry_ownership_note.py",
+    }
+    leaks = [
+        (path, line_no, snippet)
+        for path, line_no, snippet in _git_grep(r"runtime_catalog(_schema)?\.json")
+        if path.as_posix() not in allowed_files and catalog_path_literal_pattern.search(snippet)
+    ]
+
+    assert leaks == [], (
+        "Runtime catalog file literals should stay behind adapter/schema validation test boundaries:\n"
+        f"{_format_failures(leaks)}"
+    )

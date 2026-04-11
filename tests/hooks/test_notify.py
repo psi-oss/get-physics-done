@@ -176,11 +176,13 @@ def test_trigger_update_check_uses_sibling_check_update_script(tmp_path: Path) -
 
     with (
         patch("gpd.hooks.notify.__file__", str(hook_path)),
+        patch("gpd.hooks.notify.hook_python_interpreter", return_value="/opt/gpd/bin/python"),
         patch("gpd.hooks.notify.subprocess.Popen") as mock_popen,
     ):
         notify_module._trigger_update_check(str(tmp_path))
 
     args = mock_popen.call_args[0][0]
+    assert args[0] == "/opt/gpd/bin/python"
     assert args[1] == str(hook_path.with_name("check_update.py"))
 
 

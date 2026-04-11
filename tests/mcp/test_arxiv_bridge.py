@@ -42,6 +42,7 @@ async def test_bridge_open_spawns_upstream_server_with_storage_path(monkeypatch:
 
     monkeypatch.setattr(module, "stdio_client", fake_stdio_client)
     monkeypatch.setattr(module, "ClientSession", lambda read_stream, write_stream: FakeSession())
+    monkeypatch.setattr(module, "hook_python_interpreter", lambda: "/opt/gpd/bin/python")
 
     bridge = ArxivBridge(ArxivBridgeConfig(storage_path=tmp_path.resolve()))
 
@@ -49,7 +50,7 @@ async def test_bridge_open_spawns_upstream_server_with_storage_path(monkeypatch:
         assert opened is bridge
         assert bridge._session is not None
 
-    assert observed["command"] == module.sys.executable
+    assert observed["command"] == "/opt/gpd/bin/python"
     assert observed["args"] == ["-m", "arxiv_mcp_server", "--storage-path", str(tmp_path.resolve())]
     assert observed["initialized"] is True
     assert observed["session_entered"] is True

@@ -9,7 +9,12 @@ import sys
 import time
 from pathlib import Path
 
-from gpd.adapters.install_utils import CACHE_DIR_NAME, GPD_INSTALL_DIR_NAME, UPDATE_CACHE_FILENAME
+from gpd.adapters.install_utils import (
+    CACHE_DIR_NAME,
+    GPD_INSTALL_DIR_NAME,
+    UPDATE_CACHE_FILENAME,
+    hook_python_interpreter,
+)
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, normalize_runtime_name
 from gpd.hooks.debug import hook_debug as _debug
 from gpd.hooks.install_context import should_prefer_self_owned_install
@@ -83,7 +88,7 @@ def _parse_worker_cache_file(argv: list[str]) -> Path | None:
 def _background_worker_command(cache_file: Path) -> list[str]:
     """Return the background-worker command anchored to the current hook script."""
     return [
-        sys.executable,
+        hook_python_interpreter(),
         str(Path(__file__).resolve(strict=False)),
         "--cache-file",
         str(cache_file),

@@ -66,6 +66,8 @@ gpd_return:
 
 Optional top-level fields are limited to the canonical parser fields surfaced in role prompts: `tasks_completed`, `tasks_total`, `duration_seconds`, `phase`, `plan`, `design_file`, `field_assessment`, `state_updates`, `contract_updates`, `decisions`, `approved_plans`, `blocked_plans`, `blockers`, `continuation_update`, `conventions_used`, and `checkpoint_hashes`. Do not invent extra keys.
 
+Allowed `status` values are exactly `completed`, `checkpoint`, `blocked`, or `failed`. The base fields are `status`, `files_written`, `issues`, and `next_actions`; put agent-specific detail only in the allowed optional fields above, or under `extensions` when the parser contract permits it.
+
 ### Next-Action Discipline
 
 `next_actions` is for concrete follow-up commands or explicit review actions, not abstract labels.

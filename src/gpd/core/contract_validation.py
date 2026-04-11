@@ -1449,13 +1449,13 @@ def validate_project_contract(
     else:
         contract_payload = contract
 
-    strict_result = parse_project_contract_data_strict(contract_payload)
-    salvage_result = parse_project_contract_data_salvage(contract_payload) if mode == "draft" else None
     if mode == "approved":
+        strict_result = parse_project_contract_data_strict(contract_payload)
+        salvage_result = parse_project_contract_data_salvage(contract_payload)
         parsed = strict_result.contract
         schema_errors = dedupe_preserve_order(strict_result.blocking_errors)
     else:
-        assert salvage_result is not None
+        salvage_result = parse_project_contract_data_salvage(contract_payload)
         parsed = salvage_result.contract
         schema_errors = dedupe_preserve_order(salvage_result.blocking_errors)
     schema_version_error = _project_contract_schema_version_missing_error(contract_payload)

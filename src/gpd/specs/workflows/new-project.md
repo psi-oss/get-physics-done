@@ -7,7 +7,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 </required_reading>
 
 <hard_schema_visibility_guard>
-Before drafting or repairing any `project_contract`, load the compact hard-schema capsule from `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` (including the compact addendum guidance) and keep it visible. It lists `schema_version`, `scope`, `context_intake`, `uncertainty_markers`, strict JSON bools, list shapes, object arrays, proof-bearing fields, and the new draft/approved/proof reminders; do not add verbose schema prose to prompts.
+Before drafting or repairing any `project_contract`, explicitly read/load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` first, then keep its compact hard-schema capsule and compact addendum guidance visible while authoring the contract output. It lists `schema_version`, `scope`, `context_intake`, `uncertainty_markers`, strict JSON bools, list shapes, object arrays, proof-bearing fields, and the new draft/approved/proof reminders; do not add verbose schema prose to prompts.
 </hard_schema_visibility_guard>
 
 <auto_mode>

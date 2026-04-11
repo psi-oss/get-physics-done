@@ -354,6 +354,22 @@ def test_collected_inventory_cache_prevents_duplicate_collection(monkeypatch, tm
     assert counts == {"test_cache_dummy.py": 1}
 
 
+def test_collected_inventory_collect_only_uses_managed_python(monkeypatch, tmp_path: Path) -> None:
+    calls: list[tuple[object, ...]] = []
+
+    def fake_run(args, **kwargs):
+        calls.append(tuple(args))
+        return SimpleNamespace(stdout="tests/test_uv_dummy.py::test_one\n", returncode=0)
+
+    monkeypatch.setattr("tests.ci_sharding.subprocess.run", fake_run)
+
+    assert collected_test_inventory(repo_root=tmp_path) == {
+        "test_uv_dummy.py": ("tests/test_uv_dummy.py::test_one",)
+    }
+    assert calls[0][-5:] == ("tests/", "--collect-only", "-q", "-n", "0")
+    assert calls[0][:3] == ("uv", "run", "pytest") or calls[0][1:3] == ("-m", "pytest")
+
+
 def test_publish_release_runs_release_workflow_inside_uv_environment() -> None:
     workflow_text = (REPO_ROOT / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
     invocations = [

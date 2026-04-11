@@ -4,9 +4,7 @@ template_version: 1
 
 # Executor Continuation Prompt Template
 
-Template for spawning a fresh gpd-executor agent to continue plan execution after a checkpoint pause. This is a fresh continuation handoff owned by the orchestrator, not an in-run wait or resume-in-place. Uses a fresh agent with explicit state instead of resume to avoid serialization issues with parallel tool calls. The `<execution_segment>` block is the workflow/runtime handoff payload; if the pause is durably recorded, the canonical bounded-segment subset of that payload is persisted in `continuation.bounded_segment` and also recorded in the append-only execution lineage so the execution head can be rebuilt without parsing prose.
-
-Persisted bounded-segment fields: `resume_file`, `phase`, `plan`, `segment_id`, `segment_status`, `checkpoint_reason`, `waiting_reason`, `blocked_reason`, `waiting_for_review`, `first_result_gate_pending`, `pre_fanout_review_pending`, `pre_fanout_review_cleared`, `skeptical_requestioning_required`, `downstream_locked`, `skeptical_requestioning_summary`, `weakest_unchecked_anchor`, `disconfirming_observation`, `transition_id`, `last_result_id`, `updated_at`, `source_session_id`, `recorded_by`.
+Template for spawning a fresh gpd-executor agent to continue plan execution after a checkpoint pause. This is a fresh continuation handoff owned by the orchestrator, not an in-run wait or resume-in-place. Uses a fresh agent with explicit state instead of resume to avoid serialization issues with parallel tool calls. The `<execution_segment>` block is the workflow/runtime handoff payload; persisted bounded-segment schema details are owned by the canonical schema docs listed in `docs/schema-registry-ownership.md`.
 
 If the checkpoint payload names expected artifacts, verify them on disk before continuing; returned text alone is not enough.
 
@@ -43,7 +41,7 @@ Return state updates (position, decisions, metrics) in your response -- do NOT w
 {execution_segment}
 </execution_segment>
 
-`execution_segment` is the transient runtime handoff payload. `continuation.bounded_segment` is the persisted storage shape that records the same bounded stop when the orchestrator durably writes or refreshes the pause state. Clear or replace that persisted field when the bounded stop is consumed, retired, or superseded by a newer segment. Keep `.continue-here.md` and `session` as handoff surfaces only, and treat the derived execution head as a compatibility projection rather than the bounded authority. Any task-summary narration belongs to the checkpoint envelope, not the persisted bounded segment.
+`execution_segment` is the transient runtime handoff payload. Persisted bounded-stop and compatibility projection semantics are owned by the canonical schema docs listed in `docs/schema-registry-ownership.md`; do not duplicate the field vocabulary here. Clear or replace the persisted bounded stop when it is consumed, retired, or superseded by a newer segment.
 
 If the execution segment indicates `pre_fanout_review_pending: true`, do not unlock downstream dependent work until the review outcome has been incorporated into this continuation.
 

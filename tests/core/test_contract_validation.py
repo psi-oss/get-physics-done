@@ -1245,6 +1245,17 @@ def test_validate_project_contract_rejects_scalar_list_drift_without_silent_salv
     assert "context_intake.must_read_refs must be a list, not str" in salvage_result.recoverable_errors
 
 
+def test_validate_project_contract_draft_warns_on_salvageable_scalar_list_drift() -> None:
+    contract = _load_contract_fixture()
+    contract["context_intake"]["must_read_refs"] = "ref-benchmark"
+
+    result = validate_project_contract(contract, mode="draft")
+
+    assert result.valid is True
+    assert "context_intake.must_read_refs must be a list, not str" not in result.errors
+    assert "context_intake.must_read_refs must be a list, not str" in result.warnings
+
+
 def test_validate_project_contract_rejects_extra_fields_without_silent_salvage() -> None:
     contract = _load_contract_fixture()
     contract["scope"]["legacy_notes"] = "legacy drift"

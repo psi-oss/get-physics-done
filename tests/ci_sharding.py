@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
+import os
 
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 
@@ -189,13 +190,20 @@ def _normalized_repo_root(repo_root: Path | None) -> Path:
     return (Path.cwd() if repo_root is None else repo_root).resolve()
 
 
+def _pytest_collect_command(repo_root: Path) -> tuple[str, ...]:
+    venv_python = repo_root / ".venv" / "bin" / "python"
+    return (str(venv_python), "-m", "pytest") if venv_python.exists() else ("uv", "run", "pytest")
+
+
 @cache
-def _collected_test_inventory_items(repo_root: Path) -> tuple[tuple[str, tuple[str, ...]], ...]:
+def _collected_test_inventory_items(
+    repo_root: Path,
+    pytest_command: tuple[str, ...] | None = None,
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    pytest_command = pytest_command or _pytest_collect_command(repo_root)
     proc = subprocess.run(
         [
-            sys.executable,
-            "-m",
-            "pytest",
+            *pytest_command,
             "tests/",
             "--collect-only",
             "-q",
@@ -206,6 +214,7 @@ def _collected_test_inventory_items(repo_root: Path) -> tuple[tuple[str, tuple[s
         check=True,
         text=True,
         capture_output=True,
+        env={**os.environ, "UV_CACHE_DIR": str(repo_root / "tmp" / "uv-cache")},
     )
 
     inventory: dict[str, list[str]] = {}
@@ -220,7 +229,8 @@ def _collected_test_inventory_items(repo_root: Path) -> tuple[tuple[str, tuple[s
 
 
 def collected_test_inventory(*, repo_root: Path | None = None) -> dict[str, tuple[str, ...]]:
-    return dict(_collected_test_inventory_items(_normalized_repo_root(repo_root)))
+    normalized_root = _normalized_repo_root(repo_root)
+    return dict(_collected_test_inventory_items(normalized_root, _pytest_collect_command(normalized_root)))
 
 
 def collected_test_counts_by_file(*, repo_root: Path | None = None) -> dict[str, int]:

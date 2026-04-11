@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from gpd.hooks.check_update import (
     UPDATE_CHECK_TTL_SECONDS,
+    _background_worker_command,
     _do_check,
     _is_older_than,
     _read_installed_version,
@@ -33,6 +34,16 @@ _SECONDARY_RUNTIME_DESCRIPTOR = _RUNTIME_DESCRIPTORS[1]
 
 def _cache_candidate(path: Path) -> UpdateCacheCandidate:
     return UpdateCacheCandidate(path=path)
+
+
+def test_background_worker_command_uses_hook_python_interpreter(tmp_path: Path) -> None:
+    cache_file = tmp_path / "cache.json"
+
+    with patch("gpd.hooks.check_update.hook_python_interpreter", return_value="/opt/gpd/bin/python"):
+        command = _background_worker_command(cache_file)
+
+    assert command[0] == "/opt/gpd/bin/python"
+    assert command[-2:] == ["--cache-file", str(cache_file)]
 
 # ─── _is_older_than ────────────────────────────────────────────────────────
 

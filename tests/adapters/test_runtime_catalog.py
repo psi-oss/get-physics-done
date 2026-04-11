@@ -518,6 +518,65 @@ def test_runtime_catalog_rejects_schema_drift_against_fixed_schema(
         _iter_runtime_descriptors_from_schema(schema, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (
+            lambda schema: schema.__setitem__("legacy_schema_key", []),
+            r"runtime catalog schema contains unknown key\(s\): legacy_schema_key",
+        ),
+        (
+            lambda schema: schema.__setitem__("schema_version", 2),
+            r"Unsupported runtime catalog schema_version: 2",
+        ),
+        (
+            lambda schema: schema.__setitem__("capability_keys", [*schema["capability_keys"], "permissions_surface"]),
+            r"runtime catalog schema\.capability_keys must not contain duplicate values",
+        ),
+        (
+            lambda schema: schema["global_config_keys"].__setitem__("", ["strategy"]),
+            r"runtime catalog schema\.global_config_keys keys must be non-empty strings",
+        ),
+        (
+            lambda schema: schema["capability_enums"].__setitem__("", ["none"]),
+            r"runtime catalog schema\.capability_enums keys must be non-empty strings",
+        ),
+    ],
+)
+def test_runtime_catalog_schema_loader_rejects_schema_contract_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutator,
+    match: str,
+) -> None:
+    schema = deepcopy(json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8")))
+    mutator(schema)
+    schema_path = tmp_path / "runtime_catalog_schema.json"
+    schema_path.write_text(json.dumps(schema), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_runtime_catalog_schema_path", lambda: schema_path)
+    runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
+
+    try:
+        with pytest.raises(ValueError, match=match):
+            runtime_catalog._load_runtime_catalog_schema_shape()
+    finally:
+        runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
+
+
+def test_runtime_catalog_schema_validator_exercises_catalog_loader(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+
+    def fake_iter_runtime_descriptors():
+        calls.append("loaded")
+        return ()
+
+    monkeypatch.setattr(runtime_catalog, "iter_runtime_descriptors", fake_iter_runtime_descriptors)
+
+    validate_runtime_catalog_schema()
+
+    assert calls == ["loaded"]
+
+
 def test_runtime_catalog_rejects_blank_selection_aliases(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
     payload[0]["selection_aliases"] = [payload[0]["selection_aliases"][0], " "]

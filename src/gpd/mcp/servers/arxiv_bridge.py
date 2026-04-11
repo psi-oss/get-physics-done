@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import sys
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +15,7 @@ from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 
+from gpd.adapters.install_utils import hook_python_interpreter
 from gpd.core.arxiv_source_download import (
     ARXIV_DEFAULT_STORAGE_PATH,
     download_arxiv_source_archive,
@@ -93,7 +93,7 @@ class ArxivBridge:
     @asynccontextmanager
     async def open(self):
         server = StdioServerParameters(
-            command=sys.executable,
+            command=hook_python_interpreter(),
             args=["-m", UPSTREAM_ARXIV_MODULE, "--storage-path", str(self.config.storage_path)],
         )
         async with stdio_client(server) as streams:

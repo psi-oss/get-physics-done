@@ -39,8 +39,8 @@ This graph therefore includes:
 - `src/gpd/specs/workflows/*.md`: `69`
 - `src/gpd/specs/templates/**/*.md`: `79`
 - `src/gpd/specs/references/**/*.md`: `179`
-- `src/gpd/adapters/*.py`: `9`
-- `src/gpd/hooks/*.py`: `11`
+- `src/gpd/adapters/*.py`: `11`
+- `src/gpd/hooks/*.py`: `12`
 - `src/gpd/mcp/servers/*.py`: `9`
 - `infra/gpd-*.json`: `8`
 

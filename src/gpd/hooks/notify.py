@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+from gpd.adapters.install_utils import hook_python_interpreter
 from gpd.adapters.runtime_catalog import get_hook_payload_policy
 from gpd.core.constants import (
     HOME_DATA_DIR_NAME,
@@ -50,7 +51,7 @@ def _trigger_update_check(cwd: str) -> None:
     try:
         check_update_script = Path(__file__).resolve(strict=False).with_name("check_update.py")
         subprocess.Popen(
-            [sys.executable, str(check_update_script)],
+            [hook_python_interpreter(), str(check_update_script)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

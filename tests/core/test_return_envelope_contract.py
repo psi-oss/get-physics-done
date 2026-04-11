@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from gpd.core.return_contract import extract_gpd_return_block, validate_gpd_return_markdown
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+AGENT_INFRASTRUCTURE = REPO_ROOT / "src/gpd/specs/references/orchestration/agent-infrastructure.md"
 
 
 def _wrap_return_block(yaml_body: str) -> str:
     return f"```yaml\ngpd_return:\n{yaml_body}```\n"
+
+
+def test_agent_infrastructure_surfaces_concise_return_envelope_contract() -> None:
+    text = AGENT_INFRASTRUCTURE.read_text(encoding="utf-8")
+
+    assert "status: completed | checkpoint | blocked | failed" in text
+    assert "Allowed `status` values are exactly `completed`, `checkpoint`, `blocked`, or `failed`." in text
+    assert "The base fields are `status`, `files_written`, `issues`, and `next_actions`" in text
+    assert "Optional top-level fields are limited to the canonical parser fields" in text
 
 
 def test_accepts_nested_state_and_continuation_payloads() -> None:
