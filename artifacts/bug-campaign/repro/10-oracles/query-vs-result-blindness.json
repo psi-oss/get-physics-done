@@ -28,15 +28,14 @@
     "gpd --raw result deps"
   ],
   "expected_outcome": "pytest exit code 0 for the current fixed behavior",
-  "expected_pytest_pass_count": 5,
-  "known_gaps": [
+  "expected_pytest_pass_count": 6,
+  "known_gaps": [],
+  "closed_gaps": [
     {
-      "class": "projection-gap-expected",
+      "class": "closed-by-result-registry-projection",
       "fixtures": [
         "query-registry-drift/positive",
-        "context-indexing/positive",
-        "bridge-vs-cli/positive",
-        "bridge-vs-cli/mutation"
+        "context-indexing/positive"
       ]
     }
   ],

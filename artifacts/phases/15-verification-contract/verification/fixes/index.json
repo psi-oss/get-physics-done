@@ -23,6 +23,15 @@
       "classification": "verification_contract"
     },
     {
+      "bug_id": "query-result-registry-projection",
+      "family_id": "query-result-registry-projection",
+      "family_title": "query/result registry projection",
+      "contract_test": "tests/core/test_projection_query_result.py",
+      "artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/query-result-registry-projection.json",
+      "status": "verified",
+      "classification": "cross_surface_projection_contract"
+    },
+    {
       "bug_id": "nested-root-readonly-probe-parity",
       "family_id": "nested-root-readonly-probe-parity",
       "family_title": "nested-root read-only probe parity",

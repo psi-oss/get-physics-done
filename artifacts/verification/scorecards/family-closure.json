@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "phase15_family_count": 8,
+  "phase15_family_count": 9,
   "closed_phase15_family_count": 6,
   "taxonomy_bug_type_count": 944,
   "taxonomy_unresolved_singleton_count": 386,
@@ -21,6 +21,19 @@
     {
       "family_id": "placeholder-sentinel-normalization",
       "bug_class": "placeholder-sentinel-normalization",
+      "mapped_surfaces": "see taxonomy/07-bug-type-registry.json",
+      "gates_complete": true,
+      "artifact_registry_consistent": true,
+      "test_guard_present": true,
+      "nightly_green_run_count": 0,
+      "release_candidate_green_count": 0,
+      "unconverted_manual_repro_count": 1041,
+      "closed": false,
+      "closure_reason": "Scorecard gates require durable nightly/release-candidate run history before closure."
+    },
+    {
+      "family_id": "query-result-registry-projection",
+      "bug_class": "query-result-registry-projection",
       "mapped_surfaces": "see taxonomy/07-bug-type-registry.json",
       "gates_complete": true,
       "artifact_registry_consistent": true,

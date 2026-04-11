@@ -2939,6 +2939,7 @@ def _print_result_show(result_deps: object) -> None:
 
 @result_app.command("search")
 def result_search(
+    term: str | None = typer.Argument(None, help="Optional positional text search term"),
     id: str | None = typer.Option(None, "--id", help="Exact result ID"),
     text: str | None = typer.Option(None, "--text", help="Search id, equation, and description"),
     equation: str | None = typer.Option(None, "--equation", help="Search by equation"),
@@ -2956,6 +2957,10 @@ def result_search(
 
     if verified and unverified:
         _error("--verified and --unverified are mutually exclusive")
+    if term is not None:
+        if text is not None:
+            _error("Use either a positional search term or --text, not both")
+        text = term
 
     _output(
         result_search(

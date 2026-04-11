@@ -122,5 +122,6 @@ def test_bug_campaign_phase10_reconstruction_is_fixture_covered_subset_only() ->
     query_oracle = json.loads(
         (CAMPAIGN_ROOT / "repro" / "10-oracles" / "query-vs-result-blindness.json").read_text(encoding="utf-8")
     )
-    assert query_oracle["known_gaps"][0]["class"] == "projection-gap-expected"
+    assert query_oracle["closed_gaps"][0]["class"] == "closed-by-result-registry-projection"
+    assert query_oracle["expected_pytest_pass_count"] == 6
     assert query_oracle["phase10_exit_criteria"]["strict_phase10_criteria_met"] is False
