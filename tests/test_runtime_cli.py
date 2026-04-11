@@ -188,6 +188,35 @@ def test_runtime_cli_returns_stable_error_for_unknown_runtime(monkeypatch, tmp_p
     assert "Supported:" in captured.err
 
 
+def test_runtime_cli_accepts_cwd_after_command_normalization(monkeypatch, tmp_path: Path) -> None:
+    descriptor = _RUNTIME_DESCRIPTORS[0]
+    adapter = get_adapter(descriptor.runtime_name)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    workspace_root = tmp_path / "workspace"
+    workspace_root.mkdir()
+
+    exit_code, observed = _run_runtime_cli_with_recording(
+        monkeypatch,
+        cwd=tmp_path,
+        argv=[
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            str(config_dir),
+            "--install-scope",
+            "local",
+            "state",
+            "--cwd",
+            str(workspace_root),
+        ],
+        runtime=descriptor.runtime_name,
+    )
+
+    assert exit_code == 0
+    assert observed["argv"] == ["gpd", "--cwd", str(workspace_root), "state"]
+
+
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_fails_cleanly_for_incomplete_install(tmp_path: Path, capsys, descriptor) -> None:
     adapter = get_adapter(descriptor.runtime_name)

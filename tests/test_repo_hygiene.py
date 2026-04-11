@@ -277,3 +277,15 @@ def test_installed_spec_references_point_to_installed_assets_or_project_local_pa
     assert not offenders, "Installed spec references must point to installed assets or explicit project-local paths:\n" + "\n".join(
         f"- {offender}" for offender in offenders
     )
+
+def test_repo_hygiene_tracks_no_runtime_cache_artifacts() -> None:
+    offenders = [
+        path.as_posix()
+        for path in _tracked_paths()
+        if "__pycache__" in path.parts or path.suffix == ".pyc"
+    ]
+
+    assert not offenders, (
+        "Tracked files contain runtime cache artifacts (remove them from git):\n"
+        + "\n".join(f"- {path}" for path in sorted(offenders))
+    )

@@ -342,10 +342,15 @@ def detect_runtime_for_gpd_use(*, cwd: Path | None = None, home: Path | None = N
 
     active_runtime = detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
     runtime_names = supported_runtime_names()
-    for runtime in _prioritized_runtimes(active_runtime if active_runtime in runtime_names else None):
+    prioritized_runtimes = _prioritized_runtimes(
+        active_runtime if active_runtime in runtime_names else None
+    )
+    for runtime in prioritized_runtimes:
         if _detect_runtime_install_target(runtime, cwd=resolved_cwd, home=resolved_home) is not None:
             return runtime
-    return active_runtime
+    if active_runtime in runtime_names:
+        return active_runtime
+    return RUNTIME_UNKNOWN
 
 
 def detect_runtime_install_target(

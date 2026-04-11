@@ -374,7 +374,7 @@ def parse_contract_block(content: str, *, source_path: Path | None = None) -> Re
 # Schema definitions and validation
 # ---------------------------------------------------------------------------
 
-FRONTMATTER_SCHEMAS: dict[str, dict[str, list[str]]] = {
+FRONTMATTER_SCHEMAS: dict[str, dict[str, object]] = {
     "plan": {
         "required": [
             "phase",
@@ -390,9 +390,11 @@ FRONTMATTER_SCHEMAS: dict[str, dict[str, list[str]]] = {
     },
     "summary": {
         "required": ["phase", "plan", "depth", "provides", "completed"],
+        "schema_reference": "templates/summary.md",
     },
     "verification": {
         "required": ["phase", "verified", "status", "score"],
+        "schema_reference": "templates/verification-report.md",
     },
     "knowledge": {
         "required": [
@@ -406,6 +408,7 @@ FRONTMATTER_SCHEMAS: dict[str, dict[str, list[str]]] = {
             "sources",
             "coverage_summary",
         ],
+        "schema_reference": "templates/knowledge-schema.md",
     },
 }
 
@@ -931,6 +934,7 @@ class FrontmatterValidation(BaseModel):
     present: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     schema_name: str = ""
+    schema_reference: str | None = None
 
 
 def _resolve_field(meta: dict, name: str) -> str | None:
@@ -2113,12 +2117,16 @@ def validate_frontmatter(content: str, schema_name: str, source_path: Path | Non
                             )
                         )
 
+    schema_reference = schema.get("schema_reference")
+    if schema_reference is not None and not isinstance(schema_reference, str):
+        schema_reference = None
     return FrontmatterValidation(
         valid=len(missing) == 0 and not errors,
         missing=missing,
         present=present,
         errors=errors,
         schema_name=schema_name,
+        schema_reference=schema_reference,
     )
 
 

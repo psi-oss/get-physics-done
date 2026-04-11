@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import yaml
 
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
+    CI_FAST_PRIORITY_TEST_TARGETS,
+    CI_FAST_PRIORITY_TIMEOUT_MINUTES,
     CI_HOT_TEST_FILE_SPLITS,
     CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS,
     CI_MAX_SHARD_COUNT_TARGET,
@@ -21,6 +24,8 @@ from tests.ci_sharding import (
     build_ci_work_units,
     ci_smoke_pytest_command,
     ci_shard_specs,
+    collected_test_counts_by_file,
+    collected_test_inventory,
     expand_ci_targets_to_nodeids,
     select_ci_shard_targets,
     write_ci_shard_targets_file,
@@ -251,6 +256,20 @@ def test_ci_shard_selection_uses_supplied_static_inventory_without_collect_only(
     assert len(planned_root_nodeids) == len(set(planned_root_nodeids))
 
 
+def test_fast_smoke_job_timeout_matches_fast_priority_timeout_constant() -> None:
+    workflow = _workflow_data()
+    smoke_job = workflow["jobs"]["smoke"]
+    assert isinstance(smoke_job, dict)
+    assert smoke_job["timeout-minutes"] == CI_FAST_PRIORITY_TIMEOUT_MINUTES
+
+
+def test_fast_priority_smoke_targets_follow_ci_fast_priority_list() -> None:
+    smoke_command = _run_steps_by_name(_job_steps(_workflow_data(), "smoke"))[CI_SMOKE_PYTEST_STEP_NAME]
+    smoke_targets = _pytest_command_targets(smoke_command)
+
+    assert smoke_targets == tuple(CI_FAST_PRIORITY_TEST_TARGETS)
+
+
 def test_ci_sharding_constants_do_not_import_runtime_adapters() -> None:
     source = (REPO_ROOT / "tests" / "ci_sharding.py").read_text(encoding="utf-8")
 
@@ -316,6 +335,23 @@ def test_write_ci_shard_targets_file_accepts_static_inventory(tmp_path: Path, mo
 
     assert targets == ("tests/adapters/test_codex.py::test_a",)
     assert target_file.read_text(encoding="utf-8") == "tests/adapters/test_codex.py::test_a\n"
+
+
+def test_collected_inventory_cache_prevents_duplicate_collection(monkeypatch, tmp_path: Path) -> None:
+    call_count: list[int] = []
+
+    def fake_run(*args, **kwargs):
+        call_count.append(1)
+        return SimpleNamespace(stdout="tests/test_cache_dummy.py::test_one\n", returncode=0)
+
+    monkeypatch.setattr("tests.ci_sharding.subprocess.run", fake_run)
+
+    inventory = collected_test_inventory(repo_root=tmp_path)
+    counts = collected_test_counts_by_file(repo_root=tmp_path)
+
+    assert len(call_count) == 1
+    assert inventory == {"test_cache_dummy.py": ("tests/test_cache_dummy.py::test_one",)}
+    assert counts == {"test_cache_dummy.py": 1}
 
 
 def test_publish_release_runs_release_workflow_inside_uv_environment() -> None:

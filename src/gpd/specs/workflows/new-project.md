@@ -119,7 +119,7 @@ Wait for response. From the single response, extract:
 #### M1.5. Synthesize And Approve The Scoping Contract
 
 Build a canonical scoping contract from the extracted input.
-Before you draft the first `PROJECT_CONTRACT_JSON` payload, load the full `templates/project-contract-schema.md` with the active runtime's file-read tool so you have seen every required field and rule. Before you ask for approval, keep the contract as a literal JSON object for the `project_contract` subsection of `templates/project-contract-schema.md`, and use that schema as the canonical source of truth for the object rules. Do not restate the full contract rules here; keep only the approval-critical reminders below.
+Before you build the literal `PROJECT_CONTRACT_JSON`, keep the canonical `project_contract` schema you already read via the guard above visible so you can follow each required field and the object rules it defines. Treat that schema as the only contract authority: keep the contract as the JSON object that will be stored in `project_contract`, and keep only the approval-critical reminders below instead of restating the full schema.
 
 **Blocking fields that must be present before approval:**
 
@@ -153,10 +153,10 @@ If the user named a prior output or review checkpoint that must ground approval 
 Do not approve a scoping contract that strips decisive outputs, anchors, prior outputs, or review/stop triggers down to generic placeholders. The approved contract must preserve the user guidance that downstream planning needs.
 If the only checks captured so far are limiting cases, sanity checks, or qualitative expectations, treat the contract as still underspecified unless the user explicitly states that these are the decisive standard.
 Missing-anchor notes preserve uncertainty, but they do not satisfy approval on their own. Do not offer approval until at least one concrete anchor, reference, prior-output constraint, or baseline is present.
-Before you show the approval gate, build the raw contract as a literal JSON object for the `project_contract` subsection of `templates/project-contract-schema.md`:
+Before you show the approval gate, build the raw contract as a literal JSON object for the `project_contract` subsection of that canonical schema:
 
 - author only the JSON object that will be stored in `project_contract`, not the surrounding `state.json` envelope
-- follow the `project_contract` object rules in `templates/project-contract-schema.md` exactly
+- follow the `project_contract` object rules defined there exactly
 - do not paraphrase the schema here; reuse its exact keys, enum values, list/object shapes, ID-linkage rules, and proof-bearing claim requirements
 - do not invent near-miss enum values, extra keys, or scalar shortcuts for list fields
 - fix them to the schema before approval
@@ -181,19 +181,14 @@ After approval, validate the contract before persisting it:
 
 ```bash
 printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - --mode approved
+printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
 ```
 
 If validation fails, show the errors, revise the scoping contract, and do NOT continue to downstream artifact generation.
 
-After validation passes, persist the approved contract into `GPD/state.json` from the same stdin payload:
-
-```bash
-printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
-```
-
 Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.
 
-**Project contract schema visibility:** The approved `project_contract` payload is the `ResearchContract` object defined in `templates/project-contract-schema.md`. If that template has not been read in the current context, stop and load it before asking for approval or writing `PROJECT.md`, `REQUIREMENTS.md`, or `ROADMAP.md`. Keep this workflow to approval sequencing; do not restate or fork the contract schema here.
+**Project contract schema visibility:** The approved `project_contract` payload is the `ResearchContract` object defined in the canonical project-contract schema. If you have not already loaded `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` in the current context, stop and do so before asking for approval or writing `PROJECT.md`, `REQUIREMENTS.md`, or `ROADMAP.md`. Keep this workflow to approval sequencing; do not restate or fork the contract schema here.
 
 #### M2. Create PROJECT.md
 

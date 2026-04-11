@@ -5324,6 +5324,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         assert any("Unknown claim contract_results entry: claim-unknown" in error for error in payload["errors"])
+        assert payload["schema_reference"] == "templates/summary.md"
 
     def test_validate_summary_contract_command_reports_unresolved_plan_contract_ref(self, gpd_project: Path) -> None:
         phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"
@@ -5373,6 +5374,7 @@ class TestReviewValidationCommands:
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         assert "contract_results: required for contract-backed plan" in payload["errors"]
+        assert payload["schema_reference"] == "templates/verification-report.md"
 
     def test_validate_reproducibility_manifest_strict_command(self, gpd_project: Path) -> None:
         manifest_path = gpd_project / "reproducibility-ready.json"

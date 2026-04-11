@@ -3270,7 +3270,10 @@ def _run_frontmatter_validation(file: str, schema: str) -> None:
 
     file_path, fm_content = _load_text_document(file)
     result = validate_frontmatter(fm_content, schema, source_path=file_path)
-    _output(result)
+    if not result.valid and result.schema_reference:
+        _output(_model_dump_with_schema_reference(result, schema_reference=result.schema_reference))
+    else:
+        _output(result)
     if not result.valid:
         raise typer.Exit(code=1)
 

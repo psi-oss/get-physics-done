@@ -1450,23 +1450,25 @@ def validate_project_contract(
         contract_payload = contract
 
     strict_result = parse_project_contract_data_strict(contract_payload)
-    salvage_result = parse_project_contract_data_salvage(contract_payload)
-    parsed = strict_result.contract if mode == "approved" else salvage_result.contract
-    schema_errors = dedupe_preserve_order(
-        strict_result.blocking_errors if mode == "approved" else salvage_result.blocking_errors
-    )
+    salvage_result = parse_project_contract_data_salvage(contract_payload) if mode == "draft" else None
+    if mode == "approved":
+        parsed = strict_result.contract
+        schema_errors = dedupe_preserve_order(strict_result.blocking_errors)
+    else:
+        assert salvage_result is not None
+        parsed = salvage_result.contract
+        schema_errors = dedupe_preserve_order(salvage_result.blocking_errors)
     schema_version_error = _project_contract_schema_version_missing_error(contract_payload)
     if schema_version_error is not None:
         schema_errors = dedupe_preserve_order([schema_version_error, *schema_errors])
+    schema_warnings = dedupe_preserve_order(salvage_result.recoverable_errors) if salvage_result else []
     if parsed is None:
-        schema_warnings = dedupe_preserve_order(salvage_result.recoverable_errors)
         return ProjectContractValidationResult(
             valid=False,
             errors=schema_errors or ["project contract could not be normalized"],
             warnings=schema_warnings,
             mode=mode,
         )
-    schema_warnings = dedupe_preserve_order(salvage_result.recoverable_errors)
 
     question = parsed.scope.question.strip()
     decisive_target_count = len(parsed.observables) + len(parsed.claims) + len(parsed.deliverables)

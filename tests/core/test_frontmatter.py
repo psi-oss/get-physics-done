@@ -1287,6 +1287,35 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any(error.startswith("must_haves:") for error in result.errors)
 
+    def test_summary_frontmatter_failure_surfaces_template_reference(self) -> None:
+        content = (
+            "---\n"
+            "phase: 01\n"
+            "plan: 01\n"
+            "depth: full\n"
+            "provides: []\n"
+            "---\n\nBody."
+        )
+
+        result = validate_frontmatter(content, "summary")
+
+        assert result.valid is False
+        assert result.schema_reference == "templates/summary.md"
+
+    def test_verification_frontmatter_failure_surfaces_template_reference(self) -> None:
+        content = (
+            "---\n"
+            "phase: 01\n"
+            "verified: 2025-01-01T00:00:00Z\n"
+            "status: passed\n"
+            "---\n\nBody."
+        )
+
+        result = validate_frontmatter(content, "verification")
+
+        assert result.valid is False
+        assert result.schema_reference == "templates/verification-report.md"
+
     def test_summary_coerces_integer_provides_entries(self):
         """Integer provides entries are coerced to strings (FULL-019)."""
         content = (

@@ -63,7 +63,7 @@ def test_validate_project_contract_smoke_approved_rejects_coercive_reference_mus
     assert result.valid is False
     expected_error = "references.0.must_surface: must be a boolean (coerced from 'yes')"
     assert result.errors == [expected_error]
-    assert expected_error in result.warnings
+    assert result.warnings == []
     assert not any("unknown reference" in issue for issue in result.errors + result.warnings)
     assert not any(
         "must include at least one must_surface=true anchor" in issue for issue in result.errors + result.warnings

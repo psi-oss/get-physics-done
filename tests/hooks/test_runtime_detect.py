@@ -820,6 +820,16 @@ class TestDetectRuntimeForGpdUse:
         finally:
             importlib.reload(runtime_detect_module)
 
+    def test_unknown_runtime_without_install_stays_unknown(self) -> None:
+        with (
+            patch("gpd.hooks.runtime_detect.detect_active_runtime_with_gpd_install", return_value=RUNTIME_UNKNOWN),
+            patch("gpd.hooks.runtime_detect.detect_active_runtime", return_value=RUNTIME_UNKNOWN),
+            patch("gpd.hooks.runtime_detect.supported_runtime_names", return_value=(RUNTIME_CODEX, RUNTIME_GEMINI)),
+            patch("gpd.hooks.runtime_detect._detect_runtime_install_target", return_value=None),
+        ):
+            assert detect_runtime_for_gpd_use() == RUNTIME_UNKNOWN
+
+
 # ─── all_runtime_dirs ──────────────────────────────────────────────────────
 
 

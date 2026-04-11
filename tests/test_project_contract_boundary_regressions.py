@@ -57,6 +57,21 @@ def test_fast_project_contract_proxy_strict_rejects_singleton_list_drift_but_sal
     assert salvaged.context_intake.must_read_refs == ["ref-benchmark"]
 
 
+def test_fast_project_contract_proxy_strict_rejects_unknown_top_level_keys_salvage_warns() -> None:
+    contract = _load_contract_fixture()
+    contract["legacy_notes"] = "deprecated flag"
+
+    strict_result = parse_project_contract_data_strict(contract)
+
+    assert strict_result.contract is None
+    assert any("legacy_notes" in error for error in strict_result.errors)
+
+    salvage_result = parse_project_contract_data_salvage(contract)
+
+    assert salvage_result.contract is not None
+    assert any("legacy_notes" in warning for warning in salvage_result.recoverable_errors)
+
+
 def test_fast_project_contract_proxy_salvage_preserves_claim_when_optional_proof_field_is_malformed() -> None:
     contract = _load_contract_fixture()
     contract["claims"][0]["parameters"] = [

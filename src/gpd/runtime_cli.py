@@ -89,10 +89,6 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     gpd_args = argv[index:]
     if gpd_args[:1] == ["--"]:
         gpd_args = gpd_args[1:]
-    try:
-        _validate_root_global_cli_passthrough(gpd_args)
-    except ValueError as exc:
-        raise _BridgeArgumentError(str(exc)) from exc
     return options, gpd_args
 
 

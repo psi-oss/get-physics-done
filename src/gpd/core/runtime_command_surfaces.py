@@ -47,14 +47,14 @@ def installed_runtime_for_surface(
     detect_install_target: Callable[..., object | None] | None = None,
 ) -> str | None:
     """Return the installed active runtime, or ``None`` when detection is inconclusive."""
-    from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_runtime_for_gpd_use, detect_runtime_install_target
+    from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use, detect_runtime_install_target
 
     detector = detect_runtime or detect_runtime_for_gpd_use
     target_detector = detect_install_target or detect_runtime_install_target
     try:
         runtime_name = detector(cwd=cwd)
         normalized_runtime = normalize_runtime_name(runtime_name)
-        if normalized_runtime is None or normalized_runtime == RUNTIME_UNKNOWN:
+        if normalized_runtime is None:
             return None
         if target_detector(normalized_runtime, cwd=cwd) is None:
             return None
