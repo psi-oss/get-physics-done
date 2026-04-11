@@ -19,6 +19,7 @@ from gpd.core.config import (
     ResearchMode,
     ReviewCadence,
     _valid_runtime_names,
+    canonical_config_key,
     load_config,
     resolve_agent_tier,
     resolve_model,
@@ -113,6 +114,11 @@ class TestGPDProjectConfigDefaults:
         assert cfg.session_usd_budget is None
         assert cfg.branching_strategy == BranchingStrategy.NONE
         assert cfg.model_overrides is None
+
+
+class TestConfigKeyNormalization:
+    def test_cli_keys_accept_case_and_dash_variants(self) -> None:
+        assert canonical_config_key("Execution.Review-Cadence") == "review_cadence"
 
 
 # ─── load_config ────────────────────────────────────────────────────────────────

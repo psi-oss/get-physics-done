@@ -10,6 +10,7 @@ import importlib
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -409,6 +410,25 @@ def test_supported_runtime_names_reflect_live_runtime_inventory(monkeypatch: pyt
 
     assert supported_runtime_names() == ("alpha", "beta", "gamma")
     assert runtime_detect_module._prioritized_runtimes("beta") == ["beta", "alpha", "gamma"]
+
+
+def test_detect_active_runtime_uses_catalog_descriptor_env_vars(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    descriptors = {
+        "alpha-runtime": SimpleNamespace(activation_env_vars=("GPD_TEST_ALPHA_ACTIVE",)),
+        "beta-runtime": SimpleNamespace(activation_env_vars=("GPD_TEST_BETA_ACTIVE",)),
+    }
+
+    monkeypatch.setattr(runtime_detect_module, "list_runtime_names", lambda: list(descriptors))
+    monkeypatch.setattr(runtime_detect_module, "get_runtime_descriptor", descriptors.__getitem__)
+    monkeypatch.setattr(runtime_detect_module, "detect_install_scope", lambda *args, **kwargs: None)
+    monkeypatch.setattr(runtime_detect_module, "_detect_runtime_install_target", lambda *args, **kwargs: None)
+    monkeypatch.delenv("GPD_ACTIVE_RUNTIME", raising=False)
+    monkeypatch.setenv("GPD_TEST_BETA_ACTIVE", "1")
+
+    result = resolve_effective_runtime(cwd=tmp_path, home=tmp_path)
+
+    assert result.runtime == "beta-runtime"
+    assert result.source == SOURCE_ENV
 
 
 def test_get_adapter_loads_only_one_runtime_module(monkeypatch: pytest.MonkeyPatch) -> None:

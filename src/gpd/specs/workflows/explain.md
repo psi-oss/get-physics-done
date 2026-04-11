@@ -96,6 +96,8 @@ EXPLAINER_MODEL=$(gpd resolve-model gpd-explainer)
 
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
+Apply this delegation note to every subagent spawn in this workflow; do not repeat it before individual spawn examples.
+
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```markdown
@@ -170,7 +172,6 @@ Resolve bibliographer model:
 BIBLIO_MODEL=$(gpd resolve-model gpd-bibliographer)
 ```
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 > If subagent spawning is unavailable, perform the audit in the main context.
 

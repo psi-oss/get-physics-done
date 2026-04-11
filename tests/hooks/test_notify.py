@@ -1527,9 +1527,13 @@ def test_emit_execution_notification_dedupes_concurrent_resume_state(tmp_path: P
         def __init__(self) -> None:
             self._chunks: list[str] = []
             self._lock = threading.Lock()
+            self.write_started = threading.Event()
+            self.release_write = threading.Event()
 
         def write(self, message: str) -> int:
-            time.sleep(0.05)
+            if message:
+                self.write_started.set()
+                self.release_write.wait(timeout=1)
             with self._lock:
                 self._chunks.append(message)
             return len(message)
@@ -1561,6 +1565,8 @@ def test_emit_execution_notification_dedupes_concurrent_resume_state(tmp_path: P
         threads = [threading.Thread(target=_emit), threading.Thread(target=_emit)]
         for thread in threads:
             thread.start()
+        assert stderr.write_started.wait(timeout=1)
+        stderr.release_write.set()
         for thread in threads:
             thread.join()
 

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
 import subprocess
+import tomllib
 from pathlib import Path
 
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
@@ -15,6 +17,18 @@ _RUNTIME_CONFIG_DIRS = {
 }
 _GENERATED_GPD_FILES = {"STATE.md", "state.json", "state.json.bak"}
 _LOCAL_RUNTIME_FILES = {".env", ".mcp.json"}
+_TRACKED_GENERATED_ARTIFACT_DIRS = {
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    ".npm-cache",
+    ".uv-cache",
+    ".venv",
+    "build",
+    "dist",
+    "tmp",
+}
+_TRACKED_GENERATED_ARTIFACT_SUFFIXES = {".pyc", ".pyo", ".pyd", ".log"}
 
 
 def _tracked_paths() -> list[Path]:
@@ -98,6 +112,34 @@ def test_repo_hygiene_does_not_track_ignored_or_runtime_owned_artifacts() -> Non
 
     assert not offenders, (
         "Tracked ignored/runtime-owned artifacts found in git index:\n"
+        + "\n".join(f"- {path}" for path in offenders)
+    )
+
+
+def test_package_versions_stay_in_sync() -> None:
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
+    package_json = json.loads((REPO_ROOT / "package.json").read_text())
+
+    pyproject_version = pyproject["project"]["version"]
+    assert package_json["version"] == pyproject_version
+    assert package_json["gpdPythonVersion"] == pyproject_version
+
+
+def test_repo_hygiene_does_not_track_generated_package_artifacts() -> None:
+    offenders: list[str] = []
+    for path in _tracked_paths():
+        parts = path.parts
+        if "__pycache__" in parts or path.suffix in _TRACKED_GENERATED_ARTIFACT_SUFFIXES:
+            offenders.append(path.as_posix())
+            continue
+        if any(part.endswith(".egg-info") for part in parts):
+            offenders.append(path.as_posix())
+            continue
+        if any(part in _TRACKED_GENERATED_ARTIFACT_DIRS for part in parts):
+            offenders.append(path.as_posix())
+
+    assert not offenders, (
+        "Tracked generated/package artifacts found in git index:\n"
         + "\n".join(f"- {path}" for path in offenders)
     )
 

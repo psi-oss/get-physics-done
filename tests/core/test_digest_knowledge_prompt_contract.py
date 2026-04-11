@@ -64,7 +64,7 @@ def test_digest_knowledge_workflow_documents_deterministic_target_resolution_and
     assert "GPD/knowledge/{knowledge_id}.md" in workflow
     assert _contains_any(workflow, "explicit file path", "existing file path", "file path must exist", "must exist before")
     assert _contains_any(workflow, "2401.12345", "modern arxiv", "modern arXiv")
-    assert _contains_any(workflow, "hep-th/9901001", "legacy arxiv", "legacy arXiv")
+    assert _contains_any(workflow, "hep-th/9901001", "classic arxiv", "classic arXiv")
 
 
 def test_digest_knowledge_templates_keep_non_runtime_deferrals_explicit() -> None:

@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 import pytest
 
-import gpd._python_compat as python_compat
 import gpd.version as gpd_version
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -100,6 +99,7 @@ def test_resolve_checkout_python_returns_none_when_no_checkout_exists(tmp_path: 
         assert gpd_version.resolve_checkout_python(outside, fallback="/managed/python") is None
 
 
-def test_require_supported_python_rejects_older_interpreters() -> None:
-    with pytest.raises(RuntimeError, match=r"requires Python 3\.11\+; current interpreter is Python 3\.10"):
-        python_compat.require_supported_python(version_info=(3, 10, 14))
+def test_package_import_rejects_older_interpreters() -> None:
+    source = (REPO_ROOT / "src" / "gpd" / "__init__.py").read_text(encoding="utf-8")
+    assert "sys.version_info < (3, 11)" in source
+    assert "requires Python 3.11+" in source

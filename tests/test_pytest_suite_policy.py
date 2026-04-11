@@ -67,6 +67,8 @@ def test_root_conftest_scales_local_full_suite_auto_workers_toward_ci_fanout(
     assert tests_conftest._is_default_full_suite_invocation([]) is True
     assert tests_conftest._is_default_full_suite_invocation(["tests"]) is True
     assert tests_conftest._is_default_full_suite_invocation(["tests/"]) is True
+    assert tests_conftest._is_default_full_suite_invocation(["-q"]) is True
+    assert tests_conftest._is_default_full_suite_invocation(["--maxfail=1", "tests", "-q"]) is True
     assert tests_conftest._is_default_full_suite_invocation(["tests/test_runtime_cli.py"]) is False
     assert tests_conftest._full_suite_auto_worker_count(cpu_count=16, ci_shard_total=ci_shards) == ci_shards
     assert tests_conftest._full_suite_auto_worker_count(cpu_count=8, ci_shard_total=ci_shards) == 16
@@ -84,6 +86,9 @@ def test_root_conftest_scales_local_full_suite_auto_workers_toward_ci_fanout(
 
     config.args = ["tests/test_runtime_cli.py"]
     assert tests_conftest.pytest_xdist_auto_num_workers(config) is None
+
+    config.args = ["--maxfail=1", "tests", "-q"]
+    assert tests_conftest.pytest_xdist_auto_num_workers(config) == 12
 
 
 def test_default_collection_matches_all_checked_in_test_files() -> None:

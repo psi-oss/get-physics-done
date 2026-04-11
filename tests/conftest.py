@@ -9,7 +9,11 @@ from tests.ci_sharding import CI_CATEGORY_SHARD_COUNTS
 
 
 def _is_default_full_suite_invocation(args: list[str]) -> bool:
-    normalized = tuple(arg.rstrip("/") for arg in args)
+    normalized = tuple(
+        arg.rstrip("/")
+        for arg in args
+        if not arg.startswith("-") and not arg.startswith("--")
+    )
     return normalized in {(), ("tests",)}
 
 

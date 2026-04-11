@@ -200,6 +200,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:research-phase <number>` - Run a focused phase literature survey
 - `gpd:list-phase-assumptions <number>` - Preview the planned phase approach
 - `gpd:discover [phase or topic]` - Survey methods, literature, and tools before planning
+- `gpd:show-phase <number>` - Inspect one phase's artifacts and status
 - `gpd --raw init phase-op <number>` - Inspect one phase's artifacts and status
 - `gpd:plan-phase <number>` - Build a detailed execution plan for a phase
 - `gpd:execute-phase <phase-number>` - Run all plans in a phase
@@ -839,7 +840,7 @@ Usage: `gpd:literature-review "Sachdev-Ye-Kitaev model thermodynamics"`
 **`gpd:digest-knowledge [topic|arXiv id|source file|knowledge path]`**
 Create or update a knowledge document draft from a topic, paper, source file, or explicit knowledge path.
 
-- Accepts an explicit knowledge-doc path, a source file path, a modern or legacy arXiv ID, or a topic string
+- Accepts an explicit knowledge-doc path, a source file path, a modern or classic arXiv ID, or a topic string
 - Resolves one canonical `GPD/knowledge/{knowledge_id}.md` target or stops on ambiguity
 - Reopens existing draft knowledge docs in place and routes approval or stable-state requests to `gpd:review-knowledge`
 - Drafts stay `draft` until reviewed, and they move into `in_review` while a review round is open
@@ -849,7 +850,7 @@ Create or update a knowledge document draft from a topic, paper, source file, or
 
 - Example topic: `gpd:digest-knowledge "renormalization group fixed points"`
 - Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`
-- Example legacy arXiv: `gpd:digest-knowledge hep-th/9901001`
+- Example classic arXiv ID: `gpd:digest-knowledge hep-th/9901001`
 - Example source file: `gpd:digest-knowledge ./notes/rg-notes.md`
 - Example explicit knowledge path: `gpd:digest-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md`
 

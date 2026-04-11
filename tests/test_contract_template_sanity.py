@@ -86,14 +86,28 @@ def test_plan_prompt_keeps_canonical_schema_visible_before_contract_output() -> 
 
     schema_ref = "@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md"
     first_contract_block = phase_prompt.index("\ncontract:")
+    pre_contract_text = phase_prompt[:first_contract_block]
 
     assert phase_prompt.index(schema_ref) < first_contract_block
-    assert "Use the canonical schema below before drafting any `contract:` block." in phase_prompt[:first_contract_block]
-    assert "Quick contract rules:" in phase_prompt[:first_contract_block]
+    assert pre_contract_text.count(schema_ref) == 1
+    assert pre_contract_text.index(schema_ref) < pre_contract_text.index("schema_version: 1")
+    assert "Project Contract Object Rules" not in pre_contract_text
 
-    pre_contract_text = phase_prompt[:first_contract_block]
     for token in _phase_prompt_pre_contract_tokens():
         assert token in pre_contract_text, f"{token!r} is not model-visible before the PLAN contract example"
+
+
+def test_plan_prompt_pre_contract_guidance_stays_compact_and_non_forked() -> None:
+    phase_prompt = (_TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
+    first_contract_block = phase_prompt.index("\ncontract:")
+    pre_contract_text = phase_prompt[:first_contract_block]
+
+    assert len(pre_contract_text) < 3_500
+    assert pre_contract_text.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
+    assert pre_contract_text.count("schema_version: 1") == 1
+    assert pre_contract_text.count("acceptance_tests") <= 3
+    assert "observables:" not in pre_contract_text
+    assert "Project Contract Object Rules" not in pre_contract_text
 
 
 def test_planner_subagent_excerpt_tracks_plan_contract_schema_vocabulary() -> None:
@@ -104,8 +118,10 @@ def test_planner_subagent_excerpt_tracks_plan_contract_schema_vocabulary() -> No
     output_start = subagent_prompt.index("**Project State:**")
     excerpt = subagent_prompt[excerpt_start:output_start]
 
-    assert "Do not rely on that path reference alone" in subagent_prompt[:excerpt_start]
+    assert "@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md" in subagent_prompt[:excerpt_start]
     assert subagent_prompt.index("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") < excerpt_start
+    assert "Project Contract Object Rules" not in excerpt
+    assert excerpt.count("claims") <= 4
 
     for token in _plan_contract_schema_critical_tokens():
         assert token in canonical_schema, f"canonical schema no longer defines {token!r}"

@@ -114,7 +114,6 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
     },
     "contract.benchmark_reproduction": {
         "required_request_fields": [
-            "metadata.source_reference_id",
             "observed.metric_value",
             "observed.threshold_value",
         ],
@@ -538,7 +537,7 @@ class RunContractCheckRequest(_ContractRequestBase):
     )
     contract: dict[str, object] | ResearchContract | None = Field(
         default=None,
-        description="Optional project or phase contract payload; salvage remains runtime-managed.",
+        description="Optional project or phase contract payload in the canonical schema shape.",
     )
     binding: ContractBindingRequest | None = None
     metadata: ContractMetadataRequest | None = None
@@ -1052,7 +1051,8 @@ _RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] = (
     "active_checks=active_checks)` before `run_contract_check` to inspect "
     "`required_request_fields`, `schema_required_request_fields`, "
     "`schema_required_request_anyof_fields`, `optional_request_fields`, "
-    "`supported_binding_fields`, and a safe `request_template`."
+    "`supported_binding_fields`, and a starter `request_template`; fill every schema-required field "
+    "and one any-of branch before execution."
 )
 _RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] += " Hard request constraint fields surfaced by hints: " + VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT + "."
 all_of_conditions: list[dict[str, object]] = []
@@ -1579,8 +1579,9 @@ def _suggest_contract_checks_description() -> str:
         "Use the canonical plan-contract schema for plan-style payloads; this tool returns the exact "
         "request-shape metadata, including ``required_request_fields``, "
         "``schema_required_request_fields``, ``schema_required_request_anyof_fields``, "
-        "``optional_request_fields``, ``supported_binding_fields``, and a ``request_template`` safe "
-        "to pass to ``run_contract_check(request=...)``. "
+        "``optional_request_fields``, ``supported_binding_fields``, and a starter ``request_template``. "
+        "Fill every schema-required field and one any-of branch before passing it to "
+        "``run_contract_check(request=...)``. "
         "``active_checks`` is optional and must be ``list[str]`` with non-empty entries when provided. "
         "Supply already-enabled check ids or check keys so each suggestion can mark ``already_active`` "
         "precisely. Proof-check templates still surface an explicit ``contract`` placeholder because "
@@ -1918,8 +1919,8 @@ def run_check(
     For contract-aware checks, the response also surfaces
     ``required_request_fields``, ``schema_required_request_fields``,
     ``schema_required_request_anyof_fields``, ``optional_request_fields``,
-    ``supported_binding_fields``, and a ``request_template`` so callers can
-    build a valid ``run_contract_check`` request before executing it.
+    ``supported_binding_fields``, and a starter ``request_template``. Fill
+    every schema-required field and one any-of branch before executing it.
 
     Args:
         check_id: Check identifier or canonical check key

@@ -104,6 +104,8 @@ If a phase is missing `*-VERIFICATION.md`, flag it as "unverified phase" -- this
 With phase context collected:
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
+Apply this delegation note to every subagent spawn in this workflow; do not repeat it before individual spawn examples.
+
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
@@ -209,7 +211,6 @@ Resolve referee model:
 ```bash
 REFEREE_MODEL=$(gpd resolve-model gpd-referee)
 ```
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

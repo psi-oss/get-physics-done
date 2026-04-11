@@ -658,6 +658,8 @@ If the file exists, proceed to the next section.
 **For each section, spawn a writer agent:**
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
+Apply this delegation note to every subagent spawn in this workflow; do not repeat it before individual spawn examples.
+
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
 ```
@@ -851,7 +853,6 @@ Resolve bibliographer model:
 ```bash
 BIBLIO_MODEL=$(gpd resolve-model gpd-bibliographer)
 ```
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 
@@ -1040,7 +1041,6 @@ When revising a paper in response to referee reports:
 
 3. **Produce paired response artifacts after the edits land:** Spawn a paper-writer agent to produce the structured author response and response letter that the gpd-referee expects for multi-round review:
 
-   @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
    > If subagent spawning is unavailable, execute these steps sequentially in the main context.
 

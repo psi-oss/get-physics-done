@@ -101,7 +101,7 @@ def test_help_workflow_files_and_structure_and_knowledge_lifecycle_coverages() -
     assert "stable` docs can later become `superseded`; superseded docs remain addressable and traceable rather than disappearing" in help_workflow
     assert "Example topic: `gpd:digest-knowledge \"renormalization group fixed points\"`" in help_workflow
     assert "Example modern arXiv: `gpd:digest-knowledge 2401.12345v2`" in help_workflow
-    assert "Example legacy arXiv: `gpd:digest-knowledge hep-th/9901001`" in help_workflow
+    assert "Example classic arXiv ID: `gpd:digest-knowledge hep-th/9901001`" in help_workflow
     assert "Example source file: `gpd:digest-knowledge ./notes/rg-notes.md`" in help_workflow
     assert "Example explicit knowledge path: `gpd:digest-knowledge GPD/knowledge/K-renormalization-group-fixed-points.md`" in help_workflow
     assert "Stable knowledge is already visible through the shared runtime reference surfaces" in help_workflow

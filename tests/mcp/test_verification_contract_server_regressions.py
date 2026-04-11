@@ -1882,7 +1882,8 @@ def test_suggest_contract_checks_leaves_ambiguous_metadata_placeholders_unresolv
     fit = checks["contract.fit_family_mismatch"]
     estimator = checks["contract.estimator_family_mismatch"]
 
-    assert "metadata.source_reference_id" in benchmark["required_request_fields"]
+    assert "metadata.source_reference_id" not in benchmark["required_request_fields"]
+    assert ["metadata.source_reference_id"] in benchmark["schema_required_request_anyof_fields"]
     assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
     assert limit["request_template"]["metadata"]["regime_label"] == "large-k"
     assert limit["request_template"]["metadata"]["expected_behavior"] == "approaches the contracted limit behavior"
@@ -1898,7 +1899,8 @@ def test_suggest_contract_checks_leaves_ambiguous_subject_bindings_unresolved() 
     benchmark_result = suggest_contract_checks(_ambiguous_benchmark_binding_contract())
     benchmark_checks = {entry["check_key"]: entry for entry in benchmark_result["suggested_checks"]}
     benchmark = benchmark_checks["contract.benchmark_reproduction"]
-    assert "metadata.source_reference_id" in benchmark["required_request_fields"]
+    assert "metadata.source_reference_id" not in benchmark["required_request_fields"]
+    assert ["metadata.source_reference_id"] in benchmark["schema_required_request_anyof_fields"]
     assert benchmark["request_template"]["binding"] == {}
     assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
 

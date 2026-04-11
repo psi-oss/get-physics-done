@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -16,6 +17,8 @@ REPO_PYTHON = (
 def _repo_python_command() -> list[str]:
     if REPO_PYTHON.is_file():
         return [str(REPO_PYTHON)]
+    if sys.executable:
+        return [sys.executable]
     return ["uv", "run", "python"]
 
 
@@ -59,7 +62,7 @@ def test_registry_import_remains_stable_after_adapter_package_import() -> None:
         [
             *_repo_python_command(),
             "-c",
-            "import gpd.adapters.base\nfrom gpd import registry\nprint(hasattr(registry, 'render_command_visibility_sections_from_frontmatter'))",
+            "import gpd.adapters.base\nfrom gpd import registry\nprint('GPD_IMPORT_STABILITY_SENTINEL=' + str(hasattr(registry, 'render_command_visibility_sections_from_frontmatter')))",
         ],
         cwd=REPO_ROOT,
         capture_output=True,
@@ -68,4 +71,4 @@ def test_registry_import_remains_stable_after_adapter_package_import() -> None:
     )
 
     assert result.returncode == 0, result.stderr or result.stdout
-    assert result.stdout.strip() == "True"
+    assert "GPD_IMPORT_STABILITY_SENTINEL=True" in result.stdout.splitlines()

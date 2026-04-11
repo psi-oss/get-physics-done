@@ -1253,6 +1253,8 @@ Display spawning indicator:
 Spawn 4 parallel gpd-project-researcher agents with rich context:
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
+Apply this delegation note to every subagent spawn in this workflow; do not repeat it before individual spawn examples.
+
 ```
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
@@ -1306,7 +1308,6 @@ shared_state_policy: return_only
 </spawn_contract>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Prior work research")
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
@@ -1360,7 +1361,6 @@ shared_state_policy: return_only
 </spawn_contract>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Methods research")
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
@@ -1415,7 +1415,6 @@ shared_state_policy: return_only
 </spawn_contract>
 ", subagent_type="gpd-project-researcher", model="{researcher_model}", readonly=false, description="Computational approaches research")
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-project-researcher.md for your role and instructions.
 
@@ -1478,7 +1477,6 @@ shared_state_policy: return_only
 After all 4 scout artifacts are present on disk and each fresh `gpd_return.files_written` proves its expected artifact, spawn synthesizer to create SUMMARY.md:
 
 ```
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-research-synthesizer.md for your role and instructions.
 
@@ -1738,7 +1736,6 @@ Display stage banner:
 
 Spawn gpd-roadmapper agent with context:
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 ```
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
@@ -1891,7 +1888,6 @@ Use ask_user:
 - Get user's adjustment notes
 - Re-spawn roadmapper with revision context:
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
   ```
   task(prompt="First, read {GPD_AGENTS_DIR}/gpd-roadmapper.md for your role and instructions.
@@ -1968,7 +1964,6 @@ Set `CONVENTION_MODE` before spawning:
 
 Spawn gpd-notation-coordinator:
 
-@{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 ```
   task(prompt="First, read {GPD_AGENTS_DIR}/gpd-notation-coordinator.md for your role and instructions.

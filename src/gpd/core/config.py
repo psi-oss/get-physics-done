@@ -437,7 +437,7 @@ _CONFIG_DEFAULTS = GPDProjectConfig()
 
 def _normalize_config_key(key: str) -> str:
     """Normalize a user-facing config key path."""
-    return key.strip()
+    return key.strip().lower().replace("-", "_")
 
 
 def _enum_value(value: object) -> object:

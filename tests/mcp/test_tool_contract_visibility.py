@@ -745,6 +745,14 @@ def test_contract_tools_list_tools_expose_structured_request_schemas() -> None:
     assert "`schema_required_request_anyof_fields`" in run_request["description"]
     assert "`supported_binding_fields`" in run_request["description"]
     assert "`request_template`" in run_request["description"]
+    assert "starter `request_template`" in run_request["description"]
+    assert "safe `request_template`" not in run_request["description"]
+    contract_schema = run_request["properties"]["contract"]
+    contract_description = str(contract_schema.get("description", ""))
+    for branch in contract_schema.get("anyOf", []):
+        contract_description += " " + str(branch.get("description", ""))
+    assert "salvage" not in contract_description.lower()
+    assert "Contract payload rules" in contract_description
     assert "check_id" not in run_request["properties"]
     check_key = _schema_anyof_string(run_request["properties"]["check_key"])
     assert check_key["minLength"] == 1
@@ -1346,7 +1354,7 @@ def test_run_check_tool_description_surfaces_alias_and_contract_hint_support() -
     assert "optional_request_fields" in description
     assert "supported_binding_fields" in description
     assert "request_template" in description
-    assert "run_contract_check" in description
+    assert "before executing" in description
 
 
 def test_public_verification_infra_descriptor_surfaces_semantic_contract_rules() -> None:
