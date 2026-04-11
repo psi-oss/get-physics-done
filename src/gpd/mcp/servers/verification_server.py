@@ -89,6 +89,13 @@ _CONTRACT_ERROR_FIELD_ORDER = {
     "uncertainty_markers": 11,
 }
 
+
+def _request_template_placeholder(descriptor: str) -> str:
+    normalized = descriptor.strip().lower().replace(".", "-").replace("_", "-").replace(" ", "-")
+    normalized = "-".join(part for part in normalized.split("-") if part)
+    return f"<replace-with-{normalized}>"
+
+
 _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
     "contract.limit_recovery": {
         "required_request_fields": [
@@ -108,8 +115,8 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "regime_label": "large-k",
-                "expected_behavior": "approaches the contracted limit behavior",
+                "regime_label": _request_template_placeholder("regime-label"),
+                "expected_behavior": _request_template_placeholder("expected-behavior"),
             },
         },
     },
@@ -130,11 +137,11 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "source_reference_id": "ref-benchmark",
+                "source_reference_id": _request_template_placeholder("source-reference-id"),
             },
             "observed": {
                 "metric_value": "<required: observed.metric_value>",
-                "threshold_value": 1,
+                "threshold_value": _request_template_placeholder("threshold-value"),
             },
         },
     },
@@ -166,12 +173,12 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "declared_family": "power_law",
+                "declared_family": _request_template_placeholder("declared-family"),
                 "allowed_families": [],
                 "forbidden_families": [],
             },
             "observed": {
-                "selected_family": "power_law",
+                "selected_family": _request_template_placeholder("selected-family"),
                 "competing_family_checked": False,
             },
         },
@@ -270,7 +277,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "quantifiers": ["for all x"],
+                "quantifiers": [_request_template_placeholder("quantifier")],
             },
             "observed": {
                 "uncovered_quantifiers": [],

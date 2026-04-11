@@ -18,6 +18,7 @@ from gpd.adapters.runtime_catalog import (
     get_managed_install_surface_policy,
     get_runtime_capabilities,
     get_runtime_descriptor,
+    get_runtime_descriptor_for_adapter_module,
     get_runtime_help_example_runtime,
     get_shared_install_metadata,
     iter_runtime_descriptors,
@@ -179,6 +180,12 @@ def test_runtime_catalog_explicit_priority_order() -> None:
     descriptors = iter_runtime_descriptors()
     assert [descriptor.runtime_name for descriptor in descriptors] == list_runtime_names()
     assert [descriptor.priority for descriptor in descriptors] == sorted(descriptor.priority for descriptor in descriptors)
+
+
+def test_runtime_descriptor_resolves_from_adapter_module() -> None:
+    for descriptor in iter_runtime_descriptors():
+        assert get_runtime_descriptor_for_adapter_module(f"gpd.adapters.{descriptor.adapter_module}") == descriptor
+        assert get_runtime_descriptor_for_adapter_module(descriptor.adapter_module) == descriptor
 
 
 def test_runtime_catalog_priority_order_is_intentional() -> None:

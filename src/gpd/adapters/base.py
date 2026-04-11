@@ -39,8 +39,8 @@ from gpd.adapters.install_utils import (
 )
 from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
+    get_runtime_descriptor_for_adapter_module,
     get_shared_install_metadata,
-    iter_runtime_descriptors,
     resolve_global_config_dir,
 )
 from gpd.adapters.tool_names import (
@@ -145,11 +145,7 @@ class RuntimeAdapter(abc.ABC):
     @property
     def runtime_name(self) -> str:
         """Catalog-owned identifier for this adapter."""
-        module_name = self.__class__.__module__.rsplit(".", 1)[-1]
-        for descriptor in iter_runtime_descriptors():
-            if descriptor.adapter_module == module_name:
-                return descriptor.runtime_name
-        raise RuntimeError(f"No runtime catalog entry owns adapter module {module_name!r}")
+        return get_runtime_descriptor_for_adapter_module(self.__class__.__module__).runtime_name
 
     @property
     def display_name(self) -> str:

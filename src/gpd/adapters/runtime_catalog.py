@@ -915,6 +915,15 @@ def get_runtime_descriptor(runtime: str) -> RuntimeDescriptor:
     raise KeyError(f"Unknown runtime {runtime!r}. Supported: {supported}")
 
 
+def get_runtime_descriptor_for_adapter_module(adapter_module: str) -> RuntimeDescriptor:
+    """Return the catalog descriptor owned by an adapter module."""
+    module_name = adapter_module.rsplit(".", 1)[-1]
+    for descriptor in iter_runtime_descriptors():
+        if descriptor.adapter_module == module_name:
+            return descriptor
+    raise RuntimeError(f"No runtime catalog entry owns adapter module {module_name!r}")
+
+
 def get_hook_payload_policy(runtime: str | None = None) -> HookPayloadPolicy:
     if runtime is not None:
         return get_runtime_descriptor(runtime).hook_payload
@@ -1036,6 +1045,7 @@ __all__ = [
     "get_managed_install_surface_policy",
     "get_runtime_capabilities",
     "get_runtime_descriptor",
+    "get_runtime_descriptor_for_adapter_module",
     "get_runtime_help_example_runtime",
     "get_shared_install_metadata",
     "iter_runtime_descriptors",

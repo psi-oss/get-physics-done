@@ -619,7 +619,7 @@ Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `curr
 
    After a proof-bearing executor has written its proof artifact(s) and `SUMMARY.md`, but before the wave-level spot-check accepts the plan, spawn `gpd-check-proof` in a fresh context:
 
-   > **Runtime delegation:** Follow `references/orchestration/agent-delegation.md`; use the fresh one-shot handoff pattern, omit empty `model`, set `readonly=false` for file-producing agents, and verify expected artifacts before accepting success.
+   > **Runtime delegation:** See {GPD_INSTALL_DIR}/references/orchestration/agent-delegation.md for the fresh one-shot handoff pattern before spawning runtime-specific subagents.
 
    ```
    task(
@@ -1469,7 +1469,6 @@ TOTAL_COUNT=$(rg -c '^status: (passed|gaps_found|expert_needed|human_needed)$' "
 
 **For localized failures (1 contract target):** Skip full gap-closure planning. Instead, directly re-execute the single plan that produced the failed result with explicit error context:
 
-> **Runtime delegation:** Follow `references/orchestration/agent-delegation.md`; use the fresh one-shot handoff pattern, omit empty `model`, set `readonly=false` for file-producing agents, and verify expected artifacts before accepting success.
 
 ```
 task(
@@ -1505,7 +1504,6 @@ task(
 DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)
 ```
 
-> **Runtime delegation:** Follow `references/orchestration/agent-delegation.md`; use the fresh one-shot handoff pattern, omit empty `model`, set `readonly=false` for file-producing agents, and verify expected artifacts before accepting success.
 
 ```
 task(
@@ -1559,7 +1557,6 @@ Automatically re-verify the phase to confirm gaps are closed:
 VERIFIER_MODEL=$(gpd resolve-model gpd-verifier)
 ```
 
-> **Runtime delegation:** Follow `references/orchestration/agent-delegation.md`; use the fresh one-shot handoff pattern, omit empty `model`, set `readonly=false` for file-producing agents, and verify expected artifacts before accepting success.
 
 ```
 task(
@@ -1627,7 +1624,6 @@ CONSISTENCY_MODEL=$(gpd resolve-model gpd-consistency-checker)
 
 Spawn the consistency checker in rapid mode:
 
-> **Runtime delegation:** Follow `references/orchestration/agent-delegation.md`; use the fresh one-shot handoff pattern, omit empty `model`, set `readonly=false` for file-producing agents, and verify expected artifacts before accepting success.
 
 task(prompt="First, read {GPD_AGENTS_DIR}/gpd-consistency-checker.md for your role and instructions.
 
@@ -1677,7 +1673,6 @@ If the user chooses convention repair in a fresh continuation, spawn `gpd-notati
 NOTATION_MODEL=$(gpd resolve-model gpd-notation-coordinator)
 ```
 
-> **Runtime delegation:** Follow `references/orchestration/agent-delegation.md`; use the fresh one-shot handoff pattern, omit empty `model`, set `readonly=false` for file-producing agents, and verify expected artifacts before accepting success.
 
 ```
 task(

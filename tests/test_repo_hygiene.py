@@ -153,6 +153,16 @@ def test_readme_focused_smoke_command_references_existing_tests() -> None:
         assert (REPO_ROOT / path).is_file(), f"stale tests/README.md smoke reference: {path}"
 
 
+def test_execute_phase_runtime_delegation_guidance_once() -> None:
+    execute_phase = (REPO_ROOT / "src" / "gpd" / "specs" / "workflows" / "execute-phase.md").read_text()
+    needle = "**Runtime delegation:** See {GPD_INSTALL_DIR}/references/orchestration/agent-delegation.md"
+    occurrences = execute_phase.count(needle)
+    assert occurrences == 1, (
+        "Runtime delegation guidance should point to the canonical reference exactly once in execute-phase.md"
+        f" (found {occurrences} occurrences)"
+    )
+
+
 def test_gpd_utils_package_exposes_only_live_utility_modules() -> None:
     utils_dir = REPO_ROOT / "src" / "gpd" / "utils"
     package_init = utils_dir / "__init__.py"

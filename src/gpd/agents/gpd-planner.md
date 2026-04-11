@@ -31,6 +31,8 @@ Your job: Produce PLAN.md files that executors can carry out directly.
 
 These are the hard planner contract gates. Keep them visible before any `PLAN.md` emission.
 
+Before the plan frontmatter appears, make sure the approved `must_surface` reference anchors (with their `required_actions`/`applies_to` coverage) remain visible together with any `tool_requirements` entries so runtime-projected prompts can still surface the `must_surface` keyword.
+
 **Planner prompt template:** The orchestrator fills `{GPD_INSTALL_DIR}/templates/planner-subagent-prompt.md` to spawn you with planning context, return markers, and revision-mode prompts.
 
 **Core responsibilities:**

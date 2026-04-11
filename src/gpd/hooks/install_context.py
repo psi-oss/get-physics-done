@@ -218,10 +218,14 @@ def ordered_todo_lookup_candidates(
     """Return todo candidates in the shared precedence order for current-task lookup."""
     from gpd.hooks.runtime_detect import (
         RUNTIME_UNKNOWN,
+        TodoCandidate,
         detect_runtime_install_target,
         get_todo_candidates,
         should_consider_todo_candidate,
     )
+
+    def _todo_candidate_key(candidate: TodoCandidate) -> tuple[Path, str | None, str | None]:
+        return (candidate.path, candidate.runtime, candidate.scope)
 
     lookup = resolve_hook_lookup_context(
         cwd=cwd,
@@ -235,7 +239,7 @@ def ordered_todo_lookup_candidates(
         preferred_runtime=lookup.preferred_runtime,
     )
     self_install = detect_self_owned_install(hook_file)
-    self_candidate_path: Path | None = None
+    self_candidate_key: tuple[Path, str | None, str | None] | None = None
     active_install_target = (
         detect_runtime_install_target(lookup.active_runtime, cwd=lookup.lookup_cwd, home=lookup.resolved_home)
         if lookup.active_runtime not in (None, "", RUNTIME_UNKNOWN)
@@ -249,14 +253,21 @@ def ordered_todo_lookup_candidates(
     ):
         if self_install is not None:
             self_candidate = self_owned_todo_candidate(self_install)
-            todo_candidates = [candidate for candidate in todo_candidates if candidate.path != self_candidate.path]
+            self_candidate_key = _todo_candidate_key(self_candidate)
+            todo_candidates = [
+                candidate
+                for candidate in todo_candidates
+                if _todo_candidate_key(candidate) != self_candidate_key
+            ]
             todo_candidates = [self_candidate, *todo_candidates]
-            self_candidate_path = self_candidate.path
 
     return [
         candidate
         for candidate in todo_candidates
-        if candidate.path == self_candidate_path
+        if (
+            self_candidate_key is not None
+            and _todo_candidate_key(candidate) == self_candidate_key
+        )
         or should_consider_todo_candidate(
             candidate,
             active_installed_runtime=lookup.active_runtime,

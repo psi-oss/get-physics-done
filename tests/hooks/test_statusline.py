@@ -611,7 +611,7 @@ class TestReadCurrentTask:
             install_scope="local",
         )
         self_candidate = TodoCandidate(path=tmp_path / ".codex" / "todos", runtime="codex", scope="local")
-        other_candidate = TodoCandidate(path=tmp_path / "other" / "todos", runtime="claude-code", scope="global")
+        other_candidate = TodoCandidate(path=self_candidate.path, runtime="claude-code", scope="global")
 
         with (
             patch(
@@ -630,6 +630,7 @@ class TestReadCurrentTask:
             candidates = ordered_todo_lookup_candidates(hook_file=hook_file, cwd=tmp_path)
 
         assert candidates[0] == self_candidate
+        assert candidates[1] == other_candidate
 
 
 # ─── _check_update edge cases ──────────────────────────────────────────────
