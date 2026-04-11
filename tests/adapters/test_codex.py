@@ -130,6 +130,11 @@ class TestProperties:
     def test_help_command(self, adapter: CodexAdapter) -> None:
         assert adapter.help_command == "$gpd-help"
 
+    def test_translate_shared_command_references_uses_catalog_public_surface(self, adapter: CodexAdapter) -> None:
+        assert adapter.translate_shared_command_references("Run `/gpd:help` then `/gpd:start`.") == (
+            "Run `$gpd-help` then `$gpd-start`."
+        )
+
 
 class TestConvertCodexToolName:
     def test_known_mappings(self) -> None:

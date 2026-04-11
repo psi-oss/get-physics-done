@@ -43,7 +43,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `autonomy`, `review_cadence`, `research_mode`, `parallelization`, `max_unattended_minutes_per_plan`, `max_unattended_minutes_per_wave`, `checkpoint_after_n_tasks`, `checkpoint_after_first_load_bearing_result`, `checkpoint_before_downstream_dependent_tasks`, `verifier_enabled`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `platform`.
+Parse the bootstrap JSON fields used below: execution config, phase metadata, plan lists/counts, state/roadmap flags, project-contract gate/validation/load info, and platform.
 
 **If `phase_found` is false:** Error -- phase directory not found.
 **If `plan_count` is 0:** Error -- no plans found in phase.
@@ -288,7 +288,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `active_reference_context`, `reference_artifacts_content`, `intermediate_results`, `intermediate_result_count`, `approximations`, `approximation_count`, `propagated_uncertainties`, `propagated_uncertainty_count`, `derived_convention_lock`, `derived_convention_lock_count`, `derived_intermediate_results`, `derived_intermediate_result_count`, `derived_approximations`, `derived_approximation_count`.
+Parse the wave-planning fields used below: protocol bundles, active references/artifact content, intermediate results, approximations, uncertainties, and derived convention/intermediate-result/approximation summaries plus counts.
 </step>
 
 <step name="structural_validation">
@@ -486,7 +486,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `selected_protocol_bundle_ids`, `protocol_bundle_context`, `current_execution`, `has_live_execution`, `execution_review_pending`, `execution_pre_fanout_review_pending`, `execution_skeptical_requestioning_required`, `execution_downstream_locked`, `execution_blocked`, `execution_resumable`, `execution_paused_at`, `current_execution_resume_file`, `session_resume_file`, `recorded_session_resume_file`, `missing_session_resume_file`, `execution_resume_file`, `execution_resume_file_source`, `resume_projection`, `current_hostname`, `current_platform`, `session_hostname`, `session_platform`, `session_last_date`, `session_stopped_at`, `machine_change_detected`, `machine_change_notice`, `state_load_source`, `state_integrity_issues`.
+Parse the wave-dispatch fields used below: protocol bundles, live-execution/review/blocking/resume state, session/machine-change metadata, state-load source, and integrity issues.
 
 **For each wave:**
 
@@ -659,7 +659,7 @@ Then read {GPD_INSTALL_DIR}/templates/proof-redteam-schema.md and {GPD_INSTALL_D
 
    This ensures the user sees progress even when waves have multiple parallel plans. Do not wait for the entire wave to finish before showing any output.
 
-   **If any executor agent fails to spawn or returns an error:** Check if the agent committed any work (`git log --oneline -3`). If commits exist, the agent may have completed but failed to report — spot-check output files and proceed. If no work was done, record the plan as failed for this wave. After all other agents complete, report failed plans and offer: 1) Retry failed plans in a new wave, 2) Execute failed plans in the main context, 3) Skip failed plans and continue. Do not abort the entire phase for individual plan failures.
+   **If any executor fails to spawn or return cleanly:** Check for recent plan commits. If work exists, spot-check required outputs before accepting it. Otherwise mark the plan failed, let other agents finish, then offer retry, main-context execution, or skip/continue. Do not abort the phase for one plan failure.
 
 6. **Report completion -- spot-check claims first:**
 
@@ -1377,7 +1377,7 @@ gpd commit \
 </step>
 
 <step name="verify_phase_goal">
-**If `verifier_enabled` is false** (from init JSON config / `workflow.verifier` in config.json): Skip only the generic post-execution verifier for non-proof phases. Proof-bearing work remains fail-closed until the canonical proof-redteam artifacts and verifier-owned checks clear; see `docs/schema-registry-ownership.md` for schema ownership rather than duplicating those rules here.
+**If `verifier_enabled` is false:** Skip only generic post-execution verification for non-proof phases. Proof-bearing work remains fail-closed until canonical proof-redteam artifacts and verifier-owned checks clear; see `docs/schema-registry-ownership.md` for schema ownership.
 
 Verify phase achieved its GOAL, not just completed tasks.
 

@@ -240,7 +240,7 @@ class TestInstall:
 
         version_file = target / "get-physics-done" / "VERSION"
         assert version_file.exists()
-        assert version_file.read_text(encoding="utf-8") == (version_for_gpd_root(gpd_root) or __version__)
+        assert version_file.read_text(encoding="utf-8") == f"{version_for_gpd_root(gpd_root) or __version__}\n"
 
     def test_install_uses_checkout_version_over_runtime_metadata(
         self,
@@ -254,7 +254,7 @@ class TestInstall:
         adapter.install(gpd_root, target)
 
         version_file = target / "get-physics-done" / "VERSION"
-        assert version_file.read_text(encoding="utf-8") == "9.9.9"
+        assert version_file.read_text(encoding="utf-8") == "9.9.9\n"
 
     def test_install_copies_hooks(self, adapter: ClaudeCodeAdapter, gpd_root: Path, tmp_path: Path) -> None:
         target = tmp_path / "target" / ".claude"

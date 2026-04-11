@@ -938,10 +938,14 @@ def split_project_contract_schema_findings(
     return recoverable, blocking
 
 
-def is_authoritative_project_contract_schema_finding(error: str) -> bool:
+def is_authoritative_project_contract_schema_finding(
+    error: str,
+    *,
+    metadata: _SchemaFindingMetadata | None = None,
+) -> bool:
     """Return whether one schema finding touches an authoritative scalar field."""
 
-    categories = _project_contract_schema_finding_categories(error)
+    categories = _project_contract_schema_finding_categories(error, metadata=metadata)
     return _ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR in categories
 
 
@@ -960,10 +964,20 @@ def is_repair_relevant_project_contract_schema_finding(error: str) -> bool:
     )
 
 
-def _has_authoritative_scalar_schema_findings(errors: list[str]) -> bool:
+def _has_authoritative_scalar_schema_findings(
+    errors: list[str],
+    *,
+    metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
+) -> bool:
     """Return whether salvage findings touched authoritative scalar fields."""
 
-    return any(is_authoritative_project_contract_schema_finding(error) for error in errors)
+    return any(
+        is_authoritative_project_contract_schema_finding(
+            error,
+            metadata=None if metadata_by_error is None else metadata_by_error.get(error),
+        )
+        for error in errors
+    )
 
 
 def _collect_list_shape_drift_errors(contract: dict[str, object]) -> list[str]:

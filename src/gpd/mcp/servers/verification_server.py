@@ -60,8 +60,8 @@ from gpd.mcp.servers import (
 from gpd.mcp.verification_contract_policy import (
     VERIFICATION_BINDING_FIELD_NAMES,
     VERIFICATION_BINDING_TARGETS,
-    VERIFICATION_RUN_CONTRACT_CHECK_REQUEST_SHAPE_TEXT,
     VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT,
+    VERIFICATION_RUN_CONTRACT_CHECK_REQUEST_SHAPE_TEXT,
     verification_contract_policy_text,
     verification_contract_surface_summary_text,
 )
@@ -3396,6 +3396,7 @@ def _parse_contract_payload(
     contract_raw: dict[str, object],
     *,
     project_root: Path | None = None,
+    allow_salvage: bool = False,
 ) -> tuple[ResearchContract | None, list[str], dict | None]:
     strict_result = parse_project_contract_data_strict(contract_raw)
     salvage_result = parse_project_contract_data_salvage(contract_raw)
@@ -3423,6 +3424,8 @@ def _parse_contract_payload(
     ]
     if authoritative_errors:
         return None, [], _contract_payload_error(authoritative_errors)
+    if not allow_salvage and normalized_salvage_recoverable_errors:
+        return None, [], _contract_payload_error(normalized_salvage_recoverable_errors)
     if strict_result.contract is None:
         blocking = [
             error

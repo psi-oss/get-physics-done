@@ -1673,7 +1673,7 @@ Returns JSON: `{ valid, errors, warnings, task_count, tasks }`
 - Missing contract completeness -> add claims, deliverables, acceptance tests, forbidden proxies, uncertainty markers, or references when explicit grounding is still missing
 - Missing verification with physics checks -> add physics-appropriate verify element
 
-**Feasibility validation step:** Before finalizing each plan, perform ONE confirmatory web_search for the most critical feasibility claim (e.g., "does this computational method work for this system size?"). Cross-check the search result against RESEARCH.md content. If they disagree, flag the discrepancy.
+**Feasibility validation step:** Before finalizing each plan, verify the most critical feasibility claim against `RESEARCH.md` and/or one confirmatory `web_search` when the claim needs current external grounding. Flag discrepancies.
 </step>
 
 <step name="update_roadmap">

@@ -188,7 +188,7 @@ If validation fails, show the errors, revise the scoping contract, and do NOT co
 
 Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.
 
-**Project contract schema visibility:** The approved `project_contract` payload is the `ResearchContract` object defined in the canonical project-contract schema. If you have not already loaded `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` in the current context, stop and do so before asking for approval or writing `PROJECT.md`, `REQUIREMENTS.md`, or `ROADMAP.md`. Keep this workflow to approval sequencing; do not restate or fork the contract schema here.
+**Project contract schema visibility:** Before approval or downstream artifact generation, ensure `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` is loaded in the current context. Keep this workflow to approval sequencing; do not restate or fork the contract schema here.
 
 #### M2. Create PROJECT.md
 

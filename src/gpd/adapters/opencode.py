@@ -51,7 +51,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
 )
-from gpd.adapters.runtime_catalog import get_runtime_descriptor_for_adapter_module
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -112,7 +112,11 @@ _MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY = "opencode_generated_command_fil
 @lru_cache(maxsize=1)
 def _runtime_name_from_catalog() -> str:
     """Return the runtime identity owned by this adapter module."""
-    return get_runtime_descriptor_for_adapter_module(__name__).runtime_name
+    adapter_module = __name__.rsplit(".", maxsplit=1)[-1]
+    for descriptor in iter_runtime_descriptors():
+        if descriptor.adapter_module == adapter_module:
+            return descriptor.runtime_name
+    raise LookupError(f"No runtime catalog descriptor found for adapter module {adapter_module!r}")
 
 
 def get_opencode_global_dir(explicit_dir: str | None = None) -> Path:
@@ -973,9 +977,6 @@ class OpenCodeAdapter(RuntimeAdapter):
                 path_prefix=path_prefix,
             )
         return convert_frontmatter_for_opencode(content, path_prefix)
-
-    def translate_shared_command_references(self, content: str) -> str:
-        return content.replace("/gpd:", self.public_command_surface_prefix)
 
     def get_commit_attribution(self, *, explicit_config_dir: str | None = None) -> str | None:
         """OpenCode opts out when `disable_ai_attribution` is enabled."""

@@ -52,11 +52,22 @@ def test_new_project_workflow_loads_canonical_project_contract_schema() -> None:
         Path(__file__).resolve().parent.parent / "src" / "gpd" / "specs" / "workflows" / "new-project.md"
     ).read_text(encoding="utf-8")
 
-    assert "Before you draft the first `PROJECT_CONTRACT_JSON` payload, load the full" in workflow
-    assert "active runtime's file-read tool" in workflow
     assert "Project contract schema visibility" in workflow
+    assert "ensure `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` is loaded" in workflow
     assert "do not restate or fork the contract schema here" in workflow
     assert "Project contract schema-critical excerpt" not in workflow
+
+
+def test_prompt_workflow_verbosity_trims_stay_concise() -> None:
+    root = Path(__file__).resolve().parent.parent
+    execute_phase = (root / "src/gpd/specs/workflows/execute-phase.md").read_text(encoding="utf-8")
+    new_project = (root / "src/gpd/specs/workflows/new-project.md").read_text(encoding="utf-8")
+    planner = (root / "src/gpd/agents/gpd-planner.md").read_text(encoding="utf-8")
+
+    assert "Parse JSON for: `executor_model`" not in execute_phase
+    assert "Parse JSON for: `selected_protocol_bundle_ids`" not in execute_phase
+    assert "project_contract` payload is the `ResearchContract` object" not in new_project
+    assert "perform ONE confirmatory web_search" not in planner
 
 
 def test_verify_work_contract_floor_uses_parsed_init_fields_without_placeholders() -> None:

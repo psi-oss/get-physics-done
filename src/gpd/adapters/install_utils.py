@@ -17,13 +17,13 @@ from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
 from gpd.adapters.command_tokens import is_gpd_command_start, is_gpd_token_end
-from gpd.adapters.runtime_defaults import SHELL_FENCE_LANGUAGES
 from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
     get_shared_install_metadata,
     iter_runtime_descriptors,
     resolve_global_config_dir,
 )
+from gpd.adapters.runtime_defaults import SHELL_FENCE_LANGUAGES
 from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES
 from gpd.core import include_expansion as _include_expansion
 from gpd.core.constants import HOME_DATA_DIR_NAME
@@ -1907,7 +1907,7 @@ def write_version_file(gpd_dest: Path, version: str) -> list[str]:
     """
     version_dest = gpd_dest / "VERSION"
     version_dest.parent.mkdir(parents=True, exist_ok=True)
-    version_dest.write_text(version, encoding="utf-8")
+    version_dest.write_text(f"{version}\n", encoding="utf-8")
 
     if verify_file_installed(version_dest):
         _install_logger.info("Wrote VERSION (%s)", version)

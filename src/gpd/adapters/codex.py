@@ -715,9 +715,6 @@ class CodexAdapter(RuntimeAdapter):
             raise ValueError("command_name is required for projected command surfaces")
         return _convert_to_codex_skill(content, f"gpd-{command_name}")
 
-    def translate_shared_command_references(self, content: str) -> str:
-        return content.replace("/gpd:", self.public_command_surface_prefix)
-
     def get_commit_attribution(self, *, explicit_config_dir: str | None = None) -> str | None:
         """Codex uses the runtime default commit attribution behavior."""
         return ""

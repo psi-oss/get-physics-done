@@ -7,7 +7,11 @@ from copy import deepcopy
 from pathlib import Path
 
 from gpd.contracts import ResearchContract, collect_plan_contract_integrity_errors, parse_project_contract_data_strict
-from gpd.core.contract_validation import parse_project_contract_data_salvage, validate_project_contract
+from gpd.core.contract_validation import (
+    is_authoritative_project_contract_schema_finding,
+    parse_project_contract_data_salvage,
+    validate_project_contract,
+)
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
 TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "src" / "gpd" / "specs" / "templates"
@@ -123,6 +127,16 @@ def test_fast_contract_validation_salvage_reports_wrong_integer_schema_version_d
     assert result.contract is not None
     assert result.blocking_errors == ["schema_version: Input should be 1"]
     assert result.recoverable_errors == []
+
+
+def test_fast_contract_validation_classifies_schema_version_by_location_not_exact_text() -> None:
+    assert is_authoritative_project_contract_schema_finding("schema_version: Input should be 1") is True
+
+
+def test_fast_contract_validation_classifies_must_surface_by_location_not_exact_text() -> None:
+    assert is_authoritative_project_contract_schema_finding(
+        "references.0.must_surface: Input should be a valid boolean"
+    ) is True
 
 
 def test_fast_contract_validation_strict_rejects_nonblank_mapping_string_list_field_without_salvage() -> None:

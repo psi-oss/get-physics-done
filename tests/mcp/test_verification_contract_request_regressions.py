@@ -622,7 +622,35 @@ def test_contract_parse_recoverability_keeps_case_drift_nonblocking() -> None:
 
     result = run_contract_check(request)
 
-    assert result["status"] == "pass"
+    assert result["error"] == "Invalid contract payload: references.0.role must use exact canonical value: benchmark"
+
+
+def test_suggest_contract_checks_rejects_case_drift_contract_payload() -> None:
+    from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+    contract = _load_project_contract_fixture()
+    contract["references"][0]["role"] = "BENCHMARK"
+
+    result = suggest_contract_checks(contract)
+
+    assert result["error"] == "Invalid contract payload: references.0.role must use exact canonical value: benchmark"
+
+
+def test_run_contract_check_rejects_contract_string_where_list_required() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    contract = _load_project_contract_fixture()
+    contract["references"][0]["applies_to"] = "claim-main"
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    result = run_contract_check(request)
+
+    assert result["error"] == "Invalid contract payload: references.0.applies_to must be a list, not str"
 
 
 @pytest.mark.parametrize(

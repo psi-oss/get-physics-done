@@ -240,7 +240,11 @@ class RuntimeAdapter(abc.ABC):
 
     def translate_shared_command_references(self, content: str) -> str:
         """Rewrite shared command references for this runtime."""
-        return content
+        public_prefix = self.public_command_surface_prefix
+        canonical_prefix = "/gpd:"
+        if public_prefix == canonical_prefix:
+            return content
+        return content.replace(canonical_prefix, public_prefix)
 
     def translate_shared_markdown(
         self,
