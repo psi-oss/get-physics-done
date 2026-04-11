@@ -5,7 +5,7 @@
   "family_title": "Placeholder / sentinel normalization",
   "phase": 15,
   "wave": "lane-3",
-  "status": "ready",
+  "status": "verified",
   "scope": {
     "in_scope": [
       "literal 'not set' placeholder normalization in convention surfaces",

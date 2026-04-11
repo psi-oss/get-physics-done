@@ -23,7 +23,7 @@ def test_phase15_contract_registry_matches_on_disk_index() -> None:
     assert [family["bug_id"] for family in index["families"]] == list(phase15_family_ids())
     assert len(index["families"]) == len(phase15_family_ids())
     assert len({family["artifact_path"] for family in index["families"]}) == len(phase15_family_ids())
-    assert {family["status"] for family in index["families"]} == {"closed", "ready", "verified"}
+    assert {family["status"] for family in index["families"]} == {"closed", "verified"}
     for family in index["families"]:
         assert Path(family["contract_test"]).exists()
         assert Path(family["artifact_path"]).exists()

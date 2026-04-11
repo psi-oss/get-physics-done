@@ -53,7 +53,7 @@ PHASE15_FAMILIES: tuple[Phase15ContractFamily, ...] = (
         family_title="placeholder/sentinel normalization",
         contract_test="tests/test_bug_placeholder_sentinel_normalization.py",
         artifact_path=str(PHASE15_ARTIFACT_ROOT / "placeholder-sentinel-normalization.json"),
-        status="ready",
+        status="verified",
     ),
     Phase15ContractFamily(
         bug_id="query-result-registry-projection",
