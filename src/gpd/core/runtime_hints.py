@@ -13,7 +13,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from gpd.adapters.runtime_catalog import installed_runtime_for_surface
 from gpd.core.context import init_resume
 from gpd.core.costs import build_cost_summary, resolve_cost_advisory
 from gpd.core.observability import derive_execution_visibility, get_current_session_id
@@ -39,7 +38,7 @@ from gpd.core.resume_surface import (
     resume_payload_has_local_recovery_target,
 )
 from gpd.core.root_resolution import normalize_workspace_hint, resolve_project_roots
-from gpd.core.runtime_command_surfaces import format_active_runtime_command
+from gpd.core.runtime_command_surfaces import format_active_runtime_command, installed_runtime_for_surface
 from gpd.core.small_utils import utc_now_iso
 from gpd.core.surface_phrases import (
     command_follow_up_action,

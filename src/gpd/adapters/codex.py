@@ -2262,7 +2262,14 @@ def _configure_config_toml(
         toml_content = config_toml.read_text(encoding="utf-8")
 
     notify_hook = HOOK_SCRIPTS["notify"]
-    desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
+    managed_notify = _notify_assignment_is_gpd_managed(
+        _parse_notify_assignment(next((line for line in toml_content.splitlines() if line.strip().startswith("notify")), "")),
+        target_dir=target_dir,
+    )
+    if explicit_target or is_global or managed_notify:
+        desired_path = str(target_dir / "hooks" / notify_hook).replace("\\", "/")
+    else:
+        desired_path = f"{_codex_config_dir_name()}/hooks/{notify_hook}"
     configured = _install_gpd_notify_config(
         toml_content,
         desired_path=desired_path,

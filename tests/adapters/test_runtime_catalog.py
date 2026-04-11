@@ -111,6 +111,12 @@ def test_resolve_global_config_dir_env_or_home_respects_explicit_empty_environ(m
     assert resolved == Path("/tmp/home/.codex")
 
 
+def test_get_runtime_descriptor_accepts_catalog_aliases() -> None:
+    descriptor = get_runtime_descriptor("  --CODEX-CLI  ")
+
+    assert descriptor.runtime_name == "codex"
+
+
 def test_runtime_catalog_rejects_duplicate_json_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     catalog_path = tmp_path / "runtime_catalog.json"
     catalog_path.write_text('[{"runtime_name":"codex","runtime_name":"codex-duplicate"}]', encoding="utf-8")

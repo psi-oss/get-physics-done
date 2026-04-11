@@ -7,7 +7,6 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
-from gpd.adapters.command_tokens import is_gpd_command_start, is_gpd_token_end
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
     MANIFEST_NAME,
@@ -23,13 +22,15 @@ from gpd.adapters.install_utils import (
     read_settings,
     remove_empty_json_object_file,
     remove_stale_agents,
-    rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
     translate_frontmatter_tool_names,
     verify_installed,
     write_settings,
 )
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
+)
+from gpd.adapters.install_utils import (
+    rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
 )
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -252,7 +253,11 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                 )
 
             existing_mcp = mcp_config.get("mcpServers", {})
-            mcp_config["mcpServers"] = merge_managed_mcp_servers(existing_mcp, mcp_servers)
+            mcp_config["mcpServers"] = merge_managed_mcp_servers(
+                existing_mcp,
+                mcp_servers,
+                user_owned_mapping_keys={"env": frozenset({"LOG_LEVEL"})},
+            )
 
             mcp_config_path.write_text(_json.dumps(mcp_config, indent=2) + "\n", encoding="utf-8")
             mcp_count = len(mcp_servers)

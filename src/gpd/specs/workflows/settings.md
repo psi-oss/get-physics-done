@@ -40,7 +40,7 @@ Ensure config exists and load current state:
 
 ```bash
 gpd config ensure-section
-INIT=$(gpd --raw init progress --include state,config --no-project-reentry)
+INIT=$(gpd --raw init progress --include state,config)
 if [ $? -ne 0 ]; then
   echo "ERROR: gpd initialization failed: $INIT"
   # STOP — display the error to the user and do not proceed.

@@ -108,6 +108,7 @@ from gpd.core.resume_surface import (
 from gpd.core.root_resolution import resolve_project_root
 from gpd.core.runtime_command_surfaces import (
     format_active_runtime_command,
+    installed_runtime_for_surface,
     resolve_active_runtime_descriptor,
 )
 from gpd.core.surface_phrases import (
@@ -1286,19 +1287,9 @@ def _resume_runtime_commands(*, cwd: Path | None = None) -> tuple[str | None, st
     """Return runtime-specific resume/suggest commands when they can be resolved."""
     try:
         from gpd.adapters import get_adapter
-        from gpd.hooks.runtime_detect import (
-            RUNTIME_UNKNOWN,
-            detect_runtime_for_gpd_use,
-            detect_runtime_install_target,
-        )
 
-        runtime_name = detect_runtime_for_gpd_use(cwd=cwd or _get_cwd())
-        if (
-            not isinstance(runtime_name, str)
-            or not runtime_name.strip()
-            or runtime_name == RUNTIME_UNKNOWN
-            or detect_runtime_install_target(runtime_name, cwd=cwd or _get_cwd()) is None
-        ):
+        runtime_name = installed_runtime_for_surface(cwd or _get_cwd())
+        if runtime_name is None:
             return None, None
         adapter = get_adapter(runtime_name)
         resume_work_command = str(adapter.format_command("resume-work")).strip()

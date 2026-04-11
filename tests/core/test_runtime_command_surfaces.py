@@ -11,7 +11,11 @@ import pytest
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.core import public_surface_contract as public_surface_contract_module
 from gpd.core import runtime_command_surfaces as runtime_command_surfaces_module
-from gpd.core.runtime_command_surfaces import format_active_runtime_command, resolve_active_runtime_descriptor
+from gpd.core.runtime_command_surfaces import (
+    format_active_runtime_command,
+    installed_runtime_for_surface,
+    resolve_active_runtime_descriptor,
+)
 
 
 def test_format_active_runtime_command_uses_descriptor_public_surface(monkeypatch) -> None:
@@ -47,6 +51,26 @@ def test_resolve_active_runtime_descriptor_normalizes_aliases_before_lookup() ->
 
     assert resolved is not None
     assert resolved.runtime_name == descriptor.runtime_name
+
+
+def test_installed_runtime_for_surface_normalizes_alias_and_requires_install_target(tmp_path: Path) -> None:
+    assert (
+        installed_runtime_for_surface(
+            tmp_path,
+            detect_runtime=lambda **kwargs: "--CODEX-CLI",
+            detect_install_target=lambda runtime, **kwargs: tmp_path / f".{runtime}",
+        )
+        == "codex"
+    )
+
+    assert (
+        installed_runtime_for_surface(
+            tmp_path,
+            detect_runtime=lambda **kwargs: "--CODEX-CLI",
+            detect_install_target=lambda runtime, **kwargs: None,
+        )
+        is None
+    )
 
 
 def test_active_runtime_command_prefix_rejects_descriptor_missing_public_surface(monkeypatch) -> None:

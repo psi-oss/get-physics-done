@@ -367,28 +367,6 @@ def _parse_adapter_module(value: object, *, label: str, runtime_name: str) -> st
     return module_name
 
 
-def installed_runtime_for_surface(cwd: Path) -> str | None:
-    """Return the active installed runtime for generic surface rendering."""
-    try:
-        from gpd.hooks.runtime_detect import (
-            RUNTIME_UNKNOWN,
-            detect_runtime_for_gpd_use,
-            detect_runtime_install_target,
-        )
-
-        runtime_name = detect_runtime_for_gpd_use(cwd=cwd)
-        if (
-            not isinstance(runtime_name, str)
-            or not runtime_name.strip()
-            or runtime_name == RUNTIME_UNKNOWN
-            or detect_runtime_install_target(runtime_name, cwd=cwd) is None
-        ):
-            return None
-        return runtime_name
-    except Exception:
-        return None
-
-
 def _format_quoted_disjunction(values: Iterable[str]) -> str:
     normalized = tuple(sorted({value for value in values if value}))
     if not normalized:
@@ -949,8 +927,9 @@ def normalize_runtime_name(value: str | None) -> str | None:
 
 
 def get_runtime_descriptor(runtime: str) -> RuntimeDescriptor:
+    normalized_runtime = normalize_runtime_name(runtime) or runtime
     for descriptor in iter_runtime_descriptors():
-        if descriptor.runtime_name == runtime:
+        if descriptor.runtime_name == normalized_runtime:
             return descriptor
     supported = ", ".join(list_runtime_names())
     raise KeyError(f"Unknown runtime {runtime!r}. Supported: {supported}")
