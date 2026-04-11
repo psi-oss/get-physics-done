@@ -62,7 +62,8 @@ def test_bibliographer_prompt_uses_typed_status_and_base_field_first_return_exam
     source = _read(BIBLIOGRAPHER)
     envelope = _gpd_return_block(BIBLIOGRAPHER)
 
-    assert "This is a one-shot checkpoint handoff: do not wait for user input inside the current run." in source
+    assert "This is a one-shot checkpoint handoff" in source
+    assert "do not wait for user input inside the current run" in source
     assert "Use `gpd_return.status: checkpoint` as the control surface." in source
     assert "The `## CHECKPOINT REACHED` heading below is presentation only." in source
     assert (

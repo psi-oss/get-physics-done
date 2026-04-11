@@ -328,7 +328,7 @@ PLAN_PHASE_CONTRACT_GATE_FIELDS = frozenset(
         "project_contract_validation",
     }
 )
-PLAN_PHASE_REFERENCE_RUNTIME_FIELDS = frozenset(
+_REFERENCE_RUNTIME_FIELDS = frozenset(
     {
         "contract_intake",
         "effective_reference_intake",
@@ -346,6 +346,7 @@ PLAN_PHASE_REFERENCE_RUNTIME_FIELDS = frozenset(
         "derived_manuscript_proof_review_status",
     }
 )
+PLAN_PHASE_REFERENCE_RUNTIME_FIELDS = _REFERENCE_RUNTIME_FIELDS
 PLAN_PHASE_STRUCTURED_STATE_FIELDS = frozenset(
     {
         "state_load_source",
@@ -420,24 +421,7 @@ QUICK_CONTRACT_GATE_FIELDS = frozenset(
         "project_contract_validation",
     }
 )
-QUICK_REFERENCE_RUNTIME_FIELDS = frozenset(
-    {
-        "contract_intake",
-        "effective_reference_intake",
-        "selected_protocol_bundle_ids",
-        "protocol_bundle_count",
-        "protocol_bundle_context",
-        "protocol_bundle_verifier_extensions",
-        "active_reference_context",
-        "reference_artifact_files",
-        "reference_artifacts_content",
-        "literature_review_files",
-        "literature_review_count",
-        "research_map_reference_files",
-        "research_map_reference_count",
-        "derived_manuscript_proof_review_status",
-    }
-)
+QUICK_REFERENCE_RUNTIME_FIELDS = _REFERENCE_RUNTIME_FIELDS
 QUICK_INIT_FIELDS = frozenset(
     {
         *QUICK_BASE_INIT_FIELDS,

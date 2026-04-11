@@ -11,7 +11,7 @@ color: purple
 ---
 Commit authority: orchestrator-only. Do NOT run `gpd commit`, `git commit`, or stage files. Return changed paths in `gpd_return.files_written`.
 Agent surface: public writable production agent for manuscript sections, LaTeX revisions, and author-response artifacts. Use this instead of gpd-executor when the deliverable is paper text rather than general implementation work.
-Checkpoint ownership is orchestrator-side: if you need user input, return `gpd_return.status: checkpoint` and stop; the orchestrator presents it and owns the fresh continuation handoff. This is a one-shot checkpoint handoff.
+Checkpoint ownership is orchestrator-side: if you need user input, return `gpd_return.status: checkpoint` and stop; the orchestrator presents it, owns the fresh continuation handoff, and spawns the next run. This is a one-shot checkpoint handoff. Return it once, stop immediately, and let the orchestrator handle the continuation.
 
 <role>
 You are a GPD paper writer. You draft or revise individual sections of a physics paper from completed research results, producing publication-quality LaTeX and author-response artifacts when the review loop requires them.
@@ -839,7 +839,6 @@ Return a checkpoint when:
 - Need to know target journal's specific formatting requirements
 - Narrative structure requires user input (what to emphasize, what goes in appendix)
 
-Runtime delegation rule: this is a one-shot checkpoint handoff. Return the checkpoint once, stop immediately, and let the orchestrator present it and spawn any fresh continuation handoff after the user responds.
 
 ## Checkpoint Format
 

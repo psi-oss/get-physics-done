@@ -194,6 +194,14 @@ def test_verify_phase_contract_checks_restate_schema_before_run_contract_check()
 
     assert "compact schema-critical excerpt" in verify_workflow
     assert "templates/plan-contract-schema.md" in verify_workflow
+    for token in (
+        "schema_required_request_fields",
+        "schema_required_request_anyof_fields",
+        "supported_binding_fields",
+        "request_template",
+    ):
+        assert token in verify_workflow
+    assert "<replace-with-...>" in verify_workflow
 
 
 def test_contract_results_schema_and_verification_template_surface_canonical_result_ledger_fields() -> None:

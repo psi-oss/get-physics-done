@@ -13,7 +13,9 @@ from gpd.core.workflow_staging import (
     LITERATURE_REVIEW_STAGE_MANIFEST_PATH,
     MAP_RESEARCH_STAGE_MANIFEST_PATH,
     NEW_PROJECT_STAGE_MANIFEST_PATH,
+    PLAN_PHASE_REFERENCE_RUNTIME_FIELDS,
     PLAN_PHASE_STAGE_MANIFEST_PATH,
+    QUICK_REFERENCE_RUNTIME_FIELDS,
     QUICK_STAGE_MANIFEST_PATH,
     RESEARCH_PHASE_STAGE_MANIFEST_PATH,
     invalidate_workflow_stage_manifest_cache,
@@ -945,3 +947,7 @@ def test_load_workflow_stage_manifest_from_path_without_expected_workflow_accept
 
     assert manifest.workflow_id == "custom-workflow"
     assert manifest.stages[0].required_init_fields == ("custom_field",)
+
+
+def test_plan_and_quick_reference_runtime_fields_align_intentionally() -> None:
+    assert PLAN_PHASE_REFERENCE_RUNTIME_FIELDS == QUICK_REFERENCE_RUNTIME_FIELDS

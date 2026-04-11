@@ -343,7 +343,7 @@ For a complete review, include `field_assessment`, a short findings summary, and
 
 ### Checkpoints
 
-When reaching a checkpoint, return a typed `gpd_return` checkpoint and stop. The `## CHECKPOINT REACHED` heading below is presentation only; the orchestrator presents it to the user and spawns a fresh continuation run after the response.
+When reaching a checkpoint, return a typed `gpd_return` checkpoint and stop. The `## CHECKPOINT REACHED` heading below is presentation only; refer to the Continuation section for the orchestrator handoff guidance.
 
 ```markdown
 ## CHECKPOINT REACHED

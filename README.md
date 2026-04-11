@@ -323,6 +323,7 @@ Most research actions run inside your installed AI runtime after GPD has been in
 | Leave or return after a break | `gpd resume`, `gpd resume --recent`, `resume-work`, `pause-work`, `suggest-next` |
 | Run the research loop | `discuss-phase N`, `plan-phase N`, `execute-phase N`, `verify-work`, `progress`, `quick` |
 | Write and review | `write-paper`, `peer-review`, `respond-to-referees`, `arxiv-submission` |
+| Manuscript build (normal terminal) | `gpd paper-build [PAPER-CONFIG.json] [--output-dir <dir>]` (materialize the canonical manuscript scaffold from `paper/PAPER-CONFIG.json`) |
 | Configure or branch | `settings`, `set-profile`, `set-tier-models`, `tangent`, `branch-hypothesis` |
 
 Typical research loop: `gpd:new-project -> gpd:discuss-phase 1 -> gpd:plan-phase 1 -> gpd:execute-phase 1 -> gpd:verify-work -> repeat -> gpd:complete-milestone`

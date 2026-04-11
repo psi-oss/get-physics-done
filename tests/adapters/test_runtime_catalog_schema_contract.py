@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import fields
 from pathlib import Path
 
 import gpd.adapters.runtime_catalog as runtime_catalog
+from scripts.validate_runtime_catalog_schema import validate_runtime_catalog_schema
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RUNTIME_CATALOG_PATH = _REPO_ROOT / "src" / "gpd" / "adapters" / "runtime_catalog.json"
@@ -19,6 +21,153 @@ def _load_schema() -> dict[str, object]:
 
 def _load_catalog() -> list[dict[str, object]]:
     return json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
+
+
+_TRIMMED_STRING_PATTERN = r"^\S.*\S$|^\S$"
+_CAPABILITY_BOOL_FIELDS = frozenset(
+    (
+        "supports_runtime_permission_sync",
+        "supports_prompt_free_mode",
+        "prompt_free_requires_relaunch",
+        "supports_usage_tokens",
+        "supports_cost_usd",
+        "supports_context_meter",
+        "supports_structured_child_results",
+        "supports_runtime_session_payload_attribution",
+        "supports_agent_payload_attribution",
+    )
+)
+
+
+def _trimmed_string_schema() -> dict[str, object]:
+    return {
+        "type": "string",
+        "minLength": 1,
+        "pattern": _TRIMMED_STRING_PATTERN,
+    }
+
+
+def _string_list_schema(*, min_items: int) -> dict[str, object]:
+    schema: dict[str, object] = {
+        "type": "array",
+        "items": _trimmed_string_schema(),
+        "uniqueItems": True,
+    }
+    if min_items:
+        schema["minItems"] = min_items
+    return schema
+
+
+def _enum_schema(values: Iterable[str]) -> dict[str, object]:
+    return {"type": "string", "enum": sorted(values)}
+
+
+def _build_global_config_schema(schema_payload: dict[str, object]) -> dict[str, object]:
+    sections = schema_payload["global_config_keys"]
+    return {
+        "type": "object",
+        "oneOf": [
+            {
+                "type": "object",
+                "properties": {
+                    key: {"const": strategy, "type": "string"} if key == "strategy" else _trimmed_string_schema()
+                    for key in keys
+                },
+                "required": keys,
+                "additionalProperties": False,
+            }
+            for strategy, keys in sections.items()
+        ],
+    }
+
+
+def _build_capabilities_schema(schema_payload: dict[str, object]) -> dict[str, object]:
+    capability_keys = schema_payload["capability_keys"]
+    capability_enums = schema_payload["capability_enums"]
+    properties: dict[str, object] = {}
+    for field_name in capability_keys:
+        if field_name in capability_enums:
+            properties[field_name] = {"type": "string", "enum": sorted(capability_enums[field_name])}
+        elif field_name in _CAPABILITY_BOOL_FIELDS:
+            properties[field_name] = {"type": "boolean"}
+        else:
+            properties[field_name] = _trimmed_string_schema()
+
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(capability_keys),
+        "additionalProperties": False,
+    }
+
+
+def _build_hook_payload_schema(schema_payload: dict[str, object]) -> dict[str, object]:
+    keys = schema_payload["hook_payload_keys"]
+    return {
+        "type": "object",
+        "properties": {key: _string_list_schema(min_items=0) for key in keys},
+        "required": keys,
+        "additionalProperties": False,
+    }
+
+
+def _build_entry_schema(schema_payload: dict[str, object]) -> dict[str, object]:
+    required_keys = schema_payload["entry_required_keys"]
+    optional_keys = schema_payload["entry_optional_keys"]
+    managed_install_surfaces = schema_payload["managed_install_surfaces"]
+    install_help_example_scopes = schema_payload["install_help_example_scopes"]
+
+    def factory(field_name: str) -> dict[str, object]:
+        if field_name == "adapter_module":
+            return {"type": "string", "pattern": r"^[A-Za-z_][A-Za-z0-9_]*$"}
+        if field_name == "priority":
+            return {"type": "integer"}
+        if field_name in (
+            "runtime_name",
+            "display_name",
+            "config_dir_name",
+            "install_flag",
+            "launch_command",
+            "command_prefix",
+            "public_command_surface_prefix",
+        ):
+            return _trimmed_string_schema()
+        if field_name == "activation_env_vars" or field_name == "selection_flags" or field_name == "selection_aliases":
+            return _string_list_schema(min_items=1)
+        if field_name == "manifest_file_prefixes":
+            return _string_list_schema(min_items=0)
+        if field_name in ("native_include_support", "agent_prompt_uses_dollar_templates"):
+            return {"type": "boolean"}
+        if field_name == "managed_install_surface":
+            return _enum_schema(managed_install_surfaces)
+        if field_name == "global_config":
+            return _build_global_config_schema(schema_payload)
+        if field_name == "capabilities":
+            return _build_capabilities_schema(schema_payload)
+        if field_name == "hook_payload":
+            return _build_hook_payload_schema(schema_payload)
+        if field_name == "installer_help_example_scope":
+            return _enum_schema(install_help_example_scopes)
+        if field_name == "validated_command_surface":
+            return {"type": "string", "minLength": 1, "pattern": r"^public_runtime_[a-z0-9_]+_command$"}
+        raise AssertionError(f"unhandled entry field {field_name}")
+
+    properties = {field: factory(field) for field in (*required_keys, *optional_keys)}
+
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required_keys,
+        "additionalProperties": False,
+    }
+
+
+def _build_catalog_json_schema(schema_payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "type": "array",
+        "items": _build_entry_schema(schema_payload),
+        "minItems": 1,
+    }
 
 
 def test_runtime_catalog_schema_inventory_matches_runtime_dataclasses() -> None:
@@ -117,3 +266,18 @@ def test_runtime_catalog_schema_enum_inventory_matches_loader_shape() -> None:
     for enum_name, allowed_values in schema["capability_enums"].items():
         assert set(allowed_values) == set(loaded_shape["capability_enums"][enum_name])
         assert set(allowed_values) == set(runtime_catalog._RUNTIME_CAPABILITY_ENUMS[enum_name])
+
+
+def test_runtime_catalog_json_schema_validation_matches_loader_or_validator() -> None:
+    schema_payload = _load_schema()
+    catalog_payload = _load_catalog()
+
+    try:
+        from jsonschema import Draft202012Validator
+    except ModuleNotFoundError:
+        validate_runtime_catalog_schema()
+        return
+
+    json_schema = _build_catalog_json_schema(schema_payload)
+    Draft202012Validator.check_schema(json_schema)
+    Draft202012Validator(json_schema).validate(catalog_payload)

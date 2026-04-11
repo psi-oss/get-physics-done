@@ -12,7 +12,6 @@ import pytest
 
 import gpd.adapters as adapters
 import gpd.adapters.runtime_catalog as runtime_catalog
-from gpd.command_labels import runtime_public_command_prefixes, validated_public_command_prefix
 from gpd.adapters.runtime_catalog import (
     get_hook_payload_policy,
     get_managed_install_surface_policy,
@@ -26,6 +25,7 @@ from gpd.adapters.runtime_catalog import (
     normalize_runtime_name,
     resolve_global_config_dir,
 )
+from gpd.command_labels import runtime_public_command_prefixes, validated_public_command_prefix
 from scripts.validate_runtime_catalog_schema import validate_runtime_catalog_schema
 
 _RUNTIME_CATALOG_PATH = Path(__file__).resolve().parents[2] / "src" / "gpd" / "adapters" / "runtime_catalog.json"
@@ -134,6 +134,31 @@ def test_runtime_catalog_rejects_duplicate_json_keys(tmp_path: Path, monkeypatch
         runtime_catalog._load_catalog.cache_clear()
 
 
+def test_runtime_catalog_rejects_duplicate_nested_json_keys(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
+    entry = json.dumps(original[0], indent=2)
+    marker = '"capabilities": {\n    "permissions_surface": "config-file",'
+    assert marker in entry
+    modified_entry = entry.replace(
+        marker,
+        '"capabilities": {\n    "permissions_surface": "config-file",\n    "permissions_surface": "config-file",',
+        1,
+    )
+    catalog_path = tmp_path / "runtime_catalog.json"
+    catalog_path.write_text(f"[{modified_entry}]\n", encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_catalog_path", lambda: catalog_path)
+    runtime_catalog._load_catalog.cache_clear()
+
+    try:
+        with pytest.raises(ValueError, match="runtime_catalog.json contains duplicate JSON key: permissions_surface"):
+            runtime_catalog.iter_runtime_descriptors()
+    finally:
+        runtime_catalog._load_catalog.cache_clear()
+
+
 def test_runtime_catalog_loader_validates_schema_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     schema_path = tmp_path / "runtime_catalog_schema.json"
     schema_path.write_text(json.dumps({"schema_version": 1, "unexpected": []}), encoding="utf-8")
@@ -147,6 +172,34 @@ def test_runtime_catalog_loader_validates_schema_json(tmp_path: Path, monkeypatc
     finally:
         runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
         runtime_catalog._load_catalog.cache_clear()
+
+
+def test_runtime_catalog_rejects_unknown_nested_capability_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["capabilities"]["extra_permission_flag"] = "noop"
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 0\.capabilities contains unknown key\(s\): extra_permission_flag",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
+def test_runtime_catalog_rejects_missing_nested_capability_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    del payload[0]["capabilities"]["supports_prompt_free_mode"]
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog entry 0\.capabilities is missing required key\(s\): supports_prompt_free_mode",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
 def test_resolve_global_config_dir_xdg_app_respects_explicit_empty_environ(monkeypatch) -> None:

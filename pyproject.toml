@@ -82,12 +82,7 @@ artifacts = [
     "src/gpd/specs/*",
     "src/gpd/specs/**/*",
 ]
-
-[tool.hatch.build.targets.wheel.force-include]
-"src/gpd/adapters/runtime_catalog.json" = "gpd/adapters/runtime_catalog.json"
-"src/gpd/adapters/runtime_catalog_schema.json" = "gpd/adapters/runtime_catalog_schema.json"
-"src/gpd/core/public_surface_contract.json" = "gpd/core/public_surface_contract.json"
-"src/gpd/core/public_surface_contract_schema.json" = "gpd/core/public_surface_contract_schema.json"
+force-include = {}
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

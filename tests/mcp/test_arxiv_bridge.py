@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import runpy
 import warnings
 from contextlib import asynccontextmanager
@@ -91,6 +92,52 @@ async def test_bridge_filters_upstream_tools_and_adds_download_source() -> None:
 
 
 @pytest.mark.asyncio
+async def test_bridge_preserves_list_tools_pagination() -> None:
+    from mcp.types import ListToolsResult, Tool
+
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
+
+    class FakeSession:
+        async def list_tools(self, cursor=None):
+            assert cursor == "page-2"
+            return ListToolsResult(
+                tools=[Tool(name="search_papers", inputSchema={"type": "object"})],
+                nextCursor="page-3",
+            )
+
+    bridge = ArxivBridge(ArxivBridgeConfig())
+    bridge._session = FakeSession()  # type: ignore[assignment]
+    try:
+        result = await bridge.list_tools("page-2")
+    finally:
+        bridge._session = None
+
+    assert [tool.name for tool in result.tools] == ["search_papers"]
+    assert result.nextCursor == "page-3"
+
+
+@pytest.mark.asyncio
+async def test_bridge_rejects_unknown_tool_calls() -> None:
+    from gpd.mcp.servers.arxiv_bridge import ArxivBridge, ArxivBridgeConfig
+
+    class FakeSession:
+        async def call_tool(self, name, arguments):
+            raise AssertionError("call_tool should not be invoked for unknown tools")
+
+    bridge = ArxivBridge(ArxivBridgeConfig())
+    bridge._session = FakeSession()  # type: ignore[assignment]
+    try:
+        result = await bridge.call_tool("semantic_search", {})
+    finally:
+        bridge._session = None
+
+    assert result.isError is True
+
+    expected = "Supported tools"
+    assert expected in result.content[0].text
+
+
+@pytest.mark.asyncio
 async def test_bridge_proxies_upstream_tool_calls_without_rewriting() -> None:
     from mcp.types import CallToolResult, TextContent
 
@@ -173,13 +220,34 @@ async def test_bridge_proxies_prompts() -> None:
     assert prompt_result.description == "deep-paper-analysis"
 
 
-def test_build_server_registers_expected_server_name() -> None:
-    from gpd.mcp.servers.arxiv_bridge import ArxivBridgeConfig, build_server
+def test_build_server_registers_expected_server_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gpd.mcp.servers.arxiv_bridge import UPSTREAM_ARXIV_MODULE, ArxivBridgeConfig, build_server
+
+    def fake_find_spec(name: str) -> object:
+        assert name == UPSTREAM_ARXIV_MODULE
+        return object()
+
+    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
 
     server, bridge = build_server(ArxivBridgeConfig())
 
     assert server.name == "gpd-arxiv"
     assert bridge.config.storage_path.is_absolute()
+
+
+def test_build_server_requires_arxiv_dependency(monkeypatch: pytest.MonkeyPatch) -> None:
+    from gpd.mcp.servers.arxiv_bridge import UPSTREAM_ARXIV_MODULE, ArxivBridgeConfig, build_server
+
+    def fake_find_spec(name: str) -> None:
+        assert name == UPSTREAM_ARXIV_MODULE
+        return None
+
+    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
+
+    with pytest.raises(ModuleNotFoundError) as exc_info:
+        build_server(ArxivBridgeConfig())
+
+    assert 'pip install "get-physics-done[arxiv]"' in str(exc_info.value)
 
 
 def test_parse_args_rejects_unsupported_transport(monkeypatch: pytest.MonkeyPatch) -> None:

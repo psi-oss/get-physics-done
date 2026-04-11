@@ -79,13 +79,13 @@ def test_npm_package_remains_bootstrap_plus_contract_manifests_only() -> None:
     files = package["files"]
 
     assert package["bin"] == {"get-physics-done": "bin/install.js"}
-    assert "bin/" in files
+    assert "bin/install.js" in files
     assert "src/gpd/commands/" not in files
     assert "src/gpd/specs/" not in files
     assert "src/gpd/agents/" not in files
     assert all(not entry.endswith(".md") and not entry.endswith(".tex") for entry in files)
     assert set(files) == {
-        "bin/",
+        "bin/install.js",
         "src/gpd/adapters/runtime_catalog.json",
         "src/gpd/adapters/runtime_catalog_schema.json",
         "src/gpd/core/public_surface_contract_schema.json",
