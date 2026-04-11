@@ -894,6 +894,20 @@ contract:
 ---
 ```
 
+**Planner anchor example:** Keep concrete benchmark anchors visible when they constrain the plan:
+
+- `in_scope: ["Recover the benchmark curve within tolerance"]`
+- `GPD/phases/00-baseline/00-01-SUMMARY.md#gauge-and-tensor-convention`
+- `GPD/phases/01-vacuum-polarization/01-01-SUMMARY.md`
+- `claim_kind: theorem`
+- `parameters:
+        - symbol: "q"`
+- `hypotheses:
+        - id: "hyp-gauge"`
+- `conclusion_clauses:
+        - id: "concl-transverse"`
+- `proof_deliverables: ["deliv-proof-vac-pol"]`
+
 </gap_closure_mode>
 
 <gap_closure_strategy>

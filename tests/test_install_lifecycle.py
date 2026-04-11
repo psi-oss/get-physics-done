@@ -45,6 +45,14 @@ _EXTERNAL_SKILLS_RUNTIME = next(
 )
 
 
+def _managed_external_command_dir_names(adapter, target: Path, manifest: dict[str, object]) -> tuple[str, ...]:
+    del adapter, target
+    for value in manifest.values():
+        if isinstance(value, list) and value and all(isinstance(item, str) and item.startswith("gpd-") for item in value):
+            return tuple(sorted(value))
+    raise AssertionError("adapter manifest did not expose managed external command directories")
+
+
 def test_markdown_command_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: Path) -> None:
     adapter = get_adapter(_MARKDOWN_COMMAND_RUNTIME.runtime_name)
     target = tmp_path / _MARKDOWN_COMMAND_RUNTIME.config_dir_name
@@ -110,8 +118,9 @@ def test_external_skills_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: 
     assert "notify" in config_toml
     assert "multi_agent = true" in config_toml
     manifest = _assert_manifest_present(target)
-    assert manifest["codex_generated_skill_dirs"]
-    assert all(name.startswith("gpd-") for name in manifest["codex_generated_skill_dirs"])
+    managed_external_command_dir_names = _managed_external_command_dir_names(adapter, target, manifest)
+    assert managed_external_command_dir_names
+    assert all(name.startswith("gpd-") for name in managed_external_command_dir_names)
 
     suggest_next = (skills_dir / "gpd-suggest-next" / "SKILL.md").read_text(encoding="utf-8")
     bridge_command = build_runtime_cli_bridge_command(
@@ -130,6 +139,6 @@ def test_external_skills_runtime_lifecycle_round_trip(tmp_path: Path, gpd_root: 
     uninstall_result = adapter.uninstall(target, skills_dir=skills_dir)
     assert uninstall_result["skills"] > 0
     assert (preserved_skill / "SKILL.md").exists()
-    assert not any((skills_dir / name).exists() for name in manifest["codex_generated_skill_dirs"])
+    assert not any((skills_dir / name).exists() for name in managed_external_command_dir_names)
     assert not (target / "get-physics-done").exists()
     assert not (target / MANIFEST_NAME).exists()

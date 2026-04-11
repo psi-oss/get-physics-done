@@ -2320,7 +2320,7 @@ class TestStateServer:
         with (
             patch("gpd.mcp.servers.state_server.peek_state_json", return_value=(mock_state, [], "state.json")),
             patch(
-                "gpd.mcp.servers.state_server._project_contract_runtime_payload_for_state",
+        "gpd.mcp.servers.state_server.state_project_contract_runtime_payload",
                 return_value=(
                     {"status": "loaded"},
                     {"valid": True},

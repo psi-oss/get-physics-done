@@ -122,6 +122,45 @@ def test_write_mcp_servers_opencode_fails_closed_for_non_dict_mcp_key(tmp_path: 
     assert (config_dir / "opencode.json").read_text(encoding="utf-8") == before
 
 
+def test_managed_mcp_env_values_win_over_stale_existing_env() -> None:
+    from gpd.mcp.builtin_servers import merge_managed_mcp_entry
+
+    merged = merge_managed_mcp_entry(
+        {
+            "command": "old-command",
+            "env": {
+                "GPD_WOLFRAM_MCP_ENDPOINT": "https://stale.invalid/mcp",
+                "USER_EXTRA_ENV": "keep-me",
+            },
+        },
+        {
+            "command": "gpd-mcp-wolfram",
+            "args": [],
+            "env": {"GPD_WOLFRAM_MCP_ENDPOINT": "https://managed.invalid/mcp"},
+        },
+        merge_mapping_keys=frozenset({"env"}),
+    )
+
+    assert merged["command"] == "gpd-mcp-wolfram"
+    assert merged["env"] == {
+        "GPD_WOLFRAM_MCP_ENDPOINT": "https://managed.invalid/mcp",
+        "USER_EXTRA_ENV": "keep-me",
+    }
+
+
+def test_explicit_user_owned_env_policy_can_preserve_existing_value() -> None:
+    from gpd.mcp.builtin_servers import merge_managed_mcp_entry
+
+    merged = merge_managed_mcp_entry(
+        {"env": {"GPD_WOLFRAM_MCP_ENDPOINT": "https://user.invalid/mcp"}},
+        {"env": {"GPD_WOLFRAM_MCP_ENDPOINT": "https://managed.invalid/mcp"}},
+        merge_mapping_keys=frozenset({"env"}),
+        user_owned_mapping_keys={"env": frozenset({"GPD_WOLFRAM_MCP_ENDPOINT"})},
+    )
+
+    assert merged["env"] == {"GPD_WOLFRAM_MCP_ENDPOINT": "https://user.invalid/mcp"}
+
+
 @pytest.mark.parametrize(
     ("module_name", "helper_name"),
     [

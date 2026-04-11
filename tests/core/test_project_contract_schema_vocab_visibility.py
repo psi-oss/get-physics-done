@@ -84,3 +84,15 @@ def test_project_contract_schema_example_surfaces_research_contract_required_key
         "include an acceptance test with `kind: claim_to_proof_alignment`",
     ):
         assert proof_rule in text
+
+
+def test_project_contract_schema_surfaces_validator_enforced_reference_gates() -> None:
+    text = _read(PROJECT_CONTRACT_SCHEMA)
+
+    assert "Project contracts must include at least one observable, claim, or deliverable." in text
+    assert (
+        "If `references[]` is present before approval and grounding is not already concrete, at least one reference must set `must_surface: true`."
+        in text
+    )
+    assert "Every `must_surface: true` reference needs a concrete `locator` and concrete `applies_to[]` coverage" in text
+    assert "Project-local paths in `locator` or `applies_to[]` evidence must resolve when `project_root` is available." in text

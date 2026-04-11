@@ -164,6 +164,10 @@ The `project_contract` value must be a JSON object. Do not replace it with prose
 
 Project contracts must include at least one observable, claim, or deliverable.
 
+If `references[]` is present before approval and grounding is not already concrete, at least one reference must set `must_surface: true`.
+
+Every `must_surface: true` reference needs a concrete `locator` and concrete `applies_to[]` coverage of declared claim or deliverable IDs. Project-local paths in `locator` or `applies_to[]` evidence must resolve when `project_root` is available.
+
 `uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty.
 
 Canonical IDs and other required string fields are trimmed before validation. Blank-after-trim values are invalid, and duplicates that differ only by surrounding whitespace still collide after normalization.

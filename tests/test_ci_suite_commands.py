@@ -10,7 +10,9 @@ from tests.ci_sharding import (
     CI_SMOKE_JOB_TIMEOUT_MINUTES,
     CI_SMOKE_TEST_TARGETS,
     CI_TOTAL_SHARD_COUNT_TARGET,
+    build_ci_work_units,
     ci_shard_specs,
+    expand_ci_targets_to_nodeids,
     select_ci_shard_targets,
     write_ci_shard_targets_file,
 )
@@ -149,9 +151,52 @@ def test_ci_shard_selection_uses_supplied_static_inventory_without_collect_only(
         shard_total=CI_CATEGORY_SHARD_COUNTS["root"],
         inventory=inventory,
     )
+    second_root_targets = select_ci_shard_targets(
+        category="root",
+        shard_index=2,
+        shard_total=CI_CATEGORY_SHARD_COUNTS["root"],
+        inventory=inventory,
+    )
 
     assert root_targets
+    assert second_root_targets
     assert all(target.startswith("tests/test_") for target in root_targets)
+    assert all(target.startswith("tests/test_") for target in second_root_targets)
+    assert set(root_targets).isdisjoint(second_root_targets)
+
+    planned_root_nodeids = []
+    for shard_index in range(1, CI_CATEGORY_SHARD_COUNTS["root"] + 1):
+        planned_root_nodeids.extend(
+            expand_ci_targets_to_nodeids(
+                select_ci_shard_targets(
+                    category="root",
+                    shard_index=shard_index,
+                    shard_total=CI_CATEGORY_SHARD_COUNTS["root"],
+                    inventory=inventory,
+                ),
+                inventory=inventory,
+            )
+        )
+
+    expected_root_nodeids = tuple(
+        nodeid
+        for rel_path, nodeids in inventory.items()
+        if rel_path.startswith("test_")
+        for nodeid in nodeids
+    )
+    assert sorted(planned_root_nodeids) == sorted(expected_root_nodeids)
+    assert len(planned_root_nodeids) == len(set(planned_root_nodeids))
+
+
+def test_build_ci_work_units_ignores_empty_static_inventory_entries() -> None:
+    work_units = build_ci_work_units(
+        {
+            "test_empty.py": (),
+            "test_release_consistency.py": ("tests/test_release_consistency.py::test_release",),
+        }
+    )
+
+    assert [unit.label for unit in work_units] == ["test_release_consistency.py"]
 
 
 def test_write_ci_shard_targets_file_accepts_static_inventory(tmp_path: Path, monkeypatch) -> None:

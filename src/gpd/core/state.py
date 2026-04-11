@@ -3467,6 +3467,25 @@ def _load_state_json_from_backup(
         return None, []
 
 
+def state_project_contract_runtime_payload(
+    cwd: Path,
+    *,
+    state_obj: dict | None,
+    state_source: str | None,
+    preloaded_contract: ResearchContract | None = None,
+    preloaded_load_info: dict[str, object] | None = None,
+) -> tuple[dict[str, object], dict[str, object] | None, dict[str, object]]:
+    """Build shared project-contract diagnostics for state-facing read paths."""
+
+    return _project_contract_runtime_payload_for_state(
+        cwd,
+        state_obj=state_obj,
+        state_source=state_source,
+        preloaded_contract=preloaded_contract,
+        preloaded_load_info=preloaded_load_info,
+    )
+
+
 def _project_contract_runtime_payload_for_state(
     cwd: Path,
     *,

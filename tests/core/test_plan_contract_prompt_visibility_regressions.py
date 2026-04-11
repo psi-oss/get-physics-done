@@ -41,7 +41,18 @@ def test_plan_contract_schema_surfaces_defaultable_semantic_fields_and_hard_cons
         in plan_schema
     )
     assert "When concrete grounding already exists, a missing `must_surface: true` reference is a warning, not a blocker." in plan_schema
+    assert "`must_surface: true` references need concrete `applies_to[]` coverage of declared claim or deliverable IDs." in plan_schema
+    assert "Project-local `locator` paths must resolve when `project_root` is available." in plan_schema
     assert "For non-scoping plans, `claims[]`, `deliverables[]`, `acceptance_tests[]`, and `forbidden_proxies[]` are all required." in plan_schema
+
+    phase_prompt = _read_template("phase-prompt.md")
+    assert "Contract visibility rules: keep at least one observable, claim, or deliverable" in phase_prompt
+    assert (
+        "if `references[]` is present before approval and grounding is not already concrete, at least one reference must set `must_surface: true`"
+        in phase_prompt
+    )
+    assert "every `must_surface: true` reference needs a concrete `locator` and concrete `applies_to[]` coverage" in phase_prompt
+    assert "project-local paths must resolve when `project_root` is available" in phase_prompt
 
 
 def test_planner_prompt_surfaces_default_salvage_and_specific_semantics() -> None:

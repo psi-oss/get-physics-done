@@ -23,7 +23,7 @@ from gpd.core.health import run_health
 from gpd.core.observability import gpd_span
 from gpd.core.phases import progress_render
 from gpd.core.state import (
-    _project_contract_runtime_payload_for_state,
+    state_project_contract_runtime_payload,
     peek_state_json,
     state_advance_plan,
     state_validate,
@@ -45,7 +45,7 @@ mcp = FastMCP("gpd-state")
 AbsoluteProjectDirInput = Annotated[str, WithJsonSchema(ABSOLUTE_PROJECT_DIR_SCHEMA)]
 
 
-def load_visible_mcp_state(cwd: Path) -> dict | None:
+def load_visible_mcp_state(cwd: Path) -> dict[str, object] | None:
     """Return visible project state for MCP consumers.
 
     Keep a module-local loader so tool behavior and test patch points stay
@@ -60,7 +60,7 @@ def load_visible_mcp_state(cwd: Path) -> dict | None:
     if state_obj is None:
         return None
 
-    project_contract_load_info, project_contract_validation, project_contract_gate = _project_contract_runtime_payload_for_state(
+    project_contract_load_info, project_contract_validation, project_contract_gate = state_project_contract_runtime_payload(
         cwd,
         state_obj=state_obj,
         state_source=state_source,
@@ -73,7 +73,7 @@ def load_visible_mcp_state(cwd: Path) -> dict | None:
     return merged_state
 
 
-def _apply_return_updates(project_dir: AbsoluteProjectDirInput, file_path: str) -> dict:
+def _apply_return_updates(project_dir: AbsoluteProjectDirInput, file_path: str) -> dict[str, object]:
     """Apply a validated child-return envelope through the canonical state adapter.
 
     This keeps the canonical apply-return path available from the state server

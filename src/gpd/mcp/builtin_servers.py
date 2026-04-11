@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from copy import deepcopy
 
 from gpd.mcp.verification_contract_policy import verification_server_description
@@ -346,13 +347,14 @@ def merge_managed_mcp_entry(
     managed_entry: dict[str, object],
     *,
     merge_mapping_keys: frozenset[str] = frozenset(),
+    user_owned_mapping_keys: Mapping[str, frozenset[str]] | None = None,
 ) -> dict[str, object]:
     """Merge a managed MCP entry into an existing runtime config entry.
 
     Managed scalar fields overwrite the existing entry so reinstall can keep
     the runtime launch command current. Mapping fields like ``env`` can be
-    merged instead, with existing values taking precedence so user overrides
-    survive reinstalls.
+    merged instead, with managed values taking precedence unless a subkey is
+    explicitly marked user-owned by policy.
     """
 
     merged: dict[str, object] = {}
@@ -365,7 +367,12 @@ def merge_managed_mcp_entry(
             merged_mapping = {str(subkey): deepcopy(subvalue) for subkey, subvalue in managed_value.items()}
             if isinstance(existing_value, dict):
                 for subkey, subvalue in existing_value.items():
-                    merged_mapping[str(subkey)] = deepcopy(subvalue)
+                    normalized_subkey = str(subkey)
+                    if normalized_subkey in merged_mapping and normalized_subkey not in (
+                        user_owned_mapping_keys or {}
+                    ).get(key, frozenset()):
+                        continue
+                    merged_mapping[normalized_subkey] = deepcopy(subvalue)
             if merged_mapping:
                 merged[key] = merged_mapping
             else:

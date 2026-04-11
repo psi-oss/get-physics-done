@@ -185,6 +185,8 @@ These fields must always be present:
 - `conventions`
 - `contract`
 
+Contract visibility rules: keep at least one observable, claim, or deliverable; if `references[]` is present before approval and grounding is not already concrete, at least one reference must set `must_surface: true`; every `must_surface: true` reference needs a concrete `locator` and concrete `applies_to[]` coverage; project-local paths must resolve when `project_root` is available.
+
 Add `dimensional_check` whenever the plan produces quantitative results. Add `approximations` whenever any truncation, asymptotic regime, discretization, or numerical cutoff is active.
 
 ---

@@ -236,7 +236,9 @@ Rules:
 - `must_surface` is a boolean scalar. Use the YAML literals `true` and `false`; do not quote them or replace them with synonyms such as `yes`, `no`, `required`, or `optional`.
 - If `must_surface: true`, `required_actions` must not be empty.
 - If `must_surface: true`, `applies_to[]` must not be empty.
+- `must_surface: true` references need concrete `applies_to[]` coverage of declared claim or deliverable IDs.
 - If `must_surface: true`, the locator must still be concrete enough to re-find later: a citation, DOI, arXiv identifier, durable external URL, or project-local artifact path. Placeholder locators such as `TBD`, `unknown`, or bare section/table labels do not count.
+- Project-local `locator` paths must resolve when `project_root` is available.
 
 ### `acceptance_tests[]`
 

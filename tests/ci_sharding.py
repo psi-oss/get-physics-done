@@ -178,6 +178,8 @@ def build_ci_work_units(
     work_units: list[CIWorkUnit] = []
 
     for rel_path, nodeids in inventory.items():
+        if not nodeids:
+            continue
         category = category_for_test_relpath(rel_path)
         split_parts = CI_HOT_TEST_FILE_SPLITS.get(rel_path, 1)
         split_groups = _split_nodeids_round_robin(nodeids, parts=split_parts)

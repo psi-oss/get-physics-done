@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -131,6 +132,21 @@ def test_state_server_tools_return_stable_error_envelopes(tool_fn, patch_target:
     assert result["error"] in {"boom", "missing", "bad"}
 
 
+
+def test_state_server_does_not_import_private_state_helpers() -> None:
+    source = Path("src/gpd/mcp/servers/state_server.py").read_text(encoding="utf-8")
+    module = ast.parse(source)
+
+    private_state_imports = {
+        alias.name
+        for node in module.body
+        if isinstance(node, ast.ImportFrom) and node.module == "gpd.core.state"
+        for alias in node.names
+        if alias.name.startswith("_")
+    }
+
+    assert private_state_imports == set()
+
 def test_load_visible_mcp_state_strips_legacy_session_and_surfaces_contract_gate(monkeypatch, tmp_path: Path) -> None:
     state_obj = {
         "position": {"current_phase": "01"},
@@ -144,7 +160,7 @@ def test_load_visible_mcp_state_strips_legacy_session_and_surfaces_contract_gate
         lambda *_args, **_kwargs: (state_obj, [], "state.json"),
     )
     monkeypatch.setattr(
-        "gpd.mcp.servers.state_server._project_contract_runtime_payload_for_state",
+        "gpd.mcp.servers.state_server.state_project_contract_runtime_payload",
         lambda *_args, **_kwargs: (
             {"status": "loaded"},
             {"valid": True},
