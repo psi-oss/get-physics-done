@@ -199,6 +199,45 @@ def test_run_contract_check_published_schema_keeps_schema_required_fields_strict
     assert proof_parameter_observed["properties"]["covered_parameter_symbols"]["items"]["type"] == "string"
     assert proof_parameter_observed["properties"]["covered_parameter_symbols"]["items"]["minLength"] == 1
 
+
+def test_run_contract_check_schema_description_includes_call_shape_and_constraints() -> None:
+    from gpd.mcp.servers.verification_server import mcp
+    from gpd.mcp.verification_contract_policy import VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT
+
+    run_schema = _tool_input_schema(mcp, "run_contract_check")
+    request_schema = _schema_object(run_schema, run_schema["properties"]["request"])
+    description = request_schema.get("description", "")
+
+    assert (
+        "suggest_contract_checks(contract=project_contract, active_checks=active_checks)"
+        in description
+    )
+    assert "Hard request constraint fields surfaced by hints" in description
+    assert VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT in description
+
+
+def test_observed_status_descriptions_reference_canonical_enums() -> None:
+    from gpd.contracts import (
+        PROOF_AUDIT_COUNTEREXAMPLE_STATUS_VALUES,
+        PROOF_AUDIT_QUANTIFIER_STATUS_VALUES,
+        PROOF_AUDIT_SCOPE_STATUS_VALUES,
+    )
+    from gpd.mcp.servers.verification_server import mcp
+
+    run_schema = _tool_input_schema(mcp, "run_contract_check")
+    request_schema = _schema_object(run_schema, run_schema["properties"]["request"])
+    observed_schema = _schema_anyof_object(request_schema["properties"]["observed"])
+
+    status_choices: dict[str, tuple[str, ...]] = {
+        "quantifier_status": PROOF_AUDIT_QUANTIFIER_STATUS_VALUES,
+        "scope_status": PROOF_AUDIT_SCOPE_STATUS_VALUES,
+        "counterexample_status": PROOF_AUDIT_COUNTEREXAMPLE_STATUS_VALUES,
+    }
+    for field_name, choices in status_choices.items():
+        field_schema = observed_schema["properties"][field_name]
+        string_branch = next(branch for branch in field_schema["anyOf"] if branch.get("type") == "string")
+        assert tuple(string_branch["enum"]) == choices
+
     alignment_requirement = _request_requirement_for_check(request_schema, "contract.claim_to_proof_alignment")
     assert alignment_requirement is not None
     assert alignment_requirement["required"] == ["contract", "observed"]

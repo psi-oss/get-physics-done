@@ -95,7 +95,12 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = ""
 markers = [
+    "asyncio: mark tests that tap the pytest-asyncio event loop fixture",
+    "exact: highlight the reference physics doc blocks that assert exact outcomes",
     "no_stable_hook_python: opt out of the autouse _stable_hook_python fixture",
+    "parametric: tag physics reference blocks that explore families of parameter values",
+    "physics: categorize the verification spec sections that model physics behavior",
+    "slow: flag the longer-running physics reference cases in the verification doc",
 ]
 
 [tool.ruff]

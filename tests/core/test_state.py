@@ -13,6 +13,7 @@ import pytest
 from gpd.core import state as state_module
 from gpd.core.constants import STATE_JSON_BACKUP_FILENAME, ProjectLayout
 from gpd.core.continuation import ContinuationBoundedSegment
+from gpd.core.errors import StateError
 from gpd.core.state import (
     _find_list_parent_loc,
     _load_recent_projects_index,
@@ -29,6 +30,7 @@ from gpd.core.state import (
     save_state_markdown,
     state_get,
     state_load,
+    state_patch,
     state_record_session,
     state_set_continuation_bounded_segment,
     state_set_project_contract,
@@ -3521,3 +3523,25 @@ def test_find_list_parent_loc_returns_none_for_missing_key():
     payload = {"approximations": [{"name": "ok"}]}
     result = _find_list_parent_loc(payload, ("missing_key", 0, "name"))
     assert result is None
+
+
+def test_state_patch_rejects_duplicate_normalized_keys(tmp_path: Path, state_project_factory) -> None:
+    """Reject duplicates when snake_case and Title Case target the same field."""
+    cwd = state_project_factory(tmp_path)
+    patches = {
+        "current_plan": "2",
+        "Current Plan": "3",
+    }
+    with pytest.raises(StateError, match="Duplicate normalized patch key"):
+        state_patch(cwd, patches)
+
+
+def test_state_patch_rejects_duplicate_normalized_keys_with_spaces(tmp_path: Path, state_project_factory) -> None:
+    """Reject duplicates when casing differs but normalization matches."""
+    cwd = state_project_factory(tmp_path)
+    patches = {
+        "Progress": "40%",
+        "progress": "50%",
+    }
+    with pytest.raises(StateError, match="Duplicate normalized patch key"):
+        state_patch(cwd, patches)

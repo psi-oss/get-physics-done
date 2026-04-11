@@ -151,7 +151,7 @@ def _project_managed_mcp_servers(
 # ---------------------------------------------------------------------------
 
 
-def convert_claude_to_opencode_frontmatter(content: str, path_prefix: str | None = None) -> str:
+def convert_frontmatter_for_opencode(content: str, path_prefix: str | None = None) -> str:
     """Convert canonical GPD frontmatter to OpenCode format.
 
     Transformations:
@@ -165,7 +165,7 @@ def convert_claude_to_opencode_frontmatter(content: str, path_prefix: str | None
     """
     resolved_config_dir = path_prefix[:-1] if path_prefix and path_prefix.endswith("/") else path_prefix
     if not resolved_config_dir:
-        resolved_config_dir = "~/.config/opencode"
+        resolved_config_dir = str(get_opencode_global_dir())
 
     converted = content
     converted = convert_tool_references_in_body(converted, _TOOL_REFERENCE_MAP)
@@ -371,7 +371,7 @@ def copy_flattened_commands(
             )
             if bridge_command:
                 content = _rewrite_gpd_cli_invocations(content, bridge_command)
-            content = convert_claude_to_opencode_frontmatter(content, path_prefix)
+            content = convert_frontmatter_for_opencode(content, path_prefix)
 
             dest_path.write_text(content, encoding="utf-8")
             if managed_command_files is not None and dest_name.startswith("gpd-"):
@@ -422,7 +422,7 @@ def copy_agents_as_agent_files(
         )
         if bridge_command:
             content = _rewrite_gpd_cli_invocations(content, bridge_command)
-        content = convert_claude_to_opencode_frontmatter(content, path_prefix)
+        content = convert_frontmatter_for_opencode(content, path_prefix)
 
         (agents_dest / entry.name).write_text(content, encoding="utf-8")
         new_agent_names.add(entry.name)
@@ -738,7 +738,7 @@ def _copy_dir_contents(
         elif entry.name.endswith(".md"):
             content = entry.read_text(encoding="utf-8")
             content = replace_placeholders(content, path_prefix, "opencode", install_scope)
-            content = convert_claude_to_opencode_frontmatter(content, path_prefix)
+            content = convert_frontmatter_for_opencode(content, path_prefix)
             content = strip_sub_tags(content)
             dest_path.write_text(content, encoding="utf-8")
         else:
@@ -1022,7 +1022,7 @@ class OpenCodeAdapter(RuntimeAdapter):
                 surface_kind=surface_kind,
                 path_prefix=path_prefix,
             )
-        return convert_claude_to_opencode_frontmatter(content, path_prefix)
+        return convert_frontmatter_for_opencode(content, path_prefix)
 
     def translate_shared_command_references(self, content: str) -> str:
         return content.replace("/gpd:", self.public_command_surface_prefix)
@@ -1357,7 +1357,7 @@ __all__ = [
     "OpenCodeAdapter",
     "get_opencode_global_dir",
     "convert_tool_name",
-    "convert_claude_to_opencode_frontmatter",
+    "convert_frontmatter_for_opencode",
     "configure_opencode_permissions",
     "copy_flattened_commands",
     "copy_agents_as_agent_files",

@@ -60,7 +60,7 @@ from gpd.mcp.servers import (
 from gpd.mcp.verification_contract_policy import (
     VERIFICATION_BINDING_FIELD_NAMES,
     VERIFICATION_BINDING_TARGETS,
-    VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES,
+    VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT,
     verification_contract_policy_text,
     verification_contract_surface_summary_text,
 )
@@ -379,42 +379,153 @@ ContractBindingRequest = create_model(
 ContractBindingRequest.__doc__ = "Closed binding request surface derived from the canonical verification binding fields."
 
 
+_CONTRACT_METADATA_FIELD_DESCRIPTIONS: dict[str, str] = {
+    "regime_label": "Label for the contracted regime or limit behavior under test.",
+    "expected_behavior": "Short summary of the expected behavior for comparison with observations.",
+    "source_reference_id": "Reference id anchoring the benchmark or grounding example.",
+    "declared_family": "Declared estimator or fit family associated with the contract.",
+    "allowed_families": "List of non-empty estimator/fitter family names that remain allowed.",
+    "forbidden_families": "List of non-empty estimator/fitter family names that are disallowed.",
+    "theorem_parameter_symbols": "Symbols describing theorem parameters that need coverage.",
+    "hypothesis_ids": "Hypothesis ids that support the claim.",
+    "quantifiers": "Quantifiers (if any) tied to the contract claim.",
+    "conclusion_clause_ids": "Conclusion clause ids that must stay aligned with the claim.",
+    "claim_statement": "Natural-language claim statement describing the contracted assertion.",
+}
+
+
+def _status_field_description(label: str, choices: Iterable[str]) -> str:
+    formatted = ", ".join(f"`{choice}`" for choice in choices)
+    return f"{label} status with canonical values {formatted}."
+
+
+_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS: dict[str, str] = {
+    "limit_passed": "Boolean summarizing whether the limit comparison passed.",
+    "observed_limit": "Identifier or label describing the observed limit regime.",
+    "metric_value": "Numeric metric value produced by the check.",
+    "threshold_value": "Numeric threshold used when judging the metric.",
+    "proxy_only": "True when only proxy measurements were available.",
+    "direct_available": "True when direct data was available.",
+    "proxy_available": "True when proxy data was available.",
+    "consistency_passed": "Boolean stating whether reported data remained consistent.",
+    "selected_family": "Estimator or fit family selected during the check.",
+    "competing_family_checked": "Boolean noting if competing families were checked.",
+    "bias_checked": "Boolean noting if bias evaluations were performed.",
+    "calibration_checked": "Boolean noting if calibration checks were performed.",
+    "covered_hypothesis_ids": "Hypothesis ids that the check covered.",
+    "missing_hypothesis_ids": "Hypothesis ids that remain without coverage.",
+    "covered_parameter_symbols": "Parameter symbols confirmed by the observed check.",
+    "missing_parameter_symbols": "Parameter symbols still missing coverage.",
+    "uncovered_quantifiers": "Quantifiers that remain uncovered.",
+    "uncovered_conclusion_clause_ids": "Conclusion clause ids lacking coverage.",
+}
+_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS.update(
+    {
+        "quantifier_status": _status_field_description("Quantifier audit", PROOF_AUDIT_QUANTIFIER_STATUS_VALUES),
+        "scope_status": _status_field_description("Scope audit", PROOF_AUDIT_SCOPE_STATUS_VALUES),
+        "counterexample_status": _status_field_description(
+            "Counterexample audit", PROOF_AUDIT_COUNTEREXAMPLE_STATUS_VALUES
+        ),
+    }
+)
+
+
 class ContractMetadataRequest(_ContractRequestBase):
-    regime_label: str | None = None
-    expected_behavior: str | None = None
-    source_reference_id: str | None = None
-    declared_family: str | None = None
-    allowed_families: list[str] | None = None
-    forbidden_families: list[str] | None = None
-    theorem_parameter_symbols: list[str] | None = None
-    hypothesis_ids: list[str] | None = None
-    quantifiers: list[str] | None = None
-    conclusion_clause_ids: list[str] | None = None
-    claim_statement: str | None = None
+    regime_label: str | None = Field(default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["regime_label"])
+    expected_behavior: str | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["expected_behavior"]
+    )
+    source_reference_id: str | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["source_reference_id"]
+    )
+    declared_family: str | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["declared_family"]
+    )
+    allowed_families: list[str] | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["allowed_families"]
+    )
+    forbidden_families: list[str] | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["forbidden_families"]
+    )
+    theorem_parameter_symbols: list[str] | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["theorem_parameter_symbols"]
+    )
+    hypothesis_ids: list[str] | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["hypothesis_ids"]
+    )
+    quantifiers: list[str] | None = Field(default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["quantifiers"])
+    conclusion_clause_ids: list[str] | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["conclusion_clause_ids"]
+    )
+    claim_statement: str | None = Field(
+        default=None, description=_CONTRACT_METADATA_FIELD_DESCRIPTIONS["claim_statement"]
+    )
 
 
 class ContractObservedRequest(_ContractRequestBase):
-    limit_passed: bool | None = None
-    observed_limit: str | None = None
-    metric_value: int | float | None = None
-    threshold_value: int | float | None = None
-    proxy_only: bool | None = None
-    direct_available: bool | None = None
-    proxy_available: bool | None = None
-    consistency_passed: bool | None = None
-    selected_family: str | None = None
-    competing_family_checked: bool | None = None
-    bias_checked: bool | None = None
-    calibration_checked: bool | None = None
-    covered_hypothesis_ids: list[str] | None = None
-    missing_hypothesis_ids: list[str] | None = None
-    covered_parameter_symbols: list[str] | None = None
-    missing_parameter_symbols: list[str] | None = None
-    uncovered_quantifiers: list[str] | None = None
-    uncovered_conclusion_clause_ids: list[str] | None = None
-    quantifier_status: str | None = None
-    scope_status: str | None = None
-    counterexample_status: str | None = None
+    limit_passed: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["limit_passed"]
+    )
+    observed_limit: str | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["observed_limit"]
+    )
+    metric_value: int | float | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["metric_value"]
+    )
+    threshold_value: int | float | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["threshold_value"]
+    )
+    proxy_only: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["proxy_only"]
+    )
+    direct_available: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["direct_available"]
+    )
+    proxy_available: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["proxy_available"]
+    )
+    consistency_passed: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["consistency_passed"]
+    )
+    selected_family: str | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["selected_family"]
+    )
+    competing_family_checked: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["competing_family_checked"]
+    )
+    bias_checked: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["bias_checked"]
+    )
+    calibration_checked: bool | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["calibration_checked"]
+    )
+    covered_hypothesis_ids: list[str] | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["covered_hypothesis_ids"]
+    )
+    missing_hypothesis_ids: list[str] | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["missing_hypothesis_ids"]
+    )
+    covered_parameter_symbols: list[str] | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["covered_parameter_symbols"]
+    )
+    missing_parameter_symbols: list[str] | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["missing_parameter_symbols"]
+    )
+    uncovered_quantifiers: list[str] | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["uncovered_quantifiers"]
+    )
+    uncovered_conclusion_clause_ids: list[str] | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["uncovered_conclusion_clause_ids"]
+    )
+    quantifier_status: str | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["quantifier_status"]
+    )
+    scope_status: str | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["scope_status"]
+    )
+    counterexample_status: str | None = Field(
+        default=None, description=_CONTRACT_OBSERVED_FIELD_DESCRIPTIONS["counterexample_status"]
+    )
 
 
 class RunContractCheckRequest(_ContractRequestBase):
@@ -937,14 +1048,13 @@ _RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] = (
     "`observed`, and `artifact_content` are optional sections, but each check still enforces "
     "its own `schema_required_request_fields` and `schema_required_request_anyof_fields`. "
     "When `binding` is present, use only the canonical plural `*_ids` arrays surfaced in "
-    "`supported_binding_fields`. Use `suggest_contract_checks(contract, active_checks=...)` "
-    "first to inspect `required_request_fields`, `schema_required_request_fields`, "
+    "`supported_binding_fields`. Call `suggest_contract_checks(contract=project_contract, "
+    "active_checks=active_checks)` before `run_contract_check` to inspect "
+    "`required_request_fields`, `schema_required_request_fields`, "
     "`schema_required_request_anyof_fields`, `optional_request_fields`, "
     "`supported_binding_fields`, and a safe `request_template`."
 )
-_RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] += " Hard request constraint fields surfaced by hints: " + ", ".join(
-    f"`{field_name}`" for field_name in VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES
-) + "."
+_RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] += " Hard request constraint fields surfaced by hints: " + VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT + "."
 all_of_conditions: list[dict[str, object]] = []
 if _RUN_CONTRACT_CHECK_BINDING_CONDITIONS:
     all_of_conditions.extend(_RUN_CONTRACT_CHECK_BINDING_CONDITIONS)

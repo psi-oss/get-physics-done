@@ -3916,10 +3916,22 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
         updated: list[str] = []
         failed: list[str] = []
 
-        for field, value in patches.items():
-            # Normalize snake_case → Title Case (e.g. "current_plan" → "Current Plan")
-            field_norm = field.replace("_", " ")
+        normalized_targets: dict[str, tuple[str, str]] = {}
+        normalized_entries: list[tuple[str, str, str]] = []
+        # Track each normalized form so duplicates can be rejected up front.
 
+        for field, value in patches.items():
+            field_norm = field.replace("_", " ")
+            normalized_key = field_norm.casefold()
+            if normalized_key in normalized_targets:
+                previous_field, previous_norm = normalized_targets[normalized_key]
+                raise StateError(
+                    f'Duplicate normalized patch key "{field_norm}" (from "{field}") conflicts with "{previous_field}" ({previous_norm})'
+                )
+            normalized_targets[normalized_key] = (field, field_norm)
+            normalized_entries.append((field, field_norm, value))
+
+        for field, field_norm, value in normalized_entries:
             if field_norm.lower() == "status" and not is_valid_status(value):
                 failed.append(field)
                 continue

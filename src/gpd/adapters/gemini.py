@@ -48,6 +48,7 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
 )
+from gpd.adapters.runtime_catalog import RuntimeDescriptor
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -101,7 +102,19 @@ _TOOL_REFERENCE_MAP = reference_translation_map(
 _GEMINI_POLICY_DIR_NAME = "policies"
 _GEMINI_POLICY_FILE_NAME = "gpd-auto-edit.toml"
 _GEMINI_RUNTIME_BIN_DIR_NAME = "bin"
-_GEMINI_YOLO_WRAPPER_NAME = "gemini-gpd-yolo"
+
+
+def _gemini_prompt_free_mode_value(descriptor: RuntimeDescriptor) -> str:
+    return descriptor.capabilities.prompt_free_mode_value or "yolo"
+
+
+def _gemini_permission_surface(descriptor: RuntimeDescriptor) -> str:
+    return descriptor.capabilities.permissions_surface or "launch-wrapper"
+
+
+def _gemini_prompt_free_wrapper_name(descriptor: RuntimeDescriptor) -> str:
+    return f"{descriptor.runtime_name}-gpd-{_gemini_prompt_free_mode_value(descriptor)}"
+
 _GEMINI_APPROVED_CONTRACT_PATH = "GPD/.approved-project-contract.json"
 _GEMINI_STATIC_POLICY_COMMAND_PREFIXES: tuple[str, ...] = (
     "git init",
@@ -777,14 +790,18 @@ def _managed_gemini_policy_path(target_dir: Path) -> Path:
     return target_dir / _GEMINI_POLICY_DIR_NAME / _GEMINI_POLICY_FILE_NAME
 
 
-def _managed_gemini_yolo_wrapper_path(target_dir: Path) -> Path:
-    """Return the GPD-managed Gemini launch wrapper for yolo sessions."""
-    return target_dir / "get-physics-done" / _GEMINI_RUNTIME_BIN_DIR_NAME / _GEMINI_YOLO_WRAPPER_NAME
+def _managed_gemini_prompt_free_wrapper_path(target_dir: Path, descriptor: RuntimeDescriptor) -> Path:
+    """Return the GPD-managed Gemini prompt-free launch wrapper."""
+    return target_dir / "get-physics-done" / _GEMINI_RUNTIME_BIN_DIR_NAME / _gemini_prompt_free_wrapper_name(descriptor)
 
 
-def _render_gemini_yolo_wrapper() -> str:
-    """Render a small launcher that starts Gemini in yolo approval mode."""
-    return "#!/bin/sh\nexec gemini --approval-mode=yolo \"$@\"\n"
+def _render_gemini_prompt_free_wrapper(descriptor: RuntimeDescriptor) -> str:
+    """Render a small launcher that starts Gemini in its prompt-free approval mode."""
+    mode_value = _gemini_prompt_free_mode_value(descriptor)
+    return (
+        "#!/bin/sh\n"
+        f"exec {descriptor.launch_command} --approval-mode={mode_value} \"$@\"\n"
+    )
 
 
 def _render_gemini_policy_toml(bridge_command: str) -> str:
@@ -1285,32 +1302,34 @@ class GeminiAdapter(RuntimeAdapter):
         }
 
     def runtime_permissions_status(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
-        """Report whether a Gemini yolo launcher is ready for the next session."""
-        wrapper_path = _managed_gemini_yolo_wrapper_path(target_dir)
+        """Report whether a Gemini prompt-free launcher is ready for the next session."""
+        descriptor = self.runtime_descriptor
+        wrapper_path = _managed_gemini_prompt_free_wrapper_path(target_dir, descriptor)
         wrapper_exists = wrapper_path.is_file()
-        desired_mode = "yolo" if autonomy == "yolo" else "default"
+        prompt_free_mode = _gemini_prompt_free_mode_value(descriptor)
+        desired_mode = prompt_free_mode if autonomy == prompt_free_mode else "default"
         next_step: str | None = None
         message = "Gemini is using its normal approval-mode defaults."
-        if desired_mode == "yolo":
+        if desired_mode == prompt_free_mode:
             if wrapper_exists:
                 message = (
-                    "Gemini only supports yolo at launch time. The GPD launcher is ready for the next session."
+                    f"Gemini only supports {prompt_free_mode} at launch time. The GPD launcher is ready for the next session."
                 )
                 next_step = (
                     "Exit the current Gemini session and relaunch with "
-                    f"{shlex.quote(str(wrapper_path))} so the runtime itself starts in yolo mode."
+                    f"{shlex.quote(str(wrapper_path))} so the runtime itself starts in {prompt_free_mode} mode."
                 )
             else:
                 message = (
-                    "Gemini only supports yolo at launch time. Generate and use the GPD launcher before "
-                    "expecting uninterrupted yolo execution."
+                    f"Gemini only supports {prompt_free_mode} at launch time. Generate and use the GPD launcher before "
+                    f"expecting uninterrupted {prompt_free_mode} execution."
                 )
         return {
             "runtime": self.runtime_name,
             "desired_mode": desired_mode,
-            "configured_mode": "launch-wrapper" if wrapper_exists else "default",
-            "config_aligned": wrapper_exists if desired_mode == "yolo" else True,
-            "requires_relaunch": wrapper_exists if desired_mode == "yolo" else False,
+            "configured_mode": _gemini_permission_surface(descriptor) if wrapper_exists else "default",
+            "config_aligned": wrapper_exists if desired_mode == prompt_free_mode else True,
+            "requires_relaunch": wrapper_exists if desired_mode == prompt_free_mode else False,
             "managed_by_gpd": wrapper_exists,
             "launch_command": shlex.quote(str(wrapper_path)) if wrapper_exists else None,
             "message": message,
@@ -1318,12 +1337,14 @@ class GeminiAdapter(RuntimeAdapter):
         }
 
     def sync_runtime_permissions(self, target_dir: Path, *, autonomy: str) -> dict[str, object]:
-        """Create or remove the Gemini yolo launcher for the requested autonomy."""
-        wrapper_path = _managed_gemini_yolo_wrapper_path(target_dir)
+        """Create or remove the Gemini prompt-free launcher for the requested autonomy."""
+        descriptor = self.runtime_descriptor
+        wrapper_path = _managed_gemini_prompt_free_wrapper_path(target_dir, descriptor)
         changed = False
-        if autonomy == "yolo":
+        prompt_free_mode = _gemini_prompt_free_mode_value(descriptor)
+        if autonomy == prompt_free_mode:
             wrapper_path.parent.mkdir(parents=True, exist_ok=True)
-            content = _render_gemini_yolo_wrapper()
+            content = _render_gemini_prompt_free_wrapper(descriptor)
             current = wrapper_path.read_text(encoding="utf-8") if wrapper_path.exists() else None
             if current != content:
                 wrapper_path.write_text(content, encoding="utf-8")
@@ -1338,15 +1359,17 @@ class GeminiAdapter(RuntimeAdapter):
             **status,
             "changed": changed,
             "sync_applied": bool(status.get("config_aligned")),
-            "requires_relaunch": autonomy == "yolo",
+            "requires_relaunch": autonomy == prompt_free_mode,
         }
-        if autonomy == "yolo" and status.get("launch_command"):
+        if autonomy == prompt_free_mode and status.get("launch_command"):
             result["next_step"] = (
                 "Exit the current Gemini session and relaunch with "
-                f"{status['launch_command']} so the runtime itself starts in yolo mode."
+                f"{status['launch_command']} so the runtime itself starts in {prompt_free_mode} mode."
             )
         elif changed:
-            result["next_step"] = "Future Gemini sessions will use the normal approval mode unless you re-enable yolo."
+            result["next_step"] = (
+                f"Future Gemini sessions will use the normal approval mode unless you re-enable {prompt_free_mode}."
+            )
         return result
 
     def _write_manifest(self, target_dir: Path, version: str) -> None:

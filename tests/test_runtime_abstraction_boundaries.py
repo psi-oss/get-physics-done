@@ -21,7 +21,11 @@ from types import SimpleNamespace
 from gpd.adapters import iter_adapters
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from gpd.command_labels import runtime_public_command_prefixes
-from scripts.repo_graph_contract import load_contract, runtime_owned_excluded_graph_dirs
+from scripts.repo_graph_contract import (
+    BASE_EXCLUDED_GRAPH_DIRS,
+    load_contract,
+    runtime_owned_excluded_graph_dirs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -388,6 +392,21 @@ def test_repo_graph_contract_runtime_owned_excludes_follow_runtime_descriptors()
 
     stale_runtime_dirs = {".claude", ".gemini", ".codex", ".opencode"} - set(expected_runtime_dirs)
     assert stale_runtime_dirs.isdisjoint(excluded_dirs)
+
+
+def test_repo_graph_contract_excluded_dirs_follow_generated_cache_inventory() -> None:
+    excluded_dirs = tuple(load_contract()["excluded_graph_dirs"])
+    expected = (
+        *BASE_EXCLUDED_GRAPH_DIRS[:-1],
+        *runtime_owned_excluded_graph_dirs(),
+        BASE_EXCLUDED_GRAPH_DIRS[-1],
+    )
+
+    assert excluded_dirs == expected, (
+        "The generated repo graph contract must list the canonical python cache artifacts "
+        "(__pycache__, .venv, etc.) together with the runtime-owned directories so the "
+        "inventory stays in sync with the runtime descriptors."
+    )
 
 
 def test_runtime_public_command_prefixes_use_descriptor_public_surface(monkeypatch) -> None:

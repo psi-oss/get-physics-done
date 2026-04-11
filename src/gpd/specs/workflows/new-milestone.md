@@ -220,7 +220,7 @@ Focus ONLY on what's needed for the NEW research questions.
 
 <output>
 Write to: GPD/literature/{FILE}
-Use template: {GPD_INSTALL_DIR}/templates/research-project/{FILE}
+Use the matching template in {GPD_INSTALL_DIR}/templates/research-project/ for each required research-project output file.
 </output>
 
 <return_contract>

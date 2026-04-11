@@ -62,6 +62,12 @@ def split_root_global_cli_options(argv: list[str]) -> tuple[list[str], list[str]
             index += 1
             continue
 
+        if not arg.startswith("-"):
+            passthrough = True
+            remaining_args.append(arg)
+            index += 1
+            continue
+
         if arg in _ROOT_GLOBAL_FLAG_TOKENS:
             global_args.append(arg)
             index += 1

@@ -12,10 +12,11 @@ from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_c
 from gpd.adapters.opencode import (
     OpenCodeAdapter,
     configure_opencode_permissions,
-    convert_claude_to_opencode_frontmatter,
+    convert_frontmatter_for_opencode,
     convert_tool_name,
     copy_agents_as_agent_files,
     copy_flattened_commands,
+    get_opencode_global_dir,
 )
 from tests.adapters.review_contract_test_utils import (
     assert_review_contract_prompt_surface,
@@ -70,39 +71,39 @@ class TestConvertToolName:
 class TestConvertFrontmatter:
     def test_no_frontmatter_passthrough(self) -> None:
         content = "Just body text"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "question" not in result  # no AskUserQuestion to convert
         assert "/gpd-" not in result  # no /gpd: to convert
 
     def test_name_stripped(self) -> None:
         content = "---\nname: gpd:help\ndescription: Help\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "name:" not in result
         assert "description: Help" in result
 
     def test_color_name_to_hex(self) -> None:
         content = "---\ncolor: cyan\ndescription: D\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert '"#00FFFF"' in result
 
     def test_color_hex_preserved(self) -> None:
         content = "---\ncolor: #FF0000\ndescription: D\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "#FF0000" in result
 
     def test_color_invalid_hex_stripped(self) -> None:
         content = "---\ncolor: #GGGGGG\ndescription: D\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "color:" not in result
 
     def test_color_unknown_name_stripped(self) -> None:
         content = "---\ncolor: chartreuse\ndescription: D\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "color:" not in result
 
     def test_allowed_tools_to_tools_object(self) -> None:
         content = "---\ndescription: D\nallowed-tools:\n  - Read\n  - Bash\n  - AskUserQuestion\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "tools:" in result
         assert "read_file: true" in result
         assert "shell: true" in result
@@ -116,7 +117,7 @@ class TestConvertFrontmatter:
             "See https://example.test//gpd:help and /tmp//gpd:help.txt.\n"
             "Use `/gpd:tour` when you mean the runtime command.\n"
         )
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "/gpd-execute-phase" in result
         assert "`/gpd-tour`" in result
         assert "https://example.test//gpd:help" in result
@@ -124,28 +125,29 @@ class TestConvertFrontmatter:
 
     def test_claude_path_conversion(self) -> None:
         content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
-        result = convert_claude_to_opencode_frontmatter(content)
-        assert "~/.config/opencode/agents/gpd-verifier.md" in result
+        result = convert_frontmatter_for_opencode(content)
+        expected_agent_path = get_opencode_global_dir() / "agents" / "gpd-verifier.md"
+        assert expected_agent_path.as_posix() in result
 
     def test_claude_path_conversion_uses_resolved_path_prefix(self) -> None:
         content = "---\ndescription: D\n---\nSee ~/.claude/agents/gpd-verifier.md"
-        result = convert_claude_to_opencode_frontmatter(content, "./.opencode/")
+        result = convert_frontmatter_for_opencode(content, "./.opencode/")
         assert "./.opencode/agents/gpd-verifier.md" in result
         assert "~/.config/opencode/agents/gpd-verifier.md" not in result
 
     def test_claude_tool_name_in_body_is_left_unchanged(self) -> None:
         content = "---\ndescription: D\n---\nUse AskUserQuestion to ask."
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert result == content
 
     def test_inline_tools_field(self) -> None:
         content = "---\ndescription: D\ntools: Read, Write\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "tools:" in result
 
     def test_description_with_triple_dash_is_preserved(self) -> None:
         content = "---\ndescription: before --- after\nallowed-tools:\n  - Read\n---\nBody"
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
         assert "description: before --- after" in result
         assert "read_file: true" in result
         assert result.rstrip().endswith("Body")
@@ -153,7 +155,7 @@ class TestConvertFrontmatter:
     def test_review_contract_is_prepended_to_prompt_body(self) -> None:
         content = compile_review_contract_fixture_for_runtime("opencode")
 
-        result = convert_claude_to_opencode_frontmatter(content)
+        result = convert_frontmatter_for_opencode(content)
 
         assert_review_contract_prompt_surface(result)
 

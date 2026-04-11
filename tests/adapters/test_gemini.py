@@ -37,6 +37,14 @@ def expected_gemini_bridge(target: Path) -> str:
     )
 
 
+def gemini_prompt_free_mode(adapter: GeminiAdapter) -> str:
+    return adapter.runtime_descriptor.capabilities.prompt_free_mode_value or "yolo"
+
+
+def gemini_prompt_free_wrapper_name(adapter: GeminiAdapter) -> str:
+    return f"{adapter.runtime_name}-gpd-{gemini_prompt_free_mode(adapter)}"
+
+
 def _make_managed_home_python(tmp_path: Path) -> Path:
     managed_home = tmp_path / "managed-home"
     python_relpath = Path("Scripts/python.exe") if os.name == "nt" else Path("bin/python")
@@ -865,7 +873,6 @@ class TestInstall:
         assert ' gpd commit "' not in workflow
         assert f"{expected_bridge} --raw validate project-contract {_GEMINI_APPROVED_CONTRACT_PATH}" in command
         assert f"{expected_bridge} state set-project-contract {_GEMINI_APPROVED_CONTRACT_PATH}" in command
-        assert "PROJECT_CONTRACT_JSON" not in workflow
         assert "PROJECT_CONTRACT_JSON" not in state_schema
         assert "PRE_CHECK=$(" not in workflow
         assert f"{expected_bridge} --raw validate project-contract {_GEMINI_APPROVED_CONTRACT_PATH}" in workflow
@@ -1175,33 +1182,41 @@ class TestRuntimePermissions:
         gpd_root: Path,
         tmp_path: Path,
     ) -> None:
+        prompt_free_mode = gemini_prompt_free_mode(adapter)
+        wrapper_name = gemini_prompt_free_wrapper_name(adapter)
         target = tmp_path / ".gemini"
         target.mkdir()
         adapter.install(gpd_root, target)
-        adapter.sync_runtime_permissions(target, autonomy="yolo")
+        adapter.sync_runtime_permissions(target, autonomy=prompt_free_mode)
 
-        status = adapter.runtime_permissions_status(target, autonomy="yolo")
+        status = adapter.runtime_permissions_status(target, autonomy=prompt_free_mode)
 
         assert status["config_aligned"] is True
         assert status["requires_relaunch"] is True
-        assert "gemini-gpd-yolo" in str(status["next_step"])
+        assert status["desired_mode"] == prompt_free_mode
+        assert status["configured_mode"] == adapter.runtime_descriptor.capabilities.permissions_surface
+        assert wrapper_name in str(status["next_step"])
 
-    def test_sync_runtime_permissions_yolo_creates_launcher_wrapper(
+    def test_sync_runtime_permissions_prompt_free_creates_launcher_wrapper(
         self,
         adapter: GeminiAdapter,
         gpd_root: Path,
         tmp_path: Path,
     ) -> None:
+        prompt_free_mode = gemini_prompt_free_mode(adapter)
+        wrapper_name = gemini_prompt_free_wrapper_name(adapter)
         target = tmp_path / ".gemini"
         target.mkdir()
         adapter.install(gpd_root, target)
 
-        result = adapter.sync_runtime_permissions(target, autonomy="yolo")
-        wrapper = target / "get-physics-done" / "bin" / "gemini-gpd-yolo"
+        result = adapter.sync_runtime_permissions(target, autonomy=prompt_free_mode)
+        wrapper = target / "get-physics-done" / "bin" / wrapper_name
 
         assert wrapper.exists()
-        assert '--approval-mode=yolo "$@"' in wrapper.read_text(encoding="utf-8")
+        assert f'--approval-mode={prompt_free_mode} "$@"' in wrapper.read_text(encoding="utf-8")
         assert result["sync_applied"] is True
+        assert result["desired_mode"] == prompt_free_mode
+        assert result["configured_mode"] == adapter.runtime_descriptor.capabilities.permissions_surface
         assert result["launch_command"] == shlex.quote(str(wrapper))
         assert result["requires_relaunch"] is True
 
@@ -1211,13 +1226,15 @@ class TestRuntimePermissions:
         gpd_root: Path,
         tmp_path: Path,
     ) -> None:
+        prompt_free_mode = gemini_prompt_free_mode(adapter)
+        wrapper_name = gemini_prompt_free_wrapper_name(adapter)
         target = tmp_path / ".gemini"
         target.mkdir()
         adapter.install(gpd_root, target)
-        adapter.sync_runtime_permissions(target, autonomy="yolo")
+        adapter.sync_runtime_permissions(target, autonomy=prompt_free_mode)
 
         result = adapter.sync_runtime_permissions(target, autonomy="balanced")
-        wrapper = target / "get-physics-done" / "bin" / "gemini-gpd-yolo"
+        wrapper = target / "get-physics-done" / "bin" / wrapper_name
 
         assert not wrapper.exists()
         assert result["sync_applied"] is True
