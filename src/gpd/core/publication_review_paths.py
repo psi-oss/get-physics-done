@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import posixpath
 import re
 from pathlib import Path
+
+from gpd.core.path_labels import normalize_posix_path_label
 
 __all__ = [
     "manuscript_matches_review_artifact_path",
@@ -39,10 +40,7 @@ def review_round_suffix(round_number: int) -> str:
 
 def normalize_review_path_label(value: str) -> str:
     """Normalize artifact manuscript path labels across OS-specific separators."""
-    normalized = value.strip().replace("\\", "/")
-    if not normalized:
-        return ""
-    return posixpath.normpath(normalized)
+    return normalize_posix_path_label(value)
 
 
 def resolve_review_manuscript_path(project_root: Path, manuscript_path: str) -> Path:

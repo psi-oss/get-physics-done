@@ -12,6 +12,7 @@
     "activation_env_vars": ["CLAUDE_CODE_SESSION", "CLAUDE_CODE"],
     "selection_flags": ["--claude-code"],
     "selection_aliases": ["claude-code", "claude code", "claude"],
+    "managed_install_surface": "nested_commands",
     "installer_help_example_scope": "global",
     "validated_command_surface": "public_runtime_slash_command",
     "capabilities": {
@@ -76,6 +77,7 @@
     "activation_env_vars": ["GEMINI_CLI"],
     "selection_flags": ["--gemini-cli"],
     "selection_aliases": ["gemini", "gemini cli"],
+    "managed_install_surface": "nested_commands",
     "agent_prompt_uses_dollar_templates": true,
     "validated_command_surface": "public_runtime_slash_command",
     "capabilities": {
@@ -141,6 +143,7 @@
     "selection_flags": ["--codex-cli"],
     "selection_aliases": ["codex"],
     "manifest_file_prefixes": ["skills/"],
+    "managed_install_surface": "external_commands",
     "installer_help_example_scope": "local",
     "validated_command_surface": "public_runtime_dollar_command",
     "capabilities": {
@@ -206,6 +209,7 @@
     "selection_flags": ["--open-code"],
     "selection_aliases": ["opencode", "open code"],
     "manifest_file_prefixes": ["command/"],
+    "managed_install_surface": "flat_commands",
     "agent_prompt_uses_dollar_templates": true,
     "validated_command_surface": "public_runtime_slash_command",
     "capabilities": {

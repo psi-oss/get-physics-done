@@ -81,7 +81,7 @@ jobs:
         run: uv sync --dev
 
       - name: Run release/package smoke tests
-        run: uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/adapters/test_runtime_catalog.py
+        run: uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/test_schema_registry_ownership_note.py tests/adapters/test_runtime_catalog.py
 
   pytest:
     name: pytest ${{ matrix.display_name }} (3.11)

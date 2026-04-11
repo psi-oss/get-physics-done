@@ -115,6 +115,7 @@ class RuntimeDescriptor:
     hook_payload: HookPayloadPolicy
     capabilities: RuntimeCapabilityPolicy = RuntimeCapabilityPolicy()
     manifest_file_prefixes: tuple[str, ...] = ()
+    managed_install_surface: str = "nested_commands"
     native_include_support: bool = False
     agent_prompt_uses_dollar_templates: bool = False
     installer_help_example_scope: str | None = None
@@ -138,10 +139,22 @@ def _runtime_catalog_schema_path() -> Path:
     return Path(__file__).with_name("runtime_catalog_schema.json")
 
 
+def _load_json_strict_no_duplicate_keys(path: Path) -> object:
+    def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        payload: dict[str, object] = {}
+        for key, value in pairs:
+            if key in payload:
+                raise ValueError(f"{path.name} contains duplicate JSON key: {key}")
+            payload[key] = value
+        return payload
+
+    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_keys)
+
+
 @lru_cache(maxsize=1)
 def _load_runtime_catalog_schema_shape() -> dict[str, object]:
     schema_path = _runtime_catalog_schema_path()
-    raw_schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    raw_schema = _load_json_strict_no_duplicate_keys(schema_path)
     if not isinstance(raw_schema, dict) or not raw_schema:
         raise ValueError("runtime catalog schema must be a non-empty JSON object")
 
@@ -153,6 +166,7 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         "capability_keys",
         "capability_enums",
         "hook_payload_keys",
+        "managed_install_surfaces",
         "install_help_example_scopes",
         "launch_wrapper_permission_surface_kinds",
     }
@@ -236,6 +250,13 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
     hook_payload_keys = frozenset(
         _require_string_tuple(raw_schema.get("hook_payload_keys"), label="runtime catalog schema.hook_payload_keys", allow_empty=False)
     )
+    managed_install_surfaces = frozenset(
+        _require_string_tuple(
+            raw_schema.get("managed_install_surfaces"),
+            label="runtime catalog schema.managed_install_surfaces",
+            allow_empty=False,
+        )
+    )
     install_help_example_scopes = frozenset(
         _require_string_tuple(
             raw_schema.get("install_help_example_scopes"),
@@ -259,6 +280,7 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         "capability_keys": capability_keys,
         "capability_enums": capability_enums,
         "hook_payload_keys": hook_payload_keys,
+        "managed_install_surfaces": managed_install_surfaces,
         "install_help_example_scopes": install_help_example_scopes,
         "launch_wrapper_permission_surface_kinds": launch_wrapper_permission_surface_kinds,
     }
@@ -280,6 +302,7 @@ _RUNTIME_CAPABILITY_ENUMS = _RUNTIME_CATALOG_SHAPE["capability_enums"]
 _RUNTIME_GLOBAL_CONFIG_KEYS = _RUNTIME_CATALOG_SHAPE["global_config_keys"]
 _RUNTIME_CAPABILITY_KEYS = _RUNTIME_CATALOG_SHAPE["capability_keys"]
 _RUNTIME_HOOK_PAYLOAD_KEYS = _RUNTIME_CATALOG_SHAPE["hook_payload_keys"]
+_RUNTIME_MANAGED_INSTALL_SURFACES = _RUNTIME_CATALOG_SHAPE["managed_install_surfaces"]
 _RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = _RUNTIME_CATALOG_SHAPE["launch_wrapper_permission_surface_kinds"]
 
 
@@ -315,6 +338,14 @@ def _require_string(value: object, *, label: str) -> str:
     if not isinstance(value, str) or not value or value != value.strip():
         raise ValueError(f"{label} must be a non-empty string")
     return value
+
+
+def _require_string_member(value: object, *, label: str, allowed_values: Iterable[str]) -> str:
+    item = _require_string(value, label=label)
+    allowed = frozenset(allowed_values)
+    if item not in allowed:
+        raise ValueError(f"{label} must be {_format_quoted_disjunction(allowed)}")
+    return item
 
 
 def _default_adapter_module(runtime_name: str) -> str:
@@ -677,7 +708,7 @@ def _parse_hook_payload(entry: object, *, label: str) -> HookPayloadPolicy:
 
 @lru_cache(maxsize=1)
 def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
-    raw_entries = json.loads(_catalog_path().read_text(encoding="utf-8"))
+    raw_entries = _load_json_strict_no_duplicate_keys(_catalog_path())
     if not isinstance(raw_entries, list):
         raise ValueError("runtime catalog must be a JSON array")
     descriptors: list[RuntimeDescriptor] = []
@@ -729,6 +760,11 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                     label=f"{label}.manifest_file_prefixes",
                     allow_empty=True,
                 ),
+                managed_install_surface=_require_string_member(
+                    payload["managed_install_surface"],
+                    label=f"{label}.managed_install_surface",
+                    allowed_values=_RUNTIME_MANAGED_INSTALL_SURFACES,
+                ),
                 native_include_support=_require_bool(
                     payload.get("native_include_support", False),
                     label=f"{label}.native_include_support",
@@ -778,12 +814,10 @@ def get_shared_install_metadata() -> SharedInstallMetadata:
 
 def _runtime_managed_install_surface_policy(descriptor: RuntimeDescriptor) -> ManagedInstallSurfacePolicy:
     install_root = get_shared_install_metadata().install_root_dir_name
-    flat_command_runtime = "command/" in descriptor.manifest_file_prefixes
-    external_command_runtime = "skills/" in descriptor.manifest_file_prefixes
     return ManagedInstallSurfacePolicy(
         gpd_content_globs=(f"{install_root}/**/*",),
-        nested_command_globs=() if flat_command_runtime or external_command_runtime else ("commands/gpd/**/*",),
-        flat_command_globs=("command/gpd-*.md",) if flat_command_runtime else (),
+        nested_command_globs=("commands/gpd/**/*",) if descriptor.managed_install_surface == "nested_commands" else (),
+        flat_command_globs=("command/gpd-*.md",) if descriptor.managed_install_surface == "flat_commands" else (),
         managed_agent_globs=("agents/gpd-*.md", "agents/gpd-*.toml"),
     )
 

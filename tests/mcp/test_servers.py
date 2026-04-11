@@ -3213,7 +3213,9 @@ class TestVerificationServer:
             }
         )
 
-        assert result == {"error": "metadata.source_reference_id must be a non-empty string", "schema_version": 1}
+        assert result["error"] == "metadata.source_reference_id must be a non-empty string"
+        assert result["schema_version"] == 1
+        assert result["request_template"]["check_key"] == "contract.benchmark_reproduction"
 
     def test_run_contract_check_rejects_whitespace_only_limit_metadata(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -3226,7 +3228,9 @@ class TestVerificationServer:
             }
         )
 
-        assert result == {"error": "metadata.regime_label must be a non-empty string", "schema_version": 1}
+        assert result["error"] == "metadata.regime_label must be a non-empty string"
+        assert result["schema_version"] == 1
+        assert result["request_template"]["check_key"] == "contract.limit_recovery"
 
     def test_run_contract_check_rejects_whitespace_only_declared_fit_family(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -3239,7 +3243,9 @@ class TestVerificationServer:
             }
         )
 
-        assert result == {"error": "metadata.declared_family must be a non-empty string", "schema_version": 1}
+        assert result["error"] == "metadata.declared_family must be a non-empty string"
+        assert result["schema_version"] == 1
+        assert result["request_template"]["check_key"] == "contract.fit_family_mismatch"
 
     def test_run_contract_check_direct_proxy_consistency_fails_on_proxy_only(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -3271,7 +3277,11 @@ class TestVerificationServer:
 
         result = run_contract_check(request)
 
-        assert result == {"error": expected_error, "schema_version": 1}
+        assert result["error"] == expected_error
+        assert result["schema_version"] == 1
+        assert "observed.metric_value" in result["schema_required_request_fields"]
+        assert "observed.threshold_value" in result["schema_required_request_fields"]
+        assert result["request_template"]["check_key"] == "contract.benchmark_reproduction"
 
     @pytest.mark.parametrize(
         ("request_payload", "expected_error"),
@@ -3325,7 +3335,10 @@ class TestVerificationServer:
 
         result = run_contract_check(request_payload)
 
-        assert result == {"error": expected_error, "schema_version": 1}
+        assert result["error"] == expected_error
+        assert result["schema_version"] == 1
+        assert result["request_template"]["check_key"] == request_payload["check_key"]
+        assert result["schema_required_request_fields"]
 
     def test_run_contract_check_rejects_unknown_nested_contract_fields(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -3343,10 +3356,9 @@ class TestVerificationServer:
             }
         )
 
-        assert result == {
-            "error": "Invalid contract payload: claims.0.notes: Extra inputs are not permitted",
-            "schema_version": 1,
-        }
+        assert result["error"].startswith("Invalid contract payload: claims.0.notes: Extra inputs are not permitted")
+        assert result["schema_version"] == 1
+        assert result["request_template"]["check_key"] == "contract.benchmark_reproduction"
 
     def test_suggest_contract_checks_from_contract(self):
         import json
@@ -3416,10 +3428,8 @@ class TestVerificationServer:
 
         result = suggest_contract_checks(contract)
 
-        assert result == {
-            "error": "Invalid contract payload: references.0.notes: Extra inputs are not permitted",
-            "schema_version": 1,
-        }
+        assert result["error"].startswith("Invalid contract payload: references.0.notes: Extra inputs are not permitted")
+        assert result["schema_version"] == 1
 
     @pytest.mark.parametrize("payload", ["not-a-dict", ["claim-benchmark"], 3])
     def test_suggest_contract_checks_rejects_non_mapping_payloads(self, payload):

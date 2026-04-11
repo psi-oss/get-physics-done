@@ -1856,6 +1856,21 @@ def _error_result(message: object) -> dict[str, object]:
     return stable_mcp_error(message)
 
 
+def _contract_check_error_result(message: object, check_key: str | None) -> dict[str, object]:
+    """Return a stable error envelope with request repair hints when possible."""
+
+    response = _error_result(message)
+    if check_key and get_verification_check(check_key) is not None:
+        response.update(_contract_check_request_hint(check_key))
+    return response
+
+
+def _is_self_repairable_payload_shape_error(message: object) -> bool:
+    if not isinstance(message, str):
+        return False
+    return message.endswith(" must be an object") or " must be a non-empty string" in message or " must be a non-empty list" in message
+
+
 def _validate_run_contract_check_request_keys(request: dict[str, object]) -> str | None:
     """Reject unknown keys in the run_contract_check request sections."""
 
@@ -3882,16 +3897,16 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
 
             contract_raw, error = _optional_mapping_field(request, "contract")
             if error is not None:
-                return error
+                return _contract_check_error_result(error.get("error", "contract must be an object"), check_meta.check_key)
             binding_raw, error = _optional_mapping_field(request, "binding")
             if error is not None:
-                return error
+                return _contract_check_error_result(error.get("error", "binding must be an object"), check_meta.check_key)
             metadata_raw, error = _optional_mapping_field(request, "metadata")
             if error is not None:
-                return error
+                return _contract_check_error_result(error.get("error", "metadata must be an object"), check_meta.check_key)
             observed_raw, error = _optional_mapping_field(request, "observed")
             if error is not None:
-                return error
+                return _contract_check_error_result(error.get("error", "observed must be an object"), check_meta.check_key)
 
             contract = None
             contract_salvage_errors: list[str] = []
@@ -3901,16 +3916,20 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     project_root=project_root,
                 )
                 if error is not None:
-                    return error
+                    return _contract_check_error_result(error.get("error", error), check_meta.check_key)
 
             binding = binding_raw or {}
             binding, binding_error = _validate_binding_payload(binding, allowed_targets=check_meta.binding_targets)
             if binding_error is not None:
+                if _is_self_repairable_payload_shape_error(binding_error):
+                    return _contract_check_error_result(binding_error, check_meta.check_key)
                 return _error_result(binding_error)
             binding = binding or {}
             binding_supplied = bool(binding_raw)
             metadata, metadata_error = _normalize_contract_metadata(metadata_raw or {})
             if metadata_error is not None:
+                if _is_self_repairable_payload_shape_error(metadata_error):
+                    return _contract_check_error_result(metadata_error, check_meta.check_key)
                 return _error_result(metadata_error)
             supplied_metadata = dict(metadata)
             observed = observed_raw or {}
@@ -3920,6 +3939,8 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 field_name="artifact_content",
             )
             if artifact_content_error is not None:
+                if _is_self_repairable_payload_shape_error(artifact_content_error):
+                    return _contract_check_error_result(artifact_content_error, check_meta.check_key)
                 return _error_result(artifact_content_error)
             artifact_content = artifact_content or ""
             binding_contract_error = _validate_bound_contract_ids(

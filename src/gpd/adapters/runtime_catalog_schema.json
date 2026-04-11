@@ -14,7 +14,8 @@
     "selection_aliases",
     "global_config",
     "capabilities",
-    "hook_payload"
+    "hook_payload",
+    "managed_install_surface"
   ],
   "entry_optional_keys": [
     "manifest_file_prefixes",
@@ -117,6 +118,11 @@
     "agent_scope_keys",
     "context_window_size_keys",
     "context_remaining_keys"
+  ],
+  "managed_install_surfaces": [
+    "external_commands",
+    "flat_commands",
+    "nested_commands"
   ],
   "install_help_example_scopes": [
     "global",

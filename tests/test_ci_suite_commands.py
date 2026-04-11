@@ -90,7 +90,7 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     assert "Resolved {len(targets)} pytest targets for {os.environ['PYTEST_CATEGORY']}" in resolve_targets_command
     assert "shard {os.environ['PYTEST_SHARD_INDEX']}/{os.environ['PYTEST_SHARD_TOTAL']}" in resolve_targets_command
     assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
-    assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in pytest_shard_command
+    assert 'uv run pytest -q --durations=20 --durations-min=0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
     assert pytest_steps[-1]["name"] == "Run pytest shard"
     assert pytest_steps[-1]["run"] == pytest_shard_command
     assert pytest_steps[2]["uses"] == "actions/setup-node@v6"
@@ -119,7 +119,8 @@ def test_ci_workflow_runs_fast_release_package_smoke_lane_before_full_shards() -
     assert smoke_steps[2]["with"]["node-version"] == "20"
     assert smoke_run_steps["Run release/package smoke tests"] == (
         "uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py "
-        "tests/test_repo_hygiene.py tests/adapters/test_runtime_catalog.py"
+        "tests/test_repo_hygiene.py tests/test_schema_registry_ownership_note.py "
+        "tests/adapters/test_runtime_catalog.py"
     )
 
 
@@ -145,7 +146,8 @@ def test_tests_readme_documents_default_full_suite_and_category_named_runtime_in
     assert "use `uv run pytest -n auto --dist=worksteal`" in tests_readme
     assert "focused local contract-visibility smoke pass" in tests_readme
     assert "separate CI release/package smoke lane stays under 3 minutes" in tests_readme
-    assert "uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/adapters/test_runtime_catalog.py" in tests_readme
+    assert "uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/test_schema_registry_ownership_note.py tests/adapters/test_runtime_catalog.py" in tests_readme
+    assert "CI shards add `--durations=20 --durations-min=0`" in tests_readme
     assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
     assert "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`" in tests_readme
     assert "boosts root modules that have been slow on GitHub Actions" in tests_readme

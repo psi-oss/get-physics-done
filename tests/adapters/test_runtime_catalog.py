@@ -111,6 +111,19 @@ def test_resolve_global_config_dir_env_or_home_respects_explicit_empty_environ(m
     assert resolved == Path("/tmp/home/.codex")
 
 
+def test_runtime_catalog_rejects_duplicate_json_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    catalog_path = tmp_path / "runtime_catalog.json"
+    catalog_path.write_text('[{"runtime_name":"codex","runtime_name":"codex-duplicate"}]', encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_catalog_path", lambda: catalog_path)
+    runtime_catalog._load_catalog.cache_clear()
+
+    try:
+        with pytest.raises(ValueError, match="runtime_catalog.json contains duplicate JSON key: runtime_name"):
+            runtime_catalog.iter_runtime_descriptors()
+    finally:
+        runtime_catalog._load_catalog.cache_clear()
+
+
 def test_resolve_global_config_dir_xdg_app_respects_explicit_empty_environ(monkeypatch) -> None:
     monkeypatch.setenv("OPENCODE_CONFIG_DIR", "/tmp/process-opencode-config")
     monkeypatch.setenv("OPENCODE_CONFIG", "/tmp/process-opencode/opencode.json")
@@ -164,6 +177,7 @@ def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
     }
     assert set(schema["capability_keys"]) == {field.name for field in fields(runtime_catalog.RuntimeCapabilityPolicy)}
     assert set(schema["hook_payload_keys"]) == {field.name for field in fields(runtime_catalog.HookPayloadPolicy)}
+    assert set(schema["managed_install_surfaces"]) == {"nested_commands", "flat_commands", "external_commands"}
 
 
 def test_runtime_catalog_schema_required_and_optional_keys_match_catalog_entries() -> None:
@@ -320,11 +334,15 @@ def test_normalize_runtime_name_accepts_adapter_module_and_hyphen_variants() -> 
     assert normalize_runtime_name("--gemini_cli") == "gemini"
 
 
-def test_managed_install_surface_policy_is_derived_from_runtime_metadata() -> None:
+def test_managed_install_surface_policy_uses_explicit_runtime_metadata() -> None:
     claude_policy = get_managed_install_surface_policy("claude-code")
     opencode_policy = get_managed_install_surface_policy("opencode")
     codex_policy = get_managed_install_surface_policy("codex")
     merged_policy = get_managed_install_surface_policy()
+
+    assert get_runtime_descriptor("claude-code").managed_install_surface == "nested_commands"
+    assert get_runtime_descriptor("codex").managed_install_surface == "external_commands"
+    assert get_runtime_descriptor("opencode").managed_install_surface == "flat_commands"
 
     assert claude_policy.gpd_content_globs == ("get-physics-done/**/*",)
     assert claude_policy.nested_command_globs == ("commands/gpd/**/*",)

@@ -69,7 +69,7 @@ def test_repo_hygiene_does_not_track_ignored_or_runtime_owned_artifacts() -> Non
 
 def test_readme_focused_smoke_command_references_existing_tests() -> None:
     readme = (REPO_ROOT / "tests" / "README.md").read_text()
-    match = re.search(r"focused smoke pass, run `uv run pytest (?P<paths>.*?) -q`", readme)
+    match = re.search(r"focused local contract-visibility smoke pass, run `uv run pytest (?P<paths>.*?) -q`", readme)
     assert match is not None
 
     for path in match.group("paths").split():
@@ -80,5 +80,5 @@ def test_gpd_utils_package_exposes_only_live_utility_modules() -> None:
     utils_dir = REPO_ROOT / "src" / "gpd" / "utils"
     package_init = utils_dir / "__init__.py"
 
-    assert package_init.read_text().strip() == ""
+    assert package_init.read_text().strip() == '"""Shared utility helpers for GPD internals."""\n\n__all__: list[str] = []'
     assert sorted(path.name for path in utils_dir.glob("*.py")) == ["__init__.py", "latex.py"]

@@ -388,7 +388,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert "Run pytest shard" in workflow
     assert "from tests.ci_sharding import write_ci_shard_targets_file" in workflow
     assert "PYTEST_CATEGORY" in workflow
-    assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in workflow
+    assert 'uv run pytest -q --durations=20 --durations-min=0 "${PYTEST_TARGETS[@]}"' in workflow
 
     # Staging rebuild trigger lives in a separate workflow (staging-rebuild.yml)
     # to avoid showing as a skipped check on PRs. It gates on tests via workflow_run.
