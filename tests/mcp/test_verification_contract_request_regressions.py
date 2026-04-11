@@ -166,7 +166,10 @@ def test_run_contract_check_published_schema_keeps_schema_required_fields_strict
     assert metadata_schema["properties"]["source_reference_id"]["minLength"] == 1
     assert metadata_schema["properties"]["source_reference_id"]["pattern"] == r"\S"
     assert "null" not in json.dumps(metadata_schema["properties"]["source_reference_id"])
-    assert contract_schema["required"] == ["schema_version", "scope", "context_intake", "uncertainty_markers"]
+    assert contract_schema["required"] == ["scope"]
+    assert "schema_version" in contract_schema["properties"]
+    assert "context_intake" in contract_schema["properties"]
+    assert "uncertainty_markers" in contract_schema["properties"]
 
     proof_hypothesis_requirement = _request_requirement_for_check(request_schema, "contract.proof_hypothesis_coverage")
     assert proof_hypothesis_requirement is not None
@@ -426,24 +429,46 @@ def test_contract_tools_reject_blank_scalar_to_list_drift() -> None:
             assert result["contract_error_details"] == expected["contract_error_details"]
 
 
-def test_contract_payload_schema_does_not_advertise_scalar_list_drift() -> None:
-    from gpd.mcp.servers.verification_server import _CONTRACT_PAYLOAD_INPUT_SCHEMA
+def test_contract_integrity_missing_deliverables_surfaces_diagnostic() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
 
-    def assert_array_only(schema: dict[str, object], field_path: tuple[str, ...]) -> None:
-        current: object = schema
-        for field_name in field_path:
-            assert isinstance(current, dict)
-            current = current[field_name]
-        assert isinstance(current, dict)
-        assert current["type"] == "array"
-        assert "anyOf" not in current
+    contract = _load_project_contract_fixture()
+    contract["deliverables"] = []
+    for claim in contract.get("claims", []):
+        claim["deliverables"] = []
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
 
-    assert_array_only(_CONTRACT_PAYLOAD_INPUT_SCHEMA, ("properties", "claims", "items", "properties", "references"))
-    assert_array_only(
-        _CONTRACT_PAYLOAD_INPUT_SCHEMA,
-        ("properties", "references", "items", "properties", "required_actions"),
-    )
-    assert_array_only(_CONTRACT_PAYLOAD_INPUT_SCHEMA, ("properties", "context_intake", "properties", "must_read_refs"))
+    result = run_contract_check(request)
+    assert "missing deliverables" in result["error"]
+    assert "deliverables is required" not in result["error"]
+
+
+def test_contract_integrity_missing_context_intake_surfaces_diagnostic() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    contract = _load_project_contract_fixture()
+    contract["context_intake"] = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+
+    result = run_contract_check(request)
+    assert "context_intake must not be empty" in result["error"]
 
 
 def test_contract_check_request_templates_use_string_artifact_placeholders() -> None:

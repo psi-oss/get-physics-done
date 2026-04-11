@@ -145,10 +145,9 @@ def _skill_loading_hint(*, source_kind: str, referenced_files: bool, reference_d
     """Return a concise, content-first loading hint for a skill payload."""
     if reference_documents:
         dependency_hint = (
-            "Treat `content` as the wrapper/context surface. If `schema_documents` or "
-            "`contract_documents` are present, inject them before generating any schema-bound "
-            "output; they carry the markdown bodies for the model-visible schema and contract "
-            "rules."
+            "Treat `content` as the wrapper/context surface. Load `schema_documents` and "
+            "`contract_documents` too when present; they carry the model-visible schema and "
+            "contract rules for schema-bound output."
         )
     elif referenced_files:
         dependency_hint = (

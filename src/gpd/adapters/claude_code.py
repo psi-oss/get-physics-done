@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
+from gpd.adapters.command_tokens import is_gpd_command_start, is_gpd_token_end
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
     MANIFEST_NAME,
@@ -724,8 +725,8 @@ def _rewrite_gpd_shell_line(line: str, command: str) -> str:
             not in_single
             and not in_double
             and line.startswith("gpd", index)
-            and _is_gpd_command_start(line, index)
-            and _is_gpd_token_end(line, index + 3)
+            and is_gpd_command_start(line, index)
+            and is_gpd_token_end(line, index + 3)
         ):
             if should_preserve_public_local_cli_command(line[index:]):
                 pieces.append("gpd")
@@ -739,31 +740,6 @@ def _rewrite_gpd_shell_line(line: str, command: str) -> str:
         index += 1
 
     return "".join(pieces)
-
-
-def _is_gpd_command_start(line: str, index: int) -> bool:
-    """Return whether ``gpd`` starts a shell command token at *index*."""
-    probe = index - 1
-    while probe >= 0 and line[probe] in " \t":
-        probe -= 1
-
-    if probe < 0:
-        return True
-
-    if line[probe] in "|;(!":
-        return True
-
-    if probe >= 1 and line[probe - 1 : probe + 1] in {"&&", "||", "$("}:
-        return True
-
-    return False
-
-
-def _is_gpd_token_end(line: str, end_index: int) -> bool:
-    """Return whether the token ending at *end_index* is a standalone ``gpd``."""
-    if end_index >= len(line):
-        return True
-    return line[end_index].isspace() or line[end_index] in {'"', "'", "`", ";", "|", "&", ")", "<", ">"}
 
 
 def _mcp_config_path(target_dir: Path, *, is_global: bool) -> Path:

@@ -8,6 +8,7 @@ import re
 import shutil
 import tomllib
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -263,6 +264,18 @@ class TestConvertToCodexSkill:
 
         assert resolved == src_root / "workflows" / "update.md"
         assert agent_resolved == src_root.parent / "agents" / "gpd-executor.md"
+
+    def test_include_source_path_observes_runtime_catalog(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        src_root = tmp_path / "src" / "gpd"
+        custom_descriptor = SimpleNamespace(config_dir_name=".custom")
+        monkeypatch.setattr(
+            "gpd.adapters.install_utils.iter_runtime_descriptors",
+            lambda: (custom_descriptor,),
+        )
+        resolved = _resolve_include_source_path(src_root, "/tmp/.custom/get-physics-done/workflows/update.md")
+
+        assert resolved == src_root / "workflows" / "update.md"
+        assert _resolve_include_source_path(src_root, "/tmp/.codex/get-physics-done/workflows/update.md") is None
 
     def test_review_contract_is_prepended_to_skill_body(self) -> None:
         content = compile_review_contract_fixture_for_runtime("codex", command_name="test")

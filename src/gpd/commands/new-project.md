@@ -62,7 +62,7 @@ Check `$ARGUMENTS` for:
 - `--minimal` — Fast staged-init with scope approval.
 - `--minimal @file.md` — Minimal mode driven by the supplied file.
 
-**If `--minimal` detected:** After Setup, route to the minimal staged initialization path. It keeps intake to one response, still requires a scoping contract with decisive outputs and anchors, and hands roadmap and conventions creation to the staged post-scope agents instead of building them directly in the main context.
+**If `--minimal` detected:** After Setup, route to the minimal staged initialization path. It keeps intake to one response, still requires a scoping contract with decisive outputs and anchors, and hands roadmap and conventions creation to the staged post-scope agents instead of building them directly in the main context. Keep one explicit scope approval at the scoping approval gate before the staged roadmap/conventions handoff.
 
 **If `--auto` detected:** After Setup, synthesize context from the provided document, repair blocking gaps only, present the scoping contract for approval, then run research → requirements → roadmap with smart defaults.
 </process>

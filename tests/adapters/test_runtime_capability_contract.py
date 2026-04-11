@@ -14,8 +14,10 @@ import gpd.hooks.runtime_detect as runtime_detect
 from gpd.adapters import get_adapter
 from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.runtime_catalog import (
+    RuntimeDescriptor,
     get_hook_payload_policy,
     get_runtime_capabilities,
+    get_runtime_descriptor,
     iter_runtime_descriptors,
 )
 from gpd.core.costs import build_cost_summary, record_usage_from_runtime_payload
@@ -82,6 +84,25 @@ def _telemetry_payload(runtime_name: str) -> dict[str, object]:
             cost_key: 0.42,
         },
     }
+
+
+def _adapter_aliases(descriptor: RuntimeDescriptor) -> tuple[str, ...]:
+    candidates = (
+        descriptor.runtime_name,
+        descriptor.display_name,
+        descriptor.install_flag,
+        descriptor.adapter_module,
+        *descriptor.selection_flags,
+        *descriptor.selection_aliases,
+    )
+    seen: set[str] = set()
+    aliases: list[str] = []
+    for alias in candidates:
+        if not alias or alias in seen:
+            continue
+        seen.add(alias)
+        aliases.append(alias)
+    return tuple(aliases)
 
 
 def test_runtime_adapters_expose_same_public_method_surface() -> None:
@@ -254,6 +275,19 @@ def test_runtime_capability_contract_matches_adapter_permission_surface(runtime_
     "runtime_name",
     [descriptor.runtime_name for descriptor in iter_runtime_descriptors()],
 )
+def test_runtime_catalog_adapter_aliases(runtime_name: str) -> None:
+    descriptor = get_runtime_descriptor(runtime_name)
+    for alias in _adapter_aliases(descriptor):
+        adapter = get_adapter(alias)
+        assert adapter.runtime_name == descriptor.runtime_name
+        assert adapter.display_name == descriptor.display_name
+        assert adapter.__class__.__module__ == f"gpd.adapters.{descriptor.adapter_module}"
+
+
+@pytest.mark.parametrize(
+    "runtime_name",
+    [descriptor.runtime_name for descriptor in iter_runtime_descriptors()],
+)
 def test_runtime_capabilities_gate_usage_recording(runtime_name: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     capabilities = get_runtime_capabilities(runtime_name)
     project = _project_root(tmp_path, runtime_name)
@@ -366,3 +400,25 @@ def test_public_runtime_surfaces_stay_conservative_when_capabilities_differ() ->
         assert "relaunch-required" in readme
         assert_settings_local_terminal_follow_up_contract(settings_workflow)
         assert "requires_relaunch" in settings_workflow
+
+@pytest.mark.parametrize(
+    ("line", "index", "expected"),
+    [
+        ("gpd plan", 0, True),
+        ("  gpd plan", 2, True),
+        ("uv run gpd plan", 7, False),
+        ("gpd-plan", 0, False),
+        ("mygpd plan", 2, False),
+        ("echo ok && gpd plan", 11, True),
+        ("echo ok || gpd plan", 11, True),
+        ("$(gpd plan)", 2, True),
+        ("echo|gpd plan", 5, True),
+        ("(gpd plan)", 1, True),
+    ],
+)
+def test_gpd_command_token_helpers_detect_only_shell_command_positions(
+    line: str, index: int, expected: bool
+) -> None:
+    from gpd.adapters.command_tokens import is_gpd_command_start, is_gpd_token_end
+
+    assert (is_gpd_command_start(line, index) and is_gpd_token_end(line, index + 3)) is expected

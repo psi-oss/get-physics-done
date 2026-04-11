@@ -44,7 +44,7 @@ jobs:
           python-version: "3.11"
 
       - name: Smoke repo graph sync with PATH python
-        run: python scripts/sync_repo_graph_contract.py
+        run: python scripts/sync_repo_graph_contract.py --check
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -80,8 +80,18 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
+      - name: Smoke npm pack dry run
+        env:
+          npm_config_audit: "false"
+          npm_config_cache: "${{ github.workspace }}/tmp/npm-cache"
+          npm_config_fund: "false"
+          npm_config_update_notifier: "false"
+        run: |
+          mkdir -p tmp/npm-cache
+          npm pack --dry-run --json
+
       - name: Run release/package smoke tests
-        run: uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/test_schema_registry_ownership_note.py tests/adapters/test_runtime_catalog.py
+        run: uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/test_schema_registry_ownership_note.py tests/adapters/test_runtime_catalog.py tests/core/test_contract_validation.py tests/core/test_prompt_wiring.py
 
   pytest:
     name: pytest ${{ matrix.display_name }} (3.11)

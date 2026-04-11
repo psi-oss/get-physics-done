@@ -77,6 +77,9 @@ def test_planner_template_embeds_plan_contract_schema_critical_excerpt() -> None
 
     assert marker in plan_phase
     assert plan_phase.index(marker) > plan_phase.index("Planner prompt:")
+    schema_authority = "**Schema authority:**"
+    assert schema_authority in planner_template
+    assert planner_template.index(schema_authority) < planner_template.index(marker)
 
 
 def test_executor_completion_embeds_summary_contract_schema_critical_excerpt() -> None:

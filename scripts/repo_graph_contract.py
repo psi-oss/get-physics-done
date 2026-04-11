@@ -254,8 +254,12 @@ def build_contract(
     }
 
 
+def render_contract_text(contract: dict[str, object]) -> str:
+    return json.dumps(contract, indent=2) + "\n"
+
+
 def write_contract(contract: dict[str, object], contract_path: Path = CONTRACT_PATH) -> None:
-    contract_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
+    contract_path.write_text(render_contract_text(contract), encoding="utf-8")
 
 
 def _excluded_dir_readme_pattern(path_name: str) -> str:

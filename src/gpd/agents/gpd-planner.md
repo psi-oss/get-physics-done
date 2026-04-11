@@ -551,73 +551,47 @@ contract:
   schema_version: 1
   scope:
     question: "[The decisive question this plan advances]"
-    in_scope: ["Recover the benchmark curve within tolerance"]
+    in_scope: ["[Primary contributions this plan delivers]"]
   context_intake:
     must_read_refs: ["ref-textbook"]
-    must_include_prior_outputs: ["GPD/phases/01-vacuum-polarization/01-01-SUMMARY.md"]
-    user_asserted_anchors: ["GPD/phases/00-baseline/00-01-SUMMARY.md#gauge-and-tensor-convention"]
+    must_include_prior_outputs: ["[prior-output-path]"]
+    user_asserted_anchors: ["[named anchor]"]
+  approach_policy: {}
   claims:
-    - id: "claim-polarization"
-      statement: "Vacuum polarization tensor is transverse in the chosen gauge and scheme"
-      claim_kind: theorem
-      deliverables: ["deliv-vac-pol", "deliv-proof-vac-pol"]
-      acceptance_tests: ["test-transversality", "test-proof-alignment"]
-      references: ["ref-textbook"]
-      parameters:
-        - symbol: "q"
-          domain_or_type: "four-momentum transfer"
-          aliases: ["q"]
-          required_in_proof: true
-          notes: "Contraction variable whose longitudinal projection must vanish"
-      hypotheses:
-        - id: "hyp-gauge"
-          text: "Gauge-fixing and regularization conventions match the approved anchor"
-          symbols: ["q"]
-          category: "assumption"
-          required_in_proof: true
-      conclusion_clauses:
-        - id: "concl-transverse"
-          text: "q_mu Pi^{mu nu} = 0"
-      proof_deliverables: ["deliv-proof-vac-pol"]
+    - id: "claim-example"
+      statement: "[What success looks like]"
+      deliverables: ["deliv-example"]
+      acceptance_tests: ["test-example"]
+      references: ["ref-example"]
   deliverables:
-    - id: "deliv-vac-pol"
+    - id: "deliv-example"
       kind: "derivation"
-      path: "derivations/vacuum-polarization.tex"
-      description: "One-loop vacuum polarization derivation with explicit tensor contraction"
-    - id: "deliv-proof-vac-pol"
-      kind: "derivation"
-      path: "derivations/vacuum-polarization-proof-audit.md"
-      description: "Proof-oriented inventory for the transversality claim"
+      path: "derivations/example.tex"
+      description: "[Brief description of the artifact]"
   references:
     - id: "ref-textbook"
       kind: "paper"
-      locator: "Peskin & Schroeder, Ch. 7"
+      locator: "[Citation or DOI]"
       role: "benchmark"
-      why_it_matters: "Standard convention and benchmark derivation"
-      applies_to: ["claim-polarization"]
+      why_it_matters: "[Rationale for citation]"
+      applies_to: ["claim-example"]
       must_surface: true
-      required_actions: ["read", "compare", "cite"]
+      required_actions: ["read"]
   acceptance_tests:
-    - id: "test-transversality"
-      subject: "claim-polarization"
+    - id: "test-example"
+      subject: "claim-example"
       kind: "consistency"
-      procedure: "Contract Pi^{mu nu} with q_mu and verify the longitudinal part vanishes."
-      pass_condition: "q_mu Pi^{mu nu} = 0"
-      evidence_required: ["deliv-vac-pol", "ref-textbook"]
-    - id: "test-proof-alignment"
-      subject: "claim-polarization"
-      kind: "claim_to_proof_alignment"
-      procedure: "Verify the proof inventory covers the named hypothesis, parameter, and conclusion."
-      pass_condition: "Every theorem field is covered explicitly."
-      evidence_required: ["deliv-proof-vac-pol"]
+      procedure: "[Describe how to verify the claim]"
+      pass_condition: "[What must hold]"
+      evidence_required: ["deliv-example"]
   forbidden_proxies:
-    - id: "fp-clean-algebra"
-      subject: "claim-polarization"
-      proxy: "Clean-looking algebra without an explicit transversality check"
-      reason: "Would not establish the decisive gauge-consistency result"
+    - id: "fp-example"
+      subject: "claim-example"
+      proxy: "[Proxy that fails to satisfy the contract]"
+      reason: "[Why the proxy is insufficient]"
   uncertainty_markers:
-    weakest_anchors: ["Choice of gauge-fixing convention"]
-    disconfirming_observations: ["Longitudinal term survives after simplification"]
+    weakest_anchors: ["[Primary assumption]"]
+    disconfirming_observations: ["[Observation that would invalidate the plan]"]
 
 ---
 

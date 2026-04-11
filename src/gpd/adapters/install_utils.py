@@ -19,6 +19,7 @@ from pathlib import Path, PurePosixPath
 from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
     get_shared_install_metadata,
+    iter_runtime_descriptors,
     resolve_global_config_dir,
 )
 from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES
@@ -1295,6 +1296,12 @@ def expand_at_includes(
     return "\n".join(result)
 
 
+def _runtime_config_dir_names() -> frozenset[str]:
+    """Return the runtime config directories recognized for include resolution."""
+
+    return frozenset(descriptor.config_dir_name for descriptor in iter_runtime_descriptors())
+
+
 def _resolve_include_source_path(src_root: Path, include_path: str) -> Path | None:
     """Map a canonical or installed include path back to its source file."""
 
@@ -1306,6 +1313,8 @@ def _resolve_include_source_path(src_root: Path, include_path: str) -> Path | No
         if not relative.parts or relative.is_absolute() or ".." in relative.parts:
             return None
         return relative
+
+    allowed_config_dirs = _runtime_config_dir_names()
 
     if include_path.startswith("{GPD_INSTALL_DIR}/"):
         relative_path = include_path[len("{GPD_INSTALL_DIR}/") :]
@@ -1320,14 +1329,14 @@ def _resolve_include_source_path(src_root: Path, include_path: str) -> Path | No
     if "get-physics-done" in include_parts:
         root_index = include_parts.index("get-physics-done")
         relative_parts = include_parts[root_index + 1 :]
-        if root_index > 0 and include_parts[root_index - 1] not in {".codex", ".claude", ".gemini", ".opencode"}:
+        if root_index > 0 and include_parts[root_index - 1] not in allowed_config_dirs:
             return None
         relative = _safe_relative_path(Path(*relative_parts)) if relative_parts else None
         return specs_root / relative if relative is not None else None
     for agents_index, part in enumerate(include_parts):
         if part != "agents":
             continue
-        if agents_index == 0 or include_parts[agents_index - 1] not in {".codex", ".claude", ".gemini", ".opencode"}:
+        if agents_index == 0 or include_parts[agents_index - 1] not in allowed_config_dirs:
             continue
         relative_parts = include_parts[agents_index + 1 :]
         relative = _safe_relative_path(Path(*relative_parts)) if relative_parts else None

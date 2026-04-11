@@ -8,6 +8,8 @@ Template for spawning `gpd-planner`. Keep wrappers thin: pass phase-specific inp
 
 ---
 
+**Schema authority:** the PLAN contract schema is the binding definition of the `contract` block the planner must honor; keep the excerpt below visible and authoritative before emitting PLAN.md.
+
 ## Standard Planning Template
 
 ```markdown
@@ -18,7 +20,7 @@ Template for spawning `gpd-planner`. Keep wrappers thin: pass phase-specific inp
 **Research mode:** {research_mode}
 **Autonomy:** {autonomy}
 
-Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source, but do not rely on that path reference alone: the schema-critical PLAN contract excerpt below is model-visible and binding before output.
+Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source. Do not rely on that path reference alone: the schema-critical PLAN contract excerpt below is model-visible and binding before output.
 If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `gpd_return.status: checkpoint` rather than guessing.
 
 **PLAN contract schema-critical excerpt:** `contract` must be a YAML object with `schema_version: 1`, object-valued `scope`, `context_intake`, and `uncertainty_markers`, and list-of-object sections `claims`, `deliverables`, `acceptance_tests`, and `forbidden_proxies`; include `references` unless grounding is explicit in `context_intake` or preserved scoping inputs. Optional object/list sections are `approach_policy`, `observables`, and `links`. Every claim needs stable `id`, non-empty `deliverables` and `acceptance_tests`, and only declared IDs in cross-reference lists. `scope.question` and `scope.in_scope` are required and non-empty. `approach_policy` is execution policy only and never satisfies grounding by itself. Proof-bearing claims must use explicit non-`other` `claim_kind` and expose proof-specific acceptance tests, `parameters`, `hypotheses`, `conclusion_clauses`, and `proof_deliverables`.

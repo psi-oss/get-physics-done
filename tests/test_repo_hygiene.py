@@ -132,6 +132,22 @@ def test_repo_hygiene_no_python_bytecode_tracked() -> None:
     )
 
 
+def test_repo_hygiene_src_gpd_has_no_tracked_bytecode_artifacts() -> None:
+    offenders = [
+        path.as_posix()
+        for path in _tracked_paths()
+        if len(path.parts) >= 2
+        and path.parts[0] == "src"
+        and path.parts[1] == "gpd"
+        and ("__pycache__" in path.parts or path.suffix in {".pyc", ".pyo", ".pyd"})
+    ]
+
+    assert not offenders, (
+        "Tracked bytecode artifacts under src/gpd found in git index:\n"
+        + "\n".join(f"- {path}" for path in offenders)
+    )
+
+
 def test_command_workflow_parity_matches_allowlist() -> None:
     command_docs = {path.stem for path in (REPO_ROOT / "src" / "gpd" / "commands").glob("*.md")}
     workflow_docs = {

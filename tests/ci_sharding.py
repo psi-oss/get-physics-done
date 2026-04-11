@@ -23,6 +23,8 @@ CI_SMOKE_TEST_TARGETS = (
     "tests/test_repo_hygiene.py",
     "tests/test_schema_registry_ownership_note.py",
     "tests/adapters/test_runtime_catalog.py",
+    "tests/core/test_contract_validation.py",
+    "tests/core/test_prompt_wiring.py",
 )
 CI_TOTAL_SHARD_COUNT_TARGET = 19
 CI_MAX_SHARD_COUNT_TARGET = 20
