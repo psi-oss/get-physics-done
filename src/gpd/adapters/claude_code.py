@@ -25,7 +25,11 @@ from gpd.adapters.install_utils import (
     translate_frontmatter_tool_names,
     verify_installed,
     write_settings,
+)
+from gpd.adapters.install_utils import (
     finish_install as _finish_install,
+)
+from gpd.adapters.install_utils import (
     rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
 )
 from gpd.mcp import managed_integrations as _managed_integrations

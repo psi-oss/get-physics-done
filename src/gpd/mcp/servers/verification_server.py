@@ -37,6 +37,7 @@ from gpd.contracts import (
     statement_looks_theorem_like,
 )
 from gpd.core.contract_validation import (
+    _validate_direct_project_contract_schema_version,
     is_authoritative_project_contract_schema_finding,
     is_repair_relevant_project_contract_schema_finding,
     split_project_contract_schema_findings,
@@ -1155,6 +1156,12 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         if len(allowed_family_values) == 1:
             metadata["declared_family"] = allowed_family_values[0]
             _demote_required_field("metadata.declared_family")
+        elif (
+            check_key == "contract.fit_family_mismatch"
+            and allowed_family_values
+            and _contains_unreplaced_request_template_sentinel(metadata.get("declared_family"))
+        ):
+            metadata["declared_family"] = allowed_family_values[0]
         elif _contains_unreplaced_request_template_sentinel(metadata.get("declared_family")):
             metadata.pop("declared_family", None)
 
@@ -1175,17 +1182,19 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
             keywords=("benchmark", "baseline", "reference"),
             evidence_ids=benchmark_reference_ids,
         )
-        if len(_unique_strings(benchmark_reference_ids)) == 1 and len(benchmark_tests) == 1:
-            benchmark_reference_id = benchmark_reference_ids[0]
+        unique_benchmark_reference_ids = _unique_strings(benchmark_reference_ids)
+        if unique_benchmark_reference_ids:
+            benchmark_reference_id = unique_benchmark_reference_ids[0]
             metadata["source_reference_id"] = benchmark_reference_id
-            binding.setdefault("reference_ids", [benchmark_reference_id])
-            benchmark_test = _apply_single_acceptance_test_binding(binding, contract, benchmark_tests)
-            if benchmark_test is not None:
-                _set_single_binding_value(
-                    binding,
-                    "reference_ids",
-                    [reference_id for reference_id in benchmark_test.evidence_required if reference_id in benchmark_reference_ids],
-                )
+            if len(unique_benchmark_reference_ids) == 1 and len(benchmark_tests) == 1:
+                binding.setdefault("reference_ids", [benchmark_reference_id])
+                benchmark_test = _apply_single_acceptance_test_binding(binding, contract, benchmark_tests)
+                if benchmark_test is not None:
+                    _set_single_binding_value(
+                        binding,
+                        "reference_ids",
+                        [reference_id for reference_id in benchmark_test.evidence_required if reference_id in benchmark_reference_ids],
+                    )
             _demote_required_field("metadata.source_reference_id")
 
     elif check_key == "contract.limit_recovery":
@@ -1197,28 +1206,31 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         regime_candidates = _unique_strings(
             observable.regime for observable in contract.observables if observable.regime
         )
-        if len(regime_candidates) == 1 and len(limit_tests) == 1:
+        if regime_candidates:
             regime_label = regime_candidates[0]
             metadata["regime_label"] = regime_label
-            _set_single_binding_value(
-                binding,
-                "observable_ids",
-                [observable.id for observable in contract.observables if observable.regime == regime_label],
-            )
-            _set_single_binding_value(binding, "claim_ids", _claim_ids_for_regime(contract, regime_label))
-            limit_test = _apply_single_acceptance_test_binding(
-                binding,
-                contract,
-                limit_tests,
-                include_observable_binding=True,
-            )
-            if limit_test is None:
-                binding_ids = {target: _binding_values_for_target(binding, target) for target in VERIFICATION_BINDING_TARGETS}
-                limit_test = _resolve_single_limit_acceptance_test(contract, binding_ids)
-            if limit_test is not None and limit_test.pass_condition:
-                metadata["expected_behavior"] = limit_test.pass_condition
+            if len(regime_candidates) == 1 and len(limit_tests) == 1:
+                _set_single_binding_value(
+                    binding,
+                    "observable_ids",
+                    [observable.id for observable in contract.observables if observable.regime == regime_label],
+                )
+                _set_single_binding_value(binding, "claim_ids", _claim_ids_for_regime(contract, regime_label))
+                limit_test = _apply_single_acceptance_test_binding(
+                    binding,
+                    contract,
+                    limit_tests,
+                    include_observable_binding=True,
+                )
+                if limit_test is None:
+                    binding_ids = {target: _binding_values_for_target(binding, target) for target in VERIFICATION_BINDING_TARGETS}
+                    limit_test = _resolve_single_limit_acceptance_test(contract, binding_ids)
+                if limit_test is not None and limit_test.pass_condition:
+                    metadata["expected_behavior"] = limit_test.pass_condition
+            elif limit_tests:
+                metadata["expected_behavior"] = "approaches the contracted limit behavior"
             _demote_required_field("metadata.regime_label")
-            if limit_test is not None and limit_test.pass_condition:
+            if len(regime_candidates) == 1 and len(limit_tests) == 1 and limit_test is not None and limit_test.pass_condition:
                 _demote_required_field("metadata.expected_behavior")
 
     elif check_key == "contract.direct_proxy_consistency":
@@ -3223,6 +3235,8 @@ def _contract_value_at_path(contract_raw: dict[str, object], path: str) -> objec
 
 
 def _normalize_contract_parse_error(error: str, *, contract_raw: dict[str, object]) -> str:
+    if error is None:
+        return error
     if error == "schema_version: Input should be 1":
         return "schema_version must be 1"
 
@@ -3268,8 +3282,25 @@ def _contract_error_sort_key(error: str) -> tuple[object, ...]:
 
 
 def _contract_payload_error(errors: list[str]) -> dict[str, object]:
+    salvage_detail_errors = {
+        error.removesuffix(" (draft/salvage warning; strict authoritative validation still rejects unknown keys)")
+        for error in errors
+        if error.endswith(" (draft/salvage warning; strict authoritative validation still rejects unknown keys)")
+    }
     details = sorted(
-        dict.fromkeys(errors),
+        dict.fromkeys(
+            error
+            for error in errors
+            if error not in salvage_detail_errors
+            and not (
+                error.endswith(": Input should be a valid list")
+                and f"{error.split(':', 1)[0]} must be a list, not str" in errors
+            )
+            and not (
+                error.endswith(": Value error, must be a boolean")
+                and f"{error.split(':', 1)[0]}: must be a boolean (coerced from 'yes')" in errors
+            )
+        ),
         key=_contract_error_sort_key,
     )
     if not details:
@@ -3398,6 +3429,16 @@ def _parse_contract_payload(
     project_root: Path | None = None,
     allow_salvage: bool = False,
 ) -> tuple[ResearchContract | None, list[str], dict | None]:
+    if "schema_version" not in contract_raw:
+        schema_version_error = "schema_version is required"
+    else:
+        schema_version_error = _normalize_contract_parse_error(
+            _validate_direct_project_contract_schema_version(contract_raw.get("schema_version")),
+            contract_raw=contract_raw,
+        )
+    if schema_version_error is not None:
+        return None, [], _contract_payload_error([schema_version_error])
+
     strict_result = parse_project_contract_data_strict(contract_raw)
     salvage_result = parse_project_contract_data_salvage(contract_raw)
     normalized_strict_errors = [
@@ -3423,15 +3464,43 @@ def _parse_contract_payload(
         if _is_authoritative_contract_parse_error(error)
     ]
     if authoritative_errors:
-        return None, [], _contract_payload_error(authoritative_errors)
-    if not allow_salvage and normalized_salvage_recoverable_errors:
-        return None, [], _contract_payload_error(normalized_salvage_recoverable_errors)
+        authoritative_with_recoverable = [*authoritative_errors, *normalized_salvage_recoverable_errors]
+        normalized_salvage_blocking_errors = [
+            _normalize_contract_parse_error(error, contract_raw=contract_raw)
+            for error in salvage_result.blocking_errors
+        ]
+        if normalized_salvage_blocking_errors:
+            return None, [], _contract_payload_error([*authoritative_with_recoverable, *normalized_salvage_blocking_errors])
+        salvage_integrity_errors = [
+            error
+            for error in normalized_salvage_recoverable_errors
+            if error not in authoritative_errors
+            and not _is_authoritative_contract_parse_error(error)
+            and not _is_recoverable_contract_parse_error(error, contract_raw=contract_raw)
+        ]
+        if salvage_integrity_errors:
+            return None, [], _contract_payload_error([*authoritative_with_recoverable, *salvage_integrity_errors])
+        if salvage_result.contract is not None:
+            integrity_error = _validate_contract_integrity(
+                salvage_result.contract,
+                contract_raw=contract_raw,
+                project_root=project_root,
+            )
+            if integrity_error is not None and "contract_error_details" in integrity_error:
+                return None, [], _contract_payload_error([*authoritative_with_recoverable, *integrity_error["contract_error_details"]])
+        return None, [], _contract_payload_error(authoritative_with_recoverable)
     if strict_result.contract is None:
         blocking = [
             error
             for error in [*normalized_strict_errors, *normalized_salvage_recoverable_errors]
             if error not in nonblocking_errors
         ]
+        if salvage_result.blocking_errors:
+            salvage_errors = [
+                _normalize_contract_parse_error(error, contract_raw=contract_raw)
+                for error in salvage_result.blocking_errors
+            ]
+            return None, [], _contract_payload_error([*normalized_salvage_recoverable_errors, *salvage_errors])
         if blocking:
             return None, [], _contract_payload_error(blocking)
         contract = salvage_result.contract
@@ -3440,7 +3509,7 @@ def _parse_contract_payload(
                 _normalize_contract_parse_error(error, contract_raw=contract_raw)
                 for error in salvage_result.blocking_errors
             ]
-            combined_errors = salvage_errors or normalized_strict_errors
+            combined_errors = [*normalized_salvage_recoverable_errors, *salvage_errors] or normalized_strict_errors
             return None, [], _contract_payload_error(combined_errors)
     else:
         contract = strict_result.contract
@@ -3459,6 +3528,9 @@ def _parse_contract_payload(
         project_root=project_root,
     )
     if integrity_error is not None:
+        if recoverable_errors and "contract_error_details" in integrity_error:
+            combined_errors = [*recoverable_errors, *integrity_error["contract_error_details"]]
+            return None, [], _contract_payload_error(combined_errors)
         return None, [], integrity_error
     return contract, recoverable_errors, None
 

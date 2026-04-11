@@ -53,7 +53,12 @@ from gpd.adapters.install_utils import (
     verify_installed,
     write_manifest,
 )
-from gpd.adapters.runtime_catalog import RuntimeDescriptor, get_runtime_descriptor_for_adapter_module
+from gpd.adapters.runtime_catalog import (
+    RuntimeDescriptor,
+)
+from gpd.adapters.runtime_catalog import (
+    get_runtime_descriptor as _get_runtime_descriptor,
+)
 from gpd.adapters.runtime_defaults import AUTO_DISCOVERED_TOOL_DEFAULTS, SHELL_FENCE_LANGUAGES
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.core.observability import gpd_span
@@ -61,6 +66,11 @@ from gpd.mcp import managed_integrations as _managed_integrations
 from gpd.registry import AgentDef, load_agents_from_dir
 
 logger = logging.getLogger(__name__)
+
+
+def get_runtime_descriptor(runtime: str) -> RuntimeDescriptor:
+    """Compatibility wrapper for descriptor monkeypatching in Codex config tests."""
+    return _get_runtime_descriptor(runtime)
 
 _TOOL_NAME_MAP: dict[str, str] = {
     "file_read": "read_file",
@@ -127,7 +137,7 @@ def _read_codex_runtime_config(config_path: Path) -> tuple[dict[str, object] | N
 
 def _codex_runtime_descriptor() -> RuntimeDescriptor:
     """Return the runtime descriptor owned by this adapter."""
-    return get_runtime_descriptor_for_adapter_module(__name__)
+    return get_runtime_descriptor("codex")
 
 
 def _codex_config_dir_name() -> str:

@@ -6,9 +6,8 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-from gpd.adapters.runtime_catalog import iter_runtime_descriptors
-
 import tests.conftest as tests_conftest
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
     CI_FAST_PRIORITY_TEST_TARGETS,

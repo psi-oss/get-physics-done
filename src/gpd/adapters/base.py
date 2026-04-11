@@ -39,9 +39,11 @@ from gpd.adapters.install_utils import (
 )
 from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
-    get_runtime_descriptor_for_adapter_module,
     get_shared_install_metadata,
     resolve_global_config_dir,
+)
+from gpd.adapters.runtime_catalog import (
+    iter_runtime_descriptors as _iter_runtime_descriptors,
 )
 from gpd.adapters.tool_names import (
     build_runtime_alias_map,
@@ -53,6 +55,20 @@ if TYPE_CHECKING:
     from gpd.registry import AgentDef
 
 logger = logging.getLogger(__name__)
+
+
+def iter_runtime_descriptors():
+    """Compatibility wrapper for tests and callers that patch adapter catalogs."""
+    return _iter_runtime_descriptors()
+
+
+def get_runtime_descriptor_for_adapter_module(adapter_module: str):
+    """Return the descriptor for *adapter_module* through the patchable catalog wrapper."""
+    module_name = adapter_module.rsplit(".", 1)[-1]
+    for descriptor in iter_runtime_descriptors():
+        if descriptor.adapter_module == module_name:
+            return descriptor
+    raise RuntimeError(f"No runtime catalog entry owns adapter module {module_name!r}")
 
 
 def _managed_install_surface(target_dir: Path):
@@ -134,7 +150,7 @@ def _has_blocking_manifestless_install_surface(target_dir: Path) -> bool:
     return surface.has_managed_agents and has_managed_hooks
 
 
-class RuntimeAdapter(abc.ABC):
+class RuntimeAdapter(abc.ABC):  # noqa: B024
     """Abstract base for GPD runtime adapters."""
 
     tool_name_map: Mapping[str, str] = {}
