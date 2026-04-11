@@ -816,8 +816,8 @@ def salvage_project_contract(contract: dict[str, object]) -> tuple[ResearchContr
             errors=approach_policy_errors,
             canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
         )
+        errors.extend(error for error in approach_policy_errors if error not in errors)
         if approach_policy_blocked or approach_policy is None:
-            errors.extend(error for error in approach_policy_errors if error not in errors)
             normalized_contract.pop("approach_policy", None)
         else:
             normalized_contract["approach_policy"] = approach_policy

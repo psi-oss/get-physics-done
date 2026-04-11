@@ -35,5 +35,6 @@ Phase: $ARGUMENTS
 </context>
 
 <process>
+Read `@{GPD_INSTALL_DIR}/workflows/execute-phase.md` with `file_read` first.
 Follow the included workflow file exactly.
 </process>

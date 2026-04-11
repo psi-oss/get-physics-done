@@ -301,6 +301,20 @@ def test_runtime_catalog_rejects_duplicate_local_install_help_example_scope(
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
+def test_runtime_catalog_rejects_duplicate_priorities(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    _catalog_entry_by_runtime_name(payload, "codex")["priority"] = 20
+
+    with pytest.raises(
+        ValueError,
+        match=r"runtime catalog contains duplicate priority 20 for 'codex' and 'gemini'",
+    ):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+
 def test_runtime_catalog_declares_one_explicit_installer_help_example_per_scope() -> None:
     examples = [descriptor.runtime_name for descriptor in iter_runtime_descriptors() if descriptor.installer_help_example_scope]
 

@@ -81,10 +81,6 @@ class RuntimeHintPayload(BaseModel):
     next_actions: list[str] = Field(default_factory=list)
 
 
-def _now_iso() -> str:
-    return utc_now_iso()
-
-
 def _path_text(value: Path | None) -> str | None:
     return value.as_posix() if value is not None else None
 
@@ -583,7 +579,7 @@ def build_runtime_hint_payload(
     )
 
     source_meta = {
-        "generated_at": _now_iso(),
+        "generated_at": utc_now_iso(),
         "workspace_root": workspace_hint.as_posix(),
         "project_root": project_root.as_posix(),
         "data_root": _path_text(data_root.expanduser().resolve(strict=False) if data_root is not None else None),

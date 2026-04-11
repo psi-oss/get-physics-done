@@ -594,6 +594,7 @@ def _parse_capabilities(
 
 def _validate_runtime_catalog_uniqueness(descriptors: list[RuntimeDescriptor]) -> None:
     runtime_names: dict[str, str] = {}
+    priorities: dict[int, str] = {}
     install_flags: dict[str, str] = {}
     selection_flags: dict[str, str] = {}
     selection_tokens: dict[str, str] = {}
@@ -602,6 +603,14 @@ def _validate_runtime_catalog_uniqueness(descriptors: list[RuntimeDescriptor]) -
         if descriptor.runtime_name in runtime_names:
             raise ValueError(f"runtime catalog contains duplicate runtime_name {descriptor.runtime_name!r}")
         runtime_names[descriptor.runtime_name] = descriptor.runtime_name
+
+        existing_priority_runtime = priorities.get(descriptor.priority)
+        if existing_priority_runtime is not None:
+            raise ValueError(
+                f"runtime catalog contains duplicate priority {descriptor.priority!r} for "
+                f"{existing_priority_runtime!r} and {descriptor.runtime_name!r}"
+            )
+        priorities[descriptor.priority] = descriptor.runtime_name
 
         existing_install_flag_runtime = install_flags.get(descriptor.install_flag)
         if existing_install_flag_runtime is not None:

@@ -34,6 +34,7 @@ Optional sections:
 Every list named above must contain objects, not strings.
 `context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections, not strings or lists.
 Do not add unknown keys at any level; strict validation rejects keys outside this schema.
+Salvage/repair flows may drop unknown keys while surfacing recoverable findings; strict validation treats those same unknown-key findings as blocking.
 `approach_policy` is execution policy only; it can constrain planning, but it does not by itself satisfy the hard grounding/anchor requirement.
 
 ---
@@ -137,6 +138,7 @@ Rules:
 - Every field above is optional inside the object, but the object itself must not be empty.
 - `must_read_refs[]` may only reference declared `references[].id`.
 - Use concrete anchors in `must_read_refs[]`, `must_include_prior_outputs[]`, `user_asserted_anchors[]`, and `known_good_baselines[]`; use `context_gaps`, `scope.unresolved_questions`, or `uncertainty_markers.weakest_anchors` for unresolved anchors instead of inventing placeholder references.
+- `context_gaps` and `crucial_inputs` preserve uncertainty and workflow visibility, but they do not satisfy hard grounding on their own.
 
 ### `approach_policy`
 

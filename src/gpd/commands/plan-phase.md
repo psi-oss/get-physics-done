@@ -37,5 +37,6 @@ Phase number: $ARGUMENTS (optional; auto-detects the next unplanned phase if omi
 </context>
 
 <process>
+Read `@{GPD_INSTALL_DIR}/workflows/plan-phase.md` with `file_read` first.
 Follow the included workflow file exactly.
 </process>

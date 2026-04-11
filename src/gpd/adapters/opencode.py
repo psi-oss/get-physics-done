@@ -18,6 +18,7 @@ import os
 import re
 import shutil
 from collections.abc import Mapping
+from functools import lru_cache
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
@@ -49,6 +50,7 @@ from gpd.adapters.install_utils import (
     split_markdown_frontmatter,
     strip_sub_tags,
 )
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -107,6 +109,16 @@ _MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY = "opencode_generated_command_fil
 # ---------------------------------------------------------------------------
 
 
+@lru_cache(maxsize=1)
+def _runtime_name_from_catalog() -> str:
+    """Return the runtime identity owned by this adapter module."""
+    module_name = __name__.rsplit(".", 1)[-1]
+    for descriptor in iter_runtime_descriptors():
+        if descriptor.adapter_module == module_name:
+            return descriptor.runtime_name
+    raise RuntimeError(f"No runtime catalog entry owns adapter module {module_name!r}")
+
+
 def get_opencode_global_dir(explicit_dir: str | None = None) -> Path:
     """Resolve the global config directory for OpenCode.
 
@@ -118,7 +130,7 @@ def get_opencode_global_dir(explicit_dir: str | None = None) -> Path:
     4. XDG_CONFIG_HOME/opencode when XDG_CONFIG_HOME is set
     5. ~/.config/opencode when XDG_CONFIG_HOME is unset
     """
-    return Path(get_global_dir("opencode", explicit_dir))
+    return Path(get_global_dir(_runtime_name_from_catalog(), explicit_dir))
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +248,9 @@ def convert_frontmatter_for_opencode(content: str, path_prefix: str | None = Non
 
     new_frontmatter = "\n".join(new_lines).strip()
     return render_markdown_frontmatter(preamble, new_frontmatter, separator, body)
+
+
+convert_claude_to_opencode_frontmatter = convert_frontmatter_for_opencode
 
 
 def _rewrite_gpd_cli_invocations(content: str, bridge_command: str) -> str:
@@ -407,7 +422,7 @@ def copy_agents_as_agent_files(
 
     agents_dest.mkdir(parents=True, exist_ok=True)
     source_root = gpd_src_root or agents_src.parent / "specs"
-    runtime_name = runtime_name or OpenCodeAdapter().runtime_name
+    runtime_name = runtime_name or _runtime_name_from_catalog()
 
     new_agent_names: set[str] = set()
     count = 0
@@ -741,7 +756,7 @@ def _copy_dir_contents(
             _copy_dir_contents(entry, dest_path, path_prefix, install_scope)
         elif entry.name.endswith(".md"):
             content = entry.read_text(encoding="utf-8")
-            content = replace_placeholders(content, path_prefix, "opencode", install_scope)
+            content = replace_placeholders(content, path_prefix, _runtime_name_from_catalog(), install_scope)
             content = convert_frontmatter_for_opencode(content, path_prefix)
             content = strip_sub_tags(content)
             dest_path.write_text(content, encoding="utf-8")
@@ -1359,6 +1374,7 @@ __all__ = [
     "OpenCodeAdapter",
     "get_opencode_global_dir",
     "convert_tool_name",
+    "convert_claude_to_opencode_frontmatter",
     "convert_frontmatter_for_opencode",
     "configure_opencode_permissions",
     "copy_flattened_commands",

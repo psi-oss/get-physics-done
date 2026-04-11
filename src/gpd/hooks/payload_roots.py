@@ -12,7 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from gpd.core.root_resolution import RootResolutionBasis, resolve_project_root, resolve_project_roots
-from gpd.core.small_utils import first_nonempty_string, first_strict_bool
+from gpd.core.small_utils import first_nonempty_string as _first_string
+from gpd.core.small_utils import first_strict_bool
 
 
 @dataclass(frozen=True)
@@ -23,8 +24,9 @@ class PayloadRoots:
     project_dir_trusted: bool = False
 
 
-def _first_string(value: object, *keys: str) -> str:
-    return first_nonempty_string(value, *keys)
+def first_mapping_string(value: object, *keys: str) -> str:
+    """Return the first non-empty string for keys from mappings only."""
+    return _first_string(value if isinstance(value, dict) else {}, *keys)
 
 
 def _first_bool(value: object, *keys: str) -> bool | None:

@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from gpd.contracts import ResearchContract, collect_plan_contract_integrity_errors
-from gpd.contracts import parse_project_contract_data_strict
+from gpd.contracts import ResearchContract, collect_plan_contract_integrity_errors, parse_project_contract_data_strict
 from gpd.core.contract_validation import parse_project_contract_data_salvage, validate_project_contract
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
+TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "src" / "gpd" / "specs" / "templates"
 
 
 def _load_contract_fixture() -> dict[str, object]:
@@ -109,6 +109,55 @@ def test_fast_contract_validation_salvage_normalizes_blank_nested_proof_lists() 
     assert "claims.0.parameters.0.aliases was normalized from blank string to empty list" in result.recoverable_errors
     assert "claims.0.hypotheses.0.symbols was normalized from blank string to empty list" in result.recoverable_errors
     assert result.blocking_errors == []
+
+
+def test_fast_contract_validation_salvage_reports_unknown_approach_policy_key() -> None:
+    contract = _load_contract_fixture()
+    contract["approach_policy"] = {"legacy_guardrail": ["do not use proxy fit"]}
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.contract.approach_policy.model_dump() == {
+        "formulations": [],
+        "allowed_estimator_families": [],
+        "forbidden_estimator_families": [],
+        "allowed_fit_families": [],
+        "forbidden_fit_families": [],
+        "stop_and_rethink_conditions": [],
+    }
+    assert any(
+        error.startswith("approach_policy.legacy_guardrail: Extra inputs are not permitted")
+        for error in result.recoverable_errors
+    )
+
+
+def test_fast_contract_validation_strict_rejects_unknown_approach_policy_key() -> None:
+    contract = _load_contract_fixture()
+    contract["approach_policy"] = {"legacy_guardrail": ["do not use proxy fit"]}
+
+    result = parse_project_contract_data_strict(contract)
+
+    assert result.contract is None
+    assert any(
+        error.startswith("approach_policy.legacy_guardrail: Extra inputs are not permitted")
+        for error in result.blocking_errors
+    )
+
+
+def test_fast_contract_validation_salvage_reports_invalid_approach_policy_member_drop() -> None:
+    contract = _load_contract_fixture()
+    contract["approach_policy"] = {
+        "formulations": [7],
+        "allowed_fit_families": ["benchmark-fit"],
+    }
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.contract.approach_policy.formulations == []
+    assert result.contract.approach_policy.allowed_fit_families == ["benchmark-fit"]
+    assert "approach_policy.formulations.0: Input should be a valid string" in result.recoverable_errors
 
 
 def test_fast_contract_validation_salvage_preserves_nested_collection_siblings() -> None:
@@ -213,6 +262,21 @@ def test_fast_contract_validation_rootless_prior_output_does_not_count_as_approv
     )
 
 
+def test_fast_contract_validation_context_gaps_and_crucial_inputs_do_not_satisfy_hard_grounding() -> None:
+    contract = _load_contract_fixture()
+    _strip_reference_dependencies(contract)
+    contract["context_intake"]["must_include_prior_outputs"] = []
+    contract["context_intake"]["user_asserted_anchors"] = []
+    contract["context_intake"]["known_good_baselines"] = []
+    contract["context_intake"]["context_gaps"] = ["Need decisive anchor selection before approval"]
+    contract["context_intake"]["crucial_inputs"] = ["Use benchmark table from the confirmed paper once selected"]
+
+    validation = validate_project_contract(contract, mode="approved")
+
+    assert validation.valid is False
+    assert any("approved project contract requires at least one concrete anchor" in error for error in validation.errors)
+
+
 def test_fast_contract_validation_accepts_existing_project_local_prior_output_with_project_root(tmp_path: Path) -> None:
     contract = _load_contract_fixture()
     _strip_reference_dependencies(contract)
@@ -225,3 +289,16 @@ def test_fast_contract_validation_accepts_existing_project_local_prior_output_wi
 
     assert validation.valid is True
     assert not any("must_include_prior_outputs" in warning for warning in validation.warnings)
+
+
+def test_fast_contract_validation_schema_docs_describe_recoverable_vs_strict_repair_behavior() -> None:
+    project_schema = (TEMPLATES_DIR / "project-contract-schema.md").read_text(encoding="utf-8")
+    plan_schema = (TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
+
+    assert "Salvage/repair flows may drop unknown keys while surfacing recoverable findings" in project_schema
+    assert (
+        "Salvage/repair may normalize some list-shape drift, blank items, or case drift with explicit findings"
+        in project_schema
+    )
+    assert "Salvage/repair flows may drop unknown keys while surfacing recoverable findings" in plan_schema
+    assert "preserve uncertainty and workflow visibility, but they do not satisfy hard grounding on their own" in plan_schema

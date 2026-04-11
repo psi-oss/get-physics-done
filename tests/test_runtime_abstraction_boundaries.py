@@ -769,3 +769,15 @@ def test_adapter_runtime_identity_comes_from_catalog_not_literals() -> None:
         "Runtime adapters should use catalog-derived runtime identity, not repeated literals:\n"
         f"{_format_failures(leaks)}"
     )
+
+
+def test_opencode_adapter_runtime_identity_calls_are_catalog_driven() -> None:
+    leaks = _scan_paths_for_pattern(
+        (REPO_ROOT / "src/gpd/adapters/opencode.py",),
+        re.compile(r'get_global_dir\("opencode"|replace_placeholders\([^)]*"opencode"'),
+    )
+
+    assert leaks == [], (
+        "OpenCode adapter should derive runtime identity from the catalog in runtime wiring calls:\n"
+        f"{_format_failures(leaks)}"
+    )

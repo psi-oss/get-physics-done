@@ -701,6 +701,7 @@ function validateRuntimeCatalog(catalogPayload) {
   });
 
   const runtimeNames = new Map();
+  const priorities = new Map();
   const installFlags = new Map();
   const selectionFlags = new Map();
   const selectionTokens = new Map();
@@ -711,6 +712,14 @@ function validateRuntimeCatalog(catalogPayload) {
       );
     }
     runtimeNames.set(entry.runtime_name, entry.runtime_name);
+
+    const existingPriorityRuntime = priorities.get(entry.priority);
+    if (existingPriorityRuntime && existingPriorityRuntime !== entry.runtime_name) {
+      throw new Error(
+        `runtime catalog contains duplicate priority ${JSON.stringify(entry.priority)} for ${JSON.stringify(existingPriorityRuntime)} and ${JSON.stringify(entry.runtime_name)}`
+      );
+    }
+    priorities.set(entry.priority, entry.runtime_name);
 
     const existingInstallFlagRuntime = installFlags.get(entry.install_flag);
     if (existingInstallFlagRuntime && existingInstallFlagRuntime !== entry.runtime_name) {

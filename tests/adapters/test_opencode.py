@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+import gpd.adapters.opencode as opencode_module
 from gpd.adapters.install_utils import MANIFEST_NAME, build_runtime_cli_bridge_command, hook_python_interpreter
 from gpd.adapters.opencode import (
     OpenCodeAdapter,
@@ -51,6 +53,37 @@ class TestProperties:
 
     def test_help_command(self, adapter: OpenCodeAdapter) -> None:
         assert adapter.help_command == "/gpd-help"
+
+
+class TestRuntimeIdentityFromCatalog:
+    def test_get_opencode_global_dir_uses_catalog_runtime_identity(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_runtime: dict[str, str] = {}
+
+        monkeypatch.setattr(
+            opencode_module,
+            "iter_runtime_descriptors",
+            lambda: (
+                SimpleNamespace(adapter_module="codex", runtime_name="codex"),
+                SimpleNamespace(adapter_module="opencode", runtime_name="opencode-catalog-runtime"),
+            ),
+        )
+        monkeypatch.setattr(
+            opencode_module,
+            "get_global_dir",
+            lambda runtime_name, explicit_dir=None: (
+                captured_runtime.setdefault("runtime_name", runtime_name),
+                "/tmp/opencode-config",
+            )[1],
+        )
+
+        opencode_module._runtime_name_from_catalog.cache_clear()
+        try:
+            resolved = get_opencode_global_dir()
+        finally:
+            opencode_module._runtime_name_from_catalog.cache_clear()
+
+        assert captured_runtime["runtime_name"] == "opencode-catalog-runtime"
+        assert resolved == Path("/tmp/opencode-config")
 
 
 class TestConvertToolName:

@@ -16,9 +16,9 @@ import gpd.hooks.install_context as hook_layout
 from gpd.adapters.runtime_catalog import get_hook_payload_policy
 from gpd.core.constants import ENV_GPD_DEBUG
 from gpd.core.root_resolution import resolve_project_root
-from gpd.core.small_utils import first_nonempty_string
 from gpd.core.state import load_state_json
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
+from gpd.hooks.payload_roots import first_mapping_string as _first_string
 from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping
 from gpd.hooks.payload_roots import resolve_payload_roots as _resolve_payload_roots
 from gpd.hooks.runtime_detect import SCOPE_LOCAL, detect_runtime_install_target
@@ -58,11 +58,6 @@ def _context_bar(remaining_pct: float) -> str:
 def _debug(msg: str) -> None:
     if os.environ.get(ENV_GPD_DEBUG):
         sys.stderr.write(f"[gpd-debug] {msg}\n")
-
-
-def _first_string(value: object, *keys: str) -> str:
-    """Return the first non-empty string for *keys* from *value* when it is a mapping."""
-    return first_nonempty_string(value if isinstance(value, dict) else {}, *keys)
 
 
 def _first_value(value: object, *keys: str) -> object | None:

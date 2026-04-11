@@ -98,6 +98,19 @@ def _explicit_runtime_override() -> str | None:
     return normalize_runtime_name(os.environ.get(ENV_GPD_ACTIVE_RUNTIME))
 
 
+def _runtime_has_explicit_config_override(runtime: str) -> bool:
+    """Return True when runtime config is explicitly redirected via env vars."""
+    try:
+        descriptor = get_runtime_descriptor(runtime)
+    except KeyError:
+        return False
+    global_config = descriptor.global_config
+    return any(
+        env_var and bool(os.environ.get(env_var))
+        for env_var in (global_config.env_var, global_config.env_dir_var, global_config.env_file_var)
+    )
+
+
 def _prioritized_runtimes(preferred_runtime: str | None = None) -> list[str]:
     """Return runtimes in explicit priority order, optionally promoting one runtime to the front."""
     runtime_names = supported_runtime_names()
@@ -252,27 +265,9 @@ def resolve_effective_runtime(
                         install_scope=install_scope,
                     )
 
-        for runtime in ordered_runtimes:
-            local_dir = _local_runtime_dir(runtime, resolved_cwd)
-            if _has_gpd_install(local_dir):
-                install_scope = install_scope_from_manifest(local_dir) or SCOPE_LOCAL
-                return EffectiveRuntimeResolution(
-                    runtime=runtime,
-                    source=_source_for_install_scope(install_scope, fallback=SOURCE_LOCAL),
-                    has_gpd_install=True,
-                    install_scope=install_scope,
-                )
-
-            global_dir = _global_runtime_dir(runtime, home=resolved_home)
-            if _has_gpd_install(global_dir):
-                install_scope = install_scope_from_manifest(global_dir) or SCOPE_GLOBAL
-                return EffectiveRuntimeResolution(
-                    runtime=runtime,
-                    source=_source_for_install_scope(install_scope, fallback=SOURCE_GLOBAL),
-                    has_gpd_install=True,
-                    install_scope=install_scope,
-                )
-
+        # Active runtime detection is intentionally signal-driven (env/override).
+        # Catalog priority controls runtime ordering, not "active runtime"
+        # inference when no activation signal is present.
         return EffectiveRuntimeResolution()
 
     active_runtime = detect_active_runtime(cwd=resolved_cwd, home=resolved_home)
@@ -289,6 +284,20 @@ def resolve_effective_runtime(
                 has_gpd_install=True,
                 install_scope=install_target.install_scope,
             )
+
+    for runtime in ordered_runtimes:
+        if not _runtime_has_explicit_config_override(runtime):
+            continue
+        install_target = _detect_runtime_install_target(runtime, cwd=resolved_cwd, home=resolved_home)
+        if install_target is None:
+            continue
+        fallback_source = SOURCE_LOCAL if install_target.config_dir == _local_runtime_dir(runtime, resolved_cwd) else SOURCE_GLOBAL
+        return EffectiveRuntimeResolution(
+            runtime=runtime,
+            source=_source_for_install_scope(install_target.install_scope, fallback=fallback_source),
+            has_gpd_install=True,
+            install_scope=install_target.install_scope,
+        )
 
     return EffectiveRuntimeResolution()
 

@@ -251,7 +251,7 @@ class TestResolveEffectiveRuntime:
         assert result.runtime == RUNTIME_CODEX
         assert result.source == SOURCE_ENV
 
-    def test_reports_local_source_and_install_scope(self, tmp_path: Path) -> None:
+    def test_installed_runtime_without_activation_signal_stays_unknown(self, tmp_path: Path) -> None:
         _mark_gpd_install(tmp_path / ".gemini")
 
         env = _clean_runtime_env()
@@ -262,10 +262,10 @@ class TestResolveEffectiveRuntime:
         ):
             result = resolve_effective_runtime()
 
-        assert result.runtime == RUNTIME_GEMINI
-        assert result.source == SOURCE_LOCAL
-        assert result.has_gpd_install is True
-        assert result.install_scope == SCOPE_LOCAL
+        assert result.runtime == RUNTIME_UNKNOWN
+        assert result.source == SOURCE_UNKNOWN
+        assert result.has_gpd_install is False
+        assert result.install_scope is None
 
     def test_reports_global_source_without_install(self, tmp_path: Path) -> None:
         (tmp_path / "home" / ".claude").mkdir(parents=True)
@@ -473,10 +473,22 @@ class TestDetectActiveRuntimeWithInstall:
         ):
             assert detect_active_runtime_with_gpd_install() == RUNTIME_UNKNOWN
 
-    def test_installed_runtime_is_detected(self, tmp_path: Path) -> None:
+    def test_installed_runtime_without_activation_signal_stays_unknown(self, tmp_path: Path) -> None:
         _mark_gpd_install(tmp_path / ".codex")
 
         env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
+        ):
+            assert detect_active_runtime_with_gpd_install() == RUNTIME_UNKNOWN
+
+    def test_active_runtime_with_install_is_detected(self, tmp_path: Path) -> None:
+        _mark_gpd_install(tmp_path / ".codex")
+
+        env = _clean_runtime_env()
+        env["CODEX_SESSION"] = "1"
         with (
             patch.dict(os.environ, env, clear=True),
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),

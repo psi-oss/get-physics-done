@@ -182,8 +182,10 @@ Canonical IDs and other required string fields are trimmed before validation. Bl
 ### Closed Schema And List Shape
 
 The `project_contract` schema is closed. Do not invent extra keys inside nested objects. Only the fields defined here are valid.
+Salvage/repair flows may drop unknown keys while surfacing recoverable findings; strict validation treats those same unknown keys as blocking errors.
 
 List-shaped fields must stay lists, even when they contain one item. Do not collapse `scope.in_scope`, `scope.out_of_scope`, `scope.unresolved_questions`, `context_intake.*`, or any nested `[]` field to a scalar string.
+Salvage/repair may normalize some list-shape drift, blank items, or case drift with explicit findings, but strict validation fails those inputs instead of silently repairing them.
 
 Blank list entries are invalid. Duplicate list entries are also invalid after trimming whitespace, even if the duplicates only differ by surrounding spaces.
 

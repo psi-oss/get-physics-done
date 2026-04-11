@@ -298,10 +298,6 @@ class LocalSpan:
         self.attrs[attr_key] = value
 
 
-def _now_iso() -> str:
-    return utc_now_iso()
-
-
 def _new_id(prefix: str) -> str:
     return f"{prefix}-{int(datetime.now(UTC).timestamp() * 1000)}-{next(_event_counter)}"
 
@@ -1847,7 +1843,7 @@ def ensure_session(
         _set_session_context(layout, persisted)
         return persisted
 
-    now = _now_iso()
+    now = utc_now_iso()
     session = ObservabilitySession(
         session_id=f"{now.replace(':', '').replace('-', '')[:15]}-{os.getpid()}-{secrets.token_hex(3)}",
         started_at=now,
@@ -1950,7 +1946,7 @@ def observe_event(
 
     payload = ObservabilityEvent(
         event_id=_new_id("evt"),
-        timestamp=_now_iso(),
+        timestamp=utc_now_iso(),
         session_id=session.session_id,
         category=category,
         name=name,
@@ -2308,7 +2304,7 @@ def export_logs(
     all_events.sort(key=lambda e: str(e.get("timestamp", "")))
     events_exported = len(all_events)
 
-    timestamp_slug = _now_iso().replace(":", "").replace("-", "")[:15]
+    timestamp_slug = utc_now_iso().replace(":", "").replace("-", "")[:15]
 
     if format == "jsonl":
         sessions_path = dest / f"sessions-{timestamp_slug}.jsonl"
@@ -2338,7 +2334,7 @@ def export_logs(
         md_lines = [
             "# GPD Session Log Export",
             "",
-            f"**Exported:** {_now_iso()}",
+            f"**Exported:** {utc_now_iso()}",
             f"**Sessions:** {sessions_exported}",
             f"**Events:** {events_exported}",
             "",
