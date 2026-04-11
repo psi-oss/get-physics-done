@@ -27,6 +27,13 @@ LEGACY_BACKCOMPAT_WORDING = (
     "backwards compatibility",
 )
 
+THIN_WORKFLOW_WRAPPERS = (
+    "error-propagation",
+    "numerical-convergence",
+    "parameter-sweep",
+    "sensitivity-analysis",
+)
+
 
 def test_model_facing_sources_do_not_keep_runtime_boilerplate_html_comments() -> None:
     for directory in MODEL_FACING_DIRS:
@@ -51,6 +58,18 @@ def test_model_facing_prompts_do_not_use_legacy_backcompat_wording() -> None:
             text = path.read_text(encoding="utf-8").lower()
             for phrase in LEGACY_BACKCOMPAT_WORDING:
                 assert phrase not in text, f"{path.relative_to(REPO_ROOT)} still contains {phrase}"
+
+
+def test_standardized_thin_workflow_wrappers_stay_concise() -> None:
+    for stem in THIN_WORKFLOW_WRAPPERS:
+        path = COMMANDS_DIR / f"{stem}.md"
+        text = path.read_text(encoding="utf-8")
+        line_count = len(text.splitlines())
+
+        assert line_count <= 45, f"{path.relative_to(REPO_ROOT)} grew to {line_count} lines"
+        assert text.count("Keep this command wrapper thin; the workflow owns detailed method guidance.") == 1, path
+        assert text.count("Do not restate workflow-owned checklists or compatibility policy here.") == 1, path
+        assert text.count(f"@{{GPD_INSTALL_DIR}}/workflows/{stem}.md") == 2, path
 
 
 def test_consistency_checker_uses_canonical_gpd_return_fields() -> None:

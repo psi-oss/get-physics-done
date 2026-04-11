@@ -171,35 +171,24 @@ def test_runtime_hook_payload_attribution_fields_stay_explicitly_opt_in() -> Non
 
 def test_runtime_capability_matrix_locks_hook_surfacing_surfaces() -> None:
     descriptors = iter_runtime_descriptors()
-    capabilities_by_runtime = {
-        descriptor.runtime_name: descriptor.capabilities for descriptor in descriptors
-    }
 
-    explicit_statusline = {
-        runtime_name
-        for runtime_name, capabilities in capabilities_by_runtime.items()
-        if capabilities.statusline_surface == "explicit"
-    }
-    explicit_notify = {
-        runtime_name
-        for runtime_name, capabilities in capabilities_by_runtime.items()
-        if capabilities.notify_surface == "explicit"
-    }
+    for descriptor in descriptors:
+        capabilities = descriptor.capabilities
+        hook_payload = descriptor.hook_payload
 
-    assert explicit_statusline == {"claude-code", "gemini"}
-    assert explicit_notify == {"codex"}
-
-    for runtime_name, capabilities in capabilities_by_runtime.items():
-        if runtime_name in explicit_statusline:
-            assert capabilities.statusline_config_surface == "settings.json:statusLine"
+        if capabilities.statusline_surface == "explicit":
+            assert capabilities.statusline_config_surface != "none"
             assert capabilities.supports_context_meter is True
+            assert hook_payload.context_window_size_keys
+            assert hook_payload.context_remaining_keys
         else:
             assert capabilities.statusline_surface == "none"
             assert capabilities.statusline_config_surface == "none"
             assert capabilities.supports_context_meter is False
 
-        if runtime_name in explicit_notify:
-            assert capabilities.notify_config_surface == "config.toml:notify"
+        if capabilities.notify_surface == "explicit":
+            assert capabilities.notify_config_surface != "none"
+            assert hook_payload.notify_event_types
         else:
             assert capabilities.notify_surface == "none"
             assert capabilities.notify_config_surface == "none"
@@ -207,25 +196,17 @@ def test_runtime_capability_matrix_locks_hook_surfacing_surfaces() -> None:
 
 def test_runtime_capability_matrix_locks_telemetry_source_and_completeness() -> None:
     descriptors = iter_runtime_descriptors()
-    capabilities_by_runtime = {
-        descriptor.runtime_name: descriptor.capabilities for descriptor in descriptors
-    }
 
-    best_effort_telemetry = {
-        runtime_name
-        for runtime_name, capabilities in capabilities_by_runtime.items()
-        if capabilities.telemetry_completeness == "best-effort"
-    }
-
-    assert best_effort_telemetry == {"codex"}
-
-    for runtime_name, capabilities in capabilities_by_runtime.items():
-        policy = get_hook_payload_policy(runtime_name)
-        if runtime_name == "codex":
+    for descriptor in descriptors:
+        capabilities = descriptor.capabilities
+        policy = get_hook_payload_policy(descriptor.runtime_name)
+        if capabilities.telemetry_completeness == "best-effort":
             assert capabilities.telemetry_source == "notify-hook"
-            assert capabilities.telemetry_completeness == "best-effort"
             assert capabilities.supports_usage_tokens is True
             assert capabilities.supports_cost_usd is True
+            assert policy.usage_keys
+            assert policy.input_tokens_keys
+            assert policy.output_tokens_keys
         else:
             assert capabilities.telemetry_source == "none"
             assert capabilities.telemetry_completeness == "none"

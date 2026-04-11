@@ -265,6 +265,9 @@ def test_npm_files_match_bootstrap_installer_resource_strategy() -> None:
         "src/gpd/adapters/runtime_catalog.json": 'require("../src/gpd/adapters/runtime_catalog.json")',
         "src/gpd/adapters/runtime_catalog_schema.json": 'require("../src/gpd/adapters/runtime_catalog_schema.json")',
         "src/gpd/core/public_surface_contract.json": 'require("../src/gpd/core/public_surface_contract.json")',
+        "src/gpd/core/public_surface_contract_schema.json": (
+            'require("../src/gpd/core/public_surface_contract_schema.json")'
+        ),
     }
 
     assert "bin/" in packaged_files
@@ -287,6 +290,7 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
 
     assert 'require("../package.json")' in content
     assert 'require("../src/gpd/core/public_surface_contract.json")' in content
+    assert 'require("../src/gpd/core/public_surface_contract_schema.json")' in content
     assert "gpdPythonVersion" in content
     assert '["-m", "venv", "--help"]' in content
     assert "managed environment" in content

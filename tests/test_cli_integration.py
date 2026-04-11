@@ -2730,6 +2730,20 @@ class TestConfigCommands:
         assert parsed["found"] is True
         assert parsed["value"] == "yolo"
 
+    def test_config_get_resolves_project_root_from_nested_cwd(self, gpd_project: Path) -> None:
+        nested = gpd_project / "GPD" / "phases" / "01-test-phase"
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "config", "get", "autonomy"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        parsed = json.loads(result.output)
+        assert parsed["found"] is True
+        assert parsed["value"] == "yolo"
+
     def test_config_get_missing_key(self) -> None:
         result = _invoke("--raw", "config", "get", "nonexistent")
         parsed = json.loads(result.output)
@@ -2774,6 +2788,23 @@ class TestConfigCommands:
         parsed = json.loads(get_result.output)
         assert parsed["found"] is True
         assert parsed["value"] is False
+
+    def test_config_set_resolves_project_root_from_nested_cwd(self, gpd_project: Path) -> None:
+        nested = gpd_project / "GPD" / "phases" / "01-test-phase"
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(nested), "config", "set", "parallelization", "false"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        parsed = json.loads(result.output)
+        assert parsed["updated"] is True
+        assert parsed["canonical_key"] == "parallelization"
+        config = json.loads((gpd_project / "GPD" / "config.json").read_text(encoding="utf-8"))
+        assert config["parallelization"] is False
+        assert not (nested / "GPD" / "config.json").exists()
 
     def test_config_set_json_value(self, gpd_project: Path) -> None:
         """Setting a JSON value (e.g. integer, boolean) should parse it."""

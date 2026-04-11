@@ -63,7 +63,9 @@ Fields marked **Authoritative** are Pydantic-backed state fields whose canonical
 
 `project_contract` stores the approved machine-readable scoping and anchor contract, or `null` before approval. Its canonical model-visible schema is `templates/project-contract-schema.md`; load that template before authoring, approving, validating, or repairing the payload. This state schema intentionally does not restate the contract body, closed vocabularies, or linkage rules.
 
-Grounding and scope policy are also owned by `templates/project-contract-schema.md`; do not restate those rules here.
+Grounding and scope policy are also owned by `templates/project-contract-schema.md`; in particular, keep
+`uncertainty_markers.disconfirming_observations` and weakest-anchor fields visible there rather than restating the
+contract body here.
 
 Preferred validation + persistence path for prompt-authored contracts:
 

@@ -50,7 +50,8 @@ _VERIFICATION_CONTRACT_POLICY_CLAUSES = (
     "Plan-style contracts need non-empty `context_intake`, explicit non-empty "
     "`uncertainty_markers.weakest_anchors` and "
     "`uncertainty_markers.disconfirming_observations`, and project-scoping payloads "
-    "must keep non-empty `scope.in_scope`.",
+    "must keep non-empty `scope.in_scope` plus at least one decisive target in "
+    "`observables`, `claims`, or `deliverables`.",
     "Non-scoping, non-exploratory plans require claims, deliverables, "
     "`acceptance_tests`, non-empty `forbidden_proxies`, and either `references` or "
     "explicit grounding context; scoping-only contracts may omit claims only when they "
@@ -65,8 +66,9 @@ _VERIFICATION_CONTRACT_POLICY_CLAUSES = (
     "claim/deliverable/acceptance-test/reference kinds when that would make resolution ambiguous.",
     "Contract context must stay consistent with metadata defaults and explicit metadata fields, "
     "so benchmark anchors, regime labels, and family selections cannot contradict it.",
-    "Missing grounding, evidence, prior outputs, or proof artifacts are blockers to surface explicitly, "
-    "never invitations to invent replacement content or inferred completion state.",
+    "Missing concrete grounding, evidence, prior outputs, references, baselines, or proof artifacts "
+    "are blockers to surface explicitly, never invitations to invent replacement content or inferred "
+    "completion state.",
     "For proof-oriented checks, omit or exactly match derived "
     "`metadata.expected_behavior`, `metadata.claim_statement`, "
     "`metadata.hypothesis_ids`, `metadata.theorem_parameter_symbols`, and "

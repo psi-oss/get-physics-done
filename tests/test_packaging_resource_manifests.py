@@ -56,6 +56,24 @@ def test_python_wheel_manifest_covers_known_runtime_resource_examples() -> None:
         )
 
 
+def test_python_wheel_manifest_covers_all_current_runtime_resources() -> None:
+    hatch_wheel = _pyproject()["tool"]["hatch"]["build"]["targets"]["wheel"]
+    artifacts = tuple(hatch_wheel["artifacts"])
+    force_include = set(hatch_wheel["force-include"])
+    runtime_resources = sorted(
+        path.relative_to(REPO_ROOT)
+        for suffix in ("*.md", "*.json", "*.tex")
+        for path in (REPO_ROOT / "src" / "gpd").rglob(suffix)
+    )
+
+    assert runtime_resources
+    for resource in runtime_resources:
+        source_path = resource.as_posix()
+        assert source_path in force_include or any(fnmatchcase(source_path, pattern) for pattern in artifacts), (
+            f"{source_path} is not covered by wheel artifact globs or force-include"
+        )
+
+
 def test_npm_package_remains_bootstrap_plus_contract_manifests_only() -> None:
     package = _package_json()
     files = package["files"]

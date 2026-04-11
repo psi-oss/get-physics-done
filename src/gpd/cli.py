@@ -5396,7 +5396,8 @@ def config_get(
     try:
         from gpd.core.config import effective_config_value, load_config
 
-        config = load_config(_get_cwd())
+        project_root = _project_scoped_cwd()
+        config = load_config(project_root)
         found, value = effective_config_value(config, key)
     except ConfigError as exc:
         _error(str(exc))
@@ -5416,7 +5417,8 @@ def config_set(
     from gpd.core.constants import ProjectLayout
     from gpd.core.utils import atomic_write, file_lock
 
-    config_path = ProjectLayout(_get_cwd()).config_json
+    project_root = _project_scoped_cwd()
+    config_path = ProjectLayout(project_root).config_json
     config_path.parent.mkdir(parents=True, exist_ok=True)
     with file_lock(config_path):
         try:
@@ -5439,12 +5441,12 @@ def config_set(
             _error(str(exc))
         atomic_write(config_path, json.dumps(updated_config, indent=2) + "\n")
 
-    config = load_config(_get_cwd())
+    config = load_config(project_root)
     _found, effective_value = effective_config_value(config, key)
     result: dict[str, object] = {"key": key, "canonical_key": canonical_key, "value": effective_value, "updated": True}
     if canonical_key == "autonomy":
         result["guided_path"] = (
-            f"Use `{_active_runtime_settings_command(cwd=_get_cwd())}` inside the runtime for guided autonomy changes."
+            f"Use `{_active_runtime_settings_command(cwd=project_root)}` inside the runtime for guided autonomy changes."
         )
         result["runtime_permissions"] = _runtime_permissions_payload(
             runtime=None,
@@ -5463,7 +5465,8 @@ def config_ensure_section() -> None:
     from gpd.core.constants import ProjectLayout
     from gpd.core.utils import atomic_write
 
-    config_path = ProjectLayout(_get_cwd()).config_json
+    project_root = _project_scoped_cwd()
+    config_path = ProjectLayout(project_root).config_json
     if config_path.exists():
         _output({"created": False, "path": str(config_path)})
         return
@@ -7739,9 +7742,8 @@ def validate_project_contract_cmd(
 
     payload = _load_json_document(input_path)
     if input_path == "-":
-        workspace_cwd = _state_command_cwd()
-        stdin_inside_project = (workspace_cwd / "GPD").is_dir()
-        anchored_project_root = workspace_cwd if stdin_inside_project else None
+        anchored_project_root = resolve_project_root(_get_cwd(), require_layout=True)
+        stdin_inside_project = anchored_project_root is not None
         prefer_filesystem_anchor = False
     else:
         anchored_project_root = _enclosing_project_root_for_json_input(input_path)

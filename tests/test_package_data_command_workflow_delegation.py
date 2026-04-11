@@ -100,6 +100,7 @@ def test_package_data_reuses_same_stem_command_workflows() -> None:
 
 def test_local_cli_only_commands_marked_and_exempt() -> None:
     local_cli_only = set(_local_cli_only_command_stems())
+    assert local_cli_only == {"health", "suggest-next"}
     assert set(_command_stems_without_workflows()) == local_cli_only
 
     for stem in local_cli_only:
@@ -111,6 +112,7 @@ def test_local_cli_only_commands_marked_and_exempt() -> None:
 
 def test_internal_workflows_marked_and_documented() -> None:
     documented_internal = set(_internal_workflow_only_stems())
+    assert documented_internal == {"execute-plan", "transition", "verify-phase"}
     all_workflows = {path.stem for path in WORKFLOWS_DIR.glob("*.md")}
     documented_delegated = set(_delegated_stem_names())
     orphaned_workflows = all_workflows - documented_delegated

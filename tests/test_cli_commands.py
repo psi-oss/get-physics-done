@@ -775,6 +775,29 @@ class TestStateCommands:
         assert payload["updated"] is False
         assert payload["reason"] == "Project contract already matches requested value"
 
+    def test_validate_project_contract_stdin_resolves_project_root_from_nested_cwd(self, gpd_project: Path) -> None:
+        nested = gpd_project / "GPD" / "phases" / "01-test-phase"
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract["references"][0]["kind"] = "prior_artifact"
+        contract["references"][0]["locator"] = "GPD/phases/01-test-phase/01-SUMMARY.md"
+        contract["context_intake"]["must_include_prior_outputs"] = [
+            "GPD/phases/01-test-phase/01-SUMMARY.md"
+        ]
+        contract["context_intake"]["user_asserted_anchors"] = []
+        contract["context_intake"]["known_good_baselines"] = []
+
+        result = runner.invoke(
+            app,
+            ["--cwd", str(nested), "--raw", "validate", "project-contract", "-"],
+            input=json.dumps(contract),
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["valid"] is True
+        assert payload["mode"] == "approved"
+
     def test_set_project_contract_raw_rejects_schema_valid_contract_with_approval_blockers(
         self,
         gpd_project: Path,

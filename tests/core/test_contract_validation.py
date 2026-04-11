@@ -38,6 +38,7 @@ from gpd.core.contract_validation import (
     split_project_contract_schema_findings,
     validate_project_contract,
 )
+from gpd.mcp.verification_contract_policy import verification_contract_policy_text
 from gpd.core.referee_policy import RefereeDecisionInput
 from gpd.mcp.paper.models import ReviewFinding, ReviewIssue, ReviewIssueSeverity, ReviewRecommendation, ReviewStageKind
 
@@ -73,6 +74,51 @@ def test_validate_project_contract_accepts_stage0_fixture() -> None:
     assert result.decisive_target_count > 0
     assert result.guidance_signal_count > 0
     assert result.reference_count > 0
+
+
+def test_verification_contract_policy_surfaces_project_contract_validation_overlays() -> None:
+    contract = _load_contract_fixture()
+    contract["observables"] = []
+    contract["claims"] = []
+    contract["deliverables"] = []
+    contract["uncertainty_markers"]["weakest_anchors"] = []
+    contract["uncertainty_markers"]["disconfirming_observations"] = []
+    _remove_incidental_grounding(contract)
+
+    result = validate_project_contract(contract, mode="approved")
+    policy_text = verification_contract_policy_text()
+
+    assert result.valid is False
+    expected_policy_fragments = {
+        "project contract must include at least one observable, claim, or deliverable": (
+            "observables",
+            "claims",
+            "deliverables",
+        ),
+        "uncertainty_markers.weakest_anchors must identify what is least certain": (
+            "uncertainty_markers.weakest_anchors",
+        ),
+        "uncertainty_markers.disconfirming_observations must identify what would force a rethink": (
+            "uncertainty_markers.disconfirming_observations",
+        ),
+    }
+    for error, required_fragments in expected_policy_fragments.items():
+        assert error in result.errors
+        for fragment in required_fragments:
+            assert fragment in policy_text
+
+    grounding_contract = _load_contract_fixture()
+    _remove_incidental_grounding(grounding_contract)
+    grounding_contract["references"] = []
+
+    grounding_result = validate_project_contract(grounding_contract, mode="approved")
+
+    assert (
+        "approved project contract requires at least one concrete anchor/reference/prior-output/baseline; "
+        "explicit missing-anchor notes preserve uncertainty but do not satisfy approval on their own"
+    ) in grounding_result.errors
+    for fragment in ("concrete grounding", "reference", "prior outputs", "baseline"):
+        assert fragment in policy_text
 
 
 def test_project_contract_schema_finding_helpers_keep_authoritative_and_blocking_classes_distinct() -> None:
