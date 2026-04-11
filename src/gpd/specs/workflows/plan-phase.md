@@ -16,7 +16,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `plan_checker_enabled`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`, `project_contract`, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, `platform`.
+Parse JSON for the fields defined in `phase_bootstrap.required_init_fields` within the adjacent `plan-phase-stage-manifest.json`. This manifest is the canonical bootstrap field set (model selectors, research flags, contract gate data, counts, contract payloads, and platform metadata); keep `bind_plan_phase_init` synchronized with any manifest edits instead of repeating the field list elsewhere.
 
 **Mode-aware behavior:**
 - `autonomy=supervised`: Present the written draft plans for user review before treating them as approved or moving on to execution. Do not weaken the contract gate just because the draft is human-reviewed.

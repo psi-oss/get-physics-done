@@ -70,7 +70,7 @@ def test_reapply_patches_workflow_uses_runtime_config_placeholders() -> None:
         assert workspace_patch_path not in content
 
 
-def test_materialize_workflow_paths_rewrites_canonical_global_dir_when_env_overrides(
+def test_materialize_workflow_paths_replaces_global_placeholder_with_target_on_global_install(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -90,7 +90,7 @@ def test_materialize_workflow_paths_rewrites_canonical_global_dir_when_env_overr
 
     target_dir = tmp_path / "target" / descriptor.config_dir_name
     target_dir.mkdir(parents=True)
-    content = f"Legacy global path {canonical_global_dir.as_posix()}"
+    content = "{GPD_GLOBAL_CONFIG_DIR}"
 
     rendered = _materialize_workflow_paths(
         content,
@@ -101,7 +101,7 @@ def test_materialize_workflow_paths_rewrites_canonical_global_dir_when_env_overr
     )
 
     assert canonical_global_dir.as_posix() not in rendered
-    assert target_dir.as_posix() in rendered
+    assert rendered == target_dir.as_posix()
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

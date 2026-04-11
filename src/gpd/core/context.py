@@ -821,6 +821,7 @@ __all__ = [
     "init_verify_work",
     "load_config",
     "load_context_config_dict",
+    "resolve_context_model",
 ]
 
 
@@ -2595,6 +2596,12 @@ def _resolve_model(
         active_runtime = None
 
     return _resolve_model_canonical(cwd, agent_type, runtime=active_runtime)
+
+
+def resolve_context_model(cwd: Path, agent_type: str, runtime: str | None = None) -> str | None:
+    """Resolve the concrete agent model for CLI contexts."""
+
+    return _resolve_model(cwd, agent_type, runtime=runtime)
 
 
 # ─── Phase Info Helper ────────────────────────────────────────────────────────

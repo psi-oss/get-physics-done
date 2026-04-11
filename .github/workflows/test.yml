@@ -91,7 +91,7 @@ jobs:
           npm pack --dry-run --json
 
       - name: Run release/package smoke tests
-        run: uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/test_schema_registry_ownership_note.py tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files tests/adapters/test_runtime_catalog.py tests/core/test_contract_validation_fast_regressions.py
+        run: uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/test_schema_registry_ownership_note.py tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files tests/adapters/test_runtime_catalog.py tests/core/test_contract_validation_fast_regressions.py tests/core/test_contract_schema_prompt_parity.py::test_plan_contract_schema_surfaces_canonical_research_contract_fields
 
   pytest:
     name: pytest ${{ matrix.display_name }} (3.11)

@@ -515,85 +515,41 @@ Use rough execution-time estimates to catch scope creep. Split plans that clearl
 
 <plan_format>
 
-## PLAN.md Structure
+## Contract Block Skeleton
 
-```markdown
----
-phase: XX-name
-plan: NN
-type: execute
-wave: N # Execution wave (1, 2, 3...)
-depends_on: [] # Plan IDs this plan requires
-files_modified: [] # Files this plan touches
-interactive: false # true if plan has checkpoints
-researcher_setup: [] # Human-required setup (omit if empty)
-# tool_requirements: # Machine-checkable specialized tools (omit entirely if none)
-#   - id: "wolfram-cas"
-#     tool: "wolfram"
-#     purpose: "Symbolic tensor reduction"
-#     required: false
-#     fallback: "Use SymPy if unavailable"
+Embed this `contract:` block inside the full `PLAN.md` frontmatter structure loaded from `phase-prompt.md`.
 
-conventions: # Physics conventions for this plan
-  units: "natural"
-  metric: "(+,-,-,-)"
-  coordinates: "Cartesian"
-
-dimensional_check: # Expected dimensions of key results
-  # e.g., E_0: '[energy]', sigma: '[area]', beta: '[1/energy]'
-
-approximations: # Active approximations
-  - name: "weak coupling"
-    parameter: "g << 1"
-    validity: "g < 0.3"
-
+```yaml
 contract:
   schema_version: 1
   scope:
     question: "[The decisive question this plan advances]"
     in_scope: ["[Primary contributions this plan delivers]"]
-  context_intake:
-    must_read_refs: ["ref-textbook"]
-    must_include_prior_outputs: ["[prior-output-path]"]
-    user_asserted_anchors: ["[named anchor]"]
-  approach_policy: {}
   claims:
     - id: "claim-example"
       statement: "[What success looks like]"
       deliverables: ["deliv-example"]
       acceptance_tests: ["test-example"]
-      references: ["ref-example"]
   deliverables:
     - id: "deliv-example"
       kind: "derivation"
       path: "derivations/example.tex"
-      description: "[Brief description of the artifact]"
-  references:
-    - id: "ref-textbook"
-      kind: "paper"
-      locator: "[Citation or DOI]"
-      role: "benchmark"
-      why_it_matters: "[Rationale for citation]"
-      applies_to: ["claim-example"]
-      must_surface: true
-      required_actions: ["read"]
-  acceptance_tests:
-    - id: "test-example"
-      subject: "claim-example"
-      kind: "consistency"
-      procedure: "[Describe how to verify the claim]"
-      pass_condition: "[What must hold]"
-      evidence_required: ["deliv-example"]
   forbidden_proxies:
     - id: "fp-example"
-      subject: "claim-example"
       proxy: "[Proxy that fails to satisfy the contract]"
-      reason: "[Why the proxy is insufficient]"
   uncertainty_markers:
     weakest_anchors: ["[Primary assumption]"]
     disconfirming_observations: ["[Observation that would invalidate the plan]"]
+```
 
----
+Keep the canonical `plan-contract-schema.md` file as the authoritative contract definition. The schema insists on:
+
+- `context_intake` with required references, prior outputs, and user-asserted anchors.
+- `claims`, `deliverables`, and `acceptance_tests` that expose actual artifacts and verification paths for each decisive result.
+- `references` that ground claims, `forbidden_proxies` that reject insufficient progress, and `uncertainty_markers` that capture fragile assumptions.
+- Optional `approach_policy`, `observables`, and `links` sections only when concrete execution policy or resource wiring is needed.
+
+Keep this schema excerpt visible before emitting any `PLAN.md` frontmatter. The template/phase prompts load `plan-contract-schema.md` and `phase-prompt.md` once per run; do not restate them elsewhere.
 
 <objective>[What physics question this plan answers]</objective>
 
@@ -616,7 +572,6 @@ contract:
 <success_criteria>[Measurable completion: equations match known results, code converges, limits correct]</success_criteria>
 
 <output>After completion, create `GPD/phases/XX-name/{phase}-{plan}-SUMMARY.md`</output>
-```
 
 ## Frontmatter Fields
 
@@ -846,53 +801,7 @@ Gap-closure plans keep `type: execute`; the repair marker is `gap_closure: true`
 **6. Create repair tasks** that list the missing items, the existing reference, the failed check, and the new passing check.
 **7. Write PLAN.md files** with `type: execute` and `gap_closure: true`.
 
-```yaml
----
-phase: XX-name
-plan: NN
-type: execute
-wave: 1
-depends_on: []
-files_modified: [...]
-interactive: false
-gap_closure: true # Flag for tracking
-conventions: {}
-contract:
-  schema_version: 1
-  scope:
-    question: "[Which failed verification or gap does this plan repair?]"
-    in_scope: ["Repair the failed verification for the published benchmark comparison"]
-  context_intake:
-    must_include_prior_outputs: ["GPD/phases/XX-name/XX-NN-SUMMARY.md"]
-    crucial_inputs: ["Exact failed verification and affected artifact"]
-  claims:
-    - id: "claim-gap-fix"
-      statement: "[What repaired result must now hold]"
-      claim_kind: other
-      deliverables: ["deliv-gap-fix"]
-      acceptance_tests: ["test-gap-fix"]
-  deliverables:
-    - id: "deliv-gap-fix"
-      kind: "report"
-      path: "GPD/phases/XX-name/XX-NN-SUMMARY.md"
-      description: "[Artifact proving the repair]"
-  acceptance_tests:
-    - id: "test-gap-fix"
-      subject: "claim-gap-fix"
-      kind: "other"
-      procedure: "[Re-run the failed check]"
-      pass_condition: "[Exact verification condition that must now pass]"
-      evidence_required: ["deliv-gap-fix"]
-  forbidden_proxies:
-    - id: "fp-gap-fix"
-      subject: "claim-gap-fix"
-      proxy: "[What would look fixed but would not count]"
-      reason: "[Why that would still be false progress]"
-  uncertainty_markers:
-    weakest_anchors: ["[What still makes the repair fragile]"]
-    disconfirming_observations: ["[What would show the fix did not actually hold]"]
----
-```
+Gap-closure plans reuse the canonical schema above. Keep `gap_closure: true` in the frontmatter, populate `context_intake` with the failed verification summary and required `XX-NN-SUMMARY.md`, and focus `claims`, `deliverables`, `acceptance_tests`, `forbidden_proxies`, and `uncertainty_markers` on the specific repair and re-run check. Do not restate the full YAML block—refer back to the sample contract and the canonical `plan-contract-schema.md` file as the single source of truth.
 
 **Planner anchor example:** Keep concrete benchmark anchors visible when they constrain the plan:
 

@@ -2463,10 +2463,10 @@ def _load_convention_state_snapshot(cwd: Path) -> dict[str, object] | None:
     """Load the state snapshot used by convention CLI surfaces."""
     from gpd.core.constants import ProjectLayout
     from gpd.core.errors import ConventionError
-    from gpd.core.state import _load_state_json_with_integrity_issues
+    from gpd.core.state import load_state_json_with_integrity_issues
 
     layout = ProjectLayout(cwd)
-    raw_state, _issues, source = _load_state_json_with_integrity_issues(
+    raw_state, _issues, source = load_state_json_with_integrity_issues(
         cwd,
         persist_recovery=False,
         recover_intent=False,
@@ -2572,10 +2572,10 @@ def _split_depends_on_option(depends_on: list[str] | str | None) -> list[str] | 
 
 def _load_mutation_state_snapshot(cwd: Path) -> dict[str, object]:
     """Load one mutable state snapshot through the recovery-aware mutation path."""
-    from gpd.core.state import _load_state_snapshot_for_mutation, _recover_intent_locked
+    from gpd.core.state import load_state_snapshot_for_mutation, recover_intent_locked
 
-    _recover_intent_locked(cwd)
-    state = _load_state_snapshot_for_mutation(cwd, recover_intent=False)
+    recover_intent_locked(cwd)
+    state = load_state_snapshot_for_mutation(cwd, recover_intent=False)
     return state if isinstance(state, dict) else {}
 
 
@@ -8375,7 +8375,7 @@ def resolve_model_cmd(
     runtime model parameter and let the platform use its default model.
     """
     from gpd.core.config import resolve_model, validate_agent_name
-    from gpd.core.context import _resolve_model as resolve_context_model
+    from gpd.core.context import resolve_context_model
 
     supported_runtimes = _supported_runtime_names()
     if runtime is not None:

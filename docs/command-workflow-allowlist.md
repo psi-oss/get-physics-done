@@ -20,3 +20,5 @@ suite can guard against accidental drift.
 - Update this file whenever a new command/workflow divergence is approved.
 - Keep the corresponding test in sync so the regression suite enforces the
   documented policy.
+- The owning tests are `tests/test_repo_hygiene.py::test_command_workflow_parity_matches_allowlist`
+  and `tests/test_repo_hygiene.py::test_command_workflow_allowlist_entries_reference_existing_surfaces`.

@@ -25,6 +25,8 @@ from gpd.core.workflow_staging import (
 )
 from gpd.registry import _parse_allowed_tools
 
+WORKFLOWS_DIR = NEW_PROJECT_STAGE_MANIFEST_PATH.parent
+
 
 def _workflow_payload(workflow_id: str) -> dict[str, object]:
     manifest_path = resolve_workflow_stage_manifest_path(workflow_id)
@@ -823,7 +825,11 @@ def test_arxiv_submission_stage_manifest_can_be_loaded_when_present() -> None:
     manifest_path = resolve_workflow_stage_manifest_path("arxiv-submission")
 
     if not manifest_path.exists():
-        pytest.skip("arxiv-submission stage manifest has not landed yet")
+        workflow_text = WORKFLOWS_DIR.joinpath("arxiv-submission.md").read_text(encoding="utf-8")
+
+        assert "stage manifest" not in workflow_text.lower()
+        assert "staged loading" not in workflow_text.lower()
+        return
 
     manifest = validate_workflow_stage_manifest_payload(
         json.loads(manifest_path.read_text(encoding="utf-8")),

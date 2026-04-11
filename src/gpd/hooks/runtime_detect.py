@@ -257,11 +257,10 @@ def resolve_effective_runtime(
             for env_var in descriptor.activation_env_vars:
                 if os.environ.get(env_var):
                     install_scope = detect_install_scope(runtime, cwd=resolved_cwd, home=resolved_home)
-                    has_install = install_scope is not None
                     return EffectiveRuntimeResolution(
                         runtime=runtime,
                         source=SOURCE_ENV,
-                        has_gpd_install=has_install,
+                        has_gpd_install=install_scope is not None,
                         install_scope=install_scope,
                     )
 

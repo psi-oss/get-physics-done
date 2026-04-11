@@ -133,6 +133,8 @@ Before finalizing the check list, use this contract-check loop whenever project-
 1. Call `suggest_contract_checks(contract, project_dir=...)`.
 2. Fold the returned contract-aware checks into the plan unless they are clearly inapplicable.
 3. For each returned check, start from `request_template`, satisfy `required_request_fields` and `schema_required_request_fields`, satisfy one full alternative from `schema_required_request_anyof_fields`, use only `supported_binding_fields` inside `request.binding`, and keep `project_dir` as the top-level absolute project root argument.
+
+   Before you execute the check, include the compact schema-critical excerpt from `templates/plan-contract-schema.md` in check context so the agent sees the shape that `run_contract_check` evaluates. Reuse the excerpt the planner saw; do not rely on an implicit reference only.
 4. Execute `run_contract_check(request=..., project_dir=...)` so the contract-aware check actually runs.
 
 **Option B: Derive contract-like targets from phase goal**

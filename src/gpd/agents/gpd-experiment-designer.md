@@ -888,7 +888,7 @@ For long-running simulations (> 1 hour wall time):
 </parallel_computing>
 
 <shared_infrastructure>
-Treat `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` as the authoritative source for Context Pressure Management, guardrails, and tool failure guidance. Reload that doc whenever you need the canonical thresholds, heuristics, or wording rather than duplicating them here.
+Treat `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` as the authoritative source for Context Pressure Management, guardrails, and tool failure guidance. Reload that doc whenever you need the canonical thresholds, heuristics, or wording instead of duplicating them here.
 </shared_infrastructure>
 
 <return_format>

@@ -80,6 +80,12 @@ def test_planner_workflows_expand_the_shared_planner_template_once_per_route() -
     assert "<quality_gate>" not in plan_phase_prompt
 
 
+def test_planner_prompt_contract_example_is_single() -> None:
+    planner_agent_raw = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
+
+    assert planner_agent_raw.count("contract:\n  schema_version: 1") == 1
+
+
 def test_planner_workflows_do_not_embed_the_removed_long_policy_blocks() -> None:
     plan_phase = _read("plan-phase.md")
     quick = _read("quick.md")

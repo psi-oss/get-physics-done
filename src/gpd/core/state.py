@@ -153,6 +153,9 @@ __all__ = [
     "state_update_progress",
     "state_validate",
     "sync_state_json",
+    "load_state_json_with_integrity_issues",
+    "load_state_snapshot_for_mutation",
+    "recover_intent_locked",
     "validate_state_transition",
 ]
 
@@ -1109,6 +1112,12 @@ def _load_state_snapshot_for_mutation(cwd: Path, *, recover_intent: bool = True)
         return recovered_state
 
     return default_state_dict()
+
+
+def load_state_snapshot_for_mutation(cwd: Path, *, recover_intent: bool = True) -> dict:
+    """Return a fresh mutable state snapshot for mutation workflows."""
+
+    return _load_state_snapshot_for_mutation(cwd, recover_intent=recover_intent)
 
 
 def _load_or_rebuild_state_markdown_locked(cwd: Path) -> str | None:
@@ -2855,6 +2864,12 @@ def _recover_intent_locked(cwd: Path) -> None:
         pass
 
 
+def recover_intent_locked(cwd: Path) -> None:
+    """Run the intent recovery guard for CLI/MCP callers."""
+
+    return _recover_intent_locked(cwd)
+
+
 def _build_state_from_markdown(
     cwd: Path,
     md_content: str,
@@ -3392,6 +3407,29 @@ def _load_state_json_with_integrity_issues(
             if os.environ.get(ENV_GPD_DEBUG):
                 logger.debug("STATE.md fallback failed")
             return None, [], None
+
+
+def load_state_json_with_integrity_issues(
+    cwd: Path,
+    *,
+    integrity_mode: str = "standard",
+    persist_recovery: bool = True,
+    recover_intent: bool = True,
+    import_session_continuation_from_markdown: bool = False,
+    surface_blocked_project_contract: bool = False,
+    acquire_lock: bool = True,
+) -> tuple[dict | None, list[str], str | None]:
+    """Return the normalized state, integrity issues, and source."""
+
+    return _load_state_json_with_integrity_issues(
+        cwd,
+        integrity_mode=integrity_mode,
+        persist_recovery=persist_recovery,
+        recover_intent=recover_intent,
+        import_session_continuation_from_markdown=import_session_continuation_from_markdown,
+        surface_blocked_project_contract=surface_blocked_project_contract,
+        acquire_lock=acquire_lock,
+    )
 
 
 def peek_state_json(

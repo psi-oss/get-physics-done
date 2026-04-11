@@ -29,6 +29,7 @@ CI_SMOKE_TEST_TARGETS = (
     "tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files",
     "tests/adapters/test_runtime_catalog.py",
     "tests/core/test_contract_validation_fast_regressions.py",
+    "tests/core/test_contract_schema_prompt_parity.py::test_plan_contract_schema_surfaces_canonical_research_contract_fields",
 )
 CI_TOTAL_SHARD_COUNT_TARGET = 19
 CI_MAX_SHARD_COUNT_TARGET = 20

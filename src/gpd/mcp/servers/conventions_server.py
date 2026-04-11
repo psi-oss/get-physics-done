@@ -238,9 +238,9 @@ def _recoverable_state_payload(
             surface_blocked_project_contract=True,
         )
     else:
-        from gpd.core.state import _load_state_json_with_integrity_issues
+        from gpd.core.state import load_state_json_with_integrity_issues
 
-        state_obj, _integrity_issues, _state_source = _load_state_json_with_integrity_issues(
+        state_obj, _integrity_issues, _state_source = load_state_json_with_integrity_issues(
             project_root,
             persist_recovery=False,
             recover_intent=recover_intent,

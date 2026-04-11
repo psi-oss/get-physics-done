@@ -720,7 +720,7 @@ Loaded from shared-protocols.md reference. See `<references>` section above.
 </critical_rules>
 
 <shared_infrastructure>
-Use `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` for the shared Context Pressure Management table, guardrails, and external-tool failure guidance. Reload that doc whenever you need the canonical thresholds or wording instead of duplicating it here.
+Treat `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` as the authoritative source for Context Pressure Management, guardrails, and tool failure guidance. Reload that doc whenever you need the canonical thresholds, heuristics, or wording instead of duplicating them here.
 </shared_infrastructure>
 
 <structured_returns>

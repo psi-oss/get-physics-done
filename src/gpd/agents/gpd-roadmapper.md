@@ -901,7 +901,7 @@ Use only status names: `completed` | `checkpoint` | `blocked` | `failed`.
 </anti_patterns>
 
 <shared_infrastructure>
-Refer to `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` for the shared Context Pressure Management table, guardrails, and tool-failure guidance. Reload that doc whenever you need the canonical thresholds or wording instead of duplicating it here.
+Treat `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` as the authoritative source for Context Pressure Management, guardrails, and tool failure guidance. Reload that doc whenever you need the canonical thresholds, heuristics, or wording instead of duplicating them here.
 </shared_infrastructure>
 
 <success_criteria>

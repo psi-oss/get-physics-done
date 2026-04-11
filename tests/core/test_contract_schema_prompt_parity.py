@@ -177,6 +177,25 @@ def test_expanded_phase_prompt_surfaces_the_same_research_contract_fields_before
     assert "proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses" in phase_prompt
 
 
+def test_planner_template_surfaces_research_contract_fields_before_planning() -> None:
+    planner_template = _read(TEMPLATES_DIR / "planner-subagent-prompt.md")
+
+    assert "PLAN contract schema-critical excerpt" in planner_template
+
+
+def test_plan_phase_workflow_mentions_schema_visibility_notice() -> None:
+    plan_workflow = _read(SPECS_DIR / "workflows/plan-phase.md")
+
+    assert "model-visible PLAN contract schema-critical excerpt" in plan_workflow
+
+
+def test_verify_phase_contract_checks_restate_schema_before_run_contract_check() -> None:
+    verify_workflow = _read(SPECS_DIR / "workflows/verify-phase.md")
+
+    assert "compact schema-critical excerpt" in verify_workflow
+    assert "templates/plan-contract-schema.md" in verify_workflow
+
+
 def test_contract_results_schema_and_verification_template_surface_canonical_result_ledger_fields() -> None:
     contract_results_schema = _read(TEMPLATES_DIR / "contract-results-schema.md")
     verification_report = _read(TEMPLATES_DIR / "verification-report.md")
