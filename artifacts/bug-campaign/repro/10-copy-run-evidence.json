@@ -17,17 +17,17 @@
             "tests/test_bug_phase_read_model_alignment.py",
             "tests/core/test_projection_state.py"
           ],
-          "elapsed_s": 0.867,
+          "elapsed_s": 6.723,
           "label": "state-progress-contradictions:anchor_copy_1",
           "output_tail": [
             "........                                                                 [100%]",
-            "8 passed in 0.43s"
+            "8 passed in 0.40s"
           ],
           "passed": true,
           "pytest_summary": {
             "passed": 8,
-            "pytest_duration_s": 0.43,
-            "raw": "8 passed in 0.43s",
+            "pytest_duration_s": 0.4,
+            "raw": "8 passed in 0.40s",
             "skipped": 0
           },
           "returncode": 0
@@ -43,8 +43,34 @@
             "tests/test_bug_phase_read_model_alignment.py",
             "tests/core/test_projection_state.py"
           ],
-          "elapsed_s": 0.607,
+          "elapsed_s": 19.241,
           "label": "state-progress-contradictions:anchor_copy_2",
+          "output_tail": [
+            "........                                                                 [100%]",
+            "8 passed in 0.33s"
+          ],
+          "passed": true,
+          "pytest_summary": {
+            "passed": 8,
+            "pytest_duration_s": 0.33,
+            "raw": "8 passed in 0.33s",
+            "skipped": 0
+          },
+          "returncode": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "pytest",
+            "-q",
+            "-n",
+            "0",
+            "tests/test_bug_phase_read_model_alignment.py",
+            "tests/core/test_projection_state.py"
+          ],
+          "elapsed_s": 0.633,
+          "label": "state-progress-contradictions:confirmatory_copy_1",
           "output_tail": [
             "........                                                                 [100%]",
             "8 passed in 0.32s"
@@ -54,32 +80,6 @@
             "passed": 8,
             "pytest_duration_s": 0.32,
             "raw": "8 passed in 0.32s",
-            "skipped": 0
-          },
-          "returncode": 0
-        },
-        {
-          "command": [
-            "uv",
-            "run",
-            "pytest",
-            "-q",
-            "-n",
-            "0",
-            "tests/test_bug_phase_read_model_alignment.py",
-            "tests/core/test_projection_state.py"
-          ],
-          "elapsed_s": 18.601,
-          "label": "state-progress-contradictions:confirmatory_copy_1",
-          "output_tail": [
-            "........                                                                 [100%]",
-            "8 passed in 0.31s"
-          ],
-          "passed": true,
-          "pytest_summary": {
-            "passed": 8,
-            "pytest_duration_s": 0.31,
-            "raw": "8 passed in 0.31s",
             "skipped": 0
           },
           "returncode": 0
@@ -102,7 +102,7 @@
             "0",
             "tests/core/test_projection_query_result.py"
           ],
-          "elapsed_s": 0.844,
+          "elapsed_s": 0.875,
           "label": "query-vs-result-blindness:anchor_copy_1",
           "output_tail": [
             "......                                                                   [100%]",
@@ -127,17 +127,17 @@
             "0",
             "tests/core/test_projection_query_result.py"
           ],
-          "elapsed_s": 0.812,
+          "elapsed_s": 0.861,
           "label": "query-vs-result-blindness:anchor_copy_2",
           "output_tail": [
             "......                                                                   [100%]",
-            "6 passed in 0.52s"
+            "6 passed in 0.55s"
           ],
           "passed": true,
           "pytest_summary": {
             "passed": 6,
-            "pytest_duration_s": 0.52,
-            "raw": "6 passed in 0.52s",
+            "pytest_duration_s": 0.55,
+            "raw": "6 passed in 0.55s",
             "skipped": 0
           },
           "returncode": 0
@@ -152,17 +152,17 @@
             "0",
             "tests/core/test_projection_query_result.py"
           ],
-          "elapsed_s": 0.831,
+          "elapsed_s": 0.855,
           "label": "query-vs-result-blindness:confirmatory_copy_1",
           "output_tail": [
             "......                                                                   [100%]",
-            "6 passed in 0.54s"
+            "6 passed in 0.55s"
           ],
           "passed": true,
           "pytest_summary": {
             "passed": 6,
-            "pytest_duration_s": 0.54,
-            "raw": "6 passed in 0.54s",
+            "pytest_duration_s": 0.55,
+            "raw": "6 passed in 0.55s",
             "skipped": 0
           },
           "returncode": 0
@@ -185,17 +185,17 @@
             "0",
             "tests/core/test_projection_phase_verify.py"
           ],
-          "elapsed_s": 0.536,
+          "elapsed_s": 0.557,
           "label": "phase-content-blindness:anchor_copy_1",
           "output_tail": [
             "....                                                                     [100%]",
-            "4 passed in 0.22s"
+            "4 passed in 0.23s"
           ],
           "passed": true,
           "pytest_summary": {
             "passed": 4,
-            "pytest_duration_s": 0.22,
-            "raw": "4 passed in 0.22s",
+            "pytest_duration_s": 0.23,
+            "raw": "4 passed in 0.23s",
             "skipped": 0
           },
           "returncode": 0
@@ -210,7 +210,7 @@
             "0",
             "tests/core/test_projection_phase_verify.py"
           ],
-          "elapsed_s": 0.568,
+          "elapsed_s": 0.54,
           "label": "phase-content-blindness:anchor_copy_2",
           "output_tail": [
             "....                                                                     [100%]",
@@ -235,17 +235,17 @@
             "0",
             "tests/core/test_projection_phase_verify.py"
           ],
-          "elapsed_s": 0.576,
+          "elapsed_s": 0.549,
           "label": "phase-content-blindness:confirmatory_copy_1",
           "output_tail": [
             "....                                                                     [100%]",
-            "4 passed in 0.24s"
+            "4 passed in 0.23s"
           ],
           "passed": true,
           "pytest_summary": {
             "passed": 4,
-            "pytest_duration_s": 0.24,
-            "raw": "4 passed in 0.24s",
+            "pytest_duration_s": 0.23,
+            "raw": "4 passed in 0.23s",
             "skipped": 0
           },
           "returncode": 0
@@ -269,17 +269,17 @@
             "tests/core/test_projection_query_result.py::test_projection_query_result_bridge_mutation_matches_positive_snapshot",
             "tests/test_bug_runtime_recovery_contract.py"
           ],
-          "elapsed_s": 0.691,
+          "elapsed_s": 0.648,
           "label": "unsupported-cli-surface-drift:anchor_copy_1",
           "output_tail": [
             "..........                                                               [100%]",
-            "10 passed in 0.38s"
+            "10 passed in 0.35s"
           ],
           "passed": true,
           "pytest_summary": {
             "passed": 10,
-            "pytest_duration_s": 0.38,
-            "raw": "10 passed in 0.38s",
+            "pytest_duration_s": 0.35,
+            "raw": "10 passed in 0.35s",
             "skipped": 0
           },
           "returncode": 0
@@ -295,7 +295,7 @@
             "tests/core/test_projection_query_result.py::test_projection_query_result_bridge_mutation_matches_positive_snapshot",
             "tests/test_bug_runtime_recovery_contract.py"
           ],
-          "elapsed_s": 0.647,
+          "elapsed_s": 0.636,
           "label": "unsupported-cli-surface-drift:anchor_copy_2",
           "output_tail": [
             "..........                                                               [100%]",
@@ -321,17 +321,17 @@
             "tests/core/test_projection_query_result.py::test_projection_query_result_bridge_mutation_matches_positive_snapshot",
             "tests/test_bug_runtime_recovery_contract.py"
           ],
-          "elapsed_s": 0.634,
+          "elapsed_s": 0.654,
           "label": "unsupported-cli-surface-drift:confirmatory_copy_1",
           "output_tail": [
             "..........                                                               [100%]",
-            "10 passed in 0.34s"
+            "10 passed in 0.35s"
           ],
           "passed": true,
           "pytest_summary": {
             "passed": 10,
-            "pytest_duration_s": 0.34,
-            "raw": "10 passed in 0.34s",
+            "pytest_duration_s": 0.35,
+            "raw": "10 passed in 0.35s",
             "skipped": 0
           },
           "returncode": 0
@@ -355,17 +355,17 @@
             "tests/core/test_projection_config_contract.py",
             "tests/test_bug_placeholder_sentinel_normalization.py"
           ],
-          "elapsed_s": 0.961,
+          "elapsed_s": 0.939,
           "label": "convention-placeholder-completeness:anchor_copy_1",
           "output_tail": [
             "....                                                                     [100%]",
-            "4 passed in 0.68s"
+            "4 passed in 0.65s"
           ],
           "passed": true,
           "pytest_summary": {
             "passed": 4,
-            "pytest_duration_s": 0.68,
-            "raw": "4 passed in 0.68s",
+            "pytest_duration_s": 0.65,
+            "raw": "4 passed in 0.65s",
             "skipped": 0
           },
           "returncode": 0
@@ -381,17 +381,17 @@
             "tests/core/test_projection_config_contract.py",
             "tests/test_bug_placeholder_sentinel_normalization.py"
           ],
-          "elapsed_s": 0.891,
+          "elapsed_s": 0.944,
           "label": "convention-placeholder-completeness:anchor_copy_2",
           "output_tail": [
             "....                                                                     [100%]",
-            "4 passed in 0.61s"
+            "4 passed in 0.65s"
           ],
           "passed": true,
           "pytest_summary": {
             "passed": 4,
-            "pytest_duration_s": 0.61,
-            "raw": "4 passed in 0.61s",
+            "pytest_duration_s": 0.65,
+            "raw": "4 passed in 0.65s",
             "skipped": 0
           },
           "returncode": 0
@@ -407,17 +407,17 @@
             "tests/core/test_projection_config_contract.py",
             "tests/test_bug_placeholder_sentinel_normalization.py"
           ],
-          "elapsed_s": 0.914,
+          "elapsed_s": 0.932,
           "label": "convention-placeholder-completeness:confirmatory_copy_1",
           "output_tail": [
             "....                                                                     [100%]",
-            "4 passed in 0.63s"
+            "4 passed in 0.64s"
           ],
           "passed": true,
           "pytest_summary": {
             "passed": 4,
-            "pytest_duration_s": 0.63,
-            "raw": "4 passed in 0.63s",
+            "pytest_duration_s": 0.64,
+            "raw": "4 passed in 0.64s",
             "skipped": 0
           },
           "returncode": 0
@@ -425,8 +425,8 @@
       ]
     }
   ],
-  "generated_at": "2026-04-11T00:44:19Z",
-  "git_head": "9316bdb62e76652d52bf40cd07c282eadafc595a",
+  "generated_at": "2026-04-11T01:12:25Z",
+  "git_head": "66f6705244fec08df422b4c762e4f1d568aff3ce",
   "historical_failure_repro_note": "Original Phase 10 failure transcripts remain absent; these runs verify current fixed behavior through fresh isolated pytest fixture copies.",
   "post_fix_copy_run_criteria_met": true,
   "run_kinds": [

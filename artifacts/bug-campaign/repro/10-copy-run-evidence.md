@@ -1,32 +1,32 @@
 # Phase 10 Local Copy-Run Evidence
 
-- generated_at: `2026-04-11T00:44:19Z`
-- git_head: `9316bdb62e76652d52bf40cd07c282eadafc595a`
+- generated_at: `2026-04-11T01:12:25Z`
+- git_head: `66f6705244fec08df422b4c762e4f1d568aff3ce`
 - scope: `local_post_fix_copy_runs`
 - post_fix_copy_run_criteria_met: `true`
 
 ## Families
 
 - `state-progress-contradictions`: `3/3` green
-  - `state-progress-contradictions:anchor_copy_1`: `8 passed in 0.43s`
-  - `state-progress-contradictions:anchor_copy_2`: `8 passed in 0.32s`
-  - `state-progress-contradictions:confirmatory_copy_1`: `8 passed in 0.31s`
+  - `state-progress-contradictions:anchor_copy_1`: `8 passed in 0.40s`
+  - `state-progress-contradictions:anchor_copy_2`: `8 passed in 0.33s`
+  - `state-progress-contradictions:confirmatory_copy_1`: `8 passed in 0.32s`
 - `query-vs-result-blindness`: `3/3` green
   - `query-vs-result-blindness:anchor_copy_1`: `6 passed in 0.56s`
-  - `query-vs-result-blindness:anchor_copy_2`: `6 passed in 0.52s`
-  - `query-vs-result-blindness:confirmatory_copy_1`: `6 passed in 0.54s`
+  - `query-vs-result-blindness:anchor_copy_2`: `6 passed in 0.55s`
+  - `query-vs-result-blindness:confirmatory_copy_1`: `6 passed in 0.55s`
 - `phase-content-blindness`: `3/3` green
-  - `phase-content-blindness:anchor_copy_1`: `4 passed in 0.22s`
+  - `phase-content-blindness:anchor_copy_1`: `4 passed in 0.23s`
   - `phase-content-blindness:anchor_copy_2`: `4 passed in 0.23s`
-  - `phase-content-blindness:confirmatory_copy_1`: `4 passed in 0.24s`
+  - `phase-content-blindness:confirmatory_copy_1`: `4 passed in 0.23s`
 - `unsupported-cli-surface-drift`: `3/3` green
-  - `unsupported-cli-surface-drift:anchor_copy_1`: `10 passed in 0.38s`
+  - `unsupported-cli-surface-drift:anchor_copy_1`: `10 passed in 0.35s`
   - `unsupported-cli-surface-drift:anchor_copy_2`: `10 passed in 0.35s`
-  - `unsupported-cli-surface-drift:confirmatory_copy_1`: `10 passed in 0.34s`
+  - `unsupported-cli-surface-drift:confirmatory_copy_1`: `10 passed in 0.35s`
 - `convention-placeholder-completeness`: `3/3` green
-  - `convention-placeholder-completeness:anchor_copy_1`: `4 passed in 0.68s`
-  - `convention-placeholder-completeness:anchor_copy_2`: `4 passed in 0.61s`
-  - `convention-placeholder-completeness:confirmatory_copy_1`: `4 passed in 0.63s`
+  - `convention-placeholder-completeness:anchor_copy_1`: `4 passed in 0.65s`
+  - `convention-placeholder-completeness:anchor_copy_2`: `4 passed in 0.65s`
+  - `convention-placeholder-completeness:confirmatory_copy_1`: `4 passed in 0.64s`
 
 ## Note
 

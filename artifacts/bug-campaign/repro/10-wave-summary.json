@@ -70,8 +70,8 @@
     "markdown_path": "repro/10-copy-run-evidence.md",
     "family_count": 5,
     "green_family_count": 5,
-    "generated_at": "2026-04-11T00:44:19Z",
-    "git_head": "9316bdb62e76652d52bf40cd07c282eadafc595a"
+    "generated_at": "2026-04-11T01:12:25Z",
+    "git_head": "66f6705244fec08df422b4c762e4f1d568aff3ce"
   },
   "blocking_gaps": [
     "Original repro/10 exact scripts, full transcripts, and copy-run results were not present in the frozen source bundle.",
