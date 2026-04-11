@@ -768,7 +768,10 @@ def test_state_set_project_contract_rejects_recoverable_schema_normalization(tmp
     result = state_set_project_contract(tmp_path, contract)
 
     assert result.updated is False
-    assert result.reason == "Invalid project contract schema: claims.0.notes: Extra inputs are not permitted"
+    assert result.reason == (
+        "Invalid project contract schema: claims.0.notes: Extra inputs are not permitted "
+        "(draft/salvage warning; strict authoritative validation still rejects unknown keys)"
+    )
     saved = load_state_json(tmp_path)
     assert saved is not None
     assert saved["project_contract"] is None

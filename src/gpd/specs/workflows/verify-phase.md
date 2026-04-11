@@ -1,3 +1,4 @@
+<!-- internal-workflow-only -->
 <purpose>
 Verify research phase goal achievement through decisive verification. Check that the research delivers what the phase promised by actually testing the physics — substituting values, re-deriving limits, parsing dimensions, cross-checking by independent methods, and for proof obligations, auditing theorem-to-proof coverage adversarially instead of trusting polished algebra.
 

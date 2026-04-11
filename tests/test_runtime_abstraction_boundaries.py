@@ -141,8 +141,6 @@ _RUNTIME_OWNED_PREFIXES = (
 _ALLOWED_RUNTIME_FILES = {
     "CITATION.cff",
     ".gitignore",
-    "package.json",
-    "pyproject.toml",
     "src/gpd/adapters/__init__.py",
     "src/gpd/hooks/runtime_detect.py",
 }
@@ -434,6 +432,15 @@ def test_runtime_specific_terms_are_confined_to_explicit_boundary_files() -> Non
         "Runtime-specific hardcoding leaked outside adapter/runtime boundary files:\n"
         f"{_format_failures(leaks)}"
     )
+
+
+def test_packaging_metadata_stays_runtime_agnostic() -> None:
+    pattern = re.compile(_RUNTIME_PATTERN)
+
+    for rel_path in ("package.json", "pyproject.toml"):
+        path = REPO_ROOT / rel_path
+        content = path.read_text(encoding="utf-8")
+        assert pattern.search(content) is None, f"{rel_path} contains runtime-specific terms"
 
 
 def test_shared_python_modules_do_not_hardcode_runtime_terms() -> None:

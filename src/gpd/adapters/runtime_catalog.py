@@ -6,7 +6,7 @@ import json
 import os
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from functools import lru_cache
 from pathlib import Path
 
@@ -53,6 +53,9 @@ class HookPayloadPolicy:
         return bool(self.agent_id_keys or self.agent_name_keys or self.agent_scope_keys)
 
 
+_HOOK_PAYLOAD_FIELD_NAMES = tuple(field.name for field in fields(HookPayloadPolicy))
+
+
 @dataclass(frozen=True, slots=True)
 class SharedInstallMetadata:
     bootstrap_package_name: str
@@ -96,6 +99,9 @@ class RuntimeCapabilityPolicy:
     checkpoint_stop_semantics: str = "stop"
     supports_runtime_session_payload_attribution: bool = False
     supports_agent_payload_attribution: bool = False
+
+
+_RUNTIME_CAPABILITY_FIELD_NAMES = tuple(field.name for field in fields(RuntimeCapabilityPolicy))
 
 
 @dataclass(frozen=True, slots=True)
@@ -468,67 +474,71 @@ def _parse_capabilities(
             allowed = ", ".join(sorted(enum_values))
             raise ValueError(f"{label}.{field_name} must be one of: {allowed}")
 
-    prompt_free_mode_value = _require_string(payload.get("prompt_free_mode_value"), label=f"{label}.prompt_free_mode_value")
-    policy = RuntimeCapabilityPolicy(
-        permissions_surface=_require_string(payload.get("permissions_surface"), label=f"{label}.permissions_surface"),
-        permission_surface_kind=_require_runtime_surface_label(
-            payload.get("permission_surface_kind"),
-            label=f"{label}.permission_surface_kind",
-            special_values=launch_wrapper_permission_surface_kinds,
-        ),
-        prompt_free_mode_value=prompt_free_mode_value,
-        supports_runtime_permission_sync=_require_bool(
-            payload.get("supports_runtime_permission_sync"),
-            label=f"{label}.supports_runtime_permission_sync",
-        ),
-        supports_prompt_free_mode=_require_bool(
-            payload.get("supports_prompt_free_mode"),
-            label=f"{label}.supports_prompt_free_mode",
-        ),
-        prompt_free_requires_relaunch=_require_bool(
-            payload.get("prompt_free_requires_relaunch"),
-            label=f"{label}.prompt_free_requires_relaunch",
-        ),
-        statusline_surface=_require_string(payload.get("statusline_surface"), label=f"{label}.statusline_surface"),
-        statusline_config_surface=_require_runtime_surface_label(
-            payload.get("statusline_config_surface"),
-            label=f"{label}.statusline_config_surface",
-        ),
-        notify_surface=_require_string(payload.get("notify_surface"), label=f"{label}.notify_surface"),
-        notify_config_surface=_require_runtime_surface_label(
-            payload.get("notify_config_surface"),
-            label=f"{label}.notify_config_surface",
-        ),
-        telemetry_source=_require_string(payload.get("telemetry_source"), label=f"{label}.telemetry_source"),
-        telemetry_completeness=_require_string(
-            payload.get("telemetry_completeness"), label=f"{label}.telemetry_completeness"
-        ),
-        supports_usage_tokens=_require_bool(payload.get("supports_usage_tokens"), label=f"{label}.supports_usage_tokens"),
-        supports_cost_usd=_require_bool(payload.get("supports_cost_usd"), label=f"{label}.supports_cost_usd"),
-        supports_context_meter=_require_bool(
-            payload.get("supports_context_meter"), label=f"{label}.supports_context_meter"
-        ),
-        child_artifact_persistence_reliability=_require_string(
-            payload.get("child_artifact_persistence_reliability"),
-            label=f"{label}.child_artifact_persistence_reliability",
-        ),
-        supports_structured_child_results=_require_bool(
-            payload.get("supports_structured_child_results"),
-            label=f"{label}.supports_structured_child_results",
-        ),
-        continuation_surface=_require_string(payload.get("continuation_surface"), label=f"{label}.continuation_surface"),
-        checkpoint_stop_semantics=_require_string(
-            payload.get("checkpoint_stop_semantics"), label=f"{label}.checkpoint_stop_semantics"
-        ),
-        supports_runtime_session_payload_attribution=_require_bool(
-            payload.get("supports_runtime_session_payload_attribution"),
-            label=f"{label}.supports_runtime_session_payload_attribution",
-        ),
-        supports_agent_payload_attribution=_require_bool(
-            payload.get("supports_agent_payload_attribution"),
-            label=f"{label}.supports_agent_payload_attribution",
-        ),
+    capability_kwargs: dict[str, object] = {}
+    capability_kwargs["permissions_surface"] = _require_string(payload.get("permissions_surface"), label=f"{label}.permissions_surface")
+    capability_kwargs["permission_surface_kind"] = _require_runtime_surface_label(
+        payload.get("permission_surface_kind"),
+        label=f"{label}.permission_surface_kind",
+        special_values=launch_wrapper_permission_surface_kinds,
     )
+    capability_kwargs["prompt_free_mode_value"] = _require_string(payload.get("prompt_free_mode_value"), label=f"{label}.prompt_free_mode_value")
+    capability_kwargs["supports_runtime_permission_sync"] = _require_bool(
+        payload.get("supports_runtime_permission_sync"),
+        label=f"{label}.supports_runtime_permission_sync",
+    )
+    capability_kwargs["supports_prompt_free_mode"] = _require_bool(
+        payload.get("supports_prompt_free_mode"),
+        label=f"{label}.supports_prompt_free_mode",
+    )
+    capability_kwargs["prompt_free_requires_relaunch"] = _require_bool(
+        payload.get("prompt_free_requires_relaunch"),
+        label=f"{label}.prompt_free_requires_relaunch",
+    )
+    capability_kwargs["statusline_surface"] = _require_string(payload.get("statusline_surface"), label=f"{label}.statusline_surface")
+    capability_kwargs["statusline_config_surface"] = _require_runtime_surface_label(
+        payload.get("statusline_config_surface"),
+        label=f"{label}.statusline_config_surface",
+    )
+    capability_kwargs["notify_surface"] = _require_string(payload.get("notify_surface"), label=f"{label}.notify_surface")
+    capability_kwargs["notify_config_surface"] = _require_runtime_surface_label(
+        payload.get("notify_config_surface"),
+        label=f"{label}.notify_config_surface",
+    )
+    capability_kwargs["telemetry_source"] = _require_string(payload.get("telemetry_source"), label=f"{label}.telemetry_source")
+    capability_kwargs["telemetry_completeness"] = _require_string(
+        payload.get("telemetry_completeness"), label=f"{label}.telemetry_completeness"
+    )
+    capability_kwargs["supports_usage_tokens"] = _require_bool(payload.get("supports_usage_tokens"), label=f"{label}.supports_usage_tokens")
+    capability_kwargs["supports_cost_usd"] = _require_bool(payload.get("supports_cost_usd"), label=f"{label}.supports_cost_usd")
+    capability_kwargs["supports_context_meter"] = _require_bool(
+        payload.get("supports_context_meter"), label=f"{label}.supports_context_meter"
+    )
+    capability_kwargs["child_artifact_persistence_reliability"] = _require_string(
+        payload.get("child_artifact_persistence_reliability"),
+        label=f"{label}.child_artifact_persistence_reliability",
+    )
+    capability_kwargs["supports_structured_child_results"] = _require_bool(
+        payload.get("supports_structured_child_results"),
+        label=f"{label}.supports_structured_child_results",
+    )
+    capability_kwargs["continuation_surface"] = _require_string(payload.get("continuation_surface"), label=f"{label}.continuation_surface")
+    capability_kwargs["checkpoint_stop_semantics"] = _require_string(
+        payload.get("checkpoint_stop_semantics"), label=f"{label}.checkpoint_stop_semantics"
+    )
+    capability_kwargs["supports_runtime_session_payload_attribution"] = _require_bool(
+        payload.get("supports_runtime_session_payload_attribution"),
+        label=f"{label}.supports_runtime_session_payload_attribution",
+    )
+    capability_kwargs["supports_agent_payload_attribution"] = _require_bool(
+        payload.get("supports_agent_payload_attribution"),
+        label=f"{label}.supports_agent_payload_attribution",
+    )
+
+    missing_fields = set(_RUNTIME_CAPABILITY_FIELD_NAMES) - set(capability_kwargs)
+    if missing_fields:
+        raise ValueError(f"{label} missing parsed capability field(s): {', '.join(sorted(missing_fields))}")
+
+    policy = RuntimeCapabilityPolicy(**capability_kwargs)
     if policy.permissions_surface == "config-file":
         if policy.permission_surface_kind == "none" or policy.permission_surface_kind in launch_wrapper_permission_surface_kinds:
             raise ValueError(f"{label}.permission_surface_kind must be a config surface label when permissions_surface=config-file")
@@ -674,36 +684,13 @@ def _parse_hook_payload(entry: object, *, label: str) -> HookPayloadPolicy:
     _require_allowed_keys(payload, label=label, allowed_keys=_RUNTIME_HOOK_PAYLOAD_KEYS)
     _require_keys(payload, label=label, required_keys=_RUNTIME_HOOK_PAYLOAD_KEYS)
 
-    return HookPayloadPolicy(
-        notify_event_types=_require_string_tuple(payload.get("notify_event_types"), label=f"{label}.notify_event_types", allow_empty=True),
-        workspace_keys=_require_string_tuple(payload.get("workspace_keys"), label=f"{label}.workspace_keys", allow_empty=True),
-        project_dir_keys=_require_string_tuple(payload.get("project_dir_keys"), label=f"{label}.project_dir_keys", allow_empty=True),
-        runtime_session_id_keys=_require_string_tuple(
-            payload.get("runtime_session_id_keys"), label=f"{label}.runtime_session_id_keys", allow_empty=True
-        ),
-        model_keys=_require_string_tuple(payload.get("model_keys"), label=f"{label}.model_keys", allow_empty=True),
-        provider_keys=_require_string_tuple(payload.get("provider_keys"), label=f"{label}.provider_keys", allow_empty=True),
-        usage_keys=_require_string_tuple(payload.get("usage_keys"), label=f"{label}.usage_keys", allow_empty=True),
-        input_tokens_keys=_require_string_tuple(payload.get("input_tokens_keys"), label=f"{label}.input_tokens_keys", allow_empty=True),
-        output_tokens_keys=_require_string_tuple(payload.get("output_tokens_keys"), label=f"{label}.output_tokens_keys", allow_empty=True),
-        total_tokens_keys=_require_string_tuple(payload.get("total_tokens_keys"), label=f"{label}.total_tokens_keys", allow_empty=True),
-        cached_input_tokens_keys=_require_string_tuple(
-            payload.get("cached_input_tokens_keys"), label=f"{label}.cached_input_tokens_keys", allow_empty=True
-        ),
-        cache_write_input_tokens_keys=_require_string_tuple(
-            payload.get("cache_write_input_tokens_keys"), label=f"{label}.cache_write_input_tokens_keys", allow_empty=True
-        ),
-        cost_usd_keys=_require_string_tuple(payload.get("cost_usd_keys"), label=f"{label}.cost_usd_keys", allow_empty=True),
-        agent_id_keys=_require_string_tuple(payload.get("agent_id_keys"), label=f"{label}.agent_id_keys", allow_empty=True),
-        agent_name_keys=_require_string_tuple(payload.get("agent_name_keys"), label=f"{label}.agent_name_keys", allow_empty=True),
-        agent_scope_keys=_require_string_tuple(payload.get("agent_scope_keys"), label=f"{label}.agent_scope_keys", allow_empty=True),
-        context_window_size_keys=_require_string_tuple(
-            payload.get("context_window_size_keys"), label=f"{label}.context_window_size_keys", allow_empty=True
-        ),
-        context_remaining_keys=_require_string_tuple(
-            payload.get("context_remaining_keys"), label=f"{label}.context_remaining_keys", allow_empty=True
-        ),
-    )
+    values = {}
+    for field_name in _HOOK_PAYLOAD_FIELD_NAMES:
+        values[field_name] = _require_string_tuple(
+            payload[field_name], label=f"{label}.{field_name}", allow_empty=True
+        )
+
+    return HookPayloadPolicy(**values)
 
 
 @lru_cache(maxsize=1)

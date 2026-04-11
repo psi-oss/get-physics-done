@@ -3,6 +3,7 @@ name: gpd:health
 description: Run project health checks and optionally auto-fix issues
 argument-hint: "[--fix]"
 context_mode: projectless
+local_cli_only: true
 allowed-tools:
   - file_read
   - file_write

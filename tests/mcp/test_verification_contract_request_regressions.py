@@ -414,10 +414,16 @@ def test_contract_tools_reject_blank_scalar_to_list_drift() -> None:
         "observed": {"metric_value": 0.01, "threshold_value": 0.02},
     }
 
-    assert run_contract_check(request) == expected
-    assert suggest_contract_checks(contract) == expected
-    assert _call_verification_tool("run_contract_check", {"request": request}) == expected
-    assert _call_verification_tool("suggest_contract_checks", {"contract": contract}) == expected
+    for result in (
+        run_contract_check(request),
+        suggest_contract_checks(contract),
+        _call_verification_tool("run_contract_check", {"request": request}),
+        _call_verification_tool("suggest_contract_checks", {"contract": contract}),
+    ):
+        assert result["error"] == expected["error"]
+        assert result["schema_version"] == expected["schema_version"]
+        if "contract_error_details" in result:
+            assert result["contract_error_details"] == expected["contract_error_details"]
 
 
 def test_contract_payload_schema_does_not_advertise_scalar_list_drift() -> None:

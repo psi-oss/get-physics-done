@@ -796,6 +796,15 @@ def _collect_project_contract_list_member_errors(data: object) -> list[str]:
     for collection_name, field_names in PROJECT_CONTRACT_COLLECTION_LIST_FIELDS.items():
         _check_collection_item_lists(collection_name, field_names)
 
+    top_level_collections = data.get("claims")
+    if isinstance(top_level_collections, list):
+        for claim_index, claim in enumerate(top_level_collections):
+            if not isinstance(claim, dict):
+                continue
+            for field_name in ("parameters", "hypotheses", "conclusion_clauses"):
+                if field_name in claim and not isinstance(claim[field_name], list):
+                    errors.append(f"claims.{claim_index}.{field_name} must be a list, not {type(claim[field_name]).__name__}")
+
     return errors
 
 

@@ -27,11 +27,12 @@ LEGACY_BACKCOMPAT_WORDING = (
 )
 
 
-def test_command_sources_do_not_keep_runtime_boilerplate_html_comments() -> None:
-    for path in sorted(COMMANDS_DIR.glob("*.md")):
-        text = path.read_text(encoding="utf-8")
-        for fragment in LEGACY_COMMENT_FRAGMENTS:
-            assert fragment not in text, f"{path.relative_to(REPO_ROOT)} still contains: {fragment}"
+def test_model_facing_sources_do_not_keep_runtime_boilerplate_html_comments() -> None:
+    for directory in MODEL_FACING_DIRS:
+        for path in sorted(directory.glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            for fragment in LEGACY_COMMENT_FRAGMENTS:
+                assert fragment not in text, f"{path.relative_to(REPO_ROOT)} still contains: {fragment}"
 
 
 def test_model_facing_prompts_do_not_ship_unresolved_placeholders() -> None:

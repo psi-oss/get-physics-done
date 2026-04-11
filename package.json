@@ -29,10 +29,8 @@
     "research",
     "ai",
     "agentic",
-    "claude",
-    "codex",
-    "gemini",
-    "opencode"
+    "automation",
+    "workflow"
   ],
   "license": "Apache-2.0"
 }

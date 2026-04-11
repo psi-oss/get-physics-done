@@ -18,10 +18,8 @@ keywords = [
     "research",
     "ai",
     "agentic",
-    "claude",
-    "codex",
-    "gemini",
-    "opencode",
+    "automation",
+    "workflow",
 ]
 classifiers = [
     "Intended Audience :: Science/Research",

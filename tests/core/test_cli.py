@@ -6715,9 +6715,7 @@ def test_paper_build_auto_discovers_single_literature_citation_sources_sidecar(t
     assert mock_build.await_args.kwargs["citation_sources"][0].title == "Auto Reference"
 
 
-def test_paper_build_auto_discovers_legacy_research_citation_sources_sidecar_when_literature_is_missing(
-    tmp_path: Path,
-) -> None:
+def test_paper_build_ignores_legacy_research_citation_sources_without_literature(tmp_path: Path) -> None:
     nested_cwd = tmp_path / "notes"
     nested_cwd.mkdir()
     (tmp_path / "GPD").mkdir()
@@ -6768,10 +6766,8 @@ def test_paper_build_auto_discovers_legacy_research_citation_sources_sidecar_whe
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
-    assert payload["citation_sources_path"] == "../GPD/research/topic-CITATION-SOURCES.json"
-    assert any("temporary directory" in warning for warning in payload["warnings"])
-    assert mock_build.await_args.kwargs["citation_sources"] is not None
-    assert mock_build.await_args.kwargs["citation_sources"][0].title == "Legacy Reference"
+    assert payload["citation_sources_path"] == ""
+    assert mock_build.await_args.kwargs["citation_sources"] is None
 
 
 def test_paper_build_warns_when_multiple_literature_citation_sidecars_exist(tmp_path: Path) -> None:

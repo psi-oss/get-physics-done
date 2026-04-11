@@ -475,8 +475,21 @@ flowchart TD
 <!-- repo-graph-same-stem-command-workflow:start -->
 - `src/gpd/commands/{add-phase,add-todo,arxiv-submission,audit-milestone,branch-hypothesis,check-todos,compact-state,compare-branches,compare-experiment,compare-results,complete-milestone,debug,decisions,derive-equation,digest-knowledge,dimensional-analysis,discover,discuss-phase,error-patterns,error-propagation,execute-phase,explain,export,export-logs,graph,help,insert-phase,limiting-cases,list-phase-assumptions,literature-review,map-research,merge-phases,new-milestone,new-project,numerical-convergence,parameter-sweep,pause-work,peer-review,plan-milestone-gaps,plan-phase,progress,quick,reapply-patches,record-insight,regression-check,remove-phase,research-phase,respond-to-referees,resume-work,review-knowledge,revise-phase,sensitivity-analysis,set-profile,set-tier-models,settings,show-phase,slides,start,sync-state,tangent,tour,undo,update,validate-conventions,verify-work,write-paper}.md -> src/gpd/specs/workflows/{same stems}.md`
 <!-- repo-graph-same-stem-command-workflow:end -->
-  `include`
-  Explicit same-stem command-to-workflow includes are node-level edges, not just an aggregate count.
+ `include`
+ Explicit same-stem command-to-workflow includes are node-level edges, not just an aggregate count.
+
+<!-- repo-graph-local-cli-only:start -->
+- health
+- suggest-next
+<!-- repo-graph-local-cli-only:end -->
+These commands run only through the local CLI bridge and intentionally have no workflow counterparts.
+
+<!-- repo-graph-internal-workflow-only:start -->
+- execute-plan
+- transition
+- verify-phase
+<!-- repo-graph-internal-workflow-only:end -->
+These workflows are orchestrated internally and do not expose same-stem command wrappers.
 
 - `src/gpd/commands/help.md -> runtime slash-command surface contract {in-runtime `/gpd:*` reference, local CLI distinction, `gpd --help`, `gpd validate command-context gpd:<name>`}`
   `behavior-contract`

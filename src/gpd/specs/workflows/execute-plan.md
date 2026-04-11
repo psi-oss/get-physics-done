@@ -1,3 +1,4 @@
+<!-- internal-workflow-only -->
 <purpose>
 Execute a research plan (`PLAN.md` or `*-PLAN.md`) -- carry out derivations, calculations, simulations, or analysis -- and create the matching outcome summary (`SUMMARY.md` or `*-SUMMARY.md`).
 `execute-phase.md` owns wave-level routing and fanout; this workflow owns the selected plan's local execution semantics, bounded gates, and summary emission.

@@ -6031,17 +6031,12 @@ def _resolve_bibliography_path(
 
 
 def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Path | None, str | None]:
-    """Return a single literature-review citation-source sidecar if it is unambiguous."""
+    """Return the single literature-review citation-source sidecar under `GPD/literature`."""
     literature_dir = project_root / "GPD" / "literature"
-    legacy_research_dir = project_root / "GPD" / "research"
-    if literature_dir.is_dir():
-        search_dir = literature_dir
-    elif legacy_research_dir.is_dir():
-        search_dir = legacy_research_dir
-    else:
+    if not literature_dir.is_dir():
         return None, None
 
-    matches = sorted(path for path in search_dir.rglob("*-CITATION-SOURCES.json") if path.is_file())
+    matches = sorted(path for path in literature_dir.rglob("*-CITATION-SOURCES.json") if path.is_file())
     if not matches:
         return None, None
     if len(matches) == 1:
@@ -6051,7 +6046,7 @@ def _discover_literature_review_citation_sources(project_root: Path) -> tuple[Pa
     remaining = len(matches) - 3
     suffix = f", ... (+{remaining} more)" if remaining > 0 else ""
     warning = (
-        f"Multiple {'literature-review' if search_dir == literature_dir else 'legacy research'} citation-source sidecars found; "
+        "Multiple literature-review citation-source sidecars found; "
         "pass --citation-sources explicitly: "
         f"{preview}{suffix}"
     )

@@ -365,6 +365,72 @@ def test_parse_project_contract_data_strict_rejects_nested_proof_list_scalar_dri
     assert "claims.0.hypotheses.0.symbols must be a list, not str" in parsed.errors
 
 
+def test_parse_project_contract_data_strict_rejects_proof_collection_scalar_drift() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["parameters"] = {"symbol": "r_0", "required_in_proof": True}
+    contract["claims"][0]["hypotheses"] = {"id": "hyp-r0", "text": "r_0 >= 0", "required_in_proof": True}
+    contract["claims"][0]["conclusion_clauses"] = {"id": "conclusion-main", "text": "the bound holds"}
+
+    parsed = parse_project_contract_data_strict(contract)
+
+    assert parsed.contract is None
+    assert "claims.0.parameters must be a list, not dict" in parsed.errors
+    assert "claims.0.hypotheses must be a list, not dict" in parsed.errors
+    assert "claims.0.conclusion_clauses must be a list, not dict" in parsed.errors
+
+
+def test_parse_project_contract_data_salvage_surfaces_proof_collection_scalar_drift() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["parameters"] = {"symbol": "r_0", "required_in_proof": True}
+
+    parsed = parse_project_contract_data_salvage(contract)
+
+    assert parsed.contract is not None
+    assert parsed.contract.claims[0].parameters[0].symbol == "r_0"
+    assert "claims.0.parameters must be a list, not dict" in parsed.recoverable_errors
+
+
+def test_parse_project_contract_data_salvage_recovers_hypotheses_scalar_drift() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["hypotheses"] = {
+        "id": "hyp-r0",
+        "text": "r_0 >= 0",
+        "required_in_proof": True,
+    }
+
+    parsed = parse_project_contract_data_salvage(contract)
+
+    assert parsed.contract is not None
+    assert parsed.contract.claims[0].hypotheses[0].id == "hyp-r0"
+    assert "claims.0.hypotheses must be a list, not dict" in parsed.recoverable_errors
+
+
+def test_parse_project_contract_data_salvage_recovers_conclusion_clause_scalar_drift() -> None:
+    contract = _load_contract_fixture()
+    contract["claims"][0]["conclusion_clauses"] = {
+        "id": "conclusion-main",
+        "text": "the bound holds",
+    }
+
+    parsed = parse_project_contract_data_salvage(contract)
+
+    assert parsed.contract is not None
+    assert parsed.contract.claims[0].conclusion_clauses[0].id == "conclusion-main"
+    assert "claims.0.conclusion_clauses must be a list, not dict" in parsed.recoverable_errors
+
+
+def test_parse_project_contract_data_salvage_warns_nested_extra_keys() -> None:
+    contract = _load_contract_fixture()
+    contract["scope"]["legacy_notes"] = "nested extra field"
+
+    parsed = parse_project_contract_data_salvage(contract)
+
+    assert parsed.contract is not None
+    assert any("scope.legacy_notes" in error for error in parsed.recoverable_errors)
+    scope_dump = parsed.contract.model_dump()["scope"]
+    assert "legacy_notes" not in scope_dump
+
+
 def test_parse_project_contract_data_strict_rejects_blank_nested_proof_list_scalar_drift_without_mutation() -> None:
     contract = _load_contract_fixture()
     contract["claims"][0]["parameters"] = [

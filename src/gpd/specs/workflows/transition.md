@@ -1,3 +1,4 @@
+<!-- internal-workflow-only -->
 <required_reading>
 
 **Read these files NOW:**

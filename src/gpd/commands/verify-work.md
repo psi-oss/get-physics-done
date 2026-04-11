@@ -42,8 +42,6 @@ allowed-tools:
   - mcp__gpd_verification__run_contract_check
 ---
 
-<!-- Tool names and @ includes are runtime-specific; the installer rewrites paths for your runtime. -->
-
 <objective>
 Run the staged verification workflow for an executed phase and produce `GPD/phases/XX-name/XX-VERIFICATION.md`. This workflow is only valid once the phase reaches the `phase_executed` state.
 </objective>

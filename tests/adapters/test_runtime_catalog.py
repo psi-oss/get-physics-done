@@ -180,6 +180,18 @@ def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
     assert set(schema["managed_install_surfaces"]) == {"nested_commands", "flat_commands", "external_commands"}
 
 
+def test_runtime_catalog_hook_payload_parser_fields_align_with_schema_and_dataclass() -> None:
+    assert set(runtime_catalog._HOOK_PAYLOAD_FIELD_NAMES) == set(runtime_catalog._RUNTIME_HOOK_PAYLOAD_KEYS)
+    assert set(runtime_catalog._HOOK_PAYLOAD_FIELD_NAMES) == {
+        field.name for field in fields(runtime_catalog.HookPayloadPolicy)
+    }
+
+
+def test_runtime_catalog_capability_parser_fields_align_with_schema_and_dataclass() -> None:
+    assert set(runtime_catalog._RUNTIME_CAPABILITY_FIELD_NAMES) == set(runtime_catalog._RUNTIME_CAPABILITY_KEYS)
+    assert set(runtime_catalog._RUNTIME_CAPABILITY_FIELD_NAMES) == {
+        field.name for field in fields(runtime_catalog.RuntimeCapabilityPolicy)
+    }
 def test_runtime_catalog_schema_required_and_optional_keys_match_catalog_entries() -> None:
     schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
     catalog_payload = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))

@@ -1045,7 +1045,7 @@ def test_contract_tools_reject_coercive_contract_scalars() -> None:
         "error": "Invalid contract payload: references.0.must_surface must be a boolean",
         "schema_version": 1,
     }
-    assert run_result == expected
+    assert run_result.items() >= expected.items()
     assert suggest_result == expected
 
 

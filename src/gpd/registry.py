@@ -81,6 +81,7 @@ _COMMAND_FRONTMATTER_KEYS = frozenset(
         # plan-phase carries this metadata in canonical frontmatter even though
         # registry consumers currently do not project it.
         "agent",
+        "local_cli_only",
     }
 )
 _AGENT_FRONTMATTER_KEYS = frozenset(
@@ -220,6 +221,7 @@ class CommandDef:
     project_reentry_capable: bool = False
     review_contract: ReviewCommandContract | None = None
     agent: str | None = None
+    local_cli_only: bool = False
     staged_loading: WorkflowStageManifest | None = None
     spawn_contracts: tuple[dict[str, object], ...] = ()
 
@@ -625,6 +627,14 @@ def _parse_context_mode(raw: object, *, command_name: str) -> str:
         valid = ", ".join(VALID_CONTEXT_MODES)
         raise ValueError(f"Invalid context_mode {mode!r} for {command_name}; expected one of: {valid}")
     return mode
+
+
+def _parse_local_cli_only(raw: object, *, command_name: str) -> bool:
+    if raw is None:
+        return False
+    if isinstance(raw, bool):
+        return raw
+    raise ValueError(f"local_cli_only for {command_name} must be a boolean")
 
 
 def _parse_commit_authority(raw: object, *, agent_name: str) -> str:
@@ -1233,6 +1243,10 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         command_name=command_name,
         context_mode=context_mode,
     )
+    local_cli_only = _parse_local_cli_only(
+        meta.get("local_cli_only"),
+        command_name=command_name,
+    )
     staged_loading = _load_command_staged_loading(path, allowed_tools=allowed_tools)
     content = _command_model_content(
         body,
@@ -1268,6 +1282,7 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         content=content,
         path=str(path),
         source=source,
+        local_cli_only=local_cli_only,
     )
 
 
