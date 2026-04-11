@@ -594,16 +594,16 @@ Write `GPD/CONSISTENCY-REPORT.md` with the following structure:
 ### Anti-Pattern 1: Being Too Positive (The Rubber Stamp)
 
 ```markdown
-# WRONG:
+**Wrong:**
 
 "This is an excellent paper with beautiful calculations. The results are
 impressive and the presentation is clear. I recommend acceptance."
 
-# No specific checks mentioned. No equations verified. No limits tested.
+- No specific checks mentioned. No equations verified. No limits tested.
 
-# This review adds no value.
+- This review adds no value.
 
-# RIGHT:
+**Right:**
 
 "The main result (Eq. 15) is novel and the calculation appears correct:
 I verified dimensional consistency and the free-particle limit (g→0)
@@ -615,13 +615,13 @@ does not account for systematic discretization effects."
 ### Anti-Pattern 2: Missing Obvious Holes
 
 ```markdown
-# WRONG:
+**Wrong:**
 
 Skipping dimensional analysis because "the equations look right."
 Not checking limiting cases because "the author seems competent."
 Not verifying numerical convergence because "the numbers look reasonable."
 
-# RIGHT:
+**Right:**
 
 Check EVERY key equation for dimensional consistency.
 Check EVERY key result against at least one known limit.
@@ -631,13 +631,13 @@ Verify EVERY numerical result has convergence evidence.
 ### Anti-Pattern 3: Surface-Level Critique
 
 ```markdown
-# WRONG:
+**Wrong:**
 
 "There are some sign issues in Section 3."
 "The approximation in Eq. (7) may not be valid."
 "The comparison with literature could be improved."
 
-# RIGHT:
+**Right:**
 
 "In Eq. (3.4), the sign of the second term should be negative based on
 the Hamiltonian in Eq. (2.1) with the sign convention defined in Sec. 2.
@@ -653,13 +653,13 @@ flagged with a caveat."
 ### Anti-Pattern 4: Demanding Your Preferred Method
 
 ```markdown
-# WRONG:
+**Wrong:**
 
 "The authors should use DMRG instead of exact diagonalization."
 
-# If ED is appropriate for the system sizes studied, this is not a valid criticism.
+- If ED is appropriate for the system sizes studied, this is not a valid criticism.
 
-# RIGHT:
+**Right:**
 
 "The system sizes accessible to exact diagonalization (up to L=16) may
 not be sufficient to extract the thermodynamic limit behavior shown in
@@ -671,13 +671,13 @@ the extrapolation."
 ### Anti-Pattern 5: Conflating "I Don't Understand" with "This Is Wrong"
 
 ```markdown
-# WRONG:
+**Wrong:**
 
 "The derivation in Section 4 is unclear and likely incorrect."
 
-# Maybe it's unclear to you because you're unfamiliar with the technique.
+- Maybe it's unclear to you because you're unfamiliar with the technique.
 
-# RIGHT:
+**Right:**
 
 "I was unable to follow the derivation from Eq. (4.3) to Eq. (4.7).
 If the intermediate steps involve a Hubbard-Stratonovich transformation,
@@ -688,11 +688,11 @@ the correctness of this step."
 ### Anti-Pattern 6: Ignoring Strengths
 
 ```markdown
-# WRONG:
+**Wrong:**
 
 A report that is entirely negative with no acknowledgment of merit.
 
-# RIGHT:
+**Right:**
 
 "The paper presents a novel approach to computing the spectral function
 using tensor network methods. The key innovation — the use of a hybrid
@@ -704,13 +704,13 @@ extrapolation to the thermodynamic limit, as discussed below."
 ### Anti-Pattern 7: Vague Significance Assessment
 
 ```markdown
-# WRONG:
+**Wrong:**
 
 "This is not significant enough for PRL."
 
-# Why not? What would make it significant?
+- Why not? What would make it significant?
 
-# RIGHT:
+**Right:**
 
 "While the calculation is technically sound, the advance beyond
 Ref. [12] is incremental: the authors extend the perturbative result

@@ -260,3 +260,30 @@ def test_sync_state_workflow_keeps_optional_commit_outside_core_reconcile_path()
     assert "Only if the operator explicitly asks to commit the reconciled state" in sync_state
     assert sync_state.index("<step name=\"reconcile\">") < sync_state.index("<step name=\"optional_commit\">")
     assert sync_state.index("gpd --raw state validate") < sync_state.index("<step name=\"optional_commit\">")
+
+
+def _markdown_lines_outside_fences(text: str):
+    in_fence = False
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            yield line_number, line
+
+
+def test_agent_examples_do_not_create_accidental_markdown_headings() -> None:
+    banned_prefixes = (
+        "# WRONG",
+        "# RIGHT",
+        "# Check ",
+        "# Find ",
+    )
+
+    offenders = []
+    for path in sorted(AGENTS_DIR.glob("*.md")):
+        for line_number, line in _markdown_lines_outside_fences(path.read_text(encoding="utf-8")):
+            if line.startswith(banned_prefixes):
+                offenders.append(f"{path}:{line_number}: {line}")
+
+    assert offenders == []

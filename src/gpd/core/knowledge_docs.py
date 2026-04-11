@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
+import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from gpd.core.utils import normalize_ascii_slug
@@ -284,33 +285,87 @@ class KnowledgeDocData(BaseModel):
         return self
 
 
-def knowledge_reviewed_content_projection(
-    knowledge_doc: KnowledgeDocData,
+def _extract_frontmatter(content: str) -> tuple[dict[str, object], str]:
+    if not content.startswith("---\n"):
+        raise ValueError("Missing frontmatter block")
+    end = content.find("\n---\n", 4)
+    if end == -1:
+        raise ValueError("Unclosed frontmatter block")
+    raw_meta = yaml.safe_load(content[4:end]) or {}
+    if not isinstance(raw_meta, dict):
+        raise ValueError("Frontmatter must be a mapping")
+    return raw_meta, content[end + 5 :]
+
+
+def _normalize_review_projection_inputs(
+    knowledge_doc_or_content: object,
     *,
     body_text: str = "",
+    meta: dict[str, object] | None = None,
+    body: str | None = None,
+) -> tuple[KnowledgeDocData, str]:
+    effective_body = body_text or (body if body is not None else "")
+    if meta is not None:
+        if not isinstance(meta, dict):
+            raise TypeError("meta must be a mapping")
+        return _parse_review_projection_data(meta), effective_body
+    if isinstance(knowledge_doc_or_content, KnowledgeDocData):
+        return knowledge_doc_or_content, effective_body
+    if isinstance(knowledge_doc_or_content, str):
+        extracted_meta, extracted_body = _extract_frontmatter(knowledge_doc_or_content)
+        return _parse_review_projection_data(extracted_meta), effective_body or extracted_body
+    if isinstance(knowledge_doc_or_content, dict):
+        return _parse_review_projection_data(knowledge_doc_or_content), effective_body
+    if hasattr(knowledge_doc_or_content, "model_dump"):
+        return _parse_review_projection_data(knowledge_doc_or_content.model_dump(mode="python")), effective_body
+    raise TypeError("expected a knowledge document, content string, or metadata mapping")
+
+
+def _parse_review_projection_data(knowledge_data: dict[str, object]) -> KnowledgeDocData:
+    projection_data = dict(knowledge_data)
+    if projection_data.get("status") == "stable" and projection_data.get("review") is None:
+        projection_data["status"] = "in_review"
+    return parse_knowledge_doc_data_strict(projection_data)
+
+
+def knowledge_reviewed_content_projection(
+    knowledge_doc: object,
+    *,
+    body_text: str = "",
+    meta: dict[str, object] | None = None,
+    body: str | None = None,
 ) -> dict[str, object]:
     """Return the canonical trusted-content projection used for review freshness."""
 
+    parsed_doc, normalized_input_body = _normalize_review_projection_inputs(
+        knowledge_doc,
+        body_text=body_text,
+        meta=meta,
+        body=body,
+    )
+    body_text = normalized_input_body
     normalized_body = body_text.replace("\r\n", "\n").replace("\r", "\n")
     return {
-        "knowledge_schema_version": knowledge_doc.knowledge_schema_version,
-        "knowledge_id": knowledge_doc.knowledge_id,
-        "title": knowledge_doc.title,
-        "topic": knowledge_doc.topic,
-        "sources": [source.model_dump(mode="python") for source in knowledge_doc.sources],
-        "coverage_summary": knowledge_doc.coverage_summary.model_dump(mode="python"),
+        "knowledge_schema_version": parsed_doc.knowledge_schema_version,
+        "knowledge_id": parsed_doc.knowledge_id,
+        "title": parsed_doc.title,
+        "topic": parsed_doc.topic,
+        "sources": [source.model_dump(mode="python") for source in parsed_doc.sources],
+        "coverage_summary": parsed_doc.coverage_summary.model_dump(mode="python"),
         "body_text": normalized_body,
     }
 
 
 def compute_knowledge_reviewed_content_sha256(
-    knowledge_doc: KnowledgeDocData,
+    knowledge_doc: object,
     *,
     body_text: str = "",
+    meta: dict[str, object] | None = None,
+    body: str | None = None,
 ) -> str:
     """Compute the canonical hash for the reviewed knowledge-document content."""
 
-    projection = knowledge_reviewed_content_projection(knowledge_doc, body_text=body_text)
+    projection = knowledge_reviewed_content_projection(knowledge_doc, body_text=body_text, meta=meta, body=body)
     payload = json.dumps(projection, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 

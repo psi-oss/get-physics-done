@@ -45,18 +45,18 @@ contract_results:
   claims:
     claim-main:
       status: passed
-      summary: "[what was actually established]"
+      summary: Established the phase-specific claim using the cited verification evidence.
       linked_ids: [deliv-main, test-main, ref-main]
       proof_audit:
         completeness: complete
         reviewed_at: "2026-04-02T12:00:00Z"
         reviewer: gpd-check-proof
-        summary: "[what the adversarial proof review concluded]"
+        summary: Proof review found all declared hypotheses, parameters, quantifiers, and conclusion clauses covered.
         proof_artifact_path: derivations/main-proof.tex
-        proof_artifact_sha256: "[optional artifact sha256 for stale-audit detection]"
+        proof_artifact_sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
         audit_artifact_path: GPD/phases/01-proof/01-01-PROOF-REDTEAM.md
-        audit_artifact_sha256: "[sha256 of the canonical proof-redteam artifact]"
-        claim_statement_sha256: "[required when a proof-bearing claim passes]"
+        audit_artifact_sha256: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+        claim_statement_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         covered_hypothesis_ids: [hyp-main]
         missing_hypothesis_ids: []
         covered_parameter_symbols: [r_0]
@@ -80,24 +80,24 @@ contract_results:
   deliverables:
     deliv-main:
       status: passed
-      path: path/to/artifact
-      summary: "[what artifact exists and why it matters]"
+      path: GPD/phases/XX-name/artifacts/main-result.md
+      summary: Phase-specific artifact produced for the declared deliverable.
       linked_ids: [claim-main, test-main]
   acceptance_tests:
     test-main:
       status: passed
-      summary: "[what decisive test happened and what it showed]"
+      summary: Decisive benchmark reproduced the required reference value within tolerance.
       linked_ids: [claim-main, deliv-main, ref-main]
   references:
     ref-main:
       status: completed
       completed_actions: [read, compare, cite]
       missing_actions: []
-      summary: "[how the anchor was surfaced]"
+      summary: Required anchor was read, compared against the result, and cited in the verification report.
   forbidden_proxies:
     fp-main:
       status: rejected
-      notes: "[why this proxy was or was not allowed]"
+      notes: Disallowed proxy was not used; the decisive benchmark evidence is direct.
   uncertainty_markers:
     weakest_anchors: [anchor-1]
     unvalidated_assumptions: [assumption-1]
@@ -107,6 +107,7 @@ contract_results:
 
 Rules:
 
+- Replace example IDs and prose with phase-specific contract IDs and evidence; placeholder text is invalid.
 - Ledger keys must be real IDs from the referenced PLAN contract.
 - `contract_results` and every nested entry use a closed schema. Only the documented keys are allowed; invented keys such as `context_usage` fail validation.
 - Missing contract-backed `contract_results` is invalid.
@@ -134,7 +135,7 @@ Rules:
 - For `must_surface` references, `completed_actions` must cover every `required_actions` item; do not mark the anchor as handled while leaving required actions only in prose.
 - `required_actions`, `completed_actions`, and `missing_actions` use the same closed action vocabulary: `read`, `use`, `compare`, `cite`, `avoid`.
 - Every strict string list is trimmed before validation. Blank-after-trim entries are invalid, and duplicate-after-trim entries are invalid. This includes `linked_ids`, `completed_actions`, `missing_actions`, and the list-valued proof-audit coverage fields.
-- Artifact readers may recover singleton string/list drift and closed-enum case drift when parsing existing ledgers, but newly written YAML must still use canonical lists and exact lowercase literals.
+- Author canonical form: lists stay lists and closed-enum literals stay exact lowercase. Artifact readers may salvage narrow singleton string/list drift and closed-enum case drift, but do not rely on salvage for new ledgers.
 - `claims`, `deliverables`, and `acceptance_tests` entries with `status: failed|blocked` must include at least one of `summary`, `notes`, or non-empty `evidence` so the gap is explained instead of implied.
 - For `contract_results.references`:
   `status: completed` requires non-empty `completed_actions` and empty `missing_actions`.

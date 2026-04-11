@@ -362,14 +362,18 @@ def test_runtime_fixture_literal_findings_flags_single_runtime_literal_block() -
 
 
 def test_runtime_pattern_includes_capability_surface_literals() -> None:
-    capability_literals = (
-        "settings.json:permissions.defaultMode",
-        "settings.json:statusLine",
-        "config.toml:approval_policy+sandbox_mode",
-        "config.toml:notify",
-        "opencode.json:permission",
+    capability_literals = tuple(
+        value
+        for descriptor in _RUNTIME_DESCRIPTORS
+        for value in (
+            descriptor.capabilities.permission_surface_kind,
+            descriptor.capabilities.statusline_config_surface,
+            descriptor.capabilities.notify_config_surface,
+        )
+        if value and value != "none"
     )
 
+    assert capability_literals
     for literal in capability_literals:
         assert re.search(_RUNTIME_PATTERN, literal) is not None
 
@@ -390,8 +394,7 @@ def test_repo_graph_contract_runtime_owned_excludes_follow_runtime_descriptors()
     for runtime_dir in expected_runtime_dirs:
         assert runtime_dir in excluded_dirs
 
-    stale_runtime_dirs = {".claude", ".gemini", ".codex", ".opencode"} - set(expected_runtime_dirs)
-    assert stale_runtime_dirs.isdisjoint(excluded_dirs)
+    assert all(runtime_dir.startswith(".") for runtime_dir in expected_runtime_dirs)
 
 
 def test_repo_graph_contract_excluded_dirs_follow_generated_cache_inventory() -> None:

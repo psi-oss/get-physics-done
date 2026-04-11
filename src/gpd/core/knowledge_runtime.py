@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256, extract_frontmatter
+from gpd.core.frontmatter import extract_frontmatter
 from gpd.core.knowledge_docs import (
     KnowledgeDocData,
+    compute_knowledge_reviewed_content_sha256,
     parse_knowledge_doc_data_strict,
 )
 from gpd.core.knowledge_migration import classify_knowledge_doc_migration

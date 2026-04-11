@@ -516,6 +516,9 @@ class StateValidateResult(BaseModel):
     integrity_mode: str = "standard"
     integrity_status: str = "healthy"
     state_source: str | None = None
+    primary_state_corrupt: bool = False
+    recovered_from_backup: bool = False
+    recovered_from_markdown: bool = False
 
 
 class StateUpdateResult(BaseModel):
@@ -4696,7 +4699,16 @@ def state_validate(
         cwd,
         integrity_mode=integrity_mode,
         recover_intent=recover_intent,
+        surface_blocked_project_contract=True,
     )
+    primary_state_corrupt = any(
+        issue.startswith(("state.json parse error:", "state.json structural error:"))
+        or "after primary state.json required normalization" in issue
+        or "after primary state.json was unavailable or unreadable" in issue
+        for issue in normalization_issues
+    )
+    recovered_from_backup = state_source == "state.json.bak"
+    recovered_from_markdown = state_source == "STATE.md"
     if normalization_issues:
         parse_issues = [issue for issue in normalization_issues if issue.startswith("state.json parse error:")]
         other_issues = [issue for issue in normalization_issues if not issue.startswith("state.json parse error:")]
@@ -4728,6 +4740,9 @@ def state_validate(
             integrity_mode=integrity_mode,
             integrity_status=_integrity_status_from(issues, warnings, integrity_mode),
             state_source=state_source,
+            primary_state_corrupt=primary_state_corrupt,
+            recovered_from_backup=recovered_from_backup,
+            recovered_from_markdown=recovered_from_markdown,
         )
 
     if isinstance(state_json, dict) and state_json.get("project_contract") is not None:
@@ -4879,6 +4894,9 @@ def state_validate(
         integrity_mode=integrity_mode,
         integrity_status=integrity_status,
         state_source=state_source,
+        primary_state_corrupt=primary_state_corrupt,
+        recovered_from_backup=recovered_from_backup,
+        recovered_from_markdown=recovered_from_markdown,
     )
 
 

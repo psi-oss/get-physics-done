@@ -80,6 +80,21 @@ def test_state_server_private_apply_return_updates_rejects_relative_project_dir(
     assert result == {"error": "project_dir must be an absolute path", "schema_version": 1}
 
 
+@pytest.mark.parametrize("file_path", ["/tmp/escape.md", "../escape.md"])
+def test_state_server_private_apply_return_updates_rejects_paths_outside_project(
+    monkeypatch, tmp_path: Path, file_path: str
+) -> None:
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server.cmd_apply_return_updates",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not run")),
+    )
+
+    result = _apply_return_updates(str(tmp_path), file_path)
+
+    assert result["schema_version"] == 1
+    assert "file_path" in result["error"]
+
+
 @pytest.mark.parametrize(
     ("tool_fn", "kwargs"),
     [

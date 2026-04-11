@@ -9,7 +9,6 @@ Core operations:
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 import subprocess
 from copy import deepcopy
@@ -37,7 +36,6 @@ from gpd.contracts import (
     parse_contract_results_data_artifact,
     parse_project_contract_data_strict,
 )
-from gpd.core import knowledge_docs as _knowledge_docs
 from gpd.core.constants import (
     PLAN_SUFFIX,
     STANDALONE_PLAN,
@@ -46,6 +44,7 @@ from gpd.core.constants import (
 )
 from gpd.core.contract_validation import _format_schema_error
 from gpd.core.errors import GPDError
+from gpd.core.knowledge_docs import compute_knowledge_reviewed_content_sha256
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.root_resolution import resolve_project_root
 from gpd.core.strict_yaml import load_strict_yaml
@@ -899,86 +898,6 @@ def _validate_knowledge_review_block(
             errors.append("knowledge.review.decision must be approved when status is stable")
     if status == "in_review" and review is not None and canonical_contract and decision_value == "approved" and review.get("stale") is not True:
         errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
-
-
-def _knowledge_reviewed_content_projection(meta: dict[str, object], body: str) -> dict[str, object]:
-    """Return the canonical content projection used for knowledge freshness hashing."""
-
-    return {
-        "knowledge_schema_version": meta.get("knowledge_schema_version"),
-        "knowledge_id": meta.get("knowledge_id"),
-        "title": meta.get("title"),
-        "topic": meta.get("topic"),
-        "sources": meta.get("sources"),
-        "coverage_summary": meta.get("coverage_summary"),
-        "body": body.replace("\r\n", "\n"),
-    }
-
-
-def _normalize_knowledge_review_inputs(
-    knowledge_doc_or_content: object,
-    *,
-    body_text: str = "",
-    meta: dict[str, object] | None = None,
-    body: str | None = None,
-) -> tuple[dict[str, object], str]:
-    """Return ``(meta, body_text)`` for any supported knowledge-review input form."""
-
-    effective_body = body_text or (body if body is not None else "")
-    if meta is not None:
-        if not isinstance(meta, dict):
-            raise TypeError("meta must be a mapping")
-        return meta, effective_body
-    if isinstance(knowledge_doc_or_content, str):
-        extracted_meta, extracted_body = extract_frontmatter(knowledge_doc_or_content)
-        return extracted_meta, effective_body or extracted_body
-    if isinstance(knowledge_doc_or_content, dict):
-        return knowledge_doc_or_content, effective_body
-    if hasattr(knowledge_doc_or_content, "model_dump"):
-        return knowledge_doc_or_content.model_dump(mode="python"), effective_body
-    raise TypeError("expected a knowledge document, content string, or metadata mapping")
-
-
-def compute_knowledge_reviewed_content_sha256(
-    knowledge_doc_or_content: object,
-    *,
-    body_text: str = "",
-    meta: dict[str, object] | None = None,
-    body: str | None = None,
-) -> str:
-    """Compute the canonical hash of the trust-bearing knowledge-doc projection."""
-
-    normalized_meta, normalized_body = _normalize_knowledge_review_inputs(
-        knowledge_doc_or_content,
-        body_text=body_text,
-        meta=meta,
-        body=body,
-    )
-    projection = _knowledge_reviewed_content_projection(normalized_meta, normalized_body)
-    encoded = json.dumps(projection, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-    return _sha256_text(encoded)
-
-
-def _compat_knowledge_reviewed_content_projection(
-    knowledge_doc_or_content: object,
-    *,
-    body_text: str = "",
-    meta: dict[str, object] | None = None,
-    body: str | None = None,
-) -> dict[str, object]:
-    """Compatibility wrapper for the knowledge-doc projection helper."""
-
-    normalized_meta, normalized_body = _normalize_knowledge_review_inputs(
-        knowledge_doc_or_content,
-        body_text=body_text,
-        meta=meta,
-        body=body,
-    )
-    return _knowledge_reviewed_content_projection(normalized_meta, normalized_body)
-
-
-_knowledge_docs.compute_knowledge_reviewed_content_sha256 = compute_knowledge_reviewed_content_sha256
-_knowledge_docs.knowledge_reviewed_content_projection = _compat_knowledge_reviewed_content_projection
 
 
 def _resolve_contract_artifact_path(

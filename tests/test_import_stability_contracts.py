@@ -72,3 +72,21 @@ def test_registry_import_remains_stable_after_adapter_package_import() -> None:
 
     assert result.returncode == 0, result.stderr or result.stdout
     assert "GPD_IMPORT_STABILITY_SENTINEL=True" in result.stdout.splitlines()
+
+
+def test_knowledge_docs_review_hash_api_does_not_depend_on_frontmatter_import_order() -> None:
+    result = subprocess.run(
+        [
+            *_repo_python_command(),
+            "-c",
+            "from gpd.core.knowledge_docs import compute_knowledge_reviewed_content_sha256, knowledge_reviewed_content_projection\n"
+            "print('GPD_KNOWLEDGE_HASH_API_SENTINEL=' + str(callable(compute_knowledge_reviewed_content_sha256) and callable(knowledge_reviewed_content_projection)))",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert "GPD_KNOWLEDGE_HASH_API_SENTINEL=True" in result.stdout.splitlines()

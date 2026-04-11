@@ -1134,8 +1134,10 @@ def test_verification_template_surfaces_strict_passed_and_blocked_semantics() ->
 
     assert "status: passed` is strict" in verification_template
     assert "every required decisive comparison is decisive" in verification_template
-    assert "If decisive work remains open, use `partial`, `gaps_found`, `expert_needed`, or `human_needed`" in verification_template
-    assert "Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and apply it literally." in verification_template
+    assert "If decisive work remains open, use `gaps_found`, `expert_needed`, or `human_needed`" in verification_template
+    assert "Reserve `partial` for nested `contract_results` section statuses only." in verification_template
+    assert "use `partial`, `gaps_found`" not in verification_template
+    assert "Author canonical YAML; validators may salvage narrow drift, but do not rely on salvage." in verification_template
     assert "record structured `suggested_contract_checks` instead of padding prose" in verification_template
     assert "Proof-backed claims follow the proof-audit rules in the canonical schema" in verification_template
 

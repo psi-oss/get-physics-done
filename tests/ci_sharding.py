@@ -25,6 +25,7 @@ CI_SMOKE_TEST_TARGETS = (
     "tests/test_ci_suite_commands.py",
     "tests/test_repo_hygiene.py",
     "tests/test_schema_registry_ownership_note.py",
+    "tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files",
     "tests/adapters/test_runtime_catalog.py",
     "tests/core/test_contract_validation_fast_regressions.py",
 )

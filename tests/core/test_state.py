@@ -574,10 +574,28 @@ def test_state_validate_recovers_backup_when_primary_is_empty_dict(tmp_path: Pat
 
     assert validation.valid is True
     assert validation.integrity_status == "warning"
+    assert validation.primary_state_corrupt is True
+    assert validation.recovered_from_backup is True
+    assert validation.recovered_from_markdown is False
     assert any(
         "state.json root was recovered from state.json.bak" in warning
         for warning in validation.warnings
     )
+
+
+def test_state_validate_surfaces_blocked_project_contract_visibility(tmp_path: Path) -> None:
+    state = default_state_dict()
+    state["position"]["status"] = "Executing"
+    state["project_contract"] = _draft_invalid_project_contract()
+    layout = _write_raw_state_json(tmp_path, state)
+
+    validation = state_validate(tmp_path)
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+
+    assert persisted["project_contract"]["claims"][0]["references"] == ["missing-ref"]
+    assert any("project_contract:" in warning and "missing-ref" in warning for warning in validation.warnings)
+    assert validation.primary_state_corrupt is False
+    assert validation.recovered_from_backup is False
 
 
 def test_mutation_snapshot_graceful_fallback_when_primary_and_backup_are_empty_dict(

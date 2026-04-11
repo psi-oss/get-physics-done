@@ -96,6 +96,24 @@ def test_contract_results_schema_keeps_required_vocab_without_legacy_compatibili
         assert token in schema
 
     assert "compatible with `verification-report.md`" not in schema
+    assert "Author canonical form" in schema
+    assert "salvage narrow singleton string/list drift and closed-enum case drift" in schema
+    assert "do not rely on salvage" in schema
+
+    placeholder_fragments = (
+        "[what was actually established]",
+        "[what the adversarial proof review concluded]",
+        "[optional artifact sha256 for stale-audit detection]",
+        "[sha256 of the canonical proof-redteam artifact]",
+        "[required when a proof-bearing claim passes]",
+        "[what artifact exists and why it matters]",
+        "[what decisive test happened and what it showed]",
+        "[how the anchor was surfaced]",
+        "[why this proxy was or was not allowed]",
+        "path/to/artifact",
+    )
+    for placeholder in placeholder_fragments:
+        assert placeholder not in schema
 
 
 def test_plan_prompt_keeps_canonical_schema_visible_before_contract_output() -> None:

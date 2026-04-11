@@ -27,6 +27,10 @@ HOT_FILE_MAX_TESTS_PER_GROUP = 95
 
 
 def _direct_test_count(rel_path: str) -> int:
+    if "::" in rel_path:
+        rel_path, nodeid = rel_path.split("::", 1)
+        test_name = nodeid.split("[")[0].split("::")[-1]
+        return int(f"def {test_name}(" in (REPO_ROOT / rel_path).read_text(encoding="utf-8"))
     return (REPO_ROOT / rel_path).read_text(encoding="utf-8").count("\ndef test_")
 
 

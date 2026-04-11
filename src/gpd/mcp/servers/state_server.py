@@ -85,7 +85,14 @@ def _apply_return_updates(project_dir: AbsoluteProjectDirInput, file_path: str) 
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.apply_return_updates"):
         try:
-            resolved = cwd / Path(file_path)
+            relative_path = Path(file_path)
+            if relative_path.is_absolute():
+                return stable_mcp_error("file_path must be relative to project_dir")
+            resolved = (cwd / relative_path).resolve()
+            try:
+                resolved.relative_to(cwd.resolve())
+            except ValueError:
+                return stable_mcp_error("file_path must stay within project_dir")
             return stable_mcp_response(cmd_apply_return_updates(cwd, resolved).model_dump())
         except (GPDError, OSError, ValueError, TimeoutError) as exc:
             return stable_mcp_error(exc)
