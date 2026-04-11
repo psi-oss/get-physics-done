@@ -243,6 +243,8 @@ _PUBLIC_DESCRIPTOR_METADATA: dict[str, dict[str, object]] = {
 _UNRESOLVED_RE = re.compile(r"\$\{[^}]+\}")
 _ENV_VAR_PATTERN = re.compile(r"\$\{([^}:]+)(?::-([^}]*))?\}")
 
+_MODULE_AVAILABILITY_CACHE: dict[tuple[str, str], bool] = {}
+
 # Keys that are GPD-managed and should be removed on uninstall.
 GPD_MCP_SERVER_KEYS = frozenset(_BUILTIN_SERVERS.keys())
 
@@ -265,8 +267,12 @@ def _resolve_env(value: str) -> str:
 def _is_module_available(module_name: str, *, python_path: str | None = None) -> bool:
     """Check if a Python module is importable in a specific interpreter."""
     interpreter = python_path or sys.executable
+    cache_key = (module_name, interpreter)
+    if cache_key in _MODULE_AVAILABILITY_CACHE:
+        return _MODULE_AVAILABILITY_CACHE[cache_key]
+
     try:
-        return subprocess.run(
+        result = subprocess.run(
             [
                 interpreter,
                 "-c",
@@ -278,7 +284,10 @@ def _is_module_available(module_name: str, *, python_path: str | None = None) ->
             stderr=subprocess.DEVNULL,
         ).returncode == 0
     except (FileNotFoundError, ModuleNotFoundError, OSError, ValueError):
-        return False
+        result = False
+
+    _MODULE_AVAILABILITY_CACHE[cache_key] = result
+    return result
 
 
 def _build_public_alternatives(name: str) -> dict[str, dict[str, object]] | None:

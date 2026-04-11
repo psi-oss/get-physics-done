@@ -1251,7 +1251,7 @@ def test_contract_ledgers_surface_decisive_only_verdict_rules_and_strict_suggest
 
     assert "Do not invent `artifact` or `other` subject kinds" in contract_results
     assert "Only `subject_role: decisive` satisfies a required decisive comparison" in contract_results
-    assert "`subject_role` must be explicit on every verdict" in contract_results
+    assert "- `subject_role: decisive|supporting|supplemental|other`; it is required on every verdict." in contract_results
     assert "canonical project-root-relative `GPD/phases/XX-name/XX-YY-PLAN.md#/contract` path" in contract_results
     assert "If a decisive external anchor was used, include `reference_id`" in contract_results
     assert "reference-backed decisive comparison is required" in contract_results
@@ -1281,14 +1281,12 @@ def test_contract_ledgers_surface_forbidden_proxy_bindings_and_action_vocabulary
     assert "duplicate-after-trim entries are invalid" in contract_results
     assert "weakest_anchors: [anchor-1]" in contract_results
     assert "disconfirming_observations: [observation-1]" in contract_results
-    assert "uncertainty_markers.weakest_anchors" in state_schema
+    assert "weakest-anchor fields visible there rather than" in state_schema
     assert "uncertainty_markers.disconfirming_observations" in state_schema
     assert (
-        "`must_include_prior_outputs[]` entries should be explicit project-artifact paths or filenames that already exist inside the current project root."
+        "Grounding and scope policy are also owned by `templates/project-contract-schema.md`"
         in state_schema
     )
-    assert "If `project_root` is unavailable, treat them as non-grounding until the file can be resolved against a concrete root." in state_schema
-    assert '"must_include_prior_outputs": ["GPD/phases/00-baseline/00-01-SUMMARY.md"]' in state_schema
     assert "`GPD/phases/.../*-SUMMARY.md`" not in state_schema
     assert "`GPD/phases/.../SUMMARY.md`" not in state_schema
 

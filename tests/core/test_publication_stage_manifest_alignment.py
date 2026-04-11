@@ -131,7 +131,7 @@ def test_peer_review_staged_init_uses_full_peer_review_runtime_context(
 
     monkeypatch.setattr(
         context_module,
-        "load_config",
+        "load_context_config_dict",
         lambda cwd: {"commit_docs": False, "autonomy": "ask", "research_mode": "normal"},
     )
     monkeypatch.setattr(context_module, "_state_exists", lambda cwd: False)

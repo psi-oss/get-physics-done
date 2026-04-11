@@ -1232,6 +1232,43 @@ def test_tighten_registered_tool_contracts_updates_detached_public_tool_descript
     assert registered_schema == public_schema
 
 
+def test_tighten_registered_tool_contracts_requires_tool_manager() -> None:
+    from gpd.mcp.servers import FastMCPCompatibilityError, tighten_registered_tool_contracts
+
+    class _FakeMCP:
+        pass
+
+    with pytest.raises(FastMCPCompatibilityError, match="_tool_manager"):
+        tighten_registered_tool_contracts(_FakeMCP())
+
+
+def test_tighten_registered_tool_contracts_validates_tool_metadata() -> None:
+    from gpd.mcp.servers import FastMCPCompatibilityError, tighten_registered_tool_contracts
+
+    @dataclasses.dataclass
+    class _FakeTool:
+        name = "demo"
+        inputSchema: dict[str, object] = dataclasses.field(default_factory=dict)
+        parameters: dict[str, object] = dataclasses.field(default_factory=dict)
+
+    @dataclasses.dataclass
+    class _FakeToolManager:
+        tools: list[_FakeTool]
+
+        def list_tools(self) -> list[_FakeTool]:
+            return self.tools
+
+    class _FakeMCP:
+        def __init__(self) -> None:
+            self._tool_manager = _FakeToolManager([_FakeTool()])
+
+        async def list_tools(self) -> list[object]:
+            return []
+
+    with pytest.raises(FastMCPCompatibilityError, match="fn_metadata"):
+        tighten_registered_tool_contracts(_FakeMCP())
+
+
 def test_skill_category_schema_refresh_handles_reversed_anyof_branch_order() -> None:
     from gpd import registry as content_registry
     from gpd.mcp.servers.skills_server import _schema_with_refreshed_skill_category_enum

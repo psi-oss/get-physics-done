@@ -124,11 +124,12 @@ Rules:
 - If a proof-bearing claim is marked `status: passed`, `proof_audit` is mandatory and `proof_audit.completeness` must be explicit.
 - `proof_audit.completeness: complete | incomplete`
 - `proof_audit.quantifier_status: matched | narrowed | mismatched | unclear`
+  A quantified proof-bearing claim must keep `proof_audit.quantifier_status` explicit; passed quantified claims require `matched`.
 - `proof_audit.scope_status: matched | narrower_than_claim | mismatched | unclear`
 - `proof_audit.counterexample_status: none_found | counterexample_found | not_attempted | narrowed_claim`
 - `proof_audit.completeness: complete` is valid only with `reviewer: gpd-check-proof`, non-empty review/artifact/hash fields, no missing/uncovered proof obligations, `scope_status: matched`, `counterexample_status: none_found`, and `stale: false`.
 - A passed quantified proof-bearing claim must use `quantifier_status: matched`.
-- A passed proof-bearing claim must carry `proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, and a current `claim_statement_sha256`.
+- A passed proof-bearing claim must carry `proof_artifact_path`, `proof_artifact_sha256`, `audit_artifact_path`, `audit_artifact_sha256`, `claim_statement_sha256`; the statement hash must be current.
 - `proof_audit.proof_artifact_path` must match a declared `proof_deliverables` path, and `proof_audit.audit_artifact_path` must point to a proof-redteam artifact.
 - A passed proof-bearing claim must also have every declared proof-specific acceptance test in `claims[].acceptance_tests[]` passing; proof-bearing claims must declare at least one such test (`claim_to_proof_alignment`, `proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `lemma_dependency_closure`, or `counterexample_search`).
 - If a PLAN reference has `must_surface: true`, the ledger must include a matching `contract_results.references.<reference-id>` entry.

@@ -82,6 +82,13 @@ def _join_disjunction(values: tuple[str, ...]) -> str:
     return " or ".join(f"`{value}`" for value in values)
 
 
+def _default_command_agent_labels() -> tuple[str, ...]:
+    try:
+        from gpd.registry import canonical_agent_names
+    except ImportError:
+        return ()
+    return canonical_agent_names()
+
 
 def agent_visibility_note() -> str:
     return render_model_visible_note(
@@ -96,6 +103,9 @@ def agent_visibility_note() -> str:
 
 
 def command_visibility_note(agent_labels: tuple[str, ...] | None = None) -> str:
+    if agent_labels is None:
+        agent_labels = _default_command_agent_labels()
+
     agent_clause = (
         f"`agent` when present must be one of {_join_disjunction(agent_labels)};"
         if agent_labels

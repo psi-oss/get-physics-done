@@ -373,6 +373,29 @@ class TestBuiltinServerDescriptors:
         assert observed["command"][3] == "arxiv_mcp_server"
         assert observed["check"] is False
 
+    def test_optional_module_availability_checks_are_cached(self, monkeypatch):
+        from gpd.mcp import builtin_servers
+
+        target_python = "/opt/gpd/python3.11"
+        call_log: list[list[str]] = []
+
+        def fake_run(command, *, check, stdout, stderr):
+            call_log.append(list(command))
+            return SimpleNamespace(returncode=0)
+
+        monkeypatch.setattr(builtin_servers.subprocess, "run", fake_run)
+        builtin_servers._MODULE_AVAILABILITY_CACHE.clear()
+
+        builtin_servers.build_mcp_servers_dict(python_path=target_python)
+        builtin_servers.build_mcp_servers_dict(python_path=target_python)
+
+        assert call_log, "Expected at least one module availability probe"
+        assert call_log[0][0] == target_python
+        assert call_log[0][-1] == "arxiv_mcp_server"
+        assert len(call_log) == 1, "Optional module checks should not rerun for cached entries"
+
+        builtin_servers._MODULE_AVAILABILITY_CACHE.clear()
+
 
 class TestMcpServerRunner:
     """Tests for shared MCP server CLI transport wiring."""

@@ -820,6 +820,7 @@ __all__ = [
     "init_todos",
     "init_verify_work",
     "load_config",
+    "load_context_config_dict",
 ]
 
 
@@ -2539,7 +2540,7 @@ def _config_to_dict(cfg: GPDProjectConfig) -> dict:
     return d
 
 
-def load_config(cwd: Path) -> dict:
+def load_context_config_dict(cwd: Path) -> dict:
     """Load GPD/config.json with defaults.
 
     Delegates to :func:`gpd.core.config.load_config` (the canonical
@@ -2550,6 +2551,9 @@ def load_config(cwd: Path) -> dict:
     """
     cfg = _load_config_structured(cwd)
     return _config_to_dict(cfg)
+
+
+load_config = load_context_config_dict
 
 
 # ─── Resolve Model ────────────────────────────────────────────────────────────
@@ -2672,7 +2676,7 @@ def init_execute_phase(
             "gpd init execute-phase does not allow --include together with --stage; "
             "stage payloads already declare their required context."
         )
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     phase_info = _try_find_phase(cwd, phase)
     milestone = _try_get_milestone_info(cwd)
 
@@ -2956,7 +2960,7 @@ def init_plan_phase(
             "gpd init plan-phase does not allow --include together with --stage; "
             "stage payloads already declare their required context."
         )
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     phase_info = _try_find_phase(cwd, phase)
 
     result: dict[str, object] = {
@@ -3066,7 +3070,7 @@ def init_plan_phase(
 
 def init_new_project(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for new project creation."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
 
     # Detect existing research files (walk up to depth 3, max 5 files)
     has_research_files = False
@@ -3154,7 +3158,7 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
 
 def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for new milestone creation."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     milestone = _try_get_milestone_info(cwd)
     base_result = {
         # Config
@@ -3245,7 +3249,7 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
 
 def init_quick(cwd: Path, description: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for quick task execution."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     now = datetime.now(UTC)
     normalized_description = description.strip() if isinstance(description, str) else description
     slug = _generate_slug(normalized_description)
@@ -3340,7 +3344,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
         data_root=data_root,
         prefer_workspace_layout=True,
     )
-    config = load_config(effective_cwd)
+    config = load_context_config_dict(effective_cwd)
     execution_context = _build_execution_runtime_context(effective_cwd)
     result_lookup_by_id = _build_resume_result_lookup(effective_cwd)
 
@@ -3593,7 +3597,7 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
             "phase is required for init verify-work. Provide a phase identifier such as '1', '03', or '3.1'."
         )
 
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     phase_info = _try_find_phase(cwd, phase)
     phase_proof_review_status = resolve_phase_proof_review_status(
         cwd,
@@ -3670,7 +3674,7 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
 
 def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for manuscript authoring and publication review."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
         "state_exists": _state_exists(cwd),
@@ -3734,7 +3738,7 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
 
 def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for staged manuscript peer review."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
         "state_exists": _state_exists(cwd),
@@ -3780,7 +3784,7 @@ def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
 
 def init_arxiv_submission(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for arXiv submission packaging."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     base_result: dict[str, object] = {
         "commit_docs": config["commit_docs"],
         "state_exists": _state_exists(cwd),
@@ -3835,7 +3839,7 @@ def init_phase_op(
             "gpd init phase-op does not allow --include together with --stage; "
             "stage payloads already declare their required context."
         )
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     phase_info = _try_find_phase(cwd, phase) if phase else None
 
     result: dict[str, object] = {
@@ -3923,7 +3927,7 @@ def init_research_phase(
 
 def init_literature_review(cwd: Path, topic: str | None = None, stage: str | None = None) -> dict:
     """Assemble context for literature review orchestration."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     normalized_topic = topic.strip() if isinstance(topic, str) and topic.strip() else None
     slug = _generate_slug(normalized_topic)
     if normalized_topic and slug is None:
@@ -3970,7 +3974,7 @@ def init_literature_review(cwd: Path, topic: str | None = None, stage: str | Non
 
 def init_todos(cwd: Path, area: str | None = None) -> dict:
     """Assemble context for todo management."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     now = datetime.now(UTC)
 
     pending_dir = cwd / PLANNING_DIR_NAME / TODOS_DIR_NAME / "pending"
@@ -4033,7 +4037,7 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
 
 def init_milestone_op(cwd: Path) -> dict:
     """Assemble context for milestone operations (complete, archive, etc.)."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
     milestone = _try_get_milestone_info(cwd)
     reference_runtime_context = _build_reference_runtime_context(cwd)
 
@@ -4082,7 +4086,7 @@ def init_milestone_op(cwd: Path) -> dict:
 
 def init_map_research(cwd: Path, stage: str | None = None) -> dict:
     """Assemble context for research mapping."""
-    config = load_config(cwd)
+    config = load_context_config_dict(cwd)
 
     # Check for existing research maps
     research_map_dir = cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
@@ -4162,7 +4166,7 @@ def init_progress(
             "project_root_source": "workspace",
             "project_root_auto_selected": False,
         }
-    config = load_config(effective_cwd)
+    config = load_context_config_dict(effective_cwd)
     milestone = _try_get_milestone_info(effective_cwd)
 
     # Analyze phases
