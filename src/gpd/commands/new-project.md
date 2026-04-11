@@ -44,6 +44,8 @@ If no project config exists yet, start with physics questioning, surface a prese
 Read the workflow file defined above with `file_read` first.
 Follow the workflow file exactly before proceeding.
 
+Early visibility guard: before drafting or repairing any scoping contract, load and keep visible the compact hard-schema capsule from `{GPD_INSTALL_DIR}/templates/project-contract-schema.md`; do not expand it into prose or defer it until after drafting.
+
 After that, load late-stage authorities only when the workflow reaches the matching stage:
 - Read `{GPD_INSTALL_DIR}/references/research/questioning.md` only when entering the full questioning path.
 - Read `{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and `{GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md` only when preparing the approval gate and validating the raw scoping contract.

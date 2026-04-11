@@ -11,6 +11,8 @@ STATE.md is a rendered, human-editable import surface only. It may be parsed bac
 
 Source of truth: `ResearchState` and related Pydantic models in `gpd.core.state`, with defaults supplied by `default_state_dict()`.
 
+Project-contract grounding rules live in @{GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md.
+
 ---
 
 ## Top-Level Fields

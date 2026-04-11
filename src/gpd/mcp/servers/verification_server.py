@@ -1320,6 +1320,7 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
     if check_key in _PROOF_CHECK_KEYS:
         if "contract" not in enriched_hint["required_request_fields"]:
             enriched_hint["required_request_fields"].insert(0, "contract")
+        request_template.setdefault("contract", "<authoritative project contract>")
         enriched_hint["optional_request_fields"] = [
             field for field in enriched_hint["optional_request_fields"] if field not in enriched_hint["required_request_fields"]
         ]

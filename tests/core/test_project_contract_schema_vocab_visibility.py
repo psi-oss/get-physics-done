@@ -44,10 +44,11 @@ def test_project_contract_schema_docs_surface_the_closed_contract_vocabularies()
     )
 
     for schema_path in (PROJECT_CONTRACT_SCHEMA, STATE_JSON_SCHEMA):
-        text = _read(schema_path)
-        assert "@{GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md" in text
-        for line in expected_lines:
-            assert line in text, f"{schema_path.name} is missing: {line}"
+        assert "@{GPD_INSTALL_DIR}/templates/project-contract-grounding-linkage.md" in _read(schema_path)
+
+    contract_schema_text = _read(PROJECT_CONTRACT_SCHEMA)
+    for line in expected_lines:
+        assert line in contract_schema_text, f"{PROJECT_CONTRACT_SCHEMA.name} is missing: {line}"
 
 
 def test_state_schema_docs_name_pydantic_authority_and_state_md_import_surface() -> None:
@@ -94,6 +95,30 @@ def test_project_contract_schema_example_surfaces_research_contract_required_key
         "include an acceptance test with `kind: claim_to_proof_alignment`",
     ):
         assert proof_rule in text
+
+
+def test_new_project_surfaces_compact_hard_schema_capsule_before_drafting() -> None:
+    schema_text = _read(PROJECT_CONTRACT_SCHEMA)
+    workflow_text = _read(REPO_ROOT / "src/gpd/specs/workflows/new-project.md")
+    command_text = _read(REPO_ROOT / "src/gpd/commands/new-project.md")
+
+    assert "Hard-schema capsule:" in schema_text
+    for required_fragment in (
+        "`schema_version`, `scope`, `context_intake`, and `uncertainty_markers`",
+        "bool fields use literal `true`/`false` only",
+        "list fields stay lists",
+        "object arrays stay objects",
+        "proof-bearing claims must surface `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, `proof_deliverables`",
+        "`claim_to_proof_alignment` acceptance test",
+    ):
+        assert required_fragment in schema_text
+
+    for visible_text in (workflow_text, command_text):
+        assert "drafting or repairing" in visible_text
+        assert "compact hard-schema capsule" in visible_text
+
+    workflow_prefix = workflow_text[: workflow_text.index("<auto_mode>")]
+    assert "<hard_schema_visibility_guard>" in workflow_prefix
 
 
 def test_project_contract_schema_surfaces_validator_enforced_reference_gates() -> None:

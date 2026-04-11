@@ -1372,7 +1372,7 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     hypothesis = checks["contract.proof_hypothesis_coverage"]
     assert hypothesis["binding_targets"] == ["observable", "claim", "deliverable", "acceptance_test"]
     assert hypothesis["required_request_fields"] == ["contract", "observed.covered_hypothesis_ids"]
-    assert "contract" not in hypothesis["request_template"]
+    assert hypothesis["request_template"]["contract"] == "<authoritative project contract>"
     assert hypothesis["request_template"]["binding"]["claim_ids"] == ["claim-theorem"]
     assert hypothesis["request_template"]["binding"]["deliverable_ids"] == ["deliv-proof"]
     assert hypothesis["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-hyp"]
@@ -1383,7 +1383,7 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
 
     parameter = checks["contract.proof_parameter_coverage"]
     assert parameter["required_request_fields"] == ["contract", "observed.covered_parameter_symbols"]
-    assert "contract" not in parameter["request_template"]
+    assert parameter["request_template"]["contract"] == "<authoritative project contract>"
     assert parameter["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-param"]
     assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == ["r_0", "n"]
     assert "covered_parameter_symbols" not in parameter["request_template"]["observed"]
@@ -1394,7 +1394,7 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert "observed.uncovered_quantifiers" in quantifier["optional_request_fields"]
     assert "metadata.quantifiers[]" not in quantifier["optional_request_fields"]
     assert quantifier["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-quant"]
-    assert "contract" not in quantifier["request_template"]
+    assert quantifier["request_template"]["contract"] == "<authoritative project contract>"
     assert quantifier["request_template"]["metadata"]["quantifiers"] == [
         "for all r_0 > 0",
         "for every admissible solution",
@@ -1407,7 +1407,7 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert "metadata.conclusion_clause_ids" in alignment["optional_request_fields"]
     assert "metadata.conclusion_clause_ids[]" not in alignment["optional_request_fields"]
     assert alignment["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-align"]
-    assert "contract" not in alignment["request_template"]
+    assert alignment["request_template"]["contract"] == "<authoritative project contract>"
     assert alignment["request_template"]["metadata"]["claim_statement"].startswith("For all r_0 > 0")
     assert "conclusion_clause_ids" not in alignment["request_template"]["metadata"]
     assert "uncovered_conclusion_clause_ids" not in alignment["request_template"]["observed"]
@@ -1415,7 +1415,7 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
 
     counterexample = checks["contract.counterexample_search"]
     assert counterexample["required_request_fields"] == ["contract", "observed.counterexample_status"]
-    assert "contract" not in counterexample["request_template"]
+    assert counterexample["request_template"]["contract"] == "<authoritative project contract>"
     assert counterexample["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-counterexample"]
     assert counterexample["request_template"]["metadata"]["claim_statement"].startswith("For all r_0 > 0")
     assert "counterexample_status" not in counterexample["request_template"]["observed"]
@@ -1453,12 +1453,12 @@ def test_suggest_contract_checks_requires_proof_claim_binding_when_proof_contrac
 
     assert parameter["required_request_fields"][:2] == ["contract", "binding.claim_ids"]
     assert parameter["request_template"]["binding"] == {}
-    assert "contract" not in parameter["request_template"]
+    assert parameter["request_template"]["contract"] == "<authoritative project contract>"
     assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == ["param-1"]
 
     assert alignment["required_request_fields"][:2] == ["contract", "binding.claim_ids"]
     assert alignment["request_template"]["binding"] == {}
-    assert "contract" not in alignment["request_template"]
+    assert alignment["request_template"]["contract"] == "<authoritative project contract>"
     assert alignment["request_template"]["metadata"]["claim_statement"] == "Claim statement placeholder"
 
 
@@ -1969,17 +1969,17 @@ def test_suggest_contract_checks_proof_request_templates_validate_against_advert
     assert checks["contract.proof_parameter_coverage"]["check"] == "contract.proof_parameter_coverage"
     assert checks["contract.claim_to_proof_alignment"]["check"] == "contract.claim_to_proof_alignment"
     assert hypothesis["check_key"] == "contract.proof_hypothesis_coverage"
-    assert "contract" not in hypothesis
+    assert hypothesis["contract"] == "<authoritative project contract>"
     assert hypothesis["metadata"]["hypothesis_ids"] == ["hyp-positive", "hyp-decay"]
     assert "covered_hypothesis_ids" not in hypothesis["observed"]
 
     assert parameter["check_key"] == "contract.proof_parameter_coverage"
-    assert "contract" not in parameter
+    assert parameter["contract"] == "<authoritative project contract>"
     assert parameter["metadata"]["theorem_parameter_symbols"] == ["r_0", "n"]
     assert "covered_parameter_symbols" not in parameter["observed"]
 
     assert alignment["check_key"] == "contract.claim_to_proof_alignment"
-    assert "contract" not in alignment
+    assert alignment["contract"] == "<authoritative project contract>"
     assert alignment["metadata"]["claim_statement"].startswith("For all r_0 > 0")
     assert "conclusion_clause_ids" not in alignment["metadata"]
     assert "uncovered_conclusion_clause_ids" not in alignment["observed"]

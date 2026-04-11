@@ -590,6 +590,34 @@ def test_shared_python_surfaces_do_not_hardcode_runtime_names_outside_boundaries
     )
 
 
+def test_runtime_name_hardcoding_allowlists_are_catalog_derived() -> None:
+    adapter_modules = {
+        adapter.__class__.__module__.rsplit(".", 1)[-1]
+        for adapter in iter_adapters()
+    }
+    expected_adapter_files = {
+        f"src/gpd/adapters/{module}.py" for module in adapter_modules
+    } | {
+        "src/gpd/adapters/runtime_catalog.py",
+        "src/gpd/adapters/runtime_catalog.json",
+    }
+    expected_runtime_owned_prefixes = {
+        *(f"{descriptor.config_dir_name}/" for descriptor in _RUNTIME_DESCRIPTORS),
+        *(f"{descriptor.global_config.home_subpath}/" for descriptor in _RUNTIME_DESCRIPTORS if descriptor.global_config.home_subpath),
+        "src/gpd/adapters/",
+    }
+
+    assert set(_ALLOWED_RUNTIME_ADAPTER_FILES) == expected_adapter_files
+    assert set(_RUNTIME_OWNED_PREFIXES) == expected_runtime_owned_prefixes
+    assert _ALLOWED_RUNTIME_FILES == {
+        "CITATION.cff",
+        ".gitignore",
+        "src/gpd/adapters/__init__.py",
+        "src/gpd/hooks/runtime_detect.py",
+    }
+    assert _ALLOWED_SHARED_PYTHON_RUNTIME_FILES == {"src/gpd/hooks/runtime_detect.py"}
+
+
 def test_shared_source_surfaces_do_not_hardcode_runtime_tool_alias_literals() -> None:
     alias_pattern = _runtime_tool_alias_literal_pattern()
     leaks = _scan_paths_for_pattern((REPO_ROOT / "src/gpd",), alias_pattern)

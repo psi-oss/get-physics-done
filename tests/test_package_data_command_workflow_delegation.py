@@ -98,6 +98,22 @@ def test_package_data_reuses_same_stem_command_workflows() -> None:
         assert workflow_path.is_file(), f"Missing workflow spec for {stem}"
 
 
+def test_command_wrappers_delegate_to_matching_workflow_names() -> None:
+    """Keep wrapper metadata and workflow include targets in sync."""
+
+    for stem in _delegated_stem_names():
+        command_path = COMMANDS_DIR / f"{stem}.md"
+        command_text = command_path.read_text(encoding="utf-8")
+        frontmatter = _load_command_frontmatter(command_path)
+
+        assert frontmatter.get("name") == f"gpd:{stem}"
+        assert frontmatter.get("description"), f"Missing description for {stem}"
+        assert frontmatter.get("local_cli_only") is not True
+
+        workflow_include = f"@{{GPD_INSTALL_DIR}}/workflows/{stem}.md"
+        assert workflow_include in command_text, f"{stem} wrapper must include {workflow_include}"
+
+
 def test_local_cli_only_commands_marked_and_exempt() -> None:
     local_cli_only = set(_local_cli_only_command_stems())
     assert local_cli_only == {"health", "suggest-next"}

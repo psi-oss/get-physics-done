@@ -102,6 +102,29 @@ def test_fast_contract_validation_strict_rejects_nonblank_mapping_string_list_fi
     assert result.recoverable_errors == []
 
 
+def test_fast_contract_validation_strict_rejects_top_level_scalar_string_list_field_without_salvage() -> None:
+    contract = _load_contract_fixture()
+    contract["references"] = "ref-benchmark"
+
+    result = parse_project_contract_data_strict(contract)
+
+    assert result.contract is None
+    assert "references must be a list, not str" in result.blocking_errors
+    assert result.recoverable_errors == []
+
+
+def test_fast_contract_validation_salvage_preserves_top_level_scalar_string_list_field_as_blocking() -> None:
+    contract = _load_contract_fixture()
+    contract["references"] = "ref-benchmark"
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.contract.references == []
+    assert "references must be a list, not str" in result.blocking_errors
+    assert result.recoverable_errors == []
+
+
 def test_fast_contract_validation_strict_rejects_nested_collection_string_list_field_without_salvage() -> None:
     contract = _load_contract_fixture()
     contract["deliverables"][0]["must_contain"] = "caption"

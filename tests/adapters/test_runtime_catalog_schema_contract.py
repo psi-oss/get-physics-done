@@ -47,6 +47,22 @@ def test_runtime_catalog_schema_parser_inventory_matches_internal_runtime_shape(
     )
 
 
+def test_runtime_catalog_schema_required_keys_match_loaded_runtime_descriptors() -> None:
+    schema = _load_schema()
+    catalog = _load_catalog()
+    required_keys = set(schema["entry_required_keys"])
+    optional_keys = set(schema["entry_optional_keys"])
+    required_descriptor_fields = {
+        field.name
+        for field in fields(runtime_catalog.RuntimeDescriptor)
+        if field.name not in optional_keys
+    }
+
+    assert required_keys == required_descriptor_fields
+    for entry in catalog:
+        assert required_keys <= set(entry)
+
+
 def test_runtime_catalog_entries_conform_to_schema_enums_and_nested_key_inventories() -> None:
     schema = _load_schema()
     catalog = _load_catalog()

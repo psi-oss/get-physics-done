@@ -6,6 +6,10 @@ Initialize a new physics research project through unified flow: questioning, lit
 Read all files referenced by the invoking prompt's execution_context before starting.
 </required_reading>
 
+<hard_schema_visibility_guard>
+Before drafting or repairing any `project_contract`, load the compact hard-schema capsule from `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep it visible. It requires `schema_version`, `scope`, `context_intake`, `uncertainty_markers`, strict JSON bools, list shapes, object arrays, and proof-bearing claim fields plus `claim_to_proof_alignment`; do not add verbose schema prose to prompts.
+</hard_schema_visibility_guard>
+
 <auto_mode>
 
 ## Auto Mode Detection

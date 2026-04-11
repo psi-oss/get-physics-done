@@ -115,6 +115,9 @@ def _categories_from_metadata(metadata: _SchemaFindingMetadata) -> set[_ProjectC
     message = metadata.msg.lower()
     if "must be a list" in message or "must be a valid list member" in message or "must be an object" in message:
         categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
+    canonical_value = metadata.ctx.get("canonical_value")
+    if isinstance(canonical_value, str) and canonical_value.strip():
+        categories.add(_ProjectContractSchemaFindingCategory.CASE_DRIFT)
     return categories
 
 
@@ -231,15 +234,15 @@ def _project_contract_schema_finding_categories(
         return frozenset()
 
     categories: set[_ProjectContractSchemaFindingCategory] = set()
-    for category, patterns in _SCHEMA_FINDING_CATEGORY_PATTERNS:
-        if any(pattern.fullmatch(normalized_error) for pattern in patterns):
-            categories.add(category)
-
     location, message = _split_schema_finding_location_and_message(normalized_error)
     if metadata is not None:
         location = _metadata_location_string(metadata)
         message = metadata.msg
         categories.update(_categories_from_metadata(metadata))
+    else:
+        for category, patterns in _SCHEMA_FINDING_CATEGORY_PATTERNS:
+            if any(pattern.fullmatch(normalized_error) for pattern in patterns):
+                categories.add(category)
     if _matches_equivalent_recoverable_schema_finding(message=message):
         categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
     if _matches_equivalent_authoritative_schema_finding(location=location, message=message):

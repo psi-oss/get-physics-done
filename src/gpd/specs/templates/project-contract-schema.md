@@ -7,6 +7,8 @@ purpose: Contract-critical schema slice for the `project_contract` payload
 
 Canonical schema for the `project_contract` object inside `GPD/state.json`. This is the contract-critical slice used by `gpd:new-project` before a scope approval gate. Keep it narrow: model-facing contract setup should see only the `project_contract` shape and rules, not the unrelated top-level state schema.
 
+Hard-schema capsule: `project_contract` must be one JSON object with `schema_version`, `scope`, `context_intake`, and `uncertainty_markers`; bool fields use literal `true`/`false` only; list fields stay lists; object arrays stay objects; proof-bearing claims must surface `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, `proof_deliverables`, and a `claim_to_proof_alignment` acceptance test before drafting approval text.
+
 Project-local paths in `locator` or `applies_to[]` evidence require project-root-aware validation; validation cannot prove artifact grounding without that resolved project context.
 
 ---
