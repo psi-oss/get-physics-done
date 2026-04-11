@@ -206,6 +206,31 @@ def test_fast_contract_validation_strict_rejects_nested_collection_string_list_f
     assert result.recoverable_errors == []
 
 
+def test_fast_contract_validation_strict_rejects_salvage_repairable_singleton_collection() -> None:
+    contract = _load_contract_fixture()
+    contract["deliverables"][0]["must_contain"] = "caption"
+
+    strict_result = parse_project_contract_data_strict(contract)
+    salvage_result = parse_project_contract_data_salvage(contract)
+
+    assert strict_result.contract is None
+    assert "deliverables.0.must_contain must be a list, not str" in strict_result.blocking_errors
+    assert strict_result.recoverable_errors == []
+    assert salvage_result.contract is not None
+    assert "deliverables.0.must_contain must be a list, not str" in salvage_result.recoverable_errors
+
+
+def test_fast_contract_validation_strict_rejects_missing_context_intake_before_model_defaults() -> None:
+    contract = _load_contract_fixture()
+    del contract["context_intake"]
+
+    result = parse_project_contract_data_strict(contract)
+
+    assert result.contract is None
+    assert "context_intake is required" in result.blocking_errors
+    assert result.recoverable_errors == []
+
+
 def test_fast_contract_validation_salvage_surfaces_nested_scalar_string_list_field_as_recoverable() -> None:
     contract = _load_contract_fixture()
     contract["deliverables"][0]["must_contain"] = "caption"

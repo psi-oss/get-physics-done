@@ -1228,6 +1228,19 @@ def test_resume_recovery_advice_keeps_recent_projects_fallbacks_distinct(monkeyp
     assert advice.primary_command == local_cli_resume_recent_command()
 
 
+def test_resume_runtime_commands_use_fallback_runtime_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime_name = list_runtimes()[0]
+    adapter = get_adapter(runtime_name)
+
+    monkeypatch.setattr(cli_module, "installed_runtime_for_surface", lambda cwd: None)
+    monkeypatch.setattr("gpd.hooks.runtime_detect.detect_runtime_for_gpd_use", lambda cwd=None: runtime_name)
+
+    assert cli_module._resume_runtime_commands(cwd=Path("/tmp/runtime-advice")) == (
+        adapter.format_command("resume-work"),
+        adapter.format_command("suggest-next"),
+    )
+
+
 def test_resume_runtime_commands_logs_runtime_resolution_failures(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,

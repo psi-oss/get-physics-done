@@ -297,9 +297,20 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 
 **Written by:** `gpd state record-session`, `gpd:pause-work`
 
-`session` stores the markdown-compatible session timestamp, advisory machine identity, stop location, and handoff resume file as a compatibility mirror of canonical continuation. Keep `resume_file` project-relative when it points inside the repository; `gpd state record-session` normalizes project-local absolute paths back to that form before persisting them. Omitting `--resume-file` preserves the current handoff pointer, while explicit placeholders such as `—`, `None`, or `null` clear it. `gpd resume` is the public local read-only recovery surface, while `gpd --raw resume` is the machine-readable local recovery surface. It treats `continuation` as primary and only consults nested compatibility projections when canonical bounded-segment or handoff data is missing or incomplete. It also compares `hostname`/`platform` with the current machine to emit a non-blocking `machine_change_notice` that recommends rerunning the installer when runtime-local config may be stale.
+`session` is the STATE.md-renderable compatibility mirror for canonical continuation.
 
-`session` remains the markdown-compatible continuity mirror that STATE.md can render directly. The durable JSON-only `continuation` object below is authoritative for machine-readable recovery. Model-authored continuity updates should target `continuation.handoff` and `continuation.machine`; `session` is backend-derived compatibility metadata, not a model-authored authority surface. State normalization re-derives `session` from canonical continuation. When older projects only have legacy `session` data, GPD may hydrate missing canonical handoff or machine fields from that legacy payload during explicit legacy migration or recovery paths so the project can move forward without losing continuity. Ordinary persistence does not let stale `session` data overwrite populated canonical continuation. `gpd --raw resume` treats this canonical object first and only falls back to the derived execution head compatibility mirror when the canonical continuation is missing or incomplete, including legacy projects without persisted bounded-segment state. Raw compatibility cues remain backend-only intake signals rather than primary resume fields, and `gpd --raw resume` strips them after canonicalization.
+| Rule | Requirement |
+|------|-------------|
+| Authority | `continuation` is primary; model-authored updates target `continuation.handoff` and `continuation.machine`. |
+| Derivation | Normalization re-derives `session` from canonical continuation for STATE.md and existing readers. |
+| Legacy intake | Older `session` payloads may hydrate only missing canonical handoff or machine fields during explicit legacy migration or recovery. |
+| Stale data | Ordinary persistence must not let stale `session` values overwrite populated canonical continuation or let STATE.md Session Continuity edits supersede it. |
+| Resume files | Keep repository-local `resume_file` values project-relative; `gpd state record-session` normalizes project-local absolute paths before persistence. |
+| CLI semantics | Omitting `--resume-file` preserves the current handoff pointer; explicit placeholders such as `—`, `None`, or `null` clear it. |
+| Resume surfaces | `gpd resume` is the public read-only recovery surface; `gpd --raw resume` is the machine-readable local recovery surface. |
+| Raw fallback | `gpd --raw resume` consults nested compatibility projections only when canonical bounded-segment or handoff data is missing or incomplete, including legacy projects without persisted bounded-segment state. |
+| Raw output | Raw compatibility cues are backend-only intake signals and are stripped after canonicalization, not emitted as primary resume fields. |
+| Machine change | Resume compares `hostname`/`platform` with the current machine and may emit a non-blocking `machine_change_notice` recommending installer rerun when runtime-local config may be stale. |
 
 ### `ContinuationObject`
 
@@ -322,10 +333,12 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 
 **Written by:** `gpd state record-session`, `save_state_markdown()`, `save_state_json()`
 
-`continuation` is the durable canonical continuation payload in `state.json`. It is JSON-only and does not render as a separate markdown section. STATE.md and the legacy `session` object are projections of this authority, with one compatibility exception:
+`continuation` is the durable canonical continuation payload in `state.json`. It is JSON-only and does not render as a separate markdown section.
 
-- `continuation -> session`: normal state persistence backfills `session` from canonical continuation so STATE.md generation and existing readers stay aligned.
-- `session -> continuation`: allowed only to fill missing canonical handoff or machine fields during explicit legacy migration or recovery. A populated canonical continuation field must not be overwritten by stale `session` data during ordinary normalization, and manual edits to the rendered STATE.md Session Continuity block do not supersede canonical continuation when that authority already exists.
+| Direction | Allowed behavior |
+|-----------|------------------|
+| `continuation -> session` | Normal state persistence backfills `session` from canonical continuation so STATE.md generation and existing readers stay aligned. |
+| `session -> continuation` | Allowed only to fill missing canonical handoff or machine fields during explicit legacy migration or recovery. Populated canonical fields must not be overwritten by stale `session` data or manual STATE.md Session Continuity edits. |
 
 `continuation.handoff` is the canonical handoff block:
 
@@ -335,7 +348,14 @@ Verifying, Complete, Blocked, Ready to plan, Milestone complete
 | `stopped_at` | `string \| null` | Human-readable stop location |
 | `resume_file` | `string \| null` | Project-relative handoff artifact when available |
 
-`state.json.continuation.bounded_segment` is the durable authoritative bounded-segment state stored in `state.json`. When present, it is the canonical bounded-segment resume source. The live execution head is derived from execution lineage and may be mirrored into `GPD/observability/current-execution.json` for compatibility, but that mirror does not replace the persisted canonical state. When the canonical continuation is missing or incomplete, `gpd --raw resume` may project a bounded-segment candidate from that compatibility mirror for legacy recovery only. The mirror is advisory; it is not a second authority. Nested compatibility aliases stay subordinate to the canonical bounded-segment fields.
+`state.json.continuation.bounded_segment` is the durable authoritative bounded-segment state stored in `state.json`.
+
+| Source | Status |
+|--------|--------|
+| `continuation.bounded_segment` | Canonical bounded-segment resume source when present. |
+| `GPD/observability/current-execution.json` | Derived compatibility mirror from execution lineage; advisory only and never a second authority. |
+| Raw resume fallback | May project a bounded-segment candidate from the compatibility mirror only when canonical continuation is missing or incomplete, for legacy recovery. |
+| Nested aliases | Stay subordinate to canonical bounded-segment fields. |
 
 `continuation.machine` is the canonical recorded machine state:
 

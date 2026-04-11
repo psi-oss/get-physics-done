@@ -634,6 +634,25 @@ def assert_tour_read_only_teaching_contract(content: str) -> None:
 
 def assert_tour_command_surface_contract(content: str) -> None:
     assert_tour_read_only_teaching_contract(content)
+    if "refer to command ids without a\nhard-coded runtime prefix" in content:
+        for command_id in (
+            "start",
+            "new-project --minimal",
+            "new-project",
+            "map-research",
+            "resume-work",
+            "suggest-next",
+            "progress",
+            "explain",
+            "quick",
+            "settings",
+            "help",
+            "discuss-phase",
+            "write-paper",
+            "tangent",
+        ):
+            assert f"`{command_id}" in content
+        return
     for label, options in (
         ("tour start surface", _runtime_command_fragments("start")),
         ("tour new-project --minimal surface", _runtime_command_fragments("new-project --minimal")),

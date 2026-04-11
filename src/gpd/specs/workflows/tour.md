@@ -46,20 +46,23 @@ Use a compact table with four columns:
 - Do not use this when
 - Example
 
-Include these entries:
+Include these entries using the command syntax for the active runtime. When
+writing the prompt instructions themselves, refer to command ids without a
+hard-coded runtime prefix, and tell the responder to render examples with the
+active runtime's native command prefix.
 
-- `gpd:start`
-- `gpd:new-project --minimal`
-- `gpd:new-project`
-- `gpd:map-research`
-- `gpd:resume-work`
-- `gpd:progress`
-- `gpd:suggest-next`
-- `gpd:explain <topic>`
-- `gpd:quick`
-- `gpd:set-tier-models`
-- `gpd:settings`
-- `gpd:help`
+- `start`
+- `new-project --minimal`
+- `new-project`
+- `map-research`
+- `resume-work`
+- `progress`
+- `suggest-next`
+- `explain <topic>`
+- `quick`
+- `set-tier-models`
+- `settings`
+- `help`
 
 Keep this table runtime-facing only. Do not include normal-terminal-only commands
 such as `gpd resume` here; explain them later in the terminal/runtime distinction.
@@ -75,9 +78,9 @@ Add one short section titled `What comes later after startup`.
 Explain that these are not the first commands most beginners need, but they are
 the main capability groups GPD supports once a project is underway:
 
-- project work: `gpd:discuss-phase`, `gpd:plan-phase`, `gpd:execute-phase`, `gpd:verify-work`
-- writing and review: `gpd:write-paper`, `gpd:peer-review`, `gpd:respond-to-referees`, `gpd:arxiv-submission`
-- side investigations and preferences: `gpd:tangent`, `gpd:branch-hypothesis`, `gpd:set-profile`, `gpd:set-tier-models`, `gpd:settings`
+- project work: `discuss-phase`, `plan-phase`, `execute-phase`, `verify-work`
+- writing and review: `write-paper`, `peer-review`, `respond-to-referees`, `arxiv-submission`
+- side investigations and preferences: `tangent`, `branch-hypothesis`, `set-profile`, `set-tier-models`, `settings`
 
 Keep this section high-level. Do not turn it into a second full command
 reference. Keep `settings` visibly in the post-startup group, not in the
@@ -105,7 +108,7 @@ Explain in plain language:
   settings bundle.
 - `tour` only explains; it does not run `start`, `new-project`, `map-research`,
   `resume-work`, `set-tier-models`, or `settings` for you.
-- `Use \`gpd resume\` first if you need to reopen the project before using \`gpd:resume-work\`.`
+- `Use \`gpd resume\` first if you need to reopen the project before using the runtime-specific \`resume-work\` command.`
 </step>
 
 <step name="highlight_common_mistakes">
@@ -145,10 +148,10 @@ Keep each definition to one sentence.
 <step name="close_with_next_steps">
 End with a short wrap-up that says:
 
-- `If you are still unsure, run gpd:start.`
-- `If you want the reference list again later, run gpd:help.`
-- `If you want to pin concrete tier-1, tier-2, and tier-3 model ids, run \`gpd:set-tier-models\`.`
-- `If you want to change permissions, autonomy, or runtime preferences after your first successful start or later, run \`gpd:settings\`.`
+- `If you are still unsure, run the runtime-specific start command.`
+- `If you want the reference list again later, run the runtime-specific help command.`
+- `If you want to pin concrete tier-1, tier-2, and tier-3 model ids, run the runtime-specific \`set-tier-models\` command.`
+- `If you want to change permissions, autonomy, or runtime preferences after your first successful start or later, run the runtime-specific \`settings\` command.`
 - `If you already know your path, use the matching command from the table
   above.`
 

@@ -193,9 +193,12 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         "entry_required_keys",
         "entry_optional_keys",
         "global_config_keys",
+        "global_config_required_keys",
         "capability_keys",
+        "capability_required_keys",
         "capability_enums",
         "hook_payload_keys",
+        "hook_payload_required_keys",
         "managed_install_surfaces",
         "install_help_example_scopes",
         "launch_wrapper_permission_surface_kinds",
@@ -225,7 +228,12 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         raise ValueError(f"runtime catalog schema entry key overlap is not allowed: {overlap}")
 
     global_config_keys_raw = _require_schema_mapping(raw_schema.get("global_config_keys"), label="runtime catalog schema.global_config_keys")
+    global_config_required_keys_raw = _require_schema_mapping(
+        raw_schema.get("global_config_required_keys"),
+        label="runtime catalog schema.global_config_required_keys",
+    )
     global_config_keys: dict[str, frozenset[str]] = {}
+    global_config_required_keys: dict[str, frozenset[str]] = {}
     for strategy, keys in global_config_keys_raw.items():
         if not isinstance(strategy, str) or not strategy or strategy.strip() != strategy:
             raise ValueError("runtime catalog schema.global_config_keys keys must be non-empty strings")
@@ -236,10 +244,35 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
                 allow_empty=False,
             )
         )
+    if set(global_config_required_keys_raw) != set(global_config_keys):
+        raise ValueError("runtime catalog schema.global_config_required_keys must match global_config_keys strategies")
+    for strategy, keys in global_config_required_keys_raw.items():
+        global_config_required_keys[strategy] = frozenset(
+            _require_string_tuple(
+                keys,
+                label=f"runtime catalog schema.global_config_required_keys.{strategy}",
+                allow_empty=False,
+            )
+        )
+        unknown_required = sorted(global_config_required_keys[strategy] - global_config_keys[strategy])
+        if unknown_required:
+            raise ValueError(
+                f"runtime catalog schema.global_config_required_keys.{strategy} contains unknown key(s): {', '.join(unknown_required)}"
+            )
 
     capability_keys = frozenset(
         _require_string_tuple(raw_schema.get("capability_keys"), label="runtime catalog schema.capability_keys", allow_empty=False)
     )
+    capability_required_keys = frozenset(
+        _require_string_tuple(
+            raw_schema.get("capability_required_keys"),
+            label="runtime catalog schema.capability_required_keys",
+            allow_empty=False,
+        )
+    )
+    if not capability_required_keys <= capability_keys:
+        unknown_required = ", ".join(sorted(capability_required_keys - capability_keys))
+        raise ValueError(f"runtime catalog schema.capability_required_keys contains unknown key(s): {unknown_required}")
 
     capability_enums_raw = _require_schema_mapping(raw_schema.get("capability_enums"), label="runtime catalog schema.capability_enums")
     capability_enums: dict[str, frozenset[str]] = {}
@@ -257,6 +290,16 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
     hook_payload_keys = frozenset(
         _require_string_tuple(raw_schema.get("hook_payload_keys"), label="runtime catalog schema.hook_payload_keys", allow_empty=False)
     )
+    hook_payload_required_keys = frozenset(
+        _require_string_tuple(
+            raw_schema.get("hook_payload_required_keys"),
+            label="runtime catalog schema.hook_payload_required_keys",
+            allow_empty=False,
+        )
+    )
+    if not hook_payload_required_keys <= hook_payload_keys:
+        unknown_required = ", ".join(sorted(hook_payload_required_keys - hook_payload_keys))
+        raise ValueError(f"runtime catalog schema.hook_payload_required_keys contains unknown key(s): {unknown_required}")
     managed_install_surfaces = frozenset(
         _require_string_tuple(
             raw_schema.get("managed_install_surfaces"),
@@ -284,9 +327,12 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
         "entry_required_keys": entry_required_keys,
         "entry_optional_keys": entry_optional_keys,
         "global_config_keys": global_config_keys,
+        "global_config_required_keys": global_config_required_keys,
         "capability_keys": capability_keys,
+        "capability_required_keys": capability_required_keys,
         "capability_enums": capability_enums,
         "hook_payload_keys": hook_payload_keys,
+        "hook_payload_required_keys": hook_payload_required_keys,
         "managed_install_surfaces": managed_install_surfaces,
         "install_help_example_scopes": install_help_example_scopes,
         "launch_wrapper_permission_surface_kinds": launch_wrapper_permission_surface_kinds,

@@ -28,6 +28,7 @@ from gpd.core.constants import (
 from gpd.core.observability import get_current_session_id
 from gpd.core.root_resolution import normalize_workspace_hint, resolve_project_roots
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
+from gpd.core.segment_constants import COMPLETED_SEGMENT_STATES
 from gpd.core.small_utils import first_nonempty_stripped_string, utc_now_iso
 from gpd.core.surface_phrases import cost_inspect_action
 from gpd.core.utils import atomic_write, file_lock, safe_read_file
@@ -53,7 +54,6 @@ __all__ = [
 
 _RECENT_SESSION_DEFAULT = 5
 _DEDUP_WINDOW_SECONDS = 10.0
-_COMPLETED_SEGMENT_STATES = {"completed", "complete", "done", "finished"}
 
 
 def _active_runtime_tier_models_command(*, cwd: Path | None = None) -> str:
@@ -456,7 +456,7 @@ def _project_state_usage_attribution(project_root: Path | None, *, session_id: s
         return _UsageAttribution()
     if (
         isinstance(snapshot.segment_status, str)
-        and snapshot.segment_status.strip().lower() in _COMPLETED_SEGMENT_STATES
+        and snapshot.segment_status.strip().lower() in COMPLETED_SEGMENT_STATES
     ):
         return _UsageAttribution()
 

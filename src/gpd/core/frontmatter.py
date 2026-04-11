@@ -44,6 +44,14 @@ from gpd.core.constants import (
 )
 from gpd.core.contract_validation import _format_schema_error
 from gpd.core.errors import GPDError
+from gpd.core.knowledge_constants import (
+    KNOWLEDGE_REVIEW_DECISION_APPROVED,
+    KNOWLEDGE_REVIEW_DECISION_VALUES,
+    KNOWLEDGE_STATUS_DRAFT,
+    KNOWLEDGE_STATUS_IN_REVIEW,
+    KNOWLEDGE_STATUS_STABLE,
+    KNOWLEDGE_STATUS_VALUES,
+)
 from gpd.core.knowledge_docs import compute_knowledge_reviewed_content_sha256
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.root_resolution import resolve_project_root
@@ -449,7 +457,7 @@ def validate_knowledge_frontmatter(
         status_value = ""
     else:
         status_value = status.strip()
-        if status_value not in _KNOWLEDGE_STATUS_VALUES:
+        if status_value not in KNOWLEDGE_STATUS_VALUES:
             errors.append("knowledge.status: must be one of draft, in_review, stable, superseded")
 
     created_at = _validate_knowledge_datetime_field(meta, "created_at", errors)
@@ -643,7 +651,6 @@ def _is_absolute_path(path_text: str) -> bool:
     return Path(path_text).is_absolute()
 
 
-_KNOWLEDGE_STATUS_VALUES = ("draft", "in_review", "stable", "superseded")
 _KNOWLEDGE_TOP_LEVEL_FIELDS = {
     "knowledge_schema_version",
     "knowledge_id",
@@ -680,7 +687,6 @@ _KNOWLEDGE_REVIEW_LEGACY_FIELDS = {
     "commit_sha",
     "trace_id",
 }
-_KNOWLEDGE_REVIEW_DECISION_VALUES = ("approved", "needs_changes", "rejected")
 def _parse_iso8601_datetime(value: object) -> datetime | None:
     """Parse an ISO 8601 timestamp or return ``None`` when invalid."""
 
@@ -799,7 +805,7 @@ def _validate_knowledge_review_block(
         decision_value = None
     else:
         decision_value = decision.strip()
-        if decision_value not in _KNOWLEDGE_REVIEW_DECISION_VALUES:
+        if decision_value not in KNOWLEDGE_REVIEW_DECISION_VALUES:
             errors.append("knowledge.review.decision: must be one of approved, needs_changes, rejected")
 
     summary = review.get("summary")
@@ -855,16 +861,16 @@ def _validate_knowledge_review_block(
         if review.get("stale") is not None and type(review.get("stale")) is not bool:
             errors.append("knowledge.review.stale: expected a boolean")
 
-    if decision_value == "approved":
-        if status == "draft":
+    if decision_value == KNOWLEDGE_REVIEW_DECISION_APPROVED:
+        if status == KNOWLEDGE_STATUS_DRAFT:
             errors.append("knowledge.review.decision: approved review is forbidden when status is draft")
-        elif status == "in_review":
+        elif status == KNOWLEDGE_STATUS_IN_REVIEW:
             if canonical_contract:
                 if review.get("stale") is not True:
                     errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
             elif review.get("stale") is False:
                 errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
-        elif status == "stable":
+        elif status == KNOWLEDGE_STATUS_STABLE:
             if canonical_contract:
                 if review.get("stale") is not False:
                     errors.append("knowledge.review.stale: approved stable docs must be marked stale: false")
@@ -894,12 +900,12 @@ def _validate_knowledge_review_block(
                         "knowledge.review: requires at least one concrete evidence pointer: "
                         "evidence_path, audit_artifact_path, commit_sha, or trace_id"
                     )
-    if status == "stable" and not canonical_contract:
+    if status == KNOWLEDGE_STATUS_STABLE and not canonical_contract:
         if review is None:
             errors.append("knowledge.review is required when status is stable")
-        elif decision_value != "approved":
+        elif decision_value != KNOWLEDGE_REVIEW_DECISION_APPROVED:
             errors.append("knowledge.review.decision must be approved when status is stable")
-    if status == "in_review" and review is not None and canonical_contract and decision_value == "approved" and review.get("stale") is not True:
+    if status == KNOWLEDGE_STATUS_IN_REVIEW and review is not None and canonical_contract and decision_value == KNOWLEDGE_REVIEW_DECISION_APPROVED and review.get("stale") is not True:
         errors.append("knowledge.review.stale: approved in_review docs must be marked stale: true")
 
 

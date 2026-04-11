@@ -1302,7 +1302,7 @@ def _resume_runtime_commands(*, cwd: Path | None = None) -> tuple[str | None, st
         if runtime_name is None:
             from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use
 
-            detect_runtime_for_gpd_use(cwd=runtime_cwd)
+            runtime_name = detect_runtime_for_gpd_use(cwd=runtime_cwd)
         if runtime_name is None:
             return None, None
         adapter = get_adapter(runtime_name)

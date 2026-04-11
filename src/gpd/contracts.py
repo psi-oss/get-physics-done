@@ -2848,44 +2848,42 @@ def _parse_project_contract_data(
     if not isinstance(data, dict):
         return _project_contract_parse_result(blocking_errors=["project contract must be a JSON object"])
 
-    from gpd.core.contract_validation import _collect_list_shape_drift_errors, salvage_project_contract
-
-    contract, schema_findings, schema_metadata = salvage_project_contract(data)
-    list_shape_drift_errors = _collect_list_shape_drift_errors(data)
     if strict:
         from gpd.core.contract_validation import (
+            _collect_list_shape_drift_errors,
             _collect_literal_case_drift_errors,
             _project_contract_schema_version_missing_error,
-            split_project_contract_schema_findings,
         )
 
-        schema_warnings, schema_errors = split_project_contract_schema_findings(
-            schema_findings,
-            allow_case_drift_recovery=False,
-            metadata_by_error=schema_metadata,
-        )
         blocking_errors = [
             *_collect_literal_case_drift_errors(data),
-            *schema_errors,
-            *schema_warnings,
-            *list_shape_drift_errors,
+            *_collect_list_shape_drift_errors(data),
             *_collect_project_contract_list_member_errors(data),
             *_collect_strict_nested_proof_list_scalar_drift_errors(data),
         ]
         schema_version_error = _project_contract_schema_version_missing_error(data)
         if schema_version_error is not None:
             blocking_errors = [schema_version_error, *blocking_errors]
-        if contract is None:
-            if not blocking_errors and schema_findings:
-                blocking_errors = list(schema_findings)
-            if not blocking_errors:
-                blocking_errors = ["project contract could not be normalized"]
+        if "context_intake" not in data:
+            blocking_errors.append("context_intake is required")
+        try:
+            contract = ResearchContract.model_validate(data)
+        except PydanticValidationError as exc:
+            blocking_errors.extend(_format_pydantic_validation_errors(exc))
             return _project_contract_parse_result(blocking_errors=blocking_errors)
-        integrity_errors = collect_contract_integrity_errors(contract)
-        blocking_errors.extend(integrity_errors)
+
         if blocking_errors:
             return _project_contract_parse_result(blocking_errors=blocking_errors)
+
+        integrity_errors = collect_contract_integrity_errors(contract)
+        if integrity_errors:
+            return _project_contract_parse_result(blocking_errors=integrity_errors)
         return _project_contract_parse_result(contract=contract)
+
+    from gpd.core.contract_validation import _collect_list_shape_drift_errors, salvage_project_contract
+
+    contract, schema_findings, schema_metadata = salvage_project_contract(data)
+    list_shape_drift_errors = _collect_list_shape_drift_errors(data)
 
     from gpd.core.contract_validation import split_project_contract_schema_findings
 

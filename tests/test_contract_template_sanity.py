@@ -70,6 +70,20 @@ def test_prompt_workflow_verbosity_trims_stay_concise() -> None:
     assert "perform ONE confirmatory web_search" not in planner
 
 
+def test_state_schema_uses_concise_continuation_compatibility_tables() -> None:
+    schema = (_TEMPLATES_DIR / "state-json-schema.md").read_text(encoding="utf-8")
+
+    assert "| Rule | Requirement |" in schema
+    assert "| Direction | Allowed behavior |" in schema
+    assert "| Source | Status |" in schema
+    assert "Older `session` payloads may hydrate only missing canonical handoff or machine fields" in schema
+    assert "Populated canonical fields must not be overwritten by stale `session` data" in schema
+    assert "Derived compatibility mirror from execution lineage; advisory only and never a second authority" in schema
+    assert "Raw compatibility cues are backend-only intake signals" in schema
+    assert "`session` stores the markdown-compatible session timestamp" not in schema
+    assert "STATE.md and the legacy `session` object are projections of this authority" not in schema
+
+
 def test_verify_work_contract_floor_uses_parsed_init_fields_without_placeholders() -> None:
     workflow = (
         Path(__file__).resolve().parent.parent / "src" / "gpd" / "specs" / "workflows" / "verify-work.md"

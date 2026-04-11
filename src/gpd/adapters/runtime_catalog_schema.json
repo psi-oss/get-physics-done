@@ -39,7 +39,44 @@
       "home_subpath"
     ]
   },
+  "global_config_required_keys": {
+    "env_or_home": [
+      "strategy",
+      "env_var",
+      "home_subpath"
+    ],
+    "xdg_app": [
+      "strategy",
+      "env_dir_var",
+      "env_file_var",
+      "xdg_subdir",
+      "home_subpath"
+    ]
+  },
   "capability_keys": [
+    "permissions_surface",
+    "permission_surface_kind",
+    "prompt_free_mode_value",
+    "supports_runtime_permission_sync",
+    "supports_prompt_free_mode",
+    "prompt_free_requires_relaunch",
+    "statusline_surface",
+    "statusline_config_surface",
+    "notify_surface",
+    "notify_config_surface",
+    "telemetry_source",
+    "telemetry_completeness",
+    "supports_usage_tokens",
+    "supports_cost_usd",
+    "supports_context_meter",
+    "child_artifact_persistence_reliability",
+    "supports_structured_child_results",
+    "continuation_surface",
+    "checkpoint_stop_semantics",
+    "supports_runtime_session_payload_attribution",
+    "supports_agent_payload_attribution"
+  ],
+  "capability_required_keys": [
     "permissions_surface",
     "permission_surface_kind",
     "prompt_free_mode_value",
@@ -100,6 +137,26 @@
     ]
   },
   "hook_payload_keys": [
+    "notify_event_types",
+    "workspace_keys",
+    "project_dir_keys",
+    "runtime_session_id_keys",
+    "model_keys",
+    "provider_keys",
+    "usage_keys",
+    "input_tokens_keys",
+    "output_tokens_keys",
+    "total_tokens_keys",
+    "cached_input_tokens_keys",
+    "cache_write_input_tokens_keys",
+    "cost_usd_keys",
+    "agent_id_keys",
+    "agent_name_keys",
+    "agent_scope_keys",
+    "context_window_size_keys",
+    "context_remaining_keys"
+  ],
+  "hook_payload_required_keys": [
     "notify_event_types",
     "workspace_keys",
     "project_dir_keys",

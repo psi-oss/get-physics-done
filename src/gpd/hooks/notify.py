@@ -18,6 +18,7 @@ from gpd.core.constants import (
 )
 from gpd.core.observability import humanize_execution_reason
 from gpd.core.root_resolution import resolve_project_root
+from gpd.core.segment_constants import COMPLETED_SEGMENT_STATES, PAUSED_SEGMENT_STATES
 from gpd.core.utils import atomic_write, file_lock
 from gpd.hooks.debug import hook_debug as _debug
 from gpd.hooks.install_context import detect_self_owned_install
@@ -27,9 +28,6 @@ from gpd.hooks.payload_roots import resolve_payload_roots as _resolve_payload_ro
 from gpd.hooks.runtime_lookup import resolve_runtime_lookup_context_from_payload_roots
 from gpd.hooks.update_resolution import latest_update_cache as _shared_latest_update_cache
 from gpd.hooks.update_resolution import update_command_for_candidate as _shared_update_command_for_candidate
-
-_PAUSED_SEGMENT_STATES = {"paused", "awaiting_user", "ready_to_continue"}
-_COMPLETED_SEGMENT_STATES = {"completed", "complete", "done", "finished"}
 
 
 def _has_project_layout(cwd: str) -> bool:
@@ -254,7 +252,7 @@ def _execution_notification_message(cwd: str) -> tuple[str | None, str | None]:
             f"[GPD] Waiting in {phase_plan}: {waiting_reason}\n",
             f"wait:{snapshot.transition_id or snapshot.segment_id or snapshot.waiting_reason}",
         )
-    if segment_status in _COMPLETED_SEGMENT_STATES:
+    if segment_status in COMPLETED_SEGMENT_STATES:
         return None, None
     if snapshot.resume_file:
         resume_target = snapshot.resume_file
@@ -262,7 +260,7 @@ def _execution_notification_message(cwd: str) -> tuple[str | None, str | None]:
             f"[GPD] Resume candidate from live overlay for {phase_plan}: {resume_target}\n",
             f"resume:{snapshot.transition_id or snapshot.segment_id or resume_target}",
         )
-    if segment_status in _PAUSED_SEGMENT_STATES:
+    if segment_status in PAUSED_SEGMENT_STATES:
         if segment_status == "awaiting_user":
             return (
                 f"[GPD] Waiting for user in {phase_plan}: {artifact}\n",

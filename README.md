@@ -227,7 +227,7 @@ GPD currently installs into four AI runtimes. To preselect one during install, u
 | Gemini CLI | `--gemini` | `/gpd:help` | `/gpd:start` | `/gpd:tour` | `/gpd:new-project --minimal` | `/gpd:map-research` | `/gpd:resume-work` |
 | OpenCode | `--opencode` | `/gpd-help` | `/gpd-start` | `/gpd-tour` | `/gpd-new-project --minimal` | `/gpd-map-research` | `/gpd-resume-work` |
 
-Each runtime uses its own command prefix, but the workflow is the same across all four. For install-path details, runtime-specific hooks, and launcher notes, use the onboarding hub and the runtime guides in `docs/`.
+Each runtime uses its own command prefix and alias style: Claude Code and Gemini CLI use slash commands like `/gpd:start`, Codex uses dollar-prefixed aliases like `$gpd-start`, and OpenCode uses slash-dash commands like `/gpd-start`. The workflow is the same across all four even when examples use a different runtime's prefix. For install-path details, runtime-specific hooks, and launcher notes, use the onboarding hub and the runtime guides in `docs/`.
 
 ## What GPD Does
 
@@ -275,7 +275,7 @@ Phase numbers continue across the whole project, so a new milestone may start at
 <details>
 <summary><strong>Conformal bootstrap workflow</strong></summary>
 
-The example below uses Claude Code / Gemini CLI syntax.
+The example below uses Claude Code / Gemini CLI syntax. In Codex, replace `gpd:<command>` with `$gpd-<command>`; in OpenCode, replace it with `/gpd-<command>`.
 
 Suppose you want to use crossing symmetry and the numerical conformal bootstrap to bound low-lying operator dimensions in the 3D Ising CFT.
 
@@ -312,7 +312,7 @@ Typical artifacts include derivation notes, numerical scripts, convergence studi
 
 ## Key GPD Paths
 
-Most research actions run inside your installed AI runtime after GPD has been installed there. Recovery and diagnostics commands like `gpd resume`, `gpd resume --recent`, and `gpd --help` still run from your normal system terminal. The examples below use Claude Code / Gemini CLI syntax when a runtime command is shown.
+Most research actions run inside your installed AI runtime after GPD has been installed there. Recovery and diagnostics commands like `gpd resume`, `gpd resume --recent`, and `gpd --help` still run from your normal system terminal. The examples below use Claude Code / Gemini CLI syntax when a runtime command is shown; Codex users should read those as `$gpd-...`, and OpenCode users should read them as `/gpd-...`.
 
 ### Core Runtime Paths
 

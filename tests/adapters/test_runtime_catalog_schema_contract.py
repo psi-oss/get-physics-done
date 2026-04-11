@@ -64,6 +64,7 @@ def _enum_schema(values: Iterable[str]) -> dict[str, object]:
 
 def _build_global_config_schema(schema_payload: dict[str, object]) -> dict[str, object]:
     sections = schema_payload["global_config_keys"]
+    required_sections = schema_payload["global_config_required_keys"]
     return {
         "type": "object",
         "oneOf": [
@@ -73,7 +74,7 @@ def _build_global_config_schema(schema_payload: dict[str, object]) -> dict[str, 
                     key: {"const": strategy, "type": "string"} if key == "strategy" else _trimmed_string_schema()
                     for key in keys
                 },
-                "required": keys,
+                "required": required_sections[strategy],
                 "additionalProperties": False,
             }
             for strategy, keys in sections.items()
@@ -83,6 +84,7 @@ def _build_global_config_schema(schema_payload: dict[str, object]) -> dict[str, 
 
 def _build_capabilities_schema(schema_payload: dict[str, object]) -> dict[str, object]:
     capability_keys = schema_payload["capability_keys"]
+    capability_required_keys = schema_payload["capability_required_keys"]
     capability_enums = schema_payload["capability_enums"]
     properties: dict[str, object] = {}
     for field_name in capability_keys:
@@ -96,17 +98,18 @@ def _build_capabilities_schema(schema_payload: dict[str, object]) -> dict[str, o
     return {
         "type": "object",
         "properties": properties,
-        "required": list(capability_keys),
+        "required": capability_required_keys,
         "additionalProperties": False,
     }
 
 
 def _build_hook_payload_schema(schema_payload: dict[str, object]) -> dict[str, object]:
     keys = schema_payload["hook_payload_keys"]
+    required_keys = schema_payload["hook_payload_required_keys"]
     return {
         "type": "object",
         "properties": {key: _string_list_schema(min_items=0) for key in keys},
-        "required": keys,
+        "required": required_keys,
         "additionalProperties": False,
     }
 
@@ -247,6 +250,17 @@ def test_runtime_catalog_schema_required_optional_keys_partition_descriptor_fiel
 
     assert required_keys.isdisjoint(optional_keys)
     assert required_keys | optional_keys == descriptor_fields
+
+
+def test_runtime_catalog_schema_nested_required_keys_match_nested_inventories() -> None:
+    schema = _load_schema()
+
+    assert set(schema["global_config_required_keys"]) == set(schema["global_config_keys"])
+    for strategy, keys in schema["global_config_keys"].items():
+        assert set(schema["global_config_required_keys"][strategy]) == set(keys)
+
+    assert set(schema["capability_required_keys"]) == set(schema["capability_keys"])
+    assert set(schema["hook_payload_required_keys"]) == set(schema["hook_payload_keys"])
 
 
 def test_runtime_catalog_descriptor_count_is_intentional() -> None:

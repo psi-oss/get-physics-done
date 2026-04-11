@@ -12,6 +12,14 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
+from gpd.core.knowledge_constants import (
+    KNOWLEDGE_REVIEW_DECISION_APPROVED,
+    KNOWLEDGE_REVIEW_DECISION_VALUES,
+    KNOWLEDGE_STATUS_DRAFT,
+    KNOWLEDGE_STATUS_IN_REVIEW,
+    KNOWLEDGE_STATUS_STABLE,
+    KNOWLEDGE_STATUS_VALUES,
+)
 from gpd.core.utils import normalize_ascii_slug
 
 __all__ = [
@@ -24,9 +32,7 @@ __all__ = [
     "parse_knowledge_doc_data_strict",
 ]
 
-_KNOWLEDGE_STATUS_VALUES = ("draft", "in_review", "stable", "superseded")
 _KNOWLEDGE_SOURCE_KIND_VALUES = ("paper", "dataset", "prior_artifact", "spec", "website", "other")
-_KNOWLEDGE_REVIEW_DECISION_VALUES = ("approved", "needs_changes", "rejected")
 _KNOWLEDGE_REVIEWER_KIND_VALUES = ("human", "agent", "workflow")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -176,7 +182,7 @@ class KnowledgeReviewRecord(BaseModel):
     @field_validator("decision", mode="before")
     @classmethod
     def _normalize_decision(cls, value: object) -> object:
-        return _normalize_choice(value, _KNOWLEDGE_REVIEW_DECISION_VALUES)
+        return _normalize_choice(value, KNOWLEDGE_REVIEW_DECISION_VALUES)
 
     @field_validator("approval_artifact_path", mode="before")
     @classmethod
@@ -241,7 +247,7 @@ class KnowledgeDocData(BaseModel):
     @field_validator("status", mode="before")
     @classmethod
     def _normalize_status(cls, value: object) -> object:
-        return _normalize_choice(value, _KNOWLEDGE_STATUS_VALUES)
+        return _normalize_choice(value, KNOWLEDGE_STATUS_VALUES)
 
     @field_validator("superseded_by", mode="before")
     @classmethod
@@ -255,20 +261,20 @@ class KnowledgeDocData(BaseModel):
         if not self.sources:
             raise ValueError("sources must contain at least one source record")
 
-        if self.status == "draft":
+        if self.status == KNOWLEDGE_STATUS_DRAFT:
             if self.review is not None:
                 raise ValueError("review is forbidden when status is draft")
             if self.superseded_by is not None:
                 raise ValueError("superseded_by is forbidden when status is draft")
-        elif self.status == "in_review":
+        elif self.status == KNOWLEDGE_STATUS_IN_REVIEW:
             if self.superseded_by is not None:
                 raise ValueError("superseded_by is forbidden when status is in_review")
-            if self.review is not None and self.review.decision == "approved" and not self.review.stale:
+            if self.review is not None and self.review.decision == KNOWLEDGE_REVIEW_DECISION_APPROVED and not self.review.stale:
                 raise ValueError("review.stale must be true when status is in_review and review.decision is approved")
-        elif self.status == "stable":
+        elif self.status == KNOWLEDGE_STATUS_STABLE:
             if self.review is None:
                 raise ValueError("review is required when status is stable")
-            if self.review.decision != "approved":
+            if self.review.decision != KNOWLEDGE_REVIEW_DECISION_APPROVED:
                 raise ValueError("review.decision must be approved when status is stable")
             if self.review.stale:
                 raise ValueError("review.stale must be false when status is stable")
@@ -323,8 +329,8 @@ def _normalize_review_projection_inputs(
 
 def _parse_review_projection_data(knowledge_data: dict[str, object]) -> KnowledgeDocData:
     projection_data = dict(knowledge_data)
-    if projection_data.get("status") == "stable" and projection_data.get("review") is None:
-        projection_data["status"] = "in_review"
+    if projection_data.get("status") == KNOWLEDGE_STATUS_STABLE and projection_data.get("review") is None:
+        projection_data["status"] = KNOWLEDGE_STATUS_IN_REVIEW
     return parse_knowledge_doc_data_strict(projection_data)
 
 
