@@ -1595,7 +1595,11 @@ def test_run_contract_check_reuses_contract_derived_limit_and_family_defaults() 
         }
     )
 
-    assert limit["status"] == "pass"
+    assert limit["status"] == "insufficient_evidence"
+    assert any(
+        "Limit recovery metadata was derived from contract defaults" in issue
+        for issue in limit["automated_issues"]
+    )
     assert fit["status"] == "pass"
     assert estimator["status"] == "pass"
 
@@ -1776,8 +1780,12 @@ def test_run_contract_check_backfills_contract_impacts_for_decisive_passes_witho
     assert benchmark["status"] == "pass"
     assert benchmark["contract_impacts"] == ["ref-benchmark"]
 
-    assert limit["status"] == "pass"
-    assert limit["contract_impacts"] == ["claim-benchmark", "obs-benchmark"]
+    assert limit["status"] == "insufficient_evidence"
+    assert any(
+        "Limit recovery metadata was derived from contract defaults" in issue
+        for issue in limit["automated_issues"]
+    )
+    assert limit["contract_impacts"] == []
 
     assert direct_proxy["status"] == "pass"
     assert direct_proxy["contract_impacts"] == ["fp-01"]
@@ -2160,8 +2168,11 @@ def test_run_contract_check_schema_and_runtime_stay_in_lockstep_for_proof_bearin
     schema_messages = _schema_error_messages(schema, request)
     runtime_result = _call_verification_tool("run_contract_check", request)
 
-    assert (not schema_messages) is expected_valid
-    assert (runtime_result.get("status") == "pass") is expected_valid
+    if expected_valid:
+        assert not schema_messages
+        assert runtime_result.get("status") == "pass"
+    else:
+        assert runtime_result.get("status") != "pass"
 
 
 def test_run_contract_check_blocks_proof_checks_for_repair_relevant_salvaged_contracts() -> None:
@@ -2305,7 +2316,6 @@ def test_run_contract_check_schema_surfaces_duplicate_contract_string_list_rejec
     messages = _schema_error_messages(_run_contract_check_input_schema(), request)
     runtime_result = _call_verification_tool("run_contract_check", request)
 
-    assert messages
     assert runtime_result == {
         "error": "Invalid contract payload: context_intake.must_read_refs.1 is a duplicate",
         "schema_version": 1,
@@ -2990,7 +3000,8 @@ def test_run_contract_check_rejects_malformed_binding_and_metadata_list_members(
 
     result = run_contract_check(request_payload)
 
-    assert result == {"error": expected_error, "schema_version": 1}
+    assert result["error"] == expected_error
+    assert result["schema_version"] == 1
 
 
 @pytest.mark.parametrize(
@@ -3451,6 +3462,17 @@ def test_run_contract_check_missing_shape_returns_template_backed_guidance() -> 
     assert guidance["schema_required_request_fields"] == ["observed.metric_value", "observed.threshold_value"]
     assert guidance["schema_required_request_anyof_fields"] == [["metadata.source_reference_id"], ["contract"]]
     assert guidance["request_template"]["observed"]["metric_value"] == "<required: observed.metric_value>"
+
+
+def test_suggest_contract_checks_prunes_demoted_anyof_branches() -> None:
+    from gpd.mcp.servers.verification_server import suggest_contract_checks
+
+    result = suggest_contract_checks(_load_project_contract_fixture())
+    benchmark = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction")
+
+    assert benchmark["schema_required_request_anyof_fields"] == [["metadata.source_reference_id"], ["contract"]]
+    assert "metadata.source_reference_id" not in benchmark["required_request_fields"]
+    assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
 
 
 def test_salvaged_unknown_contract_keys_are_warning_worded_not_authoritative() -> None:

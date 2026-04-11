@@ -21,6 +21,14 @@ from tests.ci_sharding import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+SMOKE_TARGET_TOTAL_LIMIT = 160
+EXPECTED_SMOKE_TARGETS = tuple(CI_SMOKE_TEST_TARGETS)
+HOT_FILE_MAX_TESTS_PER_GROUP = 95
+
+
+def _direct_test_count(rel_path: str) -> int:
+    return (REPO_ROOT / rel_path).read_text(encoding="utf-8").count("\ndef test_")
+
 
 def _workflow_data() -> dict[str, object]:
     return yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8"))
@@ -286,3 +294,21 @@ def test_tests_readme_documents_default_full_suite_and_category_named_runtime_in
     assert "boosts root modules that have been slow on GitHub Actions" in tests_readme
     assert "splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, and `tests/hooks/test_runtime_detect.py`" in tests_readme
     assert "greedily rebalances those work units inside each category" in tests_readme
+
+
+def test_ci_release_package_smoke_targets_stay_within_budget() -> None:
+    """Approximate smoke-target size so the release/package lane finishes under 3 minutes."""
+    assert tuple(CI_SMOKE_TEST_TARGETS) == EXPECTED_SMOKE_TARGETS
+    total_tests = sum(_direct_test_count(target) for target in CI_SMOKE_TEST_TARGETS)
+    assert total_tests <= SMOKE_TARGET_TOTAL_LIMIT
+
+
+def test_ci_hot_file_splits_keep_groups_under_guardrail() -> None:
+    """Ensure each hot split can be contained within the 3-minute per-group target."""
+    for rel_path, split_parts in CI_HOT_TEST_FILE_SPLITS.items():
+        if rel_path.startswith("adapters/test_"):
+            continue
+
+        max_capacity = split_parts * HOT_FILE_MAX_TESTS_PER_GROUP
+        expected_count = _direct_test_count(f"tests/{rel_path}")
+        assert max_capacity >= expected_count

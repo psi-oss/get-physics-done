@@ -38,7 +38,7 @@ from gpd.adapters.install_utils import (
     remove_empty_json_object_file,
     remove_stale_agents,
     render_markdown_frontmatter,
-    should_preserve_public_local_cli_command,
+    rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
     split_markdown_frontmatter,
     strip_sub_tags,
     verify_installed,
@@ -122,7 +122,6 @@ _GEMINI_STATIC_POLICY_COMMAND_PREFIXES: tuple[str, ...] = (
     "mkdir -p GPD/research",
     "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"",
 )
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _GEMINI_COMMAND_RUNTIME_NOTE = (
     "<gemini_runtime_notes>\n"
     "Gemini shell compatibility:\n"
@@ -299,80 +298,6 @@ def _project_managed_mcp_servers(
     return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd)
 
 
-
-
-def _rewrite_gpd_cli_invocations(content: str, bridge_command: str) -> str:
-    """Rewrite shell-command ``gpd`` calls to the shared runtime CLI bridge.
-
-    Restrict rewrites to fenced shell code blocks and command positions only.
-    This keeps prose and inline code spans canonical while still rewriting
-    runnable shell steps.
-    """
-    rewritten: list[str] = []
-    in_shell_fence = False
-
-    for line in content.splitlines(keepends=True):
-        stripped = line.lstrip()
-        if stripped.startswith("```"):
-            if in_shell_fence:
-                in_shell_fence = False
-            else:
-                fence_language = stripped[3:].strip().lower()
-                in_shell_fence = fence_language in _SHELL_FENCE_LANGUAGES
-            rewritten.append(line)
-            continue
-
-        if in_shell_fence:
-            rewritten.append(_rewrite_gemini_shell_line(line, bridge_command))
-            continue
-
-        rewritten.append(line)
-
-    return "".join(rewritten)
-
-
-def _rewrite_gemini_shell_line(line: str, bridge_command: str) -> str:
-    """Rewrite only command-position ``gpd`` tokens on a shell line."""
-    pieces: list[str] = []
-    index = 0
-    in_single = False
-    in_double = False
-
-    while index < len(line):
-        char = line[index]
-        previous = line[index - 1] if index > 0 else ""
-
-        if char == "'" and not in_double:
-            in_single = not in_single
-            pieces.append(char)
-            index += 1
-            continue
-
-        if char == '"' and not in_single and previous != "\\":
-            in_double = not in_double
-            pieces.append(char)
-            index += 1
-            continue
-
-        if (
-            not in_single
-            and not in_double
-            and line.startswith("gpd", index)
-            and is_gpd_command_start(line, index)
-            and is_gpd_token_end(line, index + 3)
-        ):
-            if should_preserve_public_local_cli_command(line[index:]):
-                pieces.append("gpd")
-                index += 3
-                continue
-            pieces.append(bridge_command)
-            index += 3
-            continue
-
-        pieces.append(char)
-        index += 1
-
-    return "".join(pieces)
 
 
 def _inject_gemini_command_runtime_note(content: str, bridge_command: str) -> str:
@@ -1290,7 +1215,18 @@ class GeminiAdapter(RuntimeAdapter):
             mcp_servers.update(managed_mcp_servers)
         if mcp_servers:
             existing_mcp = settings.get("mcpServers", {})
-            merged_mcp = merge_managed_mcp_servers(existing_mcp, mcp_servers)
+            managed_env_keys = {
+                "env": frozenset(
+                    key
+                    for entry in mcp_servers.values()
+                    for key in (entry.get("env", {}) if isinstance(entry.get("env"), dict) else {})
+                )
+            }
+            merged_mcp = merge_managed_mcp_servers(
+                existing_mcp,
+                mcp_servers,
+                user_owned_mapping_keys=managed_env_keys,
+            )
             for server_name in mcp_servers:
                 existing_entry = existing_mcp.get(server_name) if isinstance(existing_mcp, dict) else None
                 if not isinstance(existing_entry, dict) or "trust" not in existing_entry:

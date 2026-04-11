@@ -105,3 +105,34 @@ def test_fast_project_contract_proxy_normalizes_visible_contract_drift_on_markdo
     assert saved is not None
     assert saved["project_contract"] is not None
     assert saved["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
+
+
+def test_project_contract_salvage_reports_duplicate_ids() -> None:
+    contract = _load_contract_fixture()
+    contract["deliverables"].append(dict(contract["deliverables"][0]))
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.recoverable_errors == []
+    assert "duplicate deliverable id deliv-figure" in result.blocking_errors
+    assert contract_from_data_salvage(contract) is None
+
+
+def test_project_contract_salvage_reports_invalid_link_references() -> None:
+    contract = _load_contract_fixture()
+    contract["links"].append(
+        {
+            "id": "link-missing",
+            "source": "missing-source",
+            "target": "missing-target",
+            "relation": "supports",
+            "verified_by": ["missing-test"],
+        }
+    )
+
+    result = validate_project_contract(contract, mode="draft")
+
+    assert "link link-missing references unknown source missing-source" in result.errors
+    assert "link link-missing references unknown target missing-target" in result.errors
+    assert "link link-missing references unknown acceptance test missing-test" in result.errors

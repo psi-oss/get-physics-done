@@ -60,7 +60,7 @@ Phase: $ARGUMENTS (optional)
 </context>
 
 <process>
-Read `@{GPD_INSTALL_DIR}/workflows/verify-work.md` with `file_read` first.
+Read the workflow file defined above with `file_read` first.
 Follow the included workflow file exactly.
 The workflow file owns the detailed check taxonomy; this wrapper only bootstraps the canonical verification surfaces and delegates the physics checks.
   </process>

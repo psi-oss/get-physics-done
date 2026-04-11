@@ -16,6 +16,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
+from gpd.adapters.command_tokens import is_gpd_command_start, is_gpd_token_end
 from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
     get_shared_install_metadata,
@@ -279,6 +280,84 @@ def should_preserve_public_local_cli_command(command: str) -> bool:
         if next_char.isspace() or next_char in "|&;()<>":
             return True
     return False
+
+
+_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
+
+
+def rewrite_gpd_cli_invocations(
+    content: str,
+    command: str,
+    *,
+    shell_fence_languages: frozenset[str] | None = None,
+) -> str:
+    """Rewrite fenced-shell ``gpd`` calls to the runtime CLI bridge."""
+    fenced_languages = shell_fence_languages or _SHELL_FENCE_LANGUAGES
+    rewritten: list[str] = []
+    in_shell_fence = False
+
+    for line in content.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            if in_shell_fence:
+                in_shell_fence = False
+            else:
+                fence_language = stripped[3:].strip().lower()
+                in_shell_fence = fence_language in fenced_languages
+            rewritten.append(line)
+            continue
+
+        if in_shell_fence:
+            rewritten.append(_rewrite_gpd_shell_line(line, command))
+            continue
+
+        rewritten.append(line)
+
+    return "".join(rewritten)
+
+
+def _rewrite_gpd_shell_line(line: str, command: str) -> str:
+    """Rewrite standalone ``gpd`` tokens on a shell line."""
+    pieces: list[str] = []
+    index = 0
+    in_single = False
+    in_double = False
+
+    while index < len(line):
+        char = line[index]
+        previous = line[index - 1] if index > 0 else ""
+
+        if char == "'" and not in_double:
+            in_single = not in_single
+            pieces.append(char)
+            index += 1
+            continue
+
+        if char == '"' and not in_single and previous != "\\":
+            in_double = not in_double
+            pieces.append(char)
+            index += 1
+            continue
+
+        if (
+            not in_single
+            and not in_double
+            and line.startswith("gpd", index)
+            and is_gpd_command_start(line, index)
+            and is_gpd_token_end(line, index + 3)
+        ):
+            if should_preserve_public_local_cli_command(line[index:]):
+                pieces.append("gpd")
+                index += 3
+                continue
+            pieces.append(command)
+            index += 3
+            continue
+
+        pieces.append(char)
+        index += 1
+
+    return "".join(pieces)
 
 
 def _replace_runtime_placeholders(

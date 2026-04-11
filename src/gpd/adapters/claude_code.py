@@ -23,7 +23,7 @@ from gpd.adapters.install_utils import (
     read_settings,
     remove_empty_json_object_file,
     remove_stale_agents,
-    should_preserve_public_local_cli_command,
+    rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
     translate_frontmatter_tool_names,
     verify_installed,
     write_settings,
@@ -34,8 +34,6 @@ from gpd.adapters.install_utils import (
 from gpd.mcp import managed_integrations as _managed_integrations
 
 logger = logging.getLogger(__name__)
-
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 
 
 def _claude_settings_shape_is_valid(settings: dict[str, object]) -> bool:
@@ -662,80 +660,6 @@ def _copy_agents_native(
         new_agent_names.add(agent_md.name)
 
     remove_stale_agents(agents_dest, new_agent_names)
-
-
-def _rewrite_gpd_cli_invocations(content: str, command: str) -> str:
-    """Rewrite shell-command ``gpd`` invocations to the shared CLI bridge.
-
-    Restrict rewrites to fenced shell code blocks and only when ``gpd`` appears
-    in a command position. This keeps model-visible prose and inline code spans
-    canonical while still pinning runnable shell steps to the runtime bridge.
-    """
-    rewritten: list[str] = []
-    in_shell_fence = False
-
-    for line in content.splitlines(keepends=True):
-        stripped = line.lstrip()
-        if stripped.startswith("```"):
-            if in_shell_fence:
-                in_shell_fence = False
-            else:
-                fence_language = stripped[3:].strip().lower()
-                in_shell_fence = fence_language in _SHELL_FENCE_LANGUAGES
-            rewritten.append(line)
-            continue
-
-        if in_shell_fence:
-            rewritten.append(_rewrite_gpd_shell_line(line, command))
-            continue
-
-        rewritten.append(line)
-
-    return "".join(rewritten)
-
-
-def _rewrite_gpd_shell_line(line: str, command: str) -> str:
-    """Rewrite only command-position ``gpd`` tokens on a shell line."""
-    pieces: list[str] = []
-    index = 0
-    in_single = False
-    in_double = False
-
-    while index < len(line):
-        char = line[index]
-        previous = line[index - 1] if index > 0 else ""
-
-        if char == "'" and not in_double:
-            in_single = not in_single
-            pieces.append(char)
-            index += 1
-            continue
-
-        if char == '"' and not in_single and previous != "\\":
-            in_double = not in_double
-            pieces.append(char)
-            index += 1
-            continue
-
-        if (
-            not in_single
-            and not in_double
-            and line.startswith("gpd", index)
-            and is_gpd_command_start(line, index)
-            and is_gpd_token_end(line, index + 3)
-        ):
-            if should_preserve_public_local_cli_command(line[index:]):
-                pieces.append("gpd")
-                index += 3
-                continue
-            pieces.append(command)
-            index += 3
-            continue
-
-        pieces.append(char)
-        index += 1
-
-    return "".join(pieces)
 
 
 def _mcp_config_path(target_dir: Path, *, is_global: bool) -> Path:

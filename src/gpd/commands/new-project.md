@@ -41,7 +41,7 @@ If no project config exists yet, start with physics questioning, surface a prese
 </execution_context>
 
 <process>
-Read `@{GPD_INSTALL_DIR}/workflows/new-project.md` with `file_read` first.
+Read the workflow file defined above with `file_read` first.
 Follow the workflow file exactly before proceeding.
 
 After that, load late-stage authorities only when the workflow reaches the matching stage:

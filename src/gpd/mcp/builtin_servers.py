@@ -389,6 +389,7 @@ def merge_managed_mcp_servers(
     managed_servers: dict[str, dict[str, object]],
     *,
     merge_mapping_keys: frozenset[str] = frozenset({"env"}),
+    user_owned_mapping_keys: Mapping[str, frozenset[str]] | None = None,
 ) -> dict[str, dict[str, object]]:
     """Merge managed GPD MCP entries into a runtime config mapping."""
 
@@ -404,6 +405,7 @@ def merge_managed_mcp_servers(
             existing_map.get(name) if isinstance(existing_map, dict) else None,
             managed_entry,
             merge_mapping_keys=merge_mapping_keys,
+            user_owned_mapping_keys=user_owned_mapping_keys,
         )
 
     return merged_servers

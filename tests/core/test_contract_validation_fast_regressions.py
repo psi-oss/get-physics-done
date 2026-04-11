@@ -43,6 +43,17 @@ def test_fast_contract_validation_salvage_normalizes_literal_case_drift() -> Non
     assert "references.0.required_actions.0 must use exact canonical value: read" in result.recoverable_errors
 
 
+def test_fast_contract_validation_salvage_normalizes_link_relation_case_drift() -> None:
+    contract = _load_contract_fixture()
+    contract["links"][0]["relation"] = "Supports"
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.contract.links[0].relation == "supports"
+    assert "links.0.relation must use exact canonical value: supports" in result.recoverable_errors
+
+
 def test_fast_contract_validation_salvage_normalizes_blank_list_members_without_losing_siblings() -> None:
     contract = _load_contract_fixture()
     contract["context_intake"]["must_read_refs"] = ["ref-benchmark", " "]

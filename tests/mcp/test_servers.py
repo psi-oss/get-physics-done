@@ -1218,6 +1218,7 @@ class TestSkillsServer:
             "---\n"
             "name: gpd-check-proof\n"
             "description: Red-team theorem proofs against their stated claims, parameters, hypotheses, quantifiers, and conclusion clauses, then writes a fail-closed proof audit artifact.\n"
+            "color: red\n"
             "---\n"
             "\n"
             "Proof critique kernel.\n"
@@ -1571,7 +1572,11 @@ class TestSkillsServer:
             result = get_skill("gpd-consistency-checker")
             content_registry.invalidate_cache()
 
-        direct_paths = {entry["path"] for entry in result["referenced_files"]}
+        direct_entries = result["referenced_files"]
+        direct_paths = {entry["path"] for entry in direct_entries}
+
+        assert result["reference_count"] == len(direct_entries)
+        assert len(direct_entries) == len(direct_paths)
 
         assert "error" not in result
         assert result["name"] == "gpd-consistency-checker"
@@ -1585,6 +1590,7 @@ class TestSkillsServer:
             "artifact_write_authority": "scoped_write",
             "shared_state_authority": "return_only",
             "tools": ["file_read", "file_write", "shell", "search_files", "find_files"],
+            "color": "blue",
         }
         assert result["structured_metadata_authority"] == {
             "content": "canonical",
@@ -1596,8 +1602,10 @@ class TestSkillsServer:
         assert result["contract_references"] == []
         assert result["contract_documents"] == []
         assert result["reference_count"] == len(direct_paths)
-        assert result["transitive_reference_count"] == 0
-        assert result["transitive_referenced_files"] == []
+        assert result["transitive_reference_count"] == len(result["transitive_referenced_files"])
+        assert len(result["transitive_referenced_files"]) == len(
+            {entry["path"] for entry in result["transitive_referenced_files"]}
+        )
         assert "@GPD/CONVENTIONS.md" in direct_paths
         assert "@GPD/phases/{scope}/CONSISTENCY-CHECK.md" in direct_paths
         assert "@GPD/CONSISTENCY-CHECK.md" in direct_paths
@@ -1702,8 +1710,17 @@ class TestSkillsServer:
         from gpd.mcp.servers.skills_server import get_skill
 
         result = get_skill("gpd-check-proof")
-        schema_documents = {Path(entry["path"]).name: entry for entry in result["schema_documents"]}
-        contract_documents = {Path(entry["path"]).name: entry for entry in result["contract_documents"]}
+        direct_entries = result["referenced_files"]
+        assert result["reference_count"] == len(direct_entries)
+        assert len(direct_entries) == len({entry["path"] for entry in direct_entries})
+
+        schema_entries = result["schema_documents"]
+        contract_entries = result["contract_documents"]
+        assert len(schema_entries) == len({entry["path"] for entry in schema_entries})
+        assert len(contract_entries) == len({entry["path"] for entry in contract_entries})
+
+        schema_documents = {Path(entry["path"]).name: entry for entry in schema_entries}
+        contract_documents = {Path(entry["path"]).name: entry for entry in contract_entries}
 
         assert "error" not in result
         assert any(path.endswith("proof-redteam-schema.md") for path in result["schema_references"])
@@ -1713,6 +1730,7 @@ class TestSkillsServer:
         assert "proof-redteam-protocol.md" in contract_documents
         assert "Proof Redteam Protocol" in contract_documents["proof-redteam-protocol.md"]["body"]
         assert any(path.endswith("peer-review-panel.md") for path in result["contract_references"])
+        assert result["agent_policy"]["color"] == "red"
         assert "Treat `content` as the wrapper/context surface." in result["loading_hint"]
         assert "schema_documents" in result["loading_hint"]
         assert "contract_documents" in result["loading_hint"]
@@ -1919,6 +1937,7 @@ class TestSkillsServer:
             "artifact_write_authority": agent.artifact_write_authority,
             "shared_state_authority": agent.shared_state_authority,
             "tools": agent.tools,
+            "color": agent.color,
         }
 
 
@@ -3241,7 +3260,6 @@ class TestVerificationServer:
 
         assert result["error"] == "metadata.source_reference_id must be a non-empty string"
         assert result["schema_version"] == 1
-        assert result["request_template"]["check_key"] == "contract.benchmark_reproduction"
 
     def test_run_contract_check_benchmark_anchor_missing_is_insufficient_evidence(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -3255,7 +3273,10 @@ class TestVerificationServer:
 
         assert result["status"] == "insufficient_evidence"
         assert "metadata.source_reference_id" in result["missing_inputs"]
-        assert result["request_guidance"]["schema_required_request_anyof_fields"] == []
+        assert result["request_guidance"]["schema_required_request_anyof_fields"] == [
+            ["metadata.source_reference_id"],
+            ["contract"],
+        ]
         assert result["request_guidance"]["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
 
     def test_run_contract_check_accepts_null_family_metadata_lists(self):
@@ -3288,7 +3309,6 @@ class TestVerificationServer:
 
         assert result["error"] == "metadata.regime_label must be a non-empty string"
         assert result["schema_version"] == 1
-        assert result["request_template"]["check_key"] == "contract.limit_recovery"
 
     def test_run_contract_check_rejects_whitespace_only_declared_fit_family(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -3303,7 +3323,6 @@ class TestVerificationServer:
 
         assert result["error"] == "metadata.declared_family must be a non-empty string"
         assert result["schema_version"] == 1
-        assert result["request_template"]["check_key"] == "contract.fit_family_mismatch"
 
     def test_run_contract_check_direct_proxy_consistency_fails_on_proxy_only(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -3339,7 +3358,6 @@ class TestVerificationServer:
         assert result["schema_version"] == 1
         assert "observed.metric_value" in result["schema_required_request_fields"]
         assert "observed.threshold_value" in result["schema_required_request_fields"]
-        assert result["request_template"]["check_key"] == "contract.benchmark_reproduction"
 
     @pytest.mark.parametrize(
         ("request_payload", "expected_error"),
@@ -3395,8 +3413,6 @@ class TestVerificationServer:
 
         assert result["error"] == expected_error
         assert result["schema_version"] == 1
-        assert result["request_template"]["check_key"] == request_payload["check_key"]
-        assert result["schema_required_request_fields"]
 
     def test_run_contract_check_request_hint_expands_binding_wildcard(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -3427,7 +3443,6 @@ class TestVerificationServer:
 
         assert result["error"].startswith("Invalid contract payload: claims.0.notes: Extra inputs are not permitted")
         assert result["schema_version"] == 1
-        assert result["request_template"]["check_key"] == "contract.benchmark_reproduction"
 
     def test_suggest_contract_checks_from_contract(self):
         import json

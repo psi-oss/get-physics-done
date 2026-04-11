@@ -192,6 +192,31 @@ class TestConvertFrontmatter:
 
         assert_review_contract_prompt_surface(result)
 
+    @pytest.mark.parametrize(
+        ("text", "expected_fragment", "should_rewrite"),
+        [
+            ("See ~/.claude/agents/gpd-verifier.md", "/agents/gpd-verifier.md", True),
+            ("See ~/.claude.json (leave as-is)", "~/.claude.json", False),
+            ("Home dir: ~/.claude", "", True),
+        ],
+    )
+    def test_claude_path_rewrite_skips_claude_json(
+        self,
+        text: str,
+        expected_fragment: str,
+        should_rewrite: bool,
+    ) -> None:
+        content = f"---\ndescription: D\n---\n{text}"
+        result = convert_frontmatter_for_opencode(content)
+        global_dir = get_opencode_global_dir().as_posix()
+
+        if should_rewrite:
+            assert f"{global_dir}{expected_fragment}" in result
+            assert "~/.claude" not in result
+        else:
+            assert expected_fragment in result
+            assert "~/.claude.json" in result
+
 
 class TestCopyFlattenedCommands:
     def test_flattens_nested_dirs(self, gpd_root: Path, tmp_path: Path) -> None:

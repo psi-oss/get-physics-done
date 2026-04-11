@@ -46,7 +46,7 @@ from gpd.adapters.install_utils import (
     remove_stale_agents,
     render_markdown_frontmatter,
     replace_placeholders,
-    should_preserve_public_local_cli_command,
+    rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
     split_markdown_frontmatter,
     strip_sub_tags,
 )
@@ -98,7 +98,6 @@ _COLOR_NAME_TO_HEX: dict[str, str] = {
 }
 
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$")
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _GPD_SLASH_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9/_.-])/gpd:(?P<command>[A-Za-z][A-Za-z0-9-]*)\b")
 _OPENCODE_PERMISSION_DECISIONS = frozenset({"allow", "ask", "deny"})
 _OPENCODE_YOLO_PERMISSION = "allow"
@@ -182,7 +181,14 @@ def convert_frontmatter_for_opencode(content: str, path_prefix: str | None = Non
     converted = content
     converted = convert_tool_references_in_body(converted, _TOOL_REFERENCE_MAP)
     converted = _GPD_SLASH_COMMAND_RE.sub(r"/gpd-\g<command>", converted)
-    converted = re.sub(r"~/\.claude\b", lambda m: resolved_config_dir, converted)
+
+    def _replace_claude_path(match: re.Match[str]) -> str:
+        next_index = match.end()
+        if next_index < len(converted) and converted[next_index] == ".":
+            return match.group(0)
+        return resolved_config_dir
+
+    converted = re.sub(r"~/\.claude\b", _replace_claude_path, converted)
 
     preamble, frontmatter, separator, body = split_markdown_frontmatter(converted)
     if not frontmatter:
@@ -251,75 +257,6 @@ def convert_frontmatter_for_opencode(content: str, path_prefix: str | None = Non
 
 
 convert_claude_to_opencode_frontmatter = convert_frontmatter_for_opencode
-
-
-def _rewrite_gpd_cli_invocations(content: str, bridge_command: str) -> str:
-    """Rewrite fenced-shell command-position ``gpd`` calls to the runtime bridge."""
-    rewritten: list[str] = []
-    in_shell_fence = False
-
-    for line in content.splitlines(keepends=True):
-        stripped = line.lstrip()
-        if stripped.startswith("```"):
-            if in_shell_fence:
-                in_shell_fence = False
-            else:
-                fence_language = stripped[3:].strip().lower()
-                in_shell_fence = fence_language in _SHELL_FENCE_LANGUAGES
-            rewritten.append(line)
-            continue
-
-        if in_shell_fence:
-            rewritten.append(_rewrite_gpd_shell_line(line, bridge_command))
-            continue
-
-        rewritten.append(line)
-
-    return "".join(rewritten)
-
-
-def _rewrite_gpd_shell_line(line: str, bridge_command: str) -> str:
-    """Rewrite only command-position ``gpd`` tokens on a shell line."""
-    pieces: list[str] = []
-    index = 0
-    in_single = False
-    in_double = False
-
-    while index < len(line):
-        char = line[index]
-        previous = line[index - 1] if index > 0 else ""
-
-        if char == "'" and not in_double:
-            in_single = not in_single
-            pieces.append(char)
-            index += 1
-            continue
-
-        if char == '"' and not in_single and previous != "\\":
-            in_double = not in_double
-            pieces.append(char)
-            index += 1
-            continue
-
-        if (
-            not in_single
-            and not in_double
-            and line.startswith("gpd", index)
-            and is_gpd_command_start(line, index)
-            and is_gpd_token_end(line, index + 3)
-        ):
-            if should_preserve_public_local_cli_command(line[index:]):
-                pieces.append("gpd")
-                index += 3
-                continue
-            pieces.append(bridge_command)
-            index += 3
-            continue
-
-        pieces.append(char)
-        index += 1
-
-    return "".join(pieces)
 
 
 def copy_flattened_commands(
@@ -1005,6 +942,7 @@ def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, o
             existing_mcp.get(name),
             managed_entry,
             merge_mapping_keys=frozenset({"environment"}),
+            user_owned_mapping_keys={"environment": frozenset(managed_entry.get("environment", {}))},
         )
         if not isinstance(oc_entry.get("enabled"), bool):
             oc_entry["enabled"] = True

@@ -5,6 +5,8 @@ from pathlib import Path
 
 import yaml
 
+from gpd.contracts import CONTRACT_LINK_RELATION_VALUES, CONTRACT_REFERENCE_ACTION_VALUES
+
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "src" / "gpd" / "specs" / "templates"
 _CONTRACT_TEMPLATES: dict[str, dict[str, str]] = {
     "project-contract-schema.md": {},
@@ -130,6 +132,31 @@ def test_planner_subagent_excerpt_tracks_plan_contract_schema_vocabulary() -> No
     claim_kind_enum = _extract_backtick_enum(canonical_schema, "claim_kind")
     for token in claim_kind_enum:
         assert token in excerpt, f"planner subagent excerpt no longer surfaces claim_kind value {token!r}"
+
+
+def test_phase_prompt_pre_contract_surfaces_link_relation_and_action_vocab() -> None:
+    phase_prompt = (_TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
+    first_contract_block = phase_prompt.index("\ncontract:")
+    pre_contract_text = phase_prompt[:first_contract_block]
+
+    link_enum = " | ".join(CONTRACT_LINK_RELATION_VALUES)
+    reference_action_enum = " | ".join(CONTRACT_REFERENCE_ACTION_VALUES)
+    assert f"`links[].relation` uses `{link_enum}`" in pre_contract_text
+    assert f"`references[].required_actions` uses `{reference_action_enum}`" in pre_contract_text
+
+
+def test_planner_subagent_excerpt_surfaces_link_relation_and_action_vocab() -> None:
+    canonical_schema = (_TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
+    subagent_prompt = (_TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
+
+    excerpt_start = subagent_prompt.index("**PLAN contract schema-critical excerpt:**")
+    excerpt_end = subagent_prompt.index("**Project State:**")
+    excerpt = subagent_prompt[excerpt_start:excerpt_end]
+
+    link_enum = " | ".join(CONTRACT_LINK_RELATION_VALUES)
+    reference_action_enum = " | ".join(CONTRACT_REFERENCE_ACTION_VALUES)
+    assert f"Link relations use `{link_enum}`" in excerpt
+    assert f"reference actions use `{reference_action_enum}`" in excerpt
 
 
 def _plan_contract_schema_critical_tokens() -> tuple[str, ...]:

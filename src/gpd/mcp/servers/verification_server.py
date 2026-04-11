@@ -12,7 +12,7 @@ Usage:
 
 import copy
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Annotated
 
@@ -1100,6 +1100,7 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         for group in hint.get("schema_required_request_anyof_fields", [])
         if isinstance(group, (list, tuple))
     ]
+    schema_required_request_anyof_fields = [group for group in schema_required_request_anyof_fields if group]
     optional_request_fields = [
         *supported_binding_fields,
         *[
@@ -1688,10 +1689,20 @@ def _error_result(message: object) -> dict[str, object]:
     return stable_mcp_error(message)
 
 
-def _contract_check_error_result(message: object, check_key: str | None) -> dict[str, object]:
+def _contract_check_error_result(
+    message: object,
+    check_key: str | None,
+    *,
+    source_error: Mapping[str, object] | None = None,
+) -> dict[str, object]:
     """Return a stable error envelope with request repair hints when possible."""
 
     response = _error_result(message)
+    if isinstance(source_error, Mapping):
+        for key, value in source_error.items():
+            if key in {"error", "schema_version"}:
+                continue
+            response[key] = copy.deepcopy(value)
     if isinstance(message, str) and message.startswith("Invalid contract payload"):
         return response
     if check_key and get_verification_check(check_key) is not None:
@@ -3758,20 +3769,20 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     project_root=project_root,
                 )
                 if error is not None:
-                    return _contract_check_error_result(error.get("error", error), check_meta.check_key)
+                    return _contract_check_error_result(
+                        error.get("error", error),
+                        check_meta.check_key,
+                        source_error=error if isinstance(error, Mapping) else None,
+                    )
 
             binding = binding_raw or {}
             binding, binding_error = _validate_binding_payload(binding, allowed_targets=check_meta.binding_targets)
             if binding_error is not None:
-                if _is_self_repairable_payload_shape_error(binding_error):
-                    return _contract_check_error_result(binding_error, check_meta.check_key)
                 return _error_result(binding_error)
             binding = binding or {}
             binding_supplied = bool(binding_raw)
             metadata, metadata_error = _normalize_contract_metadata(metadata_raw or {})
             if metadata_error is not None:
-                if _is_self_repairable_payload_shape_error(metadata_error):
-                    return _contract_check_error_result(metadata_error, check_meta.check_key)
                 return _error_result(metadata_error)
             supplied_metadata = dict(metadata)
             observed = observed_raw or {}
@@ -3882,15 +3893,16 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     return _error_result(error_message)
                 metrics["regime_label"] = regime_label
                 metrics["observed_limit"] = observed_limit
-                if decisive_limit_metadata_defaulted:
-                    automated_issues.append(
-                        "Limit recovery metadata was derived from contract defaults; supply metadata.regime_label "
-                        "and metadata.expected_behavior for a decisive verdict"
-                    )
-                    status = "insufficient_evidence"
-                elif limit_passed is True and not missing_inputs:
-                    status = "pass"
-                    evidence_directness = "direct"
+                if limit_passed is True and not missing_inputs:
+                    if decisive_limit_metadata_defaulted and not binding:
+                        automated_issues.append(
+                            "Limit recovery metadata was derived from contract defaults; supply metadata.regime_label "
+                            "and metadata.expected_behavior for a decisive verdict"
+                        )
+                        status = "insufficient_evidence"
+                    else:
+                        status = "pass"
+                        evidence_directness = "direct"
                 elif limit_passed is False and not missing_inputs:
                     automated_issues.append("Observed limit behavior does not match the contracted asymptotic expectation")
                     status = "fail"

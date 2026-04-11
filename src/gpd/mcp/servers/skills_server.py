@@ -146,8 +146,8 @@ def _skill_loading_hint(*, source_kind: str, referenced_files: bool, reference_d
     if reference_documents:
         dependency_hint = (
             "Treat `content` as the wrapper/context surface. Load `schema_documents` and "
-            "`contract_documents` too when present; they carry the model-visible schema and "
-            "contract rules for schema-bound output."
+            "`contract_documents` too when present; inject them before schema-bound output "
+            "because they carry the model-visible schema and contract rules."
         )
     elif referenced_files:
         dependency_hint = (
@@ -267,6 +267,7 @@ def _agent_policy_payload(agent: content_registry.AgentDef) -> dict[str, object]
         "artifact_write_authority": agent.artifact_write_authority,
         "shared_state_authority": agent.shared_state_authority,
         "tools": list(agent.tools),
+        "color": agent.color,
     }
 
 
@@ -502,6 +503,18 @@ def _extract_referenced_files(
     return direct_references, transitive_references
 
 
+def _deduplicate_references(entries: list[dict[str, object]]) -> list[dict[str, object]]:
+    seen: set[str] = set()
+    unique: list[dict[str, object]] = []
+    for entry in entries:
+        path = entry["path"]
+        if path in seen:
+            continue
+        seen.add(path)
+        unique.append(entry)
+    return unique
+
+
 def _is_schema_reference(path: str) -> bool:
     if Path(path).name.endswith("-schema.md"):
         return True
@@ -654,6 +667,8 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
 
             content, source_path = _canonical_skill_content(skill)
             referenced_files, transitive_referenced_files = _extract_referenced_files(content, source_path=source_path)
+            referenced_files = _deduplicate_references(referenced_files)
+            transitive_referenced_files = _deduplicate_references(transitive_referenced_files)
             template_references = [entry["path"] for entry in referenced_files if entry["kind"] == "template"]
             schema_references, schema_documents = _expanded_reference_documents(
                 referenced_files,
