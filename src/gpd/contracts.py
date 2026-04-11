@@ -822,8 +822,14 @@ def _collect_project_contract_list_member_errors(data: object) -> list[str]:
         if not isinstance(mapping, dict):
             return
         for field_name in field_names:
-            if field_name in mapping:
-                _check_string_list(mapping[field_name], path=f"{path_prefix}.{field_name}")
+            if field_name not in mapping:
+                continue
+            raw_value = mapping[field_name]
+            location = f"{path_prefix}.{field_name}"
+            if isinstance(raw_value, str):
+                errors.append(f"{location} must not be blank" if _blank_string(raw_value) else f"{location} must be a list, not str")
+                continue
+            _check_string_list(raw_value, path=location)
 
     def _check_collection_item_lists(collection_name: str, field_names: tuple[str, ...]) -> None:
         raw_collection = data.get(collection_name)

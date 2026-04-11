@@ -20,7 +20,6 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
-from gpd.adapters.command_tokens import is_gpd_command_start, is_gpd_token_end
 from gpd.adapters.install_utils import (
     HOOK_SCRIPTS,
     MANIFEST_NAME,
@@ -38,7 +37,6 @@ from gpd.adapters.install_utils import (
     remove_empty_json_object_file,
     remove_stale_agents,
     render_markdown_frontmatter,
-    rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
     split_markdown_frontmatter,
     strip_sub_tags,
     verify_installed,
@@ -47,6 +45,9 @@ from gpd.adapters.install_utils import (
 )
 from gpd.adapters.install_utils import (
     finish_install as _finish_install,
+)
+from gpd.adapters.install_utils import (
+    rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
 )
 from gpd.adapters.runtime_catalog import RuntimeDescriptor
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime

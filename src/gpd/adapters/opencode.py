@@ -22,7 +22,6 @@ from functools import lru_cache
 from pathlib import Path
 
 from gpd.adapters.base import RuntimeAdapter
-from gpd.adapters.command_tokens import is_gpd_command_start, is_gpd_token_end
 from gpd.adapters.install_utils import (
     CACHE_DIR_NAME,
     MANIFEST_NAME,
@@ -46,9 +45,11 @@ from gpd.adapters.install_utils import (
     remove_stale_agents,
     render_markdown_frontmatter,
     replace_placeholders,
-    rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
     split_markdown_frontmatter,
     strip_sub_tags,
+)
+from gpd.adapters.install_utils import (
+    rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
 )
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime

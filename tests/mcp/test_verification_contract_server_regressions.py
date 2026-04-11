@@ -2313,7 +2313,6 @@ def test_run_contract_check_schema_surfaces_duplicate_contract_string_list_rejec
         }
     }
 
-    messages = _schema_error_messages(_run_contract_check_input_schema(), request)
     runtime_result = _call_verification_tool("run_contract_check", request)
 
     assert runtime_result == {

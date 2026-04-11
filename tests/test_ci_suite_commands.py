@@ -49,6 +49,16 @@ def _job_steps(workflow: dict[str, object], job_name: str) -> list[dict[str, obj
     return steps
 
 
+def _run_steps_by_name(steps: list[dict[str, object]]) -> dict[str, str]:
+    return {str(step.get("name", "")): str(step.get("run", "")) for step in steps if "run" in step}
+
+
+def _step_by_name(steps: list[dict[str, object]], name: str) -> dict[str, object]:
+    matches = [step for step in steps if step.get("name") == name]
+    assert len(matches) == 1
+    return matches[0]
+
+
 def _pytest_matrix_include(workflow: dict[str, object]) -> list[dict[str, object]]:
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
@@ -72,11 +82,7 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
 
     pytest_steps = _job_steps(workflow, "pytest")
     pytest_step_names = [str(step.get("name", "")) for step in pytest_steps]
-    pytest_run_steps = {
-        str(step.get("name", "")): str(step.get("run", ""))
-        for step in pytest_steps
-        if "run" in step
-    }
+    pytest_run_steps = _run_steps_by_name(pytest_steps)
     matrix_include = _pytest_matrix_include(workflow)
     actual_shards = tuple(
         (
@@ -118,10 +124,13 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     assert "shard {os.environ['PYTEST_SHARD_INDEX']}/{os.environ['PYTEST_SHARD_TOTAL']}" in resolve_targets_command
     assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
     assert 'uv run pytest -q --durations=20 --durations-min=0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
-    assert pytest_steps[-1]["name"] == "Run pytest shard"
-    assert pytest_steps[-1]["run"] == pytest_shard_command
-    assert pytest_steps[2]["uses"] == "actions/setup-node@v6"
-    assert pytest_steps[2]["with"]["node-version"] == "20"
+    assert pytest_steps.index(_step_by_name(pytest_steps, "Resolve pytest shard targets")) < pytest_steps.index(
+        _step_by_name(pytest_steps, "Run pytest shard")
+    )
+    assert _step_by_name(pytest_steps, "Run pytest shard")["run"] == pytest_shard_command
+    node_step = _step_by_name(pytest_steps, "Set up Node.js")
+    assert node_step["uses"] == "actions/setup-node@v6"
+    assert node_step["with"]["node-version"] == "20"
     assert 'addopts = ""' in pyproject
     assert 'pytest-xdist>=3.8.0' in pyproject
 
@@ -134,17 +143,29 @@ def test_ci_workflow_runs_fast_release_package_smoke_lane_before_full_shards() -
     assert isinstance(smoke_job, dict)
 
     smoke_steps = _job_steps(workflow, "smoke")
-    smoke_run_steps = {
-        str(step.get("name", "")): str(step.get("run", ""))
-        for step in smoke_steps
-        if "run" in step
-    }
+    smoke_run_steps = _run_steps_by_name(smoke_steps)
 
     assert smoke_job["timeout-minutes"] == CI_SMOKE_JOB_TIMEOUT_MINUTES
     assert smoke_job.get("needs") is None
-    assert smoke_steps[2]["uses"] == "actions/setup-node@v6"
-    assert smoke_steps[2]["with"]["node-version"] == "20"
-    assert smoke_run_steps["Run release/package smoke tests"] == "uv run pytest -q " + " ".join(CI_SMOKE_TEST_TARGETS)
+    node_step = _step_by_name(smoke_steps, "Set up Node.js")
+    assert node_step["uses"] == "actions/setup-node@v6"
+    assert node_step["with"]["node-version"] == "20"
+    smoke_command = smoke_run_steps["Run release/package smoke tests"]
+    assert smoke_command.startswith("uv run pytest -q ")
+    assert tuple(smoke_command.removeprefix("uv run pytest -q ").split()) == tuple(CI_SMOKE_TEST_TARGETS)
+
+
+def test_ci_release_package_smoke_lane_uses_only_explicit_fast_targets() -> None:
+    workflow = _workflow_data()
+    smoke_command = _run_steps_by_name(_job_steps(workflow, "smoke"))["Run release/package smoke tests"]
+    smoke_targets = tuple(smoke_command.removeprefix("uv run pytest -q ").split())
+
+    assert smoke_targets == tuple(CI_SMOKE_TEST_TARGETS)
+    assert smoke_targets
+    assert all(target.startswith("tests/") for target in smoke_targets)
+    assert all(target not in {"tests", "tests/"} for target in smoke_targets)
+    assert all("*" not in target for target in smoke_targets)
+    assert all(("::" in target) or Path(target).suffix == ".py" for target in smoke_targets)
 
 
 def test_ci_shard_selection_uses_supplied_static_inventory_without_collect_only(monkeypatch) -> None:

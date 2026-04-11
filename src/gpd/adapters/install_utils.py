@@ -24,6 +24,7 @@ from gpd.adapters.runtime_catalog import (
     resolve_global_config_dir,
 )
 from gpd.adapters.tool_names import CONTEXTUAL_TOOL_REFERENCE_NAMES
+from gpd.core import include_expansion as _include_expansion
 from gpd.core.constants import HOME_DATA_DIR_NAME
 from gpd.core.model_visible_text import (
     SKEPTICAL_RIGOR_GUARDRAILS_HEADING,
@@ -39,7 +40,6 @@ _SHARED_INSTALL_METADATA = get_shared_install_metadata()
 
 PATCHES_DIR_NAME = _SHARED_INSTALL_METADATA.patches_dir_name
 MANIFEST_NAME = _SHARED_INSTALL_METADATA.manifest_name
-MAX_INCLUDE_EXPANSION_DEPTH = 10
 COMMANDS_DIR_NAME = "commands"
 FLAT_COMMANDS_DIR_NAME = "command"
 AGENTS_DIR_NAME = "agents"
@@ -490,7 +490,6 @@ _INLINE_MATH_RE = re.compile(r"(?<!\\)\$(?=\S)([^$\n]*?\S)(?<!\\)\$(?![A-Za-z0-9
 _MARKDOWN_FRONTMATTER_RE = re.compile(
     r"^(?P<preamble>\ufeff?(?:[ \t]*\r?\n)*)---[ \t]*\r?\n(?P<frontmatter>[\s\S]*?)(?P<separator>\r?\n)---[ \t]*(?P<body_separator>\r?\n|$)"
 )
-_AT_INCLUDE_LINE_RE = re.compile(r"^(?:[-*+]\s+|\d+\.\s+)?`?(@[^\s`]+)`?(?:\s+.*)?$")
 _COMMON_INLINE_MATH_NAMES = frozenset(
     {
         "sin",
@@ -733,7 +732,9 @@ def _inject_command_visibility_sections_from_frontmatter(content: str) -> str:
     normalized_section = _normalize_markdown_eol(section, eol=eol)
     body_without_constraints = body
     if section_heading == "Command Requirements":
-        body_without_constraints = _strip_top_level_markdown_section(body_without_constraints, heading="Review Contract")
+        body_without_constraints = _strip_top_level_markdown_section(
+            body_without_constraints, heading="Review Contract"
+        )
         body_without_constraints = _strip_top_level_markdown_section(
             body_without_constraints,
             heading="Command Requirements",
@@ -1251,132 +1252,19 @@ def expand_at_includes(
     depth: int = 0,
     include_stack: set[str] | None = None,
 ) -> str:
-    """Expand ``@path/to/file`` include directives by inlining referenced file content.
+    """Expand ``@path/to/file`` include directives by inlining referenced file content."""
 
-    Some runtimes resolve these includes natively, while others require the
-    adapter layer to inline them at install time.
-
-    Args:
-        content: File content potentially containing ``@`` include lines.
-        src_root: Source root directory (repo's ``get-physics-done/`` dir).
-        path_prefix: Runtime-specific config path prefix used for placeholder replacement.
-        depth: Current recursion depth (for cycle protection).
-        include_stack: Set of already-included absolute paths (cycle detection).
-
-    Examples::
-
-        >>> expand_at_includes("no includes here", "/src", "/runtime/")
-        'no includes here'
-        >>> expand_at_includes("@GPD/notes.md", "/src", "/runtime/")
-        '@GPD/notes.md'
-    """
-    if depth > MAX_INCLUDE_EXPANSION_DEPTH:
-        return content
-
-    if include_stack is None:
-        include_stack = set()
-
-    src_root = Path(src_root)
-    lines = content.split("\n")
-    result: list[str] = []
-    in_code_fence = False
-
-    for line in lines:
-        trimmed = line.strip()
-
-        # Track code fences
-        if trimmed.startswith("```"):
-            in_code_fence = not in_code_fence
-            result.append(line)
-            continue
-        if in_code_fence:
-            result.append(line)
-            continue
-
-        include_match = _AT_INCLUDE_LINE_RE.match(trimmed)
-        if not include_match:
-            result.append(line)
-            continue
-
-        include_candidate = include_match.group(1)
-
-        # Must start with @ followed by a path (not a BibTeX entry like @article{)
-        if len(include_candidate) < 3 or include_candidate[1] == " " or re.match(r"^@\w+\{", include_candidate):
-            result.append(line)
-            continue
-
-        # Extract the include path
-        include_path = include_candidate[1:]
-        include_path = include_path.split(" (see")[0]  # strip "(see ..." suffixes
-        include_path = include_path.split(" -> ")[0]  # strip "-> Section Name" suffixes
-        include_path = re.sub(r"\s+\([^)]*\)\s*$", "", include_path)  # strip trailing labels like "(main workflow)"
-        include_path = include_path.strip()
-
-        # Only treat paths that contain "/" (avoid false positives like decorators)
-        if "/" not in include_path:
-            result.append(line)
-            continue
-
-        # GPD/ relative paths — project-specific, skip
-        if include_path.startswith("GPD/"):
-            result.append(line)
-            continue
-
-        # Example paths — not real files
-        if include_path.startswith("path/"):
-            result.append(line)
-            continue
-
-        # Resolve against source directory
-        src_path = _resolve_include_source_path(src_root, include_path)
-
-        # Try to read and inline the file
-        if src_path and src_path.exists():
-            abs_key = str(src_path.resolve())
-            if abs_key in include_stack:
-                result.append(f"<!-- @ include cycle detected: {include_path} -->")
-                continue
-            if depth == MAX_INCLUDE_EXPANSION_DEPTH:
-                result.append(f"<!-- @ include depth limit reached: {include_path} -->")
-                continue
-
-            include_stack.add(abs_key)
-            try:
-                included = src_path.read_text(encoding="utf-8")
-            except (UnicodeDecodeError, OSError) as exc:
-                result.append(f"<!-- @ include read error: {include_path} ({exc.__class__.__name__}) -->")
-                include_stack.discard(abs_key)
-                continue
-
-            # Strip frontmatter from included file (only include the body)
-            body = included
-            _preamble, frontmatter, _separator, split_body = split_markdown_frontmatter(body)
-            if frontmatter:
-                body = split_body.strip()
-
-            # Expand nested includes against canonical source paths before
-            # translating placeholders into installed runtime paths.
-            body = expand_at_includes(
-                body,
-                str(src_root),
-                path_prefix,
-                runtime=runtime,
-                install_scope=install_scope,
-                depth=depth + 1,
-                include_stack=include_stack,
-            )
-            body = replace_placeholders(body, path_prefix, runtime, install_scope)
-
-            result.append("")
-            result.append(f"<!-- [included: {src_path.name}] -->")
-            result.append(body)
-            result.append("<!-- [end included] -->")
-            result.append("")
-            include_stack.discard(abs_key)
-        else:
-            result.append(f"<!-- @ include not resolved: {include_path} -->")
-
-    return "\n".join(result)
+    return _include_expansion.expand_at_includes(
+        content,
+        src_root,
+        path_prefix,
+        runtime=runtime,
+        install_scope=install_scope,
+        depth=depth,
+        include_stack=include_stack,
+        runtime_config_dir_names=_runtime_config_dir_names(),
+        placeholder_replacer=replace_placeholders,
+    )
 
 
 def _runtime_config_dir_names() -> frozenset[str]:
@@ -1386,67 +1274,7 @@ def _runtime_config_dir_names() -> frozenset[str]:
 
 
 def _resolve_include_source_path(src_root: Path, include_path: str) -> Path | None:
-    """Map a canonical or installed include path back to its source file."""
-
-    specs_root = _specs_source_root(src_root)
-    agents_root = _agents_source_root(src_root)
-
-    def _safe_relative_path(raw_path: str | Path) -> Path | None:
-        relative = Path(raw_path)
-        if not relative.parts or relative.is_absolute() or ".." in relative.parts:
-            return None
-        return relative
-
-    allowed_config_dirs = _runtime_config_dir_names()
-
-    if include_path.startswith("{GPD_INSTALL_DIR}/"):
-        relative_path = include_path[len("{GPD_INSTALL_DIR}/") :]
-        relative = _safe_relative_path(relative_path)
-        return specs_root / relative if relative is not None else None
-    if include_path.startswith("{GPD_AGENTS_DIR}/"):
-        relative_path = include_path[len("{GPD_AGENTS_DIR}/") :]
-        relative = _safe_relative_path(relative_path)
-        return agents_root / relative if relative is not None else None
-
-    include_parts = Path(include_path).parts
-    if "get-physics-done" in include_parts:
-        root_index = include_parts.index("get-physics-done")
-        relative_parts = include_parts[root_index + 1 :]
-        if root_index > 0 and include_parts[root_index - 1] not in allowed_config_dirs:
-            return None
-        relative = _safe_relative_path(Path(*relative_parts)) if relative_parts else None
-        return specs_root / relative if relative is not None else None
-    for agents_index, part in enumerate(include_parts):
-        if part != "agents":
-            continue
-        if agents_index == 0 or include_parts[agents_index - 1] not in allowed_config_dirs:
-            continue
-        relative_parts = include_parts[agents_index + 1 :]
-        relative = _safe_relative_path(Path(*relative_parts)) if relative_parts else None
-        return agents_root / relative if relative is not None else None
-    return None
-
-
-def _specs_source_root(src_root: Path) -> Path:
-    """Return the canonical source root for installed get-physics-done content."""
-
-    specs_root = src_root / "specs"
-    if specs_root.is_dir():
-        return specs_root
-    return src_root
-
-
-def _agents_source_root(src_root: Path) -> Path:
-    """Return the canonical source root for agent markdown files."""
-
-    specs_root = _specs_source_root(src_root)
-    sibling_agents = specs_root.parent / "agents"
-    if sibling_agents.is_dir():
-        return sibling_agents
-    direct_agents = src_root / "agents"
-    if direct_agents.is_dir():
-        return direct_agents
-    return sibling_agents
+    return _include_expansion._resolve_include_source_path(src_root, include_path, _runtime_config_dir_names())
 
 
 # ---------------------------------------------------------------------------

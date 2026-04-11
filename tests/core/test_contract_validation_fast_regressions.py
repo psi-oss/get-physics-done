@@ -90,6 +90,42 @@ def test_fast_contract_validation_strict_rejects_blank_string_list_field_without
     assert result.recoverable_errors == []
 
 
+def test_fast_contract_validation_strict_rejects_nonblank_mapping_string_list_field_without_salvage() -> None:
+    contract = _load_contract_fixture()
+    contract["approach_policy"] = {}
+    contract["approach_policy"]["allowed_fit_families"] = "power-law"
+
+    result = parse_project_contract_data_strict(contract)
+
+    assert result.contract is None
+    assert "approach_policy.allowed_fit_families must be a list, not str" in result.blocking_errors
+    assert result.recoverable_errors == []
+
+
+def test_fast_contract_validation_strict_rejects_nested_collection_string_list_field_without_salvage() -> None:
+    contract = _load_contract_fixture()
+    contract["deliverables"][0]["must_contain"] = "caption"
+
+    result = parse_project_contract_data_strict(contract)
+
+    assert result.contract is None
+    assert "deliverables.0.must_contain must be a list, not str" in result.blocking_errors
+    assert result.recoverable_errors == []
+
+
+def test_fast_contract_validation_strict_rejects_exact_literal_case_drift_without_salvage() -> None:
+    contract = _load_contract_fixture()
+    contract["observables"][0]["kind"] = "Scalar"
+    contract["acceptance_tests"][0]["automation"] = "Automated"
+
+    result = parse_project_contract_data_strict(contract)
+
+    assert result.contract is None
+    assert "observables.0.kind must use exact canonical value: scalar" in result.blocking_errors
+    assert "acceptance_tests.0.automation must use exact canonical value: automated" in result.blocking_errors
+    assert result.recoverable_errors == []
+
+
 def test_fast_contract_validation_salvage_isolates_blank_string_list_field_recovery() -> None:
     contract = _load_contract_fixture()
     contract["context_intake"]["must_read_refs"] = " "

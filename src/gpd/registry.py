@@ -16,13 +16,13 @@ from pathlib import Path
 
 import yaml
 
-from gpd.adapters.install_utils import expand_at_includes
 from gpd.adapters.tool_names import canonical
 from gpd.command_labels import canonical_command_label, canonical_skill_label, command_slug_from_label
 from gpd.core.frontmatter import (
     FRONTMATTER_DELIMITER_RE,
     LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE,
 )
+from gpd.core.include_expansion import expand_at_includes
 from gpd.core.model_visible_sections import render_model_visible_yaml_section
 from gpd.core.model_visible_text import (
     AGENT_ARTIFACT_WRITE_AUTHORITIES,
@@ -102,6 +102,12 @@ _AGENT_FRONTMATTER_KEYS = frozenset(
 )
 
 
+def _runtime_config_dir_names() -> frozenset[str]:
+    from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+
+    return frozenset(descriptor.config_dir_name for descriptor in iter_runtime_descriptors())
+
+
 def _validate_command_frontmatter_keys(meta: dict[object, object], *, command_name: str) -> None:
     """Reject unknown command frontmatter keys so all command surfaces stay aligned."""
 
@@ -121,7 +127,12 @@ def _validate_agent_frontmatter_keys(meta: dict[object, object], *, agent_name: 
 def _inline_model_visible_includes(content: str) -> str:
     """Inline shared include directives while preserving canonical placeholder tokens."""
 
-    expanded = expand_at_includes(content, _PKG_ROOT, _MODEL_VISIBLE_INCLUDE_PATH_PREFIX)
+    expanded = expand_at_includes(
+        content,
+        _PKG_ROOT,
+        _MODEL_VISIBLE_INCLUDE_PATH_PREFIX,
+        runtime_config_dir_names=_runtime_config_dir_names(),
+    )
     cleaned_lines: list[str] = []
     in_included_block = False
     active_fence_char: str | None = None
@@ -275,7 +286,7 @@ class SkillDef:
 def _frontmatter_parts(text: str) -> tuple[str | None, str]:
     """Return raw frontmatter YAML and body from markdown text when present."""
 
-    text = text.lstrip('﻿')
+    text = text.lstrip("﻿")
     frontmatter_candidate = LEADING_BLANK_LINES_BEFORE_FRONTMATTER_RE.sub("", text, count=1)
     frontmatter_parts = _split_frontmatter_block(frontmatter_candidate)
     if frontmatter_parts is None:
@@ -338,9 +349,7 @@ def _raw_scalar_frontmatter_value(frontmatter: str | None, *, field_name: str) -
     if not frontmatter:
         return None
 
-    pattern = re.compile(
-        rf"(?m)^[ \t]*{re.escape(field_name)}:[ \t]*(?P<value>[^#\r\n]*)[ \t]*(?:#.*)?$"
-    )
+    pattern = re.compile(rf"(?m)^[ \t]*{re.escape(field_name)}:[ \t]*(?P<value>[^#\r\n]*)[ \t]*(?:#.*)?$")
     match = pattern.search(frontmatter)
     if match is None:
         return None
@@ -581,9 +590,7 @@ def _parse_project_reentry_capable(raw: object, *, command_name: str, context_mo
         default=False,
     )
     if value and context_mode != "project-required":
-        raise ValueError(
-            f"project_reentry_capable for {command_name} requires context_mode 'project-required'"
-    )
+        raise ValueError(f"project_reentry_capable for {command_name} requires context_mode 'project-required'")
     return value
 
 
@@ -1114,7 +1121,10 @@ def _load_command_staged_loading(path: Path, *, allowed_tools: list[str]) -> Wor
         return None
     canonical_manifest_path = (SPECS_DIR / "workflows" / f"{path.stem}-stage-manifest.json").resolve(strict=False)
     canonical_command_path = (_PKG_ROOT / "commands" / path.name).resolve(strict=False)
-    if path.resolve(strict=False) != canonical_command_path and manifest_path.resolve(strict=False) == canonical_manifest_path:
+    if (
+        path.resolve(strict=False) != canonical_command_path
+        and manifest_path.resolve(strict=False) == canonical_manifest_path
+    ):
         return None
     return load_workflow_stage_manifest_from_path(
         manifest_path,
@@ -1304,8 +1314,7 @@ def _validate_agent_name(path: Path, agent: AgentDef) -> None:
     expected_name = path.stem
     if agent.name != expected_name:
         raise ValueError(
-            f"Agent frontmatter name {agent.name!r} does not match file stem {path.stem!r}; "
-            f"expected {expected_name!r}"
+            f"Agent frontmatter name {agent.name!r} does not match file stem {path.stem!r}; expected {expected_name!r}"
         )
 
 
