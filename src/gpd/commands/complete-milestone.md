@@ -41,7 +41,7 @@ Output: Milestone archived (roadmap + requirements), PROJECT.md evolved, git tag
 
 <process>
 
-If `--dry-run` flag is present, show what would be archived and deleted (milestone archive files, requirements deletion, roadmap collapse, git tag) without making any changes.
+This wrapper runs the archive workflow directly. Any stopping points come from the workflow's own readiness and confirmation gates.
 
 **Follow complete-milestone.md workflow:**
 

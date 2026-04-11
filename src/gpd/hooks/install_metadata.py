@@ -63,6 +63,29 @@ class InstallTargetAssessment:
     has_managed_markers: bool
     missing_install_artifacts: tuple[str, ...] = ()
 
+    @property
+    def readiness_state(self) -> str:
+        """Return the coarse readiness state derived from the install assessment."""
+        return "ready" if self.state in {"absent", "clean", "owned_complete"} else "blocked"
+
+    def readiness_message(self, runtime: str | None = None) -> str:
+        """Return a human-readable summary for the current install assessment."""
+        if self.state == "owned_incomplete":
+            missing = ", ".join(f"`{item}`" for item in self.missing_install_artifacts) or "required install artifacts"
+            return f"{self.config_dir} has an incomplete GPD install; missing artifacts: {missing}."
+        if self.state == "foreign_runtime":
+            owner = f"`{self.manifest_runtime}`" if self.manifest_runtime else "another runtime"
+            runtime_label = f"`{runtime}`" if runtime else "the selected runtime"
+            return f"{self.config_dir} belongs to {owner}, not {runtime_label}."
+        if self.state == "untrusted_manifest":
+            return f"{self.config_dir} has an untrusted GPD manifest and cannot be treated as a ready install target."
+        if self.state == "owned_complete":
+            owner = f"`{self.manifest_runtime}`" if self.manifest_runtime else "the selected runtime"
+            return f"{self.config_dir} already contains a complete GPD install for {owner}."
+        if self.state == "clean":
+            return f"{self.config_dir} is ready for a new GPD install."
+        return f"{self.config_dir} is ready for installation."
+
 
 @dataclass(frozen=True, slots=True)
 class ManagedInstallSurface:

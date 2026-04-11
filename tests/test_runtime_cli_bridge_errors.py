@@ -256,6 +256,86 @@ def test_runtime_cli_repair_command_projection_respects_env_overridden_global_ta
 
 
 @pytest.mark.parametrize(
+    ("manifest_state", "artifact_override", "expected_kind", "expected_phrase"),
+    [
+        (
+            {"runtime": _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name},
+            None,
+            runtime_cli._BridgeFailureKind.MISSING_INSTALL_SCOPE,
+            "The manifest must declare a non-empty `install_scope` field.",
+        ),
+        (
+            {
+                "runtime": next(
+                    item.runtime_name
+                    for item in iter_runtime_descriptors()
+                    if item.runtime_name != _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name
+                ),
+                "install_scope": "local",
+            },
+            None,
+            runtime_cli._BridgeFailureKind.RUNTIME_MISMATCH,
+            "GPD runtime bridge mismatch",
+        ),
+        (
+            {"runtime": _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name, "install_scope": "local"},
+            ("missing-artifact.txt",),
+            runtime_cli._BridgeFailureKind.MISSING_INSTALL_ARTIFACTS,
+            "Missing required install artifacts",
+        ),
+    ],
+)
+def test_runtime_cli_classifies_bridge_failures_with_stable_kinds(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    manifest_state: dict[str, object],
+    artifact_override: tuple[str, ...] | None,
+    expected_kind: runtime_cli._BridgeFailureKind,
+    expected_phrase: str,
+) -> None:
+    runtime_name = _BRIDGE_RUNTIME_DESCRIPTOR.runtime_name
+    adapter = runtime_cli.get_adapter(runtime_name)
+    config_dir = tmp_path / _BRIDGE_RUNTIME_DESCRIPTOR.config_dir_name
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / runtime_cli.get_shared_install_metadata().manifest_name).write_text(
+        json.dumps(manifest_state),
+        encoding="utf-8",
+    )
+
+    if artifact_override is not None:
+        monkeypatch.setattr(adapter, "missing_install_artifacts", lambda target_dir: artifact_override)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+    monkeypatch.chdir(tmp_path)
+
+    manifest_status, _manifest_payload, manifest_runtime = runtime_cli.load_install_manifest_runtime_status(config_dir)
+    manifest_scope_status, manifest_scope_payload, manifest_install_scope = runtime_cli.load_install_manifest_scope_status(
+        config_dir
+    )
+    if manifest_scope_status == "ok":
+        manifest_install_scope = manifest_scope_payload.get("install_scope")
+        if not isinstance(manifest_install_scope, str):
+            manifest_install_scope = None
+
+    failure = runtime_cli._classify_bridge_failure(
+        runtime=runtime_name,
+        config_dir=config_dir,
+        install_scope="local",
+        explicit_target=False,
+        cli_cwd=tmp_path,
+        manifest_status=manifest_status,
+        manifest_runtime=manifest_runtime,
+        manifest_scope_status=manifest_scope_status,
+        manifest_install_scope=manifest_install_scope,
+        missing=artifact_override,
+        has_managed_install_markers=runtime_cli.config_dir_has_managed_install_markers(config_dir),
+    )
+
+    assert failure is not None
+    assert failure.kind is expected_kind
+    assert expected_phrase in failure.message
+
+
+@pytest.mark.parametrize(
     ("manifest_scope", "bridge_scope"),
     [("local", "global"), ("global", "local")],
 )

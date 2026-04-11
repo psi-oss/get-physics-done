@@ -74,3 +74,18 @@ def test_render_recent_resume_summary_keeps_runtime_specific_commands_generic(
     assert "$gpd-resume-work" not in output
     assert "/gpd:suggest-next" not in output
     assert "$gpd-suggest-next" not in output
+
+
+def test_resume_recent_requests_only_the_bounded_recent_picker_window(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_list_recent_projects(store_root=None, last=None):
+        captured["last"] = last
+        return []
+
+    monkeypatch.setattr("gpd.core.recent_projects.list_recent_projects", _fake_list_recent_projects)
+
+    rows = cli_module._load_recent_projects_rows(last=20)
+
+    assert rows == []
+    assert captured["last"] == 20

@@ -14,9 +14,9 @@ from types import SimpleNamespace
 
 import gpd.hooks.install_context as hook_layout
 from gpd.adapters.runtime_catalog import get_hook_payload_policy
-from gpd.core.constants import ENV_GPD_DEBUG
-from gpd.core.root_resolution import resolve_project_root
-from gpd.core.state import load_state_json
+from gpd.core.constants import ENV_GPD_DEBUG, ProjectLayout
+from gpd.core.root_resolution import normalize_workspace_hint
+from gpd.core.state import peek_state_json
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
 from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping
 from gpd.hooks.payload_roots import resolve_payload_roots as _resolve_payload_roots
@@ -231,11 +231,40 @@ def _read_workspace_label(
     return f"[{display_name}]"
 
 
+def _statusline_project_root(workspace_dir: str) -> Path | None:
+    """Return the most durable project root visible from one workspace path."""
+    normalized = normalize_workspace_hint(workspace_dir)
+    if normalized is None:
+        return None
+
+    bare_gpd_root: Path | None = None
+    for steps, candidate in enumerate((normalized, *normalized.parents)):
+        layout = ProjectLayout(candidate)
+        if not layout.gpd.is_dir():
+            continue
+        if (
+            layout.state_json.exists()
+            or layout.state_md.exists()
+            or layout.project_md.exists()
+            or layout.roadmap.exists()
+            or layout.phases_dir.is_dir()
+        ):
+            return candidate
+        if steps == 0 and bare_gpd_root is None:
+            bare_gpd_root = candidate
+    return bare_gpd_root
+
+
 def _read_position(workspace_dir: str) -> str:
     """Read research position from GPD/state.json."""
-    workspace_root = resolve_project_root(workspace_dir, require_layout=True) or Path(workspace_dir).expanduser().resolve(strict=False)
+    workspace_root = _statusline_project_root(workspace_dir) or Path(workspace_dir).expanduser().resolve(strict=False)
     try:
-        state = load_state_json(workspace_root)
+        state, _issues, _source = peek_state_json(
+            workspace_root,
+            recover_intent=False,
+            surface_blocked_project_contract=True,
+            acquire_lock=False,
+        )
     except Exception as exc:
         _debug(f"Failed to read state via canonical loader: {exc}")
         return ""
@@ -583,6 +612,11 @@ def main() -> None:
             hook_payload=payload_policy,
         ):
             project_dir_trusted = False
+        statusline_project_root = _statusline_project_root(workspace_dir)
+        if statusline_project_root is not None:
+            project_root = str(statusline_project_root)
+        elif not project_dir_trusted:
+            project_root = workspace_dir
         runtime_roots = SimpleNamespace(
             workspace_dir=workspace_dir,
             project_root=project_root,

@@ -12,6 +12,7 @@ from gpd.adapters import get_adapter, list_runtimes
 from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.core import suggest as suggest_module
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME
+from gpd.core.conventions import KNOWN_CONVENTIONS
 from gpd.core.proof_review import resolve_manuscript_proof_review_status
 from gpd.core.reproducibility import compute_sha256
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
@@ -415,6 +416,25 @@ def test_paused_status_without_timestamp(tmp_path: Path) -> None:
     assert "resume" in actions
 
 
+def test_paused_work_defers_missing_convention_suggestions_until_after_resume(tmp_path: Path) -> None:
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _create_state(
+        root,
+        {
+            "position": {"status": "Paused", "paused_at": "2026-01-15T10:00:00Z"},
+            "convention_lock": {"metric_signature": "(-,+,+,+)"},
+        },
+    )
+
+    result = suggest_next(root)
+    actions = [s.action for s in result.suggestions]
+
+    assert "resume" in actions
+    assert "set-conventions" not in actions
+    assert result.context.missing_conventions == ()
+
+
 # ─── Blockers ──────────────────────────────────────────────────────────────────
 
 
@@ -664,9 +684,13 @@ def test_missing_conventions_suggest_set(tmp_path: Path) -> None:
     _create_state(root, {"convention_lock": {"metric_signature": "(-,+,+,+)"}})
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
+    set_conventions = next((s for s in result.suggestions if s.action == "set-conventions"), None)
+    expected_missing = tuple(key for key in KNOWN_CONVENTIONS if key != "metric_signature")
+
     assert "set-conventions" in actions
-    assert "natural_units" in result.context.missing_conventions
-    assert "coordinate_system" in result.context.missing_conventions
+    assert result.context.missing_conventions == expected_missing
+    assert set_conventions is not None
+    assert "17 convention fields missing" in set_conventions.reason
 
 
 # ─── Paper Pipeline ────────────────────────────────────────────────────────────
@@ -918,10 +942,11 @@ def test_missing_conventions_block_arxiv_submission_suggestion(tmp_path: Path) -
 
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
+    expected_missing = tuple(key for key in KNOWN_CONVENTIONS if key != "metric_signature")
 
     assert "arxiv-submission" not in actions
     assert "set-conventions" in actions
-    assert "natural_units" in result.context.missing_conventions
+    assert result.context.missing_conventions == expected_missing
 
 
 def test_accepted_review_decision_without_review_ledger_does_not_suggest_arxiv_submission(tmp_path: Path) -> None:

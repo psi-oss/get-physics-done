@@ -23,6 +23,8 @@ from gpd.core.state import (
     ensure_state_schema,
     generate_state_markdown,
     load_state_json,
+    load_state_json_readonly,
+    parse_state_md,
     parse_state_to_json,
     peek_state_json,
     save_state_json,
@@ -218,6 +220,58 @@ def test_parse_state_to_json_import_legacy_session_keeps_real_handoff_and_machin
     assert parsed["continuation"]["handoff"]["last_result_id"] == "result-7"
     assert parsed["continuation"]["machine"]["hostname"] == "legacy-host"
     assert parsed["continuation"]["machine"]["platform"] == "legacy-platform"
+
+
+def test_parse_state_md_treats_plain_not_set_placeholders_as_unset() -> None:
+    markdown = (
+        "# STATE\n\n"
+        "## Project\n\n"
+        "**Core research question:** not set\n"
+        "**Current focus:** not set\n\n"
+        "## Position\n\n"
+        "**Current Phase:** not set\n"
+        "**Current Phase Name:** not set\n"
+        "**Current Plan:** not set\n"
+        "**Status:** not set\n"
+        "**Last Activity:** not set\n"
+        "**Last Activity Description:** not set\n"
+        "**Paused At:** not set\n\n"
+        "## Session Continuity\n\n"
+        "**Last session:** not set\n"
+        "**Hostname:** not set\n"
+        "**Platform:** not set\n"
+        "**Stopped at:** not set\n"
+        "**Resume file:** not set\n"
+        "**Last result ID:** not set\n\n"
+        "## Decisions\n\nNone.\n\n"
+        "## Blockers\n\nNone.\n\n"
+        "## Performance Metrics\n\nNone.\n\n"
+        "## Active Calculations\n\nNone.\n\n"
+        "## Intermediate Results\n\nNone.\n\n"
+        "## Open Questions\n\nNone.\n\n"
+        "## Active Approximations\n\nNone.\n\n"
+        "## Convention Lock\n\nNone.\n\n"
+        "## Propagated Uncertainties\n\nNone.\n\n"
+        "## Pending Todos\n\nNone.\n"
+    )
+
+    parsed = parse_state_md(markdown)
+
+    assert parsed["project"]["core_research_question"] is None
+    assert parsed["project"]["current_focus"] is None
+    assert parsed["position"]["current_phase"] is None
+    assert parsed["position"]["current_phase_name"] is None
+    assert parsed["position"]["current_plan"] is None
+    assert parsed["position"]["status"] is None
+    assert parsed["position"]["last_activity"] is None
+    assert parsed["position"]["last_activity_desc"] is None
+    assert parsed["position"]["paused_at"] is None
+    assert parsed["session"]["last_date"] is None
+    assert parsed["session"]["hostname"] is None
+    assert parsed["session"]["platform"] is None
+    assert parsed["session"]["stopped_at"] is None
+    assert parsed["session"]["resume_file"] is None
+    assert parsed["session"]["last_result_id"] is None
 
 
 # ─── ensure_state_schema ─────────────────────────────────────────────────────
@@ -502,6 +556,50 @@ def test_load_state_json_preserves_sibling_fields_when_nested_position_field_is_
     assert loaded["position"]["current_phase_name"] is None
     assert loaded["position"]["status"] == "Executing"
     assert loaded["blockers"] == ["still valid"]
+
+
+def test_load_state_json_readonly_does_not_create_nested_gpd_directory_on_empty_probe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nested = tmp_path / "workspace" / "notes"
+    nested.mkdir(parents=True)
+
+    def _unexpected(*_args, **_kwargs):
+        raise AssertionError("read-only load should not lock or persist recovery state")
+
+    monkeypatch.setattr(state_module, "_state_lock", _unexpected)
+    monkeypatch.setattr(state_module, "_recover_intent_locked", _unexpected)
+    monkeypatch.setattr(state_module, "_write_state_pair_locked", _unexpected)
+
+    assert load_state_json_readonly(nested) is None
+    assert not (nested / "GPD").exists()
+
+
+def test_load_state_json_readonly_reads_backup_without_persisting_recovery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = default_state_dict()
+    state["position"]["current_phase"] = "02"
+    state["position"]["status"] = "Executing"
+    layout = _write_backup_only_state(tmp_path, primary_state=state)
+
+    def _unexpected(*_args, **_kwargs):
+        raise AssertionError("read-only load should not lock or persist recovery state")
+
+    monkeypatch.setattr(state_module, "_state_lock", _unexpected)
+    monkeypatch.setattr(state_module, "_recover_intent_locked", _unexpected)
+    monkeypatch.setattr(state_module, "_write_state_pair_locked", _unexpected)
+
+    loaded = load_state_json_readonly(tmp_path)
+
+    assert loaded is not None
+    assert loaded["position"]["current_phase"] == "02"
+    assert loaded["position"]["status"] == "Executing"
+    assert not layout.state_json.exists()
+    assert layout.state_json_backup.exists()
+    assert layout.state_md.exists()
 
 
 def test_normalize_state_schema_irrecoverable_reset_drops_unknown_top_level_keys(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1607,6 +1705,44 @@ def test_state_get_rebuilds_missing_state_markdown_from_state_json(tmp_path: Pat
     assert result.content is not None
     assert "# Research State" in result.content
     assert layout.state_md.exists()
+
+
+def test_state_get_prefers_canonical_session_continuation_and_handoff_payloads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    save_state_json(tmp_path, default_state_dict())
+    project = ProjectLayout(tmp_path)
+    monkeypatch.setattr(
+        state_module,
+        "_current_machine_identity",
+        lambda: {"hostname": "builder-01", "platform": "Linux 6.1 x86_64"},
+    )
+
+    state_record_session(tmp_path, stopped_at="Phase 03 Plan 2", resume_file="NEXT.md")
+    project.state_md.write_text(
+        project.state_md.read_text(encoding="utf-8").replace("builder-01", "stale-host"),
+        encoding="utf-8",
+    )
+
+    session = state_get(tmp_path, "session")
+    continuation = state_get(tmp_path, "continuation")
+    handoff = state_get(tmp_path, "handoff")
+    session_payload = json.loads(session.value or "{}")
+    continuation_payload = json.loads(continuation.value or "{}")
+    handoff_payload = json.loads(handoff.value or "{}")
+
+    assert session.section_name == "session"
+    assert continuation.section_name == "continuation"
+    assert handoff.section_name == "handoff"
+    assert session_payload["hostname"] == "builder-01"
+    assert session_payload["platform"] == "Linux 6.1 x86_64"
+    assert session_payload["stopped_at"] == "Phase 03 Plan 2"
+    assert session_payload["resume_file"] == "NEXT.md"
+    assert session_payload["last_result_id"] is None
+    assert session_payload["last_date"] is not None
+    assert continuation_payload["handoff"]["resume_file"] == "NEXT.md"
+    assert handoff_payload["resume_file"] == "NEXT.md"
+    assert "stale-host" not in (session.value or "")
 
 
 def test_peek_state_json_keeps_normalized_primary_when_unrelated_section_is_schema_corrupt(tmp_path: Path) -> None:

@@ -550,12 +550,14 @@ Check research status and intelligently route to next action.
 - Offers to execute next plan or create it if missing
 - Detects 100% milestone completion
 - Use `--brief` when returning and you only need orientation
-- Use `--reconcile` when state appears out of sync with disk artifacts
+- Use `--reconcile` only on the runtime `gpd:progress` surface when state appears out of sync with disk artifacts
+- The local CLI `gpd progress` is a separate read-only renderer and uses `json|bar|table` instead of these runtime flags
 
 Usage: `gpd:progress`
-Usage: `gpd:progress --full` (detailed view with all phase artifacts)
-Usage: `gpd:progress --brief` (compact one-line status)
-Usage: `gpd:progress --reconcile` (fix diverged STATE.md and state.json)
+Usage: `gpd:progress --full` (detailed runtime view with all phase artifacts)
+Usage: `gpd:progress --brief` (compact runtime orientation)
+Usage: `gpd:progress --reconcile` (runtime-only state-vs-disk reconciliation mode)
+Local CLI: `gpd progress json|bar|table` (read-only render formats)
 
 ### Session Management
 

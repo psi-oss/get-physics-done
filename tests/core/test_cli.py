@@ -4439,7 +4439,7 @@ def test_doctor_target_dir_stays_local_when_target_is_not_global(mock_doctor, tm
 
 
 @patch("gpd.core.health.run_doctor")
-def test_doctor_runtime_mode_uses_detected_installed_target_when_scope_is_unspecified(
+def test_doctor_runtime_mode_defaults_to_local_target_when_scope_is_unspecified(
     mock_doctor, tmp_path: Path
 ) -> None:
     from gpd.specs import SPECS_DIR
@@ -4448,11 +4448,11 @@ def test_doctor_runtime_mode_uses_detected_installed_target_when_scope_is_unspec
     mock_result.model_dump.return_value = {"mode": "runtime-readiness", "overall": "ok"}
     mock_doctor.return_value = mock_result
     runtime_name = list_runtimes()[0]
-    detected_target = tmp_path / "runtime-global-target"
+    local_target = cli_module._get_adapter_or_error(runtime_name, action="doctor").resolve_target_dir(False, tmp_path)
 
     with patch(
         "gpd.hooks.runtime_detect.detect_runtime_install_target",
-        return_value=SimpleNamespace(config_dir=detected_target, install_scope="global"),
+        return_value=SimpleNamespace(config_dir=tmp_path / "runtime-global-target", install_scope="global"),
     ):
         result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "doctor", "--runtime", runtime_name])
 
@@ -4461,8 +4461,8 @@ def test_doctor_runtime_mode_uses_detected_installed_target_when_scope_is_unspec
     mock_doctor.assert_called_once_with(
         specs_dir=SPECS_DIR,
         runtime=runtime_name,
-        install_scope="global",
-        target_dir=detected_target,
+        install_scope="local",
+        target_dir=local_target,
         cwd=tmp_path,
         live_executable_probes=False,
     )

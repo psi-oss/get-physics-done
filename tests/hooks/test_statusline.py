@@ -26,6 +26,7 @@ from gpd.hooks.statusline import (
     _read_position,
     _read_session_id,
     _read_workspace_label,
+    _statusline_project_root,
     main,
 )
 from tests.hooks.helpers import mark_complete_install as _mark_complete_install
@@ -445,13 +446,51 @@ class TestReadPosition:
         assert _read_position(str(tmp_path)) == ""
 
     def test_nested_workspace_walks_up_to_project_root(self, tmp_path: Path) -> None:
-        planning = tmp_path / "GPD"
-        planning.mkdir()
-        nested = tmp_path / "src" / "notes"
+        project = tmp_path / "project"
+        planning = project / "GPD"
+        planning.mkdir(parents=True)
+        nested = project / "src" / "notes"
         nested.mkdir(parents=True)
         state = {"position": {"current_phase": 4, "total_phases": 9}}
         (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
         assert _read_position(str(nested)) == "P4/9"
+        assert _statusline_project_root(str(nested)) == project.resolve(strict=False)
+        assert not (nested / "GPD" / "GPD").exists()
+
+    def test_nested_empty_gpd_stub_does_not_capture_root_when_durable_ancestor_exists(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        project = tmp_path / "project"
+        planning = project / "GPD"
+        planning.mkdir(parents=True)
+        nested = project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        (nested / "GPD").mkdir()
+        state = {"position": {"current_phase": 8, "total_phases": 12}}
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        with patch("gpd.hooks.statusline.peek_state_json") as mock_peek:
+            mock_peek.return_value = (state, [], "state.json")
+            assert _read_position(str(nested)) == "P8/12"
+
+        assert _statusline_project_root(str(nested)) == project.resolve(strict=False)
+        assert not (nested / "GPD" / "GPD").exists()
+        mock_peek.assert_called_once()
+        _, kwargs = mock_peek.call_args
+        assert kwargs["acquire_lock"] is False
+        assert kwargs["recover_intent"] is False
+        assert kwargs["surface_blocked_project_contract"] is True
+
+    def test_empty_gpd_ancestor_without_project_markers_does_not_capture_statusline_root(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace = tmp_path / "scratch" / "workspace"
+        workspace.mkdir(parents=True)
+        (tmp_path / "GPD").mkdir()
+
+        assert _statusline_project_root(str(workspace)) is None
 
     def test_tilde_workspace_expands_before_project_root_lookup(self, tmp_path: Path) -> None:
         home = tmp_path / "home"

@@ -343,7 +343,7 @@ class TestQuery:
         result = query(empty_project, provides="anything")
         assert result.total == 0
 
-    def test_query_does_not_search_intermediate_results_registry(self, tmp_path: Path) -> None:
+    def test_query_search_includes_intermediate_results_registry(self, tmp_path: Path) -> None:
         planning_dir = tmp_path / "GPD"
         planning_dir.mkdir()
         (planning_dir / "state.json").write_text(
@@ -367,7 +367,9 @@ class TestQuery:
 
         result = query(tmp_path, equation="E = mc^2")
 
-        assert result.total == 0
+        assert result.total == 1
+        assert result.matches[0].field == "result_registry"
+        assert result.matches[0].value == "R-01"
 
     def test_query_phase_range(self, project_dir: Path) -> None:
         result = query(project_dir, phase_range="1-2")
@@ -620,6 +622,46 @@ class TestQueryDeps:
         assert result.provides_by.phase in ("3", "03")
         assert len(result.provider_conflicts) == 1
         assert result.provider_conflicts[0].phase in ("1", "01")
+
+    def test_deps_includes_intermediate_result_registry_dependency_chain(self, tmp_path: Path) -> None:
+        planning_dir = tmp_path / "GPD"
+        planning_dir.mkdir()
+        (planning_dir / "state.json").write_text(
+            dedent("""\
+            {
+              "intermediate_results": [
+                {
+                  "id": "R-01-foundation",
+                  "equation": "F",
+                  "description": "foundation",
+                  "phase": "01",
+                  "depends_on": [],
+                  "verified": false,
+                  "verification_records": []
+                },
+                {
+                  "id": "R-02-target",
+                  "equation": "T",
+                  "description": "target",
+                  "phase": "02",
+                  "depends_on": ["R-01-foundation"],
+                  "verified": false,
+                  "verification_records": []
+                }
+              ]
+            }
+            """),
+            encoding="utf-8",
+        )
+
+        target = query_deps(tmp_path, "R-02-target")
+        foundation = query_deps(tmp_path, "R-01-foundation")
+
+        assert target.provides_by is not None
+        assert target.provides_by.value == "R-02-target"
+        assert target.direct_deps == ["R-01-foundation"]
+        assert target.depends_on == ["R-01-foundation"]
+        assert foundation.required_by[0].value == "R-02-target"
 
 
 # ─── query_assumptions ───────────────────────────────────────────────────────────

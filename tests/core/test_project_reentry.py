@@ -149,6 +149,33 @@ def test_resolve_project_reentry_surfaces_partial_recoverable_workspace(tmp_path
     assert resolution.candidates[0].state_exists is True
 
 
+def test_resolve_project_reentry_prefers_unique_strong_recent_project_over_partial_recoverable_current_workspace(
+    tmp_path: Path,
+) -> None:
+    workspace = _make_gpd_workspace(tmp_path / "workspace", roadmap=True, state=True)
+    recent = _make_gpd_workspace(tmp_path / "recent-project", project=True)
+
+    resolution = resolve_project_reentry(
+        workspace,
+        recent_rows=[
+            _recent_row(recent, last_session_at="2026-03-28T12:00:00+00:00"),
+        ],
+    )
+
+    assert resolution.mode == "auto-recent-project"
+    assert resolution.source == "recent_project"
+    assert resolution.auto_selected is True
+    assert resolution.requires_user_selection is False
+    assert resolution.project_root == recent.resolve(strict=False).as_posix()
+    assert resolution.selected_candidate is not None
+    assert resolution.selected_candidate.source == "recent_project"
+    assert resolution.selected_candidate.auto_selectable is True
+    assert resolution.candidates[0].source == "recent_project"
+    assert resolution.candidates[0].project_root == recent.resolve(strict=False).as_posix()
+    assert resolution.candidates[1].source == "current_workspace"
+    assert resolution.candidates[1].project_root == workspace.resolve(strict=False).as_posix()
+
+
 def test_resolve_project_reentry_does_not_prefer_unrecoverable_state_file_over_recent_project(tmp_path: Path) -> None:
     workspace = _make_gpd_workspace(tmp_path / "workspace")
     (workspace / "GPD" / "state.json").write_text("[]\n", encoding="utf-8")

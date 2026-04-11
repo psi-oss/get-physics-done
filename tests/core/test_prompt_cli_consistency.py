@@ -417,6 +417,19 @@ def test_progress_prompt_requires_project_not_roadmap() -> None:
     assert 'files: ["GPD/ROADMAP.md"]' not in command
 
 
+def test_progress_prompt_and_help_clarify_runtime_vs_local_cli_boundary() -> None:
+    command = (REPO_ROOT / "src/gpd/commands/progress.md").read_text(encoding="utf-8")
+    help_workflow = (WORKFLOWS_DIR / "help.md").read_text(encoding="utf-8")
+    progress_section = _extract_between(help_workflow, "### Progress Tracking", "### Session Management")
+    normalized_command = " ".join(command.split())
+    normalized_progress_section = " ".join(progress_section.split())
+
+    assert "The local CLI `gpd progress` is a separate read-only renderer" in normalized_command
+    assert "takes `json|bar|table` and does not accept these flags" in normalized_command
+    assert "The local CLI `gpd progress` is a separate read-only renderer" in normalized_progress_section
+    assert "Local CLI: `gpd progress json|bar|table`" in normalized_progress_section
+
+
 def test_plan_phase_prompt_is_a_thin_dispatch_shell() -> None:
     command = (REPO_ROOT / "src/gpd/commands/plan-phase.md").read_text(encoding="utf-8")
 

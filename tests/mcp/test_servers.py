@@ -2358,6 +2358,25 @@ class TestStateServer:
         assert layout.state_intent.exists()
         assert layout.state_json.read_text(encoding="utf-8") == before_state
 
+    def test_state_server_load_state_json_does_not_create_nested_stub_directories(self, tmp_path):
+        from gpd.core.constants import ProjectLayout
+        from gpd.core.state import default_state_dict, save_state_json
+        from gpd.mcp.servers.state_server import load_state_json
+
+        cwd = tmp_path / "workspace" / "notes"
+        cwd.mkdir(parents=True)
+        layout = ProjectLayout(cwd)
+        layout.gpd.mkdir(parents=True)
+        save_state_json(cwd, default_state_dict())
+
+        nested_stub = layout.gpd / "GPD"
+        assert not nested_stub.exists()
+
+        result = load_state_json(cwd)
+
+        assert result is not None
+        assert not nested_stub.exists()
+
     def test_get_state_no_state(self, fake_project_dir):
         from gpd.mcp.servers.state_server import get_state
 
@@ -2462,15 +2481,15 @@ class TestStateServer:
         mock_info.phase_name = "Setup"
         mock_info.directory = "GPD/phases/01-setup"
         mock_info.phase_slug = "01-setup"
-        mock_info.plans = ["plan-01.md", "plan-02.md", "plan-03.md"]
-        mock_info.summaries = ["summary-01.md", "summary-02.md"]
-        mock_info.incomplete_plans = ["plan-03.md"]
+        mock_info.plans = ["01-setup-01-PLAN.md", "01-setup-02-PLAN.md"]
+        mock_info.summaries = ["01-setup-01-SUMMARY.md", "01-setup-99-SUMMARY.md"]
+        mock_info.incomplete_plans = ["01-setup-02-PLAN.md"]
 
         with patch("gpd.core.phases.find_phase", return_value=mock_info):
             result = get_phase_info(fake_project_dir, "01")
         assert result["phase_number"] == "01"
-        assert result["plan_count"] == 3
-        assert result["summary_count"] == 2
+        assert result["plan_count"] == 2
+        assert result["summary_count"] == 1
         assert result["complete"] is False
 
     def test_get_phase_info_not_found(self, fake_project_dir):

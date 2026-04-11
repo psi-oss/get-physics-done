@@ -411,7 +411,7 @@ def _validate_existing_gemini_managed_state(target_dir: Path) -> None:
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise RuntimeError("Gemini install manifest is malformed; refusing to overwrite managed config state.") from exc
     if not isinstance(manifest, dict):
         raise RuntimeError("Gemini install manifest is malformed; refusing to overwrite managed config state.")

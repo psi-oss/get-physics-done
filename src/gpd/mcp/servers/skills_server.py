@@ -826,6 +826,29 @@ def route_skill(
                 "gpd-limiting-cases": ["limiting", "limit", "asymptotic"],
                 "gpd-sensitivity-analysis": ["sensitivity", "parameter", "uncertainty"],
                 "gpd-numerical-convergence": ["convergence", "numerical", "accuracy"],
+                "gpd-map-research": [
+                    "map an existing folder",
+                    "refresh the research map",
+                    "research map",
+                    "existing research folder",
+                ],
+                "gpd-set-tier-models": [
+                    "pin exact tier models",
+                    "configure concrete tier models",
+                    "set tier models",
+                ],
+                "gpd-start": [
+                    "guided first run",
+                    "first run",
+                    "not sure what this folder is",
+                    "not sure what fits this folder",
+                ],
+                "gpd-tour": [
+                    "guided overview",
+                    "guided tour",
+                    "read only walkthrough",
+                    "read-only walkthrough",
+                ],
             }
 
             scored: list[tuple[int, str]] = []

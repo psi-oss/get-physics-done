@@ -62,6 +62,20 @@ class TestVerifyPhaseCompleteness:
         assert result.summary_count == 1
         assert result.incomplete_plans == ["02-core-02"]
 
+    def test_zero_plan_phase_fails_closed(self, tmp_path: Path, state_project_factory) -> None:
+        cwd = state_project_factory(tmp_path, current_phase="03", status="Planning")
+        _create_phase_dir(cwd, "03-empty")
+        _write_roadmap(cwd, "# Roadmap\n\n### Phase 3: Empty\n**Goal:** Nothing yet\n")
+
+        result = verify_phase_completeness(cwd, "3")
+
+        assert result.complete is False
+        assert result.plan_count == 0
+        assert result.summary_count == 0
+        assert result.incomplete_plans == []
+        assert result.orphan_summaries == []
+        assert result.errors == []
+
     def test_phase_not_found(self, tmp_path: Path, state_project_factory) -> None:
         cwd = state_project_factory(tmp_path)
 
