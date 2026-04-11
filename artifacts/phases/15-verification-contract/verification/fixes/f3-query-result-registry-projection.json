@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "bug_id": "f3-query-result-registry-projection",
+  "family_id": "query-result-registry-projection",
+  "family_title": "Query / result registry projection",
+  "phase": 15,
+  "wave": "F3",
+  "status": "verified",
+  "classification": "cross_surface_projection_contract",
+  "scope": {
+    "in_scope": [
+      "query search projection of canonical intermediate_results entries",
+      "query deps projection of canonical result dependency chains",
+      "result search positional text argument parity"
+    ],
+    "out_of_scope": [
+      "changing SUMMARY/frontmatter query semantics when no registry-backed search filter is supplied"
+    ],
+    "question": "Do query and result surfaces expose the canonical result registry without forcing users to switch commands?"
+  },
+  "source": {
+    "anchor_fixtures": [
+      "tests/fixtures/handoff-bundle/query-registry-drift/positive/workspace",
+      "tests/fixtures/handoff-bundle/context-indexing/positive/workspace"
+    ],
+    "mutation_fixtures": [
+      "tests/fixtures/handoff-bundle/bridge-vs-cli/mutation/workspace"
+    ],
+    "packet_ids": [
+      "PK-BT-136-01",
+      "PK-BT-138-01",
+      "PK-BT-140-01",
+      "PK-BT-142-01"
+    ],
+    "bug_type_ids": [
+      "BT-136",
+      "BT-138",
+      "BT-140",
+      "BT-142"
+    ]
+  },
+  "exact_repro": {
+    "surface": "query search/deps on fixture workspaces with canonical intermediate_results but sparse SUMMARY artifacts",
+    "assertions": [
+      "query search --text semiclassical includes result_registry matches",
+      "query deps R-05-ml-window exposes direct and transitive result registry dependencies",
+      "result search singularity accepts a positional text search term"
+    ]
+  },
+  "exact_fix": {
+    "surface": "gpd.core.query registry projection and result search CLI argument parsing",
+    "assertions": [
+      "QueryResult includes result_registry matches without suppressing SUMMARY/frontmatter matches",
+      "DepsResult includes depends_on, direct_deps, and transitive_deps from canonical result_deps",
+      "result search rejects ambiguous positional term plus --text usage"
+    ]
+  },
+  "adjacent_checks": [
+    {
+      "surface": "bridge-vs-cli projection parity",
+      "assertions": [
+        "bridge-vs-cli positive and mutation fixtures still produce matching query/result snapshots"
+      ]
+    }
+  ],
+  "verification": {
+    "contract_test": "tests/core/test_projection_query_result.py",
+    "unit_tests": [
+      "tests/core/test_query.py"
+    ],
+    "fixture_mode": "positive+mutation"
+  },
+  "red_exact_repro": true,
+  "green_exact_fix": true,
+  "green_adjacent_checks": true
+}

@@ -79,6 +79,16 @@ PHASE15_FAMILIES = (
         "source_artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/f3-placeholder-sentinel-normalization.json",
     },
     {
+        "bug_id": "query-result-registry-projection",
+        "family_id": "query-result-registry-projection",
+        "family_title": "query/result registry projection",
+        "wave": "F3",
+        "status": "verified",
+        "contract_test": "tests/core/test_projection_query_result.py",
+        "artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/query-result-registry-projection.json",
+        "source_artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/f3-query-result-registry-projection.json",
+    },
+    {
         "bug_id": "nested-root-readonly-probe-parity",
         "family_id": "nested-root-readonly-probe-parity",
         "family_title": "nested-root read-only probe parity",
@@ -139,6 +149,78 @@ PHASE15_FAMILIES = (
         "source_artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/f5-runtime-recovery.json",
     },
 )
+
+PHASE15_GENERATED_SOURCE_ARTIFACTS = {
+    "artifacts/phases/15-verification-contract/verification/fixes/f3-query-result-registry-projection.json": {
+        "schema_version": 1,
+        "bug_id": "f3-query-result-registry-projection",
+        "family_id": "query-result-registry-projection",
+        "family_title": "Query / result registry projection",
+        "phase": 15,
+        "wave": "F3",
+        "status": "verified",
+        "classification": "cross_surface_projection_contract",
+        "scope": {
+            "in_scope": [
+                "query search projection of canonical intermediate_results entries",
+                "query deps projection of canonical result dependency chains",
+                "result search positional text argument parity",
+            ],
+            "out_of_scope": [
+                "changing SUMMARY/frontmatter query semantics when no registry-backed search filter is supplied"
+            ],
+            "question": "Do query and result surfaces expose the canonical result registry without forcing users to switch commands?",
+        },
+        "source": {
+            "anchor_fixtures": [
+                "tests/fixtures/handoff-bundle/query-registry-drift/positive/workspace",
+                "tests/fixtures/handoff-bundle/context-indexing/positive/workspace",
+            ],
+            "mutation_fixtures": [
+                "tests/fixtures/handoff-bundle/bridge-vs-cli/mutation/workspace",
+            ],
+            "packet_ids": [
+                "PK-BT-136-01",
+                "PK-BT-138-01",
+                "PK-BT-140-01",
+                "PK-BT-142-01",
+            ],
+            "bug_type_ids": ["BT-136", "BT-138", "BT-140", "BT-142"],
+        },
+        "exact_repro": {
+            "surface": "query search/deps on fixture workspaces with canonical intermediate_results but sparse SUMMARY artifacts",
+            "assertions": [
+                "query search --text semiclassical includes result_registry matches",
+                "query deps R-05-ml-window exposes direct and transitive result registry dependencies",
+                "result search singularity accepts a positional text search term",
+            ],
+        },
+        "exact_fix": {
+            "surface": "gpd.core.query registry projection and result search CLI argument parsing",
+            "assertions": [
+                "QueryResult includes result_registry matches without suppressing SUMMARY/frontmatter matches",
+                "DepsResult includes depends_on, direct_deps, and transitive_deps from canonical result_deps",
+                "result search rejects ambiguous positional term plus --text usage",
+            ],
+        },
+        "adjacent_checks": [
+            {
+                "surface": "bridge-vs-cli projection parity",
+                "assertions": [
+                    "bridge-vs-cli positive and mutation fixtures still produce matching query/result snapshots"
+                ],
+            }
+        ],
+        "verification": {
+            "contract_test": "tests/core/test_projection_query_result.py",
+            "unit_tests": ["tests/core/test_query.py"],
+            "fixture_mode": "positive+mutation",
+        },
+        "red_exact_repro": True,
+        "green_exact_fix": True,
+        "green_adjacent_checks": True,
+    }
+}
 
 PHASE16_FAMILY_TO_MODULE = {
     "state": "tests/core/test_projection_state.py",
@@ -203,7 +285,7 @@ PHASE10_FAMILIES = (
         "script_filename": "query-vs-result-blindness.sh",
         "transcript_filename": "query-vs-result-blindness.txt",
         "pytest_args": ["tests/core/test_projection_query_result.py"],
-        "expected_pytest_pass_count": 5,
+        "expected_pytest_pass_count": 6,
         "source_tests": ["tests/core/test_projection_query_result.py"],
         "positive_fixtures": [
             "query-registry-drift/positive",
@@ -218,14 +300,12 @@ PHASE10_FAMILIES = (
             "gpd --raw result search",
             "gpd --raw result deps",
         ],
-        "known_gaps": [
+        "closed_gaps": [
             {
-                "class": "projection-gap-expected",
+                "class": "closed-by-result-registry-projection",
                 "fixtures": [
                     "query-registry-drift/positive",
                     "context-indexing/positive",
-                    "bridge-vs-cli/positive",
-                    "bridge-vs-cli/mutation",
                 ],
             }
         ],
@@ -1349,6 +1429,7 @@ def phase10_oracle(family: Mapping[str, object]) -> dict[str, object]:
         "expected_outcome": "pytest exit code 0 for the current fixed behavior",
         "expected_pytest_pass_count": family.get("expected_pytest_pass_count"),
         "known_gaps": list(coerce_sequence(family.get("known_gaps"))),
+        "closed_gaps": list(coerce_sequence(family.get("closed_gaps"))),
         "phase10_exit_criteria": {
             "anchor_copy_runs_required": 2,
             "confirmatory_copy_runs_required": 1,
@@ -1493,6 +1574,11 @@ def import_external_repro_artifacts() -> dict[str, object]:
         else:
             missing.append(name)
     return {"source_root": str(EXTERNAL_REPRO_ROOT), "imported": imported, "missing": missing}
+
+
+def write_phase15_generated_source_artifacts() -> None:
+    for path, payload in PHASE15_GENERATED_SOURCE_ARTIFACTS.items():
+        write_json(REPO_ROOT / path, payload)
 
 
 def write_phase15_registry() -> None:
@@ -1838,6 +1924,7 @@ def main() -> None:
     phase08 = write_phase08_reconstruction()
     phase10 = write_phase10_reconstruction()
     external_repro = import_external_repro_artifacts()
+    write_phase15_generated_source_artifacts()
     write_phase15_registry()
     write_scorecards(verified, findings, normalized, registry, phase08, external_repro)
     write_phase_status(phase08, phase10, external_repro)

@@ -36,15 +36,16 @@ PHASE16_QUERY_RESULT_CASES: tuple[ProjectionOracleCase, ...] = (
             "fixture": {"slug": "query-registry-drift", "variant": "positive"},
             "query_search": {
                 "term": "semiclassical",
-                "hit_phases": ("01", "03"),
-                "fields": ("text",),
-                "total": 2,
+                "hit_phases": ("01", "03", "01", "02"),
+                "fields": ("text", "result_registry"),
+                "result_ids": ("lit-antonini-2023", "lit-manu-2021"),
+                "total": 4,
             },
             "query_assumptions": {
                 "term": "semiclassical",
-                "hit_phases": ("01", "03"),
-                "found_in": ("body",),
-                "total": 2,
+                "hit_phases": ("01", "03", "01", "02"),
+                "found_in": ("body", "result_registry"),
+                "total": 4,
             },
             "result_search": {
                 "term": "semiclassical",
@@ -52,9 +53,9 @@ PHASE16_QUERY_RESULT_CASES: tuple[ProjectionOracleCase, ...] = (
                 "result_ids": ("lit-antonini-2023", "lit-manu-2021"),
                 "total": 2,
             },
-            "known_gap": {
-                "class": "projection-gap-expected",
-                "fields": ("query_search.hit_phases", "query_assumptions.hit_phases", "result_search.hit_phases"),
+            "registry_gap": {
+                "class": "closed-by-result-registry-projection",
+                "fields": ("query_search.result_ids", "query_assumptions.hit_phases", "result_search.result_ids"),
             },
         },
     ),
@@ -67,9 +68,12 @@ PHASE16_QUERY_RESULT_CASES: tuple[ProjectionOracleCase, ...] = (
             "fixture": {"slug": "context-indexing", "variant": "positive"},
             "query_deps": {
                 "identifier": "R-05-ml-window",
-                "provides_by": None,
+                "provides_by": "R-05-ml-window",
                 "provider_conflicts": (),
                 "required_by": (),
+                "depends_on": ("R-03-integrality", "R-04-geometry"),
+                "direct_dep_ids": ("R-03-integrality", "R-04-geometry"),
+                "transitive_dep_ids": ("R-02-gap-bound", "R-01-foundation"),
             },
             "result_deps": {
                 "identifier": "R-05-ml-window",
@@ -78,14 +82,9 @@ PHASE16_QUERY_RESULT_CASES: tuple[ProjectionOracleCase, ...] = (
                 "direct_dep_ids": ("R-03-integrality", "R-04-geometry"),
                 "transitive_dep_ids": ("R-02-gap-bound", "R-01-foundation"),
             },
-            "known_gap": {
-                "class": "projection-gap-expected",
-                "fields": (
-                    "query_deps.provides_by",
-                    "query_deps.required_by",
-                    "result_deps.direct_dep_ids",
-                    "result_deps.transitive_dep_ids",
-                ),
+            "registry_gap": {
+                "class": "closed-by-result-registry-projection",
+                "fields": ("query_deps.direct_dep_ids", "query_deps.transitive_dep_ids", "result_deps.direct_dep_ids"),
             },
         },
     ),
@@ -100,6 +99,7 @@ PHASE16_QUERY_RESULT_CASES: tuple[ProjectionOracleCase, ...] = (
                 "term": "observer",
                 "hit_phases": ("01",),
                 "fields": ("text",),
+                "result_ids": (),
                 "total": 1,
             },
             "query_assumptions": {
@@ -131,6 +131,7 @@ PHASE16_QUERY_RESULT_CASES: tuple[ProjectionOracleCase, ...] = (
                 "term": "observer",
                 "hit_phases": ("01",),
                 "fields": ("text",),
+                "result_ids": (),
                 "total": 1,
             },
             "query_assumptions": {
@@ -172,6 +173,7 @@ def _normalize_query_search(payload: dict[str, object], term: str) -> dict[str, 
         "term": term,
         "hit_phases": tuple(match["phase"] for match in payload["matches"]),
         "fields": tuple(dict.fromkeys(match["field"] for match in payload["matches"])),
+        "result_ids": tuple(match["value"] for match in payload["matches"] if match["field"] == "result_registry"),
         "total": payload["total"],
     }
 
@@ -180,7 +182,9 @@ def _normalize_query_assumptions(payload: dict[str, object], term: str) -> dict[
     return {
         "term": term,
         "hit_phases": tuple(entry["phase"] for entry in payload["affected_phases"]),
-        "found_in": tuple(dict.fromkeys(found_in for entry in payload["affected_phases"] for found_in in entry["found_in"])),
+        "found_in": tuple(
+            dict.fromkeys(found_in for entry in payload["affected_phases"] for found_in in entry["found_in"])
+        ),
         "total": payload["total"],
     }
 
@@ -201,6 +205,9 @@ def _normalize_query_deps(payload: dict[str, object], identifier: str) -> dict[s
         "provides_by": None if provider is None else provider.get("value"),
         "provider_conflicts": tuple(conflict.get("value") for conflict in payload["provider_conflicts"]),
         "required_by": tuple(entry.get("value") for entry in payload["required_by"]),
+        "depends_on": tuple(payload["depends_on"]),
+        "direct_dep_ids": tuple(payload["direct_deps"]),
+        "transitive_dep_ids": tuple(payload["transitive_deps"]),
     }
 
 
@@ -236,7 +243,10 @@ def test_projection_query_result_oracle(case: ProjectionOracleCase, tmp_path: Pa
     else:  # pragma: no cover - defensive guard for future case expansion
         raise AssertionError(f"Unknown comparison kind: {case.comparison_kind}")
 
-    snapshot["known_gap"] = case.expected_snapshot["known_gap"]
+    if "known_gap" in case.expected_snapshot:
+        snapshot["known_gap"] = case.expected_snapshot["known_gap"]
+    if "registry_gap" in case.expected_snapshot:
+        snapshot["registry_gap"] = case.expected_snapshot["registry_gap"]
 
     assert snapshot == case.expected_snapshot
 
@@ -246,20 +256,37 @@ def test_projection_query_result_bridge_mutation_matches_positive_snapshot(tmp_p
     mutation_workspace = _copy_fixture_workspace(tmp_path, "bridge-vs-cli", "mutation")
 
     positive_snapshot = {
-        "query_search": _normalize_query_search(_run_raw_json(positive_workspace, "query", "search", "--text", "observer"), "observer"),
+        "query_search": _normalize_query_search(
+            _run_raw_json(positive_workspace, "query", "search", "--text", "observer"), "observer"
+        ),
         "query_assumptions": _normalize_query_assumptions(
             _run_raw_json(positive_workspace, "query", "assumptions", "observer"),
             "observer",
         ),
-        "result_search": _normalize_result_search(_run_raw_json(positive_workspace, "result", "search", "--text", "observer"), "observer"),
+        "result_search": _normalize_result_search(
+            _run_raw_json(positive_workspace, "result", "search", "--text", "observer"), "observer"
+        ),
     }
     mutation_snapshot = {
-        "query_search": _normalize_query_search(_run_raw_json(mutation_workspace, "query", "search", "--text", "observer"), "observer"),
+        "query_search": _normalize_query_search(
+            _run_raw_json(mutation_workspace, "query", "search", "--text", "observer"), "observer"
+        ),
         "query_assumptions": _normalize_query_assumptions(
             _run_raw_json(mutation_workspace, "query", "assumptions", "observer"),
             "observer",
         ),
-        "result_search": _normalize_result_search(_run_raw_json(mutation_workspace, "result", "search", "--text", "observer"), "observer"),
+        "result_search": _normalize_result_search(
+            _run_raw_json(mutation_workspace, "result", "search", "--text", "observer"), "observer"
+        ),
     }
 
     assert mutation_snapshot == positive_snapshot
+
+
+def test_result_search_accepts_positional_text_query(tmp_path: Path) -> None:
+    workspace = _copy_fixture_workspace(tmp_path, "query-registry-drift", "positive")
+
+    snapshot = _normalize_result_search(_run_raw_json(workspace, "result", "search", "singularity"), "singularity")
+
+    assert snapshot["total"] >= 1
+    assert "lit-manu-2021" in snapshot["result_ids"]

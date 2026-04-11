@@ -56,6 +56,15 @@ PHASE15_FAMILIES: tuple[Phase15ContractFamily, ...] = (
         status="ready",
     ),
     Phase15ContractFamily(
+        bug_id="query-result-registry-projection",
+        family_id="query-result-registry-projection",
+        family_title="query/result registry projection",
+        contract_test="tests/core/test_projection_query_result.py",
+        artifact_path=str(PHASE15_ARTIFACT_ROOT / "query-result-registry-projection.json"),
+        status="verified",
+        classification="cross_surface_projection_contract",
+    ),
+    Phase15ContractFamily(
         bug_id="nested-root-readonly-probe-parity",
         family_id="nested-root-readonly-probe-parity",
         family_title="nested-root read-only probe parity",
