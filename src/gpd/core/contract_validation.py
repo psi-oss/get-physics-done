@@ -265,6 +265,14 @@ def _project_contract_schema_version_missing_error(contract_payload: object) -> 
     return None
 
 
+def _validate_direct_project_contract_schema_version(value: object) -> str | None:
+    if type(value) is not int:
+        return "schema_version must be the integer 1"
+    if value != 1:
+        return "schema_version: Input should be 1"
+    return None
+
+
 class ProjectContractValidationResult(BaseModel):
     """Executable validation result for a project-scoping contract."""
 
@@ -372,13 +380,9 @@ def _sanitize_contract_scalars(
             location = f"{path_prefix}.{key}" if path_prefix else key
 
             if location == "schema_version":
-                if type(raw_item) is not int:
-                    sink.append("schema_version must be the integer 1")
-                    if canonical_authoritative_scalar_locations is not None:
-                        canonical_authoritative_scalar_locations.add(location)
-                    continue
-                if raw_item != 1:
-                    sink.append("schema_version: Input should be 1")
+                schema_version_error = _validate_direct_project_contract_schema_version(raw_item)
+                if schema_version_error is not None:
+                    sink.append(schema_version_error)
                     if canonical_authoritative_scalar_locations is not None:
                         canonical_authoritative_scalar_locations.add(location)
                     continue
@@ -884,12 +888,10 @@ def salvage_project_contract(
     normalized_contract["uncertainty_markers"] = uncertainty_markers
 
     if "schema_version" in normalized_contract:
-        try:
-            normalized_contract["schema_version"] = ResearchContract.model_validate(
-                {"scope": scope, "schema_version": normalized_contract["schema_version"]}
-            ).schema_version
-        except PydanticValidationError:
-            errors.append("schema_version: Input should be 1")
+        schema_version_error = _validate_direct_project_contract_schema_version(normalized_contract["schema_version"])
+        if schema_version_error is not None:
+            if schema_version_error not in errors:
+                errors.append(schema_version_error)
             normalized_contract.pop("schema_version", None)
 
     try:

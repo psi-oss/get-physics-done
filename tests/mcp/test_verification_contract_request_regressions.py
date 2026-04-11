@@ -431,6 +431,25 @@ def test_run_contract_check_rejects_legacy_binding_alias_keys() -> None:
     assert _call_verification_tool("run_contract_check", {"request": request_payload}) == expected_error
 
 
+def test_run_contract_check_request_shape_errors_stay_minimal_with_valid_check_key() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    request_payload = {
+        "check_key": "contract.benchmark_reproduction",
+        "unexpected": True,
+    }
+    expected_error = {
+        "error": (
+            "request contains unsupported keys: unexpected; supported keys are "
+            "check_key, contract, binding, metadata, observed, artifact_content"
+        ),
+        "schema_version": 1,
+    }
+
+    assert run_contract_check(request_payload) == expected_error
+    assert _call_verification_tool("run_contract_check", {"request": request_payload}) == expected_error
+
+
 def test_contract_tools_reject_blank_scalar_to_list_drift() -> None:
     from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 

@@ -3734,11 +3734,6 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 return error
             request_key_error = _validate_run_contract_check_request_keys(request)
             if request_key_error is not None:
-                check_key_hint = request.get("check_key")
-                if isinstance(check_key_hint, str):
-                    check_key_hint = check_key_hint.strip()
-                if check_key_hint:
-                    return _contract_check_error_result(request_key_error, check_key_hint)
                 return _error_result(request_key_error)
             check_key_value, error = _validate_check_identifier(request.get("check_key"), field_name="check_key")
             if error is not None:

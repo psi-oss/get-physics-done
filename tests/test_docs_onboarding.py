@@ -171,6 +171,8 @@ def test_root_readme_supported_runtimes_table_matches_beginner_runtime_surfaces(
     content = _read("README.md")
     supported_runtimes = _markdown_section(content, "## Supported Runtimes")
     normalized_supported_runtimes = _normalize_markdown_table(supported_runtimes)
+    launch_command_list = ", ".join(f"`{surface.launch_command}`" for surface in beginner_runtime_surfaces()[:-1])
+    launch_command_list = f"{launch_command_list}, or `{beginner_runtime_surfaces()[-1].launch_command}`"
 
     for surface in beginner_runtime_surfaces():
         expected_row = (
@@ -179,6 +181,9 @@ def test_root_readme_supported_runtimes_table_matches_beginner_runtime_surfaces(
             f"{surface.map_research_command} | {surface.resume_work_command} |"
         )
         assert expected_row in normalized_supported_runtimes
+
+    assert f"then launch your selected runtime with {launch_command_list}" in content
+    assert f"launchable there ({launch_command_list})" in content
 
     assert "Config path overrides" not in content
     assert "CLAUDE_CONFIG_DIR" not in content

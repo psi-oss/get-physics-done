@@ -90,6 +90,40 @@ def test_fast_contract_validation_strict_rejects_blank_string_list_field_without
     assert result.recoverable_errors == []
 
 
+def test_fast_contract_validation_salvage_reports_missing_schema_version_directly() -> None:
+    contract = _load_contract_fixture()
+    del contract["schema_version"]
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is None
+    assert result.blocking_errors == ["schema_version is required"]
+    assert result.recoverable_errors == []
+
+
+def test_fast_contract_validation_salvage_reports_non_integer_schema_versions_directly() -> None:
+    for schema_version in ("1", 1.0, True):
+        contract = _load_contract_fixture()
+        contract["schema_version"] = schema_version
+
+        result = parse_project_contract_data_salvage(contract)
+
+        assert result.contract is not None
+        assert result.blocking_errors == ["schema_version must be the integer 1"]
+        assert result.recoverable_errors == []
+
+
+def test_fast_contract_validation_salvage_reports_wrong_integer_schema_version_directly() -> None:
+    contract = _load_contract_fixture()
+    contract["schema_version"] = 2
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.blocking_errors == ["schema_version: Input should be 1"]
+    assert result.recoverable_errors == []
+
+
 def test_fast_contract_validation_strict_rejects_nonblank_mapping_string_list_field_without_salvage() -> None:
     contract = _load_contract_fixture()
     contract["approach_policy"] = {}

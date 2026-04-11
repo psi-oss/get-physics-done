@@ -159,44 +159,6 @@ def test_resolve_hook_payload_policy_is_surface_aware_for_same_self_owned_instal
     assert statusline_policy == get_hook_payload_policy("claude-code")
 
 
-def test_hook_payload_policy_wrappers_delegate_with_surface_specific_arguments(tmp_path: Path) -> None:
-    from gpd.hooks import notify, statusline
-
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    hook_dir = tmp_path / ".codex" / "hooks"
-    notify_hook = hook_dir / "notify.py"
-    statusline_hook = hook_dir / "statusline.py"
-    hook_dir.mkdir(parents=True)
-    notify_hook.write_text("# notify hook\n", encoding="utf-8")
-    statusline_hook.write_text("# statusline hook\n", encoding="utf-8")
-
-    notify_policy = object()
-    statusline_policy = object()
-    with (
-        patch("gpd.hooks.notify.__file__", str(notify_hook)),
-        patch("gpd.hooks.statusline.__file__", str(statusline_hook)),
-        patch("gpd.hooks.notify.resolve_hook_payload_policy", return_value=notify_policy) as mock_notify_policy,
-        patch(
-            "gpd.hooks.statusline.resolve_hook_payload_policy",
-            return_value=statusline_policy,
-        ) as mock_statusline_policy,
-    ):
-        assert notify._hook_payload_policy(str(workspace)) is notify_policy
-        assert statusline._hook_payload_policy(str(workspace)) is statusline_policy
-
-    mock_notify_policy.assert_called_once_with(
-        hook_file=str(notify_hook),
-        cwd=str(workspace),
-        surface="notify",
-    )
-    mock_statusline_policy.assert_called_once_with(
-        hook_file=str(statusline_hook),
-        cwd=str(workspace),
-        surface="statusline",
-    )
-
-
 def test_resolve_hook_surface_runtime_prefers_nested_local_install_when_runtime_hint_is_missing(
     tmp_path: Path,
 ) -> None:
@@ -222,3 +184,46 @@ def test_resolve_hook_surface_runtime_prefers_nested_local_install_when_runtime_
         )
 
     assert runtime == "claude-code"
+
+
+def test_merged_hook_payload_policy_stays_surface_specific() -> None:
+    codex_policy = get_hook_payload_policy("codex")
+    claude_policy = get_hook_payload_policy("claude-code")
+
+    assert codex_policy.notify_event_types == ("agent-turn-complete",)
+    assert codex_policy.runtime_session_id_keys == ()
+    assert codex_policy.agent_id_keys == ()
+    assert codex_policy.agent_name_keys == ()
+    assert codex_policy.agent_scope_keys == ()
+    assert codex_policy.model_keys == ("display_name", "name", "id")
+    assert codex_policy.provider_keys == ("provider", "vendor")
+    assert codex_policy.usage_keys == ("usage", "token_usage", "tokens")
+    assert codex_policy.input_tokens_keys == ("input_tokens", "prompt_tokens", "inputTokens", "promptTokens")
+    assert codex_policy.output_tokens_keys == (
+        "output_tokens",
+        "completion_tokens",
+        "outputTokens",
+        "completionTokens",
+    )
+    assert codex_policy.total_tokens_keys == ("total_tokens", "totalTokens")
+    assert codex_policy.cached_input_tokens_keys == (
+        "cached_input_tokens",
+        "cache_read_input_tokens",
+        "cachedInputTokens",
+        "cacheReadInputTokens",
+    )
+    assert codex_policy.cache_write_input_tokens_keys == (
+        "cache_write_input_tokens",
+        "cache_creation_input_tokens",
+        "cacheWriteInputTokens",
+        "cacheCreationInputTokens",
+    )
+    assert codex_policy.cost_usd_keys == ("cost_usd", "costUsd", "usd_cost", "usdCost")
+
+    assert claude_policy.notify_event_types == ()
+    assert claude_policy.runtime_session_id_keys == ()
+    assert claude_policy.agent_id_keys == ()
+    assert claude_policy.agent_name_keys == ()
+    assert claude_policy.agent_scope_keys == ()
+    assert claude_policy.context_window_size_keys == ("context_window_size",)
+    assert claude_policy.context_remaining_keys == ("remaining_percentage", "remainingPercent", "remaining")

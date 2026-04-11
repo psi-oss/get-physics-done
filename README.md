@@ -112,7 +112,7 @@ Run its help command first: Claude Code / Gemini CLI use `/gpd:help`. Codex uses
 
 Expert fast path:
 
-- From inside the folder where your project should live, install GPD with the matching `npx -y get-physics-done` bootstrap command from [Start Here](#start-here), then launch `claude`, `codex`, `gemini`, or `opencode`.
+- From inside the folder where your project should live, install GPD with the matching `npx -y get-physics-done` bootstrap command from [Start Here](#start-here), then launch your selected runtime with `claude`, `gemini`, `codex`, or `opencode`.
 - Run the matching GPD help command shown in [Supported Runtimes](#supported-runtimes).
 - Then use `start` if you are not sure what fits this folder, `tour` for a read-only walkthrough, `new-project --minimal` for new work, `map-research` for existing work, or `resume-work` when you return later.
 - Treat the new-work choice as distinct from the existing-work choice; pick one, then follow it through.

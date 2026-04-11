@@ -98,3 +98,22 @@ def test_runtime_catalog_schema_required_optional_keys_partition_descriptor_fiel
 
     assert required_keys.isdisjoint(optional_keys)
     assert required_keys | optional_keys == descriptor_fields
+
+
+def test_runtime_catalog_descriptor_count_is_intentional() -> None:
+    descriptors = runtime_catalog.iter_runtime_descriptors()
+    catalog = _load_catalog()
+    expected_runtime_names = tuple(entry["runtime_name"] for entry in catalog)
+
+    assert len(descriptors) == len(catalog)
+    assert tuple(descriptor.runtime_name for descriptor in descriptors) == expected_runtime_names
+
+
+def test_runtime_catalog_schema_enum_inventory_matches_loader_shape() -> None:
+    schema = _load_schema()
+    loaded_shape = runtime_catalog._load_runtime_catalog_schema_shape()
+
+    assert set(schema["capability_enums"]) == set(runtime_catalog._RUNTIME_CAPABILITY_ENUMS)
+    for enum_name, allowed_values in schema["capability_enums"].items():
+        assert set(allowed_values) == set(loaded_shape["capability_enums"][enum_name])
+        assert set(allowed_values) == set(runtime_catalog._RUNTIME_CAPABILITY_ENUMS[enum_name])

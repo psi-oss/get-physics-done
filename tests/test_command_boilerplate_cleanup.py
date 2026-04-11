@@ -64,9 +64,15 @@ def test_standardized_thin_workflow_wrappers_stay_concise() -> None:
     for stem in THIN_WORKFLOW_WRAPPERS:
         path = COMMANDS_DIR / f"{stem}.md"
         text = path.read_text(encoding="utf-8")
-        line_count = len(text.splitlines())
+        body_lines = [
+            line
+            for line in text.splitlines()
+            if line.strip()
+            and not line.strip().startswith("---")
+            and not re.match(r"^[a-z_]+:", line.strip())
+        ]
 
-        assert line_count <= 45, f"{path.relative_to(REPO_ROOT)} grew to {line_count} lines"
+        assert len(body_lines) <= 24, f"{path.relative_to(REPO_ROOT)} grew beyond thin-wrapper policy"
         assert text.count("Keep this command wrapper thin; the workflow owns detailed method guidance.") == 1, path
         assert text.count("Do not restate workflow-owned checklists or compatibility policy here.") == 1, path
         assert text.count(f"@{{GPD_INSTALL_DIR}}/workflows/{stem}.md") == 2, path

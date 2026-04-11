@@ -11,7 +11,9 @@ TESTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TESTS_DIR.parent
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
+ALLOWLIST_DOC = REPO_ROOT / "docs" / "command-workflow-allowlist.md"
 _README_TEXT = (TESTS_DIR / "README.md").read_text(encoding="utf-8")
+_ALLOWLIST_TEXT = ALLOWLIST_DOC.read_text(encoding="utf-8")
 _LOCAL_CLI_BLOCK = "repo-graph-local-cli-only"
 _INTERNAL_WORKFLOW_BLOCK = "repo-graph-internal-workflow-only"
 _INTERNAL_WORKFLOW_MARKER = "<!-- internal-workflow-only -->"
@@ -66,6 +68,18 @@ def _internal_workflow_only_stems() -> tuple[str, ...]:
     return _parse_readme_block(_INTERNAL_WORKFLOW_BLOCK)
 
 
+def _parse_allowlist_section(heading: str) -> tuple[str, ...]:
+    pattern = re.compile(rf"^## {re.escape(heading)}\n\n(?P<body>.*?)(?=\n## |\Z)", re.DOTALL | re.MULTILINE)
+    match = pattern.search(_ALLOWLIST_TEXT)
+    if match is None:
+        raise AssertionError(f"Allowlist lacks {heading} section")
+    return tuple(
+        line.strip().removeprefix("- `").removesuffix("`")
+        for line in match.group("body").splitlines()
+        if line.strip().startswith("- `")
+    )
+
+
 def _load_command_frontmatter(path: Path) -> dict[str, object]:
     text = path.read_text(encoding="utf-8")
     if not text.lstrip().startswith("---"):
@@ -116,6 +130,7 @@ def test_command_wrappers_delegate_to_matching_workflow_names() -> None:
 
 def test_local_cli_only_commands_marked_and_exempt() -> None:
     local_cli_only = set(_local_cli_only_command_stems())
+    assert local_cli_only == set(_parse_allowlist_section("Command-only surfaces"))
     assert local_cli_only == {"health", "suggest-next"}
     assert set(_command_stems_without_workflows()) == local_cli_only
 
@@ -128,6 +143,7 @@ def test_local_cli_only_commands_marked_and_exempt() -> None:
 
 def test_internal_workflows_marked_and_documented() -> None:
     documented_internal = set(_internal_workflow_only_stems())
+    assert documented_internal == set(_parse_allowlist_section("Workflow-only surfaces"))
     assert documented_internal == {"execute-plan", "transition", "verify-phase"}
     all_workflows = {path.stem for path in WORKFLOWS_DIR.glob("*.md")}
     documented_delegated = set(_delegated_stem_names())

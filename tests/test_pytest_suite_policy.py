@@ -6,6 +6,8 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+
 import tests.conftest as tests_conftest
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
@@ -178,12 +180,24 @@ def test_hotspot_split_targets_exist_and_request_multiple_parts() -> None:
     assert all(split_count > 1 for split_count in CI_HOT_TEST_FILE_SPLITS.values())
 
 
+def test_runtime_adapter_hotspot_splits_target_catalog_adapters_without_collection() -> None:
+    splits = dict(CI_HOT_TEST_FILE_SPLITS)
+    adapter_test_paths = {
+        f"adapters/test_{descriptor.adapter_module}.py"
+        for descriptor in iter_runtime_descriptors()
+    }
+
+    assert adapter_test_paths <= set(splits)
+    assert all(splits[path] == 2 for path in adapter_test_paths)
+
+
 def test_fast_priority_targets_stay_inside_three_minute_policy() -> None:
     all_targets = {f"tests/{rel_path}" for rel_path in all_test_relpaths(tests_root=_repo_root() / "tests")}
+    target_files = {target.split("::", 1)[0] for target in CI_FAST_PRIORITY_TEST_TARGETS}
 
     assert CI_FAST_PRIORITY_TIMEOUT_MINUTES == CI_SMOKE_JOB_TIMEOUT_MINUTES == 3
     assert CI_FAST_PRIORITY_TEST_TARGETS == CI_SMOKE_TEST_TARGETS
-    assert set(CI_FAST_PRIORITY_TEST_TARGETS) <= all_targets
+    assert target_files <= all_targets
     assert all(target in CI_FAST_PRIORITY_TEST_TARGETS for target in CI_SMOKE_TEST_TARGETS)
 
 
