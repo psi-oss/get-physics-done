@@ -94,6 +94,59 @@ def _fix_unescaped_carets(tex: str) -> str:
     return "".join(result)
 
 
+def escape_user_text_for_latex(text: str) -> str:
+    r"""Escape LaTeX special characters in user-provided metadata fields.
+
+    Handles ``~``, ``#``, ``%``, and ``&`` which would otherwise be
+    interpreted as LaTeX commands (non-breaking space, macro parameter,
+    comment, alignment tab).
+
+    This function is intended for **user-provided metadata only** -- title,
+    abstract, author name/email/affiliation, and acknowledgments.  It must
+    NOT be applied to agent-generated LaTeX content (section bodies, figure
+    captions, appendix content) where these characters may be used
+    intentionally (e.g. ``Fig.~\ref{...}``, ``&`` in align environments).
+
+    ``attribution_footer`` is also excluded because it is template-generated
+    content (default: ``"Generated with Get Physics Done"``), not user input.
+    A custom footer containing ``%`` would silently truncate the line, but
+    this is extraordinarily unlikely given the field's purpose.
+
+    Math-mode regions (``$...$``, ``$$...$$``, ``\[...\]``, ``\(...\)``,
+    and ``\begin{equation}``-style environments) are preserved verbatim.
+
+    Known limitation: the ``(?<!\\)`` negative lookbehind cannot distinguish
+    a true escape prefix (``\#``) from an escaped backslash followed by a
+    bare special character (``\\#``).  In ``\\#``, the ``#`` is technically
+    unescaped but the lookbehind sees the preceding ``\`` and skips it.
+    This is a pre-existing architectural pattern shared by
+    :func:`_fix_unescaped_underscores` and :func:`_fix_unescaped_carets`;
+    fixing only this function would create an inconsistency.  The correct
+    fix (using ``(?<!\\)((?:\\\\)*)`` to handle even/odd backslash chains,
+    as ``_split_by_math_mode`` already does) should be applied to all three
+    functions simultaneously in a separate change.  The ``\\#`` input in
+    user metadata is extraordinarily unlikely.
+    """
+    parts = _split_by_math_mode(text)
+    result: list[str] = []
+    for content, is_math in parts:
+        if is_math:
+            result.append(content)
+        else:
+            # Order matters: escape backslash-sensitive chars before tilde.
+            # Use negative lookbehind to avoid double-escaping already-escaped
+            # sequences (e.g. \# in user input that was already LaTeX-aware).
+            # NOTE: the (?<!\\) lookbehind shares the \\X limitation
+            # documented above, consistent with _fix_unescaped_underscores
+            # and _fix_unescaped_carets.
+            fixed = re.sub(r"(?<!\\)#", r"\\#", content)
+            fixed = re.sub(r"(?<!\\)%", r"\\%", fixed)
+            fixed = re.sub(r"(?<!\\)&", r"\\&", fixed)
+            fixed = re.sub(r"(?<!\\)~", r"\\textasciitilde{}", fixed)
+            result.append(fixed)
+    return "".join(result)
+
+
 def _fix_missing_document_begin(tex: str) -> str:
     has_documentclass = re.search(r"\\documentclass", tex)
     has_begin_doc = re.search(r"\\begin\s*\{document\}", tex)

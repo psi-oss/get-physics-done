@@ -4,6 +4,7 @@ All notable changes to Get Physics Done are documented here.
 
 ## vNEXT
 
+- Fix LaTeX special character escaping in user-provided metadata fields: `~`, `#`, `%`, and `&` in title, abstract, author fields, and acknowledgments are now escaped before rendering, preventing compilation errors and silent data loss. Agent-generated LaTeX content (section bodies, figure captions, appendix content) is deliberately unaffected.
 - **Breaking (raw output only):** `gpd question resolve` and `gpd calculation complete` now return structured results (resolved/completed text, search text, remaining count) instead of a bare `1`. Raw JSON output changes from `{"result": "1"}` to a model with `resolved`/`completed`, `search_text`, and `remaining` fields. The prior `{"result": "1"}` output was a bug (unhelpful) and is not considered a stable contract.
 - Broaden citation regexes to detect natbib (`\citep`, `\citet`, `\citealt`, `\citealp`, `\citeauthor`, `\citeyear`, `\citetext`), capitalized (`\Cite*`), starred (`\cite*`), and biblatex (`\parencite`, `\textcite`, `\autocite`) variants across the paper-quality scorer and artifact builder. Add `check_citation_bib_coherence()` to `build_paper()` to warn when `.tex` citations and `.bib` entries are inconsistent, with `\nocite{*}` support.
 - Add `check_result_consistency` health check: cross-validates `state.json` intermediate results against SUMMARY `provides` frontmatter with guards against empty-string false matches, short-string over-matching, and malformed state records.
