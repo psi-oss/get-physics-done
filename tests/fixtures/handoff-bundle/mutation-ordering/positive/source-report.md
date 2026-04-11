@@ -2,8 +2,8 @@
 
 ## Scope
 
-Project: **Extending the restricted QFC beyond braneworlds**  
-Workspace: `03-shahbazi-r03`  
+Project: **Extending the restricted QFC beyond braneworlds**
+Workspace: `03-shahbazi-r03`
 Session date: **2026-04-09**
 
 This report now covers the bootstrap plus the session-4 root-cause audit and the session-5 write-path retest of the GPD command surfaces used in this workspace.
@@ -12,18 +12,18 @@ This report now covers the bootstrap plus the session-4 root-cause audit and the
 
 Three references still anchor the project contract and all tracked results:
 
-1. [Arvin Shahbazi-Moghaddam, *Restricted Quantum Focusing*, arXiv:2212.03881](https://arxiv.org/abs/2212.03881)  
-   Submitted **December 7, 2022**; revised **October 23, 2023**.  
+1. [Arvin Shahbazi-Moghaddam, *Restricted Quantum Focusing*, arXiv:2212.03881](https://arxiv.org/abs/2212.03881)
+   Submitted **December 7, 2022**; revised **October 23, 2023**.
    This remains the benchmark proof: rQFC is argued and, subject to a technical assumption, proved in brane-world semiclassical gravity theories holographically dual to higher-dimensional Einstein gravity.
 
-2. [Ido Ben-Dayan, *The Quantum Focusing Conjecture and the Improved Energy Condition*, arXiv:2310.14396](https://arxiv.org/abs/2310.14396)  
-   Submitted **October 22, 2023**.  
+2. [Ido Ben-Dayan, *The Quantum Focusing Conjecture and the Improved Energy Condition*, arXiv:2310.14396](https://arxiv.org/abs/2310.14396)
+   Submitted **October 22, 2023**.
    INSPIRE records this as **JHEP 02 (2024) 132**. The paper makes the restricted `Theta -> 0` limit operational by deriving the improved quantum null energy condition
    `T_{kk} >= hbar/(2*pi*A) (S''_{out} - (1/2) theta S'_{out})`,
    but it sketches rather than completes a field-theory proof route.
 
-3. [Victor Franken, Sami Kaya, François Rondeau, Arvin Shahbazi-Moghaddam, Patrick Tran, *Tests of restricted Quantum Focusing and a new CFT bound*, arXiv:2510.13961](https://arxiv.org/abs/2510.13961)  
-   Submitted **October 15, 2025**; revised **October 26, 2025**.  
+3. [Victor Franken, Sami Kaya, François Rondeau, Arvin Shahbazi-Moghaddam, Patrick Tran, *Tests of restricted Quantum Focusing and a new CFT bound*, arXiv:2510.13961](https://arxiv.org/abs/2510.13961)
+   Submitted **October 15, 2025**; revised **October 26, 2025**.
    This remains the strongest current non-braneworld anchor: it proves rQFC in a class of JT-gravity-plus-QFT toy models and, in a broad class of `d>2` states, forbids QNEC saturation faster than `O(A)` as the transverse area shrinks.
 
 ## Provisional Physics Assessment

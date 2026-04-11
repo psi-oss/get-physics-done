@@ -27,9 +27,9 @@ This roadmap treats the braneworld proof of rQFC as the benchmark anchor, then m
 
 ### Phase 1: Benchmark braneworld rQFC proof and extract indispensable ingredients
 
-**Goal:** Reconstruct the proof logic of arXiv:2212.03881 and separate structural ingredients from braneworld-specific conveniences.  
-**Depends on:** Nothing  
-**Requirements:** DERV-01, DERV-02, VALD-01  
+**Goal:** Reconstruct the proof logic of arXiv:2212.03881 and separate structural ingredients from braneworld-specific conveniences.
+**Depends on:** Nothing
+**Requirements:** DERV-01, DERV-02, VALD-01
 **Contract Coverage:**
 - Advances: `claim-main`, `deliv-map`
 - Deliverables: benchmark ingredient map, assumption ledger
@@ -50,9 +50,9 @@ Plans:
 
 ### Phase 2: Map non-braneworld evidence: Theta -> 0 limit, JT gravity, and d>2 consequences
 
-**Goal:** Translate the two main non-braneworld anchors into the same ingredient language built in Phase 1.  
-**Depends on:** Phase 1  
-**Requirements:** DERV-03, CALC-01, VALD-02  
+**Goal:** Translate the two main non-braneworld anchors into the same ingredient language built in Phase 1.
+**Depends on:** Phase 1
+**Requirements:** DERV-03, CALC-01, VALD-02
 **Contract Coverage:**
 - Advances: `claim-main`, `deliv-map`
 - Deliverables: limiting-case interpretation note, JT/d>2 benchmark table
@@ -73,9 +73,9 @@ Plans:
 
 ### Phase 3: Formulate and stress-test candidate beyond-braneworld extension strategy
 
-**Goal:** Use the benchmark comparison map to formulate a candidate minimal assumption set for beyond-braneworld rQFC.  
-**Depends on:** Phase 1, Phase 2  
-**Requirements:** DERV-04, CALC-02, VALD-03  
+**Goal:** Use the benchmark comparison map to formulate a candidate minimal assumption set for beyond-braneworld rQFC.
+**Depends on:** Phase 1, Phase 2
+**Requirements:** DERV-04, CALC-02, VALD-03
 **Contract Coverage:**
 - Advances: `claim-main`, `deliv-strategy`
 - Deliverables: candidate ingredient set, compatibility table, failure-mode list
@@ -96,9 +96,9 @@ Plans:
 
 ### Phase 4: Verify consistency, record obstructions, and define next derivation targets
 
-**Goal:** Decide whether the candidate strategy is viable, partially viable, or blocked, and record the strongest obstruction if blocked.  
-**Depends on:** Phase 2, Phase 3  
-**Requirements:** VALD-04, ANLY-01  
+**Goal:** Decide whether the candidate strategy is viable, partially viable, or blocked, and record the strongest obstruction if blocked.
+**Depends on:** Phase 2, Phase 3
+**Requirements:** VALD-04, ANLY-01
 **Contract Coverage:**
 - Advances: `claim-main`, `deliv-strategy`
 - Deliverables: obstruction ledger, false-progress ledger, next-derivation queue
@@ -118,7 +118,7 @@ Plans:
 
 ## Progress
 
-**Execution Order:**  
+**Execution Order:**
 Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
