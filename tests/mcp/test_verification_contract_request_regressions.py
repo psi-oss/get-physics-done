@@ -298,8 +298,12 @@ def test_run_contract_check_rejects_non_exact_check_identifiers(
 ) -> None:
     from gpd.mcp.servers.verification_server import run_contract_check
 
-    assert run_contract_check(request_payload) == expected_error
-    assert _call_verification_tool("run_contract_check", {"request": request_payload}) == expected_error
+    for result in (
+        run_contract_check(request_payload),
+        _call_verification_tool("run_contract_check", {"request": request_payload}),
+    ):
+        assert result["error"] == expected_error["error"]
+        assert result["schema_version"] == expected_error["schema_version"]
 
 
 def test_run_contract_check_accepts_typed_nested_request_objects() -> None:
@@ -446,8 +450,21 @@ def test_run_contract_check_request_shape_errors_stay_minimal_with_valid_check_k
         "schema_version": 1,
     }
 
-    assert run_contract_check(request_payload) == expected_error
-    assert _call_verification_tool("run_contract_check", {"request": request_payload}) == expected_error
+    result = run_contract_check(request_payload)
+    mcp_result = _call_verification_tool("run_contract_check", {"request": request_payload})
+    for actual in (result, mcp_result):
+        assert actual["error"] == expected_error["error"]
+        assert actual["schema_version"] == expected_error["schema_version"]
+        assert actual["allowed_top_level_request_fields"] == [
+            "check_key",
+            "contract",
+            "binding",
+            "metadata",
+            "observed",
+            "artifact_content",
+        ]
+        assert actual["schema_required_request_fields"] == ["observed.metric_value", "observed.threshold_value"]
+        assert actual["schema_required_request_anyof_fields"] == [["metadata.source_reference_id"], ["contract"]]
 
 
 def test_contract_tools_reject_blank_scalar_to_list_drift() -> None:
@@ -539,6 +556,36 @@ def test_contract_check_request_templates_use_string_artifact_placeholders() -> 
             assert template["artifact_content"] == ""
 
 
+def test_contract_check_request_templates_use_replace_me_sentinels_not_plausible_values() -> None:
+    from gpd.mcp.servers.verification_server import _CONTRACT_CHECK_REQUEST_HINTS
+
+    serialized = json.dumps(_CONTRACT_CHECK_REQUEST_HINTS)
+
+    assert "hypothesis-placeholder" not in serialized
+    assert "param-1" not in serialized
+    assert "Claim statement placeholder" not in serialized
+    assert "<replace-with-hypothesis-id>" in serialized
+    assert "<replace-with-theorem-parameter-symbol>" in serialized
+    assert "<replace-with-claim-statement>" in serialized
+
+
+def test_run_contract_check_rejects_unreplaced_request_template_sentinels() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    request_payload = {
+        "check_key": "contract.proof_parameter_coverage",
+        "metadata": {"theorem_parameter_symbols": ["<replace-with-theorem-parameter-symbol>"]},
+        "observed": {"covered_parameter_symbols": ["r_0"]},
+    }
+
+    result = run_contract_check(request_payload)
+
+    assert "unreplaced request_template sentinel" in result["error"]
+    assert result["request_template"]["metadata"]["theorem_parameter_symbols"] == [
+        "<replace-with-theorem-parameter-symbol>"
+    ]
+
+
 def test_contract_parse_recoverability_keeps_case_drift_nonblocking() -> None:
     from gpd.mcp.servers.verification_server import _is_recoverable_contract_parse_error, run_contract_check
 
@@ -624,5 +671,17 @@ def test_run_contract_check_rejects_unknown_keys_as_stable_request_errors(
 ) -> None:
     from gpd.mcp.servers.verification_server import run_contract_check
 
-    assert run_contract_check(request_payload) == expected_error
-    assert _call_verification_tool("run_contract_check", {"request": request_payload}) == expected_error
+    for result in (
+        run_contract_check(request_payload),
+        _call_verification_tool("run_contract_check", {"request": request_payload}),
+    ):
+        assert result["error"] == expected_error["error"]
+        assert result["schema_version"] == expected_error["schema_version"]
+        assert result["allowed_top_level_request_fields"] == [
+            "check_key",
+            "contract",
+            "binding",
+            "metadata",
+            "observed",
+            "artifact_content",
+        ]

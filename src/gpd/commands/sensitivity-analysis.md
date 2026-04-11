@@ -15,7 +15,7 @@ allowed-tools:
 ---
 
 <objective>
-Systematic sensitivity analysis -- which parameters matter most and how uncertainties propagate. Keep this command wrapper thin; the workflow owns detailed method guidance.
+Rank parameter influence and uncertainty propagation through the workflow.
 </objective>
 
 <execution_context>
@@ -31,5 +31,5 @@ If the target is empty, ask one concise clarification before proceeding. Otherwi
 <process>
 Run `gpd --raw validate command-context sensitivity-analysis` before execution.
 
-Execute the workflow at `@{GPD_INSTALL_DIR}/workflows/sensitivity-analysis.md` end-to-end. Do not restate workflow-owned checklists or compatibility policy here.
+Execute the workflow end-to-end; keep method details in `@{GPD_INSTALL_DIR}/workflows/sensitivity-analysis.md`.
 </process>

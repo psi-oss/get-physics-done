@@ -14,11 +14,7 @@ allowed-tools:
 
 
 <objective>
-Systematically identify all relevant limiting cases for a physics result and verify that each limit is correctly recovered. This is the single most powerful verification tool in theoretical physics.
-
-**Why a dedicated command:** Checking limiting cases ad hoc misses limits. A systematic audit ensures every physically meaningful limit is checked. When a result fails a known limit, the error is localized: something in the derivation breaks in that regime, which dramatically narrows the search space for debugging.
-
-**The principle:** Every new result must reduce to known results in appropriate limits. If it doesn't, the new result is wrong (or the known result is wrong, which is rare but possible). There are no exceptions to this principle.
+Systematically identify relevant limiting cases for a physics result or phase and verify that each expected limit is recovered through the workflow.
 </objective>
 
 <context>
@@ -55,8 +51,6 @@ fi
 ```
 
 Follow the limiting-cases workflow: @{GPD_INSTALL_DIR}/workflows/limiting-cases.md
-
-**For comprehensive verification** (dimensional analysis + limiting cases + symmetries + convergence), use `gpd:verify-work`.
 </process>
 
 <success_criteria>

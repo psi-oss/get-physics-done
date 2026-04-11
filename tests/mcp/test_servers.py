@@ -2936,13 +2936,19 @@ class TestVerificationServer:
 
         result = run_contract_check({"check_id": "contract.limit_recovery "})
 
-        assert result == {
-            "error": (
-                "request contains unsupported keys: check_id; supported keys are "
-                "check_key, contract, binding, metadata, observed, artifact_content"
-            ),
-            "schema_version": 1,
-        }
+        assert result["error"] == (
+            "request contains unsupported keys: check_id; supported keys are "
+            "check_key, contract, binding, metadata, observed, artifact_content"
+        )
+        assert result["schema_version"] == 1
+        assert result["allowed_top_level_request_fields"] == [
+            "check_key",
+            "contract",
+            "binding",
+            "metadata",
+            "observed",
+            "artifact_content",
+        ]
 
     def test_run_contract_check_preserves_plural_binding_lists(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -3565,7 +3571,9 @@ class TestVerificationServer:
         proof_check = next(
             entry for entry in result["universal_checks"] if entry["check_key"] == "contract.proof_parameter_coverage"
         )
-        assert proof_check["request_template"]["metadata"]["theorem_parameter_symbols"] == ["param-1"]
+        assert proof_check["request_template"]["metadata"]["theorem_parameter_symbols"] == [
+            "<replace-with-theorem-parameter-symbol>"
+        ]
 
     def test_get_checklist_unknown_domain(self):
         from gpd.mcp.servers.verification_server import get_checklist

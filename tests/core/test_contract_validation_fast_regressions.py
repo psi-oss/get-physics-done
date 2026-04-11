@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 
 from gpd.contracts import ResearchContract, collect_plan_contract_integrity_errors, parse_project_contract_data_strict
@@ -168,6 +169,49 @@ def test_fast_contract_validation_strict_rejects_nested_collection_string_list_f
     assert result.contract is None
     assert "deliverables.0.must_contain must be a list, not str" in result.blocking_errors
     assert result.recoverable_errors == []
+
+
+def test_fast_contract_validation_salvage_surfaces_nested_scalar_string_list_field_as_recoverable() -> None:
+    contract = _load_contract_fixture()
+    contract["deliverables"][0]["must_contain"] = "caption"
+
+    result = parse_project_contract_data_salvage(contract)
+
+    assert result.contract is not None
+    assert result.blocking_errors == []
+    assert "deliverables.0.must_contain must be a list, not str" in result.recoverable_errors
+
+
+def test_fast_contract_validation_salvage_is_stable_and_does_not_mutate_authored_input() -> None:
+    contract = _load_contract_fixture()
+    contract["context_intake"]["must_read_refs"] = ["ref-benchmark", " "]
+    contract["references"][0]["role"] = "Benchmark"
+    original = deepcopy(contract)
+
+    first = parse_project_contract_data_salvage(contract)
+    second = parse_project_contract_data_salvage(contract)
+
+    assert contract == original
+    assert first.contract is not None
+    assert second.contract is not None
+    assert first.contract.model_dump(mode="json") == second.contract.model_dump(mode="json")
+    assert first.blocking_errors == second.blocking_errors
+    assert first.recoverable_errors == second.recoverable_errors
+
+
+def test_fast_contract_validation_strict_is_stable_and_does_not_mutate_authored_input() -> None:
+    contract = _load_contract_fixture()
+    contract["approach_policy"] = {"allowed_fit_families": "power-law"}
+    original = deepcopy(contract)
+
+    first = parse_project_contract_data_strict(contract)
+    second = parse_project_contract_data_strict(contract)
+
+    assert contract == original
+    assert first.contract is None
+    assert second.contract is None
+    assert first.blocking_errors == second.blocking_errors
+    assert first.recoverable_errors == second.recoverable_errors == []
 
 
 def test_fast_contract_validation_strict_rejects_exact_literal_case_drift_without_salvage() -> None:

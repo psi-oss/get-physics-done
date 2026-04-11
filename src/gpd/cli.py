@@ -5065,12 +5065,17 @@ def _resolve_permissions_runtime_name(
     return detected
 
 
-def _resolve_permissions_autonomy(autonomy: str | None, *, strict: bool = True) -> str:
+def _resolve_permissions_autonomy(
+    autonomy: str | None,
+    *,
+    strict: bool = True,
+    cwd: Path | None = None,
+) -> str:
     """Resolve the autonomy value used for runtime-permission sync."""
     from gpd.core.config import AutonomyMode, load_config
 
     if autonomy is None:
-        return load_config(_get_cwd()).autonomy.value
+        return load_config(cwd or _get_cwd()).autonomy.value
 
     normalized = autonomy.strip().lower()
     valid_values = {mode.value for mode in AutonomyMode}
@@ -5251,6 +5256,7 @@ def _runtime_permissions_payload(
     apply_sync: bool,
     strict: bool,
     prefer_installed_runtime: bool = False,
+    cwd: Path | None = None,
 ) -> dict[str, object]:
     """Return runtime-permissions status or sync payload for the selected runtime."""
     from gpd.adapters import get_adapter
@@ -5290,6 +5296,19 @@ def _runtime_permissions_payload(
         )
 
     try:
+        autonomy_value = _resolve_permissions_autonomy(autonomy, strict=strict, cwd=cwd)
+    except _PermissionsResolutionError as exc:
+        return _annotate_permissions_payload(
+            {
+                "runtime": runtime_name,
+                "target": None,
+                "sync_applied": False,
+                "changed": False,
+                "message": str(exc),
+            }
+        )
+
+    try:
         resolved_target_dir = _resolve_permissions_target_dir(
             runtime_name,
             target_dir=target_dir,
@@ -5309,7 +5328,6 @@ def _runtime_permissions_payload(
 
     adapter = get_adapter(runtime_name)
 
-    autonomy_value = _resolve_permissions_autonomy(autonomy, strict=strict)
     payload = (
         adapter.sync_runtime_permissions(resolved_target_dir, autonomy=autonomy_value)
         if apply_sync
@@ -5341,6 +5359,7 @@ def _permissions_status_payload(
         apply_sync=False,
         strict=True,
         prefer_installed_runtime=True,
+        cwd=_project_scoped_cwd(),
     )
     return normalize_permissions_readiness_payload(
         payload,
@@ -5385,6 +5404,7 @@ def permissions_sync(
             apply_sync=True,
             strict=True,
             prefer_installed_runtime=True,
+            cwd=_project_scoped_cwd(),
         )
     )
 
@@ -5455,6 +5475,8 @@ def config_set(
             target_dir=None,
             apply_sync=True,
             strict=False,
+            prefer_installed_runtime=True,
+            cwd=project_root,
         )
     _output(result)
 
@@ -8633,6 +8655,8 @@ def _prompt_runtimes(*, action: str = "install") -> list[str]:
     from rich.prompt import Prompt
 
     runtimes = _list_runtimes_or_error(action=f"{action} runtime selection")
+    if not runtimes:
+        _error(f"No supported runtimes are available for {action}.")
     adapters = {runtime: _get_adapter_or_error(runtime, action=f"{action} runtime selection") for runtime in runtimes}
     label_width = max(len(adapter.display_name) for adapter in adapters.values())
     all_label = "All runtimes"
@@ -8736,6 +8760,7 @@ def _install_single_runtime(
     *,
     is_global: bool,
     target_dir_override: str | None = None,
+    resolved_target_override: Path | None = None,
 ) -> dict[str, object]:
     """Install GPD for a single runtime. Returns install result dict."""
     from gpd.version import resolve_install_gpd_root
@@ -8743,7 +8768,9 @@ def _install_single_runtime(
     adapter = _get_adapter_or_error(runtime_name, action="install")
     gpd_root = resolve_install_gpd_root(_get_cwd())
 
-    if target_dir_override:
+    if resolved_target_override is not None:
+        dest = resolved_target_override
+    elif target_dir_override:
         dest = _resolve_cli_target_dir(target_dir_override)
     else:
         dest = adapter.resolve_target_dir(is_global, _get_cwd())
@@ -9289,7 +9316,12 @@ def install(
             adapter = _get_adapter_or_error(rt, action="install")
             task = progress.add_task(f"Installing {adapter.display_name}...", total=None)
             try:
-                result = _install_single_runtime(rt, is_global=is_global, target_dir_override=target_dir)
+                result = _install_single_runtime(
+                    rt,
+                    is_global=is_global,
+                    target_dir_override=target_dir,
+                    resolved_target_override=resolved_target_override,
+                )
                 adapter.finalize_install(result, force_statusline=force_statusline)
                 results.append((rt, result))
                 progress.update(task, description=f"[green]✓[/] {adapter.display_name}")

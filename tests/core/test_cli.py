@@ -17,6 +17,7 @@ from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
 import gpd.cli as cli_module
@@ -824,6 +825,56 @@ def test_permissions_runtime_resolution_prefers_installed_runtime_selector_when_
     assert resolved == FOREIGN_RUNTIME
 
 
+def test_runtime_permissions_payload_validates_autonomy_before_target_lookup() -> None:
+    with (
+        patch("gpd.cli._resolve_permissions_runtime_name", return_value=PRIMARY_RUNTIME),
+        patch(
+            "gpd.cli._resolve_permissions_autonomy",
+            side_effect=cli_module._PermissionsResolutionError("Unknown autonomy 'balnced'"),
+        ) as resolve_autonomy,
+        patch("gpd.cli._resolve_permissions_target_dir") as resolve_target,
+    ):
+        payload = cli_module._runtime_permissions_payload(
+            runtime=PRIMARY_RUNTIME,
+            autonomy="balnced",
+            target_dir=None,
+            apply_sync=True,
+            strict=False,
+            cwd=Path("/tmp/project-root"),
+        )
+
+    resolve_autonomy.assert_called_once_with("balnced", strict=False, cwd=Path("/tmp/project-root"))
+    resolve_target.assert_not_called()
+    assert payload["runtime"] == PRIMARY_RUNTIME
+    assert payload["target"] is None
+    assert payload["sync_applied"] is False
+    assert payload["message"] == "Unknown autonomy 'balnced'"
+
+
+def test_config_set_autonomy_sync_prefers_installed_runtime_and_project_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    captured: dict[str, object] = {}
+
+    def fake_runtime_permissions_payload(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {"message": "synced"}
+
+    monkeypatch.setattr(cli_module, "_runtime_permissions_payload", fake_runtime_permissions_payload)
+
+    result = runner.invoke(app, ["--raw", "config", "set", "autonomy", "yolo"])
+
+    assert result.exit_code == 0
+    assert captured["runtime"] is None
+    assert captured["autonomy"] == "yolo"
+    assert captured["apply_sync"] is True
+    assert captured["strict"] is False
+    assert captured["prefer_installed_runtime"] is True
+    assert captured["cwd"] == tmp_path
+
+
 def test_permissions_status_surfaces_runtime_capabilities_and_config_scope() -> None:
     runtime = _CONFIG_FILE_RUNTIME
     target_dir = runtime_target_dir(Path("/tmp"), runtime)
@@ -938,6 +989,49 @@ def test_runtime_permissions_sync_payload_surfaces_launch_wrapper_scope() -> Non
     assert payload["requested_surface"] == "prompt-free"
     assert payload["status_scope"] == "next-launch"
     assert payload["current_session_verified"] is False
+
+
+def test_prompt_runtimes_reports_empty_runtime_registry() -> None:
+    with patch("gpd.cli._list_runtimes_or_error", return_value=[]):
+        with pytest.raises(typer.Exit):
+            cli_module._prompt_runtimes(action="install")
+
+
+def test_install_single_runtime_reuses_resolved_target_override(tmp_path: Path) -> None:
+    resolved_target = tmp_path / "resolved-runtime"
+    unresolved_target = tmp_path / "unresolved-runtime"
+    calls: dict[str, object] = {}
+
+    class _InstallAdapter:
+        def install(self, gpd_root: Path, dest: Path, *, is_global: bool, explicit_target: bool) -> dict[str, object]:
+            calls.update(
+                {
+                    "gpd_root": gpd_root,
+                    "dest": dest,
+                    "is_global": is_global,
+                    "explicit_target": explicit_target,
+                }
+            )
+            return {"target": str(dest)}
+
+        def resolve_target_dir(self, is_global: bool, cwd: Path) -> Path:
+            raise AssertionError("resolved override should be reused")
+
+    with (
+        patch("gpd.cli._get_adapter_or_error", return_value=_InstallAdapter()),
+        patch("gpd.cli._resolve_cli_target_dir", side_effect=AssertionError("target should not be resolved twice")),
+        patch("gpd.version.resolve_install_gpd_root", return_value=tmp_path / "gpd-root"),
+    ):
+        result = cli_module._install_single_runtime(
+            PRIMARY_RUNTIME,
+            is_global=False,
+            target_dir_override=str(unresolved_target),
+            resolved_target_override=resolved_target,
+        )
+
+    assert result == {"target": str(resolved_target)}
+    assert calls["dest"] == resolved_target
+    assert calls["explicit_target"] is True
 
 
 def _write_install_manifest(config_dir: Path, *, runtime: str, install_scope: str = "local", raw: str | None = None) -> None:

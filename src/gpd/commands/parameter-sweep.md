@@ -15,7 +15,7 @@ allowed-tools:
 ---
 
 <objective>
-Systematic parameter sweep with parallel execution and result aggregation. Keep this command wrapper thin; the workflow owns detailed method guidance.
+Run a systematic parameter sweep with parallel execution and result aggregation through the workflow.
 </objective>
 
 <execution_context>
@@ -29,5 +29,5 @@ If the target is empty, ask one concise clarification before proceeding. Otherwi
 </context>
 
 <process>
-Execute the workflow at `@{GPD_INSTALL_DIR}/workflows/parameter-sweep.md` end-to-end. Do not restate workflow-owned checklists or compatibility policy here.
+Execute the workflow end-to-end; keep method details in `@{GPD_INSTALL_DIR}/workflows/parameter-sweep.md`.
 </process>

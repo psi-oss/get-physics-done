@@ -14,7 +14,7 @@ allowed-tools:
 ---
 
 <objective>
-Systematic convergence testing for numerical physics computations. Keep this command wrapper thin; the workflow owns detailed method guidance.
+Run systematic convergence testing for numerical physics computations through the workflow.
 </objective>
 
 <execution_context>
@@ -28,5 +28,5 @@ If the target is empty, ask one concise clarification before proceeding. Otherwi
 </context>
 
 <process>
-Execute the workflow at `@{GPD_INSTALL_DIR}/workflows/numerical-convergence.md` end-to-end. Do not restate workflow-owned checklists or compatibility policy here.
+Execute the workflow end-to-end; keep method details in `@{GPD_INSTALL_DIR}/workflows/numerical-convergence.md`.
 </process>

@@ -34,6 +34,11 @@ VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT = ", ".join(
     f"`{field_name}`" for field_name in VERIFICATION_REQUEST_CONSTRAINT_FIELD_NAMES
 )
 VERIFICATION_BINDING_FIELD_TEXT = ", ".join(f"`{field}`" for field in VERIFICATION_BINDING_FIELD_NAMES)
+VERIFICATION_RUN_CONTRACT_CHECK_REQUEST_SHAPE_TEXT = (
+    "`run_contract_check` takes `{request: {check_key, contract?, binding?, metadata?, observed?, "
+    "artifact_content?}, project_dir?}`. Fill `request_template` values from `suggest_contract_checks`; "
+    "replace every `<replace-with-...>` sentinel before execution."
+)
 
 PROJECT_CONTRACT_APPROVAL_REQUIREMENTS = (
     "`schema_version` must be integer `1`.",
@@ -67,6 +72,7 @@ _VERIFICATION_CONTRACT_POLICY_CLAUSES = (
     "Proof checks must omit or exactly match derived metadata keys `metadata.expected_behavior`, "
     "`metadata.claim_statement`, `metadata.hypothesis_ids`, `metadata.theorem_parameter_symbols`, and `metadata.conclusion_clause_ids`.",
     "Call `suggest_contract_checks(...)` before every `run_contract_check(...)`, using its metadata to populate the request template entries.",
+    VERIFICATION_RUN_CONTRACT_CHECK_REQUEST_SHAPE_TEXT,
 )
 
 VERIFICATION_CONTRACT_POLICY_TEXT = "Contract payload rules: " + " ".join(

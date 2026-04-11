@@ -157,6 +157,30 @@ def _load_json_strict_no_duplicate_keys(path: Path) -> object:
     return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate_keys)
 
 
+def _require_string_tuple(
+    value: object,
+    *,
+    label: str,
+    allow_empty: bool,
+) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise ValueError(f"{label} must be a list of strings")
+    if not value and not allow_empty:
+        raise ValueError(f"{label} must contain at least one string")
+
+    items: list[str] = []
+    seen: set[str] = set()
+    for index, item in enumerate(value):
+        item_label = f"{label}[{index}]"
+        if not isinstance(item, str) or not item or item.strip() != item:
+            raise ValueError(f"{item_label} must be a non-empty string")
+        if item in seen:
+            raise ValueError(f"{label} must not contain duplicate values")
+        seen.add(item)
+        items.append(item)
+    return tuple(items)
+
+
 @lru_cache(maxsize=1)
 def _load_runtime_catalog_schema_shape() -> dict[str, object]:
     schema_path = _runtime_catalog_schema_path()
@@ -184,29 +208,6 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
     schema_version = raw_schema.get("schema_version")
     if type(schema_version) is not int or schema_version != 1:
         raise ValueError(f"Unsupported runtime catalog schema_version: {schema_version!r}")
-
-    def _require_string_tuple(
-        value: object,
-        *,
-        label: str,
-        allow_empty: bool,
-    ) -> tuple[str, ...]:
-        if not isinstance(value, list):
-            raise ValueError(f"{label} must be a list of strings")
-        if not value and not allow_empty:
-            raise ValueError(f"{label} must contain at least one string")
-
-        items: list[str] = []
-        seen: set[str] = set()
-        for index, item in enumerate(value):
-            item_label = f"{label}[{index}]"
-            if not isinstance(item, str) or not item or item.strip() != item:
-                raise ValueError(f"{item_label} must be a non-empty string")
-            if item in seen:
-                raise ValueError(f"{label} must not contain duplicate values")
-            seen.add(item)
-            items.append(item)
-        return tuple(items)
 
     def _require_schema_mapping(value: object, *, label: str) -> dict[str, object]:
         if not isinstance(value, dict) or not value:
@@ -407,29 +408,6 @@ def _require_int(value: object, *, label: str) -> int:
     if type(value) is not int:
         raise ValueError(f"{label} must be an integer")
     return value
-
-
-def _require_string_tuple(
-    value: object,
-    *,
-    label: str,
-    allow_empty: bool,
-) -> tuple[str, ...]:
-    if not isinstance(value, list):
-        raise ValueError(f"{label} must be a list of strings")
-    if not value and not allow_empty:
-        raise ValueError(f"{label} must contain at least one string")
-
-    items: list[str] = []
-    seen: set[str] = set()
-    for index, item in enumerate(value):
-        item_label = f"{label}[{index}]"
-        normalized = _require_string(item, label=item_label)
-        if normalized in seen:
-            raise ValueError(f"{label} must not contain duplicate values")
-        seen.add(normalized)
-        items.append(normalized)
-    return tuple(items)
 
 
 def _parse_global_config(entry: dict[str, object], *, label: str) -> GlobalConfigPolicy:

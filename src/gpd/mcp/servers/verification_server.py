@@ -60,6 +60,7 @@ from gpd.mcp.servers import (
 from gpd.mcp.verification_contract_policy import (
     VERIFICATION_BINDING_FIELD_NAMES,
     VERIFICATION_BINDING_TARGETS,
+    VERIFICATION_RUN_CONTRACT_CHECK_REQUEST_SHAPE_TEXT,
     VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT,
     verification_contract_policy_text,
     verification_contract_surface_summary_text,
@@ -197,12 +198,12 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "declared_family": "bootstrap",
+                "declared_family": "<replace-with-declared-estimator-family>",
                 "allowed_families": [],
                 "forbidden_families": [],
             },
             "observed": {
-                "selected_family": "bootstrap",
+                "selected_family": "<replace-with-selected-estimator-family>",
                 "bias_checked": False,
                 "calibration_checked": False,
             },
@@ -223,7 +224,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "hypothesis_ids": ["hypothesis-placeholder"],
+                "hypothesis_ids": ["<replace-with-hypothesis-id>"],
             },
             "observed": {
                 "covered_hypothesis_ids": [],
@@ -246,7 +247,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "theorem_parameter_symbols": ["param-1"],
+                "theorem_parameter_symbols": ["<replace-with-theorem-parameter-symbol>"],
             },
             "observed": {
                 "covered_parameter_symbols": [],
@@ -298,7 +299,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "claim_statement": "Claim statement placeholder",
+                "claim_statement": "<replace-with-claim-statement>",
             },
             "observed": {
                 "scope_status": "unclear",
@@ -312,7 +313,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "claim_statement": "Claim statement placeholder",
+                "claim_statement": "<replace-with-claim-statement>",
             },
             "observed": {
                 "counterexample_status": "not_attempted",
@@ -1054,7 +1055,13 @@ _RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] = (
     "`supported_binding_fields`, and a starter `request_template`; fill every schema-required field "
     "and one any-of branch before execution."
 )
-_RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] += " Hard request constraint fields surfaced by hints: " + VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT + "."
+_RUN_CONTRACT_CHECK_REQUEST_SCHEMA["description"] += (
+    " "
+    + VERIFICATION_RUN_CONTRACT_CHECK_REQUEST_SHAPE_TEXT
+    + " Hard request constraint fields surfaced by hints: "
+    + VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT
+    + "."
+)
 all_of_conditions: list[dict[str, object]] = []
 if _RUN_CONTRACT_CHECK_BINDING_CONDITIONS:
     all_of_conditions.extend(_RUN_CONTRACT_CHECK_BINDING_CONDITIONS)
@@ -1141,6 +1148,8 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         if len(allowed_family_values) == 1:
             metadata["declared_family"] = allowed_family_values[0]
             _demote_required_field("metadata.declared_family")
+        elif _contains_unreplaced_request_template_sentinel(metadata.get("declared_family")):
+            metadata.pop("declared_family", None)
 
     if contract is None:
         return enriched_hint
@@ -1716,15 +1725,33 @@ def _is_self_repairable_payload_shape_error(message: object) -> bool:
     return message.endswith(" must be an object") or " must be a non-empty string" in message or " must be a non-empty list" in message
 
 
-def _validate_run_contract_check_request_keys(request: dict[str, object]) -> str | None:
+def _run_contract_check_request_shape_guidance(check_key: str | None = None) -> dict[str, object]:
+    """Return model-facing request shape metadata for repairable request errors."""
+
+    guidance: dict[str, object] = {
+        "allowed_top_level_request_fields": list(RunContractCheckRequest.model_fields),
+        "request_shape": VERIFICATION_RUN_CONTRACT_CHECK_REQUEST_SHAPE_TEXT,
+    }
+    if check_key and get_verification_check(check_key) is not None:
+        guidance.update(_contract_check_request_hint(check_key))
+    return guidance
+
+
+def _validate_run_contract_check_request_keys(request: dict[str, object]) -> dict[str, object] | None:
     """Reject unknown keys in the run_contract_check request sections."""
+
+    check_key = request.get("check_key") if isinstance(request.get("check_key"), str) else None
+    guidance = _run_contract_check_request_shape_guidance(check_key)
 
     request_fields = tuple(RunContractCheckRequest.model_fields)
     unknown_request_keys = sorted(str(key) for key in request if key not in request_fields)
     if unknown_request_keys:
         supported = ", ".join(request_fields)
         joined = ", ".join(unknown_request_keys)
-        return f"request contains unsupported keys: {joined}; supported keys are {supported}"
+        return {
+            "error": f"request contains unsupported keys: {joined}; supported keys are {supported}",
+            **guidance,
+        }
 
     for section_name, model in (
         ("metadata", ContractMetadataRequest),
@@ -1738,9 +1765,45 @@ def _validate_run_contract_check_request_keys(request: dict[str, object]) -> str
         if unknown_section_keys:
             supported = ", ".join(section_fields)
             joined = ", ".join(unknown_section_keys)
-            return f"{section_name} contains unsupported keys: {joined}; supported keys are {supported}"
+            return {
+                "error": f"{section_name} contains unsupported keys: {joined}; supported keys are {supported}",
+                **guidance,
+            }
 
     return None
+
+
+def _contains_unreplaced_request_template_sentinel(value: object) -> bool:
+    """Return whether a request still contains a visible request-template sentinel."""
+
+    if isinstance(value, str):
+        return value.startswith("<replace-with-") and value.endswith(">")
+    if isinstance(value, list):
+        return any(_contains_unreplaced_request_template_sentinel(item) for item in value)
+    if isinstance(value, dict):
+        return any(_contains_unreplaced_request_template_sentinel(item) for item in value.values())
+    return False
+
+
+def _request_template_seed_sections(request: dict[str, object]) -> dict[str, object]:
+    """Return request sections copied from request templates, excluding contract payloads."""
+
+    return {
+        key: copy.deepcopy(value)
+        for key, value in request.items()
+        if key in {"binding", "metadata", "observed", "artifact_content"}
+    }
+
+
+def _request_key_error_result(error_payload: dict[str, object]) -> dict[str, object]:
+    """Return a stable error envelope while preserving request-repair metadata."""
+
+    response = _error_result(error_payload.get("error", "invalid run_contract_check request"))
+    for key, value in error_payload.items():
+        if key in {"error", "schema_version"}:
+            continue
+        response[key] = copy.deepcopy(value)
+    return response
 
 
 def _payload_mapping(value: object, *, field_name: str) -> tuple[dict[str, object] | None, dict[str, object] | None]:
@@ -3734,7 +3797,7 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 return error
             request_key_error = _validate_run_contract_check_request_keys(request)
             if request_key_error is not None:
-                return _error_result(request_key_error)
+                return _request_key_error_result(request_key_error)
             check_key_value, error = _validate_check_identifier(request.get("check_key"), field_name="check_key")
             if error is not None:
                 return error
@@ -3747,6 +3810,12 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
             check_id = check_meta.check_id
             if not check_meta.contract_aware:
                 return _error_result(f"Check {check_id} is not contract-aware")
+
+            if _contains_unreplaced_request_template_sentinel(_request_template_seed_sections(request)):
+                return _contract_check_error_result(
+                    "request contains unreplaced request_template sentinel values; replace every <replace-with-...> value before execution",
+                    check_meta.check_key,
+                )
 
             contract_raw, error = _optional_mapping_field(request, "contract")
             if error is not None:

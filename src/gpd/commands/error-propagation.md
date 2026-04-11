@@ -15,7 +15,7 @@ allowed-tools:
 ---
 
 <objective>
-Track how uncertainties propagate through multi-step calculations across phases. Keep this command wrapper thin; the workflow owns detailed method guidance.
+Track uncertainty propagation through multi-step calculations across phases via the workflow.
 </objective>
 
 <execution_context>
@@ -29,5 +29,5 @@ If the target is empty, ask one concise clarification before proceeding. Otherwi
 </context>
 
 <process>
-Execute the workflow at `@{GPD_INSTALL_DIR}/workflows/error-propagation.md` end-to-end. Do not restate workflow-owned checklists or compatibility policy here.
+Execute the workflow end-to-end; keep method details in `@{GPD_INSTALL_DIR}/workflows/error-propagation.md`.
 </process>

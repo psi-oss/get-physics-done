@@ -10,7 +10,9 @@ from pathlib import Path
 
 import pytest
 
+import gpd.adapters as adapters
 import gpd.adapters.runtime_catalog as runtime_catalog
+from gpd.command_labels import runtime_public_command_prefixes, validated_public_command_prefix
 from gpd.adapters.runtime_catalog import (
     get_hook_payload_policy,
     get_managed_install_surface_policy,
@@ -251,6 +253,37 @@ def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> N
             assert normalize_runtime_name(selection_flag) == runtime_name
         for selection_alias in descriptor.selection_aliases:
             assert normalize_runtime_name(selection_alias) == runtime_name
+
+
+def test_runtime_catalog_and_adapter_registry_have_no_orphans() -> None:
+    descriptor_names = tuple(descriptor.runtime_name for descriptor in iter_runtime_descriptors())
+    adapter_names = tuple(adapter.runtime_name for adapter in adapters.iter_adapters())
+
+    assert adapter_names == descriptor_names
+    assert adapters.list_runtimes() == list(descriptor_names)
+    assert list_runtime_names() == list(descriptor_names)
+
+
+def test_runtime_catalog_adapter_instances_mirror_descriptor_identity_fields() -> None:
+    for descriptor in iter_runtime_descriptors():
+        adapter = adapters.get_adapter(descriptor.runtime_name)
+
+        assert adapter.runtime_name == descriptor.runtime_name
+        assert adapter.display_name == descriptor.display_name
+        assert adapter.command_prefix == descriptor.command_prefix
+
+
+def test_runtime_public_command_prefixes_are_descriptor_owned_and_deterministic() -> None:
+    expected_prefixes = []
+    seen: set[str] = set()
+    for descriptor in iter_runtime_descriptors():
+        prefix = validated_public_command_prefix(descriptor)
+        if prefix not in seen:
+            seen.add(prefix)
+            expected_prefixes.append(prefix)
+    expected_prefixes.sort(key=len, reverse=True)
+
+    assert runtime_public_command_prefixes() == tuple(expected_prefixes)
 
 
 def test_runtime_catalog_rejects_descriptor_public_prefix_drift(

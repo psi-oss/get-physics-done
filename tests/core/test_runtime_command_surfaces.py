@@ -94,6 +94,9 @@ def test_installed_runtime_for_surface_normalizes_alias_and_requires_install_tar
 
 
 def test_installed_runtime_for_surface_rejects_unknown_normalizations(monkeypatch, tmp_path: Path) -> None:
+    descriptor = next(iter(iter_runtime_descriptors()))
+    unknown_runtime = f"unknown-{descriptor.runtime_name}-literal"
+    install_dir = tmp_path / f".{descriptor.config_dir_name}"
     monkeypatch.setattr(
         runtime_command_surfaces_module,
         "normalize_runtime_name",
@@ -102,8 +105,8 @@ def test_installed_runtime_for_surface_rejects_unknown_normalizations(monkeypatc
     assert (
         installed_runtime_for_surface(
             tmp_path,
-            detect_runtime=lambda **kwargs: "unknown-runtime-literal",
-            detect_install_target=lambda runtime, **kwargs: tmp_path / ".codex",
+            detect_runtime=lambda **kwargs: unknown_runtime,
+            detect_install_target=lambda runtime, **kwargs: install_dir,
         )
         is None
     )

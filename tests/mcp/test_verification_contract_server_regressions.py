@@ -1458,12 +1458,14 @@ def test_suggest_contract_checks_requires_proof_claim_binding_when_proof_contrac
     assert parameter["required_request_fields"][:2] == ["contract", "binding.claim_ids"]
     assert parameter["request_template"]["binding"] == {}
     assert "contract" not in parameter["request_template"]
-    assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == ["param-1"]
+    assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == [
+        "<replace-with-theorem-parameter-symbol>"
+    ]
 
     assert alignment["required_request_fields"][:2] == ["contract", "binding.claim_ids"]
     assert alignment["request_template"]["binding"] == {}
     assert "contract" not in alignment["request_template"]
-    assert alignment["request_template"]["metadata"]["claim_statement"] == "Claim statement placeholder"
+    assert alignment["request_template"]["metadata"]["claim_statement"] == "<replace-with-claim-statement>"
 
 
 def test_suggest_contract_checks_omits_contract_derived_metadata_from_required_fields() -> None:
@@ -1902,7 +1904,7 @@ def test_suggest_contract_checks_leaves_ambiguous_metadata_placeholders_unresolv
     assert "metadata.declared_family" in fit["required_request_fields"]
     assert fit["request_template"]["metadata"]["declared_family"] == "power_law"
     assert "metadata.declared_family" in estimator["required_request_fields"]
-    assert estimator["request_template"]["metadata"]["declared_family"] == "bootstrap"
+    assert "declared_family" not in estimator["request_template"].get("metadata", {})
 
 
 def test_suggest_contract_checks_leaves_ambiguous_subject_bindings_unresolved() -> None:

@@ -14,11 +14,7 @@ allowed-tools:
 ---
 
 <objective>
-Create or update a draft knowledge document from an explicit topic, source file, arXiv ID, or existing knowledge document path, while keeping the wrapper thin and the workflow authoritative.
-
-**Orchestrator role:** Validate command context, gather the local project state needed to resolve a canonical target, classify the input, and then delegate the actual create/update decision-making to the workflow-owned `digest-knowledge` instructions.
-
-**Why subagent:** The workflow will need fresh context for source intake, deterministic target resolution, and draft synthesis without contaminating the wrapper with policy details.
+Create or update a draft knowledge document from a topic, source file, arXiv ID, or existing knowledge path. Validate context, classify the input, resolve the target, then delegate knowledge-specific decisions to the workflow.
 </objective>
 
 <execution_context>
@@ -72,9 +68,9 @@ Prefer deterministic resolution:
 
 If multiple candidates remain, ask for clarification. If the resolved target is `stable` or `superseded`, hand the request to `gpd:review-knowledge`.
 
-## 3. Delegate The Workflow
+## 3. Delegate Workflow
 
-Construct a concise handoff for the workflow-owned command logic:
+Construct a concise workflow handoff:
 
 ```markdown
 <objective>
@@ -86,9 +82,7 @@ Digest knowledge from {input_kind}: {input_summary}
 - Resolution mode: create | update | clarify
 - Contract-critical anchors: {active_reference_context}
 
-Keep the knowledge-specific resolution, synthesis, and draft-writing rules in the workflow-owned `digest-knowledge` instructions. This wrapper should only classify, resolve, and route.
-
-If the requested action belongs to review, approval, or stable-state mutation, explicitly point to `gpd:review-knowledge` rather than overloading this wrapper.
+Use the workflow-owned `digest-knowledge` rules for synthesis and draft writing. If the request is review, approval, or stable-state mutation, route to `gpd:review-knowledge`.
 </objective>
 ```
 
