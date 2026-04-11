@@ -1848,6 +1848,7 @@ def test_bootstrap_upgrade_prefers_latest_main_source(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         installer_args=[_CLAUDE_INSTALL_FLAG, "--local", "--upgrade"],
+        extra_env={"GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE": "1"},
     )
 
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
@@ -1866,11 +1867,32 @@ def test_bootstrap_upgrade_prefers_latest_main_source(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_upgrade_skips_main_branch_without_dev_flag(tmp_path: Path) -> None:
+    result, _, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        installer_args=[_CLAUDE_INSTALL_FLAG, "--local", "--upgrade"],
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    managed_pip_targets = [
+        entry["argv"][-1]
+        for entry in entries
+        if entry["managed"] and entry["argv"][:4] == ["-m", "pip", "install", "--upgrade"]
+    ]
+
+    assert managed_pip_targets == []
+    assert "Skipping GitHub main upgrade because GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1 is not set." in result.stdout
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
 def test_bootstrap_upgrade_falls_back_to_main_git_checkout(tmp_path: Path) -> None:
     result, _, log_path = _run_bootstrap_with_fake_python(
         tmp_path,
         installer_args=[_CLAUDE_INSTALL_FLAG, "--local", "--upgrade"],
-        extra_env={"FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1"},
+        extra_env={"FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1", "GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE": "1"},
     )
 
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
@@ -1894,6 +1916,7 @@ def test_bootstrap_upgrade_prefers_preflighted_git_checkout_when_archive_is_inac
         tmp_path,
         installer_args=[_CLAUDE_INSTALL_FLAG, "--local", "--upgrade"],
         extra_env={
+            "GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE": "1",
             "GPD_BOOTSTRAP_TEST_PROBES": json.dumps(
                 {
                     MAIN_ARCHIVE_SPEC: {
@@ -1930,6 +1953,7 @@ def test_bootstrap_upgrade_fails_closed_without_falling_back_to_release_sources(
         tmp_path,
         installer_args=[_CLAUDE_INSTALL_FLAG, "--local", "--upgrade"],
         extra_env={
+            "GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE": "1",
             "FAKE_PIP_FAIL_BRANCH_ARCHIVE": "1",
             "FAKE_PIP_FAIL_MAIN_GIT": "1",
         },

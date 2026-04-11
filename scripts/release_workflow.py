@@ -130,6 +130,10 @@ def validate_package_data_rules(pyproject_text: str, package_json_text: str) -> 
         raise ReleaseError('package.json "files" must be a list of non-empty strings.')
     if len(files) != len(set(files)):
         raise ReleaseError('package.json "files" entries must be unique.')
+    if "bin/" in files:
+        raise ReleaseError('package.json "files" must list the bootstrap entrypoint explicitly as "bin/install.js", not "bin/".')
+    if "bin/install.js" not in files:
+        raise ReleaseError('package.json "files" must include "bin/install.js".')
 
     try:
         wheel_target = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]
@@ -159,6 +163,10 @@ def validate_package_data_rules(pyproject_text: str, package_json_text: str) -> 
             'pyproject.toml wheel "force-include" destinations must be relative paths; '
             f"found: {joined}."
         )
+
+
+def preflight_release_sync(repo_root: Path) -> None:
+    validate_package_data_rules(_read_text(repo_root / "pyproject.toml"), _read_text(repo_root / "package.json"))
 
 
 def bump_version(version: str, bump: str) -> str:
@@ -385,6 +393,9 @@ def _build_parser() -> argparse.ArgumentParser:
     show_version_parser = subparsers.add_parser("show-version", help="Print the current release version.")
     show_version_parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
 
+    preflight_parser = subparsers.add_parser("preflight-sync", help="Validate release packaging metadata before publishing.")
+    preflight_parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
+
     release_notes_parser = subparsers.add_parser("release-notes", help="Print release notes for a version.")
     release_notes_parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
     release_notes_parser.add_argument("--version", required=True, help="Version heading to extract.")
@@ -416,6 +427,11 @@ def main(argv: list[str] | None = None) -> int:
             validate_package_data_rules(pyproject_text, package_json_text)
             sys.stdout.write(validate_release_metadata_sources(pyproject_text, package_json_text))
             sys.stdout.write("\n")
+            return 0
+
+        if args.command == "preflight-sync":
+            preflight_release_sync(repo_root)
+            sys.stdout.write("Release packaging metadata is in sync.\n")
             return 0
 
         if args.command == "release-notes":

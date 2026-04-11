@@ -9,10 +9,17 @@ from tests.ci_sharding import (
     CI_HOT_TEST_FILE_SPLITS,
     CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS,
     CI_MAX_SHARD_COUNT_TARGET,
+    CI_PYTEST_SHARD_COMMAND_TOKENS,
+    CI_PYTEST_SHARD_STEP_NAME,
+    CI_RUNTIME_CATALOG_SCHEMA_COMMAND,
+    CI_RUNTIME_CATALOG_SCHEMA_STEP_NAME,
     CI_SMOKE_JOB_TIMEOUT_MINUTES,
+    CI_SMOKE_PYTEST_STEP_NAME,
     CI_SMOKE_TEST_TARGETS,
+    CI_SHARD_TARGET_RESOLVER_STEP_NAME,
     CI_TOTAL_SHARD_COUNT_TARGET,
     build_ci_work_units,
+    ci_smoke_pytest_command,
     ci_shard_specs,
     expand_ci_targets_to_nodeids,
     select_ci_shard_targets,
@@ -51,6 +58,16 @@ def _job_steps(workflow: dict[str, object], job_name: str) -> list[dict[str, obj
 
 def _run_steps_by_name(steps: list[dict[str, object]]) -> dict[str, str]:
     return {str(step.get("name", "")): str(step.get("run", "")) for step in steps if "run" in step}
+
+
+def _pytest_command_targets(command: str) -> tuple[str, ...]:
+    tokens = command.split()
+    assert tuple(tokens[:4]) == ("uv", "run", "pytest", "-q")
+    return tuple(tokens[4:])
+
+
+def _run_command_contains_tokens(command: str, tokens: tuple[str, ...]) -> bool:
+    return all(token in command.split() for token in tokens)
 
 
 def _step_by_name(steps: list[dict[str, object]], name: str) -> dict[str, object]:
@@ -115,19 +132,20 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
 
     assert "Set up Node.js" in pytest_step_names
     assert pytest_step_names.index("Set up Node.js") < pytest_step_names.index("Install dependencies")
-    resolve_targets_command = pytest_run_steps["Resolve pytest shard targets"]
-    pytest_shard_command = pytest_run_steps["Run pytest shard"]
+    resolve_targets_command = pytest_run_steps[CI_SHARD_TARGET_RESOLVER_STEP_NAME]
+    pytest_shard_command = pytest_run_steps[CI_PYTEST_SHARD_STEP_NAME]
     assert "from tests.ci_sharding import write_ci_shard_targets_file" in resolve_targets_command
-    assert "PYTEST_CATEGORY" in resolve_targets_command
-    assert "PYTEST_SHARD_TARGET_FILE" in resolve_targets_command
-    assert "Resolved {len(targets)} pytest targets for {os.environ['PYTEST_CATEGORY']}" in resolve_targets_command
-    assert "shard {os.environ['PYTEST_SHARD_INDEX']}/{os.environ['PYTEST_SHARD_TOTAL']}" in resolve_targets_command
-    assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
-    assert 'uv run pytest -q --durations=20 --durations-min=0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
-    assert pytest_steps.index(_step_by_name(pytest_steps, "Resolve pytest shard targets")) < pytest_steps.index(
-        _step_by_name(pytest_steps, "Run pytest shard")
+    assert all(
+        env_name in resolve_targets_command
+        for env_name in ("PYTEST_CATEGORY", "PYTEST_SHARD_INDEX", "PYTEST_SHARD_TARGET_FILE", "PYTEST_SHARD_TOTAL")
     )
-    assert _step_by_name(pytest_steps, "Run pytest shard")["run"] == pytest_shard_command
+    assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
+    assert _run_command_contains_tokens(pytest_shard_command, CI_PYTEST_SHARD_COMMAND_TOKENS)
+    assert '"${PYTEST_TARGETS[@]}"' in pytest_shard_command
+    assert pytest_steps.index(_step_by_name(pytest_steps, CI_SHARD_TARGET_RESOLVER_STEP_NAME)) < pytest_steps.index(
+        _step_by_name(pytest_steps, CI_PYTEST_SHARD_STEP_NAME)
+    )
+    assert _step_by_name(pytest_steps, CI_PYTEST_SHARD_STEP_NAME)["run"] == pytest_shard_command
     node_step = _step_by_name(pytest_steps, "Set up Node.js")
     assert node_step["uses"] == "actions/setup-node@v6"
     assert node_step["with"]["node-version"] == "20"
@@ -139,11 +157,11 @@ def test_pytest_job_validates_runtime_catalog_schema_step() -> None:
     workflow = _workflow_data()
     steps = _job_steps(workflow, "pytest")
 
-    guard_steps = [step for step in steps if step.get("name") == "Validate runtime catalog schema"]
+    guard_steps = [step for step in steps if step.get("name") == CI_RUNTIME_CATALOG_SCHEMA_STEP_NAME]
     assert guard_steps, "Pytest job must include a runtime catalog validation step"
     guard_step = guard_steps[0]
     guard_run = str(guard_step.get("run", ""))
-    assert guard_run == "uv run python scripts/validate_runtime_catalog_schema.py"
+    assert guard_run == CI_RUNTIME_CATALOG_SCHEMA_COMMAND
 
 
 def test_ci_workflow_runs_fast_release_package_smoke_lane_before_full_shards() -> None:
@@ -161,15 +179,14 @@ def test_ci_workflow_runs_fast_release_package_smoke_lane_before_full_shards() -
     node_step = _step_by_name(smoke_steps, "Set up Node.js")
     assert node_step["uses"] == "actions/setup-node@v6"
     assert node_step["with"]["node-version"] == "20"
-    smoke_command = smoke_run_steps["Run release/package smoke tests"]
-    assert smoke_command.startswith("uv run pytest -q ")
-    assert tuple(smoke_command.removeprefix("uv run pytest -q ").split()) == tuple(CI_SMOKE_TEST_TARGETS)
+    smoke_command = smoke_run_steps[CI_SMOKE_PYTEST_STEP_NAME]
+    assert smoke_command == ci_smoke_pytest_command()
 
 
 def test_ci_release_package_smoke_lane_uses_only_explicit_fast_targets() -> None:
     workflow = _workflow_data()
-    smoke_command = _run_steps_by_name(_job_steps(workflow, "smoke"))["Run release/package smoke tests"]
-    smoke_targets = tuple(smoke_command.removeprefix("uv run pytest -q ").split())
+    smoke_command = _run_steps_by_name(_job_steps(workflow, "smoke"))[CI_SMOKE_PYTEST_STEP_NAME]
+    smoke_targets = _pytest_command_targets(smoke_command)
 
     assert smoke_targets == tuple(CI_SMOKE_TEST_TARGETS)
     assert smoke_targets

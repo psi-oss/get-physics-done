@@ -151,11 +151,11 @@ Use `gpd:settings` when you want broader unattended/configuration changes too.
 
 Useful checks from your normal terminal:
 - `gpd resolve-tier gpd-planner`
-- `gpd resolve-model gpd-planner --runtime <runtime>`
+- verify the updated tier mapping in `GPD/config.json`
 - `gpd cost`
 ```
 
-State clearly that future agent spawns in this project will use the updated runtime-specific tier overrides when `gpd resolve-model` resolves to them.
+State clearly that future agent spawns in this project will use the updated runtime-specific tier overrides.
 </step>
 
 </process>

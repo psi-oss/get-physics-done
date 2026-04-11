@@ -243,7 +243,7 @@ def test_public_bootstrap_package_exposes_npx_installer() -> None:
 
     assert package_json["name"] == "get-physics-done"
     assert package_json.get("bin", {}).get("get-physics-done") == "bin/install.js"
-    assert "bin/" in packaged_files
+    assert "bin/install.js" in packaged_files
     assert set(_BOOTSTRAP_JSON_ASSETS) <= packaged_files
     assert (repo_root / "bin" / "install.js").is_file()
 
@@ -270,7 +270,7 @@ def test_npm_files_match_bootstrap_installer_resource_strategy() -> None:
         ),
     }
 
-    assert "bin/" in packaged_files
+    assert "bin/install.js" in packaged_files
     assert set(required_requires) <= packaged_files
     for expected_require in required_requires.values():
         assert expected_require in installer
@@ -295,7 +295,10 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     assert '["-m", "venv", "--help"]' in content
     assert "managed environment" in content
     assert 'const GITHUB_MAIN_BRANCH = "main"' in content
+    assert 'const MAIN_BRANCH_UPGRADE_ENV = "GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE"' in content
     assert "installManagedPackage(managedEnv.python, pythonPackageVersion" in content
+    assert 'process.env[MAIN_BRANCH_UPGRADE_ENV] !== "1"' in content
+    assert "Skipping GitHub ${GITHUB_MAIN_BRANCH} upgrade because ${MAIN_BRANCH_UPGRADE_ENV}=1 is not set." in content
     assert "archive/refs/tags/v${version}.tar.gz" in content
     assert "archive/refs/heads/${GITHUB_MAIN_BRANCH}.tar.gz" in content
     assert "git+${repoGitUrl}@v${version}" in content

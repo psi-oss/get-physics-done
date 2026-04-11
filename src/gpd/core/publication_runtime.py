@@ -17,6 +17,14 @@ from gpd.core.manuscript_artifacts import (
 )
 from gpd.core.proof_review import ProofReviewStatus, resolve_manuscript_proof_review_status
 from gpd.core.publication_review_paths import (
+    AUTHOR_RESPONSE_FILENAME_RE,
+    AUTHOR_RESPONSE_GLOB,
+    REFEREE_DECISION_FILENAME_RE,
+    REFEREE_DECISION_GLOB,
+    REFEREE_RESPONSE_FILENAME_RE,
+    REFEREE_RESPONSE_GLOB,
+    REVIEW_LEDGER_FILENAME_RE,
+    REVIEW_LEDGER_GLOB,
     manuscript_matches_review_artifact_path,
     review_artifact_round,
     review_round_suffix,
@@ -36,10 +44,6 @@ __all__ = [
     "resolve_publication_runtime_snapshot",
 ]
 
-_REVIEW_LEDGER_FILENAME_RE = re.compile(r"^REVIEW-LEDGER(?P<round_suffix>-R(?P<round>\d+))?\.json$")
-_REFEREE_DECISION_FILENAME_RE = re.compile(r"^REFEREE-DECISION(?P<round_suffix>-R(?P<round>\d+))?\.json$")
-_AUTHOR_RESPONSE_FILENAME_RE = re.compile(r"^AUTHOR-RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
-_REFEREE_RESPONSE_FILENAME_RE = re.compile(r"^REFEREE_RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
 _PUBLICATION_BLOCKER_PATTERNS = (
     re.compile(r"\bpublication\b"),
     re.compile(r"\b(arxiv|submission|manuscript)\b"),
@@ -327,13 +331,13 @@ def resolve_latest_publication_review_artifacts(
 
     ledger_by_round = _round_file_map(
         review_dir,
-        filename_pattern=_REVIEW_LEDGER_FILENAME_RE,
-        glob_pattern="REVIEW-LEDGER*.json",
+        filename_pattern=REVIEW_LEDGER_FILENAME_RE,
+        glob_pattern=REVIEW_LEDGER_GLOB,
     )
     decision_by_round = _round_file_map(
         review_dir,
-        filename_pattern=_REFEREE_DECISION_FILENAME_RE,
-        glob_pattern="REFEREE-DECISION*.json",
+        filename_pattern=REFEREE_DECISION_FILENAME_RE,
+        glob_pattern=REFEREE_DECISION_GLOB,
     )
     round_number = _latest_round_number(ledger_by_round, decision_by_round)
     if round_number is None:
@@ -388,13 +392,13 @@ def resolve_latest_publication_response_artifacts(project_root: Path) -> Publica
 
     author_by_round = _round_file_map(
         review_dir,
-        filename_pattern=_AUTHOR_RESPONSE_FILENAME_RE,
-        glob_pattern="AUTHOR-RESPONSE*.md",
+        filename_pattern=AUTHOR_RESPONSE_FILENAME_RE,
+        glob_pattern=AUTHOR_RESPONSE_GLOB,
     )
     referee_by_round = _round_file_map(
         review_dir,
-        filename_pattern=_REFEREE_RESPONSE_FILENAME_RE,
-        glob_pattern="REFEREE_RESPONSE*.md",
+        filename_pattern=REFEREE_RESPONSE_FILENAME_RE,
+        glob_pattern=REFEREE_RESPONSE_GLOB,
     )
     round_number = _latest_round_number(author_by_round, referee_by_round)
     if round_number is None:

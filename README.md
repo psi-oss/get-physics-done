@@ -164,7 +164,7 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 - Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` when you want a terminal-side unattended or overnight verdict.
 - If you plan paper/manuscript work later, use `gpd doctor --runtime <runtime> --local` for the project-local target or `gpd doctor --runtime <runtime> --global` for the global target first. For the fuller preset catalog, shared Wolfram integration details, and plan-preflight boundaries, use `gpd presets list`, `gpd integrations status wolfram`, and `gpd validate plan-preflight <PLAN.md>` from your normal terminal.
 - Provider authentication is checked manually in the runtime itself; GPD will point this out, but it does not hard-block installation readiness on it
-- Use `--upgrade` only when you intentionally want the latest unreleased GitHub `main` snapshot
+- `--upgrade` stays on release-pinned sources by default. Set `GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1` only when you intentionally want the latest unreleased GitHub `main` snapshot.
 
 **Quick verification path**
 
@@ -201,17 +201,17 @@ Typical new-project workflow:
 | `--global`, `-g` | Use the global runtime config dir. |
 | `--uninstall` | Uninstall from the selected runtime config instead of installing. |
 | `--reinstall` | Reinstall the matching tagged GitHub source into `~/GPD/venv`. |
-| `--upgrade` | Upgrade `~/GPD/venv` from the latest GitHub `main` source. |
+| `--upgrade` | Upgrade `~/GPD/venv`; unreleased `main` snapshots require `GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1`. |
 | `--target-dir <path>` | Override the runtime config directory; defaults to local scope unless the path resolves to that runtime's canonical global config dir. |
 | `--force-statusline` | Replace an existing runtime statusline during install. |
 | `--help`, `-h` | Show bootstrap help. |
 
-Ordinary installs stay pinned to the matching tagged release. Use `--upgrade` only when you intentionally want the latest unreleased `main` source.
+Ordinary installs stay pinned to the matching tagged release. `--upgrade` uses release-pinned sources unless you explicitly opt into the unreleased `main` source.
 
 Install the unreleased GitHub `main` snapshot explicitly:
 
 ```bash
-npx -y github:psi-oss/get-physics-done --upgrade
+GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1 npx -y github:psi-oss/get-physics-done --upgrade
 ```
 
 </details>

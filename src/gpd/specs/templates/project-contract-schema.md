@@ -162,6 +162,15 @@ Project-local paths in `locator` or `applies_to[]` evidence require project-root
 
 ## Contract Rules
 
+Approval checklist:
+1. `schema_version` must be integer `1`.
+2. `scope.question` is required and `scope.in_scope[]` must name a boundary or objective.
+3. Include at least one decisive `observables[]`, `claims[]`, or `deliverables[]` item.
+4. `context_intake` must contain a concrete anchor; placeholder-only text does not count.
+5. `uncertainty_markers.weakest_anchors[]` and `uncertainty_markers.disconfirming_observations[]` must be non-empty.
+6. If `references[]` is the only grounding, one reference must set `must_surface=true` with `applies_to[]`, concrete `required_actions[]`, and a usable `locator`.
+7. Approved contracts need concrete grounding from an anchor, reference, prior output, or baseline; never fabricate missing evidence.
+
 - `project_contract` must be a JSON object whose `schema_version` is the integer `1`.
 - Include at least one observable, claim, or deliverable.
 - `scope.in_scope` must name at least one boundary or objective; `context_intake` must be a non-empty object whose anchor fields (`must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, `known_good_baselines`, `context_gaps`, `crucial_inputs`) keep concrete handles that can be re-found later. Placeholder-only text such as `TBD` or `unknown` does not satisfy grounding.

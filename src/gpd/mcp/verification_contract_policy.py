@@ -35,14 +35,28 @@ VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT = ", ".join(
 )
 VERIFICATION_BINDING_FIELD_TEXT = ", ".join(f"`{field}`" for field in VERIFICATION_BINDING_FIELD_NAMES)
 
+PROJECT_CONTRACT_APPROVAL_REQUIREMENTS = (
+    "`schema_version` must be integer `1`.",
+    "`scope.question` is required and `scope.in_scope[]` must name a boundary or objective.",
+    "Include at least one decisive `observables[]`, `claims[]`, or `deliverables[]` item.",
+    "`context_intake` must contain a concrete anchor; placeholder-only text does not count.",
+    "`uncertainty_markers.weakest_anchors[]` and `uncertainty_markers.disconfirming_observations[]` must be non-empty.",
+    "If `references[]` is the only grounding, one reference must set `must_surface=true` with `applies_to[]`, concrete `required_actions[]`, and a usable `locator`.",
+    "Approved contracts need concrete grounding from an anchor, reference, prior output, or baseline; never fabricate missing evidence.",
+)
+
+PROJECT_CONTRACT_APPROVAL_CHECKLIST_TEXT = "Approval checklist: " + " ".join(
+    f"{index}) {requirement}"
+    for index, requirement in enumerate(PROJECT_CONTRACT_APPROVAL_REQUIREMENTS, start=1)
+)
+
 _VERIFICATION_CONTRACT_POLICY_CLAUSES = (
     "Require `schema_version` to be the integer `1` in every payload.",
     f"Use {VERIFICATION_REQUEST_CONSTRAINT_FIELD_TEXT} plus {VERIFICATION_BINDING_FIELD_TEXT} to describe each per-check request.",
     "Proof-oriented checks need an authoritative contract payload before execution.",
     "Schemas are closed at every level; unknown keys, non-objects, blank strings, or malformed "
     "members trigger hard errors; normalization only tolerates singletons and case drift.",
-    "Plan-style contracts must carry non-empty `context_intake`, `scope.in_scope`, and "
-    "`uncertainty_markers.weakest_anchors`, `uncertainty_markers.disconfirming_observations`, plus at least one decisive observables, claims, or deliverables.",
+    PROJECT_CONTRACT_APPROVAL_CHECKLIST_TEXT,
     "Non-scoping, non-exploratory plans require claims, deliverables, acceptance tests, "
     "non-empty `forbidden_proxies`, and either grounded references or explicit context anchors.",
     "When `references[]` exists without other grounding, one anchor must set `must_surface=true`, "

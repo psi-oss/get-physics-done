@@ -26,7 +26,7 @@ def test_package_json_versions_match_pyproject_version() -> None:
 
 def test_release_metadata_sources_reject_version_mismatch() -> None:
     pyproject_text = '[project]\nname = "get-physics-done"\nversion = "1.2.3"\n'
-    package_json_text = '{"version":"1.2.2","gpdPythonVersion":"1.2.3","files":["bin/"]}'
+    package_json_text = '{"version":"1.2.2","gpdPythonVersion":"1.2.3","files":["bin/install.js"]}'
 
     with pytest.raises(ReleaseError, match="Version source-of-truth mismatch"):
         validate_release_metadata_sources(pyproject_text, package_json_text)
@@ -45,7 +45,7 @@ artifacts = ["src/gpd/core/*.json"]
 "src/gpd/core/one.json" = "gpd/core/shared.json"
 "src/gpd/core/two.json" = "gpd/core/shared.json"
 """
-    package_json_text = '{"version":"1.2.3","gpdPythonVersion":"1.2.3","files":["bin/"]}'
+    package_json_text = '{"version":"1.2.3","gpdPythonVersion":"1.2.3","files":["bin/install.js"]}'
 
     with pytest.raises(ReleaseError, match='force-include" destinations must be unique'):
         validate_package_data_rules(pyproject_text, package_json_text)

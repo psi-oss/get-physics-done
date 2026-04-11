@@ -3491,7 +3491,7 @@ def test_debug_command_and_workflow_wire_directly_to_gpd_debugger() -> None:
     debugger = (AGENTS_DIR / "gpd-debugger.md").read_text(encoding="utf-8")
 
     assert "gpd-debugger" in debug_command
-    assert 'DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)' in debug_command
+    assert 'DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)' not in debug_command
     assert 'subagent_type="gpd-debugger"' in debug_workflow
     assert "First, read {GPD_AGENTS_DIR}/gpd-debugger.md" in debug_workflow
     assert "public writable production agent specialized for discrepancy investigation" in debugger

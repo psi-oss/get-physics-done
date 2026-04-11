@@ -8,12 +8,30 @@ from pathlib import Path
 from gpd.core.path_labels import normalize_posix_path_label
 
 __all__ = [
+    "AUTHOR_RESPONSE_FILENAME_RE",
+    "AUTHOR_RESPONSE_GLOB",
+    "REFEREE_DECISION_FILENAME_RE",
+    "REFEREE_DECISION_GLOB",
+    "REFEREE_RESPONSE_FILENAME_RE",
+    "REFEREE_RESPONSE_GLOB",
+    "REVIEW_LEDGER_FILENAME_RE",
+    "REVIEW_LEDGER_GLOB",
     "manuscript_matches_review_artifact_path",
     "normalize_review_path_label",
     "resolve_review_manuscript_path",
     "review_artifact_round",
     "review_round_suffix",
 ]
+
+REVIEW_LEDGER_FILENAME_RE = re.compile(r"^REVIEW-LEDGER(?P<round_suffix>-R(?P<round>\d+))?\.json$")
+REFEREE_DECISION_FILENAME_RE = re.compile(r"^REFEREE-DECISION(?P<round_suffix>-R(?P<round>\d+))?\.json$")
+AUTHOR_RESPONSE_FILENAME_RE = re.compile(r"^AUTHOR-RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
+REFEREE_RESPONSE_FILENAME_RE = re.compile(r"^REFEREE_RESPONSE(?P<round_suffix>-R(?P<round>\d+))?\.md$")
+
+REVIEW_LEDGER_GLOB = "REVIEW-LEDGER*.json"
+REFEREE_DECISION_GLOB = "REFEREE-DECISION*.json"
+AUTHOR_RESPONSE_GLOB = "AUTHOR-RESPONSE*.md"
+REFEREE_RESPONSE_GLOB = "REFEREE_RESPONSE*.md"
 
 
 def review_artifact_round(path: Path, *, pattern: re.Pattern[str]) -> tuple[int, str] | None:

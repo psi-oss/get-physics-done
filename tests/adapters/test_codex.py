@@ -21,6 +21,7 @@ from gpd.adapters.codex import (
     _convert_to_codex_skill,
     _inject_codex_command_runtime_note,
     _normalize_codex_questioning,
+    _rewrite_codex_gpd_cli_invocations,
     _tracked_codex_generated_skill_dirs,
 )
 from gpd.adapters.install_utils import (
@@ -137,6 +138,14 @@ class TestConvertCodexToolName:
         assert _convert_codex_tool_name("Write") == "write_file"
         assert _convert_codex_tool_name("Edit") == "apply_patch"
         assert _convert_codex_tool_name("Grep") == "grep"
+
+
+def test_codex_rewrites_shared_shell_fence_languages() -> None:
+    content = "```zsh\ngpd progress\n```\n```python\ngpd progress\n```\n"
+
+    assert _rewrite_codex_gpd_cli_invocations(content, "python -m gpd") == (
+        "```zsh\npython -m gpd progress\n```\n```python\ngpd progress\n```\n"
+    )
 
     def test_task_excluded(self) -> None:
         assert _convert_codex_tool_name("Task") is None

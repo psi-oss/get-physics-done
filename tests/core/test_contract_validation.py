@@ -117,7 +117,28 @@ def test_verification_contract_policy_surfaces_project_contract_validation_overl
         "approved project contract requires at least one concrete anchor/reference/prior-output/baseline; "
         "explicit missing-anchor notes preserve uncertainty but do not satisfy approval on their own"
     ) in grounding_result.errors
-    for fragment in ("concrete grounding", "reference", "prior outputs", "baseline"):
+    for fragment in ("concrete grounding", "reference", "prior output", "baseline"):
+        assert fragment in policy_text
+
+
+def test_project_contract_schema_template_surfaces_approval_checklist() -> None:
+    template = (TEMPLATES_DIR / "project-contract-schema.md").read_text()
+    policy_text = verification_contract_policy_text()
+    required_fragments = (
+        "Approval checklist",
+        "scope.in_scope[]",
+        "observables[]",
+        "claims[]",
+        "deliverables[]",
+        "context_intake",
+        "weakest_anchors[]",
+        "uncertainty_markers.disconfirming_observations[]",
+        "must_surface=true",
+        "never fabricate missing evidence",
+    )
+
+    for fragment in required_fragments:
+        assert fragment in template
         assert fragment in policy_text
 
 

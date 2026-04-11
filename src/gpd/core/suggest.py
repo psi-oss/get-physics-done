@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -44,6 +43,8 @@ from gpd.core.proof_review import (
 )
 from gpd.core.public_surface_contract import recovery_local_snapshot_command
 from gpd.core.publication_review_paths import (
+    REFEREE_DECISION_FILENAME_RE,
+    REVIEW_LEDGER_FILENAME_RE,
     manuscript_matches_review_artifact_path,
     review_artifact_round,
 )
@@ -74,8 +75,6 @@ __all__ = [
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 CORE_CONVENTIONS = ("metric_signature", "natural_units", "coordinate_system")
-_REVIEW_LEDGER_FILENAME_RE = re.compile(r"^REVIEW-LEDGER(?P<round_suffix>-R(?P<round>\d+))?\.json$")
-_REFEREE_DECISION_FILENAME_RE = re.compile(r"^REFEREE-DECISION(?P<round_suffix>-R(?P<round>\d+))?\.json$")
 
 
 # ─── Data Models ──────────────────────────────────────────────────────────────
@@ -398,7 +397,7 @@ def _latest_referee_decision_recommendation(cwd: Path) -> str | None:
 
     decision_by_round: dict[int, Path] = {}
     for path in sorted(review_dir.glob("REFEREE-DECISION*.json")):
-        details = review_artifact_round(path, pattern=_REFEREE_DECISION_FILENAME_RE)
+        details = review_artifact_round(path, pattern=REFEREE_DECISION_FILENAME_RE)
         if details is not None:
             decision_by_round[details[0]] = path
 
@@ -422,11 +421,11 @@ def _latest_publication_review_package(review_dir: Path) -> tuple[Path, Path] | 
     decision_by_round: dict[int, Path] = {}
 
     for path in sorted(review_dir.glob("REVIEW-LEDGER*.json")):
-        details = review_artifact_round(path, pattern=_REVIEW_LEDGER_FILENAME_RE)
+        details = review_artifact_round(path, pattern=REVIEW_LEDGER_FILENAME_RE)
         if details is not None:
             ledger_by_round[details[0]] = path
     for path in sorted(review_dir.glob("REFEREE-DECISION*.json")):
-        details = review_artifact_round(path, pattern=_REFEREE_DECISION_FILENAME_RE)
+        details = review_artifact_round(path, pattern=REFEREE_DECISION_FILENAME_RE)
         if details is not None:
             decision_by_round[details[0]] = path
 

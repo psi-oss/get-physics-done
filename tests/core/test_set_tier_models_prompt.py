@@ -41,6 +41,12 @@ def test_set_tier_models_workflow_keeps_scope_and_tradeoffs_explicit() -> None:
         "Do **not** change:",
         "`model_profile`",
         "`execution.review_cadence`",
-        "`gpd resolve-model gpd-planner --runtime <runtime>`",
+        "verify the updated tier mapping in `GPD/config.json`",
     ):
         assert fragment in workflow
+
+
+def test_set_tier_models_workflow_does_not_reference_removed_resolve_model_wrapper() -> None:
+    workflow = (WORKFLOWS_DIR / "set-tier-models.md").read_text(encoding="utf-8")
+
+    assert "gpd resolve-model" not in workflow

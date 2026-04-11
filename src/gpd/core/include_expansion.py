@@ -15,7 +15,7 @@ _MARKDOWN_FRONTMATTER_RE = re.compile(
 )
 
 
-class RuntimeDescriptor(Protocol):
+class RuntimeConfigDirDescriptor(Protocol):
     config_dir_name: str
 
 

@@ -38,3 +38,27 @@ def test_manuscript_matches_review_artifact_path_accepts_relative_and_normalized
 
 def test_normalize_review_path_label_trims_and_normalizes_separators() -> None:
     assert normalize_review_path_label("  .\\paper\\subdir\\..\\main.tex  ") == "paper/main.tex"
+
+
+def test_publication_review_filename_patterns_are_centralized() -> None:
+    from gpd.core.publication_review_paths import (
+        AUTHOR_RESPONSE_FILENAME_RE,
+        AUTHOR_RESPONSE_GLOB,
+        REFEREE_DECISION_FILENAME_RE,
+        REFEREE_DECISION_GLOB,
+        REFEREE_RESPONSE_FILENAME_RE,
+        REFEREE_RESPONSE_GLOB,
+        REVIEW_LEDGER_FILENAME_RE,
+        REVIEW_LEDGER_GLOB,
+    )
+
+    assert review_artifact_round(Path("REVIEW-LEDGER-R2.json"), pattern=REVIEW_LEDGER_FILENAME_RE) == (2, "-R2")
+    assert review_artifact_round(Path("REFEREE-DECISION-R2.json"), pattern=REFEREE_DECISION_FILENAME_RE) == (2, "-R2")
+    assert review_artifact_round(Path("AUTHOR-RESPONSE-R2.md"), pattern=AUTHOR_RESPONSE_FILENAME_RE) == (2, "-R2")
+    assert review_artifact_round(Path("REFEREE_RESPONSE-R2.md"), pattern=REFEREE_RESPONSE_FILENAME_RE) == (2, "-R2")
+    assert (REVIEW_LEDGER_GLOB, REFEREE_DECISION_GLOB, AUTHOR_RESPONSE_GLOB, REFEREE_RESPONSE_GLOB) == (
+        "REVIEW-LEDGER*.json",
+        "REFEREE-DECISION*.json",
+        "AUTHOR-RESPONSE*.md",
+        "REFEREE_RESPONSE*.md",
+    )

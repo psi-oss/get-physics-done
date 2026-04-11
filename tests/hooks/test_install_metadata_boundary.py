@@ -417,3 +417,9 @@ def test_install_metadata_keeps_manifest_boundary_free_of_install_utils_imports(
     assert "from gpd.adapters.install_utils import" not in source
     assert "get_managed_install_surface_policy" in source
     assert "get_shared_install_metadata" in source
+
+
+def test_install_metadata_does_not_import_install_utils_at_module_load() -> None:
+    import gpd.hooks.install_metadata as install_metadata
+
+    assert "install_utils" not in vars(install_metadata)

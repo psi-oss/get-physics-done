@@ -50,6 +50,7 @@ from gpd.adapters.install_utils import (
     rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
 )
 from gpd.adapters.runtime_catalog import RuntimeDescriptor
+from gpd.adapters.runtime_defaults import AUTO_DISCOVERED_TOOL_DEFAULTS
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -91,7 +92,7 @@ _TOOL_NAME_MAP: dict[str, str] = {
     "tool_search": "tool_search",
 }
 _TOOL_ALIAS_MAP = build_runtime_alias_map(_TOOL_NAME_MAP)
-_AUTO_DISCOVERED_TOOLS = frozenset({"task"})
+_AUTO_DISCOVERED_TOOLS = AUTO_DISCOVERED_TOOL_DEFAULTS
 _DROP_MCP_FRONTMATTER_TOOLS = True
 _TOOL_REFERENCE_MAP = reference_translation_map(
     _TOOL_NAME_MAP,

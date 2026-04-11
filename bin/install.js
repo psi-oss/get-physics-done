@@ -33,6 +33,7 @@ const pythonPackageVersion = typeof rawPythonPackageVersion === "string" ? rawPy
 const GPD_HOME_ENV = "GPD_HOME";
 const GPD_HOME_DIRNAME = "GPD";
 const GITHUB_MAIN_BRANCH = "main";
+const MAIN_BRANCH_UPGRADE_ENV = "GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE";
 const BOOTSTRAP_TEST_PROBES_ENV = "GPD_BOOTSTRAP_TEST_PROBES";
 const BOOTSTRAP_DISABLE_NETWORK_PROBES_ENV = "GPD_BOOTSTRAP_DISABLE_NETWORK_PROBES";
 const INSTALL_CANDIDATE_PROBE_TIMEOUT_MS = 5000;
@@ -1610,6 +1611,10 @@ async function installManagedPackage(python, pythonVersion, options = {}) {
   const pipInstallEnv = { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" };
 
   if (preferMain) {
+    if (process.env[MAIN_BRANCH_UPGRADE_ENV] !== "1") {
+      log(`Skipping GitHub ${GITHUB_MAIN_BRANCH} upgrade because ${MAIN_BRANCH_UPGRADE_ENV}=1 is not set.`);
+      return { ok: true, requestedVersion, installedFrom: null, skipped: "main-branch-upgrade-disabled" };
+    }
     const resolution = await resolveInstallCandidates(mainBranchInstallCandidates());
     const upgradeCandidates = resolution.candidates;
     if (upgradeCandidates.length > 0) {
@@ -2101,7 +2106,7 @@ function printHelp() {
   console.log(` ${cyan}-g, --global${reset}            Use the global runtime config dir`);
   console.log(` ${cyan}--uninstall${reset}             Uninstall from selected runtime config`);
   console.log(` ${cyan}--reinstall${reset}             Reinstall the matching tagged GitHub source in ~/GPD/venv`);
-  console.log(` ${cyan}--upgrade${reset}               Upgrade ~/GPD/venv from the latest GitHub main source`);
+  console.log(` ${cyan}--upgrade${reset}               Dev-only: upgrade ~/GPD/venv from the latest GitHub main source when ${MAIN_BRANCH_UPGRADE_ENV}=1`);
   for (const runtime of ALL_RUNTIMES) {
     const flags = runtimeSelectionFlagList(runtime).join(", ");
     const padding = " ".repeat(Math.max(0, 24 - flags.length));
@@ -2125,7 +2130,8 @@ function printHelp() {
   console.log(` ${dim}# Reinstall the matching managed GitHub source${reset}`);
   console.log(` ${installCommand} --reinstall ${primaryFlag} --local`);
   console.log("");
-  console.log(` ${dim}# Upgrade to the latest GitHub main source${reset}`);
+  console.log(` ${dim}# Dev-only upgrade to the latest GitHub main source${reset}`);
+  console.log(` ${dim}# Requires: ${MAIN_BRANCH_UPGRADE_ENV}=1${reset}`);
   console.log(` ${installCommand} --upgrade ${primaryFlag} --local`);
   console.log("");
   console.log(` ${dim}# Install for all runtimes globally${reset}`);

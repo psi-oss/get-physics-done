@@ -35,6 +35,23 @@ CI_MAX_SHARD_COUNT_TARGET = 20
 
 CI_FAST_PRIORITY_TEST_TARGETS = CI_SMOKE_TEST_TARGETS
 CI_HOTSPOT_SPLIT_COVERAGE_MIN_TOP_FILES = 12
+CI_SHARD_TARGET_RESOLVER_STEP_NAME = "Resolve pytest shard targets"
+CI_PYTEST_SHARD_STEP_NAME = "Run pytest shard"
+CI_SMOKE_PYTEST_STEP_NAME = "Run release/package smoke tests"
+CI_RUNTIME_CATALOG_SCHEMA_STEP_NAME = "Validate runtime catalog schema"
+CI_RUNTIME_CATALOG_SCHEMA_COMMAND = "uv run python scripts/validate_runtime_catalog_schema.py"
+CI_PYTEST_SHARD_COMMAND_TOKENS = (
+    "uv",
+    "run",
+    "pytest",
+    "-q",
+    "--durations=20",
+    "--durations-min=0",
+)
+
+
+def ci_smoke_pytest_command() -> str:
+    return " ".join(("uv", "run", "pytest", "-q", *CI_SMOKE_TEST_TARGETS))
 
 _CI_HOT_TEST_FILE_SPLITS_BASE = {
     "test_runtime_cli.py": 10,

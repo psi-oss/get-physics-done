@@ -54,6 +54,7 @@ from gpd.adapters.install_utils import (
     write_manifest,
 )
 from gpd.adapters.runtime_catalog import RuntimeDescriptor, get_runtime_descriptor, iter_runtime_descriptors
+from gpd.adapters.runtime_defaults import AUTO_DISCOVERED_TOOL_DEFAULTS, SHELL_FENCE_LANGUAGES
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.core.observability import gpd_span
 from gpd.mcp import managed_integrations as _managed_integrations
@@ -79,7 +80,7 @@ _TOOL_NAME_MAP: dict[str, str] = {
     "tool_search": "tool_search",
 }
 _TOOL_ALIAS_MAP = build_runtime_alias_map(_TOOL_NAME_MAP)
-_AUTO_DISCOVERED_TOOLS = frozenset({"task"})
+_AUTO_DISCOVERED_TOOLS = AUTO_DISCOVERED_TOOL_DEFAULTS
 _GPD_NOTIFY_COMMENT = "# GPD update notification"
 _GPD_NOTIFY_BACKUP_PREFIX = "# GPD original notify: "
 _GPD_NOTIFY_WRAPPER_MARKER = "gpd-codex-notify-wrapper-v1"
@@ -150,7 +151,6 @@ _TOOL_REFERENCE_MAP = reference_translation_map(
     auto_discovered_tools=_AUTO_DISCOVERED_TOOLS,
 )
 _CODEX_MCP_STARTUP_TIMEOUT_SEC = 30
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
 _CODEX_COMMAND_RUNTIME_NOTE = (
     "<codex_runtime_notes>\n"
     "Codex shell compatibility:\n"
@@ -567,7 +567,7 @@ def _rewrite_codex_gpd_cli_invocations(content: str, launcher: str) -> str:
                 in_shell_fence = False
             else:
                 fence_language = stripped[3:].strip().lower()
-                in_shell_fence = fence_language in _SHELL_FENCE_LANGUAGES
+                in_shell_fence = fence_language in SHELL_FENCE_LANGUAGES
             rewritten.append(line)
             continue
 

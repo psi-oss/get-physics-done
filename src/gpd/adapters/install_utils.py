@@ -17,6 +17,7 @@ from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
 from gpd.adapters.command_tokens import is_gpd_command_start, is_gpd_token_end
+from gpd.adapters.runtime_defaults import SHELL_FENCE_LANGUAGES
 from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
     get_shared_install_metadata,
@@ -282,9 +283,6 @@ def should_preserve_public_local_cli_command(command: str) -> bool:
     return False
 
 
-_SHELL_FENCE_LANGUAGES = frozenset({"bash", "sh", "shell", "zsh"})
-
-
 def rewrite_gpd_cli_invocations(
     content: str,
     command: str,
@@ -292,7 +290,7 @@ def rewrite_gpd_cli_invocations(
     shell_fence_languages: frozenset[str] | None = None,
 ) -> str:
     """Rewrite fenced-shell ``gpd`` calls to the runtime CLI bridge."""
-    fenced_languages = shell_fence_languages or _SHELL_FENCE_LANGUAGES
+    fenced_languages = shell_fence_languages or SHELL_FENCE_LANGUAGES
     rewritten: list[str] = []
     in_shell_fence = False
 

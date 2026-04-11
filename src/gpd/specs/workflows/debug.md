@@ -122,10 +122,9 @@ This runs in parallel - all issues investigated simultaneously.
 </step>
 
 <step name="spawn_agents">
-**Resolve debugger model and mode settings:**
+**Resolve mode settings:**
 
 ```bash
-DEBUGGER_MODEL=$(gpd resolve-model gpd-debugger)
 AUTONOMY=$(gpd --raw config get autonomy 2>/dev/null | gpd json get .value --default balanced 2>/dev/null || echo "balanced")
 ```
 
