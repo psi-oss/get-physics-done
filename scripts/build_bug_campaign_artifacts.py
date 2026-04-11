@@ -1826,13 +1826,15 @@ def write_scorecards(
         {
             "schema_version": 1,
             "phase15_family_count": len(phase15_rows),
-            "closed_phase15_family_count": sum(1 for row in phase15_rows if row["closure_candidate"]),
+            "closure_candidate_phase15_family_count": sum(1 for row in phase15_rows if row["closure_candidate"]),
+            "closed_phase15_family_count": 0,
             "taxonomy_bug_type_count": registry.get("bug_type_count"),
             "taxonomy_unresolved_singleton_count": registry.get("unresolved_singleton_count"),
             "families": [
                 {
                     "family_id": row["family_id"],
                     "bug_class": row["bug_id"],
+                    "closure_candidate": row["closure_candidate"],
                     "mapped_surfaces": "see taxonomy/07-bug-type-registry.json",
                     "gates_complete": all(
                         bool(row[key])
