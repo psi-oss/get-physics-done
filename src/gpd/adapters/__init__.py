@@ -9,7 +9,12 @@ from __future__ import annotations
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from gpd.adapters.runtime_catalog import get_runtime_descriptor, iter_runtime_descriptors, list_runtime_names
+from gpd.adapters.runtime_catalog import (
+    get_runtime_descriptor,
+    iter_runtime_descriptors,
+    list_runtime_names,
+    normalize_runtime_name,
+)
 
 if TYPE_CHECKING:
     from gpd.adapters.base import RuntimeAdapter
@@ -63,6 +68,8 @@ def _ensure_loaded() -> None:
 def _ensure_runtime_loaded(runtime_name: str) -> type[RuntimeAdapter]:
     """Return the adapter class for one runtime, loading only that runtime if needed."""
 
+    runtime_name = normalize_runtime_name(runtime_name) or runtime_name
+
     if runtime_name in _REGISTRY:
         return _REGISTRY[runtime_name]
 
@@ -79,6 +86,7 @@ def _ensure_runtime_loaded(runtime_name: str) -> type[RuntimeAdapter]:
 def get_adapter(runtime: str) -> RuntimeAdapter:
     """Get an adapter instance for the given runtime name.
 
+    Accepts canonical runtime ids plus catalog display names, aliases, and install flags.
     Raises ``KeyError`` if the runtime is not supported.
     """
     adapter_class = _ensure_runtime_loaded(runtime)

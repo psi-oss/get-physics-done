@@ -910,7 +910,7 @@ This agent processes potentially large amounts of prior numerical data and param
 
 <return_format>
 
-## Return Format
+## Experiment Design Return Format
 
 **NOTE:** The `gpd_return` envelope in `<structured_returns>` below is the canonical machine-parseable format. The markdown sections below describe the CONTENT of your return; always wrap the final output in the `gpd_return` YAML envelope.
 

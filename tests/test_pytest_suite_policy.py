@@ -140,7 +140,7 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
 
     assert "Set up Node.js" in pytest_step_names
     assert pytest_step_names.index("Set up Node.js") < pytest_step_names.index("Install dependencies")
-    assert 'addopts = "-n auto --dist=worksteal"' in pyproject
+    assert 'addopts = ""' in pyproject
     assert 'pytest-xdist>=3.8.0' in pyproject
     resolve_targets_command = pytest_run_steps["Resolve pytest shard targets"]
     pytest_shard_command = pytest_run_steps["Run pytest shard"]
@@ -150,8 +150,9 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
     assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in pytest_shard_command
     assert "Default `uv run pytest` runs the full checked-in suite" in tests_readme
     assert "`uv run pytest -q` does the same with quieter output" in tests_readme
+    assert "Install `pytest-xdist` to opt into parallel runs" in tests_readme
     assert "raises xdist auto-worker selection toward the current CI shard fanout" in tests_readme
-    assert "override that default explicitly with `uv run pytest -n 0`" in tests_readme
+    assert "use `uv run pytest -n auto --dist=worksteal`" in tests_readme
     assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
     assert "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`" in tests_readme
     assert "boosts root modules that have been slow on GitHub Actions" in tests_readme

@@ -119,14 +119,9 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "regime_label": None,
-                "expected_behavior": None,
+                "regime_label": "large-k",
+                "expected_behavior": "approaches the contracted limit behavior",
             },
-            "observed": {
-                "limit_passed": None,
-                "observed_limit": None,
-            },
-            "artifact_content": "",
         },
     },
     "contract.benchmark_reproduction": {
@@ -147,13 +142,12 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "source_reference_id": None,
+                "source_reference_id": "ref-benchmark",
             },
             "observed": {
-                "metric_value": None,
-                "threshold_value": None,
+                "metric_value": "<required: observed.metric_value>",
+                "threshold_value": 1,
             },
-            "artifact_content": "",
         },
     },
     "contract.direct_proxy_consistency": {
@@ -169,13 +163,6 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {},
-            "observed": {
-                "proxy_only": None,
-                "direct_available": None,
-                "proxy_available": None,
-                "consistency_passed": None,
-            },
-            "artifact_content": "",
         },
     },
     "contract.fit_family_mismatch": {
@@ -191,15 +178,14 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "declared_family": None,
+                "declared_family": "power_law",
                 "allowed_families": [],
                 "forbidden_families": [],
             },
             "observed": {
-                "selected_family": None,
-                "competing_family_checked": None,
+                "selected_family": "power_law",
+                "competing_family_checked": False,
             },
-            "artifact_content": "",
         },
     },
     "contract.estimator_family_mismatch": {
@@ -224,16 +210,15 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "request_template": {
             "binding": {},
             "metadata": {
-                "declared_family": None,
+                "declared_family": "bootstrap",
                 "allowed_families": [],
                 "forbidden_families": [],
             },
             "observed": {
-                "selected_family": None,
-                "bias_checked": None,
-                "calibration_checked": None,
+                "selected_family": "bootstrap",
+                "bias_checked": False,
+                "calibration_checked": False,
             },
-            "artifact_content": "",
         },
     },
     "contract.proof_hypothesis_coverage": {
@@ -249,16 +234,14 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         ],
         "optional_request_fields": ["binding.*", "artifact_content"],
         "request_template": {
-            "contract": None,
             "binding": {},
             "metadata": {
-                "hypothesis_ids": None,
+                "hypothesis_ids": ["hypothesis-placeholder"],
             },
             "observed": {
-                "covered_hypothesis_ids": None,
-                "missing_hypothesis_ids": None,
+                "covered_hypothesis_ids": [],
+                "missing_hypothesis_ids": [],
             },
-            "artifact_content": "",
         },
     },
     "contract.proof_parameter_coverage": {
@@ -274,16 +257,14 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         ],
         "optional_request_fields": ["binding.*", "artifact_content"],
         "request_template": {
-            "contract": None,
             "binding": {},
             "metadata": {
-                "theorem_parameter_symbols": None,
+                "theorem_parameter_symbols": ["param-1"],
             },
             "observed": {
-                "covered_parameter_symbols": None,
-                "missing_parameter_symbols": None,
+                "covered_parameter_symbols": [],
+                "missing_parameter_symbols": [],
             },
-            "artifact_content": "",
         },
     },
     "contract.proof_quantifier_domain": {
@@ -299,17 +280,15 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         ],
         "optional_request_fields": ["binding.*", "metadata.quantifiers", "observed.uncovered_quantifiers", "artifact_content"],
         "request_template": {
-            "contract": None,
             "binding": {},
             "metadata": {
-                "quantifiers": None,
+                "quantifiers": ["for all x"],
             },
             "observed": {
-                "uncovered_quantifiers": None,
-                "quantifier_status": None,
-                "scope_status": None,
+                "uncovered_quantifiers": [],
+                "quantifier_status": "unclear",
+                "scope_status": "unclear",
             },
-            "artifact_content": "",
         },
     },
     "contract.claim_to_proof_alignment": {
@@ -330,17 +309,13 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
             "artifact_content",
         ],
         "request_template": {
-            "contract": None,
             "binding": {},
             "metadata": {
-                "claim_statement": None,
-                "conclusion_clause_ids": None,
+                "claim_statement": "Claim statement placeholder",
             },
             "observed": {
-                "uncovered_conclusion_clause_ids": None,
-                "scope_status": None,
+                "scope_status": "unclear",
             },
-            "artifact_content": "",
         },
     },
     "contract.counterexample_search": {
@@ -348,18 +323,47 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         "schema_required_request_fields": ["contract", "observed.counterexample_status"],
         "optional_request_fields": ["binding.*", "metadata.claim_statement", "artifact_content"],
         "request_template": {
-            "contract": None,
             "binding": {},
             "metadata": {
-                "claim_statement": None,
+                "claim_statement": "Claim statement placeholder",
             },
             "observed": {
-                "counterexample_status": None,
+                "counterexample_status": "not_attempted",
             },
-            "artifact_content": "",
         },
     },
 }
+
+
+def _strip_null_request_template_values(value: object) -> object:
+    if isinstance(value, dict):
+        cleaned: dict[str, object] = {}
+        for key, item in value.items():
+            cleaned_value = _strip_null_request_template_values(item)
+            if cleaned_value is not None:
+                cleaned[key] = cleaned_value
+        return cleaned
+    if isinstance(value, list):
+        cleaned_list: list[object] = []
+        for item in value:
+            cleaned_value = _strip_null_request_template_values(item)
+            if cleaned_value is not None:
+                cleaned_list.append(cleaned_value)
+        return cleaned_list
+    return value
+
+
+def _drop_request_template_field(template: dict[str, object], dotted_path: str) -> None:
+    """Remove a derived template value that would otherwise assert evidence."""
+
+    parts = dotted_path.split(".")
+    current: object = template
+    for part in parts[:-1]:
+        if not isinstance(current, dict):
+            return
+        current = current.get(part)
+    if isinstance(current, dict):
+        current.pop(parts[-1], None)
 
 
 class _ContractRequestBase(BaseModel):
@@ -1478,14 +1482,18 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         if metadata.get("conclusion_clause_ids") and observed.get("uncovered_conclusion_clause_ids") is None:
             metadata["conclusion_clause_ids"] = None
 
+    for field_name in enriched_hint["schema_required_request_fields"]:
+        if field_name.startswith("observed."):
+            _drop_request_template_field(request_template, field_name)
+
     if check_key in _PROOF_CHECK_KEYS:
         if "contract" not in enriched_hint["required_request_fields"]:
             enriched_hint["required_request_fields"].insert(0, "contract")
-        enriched_hint["request_template"]["contract"] = None
         enriched_hint["optional_request_fields"] = [
             field for field in enriched_hint["optional_request_fields"] if field not in enriched_hint["required_request_fields"]
         ]
 
+    enriched_hint["request_template"] = _strip_null_request_template_values(request_template)
     return enriched_hint
 
 

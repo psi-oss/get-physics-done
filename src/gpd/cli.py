@@ -816,7 +816,7 @@ def main(
     """GPD — Get Physics Done."""
     global _raw, _cwd  # noqa: PLW0603
     _raw = raw
-    _cwd = Path(cwd)
+    _cwd = Path(cwd).expanduser().resolve(strict=False)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -3107,9 +3107,9 @@ def verify_summary(
     check_count: int = typer.Option(2, "--check-count", help="Max file references to spot-check for existence"),
 ) -> None:
     """Verify a SUMMARY.md file."""
-    from gpd.core.frontmatter import verify_summary
+    from gpd.core.frontmatter import verify_summary as verify_summary_frontmatter
 
-    result = verify_summary(_get_cwd(), Path(path), check_file_count=check_count)
+    result = verify_summary_frontmatter(_get_cwd(), Path(path), check_file_count=check_count)
     _output(result)
     if not result.passed:
         raise typer.Exit(code=1)
@@ -3146,9 +3146,9 @@ def verify_references(
     path: str = typer.Argument(..., help="Path to file"),
 ) -> None:
     """Verify all internal references resolve."""
-    from gpd.core.frontmatter import verify_references
+    from gpd.core.frontmatter import verify_references as verify_references_frontmatter
 
-    result = verify_references(_get_cwd(), Path(path))
+    result = verify_references_frontmatter(_get_cwd(), Path(path))
     _output(result)
     if not result.valid:
         raise typer.Exit(code=1)
@@ -3159,9 +3159,9 @@ def verify_commits(
     hashes: list[str] = typer.Argument(..., help="Commit hashes to verify"),
 ) -> None:
     """Verify that commit hashes exist in git history."""
-    from gpd.core.frontmatter import verify_commits
+    from gpd.core.frontmatter import verify_commits as verify_commits_frontmatter
 
-    result = verify_commits(_get_cwd(), hashes)
+    result = verify_commits_frontmatter(_get_cwd(), hashes)
     _output(result)
     if not result.all_valid:
         raise typer.Exit(code=1)
@@ -3172,9 +3172,9 @@ def verify_artifacts(
     plan_path: str = typer.Argument(..., help="Path to plan file"),
 ) -> None:
     """Verify all artifacts referenced in a plan exist."""
-    from gpd.core.frontmatter import verify_artifacts
+    from gpd.core.frontmatter import verify_artifacts as verify_artifacts_frontmatter
 
-    result = verify_artifacts(_get_cwd(), Path(plan_path))
+    result = verify_artifacts_frontmatter(_get_cwd(), Path(plan_path))
     _output(result)
     if not result.all_passed:
         raise typer.Exit(code=1)

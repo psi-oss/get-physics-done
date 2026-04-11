@@ -1039,8 +1039,8 @@ def test_suggest_contract_checks_exposes_claim_alignment_branches() -> None:
         ["metadata.conclusion_clause_ids", "observed.uncovered_conclusion_clause_ids"],
     ]
     assert alignment["request_template"]["metadata"]["claim_statement"] == "For all r_0 > 0, the full theorem holds."
-    assert alignment["request_template"]["metadata"]["conclusion_clause_ids"] is None
-    assert alignment["request_template"]["observed"]["uncovered_conclusion_clause_ids"] is None
+    assert "conclusion_clause_ids" not in alignment["request_template"]["metadata"]
+    assert "uncovered_conclusion_clause_ids" not in alignment["request_template"]["observed"]
 
 
 def test_suggested_claim_alignment_template_is_runnable_without_clause_audit_preset() -> None:
@@ -1056,6 +1056,27 @@ def test_suggested_claim_alignment_template_is_runnable_without_clause_audit_pre
 
     assert verification["status"] == "pass"
     assert "observed.uncovered_conclusion_clause_ids" not in verification["missing_inputs"]
+
+
+def test_contract_request_templates_preserve_non_null_required_fields() -> None:
+    from gpd.mcp.servers.verification_server import _CONTRACT_CHECK_REQUEST_HINTS, _contract_check_request_hint
+
+    def _lookup(template: dict[str, object], field_path: str) -> object | None:
+        current: object | None = template
+        for part in field_path.split("."):
+            if not isinstance(current, dict):
+                return None
+            current = current.get(part)
+            if current is None:
+                return None
+        return current
+
+    for check_key, hint in _CONTRACT_CHECK_REQUEST_HINTS.items():
+        template = _contract_check_request_hint(check_key)["request_template"]
+        for field_name in hint.get("required_request_fields", []):
+            if field_name == "contract":
+                continue
+            assert _lookup(template, field_name) is not None
 
 
 def test_patterns_tools_expose_domain_category_and_severity_enums() -> None:

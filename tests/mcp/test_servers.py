@@ -2771,8 +2771,8 @@ class TestVerificationServer:
         assert result["check_key"] == "contract.limit_recovery"
         assert result["contract_aware"] is True
         assert result["required_request_fields"] == ["metadata.regime_label", "metadata.expected_behavior"]
-        assert result["request_template"]["metadata"]["regime_label"] is None
-        assert result["request_template"]["metadata"]["expected_behavior"] is None
+        assert result["request_template"]["metadata"]["regime_label"] == "large-k"
+        assert result["request_template"]["metadata"]["expected_behavior"] == "approaches the contracted limit behavior"
 
     def test_run_check_contract_benchmark_reproduction_flags_missing_anchor(self):
         from gpd.mcp.servers.verification_server import run_check
@@ -3370,8 +3370,8 @@ class TestVerificationServer:
             "observed.threshold_value",
         ]
         assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
-        assert benchmark["request_template"]["observed"]["metric_value"] is None
-        assert benchmark["request_template"]["observed"]["threshold_value"] is None
+        assert "metric_value" not in benchmark["request_template"]["observed"]
+        assert "threshold_value" not in benchmark["request_template"]["observed"]
         assert "artifact_content" not in benchmark["request_template"]
 
     def test_suggest_contract_checks_from_proof_contract(self):
@@ -3388,7 +3388,7 @@ class TestVerificationServer:
         assert parameter["binding_targets"] == ["observable", "claim", "deliverable", "acceptance_test"]
         assert parameter["request_template"]["binding"]["claim_ids"] == ["claim-theorem"]
         assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == ["r_0", "n"]
-        assert parameter["request_template"]["observed"]["covered_parameter_symbols"] is None
+        assert "covered_parameter_symbols" not in parameter["request_template"]["observed"]
 
     def test_suggest_contract_checks_returns_deep_copied_request_templates(self):
         import json
@@ -3443,12 +3443,12 @@ class TestVerificationServer:
         assert "evidence_kind" in result["universal_checks"][0]
         contract_check = next(entry for entry in result["universal_checks"] if entry["check_key"] == "contract.limit_recovery")
         assert contract_check["required_request_fields"] == ["metadata.regime_label", "metadata.expected_behavior"]
-        assert contract_check["request_template"]["metadata"]["regime_label"] is None
-        assert contract_check["request_template"]["metadata"]["expected_behavior"] is None
+        assert contract_check["request_template"]["metadata"]["regime_label"] == "large-k"
+        assert contract_check["request_template"]["metadata"]["expected_behavior"] == "approaches the contracted limit behavior"
         proof_check = next(
             entry for entry in result["universal_checks"] if entry["check_key"] == "contract.proof_parameter_coverage"
         )
-        assert proof_check["request_template"]["metadata"]["theorem_parameter_symbols"] is None
+        assert proof_check["request_template"]["metadata"]["theorem_parameter_symbols"] == ["param-1"]
 
     def test_get_checklist_unknown_domain(self):
         from gpd.mcp.servers.verification_server import get_checklist

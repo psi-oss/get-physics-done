@@ -58,6 +58,13 @@ class TestRegistry:
         assert isinstance(adapter, RuntimeAdapter)
         assert adapter.runtime_name == runtime
 
+    @pytest.mark.parametrize("descriptor", iter_runtime_descriptors(), ids=lambda descriptor: descriptor.runtime_name)
+    def test_get_adapter_accepts_catalog_aliases(self, descriptor) -> None:
+        values = {descriptor.display_name, descriptor.install_flag, *descriptor.selection_flags, *descriptor.selection_aliases}
+        for value in values:
+            adapter = get_adapter(value)
+            assert adapter.runtime_name == descriptor.runtime_name
+
     def test_get_adapter_unknown_raises_key_error(self) -> None:
         with pytest.raises(KeyError, match="Unknown runtime"):
             get_adapter("nonexistent")

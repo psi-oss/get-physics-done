@@ -76,9 +76,7 @@ packages = ["src/gpd"]
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-# Default to maximal local parallelism with worker stealing so giant modules do
-# not serialize the suite behind a single xdist worker.
-addopts = "-n auto --dist=worksteal"
+addopts = ""
 markers = [
     "no_stable_hook_python: opt out of the autouse _stable_hook_python fixture",
 ]

@@ -264,6 +264,14 @@ def test_public_bootstrap_installer_pins_the_matching_python_release() -> None:
     assert "GitHub sources" in content
 
 
+def test_public_bootstrap_installer_requires_runtime_catalog_assets() -> None:
+    repo_root = _repo_root()
+    content = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+
+    assert 'require("../src/gpd/adapters/runtime_catalog.json")' in content
+    assert 'require("../src/gpd/adapters/runtime_catalog_schema.json")' in content
+
+
 def test_export_workflow_uses_release_attribution_footer() -> None:
     repo_root = _repo_root()
     content = (repo_root / "src" / "gpd" / "specs" / "workflows" / "export.md").read_text(encoding="utf-8")
@@ -325,7 +333,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert 'python-version: "3.11"' in workflow
     assert "astral-sh/setup-uv@v7" in workflow
     assert "uv sync --dev" in workflow
-    assert 'addopts = "-n auto --dist=worksteal"' in pyproject
+    assert 'addopts = ""' in pyproject
     assert "Resolve pytest shard targets" in workflow
     assert "Run pytest shard" in workflow
     assert "from tests.ci_sharding import write_ci_shard_targets_file" in workflow

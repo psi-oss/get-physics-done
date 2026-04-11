@@ -29,6 +29,13 @@ def _extract_contract_rule_block_lines(text: str, start_marker: str) -> tuple[st
     return tuple(line.strip() for line in lines[start:end] if line.lstrip().startswith("- "))
 
 
+def _project_contract_schema_excerpt(text: str) -> str:
+    marker = "**Project contract schema-critical excerpt:**"
+    start = text.index(marker)
+    end = text.index("#### M2. Create PROJECT.md", start)
+    return text[start:end]
+
+
 def test_new_project_prompt_surfaces_the_canonical_contract_schema_for_project_contract_grounding() -> None:
     new_project_text = NEW_PROJECT.read_text(encoding="utf-8")
     parse_line = next(
@@ -177,3 +184,54 @@ def test_new_project_and_questioning_gate_do_not_treat_missing_anchor_notes_as_a
     assert "at least one concrete anchor, reference, prior output, or baseline" in questioning_text
     assert "if the decisive anchor is still unknown, an explicit missing-anchor note" in questioning_text
     assert "do not replace the requirement for at least one concrete reference, prior output, baseline" in questioning_text
+
+
+def test_new_project_schema_excerpt_precedes_project_outputs() -> None:
+    new_project_text = NEW_PROJECT.read_text(encoding="utf-8")
+    excerpt = _project_contract_schema_excerpt(new_project_text)
+
+    assert excerpt.startswith("**Project contract schema-critical excerpt:**")
+    marker = "#### M2. Create PROJECT.md"
+    assert marker in new_project_text
+    assert new_project_text.index(marker) > new_project_text.index("**Project contract schema-critical excerpt:**")
+
+
+def test_new_project_schema_excerpt_mentions_canonical_tokens() -> None:
+    excerpt = _project_contract_schema_excerpt(NEW_PROJECT.read_text(encoding="utf-8"))
+    tokens = (
+        "ResearchContract",
+        "schema_version: 1",
+        "scope",
+        "context_intake",
+        "approach_policy",
+        "uncertainty_markers",
+        "observables",
+        "claims",
+        "deliverables",
+        "acceptance_tests",
+        "references",
+        "forbidden_proxies",
+        "links",
+        "claims[].observables",
+        "claims[].deliverables",
+        "claims[].acceptance_tests",
+        "claims[].references",
+        "proof-bearing claims",
+        "parameters",
+        "hypotheses",
+        "quantifiers",
+        "conclusion_clauses",
+        "proof_deliverables",
+        "context_intake.must_read_refs[]",
+        "references[].must_surface",
+        "uncertainty_markers.weakest_anchors",
+        "disconfirming_observations",
+        "list fields as lists even for singleton values",
+        "PROJECT.md",
+        "REQUIREMENTS.md",
+        "ROADMAP.md",
+        "templates/project-contract-schema.md",
+    )
+
+    missing = [token for token in tokens if token not in excerpt]
+    assert not missing, f"project contract excerpt missing canonical tokens: {', '.join(missing)}"

@@ -669,7 +669,7 @@ Convention management requires reading many files across many phases. Manage con
 
 <return_format>
 
-## Return Format
+## Convention Return Format
 
 All returns use the `gpd_return` YAML envelope in `<structured_returns>` below. The extended fields convey operation-specific detail:
 

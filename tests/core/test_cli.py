@@ -7095,6 +7095,76 @@ def test_verify_path_subcommand(mock_verify):
     mock_verify.assert_called_once()
 
 
+@patch("gpd.core.frontmatter.verify_summary")
+def test_verify_summary_invokes_frontmatter(mock_verify_summary, tmp_path: Path) -> None:
+    mock_verify_summary.return_value = SimpleNamespace(passed=True)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    summary_arg = "SUMMARY.md"
+
+    result = runner.invoke(app, ["--cwd", str(workspace), "verify", "summary", summary_arg])
+
+    assert result.exit_code == 0
+    mock_verify_summary.assert_called_once_with(workspace.resolve(), Path(summary_arg), check_file_count=2)
+
+
+@patch("gpd.core.frontmatter.verify_references")
+def test_verify_references_invokes_frontmatter(mock_verify_references, tmp_path: Path) -> None:
+    mock_verify_references.return_value = SimpleNamespace(valid=True)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    references_arg = "REFERENCES.md"
+
+    result = runner.invoke(app, ["--cwd", str(workspace), "verify", "references", references_arg])
+
+    assert result.exit_code == 0
+    mock_verify_references.assert_called_once_with(workspace.resolve(), Path(references_arg))
+
+
+@patch("gpd.core.frontmatter.verify_commits")
+def test_verify_commits_invokes_frontmatter(mock_verify_commits, tmp_path: Path) -> None:
+    mock_verify_commits.return_value = SimpleNamespace(all_valid=True)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    hashes = ["abc123", "deadbeef"]
+
+    result = runner.invoke(app, ["--cwd", str(workspace), "verify", "commits", *hashes])
+
+    assert result.exit_code == 0
+    mock_verify_commits.assert_called_once_with(workspace.resolve(), hashes)
+
+
+@patch("gpd.core.frontmatter.verify_artifacts")
+def test_verify_artifacts_invokes_frontmatter(mock_verify_artifacts, tmp_path: Path) -> None:
+    mock_verify_artifacts.return_value = SimpleNamespace(all_passed=True)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plan_arg = "PLAN.md"
+
+    result = runner.invoke(app, ["--cwd", str(workspace), "verify", "artifacts", plan_arg])
+
+    assert result.exit_code == 0
+    mock_verify_artifacts.assert_called_once_with(workspace.resolve(), Path(plan_arg))
+
+
+@patch("gpd.core.frontmatter.verify_summary")
+def test_global_cwd_option_expands_home(mock_verify_summary, tmp_path: Path) -> None:
+    mock_verify_summary.return_value = SimpleNamespace(passed=True)
+    home = tmp_path / "home"
+    home.mkdir()
+    workspace = home / "workspace"
+    workspace.mkdir()
+
+    result = runner.invoke(
+        app,
+        ["--cwd", "~/workspace", "verify", "summary", "proof.md"],
+        env={"HOME": str(home)},
+    )
+
+    assert result.exit_code == 0
+    assert mock_verify_summary.call_args.args[0] == workspace.resolve()
+
+
 @patch("gpd.core.commands.cmd_history_digest")
 def test_history_digest_subcommand(mock_digest):
     mock_result = MagicMock()

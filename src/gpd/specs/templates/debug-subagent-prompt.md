@@ -17,7 +17,7 @@ The spawned debugger must satisfy this contract before producing output:
 - Goal vocabulary: `find_root_cause_only | find_and_fix`
 - Continuation semantics: read `GPD/debug/{slug}.md` first, then continue from next_action
 
-## Template
+## Debug Template
 
 ```markdown
 <debug_session_contract>

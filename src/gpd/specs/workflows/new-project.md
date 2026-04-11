@@ -189,6 +189,8 @@ printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
 
 Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.
 
+**Project contract schema-critical excerpt:** The `project_contract` payload is the `ResearchContract` object defined in code. Keep `schema_version: 1`, object-valued `scope`, `context_intake`, `approach_policy`, and `uncertainty_markers`, and closed arrays of objects for `observables`, `claims`, `deliverables`, `acceptance_tests`, `references`, `forbidden_proxies`, and `links`. Maintain ID linkage rules so `claims[].observables`, `claims[].deliverables`, `claims[].acceptance_tests`, and `claims[].references` reference declared IDs, keep IDs unique per section, and keep proof-bearing claims visible by listing `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, and `proof_deliverables`. Treat `context_intake.must_read_refs[]` as `references[].id`, keep `references[].must_surface` a boolean, keep `uncertainty_markers.weakest_anchors` and `.disconfirming_observations` non-empty, and keep list fields as lists even for singleton values. Do not invent extra keys or scalar shortcuts before you generate `PROJECT.md`, `REQUIREMENTS.md`, or `ROADMAP.md`; confirm this excerpt and the canonical `templates/project-contract-schema.md` once more so the schema stays visible before output generation.
+
 #### M2. Create PROJECT.md
 
 Populate `GPD/PROJECT.md` using the template from `templates/project.md`.

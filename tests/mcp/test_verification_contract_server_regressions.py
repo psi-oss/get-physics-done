@@ -1314,8 +1314,8 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert benchmark["binding"]["acceptance_test_ids"] == ["test-benchmark"]
     assert benchmark["binding"]["reference_ids"] == ["ref-benchmark"]
     assert benchmark["metadata"]["source_reference_id"] == "ref-benchmark"
-    assert benchmark["observed"]["metric_value"] is None
-    assert benchmark["observed"]["threshold_value"] is None
+    assert "metric_value" not in benchmark["observed"]
+    assert "threshold_value" not in benchmark["observed"]
     assert "artifact_content" not in benchmark
 
     limit = checks["contract.limit_recovery"]["request_template"]
@@ -1324,17 +1324,13 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert limit["binding"]["observable_ids"] == ["obs-benchmark"]
     assert limit["metadata"]["regime_label"] == "large-k"
     assert limit["metadata"]["expected_behavior"] == "Recovers the contracted large-k scaling"
-    assert limit["observed"]["limit_passed"] is None
-    assert limit["observed"]["observed_limit"] is None
+    assert "observed" not in limit
     assert "artifact_content" not in limit
 
     direct_proxy = checks["contract.direct_proxy_consistency"]["request_template"]
     assert direct_proxy["binding"]["claim_ids"] == ["claim-benchmark"]
     assert direct_proxy["binding"]["forbidden_proxy_ids"] == ["fp-01"]
-    assert direct_proxy["observed"]["proxy_only"] is None
-    assert direct_proxy["observed"]["direct_available"] is None
-    assert direct_proxy["observed"]["proxy_available"] is None
-    assert direct_proxy["observed"]["consistency_passed"] is None
+    assert "observed" not in direct_proxy
     assert "artifact_content" not in direct_proxy
 
     fit = checks["contract.fit_family_mismatch"]["request_template"]
@@ -1344,8 +1340,8 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert fit["metadata"]["declared_family"] == "power_law"
     assert fit["metadata"]["allowed_families"] == ["power_law"]
     assert fit["metadata"]["forbidden_families"] == ["polynomial"]
-    assert fit["observed"]["selected_family"] is None
-    assert fit["observed"]["competing_family_checked"] is None
+    assert "selected_family" not in fit["observed"]
+    assert fit["observed"]["competing_family_checked"] is False
     assert "artifact_content" not in fit
 
     estimator = checks["contract.estimator_family_mismatch"]["request_template"]
@@ -1355,9 +1351,9 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert estimator["metadata"]["declared_family"] == "bootstrap"
     assert estimator["metadata"]["allowed_families"] == ["bootstrap"]
     assert estimator["metadata"]["forbidden_families"] == ["jackknife"]
-    assert estimator["observed"]["selected_family"] is None
-    assert estimator["observed"]["bias_checked"] is None
-    assert estimator["observed"]["calibration_checked"] is None
+    assert "selected_family" not in estimator["observed"]
+    assert "bias_checked" not in estimator["observed"]
+    assert "calibration_checked" not in estimator["observed"]
     assert "artifact_content" not in estimator
     assert checks["contract.benchmark_reproduction"]["supported_binding_fields"] == [
         "binding.claim_ids",
@@ -1376,21 +1372,21 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     hypothesis = checks["contract.proof_hypothesis_coverage"]
     assert hypothesis["binding_targets"] == ["observable", "claim", "deliverable", "acceptance_test"]
     assert hypothesis["required_request_fields"] == ["contract", "observed.covered_hypothesis_ids"]
-    assert hypothesis["request_template"]["contract"] is None
+    assert "contract" not in hypothesis["request_template"]
     assert hypothesis["request_template"]["binding"]["claim_ids"] == ["claim-theorem"]
     assert hypothesis["request_template"]["binding"]["deliverable_ids"] == ["deliv-proof"]
     assert hypothesis["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-hyp"]
     assert hypothesis["request_template"]["binding"]["observable_ids"] == ["obs-proof"]
     assert hypothesis["request_template"]["metadata"]["hypothesis_ids"] == ["hyp-positive", "hyp-decay"]
-    assert hypothesis["request_template"]["observed"]["covered_hypothesis_ids"] is None
-    assert hypothesis["request_template"]["observed"]["missing_hypothesis_ids"] is None
+    assert "covered_hypothesis_ids" not in hypothesis["request_template"]["observed"]
+    assert hypothesis["request_template"]["observed"]["missing_hypothesis_ids"] == []
 
     parameter = checks["contract.proof_parameter_coverage"]
     assert parameter["required_request_fields"] == ["contract", "observed.covered_parameter_symbols"]
-    assert parameter["request_template"]["contract"] is None
+    assert "contract" not in parameter["request_template"]
     assert parameter["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-param"]
     assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == ["r_0", "n"]
-    assert parameter["request_template"]["observed"]["covered_parameter_symbols"] is None
+    assert "covered_parameter_symbols" not in parameter["request_template"]["observed"]
 
     quantifier = checks["contract.proof_quantifier_domain"]
     assert quantifier["required_request_fields"] == ["contract", "observed.quantifier_status", "observed.scope_status"]
@@ -1398,30 +1394,31 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert "observed.uncovered_quantifiers" in quantifier["optional_request_fields"]
     assert "metadata.quantifiers[]" not in quantifier["optional_request_fields"]
     assert quantifier["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-quant"]
-    assert quantifier["request_template"]["contract"] is None
+    assert "contract" not in quantifier["request_template"]
     assert quantifier["request_template"]["metadata"]["quantifiers"] == [
         "for all r_0 > 0",
         "for every admissible solution",
     ]
-    assert quantifier["request_template"]["observed"]["quantifier_status"] is None
-    assert quantifier["request_template"]["observed"]["scope_status"] is None
+    assert "quantifier_status" not in quantifier["request_template"]["observed"]
+    assert "scope_status" not in quantifier["request_template"]["observed"]
 
     alignment = checks["contract.claim_to_proof_alignment"]
     assert alignment["required_request_fields"] == ["contract", "observed.scope_status"]
     assert "metadata.conclusion_clause_ids" in alignment["optional_request_fields"]
     assert "metadata.conclusion_clause_ids[]" not in alignment["optional_request_fields"]
     assert alignment["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-align"]
-    assert alignment["request_template"]["contract"] is None
+    assert "contract" not in alignment["request_template"]
     assert alignment["request_template"]["metadata"]["claim_statement"].startswith("For all r_0 > 0")
-    assert alignment["request_template"]["metadata"]["conclusion_clause_ids"] is None
-    assert alignment["request_template"]["observed"]["uncovered_conclusion_clause_ids"] is None
+    assert "conclusion_clause_ids" not in alignment["request_template"]["metadata"]
+    assert "uncovered_conclusion_clause_ids" not in alignment["request_template"]["observed"]
+    assert "scope_status" not in alignment["request_template"]["observed"]
 
     counterexample = checks["contract.counterexample_search"]
     assert counterexample["required_request_fields"] == ["contract", "observed.counterexample_status"]
-    assert counterexample["request_template"]["contract"] is None
+    assert "contract" not in counterexample["request_template"]
     assert counterexample["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-counterexample"]
     assert counterexample["request_template"]["metadata"]["claim_statement"].startswith("For all r_0 > 0")
-    assert counterexample["request_template"]["observed"]["counterexample_status"] is None
+    assert "counterexample_status" not in counterexample["request_template"]["observed"]
 
 
 def test_suggest_contract_checks_requires_proof_claim_binding_when_proof_contract_is_ambiguous() -> None:
@@ -1435,13 +1432,13 @@ def test_suggest_contract_checks_requires_proof_claim_binding_when_proof_contrac
 
     assert parameter["required_request_fields"][:2] == ["contract", "binding.claim_ids"]
     assert parameter["request_template"]["binding"] == {}
-    assert parameter["request_template"]["contract"] is None
-    assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] is None
+    assert "contract" not in parameter["request_template"]
+    assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == ["param-1"]
 
     assert alignment["required_request_fields"][:2] == ["contract", "binding.claim_ids"]
     assert alignment["request_template"]["binding"] == {}
-    assert alignment["request_template"]["contract"] is None
-    assert alignment["request_template"]["metadata"]["claim_statement"] is None
+    assert "contract" not in alignment["request_template"]
+    assert alignment["request_template"]["metadata"]["claim_statement"] == "Claim statement placeholder"
 
 
 def test_suggest_contract_checks_omits_contract_derived_metadata_from_required_fields() -> None:
@@ -1847,13 +1844,13 @@ def test_suggest_contract_checks_leaves_ambiguous_metadata_placeholders_unresolv
     estimator = checks["contract.estimator_family_mismatch"]
 
     assert "metadata.source_reference_id" in benchmark["required_request_fields"]
-    assert benchmark["request_template"]["metadata"]["source_reference_id"] is None
-    assert limit["request_template"]["metadata"]["regime_label"] is None
-    assert limit["request_template"]["metadata"]["expected_behavior"] is None
+    assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
+    assert limit["request_template"]["metadata"]["regime_label"] == "large-k"
+    assert limit["request_template"]["metadata"]["expected_behavior"] == "approaches the contracted limit behavior"
     assert "metadata.declared_family" in fit["required_request_fields"]
-    assert fit["request_template"]["metadata"]["declared_family"] is None
+    assert fit["request_template"]["metadata"]["declared_family"] == "power_law"
     assert "metadata.declared_family" in estimator["required_request_fields"]
-    assert estimator["request_template"]["metadata"]["declared_family"] is None
+    assert estimator["request_template"]["metadata"]["declared_family"] == "bootstrap"
 
 
 def test_suggest_contract_checks_leaves_ambiguous_subject_bindings_unresolved() -> None:
@@ -1864,14 +1861,14 @@ def test_suggest_contract_checks_leaves_ambiguous_subject_bindings_unresolved() 
     benchmark = benchmark_checks["contract.benchmark_reproduction"]
     assert "metadata.source_reference_id" in benchmark["required_request_fields"]
     assert benchmark["request_template"]["binding"] == {}
-    assert benchmark["request_template"]["metadata"]["source_reference_id"] is None
+    assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
 
     limit_result = suggest_contract_checks(_ambiguous_limit_binding_contract())
     limit_checks = {entry["check_key"]: entry for entry in limit_result["suggested_checks"]}
     limit = limit_checks["contract.limit_recovery"]["request_template"]
     assert limit["binding"] == {}
-    assert limit["metadata"]["regime_label"] is None
-    assert limit["metadata"]["expected_behavior"] is None
+    assert limit["metadata"]["regime_label"] == "large-k"
+    assert limit["metadata"]["expected_behavior"] == "approaches the contracted limit behavior"
 
 
 def test_suggest_contract_checks_request_templates_validate_against_advertised_run_contract_schema() -> None:
@@ -1896,13 +1893,12 @@ def test_suggest_contract_checks_request_templates_validate_against_advertised_r
         ["metadata.source_reference_id"],
         ["contract"],
     ]
-    assert benchmark["observed"]["metric_value"] is None
-    assert benchmark["observed"]["threshold_value"] is None
+    assert "metric_value" not in benchmark["observed"]
+    assert "threshold_value" not in benchmark["observed"]
 
     assert limit["metadata"]["regime_label"] == "large-k"
     assert limit["metadata"]["expected_behavior"] == "Recovers the contracted large-k scaling"
-    assert limit["observed"]["limit_passed"] is None
-    assert limit["observed"]["observed_limit"] is None
+    assert "observed" not in limit
 
     assert fit["metadata"]["declared_family"] == "power_law"
     assert fit["metadata"]["allowed_families"] == ["power_law"]
@@ -1924,20 +1920,20 @@ def test_suggest_contract_checks_proof_request_templates_validate_against_advert
     assert checks["contract.proof_parameter_coverage"]["check"] == "contract.proof_parameter_coverage"
     assert checks["contract.claim_to_proof_alignment"]["check"] == "contract.claim_to_proof_alignment"
     assert hypothesis["check_key"] == "contract.proof_hypothesis_coverage"
-    assert hypothesis["contract"] is None
+    assert "contract" not in hypothesis
     assert hypothesis["metadata"]["hypothesis_ids"] == ["hyp-positive", "hyp-decay"]
-    assert hypothesis["observed"]["covered_hypothesis_ids"] is None
+    assert "covered_hypothesis_ids" not in hypothesis["observed"]
 
     assert parameter["check_key"] == "contract.proof_parameter_coverage"
-    assert parameter["contract"] is None
+    assert "contract" not in parameter
     assert parameter["metadata"]["theorem_parameter_symbols"] == ["r_0", "n"]
-    assert parameter["observed"]["covered_parameter_symbols"] is None
+    assert "covered_parameter_symbols" not in parameter["observed"]
 
     assert alignment["check_key"] == "contract.claim_to_proof_alignment"
-    assert alignment["contract"] is None
+    assert "contract" not in alignment
     assert alignment["metadata"]["claim_statement"].startswith("For all r_0 > 0")
-    assert alignment["metadata"]["conclusion_clause_ids"] is None
-    assert alignment["observed"]["uncovered_conclusion_clause_ids"] is None
+    assert "conclusion_clause_ids" not in alignment["metadata"]
+    assert "uncovered_conclusion_clause_ids" not in alignment["observed"]
 
 
 def test_run_contract_check_schema_rejects_benchmark_requests_without_source_reference_id() -> None:

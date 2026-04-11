@@ -14,7 +14,7 @@ Referenced by `workflows/execute-phase.md` checkpoint_handling step.
 
 ---
 
-## Template
+## Continuation Template
 
 ```markdown
 <objective>
