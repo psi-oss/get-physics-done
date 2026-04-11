@@ -5,11 +5,11 @@
   "family_id": "placeholder-sentinel-normalization",
   "family_title": "placeholder/sentinel normalization",
   "wave": "F4",
-  "status": "ready",
+  "status": "verified",
   "classification": "verification_contract",
   "contract_test": "tests/test_bug_placeholder_sentinel_normalization.py",
   "source_artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/f3-placeholder-sentinel-normalization.json",
-  "source_artifact_status": "ready",
+  "source_artifact_status": "verified",
   "source_artifact_wave": "lane-3",
   "gates": {
     "red_exact_repro_present": true,

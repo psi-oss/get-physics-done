@@ -73,7 +73,7 @@ PHASE15_FAMILIES = (
         "family_id": "placeholder-sentinel-normalization",
         "family_title": "placeholder/sentinel normalization",
         "wave": "F4",
-        "status": "ready",
+        "status": "verified",
         "contract_test": "tests/test_bug_placeholder_sentinel_normalization.py",
         "artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/placeholder-sentinel-normalization.json",
         "source_artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/f3-placeholder-sentinel-normalization.json",

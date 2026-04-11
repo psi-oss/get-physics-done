@@ -19,7 +19,7 @@
       "family_title": "placeholder/sentinel normalization",
       "contract_test": "tests/test_bug_placeholder_sentinel_normalization.py",
       "artifact_path": "artifacts/phases/15-verification-contract/verification/fixes/placeholder-sentinel-normalization.json",
-      "status": "ready",
+      "status": "verified",
       "classification": "verification_contract"
     },
     {
