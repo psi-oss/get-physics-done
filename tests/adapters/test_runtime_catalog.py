@@ -241,7 +241,6 @@ def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> N
         assert descriptor.runtime_name in descriptor.selection_aliases
         assert descriptor.adapter_module
         assert descriptor.install_flag not in descriptor.selection_flags
-        assert descriptor.public_command_surface_prefix == descriptor.command_prefix
         assert normalize_runtime_name(runtime_name) == runtime_name
         assert normalize_runtime_name(descriptor.display_name) == runtime_name
         assert normalize_runtime_name(descriptor.install_flag) == runtime_name
@@ -249,6 +248,23 @@ def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> N
             assert normalize_runtime_name(selection_flag) == runtime_name
         for selection_alias in descriptor.selection_aliases:
             assert normalize_runtime_name(selection_alias) == runtime_name
+
+
+def test_runtime_catalog_allows_descriptor_public_prefix_to_differ_from_adapter_prefix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    codex = _catalog_entry_by_runtime_name(payload, "codex")
+    codex["command_prefix"] = "/gpd"
+    codex["validated_command_surface"] = "public_runtime_slash_command"
+    codex["public_command_surface_prefix"] = "$public-"
+
+    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    descriptor = next(item for item in descriptors if item.runtime_name == "codex")
+
+    assert descriptor.command_prefix == "/gpd"
+    assert descriptor.public_command_surface_prefix == "$public-"
 
 
 def test_runtime_catalog_records_native_include_support() -> None:

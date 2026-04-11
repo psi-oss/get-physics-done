@@ -13,18 +13,6 @@ The verifier agent owns contract-backed target construction, proof policy, compu
 - File-producing handoffs must prove the expected artifact exists before success is accepted.
 </philosophy>
 
-<shared_contract_floor>
-**Project Contract Gate:** {project_contract_gate}
-**Project Contract Load Info:** {project_contract_load_info}
-**Project Contract Validation:** {project_contract_validation}
-**Contract Intake:** {contract_intake}
-**Effective Reference Intake:** {effective_reference_intake}
-
-Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. A visible-but-blocked contract must be repaired before it is used as authoritative verification scope; keep the same contract-critical floor at all times.
-Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth.
-Do NOT skip contract-critical anchors.
-</shared_contract_floor>
-
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 <process>
@@ -56,7 +44,7 @@ fi
 
 Parse the init JSON for the wrapper-facing fields only: `planner_model`, `checker_model`, `verifier_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`, `phase_proof_review_status`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `project_contract_gate`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`.
 
-Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth.
+After parsing init, preserve these contract-critical fields as the wrapper's floor for every delegation and repair route: `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `contract_intake`, and `effective_reference_intake`. Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth. Do not skip contract-critical anchors.
 
 **If `phase_found` is false:**
 

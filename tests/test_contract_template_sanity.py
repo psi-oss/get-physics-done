@@ -59,6 +59,21 @@ def test_new_project_workflow_loads_canonical_project_contract_schema() -> None:
     assert "Project contract schema-critical excerpt" not in workflow
 
 
+def test_verify_work_contract_floor_uses_parsed_init_fields_without_placeholders() -> None:
+    workflow = (
+        Path(__file__).resolve().parent.parent / "src" / "gpd" / "specs" / "workflows" / "verify-work.md"
+    ).read_text(encoding="utf-8")
+
+    init_parse = workflow.index("Parse the init JSON for the wrapper-facing fields only")
+    contract_floor = workflow.index("After parsing init, preserve these contract-critical fields")
+
+    assert contract_floor > init_parse
+    assert "<shared_contract_floor>" not in workflow
+    assert "{project_contract_gate}" not in workflow[:contract_floor]
+    assert "{project_contract_load_info}" not in workflow[:contract_floor]
+    assert "{contract_intake}" not in workflow[:contract_floor]
+
+
 def test_contract_results_schema_keeps_required_vocab_without_legacy_compatibility_wording() -> None:
     schema = (_TEMPLATES_DIR / "contract-results-schema.md").read_text(encoding="utf-8")
 
@@ -146,7 +161,6 @@ def test_phase_prompt_pre_contract_surfaces_link_relation_and_action_vocab() -> 
 
 
 def test_planner_subagent_excerpt_surfaces_link_relation_and_action_vocab() -> None:
-    canonical_schema = (_TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
     subagent_prompt = (_TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
 
     excerpt_start = subagent_prompt.index("**PLAN contract schema-critical excerpt:**")

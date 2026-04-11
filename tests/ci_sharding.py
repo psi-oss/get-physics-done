@@ -19,6 +19,7 @@ CI_CATEGORY_SHARD_COUNTS = {
 
 CI_PYTEST_JOB_TIMEOUT_MINUTES = 30
 CI_SMOKE_JOB_TIMEOUT_MINUTES = 3
+CI_FAST_PRIORITY_TIMEOUT_MINUTES = 3
 CI_SMOKE_TEST_TARGETS = (
     "tests/test_release_consistency.py",
     "tests/test_ci_suite_commands.py",
@@ -29,6 +30,9 @@ CI_SMOKE_TEST_TARGETS = (
 )
 CI_TOTAL_SHARD_COUNT_TARGET = 19
 CI_MAX_SHARD_COUNT_TARGET = 20
+
+CI_FAST_PRIORITY_TEST_TARGETS = CI_SMOKE_TEST_TARGETS
+CI_HOTSPOT_SPLIT_COVERAGE_MIN_TOP_FILES = 12
 
 _RUNTIME_ADAPTER_TEST_MODULES = tuple(descriptor.adapter_module for descriptor in iter_runtime_descriptors())
 _RUNTIME_ADAPTER_TEST_FILE_SPLITS = {
@@ -48,14 +52,19 @@ CI_HOT_TEST_FILE_SPLITS = {
     "test_install_edge_cases.py": 2,
     "test_update_workflow.py": 4,
     **_RUNTIME_ADAPTER_TEST_FILE_SPLITS,
+    "adapters/test_runtime_projected_prompt_parity.py": 2,
     "hooks/test_runtime_detect.py": 2,
     "hooks/test_statusline.py": 2,
     "core/test_cli.py": 3,
     "core/test_contract_validation.py": 3,
     "core/test_frontmatter.py": 3,
     "core/test_context.py": 2,
+    "core/test_health.py": 2,
     "core/test_state.py": 2,
     "core/test_prompt_wiring.py": 2,
+    "mcp/test_servers.py": 2,
+    "mcp/test_verification_contract_server_regressions.py": 2,
+    "core/test_verification_contract_evidence.py": 2,
 }
 
 CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS = {

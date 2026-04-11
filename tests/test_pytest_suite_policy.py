@@ -9,8 +9,13 @@ import yaml
 import tests.conftest as tests_conftest
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
+    CI_FAST_PRIORITY_TEST_TARGETS,
+    CI_FAST_PRIORITY_TIMEOUT_MINUTES,
     CI_HOT_TEST_FILE_SPLITS,
+    CI_HOTSPOT_SPLIT_COVERAGE_MIN_TOP_FILES,
     CI_PYTEST_JOB_TIMEOUT_MINUTES,
+    CI_SMOKE_JOB_TIMEOUT_MINUTES,
+    CI_SMOKE_TEST_TARGETS,
     all_test_relpaths,
     build_ci_work_units,
     category_for_test_relpath,
@@ -171,6 +176,28 @@ def test_hotspot_split_targets_exist_and_request_multiple_parts() -> None:
 
     assert set(CI_HOT_TEST_FILE_SPLITS) <= all_relpaths
     assert all(split_count > 1 for split_count in CI_HOT_TEST_FILE_SPLITS.values())
+
+
+def test_fast_priority_targets_stay_inside_three_minute_policy() -> None:
+    all_targets = {f"tests/{rel_path}" for rel_path in all_test_relpaths(tests_root=_repo_root() / "tests")}
+
+    assert CI_FAST_PRIORITY_TIMEOUT_MINUTES == CI_SMOKE_JOB_TIMEOUT_MINUTES == 3
+    assert CI_FAST_PRIORITY_TEST_TARGETS == CI_SMOKE_TEST_TARGETS
+    assert set(CI_FAST_PRIORITY_TEST_TARGETS) <= all_targets
+    assert all(target in CI_FAST_PRIORITY_TEST_TARGETS for target in CI_SMOKE_TEST_TARGETS)
+
+
+def test_hotspot_split_policy_covers_largest_collected_files() -> None:
+    counts_by_file = collected_test_counts_by_file(repo_root=_repo_root())
+    largest_files = {
+        rel_path
+        for rel_path, _count in sorted(
+            counts_by_file.items(),
+            key=lambda item: (-item[1], item[0]),
+        )[:CI_HOTSPOT_SPLIT_COVERAGE_MIN_TOP_FILES]
+    }
+
+    assert largest_files <= set(CI_HOT_TEST_FILE_SPLITS)
 
 
 def test_hotspot_files_are_split_into_multiple_work_units() -> None:
