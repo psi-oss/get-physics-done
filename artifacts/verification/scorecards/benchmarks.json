@@ -29,5 +29,9 @@
     "contents": "read"
   },
   "nightly_scheduled": true,
-  "thresholds_enforced_by_tests": true
+  "thresholds_enforced_by_tests": true,
+  "local_closure_evidence_path": "artifacts/verification/scorecards/local-closure-runs.json",
+  "local_nightly_equivalent_green_run_count": 10,
+  "local_release_candidate_equivalent_green_run_count": 2,
+  "local_closure_evidence_all_green": true
 }

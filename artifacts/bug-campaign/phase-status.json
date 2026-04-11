@@ -86,14 +86,18 @@
     {
       "phase": "10",
       "name": "CLI Fast-Path Anchor Repro",
-      "status": "covered_subset_reconstructed_not_promoted",
+      "status": "covered_subset_post_fix_copy_runs_green_not_promoted",
       "evidence": [
         "repro/10-wave-summary.json",
-        "repro/10-wave-summary.md"
+        "repro/10-wave-summary.md",
+        "repro/10-copy-run-evidence.json",
+        "repro/10-copy-run-evidence.md"
       ],
-      "gap": "Covered fixture subset reconstructed; strict Phase 10 copy-run transcripts remain absent.",
+      "gap": "Covered fixture subset has fresh local post-fix copy-run evidence; original historical failure copy-run transcripts remain absent.",
       "reconstructed_family_count": 5,
-      "strict_phase10_exit_criteria_met": false
+      "strict_phase10_exit_criteria_met": false,
+      "post_fix_copy_run_criteria_met": true,
+      "post_fix_copy_run_green_family_count": 5
     },
     {
       "phase": "11",
@@ -146,19 +150,24 @@
     {
       "phase": "17",
       "name": "Nightly Matrix And Benchmarks",
-      "status": "tracked",
+      "status": "local_nightly_equivalent_green",
       "evidence": [
         "benchmarks/phase17_thresholds.json",
-        ".github/workflows/nightly-handoff-bundle.yml"
-      ]
+        ".github/workflows/nightly-handoff-bundle.yml",
+        "artifacts/verification/scorecards/local-closure-runs.json"
+      ],
+      "local_nightly_equivalent_green_run_count": 10
     },
     {
       "phase": "18",
       "name": "Scorecards And Closure Gates",
-      "status": "scorecards_generated_not_closed",
+      "status": "local_closure_evidence_green_not_closed",
       "evidence": [
-        "artifacts/verification/scorecards/family-closure.json"
-      ]
+        "artifacts/verification/scorecards/family-closure.json",
+        "artifacts/verification/scorecards/local-closure-runs.json"
+      ],
+      "local_release_candidate_equivalent_green_run_count": 2,
+      "gap": "Local closure evidence is green; official durable CI/release history and unconverted manual-repro items still block closure."
     }
   ]
 }

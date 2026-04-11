@@ -4,8 +4,9 @@
   "source_authority": "checked-in fixture-backed tests",
   "source_master_plan": "tmp/handoff-bundle/MASTER-BUG-CAMPAIGN-PLAN.md",
   "reconstruction_scope": "checked_in_fixture_covered_subset",
-  "status": "covered_subset_reconstructed_not_promoted",
+  "status": "covered_subset_post_fix_copy_runs_green_not_promoted",
   "strict_phase10_exit_criteria_met": false,
+  "post_fix_copy_run_criteria_met": true,
   "family_count": 5,
   "families": [
     {
@@ -64,8 +65,16 @@
       "promotion_status": "not_promoted_partial_reconstruction"
     }
   ],
+  "post_fix_copy_run_evidence": {
+    "json_path": "repro/10-copy-run-evidence.json",
+    "markdown_path": "repro/10-copy-run-evidence.md",
+    "family_count": 5,
+    "green_family_count": 5,
+    "generated_at": "2026-04-11T00:44:19Z",
+    "git_head": "9316bdb62e76652d52bf40cd07c282eadafc595a"
+  },
   "blocking_gaps": [
     "Original repro/10 exact scripts, full transcripts, and copy-run results were not present in the frozen source bundle.",
-    "Current artifacts do not satisfy the master plan's 2/2 anchor-copy plus 1/1 confirmatory-copy promotion rule."
+    "Fresh local post-fix copy-runs are green, but they do not reconstruct the original failing transcripts."
   ]
 }
