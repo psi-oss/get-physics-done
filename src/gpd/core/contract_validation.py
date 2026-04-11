@@ -66,6 +66,7 @@ class _SchemaFindingMetadata:
     loc: tuple[str | int, ...]
     msg: str
     error_type: str | None
+    ctx: dict[str, object]
     input_value_type: str | None
 
 
@@ -74,7 +75,8 @@ def _schema_finding_metadata_from_error(error: dict[str, object]) -> _SchemaFind
     return _SchemaFindingMetadata(
         loc=tuple(error.get("loc", ())),
         msg=str(error.get("msg", "")).strip(),
-        error_type=error.get("type"),
+        error_type=str(error.get("type")) if error.get("type") is not None else None,
+        ctx=dict(error.get("ctx", {})) if isinstance(error.get("ctx"), dict) else {},
         input_value_type=type(input_value).__name__ if "input" in error else None,
     )
 
@@ -92,9 +94,23 @@ def _categories_from_metadata(metadata: _SchemaFindingMetadata) -> set[_ProjectC
     if _is_canonical_authoritative_scalar_location(location):
         categories.add(_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR)
     error_type = metadata.error_type or ""
-    if error_type.endswith(".extra") or error_type == "value_error.extra":
+    if error_type in {"extra_forbidden", "value_error.extra"} or error_type.endswith(".extra"):
         categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
-    if error_type in {"type_error.list", "value_error.list", "type_error.dict", "value_error.dict"}:
+    if error_type in {
+        "list_type",
+        "dict_type",
+        "model_type",
+        "type_error.list",
+        "value_error.list",
+        "type_error.dict",
+        "value_error.dict",
+    }:
+        categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
+    if error_type == "value_error" and str(metadata.ctx.get("error", "")).lower() in {
+        "must be a list",
+        "must be an object",
+        "must be a valid list member",
+    }:
         categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
     message = metadata.msg.lower()
     if "must be a list" in message or "must be a valid list member" in message or "must be an object" in message:

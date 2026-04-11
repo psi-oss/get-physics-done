@@ -16,6 +16,16 @@ CI_CATEGORY_SHARD_COUNTS = {
 }
 
 CI_PYTEST_JOB_TIMEOUT_MINUTES = 30
+CI_SMOKE_JOB_TIMEOUT_MINUTES = 3
+CI_SMOKE_TEST_TARGETS = (
+    "tests/test_release_consistency.py",
+    "tests/test_ci_suite_commands.py",
+    "tests/test_repo_hygiene.py",
+    "tests/test_schema_registry_ownership_note.py",
+    "tests/adapters/test_runtime_catalog.py",
+)
+CI_TOTAL_SHARD_COUNT_TARGET = 19
+CI_MAX_SHARD_COUNT_TARGET = 20
 
 # Observed GitHub Actions timings on 2026-04-07 showed that these files are the
 # real bottlenecks inside their category. Split them inside the file so the
@@ -256,13 +266,14 @@ def select_ci_shard_targets(
     shard_index: int,
     shard_total: int,
     repo_root: Path | None = None,
+    inventory: Mapping[str, tuple[str, ...]] | None = None,
 ) -> tuple[str, ...]:
     expected_total = CI_CATEGORY_SHARD_COUNTS[category]
     if shard_total != expected_total:
         raise ValueError(f"shard_total for {category!r} must equal {expected_total}")
     if shard_index < 1 or shard_index > shard_total:
         raise ValueError("shard_index must be within shard_total")
-    planned_shards = plan_category_ci_shards(category=category, repo_root=repo_root)
+    planned_shards = plan_category_ci_shards(category=category, repo_root=repo_root, inventory=inventory)
     return planned_shards[shard_index - 1]
 
 
@@ -273,12 +284,14 @@ def write_ci_shard_targets_file(
     shard_index: int,
     shard_total: int,
     repo_root: Path | None = None,
+    inventory: Mapping[str, tuple[str, ...]] | None = None,
 ) -> tuple[str, ...]:
     targets = select_ci_shard_targets(
         category=category,
         shard_index=shard_index,
         shard_total=shard_total,
         repo_root=repo_root,
+        inventory=inventory,
     )
     target_file.write_text("\n".join(targets) + "\n", encoding="utf-8")
     return targets

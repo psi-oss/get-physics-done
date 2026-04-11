@@ -137,6 +137,62 @@ def test_schema_finding_metadata_does_not_leak_to_plain_string_classification() 
     assert split_project_contract_schema_findings([formatted]) == ([], [formatted])
 
 
+
+def test_schema_finding_metadata_classifies_pydantic_v2_extra_type_without_message_regex() -> None:
+    formatted, metadata = _format_schema_finding(
+        {
+            "loc": ("project_contract", "scope", "legacy_notes"),
+            "msg": "wording changed upstream",
+            "type": "extra_forbidden",
+        }
+    )
+
+    recoverable, blocking = split_project_contract_schema_findings(
+        [formatted], metadata_by_error={formatted: metadata}
+    )
+
+    assert recoverable == [formatted]
+    assert blocking == []
+
+
+def test_schema_finding_metadata_classifies_pydantic_v2_list_and_model_types_without_message_regex() -> None:
+    findings_with_metadata = []
+    for error_type in ("list_type", "model_type"):
+        formatted, metadata = _format_schema_finding(
+            {
+                "loc": ("project_contract", "claims"),
+                "msg": "wording changed upstream",
+                "type": error_type,
+            }
+        )
+        findings_with_metadata.append((formatted, metadata))
+
+    for formatted, metadata in findings_with_metadata:
+        recoverable, blocking = split_project_contract_schema_findings(
+            [formatted], metadata_by_error={formatted: metadata}
+        )
+        assert recoverable == []
+        assert blocking == [formatted]
+
+
+def test_schema_finding_metadata_classifies_value_error_ctx_without_message_regex() -> None:
+    formatted, metadata = _format_schema_finding(
+        {
+            "loc": ("project_contract", "claims"),
+            "msg": "Value error, upstream wording changed",
+            "type": "value_error",
+            "ctx": {"error": "must be a list"},
+        }
+    )
+
+    recoverable, blocking = split_project_contract_schema_findings(
+        [formatted], metadata_by_error={formatted: metadata}
+    )
+
+    assert recoverable == []
+    assert blocking == [formatted]
+
+
 def test_split_project_contract_schema_findings_separates_case_drift_from_blocking_errors() -> None:
     findings = [
         "legacy_notes: Extra inputs are not permitted",

@@ -33,6 +33,7 @@ Optional sections:
 
 Every list named above must contain objects, not strings.
 `context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections, not strings or lists.
+Do not add unknown keys at any level; strict validation rejects keys outside this schema.
 `approach_policy` is execution policy only; it can constrain planning, but it does not by itself satisfy the hard grounding/anchor requirement.
 
 ---

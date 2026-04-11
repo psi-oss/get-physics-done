@@ -13,6 +13,7 @@ from gpd.cli import app
 from gpd.core.git_ops import (
     CommitResult,
     PreCommitCheckResult,
+    _supports_assert_convention_validation,
     cmd_commit,
     cmd_pre_commit_check,
 )
@@ -46,6 +47,13 @@ class TestPreCommitCheck:
         result = cmd_pre_commit_check(tmp_path, [])
         assert result.passed is True
         assert result.files_checked == 0
+
+    def test_supports_assert_convention_validation_for_expected_text_artifacts(self) -> None:
+        assert _supports_assert_convention_validation("derivation.md") is True
+        assert _supports_assert_convention_validation("derivation.markdown") is True
+        assert _supports_assert_convention_validation("derivation.py") is True
+        assert _supports_assert_convention_validation("derivation.tex") is True
+        assert _supports_assert_convention_validation("notes.json") is False
 
     @patch("gpd.core.git_ops._exec_git")
     def test_no_files_checks_staged_files_when_available(self, mock_git: MagicMock, tmp_path: Path) -> None:

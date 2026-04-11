@@ -134,7 +134,7 @@ class RecentProjectEntry(BaseModel):
     @field_validator("resume_target_kind", mode="before")
     @classmethod
     def _normalize_resume_target_kind(cls, value: object) -> str | None:
-        return _normalize_resume_target_kind(value)
+        return _normalize_resume_target_kind_value(value)
 
     @model_validator(mode="before")
     @classmethod
@@ -290,7 +290,7 @@ def _normalize_recent_text(value: object) -> str | None:
     return stripped
 
 
-def _normalize_resume_target_kind(value: object) -> str | None:
+def _normalize_resume_target_kind_value(value: object) -> str | None:
     normalized = _normalize_recent_text(value)
     if normalized is None:
         return None
@@ -304,7 +304,7 @@ def _normalize_resume_target_kind(value: object) -> str | None:
 def _backfill_recent_project_recovery_fields(row: object) -> tuple[str | None, str | None]:
     """Resolve canonical recovery fields from explicit row metadata."""
 
-    resume_target_kind = _normalize_resume_target_kind(_row_value(row, "resume_target_kind"))
+    resume_target_kind = _normalize_resume_target_kind_value(_row_value(row, "resume_target_kind"))
     resume_target_recorded_at = _normalize_recent_text(_row_value(row, "resume_target_recorded_at"))
     if resume_target_recorded_at is None and resume_target_kind in _RECENT_PROJECT_TARGET_KINDS:
         resume_target_recorded_at = (

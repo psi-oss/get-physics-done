@@ -1298,6 +1298,9 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         enriched_hint["required_request_fields"] = [
             field for field in enriched_hint["required_request_fields"] if field != field_name
         ]
+        enriched_hint["schema_required_request_fields"] = [
+            field for field in enriched_hint["schema_required_request_fields"] if field != field_name
+        ]
         if field_name not in enriched_hint["optional_request_fields"]:
             enriched_hint["optional_request_fields"].append(field_name)
 
@@ -3708,6 +3711,14 @@ def _with_contract_policy_defaults(
     return enriched
 
 
+def _contract_defaulted_metadata_fields(supplied_metadata: dict[str, object], metadata: dict[str, object]) -> list[str]:
+    return [
+        field_name
+        for field_name in metadata
+        if field_name not in supplied_metadata or supplied_metadata.get(field_name) in (None, [], "")
+    ]
+
+
 def _contains_any_keyword(values: Iterable[str], keywords: Iterable[str]) -> bool:
     haystack = " ".join(value for value in values if isinstance(value, str)).lower()
     return any(keyword in haystack for keyword in keywords)
@@ -3966,6 +3977,7 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 binding_supplied=binding_supplied,
                 metadata=metadata,
             )
+            defaulted_metadata_fields = _contract_defaulted_metadata_fields(supplied_metadata, metadata)
             proof_claim_id: str | None = None
             if contract is not None and check_meta.check_key in _PROOF_CHECK_KEYS:
                 proof_claim_candidates, proof_claim_issue = _proof_claim_candidates(
@@ -4005,6 +4017,8 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
             automated_issues.extend(binding_issues)
 
             if check_meta.check_key == "contract.limit_recovery":
+                decisive_limit_metadata_fields = {"regime_label", "expected_behavior"}
+                decisive_limit_metadata_defaulted = decisive_limit_metadata_fields.issubset(defaulted_metadata_fields)
                 regime_label = metadata.get("regime_label")
                 regime_label, regime_issue = _validate_limit_regime_binding(
                     contract=contract,
@@ -4037,7 +4051,13 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                     return _error_result(error_message)
                 metrics["regime_label"] = regime_label
                 metrics["observed_limit"] = observed_limit
-                if limit_passed is True and not missing_inputs:
+                if decisive_limit_metadata_defaulted:
+                    automated_issues.append(
+                        "Limit recovery metadata was derived from contract defaults; supply metadata.regime_label "
+                        "and metadata.expected_behavior for a decisive verdict"
+                    )
+                    status = "insufficient_evidence"
+                elif limit_passed is True and not missing_inputs:
                     status = "pass"
                     evidence_directness = "direct"
                 elif limit_passed is False and not missing_inputs:

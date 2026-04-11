@@ -4,7 +4,16 @@ from pathlib import Path
 
 import yaml
 
-from tests.ci_sharding import CI_CATEGORY_SHARD_COUNTS, ci_shard_specs
+from tests.ci_sharding import (
+    CI_CATEGORY_SHARD_COUNTS,
+    CI_MAX_SHARD_COUNT_TARGET,
+    CI_SMOKE_JOB_TIMEOUT_MINUTES,
+    CI_SMOKE_TEST_TARGETS,
+    CI_TOTAL_SHARD_COUNT_TARGET,
+    ci_shard_specs,
+    select_ci_shard_targets,
+    write_ci_shard_targets_file,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -75,6 +84,8 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     assert strategy["fail-fast"] is False
     assert actual_shards == expected_shards
     assert len(matrix_include) == sum(CI_CATEGORY_SHARD_COUNTS.values())
+    assert len(matrix_include) == CI_TOTAL_SHARD_COUNT_TARGET
+    assert len(matrix_include) <= CI_MAX_SHARD_COUNT_TARGET
 
     # trigger-staging-rebuild moved to staging-rebuild.yml (workflow_run trigger)
     # to avoid showing as a skipped check on PRs.
@@ -113,15 +124,59 @@ def test_ci_workflow_runs_fast_release_package_smoke_lane_before_full_shards() -
         if "run" in step
     }
 
-    assert smoke_job["timeout-minutes"] == 3
+    assert smoke_job["timeout-minutes"] == CI_SMOKE_JOB_TIMEOUT_MINUTES
     assert smoke_job.get("needs") is None
     assert smoke_steps[2]["uses"] == "actions/setup-node@v6"
     assert smoke_steps[2]["with"]["node-version"] == "20"
-    assert smoke_run_steps["Run release/package smoke tests"] == (
-        "uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py "
-        "tests/test_repo_hygiene.py tests/test_schema_registry_ownership_note.py "
-        "tests/adapters/test_runtime_catalog.py"
+    assert smoke_run_steps["Run release/package smoke tests"] == "uv run pytest -q " + " ".join(CI_SMOKE_TEST_TARGETS)
+
+
+def test_ci_shard_selection_uses_supplied_static_inventory_without_collect_only(monkeypatch) -> None:
+    def fail_collect_only(*, repo_root: Path | None = None) -> dict[str, tuple[str, ...]]:
+        raise AssertionError("collect-only should not run when inventory is supplied")
+
+    monkeypatch.setattr("tests.ci_sharding.collected_test_inventory", fail_collect_only)
+
+    inventory = {
+        "test_runtime_cli.py": tuple(f"tests/test_runtime_cli.py::test_{index}" for index in range(12)),
+        "test_release_consistency.py": ("tests/test_release_consistency.py::test_release",),
+        "core/test_cli.py": tuple(f"tests/core/test_cli.py::test_{index}" for index in range(6)),
+    }
+
+    root_targets = select_ci_shard_targets(
+        category="root",
+        shard_index=1,
+        shard_total=CI_CATEGORY_SHARD_COUNTS["root"],
+        inventory=inventory,
     )
+
+    assert root_targets
+    assert all(target.startswith("tests/test_") for target in root_targets)
+
+
+def test_write_ci_shard_targets_file_accepts_static_inventory(tmp_path: Path, monkeypatch) -> None:
+    def fail_collect_only(*, repo_root: Path | None = None) -> dict[str, tuple[str, ...]]:
+        raise AssertionError("collect-only should not run when inventory is supplied")
+
+    monkeypatch.setattr("tests.ci_sharding.collected_test_inventory", fail_collect_only)
+    target_file = tmp_path / "pytest-targets.txt"
+    inventory = {
+        "adapters/test_codex.py": (
+            "tests/adapters/test_codex.py::test_a",
+            "tests/adapters/test_codex.py::test_b",
+        ),
+    }
+
+    targets = write_ci_shard_targets_file(
+        target_file=target_file,
+        category="adapters",
+        shard_index=1,
+        shard_total=CI_CATEGORY_SHARD_COUNTS["adapters"],
+        inventory=inventory,
+    )
+
+    assert targets == ("tests/adapters/test_codex.py::test_a",)
+    assert target_file.read_text(encoding="utf-8") == "tests/adapters/test_codex.py::test_a\n"
 
 
 def test_publish_release_runs_release_workflow_inside_uv_environment() -> None:

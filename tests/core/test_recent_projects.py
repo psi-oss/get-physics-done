@@ -8,6 +8,7 @@ import pytest
 
 from gpd.core.constants import HOME_DATA_DIR_NAME
 from gpd.core.recent_projects import (
+    RecentProjectEntry,
     RecentProjectsError,
     classify_recent_project_recovery,
     list_recent_projects,
@@ -43,6 +44,18 @@ class TestRecentProjectsRootResolution:
 
 
 class TestRecentProjectsIndexPersistence:
+    def test_entry_normalizes_resume_target_kind_without_recursion(self, tmp_path: Path) -> None:
+        project_root = tmp_path / "project"
+        project_root.mkdir()
+
+        entry = RecentProjectEntry(
+            project_root=project_root.as_posix(),
+            last_seen_at="2026-03-26T12:00:00+00:00",
+            resume_target_kind=" bounded_segment ",
+        )
+
+        assert entry.resume_target_kind == "bounded_segment"
+
     def test_save_and_load_round_trip(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("GPD_DATA_DIR", raising=False)
         store_root = tmp_path / "cache"

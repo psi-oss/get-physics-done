@@ -179,11 +179,6 @@ def _is_phase_verification_target(file_path: str) -> bool:
     return name == "verification.md" or name.endswith("-verification.md")
 
 
-def _supports_assert_convention_validation(file_path: str) -> bool:
-    """Return whether a text artifact can carry ASSERT_CONVENTION directives."""
-    return Path(file_path).suffix.lower() in {".md", ".markdown", ".tex", ".py"}
-
-
 def _requires_assert_convention_check(file_path: str) -> bool:
     """Return whether a file should be gated on ASSERT_CONVENTION coverage."""
     return _is_derivation_assert_target(file_path) or _is_phase_verification_target(file_path)
