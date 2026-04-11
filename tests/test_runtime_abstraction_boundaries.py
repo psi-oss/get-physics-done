@@ -751,3 +751,21 @@ def test_user_facing_runtime_command_hints_use_runtime_placeholder() -> None:
         "User-facing runtime command hints should use the canonical <runtime> placeholder:\n"
         f"{_format_failures(leaks)}"
     )
+
+
+def test_adapter_runtime_identity_comes_from_catalog_not_literals() -> None:
+    runtime_literals = "|".join(re.escape(descriptor.runtime_name) for descriptor in _RUNTIME_DESCRIPTORS)
+    literal_identity_pattern = re.compile(
+        rf'(return\s+["\'](?:{runtime_literals})["\']|runtime\s*=\s*["\'](?:{runtime_literals})["\'])'
+    )
+    leaks: list[tuple[Path, int, str]] = []
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        adapter_path = REPO_ROOT / "src" / "gpd" / "adapters" / f"{descriptor.adapter_module}.py"
+        for line_no, line in enumerate(adapter_path.read_text(encoding="utf-8").splitlines(), start=1):
+            if literal_identity_pattern.search(line):
+                leaks.append((adapter_path, line_no, line))
+
+    assert leaks == [], (
+        "Runtime adapters should use catalog-derived runtime identity, not repeated literals:\n"
+        f"{_format_failures(leaks)}"
+    )

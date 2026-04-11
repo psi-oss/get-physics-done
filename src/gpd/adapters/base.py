@@ -37,7 +37,12 @@ from gpd.adapters.install_utils import (
     write_manifest,
     write_version_file,
 )
-from gpd.adapters.runtime_catalog import get_runtime_descriptor, get_shared_install_metadata, resolve_global_config_dir
+from gpd.adapters.runtime_catalog import (
+    get_runtime_descriptor,
+    get_shared_install_metadata,
+    iter_runtime_descriptors,
+    resolve_global_config_dir,
+)
 from gpd.adapters.tool_names import (
     build_runtime_alias_map,
     reference_translation_map,
@@ -138,9 +143,13 @@ class RuntimeAdapter(abc.ABC):
     strip_sub_tags_in_shared_markdown: bool = False
 
     @property
-    @abc.abstractmethod
     def runtime_name(self) -> str:
-        """Short identifier for this runtime."""
+        """Catalog-owned identifier for this adapter."""
+        module_name = self.__class__.__module__.rsplit(".", 1)[-1]
+        for descriptor in iter_runtime_descriptors():
+            if descriptor.adapter_module == module_name:
+                return descriptor.runtime_name
+        raise RuntimeError(f"No runtime catalog entry owns adapter module {module_name!r}")
 
     @property
     def display_name(self) -> str:

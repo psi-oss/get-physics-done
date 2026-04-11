@@ -317,6 +317,7 @@ def copy_flattened_commands(
     install_scope: str | None = None,
     bridge_command: str | None = None,
     *,
+    runtime_name: str,
     explicit_target: bool = False,
     managed_command_files: set[str] | None = None,
 ) -> int:
@@ -352,6 +353,7 @@ def copy_flattened_commands(
                 gpd_src_root,
                 install_scope,
                 bridge_command,
+                runtime_name=runtime_name,
                 explicit_target=explicit_target,
                 managed_command_files=managed_command_files,
             )
@@ -362,7 +364,7 @@ def copy_flattened_commands(
 
             content = compile_markdown_for_runtime(
                 entry.read_text(encoding="utf-8"),
-                runtime="opencode",
+                runtime=runtime_name,
                 path_prefix=path_prefix,
                 install_scope=install_scope,
                 src_root=gpd_src_root,
@@ -393,6 +395,7 @@ def copy_agents_as_agent_files(
     gpd_src_root: Path | None = None,
     install_scope: str | None = None,
     bridge_command: str | None = None,
+    runtime_name: str | None = None,
 ) -> int:
     """Copy agent .md files with OpenCode frontmatter conversion.
 
@@ -404,6 +407,7 @@ def copy_agents_as_agent_files(
 
     agents_dest.mkdir(parents=True, exist_ok=True)
     source_root = gpd_src_root or agents_src.parent / "specs"
+    runtime_name = runtime_name or OpenCodeAdapter().runtime_name
 
     new_agent_names: set[str] = set()
     count = 0
@@ -414,7 +418,7 @@ def copy_agents_as_agent_files(
 
         content = compile_markdown_for_runtime(
             entry.read_text(encoding="utf-8"),
-            runtime="opencode",
+            runtime=runtime_name,
             path_prefix=path_prefix,
             install_scope=install_scope,
             src_root=source_root,
@@ -1003,10 +1007,6 @@ class OpenCodeAdapter(RuntimeAdapter):
     tool_name_map = _TOOL_NAME_MAP
     strip_sub_tags_in_shared_markdown = True
 
-    @property
-    def runtime_name(self) -> str:
-        return "opencode"
-
     def project_markdown_surface(
         self,
         content: str,
@@ -1098,6 +1098,7 @@ class OpenCodeAdapter(RuntimeAdapter):
             gpd_root / "specs",
             self._current_install_scope_flag(),
             bridge_command,
+            runtime_name=self.runtime_name,
             explicit_target=getattr(self, "_install_explicit_target", False),
             managed_command_files=generated_command_files,
         )
@@ -1141,6 +1142,7 @@ class OpenCodeAdapter(RuntimeAdapter):
                 gpd_root / "specs",
                 self._current_install_scope_flag(),
                 bridge_command,
+                runtime_name=self.runtime_name,
             )
         return 0
 

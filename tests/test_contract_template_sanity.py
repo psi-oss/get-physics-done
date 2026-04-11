@@ -33,3 +33,24 @@ def test_contract_schema_templates_keep_template_version_and_type() -> None:
         expected_type = expectations.get("type")
         if expected_type is not None:
             assert frontmatter.get("type") == expected_type
+
+
+def test_state_schema_references_project_contract_schema_without_forking_it() -> None:
+    state_schema = (_TEMPLATES_DIR / "state-json-schema.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/templates/project-contract-schema.md" in state_schema
+    assert "This state schema intentionally does not restate" in state_schema
+    assert "\"observables\": [" not in state_schema
+    assert "Project Contract Object Rules" not in state_schema
+
+
+def test_new_project_workflow_loads_canonical_project_contract_schema() -> None:
+    workflow = (
+        Path(__file__).resolve().parent.parent / "src" / "gpd" / "specs" / "workflows" / "new-project.md"
+    ).read_text(encoding="utf-8")
+
+    assert "Before you draft the first `PROJECT_CONTRACT_JSON` payload, load the full" in workflow
+    assert "active runtime's file-read tool" in workflow
+    assert "Project contract schema visibility" in workflow
+    assert "do not restate or fork the contract schema here" in workflow
+    assert "Project contract schema-critical excerpt" not in workflow

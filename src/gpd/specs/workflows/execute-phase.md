@@ -117,7 +117,7 @@ Log the classification: `"Phase ${phase_number} classified as: ${PHASE_CLASSES[*
 
 **Use classification for:**
 - Agent selection (see `agent-infrastructure.md` Meta-Orchestration Intelligence > Agent Selection by Phase Type)
-- Context budget targets (see `agent-infrastructure.md` Meta-Orchestration Intelligence > Context Budget Allocation)
+- Context budget targets (see `agent-infrastructure.md` Meta-Orchestration Intelligence > Context Budget Allocation and `references/orchestration/context-budget.md`)
 - Verifier check prioritization (derivation phases promote dimensional / limit / identity-critical checks; numerical phases promote `5.5` convergence and `5.14` statistics; validation phases run the full relevant registry)
 - Computation-type-aware execution adaptation (see `adapt_to_computation_type` below)
 </step>

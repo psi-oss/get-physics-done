@@ -361,6 +361,38 @@ def test_normalize_runtime_name_accepts_adapter_module_and_hyphen_variants() -> 
     assert normalize_runtime_name("--gemini_cli") == "gemini"
 
 
+def test_runtime_catalog_selector_variants_have_single_owner() -> None:
+    owners: dict[str, str] = {}
+    collisions: list[tuple[str, str, str]] = []
+    for descriptor in iter_runtime_descriptors():
+        selectors = (
+            descriptor.runtime_name,
+            descriptor.display_name,
+            descriptor.install_flag,
+            descriptor.adapter_module,
+            *descriptor.selection_flags,
+            *descriptor.selection_aliases,
+        )
+        for selector in selectors:
+            variants = {selector.strip().casefold()}
+            if variants == {""}:
+                continue
+            if selector.startswith("--"):
+                token = selector.removeprefix("--").strip().casefold()
+                variants.update({f"--{token.replace('_', '-')}", f"--{token.replace('-', '_')}"})
+            if " " in selector:
+                variants.update({variant.replace(" ", "-") for variant in tuple(variants)})
+            for variant in variants:
+                existing = owners.setdefault(variant, descriptor.runtime_name)
+                if existing != descriptor.runtime_name:
+                    collisions.append((variant, existing, descriptor.runtime_name))
+                normalized = normalize_runtime_name(variant)
+                if normalized is not None:
+                    assert normalized == descriptor.runtime_name
+
+    assert collisions == []
+
+
 def test_managed_install_surface_policy_uses_explicit_runtime_metadata() -> None:
     claude_policy = get_managed_install_surface_policy("claude-code")
     opencode_policy = get_managed_install_surface_policy("opencode")

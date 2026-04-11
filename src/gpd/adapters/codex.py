@@ -685,10 +685,6 @@ class CodexAdapter(RuntimeAdapter):
     auto_discovered_tools = _AUTO_DISCOVERED_TOOLS
     strip_sub_tags_in_shared_markdown = True
 
-    @property
-    def runtime_name(self) -> str:
-        return "codex"
-
     def project_markdown_surface(
         self,
         content: str,
@@ -769,6 +765,7 @@ class CodexAdapter(RuntimeAdapter):
             gpd_root / "specs",
             self._current_install_scope_flag(),
             launcher=launcher,
+            runtime_name=self.runtime_name,
             explicit_target=getattr(self, "_install_explicit_target", False),
         )
         self._generated_skill_dirs = tuple(sorted(generated_skill_dirs))
@@ -822,6 +819,7 @@ class CodexAdapter(RuntimeAdapter):
                 gpd_specs_root,
                 self._current_install_scope_flag(),
                 launcher=launcher,
+                runtime_name=self.runtime_name,
             )
             _write_codex_agent_role_files(agents_dest, runtime_agents)
             if verify_installed(agents_dest):
@@ -1337,6 +1335,7 @@ def _copy_commands_as_skills(
     install_scope: str | None = None,
     *,
     launcher: str,
+    runtime_name: str,
     explicit_target: bool = False,
 ) -> set[str]:
     """Copy commands as Codex skill directories.
@@ -1377,6 +1376,7 @@ def _copy_commands_as_skills(
             gpd_src_root,
             install_scope,
             launcher=launcher,
+            runtime_name=runtime_name,
             explicit_target=explicit_target,
         )
 
@@ -1440,6 +1440,7 @@ def _render_commands_as_skills(
     install_scope: str | None = None,
     *,
     launcher: str,
+    runtime_name: str,
     explicit_target: bool = False,
 ) -> set[str]:
     """Render command markdown into a skills directory without mutating the live tree."""
@@ -1456,6 +1457,7 @@ def _render_commands_as_skills(
                     gpd_src_root,
                     install_scope,
                     launcher=launcher,
+                    runtime_name=runtime_name,
                     explicit_target=explicit_target,
                 )
             )
@@ -1470,7 +1472,7 @@ def _render_commands_as_skills(
 
             content = compile_markdown_for_runtime(
                 entry.read_text(encoding="utf-8"),
-                runtime="codex",
+                runtime=runtime_name,
                 path_prefix=path_prefix,
                 install_scope=install_scope,
                 src_root=gpd_src_root,
@@ -1495,6 +1497,7 @@ def _copy_agents_as_agent_files(
     install_scope: str | None = None,
     *,
     launcher: str,
+    runtime_name: str,
 ) -> None:
     """Copy agents as runtime agent markdown files for Codex.
 
@@ -1513,7 +1516,7 @@ def _copy_agents_as_agent_files(
 
         content = compile_markdown_for_runtime(
             entry.read_text(encoding="utf-8"),
-            runtime="codex",
+            runtime=runtime_name,
             path_prefix=path_prefix,
             install_scope=install_scope,
             src_root=source_root,

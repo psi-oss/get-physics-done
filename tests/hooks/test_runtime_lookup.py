@@ -14,13 +14,14 @@ from gpd.hooks.runtime_lookup import (
 from tests.hooks.helpers import mark_complete_install as _mark_complete_install
 
 
-def test_resolve_runtime_lookup_dir_prefers_same_runtime_nested_install_for_explicit_project_dir(
+def test_resolve_runtime_lookup_dir_prefers_trusted_project_root_over_same_runtime_nested_install(
     tmp_path: Path,
 ) -> None:
     project_root = tmp_path / "project"
     workspace = project_root / "src" / "analysis"
     workspace.mkdir(parents=True)
 
+    _mark_complete_install(project_root / ".codex", runtime="codex")
     _mark_complete_install(workspace / ".codex", runtime="codex")
 
     resolved = resolve_runtime_lookup_dir(
@@ -30,7 +31,7 @@ def test_resolve_runtime_lookup_dir_prefers_same_runtime_nested_install_for_expl
         active_runtime="codex",
     )
 
-    assert resolved == str(workspace)
+    assert resolved == str(project_root)
 
 
 def test_resolve_runtime_lookup_dir_ignores_untrusted_project_dir_hint(
@@ -54,7 +55,7 @@ def test_resolve_runtime_lookup_dir_ignores_untrusted_project_dir_hint(
     assert resolved == str(workspace)
 
 
-def test_resolve_runtime_lookup_dir_uses_workspace_for_trusted_project_dir_when_active_runtime_is_missing(
+def test_resolve_runtime_lookup_dir_keeps_trusted_project_root_when_active_runtime_is_missing(
     tmp_path: Path,
 ) -> None:
     project_root = tmp_path / "project"
@@ -70,7 +71,7 @@ def test_resolve_runtime_lookup_dir_uses_workspace_for_trusted_project_dir_when_
         active_runtime=None,
     )
 
-    assert resolved == str(workspace)
+    assert resolved == str(project_root)
 
 
 def test_resolve_runtime_lookup_dir_prefers_trusted_project_root_over_nested_foreign_install_when_runtime_is_missing(
@@ -154,7 +155,7 @@ def test_resolve_runtime_lookup_active_runtime_prefers_project_runtime_for_expli
     assert calls == ["/tmp/project"]
 
 
-def test_resolve_runtime_lookup_active_runtime_ignores_unknown_project_runtime_and_falls_back() -> None:
+def test_resolve_runtime_lookup_active_runtime_keeps_trusted_project_root_when_project_runtime_missing() -> None:
     calls: list[str | None] = []
 
     def _runtime_resolver(cwd: str | None) -> str | None:
@@ -172,8 +173,8 @@ def test_resolve_runtime_lookup_active_runtime_ignores_unknown_project_runtime_a
         runtime_resolver=_runtime_resolver,
     )
 
-    assert resolved == "codex"
-    assert calls == ["/tmp/project", "/tmp/project/src/analysis"]
+    assert resolved is None
+    assert calls == ["/tmp/project"]
 
 
 def test_resolve_runtime_lookup_active_runtime_uses_workspace_when_project_dir_is_not_explicit() -> None:
@@ -205,7 +206,7 @@ def test_normalize_runtime_hint_handles_alias_unknown_and_blank_values() -> None
     assert normalize_runtime_hint("   ") is None
 
 
-def test_resolve_runtime_lookup_context_falls_back_to_workspace_runtime_when_project_runtime_missing(
+def test_resolve_runtime_lookup_context_keeps_trusted_project_root_when_project_runtime_missing(
     tmp_path: Path,
 ) -> None:
     project_root = tmp_path / "project"
@@ -231,9 +232,9 @@ def test_resolve_runtime_lookup_context_falls_back_to_workspace_runtime_when_pro
         runtime_resolver=_runtime_resolver,
     )
 
-    assert resolved.active_runtime == "codex"
-    assert resolved.lookup_dir == str(workspace)
-    assert calls == [str(project_root), str(workspace)]
+    assert resolved.active_runtime is None
+    assert resolved.lookup_dir == str(project_root)
+    assert calls == [str(project_root)]
 
 
 def test_resolve_hook_lookup_context_uses_shared_runtime_hint_normalizer(

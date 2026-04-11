@@ -503,11 +503,11 @@ gpd calculation complete <description text to match>
 
 ## Meta-Orchestration Intelligence
 
-The orchestrator (main conversation running execute-phase, plan-phase, etc.) must make intelligent decisions about WHICH agents to spawn, HOW to combine their outputs, and WHEN to escalate vs retry. This section provides the decision rules.
+The orchestrator (main conversation running execute-phase, plan-phase, etc.) decides which agents to delegate to, how to combine their outputs, and when to escalate vs retry. This section provides the decision rules.
 
 ### Agent Selection by Phase Type
 
-Not every phase needs every agent. Spawning unnecessary agents wastes tokens and context. The orchestrator selects agents based on phase classification.
+Not every phase needs every agent. Unnecessary delegation wastes tokens and context. The orchestrator selects agents based on phase classification.
 
 **Phase classification** is determined by scanning the phase goal (from ROADMAP.md) and PLAN.md task types for indicator keywords. A phase may belong to multiple classes.
 
@@ -523,11 +523,11 @@ Not every phase needs every agent. Spawning unnecessary agents wastes tokens and
 | **Mixed/Unknown** | (default when no clear indicators) | executor, planner, verifier | phase-researcher, plan-checker | (none skipped by default) |
 
 **Rules:**
-1. "Required" agents are always spawned for that phase class.
-2. "Optional" agents are spawned if the relevant config toggle is enabled (e.g., `plan_checker: true` in config.json).
+1. "Required" agents are always delegated to for that phase class.
+2. "Optional" agents are delegated to if the relevant config toggle is enabled (e.g., `plan_checker: true` in config.json).
 3. "Skip" agents are not spawned even if their toggle is on -- the phase class makes them irrelevant.
 4. The orchestrator logs which agents it selected and why: `"Agent selection for derivation phase: executor + verifier + planner (plan-checker: enabled in config)"`.
-5. User can always override by requesting a specific agent: `gpd:execute-phase 3 --with-bibliographer`.
+5. Users can override by requesting a specific agent: `gpd:execute-phase 3 --with-bibliographer`.
 
 ### Parallel vs Sequential Agent Intelligence
 
@@ -638,9 +638,9 @@ where 6000 tokens/task is the blended average from references/orchestration/cont
 2. Confirm wave groupings allow independent parallel execution.
 3. Warn if any single plan has > 8 tasks.
 
-### Agent Spawn Checklist
+### Agent Delegation Checklist
 
-Before spawning any agent, the orchestrator verifies:
+Before delegating to any agent, the orchestrator verifies:
 
 ```
 [ ] Agent is relevant for this phase class (selection table above)

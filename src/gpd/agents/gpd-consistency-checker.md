@@ -51,9 +51,10 @@ gpd_return:
   files_written: [GPD/phases/{scope}/CONSISTENCY-CHECK.md]
   issues: [list of issues, including warnings]
   next_actions: [recommended follow-up]
-  phase_checked: [phase or milestone scope]
-  checks_performed: [count]
-  issues_found: [count]
+  phase: [phase or milestone scope]
+  field_assessment:
+    checks_performed: [count]
+    issues_found: [count]
 ```
 
 For milestone scope, write `GPD/CONSISTENCY-CHECK.md` in `files_written` instead.

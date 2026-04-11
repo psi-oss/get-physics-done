@@ -100,10 +100,6 @@ class ClaudeCodeAdapter(RuntimeAdapter):
 
     tool_name_map = _TOOL_NAME_MAP
 
-    @property
-    def runtime_name(self) -> str:
-        return "claude-code"
-
     # --- Template method hooks ---
 
     def _install_commands(self, gpd_root: Path, target_dir: Path, path_prefix: str, failures: list[str]) -> int:

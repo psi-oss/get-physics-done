@@ -13,9 +13,15 @@ from gpd.adapters.runtime_catalog import (
     GlobalConfigPolicy,
     HookPayloadPolicy,
     RuntimeDescriptor,
+    get_runtime_descriptor,
     iter_runtime_descriptors,
     list_runtime_names,
 )
+
+
+def _patch_catalog_descriptors(monkeypatch: pytest.MonkeyPatch, descriptors: tuple[RuntimeDescriptor, ...]) -> None:
+    monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: descriptors)
+    monkeypatch.setattr("gpd.adapters.base.iter_runtime_descriptors", lambda: descriptors)
 from gpd.adapters.tool_names import (
     CANONICAL_TOOL_NAMES,
     CONTEXTUAL_TOOL_REFERENCE_NAMES,
@@ -57,6 +63,14 @@ class TestRegistry:
         adapter = get_adapter(runtime)
         assert isinstance(adapter, RuntimeAdapter)
         assert adapter.runtime_name == runtime
+
+    @pytest.mark.parametrize("runtime", RUNTIME_NAMES)
+    def test_adapter_runtime_name_is_catalog_derived(self, runtime: str) -> None:
+        adapter = get_adapter(runtime)
+        descriptor = get_runtime_descriptor(runtime)
+
+        assert adapter.runtime_name == descriptor.runtime_name
+        assert adapter.__class__.__module__.rsplit(".", 1)[-1] == descriptor.adapter_module
 
     @pytest.mark.parametrize("descriptor", iter_runtime_descriptors(), ids=lambda descriptor: descriptor.runtime_name)
     def test_get_adapter_accepts_catalog_aliases(self, descriptor) -> None:
@@ -112,14 +126,13 @@ class TestRegistry:
         )
 
         class AlphaAdapter(RuntimeAdapter):
-            @property
-            def runtime_name(self) -> str:
-                return "alpha-runtime"
+            pass
 
         class BetaAdapter(RuntimeAdapter):
-            @property
-            def runtime_name(self) -> str:
-                return "beta-runtime"
+            pass
+
+        AlphaAdapter.__module__ = "gpd.adapters.alpha_adapter"
+        BetaAdapter.__module__ = "gpd.adapters.beta_adapter"
 
         imported_modules: list[str] = []
 
@@ -130,7 +143,7 @@ class TestRegistry:
                 "gpd.adapters.beta_adapter": SimpleNamespace(BetaAdapter=BetaAdapter),
             }[name]
 
-        monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: (beta_descriptor, alpha_descriptor))
+        _patch_catalog_descriptors(monkeypatch, (beta_descriptor, alpha_descriptor))
         monkeypatch.setattr(adapters_module, "import_module", fake_import_module)
         monkeypatch.setattr(adapters_module, "_REGISTRY", {})
         monkeypatch.setattr(adapters_module, "_LOADED", False)
@@ -159,15 +172,11 @@ class TestRegistry:
         )
 
         class DuplicateAdapter(RuntimeAdapter):
-            @property
-            def runtime_name(self) -> str:
-                return "duplicate-runtime"
+            pass
 
-        monkeypatch.setattr(
-            adapters_module,
-            "iter_runtime_descriptors",
-            lambda: (duplicate_descriptor, duplicate_descriptor),
-        )
+        DuplicateAdapter.__module__ = "gpd.adapters.duplicate_runtime"
+
+        _patch_catalog_descriptors(monkeypatch, (duplicate_descriptor, duplicate_descriptor))
         monkeypatch.setattr(
             adapters_module,
             "import_module",
@@ -197,16 +206,16 @@ class TestRegistry:
         )
 
         class MismatchAdapter(RuntimeAdapter):
-            @property
-            def runtime_name(self) -> str:
-                return "loaded-runtime"
+            pass
 
-        monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: (descriptor,))
+        MismatchAdapter.__module__ = "gpd.adapters.unowned_adapter"
+
+        _patch_catalog_descriptors(monkeypatch, (descriptor,))
         monkeypatch.setattr(adapters_module, "import_module", lambda name: SimpleNamespace(MismatchAdapter=MismatchAdapter))
         monkeypatch.setattr(adapters_module, "_REGISTRY", {})
         monkeypatch.setattr(adapters_module, "_LOADED", False)
 
-        with pytest.raises(RuntimeError, match="Adapter runtime_name mismatch"):
+        with pytest.raises(RuntimeError, match="No runtime catalog entry owns adapter module"):
             adapters_module._ensure_loaded()
 
 

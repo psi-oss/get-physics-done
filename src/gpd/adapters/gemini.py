@@ -944,6 +944,7 @@ def _copy_agents_gemini(
     install_scope: str | None = None,
     *,
     bridge_command: str,
+    runtime_name: str,
 ) -> None:
     """Install agent .md files with Gemini-specific conversions.
 
@@ -964,7 +965,7 @@ def _copy_agents_gemini(
     for agent_md in sorted(agents_src.glob("*.md")):
         content = compile_markdown_for_runtime(
             agent_md.read_text(encoding="utf-8"),
-            runtime="gemini",
+            runtime=runtime_name,
             path_prefix=path_prefix,
             install_scope=install_scope,
             src_root=source_root,
@@ -996,6 +997,7 @@ def _install_commands_as_toml(
     install_scope: str | None = None,
     *,
     bridge_command: str,
+    runtime_name: str,
     explicit_target: bool = False,
 ) -> None:
     """Install commands as .toml files in nested ``commands/gpd/`` structure.
@@ -1019,6 +1021,7 @@ def _install_commands_as_toml(
         gpd_src_root,
         install_scope,
         bridge_command=bridge_command,
+        runtime_name=runtime_name,
         explicit_target=explicit_target,
     )
 
@@ -1033,6 +1036,7 @@ def _copy_commands_recursive(
     install_scope: str | None = None,
     *,
     bridge_command: str,
+    runtime_name: str,
     explicit_target: bool = False,
 ) -> None:
     """Recursively copy commands, converting .md to .toml for Gemini."""
@@ -1049,12 +1053,13 @@ def _copy_commands_recursive(
                 gpd_src_root,
                 install_scope,
                 bridge_command=bridge_command,
+                runtime_name=runtime_name,
                 explicit_target=explicit_target,
             )
         elif entry.suffix == ".md":
             content = compile_markdown_for_runtime(
                 entry.read_text(encoding="utf-8"),
-                runtime="gemini",
+                runtime=runtime_name,
                 path_prefix=path_prefix,
                 install_scope=install_scope,
                 src_root=gpd_src_root,
@@ -1086,10 +1091,6 @@ class GeminiAdapter(RuntimeAdapter):
     auto_discovered_tools = _AUTO_DISCOVERED_TOOLS
     drop_mcp_frontmatter_tools = _DROP_MCP_FRONTMATTER_TOOLS
     strip_sub_tags_in_shared_markdown = True
-
-    @property
-    def runtime_name(self) -> str:
-        return "gemini"
 
     def project_markdown_surface(
         self,
@@ -1163,6 +1164,7 @@ class GeminiAdapter(RuntimeAdapter):
             attribution=self.get_commit_attribution(),
             install_scope=self._current_install_scope_flag(),
             bridge_command=bridge_command,
+            runtime_name=self.runtime_name,
             explicit_target=getattr(self, "_install_explicit_target", False),
         )
         if verify_installed(commands_dest):
@@ -1183,6 +1185,7 @@ class GeminiAdapter(RuntimeAdapter):
             attribution=self.get_commit_attribution(),
             install_scope=self._current_install_scope_flag(),
             bridge_command=bridge_command,
+            runtime_name=self.runtime_name,
         )
         if verify_installed(agents_dest):
             logger.info("Installed agents")

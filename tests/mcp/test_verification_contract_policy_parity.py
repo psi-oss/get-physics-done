@@ -81,14 +81,11 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
         "at least one reference must set `must_surface: true`."
     ) in plan_schema
     assert "a missing `must_surface: true` reference is a warning, not a blocker" in plan_schema
-    assert (
-        "If a project contract has any `references[]` and does not already carry concrete prior-output, "
-        "user-anchor, or baseline grounding, at least one reference must set `must_surface: true`."
-    ) in state_schema
-    assert "a missing `must_surface: true` reference is still a warning" in state_schema
+    assert "Grounding and scope policy are also owned by `templates/project-contract-schema.md`" in state_schema
+    assert "If a project contract has any `references[]`" not in state_schema
     assert (
         "Project-scoping contracts must also provide non-empty `scope.in_scope` naming at least one concrete "
         "objective or boundary"
     ) in _CONTRACT_SCOPE_INPUT_SCHEMA["description"]
     assert "`scope.in_scope` is required and must name at least one project boundary or objective." in plan_schema
-    assert "`scope.in_scope` must name at least one project boundary or objective." in state_schema
+    assert "Grounding and scope policy are also owned by `templates/project-contract-schema.md`" in state_schema

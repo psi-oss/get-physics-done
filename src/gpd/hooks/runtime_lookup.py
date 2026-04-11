@@ -60,10 +60,7 @@ def resolve_runtime_lookup_active_runtime(
 ) -> str | None:
     """Resolve the active runtime without letting nested installs hijack explicit project roots."""
     if _project_dir_is_trusted(explicit_project_dir, project_dir_trusted):
-        project_runtime = normalize_runtime_hint(runtime_resolver(project_root))
-        if project_runtime or workspace_dir == project_root:
-            return project_runtime
-        return normalize_runtime_hint(runtime_resolver(workspace_dir))
+        return normalize_runtime_hint(runtime_resolver(project_root))
 
     return normalize_runtime_hint(runtime_resolver(workspace_dir))
 
@@ -84,15 +81,13 @@ def resolve_runtime_lookup_dir(
         if normalized_runtime is None:
             if _has_local_runtime_install(resolved_project):
                 return _normalized_lookup_dir(resolved_project)
-            if _has_local_runtime_install(resolved_workspace):
-                return _normalized_lookup_dir(resolved_workspace)
+            return _normalized_lookup_dir(resolved_project)
+        project_target = detect_runtime_install_target(normalized_runtime, cwd=resolved_project)
+        if project_target is not None and project_target.install_scope == SCOPE_LOCAL:
             return _normalized_lookup_dir(resolved_project)
         install_target = detect_runtime_install_target(normalized_runtime, cwd=resolved_workspace)
         if install_target is not None and install_target.install_scope == SCOPE_LOCAL:
             return _normalized_lookup_dir(resolved_workspace)
-        project_target = detect_runtime_install_target(normalized_runtime, cwd=resolved_project)
-        if project_target is not None and project_target.install_scope == SCOPE_LOCAL:
-            return _normalized_lookup_dir(resolved_project)
         return _normalized_lookup_dir(resolved_project)
 
     return _normalized_lookup_dir(workspace_dir)

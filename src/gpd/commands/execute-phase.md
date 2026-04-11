@@ -18,10 +18,12 @@ allowed-tools:
 
 <objective>
 Execute all phase plans with wave-based parallelization.
+Context budget: ~15% orchestrator, fresh context per subagent.
 </objective>
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/execute-phase.md
+@{GPD_INSTALL_DIR}/references/orchestration/context-budget.md
 </execution_context>
 
 <context>

@@ -164,7 +164,7 @@ class TestCopyFlattenedCommands:
     def test_flattens_nested_dirs(self, gpd_root: Path, tmp_path: Path) -> None:
         dest = tmp_path / "command"
         dest.mkdir()
-        count = copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/")
+        count = copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", runtime_name="opencode")
 
         assert count >= 2
         assert (dest / "gpd-help.md").exists()
@@ -173,7 +173,7 @@ class TestCopyFlattenedCommands:
     def test_placeholder_replacement(self, gpd_root: Path, tmp_path: Path) -> None:
         dest = tmp_path / "command"
         dest.mkdir()
-        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/")
+        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", runtime_name="opencode")
 
         content = (dest / "gpd-help.md").read_text(encoding="utf-8")
         assert "{GPD_INSTALL_DIR}" not in content
@@ -182,7 +182,7 @@ class TestCopyFlattenedCommands:
     def test_frontmatter_converted(self, gpd_root: Path, tmp_path: Path) -> None:
         dest = tmp_path / "command"
         dest.mkdir()
-        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/")
+        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", runtime_name="opencode")
 
         content = (dest / "gpd-help.md").read_text(encoding="utf-8")
         # name: should be stripped by OpenCode frontmatter conversion
@@ -198,7 +198,7 @@ class TestCopyFlattenedCommands:
             encoding="utf-8",
         )
 
-        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", workflow_target_dir=tmp_path)
+        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", workflow_target_dir=tmp_path, runtime_name="opencode")
 
         assert not (dest / "gpd-old-command.md").exists()
         assert (dest / "custom-command.md").exists()
@@ -214,7 +214,7 @@ class TestCopyFlattenedCommands:
             encoding="utf-8",
         )
 
-        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", workflow_target_dir=target)
+        copy_flattened_commands(gpd_root / "commands", dest, "gpd", "/prefix/", workflow_target_dir=target, runtime_name="opencode")
 
         assert not (dest / "gpd-old-command.md").exists()
         assert (dest / "gpd-user-keep.md").exists()
@@ -222,7 +222,7 @@ class TestCopyFlattenedCommands:
     def test_nonexistent_src_returns_zero(self, tmp_path: Path) -> None:
         dest = tmp_path / "command"
         dest.mkdir()
-        assert copy_flattened_commands(tmp_path / "nope", dest, "gpd", "/") == 0
+        assert copy_flattened_commands(tmp_path / "nope", dest, "gpd", "/", runtime_name="opencode") == 0
 
 
 class TestCopyAgentsAsAgentFiles:

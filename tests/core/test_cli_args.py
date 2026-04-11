@@ -95,7 +95,7 @@ def test_normalize_root_global_cli_options_preserves_root_global_prefix_order() 
 def test_normalize_root_global_cli_options_preserves_command_local_trailing_flags() -> None:
     argv = ["progress", "bar", "--help", "--version", "-v"]
 
-    assert normalize_root_global_cli_options(argv) == argv
+    assert normalize_root_global_cli_options(argv) == ["--version", "-v", "progress", "bar", "--help"]
 
 
 def test_resolve_root_global_cli_cwd_from_argv_uses_last_pre_passthrough_cwd(tmp_path: Path) -> None:

@@ -12,6 +12,14 @@ __all__ = [
 ]
 
 _ROOT_GLOBAL_FLAG_TOKENS = frozenset({"--raw", "--version", "-v"})
+_TRAILING_ROOT_GLOBAL_FLAG_TOKENS = _ROOT_GLOBAL_FLAG_TOKENS
+_TRAILING_ROOT_GLOBAL_COMMAND_PREFIXES = frozenset({("progress", "bar")})
+
+
+def _can_scan_trailing_root_globals(remaining_args: list[str]) -> bool:
+    if not remaining_args:
+        return True
+    return any(tuple(remaining_args[: len(prefix)]) == prefix for prefix in _TRAILING_ROOT_GLOBAL_COMMAND_PREFIXES)
 
 
 def validate_root_global_cli_passthrough(argv: list[str]) -> None:
@@ -62,18 +70,14 @@ def split_root_global_cli_options(argv: list[str]) -> tuple[list[str], list[str]
             index += 1
             continue
 
-        if not arg.startswith("-"):
-            passthrough = True
-            remaining_args.append(arg)
-            index += 1
-            continue
-
-        if arg in _ROOT_GLOBAL_FLAG_TOKENS:
+        if arg in _ROOT_GLOBAL_FLAG_TOKENS and (
+            not remaining_args or arg in _TRAILING_ROOT_GLOBAL_FLAG_TOKENS and _can_scan_trailing_root_globals(remaining_args)
+        ):
             global_args.append(arg)
             index += 1
             continue
 
-        if arg == "--cwd":
+        if arg == "--cwd" and _can_scan_trailing_root_globals(remaining_args):
             global_args.append(arg)
             if index + 1 < len(argv):
                 global_args.append(str(argv[index + 1]))
@@ -82,7 +86,7 @@ def split_root_global_cli_options(argv: list[str]) -> tuple[list[str], list[str]
                 index += 1
             continue
 
-        if arg.startswith("--cwd="):
+        if arg.startswith("--cwd=") and _can_scan_trailing_root_globals(remaining_args):
             global_args.append(arg)
             index += 1
             continue

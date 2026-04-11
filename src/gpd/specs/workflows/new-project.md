@@ -115,7 +115,7 @@ Wait for response. From the single response, extract:
 #### M1.5. Synthesize And Approve The Scoping Contract
 
 Build a canonical scoping contract from the extracted input.
-Before you draft the first `PROJECT_CONTRACT_JSON` payload, read the full `templates/project-contract-schema.md` via `file_read` so you have seen every required field and rule. Before you ask for approval, keep the contract as a literal JSON object for the `project_contract` subsection of `templates/project-contract-schema.md`, and use that schema as the canonical source of truth for the object rules. Do not restate the full contract rules here; keep only the approval-critical reminders below.
+Before you draft the first `PROJECT_CONTRACT_JSON` payload, load the full `templates/project-contract-schema.md` with the active runtime's file-read tool so you have seen every required field and rule. Before you ask for approval, keep the contract as a literal JSON object for the `project_contract` subsection of `templates/project-contract-schema.md`, and use that schema as the canonical source of truth for the object rules. Do not restate the full contract rules here; keep only the approval-critical reminders below.
 
 **Blocking fields that must be present before approval:**
 
@@ -189,7 +189,7 @@ printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
 
 Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.
 
-**Project contract schema-critical excerpt:** The approved `project_contract` payload is the `ResearchContract` object defined in `templates/project-contract-schema.md`. Keep `schema_version: 1`, object-valued `scope`, `context_intake`, `approach_policy`, and `uncertainty_markers`, plus closed arrays for `observables`, `claims`, `deliverables`, `acceptance_tests`, `references`, `forbidden_proxies`, and `links`. Maintain ID linkage rules so `claims[].observables`, `claims[].deliverables`, `claims[].acceptance_tests`, and `claims[].references` reference declared IDs, keep proof-bearing claims explicit through `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, and `proof_deliverables`, and tie anchors via `context_intake.must_read_refs[]` linked to `references[].id` where `references[].must_surface` remains boolean. Populate `uncertainty_markers.weakest_anchors` and `disconfirming_observations`, keep list fields as lists even for singleton values, and confirm these rules before writing `PROJECT.md`, `REQUIREMENTS.md`, or `ROADMAP.md`.
+**Project contract schema visibility:** The approved `project_contract` payload is the `ResearchContract` object defined in `templates/project-contract-schema.md`. If that template has not been read in the current context, stop and load it before asking for approval or writing `PROJECT.md`, `REQUIREMENTS.md`, or `ROADMAP.md`. Keep this workflow to approval sequencing; do not restate or fork the contract schema here.
 
 #### M2. Create PROJECT.md
 

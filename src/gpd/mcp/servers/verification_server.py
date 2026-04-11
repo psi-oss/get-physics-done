@@ -1691,6 +1691,8 @@ def _contract_check_error_result(message: object, check_key: str | None) -> dict
     """Return a stable error envelope with request repair hints when possible."""
 
     response = _error_result(message)
+    if isinstance(message, str) and message.startswith("Invalid contract payload"):
+        return response
     if check_key and get_verification_check(check_key) is not None:
         response.update(_contract_check_request_hint(check_key))
     return response
@@ -3269,6 +3271,12 @@ def _is_case_drift_contract_parse_error(error: str) -> bool:
         allow_case_drift_recovery=False,
     )
     return not recoverable_without_case_drift
+
+
+def _is_defaultable_singleton_contract_error(error: str) -> bool:
+    """Return whether core contract policy treats singleton/list drift as recoverable."""
+
+    return _recoverable_collection_list_shape_error(error, contract_raw={})
 
 
 def _is_recoverable_contract_parse_error(error: str, *, contract_raw: dict[str, object]) -> bool:

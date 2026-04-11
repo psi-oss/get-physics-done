@@ -8,6 +8,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
+AGENT_INFRASTRUCTURE = REPO_ROOT / "src" / "gpd" / "specs" / "references" / "orchestration" / "agent-infrastructure.md"
 
 LEGACY_COMMENT_FRAGMENTS = (
     "Tool names and @ includes are platform-specific.",
@@ -50,3 +51,21 @@ def test_model_facing_prompts_do_not_use_legacy_backcompat_wording() -> None:
             text = path.read_text(encoding="utf-8").lower()
             for phrase in LEGACY_BACKCOMPAT_WORDING:
                 assert phrase not in text, f"{path.relative_to(REPO_ROOT)} still contains {phrase}"
+
+
+def test_consistency_checker_uses_canonical_gpd_return_fields() -> None:
+    path = AGENTS_DIR / "gpd-consistency-checker.md"
+    text = path.read_text(encoding="utf-8")
+    assert "phase_checked" not in text
+    assert "  phase: [phase or milestone scope]" in text
+    assert "  field_assessment:" in text
+    assert "    checks_performed: [count]" in text
+    assert "    issues_found: [count]" in text
+
+
+def test_agent_infrastructure_uses_runtime_neutral_delegation_language() -> None:
+    text = AGENT_INFRASTRUCTURE.read_text(encoding="utf-8")
+    assert "Agent Delegation Checklist" in text
+    assert "Before delegating to any agent" in text
+    assert "Before spawning any agent" not in text
+    assert "Spawning unnecessary agents" not in text
