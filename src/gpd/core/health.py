@@ -182,8 +182,7 @@ def check_project_structure(cwd: Path) -> HealthCheck:
             details[name] = "present (at project root)"
             warnings.append(
                 f"{name} found at project root but not in {PLANNING_DIR_NAME}/. "
-                f"Run any GPD command from the project root to auto-migrate, "
-                f"or copy it manually to {PLANNING_DIR_NAME}/{name}."
+                f"Move or copy it manually to {PLANNING_DIR_NAME}/{name}."
             )
         else:
             details[name] = "missing"

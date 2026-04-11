@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from gpd.adapters.base import RuntimeAdapter
 
 _REGISTRY: dict[str, type[RuntimeAdapter]] = {}
-_LOADED = False
 
 
 def _module_name_for_runtime(runtime_name: str) -> str:
@@ -41,6 +40,12 @@ def _load_adapter_class(runtime_name: str, *, adapter_module: str | None = None)
         matches.append(value)
 
     if len(matches) == 1:
+        expected_module = f"gpd.adapters.{adapter_module or _module_name_for_runtime(runtime_name)}"
+        if matches[0].__module__ != expected_module:
+            raise RuntimeError(
+                f"Adapter module mismatch for catalog runtime {runtime_name!r}: "
+                f"loaded {matches[0].__module__!r}, expected {expected_module!r}"
+            )
         adapter_runtime_name = matches[0]().runtime_name
         if adapter_runtime_name != runtime_name:
             raise RuntimeError(
@@ -53,27 +58,6 @@ def _load_adapter_class(runtime_name: str, *, adapter_module: str | None = None)
     raise RuntimeError(f"Multiple RuntimeAdapter implementations found for runtime {runtime_name!r}")
 
 
-def _ensure_loaded() -> None:
-    global _LOADED  # noqa: PLW0603
-    if _LOADED:
-        return
-
-    registry: dict[str, type[RuntimeAdapter]] = {}
-    seen_runtime_names: set[str] = set()
-    for descriptor in iter_runtime_descriptors():
-        if descriptor.runtime_name in seen_runtime_names:
-            raise RuntimeError(f"Duplicate runtime name in runtime catalog: {descriptor.runtime_name!r}")
-        seen_runtime_names.add(descriptor.runtime_name)
-        registry[descriptor.runtime_name] = _load_adapter_class(
-            descriptor.runtime_name,
-            adapter_module=descriptor.adapter_module,
-        )
-
-    _REGISTRY.clear()
-    _REGISTRY.update(registry)
-    _LOADED = True
-
-
 def _ensure_runtime_loaded(runtime_name: str) -> type[RuntimeAdapter]:
     """Return the adapter class for one runtime, loading only that runtime if needed."""
 
@@ -82,12 +66,12 @@ def _ensure_runtime_loaded(runtime_name: str) -> type[RuntimeAdapter]:
     if runtime_name in _REGISTRY:
         return _REGISTRY[runtime_name]
 
-    supported_runtime_names = list_runtimes()
-    if runtime_name not in supported_runtime_names:
-        supported = ", ".join(sorted(supported_runtime_names))
+    descriptor = next((descriptor for descriptor in iter_runtime_descriptors() if descriptor.runtime_name == runtime_name), None)
+    if descriptor is None:
+        supported = ", ".join(sorted(list_runtimes()))
         raise KeyError(f"Unknown runtime {runtime_name!r}. Supported: {supported}")
 
-    adapter_class = _load_adapter_class(runtime_name)
+    adapter_class = _load_adapter_class(runtime_name, adapter_module=descriptor.adapter_module)
     _REGISTRY[runtime_name] = adapter_class
     return adapter_class
 

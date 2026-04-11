@@ -53,6 +53,13 @@ runner = _StableCliRunner()
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
+def test_state_patch_cli_rejects_duplicate_normalized_keys_before_dict_overwrite() -> None:
+    result = runner.invoke(app, ["state", "patch", "current_plan", "2", "Current Plan", "3"])
+
+    assert result.exit_code == 1
+    assert "Duplicate normalized patch key" in result.output
+
+
 def _normalize_cli_output(text: str) -> str:
     return " ".join(_ANSI_ESCAPE_RE.sub("", text).split())
 

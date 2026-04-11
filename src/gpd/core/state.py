@@ -2761,6 +2761,7 @@ def _recover_intent_locked(cwd: Path) -> None:
     intent_file = _intent_path(cwd)
     json_path = _state_json_path(cwd)
     md_path = _state_md_path(cwd)
+    planning_dir = json_path.parent.resolve()
 
     try:
         intent_raw = intent_file.read_text(encoding="utf-8")
@@ -2777,6 +2778,24 @@ def _recover_intent_locked(cwd: Path) -> None:
     parts = intent_raw.strip().split("\n")
     json_tmp = Path(parts[0]) if parts else None
     md_tmp = Path(parts[1]) if len(parts) > 1 else None
+
+    def _is_same_gpd_dir_temp(path: Path | None, target: Path) -> bool:
+        if path is None:
+            return False
+        try:
+            resolved_parent = path.parent.resolve(strict=False)
+        except OSError:
+            return False
+        return resolved_parent == planning_dir and path.name.startswith(f"{target.name}.tmp.")
+
+    paths_are_valid = _is_same_gpd_dir_temp(json_tmp, json_path) and _is_same_gpd_dir_temp(md_tmp, md_path)
+    if not paths_are_valid:
+        logger.warning("Ignoring state write intent with temp paths outside the project GPD directory")
+        try:
+            intent_file.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return
 
     json_tmp_exists = json_tmp is not None and json_tmp.exists()
     md_tmp_exists = md_tmp is not None and md_tmp.exists()
@@ -3049,12 +3068,11 @@ def _write_state_pair_locked(
         intent_file.write_text(f"{json_tmp}\n{md_tmp}\n", encoding="utf-8")
         _replace_with_retry(json_tmp, json_path)
         _replace_with_retry(md_tmp, md_path)
+        atomic_write(backup_path, backup_rendered)
         try:
             intent_file.unlink(missing_ok=True)
         except OSError:
             pass
-
-        atomic_write(backup_path, backup_rendered)
     except Exception:
         for f in (intent_file, json_tmp, md_tmp):
             try:

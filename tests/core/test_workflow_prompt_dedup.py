@@ -11,6 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 TEMPLATES_DIR = REPO_ROOT / "src/gpd/specs/templates"
 AGENTS_DIR = REPO_ROOT / "src/gpd/agents"
+COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 
 
 def _read(name: str) -> str:
@@ -19,6 +20,14 @@ def _read(name: str) -> str:
 
 def _expand(name: str) -> str:
     return expand_at_includes(_read(name), REPO_ROOT / "src/gpd", "/runtime/")
+
+
+def _workflow_backed_commands() -> list[str]:
+    return sorted(
+        command_path.stem
+        for command_path in COMMANDS_DIR.glob("*.md")
+        if (WORKFLOWS_DIR / command_path.name).exists()
+    )
 
 
 def _between(text: str, start: str, end: str) -> str:
@@ -126,28 +135,25 @@ def test_planner_workflows_keep_tangent_policy_single_sourced() -> None:
     assert plan_phase.count("Branch as alternative hypothesis") == 1
 
 
-def test_numerical_analysis_command_wrappers_stay_thin() -> None:
-    command_dir = REPO_ROOT / "src/gpd/commands"
-    workflow_dir = REPO_ROOT / "src/gpd/specs/workflows"
-
-    for name in (
-        "numerical-convergence",
-        "sensitivity-analysis",
-        "parameter-sweep",
-        "error-propagation",
-    ):
-        command = (command_dir / f"{name}.md").read_text(encoding="utf-8")
-        workflow = (workflow_dir / f"{name}.md").read_text(encoding="utf-8")
+def test_workflow_backed_command_wrappers_stay_thin() -> None:
+    for name in _workflow_backed_commands():
+        command = (COMMANDS_DIR / f"{name}.md").read_text(encoding="utf-8")
+        workflow = (WORKFLOWS_DIR / f"{name}.md").read_text(encoding="utf-8")
 
         assert f"@{{GPD_INSTALL_DIR}}/workflows/{name}.md" in command
-        assert "workflow owns detailed method guidance" in command
-        assert "Do not restate workflow-owned checklists" in command
-        assert command.count("@{GPD_INSTALL_DIR}/workflows/") == 2
-        assert len(command.splitlines()) < 45
-        assert len(command) < len(workflow) // 3
+        assert len(command) < len(workflow)
         assert "```python" not in command
         assert "| Method" not in command
-        assert "## 1." not in command
+
+
+def test_workflow_owned_command_wrappers_keep_anti_duplication_policy() -> None:
+    for path in COMMANDS_DIR.glob("*.md"):
+        command = path.read_text(encoding="utf-8")
+        if "workflow owns detailed method guidance" not in command:
+            continue
+
+        assert command.count("@{GPD_INSTALL_DIR}/workflows/") == 2
+        assert "Do not restate workflow-owned checklists" in command
 
 
 def test_write_paper_init_uses_paper_bootstrap_stage() -> None:

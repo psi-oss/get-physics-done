@@ -856,10 +856,20 @@ def state_patch(
     if len(patches) % 2 != 0:
         _error("state patch requires key-value pairs (even number of arguments)")
     patch_dict: dict[str, str] = {}
+    normalized_patch_keys: dict[str, tuple[str, str]] = {}
     for i in range(0, len(patches), 2):
         key = patches[i].lstrip("-")
         if not key:
             _error(f"Invalid empty key after stripping dashes: {patches[i]!r}")
+        key_norm = key.replace("_", " ")
+        normalized_key = key_norm.casefold()
+        if normalized_key in normalized_patch_keys:
+            previous_key, previous_norm = normalized_patch_keys[normalized_key]
+            _error(
+                f'Duplicate normalized patch key "{key_norm}" (from "{key}") '
+                f'conflicts with "{previous_key}" ({previous_norm})'
+            )
+        normalized_patch_keys[normalized_key] = (key, key_norm)
         patch_dict[key] = patches[i + 1]
     _output(state_patch(_state_command_cwd(), patch_dict))
 

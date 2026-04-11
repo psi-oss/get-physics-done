@@ -93,7 +93,7 @@ class TestRegistry:
         adapter = get_adapter(runtime)
         assert adapter.update_command == f"npx -y get-physics-done {adapter.runtime_descriptor.install_flag}"
 
-    def test_loader_uses_runtime_descriptors_to_import_modules(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_adapter_loads_only_requested_runtime(self, monkeypatch: pytest.MonkeyPatch) -> None:
         alpha_descriptor = RuntimeDescriptor(
             runtime_name="alpha-runtime",
             adapter_module="alpha_adapter",
@@ -146,47 +146,11 @@ class TestRegistry:
         _patch_catalog_descriptors(monkeypatch, (beta_descriptor, alpha_descriptor))
         monkeypatch.setattr(adapters_module, "import_module", fake_import_module)
         monkeypatch.setattr(adapters_module, "_REGISTRY", {})
-        monkeypatch.setattr(adapters_module, "_LOADED", False)
 
-        adapters_module._ensure_loaded()
-
-        assert imported_modules == ["gpd.adapters.beta_adapter", "gpd.adapters.alpha_adapter"]
         assert adapters_module.list_runtimes() == ["beta-runtime", "alpha-runtime"]
+        assert imported_modules == []
         assert adapters_module.get_adapter("alpha-runtime").runtime_name == "alpha-runtime"
-
-    def test_loader_rejects_duplicate_runtime_names(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        duplicate_descriptor = RuntimeDescriptor(
-            runtime_name="duplicate-runtime",
-            adapter_module="duplicate_runtime",
-            display_name="Duplicate Runtime",
-            priority=10,
-            config_dir_name=".duplicate",
-            install_flag="--duplicate",
-            launch_command="duplicate",
-            command_prefix="/gpd:",
-            activation_env_vars=(),
-            selection_flags=("--duplicate",),
-            selection_aliases=("duplicate-runtime",),
-            global_config=GlobalConfigPolicy(strategy="env_or_home", home_subpath=".duplicate"),
-            hook_payload=HookPayloadPolicy(),
-        )
-
-        class DuplicateAdapter(RuntimeAdapter):
-            pass
-
-        DuplicateAdapter.__module__ = "gpd.adapters.duplicate_runtime"
-
-        _patch_catalog_descriptors(monkeypatch, (duplicate_descriptor, duplicate_descriptor))
-        monkeypatch.setattr(
-            adapters_module,
-            "import_module",
-            lambda name: SimpleNamespace(DuplicateAdapter=DuplicateAdapter),
-        )
-        monkeypatch.setattr(adapters_module, "_REGISTRY", {})
-        monkeypatch.setattr(adapters_module, "_LOADED", False)
-
-        with pytest.raises(RuntimeError, match="Duplicate runtime name in runtime catalog"):
-            adapters_module._ensure_loaded()
+        assert imported_modules == ["gpd.adapters.alpha_adapter"]
 
     def test_loader_rejects_adapter_runtime_name_mismatch(self, monkeypatch: pytest.MonkeyPatch) -> None:
         descriptor = RuntimeDescriptor(
@@ -208,15 +172,21 @@ class TestRegistry:
         class MismatchAdapter(RuntimeAdapter):
             pass
 
-        MismatchAdapter.__module__ = "gpd.adapters.unowned_adapter"
+        MismatchAdapter.__module__ = "gpd.adapters.mismatch_adapter"
+        MismatchAdapter.runtime_name = "other-runtime"
 
         _patch_catalog_descriptors(monkeypatch, (descriptor,))
         monkeypatch.setattr(adapters_module, "import_module", lambda name: SimpleNamespace(MismatchAdapter=MismatchAdapter))
         monkeypatch.setattr(adapters_module, "_REGISTRY", {})
-        monkeypatch.setattr(adapters_module, "_LOADED", False)
 
-        with pytest.raises(RuntimeError, match="No runtime catalog entry owns adapter module"):
-            adapters_module._ensure_loaded()
+        with pytest.raises(RuntimeError, match="Adapter runtime_name mismatch"):
+            adapters_module.get_adapter("catalog-runtime")
+
+    def test_list_runtimes_does_not_import_adapters(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(adapters_module, "import_module", lambda name: pytest.fail(f"imported {name}"))
+        monkeypatch.setattr(adapters_module, "_REGISTRY", {})
+
+        assert adapters_module.list_runtimes() == list_runtime_names()
 
 
 class TestToolNames:

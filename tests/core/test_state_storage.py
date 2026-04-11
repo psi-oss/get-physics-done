@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from gpd.core.constants import STATE_WRITE_INTENT_FILENAME
 from gpd.core.state import (
     default_state_dict,
     generate_state_markdown,
@@ -68,6 +69,66 @@ class TestSaveStateJsonLocked:
         assert stored["position"]["current_phase"] == "01"
         assert "Planning" in markdown
         assert (planning / "state.json.bak").exists()
+
+    def test_save_does_not_leave_stale_backup_before_intent_cleanup(self, tmp_path: Path, monkeypatch) -> None:
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "phases").mkdir()
+
+        old_state = default_state_dict()
+        old_state["position"]["current_phase"] = "01"
+        new_state = default_state_dict()
+        new_state["position"]["current_phase"] = "02"
+
+        json_path = planning / "state.json"
+        with file_lock(json_path):
+            save_state_json_locked(tmp_path, old_state)
+
+        import gpd.core.state as state_module
+
+        original_unlink = Path.unlink
+
+        def fail_intent_unlink(path: Path, *args, **kwargs):
+            if path.name == STATE_WRITE_INTENT_FILENAME:
+                raise OSError("simulated intent cleanup failure")
+            return original_unlink(path, *args, **kwargs)
+
+        monkeypatch.setattr(state_module.Path, "unlink", fail_intent_unlink)
+        with file_lock(json_path):
+            save_state_json_locked(tmp_path, new_state)
+
+        stored = json.loads(json_path.read_text(encoding="utf-8"))
+        backup = json.loads((planning / "state.json.bak").read_text(encoding="utf-8"))
+
+        assert stored["position"]["current_phase"] == "02"
+        assert backup["position"]["current_phase"] == "02"
+
+    def test_recover_intent_ignores_temp_paths_outside_same_gpd_dir(self, tmp_path: Path) -> None:
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (planning / "phases").mkdir()
+
+        state = default_state_dict()
+        state["position"]["current_phase"] = "01"
+        json_path = planning / "state.json"
+        with file_lock(json_path):
+            save_state_json_locked(tmp_path, state)
+
+        outside_json = tmp_path / "state.json.tmp.outside"
+        outside_md = tmp_path / "STATE.md.tmp.outside"
+        outside_json.write_text(json.dumps({"outside": True}) + "\n", encoding="utf-8")
+        outside_md.write_text("# Outside\n", encoding="utf-8")
+        (planning / STATE_WRITE_INTENT_FILENAME).write_text(f"{outside_json}\n{outside_md}\n", encoding="utf-8")
+
+        with file_lock(json_path):
+            save_state_json_locked(tmp_path, state)
+
+        stored = json.loads(json_path.read_text(encoding="utf-8"))
+
+        assert stored["position"]["current_phase"] == "01"
+        assert outside_json.exists()
+        assert outside_md.exists()
+        assert not (planning / STATE_WRITE_INTENT_FILENAME).exists()
 
 
 class TestStateCompact:

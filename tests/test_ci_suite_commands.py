@@ -304,6 +304,7 @@ def test_publish_release_runs_release_workflow_inside_uv_environment() -> None:
 
 def test_tests_readme_documents_default_full_suite_and_category_named_runtime_informed_ci_shards() -> None:
     tests_readme = (REPO_ROOT / "tests" / "README.md").read_text(encoding="utf-8")
+    smoke_command = "uv run pytest -q " + " ".join(CI_SMOKE_TEST_TARGETS)
 
     assert "Default `uv run pytest` runs the full checked-in suite" in tests_readme
     assert "`uv run pytest -q` does the same with quieter output" in tests_readme
@@ -312,7 +313,7 @@ def test_tests_readme_documents_default_full_suite_and_category_named_runtime_in
     assert "use `uv run pytest -n auto --dist=worksteal`" in tests_readme
     assert "focused local contract-visibility smoke pass" in tests_readme
     assert "separate CI release/package smoke lane stays under 3 minutes" in tests_readme
-    assert "uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/test_schema_registry_ownership_note.py tests/adapters/test_runtime_catalog.py" in tests_readme
+    assert smoke_command in tests_readme
     assert "CI shards add `--durations=20 --durations-min=0`" in tests_readme
     assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
     assert "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`" in tests_readme
