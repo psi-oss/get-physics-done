@@ -102,7 +102,11 @@ def test_bug_campaign_scorecards_and_phase_status_expose_unclosed_gates() -> Non
         assert (SCORECARD_ROOT / filename).exists()
 
     family_closure = json.loads((SCORECARD_ROOT / "family-closure.json").read_text(encoding="utf-8"))
-    assert family_closure["closed_phase15_family_count"] < family_closure["phase15_family_count"]
+    assert family_closure["closure_candidate_phase15_family_count"] == 6
+    assert family_closure["closed_phase15_family_count"] == 0
+    assert family_closure["closed_phase15_family_count"] == sum(
+        1 for family in family_closure["families"] if family["closed"]
+    )
     assert all(not family["closed"] for family in family_closure["families"])
     assert all(family["local_closure_evidence_all_green"] for family in family_closure["families"])
     assert all(family["unconverted_manual_repro_count"] == 1041 for family in family_closure["families"])

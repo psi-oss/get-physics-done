@@ -1,13 +1,15 @@
 {
   "schema_version": 1,
   "phase15_family_count": 9,
-  "closed_phase15_family_count": 6,
+  "closure_candidate_phase15_family_count": 6,
+  "closed_phase15_family_count": 0,
   "taxonomy_bug_type_count": 944,
   "taxonomy_unresolved_singleton_count": 386,
   "families": [
     {
       "family_id": "phase-read-model-alignment",
       "bug_class": "phase-read-model-alignment",
+      "closure_candidate": false,
       "mapped_surfaces": "see taxonomy/07-bug-type-registry.json",
       "gates_complete": true,
       "artifact_registry_consistent": true,
@@ -24,6 +26,7 @@
     {
       "family_id": "placeholder-sentinel-normalization",
       "bug_class": "placeholder-sentinel-normalization",
+      "closure_candidate": false,
       "mapped_surfaces": "see taxonomy/07-bug-type-registry.json",
       "gates_complete": true,
       "artifact_registry_consistent": true,
@@ -40,6 +43,7 @@
     {
       "family_id": "query-result-registry-projection",
       "bug_class": "query-result-registry-projection",
+      "closure_candidate": false,
       "mapped_surfaces": "see taxonomy/07-bug-type-registry.json",
       "gates_complete": true,
       "artifact_registry_consistent": true,
@@ -56,6 +60,7 @@
     {
       "family_id": "nested-root-readonly-probe-parity",
       "bug_class": "nested-root-readonly-probe-parity",
+      "closure_candidate": true,
       "mapped_surfaces": "see taxonomy/07-bug-type-registry.json",
       "gates_complete": true,
       "artifact_registry_consistent": true,
@@ -72,6 +77,7 @@
     {
       "family_id": "resume-recent-selection-control",
       "bug_class": "resume-recent-selection-control",
+      "closure_candidate": true,
       "mapped_surfaces": "see taxonomy/07-bug-type-registry.json",
       "gates_complete": true,
       "artifact_registry_consistent": true,
@@ -88,6 +94,7 @@
     {
       "family_id": "canonical-session-continuation-access",
       "bug_class": "canonical-session-continuation-access",
+      "closure_candidate": true,
       "mapped_surfaces": "see taxonomy/07-bug-type-registry.json",
       "gates_complete": true,
       "artifact_registry_consistent": true,
@@ -104,6 +111,7 @@
     {
       "family_id": "runtime-bridge-classification",
       "bug_class": "runtime-bridge-classification",
+      "closure_candidate": true,
       "mapped_surfaces": "see taxonomy/07-bug-type-registry.json",
       "gates_complete": true,
       "artifact_registry_consistent": true,
@@ -120,6 +128,7 @@
     {
       "family_id": "doctor-target-readiness-contract",
       "bug_class": "doctor-target-readiness-contract",
+      "closure_candidate": true,
       "mapped_surfaces": "see taxonomy/07-bug-type-registry.json",
       "gates_complete": true,
       "artifact_registry_consistent": true,
@@ -136,6 +145,7 @@
     {
       "family_id": "observability-degraded-visibility",
       "bug_class": "observability-degraded-visibility",
+      "closure_candidate": true,
       "mapped_surfaces": "see taxonomy/07-bug-type-registry.json",
       "gates_complete": true,
       "artifact_registry_consistent": true,
