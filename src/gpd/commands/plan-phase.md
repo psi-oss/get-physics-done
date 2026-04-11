@@ -26,7 +26,7 @@ Create executable phase prompts for a research phase.
 
 <context>
 Phase number: $ARGUMENTS (optional; auto-detects the next unplanned phase if omitted)
-Canonical contract schema and hard validation rules are enforced later by the staged planner and checker handoffs; every proof-bearing plan must surface the theorem statement, named parameters, hypotheses, quantifier/domain obligations, and intended conclusion clauses visibly enough that a later audit can detect missing coverage.
+Canonical contract schema and hard validation rules must be model-visible before any planner authors PLAN output. The staged planner prompt must include the schema-critical excerpt, not merely a template path, and every proof-bearing plan must surface the theorem statement, named parameters, hypotheses, quantifier/domain obligations, and intended conclusion clauses visibly enough that the checker can audit coverage without post-hoc schema discovery.
 
 **Flags:**
 

@@ -983,3 +983,30 @@ def test_build_cost_summary_surfaces_best_effort_runtime_capabilities_without_re
     assert summary.current_session is None
     assert summary.recent_sessions == []
     assert summary.budget_thresholds == []
+
+
+def test_build_cost_summary_normalizes_runtime_before_override_lookup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _bootstrap_project(tmp_path)
+    monkeypatch.setattr(costs, "get_current_session_id", lambda _root: None)
+    descriptor = next(
+        descriptor
+        for descriptor in iter_runtime_descriptors()
+        if descriptor.display_name != descriptor.runtime_name
+    )
+
+    class _Config:
+        model_profile = "review"
+        model_overrides = {descriptor.runtime_name: {"tier-1": "pinned-tier-1"}}
+
+    monkeypatch.setattr("gpd.core.config.load_config", lambda _cwd: _Config())
+    monkeypatch.setattr(
+        "gpd.hooks.runtime_detect.detect_runtime_for_gpd_use",
+        lambda cwd=None: descriptor.display_name,
+    )
+
+    summary = build_cost_summary(project, data_root=tmp_path / "data", last_sessions=5)
+
+    assert summary.active_runtime == descriptor.display_name
+    assert summary.runtime_model_selection == "explicit overrides pinned for tier-1"

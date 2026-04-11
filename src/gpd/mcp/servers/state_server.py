@@ -45,7 +45,7 @@ mcp = FastMCP("gpd-state")
 AbsoluteProjectDirInput = Annotated[str, WithJsonSchema(ABSOLUTE_PROJECT_DIR_SCHEMA)]
 
 
-def load_state_json(cwd: Path) -> dict | None:
+def load_visible_mcp_state(cwd: Path) -> dict | None:
     """Return visible project state for MCP consumers.
 
     Keep a module-local loader so tool behavior and test patch points stay
@@ -73,7 +73,7 @@ def load_state_json(cwd: Path) -> dict | None:
     return merged_state
 
 
-def apply_return_updates(project_dir: AbsoluteProjectDirInput, file_path: str | Path) -> dict:
+def _apply_return_updates(project_dir: AbsoluteProjectDirInput, file_path: str) -> dict:
     """Apply a validated child-return envelope through the canonical state adapter.
 
     This keeps the canonical apply-return path available from the state server
@@ -107,7 +107,7 @@ def get_state(project_dir: AbsoluteProjectDirInput) -> dict:
         return stable_mcp_error("project_dir must be an absolute path")
     with gpd_span("mcp.state.get", phase=""):
         try:
-            state_obj = load_state_json(cwd)
+            state_obj = load_visible_mcp_state(cwd)
             if state_obj is None:
                 return stable_mcp_error(
                     "No project state found. Run 'gpd init new-project' to initialize a GPD project state."

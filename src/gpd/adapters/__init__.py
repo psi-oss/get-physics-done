@@ -24,15 +24,15 @@ _LOADED = False
 
 
 def _module_name_for_runtime(runtime_name: str) -> str:
-    """Return the adapter module path segment for a runtime id."""
-    return runtime_name.replace("-", "_")
+    """Return the catalog-owned adapter module path segment for a runtime id."""
+    return get_runtime_descriptor(runtime_name).adapter_module
 
 
-def _load_adapter_class(runtime_name: str) -> type[RuntimeAdapter]:
+def _load_adapter_class(runtime_name: str, *, adapter_module: str | None = None) -> type[RuntimeAdapter]:
     """Import and return the adapter class that owns *runtime_name*."""
     from gpd.adapters.base import RuntimeAdapter
 
-    module = import_module(f"gpd.adapters.{_module_name_for_runtime(runtime_name)}")
+    module = import_module(f"gpd.adapters.{adapter_module or _module_name_for_runtime(runtime_name)}")
 
     matches: list[type[RuntimeAdapter]] = []
     for value in vars(module).values():
@@ -58,7 +58,10 @@ def _ensure_loaded() -> None:
         if descriptor.runtime_name in seen_runtime_names:
             raise RuntimeError(f"Duplicate runtime name in runtime catalog: {descriptor.runtime_name!r}")
         seen_runtime_names.add(descriptor.runtime_name)
-        registry[descriptor.runtime_name] = _load_adapter_class(descriptor.runtime_name)
+        registry[descriptor.runtime_name] = _load_adapter_class(
+            descriptor.runtime_name,
+            adapter_module=descriptor.adapter_module,
+        )
 
     _REGISTRY.clear()
     _REGISTRY.update(registry)

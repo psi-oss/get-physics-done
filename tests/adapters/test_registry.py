@@ -82,6 +82,7 @@ class TestRegistry:
     def test_loader_uses_runtime_descriptors_to_import_modules(self, monkeypatch: pytest.MonkeyPatch) -> None:
         alpha_descriptor = RuntimeDescriptor(
             runtime_name="alpha-runtime",
+            adapter_module="alpha_adapter",
             display_name="Alpha Runtime",
             priority=20,
             config_dir_name=".alpha",
@@ -96,6 +97,7 @@ class TestRegistry:
         )
         beta_descriptor = RuntimeDescriptor(
             runtime_name="beta-runtime",
+            adapter_module="beta_adapter",
             display_name="Beta Runtime",
             priority=10,
             config_dir_name=".beta",
@@ -124,8 +126,8 @@ class TestRegistry:
         def fake_import_module(name: str) -> object:
             imported_modules.append(name)
             return {
-                "gpd.adapters.alpha_runtime": SimpleNamespace(AlphaAdapter=AlphaAdapter),
-                "gpd.adapters.beta_runtime": SimpleNamespace(BetaAdapter=BetaAdapter),
+                "gpd.adapters.alpha_adapter": SimpleNamespace(AlphaAdapter=AlphaAdapter),
+                "gpd.adapters.beta_adapter": SimpleNamespace(BetaAdapter=BetaAdapter),
             }[name]
 
         monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: (beta_descriptor, alpha_descriptor))
@@ -135,13 +137,14 @@ class TestRegistry:
 
         adapters_module._ensure_loaded()
 
-        assert imported_modules == ["gpd.adapters.beta_runtime", "gpd.adapters.alpha_runtime"]
+        assert imported_modules == ["gpd.adapters.beta_adapter", "gpd.adapters.alpha_adapter"]
         assert adapters_module.list_runtimes() == ["beta-runtime", "alpha-runtime"]
         assert adapters_module.get_adapter("alpha-runtime").runtime_name == "alpha-runtime"
 
     def test_loader_rejects_duplicate_runtime_names(self, monkeypatch: pytest.MonkeyPatch) -> None:
         duplicate_descriptor = RuntimeDescriptor(
             runtime_name="duplicate-runtime",
+            adapter_module="duplicate_runtime",
             display_name="Duplicate Runtime",
             priority=10,
             config_dir_name=".duplicate",

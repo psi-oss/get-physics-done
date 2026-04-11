@@ -1113,7 +1113,7 @@ def build_cost_summary(
     profile_tier_mix: dict[str, int] = {}
     config = None
     try:
-        from gpd.core.config import load_config
+        from gpd.core.config import load_config, resolve_model_overrides_for_runtime
         from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_runtime_for_gpd_use
 
         config = load_config(resolved_project_root)
@@ -1123,7 +1123,7 @@ def build_cost_summary(
         if detected_runtime != RUNTIME_UNKNOWN:
             active_runtime = detected_runtime
             active_runtime_capabilities = _runtime_capability_payload(detected_runtime)
-            overrides = sorted(((config.model_overrides or {}).get(detected_runtime) or {}).keys())
+            overrides = sorted(resolve_model_overrides_for_runtime(config, detected_runtime).keys())
             if overrides:
                 runtime_model_selection = f"explicit overrides pinned for {', '.join(overrides)}"
             else:

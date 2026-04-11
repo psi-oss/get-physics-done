@@ -22,6 +22,7 @@ from gpd.core.config import (
     load_config,
     resolve_agent_tier,
     resolve_model,
+    resolve_model_overrides_for_runtime,
     resolve_tier,
 )
 from gpd.core.errors import ConfigError
@@ -452,6 +453,20 @@ class TestResolveModel:
         model = resolve_model(tmp_path, "gpd-planner", runtime=display_name)
 
         assert model == f"{descriptor.runtime_name}-tier-1"
+
+    def test_runtime_override_helper_normalizes_aliases_for_shared_callers(self) -> None:
+        descriptor = next(
+            descriptor
+            for descriptor in _RUNTIME_DESCRIPTORS
+            if descriptor.display_name != descriptor.runtime_name
+        )
+        config = GPDProjectConfig(
+            model_overrides={descriptor.runtime_name: {"tier-1": f"{descriptor.runtime_name}-tier-1"}}
+        )
+
+        overrides = resolve_model_overrides_for_runtime(config, descriptor.display_name)
+
+        assert overrides == {"tier-1": f"{descriptor.runtime_name}-tier-1"}
 
 
 class TestResolveTier:

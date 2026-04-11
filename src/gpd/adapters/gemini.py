@@ -285,11 +285,6 @@ def _project_managed_mcp_servers(
     return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd)
 
 
-def _managed_mcp_server_keys() -> frozenset[str]:
-    """Return GPD-managed Gemini MCP server keys, including optional integrations."""
-    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
-    return frozenset(set(GPD_MCP_SERVER_KEYS) | set(_managed_integrations.managed_optional_mcp_server_keys()))
 
 
 def _rewrite_gpd_cli_invocations(content: str, bridge_command: str) -> str:
@@ -1535,7 +1530,7 @@ class GeminiAdapter(RuntimeAdapter):
             # Remove GPD MCP servers
             mcp_servers = settings.get("mcpServers")
             if isinstance(mcp_servers, dict):
-                removed_keys = [key for key in list(mcp_servers) if key in _managed_mcp_server_keys()]
+                removed_keys = [key for key in list(mcp_servers) if key in _managed_integrations.gpd_managed_mcp_server_keys()]
                 if removed_keys:
                     for key in removed_keys:
                         del mcp_servers[key]

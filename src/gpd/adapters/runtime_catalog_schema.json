@@ -2,6 +2,7 @@
   "schema_version": 1,
   "entry_required_keys": [
     "runtime_name",
+    "adapter_module",
     "display_name",
     "priority",
     "config_dir_name",

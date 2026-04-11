@@ -2275,14 +2275,14 @@ class TestStateServer:
     def test_get_state_rejects_relative_project_dir(self):
         from gpd.mcp.servers.state_server import get_state
 
-        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=AssertionError("should not run")):
+        with patch("gpd.mcp.servers.state_server.load_visible_mcp_state", side_effect=AssertionError("should not run")):
             result = get_state("relative/project")
 
         assert result["error"] == "project_dir must be an absolute path"
         assert result["schema_version"] == 1
 
-    def test_load_state_json_omits_legacy_session_mirror(self, fake_project_dir):
-        from gpd.mcp.servers.state_server import load_state_json
+    def test_load_visible_mcp_state_omits_legacy_session_mirror(self, fake_project_dir):
+        from gpd.mcp.servers.state_server import load_visible_mcp_state
 
         mock_state = {
             "position": {"current_phase": "01"},
@@ -2302,7 +2302,7 @@ class TestStateServer:
                 ),
             ),
         ):
-            result = load_state_json(Path(fake_project_dir))
+            result = load_visible_mcp_state(Path(fake_project_dir))
 
         assert result is not None
         assert "session" not in result
@@ -2323,7 +2323,7 @@ class TestStateServer:
             "project_contract_gate": {"authoritative": True},
         }
 
-        with patch("gpd.mcp.servers.state_server.load_state_json", return_value=mock_state):
+        with patch("gpd.mcp.servers.state_server.load_visible_mcp_state", return_value=mock_state):
             result = get_state(fake_project_dir)
         assert "position" in result
         assert result["position"]["current_phase"] == "01"
@@ -2331,10 +2331,10 @@ class TestStateServer:
         assert result["project_contract_validation"]["valid"] is True
         assert result["project_contract_gate"]["authoritative"] is True
 
-    def test_state_server_load_state_json_does_not_recover_intent_during_read_only_lookup(self, tmp_path):
+    def test_state_server_load_visible_mcp_state_does_not_recover_intent_during_read_only_lookup(self, tmp_path):
         from gpd.core.constants import ProjectLayout
         from gpd.core.state import default_state_dict, generate_state_markdown, save_state_json
-        from gpd.mcp.servers.state_server import load_state_json
+        from gpd.mcp.servers.state_server import load_visible_mcp_state
 
         stale_state = default_state_dict()
         stale_state["position"]["current_phase"] = "01"
@@ -2351,7 +2351,7 @@ class TestStateServer:
 
         before_state = layout.state_json.read_text(encoding="utf-8")
 
-        result = load_state_json(tmp_path)
+        result = load_visible_mcp_state(tmp_path)
 
         assert result is not None
         assert result["position"]["current_phase"] == "01"
@@ -2361,7 +2361,7 @@ class TestStateServer:
     def test_get_state_no_state(self, fake_project_dir):
         from gpd.mcp.servers.state_server import get_state
 
-        with patch("gpd.mcp.servers.state_server.load_state_json", return_value=None):
+        with patch("gpd.mcp.servers.state_server.load_visible_mcp_state", return_value=None):
             result = get_state(fake_project_dir)
         assert "error" in result
 
@@ -2369,21 +2369,21 @@ class TestStateServer:
         from gpd.core.errors import GPDError
         from gpd.mcp.servers.state_server import get_state
 
-        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=GPDError("boom")):
+        with patch("gpd.mcp.servers.state_server.load_visible_mcp_state", side_effect=GPDError("boom")):
             result = get_state(fake_project_dir)
         assert result == {"error": "boom", "schema_version": 1}
 
     def test_get_state_os_error(self, fake_project_dir):
         from gpd.mcp.servers.state_server import get_state
 
-        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=OSError("permission denied")):
+        with patch("gpd.mcp.servers.state_server.load_visible_mcp_state", side_effect=OSError("permission denied")):
             result = get_state(fake_project_dir)
         assert result == {"error": "permission denied", "schema_version": 1}
 
     def test_get_state_value_error(self, fake_project_dir):
         from gpd.mcp.servers.state_server import get_state
 
-        with patch("gpd.mcp.servers.state_server.load_state_json", side_effect=ValueError("bad json")):
+        with patch("gpd.mcp.servers.state_server.load_visible_mcp_state", side_effect=ValueError("bad json")):
             result = get_state(fake_project_dir)
         assert result == {"error": "bad json", "schema_version": 1}
 

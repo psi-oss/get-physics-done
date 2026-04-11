@@ -276,3 +276,11 @@ def managed_optional_mcp_server_keys() -> frozenset[str]:
     """Return the registry-backed optional managed MCP server keys."""
 
     return frozenset(integration.managed_server_key for integration in MANAGED_INTEGRATIONS.values())
+
+
+def gpd_managed_mcp_server_keys() -> frozenset[str]:
+    """Return all MCP server keys owned by GPD, including optional integrations."""
+
+    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
+
+    return frozenset(set(GPD_MCP_SERVER_KEYS) | set(managed_optional_mcp_server_keys()))

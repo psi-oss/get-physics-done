@@ -544,7 +544,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                     mcp_config = None
                 if isinstance(mcp_config, dict) and isinstance(mcp_config.get("mcpServers"), dict):
                     removed_keys = [
-                        key for key in list(mcp_config["mcpServers"]) if key in _managed_mcp_server_keys()
+                        key for key in list(mcp_config["mcpServers"]) if key in _managed_integrations.gpd_managed_mcp_server_keys()
                     ]
                     if removed_keys:
                         for key in removed_keys:
@@ -584,7 +584,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         if not isinstance(mcp_servers, dict):
             return result
 
-        removed_keys = [key for key in list(mcp_servers) if key in _managed_mcp_server_keys()]
+        removed_keys = [key for key in list(mcp_servers) if key in _managed_integrations.gpd_managed_mcp_server_keys()]
         if not removed_keys:
             for path in (
                 target_dir / "commands",
@@ -830,11 +830,6 @@ def _build_managed_optional_mcp_servers(
     return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd)
 
 
-def _managed_mcp_server_keys() -> frozenset[str]:
-    """Return MCP server keys owned by GPD or managed optional integrations."""
-    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
-    return frozenset(set(GPD_MCP_SERVER_KEYS) | set(_managed_integrations.managed_optional_mcp_server_keys()))
 
 
 __all__ = ["ClaudeCodeAdapter"]

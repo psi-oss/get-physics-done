@@ -8,6 +8,7 @@ from pathlib import Path
 
 from gpd.core.frontmatter import extract_frontmatter
 from gpd.core.knowledge_docs import KnowledgeReviewRecord, KnowledgeSourceRecord, parse_knowledge_doc_data_strict
+from gpd.core.small_utils import relative_posix_path
 from gpd.core.utils import normalize_ascii_slug
 
 __all__ = [
@@ -25,15 +26,6 @@ class KnowledgeMigrationClassification(StrEnum):
     CANONICAL = "canonical"
     UPGRADEABLE = "upgradeable"
     BLOCKED = "blocked"
-
-
-def _relative_posix(root: Path, path: Path) -> str:
-    resolved_root = root.resolve(strict=False)
-    resolved_path = path.resolve(strict=False)
-    try:
-        return resolved_path.relative_to(resolved_root).as_posix()
-    except ValueError:
-        return resolved_path.as_posix()
 
 
 def _text(value: object) -> str | None:
@@ -58,7 +50,7 @@ def _canonical_knowledge_path(project_root: Path, knowledge_id: str) -> str:
     from gpd.core.constants import ProjectLayout
 
     layout = ProjectLayout(project_root)
-    return _relative_posix(project_root, layout.knowledge_dir / f"{knowledge_id}.md")
+    return relative_posix_path(project_root, layout.knowledge_dir / f"{knowledge_id}.md")
 
 
 def _normalize_source_record(raw: object, *, index: int) -> tuple[dict[str, object] | None, str | None]:
@@ -282,7 +274,7 @@ def classify_knowledge_doc_migration(
 
     resolved_root = project_root.resolve(strict=False)
     resolved_path = path if path.is_absolute() else (resolved_root / path)
-    rel_path = _relative_posix(resolved_root, resolved_path)
+    rel_path = relative_posix_path(resolved_root, resolved_path)
     notes: list[str] = []
     blockers: list[str] = []
 

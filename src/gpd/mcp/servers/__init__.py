@@ -94,7 +94,10 @@ def resolve_absolute_project_dir(project_dir: str) -> Path | None:
     cwd = Path(project_dir)
     if not cwd.is_absolute():
         return None
-    migrate_root_planning_files(cwd)
+    try:
+        migrate_root_planning_files(cwd)
+    except OSError:
+        return None
     return cwd
 
 

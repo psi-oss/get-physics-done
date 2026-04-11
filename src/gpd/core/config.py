@@ -35,6 +35,7 @@ __all__ = [
     "effective_config_value",
     "load_config",
     "resolve_agent_tier",
+    "resolve_model_overrides_for_runtime",
     "resolve_tier",
     "resolve_model",
     "supported_config_keys",
@@ -944,6 +945,17 @@ def resolve_tier(project_dir: Path, agent_name: str) -> ModelTier:
     return resolve_agent_tier(agent_name, config.model_profile)
 
 
+def resolve_model_overrides_for_runtime(
+    config: GPDProjectConfig,
+    runtime: str | None,
+) -> dict[str, str]:
+    """Return explicit model overrides for a runtime id, alias, or display name."""
+    normalized_runtime = normalize_runtime_name(runtime)
+    if normalized_runtime is None:
+        return {}
+    return (config.model_overrides or {}).get(normalized_runtime) or {}
+
+
 @instrument_gpd_function("config.resolve_model")
 def resolve_model(project_dir: Path, agent_name: str, runtime: str | None = None) -> str | None:
     """Resolve the runtime-specific model override for an agent in a project.
@@ -959,10 +971,7 @@ def resolve_model(project_dir: Path, agent_name: str, runtime: str | None = None
 
     config = load_config(project_dir)
     tier = resolve_agent_tier(agent_name, config.model_profile).value
-    normalized_runtime = normalize_runtime_name(runtime)
-    if normalized_runtime is None:
-        return None
-    runtime_overrides = (config.model_overrides or {}).get(normalized_runtime)
+    runtime_overrides = resolve_model_overrides_for_runtime(config, runtime)
     if not runtime_overrides:
         return None
     return runtime_overrides.get(tier)

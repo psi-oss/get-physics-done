@@ -1,6 +1,7 @@
 [
   {
     "runtime_name": "claude-code",
+    "adapter_module": "claude_code",
     "display_name": "Claude Code",
     "priority": 10,
     "config_dir_name": ".claude",
@@ -9,7 +10,7 @@
     "command_prefix": "/gpd:",
     "native_include_support": true,
     "activation_env_vars": ["CLAUDE_CODE_SESSION", "CLAUDE_CODE"],
-    "selection_flags": ["--claude-code", "--claude"],
+    "selection_flags": ["--claude-code"],
     "selection_aliases": ["claude-code", "claude code", "claude"],
     "installer_help_example_scope": "global",
     "validated_command_surface": "public_runtime_slash_command",
@@ -64,6 +65,7 @@
   },
   {
     "runtime_name": "gemini",
+    "adapter_module": "gemini",
     "display_name": "Gemini CLI",
     "priority": 20,
     "config_dir_name": ".gemini",
@@ -72,7 +74,7 @@
     "command_prefix": "/gpd:",
     "native_include_support": false,
     "activation_env_vars": ["GEMINI_CLI"],
-    "selection_flags": ["--gemini", "--gemini-cli"],
+    "selection_flags": ["--gemini-cli"],
     "selection_aliases": ["gemini", "gemini cli"],
     "agent_prompt_uses_dollar_templates": true,
     "validated_command_surface": "public_runtime_slash_command",
@@ -127,6 +129,7 @@
   },
   {
     "runtime_name": "codex",
+    "adapter_module": "codex",
     "display_name": "Codex",
     "priority": 30,
     "config_dir_name": ".codex",
@@ -135,7 +138,7 @@
     "command_prefix": "$gpd-",
     "native_include_support": false,
     "activation_env_vars": ["CODEX_SESSION", "CODEX_CLI"],
-    "selection_flags": ["--codex"],
+    "selection_flags": ["--codex-cli"],
     "selection_aliases": ["codex"],
     "manifest_file_prefixes": ["skills/"],
     "installer_help_example_scope": "local",
@@ -191,6 +194,7 @@
   },
   {
     "runtime_name": "opencode",
+    "adapter_module": "opencode",
     "display_name": "OpenCode",
     "priority": 40,
     "config_dir_name": ".opencode",
@@ -199,7 +203,7 @@
     "command_prefix": "/gpd-",
     "native_include_support": false,
     "activation_env_vars": ["OPENCODE_SESSION"],
-    "selection_flags": ["--opencode"],
+    "selection_flags": ["--open-code"],
     "selection_aliases": ["opencode", "open code"],
     "manifest_file_prefixes": ["command/"],
     "agent_prompt_uses_dollar_templates": true,

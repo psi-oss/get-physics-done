@@ -163,17 +163,17 @@ def test_managed_wolfram_projection_helpers_hide_api_key_and_preserve_endpoint(
         ),
         (
             "gpd.adapters.claude_code",
-            "_managed_mcp_server_keys",
+            "_managed_integrations.gpd_managed_mcp_server_keys",
             frozenset({*GPD_MCP_SERVER_KEYS, "gpd-wolfram"}),
         ),
         (
             "gpd.adapters.gemini",
-            "_managed_mcp_server_keys",
+            "_managed_integrations.gpd_managed_mcp_server_keys",
             frozenset({*GPD_MCP_SERVER_KEYS, "gpd-wolfram"}),
         ),
         (
             "gpd.adapters.opencode",
-            "_managed_mcp_server_keys",
+            "_managed_integrations.gpd_managed_mcp_server_keys",
             frozenset({*GPD_MCP_SERVER_KEYS, "gpd-wolfram"}),
         ),
     ],
@@ -184,7 +184,9 @@ def test_managed_mcp_key_helpers_include_registry_backed_optional_keys(
     expected_keys: frozenset[str],
 ) -> None:
     module = importlib.import_module(module_name)
-    helper = getattr(module, helper_name)
+    helper = module
+    for attr in helper_name.split("."):
+        helper = getattr(helper, attr)
 
     keys = helper()
 

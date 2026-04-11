@@ -1095,6 +1095,20 @@ assert.throws(
   /runtime catalog entry 0 contains unknown key\(s\): legacy_note/
 );
 
+const missingAdapterModuleCatalog = JSON.parse(JSON.stringify(catalog));
+delete missingAdapterModuleCatalog[0].adapter_module;
+assert.throws(
+  () => validateRuntimeCatalog(missingAdapterModuleCatalog),
+  /runtime catalog entry 0 is missing required key\(s\): adapter_module/
+);
+
+const invalidAdapterModuleCatalog = JSON.parse(JSON.stringify(catalog));
+invalidAdapterModuleCatalog[0].adapter_module = " ";
+assert.throws(
+  () => validateRuntimeCatalog(invalidAdapterModuleCatalog),
+  /runtime catalog entry 0\.adapter_module must be a non-empty string/
+);
+
 const blankAliasCatalog = JSON.parse(JSON.stringify(catalog));
 blankAliasCatalog[0].selection_aliases = [blankAliasCatalog[0].selection_aliases[0], " "];
 assert.throws(
@@ -1167,6 +1181,13 @@ duplicateInstallFlagCatalog[1].install_flag = duplicateInstallFlagCatalog[0].ins
 assert.throws(
   () => validateRuntimeCatalog(duplicateInstallFlagCatalog),
   /runtime catalog contains duplicate install_flag/
+);
+
+const repeatedInstallFlagCatalog = JSON.parse(JSON.stringify(catalog));
+repeatedInstallFlagCatalog[0].selection_flags = [repeatedInstallFlagCatalog[0].install_flag];
+assert.throws(
+  () => validateRuntimeCatalog(repeatedInstallFlagCatalog),
+  /runtime catalog entry ".+" selection_flags must not repeat install_flag/
 );
 
 const badTelemetryCatalog = JSON.parse(JSON.stringify(catalog));

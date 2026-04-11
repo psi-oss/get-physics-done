@@ -9,6 +9,7 @@ from gpd.core.small_utils import (
     first_nonempty_stripped_string,
     first_strict_bool,
     paths_equal,
+    relative_posix_path,
     strict_bool_value,
     utc_now_iso,
 )
@@ -18,6 +19,14 @@ def test_paths_equal_compares_resolved_equivalent_paths(tmp_path: Path) -> None:
     child = tmp_path / "child"
     child.mkdir()
     assert paths_equal(child, child / ".." / "child") is True
+
+
+def test_relative_posix_path_prefers_root_relative_and_falls_back_to_absolute(tmp_path: Path) -> None:
+    inside = tmp_path / "nested" / "artifact.md"
+    outside = tmp_path.parent / "external-artifact.md"
+
+    assert relative_posix_path(tmp_path, inside) == "nested/artifact.md"
+    assert relative_posix_path(tmp_path, outside) == outside.resolve(strict=False).as_posix()
 
 
 def test_strict_bool_value_rejects_bool_like_aliases() -> None:

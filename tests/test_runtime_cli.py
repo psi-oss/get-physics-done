@@ -725,6 +725,33 @@ def test_runtime_cli_canonicalizes_display_names_and_aliases(
     assert observed["runtime"] == runtime_name
 
 
+def test_runtime_cli_rejects_blank_runtime_before_adapter_lookup(monkeypatch, tmp_path: Path, capsys) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "gpd.runtime_cli.get_adapter",
+        lambda _runtime: (_ for _ in ()).throw(AssertionError("blank runtime reached adapter lookup")),
+    )
+
+    exit_code = main(
+        [
+            "--runtime",
+            "   ",
+            "--config-dir",
+            str(tmp_path / "runtime"),
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge rejected malformed bridge invocation" in captured.err
+    assert "--runtime must be a non-empty runtime name" in captured.err
+
+
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
 def test_runtime_cli_preserves_subcommand_runtime_flags(monkeypatch, tmp_path: Path, descriptor) -> None:
     adapter = get_adapter(descriptor.runtime_name)

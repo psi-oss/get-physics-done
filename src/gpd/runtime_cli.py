@@ -115,6 +115,8 @@ def _format_unknown_runtime_error(exc: KeyError) -> str:
 
 def _canonical_runtime_name(runtime: str) -> str:
     """Return the canonical runtime id for aliases and display names."""
+    if not runtime.strip():
+        raise _BridgeArgumentError("--runtime must be a non-empty runtime name")
     normalized = normalize_runtime_name(runtime)
     if normalized is not None:
         return normalized
@@ -452,7 +454,11 @@ def main(argv: list[str] | None = None) -> int:
     except _BridgeArgumentError as exc:
         sys.stderr.write(_bridge_argument_error_message(str(exc)) + "\n")
         return 127
-    runtime = _canonical_runtime_name(options.runtime)
+    try:
+        runtime = _canonical_runtime_name(options.runtime)
+    except _BridgeArgumentError as exc:
+        sys.stderr.write(_bridge_argument_error_message(str(exc)) + "\n")
+        return 127
     cli_cwd = _resolve_cli_cwd_from_argv(gpd_args)
     _maybe_reexec_from_checkout(raw_argv, cli_cwd=cli_cwd)
     try:

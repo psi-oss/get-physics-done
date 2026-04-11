@@ -143,11 +143,6 @@ def _project_managed_mcp_servers(
     return _managed_integrations.projected_managed_optional_mcp_servers(env, cwd=cwd)
 
 
-def _managed_mcp_server_keys() -> frozenset[str]:
-    """Return GPD-managed OpenCode MCP server keys, including optional integrations."""
-    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
-
-    return frozenset(set(GPD_MCP_SERVER_KEYS) | set(_managed_integrations.managed_optional_mcp_server_keys()))
 
 
 # ---------------------------------------------------------------------------
@@ -909,7 +904,7 @@ def uninstall_opencode(target_dir: Path, *, config_dir: Path, allow_empty_config
         except (json.JSONDecodeError, OSError):
             oc_mcp = None
         if isinstance(oc_mcp, dict) and isinstance(oc_mcp.get("mcp"), dict):
-            gpd_keys = [k for k in oc_mcp["mcp"] if k in _managed_mcp_server_keys()]
+            gpd_keys = [k for k in oc_mcp["mcp"] if k in _managed_integrations.gpd_managed_mcp_server_keys()]
             for k in gpd_keys:
                 del oc_mcp["mcp"][k]
             if gpd_keys:

@@ -620,6 +620,7 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
 
   return {
     runtime_name: requireStrictString(payload.runtime_name, `${label}.runtime_name`),
+    adapter_module: requireStrictString(payload.adapter_module, `${label}.adapter_module`),
     display_name: requireStrictString(payload.display_name, `${label}.display_name`),
     priority: requireStrictInteger(payload.priority, `${label}.priority`),
     config_dir_name: requireStrictString(payload.config_dir_name, `${label}.config_dir_name`),
@@ -720,6 +721,11 @@ function validateRuntimeCatalog(catalogPayload) {
     installFlags.set(entry.install_flag, entry.runtime_name);
 
     for (const flag of entry.selection_flags) {
+      if (flag === entry.install_flag) {
+        throw new Error(
+          `runtime catalog entry ${JSON.stringify(entry.runtime_name)} selection_flags must not repeat install_flag ${JSON.stringify(flag)}`
+        );
+      }
       const existingRuntime = selectionFlags.get(flag);
       if (existingRuntime && existingRuntime !== entry.runtime_name) {
         throw new Error(

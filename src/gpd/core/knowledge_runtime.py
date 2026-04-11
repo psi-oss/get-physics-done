@@ -11,6 +11,7 @@ from gpd.core.knowledge_docs import (
     parse_knowledge_doc_data_strict,
 )
 from gpd.core.knowledge_migration import classify_knowledge_doc_migration
+from gpd.core.small_utils import relative_posix_path
 from gpd.core.utils import normalize_ascii_slug
 
 __all__ = [
@@ -93,15 +94,6 @@ class KnowledgeDocDiscovery:
         return {record.knowledge_id: record for record in self.records}
 
 
-def _relative_posix(root: Path, path: Path) -> str:
-    resolved_root = root.resolve(strict=False)
-    resolved_path = path.resolve(strict=False)
-    try:
-        return resolved_path.relative_to(resolved_root).as_posix()
-    except ValueError:
-        return resolved_path.as_posix()
-
-
 def _knowledge_doc_match_tokens(record: KnowledgeDocRuntimeRecord) -> set[str]:
     tokens = {
         record.path.casefold(),
@@ -179,7 +171,7 @@ def discover_knowledge_docs(project_root: Path) -> KnowledgeDocDiscovery:
 
     discovery = KnowledgeDocDiscovery()
     for path in sorted(knowledge_dir.glob("*.md")):
-        rel_path = _relative_posix(project_root, path)
+        rel_path = relative_posix_path(project_root, path)
         try:
             content = path.read_text(encoding="utf-8")
         except OSError as exc:

@@ -10,6 +10,7 @@ __all__ = [
     "first_nonempty_stripped_string",
     "first_strict_bool",
     "paths_equal",
+    "relative_posix_path",
     "strict_bool_value",
     "utc_now_iso",
 ]
@@ -21,6 +22,17 @@ def paths_equal(left: Path, right: Path) -> bool:
         return left.expanduser().resolve() == right.expanduser().resolve()
     except OSError:
         return left.expanduser() == right.expanduser()
+
+
+def relative_posix_path(root: Path, path: Path) -> str:
+    """Return a stable root-relative POSIX path, or absolute POSIX path."""
+
+    resolved_root = root.resolve(strict=False)
+    resolved_path = path.resolve(strict=False)
+    try:
+        return resolved_path.relative_to(resolved_root).as_posix()
+    except ValueError:
+        return resolved_path.as_posix()
 
 
 def strict_bool_value(value: object) -> bool | None:

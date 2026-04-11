@@ -7,12 +7,17 @@ from dataclasses import dataclass
 from functools import lru_cache
 from importlib.resources import files
 
+
+class PublicSurfaceContractResourceError(RuntimeError):
+    """Raised when bundled public-surface contract data cannot be loaded."""
+
 __all__ = [
     "BeginnerOnboardingContract",
     "LocalCliBridgeContract",
     "LocalCliNamedCommandsContract",
     "PostStartSettingsContract",
     "PublicSurfaceContract",
+    "PublicSurfaceContractResourceError",
     "RecoveryLadderContract",
     "ResumeAuthorityContract",
     "beginner_onboarding_contract",
@@ -258,7 +263,12 @@ def load_public_surface_contract_schema() -> PublicSurfaceContractSchema:
     """Load the static schema that governs the public surface contract payload."""
 
     schema_path = files("gpd.core").joinpath("public_surface_contract_schema.json")
-    raw_payload = json.loads(schema_path.read_text(encoding="utf-8"))
+    try:
+        raw_payload = json.loads(schema_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError) as exc:
+        raise PublicSurfaceContractResourceError(
+            "GPD package data missing/corrupt: public_surface_contract_schema.json"
+        ) from exc
     payload = _require_object(raw_payload, label="public_surface_contract_schema")
     _require_present_keys(
         payload,
@@ -492,7 +502,12 @@ def _require_local_cli_named_commands(
 def load_public_surface_contract() -> PublicSurfaceContract:
     schema = load_public_surface_contract_schema()
     contract_path = files("gpd.core").joinpath("public_surface_contract.json")
-    raw_payload = json.loads(contract_path.read_text(encoding="utf-8"))
+    try:
+        raw_payload = json.loads(contract_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError) as exc:
+        raise PublicSurfaceContractResourceError(
+            "GPD package data missing/corrupt: public_surface_contract.json"
+        ) from exc
     payload = _require_object(raw_payload, label="public_surface_contract")
     _require_present_keys(
         payload,

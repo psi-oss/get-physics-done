@@ -85,6 +85,7 @@ from gpd.core.resume_surface import (
     resume_origin_for_interrupted_agent,
 )
 from gpd.core.root_resolution import resolve_project_root, resolve_project_roots
+from gpd.core.small_utils import relative_posix_path
 from gpd.core.state import _current_machine_identity, _finalize_project_contract_gate
 from gpd.core.state import peek_state_json as _peek_state_json
 from gpd.core.utils import (
@@ -1156,11 +1157,6 @@ def _preferred_review_dir(cwd: Path) -> Path | None:
     return None
 
 
-def _relative_posix(cwd: Path, path: Path) -> str:
-    """Return a stable repo-relative POSIX path."""
-    return path.relative_to(cwd).as_posix()
-
-
 def _serialize_active_references(contract: ResearchContract | None) -> list[dict[str, object]]:
     """Return contract references ordered by planning relevance."""
     if contract is None:
@@ -1607,8 +1603,8 @@ def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
     prioritized_names = {path.name for path in prioritized_research_map_paths}
     prioritized_research_map_paths.extend(path for path in research_map_paths if path.name not in prioritized_names)
 
-    literature_review_files = [_relative_posix(cwd, path) for path in literature_paths]
-    research_map_reference_files = [_relative_posix(cwd, path) for path in prioritized_research_map_paths]
+    literature_review_files = [relative_posix_path(cwd, path) for path in literature_paths]
+    research_map_reference_files = [relative_posix_path(cwd, path) for path in prioritized_research_map_paths]
     knowledge_doc_files = [record.path for record in knowledge_inventory.records]
     stable_knowledge_doc_files = [
         record.path for record in knowledge_inventory.records if record.status == "stable" and record.is_fresh_approved

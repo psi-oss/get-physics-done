@@ -101,6 +101,7 @@ class RuntimeCapabilityPolicy:
 @dataclass(frozen=True, slots=True)
 class RuntimeDescriptor:
     runtime_name: str
+    adapter_module: str
     display_name: str
     priority: int
     config_dir_name: str
@@ -314,6 +315,19 @@ def _require_string(value: object, *, label: str) -> str:
     if not isinstance(value, str) or not value or value != value.strip():
         raise ValueError(f"{label} must be a non-empty string")
     return value
+
+
+def _default_adapter_module(runtime_name: str) -> str:
+    return runtime_name.replace("-", "_")
+
+
+def _parse_adapter_module(value: object, *, label: str, runtime_name: str) -> str:
+    if value is None:
+        return _default_adapter_module(runtime_name)
+    module_name = _require_string(value, label=label)
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", module_name) is None:
+        raise ValueError(f"{label} must be a Python module name segment")
+    return module_name
 
 
 def _format_quoted_disjunction(values: Iterable[str]) -> str:
@@ -535,6 +549,10 @@ def _validate_runtime_catalog_uniqueness(descriptors: list[RuntimeDescriptor]) -
         install_flags[descriptor.install_flag] = descriptor.runtime_name
 
         for flag in descriptor.selection_flags:
+            if flag == descriptor.install_flag:
+                raise ValueError(
+                    f"runtime catalog entry {descriptor.runtime_name!r} selection_flags must not repeat install_flag {flag!r}"
+                )
             existing_flag_runtime = selection_flags.get(flag)
             if existing_flag_runtime is not None:
                 raise ValueError(
@@ -586,12 +604,23 @@ def _parse_install_help_example_scope(value: object, *, label: str) -> str | Non
     return scope
 
 
-def _parse_validated_command_surface(value: object, *, label: str) -> str:
+def _expected_validated_command_surface(command_prefix: str) -> str:
+    if command_prefix.startswith("/gpd"):
+        return "public_runtime_slash_command"
+    if command_prefix.startswith("$gpd"):
+        return "public_runtime_dollar_command"
+    return "public_runtime_command_surface"
+
+
+def _parse_validated_command_surface(value: object, *, label: str, command_prefix: str) -> str:
+    expected = _expected_validated_command_surface(command_prefix)
     if value is None:
-        return "public_runtime_command_surface"
+        return expected
     surface = _require_string(value, label=label)
     if _RUNTIME_VALIDATED_COMMAND_SURFACE_RE.fullmatch(surface) is None:
         raise ValueError(f"{label} must match /^public_runtime_[a-z0-9_]+_command$/")
+    if surface != expected:
+        raise ValueError(f"{label} must be {expected!r} for command_prefix {command_prefix!r}")
     return surface
 
 
@@ -660,6 +689,11 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
         descriptors.append(
             RuntimeDescriptor(
                 runtime_name=_require_string(payload["runtime_name"], label=f"{label}.runtime_name"),
+                adapter_module=_parse_adapter_module(
+                    payload.get("adapter_module"),
+                    label=f"{label}.adapter_module",
+                    runtime_name=_require_string(payload["runtime_name"], label=f"{label}.runtime_name"),
+                ),
                 display_name=_require_string(payload["display_name"], label=f"{label}.display_name"),
                 priority=_require_int(payload["priority"], label=f"{label}.priority"),
                 config_dir_name=_require_string(payload["config_dir_name"], label=f"{label}.config_dir_name"),
@@ -710,6 +744,7 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                 validated_command_surface=_parse_validated_command_surface(
                     payload.get("validated_command_surface"),
                     label=f"{label}.validated_command_surface",
+                    command_prefix=_require_string(payload["command_prefix"], label=f"{label}.command_prefix"),
                 ),
                 public_command_surface_prefix=_parse_public_command_surface_prefix(
                     payload.get("public_command_surface_prefix"),

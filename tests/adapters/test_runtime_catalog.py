@@ -172,6 +172,7 @@ def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> N
         descriptor = get_runtime_descriptor(runtime_name)
         for field_name in (
             "display_name",
+            "adapter_module",
             "install_flag",
             "selection_flags",
             "selection_aliases",
@@ -184,7 +185,8 @@ def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> N
             assert getattr(descriptor, field_name) == expected_value
 
         assert descriptor.runtime_name in descriptor.selection_aliases
-        assert descriptor.install_flag in descriptor.selection_flags
+        assert descriptor.adapter_module
+        assert descriptor.install_flag not in descriptor.selection_flags
         assert descriptor.public_command_surface_prefix == descriptor.command_prefix
         assert normalize_runtime_name(runtime_name) == runtime_name
         assert normalize_runtime_name(descriptor.display_name) == runtime_name
@@ -374,16 +376,26 @@ def test_runtime_catalog_rejects_non_boolean_native_include_support(
         _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
-def test_runtime_catalog_accepts_future_validated_command_surface(
+def test_runtime_catalog_rejects_validated_command_surface_drift(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
     payload[0]["validated_command_surface"] = "public_runtime_semicolon_command"
 
-    descriptors = _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    with pytest.raises(ValueError, match=r"validated_command_surface must be 'public_runtime_slash_command'"):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
-    assert descriptors[0].validated_command_surface == "public_runtime_semicolon_command"
+
+def test_runtime_catalog_rejects_selection_flags_that_repeat_install_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = deepcopy(json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8")))
+    payload[0]["selection_flags"] = [payload[0]["install_flag"]]
+
+    with pytest.raises(ValueError, match=r"selection_flags must not repeat install_flag"):
+        _iter_runtime_descriptors_from_payload(payload, tmp_path=tmp_path, monkeypatch=monkeypatch)
 
 
 def test_runtime_catalog_rejects_invalid_delegation_capability_values(
