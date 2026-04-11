@@ -24,6 +24,7 @@ from gpd.core.constants import (
     ProjectLayout,
 )
 from gpd.core.continuation import ContinuationBoundedSegment
+from gpd.core.small_utils import utc_now_iso
 from gpd.core.utils import atomic_write, file_lock, phase_normalize, safe_read_file
 
 __all__ = [
@@ -191,9 +192,7 @@ class ExecutionLineageHead(BaseModel):
 
 
 def _now_iso() -> str:
-    from datetime import UTC, datetime
-
-    return datetime.now(UTC).isoformat()
+    return utc_now_iso()
 
 
 def _normalize_optional_text(value: object) -> str | None:

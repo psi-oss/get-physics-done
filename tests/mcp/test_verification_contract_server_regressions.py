@@ -1936,7 +1936,7 @@ def test_suggest_contract_checks_proof_request_templates_validate_against_advert
     assert "uncovered_conclusion_clause_ids" not in alignment["observed"]
 
 
-def test_run_contract_check_schema_rejects_benchmark_requests_without_source_reference_id() -> None:
+def test_run_contract_check_schema_defers_benchmark_source_reference_id_to_runtime_guidance() -> None:
     from jsonschema import Draft202012Validator
 
     schema = _run_contract_check_input_schema()
@@ -1951,8 +1951,7 @@ def test_run_contract_check_schema_rejects_benchmark_requests_without_source_ref
 
     messages = [error.message for error in validator.iter_errors(request)]
 
-    assert messages
-    assert any("any of the given schemas" in message for message in messages)
+    assert messages == []
 
 
 def test_run_contract_check_schema_allows_benchmark_requests_without_source_reference_id_when_contract_is_present() -> None:
@@ -1974,7 +1973,7 @@ def test_run_contract_check_schema_allows_benchmark_requests_without_source_refe
     assert messages == []
 
 
-def test_run_contract_check_schema_rejects_contract_derived_limit_and_family_metadata_when_missing_metadata() -> None:
+def test_run_contract_check_schema_defers_contract_derived_metadata_to_runtime_guidance() -> None:
     from jsonschema import Draft202012Validator
 
     schema = _run_contract_check_input_schema()
@@ -2008,8 +2007,7 @@ def test_run_contract_check_schema_rejects_contract_derived_limit_and_family_met
     for request in requests:
         messages = [error.message for error in validator.iter_errors(request)]
 
-        assert messages
-        assert any("metadata" in message for message in messages)
+        assert messages == []
 
 
 @pytest.mark.parametrize(
@@ -2024,7 +2022,7 @@ def test_run_contract_check_schema_rejects_contract_derived_limit_and_family_met
         ("contract.counterexample_search", ("contract", "observed")),
     ],
 )
-def test_run_contract_check_schema_rejects_identifier_only_requests_for_mandatory_sections(
+def test_run_contract_check_schema_defers_identifier_only_requests_to_runtime_guidance(
     check_key: str,
     expected_required_fragments: tuple[str, ...],
 ) -> None:
@@ -2032,14 +2030,11 @@ def test_run_contract_check_schema_rejects_identifier_only_requests_for_mandator
     request = {"request": {"check_key": check_key}}
 
     messages = _schema_error_messages(schema, request)
-    combined_messages = "\n".join(messages)
 
-    assert messages
-    assert any("required" in message for message in messages)
-    assert any(fragment in combined_messages for fragment in expected_required_fragments)
+    assert messages == []
 
 
-def test_run_contract_check_schema_rejects_soft_missing_proof_audit_fields() -> None:
+def test_run_contract_check_schema_defers_soft_missing_proof_audit_fields_to_runtime_guidance() -> None:
     from jsonschema import Draft202012Validator
 
     schema = _run_contract_check_input_schema()
@@ -2065,8 +2060,7 @@ def test_run_contract_check_schema_rejects_soft_missing_proof_audit_fields() -> 
     for request in requests:
         messages = [error.message for error in validator.iter_errors(request)]
 
-        assert messages
-        assert any(fragment in "\n".join(messages) for fragment in ("metadata", "observed", "contract"))
+        assert messages == []
 
 
 @pytest.mark.parametrize(
@@ -2214,7 +2208,7 @@ def test_suggest_contract_checks_schema_and_runtime_stay_in_lockstep_for_nested_
     ]
 
 
-def test_run_contract_check_schema_rejects_explicit_empty_optional_contract_collections_when_metadata_is_missing() -> None:
+def test_run_contract_check_schema_defers_empty_optional_contract_metadata_to_runtime_guidance() -> None:
     from jsonschema import Draft202012Validator
 
     schema = _run_contract_check_input_schema()
@@ -2243,8 +2237,7 @@ def test_run_contract_check_schema_rejects_explicit_empty_optional_contract_coll
 
     messages = [error.message for error in validator.iter_errors(request)]
 
-    assert messages
-    assert any("metadata" in message for message in messages)
+    assert messages == []
 
 
 def test_run_contract_check_schema_surfaces_duplicate_contract_string_list_rejection() -> None:
@@ -2555,7 +2548,14 @@ def test_contract_tools_reject_unknown_nested_contract_fields() -> None:
         "schema_version": 1,
     }
 
-    assert salvage_result.recoverable_errors == ["references.0.notes: Extra inputs are not permitted"]
+    assert salvage_result.recoverable_errors == [
+        "references.0.notes: Extra inputs are not permitted (draft/salvage warning; "
+        "strict authoritative validation still rejects unknown keys)"
+    ]
+    expected = {
+        "error": "Invalid contract payload: " + "; ".join(salvage_result.recoverable_errors),
+        "schema_version": 1,
+    }
     assert run_result == expected
     assert suggest_result == expected
 
@@ -2570,9 +2570,12 @@ def test_suggest_contract_checks_rejects_unknown_nested_contract_field_salvage_m
 
     result = suggest_contract_checks(contract)
 
-    assert salvage_result.recoverable_errors == ["references.0.notes: Extra inputs are not permitted"]
+    assert salvage_result.recoverable_errors == [
+        "references.0.notes: Extra inputs are not permitted (draft/salvage warning; "
+        "strict authoritative validation still rejects unknown keys)"
+    ]
     assert result == {
-        "error": "Invalid contract payload: references.0.notes: Extra inputs are not permitted",
+        "error": "Invalid contract payload: " + "; ".join(salvage_result.recoverable_errors),
         "schema_version": 1,
     }
 
@@ -2617,8 +2620,12 @@ def test_contract_tools_reject_unknown_top_level_contract_fields() -> None:
     )
     suggest_result = suggest_contract_checks(contract)
 
+    expected_findings = [
+        "legacy_notes: Extra inputs are not permitted (draft/salvage warning; "
+        "strict authoritative validation still rejects unknown keys)"
+    ]
     expected_error = {
-        "error": "Invalid contract payload: legacy_notes: Extra inputs are not permitted",
+        "error": "Invalid contract payload: " + "; ".join(expected_findings),
         "schema_version": 1,
     }
     assert run_result == expected_error
@@ -3224,11 +3231,13 @@ def test_contract_tools_reject_shared_integrity_errors_after_salvage() -> None:
         "observed": {"metric_value": 0.01, "threshold_value": 0.02},
     }
     expected_details = [
-        "references.0.notes: Extra inputs are not permitted",
+        "references.0.notes: Extra inputs are not permitted (draft/salvage warning; "
+        "strict authoritative validation still rejects unknown keys)",
         "contract id claim-benchmark is reused across claim, deliverable; target resolution is ambiguous",
     ]
     expected_error = (
-        "Invalid contract payload: references.0.notes: Extra inputs are not permitted; "
+        "Invalid contract payload: references.0.notes: Extra inputs are not permitted (draft/salvage warning; "
+        "strict authoritative validation still rejects unknown keys); "
         "contract id claim-benchmark is reused across claim, deliverable; target resolution is ambiguous"
     )
 
@@ -3302,8 +3311,12 @@ def test_run_contract_check_surfaces_unknown_nested_contract_field_salvage_metad
         }
     )
 
+    expected_findings = [
+        "claims.0.notes: Extra inputs are not permitted (draft/salvage warning; "
+        "strict authoritative validation still rejects unknown keys)"
+    ]
     assert result == {
-        "error": "Invalid contract payload: claims.0.notes: Extra inputs are not permitted",
+        "error": "Invalid contract payload: " + "; ".join(expected_findings),
         "schema_version": 1,
     }
 
@@ -3379,3 +3392,31 @@ def test_verification_server_pure_success_tools_return_stable_envelopes() -> Non
     assert isinstance(limiting_case_check("E = m c^2", {"c -> infinity": "non-rel"}), StableMCPEnvelope)
     assert isinstance(symmetry_check("M(s,t)", ["parity"]), StableMCPEnvelope)
     assert isinstance(get_verification_coverage([15], ["5.1"]), StableMCPEnvelope)
+
+
+def test_run_contract_check_missing_shape_returns_template_backed_guidance() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    result = run_contract_check({"check_key": "contract.benchmark_reproduction"})
+
+    assert result["status"] == "insufficient_evidence"
+    assert "observed.metric_value" in result["missing_inputs"]
+    assert "observed.threshold_value" in result["missing_inputs"]
+    assert "metadata.source_reference_id" in result["missing_inputs"]
+    guidance = result["request_guidance"]
+    assert guidance["schema_required_request_fields"] == ["observed.metric_value", "observed.threshold_value"]
+    assert guidance["schema_required_request_anyof_fields"] == [["metadata.source_reference_id"], ["contract"]]
+    assert guidance["request_template"]["observed"]["metric_value"] == "<required: observed.metric_value>"
+
+
+def test_salvaged_unknown_contract_keys_are_warning_worded_not_authoritative() -> None:
+    from gpd.core.contract_validation import salvage_project_contract
+
+    contract = _load_project_contract_fixture()
+    contract["draft_notes"] = "temporary"
+
+    parsed, findings = salvage_project_contract(contract)
+
+    assert parsed is not None
+    assert any("draft/salvage warning" in finding for finding in findings)
+    assert any("strict authoritative validation still rejects unknown keys" in finding for finding in findings)

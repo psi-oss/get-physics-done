@@ -34,6 +34,8 @@ _BOOTSTRAP_JSON_ASSETS = (
     "src/gpd/core/public_surface_contract_schema.json",
 )
 
+_WHEEL_JSON_ASSETS = tuple(path.removeprefix("src/") for path in _BOOTSTRAP_JSON_ASSETS)
+
 
 def _project_script_lines(repo_root: Path) -> list[str]:
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8").splitlines()
@@ -233,6 +235,31 @@ def test_public_bootstrap_package_exposes_npx_installer() -> None:
     assert "bin/" in packaged_files
     assert set(_BOOTSTRAP_JSON_ASSETS) <= packaged_files
     assert (repo_root / "bin" / "install.js").is_file()
+
+
+def test_wheel_package_includes_runtime_json_assets_needed_at_import_time() -> None:
+    repo_root = _repo_root()
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+
+    force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+    assert force_include == dict(zip(_BOOTSTRAP_JSON_ASSETS, _WHEEL_JSON_ASSETS, strict=True))
+
+
+def test_npm_files_match_bootstrap_installer_resource_strategy() -> None:
+    repo_root = _repo_root()
+    package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))
+    installer = (repo_root / "bin" / "install.js").read_text(encoding="utf-8")
+    packaged_files = set(package_json.get("files", []))
+    required_requires = {
+        "src/gpd/adapters/runtime_catalog.json": 'require("../src/gpd/adapters/runtime_catalog.json")',
+        "src/gpd/adapters/runtime_catalog_schema.json": 'require("../src/gpd/adapters/runtime_catalog_schema.json")',
+        "src/gpd/core/public_surface_contract.json": 'require("../src/gpd/core/public_surface_contract.json")',
+    }
+
+    assert "bin/" in packaged_files
+    assert set(required_requires) <= packaged_files
+    for expected_require in required_requires.values():
+        assert expected_require in installer
 
 
 def test_public_bootstrap_installer_uses_python_cli_without_uv() -> None:

@@ -17,7 +17,6 @@ from __future__ import annotations
 import inspect
 import json
 import logging
-from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 
@@ -27,6 +26,7 @@ import gpd.core.observability as _observability
 from gpd.core.constants import ProjectLayout
 from gpd.core.errors import TraceError
 from gpd.core.observability import gpd_span, instrument_gpd_function
+from gpd.core.small_utils import utc_now_iso
 from gpd.core.utils import atomic_write, file_lock, safe_read_file
 
 logger = logging.getLogger(__name__)
@@ -193,7 +193,7 @@ def _resolve_active_trace_file(cwd: Path, active: ActiveTrace) -> Path:
 
 
 def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+    return utc_now_iso()
 
 
 def _safe_trace_component(value: str) -> str:

@@ -143,6 +143,7 @@ _ALLOWED_RUNTIME_FILES = {
     ".gitignore",
     "package.json",
     "pyproject.toml",
+    "src/gpd/adapters/__init__.py",
     "src/gpd/hooks/runtime_detect.py",
 }
 _ALLOWED_SHARED_PYTHON_RUNTIME_FILES = {
@@ -524,6 +525,23 @@ def test_shared_python_surfaces_do_not_hardcode_runtime_command_prefixes() -> No
 
     assert leaks == [], (
         "Shared Python surfaces should stay canonical instead of hardcoding runtime command prefixes:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_shared_python_surfaces_do_not_hardcode_runtime_names_outside_boundaries() -> None:
+    leaks = _scan_paths_for_pattern((REPO_ROOT / "src/gpd",), re.compile(_RUNTIME_PATTERN))
+    leaks = [
+        (path, line_no, snippet)
+        for path, line_no, snippet in leaks
+        if path.suffix == ".py"
+        and not path.as_posix().startswith("src/gpd/adapters/")
+        and not path.as_posix().startswith("src/gpd/hooks/")
+        and not _is_allowed_shared_python_runtime_file(path)
+    ]
+
+    assert leaks == [], (
+        "Shared Python surfaces should not hardcode runtime names outside adapter/runtime boundaries:\n"
         f"{_format_failures(leaks)}"
     )
 

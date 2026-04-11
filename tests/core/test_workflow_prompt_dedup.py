@@ -123,3 +123,27 @@ def test_planner_workflows_keep_tangent_policy_single_sourced() -> None:
 
     assert plan_phase.count("Required 4-way tangent decision model:") == 1
     assert plan_phase.count("Branch as alternative hypothesis") == 1
+
+
+def test_numerical_analysis_command_wrappers_stay_thin() -> None:
+    command_dir = REPO_ROOT / "src/gpd/commands"
+    workflow_dir = REPO_ROOT / "src/gpd/specs/workflows"
+
+    for name in (
+        "numerical-convergence",
+        "sensitivity-analysis",
+        "parameter-sweep",
+        "error-propagation",
+    ):
+        command = (command_dir / f"{name}.md").read_text(encoding="utf-8")
+        workflow = (workflow_dir / f"{name}.md").read_text(encoding="utf-8")
+
+        assert f"@{{GPD_INSTALL_DIR}}/workflows/{name}.md" in command
+        assert "workflow owns detailed method guidance" in command
+        assert "Do not restate workflow-owned checklists" in command
+        assert command.count("@{GPD_INSTALL_DIR}/workflows/") == 2
+        assert len(command.splitlines()) < 45
+        assert len(command) < len(workflow) // 3
+        assert "```python" not in command
+        assert "| Method" not in command
+        assert "## 1." not in command

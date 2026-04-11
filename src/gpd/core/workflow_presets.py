@@ -17,6 +17,7 @@ from gpd.core.config import (
     effective_raw_config_value,
     supported_config_keys,
 )
+from gpd.core.small_utils import strict_bool_value as _strict_bool_value
 
 __all__ = [
     "WorkflowPresetApplicationPreview",
@@ -109,12 +110,6 @@ def _capability_value(source: object, *keys: str) -> object | None:
             value = getattr(source, key)
             if value is not None:
                 return value
-    return None
-
-
-def _strict_bool_value(value: object) -> bool | None:
-    if isinstance(value, bool):
-        return value
     return None
 
 

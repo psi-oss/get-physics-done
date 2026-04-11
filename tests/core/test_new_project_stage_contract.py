@@ -171,9 +171,14 @@ def test_new_project_stage_contract_rejects_invalid_ordering(tmp_path: Path) -> 
         (lambda payload: payload["stages"][0]["loaded_authorities"].__setitem__(0, "references/missing.md"), "markdown file"),
         (lambda payload: payload["stages"][0]["allowed_tools"].__setitem__(0, "network"), "unknown tool name"),
         (lambda payload: payload["stages"][1]["required_init_fields"].__setitem__(0, "bogus_field"), "unknown field name"),
+        (lambda payload: payload["stages"][0].__setitem__("id", "scope-intake"), "must be a slug"),
         (
             lambda payload: payload["stages"][0]["must_not_eager_load"].append("workflows/new-project.md"),
             "overlap with must_not_eager_load",
+        ),
+        (
+            lambda payload: payload["stages"][0]["must_not_eager_load"].remove("references/research/questioning.md"),
+            "conditional_authorities must also be listed in must_not_eager_load",
         ),
         (lambda payload: payload["stages"][0]["writes_allowed"].append("../state.json"), "normalized relative POSIX path"),
     ],

@@ -46,6 +46,7 @@ from gpd.core.execution_lineage import (
 from gpd.core.public_surface_contract import recovery_local_snapshot_command
 from gpd.core.root_resolution import normalize_workspace_hint as _normalize_workspace_path
 from gpd.core.root_resolution import resolve_project_root as _shared_resolve_project_root
+from gpd.core.small_utils import utc_now_iso
 from gpd.core.utils import atomic_write, file_lock, phase_normalize, safe_read_file
 
 __all__ = [
@@ -298,7 +299,7 @@ class LocalSpan:
 
 
 def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+    return utc_now_iso()
 
 
 def _new_id(prefix: str) -> str:

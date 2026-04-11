@@ -33,6 +33,7 @@ from gpd.core.cli_args import (
     validate_root_global_cli_passthrough as _validate_root_global_cli_passthrough,
 )
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
+from gpd.core.small_utils import paths_equal as _paths_equal
 from gpd.hooks.install_metadata import (
     config_dir_has_managed_install_markers,
     load_install_manifest_runtime_status,
@@ -118,14 +119,6 @@ def _canonical_runtime_name(runtime: str) -> str:
     if normalized is not None:
         return normalized
     return runtime.strip()
-
-
-def _paths_equal(left: Path, right: Path) -> bool:
-    """Return whether two paths resolve to the same location when comparable."""
-    try:
-        return left.expanduser().resolve() == right.expanduser().resolve()
-    except OSError:
-        return left.expanduser() == right.expanduser()
 
 
 def _is_matching_local_install_candidate(candidate: Path, *, runtime: str) -> bool:

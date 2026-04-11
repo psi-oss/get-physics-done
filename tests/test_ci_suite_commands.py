@@ -99,6 +99,30 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     assert 'pytest-xdist>=3.8.0' in pyproject
 
 
+def test_ci_workflow_runs_fast_release_package_smoke_lane_before_full_shards() -> None:
+    workflow = _workflow_data()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    smoke_job = jobs["smoke"]
+    assert isinstance(smoke_job, dict)
+
+    smoke_steps = _job_steps(workflow, "smoke")
+    smoke_run_steps = {
+        str(step.get("name", "")): str(step.get("run", ""))
+        for step in smoke_steps
+        if "run" in step
+    }
+
+    assert smoke_job["timeout-minutes"] == 3
+    assert smoke_job.get("needs") is None
+    assert smoke_steps[2]["uses"] == "actions/setup-node@v6"
+    assert smoke_steps[2]["with"]["node-version"] == "20"
+    assert smoke_run_steps["Run release/package smoke tests"] == (
+        "uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py "
+        "tests/test_repo_hygiene.py tests/adapters/test_runtime_catalog.py"
+    )
+
+
 def test_tests_readme_documents_default_full_suite_and_category_named_runtime_informed_ci_shards() -> None:
     tests_readme = (REPO_ROOT / "tests" / "README.md").read_text(encoding="utf-8")
 

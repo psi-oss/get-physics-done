@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import cache
@@ -910,6 +911,7 @@ _ALLOWED_STAGE_KEYS = frozenset(
 )
 _ALLOWED_CONDITIONAL_KEYS = frozenset({"when", "authorities"})
 _AUTHORITY_ROOTS = ("workflows/", "references/", "templates/")
+_STAGE_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -1068,6 +1070,13 @@ def _normalize_workflow_id(raw: object) -> str:
     return workflow_id
 
 
+def _normalize_stage_id(raw: object, *, label: str) -> str:
+    stage_id = _require_string(raw, label=label)
+    if not _STAGE_ID_RE.fullmatch(stage_id):
+        raise ValueError(f"{label} must be a slug matching {_STAGE_ID_RE.pattern}")
+    return stage_id
+
+
 def resolve_workflow_stage_manifest_path(workflow_id: str) -> Path:
     workflow_slug = _normalize_workflow_id(workflow_id)
     return WORKFLOW_STAGE_MANIFEST_DIR / f"{workflow_slug}{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
@@ -1190,7 +1199,7 @@ def _validate_stage(
     if missing_keys:
         raise ValueError(f"stages[{index}] is missing required key(s): {', '.join(missing_keys)}")
 
-    stage_id = _require_string(raw["id"], label=f"stages[{index}].id")
+    stage_id = _normalize_stage_id(raw["id"], label=f"stages[{index}].id")
     order = _require_int(raw["order"], label=f"stages[{index}].order")
     purpose = _require_string(raw["purpose"], label=f"stages[{index}].purpose")
     mode_paths = tuple(
@@ -1241,10 +1250,15 @@ def _validate_stage(
         label=f"stages[{index}].produced_state",
         allow_empty=True,
     )
-    next_stages = _require_string_tuple(
-        raw["next_stages"],
-        label=f"stages[{index}].next_stages",
-        allow_empty=True,
+    next_stages = tuple(
+        _normalize_stage_id(next_stage, label=f"stages[{index}].next_stages[{next_stage_index}]")
+        for next_stage_index, next_stage in enumerate(
+            _require_string_tuple(
+                raw["next_stages"],
+                label=f"stages[{index}].next_stages",
+                allow_empty=True,
+            )
+        )
     )
     checkpoints = _require_string_tuple(
         raw.get("checkpoints", []),
@@ -1265,9 +1279,20 @@ def _validate_stage(
 
     unconditional_eager = set(mode_paths)
     unconditional_eager.update(loaded_authorities)
+    conditional_eager = {
+        authority
+        for conditional in conditional_authorities
+        for authority in conditional.authorities
+    }
     overlap = sorted(unconditional_eager.intersection(must_not_eager_load))
     if overlap:
         raise ValueError(f"stages[{index}] overlap with must_not_eager_load: {', '.join(overlap)}")
+    conditional_without_deferral = sorted(conditional_eager.difference(must_not_eager_load))
+    if conditional_without_deferral:
+        raise ValueError(
+            f"stages[{index}].conditional_authorities must also be listed in must_not_eager_load: "
+            f"{', '.join(conditional_without_deferral)}"
+        )
 
     return WorkflowStage(
         id=stage_id,
@@ -1292,6 +1317,7 @@ def validate_workflow_stage_manifest_payload(
     expected_workflow_id: str | None = None,
     allowed_tools: Iterable[str] | None = None,
     known_init_fields: Iterable[str] | None = None,
+    require_complete_next_stages: bool = False,
 ) -> WorkflowStageManifest:
     if not isinstance(raw, dict):
         raise ValueError("workflow stage manifest must be a JSON object")
@@ -1340,6 +1366,14 @@ def validate_workflow_stage_manifest_payload(
         raise ValueError("stage order values must start at 1 and increase by 1")
 
     stage_id_set = set(stage_ids)
+    unknown_next = {
+        next_stage
+        for stage in stages
+        for next_stage in stage.next_stages
+        if next_stage not in stage_id_set
+    }
+    if require_complete_next_stages and unknown_next:
+        raise ValueError(f"next_stages contains unknown stage id(s): {', '.join(sorted(unknown_next))}")
     order_by_id = {stage.id: stage.order for stage in stages}
     for stage in stages:
         backward_next = sorted(
@@ -1368,6 +1402,7 @@ def _load_workflow_stage_manifest_cached(
     expected_workflow_id: str | None,
     allowed_tools_key: tuple[str, ...],
     known_init_fields_key: tuple[str, ...] | None,
+    require_complete_next_stages: bool,
 ) -> WorkflowStageManifest:
     path = Path(manifest_path)
     try:
@@ -1379,6 +1414,7 @@ def _load_workflow_stage_manifest_cached(
         expected_workflow_id=expected_workflow_id,
         allowed_tools=allowed_tools_key,
         known_init_fields=known_init_fields_key,
+        require_complete_next_stages=require_complete_next_stages,
     )
 
 
@@ -1395,6 +1431,7 @@ def load_workflow_stage_manifest(
         workflow_id,
         _cache_key_tools(allowed_tools),
         _cache_key_init_fields(known_init_fields, workflow_id=workflow_id),
+        True,
     )
 
 
@@ -1415,6 +1452,7 @@ def load_workflow_stage_manifest_from_path(
         workflow_id,
         _cache_key_tools(allowed_tools),
         normalized_init_fields,
+        False,
     )
 
 
@@ -1436,7 +1474,11 @@ def load_new_project_stage_contract_from_path(manifest_path: Path) -> WorkflowSt
 
 
 def validate_new_project_stage_contract_payload(raw: object) -> WorkflowStageManifest:
-    return validate_workflow_stage_manifest_payload(raw, expected_workflow_id="new-project")
+    return validate_workflow_stage_manifest_payload(
+        raw,
+        expected_workflow_id="new-project",
+        require_complete_next_stages=True,
+    )
 
 
 def load_new_milestone_stage_contract() -> WorkflowStageManifest:

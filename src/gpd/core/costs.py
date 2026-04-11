@@ -28,6 +28,7 @@ from gpd.core.constants import (
 from gpd.core.observability import get_current_session_id
 from gpd.core.root_resolution import normalize_workspace_hint, resolve_project_roots
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
+from gpd.core.small_utils import first_nonempty_stripped_string, utc_now_iso
 from gpd.core.utils import atomic_write, file_lock, safe_read_file
 
 __all__ = [
@@ -230,7 +231,7 @@ class CostAdvisorySummary(BaseModel):
 
 
 def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+    return utc_now_iso()
 
 
 def _normalize_optional_text(value: object) -> str | None:
@@ -245,12 +246,7 @@ def _mapping(value: object) -> dict[str, object]:
 
 
 def _first_string(value: object, *keys: str) -> str | None:
-    mapping = _mapping(value)
-    for key in keys:
-        candidate = mapping.get(key)
-        if isinstance(candidate, str) and candidate.strip():
-            return candidate.strip()
-    return None
+    return first_nonempty_stripped_string(_mapping(value), *keys)
 
 
 def _first_string_from_containers(containers: tuple[object, ...], *keys: str) -> str | None:

@@ -29,6 +29,7 @@ from gpd.core.resume_surface import (
     resume_origin_for_bounded_segment,
     resume_origin_for_handoff,
 )
+from gpd.core.small_utils import strict_bool_value as _strict_bool_value
 from gpd.core.surface_phrases import (
     recovery_continue_reason,
     recovery_fast_next_reason,
@@ -118,12 +119,6 @@ def _normalized_path_text(value: str | None) -> str | None:
     if not stripped:
         return None
     return Path(stripped).expanduser().resolve(strict=False).as_posix()
-
-
-def _strict_bool_value(value: object) -> bool | None:
-    if isinstance(value, bool):
-        return value
-    return None
 
 
 def _bool_field(payload: Mapping[str, object], field: str) -> bool:

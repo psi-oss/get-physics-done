@@ -238,15 +238,15 @@ if [ "$has_interrupted_agent" = "true" ]; then
 fi
 ```
 
-**Bounded execution segment detection:** If `active_resume_kind` is `bounded_segment`, `execution_resumable` is true, and `active_resume_pointer` is present, treat that bounded continuation as the primary resume target. The runtime currently ranks three semantic recovery families into `resume_candidates`: a resumable live execution snapshot, a recorded handoff, and an interrupted-agent marker. The backend may still retain compatibility intake for those families. If the live snapshot lacks a portable usable resume file, keep it visible only as advisory context. Do NOT invent additional candidates from plan files without summaries, auto-checkpoints, or other ad hoc checkpoints.
+**Bounded execution segment detection:** If `active_resume_kind` is `bounded_segment`, `execution_resumable` is true, and `active_resume_pointer` is present, treat that bounded continuation as the primary resume target. Keep live snapshots without portable resume files advisory. Do NOT invent additional candidates from plan files without summaries, auto-checkpoints, or other ad hoc checkpoints.
 
-The shared resume resolver keeps the derived execution head and the temporary handoff artifact subordinate to the storage authority chain. They refine the continuation target; they do not replace `GPD/state.json > GPD/state.json.bak > GPD/STATE.md`, and the compatibility mirror only backfills bounded-segment state for legacy compatibility when canonical bounded-segment state is absent. Nested raw-envelope aliases never outrank canonical fields.
+The shared resume resolver keeps derived execution head and temporary handoff artifacts subordinate to `GPD/state.json > GPD/state.json.bak > GPD/STATE.md`. Compatibility mirrors only backfill missing canonical bounded-segment state; nested raw-envelope aliases never outrank canonical fields.
 
 Reason-scoped clears still matter on resume: a `first_result` clear does not retire `pre_fanout` or skeptical fields, and a `fanout unlock` does not clear the review gate by itself.
 
 When resuming from `first_result` or skeptical state, ask one concrete question first: "What decisive evidence is still owed before downstream work is trustworthy?" Do not resume fanout based only on proxy-looking success or "seems on track" prose.
 
-**Context budget note:** Context restoration (loading STATE.md, DERIVATION-STATE.md, PROJECT.md, the active execution snapshot, and roadmap) consumes approximately 15-20% of a fresh context window. Budget the remaining ~80% for actual research work. If the project has extensive derivation history or many prior decisions, restoration may consume up to 25%.
+**Context budget note:** Context restoration normally consumes 15-20% of a fresh window; keep the remaining budget for research. Large derivation histories may consume up to 25%.
 
 **If PLAN without SUMMARY exists:**
 
@@ -502,7 +502,7 @@ gpd state record-session \
   --resume-file "[updated if applicable; omit to keep the current pointer, or pass `—` to clear it]"
 ```
 
-This ensures the canonical continuation payload reflects the resumed handoff state if the session ends unexpectedly. STATE.md and the legacy `session` fields should mirror that authoritative update after persistence.
+This ensures the canonical continuation payload reflects the resumed handoff state if the session ends unexpectedly; mirrors update after persistence.
 </step>
 
 </process>

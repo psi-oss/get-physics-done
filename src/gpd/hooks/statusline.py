@@ -16,6 +16,7 @@ import gpd.hooks.install_context as hook_layout
 from gpd.adapters.runtime_catalog import get_hook_payload_policy
 from gpd.core.constants import ENV_GPD_DEBUG
 from gpd.core.root_resolution import resolve_project_root
+from gpd.core.small_utils import first_nonempty_string
 from gpd.core.state import load_state_json
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
 from gpd.hooks.payload_roots import payload_uses_alias_only_workspace_mapping
@@ -59,28 +60,22 @@ def _debug(msg: str) -> None:
         sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 
-def _mapping(value: object) -> dict[str, object]:
-    """Return *value* when it is a dict, otherwise an empty mapping."""
-    return value if isinstance(value, dict) else {}
-
-
 def _first_string(value: object, *keys: str) -> str:
     """Return the first non-empty string for *keys* from *value* when it is a mapping."""
-    mapping = _mapping(value)
-    for key in keys:
-        candidate = mapping.get(key)
-        if isinstance(candidate, str) and candidate:
-            return candidate
-    return ""
+    return first_nonempty_string(value if isinstance(value, dict) else {}, *keys)
 
 
 def _first_value(value: object, *keys: str) -> object | None:
     """Return the first present value for *keys* from *value* when it is a mapping."""
-    mapping = _mapping(value)
+    mapping = value if isinstance(value, dict) else {}
     for key in keys:
         if key in mapping:
             return mapping.get(key)
     return None
+
+
+def _mapping(value: object) -> dict[str, object]:
+    return value if isinstance(value, dict) else {}
 
 
 def _merged_policy_keys(value: object, attribute: str, *, fallback: tuple[str, ...]) -> tuple[str, ...]:

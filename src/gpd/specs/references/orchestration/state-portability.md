@@ -11,11 +11,11 @@ How GPD project state travels between machines, survives session interruptions, 
 | `GPD/state.json` | Storage authority for machine-readable project state and canonical continuation hierarchy | Authoritative |
 | `GPD/state.json.bak` | Recovery backup for `state.json` | Recovery fallback |
 | `GPD/STATE.md` | Editable human-readable mirror of state; reconstruction input when the recovery ladder falls back to text | Mirror / reconstruction surface |
-| `GPD/phases/.../.continue-here.md` | Temporary continuation handoff artifact written by `gpd:pause-work`; only meaningful through the canonical continuation hierarchy and written as a projection of it | Non-authoritative continuity artifact |
+| `GPD/phases/.../.continue-here.md` | Temporary handoff artifact written by `gpd:pause-work`; meaningful only as a projection of canonical continuation | Non-authoritative |
 | Execution lineage | Append-only execution provenance | Authoritative for history only |
-| Derived execution head / `GPD/observability/current-execution.json` | Compatibility mirror showing the latest execution snapshot | Advisory unless canonical `continuation.bounded_segment` is absent |
+| Derived execution head / `GPD/observability/current-execution.json` | Latest execution snapshot mirror | Advisory unless canonical bounded-segment state is absent |
 
-The shared resolver is `gpd --raw resume`. No single handoff file, lineage row, or execution snapshot is, by itself, the canonical continuation state. Canonical state in `state.json.continuation` wins first; the canonical bounded segment and recorded handoff fields define the primary resume target; and the derived execution head only fills compatibility gaps in the recovery ladder. Legacy `session` fields can still backfill missing canonical continuity during explicit migration or recovery, but they never outrank canonical continuation once that state exists.
+The shared resolver is `gpd --raw resume`. No single handoff file, lineage row, or execution snapshot is canonical by itself. `state.json.continuation` wins first; bounded-segment and handoff fields define the primary resume target; derived execution head and legacy `session` fields only fill recovery gaps.
 
 ## What Is Portable
 
@@ -32,7 +32,7 @@ Portable contents include:
 - Append-only execution lineage and its derived head projection
 - Session telemetry and agent history
 
-Portable references should stay anchored at the repository root. `state_record_session()` normalizes project-local absolute `resume_file` paths back to relative form before persisting them; any external absolute path that survives in state is advisory-only continuity metadata. The shared resume resolver keeps the canonical continuation view repo-root-relative. When `state.json.continuation.bounded_segment` exists, that bounded-segment state is authoritative; the derived execution head and `GPD/observability/current-execution.json` are compatibility projections. `DERIVATION-STATE.md` stays supporting context, not a competing store.
+Portable references should stay anchored at the repository root. `state_record_session()` normalizes project-local absolute `resume_file` paths back to relative form; external absolute paths are advisory. When `state.json.continuation.bounded_segment` exists, it is authoritative; derived execution head and `GPD/observability/current-execution.json` are projections. `DERIVATION-STATE.md` stays supporting context, not a competing store.
 
 Resume and progress surfaces treat state as present only when it can actually be recovered from `state.json`, `state.json.bak`, or `STATE.md`. A lone unreadable file path does not count as portable recoverable state.
 

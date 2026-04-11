@@ -301,7 +301,10 @@ def _format_pydantic_validation_error(exc: PydanticValidationError) -> list[str]
             if len(location) == 1 and (message.startswith(f"{field_name} ") or message.startswith(f"{field_name}:")):
                 errors.append(message)
                 continue
-            errors.append(f"{'.'.join(location)}: {message}")
+            rendered_location = ".".join(location)
+            if "Extra inputs are not permitted" in message:
+                message = f"{message}; move this key under an allowed gpd_return field or remove it from the nested mapping"
+            errors.append(f"{rendered_location}: {message}")
         else:
             errors.append(message)
     return errors

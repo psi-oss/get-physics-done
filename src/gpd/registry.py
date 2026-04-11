@@ -17,6 +17,7 @@ from pathlib import Path
 import yaml
 
 from gpd.adapters.install_utils import expand_at_includes
+from gpd.adapters.tool_names import canonical
 from gpd.command_labels import canonical_command_label, canonical_skill_label, command_slug_from_label
 from gpd.core.model_visible_sections import render_model_visible_yaml_section
 from gpd.core.model_visible_text import (
@@ -445,7 +446,7 @@ def _parse_requires(raw: object, *, command_name: str) -> dict[str, object]:
 
 
 def _parse_allowed_tools(raw: object, *, command_name: str) -> list[str]:
-    """Normalize command allowed-tools frontmatter without coercing invalid entries."""
+    """Normalize and dedupe command allowed-tools frontmatter."""
     if raw is None:
         return []
     if not isinstance(raw, list):
@@ -456,7 +457,7 @@ def _parse_allowed_tools(raw: object, *, command_name: str) -> list[str]:
     for item in raw:
         if not isinstance(item, str):
             raise ValueError(f"allowed-tools for {command_name} must contain only strings")
-        value = item.strip()
+        value = canonical(item.strip())
         if not value:
             raise ValueError(f"allowed-tools for {command_name} must not contain blank entries")
         if value not in seen:

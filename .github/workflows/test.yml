@@ -55,6 +55,34 @@ jobs:
       - name: Run ruff check
         run: uv run ruff check .
 
+  smoke:
+    name: fast smoke (3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run release/package smoke tests
+        run: uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/adapters/test_runtime_catalog.py
+
   pytest:
     name: pytest ${{ matrix.display_name }} (3.11)
     runs-on: ubuntu-latest

@@ -157,3 +157,23 @@ def test_accepts_synthesizer_style_completed_return_with_summary_only_file_list(
     assert result.fields["files_written"] == ["GPD/literature/SUMMARY.md"]
     assert result.fields["issues"] == []
     assert result.fields["next_actions"] == []
+
+
+def test_nested_forbidden_key_error_includes_repair_hint() -> None:
+    content = """
+```yaml
+gpd_return:
+  status: completed
+  files_written: []
+  issues: []
+  next_actions: []
+  continuation_update:
+    prompt_path: prompts/next.md
+    stray_key: remove-me
+```
+"""
+
+    result = validate_gpd_return_markdown(content)
+
+    assert not result.passed
+    assert any("move this key under an allowed gpd_return field or remove it" in error for error in result.errors)

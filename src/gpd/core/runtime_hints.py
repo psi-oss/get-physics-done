@@ -9,7 +9,6 @@ one normalized payload instead of stitching together multiple summaries.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -40,6 +39,7 @@ from gpd.core.resume_surface import (
 )
 from gpd.core.root_resolution import normalize_workspace_hint, resolve_project_roots
 from gpd.core.runtime_command_surfaces import format_active_runtime_command
+from gpd.core.small_utils import utc_now_iso
 from gpd.core.surface_phrases import (
     command_follow_up_action,
     cost_inspect_action,
@@ -81,7 +81,7 @@ class RuntimeHintPayload(BaseModel):
 
 
 def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+    return utc_now_iso()
 
 
 def _path_text(value: Path | None) -> str | None:

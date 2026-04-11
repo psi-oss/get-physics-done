@@ -19,6 +19,7 @@ from gpd.core.constants import (
 )
 from gpd.core.observability import humanize_execution_reason
 from gpd.core.root_resolution import resolve_project_root
+from gpd.core.small_utils import first_nonempty_string
 from gpd.core.utils import atomic_write, file_lock
 from gpd.hooks.install_context import detect_self_owned_install
 from gpd.hooks.payload_policy import resolve_hook_payload_policy, resolve_hook_surface_runtime
@@ -37,19 +38,9 @@ def _debug(msg: str) -> None:
         sys.stderr.write(f"[gpd-debug] {msg}\n")
 
 
-def _mapping(value: object) -> dict[str, object]:
-    """Return *value* when it is a dict, otherwise an empty mapping."""
-    return value if isinstance(value, dict) else {}
-
-
 def _first_string(value: object, *keys: str) -> str:
     """Return the first non-empty string for *keys* from *value* when it is a mapping."""
-    mapping = _mapping(value)
-    for key in keys:
-        candidate = mapping.get(key)
-        if isinstance(candidate, str) and candidate:
-            return candidate
-    return ""
+    return first_nonempty_string(value if isinstance(value, dict) else {}, *keys)
 
 
 def _has_project_layout(cwd: str) -> bool:

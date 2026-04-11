@@ -334,7 +334,7 @@ def _strip_unknown_model_keys(
         if key in model.model_fields:
             continue
         location = f"{path_prefix}.{key}" if path_prefix else key
-        errors.append(f"{location}: Extra inputs are not permitted")
+        errors.append(f"{location}: Extra inputs are not permitted (draft/salvage warning; strict authoritative validation still rejects unknown keys)")
         cleaned.pop(key, None)
     return cleaned
 

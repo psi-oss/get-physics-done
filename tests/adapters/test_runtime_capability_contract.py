@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,6 +23,19 @@ from gpd.core.surface_phrases import cost_summary_surface_note
 from tests.doc_surface_contracts import assert_settings_local_terminal_follow_up_contract
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+ADAPTER_ROOT = REPO_ROOT / "src/gpd/adapters"
+
+
+def _public_method_names(module_path: Path) -> set[str]:
+    tree = ast.parse(module_path.read_text(encoding="utf-8"))
+    public_methods: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef) or not node.name.endswith("Adapter"):
+            continue
+        for item in node.body:
+            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and not item.name.startswith("_"):
+                public_methods.add(item.name)
+    return public_methods
 
 
 def _ordered_unique(groups: list[tuple[str, ...]]) -> tuple[str, ...]:
@@ -68,6 +82,22 @@ def _telemetry_payload(runtime_name: str) -> dict[str, object]:
             cost_key: 0.42,
         },
     }
+
+
+def test_runtime_adapters_expose_same_public_method_surface() -> None:
+    base_surface = _public_method_names(ADAPTER_ROOT / "base.py")
+    method_surfaces = {
+        descriptor.runtime_name: _public_method_names(ADAPTER_ROOT / f"{descriptor.runtime_name.replace('-', '_')}.py")
+        for descriptor in iter_runtime_descriptors()
+    }
+    adapter_specific_hooks = {"finish_install"}
+    unexpected_public_methods = {
+        runtime_name: sorted(methods - base_surface)
+        for runtime_name, methods in method_surfaces.items()
+        if methods - base_surface - adapter_specific_hooks
+    }
+
+    assert unexpected_public_methods == {}
 
 
 def test_merged_hook_payload_policy_is_exact_ordered_union_of_runtime_contracts() -> None:

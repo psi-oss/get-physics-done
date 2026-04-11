@@ -153,6 +153,16 @@ def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
     assert set(schema["hook_payload_keys"]) == {field.name for field in fields(runtime_catalog.HookPayloadPolicy)}
 
 
+def test_runtime_catalog_schema_required_and_optional_keys_match_catalog_entries() -> None:
+    schema = json.loads(_RUNTIME_CATALOG_SCHEMA_PATH.read_text(encoding="utf-8"))
+    catalog_payload = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
+    allowed_entry_keys = set(schema["entry_required_keys"]) | set(schema["entry_optional_keys"])
+
+    for entry in catalog_payload:
+        assert set(schema["entry_required_keys"]) <= set(entry)
+        assert set(entry) <= allowed_entry_keys
+
+
 def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> None:
     catalog_payload = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
 

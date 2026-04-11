@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from gpd.core.root_resolution import RootResolutionBasis, resolve_project_root, resolve_project_roots
+from gpd.core.small_utils import first_nonempty_string, first_strict_bool
 
 
 @dataclass(frozen=True)
@@ -22,26 +23,12 @@ class PayloadRoots:
     project_dir_trusted: bool = False
 
 
-def _object_value(value: object, key: str) -> object | None:
-    if isinstance(value, dict):
-        return value.get(key)
-    return getattr(value, key, None)
-
-
 def _first_string(value: object, *keys: str) -> str:
-    for key in keys:
-        candidate = _object_value(value, key)
-        if isinstance(candidate, str) and candidate:
-            return candidate
-    return ""
+    return first_nonempty_string(value, *keys)
 
 
 def _first_bool(value: object, *keys: str) -> bool | None:
-    for key in keys:
-        candidate = _object_value(value, key)
-        if isinstance(candidate, bool):
-            return candidate
-    return None
+    return first_strict_bool(value, *keys)
 
 
 def normalize_workspace_text(value: str | None) -> str:

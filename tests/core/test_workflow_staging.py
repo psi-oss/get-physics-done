@@ -23,6 +23,7 @@ from gpd.core.workflow_staging import (
     resolve_workflow_stage_manifest_path,
     validate_workflow_stage_manifest_payload,
 )
+from gpd.registry import _parse_allowed_tools
 
 
 def _workflow_payload(workflow_id: str) -> dict[str, object]:
@@ -120,6 +121,13 @@ def test_load_workflow_stage_manifest_is_cached() -> None:
         "GPD/literature/SUMMARY.md",
     )
     assert first.stages[2].next_stages == ()
+
+
+def test_command_allowed_tools_are_canonicalized_and_deduped() -> None:
+    assert _parse_allowed_tools(["Read", "file_read", " shell "], command_name="demo") == [
+        "file_read",
+        "shell",
+    ]
 
     execute_phase_manifest = load_workflow_stage_manifest("execute-phase")
     assert execute_phase_manifest.stage_ids() == (
