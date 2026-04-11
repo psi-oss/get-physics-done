@@ -230,6 +230,9 @@ PHASE16_FAMILY_TO_MODULE = {
     "config-contract": "tests/core/test_projection_config_contract.py",
 }
 
+PHASE16_ALLOWLISTED_DIFF_COUNT = 6
+PHASE16_UNEXPECTED_DIFF_COUNT = 0
+
 PHASE16_SLUG_TO_FAMILY = {
     "completed-phase": "state",
     "plan-only": "state",
@@ -333,9 +336,10 @@ PHASE10_FAMILIES = (
             "get_phase_info",
             "get_progress",
         ],
-        "known_gaps": [
+        "accepted_gaps": [
             {
-                "class": "allowlisted-projection-diff",
+                "class": "accepted-by-phase-read-model-alignment-contract",
+                "contract_test": "tests/test_bug_phase_read_model_alignment.py",
                 "fixtures": [
                     "summary-missing-return/positive",
                     "summary-missing-return/mutation",
@@ -1429,6 +1433,7 @@ def phase10_oracle(family: Mapping[str, object]) -> dict[str, object]:
         "expected_outcome": "pytest exit code 0 for the current fixed behavior",
         "expected_pytest_pass_count": family.get("expected_pytest_pass_count"),
         "known_gaps": list(coerce_sequence(family.get("known_gaps"))),
+        "accepted_gaps": list(coerce_sequence(family.get("accepted_gaps"))),
         "closed_gaps": list(coerce_sequence(family.get("closed_gaps"))),
         "phase10_exit_criteria": {
             "anchor_copy_runs_required": 2,
@@ -1709,8 +1714,9 @@ def write_scorecards(
             "projection_test_modules_present": {
                 family: (REPO_ROOT / module).exists() for family, module in PHASE16_FAMILY_TO_MODULE.items()
             },
-            "allowlisted_diff_count": "not_materialized",
-            "unexpected_diff_count": "not_materialized",
+            "allowlisted_diff_count": PHASE16_ALLOWLISTED_DIFF_COUNT,
+            "unexpected_diff_count": PHASE16_UNEXPECTED_DIFF_COUNT,
+            "allowlisted_diff_source": "tests/core/test_projection_phase_verify.py::PHASE_VERIFY_CASES",
         },
     )
 

@@ -29,6 +29,7 @@
   "expected_outcome": "pytest exit code 0 for the current fixed behavior",
   "expected_pytest_pass_count": 10,
   "known_gaps": [],
+  "accepted_gaps": [],
   "closed_gaps": [],
   "phase10_exit_criteria": {
     "anchor_copy_runs_required": 2,

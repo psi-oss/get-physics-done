@@ -28,9 +28,11 @@
   ],
   "expected_outcome": "pytest exit code 0 for the current fixed behavior",
   "expected_pytest_pass_count": 4,
-  "known_gaps": [
+  "known_gaps": [],
+  "accepted_gaps": [
     {
-      "class": "allowlisted-projection-diff",
+      "class": "accepted-by-phase-read-model-alignment-contract",
+      "contract_test": "tests/test_bug_phase_read_model_alignment.py",
       "fixtures": [
         "summary-missing-return/positive",
         "summary-missing-return/mutation",

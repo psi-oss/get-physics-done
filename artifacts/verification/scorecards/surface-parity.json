@@ -47,6 +47,7 @@
     "resume-observe": true,
     "config-contract": true
   },
-  "allowlisted_diff_count": "not_materialized",
-  "unexpected_diff_count": "not_materialized"
+  "allowlisted_diff_count": 6,
+  "unexpected_diff_count": 0,
+  "allowlisted_diff_source": "tests/core/test_projection_phase_verify.py::PHASE_VERIFY_CASES"
 }
