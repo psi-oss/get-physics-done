@@ -45,7 +45,6 @@ Keep `{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` loaded and visible wh
 </hard_schema_visibility_guard>
 
 On-demand references:
-@{GPD_INSTALL_DIR}/templates/planner-reference-index.md
 @{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
 @{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md
 @{GPD_INSTALL_DIR}/references/physics-subfields.md

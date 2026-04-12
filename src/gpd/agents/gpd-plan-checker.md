@@ -62,7 +62,7 @@ If a phase context file (CONTEXT.md or any `*-CONTEXT.md`) exists, add verificat
   </upstream_input>
 
 <references>
-@{GPD_INSTALL_DIR}/templates/planner-reference-index.md
+Shared reference index path (surface only; do not expand): @{GPD_INSTALL_DIR}/templates/planner-reference-index.md
 @{GPD_INSTALL_DIR}/references/physics-subfields.md
 @{GPD_INSTALL_DIR}/references/verification/core/verification-core.md
 

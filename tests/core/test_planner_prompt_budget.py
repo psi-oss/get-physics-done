@@ -10,6 +10,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PLANNER_PATH = REPO_ROOT / "src" / "gpd" / "agents" / "gpd-planner.md"
 SOURCE_ROOT = REPO_ROOT / "src" / "gpd"
 PATH_PREFIX = "/runtime/"
+MAX_RAW_INCLUDE_COUNT = 10
+MAX_EXPANDED_CHAR_COUNT = 225_000
+MAX_EXPANDED_LINE_COUNT = 4_500
 
 
 def _read_planner_prompt() -> str:
@@ -46,9 +49,9 @@ def test_expanded_planner_prompt_stays_under_budget() -> None:
         path_prefix=PATH_PREFIX,
     )
 
-    assert metrics.raw_include_count <= 12
-    assert metrics.expanded_char_count < 447_000
-    assert metrics.expanded_line_count < 8_800
+    assert metrics.raw_include_count <= MAX_RAW_INCLUDE_COUNT
+    assert metrics.expanded_char_count < MAX_EXPANDED_CHAR_COUNT
+    assert metrics.expanded_line_count < MAX_EXPANDED_LINE_COUNT
 
 
 def test_planner_prompt_no_longer_carries_the_removed_high_level_boilerplate() -> None:
