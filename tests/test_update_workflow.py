@@ -118,12 +118,12 @@ def test_default_local_install_keeps_local_update_scope_and_manifest(
     target = tmp_path / adapter.config_dir_name
     target.mkdir(parents=True)
 
-    _install_and_finalize(adapter, GPD_ROOT, target, is_global=False, **_install_kwargs_for_descriptor(descriptor, tmp_path))
+    _install_and_finalize(
+        adapter, GPD_ROOT, target, is_global=False, **_install_kwargs_for_descriptor(descriptor, tmp_path)
+    )
 
     update_content = (target / INSTALL_ROOT_DIR_NAME / "workflows" / "update.md").read_text(encoding="utf-8")
-    reapply_content = (target / INSTALL_ROOT_DIR_NAME / "workflows" / "reapply-patches.md").read_text(
-        encoding="utf-8"
-    )
+    reapply_content = (target / INSTALL_ROOT_DIR_NAME / "workflows" / "reapply-patches.md").read_text(encoding="utf-8")
     manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
 
     assert 'INSTALL_SCOPE="--local"' in update_content
@@ -151,7 +151,9 @@ def test_installed_update_command_is_derived_from_adapter_metadata(
     target = tmp_path / adapter.config_dir_name
     target.mkdir(parents=True)
 
-    _install_and_finalize(adapter, GPD_ROOT, target, is_global=False, **_install_kwargs_for_descriptor(descriptor, tmp_path))
+    _install_and_finalize(
+        adapter, GPD_ROOT, target, is_global=False, **_install_kwargs_for_descriptor(descriptor, tmp_path)
+    )
 
     assert installed_update_command(target) == f"{adapter.update_command} --local"
 
@@ -166,7 +168,9 @@ def test_legacy_local_install_without_install_scope_keeps_local_update_scope(
     target = tmp_path / adapter.config_dir_name
     target.mkdir(parents=True)
 
-    _install_and_finalize(adapter, GPD_ROOT, target, is_global=False, **_install_kwargs_for_descriptor(descriptor, tmp_path))
+    _install_and_finalize(
+        adapter, GPD_ROOT, target, is_global=False, **_install_kwargs_for_descriptor(descriptor, tmp_path)
+    )
 
     manifest_path = target / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -349,9 +353,7 @@ def test_explicit_target_global_install_keeps_global_update_scope(
     _install_and_finalize(adapter, GPD_ROOT, target, **install_kwargs)
 
     content = (target / INSTALL_ROOT_DIR_NAME / "workflows" / "update.md").read_text(encoding="utf-8")
-    reapply_content = (target / INSTALL_ROOT_DIR_NAME / "workflows" / "reapply-patches.md").read_text(
-        encoding="utf-8"
-    )
+    reapply_content = (target / INSTALL_ROOT_DIR_NAME / "workflows" / "reapply-patches.md").read_text(encoding="utf-8")
     manifest = json.loads((target / MANIFEST_NAME).read_text(encoding="utf-8"))
     command = installed_update_command(target)
 
@@ -583,7 +585,9 @@ def test_global_install_without_explicit_target_and_env_leak_returns_trusted_upd
 
     with monkeypatch.context() as ctx:
         ctx.setattr("gpd.hooks.install_metadata.Path.home", lambda: home_dir)
-        assert installed_update_command(canonical_target) == f"{BOOTSTRAP_COMMAND} {descriptor.install_flag} --global"
+        assert installed_update_command(canonical_target, home=home_dir) == (
+            f"{BOOTSTRAP_COMMAND} {descriptor.install_flag} --global"
+        )
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

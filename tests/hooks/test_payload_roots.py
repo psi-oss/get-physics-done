@@ -235,10 +235,10 @@ def test_resolve_with_shared_service_uses_later_signature_after_type_error(tmp_p
     def _service(**kwargs):
         calls.append(tuple(sorted(kwargs)))
         if "payload" in kwargs or "data" in kwargs:
-            raise TypeError("unsupported signature")
+            raise TypeError("unexpected keyword argument")
         if "workspace_dir" in kwargs and "project_dir" in kwargs and "cwd" in kwargs:
             return (kwargs["workspace_dir"], kwargs["project_dir"])
-        raise TypeError("unsupported signature")
+        raise TypeError("unexpected keyword argument")
 
     roots = _resolve_with_shared_service(
         {"workspace": str(workspace)},
@@ -395,7 +395,9 @@ def test_resolve_payload_roots_marks_untrusted_project_dir_when_workspace_walkup
     assert roots.project_dir_trusted is False
 
 
-def test_resolve_payload_roots_trusts_explicit_project_dir_when_it_is_the_selected_verified_root_basis(tmp_path) -> None:
+def test_resolve_payload_roots_trusts_explicit_project_dir_when_it_is_the_selected_verified_root_basis(
+    tmp_path,
+) -> None:
     project = tmp_path / "project"
     workspace = project / "src" / "notes"
     workspace.mkdir(parents=True)

@@ -67,7 +67,7 @@ _CI_HOT_TEST_FILE_SPLITS_BASE = {
     "test_install_utils_edge.py": 2,
     "test_install_edge_cases.py": 2,
     "test_update_workflow.py": 4,
-    "adapters/test_runtime_projected_prompt_parity.py": 2,
+    "adapters/test_runtime_projected_prompt_parity.py": 4,
     "hooks/test_runtime_detect.py": 2,
     "hooks/test_statusline.py": 2,
     "core/test_cli.py": 3,
@@ -77,7 +77,7 @@ _CI_HOT_TEST_FILE_SPLITS_BASE = {
     "core/test_health.py": 2,
     "core/test_state.py": 2,
     "core/test_prompt_wiring.py": 2,
-    "mcp/test_servers.py": 2,
+    "mcp/test_servers.py": 3,
     "mcp/test_verification_contract_server_regressions.py": 2,
     "core/test_verification_contract_evidence.py": 2,
 }
