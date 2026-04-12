@@ -10,6 +10,7 @@ import pytest
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.core.constants import ProjectLayout
 from gpd.core.context import (
+    _build_reference_runtime_context,
     _extract_frontmatter_field,
     _generate_slug,
     _is_phase_complete,
@@ -19,6 +20,7 @@ from gpd.core.context import (
     _normalize_phase_name,
     _read_todo_frontmatter,
     _render_active_reference_context,
+    _resolve_resume_projection,
     _should_skip_research_scan_entry,
     _state_exists,
     init_execute_phase,
@@ -1856,8 +1858,9 @@ class TestInitPlanPhase:
         contract_payload["scope"]["in_scope"] = ["numerical relativity", "benchmark alignment"]
         contract = ResearchContract.model_validate(contract_payload)
 
-        monkeypatch.setattr(
-            "gpd.core.context._load_project_contract",
+        monkeypatch.setitem(
+            _build_reference_runtime_context.__globals__,
+            "_load_project_contract",
             lambda cwd: (
                 contract,
                 {
@@ -1871,7 +1874,7 @@ class TestInitPlanPhase:
             ),
         )
 
-        ctx = init_progress(tmp_path)
+        ctx = _build_reference_runtime_context(tmp_path)
 
         assert ctx["project_contract"] is not None
         assert ctx["project_contract"]["scope"]["question"] == contract.scope.question
@@ -3148,10 +3151,10 @@ class TestInitResume:
         def _boom(*_args, **_kwargs):
             raise RuntimeError("canonical resolution exploded")
 
-        monkeypatch.setattr("gpd.core.context.resolve_continuation", _boom)
+        monkeypatch.setitem(_resolve_resume_projection.__globals__, "resolve_continuation", _boom)
 
         with pytest.raises(RuntimeError, match="canonical resolution exploded"):
-            init_resume(tmp_path)
+            _resolve_resume_projection(tmp_path, state=None, current_execution=None, state_issues=None)
 
 
 # ─── init_verify_work ─────────────────────────────────────────────────────────

@@ -7,6 +7,8 @@ import pytest
 
 from tests.ci_sharding import CI_CATEGORY_SHARD_COUNTS
 
+_CHILD_PYTEST_XDIST_DISABLE_ENV = "GPD_PYTEST_DISABLE_CHILD_XDIST"
+
 
 def _is_default_full_suite_invocation(args: list[str]) -> bool:
     normalized = tuple(
@@ -27,6 +29,8 @@ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int | None:
 
     if os.environ.get("PYTEST_XDIST_AUTO_NUM_WORKERS"):
         return None
+    if os.environ.get(_CHILD_PYTEST_XDIST_DISABLE_ENV):
+        return 0
 
     numprocesses = getattr(config.option, "numprocesses", None)
     if numprocesses not in {"auto", "logical"}:
@@ -55,9 +59,11 @@ def _isolate_machine_local_gpd_data(tmp_path_factory) -> Iterator[None]:
     """
 
     previous = os.environ.get("GPD_DATA_DIR")
+    previous_child_xdist = os.environ.get(_CHILD_PYTEST_XDIST_DISABLE_ENV)
     data_root = tmp_path_factory.getbasetemp() / "gpd-data"
     data_root.mkdir(parents=True, exist_ok=True)
     os.environ["GPD_DATA_DIR"] = str(data_root)
+    os.environ[_CHILD_PYTEST_XDIST_DISABLE_ENV] = "1"
     try:
         yield
     finally:
@@ -65,6 +71,10 @@ def _isolate_machine_local_gpd_data(tmp_path_factory) -> Iterator[None]:
             os.environ.pop("GPD_DATA_DIR", None)
         else:
             os.environ["GPD_DATA_DIR"] = previous
+        if previous_child_xdist is None:
+            os.environ.pop(_CHILD_PYTEST_XDIST_DISABLE_ENV, None)
+        else:
+            os.environ[_CHILD_PYTEST_XDIST_DISABLE_ENV] = previous_child_xdist
 
 
 def pytest_report_header(config) -> str:

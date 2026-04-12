@@ -165,7 +165,7 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     node_step = _step_by_name(pytest_steps, "Set up Node.js")
     assert node_step["uses"] == "actions/setup-node@v6"
     assert node_step["with"]["node-version"] == "20"
-    assert 'addopts = ""' in pyproject
+    assert 'addopts = "-n auto --dist=worksteal"' in pyproject
     assert 'pytest-xdist>=3.8.0' in pyproject
 
 
@@ -418,20 +418,20 @@ def test_tests_readme_documents_default_full_suite_and_category_named_runtime_in
     tests_readme = (REPO_ROOT / "tests" / "README.md").read_text(encoding="utf-8")
     smoke_command = "uv run pytest -q " + " ".join(CI_SMOKE_TEST_TARGETS)
 
-    assert "Default `uv run pytest` runs the full checked-in suite" in tests_readme
+    assert "Default `uv run pytest` runs the full checked-in suite in parallel" in tests_readme
     assert "`uv run pytest -q` does the same with quieter output" in tests_readme
-    assert "Install `pytest-xdist` to opt into parallel runs" in tests_readme
-    assert "raises xdist auto-worker selection toward the current CI shard fanout" in tests_readme
-    assert "use `uv run pytest -n auto --dist=worksteal`" in tests_readme
+    assert "`pyproject.toml` pins `-n auto --dist=worksteal`" in tests_readme
+    assert "raises default full-suite xdist auto-worker selection toward the current CI shard fanout" in tests_readme
+    assert "Use `uv run pytest -n 0 ...` when you need a serial repro" in tests_readme
     assert "focused local contract-visibility smoke pass" in tests_readme
     assert "separate CI release/package smoke lane stays under 3 minutes" in tests_readme
     assert smoke_command in tests_readme
     assert "CI shards add `--durations=20 --durations-min=0`" in tests_readme
     assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
     assert "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`" in tests_readme
-    assert "boosts root modules that have been slow on GitHub Actions" in tests_readme
+    assert "boosts modules that were hottest in the local xdist duration profile" in tests_readme
     assert "UV_CACHE_DIR=tmp/uv-cache" in tests_readme
-    assert "splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, and `tests/hooks/test_runtime_detect.py`" in tests_readme
+    assert "splits hotspot files such as `tests/test_runtime_cli.py`, `tests/test_cli_integration.py`, `tests/test_update_workflow.py`, `tests/adapters/test_install_roundtrip.py`, `tests/hooks/test_notify.py`, and `tests/hooks/test_runtime_detect.py`" in tests_readme
     assert "greedily rebalances those work units inside each category" in tests_readme
 
 

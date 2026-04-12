@@ -1623,6 +1623,7 @@ def test_bootstrap_install_blocks_when_selected_runtime_launcher_is_missing(tmp_
         tmp_path,
         extra_env={"FAKE_MISSING_LAUNCHERS": _CODEX_RUNTIME_NAME},
     )
+    combined_output = "\n".join(part for part in (result.stdout, result.stderr) if part)
 
     assert result.returncode == 1
 
@@ -1647,7 +1648,7 @@ def test_bootstrap_install_blocks_when_selected_runtime_launcher_is_missing(tmp_
         f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: Runtime Launcher: "
         f"{_RUNTIME_LAUNCH_COMMANDS[_CODEX_RUNTIME_NAME]} not found on PATH"
     ) in result.stderr
-    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in result.stdout
+    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local`" in combined_output
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
@@ -1665,6 +1666,7 @@ def test_bootstrap_install_blocks_when_target_dir_is_not_writable(tmp_path: Path
         )
     finally:
         protected_parent.chmod(0o755)
+    combined_output = "\n".join(part for part in (result.stdout, result.stderr) if part)
 
     assert result.returncode == 1
 
@@ -1698,8 +1700,8 @@ def test_bootstrap_install_blocks_when_target_dir_is_not_writable(tmp_path: Path
     assert "Runtime launcher/target preflight failed." in result.stderr
     assert f"{_RUNTIME_DISPLAY_NAMES[_CODEX_RUNTIME_NAME]}: Runtime Config Target:" in result.stderr
     assert "is not writable" in result.stderr
-    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local --target-dir " in result.stdout
-    assert f"{_RUNTIME_ADAPTERS[_CODEX_RUNTIME_NAME].config_dir_name}`" in result.stdout
+    assert f"`gpd doctor --runtime {_CODEX_RUNTIME_NAME} --local --target-dir " in combined_output
+    assert f"{_RUNTIME_ADAPTERS[_CODEX_RUNTIME_NAME].config_dir_name}`" in combined_output
 
 
 @pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")

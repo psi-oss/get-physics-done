@@ -445,7 +445,7 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert 'python-version: "3.11"' in workflow
     assert "astral-sh/setup-uv@v7" in workflow
     assert "uv sync --dev" in workflow
-    assert 'addopts = ""' in pyproject
+    assert 'addopts = "-n auto --dist=worksteal"' in pyproject
     assert "Resolve pytest shard targets" in workflow
     assert "Run pytest shard" in workflow
     assert "from tests.ci_sharding import write_ci_shard_targets_file" in workflow

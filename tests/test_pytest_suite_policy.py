@@ -97,6 +97,7 @@ def test_root_conftest_scales_local_full_suite_auto_workers_toward_ci_fanout(
         option=SimpleNamespace(numprocesses="auto", maxprocesses=None),
     )
     monkeypatch.delenv("PYTEST_XDIST_AUTO_NUM_WORKERS", raising=False)
+    monkeypatch.delenv(tests_conftest._CHILD_PYTEST_XDIST_DISABLE_ENV, raising=False)
     monkeypatch.setattr(tests_conftest.os, "cpu_count", lambda: 16)
     assert tests_conftest.pytest_xdist_auto_num_workers(config) == ci_shards
 
@@ -108,6 +109,11 @@ def test_root_conftest_scales_local_full_suite_auto_workers_toward_ci_fanout(
 
     config.args = ["--maxfail=1", "tests", "-q"]
     assert tests_conftest.pytest_xdist_auto_num_workers(config) == 12
+
+    monkeypatch.setenv(tests_conftest._CHILD_PYTEST_XDIST_DISABLE_ENV, "1")
+    config.args = ["tests"]
+    config.option.maxprocesses = None
+    assert tests_conftest.pytest_xdist_auto_num_workers(config) == 0
 
 
 def test_default_collection_matches_all_checked_in_test_files() -> None:
@@ -164,7 +170,7 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
     assert "Set up Node.js" in pytest_step_names
     assert pytest_step_names.index("Set up Node.js") < pytest_step_names.index("Install dependencies")
     pytest_ini_options = pyproject["tool"]["pytest"]["ini_options"]
-    assert pytest_ini_options["addopts"] == ""
+    assert pytest_ini_options["addopts"] == "-n auto --dist=worksteal"
     dependency_groups = pyproject["dependency-groups"]
     dev_deps = dependency_groups["dev"]
     assert "pytest-xdist>=3.8.0" in dev_deps
@@ -176,15 +182,15 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
     assert '--durations=20' in pytest_shard_command
     assert '--durations-min=0' in pytest_shard_command
     assert 'uv run pytest -q --durations=20 --durations-min=0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
-    assert "Default `uv run pytest` runs the full checked-in suite" in tests_readme
+    assert "Default `uv run pytest` runs the full checked-in suite in parallel" in tests_readme
     assert "`uv run pytest -q` does the same with quieter output" in tests_readme
-    assert "Install `pytest-xdist` to opt into parallel runs" in tests_readme
-    assert "raises xdist auto-worker selection toward the current CI shard fanout" in tests_readme
-    assert "use `uv run pytest -n auto --dist=worksteal`" in tests_readme
+    assert "`pyproject.toml` pins `-n auto --dist=worksteal`" in tests_readme
+    assert "raises default full-suite xdist auto-worker selection toward the current CI shard fanout" in tests_readme
+    assert "Use `uv run pytest -n 0 ...` when you need a serial repro" in tests_readme
     assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
     assert "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`" in tests_readme
-    assert "boosts root modules that have been slow on GitHub Actions" in tests_readme
-    assert "splits known hotspot modules such as `tests/test_runtime_cli.py`, `tests/test_registry.py`, `tests/test_update_workflow.py`, and `tests/hooks/test_runtime_detect.py`" in tests_readme
+    assert "boosts modules that were hottest in the local xdist duration profile" in tests_readme
+    assert "splits hotspot files such as `tests/test_runtime_cli.py`, `tests/test_cli_integration.py`, `tests/test_update_workflow.py`, `tests/adapters/test_install_roundtrip.py`, `tests/hooks/test_notify.py`, and `tests/hooks/test_runtime_detect.py`" in tests_readme
     assert "greedily rebalances those work units inside each category" in tests_readme
 
 

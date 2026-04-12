@@ -95,7 +95,7 @@ artifacts = [
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = ""
+addopts = "-n auto --dist=worksteal"
 markers = [
     "asyncio: mark tests that tap the pytest-asyncio event loop fixture",
     "exact: highlight the reference physics doc blocks that assert exact outcomes",

@@ -60,20 +60,25 @@ def ci_smoke_pytest_command() -> str:
 
 
 _CI_HOT_TEST_FILE_SPLITS_BASE = {
-    "test_runtime_cli.py": 10,
-    "test_cli_integration.py": 4,
+    "test_runtime_cli.py": 12,
+    "test_cli_integration.py": 5,
     "test_registry.py": 4,
     "test_cli_commands.py": 3,
     "test_install_utils_edge.py": 2,
     "test_install_edge_cases.py": 2,
-    "test_update_workflow.py": 4,
+    "test_runtime_install_smoke.py": 2,
+    "test_update_workflow.py": 5,
+    "adapters/test_install_roundtrip.py": 3,
     "adapters/test_runtime_projected_prompt_parity.py": 4,
     "hooks/test_runtime_detect.py": 2,
+    "hooks/test_notify.py": 3,
+    "hooks/test_runtime_lookup.py": 2,
     "hooks/test_statusline.py": 2,
+    "hooks/test_todo_resolution.py": 2,
     "core/test_cli.py": 3,
     "core/test_contract_validation.py": 3,
+    "core/test_context.py": 3,
     "core/test_frontmatter.py": 3,
-    "core/test_context.py": 2,
     "core/test_health.py": 2,
     "core/test_state.py": 2,
     "core/test_prompt_wiring.py": 2,
@@ -124,23 +129,30 @@ class _LazyHotTestFileSplits(Mapping[str, int]):
         return f"{type(self).__name__}({self._resolved()!r})"
 
 
-# Observed GitHub Actions timings on 2026-04-07 showed that these files are the
-# real bottlenecks inside their category. Split them inside the file so the
-# category-local planners can spread the slow work rather than pinning one
-# thematic shard to a single expensive module.
+# Observed hotspot profiles from GitHub Actions and the 2026-04-12 local xdist
+# timing sweep showed that these files are the real bottlenecks inside their
+# category. Split them inside the file so the category-local planners can
+# spread the slow work rather than pinning one thematic shard to a single
+# expensive module.
 CI_HOT_TEST_FILE_SPLITS: Mapping[str, int] = _LazyHotTestFileSplits()
 
 CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS = {
-    "test_runtime_cli.py": 6.0,
-    "test_cli_integration.py": 3.0,
+    "test_runtime_cli.py": 6.5,
+    "test_cli_integration.py": 3.2,
     "test_registry.py": 2.0,
     "test_cli_commands.py": 1.5,
     "test_install_utils_edge.py": 1.5,
-    "test_update_workflow.py": 2.0,
+    "test_runtime_install_smoke.py": 2.0,
+    "test_update_workflow.py": 2.5,
+    "adapters/test_install_roundtrip.py": 2.5,
     "core/test_cli.py": 1.5,
+    "core/test_context.py": 1.5,
     "core/test_contract_validation.py": 1.4,
-    "hooks/test_runtime_detect.py": 1.5,
+    "hooks/test_notify.py": 3.0,
+    "hooks/test_runtime_detect.py": 2.0,
+    "hooks/test_runtime_lookup.py": 2.5,
     "hooks/test_statusline.py": 1.5,
+    "hooks/test_todo_resolution.py": 2.5,
 }
 
 
