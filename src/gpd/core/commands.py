@@ -21,9 +21,7 @@ from gpd.contracts import (
 )
 from gpd.core.child_return_application import ApplyChildReturnResult, apply_child_return_updates
 from gpd.core.constants import (
-    PHASES_DIR_NAME,
     PLAN_SUFFIX,
-    PLANNING_DIR_NAME,
     STANDALONE_PLAN,
     VERIFICATION_SUFFIX,
     ProjectLayout,
@@ -524,14 +522,14 @@ def cmd_history_digest(cwd: Path) -> HistoryDigestResult:
     dependency-graph.provides, dependency-graph.affects, patterns-established,
     key-decisions, and methods.added.
     """
-    phases_dir = cwd / PLANNING_DIR_NAME / PHASES_DIR_NAME
+    layout = ProjectLayout(cwd)
+    phases_dir = layout.phases_dir
     methods_set: set[str] = set()
     phase_sets: dict[str, dict[str, set[str]]] = {}
     digest = HistoryDigestResult()
 
     if not phases_dir.is_dir():
         return digest
-    layout = ProjectLayout(cwd)
 
     phase_dirs = sorted(
         [d for d in phases_dir.iterdir() if d.is_dir()],
@@ -648,7 +646,8 @@ def cmd_regression_check(cwd: Path, *, phase: str | None = None, quick: bool = F
 
     Returns a result indicating pass/fail with detailed issue list.
     """
-    phases_dir = cwd / PLANNING_DIR_NAME / PHASES_DIR_NAME
+    layout = ProjectLayout(cwd)
+    phases_dir = layout.phases_dir
     issues: list[RegressionIssue] = []
 
     # Collect completed phase directories
@@ -660,7 +659,6 @@ def cmd_regression_check(cwd: Path, *, phase: str | None = None, quick: bool = F
     except FileNotFoundError:
         return RegressionCheckResult(passed=True, issues=[], phases_checked=0, warning="No completed phases found to check")
 
-    layout = ProjectLayout(cwd)
     completed_dirs: list[Path] = []
     for d in all_dirs:
         files = [f.name for f in d.iterdir() if f.is_file()]

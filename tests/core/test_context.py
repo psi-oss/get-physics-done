@@ -1662,7 +1662,7 @@ class TestInitPlanPhase:
         assert "Legacy details." not in ctx["reference_artifacts_content"]
         assert "GPD/research/legacy-REVIEW.md" not in ctx["reference_artifact_files"]
 
-    def test_falls_back_to_legacy_research_review_files_when_literature_is_missing(
+    def test_ignores_legacy_research_review_files_when_literature_is_missing(
         self,
         tmp_path: Path,
     ) -> None:
@@ -1693,10 +1693,10 @@ class TestInitPlanPhase:
 
         ctx = init_plan_phase(tmp_path, "2")
 
-        assert ctx["literature_review_files"] == ["GPD/research/legacy-REVIEW.md"]
-        assert ctx["citation_source_files"] == ["GPD/research/legacy-CITATION-SOURCES.json"]
-        assert "Legacy details." in ctx["reference_artifacts_content"]
-        assert "GPD/research/legacy-REVIEW.md" in ctx["reference_artifact_files"]
+        assert ctx["literature_review_files"] == []
+        assert ctx["citation_source_files"] == []
+        assert ctx["reference_artifact_files"] == []
+        assert ctx["reference_artifacts_content"] is None
 
     def test_does_not_bootstrap_manuscript_proof_review_manifest(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

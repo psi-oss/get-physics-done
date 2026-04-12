@@ -8,7 +8,7 @@ Template for spawning a fresh gpd-executor agent to continue plan execution afte
 
 Persisted bounded-segment fields: `resume_file`, `phase`, `plan`, `segment_id`, `segment_status`, `checkpoint_reason`, `waiting_reason`, `blocked_reason`, `waiting_for_review`, `first_result_gate_pending`, `pre_fanout_review_pending`, `pre_fanout_review_cleared`, `skeptical_requestioning_required`, `downstream_locked`, `skeptical_requestioning_summary`, `weakest_unchecked_anchor`, `disconfirming_observation`, `transition_id`, `last_result_id`, `updated_at`, `source_session_id`, `recorded_by`.
 
-If the checkpoint payload names expected artifacts, verify them on disk before continuing; returned text alone is not enough.
+If the checkpoint payload names expected artifacts, verify them on disk before continuing; do not treat returned text alone as sufficient evidence.
 
 Referenced by `workflows/execute-phase.md` checkpoint_handling step.
 
@@ -43,7 +43,7 @@ Return state updates (position, decisions, metrics) in your response -- do NOT w
 {execution_segment}
 </execution_segment>
 
-`execution_segment` is the transient runtime handoff payload. Persisted bounded-stop and compatibility projection semantics are owned by the canonical schema docs listed in `docs/schema-registry-ownership.md`; do not duplicate the field vocabulary here. Clear or replace the persisted bounded stop when it is consumed, retired, or superseded by a newer segment.
+`execution_segment` is the transient runtime handoff payload. Clear or replace the persisted bounded stop when it is consumed, retired, or superseded by a newer segment.
 
 If the execution segment indicates `pre_fanout_review_pending: true`, do not unlock downstream dependent work until the review outcome has been incorporated into this continuation.
 
@@ -81,7 +81,7 @@ git log --oneline --grep="({phase}-{plan}):" | head -20
 
 Compare against the completed tasks table above. If any expected commits are missing, STOP and report the discrepancy -- do not proceed with incomplete prior state.
 
-If the checkpoint or execution segment names expected artifacts, verify them on disk before continuing; do not treat returned text alone as sufficient evidence.
+As above, re-verify any artifacts the checkpoint or execution segment names on disk before continuing; do not treat the textual description alone as sufficient evidence.
 
 Also verify the bounded execution segment still satisfies its resume preconditions:
 

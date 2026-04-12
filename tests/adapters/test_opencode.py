@@ -173,6 +173,12 @@ class TestConvertFrontmatter:
         assert "./.opencode/agents/gpd-verifier.md" in result
         assert "~/.config/opencode/agents/gpd-verifier.md" not in result
 
+    def test_global_config_home_subpath_conversion(self) -> None:
+        content = "---\ndescription: D\n---\nSee ~/.config/opencode/agents/gpd-verifier.md"
+        result = convert_frontmatter_for_opencode(content)
+        expected_agent_path = get_opencode_global_dir() / "agents" / "gpd-verifier.md"
+        assert expected_agent_path.as_posix() in result
+
     def test_claude_tool_name_in_body_is_left_unchanged(self) -> None:
         content = "---\ndescription: D\n---\nUse AskUserQuestion to ask."
         result = convert_frontmatter_for_opencode(content)

@@ -38,6 +38,8 @@ __all__ = [
     "HOME_DATA_DIR_NAME",
     "LITERATURE_DIR_NAME",
     "KNOWLEDGE_DIR_NAME",
+    "REVIEW_DIR_NAME",
+    "COMPARISONS_DIR_NAME",
     "MILESTONES_DIR_NAME",
     "MILESTONES_FILENAME",
     "MIN_PYTHON_MAJOR",
@@ -178,6 +180,12 @@ TODOS_DIR_NAME = "todos"
 
 LITERATURE_DIR_NAME = "literature"
 """Subdirectory under GPD/ for literature review files."""
+
+REVIEW_DIR_NAME = "review"
+"""Subdirectory under GPD/ for staged review artifacts."""
+
+COMPARISONS_DIR_NAME = "comparisons"
+"""Subdirectory under GPD/ for review comparison snapshots."""
 
 KNOWLEDGE_DIR_NAME = "knowledge"
 """Subdirectory under GPD/ for knowledge documents."""
@@ -476,11 +484,11 @@ class ProjectLayout:
 
     @property
     def review_dir(self) -> Path:
-        return self.gpd / "review"
+        return self.gpd / REVIEW_DIR_NAME
 
     @property
     def comparisons_dir(self) -> Path:
-        return self.gpd / "comparisons"
+        return self.gpd / COMPARISONS_DIR_NAME
 
     @property
     def observability_sessions_dir(self) -> Path:

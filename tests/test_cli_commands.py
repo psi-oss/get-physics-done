@@ -1747,7 +1747,7 @@ class TestReviewValidationCommands:
         assert f"public command surface rooted at `{dollar_command_prefix}`" in payload["dispatch_note"]
 
     @pytest.mark.parametrize("command_name", ["health", "suggest-next"])
-    def test_command_context_projectless_recovery_commands_pass_without_project(
+    def test_command_context_projectless_recovery_commands_reject_local_cli_only(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, command_name: str
     ) -> None:
         monkeypatch.chdir(tmp_path)
@@ -1758,11 +1758,20 @@ class TestReviewValidationCommands:
             catch_exceptions=False,
         )
 
-        assert result.exit_code == 0, result.output
+        assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
         assert payload["command"] == f"gpd:{command_name}"
         assert payload["context_mode"] == "projectless"
-        assert payload["passed"] is True
+        assert payload["passed"] is False
+        slug = payload["command"].split(":", 1)[-1]
+        local_cli_command = "`gpd`" if not slug else f"`gpd {slug}`"
+        assert payload["guidance"] == (
+            "This command runs exclusively on the local CLI surface. "
+            f"Run {local_cli_command} here instead of dispatching it through a runtime."
+        )
+        assert payload["dispatch_note"] == ""
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert checks["local_cli_only"]["passed"] is False
 
     @pytest.mark.parametrize("command_name", ["gpd:settings", "gpd:set-tier-models"])
     def test_command_context_surfaces_runtime_command_dispatch_note(

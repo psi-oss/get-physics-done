@@ -1760,6 +1760,16 @@ class TestSkillsServer:
         assert "inject" in result["loading_hint"]
         assert "schema-bound" in result["loading_hint"]
 
+    def test_get_skill_marks_schema_and_contract_docs_as_model_visible(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        result = get_skill("gpd-check-proof")
+        model_visible = result["model_visible_documents"]
+
+        assert "Schema and contract documents." in model_visible["note"]
+        assert model_visible["schema_documents"] == [entry["path"] for entry in result["schema_documents"]]
+        assert model_visible["contract_documents"] == [entry["path"] for entry in result["contract_documents"]]
+
     def test_get_skill_resume_work_surfaces_project_reentry_metadata(self):
         from gpd.mcp.servers.skills_server import get_skill
         from gpd.registry import CommandDef, SkillDef

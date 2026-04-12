@@ -542,6 +542,7 @@ On resume (in `detect_previous_attempt`), read `plan-commits.json` to reconstruc
 <step name="checkpoint_protocol">
 See `execute-plan-checkpoints.md` for the full checkpoint protocol (display format, types, resume signals) and `{GPD_INSTALL_DIR}/references/orchestration/checkpoints.md` for general checkpoint details.
 
+This step intentionally defers to those canonical checkpoint references instead of repeating their prose here, keeping a single source of truth for checkpoint semantics.
 WAIT for user -- do NOT hallucinate completion.
 </step>
 

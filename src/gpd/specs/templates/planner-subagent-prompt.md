@@ -59,7 +59,7 @@ Keep dimensions, limits, and cross-method consistency explicit. For proof-bearin
 <contract_visibility_requirements>
 Planning requires an approved `project_contract`. If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `gpd_return.status: checkpoint` instead of guessing.
 Keep `project_contract` as the grounding ledger. Use `effective_reference_intake` and `active_reference_context` only as readable projections of the same anchors.
-Treat stable knowledge docs surfaced through `active_reference_context` and `reference_artifacts_content` as reviewed background syntheses. They never override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.
+Treat stable knowledge docs surfaced through `active_reference_context` and `reference_artifacts_content` as reviewed background syntheses. They are advisory only: they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.
 If stable knowledge materially shapes the plan, surface it explicitly in existing plan structures or prose; do not invent a separate knowledge authority or ledger.
 Use explicit `knowledge_deps` when a plan materially depends on a reviewed knowledge doc and downstream gating should be enforced; keep implicit stable background advisory only.
 Treat `approach_policy` as execution policy only. Keep `scope.in_scope` populated and `contract.context_intake` concrete enough to audit.
@@ -185,6 +185,3 @@ If planning cannot finish:
 2. Report whether any PLAN.md files were written.
 3. Return `gpd_return.status: failed` and, if helpful, include a human-readable `## PLANNING INCONCLUSIVE` heading in the body.
 4. Provide the smallest next action: more context, retry, or manual intervention.
-
-
-they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.

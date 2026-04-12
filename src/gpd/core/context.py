@@ -148,8 +148,6 @@ logger = logging.getLogger(__name__)
 
 # Research file extensions for project detection.
 _RESEARCH_EXTENSIONS = frozenset({".tex", ".ipynb", ".py", ".jl", ".f90"})
-_LITERATURE_DIR_NAME = "literature"
-_LEGACY_RESEARCH_DIR_NAME = "research"
 _REFERENCE_MAP_DOCS = ("REFERENCES.md", "VALIDATION.md")
 _LITERATURE_INCLUDE_LIMIT = 2
 _RESEARCH_MAP_INCLUDE_LIMIT = 4
@@ -1192,15 +1190,10 @@ def _sorted_markdown_files(directory: Path) -> list[Path]:
         return []
 
 
-def _preferred_review_dir(cwd: Path) -> Path | None:
-    """Return the canonical review directory, falling back to legacy research only when needed."""
-    literature_dir = cwd / PLANNING_DIR_NAME / _LITERATURE_DIR_NAME
-    if literature_dir.is_dir():
-        return literature_dir
-    legacy_research_dir = cwd / PLANNING_DIR_NAME / _LEGACY_RESEARCH_DIR_NAME
-    if legacy_research_dir.is_dir():
-        return legacy_research_dir
-    return None
+def _preferred_review_dir(layout: ProjectLayout) -> Path | None:
+    """Return the canonical literature review directory (no legacy fallbacks)."""
+    literature_dir = layout.literature_dir
+    return literature_dir if literature_dir.is_dir() else None
 
 
 def _serialize_active_references(contract: ResearchContract | None) -> list[dict[str, object]]:
@@ -1638,9 +1631,10 @@ def _append_contract_warnings(lines: list[str], warnings: list[str]) -> None:
 
 def _reference_artifact_payload(cwd: Path) -> dict[str, object]:
     """Collect durable reference artifacts for downstream planning and verification."""
-    review_dir = _preferred_review_dir(cwd)
+    layout = ProjectLayout(cwd)
+    review_dir = _preferred_review_dir(layout)
     literature_paths = _sorted_markdown_files(review_dir) if review_dir is not None else []
-    research_map_dir = cwd / PLANNING_DIR_NAME / RESEARCH_MAP_DIR_NAME
+    research_map_dir = layout.research_map_dir
     research_map_paths = _sorted_markdown_files(research_map_dir)
     knowledge_inventory = discover_knowledge_docs(cwd)
     prioritized_research_map_paths = [

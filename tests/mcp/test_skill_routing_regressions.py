@@ -90,6 +90,29 @@ def test_route_skill_breaks_equal_score_ties_deterministically() -> None:
     assert suggestions == ["gpd-first"] * 5
 
 
+def test_route_skill_prefers_more_specific_keyword_matches_when_scores_tie() -> None:
+    from gpd.mcp.servers.skills_server import route_skill
+
+    skills = [
+        _skill("gpd-first", category="project", registry_name="longer match phrase"),
+        _skill("gpd-second", category="project", registry_name="longer match"),
+        _skill("gpd-help", category="help", registry_name="help"),
+    ]
+
+    derived_keywords = {
+        "gpd-first": ["longer match phrase"],
+        "gpd-second": ["longer", "match"],
+    }
+
+    with patch("gpd.mcp.servers.skills_server._load_skill_index", return_value=skills), patch(
+        "gpd.mcp.servers.skills_server._derived_route_keywords",
+        side_effect=lambda skill: derived_keywords.get(skill.name, []),
+    ):
+        result = route_skill("longer match phrase")
+
+    assert result["suggestion"] == "gpd-first"
+
+
 def test_route_skill_ignores_generic_derived_keywords_that_would_create_false_positives() -> None:
     from gpd.mcp.servers.skills_server import route_skill
 

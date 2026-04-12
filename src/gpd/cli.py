@@ -443,6 +443,16 @@ def _format_runtime_list(runtime_names: list[str]) -> str:
     return f"{', '.join(display_names[:-1])}, and {display_names[-1]}"
 
 
+def _local_cli_command_hint(public_command_name: str) -> str:
+    """Return the canonical local CLI invocation for *public_command_name*."""
+    slug = public_command_name
+    prefix = "gpd:"
+    if slug.startswith(prefix):
+        slug = slug[len(prefix) :]
+    slug = slug.strip()
+    return "`gpd`" if not slug else f"`gpd {slug}`"
+
+
 def _supported_runtime_names() -> list[str]:
     """Return runtime ids from the loaded adapter registry."""
     from gpd.adapters import list_runtimes
@@ -6662,10 +6672,11 @@ def _build_command_context_preflight(
             project_reentry_capable=False,
         )
         public_command_name = canonical_command_name
+    local_cli_only = getattr(command, "local_cli_only", False)
     context_cwd = _status_command_cwd(cwd) if _command_supports_project_reentry(command) else _project_scoped_cwd(cwd)
     layout = ProjectLayout(context_cwd)
     project_exists = layout.project_md.exists()
-    dispatch_note = _runtime_surface_dispatch_note(cwd=cwd)
+    dispatch_note = "" if local_cli_only else _runtime_surface_dispatch_note(cwd=cwd)
     init_command = _active_runtime_new_project_command(cwd=cwd)
 
     checks: list[CommandContextCheck] = []
@@ -6674,6 +6685,24 @@ def _build_command_context_preflight(
         checks.append(CommandContextCheck(name=name, passed=passed, detail=detail, blocking=blocking))
 
     add_check("context_mode", True, f"context_mode={command.context_mode}", blocking=False)
+
+    if local_cli_only:
+        add_check("local_cli_only", False, "local CLI-only command")
+        guidance = (
+            "This command runs exclusively on the local CLI surface. "
+            f"Run {_local_cli_command_hint(public_command_name)} here instead of dispatching it through a runtime."
+        )
+        return CommandContextPreflightResult(
+            command=public_command_name,
+            context_mode=command.context_mode,
+            passed=False,
+            project_exists=project_exists,
+            explicit_inputs=[],
+            guidance=guidance,
+            checks=checks,
+            public_runtime_command_prefix="",
+            dispatch_note="",
+        )
 
     if command.context_mode == "global":
         add_check("project_context", True, "command runs without project context", blocking=False)

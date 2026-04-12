@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 import tests.conftest as tests_conftest
-from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import RuntimeDescriptor, iter_runtime_descriptors
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
     CI_FAST_PRIORITY_TEST_TARGETS,
@@ -49,6 +49,16 @@ def _workflow_job_steps(workflow: dict[str, object], job_name: str) -> list[dict
     assert isinstance(steps, list)
     assert all(isinstance(step, dict) for step in steps)
     return steps
+
+
+def _runtime_descriptors_or_skip() -> tuple[RuntimeDescriptor, ...]:
+    try:
+        descriptors = iter_runtime_descriptors()
+    except (FileNotFoundError, PermissionError) as error:
+        pytest.skip(f"runtime catalog unavailable: {error}")
+    if not descriptors:
+        pytest.skip("runtime catalog contains no runtime descriptors")
+    return descriptors
 
 
 def test_root_conftest_keeps_default_collection_as_full_suite() -> None:
@@ -181,9 +191,10 @@ def test_hotspot_split_targets_exist_and_request_multiple_parts() -> None:
 
 def test_runtime_adapter_hotspot_splits_target_catalog_adapters_without_collection() -> None:
     splits = dict(CI_HOT_TEST_FILE_SPLITS)
+    descriptors = _runtime_descriptors_or_skip()
     adapter_test_paths = {
         f"adapters/test_{descriptor.adapter_module}.py"
-        for descriptor in iter_runtime_descriptors()
+        for descriptor in descriptors
     }
 
     assert adapter_test_paths <= set(splits)

@@ -51,7 +51,10 @@ from gpd.adapters.install_utils import (
 from gpd.adapters.install_utils import (
     rewrite_gpd_cli_invocations as _rewrite_gpd_cli_invocations,
 )
-from gpd.adapters.runtime_catalog import get_runtime_descriptor_for_adapter_module
+from gpd.adapters.runtime_catalog import (
+    get_runtime_descriptor_for_adapter_module,
+    iter_runtime_descriptors,
+)
 from gpd.adapters.tool_names import build_runtime_alias_map, reference_translation_map, translate_for_runtime
 from gpd.mcp import managed_integrations as _managed_integrations
 
@@ -103,6 +106,26 @@ _GPD_SLASH_COMMAND_RE = re.compile(r"(?<![A-Za-z0-9/_.-])/gpd:(?P<command>[A-Za-
 _OPENCODE_PERMISSION_DECISIONS = frozenset({"allow", "ask", "deny"})
 _OPENCODE_YOLO_PERMISSION = "allow"
 _MANIFEST_OPENCODE_GENERATED_COMMAND_FILES_KEY = "opencode_generated_command_files"
+
+def _collect_runtime_config_home_subpaths() -> tuple[str, ...]:
+    """Return runtime config dir subpaths used in shared markdown content."""
+    seen: list[str] = []
+    for descriptor in iter_runtime_descriptors():
+        for candidate in (descriptor.config_dir_name, descriptor.global_config.home_subpath):
+            if candidate and candidate not in seen:
+                seen.append(candidate)
+    return tuple(seen)
+
+
+_RUNTIME_CONFIG_HOME_SUBPATHS = _collect_runtime_config_home_subpaths()
+_RUNTIME_CONFIG_PATH_RE: re.Pattern[str] | None
+if _RUNTIME_CONFIG_HOME_SUBPATHS:
+    sorted_subpaths = sorted(_RUNTIME_CONFIG_HOME_SUBPATHS, key=len, reverse=True)
+    _RUNTIME_CONFIG_PATH_RE = re.compile(
+        r"~/(?:" + "|".join(re.escape(subpath) for subpath in sorted_subpaths) + r")\b"
+    )
+else:
+    _RUNTIME_CONFIG_PATH_RE = None
 
 # ---------------------------------------------------------------------------
 # XDG config directory resolution
@@ -165,7 +188,7 @@ def convert_frontmatter_for_opencode(content: str, path_prefix: str | None = Non
     Transformations:
     - Replace tool name references in content
     - Replace /gpd: with /gpd- (flat command structure)
-    - Replace bare ~/.claude references with the resolved OpenCode config dir
+    - Replace bare runtime config directory references with the resolved OpenCode config dir
     - Parse YAML frontmatter:
       - Strip name: field (OpenCode uses filename for command name)
       - Convert color names to hex
@@ -179,13 +202,15 @@ def convert_frontmatter_for_opencode(content: str, path_prefix: str | None = Non
     converted = convert_tool_references_in_body(converted, _TOOL_REFERENCE_MAP)
     converted = _GPD_SLASH_COMMAND_RE.sub(r"/gpd-\g<command>", converted)
 
-    def _replace_claude_path(match: re.Match[str]) -> str:
+    def _replace_runtime_config_path(match: re.Match[str]) -> str:
         next_index = match.end()
-        if next_index < len(converted) and converted[next_index] == ".":
+        string = match.string
+        if next_index < len(string) and string[next_index] == ".":
             return match.group(0)
         return resolved_config_dir
 
-    converted = re.sub(r"~/\.claude\b", _replace_claude_path, converted)
+    if _RUNTIME_CONFIG_PATH_RE is not None:
+        converted = _RUNTIME_CONFIG_PATH_RE.sub(_replace_runtime_config_path, converted)
 
     preamble, frontmatter, separator, body = split_markdown_frontmatter(converted)
     if not frontmatter:
