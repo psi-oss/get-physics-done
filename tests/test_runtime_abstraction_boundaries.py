@@ -231,9 +231,24 @@ _SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS = (
     REPO_ROOT / "tests/hooks/test_notify.py",
     REPO_ROOT / "tests/hooks/test_statusline.py",
 )
-_SHARED_GENERIC_PROVIDER_MODEL_LITERAL_PATTERN = re.compile(
-    r"""["'](?:openai|anthropic|google|gpt-[^"']+|claude-(?!code)[^"']+|gemini-(?!cli)[^"']+)["']"""
-)
+def _shared_generic_provider_model_literal_pattern() -> re.Pattern[str]:
+    values: set[str] = set()
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        for value in (
+            descriptor.runtime_name,
+            descriptor.display_name,
+            descriptor.launch_command,
+            descriptor.install_flag,
+            *descriptor.selection_aliases,
+            *descriptor.selection_flags,
+        ):
+            if value:
+                values.add(value)
+    if not values:
+        return re.compile(r"$^")
+    values.difference_update({descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS})
+    escaped = "|".join(re.escape(value) for value in sorted(values))
+    return re.compile(rf'["\'](?:{escaped})["\']')
 
 
 def _git_grep(pattern: str) -> list[tuple[Path, int, str]]:
@@ -801,7 +816,7 @@ def test_bootstrap_installer_does_not_hardcode_runtime_name_or_display_name_lite
 def test_shared_generic_tests_do_not_hardcode_provider_or_model_literals() -> None:
     leaks = _scan_paths_for_pattern(
         _SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS,
-        _SHARED_GENERIC_PROVIDER_MODEL_LITERAL_PATTERN,
+        _shared_generic_provider_model_literal_pattern(),
     )
 
     assert leaks == [], (
@@ -881,8 +896,14 @@ def test_runtime_catalog_json_is_only_read_at_adapter_and_hook_boundaries() -> N
         "docs/schema-registry-ownership.md",
         "package.json",
         "pyproject.toml",
-        "scripts/validate_runtime_catalog_schema.py",
-        "src/gpd/adapters/runtime_catalog.py",
+            "scripts/validate_runtime_catalog_schema.py",
+            "scripts/release_workflow.py",
+            "src/gpd/adapters/runtime_catalog.py",
+            "README.md",
+            "docs/README.md",
+            "docs/linux.md",
+            "docs/macos.md",
+            "docs/windows.md",
         "tests/README.md",
         "tests/adapters/test_runtime_catalog.py",
         "tests/adapters/test_runtime_catalog_schema_contract.py",

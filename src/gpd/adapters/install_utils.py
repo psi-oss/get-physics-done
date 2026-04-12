@@ -289,29 +289,54 @@ def rewrite_gpd_cli_invocations(
     *,
     shell_fence_languages: frozenset[str] | None = None,
 ) -> str:
-    """Rewrite fenced-shell ``gpd`` calls to the runtime CLI bridge."""
+    """Rewrite fenced-shell ``gpd`` calls to the runtime CLI bridge.
+
+    Unlabeled fences scan for shell prompts so ``gpd`` commands still
+    rewrite when no language token is provided.
+    """
     fenced_languages = shell_fence_languages or SHELL_FENCE_LANGUAGES
+    lines = content.splitlines(keepends=True)
     rewritten: list[str] = []
     in_shell_fence = False
+    index = 0
 
-    for line in content.splitlines(keepends=True):
+    while index < len(lines):
+        line = lines[index]
         stripped = line.lstrip()
         if stripped.startswith("```"):
             if in_shell_fence:
                 in_shell_fence = False
             else:
                 fence_language = stripped[3:].strip().lower()
-                in_shell_fence = fence_language in fenced_languages
+                if fence_language:
+                    in_shell_fence = fence_language in fenced_languages
+                elif "" in fenced_languages:
+                    in_shell_fence = True
+                else:
+                    in_shell_fence = _unlabeled_fence_looks_like_shell(lines, index + 1)
             rewritten.append(line)
+            index += 1
             continue
 
         if in_shell_fence:
             rewritten.append(_rewrite_gpd_shell_line(line, command))
-            continue
-
-        rewritten.append(line)
+        else:
+            rewritten.append(line)
+        index += 1
 
     return "".join(rewritten)
+
+
+def _unlabeled_fence_looks_like_shell(lines: list[str], start_index: int) -> bool:
+    for candidate in lines[start_index:]:
+        stripped = candidate.lstrip()
+        if stripped.startswith("```"):
+            break
+        if not stripped:
+            continue
+        if re.match(r"(?:[$>]\s*)?gpd\b", stripped):
+            return True
+    return False
 
 
 def _rewrite_gpd_shell_line(line: str, command: str) -> str:
@@ -337,20 +362,16 @@ def _rewrite_gpd_shell_line(line: str, command: str) -> str:
             index += 1
             continue
 
-        if (
-            not in_single
-            and not in_double
-            and line.startswith("gpd", index)
-            and is_gpd_command_start(line, index)
-            and is_gpd_token_end(line, index + 3)
-        ):
-            if should_preserve_public_local_cli_command(line[index:]):
-                pieces.append("gpd")
+        if not in_single and not in_double and line.startswith("gpd", index):
+            previous_char = line[index - 1] if index > 0 else ""
+            next_char = line[index + 3] if index + 3 < len(line) else ""
+            if (not previous_char or not (previous_char.isalnum() or previous_char in "_-")) and (
+                not next_char or not (next_char.isalnum() or next_char in "_-")
+            ):
+                candidate = line[index:].strip()
+                pieces.append("gpd" if should_preserve_public_local_cli_command(candidate) else command)
                 index += 3
                 continue
-            pieces.append(command)
-            index += 3
-            continue
 
         pieces.append(char)
         index += 1

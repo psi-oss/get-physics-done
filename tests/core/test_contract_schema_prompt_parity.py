@@ -194,6 +194,7 @@ def test_verify_phase_contract_checks_restate_schema_before_run_contract_check()
 
     assert "compact schema-critical excerpt" in verify_workflow
     assert "templates/plan-contract-schema.md" in verify_workflow
+    assert "@{GPD_INSTALL_DIR}/templates/plan-contract-schema-excerpt.md" in verify_workflow
     for token in (
         "schema_required_request_fields",
         "schema_required_request_anyof_fields",

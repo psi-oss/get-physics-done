@@ -35,6 +35,7 @@ from gpd.adapters.install_utils import (
     protect_runtime_agent_prompt,
     read_settings,
     replace_placeholders,
+    rewrite_gpd_cli_invocations,
     translate_frontmatter_tool_names,
     verify_installed,
     write_manifest,
@@ -42,6 +43,7 @@ from gpd.adapters.install_utils import (
 )
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from gpd.core.constants import HOME_DATA_DIR_NAME
+from gpd.core.public_surface_contract import local_cli_bridge_commands
 
 _RUNTIME_DESCRIPTORS = tuple(iter_runtime_descriptors())
 _SHARED_INSTALL = get_shared_install_metadata()
@@ -1417,3 +1419,21 @@ def test_verify_installed_rejects_unresolved_include_markers(tmp_path: Path) -> 
     (install_dir / "prompt.md").write_text("<!-- @ include not resolved: foo.md -->\n", encoding="utf-8")
 
     assert verify_installed(install_dir) is False
+
+
+def test_unlabeled_shell_fence_rewrites_gpd_invocation() -> None:
+    content = "```\n$ gpd install\n```\n"
+    rewritten = rewrite_gpd_cli_invocations(content, "bridge-cmd")
+
+    assert "bridge-cmd install" in rewritten
+
+
+def test_unlabeled_shell_fence_preserves_public_bridge_command() -> None:
+    bridge_command = "bridge-cmd"
+    preserved = local_cli_bridge_commands()[0]
+    content = f"```\n{preserved} --example\n```\n"
+
+    rewritten = rewrite_gpd_cli_invocations(content, bridge_command)
+
+    assert preserved in rewritten
+    assert bridge_command not in rewritten

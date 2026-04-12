@@ -95,12 +95,15 @@ Most beginners should install GPD into one runtime at a time and use `--local`.
 
 Here, `--local` means "install GPD for this project or folder only," so run the install command from inside the folder where you want this research project to live.
 
-| Runtime | Install command |
-|---------|-----------------|
-| Claude Code | `npx -y get-physics-done --claude --local` |
-| Codex | `npx -y get-physics-done --codex --local` |
-| Gemini CLI | `npx -y get-physics-done --gemini --local` |
-| OpenCode | `npx -y get-physics-done --opencode --local` |
+The supported runtime flags, command prefixes, and aliases are listed in [docs/runtime-catalog-reference.md](./runtime-catalog-reference.md). Regenerate that file with `python scripts/render_runtime_catalog_table.py` whenever you change `src/gpd/adapters/runtime_catalog.json`.
+
+From inside your project folder, run the installer with the flag for your runtime:
+
+```bash
+npx -y get-physics-done --<flag> --local
+```
+
+Replace `<flag>` with the install flag documented in the runtime catalog reference (e.g., `--claude`, `--codex`, `--gemini`, `--opencode`). After the install finishes, follow the runtime quickstart linked above for next steps.
 
 ## Confirm success
 

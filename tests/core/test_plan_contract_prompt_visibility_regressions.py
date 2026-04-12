@@ -175,6 +175,28 @@ def test_phase_prompt_surfaces_default_salvage_and_hard_plan_requirements() -> N
         assert token in phase_prompt
 
 
+def test_phase_prompt_includes_canonical_context_bundle() -> None:
+    phase_prompt = _read_template("phase-prompt.md")
+
+    assert "@{GPD_INSTALL_DIR}/templates/canonical-context-bundle.md" in phase_prompt
+
+
+def test_planner_and_checker_prompts_use_shared_reference_index() -> None:
+    planner_prompt = _read_template("planner-subagent-prompt.md")
+    checker_prompt = (REPO_ROOT / "src/gpd/agents/gpd-plan-checker.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/templates/planner-reference-index.md" in planner_prompt
+    assert "@{GPD_INSTALL_DIR}/templates/planner-reference-index.md" in checker_prompt
+
+
+def test_planner_and_checker_prompts_share_reference_guidance() -> None:
+    planner_prompt = _read_template("planner-subagent-prompt.md")
+    checker_prompt = (REPO_ROOT / "src/gpd/agents/gpd-plan-checker.md").read_text(encoding="utf-8")
+
+    assert "@{GPD_INSTALL_DIR}/templates/reference-guidance.md" in planner_prompt
+    assert "@{GPD_INSTALL_DIR}/templates/reference-guidance.md" in checker_prompt
+
+
 def test_contract_schema_docs_make_lowercase_closed_vocab_rule_model_visible() -> None:
     plan_schema = _read_template("plan-contract-schema.md")
     project_schema = _read_template("project-contract-schema.md")

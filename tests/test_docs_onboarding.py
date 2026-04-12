@@ -74,8 +74,10 @@ def test_os_quickstarts_install_matrix_matches_runtime_catalog(doc_name: str) ->
     content = _read(f"docs/{doc_name}")
     install_section = _markdown_section(content, "## Install GPD")
 
-    for surface in beginner_runtime_surfaces():
-        assert _expected_install_row(surface) in install_section
+    assert "docs/runtime-catalog-reference.md" in install_section
+    assert "npx -y get-physics-done --<flag> --local" in install_section
+    assert "Replace `<flag>` with the install flag documented in the runtime catalog reference" in install_section
+    assert "python scripts/render_runtime_catalog_table.py" in install_section
 
 
 @pytest.mark.parametrize(

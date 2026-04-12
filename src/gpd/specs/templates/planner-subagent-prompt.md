@@ -24,14 +24,9 @@ Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical cont
 If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `gpd_return.status: checkpoint` rather than guessing.
 
 **PLAN contract schema-critical excerpt:**
-- `contract` is a YAML object with `schema_version: 1`.
-- Required sections: object-valued `scope`, `context_intake`, and `uncertainty_markers`; list sections `claims`, `deliverables`, `acceptance_tests`, `forbidden_proxies`, `references` (unless grounding is already concrete); optional `approach_policy`, `observables`, `links`.
-- `scope.question` and `scope.in_scope` are required and non-empty.
-- Each claim needs a stable `id`, non-empty `deliverables` and `acceptance_tests`, and only declared IDs in cross-references.
-- Grounding uses `must_surface`, `required_actions`, `applies_to`, `carry_forward_to`; `approach_policy` never satisfies grounding by itself.
-- Proof-bearing claims must use explicit non-`other` `claim_kind` (`theorem | lemma | corollary | proposition | result | claim | other`) and keep `proof_deliverables`, `parameters`, `hypotheses`, `conclusion_clauses`, and `observables[].kind: proof_obligation` auditable when relevant.
-- Link relations use `supports | computes | visualizes | benchmarks | depends_on | evaluated_by | proves | uses_hypothesis | depends_on_lemma | other`.
-- reference actions use `read | use | compare | cite | avoid`.
+@{GPD_INSTALL_DIR}/templates/plan-contract-schema-excerpt.md
+
+@{GPD_INSTALL_DIR}/templates/planner-reference-index.md
 
 **Project State:** {state_content}
 **Project Contract:** {project_contract}
@@ -45,9 +40,8 @@ If `{project_contract}` is empty, stale, or too underspecified to identify the p
 **Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
-Treat stable knowledge docs surfaced through `active_reference_context` and `reference_artifacts_content` as reviewed background syntheses.
-Use explicit `knowledge_deps` when a plan materially depends on a reviewed knowledge doc and downstream gating should be enforced; keep implicit stable background advisory only.
-do not invent a separate knowledge authority or ledger.
+Reference and knowledge authority:
+@{GPD_INSTALL_DIR}/templates/reference-guidance.md
 
 **Phase Context:**
 IMPORTANT: If context exists below, it contains USER DECISIONS from gpd:discuss-phase.
@@ -70,6 +64,7 @@ Keep dimensions, limits, and cross-method consistency explicit. For proof-bearin
 <contract_visibility_requirements>
 Planning requires an approved `project_contract`. If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `gpd_return.status: checkpoint` instead of guessing.
 Keep `project_contract` as the grounding ledger. Use `effective_reference_intake` and `active_reference_context` only as readable projections, and treat stable knowledge docs as advisory background only: they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.
+@{GPD_INSTALL_DIR}/templates/reference-guidance.md
 If stable knowledge materially shapes the plan, surface it explicitly in existing plan structures or prose; use `knowledge_deps` only when downstream gating must enforce the reliance.
 Treat `approach_policy` as execution policy only. Keep `scope.in_scope` populated and `contract.context_intake` concrete enough to audit.
 For proof-bearing work, use an explicit non-`other` `claim_kind` with auditable hypotheses, quantified variables, and named parameters.
@@ -121,7 +116,8 @@ Output is consumed by the execute-plan workflow invoked from `gpd:execute-phase`
 **Protocol Bundles:** {protocol_bundle_context}
 **Active References:** {active_reference_context}
 **Reference Artifacts:** {reference_artifacts_content}
-Stable knowledge docs may appear in the shared reference surfaces above. Treat them as advisory background only: they do not override `convention_lock`, `project_contract`, the PLAN `contract`, or direct evidence. Use explicit `knowledge_deps` only when downstream gating must enforce the reliance.
+Stable knowledge docs may appear in the shared reference surfaces above.
+@{GPD_INSTALL_DIR}/templates/reference-guidance.md
 
 **Phase Context:**
 Revisions MUST still honor user decisions.

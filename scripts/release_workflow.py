@@ -28,7 +28,9 @@ class ReleaseError(RuntimeError):
 REQUIRED_NPM_PACK_FILES = frozenset(
     {
         "src/gpd/adapters/runtime_catalog.json",
+        "src/gpd/adapters/runtime_catalog_schema.json",
         "src/gpd/core/public_surface_contract.json",
+        "src/gpd/core/public_surface_contract_schema.json",
     }
 )
 

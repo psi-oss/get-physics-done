@@ -60,11 +60,9 @@ If a phase context file (CONTEXT.md or any `*-CONTEXT.md`) exists, add verificat
   </upstream_input>
 
 <references>
-- `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` -- Canonical plan contract schema; load directly when contract shape or field semantics matter
-- `{GPD_INSTALL_DIR}/references/verification/core/verification-core.md` -- Universal verification checks and priority patterns
-- `{GPD_INSTALL_DIR}/references/physics-subfields.md` -- Methods, tools, and validation strategies per physics subfield
-- `{GPD_INSTALL_DIR}/references/verification/errors/llm-physics-errors.md` -- Common LLM physics errors to check against
-- `{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- Agent infrastructure: data boundary, context pressure, commit protocol
+@{GPD_INSTALL_DIR}/templates/planner-reference-index.md
+
+Use @{GPD_INSTALL_DIR}/templates/plan-contract-schema.md as the direct read-only schema authority before judging contract completeness.
 </references>
 
 <core_principle>
@@ -147,6 +145,7 @@ Read autonomy mode from config. Higher autonomy = plan checker is more critical 
 
 **Authority order:** `plan frontmatter contract` -> `verification_context project_contract`. Treat `effective_reference_intake` and `active_reference_context` only as readable projections of those anchors, never as substitute authority.
 Treat stable knowledge docs surfaced through the shared reference context as reviewed background syntheses only. They may refine assumptions or method choice when they agree with stronger sources, but they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.
+@{GPD_INSTALL_DIR}/templates/reference-guidance.md
 
 Reject with `blocker` if any of the following is true:
 

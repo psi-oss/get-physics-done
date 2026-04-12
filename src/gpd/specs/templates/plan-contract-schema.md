@@ -5,9 +5,14 @@ type: plan-contract-schema
 
 # PLAN Contract Schema
 
+Defaultable semantic fields remain explicit: `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `claims[].claim_kind`, `references[].kind`, `references[].role`, and `links[].relation` may default in tooling, but plans should surface them when they affect validation.
+`approach_policy` is execution policy only; it can constrain planning, but it does not by itself satisfy the hard grounding/anchor requirement.
+`schema_version` is required and must be the integer `1`.
+
 Canonical source of truth for the `contract:` block embedded in PLAN frontmatter.
 
 Use this file whenever you author, revise, or validate a PLAN contract. Do not invent ad-hoc keys, flatten object lists into strings, or leave cross-referenced IDs unresolved.
+For alignment reminders, addendum notes, and validation command examples, see @{GPD_INSTALL_DIR}/templates/plan-contract-schema-notes.md.
 
 ---
 
@@ -15,29 +20,31 @@ Use this file whenever you author, revise, or validate a PLAN contract. Do not i
 
 The PLAN `contract` value must be a YAML object with these top-level sections:
 
-- `schema_version` (required and must be the integer `1`; no other value is supported)
-- `scope`
-- `context_intake`
-- `claims`
-- `deliverables`
-- `acceptance_tests`
-- `forbidden_proxies`
-- `uncertainty_markers`
-- `references` when the plan does not already carry explicit grounding through `context_intake` or preserved scoping inputs
+| Section | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `schema_version` | integer | yes | Must equal `1`. |
+| `scope` | object | yes | Defines the decisive question and scope boundaries. |
+| `context_intake` | object | yes | Captures concrete anchors, prior outputs, and gating context. |
+| `claims[]` | list | yes* | Required for non-scoping plans; keep at least one claim even when scoping. |
+| `deliverables[]` | list | yes* | Must list the decisive artifacts; optional for scoping-only contracts. |
+| `acceptance_tests[]` | list | yes* | Each decisive claim or deliverable needs an executable test. |
+| `forbidden_proxies[]` | list | yes* | Needed whenever there are deceptive success patterns to reject. |
+| `uncertainty_markers` | object | yes | Exposes `weakest_anchors` and `disconfirming_observations`. |
+| `references[]` | list | conditional | Required when grounding is not already concrete; set `must_surface: true` when the anchor drives a decision. |
+| `approach_policy` | object | no | Execution guardrails; it does not count as grounding by itself. |
+| `observables[]` | list | no | Declare named quantities only when a claim or proof tracks them. |
+| `links[]` | list | no | Use when tracing handoffs or decisive comparisons between IDs. |
 
-Optional sections:
+`*` Non-scoping plans must keep the full claims/deliverables/acceptance_tests/forbidden_proxies suite. Reduced contracts need at least one decision surface (target, open question, or carry-forward input) and still rely on this shape for the declared anchors above.
 
-- `approach_policy`
-- `observables`
-- `links`
+For additional alignment rules and validation command examples, see @{GPD_INSTALL_DIR}/templates/plan-contract-schema-notes.md.
 
 ## General Rules
 
 - Every list named above must contain objects, not strings.
 - `context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections, not strings or lists.
 - Do not add unknown keys at any level; strict validation rejects them. Salvage/repair flows may drop unknown keys while surfacing recoverable findings.
-- `approach_policy` constrains execution but does not count as grounding on its own; approach-policy entries do not count as grounding.
-- `approach_policy` is execution policy only; it can constrain planning, but it does not by itself satisfy the hard grounding/anchor requirement.
+- `approach_policy` constrains execution but does not count as grounding on its own; use `context_intake`, preserved scoping inputs, or `references[]` instead.
 - `context_intake` anchors must be concrete enough to re-find later. Placeholders like `TBD`, `unknown`, or `placeholder` do not count as grounding.
 
 ---
@@ -306,39 +313,3 @@ Rules:
 - `unvalidated_assumptions` and `competing_explanations` are optional arrays of non-empty strings, but when present they must stay explicit in the contract.
 
 ---
-
-## Contract Alignment Rules
-
-- Reduced contracts are legal only when the plan is explicitly scoping or exploratory; otherwise use the full non-scoping shape that includes claims, deliverables, acceptance tests, and forbidden proxies.
-- A reduced contract still needs a real decision surface: preserve at least one target, open question, or carry-forward input instead of emitting a hollow scaffold.
-- If you are unsure, classify the plan as non-scoping and keep the full shape.
-- References are mandatory only when the contract does not already expose enough grounding through `context_intake` or preserved scoping inputs. `context_gaps`, `crucial_inputs`, and `stop_and_rethink_conditions` keep uncertainty visible but do not satisfy the grounding requirement on their own. When concrete grounding already exists, omit decorative references instead of padding the contract.
-- When concrete grounding is missing elsewhere, at least one reference must set `must_surface: true`; otherwise a missing `must_surface` reference is a warning, not a blocker.
-- The semantic fields `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, and `links[].relation` default to `other`. Omit them only when `other` is intended and set a specific literal when the semantics are already known.
-- Surface `links[]` explicitly whenever the plan depends on traceable handoffs or decisive comparisons.
-- All ID cross-links must resolve to declared IDs, IDs must stay unique across sections, and you may not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`.
-- Canonical IDs and other required strings are trimmed before validation; blank-after-trim values are invalid.
-- A non-object `contract:` value is invalid; treat it as a schema error rather than “missing”.
-- Do not assume any contract field is optional unless the active PLAN validator or workflow explicitly allows it.
-
-## Contract Addendum Guidance
-
-When you append a contract addendum for the `draft`, `approved`, or `proof` stage, keep it compact:
-- `draft` addenda should note the missing gating anchors, blockers, or unresolved questions that keep the contract unapproved.
-- `approved` addenda should summarize the approved scope, decisive anchors/baselines, and the deliverables or acceptance tests that carry the approval.
-- `proof` addenda should list the proof-specific claim, deliverables, acceptance tests, and metadata that justify the proof stage.
-Limit each addendum to the status label plus one or two short bullets so the schema stays the authoritative source of truth; use this template for the detailed fields.
----
-
-## Validation Commands
-
-Use one of these before approving or committing a plan:
-
-```bash
-gpd frontmatter validate GPD/phases/XX-name/XX-YY-PLAN.md --schema plan
-gpd validate plan-contract GPD/phases/XX-name/XX-YY-PLAN.md
-```
-
-All ID cross-links must resolve to declared IDs.
-
-Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.

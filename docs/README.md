@@ -111,6 +111,8 @@ Use this if you are on Linux.
 Open only the runtime guide you actually plan to use.
 Use `--local` while learning so GPD only affects the current folder.
 
+The install flags, command prefixes, and aliases listed below are sourced from [docs/runtime-catalog-reference.md](./runtime-catalog-reference.md). Regenerate that file with `python scripts/render_runtime_catalog_table.py` whenever you adjust `src/gpd/adapters/runtime_catalog.json`.
+
 <details>
 <summary>Claude Code</summary>
 

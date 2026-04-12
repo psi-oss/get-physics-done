@@ -71,11 +71,7 @@ Read these files at execution start using the file_read tool:
 </files_to_read>
 
 <verification_before_continuing>
-Before executing task {resume_task_number}, verify that prior tasks' commits exist:
-
-git log --oneline --grep="({phase}-{plan}):" | head -20
-
-Compare against the completed tasks table above. If any expected commits are missing, STOP and report the discrepancy -- do not proceed with incomplete prior state.
+Before executing task {resume_task_number}, confirm the completed tasks table matches the phase history and committed artifacts. Use portable metadata, planner status commands, or orchestrator logs to inspect the relevant commits rather than shelling out to host-specific `git` commands. If any expected commit or required artifact is missing, STOP and report the discrepancy instead of proceeding with incomplete prior state.
 
 As above, re-verify any artifacts the checkpoint or execution segment names on disk before continuing; do not treat the textual description alone as sufficient evidence.
 

@@ -229,6 +229,8 @@ GPD currently installs into four AI runtimes. To preselect one during install, u
 
 Each runtime uses its own command prefix and alias style: Claude Code and Gemini CLI use slash commands like `/gpd:start`, Codex uses dollar-prefixed aliases like `$gpd-start`, and OpenCode uses slash-dash commands like `/gpd-start`. The workflow is the same across all four even when examples use a different runtime's prefix. For install-path details, runtime-specific hooks, and launcher notes, use the onboarding hub and the runtime guides in `docs/`.
 
+The runtime flags and selection aliases above are mirrored in [docs/runtime-catalog-reference.md](docs/runtime-catalog-reference.md), which is generated from `src/gpd/adapters/runtime_catalog.json` by running `python scripts/render_runtime_catalog_table.py`. Rerun that script after every runtime catalog change so the onboarding docs stay aligned with the adapter metadata.
+
 ## What GPD Does
 
 GPD guides research in four stages:

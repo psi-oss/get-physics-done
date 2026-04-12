@@ -6,12 +6,22 @@ prompts or generated surfaces.
 
 ## Canonical Sources
 
-- **Runtime catalog:** `src/gpd/adapters/runtime_catalog.json`, with shape and enum ownership in `src/gpd/adapters/runtime_catalog_schema.json` and loader validation in `src/gpd/adapters/runtime_catalog.py`.
-- **MCP registry and infra descriptors:** `src/gpd/mcp/builtin_servers.py` owns built-in MCP server definitions consumed by `infra/gpd-*.json` release descriptors; regenerate the JSON artifacts from `build_public_descriptors()` whenever you adjust these definitions.
-- **Public surface contract:** `src/gpd/core/public_surface_contract.json`, with schema ownership in `src/gpd/core/public_surface_contract_schema.json` and loader validation in `src/gpd/core/public_surface_contract.py`.
-- **Model-visible schemas:** `src/gpd/core/model_visible_sections.py` owns shared rendering rules for model-visible YAML sections; individual canonical contract schemas live under `src/gpd/specs/templates/` and are inlined by runtime compilation rather than duplicated in prompt prose.
-- **Continuation state:** the runtime state schema owns `continuation.bounded_segment`, execution-lineage fields, and compatibility projections such as `.continue-here.md` and derived execution heads; prompts should name the handoff surface but not restate the full field list.
-- **Proof red-team gates:** proof-bearing artifact requirements and verifier verdict vocabulary are owned by the verifier/proof schemas and templates under `src/gpd/specs/templates/`; workflow prompts should reference those gates instead of copying pass/fail prose.
+The table below lists the canonical schema, runtime catalog, and registry sources. Regenerate this section by running `python scripts/schema_registry_sources.py` so it always reflects the `CANONICAL_SOURCES` list defined in that module.
+
+| Source | Description |
+|--------|-------------|
+| `src/gpd/adapters/runtime_catalog.json` | Runtime catalog payload that drives install flags and runtime selection. |
+| `src/gpd/adapters/runtime_catalog_schema.json` | Schema shape that validates every runtime catalog entry. |
+| `src/gpd/adapters/runtime_catalog.py` | Catalog loader, validator, and adapter registry helpers. |
+| `src/gpd/mcp/builtin_servers.py` | Builder for the MCP registry whose output lands under infra/gpd-*.json. |
+| `infra/gpd-*.json` | Generated MCP descriptor payloads derived from builtin servers. |
+| `src/gpd/core/public_surface_contract.json` | Public surface contract that documents CLI command contracts. |
+| `src/gpd/core/public_surface_contract_schema.json` | Schema that constrains the public surface contract structure. |
+| `src/gpd/core/public_surface_contract.py` | Validator and loader for the public surface contract schema. |
+| `src/gpd/core/model_visible_sections.py` | Shared rendering rules that keep schema sections visible to models. |
+| `src/gpd/specs/templates/` | Canonical contract and prompt templates referenced by runtime prompts. |
+
+The remaining paragraphs below (continuation state, proof red-team gates, etc.) describe how the runtime prompts should reference these sources without restating the raw field list.
 
 ## Maintenance Rule
 

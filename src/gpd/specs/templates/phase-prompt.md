@@ -132,9 +132,7 @@ Downstream execution reads its execution workflow and summary template later. Do
 </execution_context>
 
 <context>
-@GPD/PROJECT.md
-@GPD/ROADMAP.md
-@GPD/STATE.md
+@{GPD_INSTALL_DIR}/templates/canonical-context-bundle.md
 @path/to/reference-or-benchmark-anchor.md
 @path/to/prior-summary-or-input.md
 </context>
