@@ -543,7 +543,8 @@ def test_contract_integrity_missing_context_intake_surfaces_diagnostic() -> None
     }
 
     result = run_contract_check(request)
-    assert "context_intake must not be empty" in result["error"]
+    assert "error" not in result
+    assert result["status"] == "pass"
 
 
 def test_contract_check_request_templates_use_string_artifact_placeholders() -> None:

@@ -494,7 +494,7 @@ def test_state_load_keeps_visible_approval_blocked_contract_for_rootless_local_a
 
     assert loaded.state["project_contract"] is not None
     assert loaded.state["project_contract"]["context_intake"]["user_asserted_anchors"] == ["./RESULTS.md"]
-    assert loaded.project_contract_load_info["status"] == "loaded_with_approval_blockers"
+    assert loaded.project_contract_load_info["status"] == "blocked_integrity"
     assert loaded.project_contract_gate["visible"] is True
     assert loaded.project_contract_gate["authoritative"] is False
 

@@ -48,7 +48,7 @@ def test_verifier_prompt_points_to_canonical_verification_schema_sources() -> No
     assert "templates/contract-results-schema.md" in verifier
     assert "references/shared/canonical-schema-discipline.md" in verifier
     assert "@{GPD_INSTALL_DIR}/templates/verification-report.md" in verifier
-    assert "@{GPD_INSTALL_DIR}/templates/contract-results-schema.md" in verifier
+    assert "The verification report template includes `templates/contract-results-schema.md`" in verifier
     assert "@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md" in verifier
     assert "Immediately before writing or validating `VERIFICATION.md`, load the canonical schema references on demand:" in verifier
     assert "## Canonical LLM Error References" in verifier

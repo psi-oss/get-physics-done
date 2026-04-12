@@ -64,7 +64,7 @@ goal: {find_root_cause_only | find_and_fix}
 | --- | --- |
 | `{issue_id}` | Issue slug used inside `GPD/debug/{slug}.md` and the `issue` heading above. This usually matches the verification truth label. |
 | `{issue_summary}` | The failed expectation (previously referred to as `truth`) that the subagent investigates and fills the `summary` field above. |
-| `{truth_short}` | A condensed label for short UI strings such as the `description` argument in the runtime `task(...)` block. Runtimes may reuse `{issue_id}` if no shorter text is available. |
+| `{truth_short}` | A condensed label for short UI strings such as the `description` argument in the runtime delegation block. Runtimes may reuse `{issue_id}` if no shorter text is available. |
 | `{expected}` | Verification target value (the expected/normally correct physics result). |
 | `{actual}` | Observation reported in the gap or issue (what actually happened). |
 | `{discrepancy}` | Short characterisation of the mismatch (wrong sign, missing factor, numerical instability, etc.). |
@@ -79,7 +79,7 @@ goal: {find_root_cause_only | find_and_fix}
 | `{goal}` | Typically `find_root_cause_only` for verification debug flows. |
 | `{slug}` | Same as `{issue_id}` above; used for file paths and session contracts. |
 
-The runtime also receives `{truth_short}` so the high-level `task(...)` description can stay concise, even if the template itself only references the longer `{issue_summary}`.
+The runtime also receives `{truth_short}` so the high-level delegation description can stay concise, even if the template itself only references the longer `{issue_summary}`.
 
 ---
 

@@ -366,7 +366,7 @@ function requireMatchingKeySet(actualKeys, expectedKeys, label) {
     [...expectedSet].some((expectedKey) => !actualSet.has(expectedKey))
   ) {
     throw new Error(
-      `${label} must contain exactly the contract-defined fields (order does not matter)`
+      `${label} must exactly match the code-supported contract fields`
     );
   }
 }

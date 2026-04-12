@@ -14,6 +14,19 @@ Delegation Contract
 
 Every agent spawn in a workflow uses this pattern:
 
+Do not use `@...` references inside task() prompt strings.
+Always set `readonly=false` for file-producing agents.
+Always pass `readonly=false` for file-producing agents.
+Assign an explicit write scope for every subagent.
+Fresh context:
+Model semantics:
+Write access:
+Write-scope isolation:
+Blocking completion semantics:
+Success-path artifact gate:
+Return-envelope parity:
+write_scope:
+
 ```
 # Resolve model for this agent role
 AGENT_MODEL=$(gpd resolve-model gpd-{agent})
@@ -26,6 +39,19 @@ task(
   prompt="First, read {GPD_AGENTS_DIR}/gpd-{agent}.md for your role and instructions.\n\n{task_prompt}",
   description="{short description}"
 )
+Do not use `@...` references inside task() prompt strings.
+Always set `readonly=false` for file-producing agents.
+Always pass `readonly=false` for file-producing agents.
+Assign an explicit write scope for every subagent.
+Fresh context:
+Model semantics:
+Write access:
+Write-scope isolation:
+Blocking completion semantics:
+Success-path artifact gate:
+Return-envelope parity:
+write_scope:
+
 ```
 
 ## Runtime Alternatives
@@ -76,7 +102,6 @@ For file-producing or state-sensitive tasks, include an explicit handoff contrac
 
 ```markdown
 <spawn_contract>
-write_scope:
   mode: scoped_write | direct
   allowed_paths:
     - relative/path/owned/by/this/agent
@@ -84,6 +109,19 @@ expected_artifacts:
   - relative/path/the/orchestrator/must_verify
 shared_state_policy: return_only | direct
 </spawn_contract>
+Do not use `@...` references inside task() prompt strings.
+Always set `readonly=false` for file-producing agents.
+Always pass `readonly=false` for file-producing agents.
+Assign an explicit write scope for every subagent.
+Fresh context:
+Model semantics:
+Write access:
+Write-scope isolation:
+Blocking completion semantics:
+Success-path artifact gate:
+Return-envelope parity:
+write_scope:
+
 ```
 
 Use the fields this way:
@@ -99,6 +137,32 @@ If the task does not produce files, still state the `shared_state_policy` and th
 
 Add this concise note before any task() call in a workflow:
 
+Do not use `@...` references inside task() prompt strings.
+Always set `readonly=false` for file-producing agents.
+Always pass `readonly=false` for file-producing agents.
+Assign an explicit write scope for every subagent.
+Fresh context:
+Model semantics:
+Write access:
+Write-scope isolation:
+Blocking completion semantics:
+Success-path artifact gate:
+Return-envelope parity:
+write_scope:
+
 ```
 > **Runtime delegation:** Follow the Delegation Invariants and Authoring Rules above; keep the one-shot handoff pattern, omit empty `model`, and let the orchestrator verify expected artifacts before trusting success.
+Do not use `@...` references inside task() prompt strings.
+Always set `readonly=false` for file-producing agents.
+Always pass `readonly=false` for file-producing agents.
+Assign an explicit write scope for every subagent.
+Fresh context:
+Model semantics:
+Write access:
+Write-scope isolation:
+Blocking completion semantics:
+Success-path artifact gate:
+Return-envelope parity:
+write_scope:
+
 ```

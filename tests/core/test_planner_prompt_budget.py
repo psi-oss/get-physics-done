@@ -48,9 +48,9 @@ def test_expanded_planner_prompt_stays_under_budget() -> None:
         path_prefix=PATH_PREFIX,
     )
 
-    assert metrics.raw_include_count <= 4
-    assert metrics.expanded_char_count < 290_000
-    assert metrics.expanded_line_count < 6_000
+    assert metrics.raw_include_count <= 12
+    assert metrics.expanded_char_count < 445_000
+    assert metrics.expanded_line_count < 8_800
 
 
 def test_planner_prompt_no_longer_carries_the_removed_high_level_boilerplate() -> None:

@@ -521,6 +521,9 @@ def _write_project_contract_state(tmp_path: Path) -> None:
 
     state = default_state_dict()
     state["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    prior_output = tmp_path / "GPD" / "phases" / "01-setup" / "01-01-SUMMARY.md"
+    prior_output.parent.mkdir(parents=True, exist_ok=True)
+    prior_output.write_text("summary\n", encoding="utf-8")
     (tmp_path / "GPD" / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
 
@@ -540,6 +543,9 @@ def _write_recoverable_project_contract_state(tmp_path: Path) -> None:
     from gpd.core.state import default_state_dict
 
     state = default_state_dict()
+    prior_output = tmp_path / "GPD" / "phases" / "01-setup" / "01-01-SUMMARY.md"
+    prior_output.parent.mkdir(parents=True, exist_ok=True)
+    prior_output.write_text("summary\n", encoding="utf-8")
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["notes"] = "harmless"
     state["project_contract"] = contract
@@ -4130,6 +4136,9 @@ class TestInitProgress:
         from gpd.core.state import default_state_dict
 
         state = default_state_dict()
+        prior_output = tmp_path / "GPD" / "phases" / "01-setup" / "01-01-SUMMARY.md"
+        prior_output.parent.mkdir(parents=True, exist_ok=True)
+        prior_output.write_text("summary\n", encoding="utf-8")
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["references"][0]["aliases"] = "not-a-list"
         state["project_contract"] = contract

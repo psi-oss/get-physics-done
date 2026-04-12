@@ -29,6 +29,7 @@ If the target is empty, ask one concise clarification before proceeding. Otherwi
 </context>
 
 <process>
+CONTEXT=$(gpd --raw validate command-context sensitivity-analysis "$ARGUMENTS")
 Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 Keep this command wrapper thin; the workflow owns detailed method guidance. Do not restate workflow-owned checklists or compatibility policy here.

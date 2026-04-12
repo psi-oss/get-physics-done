@@ -1308,7 +1308,7 @@ def test_validate_project_contract_warns_when_user_guidance_signals_are_missing(
     result = validate_project_contract(contract, mode="draft")
 
     assert result.valid is True
-    assert result.guidance_signal_count == 1
+    assert result.guidance_signal_count == 0
     assert result.errors == []
 
 
@@ -1326,7 +1326,7 @@ def test_validate_project_contract_rejects_placeholder_only_anchor_guidance() ->
     result = validate_project_contract(contract, mode="draft")
 
     assert result.valid is True
-    assert result.guidance_signal_count == 1
+    assert result.guidance_signal_count == 0
     assert result.errors == []
     assert any("context_intake.user_asserted_anchors" in warning for warning in result.warnings)
     assert (
@@ -1354,7 +1354,7 @@ def test_validate_project_contract_warns_for_non_concrete_anchor_guidance(
     result = validate_project_contract(contract, mode="draft")
 
     assert result.valid is True
-    assert result.guidance_signal_count == 1
+    assert result.guidance_signal_count == 0
     assert result.errors == []
     assert (
         f"context_intake.{field_name} entry is not concrete enough to preserve as durable guidance: {value}"
@@ -1376,7 +1376,7 @@ def test_validate_project_contract_rejects_missing_prior_output_only_guidance(tm
     result = validate_project_contract(contract, mode="draft", project_root=tmp_path)
 
     assert result.valid is False
-    assert result.guidance_signal_count == 1
+    assert result.guidance_signal_count == 0
     assert (
         "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact: missing/path.md"
         in result.errors
@@ -2983,7 +2983,7 @@ def test_validate_project_contract_draft_mode_does_not_treat_background_must_rea
     result = validate_project_contract(contract, mode="draft")
 
     assert result.valid is True
-    assert result.guidance_signal_count == 1
+    assert result.guidance_signal_count == 0
     assert result.errors == []
     assert "context_intake must not be empty" in result.warnings
 

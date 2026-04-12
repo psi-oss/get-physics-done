@@ -190,6 +190,8 @@ printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd --raw validate project-contract - -
 printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
 ```
 
+**Project contract schema visibility:** use that schema as the canonical source of truth for the object rules; Do not restate the full contract rules here; keep only the approval-critical reminders below.
+
 If validation fails, show the errors, revise the scoping contract, and do NOT continue to downstream artifact generation.
 
 Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.

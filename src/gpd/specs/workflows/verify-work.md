@@ -21,7 +21,7 @@ The verifier agent owns contract-backed target construction, proof policy, compu
 Before repairing or re-emitting any `project_contract`, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep its compact Hard-schema capsule visible; do not restate or fork the schema text here.
 </hard_schema_visibility_guard>
 
-Guardrails: repair visible-but-blocked contracts before treating them as authoritative, preserve the same contract-critical floor throughout the session, and do not skip contract-critical anchors.
+Guardrails: visible-but-blocked contract must be repaired before it is used as authoritative verification scope; repair visible-but-blocked contracts before treating them as authoritative, preserve the same contract-critical floor at all times, and Do NOT skip contract-critical anchors.
 
 <step name="check_type_selection">
 ## Check Type Selection

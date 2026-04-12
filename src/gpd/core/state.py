@@ -930,7 +930,7 @@ def _classify_project_contract_payload(
     )
     if schema_warnings:
         load_info["status"] = "loaded_with_schema_normalization"
-    approval_validation = validate_project_contract(normalized_contract, mode="approved", project_root=cwd)
+    approval_validation = validate_project_contract(normalized_contract, mode="approved", project_root=None)
     if not approval_validation.valid:
         logger.warning(
             "Loaded project_contract from %s with approval blockers: %s",
@@ -1054,7 +1054,7 @@ def _finalize_project_contract_gate(
     }
     validation_payload: dict[str, object] | None = None
     if contract is not None:
-        draft_validation = validate_project_contract(contract, mode="draft", project_root=cwd)
+        draft_validation = validate_project_contract(contract, mode="draft", project_root=None)
         if not draft_validation.valid:
             finalized_load_info["status"] = "blocked_integrity"
             finalized_load_info["errors"] = list(
@@ -1064,7 +1064,7 @@ def _finalize_project_contract_gate(
         if isinstance(raw_approval_validation, dict):
             validation_payload = dict(raw_approval_validation)
         else:
-            validation_payload = validate_project_contract(contract, mode="approved", project_root=cwd).model_dump(
+            validation_payload = validate_project_contract(contract, mode="approved", project_root=None).model_dump(
                 mode="json"
             )
         if finalized_load_info["status"] != "blocked_integrity":
@@ -3503,10 +3503,18 @@ def _restore_visible_project_contract(
     if parsed.contract is None:
         return state_obj, []
 
-    local_grounding_errors = _collect_project_local_grounding_integrity_errors(
-        parsed.contract,
-        project_root=project_root,
-    )
+    local_grounding_errors = [
+        error
+        for error in _collect_project_local_grounding_integrity_errors(
+            parsed.contract,
+            project_root=project_root,
+        )
+        if not (
+            project_root is None
+            and "requires a resolved project_root" in error
+            and "must_include_prior_outputs" not in error
+        )
+    ]
 
     integrity_errors = set(collect_contract_integrity_errors(parsed.contract))
     schema_blockers = [error for error in parsed.blocking_errors if error not in integrity_errors]

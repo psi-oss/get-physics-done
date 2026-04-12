@@ -72,7 +72,6 @@ def test_planner_prompt_surfaces_default_salvage_and_specific_semantics() -> Non
         "effective_reference_intake",
         "active_reference_context",
         "approach_policy",
-        "scope.in_scope",
         "contract.context_intake",
         "claim_kind",
     ):
@@ -151,7 +150,7 @@ def test_plan_checker_prompt_surfaces_direct_schema_visibility_and_read_only_aut
 def test_phase_prompt_surfaces_default_salvage_and_hard_plan_requirements() -> None:
     phase_prompt = _read_template("phase-prompt.md")
 
-    assert phase_prompt.count("Quick contract rules:") == 1
+    assert phase_prompt.count("Quick contract rules:") == 0
     assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in phase_prompt
     assert phase_prompt.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
     for token in (
@@ -159,18 +158,8 @@ def test_phase_prompt_surfaces_default_salvage_and_hard_plan_requirements() -> N
         "researcher_setup",
         "type: execute",
         "gap_closure: true",
-        "scope.in_scope",
         "claim_kind",
-        "observables[].kind",
-        "deliverables[].kind",
-        "acceptance_tests[].kind",
-        "references[].kind",
-        "references[].role",
-        "links[].relation",
         "must_surface",
-        "required_actions[]",
-        "applies_to[]",
-        "carry_forward_to[]",
         "uncertainty_markers",
     ):
         assert token in phase_prompt
@@ -275,7 +264,7 @@ def test_planner_gap_closure_example_keeps_execute_type_and_required_contract_bl
     assert "Gap-closure plans keep `type: execute`; the repair marker is `gap_closure: true`" in planner_prompt
     assert "| `gap_closure`      | No       | `true` only for verification repair plans |" in planner_prompt
     assert "gap_closure: true # Flag for tracking" in planner_prompt
-    assert "schema_version: 1" in planner_prompt
+    assert "schema_version: 1" not in planner_prompt
     assert "contract:" in planner_prompt
     assert "question: \"[Which failed verification or gap does this plan repair?]\"" in planner_prompt
     assert "in_scope: [\"Repair the failed verification for the published benchmark comparison\"]" in planner_prompt

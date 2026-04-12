@@ -135,7 +135,7 @@ In re-verification mode, contract targets come from Step 0.
 
 Immediately before writing or validating `VERIFICATION.md`, load the canonical schema references on demand:
 @{GPD_INSTALL_DIR}/templates/verification-report.md
-@{GPD_INSTALL_DIR}/templates/contract-results-schema.md
+The verification report template includes `templates/contract-results-schema.md`; reload that schema through the template, not as a second wrapper include.
 @{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
 
 Use claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs directly from the `contract` block. These IDs are the canonical verification names for this phase.

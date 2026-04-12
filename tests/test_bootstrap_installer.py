@@ -1001,7 +1001,7 @@ const {{ validateSharedPublicSurfaceSchemaShape }} = require("./bin/install.js")
 const schema = {json.dumps(drifted_schema)};
 assert.throws(
   () => validateSharedPublicSurfaceSchemaShape(schema),
-  /public surface contract schema\\.sections\\.beginner_onboarding\\.keys must exactly match the code-supported public surface fields/
+  /public surface contract schema\\.sections\\.beginner_onboarding\\.keys must exactly match the code-supported contract fields/
 );
 """
     )
@@ -1017,7 +1017,7 @@ const {{ validateSharedPublicSurfaceSchemaShape }} = require("./bin/install.js")
 const schema = {json.dumps(drifted_top_level_schema)};
 assert.throws(
   () => validateSharedPublicSurfaceSchemaShape(schema),
-  /public surface contract schema\\.top_level_keys must exactly match the code-supported public surface fields/
+  /public surface contract schema\\.top_level_keys must exactly match the code-supported contract fields/
 );
 """
     )

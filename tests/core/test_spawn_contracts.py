@@ -311,7 +311,7 @@ def test_debug_workflow_and_command_share_the_same_one_shot_debugger_contract() 
 
     assert workflow.count('subagent_type="gpd-debugger"') == 1
     assert workflow.count("readonly=false") == 1
-    assert 'description="Investigate: {truth_short}"' in workflow
+    assert 'description="Investigate: {issue_summary}"' in workflow
     assert "Spawn a fresh subagent for the task below." in expanded_workflow
     assert "one-shot handoff" in expanded_workflow
     assert "Always pass `readonly=false` for file-producing agents." in expanded_workflow

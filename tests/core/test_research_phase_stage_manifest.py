@@ -68,8 +68,8 @@ def test_research_phase_prompt_budget_keeps_the_vertical_reasonably_tight() -> N
     assert agent_metrics.expanded_char_count == 100935
     assert agent_metrics.expanded_char_count < 130000
     assert command_metrics.raw_include_count == 2
-    assert command_metrics.expanded_line_count == 435
-    assert command_metrics.expanded_char_count == 17817
+    assert command_metrics.expanded_line_count == 436
+    assert command_metrics.expanded_char_count == 17890
     assert command_metrics.expanded_char_count < 20000
     assert workflow_metrics.expanded_line_count == 331
     assert workflow_metrics.expanded_char_count == 13819
