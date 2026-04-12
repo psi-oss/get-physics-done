@@ -1,4 +1,6 @@
 <purpose>
+When drafting or repairing project contracts, keep the compact hard-schema capsule model-visible.
+
 Initialize a new physics research project through unified flow: questioning, literature survey (optional), mathematical framework, computational setup, target venue identification. This is the most leveraged moment in any research project — deep questioning here means better formulations, better methods, better results. One workflow takes you from research idea to ready-for-investigation.
 </purpose>
 

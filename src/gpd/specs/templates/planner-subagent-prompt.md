@@ -20,8 +20,10 @@ Template for spawning `gpd-planner`. Keep wrappers thin: pass phase-specific inp
 **Research mode:** {research_mode}
 **Autonomy:** {autonomy}
 
-Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source. The schema-critical PLAN contract excerpt below is model-visible and binding before output, because a path reference alone is not sufficient.
+Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source. the schema-critical PLAN contract excerpt below is model-visible and binding before output, because a path reference alone is not sufficient.
 **PLAN contract schema-critical excerpt:**
+`schema_version: 1`
+object-valued `scope`, `context_intake`, and `uncertainty_markers`; required fields include `scope.question`, `scope.in_scope`, `claims`, `deliverables`, `acceptance_tests`, `forbidden_proxies`, and `uncertainty_markers`. Proof-bearing claims must use explicit non-`other` `claim_kind` and surface `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, and `proof_deliverables`.
 @{GPD_INSTALL_DIR}/templates/plan-contract-schema-excerpt.md
 
 @{GPD_INSTALL_DIR}/templates/planner-reference-index.md
@@ -45,6 +47,8 @@ Treat stable knowledge docs surfaced through `active_reference_context` and `ref
 Use explicit `knowledge_deps` when a plan materially depends on a reviewed knowledge doc and downstream gating should be enforced; keep implicit stable background advisory only.
 
 **Phase Context:**
+If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `gpd_return.status: checkpoint` rather than guessing.
+
 IMPORTANT: If context exists below, it contains USER DECISIONS from gpd:discuss-phase; treat them per the shared guidance.
 Treat `Decisions` as locked, `Agent's Discretion` as freedom, and `Deferred Ideas` as out of scope.
 @{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md

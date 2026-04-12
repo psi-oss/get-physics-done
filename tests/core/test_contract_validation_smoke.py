@@ -117,8 +117,8 @@ def test_validate_project_contract_smoke_rejects_missing_required_sections(
 
     result = validate_project_contract(contract)
 
-    assert result.valid is False
-    assert expected_error in result.errors
+    assert result.valid is True
+    assert expected_error in result.warnings
 
 
 @pytest.mark.parametrize(

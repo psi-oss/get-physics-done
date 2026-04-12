@@ -34,7 +34,7 @@ Phase number: $ARGUMENTS (optional, defaults to the next unplanned phase)
 - `--gaps` — Gap-closure mode (`VERIFICATION.md`, no research)
 - `--skip-verify` — Skip the verification loop
 - `--light` — Emit only the contract and constraint plan
-- `--inline-discuss` — Capture the 2-3 most critical decisions inline instead of running `gpd:discuss-phase` for simple work
+- `--inline-discuss` — Combine discuss-phase and plan-phase by capturing the 2-3 most critical decisions inline instead of running `gpd:discuss-phase` for simple work
 </context>
 
 <process>

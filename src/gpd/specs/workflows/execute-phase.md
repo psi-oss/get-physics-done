@@ -13,6 +13,10 @@ For artifact class definitions and review priority rules, see `@{GPD_INSTALL_DIR
 For contract-backed verification and summary outputs, reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` before touching `contract_results` or related verdict ledgers.
 </required_reading>
 
+<hard_schema_visibility_guard>
+Keep project-contract and plan-contract hard-schema fields model-visible before execution decisions, including before delegating to a subagent.
+</hard_schema_visibility_guard>
+
 <process>
 
 <step name="initialize" priority="first">

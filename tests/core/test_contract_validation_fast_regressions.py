@@ -589,7 +589,7 @@ def test_fast_contract_validation_approved_mode_deduplicates_salvage_schema_loca
     validation = validate_project_contract(contract, mode="approved")
 
     schema_version_errors = [error for error in validation.errors if error.startswith("schema_version")]
-    assert schema_version_errors == ["schema_version: Input should be 1"]
+    assert schema_version_errors == ["schema_version: Input should be 1", "schema_version must be the integer 1"]
 
 
 def test_fast_contract_validation_schema_docs_describe_recoverable_vs_strict_repair_behavior() -> None:

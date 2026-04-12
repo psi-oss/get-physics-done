@@ -4581,8 +4581,8 @@ def test_doctor_runtime_mode_uses_detected_installed_target_when_scope_is_unspec
     detected_target = tmp_path / "runtime-global-target"
 
     with patch(
-        "gpd.hooks.runtime_detect.detect_runtime_install_target",
-        return_value=SimpleNamespace(config_dir=detected_target, install_scope="global"),
+        "gpd.hooks.runtime_detect.resolve_runtime_target_dir",
+        return_value=(detected_target, "global"),
     ):
         result = runner.invoke(app, ["--cwd", str(tmp_path), "--raw", "doctor", "--runtime", runtime_name])
 
@@ -4868,8 +4868,8 @@ def test_validate_unattended_readiness_uses_detected_installed_target_when_scope
     monkeypatch.setattr(cli_module, "_validated_runtime_surface", lambda cwd=None: "runtime-surface-test")
 
     with patch(
-        "gpd.hooks.runtime_detect.detect_runtime_install_target",
-        return_value=SimpleNamespace(config_dir=detected_target, install_scope="global"),
+        "gpd.hooks.runtime_detect.resolve_runtime_target_dir",
+        return_value=(detected_target, "global"),
     ):
         result = runner.invoke(
             app,

@@ -469,12 +469,8 @@ def is_project_artifact_path(value: str, *, project_root: Path | None = None) ->
 def _is_unresolved_project_artifact_path(value: str) -> bool:
     """Return whether *value* names an artifact path that needs a project root."""
 
-    candidate = value.strip()
-    parsed = urlparse(candidate)
-    if not candidate or "://" in candidate or parsed.scheme:
-        return False
-    candidate_path = Path(candidate).expanduser()
-    return candidate_path.is_absolute() or ".." in candidate_path.parts or _is_project_artifact_path(candidate, project_root=None)
+    candidate_path = Path(value.strip()).expanduser()
+    return candidate_path.is_absolute() or ".." in candidate_path.parts
 
 
 def _is_citation_like_locator(value: str) -> bool:
@@ -2575,9 +2571,10 @@ def contract_has_explicit_context_intake(
 ) -> bool:
     """Return whether ``context_intake`` carries any concrete, model-useful guidance."""
 
-    has_must_surface_reference = any(
-        reference.must_surface and reference.id in contract.context_intake.must_read_refs
-        for reference in contract.references
+    has_must_surface_reference = _has_concrete_must_surface_reference(
+        contract,
+        project_root=project_root,
+        require_existing_project_artifacts=True,
     )
     has_reference_guidance = any(
         _is_concrete_reference_locator(

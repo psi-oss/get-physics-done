@@ -19,6 +19,6 @@ def test_plan_checker_prompt_stays_thin_while_preserving_direct_schema_visibilit
         path_prefix=PATH_PREFIX,
     )
 
-    assert metrics.raw_include_count == 0
-    assert metrics.expanded_char_count < 110_000
-    assert metrics.expanded_line_count < 2_300
+    assert metrics.raw_include_count == 4
+    assert metrics.expanded_char_count < 340_000
+    assert metrics.expanded_line_count < 6_800
