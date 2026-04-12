@@ -585,6 +585,8 @@ def test_global_install_without_explicit_target_and_env_leak_returns_trusted_upd
 
     with monkeypatch.context() as ctx:
         ctx.setattr("gpd.hooks.install_metadata.Path.home", lambda: home_dir)
+        if descriptor.global_config.strategy == "xdg_app" and descriptor.global_config.env_dir_var is not None:
+            ctx.setenv(descriptor.global_config.env_dir_var, str(canonical_target))
         assert installed_update_command(canonical_target, home=home_dir) == (
             f"{BOOTSTRAP_COMMAND} {descriptor.install_flag} --global"
         )
