@@ -27,6 +27,7 @@ from gpd.core.commands import cmd_validate_return
 from gpd.core.config import GPDProjectConfig, load_config
 from gpd.core.constants import (
     DECISION_THRESHOLD,
+    HOME_DATA_DIR_NAME,
     MIN_PYTHON_MAJOR,
     MIN_PYTHON_MINOR,
     OPTIONAL_PLANNING_FILES,
@@ -159,6 +160,10 @@ def check_environment() -> HealthCheck:
 
 
 _ROOT_MIGRATABLE_FILES = frozenset({ROADMAP_FILENAME, PROJECT_FILENAME})
+_LEGACY_PROJECT_ENTRIES: tuple[str, ...] = (
+    REQUIRED_PLANNING_FILES + OPTIONAL_PLANNING_FILES + REQUIRED_PLANNING_DIRS
+)
+_LEGACY_HIDDEN_PROJECT_DIR_NAME = ".gpd"
 
 
 def check_project_structure(cwd: Path) -> HealthCheck:
@@ -200,8 +205,50 @@ def check_project_structure(cwd: Path) -> HealthCheck:
         full = layout.gpd / name
         details[name] = "present" if full.exists() else "absent"
 
+
     status = CheckStatus.FAIL if issues else (CheckStatus.WARN if warnings else CheckStatus.OK)
     return HealthCheck(status=status, label="Project Structure", details=details, issues=issues, warnings=warnings)
+
+
+def check_legacy_hidden_directory(cwd: Path) -> HealthCheck:
+    """Warn when a repo-local .gpd/ contains project artifacts."""
+
+    layout = ProjectLayout(cwd)
+    legacy_root = layout.root / HOME_DATA_DIR_NAME
+    details: dict[str, object] = {"legacy_path": str(legacy_root)}
+    if not legacy_root.is_dir():
+        return HealthCheck(
+            status=CheckStatus.OK,
+            label="Legacy Hidden Directory",
+            details=details,
+        )
+
+    detected: list[str] = []
+    for entry in _LEGACY_PROJECT_ENTRIES:
+        entry_path = legacy_root / entry
+        if entry_path.exists():
+            suffix = "/" if entry in REQUIRED_PLANNING_DIRS else ""
+            detected.append(f"{entry}{suffix}")
+
+    if not detected:
+        return HealthCheck(
+            status=CheckStatus.OK,
+            label="Legacy Hidden Directory",
+            details=details,
+        )
+
+    detected_sorted = sorted(detected)
+    details["detected_entries"] = detected_sorted
+    message = (
+        f"{HOME_DATA_DIR_NAME}/{', '.join(detected_sorted)} look like legacy project artifacts. "
+        f"Move them into {PLANNING_DIR_NAME}/ to keep the canonical layout consistent."
+    )
+    return HealthCheck(
+        status=CheckStatus.WARN,
+        label="Legacy Hidden Directory",
+        details=details,
+        warnings=[message],
+    )
 
 
 def check_knowledge_inventory(cwd: Path) -> HealthCheck:
@@ -1066,6 +1113,7 @@ def _apply_fixes(
 _ALL_CHECKS: list[tuple[str, object]] = [
     ("environment", check_environment),
     ("project_structure", check_project_structure),
+    ("legacy_hidden_directory", check_legacy_hidden_directory),
     ("knowledge_inventory", check_knowledge_inventory),
     ("storage_paths", check_storage_paths),
     ("state_validity", check_state_validity),
@@ -1105,8 +1153,9 @@ def run_health(cwd: Path, *, fix: bool = False) -> HealthReport:
             if refreshed_labels:
                 refreshed_checks: list[HealthCheck] = []
                 check_labels = {
-                    "environment": "Environment",
+                        "environment": "Environment",
                     "project_structure": "Project Structure",
+                    "legacy_hidden_directory": "Legacy Hidden Directory",
                     "knowledge_inventory": "Knowledge Inventory",
                     "storage_paths": "Storage-Path Policy",
                     "state_validity": "State Validity",
