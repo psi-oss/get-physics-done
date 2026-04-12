@@ -61,8 +61,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# Keep a module-level alias so tests/patchers targeting this module continue to work.
-iter_runtime_descriptors = _iter_runtime_descriptors
+def iter_runtime_descriptors():
+    """Compatibility wrapper for tests and callers that patch adapter catalogs."""
+    return _iter_runtime_descriptors()
 
 
 def get_runtime_descriptor_for_adapter_module(adapter_module: str):

@@ -35,9 +35,6 @@ Load these shared execution contracts before producing runtime-facing artifacts:
 @{GPD_INSTALL_DIR}/references/tooling/tool-integration.md
 @{GPD_INSTALL_DIR}/references/execution/executor-index.md
 @{GPD_INSTALL_DIR}/templates/state-machine.md
-@{GPD_INSTALL_DIR}/templates/project-contract-schema.md
-@{GPD_INSTALL_DIR}/templates/contract-results-schema.md
-Keep these hard-schema capsules visible before generating prompts or delegating to another agent so their constraints appear at the start of the prompt order rather than as an afterthought.
 Load `summary.md` and `calculation-log.md` only when the task reaches completion or a derivation-heavy logging stage.
 Use only the canonical contract-ledger fields from `contract_results` in model-facing output.
 

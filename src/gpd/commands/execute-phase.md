@@ -17,7 +17,7 @@ allowed-tools:
 ---
 
 <objective>
-Execute all phase plans with wave-based parallelization by following `@{GPD_INSTALL_DIR}/workflows/execute-phase.md`.
+Execute all phase plans with wave-based parallelization.
 Context budget: ~15% orchestrator, fresh context per subagent.
 </objective>
 
@@ -28,7 +28,12 @@ Context budget: ~15% orchestrator, fresh context per subagent.
 <context>
 Phase: $ARGUMENTS
 
-**Flags and cadence:** The workflow linked below defines `--gaps-only`, review cadence values, and their execution consequences.
+**Flags:**
+
+- `--gaps-only` -- Execute only gap-closure plans (`gap_closure: true`). Use after `verify-work` creates fix plans.
+
+**Review cadence:** Read `execution.review_cadence` (valid values: `dense`, `adaptive`, `sparse`) to decide required pause/review frequency.
+
 </context>
 
 <process>

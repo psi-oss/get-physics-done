@@ -13,10 +13,6 @@ For artifact class definitions and review priority rules, see `@{GPD_INSTALL_DIR
 For contract-backed verification and summary outputs, reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` before touching `contract_results` or related verdict ledgers.
 </required_reading>
 
-<hard_schema_visibility_guard>
-Before generating any execution prompts or delegating to a subagent, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md`, keep its hard-schema capsule visible, and reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` whenever contract-ledger fields may be emitted so those constraints lead the prompt order rather than trailing the procedural text. Do not restate or fork the schema text here.
-</hard_schema_visibility_guard>
-
 <process>
 
 <step name="initialize" priority="first">
@@ -626,8 +622,6 @@ Parse the wave-dispatch fields used below: protocol bundles, live-execution/revi
    After a proof-bearing executor has written its proof artifact(s) and `SUMMARY.md`, but before the wave-level spot-check accepts the plan, spawn `gpd-check-proof` in a fresh context:
 
    > **Runtime delegation:** See {GPD_INSTALL_DIR}/references/orchestration/agent-delegation.md for the fresh one-shot handoff pattern before spawning runtime-specific subagents.
-
-   Before emitting the `task` prompt below, reload `{GPD_INSTALL_DIR}/templates/proof-redteam-schema.md` so its hard-schema capsule anchors the delegation prompt and appears before the subsequent instructions.
 
    ```
    task(

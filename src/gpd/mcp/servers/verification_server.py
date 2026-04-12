@@ -97,8 +97,8 @@ def _request_template_placeholder(descriptor: str) -> str:
     return f"<replace-with-{normalized}>"
 
 
-def _request_template_number_placeholder() -> float:
-    return 0.0
+def _request_template_number_placeholder(descriptor: str) -> str:
+    return _request_template_placeholder(descriptor)
 
 
 _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
@@ -145,8 +145,8 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "source_reference_id": _request_template_placeholder("source-reference-id"),
             },
             "observed": {
-                "metric_value": _request_template_number_placeholder(),
-                "threshold_value": _request_template_number_placeholder(),
+                "metric_value": _request_template_number_placeholder("metric-value"),
+                "threshold_value": _request_template_number_placeholder("threshold-value"),
             },
         },
     },

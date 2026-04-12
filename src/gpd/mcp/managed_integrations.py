@@ -287,11 +287,7 @@ def projected_managed_optional_mcp_servers(
     for integration in MANAGED_INTEGRATIONS.values():
         if not integration.is_configured(env, cwd=cwd):
             continue
-        entry = integration.projected_server_entry(env, cwd=cwd)
-        api_key = integration.resolve_api_key(env)
-        env_mapping = entry.setdefault("env", {})
-        env_mapping[integration.api_key_env_var] = api_key
-        managed_servers[integration.managed_server_key] = entry
+        managed_servers[integration.managed_server_key] = integration.projected_server_entry(env, cwd=cwd)
     return managed_servers
 
 

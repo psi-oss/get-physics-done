@@ -92,3 +92,4 @@ Draft the journal-facing letter from the same issue-by-issue content and keep th
 - Keep `needs-calculation` visible whenever a response requires new research work.
 - Keep `Source phase for new work` explicit for every comment that depends on future work.
 - Do not omit the status field; later review rounds rely on it.
+- Use `fixed` only when the corresponding manuscript edit is already on disk.
