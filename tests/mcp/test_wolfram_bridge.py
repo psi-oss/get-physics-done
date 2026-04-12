@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import subprocess
 
 import pytest
 
@@ -288,3 +289,29 @@ def test_pyproject_exposes_the_wolfram_console_script() -> None:
     text = Path("pyproject.toml").read_text(encoding="utf-8")
 
     assert '"gpd-mcp-wolfram" = "gpd.mcp.integrations.wolfram_bridge:main"' in text
+
+
+def test_wolfram_entrypoint_help_runs() -> None:
+    import sys
+
+    import os
+    from pathlib import Path
+
+    project_root = Path(__file__).resolve().parents[2]
+    env = dict(os.environ)
+    src_path = project_root / "src"
+    pythonpath_parts = [str(src_path)]
+    if env.get("PYTHONPATH"):
+        pythonpath_parts.append(env["PYTHONPATH"])
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+
+    result = subprocess.run(
+        [sys.executable, "-m", "gpd.mcp.integrations.wolfram_bridge", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=project_root,
+        env=env,
+    )
+
+    assert result.returncode == 0

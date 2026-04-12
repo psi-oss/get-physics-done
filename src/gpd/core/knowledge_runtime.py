@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from gpd.core.constants import ProjectLayout
 from gpd.core.frontmatter import extract_frontmatter
 from gpd.core.knowledge_docs import (
     KnowledgeDocData,
@@ -186,7 +187,8 @@ def load_knowledge_doc_inventory(project_root: Path) -> KnowledgeDocDiscovery:
 def discover_knowledge_docs(project_root: Path) -> KnowledgeDocDiscovery:
     """Discover and parse project knowledge documents for runtime use."""
 
-    knowledge_dir = project_root / "GPD" / "knowledge"
+    layout = ProjectLayout(project_root)
+    knowledge_dir = layout.knowledge_dir
     if not knowledge_dir.is_dir():
         return KnowledgeDocDiscovery()
 

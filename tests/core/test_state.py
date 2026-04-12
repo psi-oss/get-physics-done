@@ -2200,6 +2200,26 @@ def test_state_validate_standard_warns_for_verified_result_without_records(tmp_p
     assert any("verified=true but no verification_records present" in warning for warning in result.warnings)
 
 
+def test_state_validate_mixed_type_dependency_ids(tmp_path):
+    state = default_state_dict()
+    state["intermediate_results"] = [
+        {"id": "123"},
+        {"id": 456, "depends_on": [123]},
+    ]
+    save_state_json(tmp_path, state)
+
+    result = state_validate(tmp_path)
+
+    assert result.valid is True
+    assert all("missing dependency" not in issue for issue in result.issues)
+
+
+def test_state_has_canonical_result_id_accepts_mixed_type_ids():
+    state = {"intermediate_results": [{"id": 123}]}
+
+    assert state_module._state_has_canonical_result_id(state, "123") is True
+
+
 def test_state_validate_standard_warns_when_project_contract_lacks_must_surface_anchor_but_has_other_grounding(
     tmp_path,
 ):

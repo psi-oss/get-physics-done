@@ -93,14 +93,8 @@ def configure_mcp_logging(logger_name: str) -> logging.Logger:
 def resolve_absolute_project_dir(project_dir: str) -> Path | None:
     """Return an absolute project root path or ``None`` when the contract is violated."""
 
-    from gpd.core.project_files import migrate_root_planning_files
-
     cwd = Path(project_dir)
     if not cwd.is_absolute():
-        return None
-    try:
-        migrate_root_planning_files(cwd)
-    except OSError:
         return None
     return cwd
 

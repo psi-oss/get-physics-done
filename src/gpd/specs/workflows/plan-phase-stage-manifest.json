@@ -37,7 +37,8 @@
         "platform"
       ],
       "loaded_authorities": [
-        "workflows/plan-phase.md"
+        "workflows/plan-phase.md",
+        "templates/project-contract-schema.md"
       ],
       "conditional_authorities": [],
       "must_not_eager_load": [
@@ -109,6 +110,7 @@
       ],
       "loaded_authorities": [
         "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
         "templates/planner-subagent-prompt.md"
       ],
       "conditional_authorities": [],
@@ -195,6 +197,7 @@
       ],
       "loaded_authorities": [
         "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
         "templates/planner-subagent-prompt.md"
       ],
       "conditional_authorities": [],
@@ -284,6 +287,7 @@
       ],
       "loaded_authorities": [
         "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
         "templates/planner-subagent-prompt.md"
       ],
       "conditional_authorities": [],

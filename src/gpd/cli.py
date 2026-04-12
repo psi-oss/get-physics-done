@@ -222,17 +222,10 @@ def _get_cwd() -> Path:
     return _cwd.resolve()
 
 
-def _migrate_planning_files(cwd: Path) -> None:
-    """Auto-migrate ROADMAP.md / PROJECT.md from root into GPD/ if needed."""
-    from gpd.core.project_files import migrate_root_planning_files
-
-    migrate_root_planning_files(cwd)
-
 
 def _status_command_reentry(cwd: Path | None = None) -> ProjectReentryResolution:
     """Resolve the shared re-entry contract for recovery/status commands."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
-    _migrate_planning_files(workspace_cwd)
     return resolve_project_reentry(workspace_cwd)
 
 
@@ -248,7 +241,6 @@ def _status_command_cwd(cwd: Path | None = None) -> Path:
 def _state_command_cwd(cwd: Path | None = None) -> Path:
     """Resolve the effective cwd for state and project-contract commands."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
-    _migrate_planning_files(workspace_cwd)
     resolved = resolve_project_root(workspace_cwd, require_layout=True)
     if resolved is not None:
         return resolved
@@ -258,7 +250,6 @@ def _state_command_cwd(cwd: Path | None = None) -> Path:
 def _project_scoped_cwd(cwd: Path | None = None) -> Path:
     """Resolve the nearest verified project root for project-scoped preflights."""
     workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
-    _migrate_planning_files(workspace_cwd)
     resolved = resolve_project_root(workspace_cwd, require_layout=True)
     return resolved if resolved is not None else workspace_cwd
 
@@ -1059,6 +1050,16 @@ def state_record_session(
     last_result_id: str | None = typer.Option(
         None, "--last-result-id", help="Latest canonical result ID to carry forward"
     ),
+    clear_resume_file: bool = typer.Option(
+        False,
+        "--clear-resume-file",
+        help="Clear the stored resume file instead of setting a new one",
+    ),
+    clear_last_result_id: bool = typer.Option(
+        False,
+        "--clear-last-result-id",
+        help="Clear the stored last result ID instead of setting a new one",
+    ),
 ) -> None:
     """Record a session boundary for context tracking."""
     from gpd.core.state import state_record_session
@@ -1068,6 +1069,8 @@ def state_record_session(
         stopped_at=stopped_at,
         resume_file=resume_file,
         last_result_id=last_result_id,
+        clear_resume_file=clear_resume_file,
+        clear_last_result_id=clear_last_result_id,
     )
     payload = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
     _output(payload)

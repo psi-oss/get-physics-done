@@ -224,6 +224,9 @@ STATE_JSON_BACKUP_FILENAME = "state.json.bak"
 STATE_WRITE_INTENT_FILENAME = ".state-write-intent"
 """Intent marker file for atomic dual-write crash recovery."""
 
+KNOWLEDGE_REVIEWS_DIR_NAME = "reviews"
+"""Subdirectory under GPD/knowledge for deterministic review artifacts."""
+
 
 # ─── File Suffixes ────────────────────────────────────────────────────────────
 # Naming conventions for plan, summary, verification, research, context,
@@ -533,6 +536,10 @@ class ProjectLayout:
     @property
     def knowledge_dir(self) -> Path:
         return self.gpd / KNOWLEDGE_DIR_NAME
+
+    @property
+    def knowledge_reviews_dir(self) -> Path:
+        return self.knowledge_dir / KNOWLEDGE_REVIEWS_DIR_NAME
 
     @property
     def research_map_dir(self) -> Path:

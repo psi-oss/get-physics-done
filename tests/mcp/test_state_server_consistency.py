@@ -114,13 +114,12 @@ def test_state_server_tools_reject_non_absolute_project_dirs(tool_fn, kwargs: di
     assert result == {"error": "project_dir must be an absolute path", "schema_version": 1}
 
 
-def test_resolve_absolute_project_dir_fails_closed_when_migration_raises(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(
-        "gpd.core.project_files.migrate_root_planning_files",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("permission denied")),
-    )
+def test_resolve_absolute_project_dir_rejects_relative_paths() -> None:
+    assert resolve_absolute_project_dir("relative/project") is None
 
-    assert resolve_absolute_project_dir(str(tmp_path)) is None
+
+def test_resolve_absolute_project_dir_accepts_absolute_paths(tmp_path: Path) -> None:
+    assert resolve_absolute_project_dir(str(tmp_path)) == tmp_path
 
 
 @pytest.mark.parametrize(

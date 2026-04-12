@@ -176,7 +176,10 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
         "interactive_validation",
         "gap_repair",
     )
-    assert manifest.stages[0].loaded_authorities == ("workflows/verify-work.md",)
+    assert manifest.stages[0].loaded_authorities == (
+        "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
+    )
     assert "references/verification/core/verification-core.md" in manifest.stages[0].must_not_eager_load
     assert "templates/verification-report.md" in manifest.stages[0].must_not_eager_load
     assert "phase_proof_review_status" in manifest.stages[0].required_init_fields
@@ -187,6 +190,7 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
     assert "phase_proof_review_status" in manifest.stages[1].required_init_fields
     assert manifest.stages[2].loaded_authorities == (
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "references/verification/meta/verification-independence.md",
     )
     assert "protocol_bundle_verifier_extensions" in manifest.stages[2].required_init_fields
@@ -212,6 +216,7 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
     assert "reference_artifacts_content" not in manifest.stages[3].required_init_fields
     assert manifest.stages[3].loaded_authorities == (
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "templates/research-verification.md",
         "templates/verification-report.md",
         "templates/contract-results-schema.md",
@@ -237,6 +242,7 @@ def test_validate_workflow_stage_manifest_payload_loads_verify_work_manifest() -
     assert "reference_artifacts_content" in manifest.stages[4].required_init_fields
     assert manifest.stages[4].loaded_authorities == (
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "templates/research-verification.md",
         "templates/verification-report.md",
         "templates/contract-results-schema.md",
@@ -295,15 +301,20 @@ def test_validate_workflow_stage_manifest_payload_loads_plan_phase_manifest() ->
         "planner_authoring",
         "checker_revision",
     )
-    assert manifest.stages[0].loaded_authorities == ("workflows/plan-phase.md",)
+    assert manifest.stages[0].loaded_authorities == (
+        "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
+    )
     assert "templates/plan-contract-schema.md" in manifest.stages[0].must_not_eager_load
     assert "templates/planner-subagent-prompt.md" in manifest.stages[0].must_not_eager_load
     assert manifest.stages[2].loaded_authorities == (
         "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
         "templates/planner-subagent-prompt.md",
     )
     assert manifest.stages[3].loaded_authorities == (
         "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
         "templates/planner-subagent-prompt.md",
     )
     assert "reference_artifacts_content" in manifest.stages[2].required_init_fields

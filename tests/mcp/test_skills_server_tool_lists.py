@@ -197,7 +197,10 @@ def test_get_skill_plan_phase_surfaces_staged_loading_sidecar() -> None:
                 purpose="phase lookup",
                 mode_paths=("workflows/plan-phase.md",),
                 required_init_fields=("researcher_model",),
-                loaded_authorities=("workflows/plan-phase.md",),
+                loaded_authorities=(
+                    "workflows/plan-phase.md",
+                    "templates/project-contract-schema.md",
+                ),
                 conditional_authorities=(),
                 must_not_eager_load=("references/ui/ui-brand.md",),
                 allowed_tools=("file_read",),
@@ -414,7 +417,7 @@ def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
         "gap_repair",
     ]
     assert result["staged_loading"]["workflow_id"] == "verify-work"
-    assert result["staged_loading"]["stages"][0]["loaded_authorities"] == ["workflows/verify-work.md"]
+    assert result["staged_loading"]["stages"][0]["loaded_authorities"] == ["workflows/verify-work.md", "templates/project-contract-schema.md"]
     assert "Follow the included workflow file exactly." in result["content"]
     assert (
         "The workflow file owns the detailed check taxonomy; this wrapper only bootstraps the canonical "
@@ -427,6 +430,7 @@ def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
     assert "For deeper focused analysis" not in result["content"]
     assert result["staged_loading"]["stages"][2]["loaded_authorities"] == [
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "references/verification/meta/verification-independence.md",
     ]
     assert result["staged_loading"]["stages"][2]["next_stages"] == ["interactive_validation"]
@@ -447,6 +451,7 @@ def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
     ]
     assert result["staged_loading"]["stages"][3]["loaded_authorities"] == [
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "templates/research-verification.md",
         "templates/verification-report.md",
         "templates/contract-results-schema.md",
@@ -461,6 +466,7 @@ def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
     ]
     assert result["staged_loading"]["stages"][4]["loaded_authorities"] == [
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "templates/research-verification.md",
         "templates/verification-report.md",
         "templates/contract-results-schema.md",

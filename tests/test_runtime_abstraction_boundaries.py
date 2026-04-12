@@ -13,6 +13,7 @@ Everywhere else, shared code should stay runtime-agnostic.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -33,6 +34,20 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 _SHARED_INSTALL = get_shared_install_metadata()
+
+
+def test_stage0_fixture_plan_and_contract_are_readable() -> None:
+    fixture_dir = REPO_ROOT / "tests" / "fixtures" / "stage0"
+    plan_path = fixture_dir / "plan_with_contract.md"
+    contract_path = fixture_dir / "project_contract.json"
+
+    plan_content = plan_path.read_text(encoding="utf-8")
+    assert "contract:" in plan_content
+    assert "claim-benchmark" in plan_content
+
+    contract_data = json.loads(contract_path.read_text(encoding="utf-8"))
+    assert contract_data.get("schema_version") == 1
+    assert contract_data.get("scope", {}).get("question", "").startswith("What benchmark")
 
 
 def _runtime_env_prefix_patterns() -> list[str]:
@@ -490,6 +505,7 @@ def _readme_optional_terminal_reference() -> str:
     return match.group("body")
 
 
+@pytest.mark.slow
 def test_runtime_specific_terms_are_confined_to_explicit_boundary_files() -> None:
     leaks = [
         (path, line_no, snippet)
@@ -514,6 +530,7 @@ def test_packaging_metadata_stays_runtime_agnostic() -> None:
         assert pattern.search(content) is None, f"{rel_path} contains runtime-specific terms"
 
 
+@pytest.mark.slow
 def test_shared_python_modules_do_not_hardcode_runtime_terms() -> None:
     leaks = [
         (path, line_no, snippet)
@@ -530,6 +547,7 @@ def test_shared_python_modules_do_not_hardcode_runtime_terms() -> None:
     )
 
 
+@pytest.mark.slow
 def test_shared_adapter_infrastructure_avoids_runtime_specific_hardcoding() -> None:
     leaks = [
         (path, line_no, snippet)
@@ -543,6 +561,7 @@ def test_shared_adapter_infrastructure_avoids_runtime_specific_hardcoding() -> N
     )
 
 
+@pytest.mark.slow
 def test_shared_adapter_infrastructure_stays_runtime_agnostic() -> None:
     leaks = [
         (path, line_no, snippet)
@@ -724,6 +743,7 @@ def test_shared_runtime_docs_do_not_rebuild_install_metadata_literals() -> None:
     )
 
 
+@pytest.mark.slow
 def test_shared_python_modules_keep_wolfram_integration_tokens_out_of_non_boundary_files() -> None:
     wolfram_pattern = re.compile(
         r"(gpd-wolfram|gpd-mcp-wolfram|GPD_WOLFRAM_MCP_API_KEY|GPD_WOLFRAM_MCP_ENDPOINT|WOLFRAM_MCP_SERVICE_API_KEY)"
@@ -889,6 +909,7 @@ def test_adapters_runtime_identity_calls_are_catalog_driven() -> None:
     )
 
 
+@pytest.mark.slow
 def test_runtime_catalog_json_is_only_read_at_adapter_and_hook_boundaries() -> None:
     catalog_path_literal_pattern = re.compile(r"runtime_catalog(?:_schema)?\.json")
     allowed_files = {

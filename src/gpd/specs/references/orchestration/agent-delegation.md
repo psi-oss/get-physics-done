@@ -41,21 +41,16 @@ task(
 
 ## Authoring Rules
 
-1. **Return-envelope parity:** Preserve the shared return envelope across native and fallback runtimes.
-2. **Success-path artifact gate:** Verify expected artifacts before accepting success.
-3. **Blocking completion semantics:** Treat checkpoints and missing artifacts as blocking until resolved.
-4. **Write-scope isolation:** Assign disjoint write scopes to parallel agents.
-5. **Write access:** Always pass `readonly=false` for file-producing agents.
-   Always set `readonly=false` for file-producing agents.
-6. **Model semantics:** If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model.
-7. **Agent instructions path:** `{GPD_AGENTS_DIR}/gpd-{agent}.md` (resolved by installer per runtime)
-8. **gpd CLI surface:** author plain `gpd ...` in source prompts. The installer rewrites shell calls to the runtime-managed GPD CLI bridge during install; source prompts must stay runtime-agnostic.
-9. **Never hardcode runtime-specific paths** — use `{GPD_INSTALL_DIR}` for specs assets and `{GPD_AGENTS_DIR}` for agent prompts, and let the installer project shell `gpd` calls onto the correct runtime bridge.
-10. **Fresh context:** task() spawns agents in a fresh context window. The agent cannot see the orchestrator's conversation. All context must be passed via the prompt.
-11. **Do not use `@...` references inside task() prompt strings.** They do not load files for subagents. Pass explicit `<files_to_read>` instructions or inline the content.
-12. **Assign an explicit write scope for every subagent.** Parallel agents must not share writable files. Prefer `file_edit` for targeted changes, and re-read the file immediately before writing.
+1. **Return-envelope parity:** Preserve the structured return envelope across native and fallback runtimes so orchestrators see the same fields.
+2. **Artifact verification:** Treat every `expected_artifacts` entry as provisional until its file is verified; missing artifacts block success.
+3. **Fallback recovery:** If verification fails, extract the content from the subagent response or rerun the handoff in the main context before marking the artifact as complete.
+4. **Write-scope isolation:** Assign disjoint `write_scope.allowed_paths` in `task()` so parallel agents never overlap writable files.
+5. **File-producing access:** Always pass `readonly=false` for file-producing agents and omit `model` when it resolves to `null`/empty so runtimes choose their default.
+6. **Runtime-agnostic prompts:** Point subagents to `{GPD_AGENTS_DIR}/gpd-{agent}.md` and author plain `gpd ...` calls; let installers rebind them to runtime bridges without hardcoding runtime-specific paths.
+7. **Fresh contexts:** Each `task()` runs in a fresh context with no view of the orchestrator’s conversation; pass every needed anchor explicitly.
+8. **No `@` references:** Do not embed `@...` references inside `task()` prompts — pass explicit `<files_to_read>` hints or inline the required content instead.
 
-If a runtime cannot satisfy these invariants with native subagents, fall back to a sequential main-context execution that still preserves the same write scope, artifact checks, and return-envelope discipline.
+If a runtime cannot satisfy these invariants with native subagents, fall back to a sequential main-context execution that preserves the same write scope, artifact checks, and return-envelope discipline.
 
 For GPD-owned runtime surfaces, use the effective installed runtime rather than a merely active but uninstalled higher-priority runtime. This applies to `gpd resolve-model`, runtime-native command rendering, and other installer-backed workflow surfaces.
 
@@ -105,5 +100,5 @@ If the task does not produce files, still state the `shared_state_policy` and th
 Add this concise note before any task() call in a workflow:
 
 ```
-> **Runtime delegation:** Follow `references/orchestration/agent-delegation.md`; use the fresh one-shot handoff pattern, omit empty `model`, set `readonly=false` for file-producing agents, and verify expected artifacts before accepting success.
+> **Runtime delegation:** Follow the Delegation Invariants and Authoring Rules above; keep the one-shot handoff pattern, omit empty `model`, and let the orchestrator verify expected artifacts before trusting success.
 ```

@@ -1279,7 +1279,7 @@ def test_planning_prompts_keep_contract_gate_in_light_mode_and_all_modes() -> No
     assert "The markdown headings `## PLANNING COMPLETE`, `## CHECKPOINT REACHED`, and `## PLANNING INCONCLUSIVE` are human-readable labels only." in planner_prompt
     assert "gpd_return.status: completed" in workflow_text
     assert "Human-readable headings such as `## VERIFICATION PASSED`, `## ISSUES FOUND`, and `## PARTIAL APPROVAL` are presentation only." in workflow_text
-    assert "Human review does not replace those requirements." in checker_agent
+    assert "Plan checking runs with the same contract, anchor, and verification rigor regardless of autonomy." in (REFERENCES_DIR / "orchestration" / "agent-autonomy.md").read_text(encoding="utf-8")
 
 
 def test_stable_knowledge_remains_background_only_across_planning_verification_and_execution() -> None:
@@ -1921,8 +1921,13 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
         "planner_authoring",
         "checker_revision",
     )
-    assert plan_phase_manifest.stages[0].loaded_authorities == ("workflows/plan-phase.md",)
+    assert plan_phase_manifest.stages[0].loaded_authorities == (
+        "workflows/plan-phase.md",
+        "templates/project-contract-schema.md",
+    )
+    assert "templates/project-contract-schema.md" in plan_phase_manifest.stages[2].loaded_authorities
     assert "templates/planner-subagent-prompt.md" in plan_phase_manifest.stages[2].loaded_authorities
+    assert "templates/project-contract-schema.md" in plan_phase_manifest.stages[3].loaded_authorities
     assert "templates/planner-subagent-prompt.md" in plan_phase_manifest.stages[3].loaded_authorities
     assert (
         "Treat `VERIFICATION.md` as contract-backed only through the schema-owned ledgers `plan_contract_ref`, `contract_results`, `comparison_verdicts`, and `suggested_contract_checks`; do not expect verifier-local aliases or ad hoc machine-readable artifact fields."
@@ -2008,10 +2013,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
         in execute_plan
     )
     assert "emit `verdict: inconclusive` or `verdict: tension` instead of omitting the entry" in execute_plan
-    assert (
-        "Immediately before writing frontmatter, re-open `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` and apply it literally."
-        in execute_plan
-    )
+    assert "@{GPD_INSTALL_DIR}/templates/contract-results-schema.md" in execute_plan
     assert "contract_results" in verify_phase
     assert "Verification targets must stay user-visible" in verify_phase
     assert "must_haves" not in verify_phase
@@ -3834,7 +3836,7 @@ def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profil
     assert "still run every contract-aware check required by the plan" in verifier_profiles
     assert "required first-result, anchor, and pre-fanout checkpoints" in planner
     assert "Do NOT change conventions mid-project without an explicit checkpoint" in planner
-    assert "Required first-result, anchor, and pre-fanout gates still apply even in yolo mode" in executor
+    assert "Always execute the same sanity gates" in (REFERENCES_DIR / "orchestration" / "agent-autonomy.md").read_text(encoding="utf-8")
     assert "suggested_contract_checks" in verifier_agent
 
 

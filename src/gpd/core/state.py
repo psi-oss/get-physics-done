@@ -706,15 +706,25 @@ def _optional_state_text(value: object) -> str | None:
     return stripped or None
 
 
+def _canonical_state_id(value: object) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
 def _state_has_canonical_result_id(state_obj: dict[str, object], result_id: str) -> bool:
     """Return whether the state tracks a canonical intermediate result with this ID."""
     results = state_obj.get("intermediate_results")
     if not isinstance(results, list):
         return False
+    normalized_target = _canonical_state_id(result_id)
+    if normalized_target is None:
+        return False
     for item in results:
-        if isinstance(item, dict) and _optional_state_text(item.get("id")) == result_id:
+        if isinstance(item, dict) and _canonical_state_id(item.get("id")) == normalized_target:
             return True
-        if isinstance(item, IntermediateResult) and _optional_state_text(item.id) == result_id:
+        if isinstance(item, IntermediateResult) and _canonical_state_id(item.id) == normalized_target:
             return True
     return False
 
@@ -4921,11 +4931,15 @@ def state_validate(
         seen: set[str] = set()
         existing_ids: set[str] = set()
         for r in state_json["intermediate_results"]:
-            if isinstance(r, dict) and r.get("id"):
-                if r["id"] in seen:
-                    issues.append(f'intermediate_results: duplicate result ID "{r["id"]}"')
-                seen.add(r["id"])
-                existing_ids.add(str(r["id"]))
+            if not isinstance(r, dict):
+                continue
+            normalized_id = _canonical_state_id(r.get("id"))
+            if normalized_id is None:
+                continue
+            if normalized_id in seen:
+                issues.append(f'intermediate_results: duplicate result ID "{normalized_id}"')
+            seen.add(normalized_id)
+            existing_ids.add(normalized_id)
 
         for r in state_json["intermediate_results"]:
             if not isinstance(r, dict):
@@ -4933,7 +4947,8 @@ def state_validate(
             rid = r.get("id") or "<missing-id>"
             depends_on = r.get("depends_on") or []
             for dep_id in depends_on:
-                if dep_id not in existing_ids:
+                normalized_dep = _canonical_state_id(dep_id)
+                if normalized_dep not in existing_ids:
                     issues.append(f'intermediate_results[{rid}]: missing dependency "{dep_id}"')
 
             records = r.get("verification_records") or []

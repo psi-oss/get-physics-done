@@ -116,37 +116,9 @@ Use only the closed tool vocabulary the validator accepts.
 
 <contract_skeleton>
 
-## Contract Block Skeleton
+## Contract Resources
 
-Embed this `contract:` block inside the full `PLAN.md` frontmatter from `phase-prompt.md`.
-
-```yaml
-contract:
-  schema_version: 1
-  scope:
-    question: "[The decisive question this plan advances]"
-    in_scope: ["[Primary contributions this plan delivers]"]
-  context_intake:
-    must_read_refs: [ref-main]
-  claims:
-    - id: "claim-example"
-      statement: "[What success looks like]"
-      claim_kind: theorem
-      deliverables: ["deliv-example"]
-      acceptance_tests: ["test-example"]
-  deliverables:
-    - id: "deliv-example"
-      kind: "derivation"
-      path: "derivations/example.tex"
-  forbidden_proxies:
-    - id: "fp-example"
-      proxy: "[Proxy that fails to satisfy the contract]"
-  uncertainty_markers:
-    weakest_anchors: ["[Primary assumption]"]
-    disconfirming_observations: ["[Observation that would invalidate the plan]"]
-```
-
-Keep `plan-contract-schema.md` as the single source of truth for required fields and enums.
+Load @{GPD_INSTALL_DIR}/templates/plan-contract-schema.md whenever a plan defines a frontmatter `contract`. It remains the single source of truth for required fields, enums, and allowed structure; the planner prompt should not duplicate its contents.
 
 </contract_skeleton>
 

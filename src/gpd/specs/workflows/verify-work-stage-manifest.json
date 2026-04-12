@@ -29,7 +29,8 @@
         "platform"
       ],
       "loaded_authorities": [
-        "workflows/verify-work.md"
+        "workflows/verify-work.md",
+        "templates/project-contract-schema.md"
       ],
       "conditional_authorities": [],
       "must_not_eager_load": [
@@ -90,7 +91,8 @@
         "platform"
       ],
       "loaded_authorities": [
-        "workflows/verify-work.md"
+        "workflows/verify-work.md",
+        "templates/project-contract-schema.md"
       ],
       "conditional_authorities": [],
       "must_not_eager_load": [
@@ -171,6 +173,7 @@
       ],
       "loaded_authorities": [
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "references/verification/meta/verification-independence.md"
       ],
       "conditional_authorities": [],
@@ -240,6 +243,7 @@
       ],
       "loaded_authorities": [
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "templates/research-verification.md",
         "templates/verification-report.md",
         "templates/contract-results-schema.md",
@@ -309,6 +313,7 @@
       ],
       "loaded_authorities": [
         "workflows/verify-work.md",
+        "templates/project-contract-schema.md",
         "templates/research-verification.md",
         "templates/verification-report.md",
         "templates/contract-results-schema.md",

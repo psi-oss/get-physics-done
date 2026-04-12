@@ -12,6 +12,11 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
+from gpd.core.constants import (
+    KNOWLEDGE_DIR_NAME,
+    KNOWLEDGE_REVIEWS_DIR_NAME,
+    PLANNING_DIR_NAME,
+)
 from gpd.core.knowledge_constants import (
     KNOWLEDGE_REVIEW_DECISION_APPROVED,
     KNOWLEDGE_REVIEW_DECISION_VALUES,
@@ -35,6 +40,7 @@ __all__ = [
 _KNOWLEDGE_SOURCE_KIND_VALUES = ("paper", "dataset", "prior_artifact", "spec", "website", "other")
 _KNOWLEDGE_REVIEWER_KIND_VALUES = ("human", "agent", "workflow")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_KNOWLEDGE_REVIEW_ARTIFACT_PREFIX = Path(PLANNING_DIR_NAME) / KNOWLEDGE_DIR_NAME / KNOWLEDGE_REVIEWS_DIR_NAME
 
 
 def _normalize_required_text(value: object) -> str:
@@ -187,7 +193,13 @@ class KnowledgeReviewRecord(BaseModel):
     @field_validator("approval_artifact_path", mode="before")
     @classmethod
     def _normalize_approval_artifact_path(cls, value: object) -> object:
-        return _normalize_project_relative_path(value, "approval_artifact_path")
+        normalized = _normalize_project_relative_path(value, "approval_artifact_path")
+        artifact_path = Path(normalized)
+        prefix_parts = _KNOWLEDGE_REVIEW_ARTIFACT_PREFIX.parts
+        if artifact_path.parts[: len(prefix_parts)] != prefix_parts:
+            prefix_str = _KNOWLEDGE_REVIEW_ARTIFACT_PREFIX.as_posix()
+            raise ValueError(f"approval_artifact_path must live under {prefix_str}/")
+        return normalized
 
     @field_validator("approval_artifact_sha256", "reviewed_content_sha256", mode="before")
     @classmethod

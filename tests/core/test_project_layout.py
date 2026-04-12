@@ -161,3 +161,15 @@ def test_project_layout_prefers_canonical_tree_over_legacy(tmp_path: Path) -> No
     assert layout.conventions_md.read_text(encoding="utf-8") == "current conventions\n"
     assert layout.state_json.parent == canonical
     assert layout.conventions_md.parent == canonical
+
+
+def test_project_layout_knowledge_reviews_dir_uses_canonical_parent(tmp_path: Path) -> None:
+    layout = ProjectLayout(tmp_path)
+
+    assert layout.knowledge_reviews_dir == tmp_path / "GPD" / "knowledge" / "reviews"
+
+
+def test_project_layout_knowledge_reviews_dir_respects_custom_gpd_root(tmp_path: Path) -> None:
+    layout = ProjectLayout(tmp_path, gpd_dir="Research")
+
+    assert layout.knowledge_reviews_dir == tmp_path / "Research" / "knowledge" / "reviews"

@@ -2980,6 +2980,29 @@ def test_state_record_session_exits_nonzero_for_invalid_last_result_id(mock_reco
     assert "Unknown canonical result ID: R-missing" in result.output
 
 
+@patch("gpd.core.state.state_record_session")
+def test_state_record_session_clear_flags_forwarded(mock_record_session):
+    mock_result = MagicMock()
+    mock_result.model_dump.return_value = {"recorded": True, "updated": ["Last session"]}
+    mock_record_session.return_value = mock_result
+
+    result = runner.invoke(
+        app,
+        [
+            "state",
+            "record-session",
+            "--clear-resume-file",
+            "--clear-last-result-id",
+        ],
+    )
+
+    assert result.exit_code == 0
+    mock_record_session.assert_called_once()
+    _, kwargs = mock_record_session.call_args
+    assert kwargs["clear_resume_file"] is True
+    assert kwargs["clear_last_result_id"] is True
+
+
 @patch("gpd.core.state.state_validate")
 def test_state_validate_pass(mock_validate):
     mock_result = MagicMock()

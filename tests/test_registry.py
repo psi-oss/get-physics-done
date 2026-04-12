@@ -2228,7 +2228,7 @@ class TestPublicAPI:
                                 "purpose": "phase lookup and routing",
                                 "mode_paths": ["workflows/plan-phase.md"],
                                 "required_init_fields": [],
-                                "loaded_authorities": ["workflows/plan-phase.md"],
+                                "loaded_authorities": ["workflows/plan-phase.md", "templates/project-contract-schema.md"],
                                 "conditional_authorities": [],
                                 "must_not_eager_load": ["references/ui/ui-brand.md"],
                                 "allowed_tools": ["file_read"],
@@ -2245,6 +2245,7 @@ class TestPublicAPI:
                                 "required_init_fields": ["researcher_model"],
                                 "loaded_authorities": [
                                     "workflows/plan-phase.md",
+                                    "templates/project-contract-schema.md",
                                     "templates/planner-subagent-prompt.md",
                                 ],
                                 "conditional_authorities": [],
@@ -2279,8 +2280,12 @@ class TestPublicAPI:
             assert cmd.staged_loading is not None
             assert cmd.staged_loading.workflow_id == "plan-phase"
             assert cmd.staged_loading.stage_ids() == ("phase_bootstrap", "planner_authoring")
-            assert cmd.staged_loading.stages[0].loaded_authorities == ("workflows/plan-phase.md",)
+            assert cmd.staged_loading.stages[0].loaded_authorities == (
+                "workflows/plan-phase.md",
+                "templates/project-contract-schema.md",
+            )
             assert "templates/planner-subagent-prompt.md" in cmd.staged_loading.stages[1].loaded_authorities
+            assert "templates/project-contract-schema.md" in cmd.staged_loading.stages[1].loaded_authorities
 
     def test_get_command_verify_work_surfaces_staged_loading_manifest(
         self,
@@ -2309,9 +2314,13 @@ class TestPublicAPI:
             "interactive_validation",
             "gap_repair",
         )
-        assert cmd.staged_loading.stages[0].loaded_authorities == ("workflows/verify-work.md",)
+        assert cmd.staged_loading.stages[0].loaded_authorities == (
+            "workflows/verify-work.md",
+            "templates/project-contract-schema.md",
+        )
         assert cmd.staged_loading.stages[2].loaded_authorities == (
             "workflows/verify-work.md",
+            "templates/project-contract-schema.md",
             "references/verification/meta/verification-independence.md",
         )
         assert cmd.staged_loading.stages[2].next_stages == ("interactive_validation",)
@@ -2332,6 +2341,7 @@ class TestPublicAPI:
         )
         assert cmd.staged_loading.stages[3].loaded_authorities == (
             "workflows/verify-work.md",
+            "templates/project-contract-schema.md",
             "templates/research-verification.md",
             "templates/verification-report.md",
             "templates/contract-results-schema.md",
@@ -2346,6 +2356,7 @@ class TestPublicAPI:
         )
         assert cmd.staged_loading.stages[4].loaded_authorities == (
             "workflows/verify-work.md",
+            "templates/project-contract-schema.md",
             "templates/research-verification.md",
             "templates/verification-report.md",
             "templates/contract-results-schema.md",
