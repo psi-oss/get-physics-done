@@ -128,13 +128,32 @@ def _global_runtime_dir(runtime: str, *, home: Path | None = None) -> Path:
     return resolve_global_config_dir(descriptor, home=home)
 
 
+def _find_local_runtime_dir(runtime: str, config_dir_name: str, *, cwd: Path) -> Path | None:
+    """Walk ancestors for a runtime config dir that validates against its manifest."""
+    for ancestor in (cwd, *cwd.parents):
+        if ancestor.name == config_dir_name:
+            runtime_dir = ancestor
+        else:
+            runtime_dir = ancestor / config_dir_name
+        if not runtime_dir.exists() or not runtime_dir.is_dir():
+            continue
+        if _runtime_from_manifest_or_path(runtime_dir) != runtime:
+            continue
+        return runtime_dir
+    return None
+
+
 def _local_runtime_dir(runtime: str, cwd: Path | None = None) -> Path:
     """Return the workspace-local config directory for a runtime."""
     try:
         descriptor = get_runtime_descriptor(runtime)
     except KeyError:
         raise KeyError(runtime) from None
-    return Path(cwd or Path.cwd()) / descriptor.config_dir_name
+    resolved_cwd = Path(cwd or Path.cwd())
+    verified_dir = _find_local_runtime_dir(runtime, descriptor.config_dir_name, cwd=resolved_cwd)
+    if verified_dir is not None:
+        return verified_dir
+    return resolved_cwd / descriptor.config_dir_name
 
 
 def _manifest_runtime_status(config_dir: Path) -> tuple[str, str | None]:

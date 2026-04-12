@@ -19,6 +19,7 @@ import gpd.hooks.runtime_detect as runtime_detect_module
 from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from gpd.adapters.runtime_catalog import normalize_runtime_name as catalog_normalize_runtime_name
+from gpd.core.constants import TODOS_DIR_NAME
 from gpd.hooks.install_metadata import installed_runtime
 from gpd.hooks.runtime_detect import (
     RUNTIME_UNKNOWN,
@@ -748,6 +749,29 @@ class TestDetectActiveRuntimeWithInstall:
         with pytest.raises(RuntimeError, match="manifest cannot be trusted"):
             adapter._validate_target_runtime(target_dir, action="install")
 
+    def test_detect_runtime_install_target_walks_ancestor_local_dirs(
+        self, tmp_path: Path
+    ) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        nested = workspace / "research" / "notes"
+        nested.mkdir(parents=True)
+        runtime_dir = workspace / ".codex"
+        _mark_gpd_install(runtime_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_LOCAL)
+        home = tmp_path / "home"
+
+        env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=nested),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            result = detect_runtime_install_target(RUNTIME_CODEX, cwd=nested, home=home)
+
+        assert result is not None
+        assert result.config_dir == runtime_dir
+        assert result.install_scope == SCOPE_LOCAL
+
 
 class TestDetectRuntimeForGpdUse:
     """Tests for the install-aware runtime selection used by GPD-owned surfaces."""
@@ -947,6 +971,31 @@ class TestHelperDirs:
 
         assert dirs[0] == tmp_path / ".codex" / "todos"
         assert dirs[1] == home / ".codex" / "todos"
+
+    def test_todo_candidates_walk_ancestor_local_dirs(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        nested = workspace / "research" / "notes"
+        nested.mkdir(parents=True)
+        runtime_dir = workspace / ".codex"
+        _mark_gpd_install(runtime_dir, runtime=RUNTIME_CODEX)
+        home = tmp_path / "home"
+
+        env = _clean_runtime_env()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=nested),
+            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+        ):
+            candidates = get_todo_candidates(cwd=nested, home=home)
+
+        codex_paths = [
+            candidate.path
+            for candidate in candidates
+            if candidate.runtime == RUNTIME_CODEX and candidate.scope == SCOPE_LOCAL
+        ]
+        assert runtime_dir / TODOS_DIR_NAME in codex_paths
+        assert codex_paths
 
     def test_todo_candidates_prioritize_explicit_target_install(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"

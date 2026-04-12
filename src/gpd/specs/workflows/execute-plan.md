@@ -10,6 +10,10 @@ Read config.json for planning behavior settings.
 Defer execution-reference, checkpoint, recovery, and summary-schema loads until the stage that actually consumes them. When those files are needed, read them with the file_read tool in the relevant stage rather than frontloading them here.
 </required_reading>
 
+<hard_schema_visibility_guard>
+Before repairing or re-emitting any `project_contract`, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep its compact Hard-schema capsule visible; do not restate or fork the schema text here.
+</hard_schema_visibility_guard>
+
 <process>
 
 <step name="init_context" priority="first">

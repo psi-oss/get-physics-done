@@ -708,6 +708,31 @@ function validateRuntimeCatalogEntry(entry, index, options = {}) {
       `${label}.public_command_surface_prefix`,
       requireStrictString(payload.command_prefix, `${label}.command_prefix`)
     ),
+    external_skill_relative_dirs: Object.prototype.hasOwnProperty.call(payload, "external_skill_relative_dirs")
+      ? requireStrictStringList(payload.external_skill_relative_dirs, `${label}.external_skill_relative_dirs`, {
+          allowEmpty: true,
+        })
+      : [],
+    external_skill_env_vars: Object.prototype.hasOwnProperty.call(payload, "external_skill_env_vars")
+      ? requireStrictStringList(payload.external_skill_env_vars, `${label}.external_skill_env_vars`, {
+          allowEmpty: true,
+        })
+      : [],
+    external_skill_subdir_prefixes: Object.prototype.hasOwnProperty.call(payload, "external_skill_subdir_prefixes")
+      ? requireStrictStringList(payload.external_skill_subdir_prefixes, `${label}.external_skill_subdir_prefixes`, {
+          allowEmpty: true,
+        })
+      : [],
+    external_skill_markers: Object.prototype.hasOwnProperty.call(payload, "external_skill_markers")
+      ? requireStrictStringList(payload.external_skill_markers, `${label}.external_skill_markers`, {
+          allowEmpty: true,
+        })
+      : [],
+    external_skill_config_markers: Object.prototype.hasOwnProperty.call(payload, "external_skill_config_markers")
+      ? requireStrictStringList(payload.external_skill_config_markers, `${label}.external_skill_config_markers`, {
+          allowEmpty: true,
+        })
+      : [],
   };
 }
 

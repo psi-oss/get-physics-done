@@ -16,6 +16,11 @@ The verifier agent owns contract-backed target construction, proof policy, compu
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 <process>
+
+<hard_schema_visibility_guard>
+Before repairing or re-emitting any `project_contract`, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep its compact Hard-schema capsule visible; do not restate or fork the schema text here.
+</hard_schema_visibility_guard>
+
 visible-but-blocked contract must be repaired before it is used as authoritative verification scope
 same contract-critical floor at all times
 Do NOT skip contract-critical anchors

@@ -4,46 +4,27 @@ GPD adds structured physics-research commands to Claude Code, Codex, Gemini CLI,
 
 In these docs, "runtime" means the AI terminal app you talk to.
 
-Back to the onboarding hub: [GPD Onboarding Hub](./README.md).
+Back to the onboarding hub: [GPD Onboarding Hub](./README.md). This page covers the shared preflight commands, runtime quickstarts, install flags, and post-install commands; keep it open for those steps and return here for Linux-specific guidance.
 
 ## What you need first
 
-- A Linux machine with internet access
-- Permission to install software
-- Node.js 20 or newer
-- Python 3.11 or newer with `venv`
-- One supported runtime that already starts from your terminal:
-  Claude Code, Codex, Gemini CLI, or OpenCode
+- A Linux machine with internet access and permission to install software.
+- Node.js 20 or newer plus Python 3.11 or newer with `venv`; rerun the Onboarding Hub preflight commands after any install so the versions match the requirements.
+- One supported runtime that already starts from your terminal: Claude Code, Codex, Gemini CLI, or OpenCode. Use the runtime command checks on the Onboarding Hub before installing GPD.
+
+Once those shared preflight checks are green, continue with the Linux-specific steps below.
 
 ## Open a terminal
 
 Use whichever option matches your desktop:
 
-- On Ubuntu and many GNOME-based desktops, press `Ctrl` + `Alt` + `T`
-- Or open your app launcher, type `Terminal`, and press `Enter`
-- If you already see a shell prompt, you are in the right place
-
-## Check Node and Python
-
-Run:
-
-```bash
-node --version
-npm --version
-npx --version
-python3 --version
-python3 -m venv --help
-```
-
-You want:
-
-- Node `v20` or newer
-- Python `3.11` or newer
-- `python3 -m venv --help` to print help text instead of an error
+- On Ubuntu and many GNOME-based desktops, press `Ctrl` + `Alt` + `T`.
+- Or open your app launcher, type `Terminal`, and press `Enter`.
+- If you already see a shell prompt, you are in the right place.
 
 ## Install or update missing tools
 
-Linux distributions vary more than macOS or Windows, so use the section that matches your distribution, then rerun the version checks above.
+Linux distributions vary more than macOS or Windows, so use the section that matches your distribution, then rerun the Onboarding Hub preflight commands above.
 
 Ubuntu or Debian:
 
@@ -61,7 +42,7 @@ sudo dnf install nodejs npm python3
 Other Linux distributions:
 
 - Use your distribution's normal package manager to install Node.js, Python 3, and Python virtual-environment support.
-- Then rerun the version checks above.
+- Then rerun the Onboarding Hub preflight commands above.
 
 After installing anything, open a new terminal and rerun the version checks.
 
@@ -73,68 +54,10 @@ After installing anything, open a new terminal and rerun the version checks.
 - If your distribution packages Python older than 3.11, use a newer distribution release or the official Python downloads page linked below.
 - Claude Code's official docs list Ubuntu 20.04+, Debian 10+, and Alpine Linux 3.19+ as supported. If you use Alpine or another musl-based distro, read Anthropic's Linux install notes before continuing.
 
-## Make sure your runtime works
+## Next steps
 
-Before installing GPD, confirm that your runtime starts from Terminal:
-
-- Claude Code: `claude --version`
-- Codex: `codex --help`
-- Gemini CLI: `gemini --help`
-- OpenCode: `opencode --help`
-
-Then use the matching runtime guide:
-
-- [Claude Code quickstart](./claude-code.md)
-- [Codex quickstart](./codex.md)
-- [Gemini CLI quickstart](./gemini-cli.md)
-- [OpenCode quickstart](./opencode.md)
-
-## Install GPD
-
-Most beginners should install GPD into one runtime at a time and use `--local`.
-
-Here, `--local` means "install GPD for this project or folder only," so run the install command from inside the folder where you want this research project to live.
-
-The supported runtime flags, command prefixes, and aliases are listed in [docs/runtime-catalog-reference.md](./runtime-catalog-reference.md). Regenerate that file with `python scripts/render_runtime_catalog_table.py` whenever you change `src/gpd/adapters/runtime_catalog.json`.
-
-From inside your project folder, run the installer with the flag for your runtime:
-
-```bash
-npx -y get-physics-done --<flag> --local
-```
-
-Replace `<flag>` with the install flag documented in the runtime catalog reference (e.g., `--claude`, `--codex`, `--gemini`, `--opencode`). After the install finishes, follow the runtime quickstart linked above for next steps.
-
-## Confirm success
-
-1. In Terminal, run:
-
-```bash
-gpd --help
-```
-
-2. Open your runtime and run its GPD help command:
-
-- Claude Code or Gemini CLI: `/gpd:help`
-- Codex: `$gpd-help`
-- OpenCode: `/gpd-help`
-
-If that works, the install is in good shape. If you are not sure what fits this folder yet, use the runtime-specific `start` command below. If you want a guided overview first, use the runtime-specific `tour` command below.
-
-## Where to go next
-
-Use the exact command for your runtime:
-
-| What you want to do | Claude Code / Gemini CLI | Codex | OpenCode |
-|---------------------|--------------------------|-------|----------|
-| Not sure which path fits this folder | `/gpd:start` | `$gpd-start` | `/gpd-start` |
-| Want a guided overview | `/gpd:tour` | `$gpd-tour` | `/gpd-tour` |
-| Start a new project | `/gpd:new-project --minimal` | `$gpd-new-project --minimal` | `/gpd-new-project --minimal` |
-| Map an existing folder | `/gpd:map-research` | `$gpd-map-research` | `/gpd-map-research` |
-| Rediscover the workspace in your normal terminal | `gpd resume` | `gpd resume` | `gpd resume` |
-| Continue in the reopened runtime | `/gpd:resume-work` | `$gpd-resume-work` | `/gpd-resume-work` |
-
-Use `gpd resume` in your normal terminal first. Use `gpd resume --recent` when you need to jump to a different recent workspace before reopening the runtime. After the terminal points you to the right workspace, open your runtime there and use its `resume-work` command to continue inside the project.
+- Confirm the installer worked by running `gpd --help` in your normal terminal, then follow the runtime quickstart and the runtime command table in the Onboarding Hub "After the guides" section (start, tour, resume-work, etc.).
+- Use `gpd resume --recent` when you need to jump to a different recent workspace before reopening the runtime; the runtime command table on the Onboarding Hub shows the matching `resume-work` command.
 
 ## Official docs
 

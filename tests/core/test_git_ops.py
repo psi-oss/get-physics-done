@@ -10,6 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from gpd.cli import app
+from gpd.core.constants import ProjectLayout
 from gpd.core.git_ops import (
     CommitResult,
     PreCommitCheckResult,
@@ -546,8 +547,10 @@ class TestCommit:
             cmd_commit(tmp_path, "test: default staging")
             # Verify the git add was called with GPD/
             add_call = mock_git.call_args_list[0]
-            assert "GPD/" in add_call[0][1]
-            mock_precheck.assert_called_once_with(tmp_path, ["GPD/"])
+            layout = ProjectLayout(tmp_path)
+            expected = f"{layout.gpd.relative_to(tmp_path)}/"
+            assert expected in add_call[0][1]
+            mock_precheck.assert_called_once_with(tmp_path, [expected])
 
     def test_empty_files_defaults_to_planning_dir(self, tmp_path: Path) -> None:
         with (
@@ -566,8 +569,10 @@ class TestCommit:
             ]
             cmd_commit(tmp_path, "test: default staging", files=[])
             add_call = mock_git.call_args_list[0]
-            assert "GPD/" in add_call[0][1]
-            mock_precheck.assert_called_once_with(tmp_path, ["GPD/"])
+            layout = ProjectLayout(tmp_path)
+            expected = f"{layout.gpd.relative_to(tmp_path)}/"
+            assert expected in add_call[0][1]
+            mock_precheck.assert_called_once_with(tmp_path, [expected])
 
     def test_commit_blocks_when_pre_commit_check_fails(self, tmp_path: Path) -> None:
         pre_commit = PreCommitCheckResult(

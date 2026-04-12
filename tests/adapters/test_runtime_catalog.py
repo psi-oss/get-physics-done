@@ -24,6 +24,7 @@ from gpd.adapters.runtime_catalog import (
     list_runtime_names,
     normalize_runtime_name,
     resolve_global_config_dir,
+    resolve_global_config_dir_candidates,
 )
 from gpd.command_labels import runtime_public_command_prefixes, validated_public_command_prefix
 from scripts.validate_runtime_catalog_schema import validate_runtime_catalog_schema
@@ -227,6 +228,42 @@ def test_resolve_global_config_dir_xdg_app_prefers_provided_environ(monkeypatch)
     )
 
     assert resolved == Path(override) / "opencode"
+
+
+def test_resolve_global_config_dir_candidates_includes_env_and_home_locations() -> None:
+    home = Path("/tmp/home")
+    override = Path("/tmp/explicit-codex")
+
+    candidates = resolve_global_config_dir_candidates(
+        get_runtime_descriptor("codex"),
+        home=home,
+        environ={"CODEX_CONFIG_DIR": str(override)},
+    )
+
+    assert candidates == (override, home / ".codex")
+
+
+def test_resolve_global_config_dir_candidates_deduplicates_matching_locations() -> None:
+    home = Path("/tmp/home")
+    override = home / ".codex"
+
+    candidates = resolve_global_config_dir_candidates(
+        get_runtime_descriptor("codex"),
+        home=home,
+        environ={"CODEX_CONFIG_DIR": str(override)},
+    )
+
+    assert candidates == (override,)
+
+
+def test_resolve_global_config_dir_rejects_unknown_strategy() -> None:
+    descriptor = replace(
+        get_runtime_descriptor("codex"),
+        global_config=runtime_catalog.GlobalConfigPolicy(strategy="my-strategy"),
+    )
+
+    with pytest.raises(ValueError, match="Unsupported global config strategy: my-strategy"):
+        resolve_global_config_dir(descriptor, home=Path("/tmp/home"), environ={})
 
 
 def test_runtime_catalog_explicit_priority_order() -> None:

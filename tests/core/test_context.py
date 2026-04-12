@@ -3386,6 +3386,14 @@ class TestInitTodos:
         assert ctx["todos"][0]["title"] == "Check convergence"
         assert ctx["todos"][0]["area"] == "numerical"
         assert ctx["todos"][0]["created"] == "2026-03-01"
+        layout = ProjectLayout(tmp_path)
+        expected_path = (pending / "check-convergence.md").relative_to(tmp_path).as_posix()
+        assert ctx["todos"][0]["path"] == expected_path
+        assert ctx["pending_dir"] == (layout.todos_dir / "pending").relative_to(tmp_path).as_posix()
+        assert ctx["done_dir"] == (layout.todos_dir / "done").relative_to(tmp_path).as_posix()
+        assert ctx["planning_exists"] is True
+        assert ctx["todos_dir_exists"] is True
+        assert ctx["pending_dir_exists"] is True
 
     def test_body_metadata_like_lines_do_not_override_missing_header_fields(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)

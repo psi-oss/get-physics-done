@@ -17,20 +17,14 @@ from pydantic import ValidationError as PydanticValidationError
 
 from gpd.command_labels import canonical_command_label
 from gpd.core.constants import (
-    LITERATURE_DIR_NAME,
-    PHASES_DIR_NAME,
     PLAN_SUFFIX,
-    PLANNING_DIR_NAME,
-    PROJECT_FILENAME,
     RESEARCH_SUFFIX,
-    ROADMAP_FILENAME,
     STANDALONE_PLAN,
     STANDALONE_RESEARCH,
     STANDALONE_SUMMARY,
-    STATE_JSON_FILENAME,
     SUMMARY_SUFFIX,
-    TODOS_DIR_NAME,
     VERIFICATION_SUFFIX,
+    ProjectLayout,
 )
 from gpd.core.manuscript_artifacts import (
     locate_publication_artifact,
@@ -164,10 +158,6 @@ class _PhaseAnalysis:
 # ─── Internal Helpers ─────────────────────────────────────────────────────────
 
 
-def _planning_dir(cwd: Path) -> Path:
-    return cwd / PLANNING_DIR_NAME
-
-
 def _path_exists(cwd: Path, relative: str) -> bool:
     return (cwd / relative).exists()
 
@@ -252,7 +242,7 @@ def _format_command(action: str, *, cwd: Path | None = None) -> str:
 
 def _scan_phases(cwd: Path) -> list[_PhaseAnalysis]:
     """Scan all phase directories and return analysis of each."""
-    phases_dir = _planning_dir(cwd) / PHASES_DIR_NAME
+    phases_dir = ProjectLayout(cwd).phases_dir
     if not phases_dir.is_dir():
         return []
 
@@ -368,7 +358,7 @@ def _resolve_unverified_result_phase(
 
 def _count_pending_todos(cwd: Path) -> int:
     """Count .md files in GPD/todos/pending/."""
-    pending_dir = _planning_dir(cwd) / TODOS_DIR_NAME / "pending"
+    pending_dir = ProjectLayout(cwd).todos_dir / "pending"
     if not pending_dir.is_dir():
         return 0
     return sum(1 for f in pending_dir.iterdir() if f.is_file() and f.suffix == ".md")
@@ -376,21 +366,21 @@ def _count_pending_todos(cwd: Path) -> int:
 
 def _has_literature_review(cwd: Path) -> bool:
     """Check if any literature review files exist."""
-    lit_dir = _planning_dir(cwd) / LITERATURE_DIR_NAME
+    lit_dir = ProjectLayout(cwd).literature_dir
     if not lit_dir.is_dir():
         return False
     return any(f.name.endswith("-REVIEW.md") for f in lit_dir.iterdir() if f.is_file())
 
 
 def _has_author_response(cwd: Path) -> bool:
-    responses_dir = _planning_dir(cwd)
+    responses_dir = ProjectLayout(cwd).gpd
     if not responses_dir.is_dir():
         return False
     return any(path.is_file() for path in responses_dir.glob("AUTHOR-RESPONSE*.md"))
 
 
 def _latest_referee_decision_recommendation(cwd: Path) -> str | None:
-    review_dir = _planning_dir(cwd) / "review"
+    review_dir = ProjectLayout(cwd).review_dir
     if not review_dir.is_dir():
         return None
 
@@ -505,7 +495,7 @@ def _publication_review_package_allows_submission(cwd: Path, manuscript_entrypoi
     if manuscript_entrypoint is None or manuscript_entrypoint.suffix != ".tex":
         return False
 
-    review_dir = _planning_dir(cwd) / "review"
+    review_dir = ProjectLayout(cwd).review_dir
     if not review_dir.is_dir():
         return False
 
@@ -587,7 +577,7 @@ def _manuscript_submission_proof_review_is_fresh(
 def _has_referee_report(cwd: Path) -> bool:
     """Check for canonical referee report files in `GPD/` only."""
 
-    reports_dir = _planning_dir(cwd)
+    reports_dir = ProjectLayout(cwd).gpd
     if not reports_dir.is_dir():
         return False
     if _has_author_response(cwd) and _latest_referee_decision_recommendation(cwd) == "accept":
@@ -598,7 +588,7 @@ def _has_referee_report(cwd: Path) -> bool:
 def _has_adaptive_lock_signal(cwd: Path) -> bool:
     """Return whether project artifacts show decisive evidence or an explicit approach lock."""
 
-    phases_dir = _planning_dir(cwd) / PHASES_DIR_NAME
+    phases_dir = ProjectLayout(cwd).phases_dir
     if not phases_dir.is_dir():
         return False
 
@@ -691,9 +681,11 @@ def suggest_next(cwd: Path, *, limit: int = 5) -> SuggestResult:
     def format_command(action):
         return _format_command(action, cwd=cwd)
 
+    layout = ProjectLayout(cwd)
+
     # ── 0. Check project existence ──────────────────────────────────────
-    project_exists = _path_exists(cwd, f"{PLANNING_DIR_NAME}/{PROJECT_FILENAME}")
-    roadmap_exists = _path_exists(cwd, f"{PLANNING_DIR_NAME}/{ROADMAP_FILENAME}")
+    project_exists = layout.project_md.exists()
+    roadmap_exists = layout.roadmap.exists()
     manuscript_resolution = resolve_current_manuscript_resolution(cwd, allow_markdown=True)
     manuscript_entrypoint = manuscript_resolution.manuscript_entrypoint if manuscript_resolution.status == "resolved" else None
     manuscript_state_is_blocked = manuscript_resolution.status in {"ambiguous", "invalid"}
@@ -1050,6 +1042,7 @@ def _load_state_json_safe(cwd: Path) -> dict[str, object] | None:
 
     Tries ``gpd.core.state.load_state_json`` if available; falls back to direct read.
     """
+    layout = ProjectLayout(cwd)
     try:
         from gpd.core.state import load_state_json
 
@@ -1058,7 +1051,7 @@ def _load_state_json_safe(cwd: Path) -> dict[str, object] | None:
         logger.debug("suggest: state load failed", exc_info=True)
 
     # Fallback: direct JSON read
-    state_path = cwd / PLANNING_DIR_NAME / STATE_JSON_FILENAME
+    state_path = layout.state_json
     try:
         raw = state_path.read_text(encoding="utf-8")
         parsed = json.loads(raw)

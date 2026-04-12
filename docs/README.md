@@ -62,6 +62,33 @@ You will use two different places:
 - Your **normal terminal** is where you install GPD and check basic tools like Node and Python.
 - Your **runtime** is the AI app where you actually use GPD commands after install.
 
+Use the OS guide that matches your machine for terminal shortcuts and OS-specific tooling recommendations.
+
+## Preflight checks
+
+Run the same commands in your normal terminal before you install GPD or open a runtime:
+
+```bash
+node --version
+npm --version
+npx --version
+python3 --version
+python3 -m venv --help
+```
+
+You want Node `v20` or newer, Python `3.11` or newer, and `python3 -m venv --help` to print usage text (that confirms `venv` is installed).
+
+### Verify your runtime command
+
+Confirm your runtime starts from Terminal before installing GPD:
+
+- Claude Code: `claude --version`
+- Codex: `codex --help`
+- Gemini CLI: `gemini --help`
+- OpenCode: `opencode --help`
+
+If you get an error, fix it via the OS guide for your machine before proceeding.
+
 <details>
 <summary>Common beginner terms</summary>
 
@@ -160,3 +187,14 @@ Use this if you want GPD inside OpenCode. Inside the runtime, GPD commands use `
 3. Then choose `new-project`, `map-research`, or `resume-work`.
 4. After your first successful start or later, use the runtime-specific `settings` command to review autonomy, workflow defaults, and model-cost posture. If you only want to pin concrete `tier-1`, `tier-2`, and `tier-3` model ids, use the runtime-specific `set-tier-models` command instead.
 5. Come back to this hub only when you need a different OS guide or runtime guide.
+
+| What you want to do | Claude Code / Gemini CLI | Codex | OpenCode |
+|---------------------|--------------------------|-------|----------|
+| Not sure which path fits this folder | `/gpd:start` | `$gpd-start` | `/gpd-start` |
+| Want a guided overview | `/gpd:tour` | `$gpd-tour` | `/gpd-tour` |
+| Start a new project | `/gpd:new-project --minimal` | `$gpd-new-project --minimal` | `/gpd-new-project --minimal` |
+| Map an existing folder | `/gpd:map-research` | `$gpd-map-research` | `/gpd-map-research` |
+| Rediscover the workspace in your normal terminal | `gpd resume` | `gpd resume` | `gpd resume` |
+| Continue in the reopened runtime | `/gpd:resume-work` | `$gpd-resume-work` | `/gpd-resume-work` |
+
+Use `gpd resume` in your normal terminal first. Use `gpd resume --recent` when you need to jump to a different recent workspace before reopening the runtime. After the terminal points you to the right workspace, open your runtime there and use its `resume-work` command to continue inside the project.

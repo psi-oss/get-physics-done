@@ -4,47 +4,23 @@ GPD adds structured physics-research commands to Claude Code, Codex, Gemini CLI,
 
 In these docs, "runtime" means the AI terminal app you talk to.
 
-Back to the onboarding hub: [GPD Onboarding Hub](./README.md).
+Back to the onboarding hub: [GPD Onboarding Hub](./README.md). This page collects the shared preflight commands, runtime quickstarts, install flags, and follow-up commands; keep it handy for those general steps and return here for Windows-specific guidance.
 
 ## What you need first
 
-- Windows 10 or 11
-- Internet access
-- Permission to install software
-- Node.js 20 or newer
-- Python 3.11 or newer with `venv`
-- One supported runtime that already starts from Terminal:
-  Claude Code, Codex, Gemini CLI, or OpenCode
+- Windows 10 or 11 with internet access and permission to install software.
+- Node.js 20 or newer plus Python 3.11 or newer with `venv`; rerun the Onboarding Hub preflight commands after any install to confirm the versions match the requirements.
+- A supported runtime that already starts from Terminal: Claude Code, Codex, Gemini CLI, or OpenCode. Use the runtime command checks on the Onboarding Hub before installing GPD.
+
+Once the shared preflight checks succeed, continue with the Windows-specific sections below.
 
 ## Open a terminal
 
 Use one of these:
 
-- Open the Start menu, type `PowerShell`, then open **Windows PowerShell** or **Terminal**
-- Right-click the Start button and choose **Terminal**
-
-If you have a choice, use PowerShell.
-
-## Check Node and Python
-
-Run:
-
-```powershell
-node --version
-npm --version
-npx --version
-python --version
-py --version
-python -m venv --help
-```
-
-You want:
-
-- Node `20` or newer
-- Python `3.11` or newer
-- `python -m venv --help` to print help text instead of an error
-
-If `python` is not recognized, try `py`.
+- Open the Start menu, type `PowerShell`, then open **Windows PowerShell** or **Terminal**.
+- Right-click the Start button and choose **Terminal**.
+- If you have a choice, use PowerShell.
 
 ## Install or update missing tools
 
@@ -64,78 +40,24 @@ winget install OpenJS.NodeJS.LTS
 winget install Python.Python.3.11
 ```
 
-After installing either tool, close PowerShell, open a new one, and rerun the version checks.
+After installing either tool, close PowerShell, open a new one, and rerun the Onboarding Hub preflight commands.
 
 ## Windows-specific runtime notes
 
 - Claude Code on Windows requires Git for Windows or WSL. If you plan to use Claude Code, install Git for Windows first.
-- Codex support on Windows is still experimental. For the smoothest Codex experience on Windows, use WSL.
+- Codex support on Windows remains experimental; for the smoothest Codex experience, use WSL.
 - OpenCode's official docs also recommend WSL for the best Windows experience.
+- Install GPD with the runtime flag you plan to use (`npx -y get-physics-done --<flag> --local`) as described on the Onboarding Hub and in `docs/runtime-catalog-reference.md`.
+- Once the install succeeds, follow the runtime quickstart linked on the Onboarding Hub for your runtime.
 
-## Make sure your runtime works
+## Next steps
 
-Before installing GPD, confirm that your runtime starts from Terminal:
-
-- Claude Code: `claude --version`
-- Codex: `codex --help`
-- Gemini CLI: `gemini --help`
-- OpenCode: `opencode --help`
-
-Then use the matching runtime guide:
-
-- [Claude Code quickstart](./claude-code.md)
-- [Codex quickstart](./codex.md)
-- [Gemini CLI quickstart](./gemini-cli.md)
-- [OpenCode quickstart](./opencode.md)
-
-## Install GPD
-
-Most beginners should install GPD into one runtime at a time and use `--local`.
-
-The supported runtime flags, command prefixes, and aliases are listed in [docs/runtime-catalog-reference.md](./runtime-catalog-reference.md). Regenerate that file with `python scripts/render_runtime_catalog_table.py` whenever you change `src/gpd/adapters/runtime_catalog.json`.
-
-From inside your project folder, run the installer with the flag for your runtime:
-
-```bash
-npx -y get-physics-done --<flag> --local
-```
-
-Replace `<flag>` with the install flag documented in the runtime catalog reference (e.g., `--claude`, `--codex`, `--gemini`, `--opencode`). After the install finishes, follow the runtime quickstart linked above for next steps.
-
-## Confirm success
-
-1. In PowerShell, run:
-
-```powershell
-gpd --help
-```
-
-2. Open your runtime and run its GPD help command:
-
-- Claude Code or Gemini CLI: `/gpd:help`
-- Codex: `$gpd-help`
-- OpenCode: `/gpd-help`
-
-If that works, the install is in good shape. If you are not sure what fits this folder yet, use the runtime-specific `start` command below. If you want a guided overview first, use the runtime-specific `tour` command below.
-
-## Where to go next
-
-Use the exact command for your runtime:
-
-| What you want to do | Claude Code / Gemini CLI | Codex | OpenCode |
-|---------------------|--------------------------|-------|----------|
-| Not sure which path fits this folder | `/gpd:start` | `$gpd-start` | `/gpd-start` |
-| Want a guided overview | `/gpd:tour` | `$gpd-tour` | `/gpd-tour` |
-| Start a new project | `/gpd:new-project --minimal` | `$gpd-new-project --minimal` | `/gpd-new-project --minimal` |
-| Map an existing folder | `/gpd:map-research` | `$gpd-map-research` | `/gpd-map-research` |
-| Rediscover the workspace in your normal terminal | `gpd resume` | `gpd resume` | `gpd resume` |
-| Continue in the reopened runtime | `/gpd:resume-work` | `$gpd-resume-work` | `/gpd-resume-work` |
-
-Use `gpd resume` in your normal terminal first. Use `gpd resume --recent` when you need to jump to a different recent workspace before reopening the runtime. After the terminal points you to the right workspace, open your runtime there and use its `resume-work` command to continue inside the project.
+- Confirm the installer by running `gpd --help` in PowerShell, then run the runtime-specific commands listed in the Onboarding Hub's "After the guides" table (start, tour, resume-work, etc.).
+- Use `gpd resume --recent` only when the terminal points to a different recent workspace; open the runtime there and run the matching `resume-work` command from the table.
 
 ## Official docs
 
 - Microsoft: [Install Windows Terminal](https://learn.microsoft.com/windows/terminal/install)
 - Node.js: [Download Node.js](https://nodejs.org/en/download)
 - Python: [Python downloads](https://www.python.org/downloads/)
-- Git for Windows: [Download Git for Windows](https://git-scm.com/downloads/win)
+- Git for Windows: [Download Git for Windows](https://git-scm.com/downloads)

@@ -45,7 +45,6 @@ from gpd.core.constants import (
     STANDALONE_VALIDATION,
     STATE_JSON_BACKUP_FILENAME,
     STATE_MD_FILENAME,
-    TODOS_DIR_NAME,
     VALIDATION_SUFFIX,
     VERIFICATION_SUFFIX,
     ProjectLayout,
@@ -4022,7 +4021,8 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
     config = load_context_config_dict(cwd)
     now = datetime.now(UTC)
 
-    pending_dir = cwd / PLANNING_DIR_NAME / TODOS_DIR_NAME / "pending"
+    layout = ProjectLayout(cwd)
+    pending_dir = layout.todos_dir / "pending"
     todos: list[dict[str, str]] = []
 
     try:
@@ -4049,7 +4049,7 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
                     "created": created,
                     "title": title,
                     "area": todo_area,
-                    "path": f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/pending/{f.name}",
+                    "path": relative_posix_path(cwd, f),
                 }
             )
     except (FileNotFoundError, PermissionError):
@@ -4069,12 +4069,12 @@ def init_todos(cwd: Path, area: str | None = None) -> dict:
         "pending_todos": todos,
         "area_filter": area,
         # Paths
-        "pending_dir": f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/pending",
-        "done_dir": f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/done",
+        "pending_dir": relative_posix_path(cwd, pending_dir),
+        "done_dir": relative_posix_path(cwd, layout.todos_dir / "done"),
         # File existence
-        "planning_exists": _path_exists(cwd, PLANNING_DIR_NAME),
-        "todos_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}"),
-        "pending_dir_exists": _path_exists(cwd, f"{PLANNING_DIR_NAME}/{TODOS_DIR_NAME}/pending"),
+        "planning_exists": layout.gpd.exists(),
+        "todos_dir_exists": layout.todos_dir.exists(),
+        "pending_dir_exists": pending_dir.exists(),
         # Platform
         "platform": _detect_platform(cwd),
     }

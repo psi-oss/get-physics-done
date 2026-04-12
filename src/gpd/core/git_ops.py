@@ -17,7 +17,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from gpd.core.constants import PLANNING_DIR_NAME
+from gpd.core.constants import ProjectLayout
 from gpd.core.errors import ConfigError, ValidationError
 from gpd.core.observability import instrument_gpd_function
 from gpd.core.storage_paths import ProjectStorageLayout, StoragePathError
@@ -561,7 +561,9 @@ def cmd_commit(
     if files:
         files_to_stage = list(files)
     else:
-        files_to_stage = [f"{PLANNING_DIR_NAME}/"]
+        layout = ProjectLayout(cwd)
+        gpd_relative = layout.gpd.relative_to(cwd)
+        files_to_stage = [f"{gpd_relative}/"]
 
     try:
         from gpd.core.config import load_config

@@ -10,6 +10,10 @@ Read all files referenced by the invoking prompt's execution_context before star
 
 </required_reading>
 
+<hard_schema_visibility_guard>
+Before repairing or re-emitting any `project_contract`, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep its compact Hard-schema capsule visible; do not restate or fork the schema text here.
+</hard_schema_visibility_guard>
+
 <process>
 
 ## 1. Bootstrap and Load Context
