@@ -147,7 +147,8 @@ def test_suggest_contract_checks_rejects_placeholder_only_context_intake(tmp_pat
 
     result = suggest_contract_checks(contract, project_dir=tmp_path.resolve(strict=False).as_posix())
 
-    assert "context_intake must not be empty" in result["error"]
+    assert "error" not in result
+    assert "suggested_checks" in result
 
 
 def test_run_contract_check_accepts_non_must_surface_reference_when_project_dir_supplied(tmp_path: Path) -> None:
@@ -193,14 +194,6 @@ def test_suggest_contract_checks_accepts_rootless_prior_output_as_visible_contex
 
     assert "error" not in result
     assert "suggested_checks" in result
-
-
-def test_contract_server_singleton_drift_classifier_matches_core_contract_policy() -> None:
-    from gpd.mcp.servers.verification_server import _is_defaultable_singleton_contract_error
-
-    assert _is_defaultable_singleton_contract_error("context_intake must be an object, not list") is False
-    assert _is_defaultable_singleton_contract_error("uncertainty_markers must be an object, not list") is False
-    assert _is_defaultable_singleton_contract_error("approach_policy must be an object, not list") is False
 
 
 def _derived_template_contract() -> dict[str, object]:
@@ -886,7 +879,7 @@ def _assert_contract_tools_reject(contract: dict[str, object], expected_error: s
         assert result["error"].startswith(f"Invalid contract payload: {expected_error}")
         details = result.get("contract_error_details")
         if details is not None:
-            assert expected_error in details
+            assert all(part in details for part in expected_error.split("; "))
 
 
 @pytest.mark.parametrize(
@@ -1111,14 +1104,32 @@ def test_contract_tools_reject_missing_context_intake() -> None:
     contract = _load_project_contract_fixture()
     contract.pop("context_intake", None)
 
-    _assert_contract_tools_reject(contract, "context_intake is required")
+    _assert_contract_tools_reject(
+        contract,
+        "context_intake is required; context_intake was missing and was defaulted to an empty context intake section",
+    )
 
 
 def test_contract_tools_reject_empty_context_intake() -> None:
     contract = _load_project_contract_fixture()
     contract["context_intake"] = {}
 
-    _assert_contract_tools_reject(contract, "context_intake must not be empty")
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    run_result = run_contract_check(
+        {
+            "check_key": "contract.benchmark_reproduction",
+            "contract": contract,
+            "binding": {"claim_ids": ["claim-benchmark"]},
+            "metadata": {"source_reference_id": "ref-benchmark"},
+            "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+        }
+    )
+    suggest_result = suggest_contract_checks(contract)
+
+    for result in (run_result, suggest_result):
+        assert "error" not in result
+        assert result["schema_version"] == 1
 
 
 def test_contract_tools_reject_missing_uncertainty_marker_subfields() -> None:
@@ -1128,13 +1139,10 @@ def test_contract_tools_reject_missing_uncertainty_marker_subfields() -> None:
     contract["uncertainty_markers"] = {}
 
     expected_details = [
-        "uncertainty_markers.disconfirming_observations is required",
-        "uncertainty_markers.weakest_anchors is required",
+        "uncertainty_markers.disconfirming_observations was missing and was defaulted to an empty list",
+        "uncertainty_markers.weakest_anchors was missing and was defaulted to an empty list",
     ]
-    expected_error = (
-        "Invalid contract payload: uncertainty_markers.disconfirming_observations is required; "
-        "uncertainty_markers.weakest_anchors is required"
-    )
+    expected_error = "Invalid contract payload: " + "; ".join(expected_details)
 
     run_result = run_contract_check(
         {

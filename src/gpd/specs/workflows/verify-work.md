@@ -47,7 +47,6 @@ fi
 
 Parse the init JSON for the wrapper-facing fields only: `planner_model`, `checker_model`, `verifier_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`, `phase_proof_review_status`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `project_contract_gate`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`.
 
-Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth.
 After parsing init, preserve these contract-critical fields as the wrapper's floor for every delegation and repair route: `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `contract_intake`, and `effective_reference_intake`. Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth. Do not skip contract-critical anchors.
 
 **Project Contract Gate:** {project_contract_gate}

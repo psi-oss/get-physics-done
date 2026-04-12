@@ -18,6 +18,8 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from gpd.adapters import iter_adapters
 from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
 from gpd.command_labels import runtime_public_command_prefixes
@@ -235,15 +237,21 @@ _SHARED_GENERIC_PROVIDER_MODEL_LITERAL_PATTERN = re.compile(
 
 
 def _git_grep(pattern: str) -> list[tuple[Path, int, str]]:
-    result = subprocess.run(
-        ["git", "grep", "-n", "-I", "-E", pattern],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "grep", "-n", "-I", "-E", pattern],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        pytest.skip("git is not available; skipping runtime abstraction git-grep checks")
     if result.returncode not in (0, 1):
-        raise AssertionError(result.stderr or result.stdout)
+        stderr = (result.stderr or result.stdout).strip()
+        if result.returncode == 128 or "not a git repository" in stderr.lower():
+            pytest.skip("git repository metadata is unavailable; skipping runtime abstraction git-grep checks")
+        raise AssertionError(stderr or "git grep failed")
 
     matches: list[tuple[Path, int, str]] = []
     for line in result.stdout.splitlines():

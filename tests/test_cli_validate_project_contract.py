@@ -85,9 +85,10 @@ def test_validate_project_contract_command_stdin_prefers_project_root_warnings_i
             catch_exceptions=False,
         )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     payload = json.loads(result.output)
-    assert payload["valid"] is True
+    assert payload["valid"] is False
+    assert any("project-local artifact" in error for error in payload["errors"])
     assert any("project-local artifact" in warning for warning in payload["warnings"])
     assert all("not an explicit project artifact path" not in warning for warning in payload["warnings"])
 
@@ -153,12 +154,12 @@ def test_validate_project_contract_command_warns_when_user_guidance_is_missing(t
 
     result = runner.invoke(app, ["--raw", "validate", "project-contract", str(contract_path)], catch_exceptions=False)
 
-    assert result.exit_code == 1, result.output
+    assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["valid"] is False
+    assert payload["valid"] is True
     assert payload["guidance_signal_count"] == 0
     assert payload["reference_count"] > 0
-    assert "context_intake must not be empty" in payload["errors"]
+    assert payload["errors"] == []
 
 
 def test_validate_project_contract_command_blocks_missing_skeptical_fields(tmp_path: Path) -> None:

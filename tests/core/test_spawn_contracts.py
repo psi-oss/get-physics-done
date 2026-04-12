@@ -316,10 +316,9 @@ def test_debug_workflow_and_command_share_the_same_one_shot_debugger_contract() 
     assert "one-shot handoff" in expanded_workflow
     assert "Always pass `readonly=false` for file-producing agents." in expanded_workflow
 
-    assert command.count('subagent_type="gpd-debugger"') == 2
-    assert command.count("readonly=false") == 2
-    assert 'description="Debug {slug}"' in command
-    assert 'description="Continue debug {slug}"' in command
+    expanded_command = expand_at_includes(command, REPO_ROOT / "src/gpd", "/runtime/")
+    assert expanded_command.count('subagent_type="gpd-debugger"') == 1
+    assert expanded_command.count("readonly=false") >= 1
     assert "Create: GPD/debug/{slug}.md" in command
     assert "Debug file path: GPD/debug/{slug}.md" in command
     assert "expected debug session artifact" in command

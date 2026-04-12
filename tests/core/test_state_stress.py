@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import threading
-import time
+from contextlib import contextmanager
+from itertools import count
 from pathlib import Path
 
 from gpd.core import state as state_module
@@ -145,9 +146,23 @@ class TestConcurrentAccess:
         """A second state writer should wait through a slow in-flight write instead of timing out."""
         cwd = _bootstrap_project(tmp_path)
         original_save_locked = state_module.save_state_json_locked
+        original_state_lock = state_module._state_lock
         first_writer_entered = threading.Event()
         release_first_writer = threading.Event()
+        second_lock_attempted = threading.Event()
+        second_lock_acquired = threading.Event()
+        lock_counter = count()
         errors: list[str] = []
+
+        @contextmanager
+        def instrumented_state_lock(cwd_arg: Path, timeout: float = state_module._STATE_LOCK_TIMEOUT_SECONDS):
+            attempt = next(lock_counter)
+            if attempt == 1:
+                second_lock_attempted.set()
+            with original_state_lock(cwd_arg, timeout=timeout):
+                if attempt == 1:
+                    second_lock_acquired.set()
+                yield
 
         def slow_save_locked(
             cwd_arg: Path,
@@ -176,16 +191,17 @@ class TestConcurrentAccess:
                 errors.append(f"Phase {phase}: {exc}")
 
         monkeypatch.setattr(state_module, "save_state_json_locked", slow_save_locked)
+        monkeypatch.setattr(state_module, "_state_lock", instrumented_state_lock)
 
         first = threading.Thread(target=_writer, args=("01",))
         second = threading.Thread(target=_writer, args=("02",))
         first.start()
         assert first_writer_entered.wait(timeout=2), "first writer never acquired the state lock"
         second.start()
-        # We only need a short overlap window to prove the second writer blocks
-        # behind the lock instead of timing out.
-        time.sleep(0.25)
+        assert second_lock_attempted.wait(timeout=2), "second writer never attempted the state lock"
+        assert not second_lock_acquired.is_set(), "second writer should block on the state lock"
         release_first_writer.set()
+        assert second_lock_acquired.wait(timeout=5), "second writer never acquired the state lock"
         first.join(timeout=10)
         second.join(timeout=10)
 

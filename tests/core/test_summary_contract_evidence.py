@@ -272,7 +272,7 @@ def test_summary_extract_rejects_unresolved_plan_contract_ref(tmp_path: Path) ->
     summary_path = tmp_path / "01-SUMMARY.md"
     summary_path.write_text((FIXTURES_DIR / "summary_with_contract_results.md").read_text(encoding="utf-8"), encoding="utf-8")
 
-    with pytest.raises(ValidationError, match="could not resolve matching plan contract"):
+    with pytest.raises(ValidationError, match="referenced PLAN does not exist"):
         cmd_summary_extract(tmp_path, "01-SUMMARY.md")
 
 

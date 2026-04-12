@@ -13,6 +13,7 @@ entrypoint can:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -38,6 +39,7 @@ from gpd.core.cli_args import (
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
 from gpd.core.small_utils import paths_equal as _paths_equal
 from gpd.hooks.install_metadata import (
+    MANIFEST_NAME,
     config_dir_has_local_install_manifest,
     config_dir_has_managed_install_markers,
     load_install_manifest_runtime_status,
@@ -130,6 +132,14 @@ def _is_matching_local_install_candidate(candidate: Path, *, runtime: str) -> bo
 
     if not config_dir_has_local_install_manifest(candidate, runtime):
         return False
+
+    manifest_path = candidate / MANIFEST_NAME
+    try:
+        manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        manifest_payload = {}
+    if manifest_payload.get("install_target_dir") == str(candidate) and manifest_payload.get("explicit_target") is False:
+        return True
 
     adapter = get_adapter(runtime)
     global_config_dirs = resolve_global_config_dir_candidates(adapter.runtime_descriptor, home=Path.home())

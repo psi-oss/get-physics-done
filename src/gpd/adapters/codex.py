@@ -55,6 +55,7 @@ from gpd.adapters.install_utils import (
 )
 from gpd.adapters.runtime_catalog import (
     RuntimeDescriptor,
+    get_runtime_descriptor_for_adapter_module,
 )
 from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor as _get_runtime_descriptor,
@@ -137,7 +138,8 @@ def _read_codex_runtime_config(config_path: Path) -> tuple[dict[str, object] | N
 
 def _codex_runtime_descriptor() -> RuntimeDescriptor:
     """Return the runtime descriptor owned by this adapter."""
-    return get_runtime_descriptor("codex")
+    descriptor = get_runtime_descriptor_for_adapter_module(__name__)
+    return get_runtime_descriptor(descriptor.runtime_name)
 
 
 def _codex_config_dir_name() -> str:
@@ -315,11 +317,13 @@ def _load_manifest_tracked_codex_skill_dirs(target_dir: Path) -> tuple[str, ...]
     if not isinstance(files, dict):
         return ()
 
+    prefixes = _codex_runtime_descriptor().manifest_file_prefixes or ("skills/",)
+
     names: list[str] = []
     for relpath in files:
-        if not isinstance(relpath, str):
+        if not isinstance(relpath, str) or not relpath.endswith("/SKILL.md"):
             continue
-        if not relpath.startswith("skills/") or not relpath.endswith("/SKILL.md"):
+        if not any(relpath.startswith(prefix) for prefix in prefixes):
             continue
         parts = relpath.split("/")
         if len(parts) != 3:

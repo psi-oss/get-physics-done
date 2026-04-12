@@ -253,6 +253,16 @@ def test_phase_prompt_pre_contract_avoids_relisting_full_contract_enums() -> Non
         assert fragment not in pre_contract_text
 
 
+def test_review_agents_reference_return_envelope_schema() -> None:
+    repo_root = Path(__file__).resolve().parent.parent
+    agents_dir = repo_root / "src" / "gpd" / "agents"
+
+    for agent in ("gpd-review-physics.md", "gpd-review-math.md"):
+        text = (agents_dir / agent).read_text(encoding="utf-8")
+        assert "@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md" in text
+        assert "gpd_return" in text
+
+
 def test_planner_subagent_excerpt_surfaces_link_relation_and_action_vocab() -> None:
     subagent_prompt = (_TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
 

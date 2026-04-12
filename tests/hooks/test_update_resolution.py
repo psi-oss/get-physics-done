@@ -89,7 +89,7 @@ def test_ordered_update_cache_candidates_prefers_preferred_runtime_then_fallback
             preferred_runtime="codex",
         )
 
-    assert candidates == [preferred_candidate, fallback_candidate]
+    assert candidates == [preferred_candidate, fallback_candidate, unrelated_candidate]
 
 
 def test_ordered_update_cache_candidates_treats_explicit_unknown_runtime_as_no_active_runtime(
@@ -116,7 +116,7 @@ def test_ordered_update_cache_candidates_treats_explicit_unknown_runtime_as_no_a
             preferred_runtime="codex",
         )
 
-    assert candidates == [preferred_candidate, fallback_candidate]
+    assert candidates == [preferred_candidate, fallback_candidate, unrelated_candidate]
 
 
 def test_ordered_update_cache_candidates_falls_back_to_other_runtime_when_preferred_cache_is_absent(

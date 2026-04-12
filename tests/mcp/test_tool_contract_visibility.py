@@ -391,6 +391,7 @@ def _assert_contract_schema_sections_closed(contract_schema: dict[str, object]) 
     scope = _schema_object(contract_schema, contract_schema["properties"]["scope"])
     _assert_closed_object(scope, label="contract.scope")
     assert scope["required"] == ["question"]
+    assert "scope.in_scope" in scope.get("description", "")
     question_schema = _schema_anyof_string(scope["properties"]["question"])
     assert question_schema["type"] == "string"
     for field_name in ("in_scope", "out_of_scope", "unresolved_questions"):

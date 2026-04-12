@@ -420,9 +420,16 @@ def _unique_update_cache_candidates(candidates: list[UpdateCacheCandidate]) -> l
     """Return update-cache candidates in order with duplicate paths removed."""
     unique: list[UpdateCacheCandidate] = []
     for candidate in candidates:
-        if any(_paths_equal(candidate.path, existing.path) for existing in unique):
-            continue
-        unique.append(candidate)
+        for index, existing in enumerate(unique):
+            if not _paths_equal(candidate.path, existing.path):
+                continue
+            runtime = existing.runtime if existing.runtime is not None else candidate.runtime
+            scope = existing.scope if existing.scope is not None else candidate.scope
+            if runtime != existing.runtime or scope != existing.scope:
+                unique[index] = UpdateCacheCandidate(existing.path, runtime=runtime, scope=scope)
+            break
+        else:
+            unique.append(candidate)
     return unique
 
 
@@ -430,9 +437,16 @@ def _unique_todo_candidates(candidates: list[TodoCandidate]) -> list[TodoCandida
     """Return todo candidates in order with duplicate paths removed."""
     unique: list[TodoCandidate] = []
     for candidate in candidates:
-        if any(_paths_equal(candidate.path, existing.path) for existing in unique):
-            continue
-        unique.append(candidate)
+        for index, existing in enumerate(unique):
+            if not _paths_equal(candidate.path, existing.path):
+                continue
+            runtime = existing.runtime if existing.runtime is not None else candidate.runtime
+            scope = existing.scope if existing.scope is not None else candidate.scope
+            if runtime != existing.runtime or scope != existing.scope:
+                unique[index] = TodoCandidate(existing.path, runtime=runtime, scope=scope)
+            break
+        else:
+            unique.append(candidate)
     return unique
 
 

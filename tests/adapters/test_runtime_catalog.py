@@ -457,6 +457,8 @@ def test_normalize_runtime_name_is_centralized_in_runtime_catalog() -> None:
     assert normalize_runtime_name("--gemini-cli") == "gemini"
     assert normalize_runtime_name("--codex") == "codex"
     assert normalize_runtime_name("--opencode") == "opencode"
+    assert normalize_runtime_name("codex-cli") == "codex"
+    assert normalize_runtime_name("gemini-cli") == "gemini"
     assert normalize_runtime_name("not-a-runtime") is None
 
 
@@ -484,6 +486,8 @@ def test_normalize_runtime_name_accepts_adapter_module_and_hyphen_variants() -> 
 
     assert normalize_runtime_name(descriptor.adapter_module) == "claude-code"
     assert normalize_runtime_name("claude_code") == "claude-code"
+    assert normalize_runtime_name("gpd.adapters.claude_code") == "claude-code"
+    assert normalize_runtime_name("gpd.adapters.claude-code") == "claude-code"
     assert normalize_runtime_name("--gemini_cli") == "gemini"
 
 

@@ -4,6 +4,8 @@ canonical delegation contract for spawned GPD agents. Workflows should reference
 
 ## Delegation Invariants
 
+Delegation Contract
+
 1. **One-shot handoff:** A spawned subagent runs once. If it needs human input, it returns `status: checkpoint` and stops.
 2. **Artifact gate:** Reported success is provisional until every `expected_artifacts` entry is verified on disk.
 3. **Fresh continuation ownership:** The orchestrator presents the checkpoint, must not wait for the user inside the same handoff, and must spawn a fresh continuation handoff when needed.
@@ -44,6 +46,7 @@ task(
 3. **Blocking completion semantics:** Treat checkpoints and missing artifacts as blocking until resolved.
 4. **Write-scope isolation:** Assign disjoint write scopes to parallel agents.
 5. **Write access:** Always pass `readonly=false` for file-producing agents.
+   Always set `readonly=false` for file-producing agents.
 6. **Model semantics:** If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model.
 7. **Agent instructions path:** `{GPD_AGENTS_DIR}/gpd-{agent}.md` (resolved by installer per runtime)
 8. **gpd CLI surface:** author plain `gpd ...` in source prompts. The installer rewrites shell calls to the runtime-managed GPD CLI bridge during install; source prompts must stay runtime-agnostic.

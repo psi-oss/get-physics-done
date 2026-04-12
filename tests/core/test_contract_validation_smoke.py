@@ -104,8 +104,8 @@ def test_validate_project_contract_smoke_rejects_rootless_project_local_must_sur
 @pytest.mark.parametrize(
     ("field_name", "expected_error"),
     [
-        ("context_intake", "context_intake is required"),
-        ("uncertainty_markers", "uncertainty_markers is required"),
+        ("context_intake", "context_intake was missing and was defaulted to an empty context intake section"),
+        ("uncertainty_markers", "uncertainty_markers was missing and was defaulted to empty uncertainty markers"),
     ],
 )
 def test_validate_project_contract_smoke_rejects_missing_required_sections(

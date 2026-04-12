@@ -947,6 +947,17 @@ def _alias_variants(value: str | None) -> set[str]:
     return variants
 
 
+def _selection_flag_variants(flag: str) -> set[str]:
+    variants = _alias_variants(flag)
+    if flag.startswith("--"):
+        variants.update(_alias_variants(flag.removeprefix("--")))
+    return variants
+
+
+def _adapter_module_variants(adapter_module: str) -> tuple[str, ...]:
+    return (adapter_module, f"gpd.adapters.{adapter_module}")
+
+
 def _validate_runtime_descriptor_selection_tokens(
     *,
     install_flag: str,
@@ -982,16 +993,16 @@ def normalize_runtime_name(value: str | None) -> str | None:
         return None
 
     for descriptor in iter_runtime_descriptors():
-        candidates = (
+        for alias in (
             descriptor.runtime_name,
             descriptor.display_name,
-            descriptor.install_flag,
-            descriptor.adapter_module,
-            *descriptor.selection_flags,
             *descriptor.selection_aliases,
-        )
-        for alias in candidates:
+            *_adapter_module_variants(descriptor.adapter_module),
+        ):
             if normalized in _alias_variants(alias):
+                return descriptor.runtime_name
+        for flag in (descriptor.install_flag, *descriptor.selection_flags):
+            if normalized in _selection_flag_variants(flag):
                 return descriptor.runtime_name
     return None
 

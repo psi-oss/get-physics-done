@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.hooks.install_context import detect_self_owned_install
 from gpd.hooks.install_metadata import (

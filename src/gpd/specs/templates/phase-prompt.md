@@ -19,7 +19,7 @@ Quick contract rules:
 - `references[].required_actions` uses `read | use | compare | cite | avoid`.
 - `context_intake`, `approach_policy`, and `uncertainty_markers` must stay YAML objects.
 - Validator tool vocabulary is closed: `wolfram` and `command`. For `tool: command`, a non-empty `command` field is mandatory; for other tools, omit `command`.
-- For proof-bearing work, use an explicit non-`other` `claim_kind`, keep hypotheses, parameters, and conclusions auditable, and name `observables[].kind: proof_obligation` items with the theorem or claim plus the hypotheses or parameter regime they cover. Treat any proof audit as stale if the claim text changes.
+- For proof-bearing work, use an explicit non-`other` `claim_kind`, keep hypotheses, parameters, and conclusions auditable, and name `observables[].kind: proof_obligation` items with the theorem or claim plus the hypotheses or parameter regime they cover.
 - If a proof or theorem statement changes after a proof audit, treat that audit as stale before `status: passed` is possible for the affected target.
 
 ---

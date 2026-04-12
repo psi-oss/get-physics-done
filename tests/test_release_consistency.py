@@ -67,9 +67,22 @@ def _python_release_version(repo_root: Path) -> str:
     return pyproject_version
 
 
-def _npm_pack_dry_run(repo_root: Path, work_dir: Path) -> dict[str, object]:
+def _npm_or_skip() -> str:
     npm = shutil.which("npm")
-    assert npm is not None, "npm is required for npm pack validation"
+    if npm is None:
+        pytest.skip("npm is not available")
+    return npm
+
+
+def _git_or_skip() -> str:
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("git is not available")
+    return git
+
+
+def _npm_pack_dry_run(repo_root: Path, work_dir: Path) -> dict[str, object]:
+    npm = _npm_or_skip()
 
     cache_dir = work_dir / "npm-cache"
     env = os.environ.copy()
@@ -587,6 +600,7 @@ def test_block_gpd_commit_hook_script_exists_and_is_executable() -> None:
 @pytest.mark.skipif(os.name == "nt", reason="requires bash")
 def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     """Integration: the hook script strips GPD/ files from the index."""
+    _git_or_skip()
     repo_root = _repo_root()
     hook_script = repo_root / "scripts" / "block-gpd-commit.sh"
 
@@ -638,8 +652,7 @@ def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
 
 def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
     repo_root = _repo_root()
-    if shutil.which("npm") is None:
-        pytest.skip("npm is not available")
+    _npm_or_skip()
 
     repo_cache = repo_root / ".npm-cache"
     existed_before = repo_cache.exists()

@@ -12,6 +12,7 @@ REPO_PYTHON = (
     if os.name == "nt"
     else REPO_ROOT / ".venv" / "bin" / "python"
 )
+SUBPROCESS_ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")}
 
 
 def _repo_python_command() -> list[str]:
@@ -65,6 +66,7 @@ def test_registry_import_remains_stable_after_adapter_package_import() -> None:
             "import gpd.adapters.base\nfrom gpd import registry\nprint('GPD_IMPORT_STABILITY_SENTINEL=' + str(hasattr(registry, 'render_command_visibility_sections_from_frontmatter')))",
         ],
         cwd=REPO_ROOT,
+        env=SUBPROCESS_ENV,
         capture_output=True,
         text=True,
         check=False,
@@ -83,6 +85,7 @@ def test_knowledge_docs_review_hash_api_does_not_depend_on_frontmatter_import_or
             "print('GPD_KNOWLEDGE_HASH_API_SENTINEL=' + str(callable(compute_knowledge_reviewed_content_sha256) and callable(knowledge_reviewed_content_projection)))",
         ],
         cwd=REPO_ROOT,
+        env=SUBPROCESS_ENV,
         capture_output=True,
         text=True,
         check=False,

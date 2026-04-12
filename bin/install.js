@@ -181,6 +181,29 @@ const PUBLIC_SURFACE_LOCAL_CLI_NAMED_COMMAND_KEYS = [...PUBLIC_SURFACE_CONTRACT_
 const PUBLIC_SURFACE_LOCAL_CLI_COMMANDS = [...PUBLIC_SURFACE_CONTRACT_SHAPE.localCliBridgeCommands];
 const RUNTIME_CONFIG_SURFACE_LABEL_RE = /^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$/;
 
+function selectionTokenVariants(value) {
+  if (typeof value !== "string") {
+    return [];
+  }
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return [];
+  }
+  const variants = new Set([normalized]);
+  if (normalized.startsWith("--")) {
+    const withoutPrefix = normalized.slice(2);
+    variants.add(`--${withoutPrefix.replace(/_/g, "-")}`);
+    variants.add(`--${withoutPrefix.replace(/-/g, "_")}`);
+  }
+  if (normalized.includes("-")) {
+    variants.add(normalized.replace(/-/g, "_"));
+  }
+  if (normalized.includes("_")) {
+    variants.add(normalized.replace(/_/g, "-"));
+  }
+  return [...variants];
+}
+
 function formatQuotedDisjunction(values) {
   const normalized = [...values].sort();
   if (normalized.length === 0) {
@@ -753,14 +776,15 @@ function validateRuntimeCatalog(catalogPayload) {
       entry.install_flag.replace(/^--/, ""),
     ]);
     for (const token of tokens) {
-      const normalizedToken = token.toLowerCase();
-      const existingRuntime = selectionTokens.get(normalizedToken);
-      if (existingRuntime && existingRuntime !== entry.runtime_name) {
-        throw new Error(
-          `runtime catalog contains duplicate runtime selection token ${JSON.stringify(token)} for ${JSON.stringify(existingRuntime)} and ${JSON.stringify(entry.runtime_name)}`
-        );
+      for (const normalizedToken of selectionTokenVariants(token)) {
+        const existingRuntime = selectionTokens.get(normalizedToken);
+        if (existingRuntime && existingRuntime !== entry.runtime_name) {
+          throw new Error(
+            `runtime catalog contains duplicate runtime selection token ${JSON.stringify(normalizedToken)} for ${JSON.stringify(existingRuntime)} and ${JSON.stringify(entry.runtime_name)}`
+          );
+        }
+        selectionTokens.set(normalizedToken, entry.runtime_name);
       }
-      selectionTokens.set(normalizedToken, entry.runtime_name);
     }
   }
 

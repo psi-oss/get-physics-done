@@ -23,6 +23,7 @@ This stage is where mathematically respectable but physically weak papers should
 - `@{GPD_INSTALL_DIR}/references/physics-subfields.md`
 - `@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md`
 - `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md`
+- `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` -- canonical `gpd_return` envelope schema
 </references>
 
 <process>
@@ -38,6 +39,7 @@ This stage is where mathematically respectable but physically weak papers should
 
 <artifact_format>
 Use `@{GPD_INSTALL_DIR}/references/publication/peer-review-panel.md` as the shared source of truth for the full `StageReviewReport` contract. Do not restate that schema here.
+Before output, load `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` and follow the canonical `gpd_return` envelope schema when reporting `files_written`.
 
 Physics-specific deltas:
 

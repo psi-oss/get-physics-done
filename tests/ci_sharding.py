@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import subprocess
 import warnings
@@ -196,12 +198,93 @@ def _pytest_collect_command(repo_root: Path) -> tuple[str, ...]:
     return (str(venv_python), "-m", "pytest") if venv_python.exists() else ("uv", "run", "pytest")
 
 
+def _inventory_cache_path(repo_root: Path) -> Path:
+    return repo_root / "tmp" / "pytest-collect-inventory.json"
+
+
+def _latest_tests_mtime(repo_root: Path) -> float:
+    tests_root = repo_root / "tests"
+    latest = 0.0
+    for path in tests_root.rglob("*.py"):
+        latest = max(latest, path.stat().st_mtime)
+    pyproject = repo_root / "pyproject.toml"
+    if pyproject.exists():
+        latest = max(latest, pyproject.stat().st_mtime)
+    return latest
+
+
+def _tests_inventory_fingerprint(repo_root: Path) -> str:
+    tests_root = repo_root / "tests"
+    digest = hashlib.sha256()
+    for path in sorted(tests_root.rglob("*.py")):
+        stat = path.stat()
+        digest.update(path.relative_to(repo_root).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(str(stat.st_mtime_ns).encode("ascii"))
+        digest.update(b"\0")
+        digest.update(str(stat.st_size).encode("ascii"))
+        digest.update(b"\0")
+    pyproject = repo_root / "pyproject.toml"
+    if pyproject.exists():
+        stat = pyproject.stat()
+        digest.update(pyproject.relative_to(repo_root).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(str(stat.st_mtime_ns).encode("ascii"))
+        digest.update(b"\0")
+        digest.update(str(stat.st_size).encode("ascii"))
+    return digest.hexdigest()
+
+
+def _load_cached_inventory(repo_root: Path) -> tuple[tuple[str, tuple[str, ...]], ...] | None:
+    cache_path = _inventory_cache_path(repo_root)
+    if not cache_path.exists():
+        return None
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
+        return None
+    stored_mtime = payload.get("tests_mtime")
+    stored_fingerprint = payload.get("tests_fingerprint")
+    inventory = payload.get("inventory")
+    if not isinstance(stored_mtime, (int, float)) or not isinstance(inventory, dict):
+        return None
+    if not isinstance(stored_fingerprint, str) or stored_fingerprint != _tests_inventory_fingerprint(repo_root):
+        return None
+    if _latest_tests_mtime(repo_root) > float(stored_mtime):
+        return None
+    normalized: list[tuple[str, tuple[str, ...]]] = []
+    for rel_path, nodeids in inventory.items():
+        if not isinstance(rel_path, str) or not isinstance(nodeids, list):
+            return None
+        if not all(isinstance(nodeid, str) for nodeid in nodeids):
+            return None
+        normalized.append((rel_path, tuple(nodeids)))
+    return tuple((rel_path, nodeids) for rel_path, nodeids in sorted(normalized))
+
+
+def _write_cached_inventory(repo_root: Path, inventory: dict[str, list[str]]) -> None:
+    cache_path = _inventory_cache_path(repo_root)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "tests_mtime": _latest_tests_mtime(repo_root),
+        "tests_fingerprint": _tests_inventory_fingerprint(repo_root),
+        "inventory": inventory,
+    }
+    cache_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 @cache
 def _collected_test_inventory_items(
     repo_root: Path,
     pytest_command: tuple[str, ...] | None = None,
 ) -> tuple[tuple[str, tuple[str, ...]], ...]:
     pytest_command = pytest_command or _pytest_collect_command(repo_root)
+    cached = _load_cached_inventory(repo_root)
+    if cached is not None:
+        return cached
     proc = subprocess.run(
         [
             *pytest_command,
@@ -226,6 +309,7 @@ def _collected_test_inventory_items(
         if path_text.startswith("tests/"):
             path_text = path_text[len("tests/") :]
         inventory.setdefault(path_text, []).append(line)
+    _write_cached_inventory(repo_root, inventory)
     return tuple((rel_path, tuple(nodeids)) for rel_path, nodeids in sorted(inventory.items()))
 
 

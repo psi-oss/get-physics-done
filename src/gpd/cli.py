@@ -7721,7 +7721,6 @@ def validate_paper_quality(
     from gpd.core.paper_quality import PaperQualityInput, score_paper_quality
     from gpd.core.paper_quality_artifacts import (
         build_paper_quality_input,
-        reject_legacy_paper_config_location,
     )
 
     if from_project:
@@ -8206,6 +8205,7 @@ def paper_build(
 ) -> None:
     """Build a paper from the canonical mcp.paper JSON config surface."""
 
+    from gpd.core.paper_quality_artifacts import reject_legacy_paper_config_location
     from gpd.core.storage_paths import DurableOutputKind, ProjectStorageLayout
     from gpd.mcp.paper.compiler import build_paper
     from gpd.mcp.paper.models import derive_output_filename

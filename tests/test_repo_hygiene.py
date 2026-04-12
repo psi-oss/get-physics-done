@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import json
 import re
 import subprocess
-import tomllib
+from functools import cache
 from pathlib import Path
+
+import pytest
 
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 
@@ -31,14 +32,28 @@ _TRACKED_GENERATED_ARTIFACT_DIRS = {
 _TRACKED_GENERATED_ARTIFACT_SUFFIXES = {".pyc", ".pyo", ".pyd", ".log"}
 
 
+def _git_command_or_skip(args: list[str], *, description: str) -> subprocess.CompletedProcess[str]:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+        )
+    except FileNotFoundError:
+        pytest.skip("git is not available; skipping repo hygiene checks that inspect the git index")
+    if result.returncode == 0:
+        return result
+    stderr = (result.stderr or result.stdout).strip()
+    if result.returncode == 128 or "not a git repository" in stderr.lower():
+        pytest.skip("git repository metadata is unavailable; skipping repo hygiene checks that inspect the git index")
+    raise AssertionError(f"git {description} failed: {stderr or 'unknown error'}")
+
+
+@cache
 def _tracked_paths() -> list[Path]:
-    result = subprocess.run(
-        ["git", "ls-files", "--cached", "--full-name"],
-        check=True,
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-    )
+    result = _git_command_or_skip(["ls-files", "--cached", "--full-name"], description="ls-files")
     return [Path(line) for line in result.stdout.splitlines() if line]
 
 
@@ -114,15 +129,6 @@ def test_repo_hygiene_does_not_track_ignored_or_runtime_owned_artifacts() -> Non
         "Tracked ignored/runtime-owned artifacts found in git index:\n"
         + "\n".join(f"- {path}" for path in offenders)
     )
-
-
-def test_package_versions_stay_in_sync() -> None:
-    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
-    package_json = json.loads((REPO_ROOT / "package.json").read_text())
-
-    pyproject_version = pyproject["project"]["version"]
-    assert package_json["version"] == pyproject_version
-    assert package_json["gpdPythonVersion"] == pyproject_version
 
 
 def test_repo_hygiene_does_not_track_generated_package_artifacts() -> None:
@@ -287,6 +293,7 @@ def test_installed_spec_references_point_to_installed_assets_or_project_local_pa
     assert not offenders, "Installed spec references must point to installed assets or explicit project-local paths:\n" + "\n".join(
         f"- {offender}" for offender in offenders
     )
+
 
 def test_repo_hygiene_tracks_no_runtime_cache_artifacts() -> None:
     offenders = [

@@ -1084,7 +1084,7 @@ def test_validate_frontmatter_summary_with_source_path_reports_unresolved_plan_c
     result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
 
     assert result.valid is False
-    assert "plan_contract_ref: could not resolve matching plan contract" in result.errors
+    assert any(error.startswith("plan_contract_ref: referenced PLAN does not exist") for error in result.errors)
 
 
 def test_validate_frontmatter_summary_does_not_resolve_plan_contract_ref_above_project_root(tmp_path: Path) -> None:
@@ -1114,8 +1114,8 @@ def test_validate_frontmatter_summary_does_not_resolve_plan_contract_ref_above_p
 
     assert validation_result.valid is False
     assert verification_result.passed is False
-    assert "plan_contract_ref: could not resolve matching plan contract" in validation_result.errors
-    assert "plan_contract_ref: could not resolve matching plan contract" in verification_result.errors
+    assert any(error.startswith("plan_contract_ref: referenced PLAN does not exist") for error in validation_result.errors)
+    assert any(error.startswith("plan_contract_ref: referenced PLAN does not exist") for error in verification_result.errors)
 
 
 def test_validate_frontmatter_summary_with_source_path_reports_referenced_plan_contract_schema_errors(
@@ -1434,7 +1434,7 @@ def test_validate_frontmatter_summary_rejects_plan_contract_ref_that_points_to_d
     result = validate_frontmatter(summary_path.read_text(encoding="utf-8"), "summary", source_path=summary_path)
 
     assert result.valid is False
-    assert "plan_contract_ref: could not resolve matching plan contract" in result.errors
+    assert "plan_contract_ref: referenced PLAN does not match summary phase/plan identity" in result.errors
 
 
 def test_verify_summary_rejects_unresolved_plan_contract_ref(tmp_path: Path) -> None:
@@ -1455,7 +1455,7 @@ def test_verify_summary_rejects_unresolved_plan_contract_ref(tmp_path: Path) -> 
     result = verify_summary(tmp_path, summary_path)
 
     assert result.passed is False
-    assert "plan_contract_ref: could not resolve matching plan contract" in result.errors
+    assert any(error.startswith("plan_contract_ref: referenced PLAN does not exist") for error in result.errors)
 
 
 def test_verify_summary_rejects_non_contract_plan_fragment(tmp_path: Path) -> None:

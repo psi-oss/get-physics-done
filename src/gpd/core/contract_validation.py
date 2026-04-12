@@ -5,10 +5,11 @@ from __future__ import annotations
 import copy
 import re
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Callable, Literal, get_args, get_origin
+from typing import Literal, get_args, get_origin
 
 from pydantic import BaseModel, Field
 from pydantic import ValidationError as PydanticValidationError
@@ -126,8 +127,8 @@ def _categories_from_metadata(metadata: _SchemaFindingMetadata) -> set[_ProjectC
         "must be a valid list member",
     }:
         categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
+    message = metadata.msg.lower()
     if not categories:
-        message = metadata.msg.lower()
         if (
             "must be a list" in message
             or "must be a valid list member" in message
@@ -136,6 +137,8 @@ def _categories_from_metadata(metadata: _SchemaFindingMetadata) -> set[_ProjectC
             or "is a duplicate" in message
         ):
             categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
+    if _matches_equivalent_recoverable_schema_finding(message=message):
+        categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
     if not _is_canonical_authoritative_scalar_location(location) and _matches_equivalent_recoverable_schema_finding(
         message=metadata.msg
     ):
@@ -164,13 +167,7 @@ _LOSSY_LIST_NORMALIZATION_WARNING_PATTERNS = (
     re.compile(r"^.+\.\d+ is a duplicate$"),
 )
 _CASE_DRIFT_SCHEMA_WARNING_PATTERNS = (re.compile(r"^.+ must use exact canonical value: .+$"),)
-_AUTHORITATIVE_SCALAR_FINDING_PATTERNS = (
-    re.compile(r"^schema_version must be 1$"),
-    re.compile(r"^schema_version must be the integer 1$"),
-    re.compile(r"^schema_version: Input should be 1$"),
-    re.compile(r"^.+\.must_surface must be a boolean$"),
-    re.compile(r"^.+\.must_surface: Input should be a valid boolean.*$"),
-)
+_AUTHORITATIVE_SCALAR_FINDING_PATTERNS: tuple[re.Pattern[str], ...] = ()
 
 _SCHEMA_VERSION_REQUIRED_ERROR = "schema_version is required"
 
@@ -193,6 +190,9 @@ _SCHEMA_FINDING_CATEGORY_PATTERNS: tuple[
 )
 
 
+_SCHEMA_LOCATION_PATTERN = r"[A-Za-z_][A-Za-z0-9_]*(?:\.\d+|\.[A-Za-z_][A-Za-z0-9_]*)*"
+
+
 def _split_schema_finding_location_and_message(error: str) -> tuple[str | None, str]:
     """Return ``(location, message)`` when an error is in ``location: message`` form."""
 
@@ -202,22 +202,13 @@ def _split_schema_finding_location_and_message(error: str) -> tuple[str | None, 
     return None, error
 
 
-def _matches_equivalent_authoritative_schema_finding(*, location: str | None, message: str) -> bool:
-    """Return whether one finding is an equivalent authoritative scalar variant."""
-
-    normalized_message = message.strip().casefold()
-    if location == "schema_version":
-        return normalized_message.startswith("input should be 1")
-    if isinstance(location, str) and location.endswith(".must_surface"):
-        return normalized_message.startswith("input should be a valid boolean")
-    return False
-
-
 def _matches_equivalent_recoverable_schema_finding(*, message: str) -> bool:
     """Return whether one finding is an equivalent recoverable schema-warning variant."""
 
     normalized_message = message.strip()
-    return normalized_message.startswith("Extra inputs are not permitted") or normalized_message.startswith("Input should")
+    if normalized_message.startswith("Extra inputs are not permitted") or normalized_message.startswith("Input should"):
+        return True
+    return any(pattern.match(normalized_message) for pattern in _RECOVERABLE_SCHEMA_WARNING_PATTERNS)
 
 
 def _schema_finding_location_depth(location: str | None) -> int:
@@ -234,6 +225,15 @@ def _schema_finding_location(error: str) -> str | None:
     location, _message = _split_schema_finding_location_and_message(error)
     if location is not None:
         return location
+
+    normalized_error = error.strip()
+    required_match = re.match(rf"^(?P<location>{_SCHEMA_LOCATION_PATTERN}) is required$", normalized_error)
+    if required_match is not None:
+        return required_match.group("location")
+
+    must_match = re.match(rf"^(?P<location>{_SCHEMA_LOCATION_PATTERN}) must .+$", normalized_error)
+    if must_match is not None:
+        return must_match.group("location")
 
     nested_location = re.match(
         r"^(?P<location>.+?) (?:must not be blank|is a duplicate|must be a valid list member|must be a list, not .+|must be an object, not .+)$",
@@ -271,11 +271,17 @@ def _project_contract_schema_finding_categories(
         for category, patterns in _SCHEMA_FINDING_CATEGORY_PATTERNS:
             if any(pattern.fullmatch(normalized_error) for pattern in patterns):
                 categories.add(category)
+        if location is None:
+            location = _schema_finding_location(normalized_error)
+        if (
+            location is not None
+            and _is_canonical_authoritative_scalar_location(location)
+            and ("Input should" in message or ("must" in message and "coerced from" not in message))
+        ):
+            categories.add(_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR)
     if metadata is None:
         if _matches_equivalent_recoverable_schema_finding(message=message):
             categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
-        if _matches_equivalent_authoritative_schema_finding(location=location, message=message):
-            categories.add(_ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR)
 
     nested_location = location or _schema_finding_location(normalized_error)
     if nested_location is not None and _is_nested_collection_item_location(nested_location):
@@ -1034,7 +1040,10 @@ def is_repair_relevant_project_contract_schema_finding(error: str) -> bool:
     """Return whether one recoverable schema finding still requires repair."""
 
     categories = _project_contract_schema_finding_categories(error)
-    if _ProjectContractSchemaFindingCategory.CASE_DRIFT in categories:
+    if categories & {
+        _ProjectContractSchemaFindingCategory.CASE_DRIFT,
+        _ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR,
+    }:
         return False
     return bool(
         {
@@ -1436,6 +1445,20 @@ def _context_intake_guidance_warnings(
     return warnings
 
 
+def _context_intake_grounding_errors(
+    contract: ResearchContract,
+    *,
+    project_root: Path | None = None,
+) -> list[str]:
+    if project_root is None:
+        return []
+    return [
+        f"context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact: {value}"
+        for value in contract.context_intake.must_include_prior_outputs
+        if not _prior_output_counts_as_guidance(value, project_root=project_root)
+    ]
+
+
 def _must_surface_locator_warnings(
     contract: ResearchContract,
     *,
@@ -1627,6 +1650,7 @@ def validate_project_contract(
 
     errors.extend(_light_contract_consistency_errors(parsed))
     errors.extend(collect_proof_bearing_claim_integrity_errors(parsed))
+    errors.extend(_context_intake_grounding_errors(parsed, project_root=project_root))
 
     warnings.extend(_context_intake_guidance_warnings(parsed, project_root=project_root))
     if mode == "approved":
@@ -1640,6 +1664,11 @@ def validate_project_contract(
         warnings.extend(_must_surface_locator_warnings(parsed, project_root=project_root))
 
     has_non_reference_grounding = _has_non_reference_grounding_signal(parsed, project_root=project_root)
+    has_reference_grounding = has_concrete_must_surface_reference(
+        parsed,
+        project_root=project_root,
+        require_existing_project_artifacts=True,
+    )
 
     if parsed.references and not any(reference.must_surface for reference in parsed.references):
         finding = "references must include at least one must_surface=true anchor"
@@ -1666,7 +1695,7 @@ def validate_project_contract(
         warnings.append("no references recorded yet")
     if not parsed.forbidden_proxies:
         warnings.append("no forbidden_proxies recorded yet")
-    if guidance_signal_count == 0:
+    if guidance_signal_count == 0 and not has_reference_grounding:
         _require_or_warn("context_intake must not be empty")
 
     return ProjectContractValidationResult(

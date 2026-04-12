@@ -2608,7 +2608,7 @@ class TestInitNewMilestone:
 
         assert ctx["project_contract"] is not None
         assert ctx["project_contract"]["references"][0]["role"] == "background"
-        assert ctx["project_contract_load_info"]["status"] == "blocked_integrity"
+        assert ctx["project_contract_load_info"]["status"] == "loaded_with_approval_blockers"
         assert ctx["project_contract_validation"]["valid"] is False
         assert ctx["project_contract_gate"]["visible"] is True
         assert ctx["project_contract_gate"]["authoritative"] is False

@@ -339,8 +339,11 @@ def main(argv: list[str] | None = None) -> None:
     # Throttle: skip only when the preferred runtime/home cache set is still fresh.
     runtime_names = supported_runtime_names()
     has_runtime_specific_candidate = any(candidate.runtime in runtime_names for candidate in relevant_candidates)
+    preferred_runtime = next((candidate.runtime for candidate in relevant_candidates if candidate.runtime in runtime_names), None)
     for candidate in relevant_candidates:
         if candidate.runtime is None and has_runtime_specific_candidate:
+            continue
+        if preferred_runtime is not None and candidate.runtime not in (preferred_runtime, None):
             continue
         candidate_path = candidate.path
         if not candidate_path.exists():

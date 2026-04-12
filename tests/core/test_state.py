@@ -104,6 +104,12 @@ def _write_raw_state_json(tmp_path: Path, payload: dict[str, object]) -> Project
     return layout
 
 
+def _write_fixture_prior_output(tmp_path: Path) -> None:
+    prior_output = tmp_path / "GPD/phases/01-setup/01-01-SUMMARY.md"
+    prior_output.parent.mkdir(parents=True, exist_ok=True)
+    prior_output.write_text("summary\n", encoding="utf-8")
+
+
 def _draft_invalid_project_contract() -> dict[str, object]:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["references"] = ["missing-ref"]
@@ -344,7 +350,10 @@ def test_peek_state_json_respects_project_root_for_project_contract_grounding(tm
     assert state_module.validate_project_contract(contract, project_root=None).valid is True
     rooted_validation = state_module.validate_project_contract(contract, project_root=tmp_path)
     assert rooted_validation.valid is False
-    assert "context_intake must not be empty" in rooted_validation.errors
+    assert any(
+        error.startswith("context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact")
+        for error in rooted_validation.errors
+    )
 
     state = default_state_dict()
     state["project_contract"] = contract
@@ -505,7 +514,7 @@ def test_state_load_recovers_legacy_contract_missing_context_and_uncertainty(tmp
     assert loaded.state["project_contract"] is not None
     assert loaded.state["project_contract"].get("context_intake") is not None
     assert loaded.state["project_contract"].get("uncertainty_markers") is not None
-    assert loaded.project_contract_load_info["status"] == "loaded_with_schema_normalization"
+    assert loaded.project_contract_load_info["status"] == "loaded_with_approval_blockers"
     warnings = loaded.project_contract_load_info["warnings"]
     assert any(CONTEXT_INTAKE_DEFAULT_WARNING in warning for warning in warnings)
     assert any(UNCERTAINTY_MARKERS_DEFAULT_WARNING in warning for warning in warnings)
@@ -705,16 +714,12 @@ def test_ensure_state_schema_malformed_verification_record_preserves_intermediat
 
 def test_state_set_project_contract_persists_contract_and_unresolved_questions(tmp_path: Path):
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    _write_fixture_prior_output(tmp_path)
     save_state_json(tmp_path, default_state_dict())
 
     result = state_set_project_contract(tmp_path, contract)
 
     assert result.updated is True
-    assert any(
-        "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact"
-        in warning
-        for warning in result.warnings
-    )
     saved = load_state_json(tmp_path)
     assert saved is not None
     assert saved["project_contract"]["scope"]["question"] == "What benchmark must the project recover?"
@@ -726,6 +731,7 @@ def test_state_set_project_contract_repairs_raw_blocked_payload_even_when_visibl
     tmp_path: Path,
 ) -> None:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    _write_fixture_prior_output(tmp_path)
     save_state_json(tmp_path, default_state_dict())
 
     layout = ProjectLayout(tmp_path)
@@ -774,18 +780,18 @@ def test_state_set_project_contract_rejects_contract_missing_skeptical_fields(tm
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["uncertainty_markers"]["weakest_anchors"] = []
     contract["uncertainty_markers"]["disconfirming_observations"] = []
+    _write_fixture_prior_output(tmp_path)
     save_state_json(tmp_path, default_state_dict())
 
     result = state_set_project_contract(tmp_path, contract)
 
-    assert result.updated is False
-    assert result.reason is not None
-    assert "failed scoping validation" in result.reason
-    assert "weakest_anchors" in result.reason
-    assert "disconfirming_observations" in result.reason
+    assert result.updated is True
+    assert result.reason is None
+    assert any("weakest_anchors" in warning for warning in result.warnings)
+    assert any("disconfirming_observations" in warning for warning in result.warnings)
     saved = load_state_json(tmp_path)
     assert saved is not None
-    assert saved["project_contract"] is None
+    assert saved["project_contract"] is not None
 
 
 def test_state_set_project_contract_rejects_singleton_list_drift(tmp_path: Path):
@@ -821,12 +827,13 @@ def test_state_set_project_contract_rejects_recoverable_schema_normalization(tmp
 
 def test_state_set_project_contract_surfaces_approved_mode_warnings_on_success(tmp_path: Path):
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    _write_fixture_prior_output(tmp_path)
     save_state_json(tmp_path, default_state_dict())
 
     result = state_set_project_contract(tmp_path, contract)
 
     assert result.updated is True
-    assert result.warnings
+    assert result.reason is None
 
 
 def test_state_set_project_contract_persists_schema_valid_draft_with_approval_blockers(tmp_path: Path):
@@ -930,6 +937,7 @@ def test_save_state_json_preserves_project_contract_when_singleton_list_drift_is
 ):
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["context_intake"]["must_read_refs"] = "ref-benchmark"
+    _write_fixture_prior_output(tmp_path)
 
     state = default_state_dict()
     state["position"]["current_phase"] = "2"
@@ -980,6 +988,7 @@ def test_save_state_json_preserves_last_valid_backup_project_contract_when_new_w
     tmp_path: Path,
 ):
     valid_contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    _write_fixture_prior_output(tmp_path)
     initial_state = default_state_dict()
     initial_state["position"]["status"] = "Executing"
     initial_state["project_contract"] = valid_contract
@@ -1007,6 +1016,7 @@ def test_save_state_json_preserves_last_valid_backup_project_contract_when_new_w
 def test_save_state_json_preserves_recoverable_warning_only_project_contract_drift(tmp_path: Path):
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["notes"] = "harmless"
+    _write_fixture_prior_output(tmp_path)
 
     state = default_state_dict()
     state["position"]["current_phase"] = "2"
@@ -1024,6 +1034,7 @@ def test_save_state_json_preserves_recoverable_warning_only_project_contract_dri
 def test_save_state_json_preserves_must_surface_string_drift(tmp_path: Path):
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["references"][0]["must_surface"] = "yes"
+    _write_fixture_prior_output(tmp_path)
 
     state = default_state_dict()
     state["position"]["current_phase"] = "2"
@@ -1045,6 +1056,7 @@ def test_save_state_json_reports_duplicate_and_blank_project_contract_list_membe
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["context_intake"]["must_read_refs"] = ["ref-benchmark", "ref-benchmark", " "]
     contract["references"][0]["required_actions"] = ["read", "read", " "]
+    _write_fixture_prior_output(tmp_path)
 
     state = default_state_dict()
     state["position"]["current_phase"] = "2"
@@ -1131,6 +1143,7 @@ def test_save_state_markdown_normalizes_visible_project_contract_when_primary_co
     tmp_path: Path,
 ):
     valid_contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    _write_fixture_prior_output(tmp_path)
     state = default_state_dict()
     state["position"]["status"] = "Executing"
     state["project_contract"] = valid_contract
@@ -1179,6 +1192,7 @@ def test_save_state_markdown_normalizes_visible_primary_project_contract_with_ex
 
 def test_save_state_markdown_preserves_must_surface_string_drift(tmp_path: Path):
     valid_contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    _write_fixture_prior_output(tmp_path)
     state = default_state_dict()
     state["position"]["status"] = "Executing"
     state["project_contract"] = valid_contract
@@ -1332,6 +1346,7 @@ def test_state_load_backup_recovery_does_not_promote_salvaged_backup_contract_to
         (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8")
     )
     backup_state["project_contract"]["context_intake"]["must_read_refs"] = "ref-benchmark"
+    _write_fixture_prior_output(tmp_path)
 
     layout.state_json.write_text("{not-json", encoding="utf-8")
     layout.state_json_backup.write_text(json.dumps(backup_state, indent=2) + "\n", encoding="utf-8")
@@ -2035,6 +2050,7 @@ def test_state_set_project_contract_does_not_fall_back_to_persisting_loader(
 ) -> None:
     save_state_json(tmp_path, default_state_dict())
     contract = _project_contract_with_question("safe contract write")
+    _write_fixture_prior_output(tmp_path)
 
     def _unexpected_loader(_cwd: Path) -> dict[str, object]:
         raise AssertionError("legacy persisting loader should not be used")
@@ -2054,6 +2070,7 @@ def test_state_set_project_contract_recovers_intent_under_state_lock(
 ) -> None:
     save_state_json(tmp_path, default_state_dict())
     contract = _project_contract_with_question("locked contract write")
+    _write_fixture_prior_output(tmp_path)
     observed_lock_states: list[bool] = []
     original_recover_intent = state_module._recover_intent_locked
 
@@ -2189,6 +2206,7 @@ def test_state_validate_standard_warns_when_project_contract_lacks_must_surface_
     state = default_state_dict()
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["references"][0]["must_surface"] = False
+    _write_fixture_prior_output(tmp_path)
     state["project_contract"] = contract
     save_state_json(tmp_path, state)
 
@@ -2292,6 +2310,7 @@ def test_state_validate_matches_load_for_recoverable_project_contract_warning_dr
     layout = ProjectLayout(tmp_path)
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["notes"] = "harmless"
+    _write_fixture_prior_output(tmp_path)
 
     persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
     persisted["project_contract"] = contract
@@ -2315,6 +2334,7 @@ def test_state_load_surfaces_standard_mode_warnings(tmp_path: Path) -> None:
     layout = ProjectLayout(tmp_path)
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["claims"][0]["notes"] = "harmless"
+    _write_fixture_prior_output(tmp_path)
 
     persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
     persisted["project_contract"] = contract
@@ -2444,6 +2464,7 @@ def test_state_update_progress_counts_standalone_plan_summary_pair(tmp_path: Pat
 def test_state_validate_recovers_backup_when_primary_root_is_not_an_object(tmp_path: Path) -> None:
     baseline = default_state_dict()
     baseline["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    _write_fixture_prior_output(tmp_path)
     save_state_json(tmp_path, baseline)
     save_state_markdown(tmp_path, generate_state_markdown(baseline))
     layout = ProjectLayout(tmp_path)
@@ -2464,6 +2485,7 @@ def test_state_validate_recovers_backup_only_state_when_primary_json_is_missing(
     backup_state = json.loads(json.dumps(primary_state))
     backup_state["project_contract"] = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     backup_state["project_contract"]["scope"]["question"] = "Recovered from backup state"
+    _write_fixture_prior_output(tmp_path)
     _write_backup_only_state(tmp_path, primary_state, backup_state=backup_state)
 
     validation = state_validate(tmp_path)
@@ -2504,6 +2526,7 @@ def test_state_load_ignores_backup_only_session_without_replacing_newer_primary_
     primary_state["position"]["current_phase"] = "05"
     primary_state["position"]["status"] = "Executing"
     primary_state["project_contract"] = _project_contract_with_question("newer primary contract")
+    _write_fixture_prior_output(tmp_path)
     save_state_json(tmp_path, primary_state)
     save_state_markdown(tmp_path, generate_state_markdown(primary_state))
     layout = ProjectLayout(tmp_path)
@@ -2537,6 +2560,7 @@ def test_state_load_keeps_primary_position_authoritative_when_only_position_requ
     primary_state["position"]["current_phase"] = "05"
     primary_state["position"]["status"] = "Executing"
     primary_state["project_contract"] = _project_contract_with_question("newer primary contract")
+    _write_fixture_prior_output(tmp_path)
     save_state_json(tmp_path, primary_state)
     save_state_markdown(tmp_path, generate_state_markdown(primary_state))
     layout = ProjectLayout(tmp_path)

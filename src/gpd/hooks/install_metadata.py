@@ -353,7 +353,12 @@ def config_dir_has_complete_install(config_dir: Path) -> bool:
     return assess_install_target(config_dir).state == "owned_complete"
 
 
-def installed_update_command(config_dir: Path) -> str | None:
+def installed_update_command(
+    config_dir: Path,
+    *,
+    cwd: Path | str | None = None,
+    home: Path | str | None = None,
+) -> str | None:
     """Return the bootstrap update command for the install in *config_dir*."""
 
     manifest_state, manifest, runtime = load_install_manifest_runtime_status(config_dir)
@@ -365,16 +370,30 @@ def installed_update_command(config_dir: Path) -> str | None:
         return None
 
     try:
-        get_adapter(runtime)
+        adapter = get_adapter(runtime)
     except KeyError:
         return None
 
     explicit_target = manifest.get("explicit_target")
     if not isinstance(explicit_target, bool):
-        # Fail closed for legacy manifests that do not prove whether the
-        # install was explicitly targeted. Update-command synthesis is only
-        # trusted when the manifest carries the authoritative flag.
-        return None
+        if scope == "global":
+            resolved_home = (
+                Path(home).expanduser().resolve(strict=False)
+                if home is not None
+                else Path.home().expanduser().resolve(strict=False)
+            )
+            if config_dir != adapter.resolve_global_config_dir(home=resolved_home):
+                return None
+            explicit_target = False
+        elif scope == "local":
+            if cwd is None:
+                return None
+            resolved_cwd = Path(cwd).expanduser().resolve(strict=False)
+            if config_dir != resolved_cwd / adapter.config_dir_name:
+                return None
+            explicit_target = False
+        else:
+            return None
 
     return build_runtime_install_repair_command(
         runtime,

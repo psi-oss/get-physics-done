@@ -1507,8 +1507,8 @@ def test_file_producing_command_surfaces_use_canonical_spawn_contract() -> None:
     for content, agent_name, file_token in (
         (debug, "gpd-debugger", "GPD/debug/{slug}.md"),
     ):
-        assert f"read {{GPD_AGENTS_DIR}}/{agent_name}.md for your role and instructions" in content
-        assert "readonly=false" in content
+        assert f"{agent_name} agent" in content
+        assert "@{GPD_INSTALL_DIR}/workflows/debug.md" in content
         assert f"{file_token}\nRead that file before continuing" in content
         assert f"@{file_token}" not in content
         assert "Fresh 200k context" not in content
@@ -1766,7 +1766,7 @@ def test_phase_research_and_verification_surfaces_keep_anchor_checks_mandatory()
             "Treat `effective_reference_intake` as the structured source of carry-forward anchors; "
             "`active_reference_context` is the readable projection, not the source of truth."
         )
-        == 2
+        == 1
     )
 
 

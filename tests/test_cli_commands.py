@@ -652,6 +652,9 @@ class TestStateCommands:
         assert result.exit_code in (0, 1)
 
     def test_set_project_contract(self, gpd_project: Path) -> None:
+        prior_output = gpd_project / "GPD/phases/01-setup/01-01-SUMMARY.md"
+        prior_output.parent.mkdir(parents=True, exist_ok=True)
+        prior_output.write_text("summary\n", encoding="utf-8")
         contract_path = gpd_project / "contract.json"
         contract_path.write_text(
             (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"),
@@ -665,6 +668,9 @@ class TestStateCommands:
     def test_set_project_contract_raw_surfaces_warnings_on_success(self, gpd_project: Path) -> None:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
         contract["references"][0]["must_surface"] = False
+        prior_output = gpd_project / "GPD/phases/01-setup/01-01-SUMMARY.md"
+        prior_output.parent.mkdir(parents=True, exist_ok=True)
+        prior_output.write_text("summary\n", encoding="utf-8")
         contract_path = gpd_project / "warning-contract.json"
         contract_path.write_text(json.dumps(contract), encoding="utf-8")
 
@@ -726,6 +732,9 @@ class TestStateCommands:
         gpd_project: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        prior_output = gpd_project / "GPD/phases/01-setup/01-01-SUMMARY.md"
+        prior_output.parent.mkdir(parents=True, exist_ok=True)
+        prior_output.write_text("summary\n", encoding="utf-8")
         contract_path = gpd_project / "contract.json"
         contract_path.write_text(
             (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"),
@@ -756,6 +765,9 @@ class TestStateCommands:
         gpd_project: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        prior_output = gpd_project / "GPD/phases/01-setup/01-01-SUMMARY.md"
+        prior_output.parent.mkdir(parents=True, exist_ok=True)
+        prior_output.write_text("summary\n", encoding="utf-8")
         contract_path = gpd_project / "contract.json"
         contract_path.write_text(
             (FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"),
@@ -5352,7 +5364,7 @@ class TestReviewValidationCommands:
 
         assert result.exit_code == 1, result.output
         payload = json.loads(result.output)
-        assert "plan_contract_ref: could not resolve matching plan contract" in payload["errors"]
+        assert any(error.startswith("plan_contract_ref: referenced PLAN does not exist") for error in payload["errors"])
 
     def test_validate_verification_contract_command_requires_contract_results(self, gpd_project: Path) -> None:
         phase_dir = gpd_project / "GPD" / "phases" / "01-benchmark"

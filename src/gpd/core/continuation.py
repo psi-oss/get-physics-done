@@ -169,14 +169,21 @@ def _normalize_continuation_payload_with_issues(
         if key not in allowed_top_level:
             issues.append(f'schema normalization: dropped unknown "continuation.{key}"')
 
-    schema_version = raw.get("schema_version", 1)
-    if type(schema_version) is int and schema_version == 1:
-        normalized_schema_version = 1
-    else:
+    if "schema_version" not in raw:
         issues.append(
-            f'schema normalization: dropped malformed "continuation.schema_version" because expected integer 1, got {type(schema_version).__name__}'
+            'schema normalization: missing "continuation.schema_version"; expected integer 1'
         )
         normalized_schema_version = 1
+    else:
+        schema_version = raw.get("schema_version")
+        if type(schema_version) is int and schema_version == 1:
+            normalized_schema_version = 1
+        else:
+            issues.append(
+                'schema normalization: dropped malformed "continuation.schema_version" '
+                f"because expected integer 1, got {schema_version!r}"
+            )
+            normalized_schema_version = 1
 
     handoff, handoff_issues = _normalize_continuation_model(ContinuationHandoff, raw.get("handoff"), label="continuation.handoff")
     machine, machine_issues = _normalize_continuation_model(ContinuationMachine, raw.get("machine"), label="continuation.machine")
@@ -484,7 +491,10 @@ def normalize_continuation_bounded_segment_with_issues(
 
     if isinstance(bounded_segment, ContinuationBoundedSegment):
         bounded_segment = bounded_segment.model_dump(mode="python")
-    normalized, issues = normalize_continuation_with_issues(project_root, {"bounded_segment": bounded_segment})
+    normalized, issues = normalize_continuation_with_issues(
+        project_root,
+        {"schema_version": 1, "bounded_segment": bounded_segment},
+    )
     return normalized.bounded_segment, issues
 
 

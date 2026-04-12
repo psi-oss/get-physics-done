@@ -866,6 +866,11 @@ _CONTRACT_SCOPE_INPUT_SCHEMA["description"] = (
 def _research_contract_payload_schema() -> dict[str, object]:
     schema = copy.deepcopy(ResearchContract.model_json_schema(ref_template="#/$defs/{model}"))
     schema = _inline_json_schema_refs(schema)
+    properties = schema.get("properties")
+    if isinstance(properties, dict):
+        scope_schema = properties.get("scope")
+        if isinstance(scope_schema, dict) and isinstance(_CONTRACT_SCOPE_INPUT_SCHEMA.get("description"), str):
+            scope_schema["description"] = _CONTRACT_SCOPE_INPUT_SCHEMA["description"]
     schema["description"] = verification_contract_policy_text()
     return schema
 
@@ -3386,12 +3391,6 @@ def _is_case_drift_contract_parse_error(error: str) -> bool:
     return not recoverable_without_case_drift
 
 
-def _is_defaultable_singleton_contract_error(error: str) -> bool:
-    """Return whether core contract policy treats singleton/list drift as recoverable."""
-
-    return _recoverable_collection_list_shape_error(error, contract_raw={})
-
-
 def _is_recoverable_contract_parse_error(error: str, *, contract_raw: dict[str, object]) -> bool:
     return any(
         (
@@ -3427,7 +3426,6 @@ def _parse_contract_payload(
     contract_raw: dict[str, object],
     *,
     project_root: Path | None = None,
-    allow_salvage: bool = False,
 ) -> tuple[ResearchContract | None, list[str], dict | None]:
     if "schema_version" not in contract_raw:
         schema_version_error = "schema_version is required"

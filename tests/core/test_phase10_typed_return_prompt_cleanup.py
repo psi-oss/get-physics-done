@@ -48,7 +48,7 @@ def test_new_project_roadmapper_task_block_requires_requirements_freshness_and_n
 def test_planner_tangent_guidance_routes_on_typed_checkpoint_status() -> None:
     planner = _read(PLANNER)
 
-    assert "return `gpd_return.status: checkpoint` with the four options above instead of silently branching." in planner
+    assert "return `gpd_return.status: checkpoint` with the four options above instead of silently branching" in planner
     assert (
         "create the recommended main-line plan only and set `gpd_return.status: checkpoint` when multiple live alternatives still matter."
         in planner

@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SRC_DIR = REPO_ROOT / "src"
 
 
 def _assert_import_order(script: str) -> None:
@@ -10,6 +14,7 @@ def _assert_import_order(script: str) -> None:
         check=False,
         capture_output=True,
         text=True,
+        env={"PYTHONPATH": str(SRC_DIR)},
     )
     assert completed.returncode == 0, completed.stderr
 

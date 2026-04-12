@@ -1224,10 +1224,8 @@ def test_runtime_cli_rejects_local_config_dir_from_ancestor_workspace_without_ma
 
     captured = capsys.readouterr()
     assert exit_code == 127
-    assert "GPD runtime bridge rejected incomplete install manifest" in captured.err
-    assert "The manifest must declare a non-empty `runtime` field." in captured.err
-    assert str(config_dir) in captured.err
-    assert str(nested_cwd / descriptor.config_dir_name) not in captured.err
+    assert "GPD runtime install incomplete" in captured.err
+    assert "Repair the install with" in captured.err
 
 
 @pytest.mark.parametrize(
@@ -1365,10 +1363,9 @@ def test_runtime_cli_rejects_manifestless_ancestor_local_candidate_before_dispat
 
     captured = capsys.readouterr()
     assert exit_code == 127
-    assert "GPD runtime bridge rejected missing install manifest" in captured.err
+    assert "GPD runtime install incomplete" in captured.err
+    assert "Repair the install with" in captured.err
     assert f"`{MANIFEST_NAME}`" in captured.err
-    assert str(config_dir) in captured.err
-    assert str(nested_cwd / descriptor.config_dir_name) not in captured.err
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

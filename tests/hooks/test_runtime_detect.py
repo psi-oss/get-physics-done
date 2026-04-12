@@ -1158,6 +1158,19 @@ class TestUpdateCacheFiles:
 class TestUpdateCacheCandidates:
     """Tests for update-cache candidate filtering."""
 
+    def test_deduped_update_cache_candidates_keep_runtime_metadata(self, tmp_path: Path) -> None:
+        cache_path = tmp_path / "cache" / "gpd-update-check.json"
+        candidate_without_runtime = UpdateCacheCandidate(cache_path)
+        candidate_with_runtime = UpdateCacheCandidate(cache_path, runtime=RUNTIME_CODEX, scope=SCOPE_LOCAL)
+
+        deduped = runtime_detect_module._unique_update_cache_candidates(
+            [candidate_without_runtime, candidate_with_runtime]
+        )
+
+        assert deduped[0].path == candidate_with_runtime.path
+        assert deduped[0].runtime == candidate_with_runtime.runtime
+        assert deduped[0].scope == candidate_with_runtime.scope
+
     def test_candidate_from_wrong_scope_is_rejected_when_runtime_install_scope_is_known(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
         workspace.mkdir()
@@ -1314,6 +1327,17 @@ class TestUpdateCacheCandidates:
 
 
 class TestTodoCandidates:
+    def test_deduped_todo_candidates_keep_runtime_metadata(self, tmp_path: Path) -> None:
+        todo_path = tmp_path / "todos"
+        candidate_without_runtime = TodoCandidate(todo_path)
+        candidate_with_runtime = TodoCandidate(todo_path, runtime=RUNTIME_CODEX, scope=SCOPE_GLOBAL)
+
+        deduped = runtime_detect_module._unique_todo_candidates([candidate_without_runtime, candidate_with_runtime])
+
+        assert deduped[0].path == candidate_with_runtime.path
+        assert deduped[0].runtime == candidate_with_runtime.runtime
+        assert deduped[0].scope == candidate_with_runtime.scope
+
     def test_candidate_from_wrong_scope_is_rejected_when_runtime_install_scope_is_known(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
         workspace.mkdir()

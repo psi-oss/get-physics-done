@@ -137,7 +137,14 @@ def _build_entry_schema(schema_payload: dict[str, object]) -> dict[str, object]:
             return _trimmed_string_schema()
         if field_name == "activation_env_vars" or field_name == "selection_flags" or field_name == "selection_aliases":
             return _string_list_schema(min_items=1)
-        if field_name == "manifest_file_prefixes":
+        if field_name in (
+            "manifest_file_prefixes",
+            "external_skill_relative_dirs",
+            "external_skill_env_vars",
+            "external_skill_subdir_prefixes",
+            "external_skill_markers",
+            "external_skill_config_markers",
+        ):
             return _string_list_schema(min_items=0)
         if field_name in ("native_include_support", "agent_prompt_uses_dollar_templates"):
             return {"type": "boolean"}
