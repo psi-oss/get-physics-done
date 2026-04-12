@@ -1572,8 +1572,19 @@ def validate_project_contract(
         salvage_result = parse_project_contract_data_salvage(contract_payload)
         parsed = strict_result.contract
         schema_errors = dedupe_preserve_order(
-            [*strict_result.blocking_errors, *strict_result.recoverable_errors, *salvage_result.errors]
+            [*strict_result.blocking_errors, *strict_result.recoverable_errors]
         )
+        strict_error_locations = {
+            error.split(":", 1)[0]
+            for error in schema_errors
+            if ":" in error and error.split(":", 1)[0]
+        }
+        schema_errors.extend(
+            error
+            for error in salvage_result.errors
+            if (error.split(":", 1)[0] if ":" in error else error.split()[0]) not in strict_error_locations
+        )
+        schema_errors = dedupe_preserve_order(schema_errors)
         salvage_error_set = set(salvage_result.errors)
         schema_errors = [
             error

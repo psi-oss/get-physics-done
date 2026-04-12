@@ -21,6 +21,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_CONTRACT_SCHEMA = REPO_ROOT / "src/gpd/specs/templates/project-contract-schema.md"
 STATE_JSON_SCHEMA = REPO_ROOT / "src/gpd/specs/templates/state-json-schema.md"
 GROUNDING_LINKAGE = REPO_ROOT / "src/gpd/specs/templates/project-contract-grounding-linkage.md"
+EXECUTE_PLAN_WORKFLOW = REPO_ROOT / "src/gpd/specs/workflows/execute-plan.md"
+EXECUTE_PHASE_WORKFLOW = REPO_ROOT / "src/gpd/specs/workflows/execute-phase.md"
 
 
 def _read(path: Path) -> str:
@@ -139,3 +141,22 @@ def test_project_contract_grounding_linkage_mentions_project_root_guard_and_cros
 
     assert "project_root guard" in text
     assert "Cross-section unique ID rule" in text
+
+
+def test_execute_plan_workflow_surfaces_hard_schema_before_process() -> None:
+    text = _read(EXECUTE_PLAN_WORKFLOW)
+
+    assert "<hard_schema_visibility_guard>" in text
+    assert "<process>" in text
+    assert text.index("<hard_schema_visibility_guard>") < text.index("<process>")
+    assert "contract-results-schema.md" in text
+
+
+def test_execute_phase_workflow_surfaces_hard_schema_before_process() -> None:
+    text = _read(EXECUTE_PHASE_WORKFLOW)
+
+    assert "<hard_schema_visibility_guard>" in text
+    assert "<process>" in text
+    assert text.index("<hard_schema_visibility_guard>") < text.index("<process>")
+    assert "contract-results-schema.md" in text
+    assert "delegating to a subagent" in text

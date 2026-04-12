@@ -582,6 +582,16 @@ def test_fast_contract_validation_accepts_existing_project_local_prior_output_wi
     assert not any("must_include_prior_outputs" in warning for warning in validation.warnings)
 
 
+def test_fast_contract_validation_approved_mode_deduplicates_salvage_schema_locations() -> None:
+    contract = _load_contract_fixture()
+    contract["schema_version"] = "1"
+
+    validation = validate_project_contract(contract, mode="approved")
+
+    schema_version_errors = [error for error in validation.errors if error.startswith("schema_version")]
+    assert schema_version_errors == ["schema_version: Input should be 1"]
+
+
 def test_fast_contract_validation_schema_docs_describe_recoverable_vs_strict_repair_behavior() -> None:
     project_schema = (TEMPLATES_DIR / "project-contract-schema.md").read_text(encoding="utf-8")
     plan_schema = (TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")

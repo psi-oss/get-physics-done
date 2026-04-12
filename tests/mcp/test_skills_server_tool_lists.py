@@ -484,6 +484,22 @@ def test_get_skill_verify_work_surfaces_staged_loading_sidecar() -> None:
     assert result["allowed_tools_surface"] == "command.allowed-tools"
 
 
+def test_get_skill_verify_work_surfaces_model_visible_documents() -> None:
+    from gpd.mcp.servers.skills_server import get_skill
+
+    result = get_skill("gpd-verify-work")
+    schema_documents = result["schema_documents"]
+    assert any(doc["path"].endswith("project-contract-schema.md") for doc in schema_documents)
+    assert any(doc["path"].endswith("proof-redteam-schema.md") for doc in schema_documents)
+    contract_documents = result["contract_documents"]
+    assert any(doc["path"].endswith("proof-redteam-protocol.md") for doc in contract_documents)
+
+    model_visible = result.get("model_visible_documents")
+    assert model_visible is not None
+    assert any(path.endswith("project-contract-schema.md") for path in model_visible["schema_documents"])
+    assert any(path.endswith("proof-redteam-protocol.md") for path in model_visible["contract_documents"])
+
+
 def test_get_skill_unrelated_command_does_not_expose_stage_sidecars() -> None:
     from gpd.mcp.servers.skills_server import get_skill
 

@@ -195,6 +195,14 @@ def test_hotspot_split_targets_exist_and_request_multiple_parts() -> None:
     assert all(split_count > 1 for split_count in CI_HOT_TEST_FILE_SPLITS.values())
 
 
+def test_ci_categories_represent_actual_test_domains() -> None:
+    repo_root = _repo_root()
+    all_relpaths = all_test_relpaths(tests_root=repo_root / "tests")
+    observed_categories = {category_for_test_relpath(path) for path in all_relpaths}
+
+    assert set(CI_CATEGORY_SHARD_COUNTS) <= observed_categories
+
+
 def test_runtime_adapter_hotspot_splits_target_catalog_adapters_without_collection() -> None:
     splits = dict(CI_HOT_TEST_FILE_SPLITS)
     descriptors = _runtime_descriptors_or_skip()

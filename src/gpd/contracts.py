@@ -668,7 +668,7 @@ def _has_concrete_grounding_entries(
     if field_name == "must_include_prior_outputs":
         if require_existing_project_artifacts:
             if project_root is None:
-                return any(_is_project_artifact_path(value, project_root=None) for value in values)
+                return False
             return any(
                 _is_project_artifact_path(value, project_root=project_root)
                 for value in values

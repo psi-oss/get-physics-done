@@ -12,6 +12,7 @@ Defer execution-reference, checkpoint, recovery, and summary-schema loads until 
 
 <hard_schema_visibility_guard>
 Before repairing or re-emitting any `project_contract`, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep its compact Hard-schema capsule visible; do not restate or fork the schema text here.
+Before generating new prompt text or delegating to any other agent (plan checker, proof redteam, or a downstream executor), keep that hard-schema capsule at the top of the prompt order and reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` whenever you are about to emit or confirm contract-ledger fields so their constraints are front-loaded, not left as a postscript.
 </hard_schema_visibility_guard>
 
 <process>

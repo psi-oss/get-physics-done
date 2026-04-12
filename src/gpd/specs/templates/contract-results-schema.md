@@ -176,7 +176,7 @@ Rules:
 - `subject_role: decisive|supporting|supplemental|other`; it is required on every verdict.
 - Only `subject_role: decisive` satisfies a required decisive comparison or participates in pass/fail consistency checks against `contract_results`. `supporting` and `supplemental` verdicts are informative context only.
 - `comparison_kind: benchmark|prior_work|experiment|cross_method|baseline|other`; benchmark acceptance tests require `benchmark`, and cross-method acceptance tests require `cross_method`.
-- List-typed ledger fields such as `linked_ids`, `completed_actions`, `missing_actions`, and all `uncertainty_markers` entries must stay YAML lists even for one item.
+- Comparison verdicts inherit the list-format rules from the `contract_results` section (ledger lists, uncertainty markers, etc.).
 - If a decisive external anchor was used, include `reference_id`. If the decisive anchor is itself the compared subject, use `subject_kind: reference` and `subject_id: <reference-id>`.
 - `verdict: pass|tension|fail|inconclusive`; if a required decisive comparison is still open, use `inconclusive` or `tension` instead of omitting the entry.
 - A prose sentence like “agrees with literature” does not replace a verdict entry.

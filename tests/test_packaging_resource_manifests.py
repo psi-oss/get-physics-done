@@ -106,6 +106,14 @@ def test_npm_package_remains_bootstrap_plus_contract_manifests_only() -> None:
     }
 
 
+def test_npm_package_files_exist_in_worktree() -> None:
+    files = _package_json()["files"]
+
+    for entry in files:
+        resource_path = REPO_ROOT / entry
+        assert resource_path.exists(), f"packaged resource missing: {entry}"
+
+
 def test_public_surface_contract_hub_url_is_packaged_or_absolute() -> None:
     contract = _public_surface_contract()
     hub_url = contract["beginner_onboarding"]["hub_url"]

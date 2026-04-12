@@ -17,7 +17,6 @@ from pathlib import Path
 
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.adapters.install_utils import GPD_INSTALL_DIR_NAME
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.contracts import ConventionLock, ResearchContract, parse_project_contract_data_salvage
 from gpd.core import state as _state_module
@@ -28,7 +27,6 @@ from gpd.core.constants import (
     AGENT_ID_FILENAME,
     CONFIG_FILENAME,
     CONTEXT_SUFFIX,
-    ENV_GPD_ACTIVE_RUNTIME,
     MILESTONES_DIR_NAME,
     MILESTONES_FILENAME,
     PHASES_DIR_NAME,
@@ -143,6 +141,7 @@ from gpd.core.workflow_staging import (
 from gpd.core.workflow_staging import (
     RESEARCH_PHASE_INIT_FIELDS as _RESEARCH_PHASE_INIT_FIELDS,
 )
+from gpd.hooks.install_metadata import GPD_INSTALL_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -2634,19 +2633,14 @@ def _detect_platform(cwd: Path | None = None) -> str:
     resolved_home = Path.home()
     runtime_unknown = "unknown"
     try:
-        import os
-
         from gpd.adapters.runtime_catalog import normalize_runtime_name
         from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_runtime_for_gpd_use
 
         runtime_unknown = RUNTIME_UNKNOWN
-        explicit_override = normalize_runtime_name(os.environ.get(ENV_GPD_ACTIVE_RUNTIME))
-        if explicit_override:
-            return explicit_override
-        for descriptor in iter_runtime_descriptors():
-            if any(os.environ.get(env_var) for env_var in descriptor.activation_env_vars):
-                return descriptor.runtime_name
         detected = detect_runtime_for_gpd_use(cwd=resolved_cwd, home=resolved_home)
+        normalized = normalize_runtime_name(detected)
+        if normalized:
+            return normalized
         if isinstance(detected, str) and detected.strip():
             return detected
     except Exception:

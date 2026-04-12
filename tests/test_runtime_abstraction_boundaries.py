@@ -50,6 +50,11 @@ def test_stage0_fixture_plan_and_contract_are_readable() -> None:
     assert contract_data.get("scope", {}).get("question", "").startswith("What benchmark")
 
 
+def test_context_core_avoids_adapter_install_utils_import() -> None:
+    content = (REPO_ROOT / "src/gpd/core/context.py").read_text(encoding="utf-8")
+    assert "gpd.adapters.install_utils" not in content
+
+
 def _runtime_env_prefix_patterns() -> list[str]:
     patterns: set[str] = set()
     for descriptor in _RUNTIME_DESCRIPTORS:

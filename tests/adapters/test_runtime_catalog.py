@@ -335,6 +335,18 @@ def test_runtime_catalog_schema_required_and_optional_keys_match_catalog_entries
     validate_runtime_catalog_schema()
 
 
+def test_validate_runtime_catalog_schema_surfaces_loader_errors(monkeypatch) -> None:
+    message = "runtime catalog schema clarity lost"
+
+    def failing_loader():
+        raise ValueError(message)
+
+    monkeypatch.setattr(runtime_catalog, "iter_runtime_descriptors", failing_loader)
+
+    with pytest.raises(ValueError, match=re.escape(message)):
+        validate_runtime_catalog_schema()
+
+
 def test_runtime_catalog_adapter_registration_aliases_and_public_prefixes() -> None:
     catalog_payload = json.loads(_RUNTIME_CATALOG_PATH.read_text(encoding="utf-8"))
 
