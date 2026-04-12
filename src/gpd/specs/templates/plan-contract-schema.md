@@ -51,6 +51,8 @@ For additional alignment rules and validation command examples, revisit the cano
 - All blank-after-trim values are invalid.
 - `approach_policy` constrains execution but does not count as grounding on its own; use `context_intake`, preserved scoping inputs, or `references[]` instead.
 - `context_intake` anchors must be concrete enough to re-find later. Placeholders like `TBD`, `unknown`, or `placeholder` do not count as grounding.
+- Provide durable grounding inside `context_intake`: populate `must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, or `known_good_baselines` with artifact locators or previously surfaced references so `_has_contract_grounding_context` can detect them; when those anchors are missing, at least one `references[]` entry must set `must_surface: true` so the integrity checks still know what to dig up.
+- `uncertainty_markers` must include non-empty `weakest_anchors` and `disconfirming_observations`. The blockers in `collect_plan_contract_integrity_errors` and related parsing logic expect those lists to surface the weakest assumptions and counter-observations that still need resolution.
 
 ---
 
@@ -157,7 +159,7 @@ Rules:
 - `contract.context_intake` is required and must be a non-empty object, not a string or list.
 - Every field above is optional inside the object, but the object itself must not be empty.
 - `must_read_refs[]` may only reference declared `references[].id`.
-- Use concrete anchors in `must_read_refs[]`, `must_include_prior_outputs[]`, `user_asserted_anchors[]`, and `known_good_baselines[]`; use `context_gaps`, `scope.unresolved_questions`, or `uncertainty_markers.weakest_anchors` for unresolved anchors instead of inventing placeholder references.
+- Use concrete anchors in `must_read_refs[]`, `must_include_prior_outputs[]`, `user_asserted_anchors[]`, and `known_good_baselines[]`; when those anchors do not already name real artifacts or references, mark at least one `references[]` entry with `must_surface: true` so `_has_contract_grounding_context` can still detect durable grounding, then rely on `context_gaps`, `scope.unresolved_questions`, or `uncertainty_markers.weakest_anchors` for unresolved anchors instead of inventing placeholder references.
 - `context_gaps` and `crucial_inputs` preserve uncertainty and workflow visibility, but they do not satisfy hard grounding on their own.
 
 ### `approach_policy`
@@ -314,6 +316,7 @@ Rules:
 
 - `weakest_anchors` must not be empty.
 - `disconfirming_observations` must not be empty.
+- `weakest_anchors` should name the least-certain anchors the contract still leans on, and `disconfirming_observations` should describe concrete evidence that would force rethinking. These lists feed the blockers in `collect_plan_contract_integrity_errors` and `_collect_strict_contract_results_errors`, so they must stay populated.
 - `uncertainty_markers` must be a YAML object, not a string or list.
 - `unvalidated_assumptions` and `competing_explanations` are optional arrays of non-empty strings, but when present they must stay explicit in the contract.
 

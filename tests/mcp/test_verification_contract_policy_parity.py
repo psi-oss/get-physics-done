@@ -85,3 +85,21 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     ) in _CONTRACT_SCOPE_INPUT_SCHEMA["description"]
     assert "`scope.in_scope` is required and must name at least one project boundary or objective." in plan_schema
     assert "Grounding and scope policy are also owned by `templates/project-contract-schema.md`" in state_schema
+
+    required_fields = _CONTRACT_PAYLOAD_INPUT_SCHEMA.get("required", [])
+    assert "context_intake" in required_fields
+    assert "uncertainty_markers" in required_fields
+
+    payload_properties = _CONTRACT_PAYLOAD_INPUT_SCHEMA["properties"]
+    context_properties = payload_properties["context_intake"]
+    assert "must_surface: true" in context_properties.get("description", "")
+
+    uncertainty_properties = payload_properties["uncertainty_markers"]
+    uncertainty_required = uncertainty_properties.get("required", [])
+    assert "weakest_anchors" in uncertainty_required
+    assert "disconfirming_observations" in uncertainty_required
+
+    uncertainty_list_props = uncertainty_properties["properties"]
+    assert uncertainty_list_props["weakest_anchors"].get("minItems") == 1
+    assert uncertainty_list_props["disconfirming_observations"].get("minItems") == 1
+    assert "collect_plan_contract_integrity_errors" in uncertainty_properties.get("description", "")

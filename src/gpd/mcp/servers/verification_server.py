@@ -871,6 +871,38 @@ def _research_contract_payload_schema() -> dict[str, object]:
         scope_schema = properties.get("scope")
         if isinstance(scope_schema, dict) and isinstance(_CONTRACT_SCOPE_INPUT_SCHEMA.get("description"), str):
             scope_schema["description"] = _CONTRACT_SCOPE_INPUT_SCHEMA["description"]
+        context_schema = properties.get("context_intake")
+        if isinstance(context_schema, dict):
+            context_schema["description"] = (
+                "Provide concrete `must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, "
+                "or `known_good_baselines` so `_has_contract_grounding_context` can detect durable anchors. "
+                "When those anchors cannot cite real artifacts or references, mark at least one `references[]` entry "
+                "with `must_surface: true` before the model emits the contract."
+            )
+        uncertainty_schema = properties.get("uncertainty_markers")
+        if isinstance(uncertainty_schema, dict):
+            required_uncertainty_fields = ["weakest_anchors", "disconfirming_observations"]
+            existing_required = uncertainty_schema.get("required")
+            if isinstance(existing_required, list):
+                required_list = list(dict.fromkeys([*existing_required, *required_uncertainty_fields]))
+            else:
+                required_list = list(dict.fromkeys(required_uncertainty_fields))
+            uncertainty_schema["required"] = required_list
+            uncertainty_schema["description"] = (
+                "The contract's weakest anchors and disconfirming observations must stay listed so "
+                "`collect_plan_contract_integrity_errors` and `_collect_strict_contract_results_errors` "
+                "can surface the assumptions the model still must resolve."
+            )
+            uncertainty_props = uncertainty_schema.get("properties")
+            if isinstance(uncertainty_props, dict):
+                for list_name in required_uncertainty_fields:
+                    prop_schema = uncertainty_props.get(list_name)
+                    if isinstance(prop_schema, dict):
+                        prop_schema["minItems"] = max(prop_schema.get("minItems", 0), 1)
+        required_fields = schema.get("required")
+        if not isinstance(required_fields, list):
+            required_fields = []
+        schema["required"] = list(dict.fromkeys([*required_fields, "context_intake", "uncertainty_markers"]))
     schema["description"] = verification_contract_policy_text()
     return schema
 

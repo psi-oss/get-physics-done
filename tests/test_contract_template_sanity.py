@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -14,6 +15,15 @@ _CONTRACT_TEMPLATES: dict[str, dict[str, str]] = {
     "contract-results-schema.md": {"type": "contract-results-schema"},
     "proof-redteam-schema.md": {"type": "proof-redteam-schema"},
 }
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_WORKFLOWS_DIR = _REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
+_CONTRACT_RESULTS_STAGE_MANIFESTS = (
+    "execute-phase-stage-manifest.json",
+    "verify-work-stage-manifest.json",
+)
+CONTRACT_RESULTS_SCHEMA_REF = "@{GPD_INSTALL_DIR}/templates/contract-results-schema.md"
+CONTRACT_RESULTS_STAGE_TEMPLATE = "templates/contract-results-schema.md"
 
 
 def _load_frontmatter(path: Path) -> dict[str, object]:
@@ -274,6 +284,61 @@ def test_planner_subagent_excerpt_surfaces_link_relation_and_action_vocab() -> N
     reference_action_enum = " | ".join(CONTRACT_REFERENCE_ACTION_VALUES)
     assert f"Link relations use `{link_enum}`" in excerpt
     assert f"reference actions use `{reference_action_enum}`" in excerpt
+
+
+def test_planner_subagent_excerpt_highlights_durable_grounding() -> None:
+    subagent_prompt = (_TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
+
+    excerpt_start = subagent_prompt.index("**PLAN contract schema-critical excerpt:**")
+    excerpt_end = subagent_prompt.index("**Project State:**")
+    excerpt = subagent_prompt[excerpt_start:excerpt_end]
+
+    assert "_has_contract_grounding_context" in excerpt
+    assert "must_surface: true" in excerpt
+
+
+def test_plan_contract_schema_describes_grounding_and_uncertainty_gates() -> None:
+    plan_schema = (_TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
+
+    assert "_has_contract_grounding_context" in plan_schema
+    assert "collect_plan_contract_integrity_errors" in plan_schema
+    assert "_collect_strict_contract_results_errors" in plan_schema
+
+
+def test_execute_plan_contract_results_schema_precedes_contract_results() -> None:
+    content = (_WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
+    _assert_schema_precedes_first_contract_marker(content, CONTRACT_RESULTS_SCHEMA_REF)
+
+
+def test_execute_phase_contract_results_schema_precedes_contract_results() -> None:
+    content = (_WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+    _assert_schema_precedes_first_contract_marker(content, CONTRACT_RESULTS_SCHEMA_REF)
+
+
+def test_stage_manifests_keep_contract_results_schema_reference() -> None:
+    for manifest_filename in _CONTRACT_RESULTS_STAGE_MANIFESTS:
+        manifest_path = _WORKFLOWS_DIR / manifest_filename
+        assert manifest_path.exists(), f"{manifest_filename} missing"
+        assert _stage_manifest_has_template(manifest_path, CONTRACT_RESULTS_STAGE_TEMPLATE), (
+            f"{manifest_filename} dropped {CONTRACT_RESULTS_STAGE_TEMPLATE}"
+        )
+
+
+def _assert_schema_precedes_first_contract_marker(content: str, schema_ref: str, marker: str = "contract_results") -> None:
+    marker_index = content.find(marker)
+    assert marker_index != -1, "Content lacks contract_results marker"
+    schema_index = content.find(schema_ref)
+    assert schema_index != -1, f"{schema_ref} missing from content"
+    assert schema_index < marker_index, f"{schema_ref} must appear before the first {marker}"
+
+
+def _stage_manifest_has_template(manifest_path: Path, template: str) -> bool:
+    manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for stage in manifest_data.get("stages", []):
+        authorities = stage.get("loaded_authorities", []) + stage.get("must_not_eager_load", [])
+        if template in authorities:
+            return True
+    return False
 
 
 def _plan_contract_schema_critical_tokens() -> tuple[str, ...]:
