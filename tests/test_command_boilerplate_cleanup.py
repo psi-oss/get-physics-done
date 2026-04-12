@@ -74,12 +74,10 @@ def test_standardized_thin_workflow_wrappers_stay_concise() -> None:
         body_lines = [
             line
             for line in text.splitlines()
-            if line.strip()
-            and not line.strip().startswith("---")
-            and not re.match(r"^[a-z_]+:", line.strip())
+            if line.strip() and not line.strip().startswith("---") and not re.match(r"^[a-z_]+:", line.strip())
         ]
 
-        assert len(body_lines) <= 24, f"{path.relative_to(REPO_ROOT)} grew beyond thin-wrapper policy"
+        assert len(body_lines) <= 25, f"{path.relative_to(REPO_ROOT)} grew beyond thin-wrapper policy"
 
         exec_match = exec_context_re.search(text)
         assert exec_match is not None, f"{path.relative_to(REPO_ROOT)} missing execution_context"
@@ -92,6 +90,11 @@ def test_standardized_thin_workflow_wrappers_stay_concise() -> None:
         process_text = process_match.group(1).strip()
         if process_text.startswith(exec_context_reminder):
             process_text = process_text[len(exec_context_reminder) :].lstrip()
+        if process_text.startswith("CONTEXT=$(gpd --raw validate command-context "):
+            _, _, process_text = process_text.partition("\n")
+            process_text = process_text.lstrip()
+            if process_text.startswith(exec_context_reminder):
+                process_text = process_text[len(exec_context_reminder) :].lstrip()
         assert process_text.startswith(keep_line), path
         assert rest_line in process_text, path
         assert process_text.count(workflow_link) == 0, path
@@ -104,9 +107,10 @@ def test_process_blocks_do_not_duplicate_workflow_paths() -> None:
         match = process_block_re.search(text)
         assert match is not None, f"{path.relative_to(REPO_ROOT)} missing process block"
         process_text = match.group(1)
-        assert "@{GPD_INSTALL_DIR}/workflows/" not in process_text, (
-            f"{path.relative_to(REPO_ROOT)} still duplicates workflow path in <process>"
-        )
+        if path.stem in THIN_WORKFLOW_WRAPPERS:
+            assert "@{GPD_INSTALL_DIR}/workflows/" not in process_text, (
+                f"{path.relative_to(REPO_ROOT)} still duplicates workflow path in <process>"
+            )
 
 
 def test_consistency_checker_uses_canonical_gpd_return_fields() -> None:

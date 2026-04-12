@@ -58,11 +58,12 @@ CI_PYTEST_SHARD_COMMAND_TOKENS = (
 def ci_smoke_pytest_command() -> str:
     return " ".join(("uv", "run", "pytest", "-q", *CI_SMOKE_TEST_TARGETS))
 
+
 _CI_HOT_TEST_FILE_SPLITS_BASE = {
     "test_runtime_cli.py": 10,
     "test_cli_integration.py": 4,
     "test_registry.py": 4,
-    "test_cli_commands.py": 2,
+    "test_cli_commands.py": 3,
     "test_install_utils_edge.py": 2,
     "test_install_edge_cases.py": 2,
     "test_update_workflow.py": 4,
@@ -324,10 +325,7 @@ def collected_test_inventory(*, repo_root: Path | None = None) -> dict[str, tupl
 
 
 def collected_test_counts_by_file(*, repo_root: Path | None = None) -> dict[str, int]:
-    return {
-        rel_path: len(nodeids)
-        for rel_path, nodeids in collected_test_inventory(repo_root=repo_root).items()
-    }
+    return {rel_path: len(nodeids) for rel_path, nodeids in collected_test_inventory(repo_root=repo_root).items()}
 
 
 def _split_nodeids_round_robin(nodeids: tuple[str, ...], *, parts: int) -> tuple[tuple[str, ...], ...]:

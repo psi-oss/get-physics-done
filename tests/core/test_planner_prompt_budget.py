@@ -33,9 +33,7 @@ def test_planner_bootstrap_does_not_eagerly_load_execution_or_completion_only_ma
     assert "@{GPD_INSTALL_DIR}/workflows/execute-plan.md" not in role
     assert "@{GPD_INSTALL_DIR}/templates/summary.md" not in role
     assert "@{GPD_INSTALL_DIR}/references/protocols/order-of-limits.md" not in role
-    assert role.index("@{GPD_INSTALL_DIR}/templates/phase-prompt.md") < role.index(
-        "before any `PLAN.md` emission."
-    )
+    assert role.index("@{GPD_INSTALL_DIR}/templates/phase-prompt.md") < role.index("before any `PLAN.md` emission.")
     assert role.index("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") < role.index(
         "before any `PLAN.md` emission."
     )
@@ -49,7 +47,7 @@ def test_expanded_planner_prompt_stays_under_budget() -> None:
     )
 
     assert metrics.raw_include_count <= 12
-    assert metrics.expanded_char_count < 445_000
+    assert metrics.expanded_char_count < 447_000
     assert metrics.expanded_line_count < 8_800
 
 

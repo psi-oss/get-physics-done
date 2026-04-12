@@ -862,7 +862,9 @@ def _classify_project_contract_payload(
             provenance=provenance,
             raw_project_contract_classified=provenance == "raw",
             errors=missing_required_schema_errors,
-            warnings=list(dict.fromkeys([*list_shape_drift_errors, *list_member_errors, *missing_required_schema_warnings])),
+            warnings=list(
+                dict.fromkeys([*list_shape_drift_errors, *list_member_errors, *missing_required_schema_warnings])
+            ),
         )
     normalized_contract, schema_findings, schema_metadata = salvage_project_contract(raw_contract)
     schema_warnings, schema_errors = split_project_contract_schema_findings(
@@ -930,7 +932,7 @@ def _classify_project_contract_payload(
     )
     if schema_warnings:
         load_info["status"] = "loaded_with_schema_normalization"
-    approval_validation = validate_project_contract(normalized_contract, mode="approved", project_root=None)
+    approval_validation = validate_project_contract(normalized_contract, mode="approved", project_root=cwd)
     if not approval_validation.valid:
         logger.warning(
             "Loaded project_contract from %s with approval blockers: %s",
@@ -1054,7 +1056,7 @@ def _finalize_project_contract_gate(
     }
     validation_payload: dict[str, object] | None = None
     if contract is not None:
-        draft_validation = validate_project_contract(contract, mode="draft", project_root=None)
+        draft_validation = validate_project_contract(contract, mode="draft", project_root=cwd)
         if not draft_validation.valid:
             finalized_load_info["status"] = "blocked_integrity"
             finalized_load_info["errors"] = list(
@@ -1064,7 +1066,7 @@ def _finalize_project_contract_gate(
         if isinstance(raw_approval_validation, dict):
             validation_payload = dict(raw_approval_validation)
         else:
-            validation_payload = validate_project_contract(contract, mode="approved", project_root=None).model_dump(
+            validation_payload = validate_project_contract(contract, mode="approved", project_root=cwd).model_dump(
                 mode="json"
             )
         if finalized_load_info["status"] != "blocked_integrity":
@@ -1826,9 +1828,7 @@ def _normalize_state_schema(
     if raw is None:
         return default_state_dict(), []
     if not raw:  # {} case — emit sentinel to trigger backup recovery
-        return default_state_dict(), [
-            "schema normalization: irrecoverable validation failure; reset to defaults"
-        ]
+        return default_state_dict(), ["schema normalization: irrecoverable validation failure; reset to defaults"]
     if not isinstance(raw, dict):
         return default_state_dict(), [f"state root must be an object, got {type(raw).__name__}"]
 
@@ -1897,7 +1897,7 @@ def _normalize_state_schema(
                             removed_validation_paths.add(list_parent_loc)
                             removed_validation_paths.add(loc)
                             issue = (
-                                f'schema normalization: dropped malformed list entry '
+                                f"schema normalization: dropped malformed list entry "
                                 f'"{_format_validation_location(list_parent_loc)}": {message}'
                             )
                             if issue not in validation_findings:
@@ -2830,7 +2830,8 @@ def _recover_intent_locked(cwd: Path) -> None:
         except OSError:
             return False
         return resolved_parent == planning_dir and (
-            path.name.startswith(f"{target.name}.tmp.") or path.name == (".state-json-tmp" if target.name == "state.json" else ".state-md-tmp")
+            path.name.startswith(f"{target.name}.tmp.")
+            or path.name == (".state-json-tmp" if target.name == "state.json" else ".state-md-tmp")
         )
 
     paths_are_valid = _is_same_gpd_dir_temp(json_tmp, json_path) and _is_same_gpd_dir_temp(md_tmp, md_path)
@@ -4652,8 +4653,7 @@ def state_record_session(
         )
         if (
             not clear_resume_file
-            and
-            resume_file is not None
+            and resume_file is not None
             and normalized_resume_file is None
             and resume_file.strip()
             and resume_file.strip() not in {EM_DASH, "[Not set]"}

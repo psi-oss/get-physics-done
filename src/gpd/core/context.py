@@ -17,7 +17,6 @@ from pathlib import Path
 
 from pydantic import ValidationError as PydanticValidationError
 
-from gpd.adapters.install_utils import GPD_INSTALL_DIR_NAME
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.contracts import ConventionLock, ResearchContract, parse_project_contract_data_salvage
 from gpd.core import state as _state_module
@@ -143,6 +142,7 @@ from gpd.core.workflow_staging import (
 from gpd.core.workflow_staging import (
     RESEARCH_PHASE_INIT_FIELDS as _RESEARCH_PHASE_INIT_FIELDS,
 )
+from gpd.hooks.install_metadata import GPD_INSTALL_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -2218,7 +2218,6 @@ def _canonical_resume_candidate(
     )
 
 
-
 def _build_resume_read_state(
     execution_context: dict[str, object],
     *,
@@ -4133,7 +4132,9 @@ def init_map_research(cwd: Path, stage: str | None = None) -> dict:
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
-        raise ValueError(f"Unknown map-research stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}.") from exc
+        raise ValueError(
+            f"Unknown map-research stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
+        ) from exc
 
     required_fields = set(stage_def.required_init_fields)
     staged_source = dict(result)
@@ -4142,7 +4143,9 @@ def init_map_research(cwd: Path, stage: str | None = None) -> dict:
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
-        raise ValueError(f"map-research stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}")
+        raise ValueError(
+            f"map-research stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
+        )
 
     staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
