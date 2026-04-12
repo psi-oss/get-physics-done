@@ -146,9 +146,11 @@ _ALLOWED_RUNTIME_FILES = {
     "CITATION.cff",
     ".gitignore",
     "src/gpd/adapters/__init__.py",
+    "src/gpd/hooks/install_metadata.py",
     "src/gpd/hooks/runtime_detect.py",
 }
 _ALLOWED_SHARED_PYTHON_RUNTIME_FILES = {
+    "src/gpd/hooks/install_metadata.py",
     "src/gpd/hooks/runtime_detect.py",
 }
 _WOLFRAM_INTEGRATION_BOUNDARY_FILES = {
@@ -324,6 +326,30 @@ def _runtime_fixture_values() -> tuple[str, ...]:
             if value:
                 values.add(value)
     return tuple(sorted(values))
+
+
+def _runtime_quoted_literal_pattern() -> re.Pattern[str]:
+    values: set[str] = set()
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        for value in (
+            descriptor.runtime_name,
+            descriptor.config_dir_name,
+            descriptor.launch_command,
+            descriptor.install_flag,
+            descriptor.global_config.env_var,
+            descriptor.global_config.env_dir_var,
+            descriptor.global_config.env_file_var,
+            descriptor.global_config.home_subpath,
+            descriptor.global_config.xdg_subdir,
+            *descriptor.selection_aliases,
+            *descriptor.selection_flags,
+        ):
+            if value:
+                values.add(value)
+    if not values:
+        return re.compile(r"$^")
+    pieces = [rf'["\']{re.escape(value)}["\']' for value in sorted(values)]
+    return re.compile(rf"(?:{'|'.join(pieces)})")
 
 
 def _runtime_fixture_literal_findings(content: str, *, minimum_matches: int = 2) -> list[str]:
@@ -613,9 +639,13 @@ def test_runtime_name_hardcoding_allowlists_are_catalog_derived() -> None:
         "CITATION.cff",
         ".gitignore",
         "src/gpd/adapters/__init__.py",
+        "src/gpd/hooks/install_metadata.py",
         "src/gpd/hooks/runtime_detect.py",
     }
-    assert _ALLOWED_SHARED_PYTHON_RUNTIME_FILES == {"src/gpd/hooks/runtime_detect.py"}
+    assert _ALLOWED_SHARED_PYTHON_RUNTIME_FILES == {
+        "src/gpd/hooks/install_metadata.py",
+        "src/gpd/hooks/runtime_detect.py",
+    }
 
 
 def test_shared_source_surfaces_do_not_hardcode_runtime_tool_alias_literals() -> None:
@@ -712,6 +742,20 @@ def test_shared_core_runtime_surface_tests_do_not_hardcode_single_runtime_catalo
 
     assert leaks == [], (
         "Shared core runtime-surface tests should derive runtime literals from the runtime catalog:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
+def test_shared_core_runtime_surface_tests_do_not_quote_runtime_literals() -> None:
+    pattern = _runtime_quoted_literal_pattern()
+    leaks: list[tuple[Path, int, str]] = []
+    for path in _STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS:
+        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if pattern.search(line):
+                leaks.append((path, line_no, line))
+
+    assert leaks == [], (
+        "Shared core runtime-surface tests should derive runtime literals from the catalog:\n"
         f"{_format_failures(leaks)}"
     )
 

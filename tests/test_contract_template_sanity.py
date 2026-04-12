@@ -58,6 +58,41 @@ def test_new_project_workflow_loads_canonical_project_contract_schema() -> None:
     assert "Project contract schema-critical excerpt" not in workflow
 
 
+def test_summary_template_surfaces_required_frontmatter_fields() -> None:
+    summary_template = (_TEMPLATES_DIR / "summary.md").read_text(encoding="utf-8")
+
+    required_tokens = (
+        "## Required Frontmatter",
+        "`phase`",
+        "`plan`",
+        "`depth`",
+        "minimal | standard | full | complex",
+        "`provides`",
+        "`completed`",
+        "`plan_contract_ref`",
+    )
+
+    for token in required_tokens:
+        assert token in summary_template
+
+
+def test_verification_template_surfaces_required_frontmatter_fields() -> None:
+    verification_template = (_TEMPLATES_DIR / "verification-report.md").read_text(encoding="utf-8")
+
+    required_tokens = (
+        "## Required Frontmatter",
+        "`phase`",
+        "`verified`",
+        "`status`",
+        "passed | gaps_found | expert_needed | human_needed",
+        "`score`",
+        "`plan_contract_ref`",
+    )
+
+    for token in required_tokens:
+        assert token in verification_template
+
+
 def test_prompt_workflow_verbosity_trims_stay_concise() -> None:
     root = Path(__file__).resolve().parent.parent
     execute_phase = (root / "src/gpd/specs/workflows/execute-phase.md").read_text(encoding="utf-8")
@@ -201,6 +236,21 @@ def test_phase_prompt_pre_contract_surfaces_link_relation_and_action_vocab() -> 
     reference_action_enum = " | ".join(CONTRACT_REFERENCE_ACTION_VALUES)
     assert f"`links[].relation` uses `{link_enum}`" in pre_contract_text
     assert f"`references[].required_actions` uses `{reference_action_enum}`" in pre_contract_text
+
+
+def test_phase_prompt_pre_contract_avoids_relisting_full_contract_enums() -> None:
+    phase_prompt = (_TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
+    first_contract_block = phase_prompt.index("\ncontract:")
+    pre_contract_text = phase_prompt[:first_contract_block]
+
+    for fragment in (
+        "`claim_kind:",
+        "`kind: scalar",
+        "`kind: figure",
+        "`kind: paper",
+        "`role: definition",
+    ):
+        assert fragment not in pre_contract_text
 
 
 def test_planner_subagent_excerpt_surfaces_link_relation_and_action_vocab() -> None:

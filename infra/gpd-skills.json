@@ -1,6 +1,7 @@
 {
   "name": "gpd-skills",
-  "description": "GPD skill discovery and routing. Tools for listing, retrieving, auto-routing, and indexing GPD workflow skills for agent prompt injection. Treat missing evidence or artifacts as missing, blocked, failed, or inconclusive; never fabricate fallback outputs.",
+  "description": "GPD skill discovery and routing for workflow prompts; never fabricate missing outputs.",
+  "source_of_truth": "src/gpd/mcp/builtin_servers.py",
   "transport": "stdio",
   "command": "gpd-mcp-skills",
   "args": [],

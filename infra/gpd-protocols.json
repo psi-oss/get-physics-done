@@ -1,6 +1,7 @@
 {
   "name": "gpd-protocols",
   "description": "Physics computation protocols for GPD research workflows. Provides step-by-step methodology, verification checkpoints, and auto-routing across the live protocol catalog. Use them as rigor-first procedural guidance; do not invent missing evidence, artifacts, or completion state.",
+  "source_of_truth": "src/gpd/mcp/builtin_servers.py",
   "transport": "stdio",
   "command": "gpd-mcp-protocols",
   "args": [],

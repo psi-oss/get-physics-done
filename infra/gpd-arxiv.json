@@ -1,6 +1,7 @@
 {
   "name": "gpd-arxiv",
   "description": "Optional/conditional arXiv paper search, retrieval, and source-archive download via arxiv-mcp-server. Available only when the optional arxiv-mcp-server dependency is installed; search for physics papers, fetch abstracts, download full text, and download raw source archives.",
+  "source_of_truth": "src/gpd/mcp/builtin_servers.py",
   "transport": "stdio",
   "command": "gpd-mcp-arxiv",
   "args": [],

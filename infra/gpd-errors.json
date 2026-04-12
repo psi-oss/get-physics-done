@@ -1,6 +1,7 @@
 {
   "name": "gpd-errors",
   "description": "LLM physics error catalog and traceability matrix for GPD verification. 104 error classes with detection strategies mapped to 8 verification check categories.",
+  "source_of_truth": "src/gpd/mcp/builtin_servers.py",
   "transport": "stdio",
   "command": "gpd-mcp-errors",
   "args": [],

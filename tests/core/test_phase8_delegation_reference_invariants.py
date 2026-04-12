@@ -52,3 +52,10 @@ def test_continuation_prompt_frames_the_spawn_as_a_fresh_continuation_not_an_in_
     )
     assert "wait here for the user" not in text
     assert "wait for the user inside the same handoff" not in text
+
+
+def test_agent_delegation_reference_ends_after_platform_note_block() -> None:
+    text = _read(ORCHESTRATION_REFERENCES / "agent-delegation.md")
+    assert "## Platform Note Template" in text
+    tail = text.rsplit("```", 1)[-1]
+    assert tail.strip() == ""

@@ -4,9 +4,9 @@ template_version: 1
 
 # Executor Continuation Prompt Template
 
-Template for spawning a fresh gpd-executor agent to continue plan execution after a checkpoint pause. This is a fresh continuation handoff owned by the orchestrator, not an in-run wait or resume-in-place. Uses a fresh agent with explicit state instead of resume to avoid serialization issues with parallel tool calls. The `<execution_segment>` block is the workflow/runtime handoff payload; persisted bounded-segment schema details are owned by the canonical schema docs listed in `docs/schema-registry-ownership.md`.
+Template for spawning a fresh gpd-executor agent to continue plan execution after a checkpoint pause. This is a fresh continuation handoff owned by the orchestrator, not an in-run wait or resume-in-place. Use a fresh agent with explicit state instead of resume to avoid serialization issues with parallel tool calls. The `<execution_segment>` block is the workflow/runtime handoff payload; persisted bounded-segment schema details are owned by the canonical schema docs listed in `docs/schema-registry-ownership.md`.
 
-Persisted bounded-segment fields: `resume_file`, `phase`, `plan`, `segment_id`, `segment_status`, `checkpoint_reason`, `waiting_reason`, `blocked_reason`, `waiting_for_review`, `first_result_gate_pending`, `pre_fanout_review_pending`, `pre_fanout_review_cleared`, `skeptical_requestioning_required`, `downstream_locked`, `skeptical_requestioning_summary`, `weakest_unchecked_anchor`, `disconfirming_observation`, `transition_id`, `last_result_id`, `updated_at`, `source_session_id`, `recorded_by`.
+Persisted bounded-segment fields (see schema registry): `resume_file`, `phase`, `plan`, `segment_id`, `segment_status`, `checkpoint_reason`, `waiting_reason`, `blocked_reason`, `waiting_for_review`, `first_result_gate_pending`, `pre_fanout_review_pending`, `pre_fanout_review_cleared`, `skeptical_requestioning_required`, `downstream_locked`, `skeptical_requestioning_summary`, `weakest_unchecked_anchor`, `disconfirming_observation`, `transition_id`, `last_result_id`, `updated_at`, `source_session_id`, `recorded_by`.
 
 If the checkpoint payload names expected artifacts, verify them on disk before continuing; do not treat returned text alone as sufficient evidence.
 
@@ -45,15 +45,11 @@ Return state updates (position, decisions, metrics) in your response -- do NOT w
 
 `execution_segment` is the transient runtime handoff payload. Clear or replace the persisted bounded stop when it is consumed, retired, or superseded by a newer segment.
 
-If the execution segment indicates `pre_fanout_review_pending: true`, do not unlock downstream dependent work until the review outcome has been incorporated into this continuation.
+If the execution segment indicates `pre_fanout_review_pending: true`, do not unlock downstream dependent work until the review outcome is incorporated. If `pre_fanout_review_cleared: true` is also present, treat it as "review accepted, unlock still outstanding" rather than "gate retired."
 
-If the execution segment also indicates `pre_fanout_review_cleared: true`, treat that as "review accepted, unlock still outstanding" rather than "gate retired." The continuation must preserve the separate fanout-unlock transition.
+If `skeptical_requestioning_required: true`, carry forward the skeptical summary, weakest unchecked anchor, and disconfirming observation into the resumed logic; do not treat the user response as routine approval.
 
-If the execution segment indicates `skeptical_requestioning_required: true`, treat the user response as a framing decision. Carry forward the skeptical summary, weakest unchecked anchor, and disconfirming observation into the resumed plan logic instead of treating this as a routine approval.
-
-Do not assume a `first_result` or `pre_fanout` clear also clears skeptical re-questioning. If skeptical state was present, it must be retired explicitly in the continuation path.
-
-If the execution segment indicates `first_result_gate_pending: true`, do not reinterpret that gate as passed just because the result looks plausible. Continue only after the review outcome has been made explicit in this continuation.
+If `first_result_gate_pending: true`, do not mark that gate passed without an explicit review outcome.
 
 <protocol_bundles>
 {protocol_bundle_context}
@@ -83,13 +79,7 @@ Compare against the completed tasks table above. If any expected commits are mis
 
 As above, re-verify any artifacts the checkpoint or execution segment names on disk before continuing; do not treat the textual description alone as sufficient evidence.
 
-Also verify the bounded execution segment still satisfies its resume preconditions:
-
-- the checkpoint cause is understood
-- any required user decision or review outcome is now present
-- any first-result, skeptical, or pre-fanout gate has the matching explicit clear/override outcome
-- any pre-fanout lock has the separate fanout-unlock transition before dependent work resumes
-- the segment has not already been superseded by a newer continuation state
+Also verify the bounded execution segment still satisfies its resume preconditions: checkpoint cause understood, required decisions or reviews present, explicit clears recorded for first-result/skeptical/pre-fanout gates, fanout-unlock transition captured, and no newer continuation has superseded this segment.
 </verification_before_continuing>
 
 <success_criteria>

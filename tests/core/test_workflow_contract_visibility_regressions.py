@@ -248,3 +248,53 @@ def test_settings_publication_manuscript_preset_surfaces_real_latex_readiness_ga
 
     assert "only affects local smoke checks" not in settings
     assert "can degrade or block `paper-build` / `arxiv-submission`" in settings
+
+
+def test_pause_work_workflow_surfaces_continue_here_schema_fields() -> None:
+    workflow = _workflow_text("pause-work.md")
+
+    assert "@{GPD_INSTALL_DIR}/templates/continue-here.md" in workflow
+    assert "YAML frontmatter: `phase`, `task`, `total_tasks`, `status`, `last_updated`" in workflow
+    assert "<current_state>" in workflow
+    assert "<remaining_work>" in workflow
+    assert "<persistent_state>" in workflow
+
+
+def test_resume_work_workflow_surfaces_state_json_schema_and_resume_vocabulary() -> None:
+    workflow = _workflow_text("resume-work.md")
+
+    assert "@{GPD_INSTALL_DIR}/templates/state-json-schema.md" in workflow
+    assert "@{GPD_INSTALL_DIR}/references/orchestration/resume-vocabulary.md" in workflow
+    assert "resume_surface_schema_version" in workflow
+    assert "project_contract_gate" in workflow
+
+
+def test_compare_workflows_surface_comparison_frontmatter_ledgers() -> None:
+    compare_results = _workflow_text("compare-results.md")
+    compare_experiment = _workflow_text("compare-experiment.md")
+
+    assert "{GPD_INSTALL_DIR}/templates/paper/internal-comparison.md" in compare_results
+    assert "comparison_verdicts" in compare_results
+    assert "comparison_sources" in compare_results
+    assert "subject_id" in compare_results
+
+    assert "{GPD_INSTALL_DIR}/templates/paper/experimental-comparison.md" in compare_experiment
+    assert "comparison_verdicts" in compare_experiment
+    assert "subject_id" in compare_experiment
+    assert "reference_id" in compare_experiment
+
+
+def test_analysis_workflows_surface_uncertainty_and_contract_structure() -> None:
+    error_propagation = _workflow_text("error-propagation.md")
+    parameter_sweep = _workflow_text("parameter-sweep.md")
+
+    assert "{GPD_INSTALL_DIR}/templates/uncertainty-budget.md" in error_propagation
+    assert "{GPD_INSTALL_DIR}/templates/parameter-table.md" in error_propagation
+    assert "error-propagation-protocol.md" in error_propagation
+
+    assert "contract:" in parameter_sweep
+    assert "schema_version: 1" in parameter_sweep
+    assert "claims:" in parameter_sweep
+    assert "deliverables:" in parameter_sweep
+    assert "acceptance_tests:" in parameter_sweep
+    assert "forbidden_proxies:" in parameter_sweep

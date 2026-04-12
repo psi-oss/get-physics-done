@@ -31,10 +31,14 @@ Optional sections:
 - `observables`
 - `links`
 
-Every list named above must contain objects, not strings.
-`context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections that must remain objects.
-Do not add unknown keys at any level; strict validation rejects them. Salvage/repair flows may drop unknown keys while surfacing recoverable findings.
-`approach_policy` constrains execution but does not provide grounding on its own.
+## General Rules
+
+- Every list named above must contain objects, not strings.
+- `context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections, not strings or lists.
+- Do not add unknown keys at any level; strict validation rejects them. Salvage/repair flows may drop unknown keys while surfacing recoverable findings.
+- `approach_policy` constrains execution but does not count as grounding on its own; approach-policy entries do not count as grounding.
+- `approach_policy` is execution policy only; it can constrain planning, but it does not by itself satisfy the hard grounding/anchor requirement.
+- `context_intake` anchors must be concrete enough to re-find later. Placeholders like `TBD`, `unknown`, or `placeholder` do not count as grounding.
 
 ---
 
@@ -68,8 +72,7 @@ Rules:
 - `scope.in_scope` is required and must name at least one project boundary or objective.
 - `out_of_scope` and `unresolved_questions` are optional arrays of non-empty strings.
 - Use `scope.unresolved_questions` for genuinely undecided anchors; do not hide them in prose or placeholder text.
-- `context_intake` anchors must be concrete enough to re-find later. `must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, and `known_good_baselines` count only when they name a declared reference id, durable project-artifact path, citation, DOI, arXiv ID, URL, or similarly concrete handle. `context_gaps` and `crucial_inputs` preserve uncertainty and workflow visibility, but they do not satisfy the hard grounding requirement by themselves.
-- Placeholder-only values like `TBD`, `unknown`, `placeholder`, or other non-concrete stand-ins do not count as grounding, even if they appear in a field that is otherwise permitted to carry context.
+- `context_gaps` and `crucial_inputs` preserve uncertainty and workflow visibility, but they do not satisfy the hard grounding requirement by themselves.
 
 ### `claims[]`
 
@@ -124,8 +127,6 @@ Rules:
 - Treat a claim as proof-bearing whenever any of these is true: `claim_kind` is `theorem|lemma|corollary|proposition|claim`; the statement is theorem-like (`prove/show that`, explicit `for all` / `exists`, or uniqueness language); any proof field is already populated (`parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, or `proof_deliverables`); or `observables[]` references a `proof_obligation` target.
 - Proof-bearing claims must use an explicit non-`other` `claim_kind`, declare at least one proof-specific acceptance test in `acceptance_tests[]`, and surface `proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses` so the proof obligation is auditable.
 - `required_in_proof` must be a literal JSON boolean (`true` or `false`), not a quoted string or synonym such as `"yes"` / `"no"`.
-- `context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections, not strings or lists.
-- `approach_policy` is execution policy only; it can constrain planning, but it does not by itself satisfy the hard grounding/anchor requirement.
 
 ### `context_intake`
 

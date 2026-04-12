@@ -84,76 +84,8 @@ goal: {find_root_cause_only | find_and_fix}
 
 Delegate to `gpd-debugger` with a filled prompt and a short description such as `Debug {slug}` or `Debug VAL-001`. Runtime-specific adapters choose the concrete delegation call shape and model argument policy.
 
-## Systematic Physics Debugging Strategy
-
-The gpd-debugger agent applies a systematic approach to physics calculation errors:
-
-1. **Quantify the discrepancy** - exact factor, sign, functional form, parameter dependence
-2. **Check conventions** - metric signature, Fourier transform, normalization, active/passive
-3. **Check factors** - 2pi, hbar, symmetry factors, combinatorial prefactors, Jacobians
-4. **Check signs** - commutator ordering, integration orientation, branch cuts
-5. **Check indices** - contraction, raising/lowering, summation ranges, Einstein convention
-6. **Check approximations** - is expansion parameter small? correct order? radius of convergence?
-7. **Check numerics** - convergence, grid resolution, floating-point precision, boundary effects
-8. **Limiting cases** - does the result reduce correctly in all known limits?
-
----
-
 ## Continuation
 
-For checkpoints, spawn a fresh agent with:
+For checkpoints, spawn a fresh agent with the same debug contract and the debug file path, then continue from `next_action`. Keep the goal vocabulary and `GPD/debug/{slug}.md` path unchanged.
 
-```markdown
-<debug_session_contract>
-session_artifact: GPD/debug/{slug}.md
-status: gathering | investigating | fixing | verifying | resolved
-goal: {goal}
-continuation: Read the file at GPD/debug/{slug}.md first, then continue from next_action.
-</debug_session_contract>
-
-<objective>
-Continue debugging {slug}. Evidence is in the debug file.
-</objective>
-
-<prior_state>
-Read the file at GPD/debug/{slug}.md
-</prior_state>
-
-<checkpoint_response>
-**Type:** {checkpoint_type}
-**Response:** {user_response}
-</checkpoint_response>
-
-<physics_context>
-domain: {domain}
-formalism: {formalism}
-conventions: {conventions}
-</physics_context>
-
-<mode>
-goal: {goal}
-</mode>
-```
-
-<failure_protocol>
-
-## When Investigation Stalls
-
-If you cannot make progress after 3 investigation rounds, report structured failure:
-
-```markdown
-**Status:** Cannot proceed
-**Reason:** [Specific physics/technical reason — e.g., "sign ambiguity cannot be resolved without additional input"]
-**Blocked by:** [What would unblock progress — e.g., "access to reference implementation", "user decision on branch cut convention"]
-**Suggested alternative:** [Different approach that might work — e.g., "try asymptotic expansion instead of numerical integration"]
-**Evidence gathered:** [What WAS determined before getting stuck — partial results are valuable]
-```
-
-1. **Document what you tried** — list each hypothesis tested and why it was eliminated
-2. **State what you know** — summarize confirmed facts and narrowed-down possibilities
-3. **Identify the blocker** — what specific information or capability is missing
-4. **Return CHECKPOINT REACHED** with the structured failure block above
-
-Do NOT spin in circles retrying the same approaches. Escalate with structured context.
-
-</failure_protocol>
+If progress stalls after a few loops, return a structured checkpoint: blocker, evidence gathered, and the smallest unblocker needed.

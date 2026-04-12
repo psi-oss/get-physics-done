@@ -150,6 +150,7 @@ def test_workflow_backed_command_wrappers_stay_thin() -> None:
         assert len(command) < len(workflow)
         assert "```python" not in command
         assert "| Method" not in command
+        assert "task(" not in command
 
 
 def test_workflow_owned_command_wrappers_keep_anti_duplication_policy() -> None:

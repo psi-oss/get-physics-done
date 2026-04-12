@@ -26,35 +26,18 @@ User's issue: $ARGUMENTS
 </context>
 
 <process>
-Read the workflow file defined above with `file_read` first.
+Read the workflow file defined above with `file_read` first. If `$ARGUMENTS` names a concrete issue or no `VERIFICATION.md` gap context is available, take the interactive path described by the workflow; otherwise run the verification-gap path.
 
-If `$ARGUMENTS` names a concrete issue or no `VERIFICATION.md` gap context is available, run the interactive path:
+Create: GPD/debug/{slug}.md
+goal: find_root_cause_only
 
-1. Check active sessions with `ls GPD/debug/*.md 2>/dev/null | grep -v resolved | head -5`.
-2. If sessions exist and no issue was supplied, ask whether to resume one or start a new issue.
-3. For a new issue, ask only for missing essentials: expected result, actual result, discrepancy type, regime, and checks already tried.
-4. Spawn one fresh `gpd-debugger` subagent with the issue summary, evidence, attempted checks, and goal `find_root_cause_or_fix`.
-5. Route only on the typed `gpd_return` envelope: present checkpoints to the user, report blocked/failed runs, or read the returned session file for completed diagnoses.
-6. Ask whether to apply the fix, continue debugging, or pause with the session file.
+Route only on the typed `gpd_return.status` (checkpoint, blocked, failed, completed) when deciding how to spawn continuations, review stored session files, or report completion; treat the workflow-owned typed child-return contract as the guiding authority and avoid branching on heading text or inline attachments. Do not branch on heading text here. Ensure frontmatter/body reconcile the expected debug session artifact and enforce the artifact gate.
 
-Otherwise follow the workflow end-to-end for verification-gap debugging.
+Spawn Fresh Continuation agent (After Checkpoint)
+Debug file path: GPD/debug/{slug}.md
+Read that file before continuing
 
-
-```text
-task(
-  subagent_type="gpd-debugger",
-  readonly=false,
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.\n\nCreate: GPD/debug/{slug}.md\nRead that file before continuing",
-  description="Debug {slug}"
-)
-
-task(
-  subagent_type="gpd-debugger",
-  readonly=false,
-  prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.\n\nDebug file path: GPD/debug/{slug}.md\nRead that file before continuing",
-  description="Continue debug {slug}"
-)
-```
-Route only on the typed `gpd_return.status` (checkpoint, blocked, failed, completed) when deciding how to spawn continuations, review stored session files, or report completion; treat the workflow-owned typed child-return contract as the guiding authority and avoid branching on heading text or inline attachments.
+When a checkpoint returns, spawn a fresh continuation run instead of relying on an inline `@...` attachment.
+`gpd_return.status: completed` means the debug file is ready; `gpd_return.status: checkpoint` means user input is required; `gpd_return.status: blocked` or `failed` are hard stops until resolved.
 
 </process>

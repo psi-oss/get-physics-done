@@ -23,7 +23,7 @@ Template for spawning `gpd-planner`. Keep wrappers thin: pass phase-specific inp
 Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source. Do not rely on that path reference alone: the schema-critical PLAN contract excerpt below is model-visible and binding before output.
 If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `gpd_return.status: checkpoint` rather than guessing.
 
-**PLAN contract schema-critical excerpt:** `contract` must be a YAML object with `schema_version: 1`, object-valued `scope`, `context_intake`, and `uncertainty_markers`, and list-of-object sections `claims`, `deliverables`, `acceptance_tests`, and `forbidden_proxies`; include `references` unless grounding is explicit in `context_intake` or preserved scoping inputs. Optional object/list sections are `approach_policy`, `observables`, and `links`. Every claim needs stable `id`, non-empty `deliverables` and `acceptance_tests`, and only declared IDs in cross-reference lists. `scope.question` and `scope.in_scope` are required and non-empty. Reference grounding uses `must_surface`, `required_actions`, `applies_to`, and `carry_forward_to`; `approach_policy` is execution policy only and never satisfies grounding by itself. Proof-bearing claims must use explicit non-`other` `claim_kind` (`theorem|lemma|corollary|proposition|result|claim|other`), represent theorem coverage with `observables[].kind: proof_obligation` when useful, and expose proof-specific acceptance tests, `parameters`, `hypotheses`, `conclusion_clauses`, and `proof_deliverables`. Link relations use `supports | computes | visualizes | benchmarks | depends_on | evaluated_by | proves | uses_hypothesis | depends_on_lemma | other` and reference actions use `read | use | compare | cite | avoid`; keep those vocabularies visible as well.
+**PLAN contract schema-critical excerpt:** `contract` is a YAML object with `schema_version: 1`, object sections `scope`, `context_intake`, `uncertainty_markers`, list sections `claims`, `deliverables`, `acceptance_tests`, `forbidden_proxies`, and `references` (unless grounding is already concrete), plus optional `approach_policy`, `observables`, and `links`. `scope.question` and `scope.in_scope` are required and non-empty. Every claim needs a stable `id`, non-empty `deliverables` and `acceptance_tests`, and only declared IDs in cross-references. Reference grounding uses `must_surface`, `required_actions`, `applies_to`, and `carry_forward_to`; `approach_policy` is execution policy only and never satisfies grounding by itself. Proof-bearing claims must use an explicit non-`other` `claim_kind` (`theorem|lemma|corollary|proposition|result|claim|other`), expose proof-specific acceptance tests, and keep `proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses` auditable; use `observables[].kind: proof_obligation` when relevant. Link relations use `supports | computes | visualizes | benchmarks | depends_on | evaluated_by | proves | uses_hypothesis | depends_on_lemma | other`, and reference actions use `read | use | compare | cite | avoid`.
 
 **Project State:** {state_content}
 **Project Contract:** {project_contract}
@@ -58,7 +58,7 @@ Keep dimensions, limits, and cross-method consistency explicit. For proof-bearin
 
 <contract_visibility_requirements>
 Planning requires an approved `project_contract`. If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `gpd_return.status: checkpoint` instead of guessing.
-Keep `project_contract` as the grounding ledger. Use `effective_reference_intake` and `active_reference_context` only as readable projections of the same anchors.
+Keep `project_contract` as the grounding ledger. Use `effective_reference_intake` and `active_reference_context` only as readable projections.
 Treat stable knowledge docs surfaced through `active_reference_context` and `reference_artifacts_content` as reviewed background syntheses. They are advisory only: they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.
 If stable knowledge materially shapes the plan, surface it explicitly in existing plan structures or prose; do not invent a separate knowledge authority or ledger.
 Use explicit `knowledge_deps` when a plan materially depends on a reviewed knowledge doc and downstream gating should be enforced; keep implicit stable background advisory only.
@@ -84,16 +84,12 @@ Output is consumed by gpd:execute-phase. Plans need frontmatter, XML tasks, rigo
 
 <quality_gate>
 - [ ] PLAN.md files created in phase directory
-- [ ] Frontmatter is valid
-- [ ] The contract block is complete per `plan-contract-schema.md`
-- [ ] `tool_requirements` are declared whenever specialized machine-checkable prerequisites exist
-- [ ] `tool_requirements` pass `gpd validate plan-preflight <PLAN.md>` before the plan is treated as execution-ready
-- [ ] Tasks are specific, actionable, and testable
-- [ ] Dependencies and waves are correct
-- [ ] Required refs, prior outputs, baselines, and protocol bundle guidance are surfaced where needed
-- [ ] Forbidden proxies are rejected explicitly
-- [ ] Dimensional analysis and validation checkpoints cover each quantitative result
+- [ ] Frontmatter and contract block validated (`plan-contract-schema.md`)
+- [ ] `tool_requirements` pass `gpd validate plan-preflight <PLAN.md>` when needed
+- [ ] Tasks are specific, testable, and wave ordering is correct
+- [ ] Required refs, baselines, and forbidden proxies are surfaced
 - [ ] Proof-bearing plans keep proof artifacts and sibling `*-PROOF-REDTEAM.md` audits explicit
+- [ ] Dimensional checks and validation checkpoints remain explicit
 </quality_gate>
 ```
 

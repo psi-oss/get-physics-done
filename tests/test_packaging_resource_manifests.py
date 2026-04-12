@@ -10,6 +10,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 PACKAGE_JSON = REPO_ROOT / "package.json"
+PUBLIC_SURFACE_CONTRACT = REPO_ROOT / "src" / "gpd" / "core" / "public_surface_contract.json"
 
 
 def _pyproject() -> dict[str, object]:
@@ -18,6 +19,10 @@ def _pyproject() -> dict[str, object]:
 
 def _package_json() -> dict[str, object]:
     return json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))
+
+
+def _public_surface_contract() -> dict[str, object]:
+    return json.loads(PUBLIC_SURFACE_CONTRACT.read_text(encoding="utf-8"))
 
 
 def test_python_wheel_declares_runtime_markdown_json_tex_resources() -> None:
@@ -91,3 +96,23 @@ def test_npm_package_remains_bootstrap_plus_contract_manifests_only() -> None:
         "src/gpd/core/public_surface_contract_schema.json",
         "src/gpd/core/public_surface_contract.json",
     }
+
+
+def test_public_surface_contract_hub_url_is_packaged_or_absolute() -> None:
+    contract = _public_surface_contract()
+    hub_url = contract["beginner_onboarding"]["hub_url"]
+
+    assert isinstance(hub_url, str)
+    assert hub_url.startswith(("https://", "http://"))
+
+
+def test_docs_do_not_reference_unshipped_infra_paths() -> None:
+    scan_roots = (REPO_ROOT / "docs", REPO_ROOT / "src" / "gpd" / "specs" / "references")
+    for root in scan_roots:
+        for path in root.rglob("*.md"):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if "infra/gpd-" not in line:
+                    continue
+                if path.name == "schema-registry-ownership.md" and "`infra/gpd-*.json`" in line:
+                    continue
+                assert "http" in line, f"{path} references infra without absolute URL: {line}"

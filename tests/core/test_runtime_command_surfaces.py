@@ -74,19 +74,29 @@ def test_resolve_active_runtime_descriptor_normalizes_aliases_before_lookup() ->
 
 
 def test_installed_runtime_for_surface_normalizes_alias_and_requires_install_target(tmp_path: Path) -> None:
+    descriptor = next(
+        descriptor
+        for descriptor in iter_runtime_descriptors()
+        if descriptor.selection_flags or descriptor.selection_aliases
+    )
+    runtime_signal = (
+        descriptor.selection_flags[0]
+        if descriptor.selection_flags
+        else descriptor.selection_aliases[0]
+    )
     assert (
         installed_runtime_for_surface(
             tmp_path,
-            detect_runtime=lambda **kwargs: "--CODEX-CLI",
+            detect_runtime=lambda **kwargs: runtime_signal,
             detect_install_target=lambda runtime, **kwargs: tmp_path / f".{runtime}",
         )
-        == "codex"
+        == descriptor.runtime_name
     )
 
     assert (
         installed_runtime_for_surface(
             tmp_path,
-            detect_runtime=lambda **kwargs: "--CODEX-CLI",
+            detect_runtime=lambda **kwargs: runtime_signal,
             detect_install_target=lambda runtime, **kwargs: None,
         )
         is None

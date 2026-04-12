@@ -6,15 +6,32 @@ import re
 from collections import Counter
 from pathlib import Path
 
+from gpd.adapters.runtime_catalog import iter_runtime_descriptors
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
 PROMPT_SOURCE_DIRS = (COMMANDS_DIR, WORKFLOWS_DIR)
+
+
+def _runtime_config_dir_pattern() -> re.Pattern[str]:
+    runtime_dirs: set[str] = set()
+    for descriptor in iter_runtime_descriptors():
+        for value in (descriptor.config_dir_name, descriptor.global_config.home_subpath):
+            if value:
+                runtime_dirs.add(value.strip("/"))
+    if not runtime_dirs:
+        return re.compile(r"$^")
+    escaped = "|".join(re.escape(value) for value in sorted(runtime_dirs))
+    return re.compile(rf"~/(?:{escaped})(?:/|$)")
+
+
 MACHINE_SPECIFIC_PATH_PATTERNS = (
     re.compile(r"/Users/"),
     re.compile(r"/home/"),
     re.compile(r"[A-Za-z]:\\\\Users\\\\"),
-    re.compile(r"~/(?:\\.agents|\\.claude|\\.codex)/"),
+    re.compile(r"~/\\.agents/"),
+    _runtime_config_dir_pattern(),
 )
 
 

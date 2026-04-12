@@ -74,7 +74,11 @@ def test_materialize_workflow_paths_replaces_global_placeholder_with_target_on_g
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    descriptor = next(descriptor for descriptor in _RUNTIME_DESCRIPTORS if descriptor.runtime_name == "codex")
+    descriptor = next(
+        descriptor
+        for descriptor in _RUNTIME_DESCRIPTORS
+        if descriptor.global_config.env_var and descriptor.global_config.home_subpath
+    )
     home_dir = tmp_path / "home"
     home_dir.mkdir()
     canonical_global_dir = resolve_global_config_dir(descriptor, home=home_dir, environ={})

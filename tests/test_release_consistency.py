@@ -524,7 +524,9 @@ def test_infra_descriptors_reference_public_bootstrap_flow() -> None:
         assert expected in content, f"{path.name} should reference the public prerequisite flow"
         for marker in stale_markers:
             assert marker not in content, f"{path.name} should not mention {marker!r}"
-        assert json.loads(content) == expected_descriptors[path.stem]
+        descriptor = json.loads(content)
+        descriptor.pop("source_of_truth", None)
+        assert descriptor == expected_descriptors[path.stem]
 
     assert {
         path.stem for path in (repo_root / "infra").glob("gpd-*.json")

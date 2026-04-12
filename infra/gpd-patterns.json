@@ -1,6 +1,7 @@
 {
   "name": "gpd-patterns",
   "description": "GPD cross-project pattern library. Tools for searching, adding, promoting, and seeding physics error patterns across research projects.",
+  "source_of_truth": "src/gpd/mcp/builtin_servers.py",
   "transport": "stdio",
   "command": "gpd-mcp-patterns",
   "args": [],

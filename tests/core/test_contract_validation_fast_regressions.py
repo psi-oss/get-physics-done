@@ -160,6 +160,44 @@ def test_fast_contract_validation_schema_findings_prefer_metadata_error_types() 
     assert blocking == []
 
 
+def test_fast_contract_validation_schema_findings_use_metadata_over_message_patterns() -> None:
+    error = "references: unexpected type"
+    metadata = SimpleNamespace(
+        loc=("project_contract", "references"),
+        msg="completely different message",
+        error_type="list_type",
+        ctx={},
+        input_value_type="str",
+    )
+
+    recoverable, blocking = split_project_contract_schema_findings(
+        [error],
+        metadata_by_error={error: metadata},
+    )
+
+    assert recoverable == []
+    assert blocking == [error]
+
+
+def test_fast_contract_validation_metadata_keeps_blank_and_duplicate_warnings_lossy() -> None:
+    errors = ["references.0.aliases.0 must not be blank", "references.0.aliases.1 is a duplicate"]
+    metadata_by_error = {
+        error: SimpleNamespace(
+            loc=("project_contract", *error.split()[0].split(".")),
+            msg=" ".join(error.split()[1:]),
+            error_type="value_error",
+            ctx={},
+            input_value_type="str",
+        )
+        for error in errors
+    }
+
+    recoverable, blocking = split_project_contract_schema_findings(errors, metadata_by_error=metadata_by_error)
+
+    assert recoverable == []
+    assert blocking == errors
+
+
 def test_fast_contract_validation_strict_rejects_nonblank_mapping_string_list_field_without_salvage() -> None:
     contract = _load_contract_fixture()
     contract["approach_policy"] = {}

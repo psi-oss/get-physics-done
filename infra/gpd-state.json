@@ -1,6 +1,7 @@
 {
   "name": "gpd-state",
   "description": "GPD project state management. Tools for querying state, phase info, progress, validation, health checks, and configuration.",
+  "source_of_truth": "src/gpd/mcp/builtin_servers.py",
   "transport": "stdio",
   "command": "gpd-mcp-state",
   "args": [],

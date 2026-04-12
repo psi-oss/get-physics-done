@@ -1868,7 +1868,9 @@ def _resolve_plan_contract_candidate(
         )
 
     if not _frontmatter_identity_matches(meta, artifact_meta):
-        return False, _PlanContractResolution()
+        return True, _PlanContractResolution(
+            errors=["referenced PLAN does not match summary phase/plan identity"]
+        )
 
     if "contract" not in meta:
         return True, _PlanContractResolution(errors=["referenced PLAN is missing contract frontmatter"])
@@ -1916,13 +1918,17 @@ def _find_matching_plan_contract(
             return _PlanContractResolution(errors=[f"plan_contract_ref: {path_error}"])
         assert candidate is not None
         if not candidate.exists():
-            return _PlanContractResolution()
+            return _PlanContractResolution(
+                errors=[f"referenced PLAN does not exist at {relative_plan_path.as_posix()}"]
+            )
         matched, resolution = _resolve_plan_contract_candidate(
             candidate,
             summary_meta,
             project_root=project_root,
         )
         if matched:
+            return resolution
+        if resolution.errors:
             return resolution
         return _PlanContractResolution()
 

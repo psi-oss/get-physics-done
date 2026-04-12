@@ -114,8 +114,18 @@ def _categories_from_metadata(metadata: _SchemaFindingMetadata) -> set[_ProjectC
         categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
     if not categories:
         message = metadata.msg.lower()
-        if "must be a list" in message or "must be a valid list member" in message or "must be an object" in message:
+        if (
+            "must be a list" in message
+            or "must be a valid list member" in message
+            or "must be an object" in message
+            or "must not be blank" in message
+            or "is a duplicate" in message
+        ):
             categories.add(_ProjectContractSchemaFindingCategory.LOSSY_LIST_NORMALIZATION)
+    if not _is_canonical_authoritative_scalar_location(location) and _matches_equivalent_recoverable_schema_finding(
+        message=metadata.msg
+    ):
+        categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
     canonical_value = metadata.ctx.get("canonical_value")
     if isinstance(canonical_value, str) and canonical_value.strip():
         categories.add(_ProjectContractSchemaFindingCategory.CASE_DRIFT)
@@ -190,7 +200,8 @@ def _matches_equivalent_authoritative_schema_finding(*, location: str | None, me
 def _matches_equivalent_recoverable_schema_finding(*, message: str) -> bool:
     """Return whether one finding is an equivalent recoverable schema-warning variant."""
 
-    return message.strip().startswith("Extra inputs are not permitted")
+    normalized_message = message.strip()
+    return normalized_message.startswith("Extra inputs are not permitted") or normalized_message.startswith("Input should")
 
 
 def _schema_finding_location_depth(location: str | None) -> int:
@@ -240,15 +251,11 @@ def _project_contract_schema_finding_categories(
         location = _metadata_location_string(metadata)
         message = metadata.msg
         categories.update(_categories_from_metadata(metadata))
-        if not categories:
-            for category, patterns in _SCHEMA_FINDING_CATEGORY_PATTERNS:
-                if any(pattern.fullmatch(normalized_error) for pattern in patterns):
-                    categories.add(category)
     else:
         for category, patterns in _SCHEMA_FINDING_CATEGORY_PATTERNS:
             if any(pattern.fullmatch(normalized_error) for pattern in patterns):
                 categories.add(category)
-    if metadata is None or not categories:
+    if metadata is None:
         if _matches_equivalent_recoverable_schema_finding(message=message):
             categories.add(_ProjectContractSchemaFindingCategory.RECOVERABLE)
         if _matches_equivalent_authoritative_schema_finding(location=location, message=message):
@@ -965,6 +972,9 @@ def split_project_contract_schema_findings(
             continue
         recoverable_finding = _ProjectContractSchemaFindingCategory.RECOVERABLE in categories
         case_drift_finding = _ProjectContractSchemaFindingCategory.CASE_DRIFT in categories
+        if _ProjectContractSchemaFindingCategory.AUTHORITATIVE_SCALAR in categories:
+            blocking.append(error)
+            continue
         if recoverable_finding or (allow_case_drift_recovery and case_drift_finding):
             recoverable.append(error)
             continue

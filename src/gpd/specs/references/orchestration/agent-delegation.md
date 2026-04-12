@@ -2,13 +2,11 @@
 
 canonical delegation contract for spawned GPD agents. Workflows should reference this file instead of restating the rules.
 
-## Delegation Contract
-
 ## Delegation Invariants
 
 1. **One-shot handoff:** A spawned subagent runs once. If it needs human input, it returns `status: checkpoint` and stops.
-2. **Artifact gate:** Reported success is provisional until the orchestrator verifies every `expected_artifacts` entry exists on disk.
-3. **Fresh continuation ownership:** The orchestrator, not the child, presents the checkpoint and spawns any fresh continuation handoff.
+2. **Artifact gate:** Reported success is provisional until every `expected_artifacts` entry is verified on disk.
+3. **Fresh continuation ownership:** The orchestrator presents the checkpoint, must not wait for the user inside the same handoff, and must spawn a fresh continuation handoff when needed.
 
 ## task() Delegation Block
 
@@ -41,28 +39,18 @@ task(
 
 ## Authoring Rules
 
-**Return-envelope parity:** Preserve the shared return envelope across native and fallback runtimes.
-
-**Success-path artifact gate:** Verify expected artifacts before accepting success.
-
-**Blocking completion semantics:** Treat checkpoints and missing artifacts as blocking until resolved.
-
-**Write-scope isolation:** Assign disjoint write scopes to parallel agents.
-
-**Write access:** Always pass `readonly=false` for file-producing agents.
-
-**Model semantics:** If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model.
-
-1. **Always resolve model first:** `gpd resolve-model gpd-{agent}`
-2. **If model is null or empty:** Omit the `model` parameter from task(). The runtime will use its default model.
-3. **Agent instructions path:** `{GPD_AGENTS_DIR}/gpd-{agent}.md` (resolved by installer per runtime)
-4. **gpd CLI surface:** author plain `gpd ...` in source prompts. The installer rewrites shell calls to the runtime-managed GPD CLI bridge during install; source prompts must stay runtime-agnostic.
-5. **Never hardcode runtime-specific paths** — use `{GPD_INSTALL_DIR}` for specs assets and `{GPD_AGENTS_DIR}` for agent prompts, and let the installer project shell `gpd` calls onto the correct runtime bridge.
-6. **Fresh context:** task() spawns agents in a fresh context window. The agent cannot see the orchestrator's conversation. All context must be passed via the prompt.
-7. **Do not use `@...` references inside task() prompt strings.** They do not load files for subagents. Pass explicit `<files_to_read>` instructions or inline the content.
-8. **Assign an explicit write scope for every subagent.** Parallel agents must not share writable files. Prefer `file_edit` for targeted changes, and re-read the file immediately before writing.
-9. **Always set `readonly=false` for file-producing agents.** Some runtimes default subagents to read-only mode where file writes silently fail.
-10. **Preserve return-envelope parity:** The subagent returns the same machine-readable outcome shape the shared workflow expects.
+1. **Return-envelope parity:** Preserve the shared return envelope across native and fallback runtimes.
+2. **Success-path artifact gate:** Verify expected artifacts before accepting success.
+3. **Blocking completion semantics:** Treat checkpoints and missing artifacts as blocking until resolved.
+4. **Write-scope isolation:** Assign disjoint write scopes to parallel agents.
+5. **Write access:** Always pass `readonly=false` for file-producing agents.
+6. **Model semantics:** If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model.
+7. **Agent instructions path:** `{GPD_AGENTS_DIR}/gpd-{agent}.md` (resolved by installer per runtime)
+8. **gpd CLI surface:** author plain `gpd ...` in source prompts. The installer rewrites shell calls to the runtime-managed GPD CLI bridge during install; source prompts must stay runtime-agnostic.
+9. **Never hardcode runtime-specific paths** — use `{GPD_INSTALL_DIR}` for specs assets and `{GPD_AGENTS_DIR}` for agent prompts, and let the installer project shell `gpd` calls onto the correct runtime bridge.
+10. **Fresh context:** task() spawns agents in a fresh context window. The agent cannot see the orchestrator's conversation. All context must be passed via the prompt.
+11. **Do not use `@...` references inside task() prompt strings.** They do not load files for subagents. Pass explicit `<files_to_read>` instructions or inline the content.
+12. **Assign an explicit write scope for every subagent.** Parallel agents must not share writable files. Prefer `file_edit` for targeted changes, and re-read the file immediately before writing.
 
 If a runtime cannot satisfy these invariants with native subagents, fall back to a sequential main-context execution that still preserves the same write scope, artifact checks, and return-envelope discipline.
 
@@ -116,9 +104,3 @@ Add this concise note before any task() call in a workflow:
 ```
 > **Runtime delegation:** Follow `references/orchestration/agent-delegation.md`; use the fresh one-shot handoff pattern, omit empty `model`, set `readonly=false` for file-producing agents, and verify expected artifacts before accepting success.
 ```
-
-verified on disk
-
-spawn a fresh continuation handoff
-
-must not wait for the user inside the same handoff
