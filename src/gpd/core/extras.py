@@ -18,6 +18,8 @@ from gpd.core.observability import instrument_gpd_function
 __all__ = [
     "Approximation",
     "ApproximationCheckResult",
+    "CalculationCompleteResult",
+    "QuestionResolveResult",
     "Uncertainty",
     "ValidityStatus",
     "check_approximation_validity",
@@ -70,6 +72,27 @@ class Uncertainty(BaseModel):
     uncertainty: str = ""
     phase: str = ""
     method: str = ""
+
+
+class QuestionResolveResult(BaseModel):
+    """Result of resolving an open question."""
+
+    model_config = ConfigDict(frozen=True)
+
+    resolved: str
+    search_text: str
+    remaining: int
+    answer: str | None = None
+
+
+class CalculationCompleteResult(BaseModel):
+    """Result of completing a calculation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    completed: str
+    search_text: str
+    remaining: int
 
 
 # ─── Approximation Validity Checking ─────────────────────────────────────────────
@@ -539,7 +562,9 @@ def question_list(state: dict) -> list[str | dict]:
     return list(state.get("open_questions", []))
 
 
-def question_resolve(state: dict, text: str, *, answer: str | None = None) -> int:
+def question_resolve(
+    state: dict, text: str, *, answer: str | None = None
+) -> QuestionResolveResult | int:
     """Resolve (remove) an open question matching the given text.
 
     First tries exact match (case-insensitive), then falls back to
@@ -549,7 +574,7 @@ def question_resolve(state: dict, text: str, *, answer: str | None = None) -> in
     recorded in ``state["resolved_questions"]`` before removal.
 
     Raises ValueError if text is empty or too short (< 3 chars).
-    Returns the number of questions removed (0 or 1).
+    Returns a QuestionResolveResult on success, or 0 if no match found.
     """
     if not text:
         raise ExtrasError("text required for question-resolve")
@@ -560,15 +585,19 @@ def question_resolve(state: dict, text: str, *, answer: str | None = None) -> in
         state["open_questions"] = []
 
     questions: list[object] = state["open_questions"]
-    before = len(questions)
 
-    def _resolve_at(idx: int) -> int:
+    def _resolve_at(idx: int) -> QuestionResolveResult:
         q_text = _item_text(questions[idx])
         questions.pop(idx)
         if answer is not None:
             resolved = state.setdefault("resolved_questions", [])
             resolved.append({"question": q_text, "answer": answer})
-        return before - len(questions)
+        return QuestionResolveResult(
+            resolved=q_text,
+            search_text=text,
+            remaining=len(questions),
+            answer=answer,
+        )
 
     # Try exact match (case-insensitive)
     for i, q in enumerate(questions):
@@ -612,14 +641,14 @@ def calculation_list(state: dict) -> list[str | dict]:
     return list(state.get("active_calculations", []))
 
 
-def calculation_complete(state: dict, text: str) -> int:
+def calculation_complete(state: dict, text: str) -> CalculationCompleteResult | int:
     """Complete (remove) an active calculation matching the given text.
 
     First tries exact match (case-insensitive), then falls back to
     word-boundary substring match. Removes only the first match.
 
     Raises ValueError if text is empty or too short (< 3 chars).
-    Returns the number of calculations removed (0 or 1).
+    Returns a CalculationCompleteResult on success, or 0 if no match found.
     """
     if not text:
         raise ExtrasError("text required for calculation-complete")
@@ -630,14 +659,17 @@ def calculation_complete(state: dict, text: str) -> int:
         state["active_calculations"] = []
 
     calculations: list[object] = state["active_calculations"]
-    before = len(calculations)
 
     # Try exact match (case-insensitive)
     for i, c in enumerate(calculations):
         c_text = _item_text(c)
         if c_text.lower() == text.lower():
             calculations.pop(i)
-            return before - len(calculations)
+            return CalculationCompleteResult(
+                completed=c_text,
+                search_text=text,
+                remaining=len(calculations),
+            )
 
     # Fall back to substring match with word-boundary-like assertions
     escaped = re.escape(text)
@@ -646,6 +678,10 @@ def calculation_complete(state: dict, text: str) -> int:
         c_text = _item_text(c)
         if pattern.search(c_text):
             calculations.pop(i)
-            return before - len(calculations)
+            return CalculationCompleteResult(
+                completed=c_text,
+                search_text=text,
+                remaining=len(calculations),
+            )
 
     return 0

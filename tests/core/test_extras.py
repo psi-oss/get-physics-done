@@ -8,6 +8,8 @@ from gpd.core.errors import DuplicateApproximationError, ExtrasError
 from gpd.core.extras import (
     Approximation,
     ApproximationCheckResult,
+    CalculationCompleteResult,
+    QuestionResolveResult,
     Uncertainty,
     approximation_add,
     approximation_check,
@@ -211,7 +213,11 @@ def test_question_resolve_exact():
     state: dict = {}
     question_add(state, "What is the coupling?")
     removed = question_resolve(state, "What is the coupling?")
-    assert removed == 1
+    assert isinstance(removed, QuestionResolveResult)
+    assert removed.resolved == "What is the coupling?"
+    assert removed.search_text == "What is the coupling?"
+    assert removed.remaining == 0
+    assert removed.answer is None
     assert len(state["open_questions"]) == 0
 
 
@@ -219,7 +225,10 @@ def test_question_resolve_substring():
     state: dict = {}
     question_add(state, "What is the coupling constant in QCD?")
     removed = question_resolve(state, "coupling constant")
-    assert removed == 1
+    assert isinstance(removed, QuestionResolveResult)
+    assert removed.resolved == "What is the coupling constant in QCD?"
+    assert removed.search_text == "coupling constant"
+    assert removed.remaining == 0
 
 
 def test_question_resolve_no_match():
@@ -244,7 +253,10 @@ def test_question_resolve_with_answer_records_resolution():
     state: dict = {}
     question_add(state, "What is the coupling constant?")
     removed = question_resolve(state, "What is the coupling constant?", answer="g = 0.3")
-    assert removed == 1
+    assert isinstance(removed, QuestionResolveResult)
+    assert removed.resolved == "What is the coupling constant?"
+    assert removed.answer == "g = 0.3"
+    assert removed.remaining == 0
     assert len(state["open_questions"]) == 0
     assert len(state["resolved_questions"]) == 1
     assert state["resolved_questions"][0]["question"] == "What is the coupling constant?"
@@ -256,7 +268,8 @@ def test_question_resolve_without_answer_no_resolved_entry():
     state: dict = {}
     question_add(state, "Some question here")
     removed = question_resolve(state, "Some question here")
-    assert removed == 1
+    assert isinstance(removed, QuestionResolveResult)
+    assert removed.answer is None
     assert "resolved_questions" not in state
 
 
@@ -265,7 +278,9 @@ def test_question_resolve_answer_with_substring_match():
     state: dict = {}
     question_add(state, "What is the coupling constant in QCD?")
     removed = question_resolve(state, "coupling constant", answer="alpha_s = 0.118")
-    assert removed == 1
+    assert isinstance(removed, QuestionResolveResult)
+    assert removed.resolved == "What is the coupling constant in QCD?"
+    assert removed.answer == "alpha_s = 0.118"
     assert state["resolved_questions"][0]["question"] == "What is the coupling constant in QCD?"
     assert state["resolved_questions"][0]["answer"] == "alpha_s = 0.118"
 
@@ -300,7 +315,10 @@ def test_calculation_complete_exact():
     state: dict = {}
     calculation_add(state, "Loop integrals")
     removed = calculation_complete(state, "Loop integrals")
-    assert removed == 1
+    assert isinstance(removed, CalculationCompleteResult)
+    assert removed.completed == "Loop integrals"
+    assert removed.search_text == "Loop integrals"
+    assert removed.remaining == 0
     assert len(state["active_calculations"]) == 0
 
 
@@ -308,7 +326,10 @@ def test_calculation_complete_substring():
     state: dict = {}
     calculation_add(state, "Computing loop integrals for QCD")
     removed = calculation_complete(state, "loop integrals")
-    assert removed == 1
+    assert isinstance(removed, CalculationCompleteResult)
+    assert removed.completed == "Computing loop integrals for QCD"
+    assert removed.search_text == "loop integrals"
+    assert removed.remaining == 0
 
 
 def test_calculation_complete_no_match():
@@ -335,7 +356,9 @@ def test_question_resolve_with_dict_items():
     """question_resolve should handle dict items via _item_text()."""
     state = {"open_questions": [{"text": "What is the coupling constant?"}]}
     removed = question_resolve(state, "What is the coupling constant?")
-    assert removed == 1
+    assert isinstance(removed, QuestionResolveResult)
+    assert removed.resolved == "What is the coupling constant?"
+    assert removed.remaining == 0
     assert len(state["open_questions"]) == 0
 
 
@@ -343,7 +366,9 @@ def test_question_resolve_substring_with_dict_items():
     """question_resolve substring match should work with dict items."""
     state = {"open_questions": [{"text": "What is the coupling constant in QCD?"}]}
     removed = question_resolve(state, "coupling constant")
-    assert removed == 1
+    assert isinstance(removed, QuestionResolveResult)
+    assert removed.resolved == "What is the coupling constant in QCD?"
+    assert removed.remaining == 0
 
 
 def test_question_resolve_mixed_str_and_dict():
@@ -355,7 +380,9 @@ def test_question_resolve_mixed_str_and_dict():
         ]
     }
     removed = question_resolve(state, "dict question about quarks")
-    assert removed == 1
+    assert isinstance(removed, QuestionResolveResult)
+    assert removed.resolved == "dict question about quarks"
+    assert removed.remaining == 1
     assert len(state["open_questions"]) == 1
     assert state["open_questions"][0] == "plain string question"
 
@@ -364,7 +391,9 @@ def test_calculation_complete_with_dict_items():
     """calculation_complete should handle dict items via _item_text()."""
     state = {"active_calculations": [{"text": "Loop integrals"}]}
     removed = calculation_complete(state, "Loop integrals")
-    assert removed == 1
+    assert isinstance(removed, CalculationCompleteResult)
+    assert removed.completed == "Loop integrals"
+    assert removed.remaining == 0
     assert len(state["active_calculations"]) == 0
 
 
@@ -372,7 +401,9 @@ def test_calculation_complete_substring_with_dict_items():
     """calculation_complete substring match should work with dict items."""
     state = {"active_calculations": [{"text": "Computing loop integrals for QCD"}]}
     removed = calculation_complete(state, "loop integrals")
-    assert removed == 1
+    assert isinstance(removed, CalculationCompleteResult)
+    assert removed.completed == "Computing loop integrals for QCD"
+    assert removed.remaining == 0
 
 
 def test_calculation_complete_mixed_str_and_dict():
@@ -384,6 +415,8 @@ def test_calculation_complete_mixed_str_and_dict():
         ]
     }
     removed = calculation_complete(state, "dict calc about renormalization")
-    assert removed == 1
+    assert isinstance(removed, CalculationCompleteResult)
+    assert removed.completed == "dict calc about renormalization"
+    assert removed.remaining == 1
     assert len(state["active_calculations"]) == 1
     assert state["active_calculations"][0] == "plain string calc"

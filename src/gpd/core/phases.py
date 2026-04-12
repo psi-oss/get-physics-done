@@ -1517,6 +1517,74 @@ def _remap_phase_after_removal(current_phase: str | None, removed_phase: str, re
     return _closest_previous(removed_norm)
 
 
+# ─── Phase heading format detection ──────────────────────────────────────────
+
+_PHASE_HEADING_RE = re.compile(
+    r"(#{2,4})\s*Phase\s+(\d+)(?:\.\d+)?\s*(?:(\s+\u2014\s+)|(:\s*))",
+    re.IGNORECASE,
+)
+
+
+def _detect_phase_heading_format(content: str) -> tuple[str, int, str]:
+    """Detect heading level, padding width, and separator from existing phase headings.
+
+    Returns:
+        (heading_prefix, pad_width, separator) where:
+        - heading_prefix is e.g. ``"###"``
+        - pad_width is 0 for no padding or N for ``zfill(N)``
+        - separator is e.g. ``": "`` or ``" \\u2014 "``
+
+    When no existing phases are found, returns defaults matching the
+    ``new-project`` template: ``("###", 0, ": ")``.
+    """
+    matches = list(_PHASE_HEADING_RE.finditer(content))
+    if not matches:
+        return "###", 0, ": "
+
+    # Prefer the first integer-only phase (no decimal) for heading level
+    heading_level: str | None = None
+    for m in matches:
+        # Check this is an integer phase (no dot after the captured digits)
+        after_digits = content[m.end(2):]
+        if not after_digits.startswith("."):
+            heading_level = m.group(1)
+            break
+    if heading_level is None:
+        # All phases are decimal; use the first match
+        heading_level = matches[0].group(1)
+
+    # Detect padding: check if any integer phase number has a leading zero
+    pad_width = 0
+    for m in matches:
+        raw_num = m.group(2)
+        after_digits = content[m.end(2):]
+        if after_digits.startswith("."):
+            continue  # skip decimal phases for padding detection
+        if len(raw_num) > 1 and raw_num[0] == "0":
+            pad_width = len(raw_num)
+            break
+
+    # Detect separator: colon vs em-dash
+    separator = ": "  # default
+    for m in matches:
+        if m.group(3):  # em-dash group matched
+            separator = m.group(3)
+            break
+        if m.group(4):  # colon group matched
+            separator = m.group(4)
+            break
+
+    return heading_level, pad_width, separator
+
+
+def _format_phase_display_num(num: int | str, pad_width: int) -> str:
+    """Format a phase number for display in headings."""
+    s = str(num)
+    if pad_width > 0:
+        return s.zfill(pad_width)
+    return s
+
+
 # ─── Phase Add ─────────────────────────────────────────────────────────────────
 
 
@@ -1543,7 +1611,11 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
             content = roadmap_path.read_text(encoding="utf-8")
 
             max_phase = 0
-            for m in re.finditer(r"#{2,4}\s*Phase\s+(\d+)(?:\.\d+)?:", content, re.IGNORECASE):
+            for m in re.finditer(
+                r"#{2,4}\s*Phase\s+(\d+)(?:\.\d+)?(?::|(?:\s+\u2014\s+))",
+                content,
+                re.IGNORECASE,
+            ):
                 num = int(m.group(1))
                 if num > max_phase:
                     max_phase = num
@@ -1555,9 +1627,12 @@ def phase_add(cwd: Path, description: str) -> PhaseAddResult:
 
             dir_path.mkdir(parents=True, exist_ok=True)
 
-            depends = f"Phase {max_phase}" if max_phase > 0 else "None"
+            heading_level, pad_width, separator = _detect_phase_heading_format(content)
+            display_num = _format_phase_display_num(new_phase_num, pad_width)
+            depends_display = _format_phase_display_num(max_phase, pad_width) if max_phase > 0 else None
+            depends = f"Phase {depends_display}" if depends_display else "None"
             phase_entry = (
-                f"\n### Phase {new_phase_num}: {description}\n\n"
+                f"\n{heading_level} Phase {display_num}{separator}{description}\n\n"
                 f"**Goal:** [To be planned]\n"
                 f"**Depends on:** {depends}\n"
                 f"**Plans:** 0 plans\n\n"
@@ -1628,7 +1703,11 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
             content = roadmap_path.read_text(encoding="utf-8")
 
             escaped = re.escape(after_phase)
-            if not re.search(rf"#{{2,4}}\s*Phase\s+{escaped}:", content, re.IGNORECASE):
+            if not re.search(
+                rf"#{{2,4}}\s*Phase\s+{escaped}(?::|(?:\s+\u2014\s+))",
+                content,
+                re.IGNORECASE,
+            ):
                 raise PhaseValidationError(f"Phase {after_phase} not found in ROADMAP.md")
 
             normalized_base = phase_normalize(after_phase)
@@ -1648,16 +1727,21 @@ def phase_insert(cwd: Path, after_phase: str, description: str) -> PhaseInsertRe
             decimal_phase = f"{normalized_base}.{next_decimal}"
             dir_name = f"{decimal_phase}-{slug}" if slug else decimal_phase
 
+            heading_level, _pad_width, separator = _detect_phase_heading_format(content)
+            depends_display = phase_normalize(after_phase)
             phase_entry = (
-                f"\n### Phase {decimal_phase}: {description} (INSERTED)\n\n"
+                f"\n{heading_level} Phase {decimal_phase}{separator}{description} (INSERTED)\n\n"
                 f"**Goal:** [Urgent work - to be planned]\n"
-                f"**Depends on:** Phase {after_phase}\n"
+                f"**Depends on:** Phase {depends_display}\n"
                 f"**Plans:** 0 plans\n\n"
                 f"Plans:\n"
                 f"- [ ] TBD (run plan-phase {decimal_phase} to break down)\n"
             )
 
-            header_pattern = re.compile(rf"(#{{2,4}}\s*Phase\s+{escaped}:[^\n]*\n)", re.IGNORECASE)
+            header_pattern = re.compile(
+                rf"(#{{2,4}}\s*Phase\s+{escaped}(?::|(?:\s+\u2014\s+))[^\n]*\n)",
+                re.IGNORECASE,
+            )
             header_match = header_pattern.search(content)
             if not header_match:
                 raise PhaseValidationError(f"Could not find Phase {after_phase} header")
