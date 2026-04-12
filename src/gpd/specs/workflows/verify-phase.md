@@ -113,6 +113,10 @@ done
 
 </step>
 
+<step name="surface_verification_contract_policy">
+Before satisfying hard contract schemas or schema-critical checks, surface the shared verification contract policy: closed schemas, authoritative proof contracts, `schema_version=1`, non-empty `context_intake`, `uncertainty_markers.weakest_anchors[]`, `uncertainty_markers.disconfirming_observations[]`, concrete grounding, `must_surface=true` reference anchors when references are the only grounding, unique cross-section IDs, exact proof metadata, and the canonical binding arrays (`binding.observable_ids`, `binding.claim_ids`, `binding.deliverable_ids`, `binding.acceptance_test_ids`, `binding.reference_ids`, `binding.forbidden_proxy_ids`). Call `suggest_contract_checks(...)` before `run_contract_check(...)` and fill its `request_template` without placeholder sentinels.
+</step>
+
 <step name="establish_contract_targets">
 **Primary option: contract in PLAN frontmatter**
 

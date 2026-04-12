@@ -20,6 +20,7 @@ from gpd.contracts import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_CONTRACT_SCHEMA = REPO_ROOT / "src/gpd/specs/templates/project-contract-schema.md"
 STATE_JSON_SCHEMA = REPO_ROOT / "src/gpd/specs/templates/state-json-schema.md"
+GROUNDING_LINKAGE = REPO_ROOT / "src/gpd/specs/templates/project-contract-grounding-linkage.md"
 
 
 def _read(path: Path) -> str:
@@ -131,3 +132,10 @@ def test_project_contract_schema_surfaces_validator_enforced_reference_gates() -
     )
     assert "Every `must_surface: true` reference needs a concrete `locator` and concrete `applies_to[]` coverage" in text
     assert "Project-local paths in `locator` or `applies_to[]` evidence must resolve when `project_root` is available." in text
+
+
+def test_project_contract_grounding_linkage_mentions_project_root_guard_and_cross_section_rule() -> None:
+    text = _read(GROUNDING_LINKAGE)
+
+    assert "project_root guard" in text
+    assert "Cross-section unique ID rule" in text

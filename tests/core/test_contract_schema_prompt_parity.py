@@ -220,6 +220,10 @@ def test_verify_phase_contract_checks_restate_schema_before_run_contract_check()
     ):
         assert token in verify_workflow
     assert "<replace-with-...>" in verify_workflow
+    assert "surface the shared verification contract policy" in verify_workflow
+    assert "`schema_version=1`" in verify_workflow
+    assert "unique cross-section IDs" in verify_workflow
+    assert "Call `suggest_contract_checks(...)` before `run_contract_check(...)`" in verify_workflow
 
 
 def test_contract_results_schema_and_verification_template_surface_canonical_result_ledger_fields() -> None:

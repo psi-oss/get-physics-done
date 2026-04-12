@@ -70,6 +70,7 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["gpd"]
 package-dir = { "" = "src" }
+sources = ["src"]
 artifacts = [
     "src/gpd/adapters/*.json",
     "src/gpd/core/*.json",

@@ -38,6 +38,14 @@ def test_python_wheel_declares_runtime_markdown_json_tex_resources() -> None:
     assert "src/gpd/core/*.json" in artifacts
 
 
+def test_python_wheel_rewrites_src_prefix_for_resources() -> None:
+    hatch_wheel = _pyproject()["tool"]["hatch"]["build"]["targets"]["wheel"]
+    sources = hatch_wheel.get("sources")
+
+    assert isinstance(sources, list)
+    assert "src" in sources
+
+
 def test_python_wheel_manifest_covers_known_runtime_resource_examples() -> None:
     artifacts = _pyproject()["tool"]["hatch"]["build"]["targets"]["wheel"]["artifacts"]
     expected_examples = (
@@ -113,6 +121,6 @@ def test_docs_do_not_reference_unshipped_infra_paths() -> None:
             for line in path.read_text(encoding="utf-8").splitlines():
                 if "infra/gpd-" not in line:
                     continue
-                if path.name == "schema-registry-ownership.md" and "`infra/gpd-*.json`" in line:
+                if path.name == "schema-registry-ownership.md" and "infra/gpd-*.json" in line:
                     continue
                 assert "http" in line, f"{path} references infra without absolute URL: {line}"

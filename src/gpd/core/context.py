@@ -73,6 +73,8 @@ from gpd.core.protocol_bundles import render_protocol_bundle_context, select_pro
 from gpd.core.publication_runtime import publication_runtime_snapshot_context
 from gpd.core.reference_ingestion import ingest_manuscript_reference_status, ingest_reference_artifacts
 from gpd.core.results import result_list
+from gpd.core.resume_candidates import candidate_text as _candidate_text
+from gpd.core.resume_candidates import has_resume_candidate
 from gpd.core.resume_surface import (
     RESUME_COMPATIBILITY_ALIAS_FIELDS,
     RESUME_SURFACE_SCHEMA_VERSION,
@@ -2216,41 +2218,6 @@ def _canonical_resume_candidate(
     )
 
 
-def _has_candidate(
-    segment_candidates: list[dict[str, object]],
-    *,
-    source: str,
-    resume_file: str | None = None,
-    agent_id: str | None = None,
-) -> bool:
-    for candidate in segment_candidates:
-        if str(candidate.get("source") or "").strip() != source:
-            continue
-        if resume_file is not None and candidate.get("resume_file") != resume_file:
-            continue
-        if agent_id is not None and candidate.get("agent_id") != agent_id:
-            continue
-        return True
-    return False
-
-
-def _has_resume_candidate(
-    resume_candidates: list[dict[str, object]],
-    *,
-    kind: str,
-    resume_pointer: str | None = None,
-    agent_id: str | None = None,
-) -> bool:
-    for candidate in resume_candidates:
-        if str(candidate.get("kind") or "").strip() != kind:
-            continue
-        if resume_pointer is not None and candidate.get("resume_pointer") != resume_pointer:
-            continue
-        if agent_id is not None and candidate.get("agent_id") != agent_id:
-            continue
-        return True
-    return False
-
 
 def _build_resume_read_state(
     execution_context: dict[str, object],
@@ -2325,7 +2292,7 @@ def _build_resume_read_state(
             )
 
     if isinstance(resume_projection.missing_handoff_resume_file, str) and resume_projection.missing_handoff_resume_file:
-        if not _has_resume_candidate(
+        if not has_resume_candidate(
             resume_candidates,
             kind="continuity_handoff",
             resume_pointer=resume_projection.missing_handoff_resume_file,
@@ -2348,7 +2315,7 @@ def _build_resume_read_state(
                 )
             )
 
-    if interrupted_agent_id is not None and not _has_candidate(
+    if interrupted_agent_id is not None and not has_resume_candidate(
         resume_candidates,
         source="interrupted_agent",
         agent_id=interrupted_agent_id,
@@ -2358,7 +2325,7 @@ def _build_resume_read_state(
             "status": "interrupted",
             "agent_id": interrupted_agent_id,
         }
-        if not _has_resume_candidate(
+        if not has_resume_candidate(
             resume_candidates,
             kind="interrupted_agent",
             agent_id=interrupted_agent_id,
@@ -2428,11 +2395,7 @@ def _build_resume_read_state(
 def _mapping_text(value: Mapping[str, object] | None, key: str) -> str | None:
     if not isinstance(value, Mapping):
         return None
-    candidate = value.get(key)
-    if not isinstance(candidate, str):
-        return None
-    stripped = candidate.strip()
-    return stripped or None
+    return _candidate_text(value, key)
 
 
 def _promote_auto_selected_recent_bounded_segment(

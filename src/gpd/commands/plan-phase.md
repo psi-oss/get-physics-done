@@ -17,7 +17,7 @@ allowed-tools:
 ---
 
 <objective>
-Create executable phase prompts for a research phase.
+Produce an executable phase prompt for the current research phase.
 </objective>
 
 <execution_context>
@@ -25,19 +25,18 @@ Create executable phase prompts for a research phase.
 </execution_context>
 
 <context>
-Phase number: $ARGUMENTS (optional; auto-detects the next unplanned phase if omitted)
+Phase number: $ARGUMENTS (optional, defaults to the next unplanned phase)
 
 **Flags:**
 
-- `--research` — Re-research even if `RESEARCH.md` exists
-- `--skip-research` — Skip research and plan directly
+- `--research` — Force re-research even when `RESEARCH.md` already exists
+- `--skip-research` — Skip research and go straight to planning
 - `--gaps` — Gap-closure mode (`VERIFICATION.md`, no research)
 - `--skip-verify` — Skip the verification loop
-- `--light` — Produce contract-plus-constraints plans only
-- `--inline-discuss` — Combine discuss-phase and plan-phase by capturing the 2-3 most critical decisions inline before planning; use this for straightforward phases instead of running `gpd:discuss-phase` separately
+- `--light` — Emit only the contract and constraint plan
+- `--inline-discuss` — Capture the 2-3 most critical decisions inline instead of running `gpd:discuss-phase` for simple work
 </context>
 
 <process>
-Read the workflow file defined above with `file_read` first.
 Follow the included workflow file exactly.
 </process>

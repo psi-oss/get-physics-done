@@ -18,6 +18,8 @@ from gpd.core.public_surface_contract import (
     recovery_local_snapshot_command,
 )
 from gpd.core.recent_projects import list_recent_projects
+from gpd.core.resume_candidates import candidate_text as _candidate_text
+from gpd.core.resume_candidates import has_resume_candidate
 from gpd.core.resume_surface import (
     RESUME_CANDIDATE_KIND_CONTINUITY_HANDOFF,
     RESUME_SURFACE_SCHEMA_VERSION,
@@ -140,13 +142,6 @@ def _text_field(payload: Mapping[str, object], field: str) -> str | None:
     return stripped or None
 
 
-def _candidate_text(candidate: Mapping[str, object], field: str) -> str | None:
-    value = candidate.get(field)
-    if not isinstance(value, str):
-        return None
-    stripped = value.strip()
-    return stripped or None
-
 def _project_reentry_candidates(
     payload: Mapping[str, object],
 ) -> list[Mapping[str, object]] | None:
@@ -200,24 +195,6 @@ def _candidate_kind(candidate: Mapping[str, object]) -> str | None:
 
 def _candidate_origin(candidate: Mapping[str, object]) -> str | None:
     return resume_candidate_origin(candidate)
-
-def _has_candidate(
-    segment_candidates: Sequence[Mapping[str, object]],
-    *,
-    kind: str | None = None,
-    origin: str | None = None,
-    status: str | None = None,
-) -> bool:
-    for candidate in segment_candidates:
-        if kind is not None and _candidate_kind(candidate) != kind:
-            continue
-        if origin is not None and _candidate_origin(candidate) != origin:
-            continue
-        if status is not None and _candidate_text(candidate, "status") != status:
-            continue
-        return True
-    return False
-
 
 def _has_usable_candidate(
     segment_candidates: Sequence[Mapping[str, object]],
@@ -284,13 +261,13 @@ def _derive_active_resume_kind(
         return "bounded_segment"
     if missing_continuity_handoff_file is not None:
         return "continuity_handoff"
-    if _has_candidate(resume_candidates, kind="continuity_handoff", status="missing"):
+    if has_resume_candidate(resume_candidates, kind="continuity_handoff", status="missing"):
         return "continuity_handoff"
     if continuity_handoff_file is not None:
         return "continuity_handoff"
-    if _has_candidate(resume_candidates, kind="continuity_handoff", status="handoff"):
+    if has_resume_candidate(resume_candidates, kind="continuity_handoff", status="handoff"):
         return "continuity_handoff"
-    if _has_candidate(resume_candidates, kind="interrupted_agent", status="interrupted"):
+    if has_resume_candidate(resume_candidates, kind="interrupted_agent", status="interrupted"):
         return "interrupted_agent"
     return None
 
@@ -568,7 +545,7 @@ def build_recovery_advice(
     has_interrupted_agent = (
         interrupted_agent_flag
         or active_resume_kind == "interrupted_agent"
-        or _has_candidate(
+        or has_resume_candidate(
             segment_candidates,
             kind="interrupted_agent",
             status="interrupted",
@@ -589,7 +566,7 @@ def build_recovery_advice(
             active_resume_kind == "continuity_handoff"
             and active_resume_pointer is not None
         )
-        or _has_candidate(
+        or has_resume_candidate(
             segment_candidates,
             kind="continuity_handoff",
             status="handoff",
@@ -597,7 +574,7 @@ def build_recovery_advice(
     )
     missing_continuity_handoff = (
         missing_continuity_handoff_file is not None
-        or _has_candidate(
+        or has_resume_candidate(
             segment_candidates,
             kind="continuity_handoff",
             status="missing",

@@ -186,6 +186,7 @@ def update_command_for_candidate(
         _runtime_dir_has_gpd_install,
         detect_active_runtime_with_gpd_install,
         detect_install_scope,
+        resolve_runtime_target_dir,
         update_command_for_runtime,
     )
 
@@ -209,5 +210,6 @@ def update_command_for_candidate(
     if runtime == RUNTIME_UNKNOWN:
         runtime = detect_active_runtime_with_gpd_install(cwd=scope_lookup_cwd, home=lookup.resolved_home)
     if scope is None and runtime != RUNTIME_UNKNOWN:
-        scope = detect_install_scope(runtime, cwd=scope_lookup_cwd, home=lookup.resolved_home)
+        _, detected_scope = resolve_runtime_target_dir(runtime, cwd=scope_lookup_cwd, home=lookup.resolved_home)
+        scope = detected_scope or detect_install_scope(runtime, cwd=scope_lookup_cwd, home=lookup.resolved_home)
     return update_command_for_runtime(runtime, scope=scope)

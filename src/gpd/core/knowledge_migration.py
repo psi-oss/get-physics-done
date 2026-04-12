@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -263,6 +264,33 @@ class KnowledgeDocMigrationInventory:
         return counts
 
 
+def _blocked_migration_record(
+    path: str,
+    *,
+    blockers: Sequence[str],
+    notes: Sequence[str] = (),
+    reasons: Sequence[str] = (),
+    review_state: str = "blocked",
+) -> KnowledgeDocMigrationRecord:
+    return KnowledgeDocMigrationRecord(
+        path=path,
+        classification=KnowledgeMigrationClassification.BLOCKED,
+        knowledge_id=None,
+        canonical_knowledge_id=None,
+        canonical_path=None,
+        current_status=None,
+        suggested_status=None,
+        review_state=review_state,
+        source_count=0,
+        normalized_source_count=0,
+        can_rewrite=False,
+        needs_review_refresh=False,
+        reasons=tuple(reasons),
+        blockers=tuple(blockers),
+        notes=tuple(notes),
+    )
+
+
 def classify_knowledge_doc_migration(
     project_root: Path,
     path: Path,
@@ -281,55 +309,22 @@ def classify_knowledge_doc_migration(
         try:
             content = resolved_path.read_text(encoding="utf-8")
         except OSError as exc:
-            return KnowledgeDocMigrationRecord(
-                path=rel_path,
-                classification=KnowledgeMigrationClassification.BLOCKED,
-                knowledge_id=None,
-                canonical_knowledge_id=None,
-                canonical_path=None,
-                current_status=None,
-                suggested_status=None,
-                review_state="blocked",
-                source_count=0,
-                normalized_source_count=0,
-                can_rewrite=False,
-                needs_review_refresh=False,
+            return _blocked_migration_record(
+                rel_path,
                 blockers=(f"could not read knowledge doc: {exc}",),
             )
 
     try:
         meta, _body = extract_frontmatter(content)
     except Exception as exc:
-        return KnowledgeDocMigrationRecord(
-            path=rel_path,
-            classification=KnowledgeMigrationClassification.BLOCKED,
-            knowledge_id=None,
-            canonical_knowledge_id=None,
-            canonical_path=None,
-            current_status=None,
-            suggested_status=None,
-            review_state="blocked",
-            source_count=0,
-            normalized_source_count=0,
-            can_rewrite=False,
-            needs_review_refresh=False,
+        return _blocked_migration_record(
+            rel_path,
             blockers=(f"frontmatter parse failed: {exc}",),
         )
 
     if not isinstance(meta, dict):
-        return KnowledgeDocMigrationRecord(
-            path=rel_path,
-            classification=KnowledgeMigrationClassification.BLOCKED,
-            knowledge_id=None,
-            canonical_knowledge_id=None,
-            canonical_path=None,
-            current_status=None,
-            suggested_status=None,
-            review_state="blocked",
-            source_count=0,
-            normalized_source_count=0,
-            can_rewrite=False,
-            needs_review_refresh=False,
+        return _blocked_migration_record(
+            rel_path,
             blockers=("knowledge frontmatter must be an object",),
         )
 

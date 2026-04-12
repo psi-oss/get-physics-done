@@ -401,6 +401,37 @@ def detect_install_scope(
     return None if install_target is None else install_target.install_scope
 
 
+def resolve_runtime_target_dir(
+    runtime: str | None,
+    *,
+    cwd: Path | None = None,
+    home: Path | None = None,
+) -> tuple[Path | None, str | None]:
+    """Return the concrete config directory and scope for *runtime*, if any."""
+    if runtime is None:
+        return None, None
+
+    resolved_cwd = cwd or Path.cwd()
+    resolved_runtime = normalize_runtime_name(runtime)
+    if resolved_runtime is None:
+        resolved_runtime = runtime
+    if resolved_runtime not in supported_runtime_names():
+        return None, None
+
+    install_target = _detect_runtime_install_target(resolved_runtime, cwd=resolved_cwd, home=home)
+    if install_target is not None:
+        return install_target.config_dir, install_target.install_scope
+
+    install_scope = detect_install_scope(resolved_runtime, cwd=resolved_cwd, home=home)
+    if install_scope == SCOPE_GLOBAL:
+        adapter = adapters_module.get_adapter(resolved_runtime)
+        return adapter.resolve_target_dir(True, resolved_cwd), SCOPE_GLOBAL
+    if install_scope == SCOPE_LOCAL:
+        adapter = adapters_module.get_adapter(resolved_runtime)
+        return adapter.resolve_target_dir(False, resolved_cwd), SCOPE_LOCAL
+    return None, None
+
+
 def _ordered_runtime_dirs_for_lookup(
     runtime: str,
     *,
@@ -790,5 +821,6 @@ __all__ = [
     "should_consider_todo_candidate",
     "should_consider_update_cache_candidate",
     "resolve_effective_runtime",
+    "resolve_runtime_target_dir",
     "update_command_for_runtime",
 ]

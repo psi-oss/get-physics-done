@@ -1295,10 +1295,10 @@ def _resume_runtime_commands(*, cwd: Path | None = None) -> tuple[str | None, st
         runtime_cwd = cwd or _get_cwd()
         runtime_name = installed_runtime_for_surface(runtime_cwd)
         if runtime_name is None:
-            from gpd.hooks.runtime_detect import detect_runtime_for_gpd_use
+            from gpd.hooks.runtime_detect import RUNTIME_UNKNOWN, detect_runtime_for_gpd_use
 
             runtime_name = detect_runtime_for_gpd_use(cwd=runtime_cwd)
-        if runtime_name is None:
+        if runtime_name in (None, RUNTIME_UNKNOWN):
             return None, None
         adapter = get_adapter(runtime_name)
         resume_work_command = str(adapter.format_command("resume-work")).strip()
@@ -3337,7 +3337,9 @@ def doctor(
         else "local"
     )
     if target_dir is None and not global_install and not local_install:
-        detected_target, detected_scope = _resolve_detected_runtime_target(normalized_runtime)
+        from gpd.hooks.runtime_detect import resolve_runtime_target_dir
+
+        detected_target, detected_scope = resolve_runtime_target_dir(normalized_runtime, cwd=_get_cwd())
         if detected_target is not None and detected_scope is not None:
             resolved_target = detected_target
             install_scope = detected_scope
@@ -5129,7 +5131,7 @@ def _resolve_permissions_target_dir(
 ) -> Path:
     """Resolve the installed config directory targeted by a permissions command."""
     from gpd.adapters import get_adapter
-    from gpd.hooks.runtime_detect import detect_install_scope, detect_runtime_install_target
+    from gpd.hooks.runtime_detect import detect_install_scope, resolve_runtime_target_dir
 
     adapter = get_adapter(runtime_name)
     assessment = None
@@ -5141,9 +5143,9 @@ def _resolve_permissions_target_dir(
             _error(str(exc))
         assessment = _permissions_install_target_assessment(runtime_name, resolved)
     else:
-        install_target = detect_runtime_install_target(runtime_name, cwd=_get_cwd())
-        if install_target is not None:
-            resolved = install_target.config_dir
+        detected_target, _ = resolve_runtime_target_dir(runtime_name, cwd=_get_cwd())
+        if detected_target is not None:
+            resolved = detected_target
             assessment = _permissions_install_target_assessment(runtime_name, resolved)
         else:
             install_scope = detect_install_scope(runtime_name, cwd=_get_cwd())
@@ -8979,23 +8981,6 @@ def _target_dir_matches_global(runtime_name: str, target_dir: str, *, action: st
     return resolved_target == canonical_global_target.expanduser().resolve(strict=False)
 
 
-def _resolve_detected_runtime_target(runtime_name: str) -> tuple[Path | None, str | None]:
-    """Return the concrete installed runtime target when one can be detected."""
-    from gpd.hooks.runtime_detect import detect_install_scope, detect_runtime_install_target
-
-    install_target = detect_runtime_install_target(runtime_name, cwd=_get_cwd())
-    if install_target is not None:
-        return install_target.config_dir, install_target.install_scope
-
-    install_scope = detect_install_scope(runtime_name, cwd=_get_cwd())
-    if install_scope == "global":
-        adapter = _get_adapter_or_error(runtime_name, action="inspect runtime readiness")
-        return adapter.resolve_target_dir(True, _get_cwd()), "global"
-    if install_scope == "local":
-        adapter = _get_adapter_or_error(runtime_name, action="inspect runtime readiness")
-        return adapter.resolve_target_dir(False, _get_cwd()), "local"
-    return None, None
-
 
 def _install_summary_local_cli_bridge_line() -> str:
     """Return the concise local-CLI bridge follow-up for install summaries.
@@ -9104,7 +9089,9 @@ def _build_unattended_readiness(
         else "local"
     )
     if target_dir is None and not global_install and not local_install:
-        detected_target, detected_scope = _resolve_detected_runtime_target(normalized_runtime)
+        from gpd.hooks.runtime_detect import resolve_runtime_target_dir
+
+        detected_target, detected_scope = resolve_runtime_target_dir(normalized_runtime, cwd=_get_cwd())
         if detected_target is not None and detected_scope is not None:
             resolved_target = detected_target
             install_scope = detected_scope

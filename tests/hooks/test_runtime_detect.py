@@ -47,6 +47,7 @@ from gpd.hooks.runtime_detect import (
     get_update_cache_files,
     normalize_runtime_name,
     resolve_effective_runtime,
+    resolve_runtime_target_dir,
     should_consider_todo_candidate,
     should_consider_update_cache_candidate,
     supported_runtime_names,
@@ -378,6 +379,33 @@ class TestResolveEffectiveRuntime:
         assert result.source == SOURCE_LOCAL
         assert result.has_gpd_install is True
         assert result.install_scope == SCOPE_LOCAL
+
+
+def test_resolve_runtime_target_dir_prefers_local_install(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True)
+    home = tmp_path / "home"
+    local_dir = workspace / ".codex"
+    _mark_gpd_install(local_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_LOCAL)
+    global_dir = get_adapter(RUNTIME_CODEX).resolve_global_config_dir(home=home)
+    _mark_gpd_install(global_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_GLOBAL)
+
+    result = resolve_runtime_target_dir(RUNTIME_CODEX, cwd=workspace, home=home)
+
+    assert result == (local_dir, SCOPE_LOCAL)
+
+
+def test_resolve_runtime_target_dir_falls_back_to_global_install(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True)
+    home = tmp_path / "home"
+    adapter = get_adapter(RUNTIME_CODEX)
+    global_dir = adapter.resolve_global_config_dir(home=home)
+    _mark_gpd_install(global_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_GLOBAL)
+
+    result = resolve_runtime_target_dir(RUNTIME_CODEX, cwd=workspace, home=home)
+
+    assert result == (global_dir, SCOPE_GLOBAL)
 
 
 class TestNormalizeRuntimeName:
