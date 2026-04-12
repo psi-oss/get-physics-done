@@ -2133,6 +2133,7 @@ def _normalize_project_contract_section(
     normalized_contract, errors, schema_metadata = salvage_project_contract(value)
     combined_errors = list(dict.fromkeys(errors))
     normalized_contract_dump = normalized_contract.model_dump() if normalized_contract is not None else None
+    schema_findings = list(dict.fromkeys([*combined_errors, *list_shape_drift_errors, *list_member_errors]))
     if list_shape_drift_errors:
         integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in list_shape_drift_errors)
     if list_member_errors:
@@ -2148,6 +2149,16 @@ def _normalize_project_contract_section(
                 integrity_issues.append(
                     'schema normalization: dropped "project_contract" because contract schema required normalization'
                 )
+        return None
+    if schema_findings and not allow_project_contract_salvage:
+        if _has_authoritative_scalar_schema_findings(schema_findings):
+            integrity_issues.append(
+                'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization'
+            )
+        else:
+            integrity_issues.append(
+                'schema normalization: dropped "project_contract" because contract schema required normalization'
+            )
         return None
     if combined_errors:
         # Run contract salvage before any direct Pydantic acceptance so coercive
@@ -2288,19 +2299,6 @@ def ensure_state_schema(raw: dict | None) -> dict:
     return normalized
 
 
-_PROJECT_CONTRACT_DROP_ISSUES: set[str] = {
-    'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization',
-    'schema normalization: dropped "project_contract" because contract schema required normalization',
-    'schema normalization: dropped "project_contract" because contract failed draft scoping validation',
-}
-
-
-def _remove_project_contract_drop_issues(integrity_issues: list[str]) -> None:
-    if not integrity_issues:
-        return
-    integrity_issues[:] = [issue for issue in integrity_issues if issue not in _PROJECT_CONTRACT_DROP_ISSUES]
-
-
 def _normalize_state_for_persistence(raw: dict | None, *, project_root: Path | None = None) -> dict:
     """Normalize state for writes without silently salvaging malformed contracts."""
     normalized, integrity_issues = _normalize_state_schema(
@@ -2310,18 +2308,6 @@ def _normalize_state_for_persistence(raw: dict | None, *, project_root: Path | N
     )
     normalized = copy.deepcopy(normalized)
     normalized["session"] = _session_from_continuation_payload(normalized.get("continuation"))
-
-    candidate_contract = raw.get("project_contract") if isinstance(raw, dict) else None
-    if normalized.get("project_contract") is None and isinstance(candidate_contract, dict):
-        salvaged_contract = _normalize_project_contract_section(
-            candidate_contract,
-            integrity_issues,
-            allow_project_contract_salvage=True,
-            project_root=project_root,
-        )
-        if isinstance(salvaged_contract, dict):
-            normalized["project_contract"] = salvaged_contract
-            _remove_project_contract_drop_issues(integrity_issues)
 
     if any("project_contract" in issue for issue in integrity_issues):
         logger.warning(
@@ -2965,6 +2951,7 @@ def _build_state_from_markdown(
                 cwd,
                 source_path=backup_path if primary_unreadable else json_path,
                 raw_state=existing,
+                allowed_statuses={"loaded", "loaded_with_approval_blockers", "blocked_integrity"},
             )
             if preserved_contract is None:
                 existing = copy.deepcopy(existing)
@@ -3035,6 +3022,7 @@ def _preserved_visible_project_contract_from_raw_state(
     *,
     source_path: Path,
     raw_state: object,
+    allowed_statuses: set[str] | None = None,
 ) -> dict[str, object] | None:
     """Return the visible normalized contract when state already exposes it."""
 
@@ -3053,13 +3041,27 @@ def _preserved_visible_project_contract_from_raw_state(
     if visible_contract is None:
         return None
 
-    if load_info.get("status") not in {
+    allowed_statuses = allowed_statuses or {
         "loaded",
         "loaded_with_schema_normalization",
         "loaded_with_approval_blockers",
         "blocked_integrity",
-    }:
+    }
+    status = load_info.get("status")
+    if status not in allowed_statuses:
         return None
+    if status == "blocked_integrity":
+        if any(
+            is_repair_relevant_project_contract_schema_finding(warning)
+            for warning in list(load_info.get("warnings") or [])
+        ):
+            return None
+        draft_validation = validate_project_contract(visible_contract, mode="draft", project_root=cwd)
+        local_grounding_errors = set(
+            _collect_project_local_grounding_integrity_errors(visible_contract, project_root=cwd)
+        )
+        if any(error not in local_grounding_errors for error in draft_validation.errors):
+            return None
 
     return visible_contract.model_dump(mode="python")
 
@@ -3068,6 +3070,7 @@ def _preserved_visible_project_contract_from_state_file(
     cwd: Path,
     *,
     state_path: Path,
+    allowed_statuses: set[str] | None = None,
 ) -> dict[str, object] | None:
     """Return the visible normalized project contract preserved from one state JSON file."""
 
@@ -3081,6 +3084,62 @@ def _preserved_visible_project_contract_from_state_file(
         cwd,
         source_path=state_path,
         raw_state=raw_state,
+        allowed_statuses=allowed_statuses,
+    )
+
+
+def _preserved_raw_project_contract_from_raw_state(
+    cwd: Path,
+    *,
+    source_path: Path,
+    raw_state: object,
+    allowed_statuses: set[str] | None = None,
+) -> dict[str, object] | None:
+    """Return the raw persisted contract when the source state already exposes it."""
+
+    if not isinstance(raw_state, dict):
+        return None
+
+    raw_contract = raw_state.get("project_contract")
+    if not isinstance(raw_contract, dict):
+        return None
+
+    _visible_contract, load_info = _classify_project_contract_payload(
+        cwd=cwd,
+        source_path=source_path,
+        raw_contract=raw_contract,
+    )
+    allowed_statuses = allowed_statuses or {
+        "loaded",
+        "loaded_with_schema_normalization",
+        "loaded_with_approval_blockers",
+        "blocked_integrity",
+    }
+    if load_info.get("status") not in allowed_statuses:
+        return None
+
+    return copy.deepcopy(raw_contract)
+
+
+def _preserved_raw_project_contract_from_state_file(
+    cwd: Path,
+    *,
+    state_path: Path,
+    allowed_statuses: set[str] | None = None,
+) -> dict[str, object] | None:
+    """Return the raw persisted project contract preserved from one state JSON file."""
+
+    try:
+        raw_state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return None
+    if not isinstance(raw_state, dict):
+        return None
+    return _preserved_raw_project_contract_from_raw_state(
+        cwd,
+        source_path=state_path,
+        raw_state=raw_state,
+        allowed_statuses=allowed_statuses,
     )
 
 
@@ -3307,11 +3366,17 @@ def _load_state_json_with_integrity_issues(
                 or recovered_continuation_from_backup
                 or recovered_session_from_backup
             ):
-                preserved_contract = _preserved_visible_project_contract_from_raw_state(
-                    cwd,
-                    source_path=json_path,
-                    raw_state=parsed,
-                )
+                if state_source == "state.json.bak":
+                    preserved_contract = _preserved_raw_project_contract_from_state_file(
+                        cwd,
+                        state_path=bak_path,
+                    )
+                else:
+                    preserved_contract = _preserved_raw_project_contract_from_raw_state(
+                        cwd,
+                        source_path=json_path,
+                        raw_state=parsed,
+                    )
                 _write_state_pair_locked(
                     cwd,
                     state_obj=normalized,
@@ -3332,7 +3397,7 @@ def _load_state_json_with_integrity_issues(
                     "state.json root was recovered from state.json.bak after primary state.json was missing"
                 )
                 if persist_recovery:
-                    preserved_contract = _preserved_visible_project_contract_from_state_file(
+                    preserved_contract = _preserved_raw_project_contract_from_state_file(
                         cwd,
                         state_path=bak_path,
                     )
@@ -3359,7 +3424,7 @@ def _load_state_json_with_integrity_issues(
                     "state.json root was recovered from state.json.bak after primary state.json was unavailable or unreadable"
                 )
                 if persist_recovery:
-                    preserved_contract = _preserved_visible_project_contract_from_state_file(
+                    preserved_contract = _preserved_raw_project_contract_from_state_file(
                         cwd,
                         state_path=bak_path,
                     )
@@ -3393,7 +3458,7 @@ def _load_state_json_with_integrity_issues(
                     "state.json root was recovered from state.json.bak after primary state.json was unavailable or unreadable"
                 )
                 if persist_recovery:
-                    preserved_contract = _preserved_visible_project_contract_from_state_file(
+                    preserved_contract = _preserved_raw_project_contract_from_state_file(
                         cwd,
                         state_path=bak_path,
                     )
@@ -3750,21 +3815,14 @@ def _preserved_visible_project_contract_for_json_save(cwd: Path, *, state_obj: d
         return None
 
     if load_info.get("status") not in {
-        "blocked_integrity",
-        "loaded_with_schema_normalization",
+        "loaded",
         "loaded_with_approval_blockers",
     }:
         return None
 
-    candidate_contract, candidate_schema_findings, candidate_schema_metadata = salvage_project_contract(candidate)
-    if candidate_contract is None:
-        return None
-    _, candidate_schema_errors = split_project_contract_schema_findings(
-        candidate_schema_findings,
-        allow_case_drift_recovery=True,
-        metadata_by_error=candidate_schema_metadata,
-    )
-    if candidate_schema_errors:
+    candidate_strict_result = parse_project_contract_data_strict(candidate)
+    candidate_contract = candidate_strict_result.contract
+    if candidate_contract is None or candidate_strict_result.errors:
         return None
 
     # Compare semantic contract content instead of raw dict shape so callers
@@ -3793,6 +3851,7 @@ def _preserved_project_contract_for_markdown_save(
             cwd,
             source_path=layout.state_json,
             raw_state=existing,
+            allowed_statuses={"loaded", "loaded_with_approval_blockers", "blocked_integrity"},
         )
         if preserved is not None:
             return preserved
@@ -3811,6 +3870,7 @@ def _preserved_project_contract_for_markdown_save(
         cwd,
         source_path=layout.state_json_backup,
         raw_state=backup_existing,
+        allowed_statuses={"loaded", "loaded_with_approval_blockers", "blocked_integrity"},
     )
 
 
@@ -4095,14 +4155,9 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
             return _failure("Invalid project contract schema: project contract must be a JSON object")
         strict_result: ProjectContractParseResult = parse_project_contract_data_strict(contract_payload)
         if strict_result.errors:
-            from gpd.core.contract_validation import salvage_project_contract
-
-            _contract, schema_findings, _schema_metadata = salvage_project_contract(contract_payload)
-            salvage_only_findings = [error for error in schema_findings if error not in strict_result.errors]
-            strict_errors = salvage_only_findings or strict_result.errors
             return _failure(
-                "Invalid project contract schema: " + "; ".join(dict.fromkeys(strict_errors)),
-                schema_reference=_project_contract_schema_reference_for_errors(strict_errors),
+                "Invalid project contract schema: " + "; ".join(strict_result.errors),
+                schema_reference=_project_contract_schema_reference_for_errors(strict_result.errors),
             )
         parsed = strict_result.contract
         if parsed is None:
