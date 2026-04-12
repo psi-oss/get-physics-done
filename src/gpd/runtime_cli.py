@@ -38,6 +38,7 @@ from gpd.core.cli_args import (
 from gpd.core.constants import ENV_GPD_ACTIVE_RUNTIME, ENV_GPD_DISABLE_CHECKOUT_REEXEC
 from gpd.core.small_utils import paths_equal as _paths_equal
 from gpd.hooks.install_metadata import (
+    config_dir_has_local_install_manifest,
     config_dir_has_managed_install_markers,
     load_install_manifest_runtime_status,
     load_install_manifest_scope_status,
@@ -123,23 +124,15 @@ def _canonical_runtime_name(runtime: str) -> str:
 
 
 def _is_matching_local_install_candidate(candidate: Path, *, runtime: str) -> bool:
-    """Return whether *candidate* should satisfy a local bridge config-dir lookup."""
+    """Return whether *candidate* should satisfy a local bridge config-dir lookup via the shared manifest predicate."""
     if not candidate.is_dir():
         return False
 
-    adapter = get_adapter(runtime)
-    manifest_status, manifest, manifest_runtime = load_install_manifest_runtime_status(candidate)
-    if manifest_status == "ok":
-        if manifest_runtime != runtime:
-            return False
-
-        manifest_scope = manifest.get("install_scope")
-        return manifest_scope == "local"
-
-    global_config_dirs = resolve_global_config_dir_candidates(adapter.runtime_descriptor, home=Path.home())
-    has_install_markers = config_dir_has_managed_install_markers(candidate)
-    if not has_install_markers:
+    if not config_dir_has_local_install_manifest(candidate, runtime):
         return False
+
+    adapter = get_adapter(runtime)
+    global_config_dirs = resolve_global_config_dir_candidates(adapter.runtime_descriptor, home=Path.home())
     if any(_paths_equal(candidate, global_dir) for global_dir in global_config_dirs):
         return False
     return True

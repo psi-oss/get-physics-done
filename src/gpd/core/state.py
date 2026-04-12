@@ -59,6 +59,8 @@ from gpd.core.continuation import (
     resolve_continuation,
 )
 from gpd.core.contract_validation import (
+    CONTEXT_INTAKE_DEFAULT_WARNING,
+    UNCERTAINTY_MARKERS_DEFAULT_WARNING,
     _collect_list_shape_drift_errors,
     _has_authoritative_scalar_schema_findings,
     _project_contract_schema_version_missing_error,
@@ -755,30 +757,24 @@ def _project_contract_load_payload(
     return payload
 
 
-def _project_contract_missing_required_schema_errors(raw_contract: object) -> list[str]:
-    """Return hard schema blockers that must stay non-authoritative in state loads."""
+def _project_contract_missing_required_schema_errors(raw_contract: object) -> tuple[list[str], list[str]]:
+    """Return schema blockers and warnings that should be surfaced for legacy loads."""
 
     if not isinstance(raw_contract, dict):
-        return []
+        return ([], [])
 
     errors: list[str] = []
+    warnings: list[str] = []
     schema_version_error = _project_contract_schema_version_missing_error(raw_contract)
     if schema_version_error is not None:
         errors.append(schema_version_error)
 
     if "context_intake" not in raw_contract:
-        errors.append("context_intake is required")
+        warnings.append(CONTEXT_INTAKE_DEFAULT_WARNING)
 
     if "uncertainty_markers" not in raw_contract:
-        errors.append("uncertainty_markers is required")
-    else:
-        uncertainty_markers = raw_contract.get("uncertainty_markers")
-        if isinstance(uncertainty_markers, dict):
-            for field_name in ("weakest_anchors", "disconfirming_observations"):
-                if field_name not in uncertainty_markers:
-                    errors.append(f"uncertainty_markers.{field_name} is required")
-
-    return list(dict.fromkeys(errors))
+        warnings.append(UNCERTAINTY_MARKERS_DEFAULT_WARNING)
+    return list(dict.fromkeys(errors)), list(dict.fromkeys(warnings))
 
 
 def _project_contract_schema_reference_for_errors(errors: list[str]) -> str:
@@ -842,7 +838,9 @@ def _classify_project_contract_payload(
 
     list_shape_drift_errors = _collect_list_shape_drift_errors(raw_contract)
     list_member_errors = _collect_project_contract_list_member_errors(raw_contract)
-    missing_required_schema_errors = _project_contract_missing_required_schema_errors(raw_contract)
+    missing_required_schema_errors, missing_required_schema_warnings = _project_contract_missing_required_schema_errors(
+        raw_contract
+    )
     if missing_required_schema_errors:
         logger.warning(
             "Skipping project_contract from %s because required schema fields are missing: %s",
@@ -855,7 +853,7 @@ def _classify_project_contract_payload(
             provenance=provenance,
             raw_project_contract_classified=provenance == "raw",
             errors=missing_required_schema_errors,
-            warnings=list(dict.fromkeys([*list_shape_drift_errors, *list_member_errors])),
+            warnings=list(dict.fromkeys([*list_shape_drift_errors, *list_member_errors, *missing_required_schema_warnings])),
         )
     normalized_contract, schema_findings, schema_metadata = salvage_project_contract(raw_contract)
     schema_warnings, schema_errors = split_project_contract_schema_findings(
@@ -863,7 +861,11 @@ def _classify_project_contract_payload(
         allow_case_drift_recovery=True,
         metadata_by_error=schema_metadata,
     )
-    schema_warnings = list(dict.fromkeys([*schema_warnings, *list_shape_drift_errors, *list_member_errors]))
+    schema_warnings = list(
+        dict.fromkeys(
+            [*schema_warnings, *list_shape_drift_errors, *list_member_errors, *missing_required_schema_warnings]
+        )
+    )
     blocking_schema_errors = list(schema_errors)
     if normalized_contract is None and not blocking_schema_errors:
         blocking_schema_errors = list(parse_project_contract_data_salvage(raw_contract).blocking_errors)

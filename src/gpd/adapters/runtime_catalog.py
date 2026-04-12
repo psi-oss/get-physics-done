@@ -127,6 +127,11 @@ class RuntimeDescriptor:
     installer_help_example_scope: str | None = None
     validated_command_surface: str = "public_runtime_command_surface"
     public_command_surface_prefix: str = ""
+    external_skill_relative_dirs: tuple[str, ...] = ()
+    external_skill_env_vars: tuple[str, ...] = ()
+    external_skill_subdir_prefixes: tuple[str, ...] = ()
+    external_skill_markers: tuple[str, ...] = ()
+    external_skill_config_markers: tuple[str, ...] = ()
 
 
 _SHARED_INSTALL_METADATA = SharedInstallMetadata(
@@ -822,6 +827,41 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                     payload.get("public_command_surface_prefix"),
                     label=f"{label}.public_command_surface_prefix",
                     command_prefix=command_prefix_value,
+                ),
+                external_skill_relative_dirs=_require_string_tuple(
+                    payload["external_skill_relative_dirs"]
+                    if "external_skill_relative_dirs" in payload
+                    else [],
+                    label=f"{label}.external_skill_relative_dirs",
+                    allow_empty=True,
+                ),
+                external_skill_env_vars=_require_string_tuple(
+                    payload["external_skill_env_vars"]
+                    if "external_skill_env_vars" in payload
+                    else [],
+                    label=f"{label}.external_skill_env_vars",
+                    allow_empty=True,
+                ),
+                external_skill_subdir_prefixes=_require_string_tuple(
+                    payload["external_skill_subdir_prefixes"]
+                    if "external_skill_subdir_prefixes" in payload
+                    else [],
+                    label=f"{label}.external_skill_subdir_prefixes",
+                    allow_empty=True,
+                ),
+                external_skill_markers=_require_string_tuple(
+                    payload["external_skill_markers"]
+                    if "external_skill_markers" in payload
+                    else [],
+                    label=f"{label}.external_skill_markers",
+                    allow_empty=True,
+                ),
+                external_skill_config_markers=_require_string_tuple(
+                    payload["external_skill_config_markers"]
+                    if "external_skill_config_markers" in payload
+                    else [],
+                    label=f"{label}.external_skill_config_markers",
+                    allow_empty=True,
                 ),
             )
         )

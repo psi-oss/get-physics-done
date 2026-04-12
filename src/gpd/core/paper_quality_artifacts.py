@@ -17,7 +17,13 @@ from gpd.contracts import (
     parse_comparison_verdicts_data_strict,
     parse_contract_results_data_artifact,
 )
-from gpd.core.constants import STANDALONE_VALIDATION, VALIDATION_SUFFIX, ProjectLayout
+from gpd.core.constants import (
+    HOME_DATA_DIR_NAME,
+    PLANNING_DIR_NAME,
+    STANDALONE_VALIDATION,
+    VALIDATION_SUFFIX,
+    ProjectLayout,
+)
 from gpd.core.conventions import check_assertions, convention_check
 from gpd.core.errors import GPDError
 from gpd.core.frontmatter import (
@@ -246,6 +252,29 @@ def _first_existing_path(*candidates: Path) -> Path | None:
         if candidate.exists():
             return candidate
     return None
+
+
+def _legacy_paper_config_roots(project_root: Path) -> tuple[Path, ...]:
+    return tuple(
+        ProjectLayout(project_root, gpd_dir=gpd_dir).gpd / "paper"
+        for gpd_dir in (PLANNING_DIR_NAME, HOME_DATA_DIR_NAME)
+    )
+
+
+def reject_legacy_paper_config_location(config_file: Path, *, project_root: Path | None = None) -> None:
+    """Reject paper configs under retired planning directories."""
+    resolved_config = config_file.resolve(strict=False)
+    project_root = (project_root or config_file.parent).resolve(strict=False)
+    for legacy_config_root in _legacy_paper_config_roots(project_root):
+        try:
+            resolved_config.relative_to(legacy_config_root)
+        except ValueError:
+            continue
+        planning_dir_name = legacy_config_root.parent.name
+        raise GPDError(
+            f"Paper configs under `{planning_dir_name}/paper/` are no longer supported. "
+            "Move the config to `paper/`, `manuscript/`, or `draft/`."
+        )
 
 
 def _load_manuscript_config(manuscript_dir: Path) -> dict[str, object]:

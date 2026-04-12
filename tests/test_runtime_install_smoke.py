@@ -9,7 +9,12 @@ import pytest
 
 from gpd.adapters import get_adapter
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
-from gpd.runtime_cli import _build_repair_command, _resolve_local_config_dir, main
+from gpd.runtime_cli import (
+    _build_repair_command,
+    _is_matching_local_install_candidate,
+    _resolve_local_config_dir,
+    main,
+)
 from tests.runtime_install_helpers import seed_complete_runtime_install
 
 _DESCRIPTORS = tuple(iter_runtime_descriptors())
@@ -43,6 +48,24 @@ def test_resolve_local_config_dir_prefers_matching_ancestor(tmp_path: Path) -> N
     assert _resolve_local_config_dir(f"./{adapter.config_dir_name}", runtime=_PRIMARY_RUNTIME, cli_cwd=nested_cwd) == ancestor.resolve()
 
 
+def test_resolve_local_config_dir_rejects_marker_only_candidate(tmp_path: Path) -> None:
+    adapter = get_adapter(_PRIMARY_RUNTIME)
+    workspace = tmp_path / "workspace"
+    ancestor = workspace / adapter.config_dir_name
+    nested_cwd = workspace / "research" / "notes"
+    nested_cwd.mkdir(parents=True)
+    ancestor.mkdir(parents=True)
+
+    (ancestor / "get-physics-done").mkdir(parents=True)
+    (ancestor / "get-physics-done" / "VERSION").write_text("1.0.0\n", encoding="utf-8")
+
+    relative = f"./{adapter.config_dir_name}"
+    assert _is_matching_local_install_candidate(ancestor, runtime=_PRIMARY_RUNTIME) is False
+    resolved = _resolve_local_config_dir(relative, runtime=_PRIMARY_RUNTIME, cli_cwd=nested_cwd)
+    expected = (nested_cwd.resolve(strict=False) / adapter.config_dir_name).resolve(strict=False)
+    assert resolved == expected
+
+
 def test_runtime_cli_rejects_manifestless_ancestor_install(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
     adapter = get_adapter(_PRIMARY_RUNTIME)
     workspace = tmp_path / "workspace"
@@ -72,7 +95,10 @@ def test_runtime_cli_rejects_manifestless_ancestor_install(monkeypatch: pytest.M
 
     captured = capsys.readouterr()
     assert exit_code == 127
-    assert f"GPD runtime bridge rejected missing install manifest at `{ancestor.resolve()}`." in captured.err
+    assert f"GPD runtime install incomplete for {adapter.display_name}" in captured.err
+    assert adapter.config_dir_name in captured.err
+    assert "Missing required install artifacts:" in captured.err
+    assert "gpd-file-manifest.json" in captured.err
 
 
 def test_runtime_cli_rejects_wrong_runtime_manifest_for_explicit_target(

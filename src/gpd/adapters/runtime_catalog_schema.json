@@ -39,7 +39,12 @@
     "agent_prompt_uses_dollar_templates",
     "installer_help_example_scope",
     "validated_command_surface",
-    "public_command_surface_prefix"
+    "public_command_surface_prefix",
+    "external_skill_relative_dirs",
+    "external_skill_env_vars",
+    "external_skill_subdir_prefixes",
+    "external_skill_markers",
+    "external_skill_config_markers"
   ],
   "global_config_keys": {
     "env_or_home": [

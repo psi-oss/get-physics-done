@@ -78,6 +78,13 @@ _RUNTIME_RECOVERY_LADDER_TEMPLATE = recovery_ladder_note(
 )
 
 
+def _require_node_path() -> str:
+    node_path = shutil.which("node")
+    if node_path is None:
+        pytest.skip("node is required for bootstrap installer tests")
+    return node_path
+
+
 def _render_runtime_recovery_ladder(runtime: str) -> str:
     return _RUNTIME_RECOVERY_LADDER_TEMPLATE.format(
         resume_work=f"`{_RUNTIME_RESUME_WORK_COMMANDS[runtime]}`",
@@ -600,9 +607,7 @@ def _run_bootstrap_with_fake_python(
     python_versions: dict[str, str] | None = None,
     precreate_managed_version: str | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
-    node_path = shutil.which("node")
-    if node_path is None:
-        raise RuntimeError("node is required for bootstrap installer tests")
+    node_path = _require_node_path()
 
     home = tmp_path / "home"
     fake_bin = tmp_path / "fake-bin"
@@ -664,9 +669,7 @@ def _run_bootstrap_with_fake_python(
 
 
 def _run_node_contract_validation(script: str) -> subprocess.CompletedProcess[str]:
-    node_path = shutil.which("node")
-    if node_path is None:
-        raise RuntimeError("node is required for bootstrap installer tests")
+    node_path = _require_node_path()
 
     return subprocess.run(
         [node_path, "-e", script],

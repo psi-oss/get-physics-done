@@ -70,6 +70,24 @@ PY
 )" uv run pytest tests/ -v --full-suite $HEAVY_SUITE_IGNORE_ARGS
 ```
 
+Fast smoke (≈3 min): run the targets from `tests/ci_sharding.py` via
+
+```bash
+uv run pytest -q \
+  tests/test_release_consistency.py \
+  tests/test_ci_suite_commands.py \
+  tests/test_repo_hygiene.py \
+  tests/test_schema_registry_ownership_note.py \
+  tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files \
+  tests/adapters/test_runtime_catalog.py::test_runtime_catalog_explicit_priority_order \
+  tests/adapters/test_runtime_catalog.py::test_runtime_descriptor_resolves_from_adapter_module \
+  tests/adapters/test_runtime_catalog.py::test_runtime_catalog_loader_validates_schema_json \
+  tests/core/test_contract_validation_fast_regressions.py \
+  tests/core/test_contract_schema_prompt_parity.py::test_plan_contract_schema_surfaces_canonical_research_contract_fields
+```
+
+The command is the same as `ci_smoke_pytest_command()` and the `CI_SMOKE_TEST_TARGETS` tuple, so update this block whenever those values change.
+
 Cross-runtime release checks:
 
 - `tests/adapters/test_registry.py` and `tests/adapters/test_install_roundtrip.py` cover install-time translation across Claude Code, Gemini CLI, Codex, and OpenCode.

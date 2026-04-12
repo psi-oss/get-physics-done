@@ -8,20 +8,17 @@ from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
 
-from gpd.adapters.codex import _GPD_CODEX_SKILL_MARKER
 from gpd.adapters.runtime_catalog import (
+    RuntimeDescriptor,
     get_managed_install_surface_policy,
-    get_runtime_descriptor,
     get_shared_install_metadata,
+    iter_runtime_descriptors,
     list_runtime_names,
 )
 
 _SHARED_INSTALL_METADATA = get_shared_install_metadata()
 GPD_INSTALL_DIR_NAME = _SHARED_INSTALL_METADATA.install_root_dir_name
 MANIFEST_NAME = _SHARED_INSTALL_METADATA.manifest_name
-
-_CODEX_DESCRIPTOR = get_runtime_descriptor("codex")
-
 
 def get_adapter(runtime: str):
     """Lazily resolve the runtime adapter to keep manifest parsing lightweight."""
@@ -118,39 +115,27 @@ def inspect_managed_install_surface(config_dir: Path) -> ManagedInstallSurface:
 def config_dir_has_managed_install_markers(config_dir: Path) -> bool:
     """Return whether *config_dir* carries any managed GPD install markers."""
     surface = inspect_managed_install_surface(config_dir)
-    return surface.has_managed_markers or _codex_has_external_skills(config_dir)
+    return surface.has_managed_markers or _has_descriptor_external_skills(config_dir)
 
 
-def _is_codex_config_dir(config_dir: Path) -> bool:
-    descriptor = _CODEX_DESCRIPTOR
+def _matches_descriptor_config_dir(config_dir: Path, descriptor: RuntimeDescriptor) -> bool:
     if config_dir.name == descriptor.config_dir_name:
         return True
-    return (config_dir / "config.toml").exists()
+    return any((config_dir / marker).exists() for marker in descriptor.external_skill_config_markers)
 
 
-def _codex_skill_dir_candidates(config_dir: Path) -> tuple[Path, ...]:
-    candidates: list[Path] = []
-    base = (config_dir.parent / ".agents" / "skills").expanduser()
-    candidates.append(base)
-    env_path = os.environ.get("CODEX_SKILLS_DIR")
-    if env_path:
-        candidates.append(Path(env_path).expanduser())
-
-    seen: set[Path] = set()
-    unique: list[Path] = []
-    for candidate in candidates:
-        if candidate in seen:
+def _has_descriptor_external_skills(config_dir: Path) -> bool:
+    for descriptor in iter_runtime_descriptors():
+        if not descriptor.external_skill_markers or not _matches_descriptor_config_dir(config_dir, descriptor):
             continue
-        seen.add(candidate)
-        unique.append(candidate)
-    return tuple(unique)
+        if _descriptor_has_external_skills(config_dir, descriptor):
+            return True
+    return False
 
 
-def _codex_has_external_skills(config_dir: Path) -> bool:
-    if not _is_codex_config_dir(config_dir):
-        return False
-
-    for skills_dir in _codex_skill_dir_candidates(config_dir):
+def _descriptor_has_external_skills(config_dir: Path, descriptor: RuntimeDescriptor) -> bool:
+    prefixes = descriptor.external_skill_subdir_prefixes
+    for skills_dir in _descriptor_external_skill_dirs(config_dir, descriptor):
         if not skills_dir.is_dir():
             continue
         try:
@@ -158,17 +143,47 @@ def _codex_has_external_skills(config_dir: Path) -> bool:
         except OSError:
             continue
         for entry in entries:
-            if not entry.is_dir() or not entry.name.startswith("gpd-"):
+            if not entry.is_dir():
+                continue
+            if prefixes and not any(entry.name.startswith(prefix) for prefix in prefixes):
                 continue
             skill_md = entry / "SKILL.md"
             if not skill_md.is_file():
                 continue
             try:
-                if _GPD_CODEX_SKILL_MARKER in skill_md.read_text(encoding="utf-8"):
-                    return True
+                content = skill_md.read_text(encoding="utf-8")
             except OSError:
                 continue
+            if any(marker in content for marker in descriptor.external_skill_markers):
+                return True
     return False
+
+
+def _descriptor_external_skill_dirs(config_dir: Path, descriptor: RuntimeDescriptor) -> tuple[Path, ...]:
+    candidates: list[Path] = []
+    seen: set[Path] = set()
+    base_dir = config_dir.parent
+
+    for relative_dir in descriptor.external_skill_relative_dirs:
+        path = Path(relative_dir)
+        candidate = path if path.is_absolute() else base_dir / path
+        candidate = candidate.expanduser()
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        candidates.append(candidate)
+
+    for env_var in descriptor.external_skill_env_vars:
+        env_path = os.environ.get(env_var)
+        if not env_path:
+            continue
+        candidate = Path(env_path).expanduser()
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        candidates.append(candidate)
+
+    return tuple(candidates)
 
 
 def load_install_manifest_state(config_dir: Path) -> tuple[str, dict[str, object]]:
@@ -239,6 +254,17 @@ def load_install_manifest_scope_status(config_dir: Path) -> tuple[str, dict[str,
     if normalized_scope not in {"local", "global"}:
         return "malformed_install_scope", payload, None
     return "ok", payload, normalized_scope
+
+
+def config_dir_has_local_install_manifest(config_dir: Path, runtime: str) -> bool:
+    """Return True when *config_dir* claims *runtime* with its ``install_scope`` marked local."""
+
+    manifest_state, _payload, manifest_runtime = load_install_manifest_runtime_status(config_dir)
+    if manifest_state != "ok" or manifest_runtime != runtime:
+        return False
+
+    scope_state, _scope_payload, install_scope = load_install_manifest_scope_status(config_dir)
+    return scope_state == "ok" and install_scope == "local"
 
 
 def assess_install_target(

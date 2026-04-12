@@ -13,6 +13,10 @@ import pytest
 from gpd.core import state as state_module
 from gpd.core.constants import STATE_JSON_BACKUP_FILENAME, ProjectLayout
 from gpd.core.continuation import ContinuationBoundedSegment
+from gpd.core.contract_validation import (
+    CONTEXT_INTAKE_DEFAULT_WARNING,
+    UNCERTAINTY_MARKERS_DEFAULT_WARNING,
+)
 from gpd.core.errors import StateError
 from gpd.core.state import (
     _find_list_parent_loc,
@@ -486,6 +490,25 @@ def test_state_load_keeps_visible_blocked_contract_in_state_for_rootless_local_a
     assert loaded.project_contract_load_info["status"] == "blocked_integrity"
     assert loaded.project_contract_gate["visible"] is True
     assert loaded.project_contract_gate["authoritative"] is False
+
+
+def test_state_load_recovers_legacy_contract_missing_context_and_uncertainty(tmp_path: Path) -> None:
+    state = default_state_dict()
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract.pop("context_intake", None)
+    contract.pop("uncertainty_markers", None)
+    state["project_contract"] = contract
+    _write_raw_state_json(tmp_path, state)
+
+    loaded = state_load(tmp_path)
+
+    assert loaded.state["project_contract"] is not None
+    assert loaded.state["project_contract"].get("context_intake") is not None
+    assert loaded.state["project_contract"].get("uncertainty_markers") is not None
+    assert loaded.project_contract_load_info["status"] == "loaded_with_schema_normalization"
+    warnings = loaded.project_contract_load_info["warnings"]
+    assert any(CONTEXT_INTAKE_DEFAULT_WARNING in warning for warning in warnings)
+    assert any(UNCERTAINTY_MARKERS_DEFAULT_WARNING in warning for warning in warnings)
 
 
 def test_load_state_json_preserves_sibling_fields_when_nested_position_field_is_invalid(tmp_path: Path) -> None:

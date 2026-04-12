@@ -6154,21 +6154,6 @@ def _default_paper_output_dir(config_file: Path) -> Path:
     return config_file.resolve(strict=False).parent
 
 
-def _reject_legacy_paper_config_location(config_file: Path, *, project_root: Path | None = None) -> None:
-    """Reject removed paper-config locations under internal planning storage."""
-    resolved_config = config_file.resolve(strict=False)
-    project_root = (project_root or _project_scoped_cwd()).resolve(strict=False)
-    for legacy_config_root in (project_root / "GPD" / "paper", project_root / ".gpd" / "paper"):
-        try:
-            resolved_config.relative_to(legacy_config_root)
-        except ValueError:
-            continue
-        planning_dir_name = legacy_config_root.parent.name
-        raise GPDError(
-            f"Paper configs under `{planning_dir_name}/paper/` are no longer supported. "
-            "Move the config to `paper/`, `manuscript/`, or `draft/`."
-        )
-
 
 def _split_command_arguments(arguments: str | None) -> list[str]:
     """Split a raw command argument string into shell-like tokens."""
@@ -7734,7 +7719,10 @@ def validate_paper_quality(
 ) -> None:
     """Score a machine-readable paper-quality manifest and fail on blockers."""
     from gpd.core.paper_quality import PaperQualityInput, score_paper_quality
-    from gpd.core.paper_quality_artifacts import build_paper_quality_input
+    from gpd.core.paper_quality_artifacts import (
+        build_paper_quality_input,
+        reject_legacy_paper_config_location,
+    )
 
     if from_project:
         project_root = Path(from_project)
@@ -8229,7 +8217,7 @@ def paper_build(
         if config_path
         else _resolve_default_paper_config_path(project_root=project_root)
     )
-    _reject_legacy_paper_config_location(config_file, project_root=project_root)
+    reject_legacy_paper_config_location(config_file, project_root=project_root)
     raw_config = _load_json_document(str(config_file))
     if not isinstance(raw_config, dict):
         raise GPDError(f"Paper config must be a JSON object: {_format_display_path(config_file)}")

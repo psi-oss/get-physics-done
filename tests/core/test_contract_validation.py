@@ -15,6 +15,7 @@ from gpd.contracts import (
     ComparisonVerdict,
     ContractApproachPolicy,
     ContractClaim,
+    ContractProofAudit,
     ContractProofParameter,
     ContractResults,
     ProjectContractParseResult,
@@ -36,6 +37,7 @@ from gpd.core.contract_validation import (
     is_authoritative_project_contract_schema_finding,
     is_repair_relevant_project_contract_schema_finding,
     split_project_contract_schema_findings,
+    UNCERTAINTY_MARKERS_FIELD_DEFAULT_WARNING_TEMPLATE,
     validate_project_contract,
 )
 from gpd.core.referee_policy import RefereeDecisionInput
@@ -455,17 +457,19 @@ def test_validate_project_contract_draft_mode_rejects_unknown_proof_deliverables
     assert "claim claim-benchmark references unknown proof deliverable deliv-missing" in result.errors
 
 
-def test_contract_from_data_salvage_rejects_missing_uncertainty_marker_subfields() -> None:
+def test_contract_from_data_salvage_defaults_missing_uncertainty_marker_subfields() -> None:
     contract = _load_contract_fixture()
     contract["uncertainty_markers"] = {}
 
     parsed = parse_project_contract_data_salvage(contract)
 
-    assert parsed.contract is None
-    assert parsed.blocking_errors == [
-        "uncertainty_markers.weakest_anchors is required",
-        "uncertainty_markers.disconfirming_observations is required",
-    ]
+    assert parsed.contract is not None
+    assert parsed.contract.uncertainty_markers.weakest_anchors == []
+    assert parsed.contract.uncertainty_markers.disconfirming_observations == []
+    result = validate_project_contract(contract, mode="draft")
+    assert result.valid is True
+    assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.warnings
+    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.warnings
     assert contract_from_data_salvage(contract) is None
 
 
@@ -1228,8 +1232,10 @@ def test_validate_project_contract_rejects_missing_decisive_targets_and_skeptici
 
     assert result.valid is False
     assert "project contract must include at least one observable, claim, or deliverable" in result.errors
-    assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.errors
-    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.errors
+    assert "uncertainty_markers.weakest_anchors must identify what is least certain" not in result.errors
+    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" not in result.errors
+    assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.warnings
+    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.warnings
 
 
 def test_validate_project_contract_rejects_scalar_list_drift_without_silent_salvage() -> None:
@@ -1254,6 +1260,20 @@ def test_validate_project_contract_draft_warns_on_salvageable_scalar_list_drift(
     assert result.valid is True
     assert "context_intake.must_read_refs must be a list, not str" not in result.errors
     assert "context_intake.must_read_refs must be a list, not str" in result.warnings
+
+
+def test_validate_project_contract_draft_warns_on_empty_uncertainty_markers() -> None:
+    contract = _load_contract_fixture()
+    contract["uncertainty_markers"]["weakest_anchors"] = []
+    contract["uncertainty_markers"]["disconfirming_observations"] = []
+
+    result = validate_project_contract(contract, mode="draft")
+
+    assert result.valid is True
+    assert "uncertainty_markers.weakest_anchors must identify what is least certain" not in result.errors
+    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" not in result.errors
+    assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.warnings
+    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.warnings
 
 
 def test_validate_project_contract_rejects_extra_fields_without_silent_salvage() -> None:
@@ -3333,6 +3353,70 @@ def test_contract_results_strict_mode_rejects_string_stale_proof_audit_boolean()
     message = str(excinfo.value)
     assert "claims.claim-main.proof_audit.stale" in message
     assert "must be a boolean" in message
+
+
+def _complete_proof_audit_payload(**overrides: object) -> dict[str, object]:
+    base: dict[str, object] = {
+        "completeness": "complete",
+        "reviewed_at": "2026-04-02T12:00:00Z",
+        "reviewer": PROOF_AUDIT_REVIEWER,
+        "proof_artifact_path": "derivations/theorem-proof.tex",
+        "proof_artifact_sha256": "0" * 64,
+        "audit_artifact_path": "01-01-PROOF-REDTEAM.md",
+        "audit_artifact_sha256": "1" * 64,
+        "claim_statement_sha256": "2" * 64,
+        "covered_hypothesis_ids": [],
+        "missing_hypothesis_ids": [],
+        "covered_parameter_symbols": [],
+        "missing_parameter_symbols": [],
+        "uncovered_quantifiers": [],
+        "uncovered_conclusion_clause_ids": [],
+        "quantifier_status": "matched",
+        "scope_status": "matched",
+        "counterexample_status": "none_found",
+        "stale": False,
+    }
+    base.update(overrides)
+    return base
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected_fragment"),
+    [
+        ({"reviewed_at": None}, "requires reviewed_at"),
+        ({"reviewer": None}, "requires reviewer"),
+        ({"proof_artifact_path": None}, "requires proof_artifact_path"),
+        ({"proof_artifact_sha256": None}, "requires proof_artifact_sha256"),
+        ({"audit_artifact_path": None}, "requires audit_artifact_path"),
+        ({"audit_artifact_sha256": None}, "requires audit_artifact_sha256"),
+        ({"claim_statement_sha256": None}, "requires claim_statement_sha256"),
+        ({"stale": True}, "requires stale=false"),
+        ({"missing_hypothesis_ids": ["hyp-main"]}, "missing_hypothesis_ids to be empty"),
+        ({"missing_parameter_symbols": ["r_0"]}, "missing_parameter_symbols to be empty"),
+        ({"uncovered_quantifiers": ["for all"]}, "uncovered_quantifiers to be empty"),
+        ({"uncovered_conclusion_clause_ids": ["clause"]}, "uncovered_conclusion_clause_ids to be empty"),
+        ({"quantifier_status": "mismatched"}, "incompatible with quantifier_status=mismatched"),
+        ({"scope_status": "narrower_than_claim"}, "requires scope_status=matched"),
+        ({"counterexample_status": "counterexample_found"}, "requires counterexample_status=none_found"),
+    ],
+)
+def test_contract_proof_audit_complete_mode_requires_fields(
+    overrides: dict[str, object],
+    expected_fragment: str,
+) -> None:
+    payload = _complete_proof_audit_payload(**overrides)
+
+    with pytest.raises(ValidationError, match=re.escape(expected_fragment)):
+        ContractProofAudit.model_validate(payload)
+
+
+def test_contract_proof_audit_complete_mode_accepts_all_requirements() -> None:
+    parsed = ContractProofAudit.model_validate(_complete_proof_audit_payload())
+
+    assert parsed.completeness == "complete"
+    assert parsed.reviewed_at is not None
+    assert parsed.reviewer == PROOF_AUDIT_REVIEWER
+    assert parsed.stale is False
 
 
 def test_parse_contract_results_data_strict_matches_contract_results_model_validation() -> None:

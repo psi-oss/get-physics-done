@@ -8,7 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Literal, get_args, get_origin
+from typing import Callable, Literal, get_args, get_origin
 
 from pydantic import BaseModel, Field
 from pydantic import ValidationError as PydanticValidationError
@@ -52,6 +52,9 @@ from gpd.contracts import (
 from gpd.core.utils import dedupe_preserve_order
 
 __all__ = [
+    "CONTEXT_INTAKE_DEFAULT_WARNING",
+    "UNCERTAINTY_MARKERS_DEFAULT_WARNING",
+    "UNCERTAINTY_MARKERS_FIELD_DEFAULT_WARNING_TEMPLATE",
     "ProjectContractValidationResult",
     "is_authoritative_project_contract_schema_finding",
     "is_repair_relevant_project_contract_schema_finding",
@@ -59,6 +62,17 @@ __all__ = [
     "split_project_contract_schema_findings",
     "validate_project_contract",
 ]
+
+
+CONTEXT_INTAKE_DEFAULT_WARNING = (
+    "context_intake was missing and was defaulted to an empty context intake section"
+)
+UNCERTAINTY_MARKERS_DEFAULT_WARNING = (
+    "uncertainty_markers was missing and was defaulted to empty uncertainty markers"
+)
+UNCERTAINTY_MARKERS_FIELD_DEFAULT_WARNING_TEMPLATE = (
+    "uncertainty_markers.{field} was missing and was defaulted to an empty list"
+)
 
 
 @dataclass(frozen=True)
@@ -138,6 +152,8 @@ _RECOVERABLE_SCHEMA_WARNING_PATTERNS = (
     re.compile(r"^.+\.\d+ must be a valid list member$"),
     re.compile(r"^.+\.\d+: Input should .+$"),
     re.compile(r"^.+: Input should be a valid string$"),
+    re.compile(r"^context_intake was missing"),
+    re.compile(r"^uncertainty_markers(?:\.[^. ]+)? was missing"),
 )
 _LOSSY_LIST_NORMALIZATION_WARNING_PATTERNS = (
     re.compile(r"^.+ must be a list, not .+$"),
@@ -516,6 +532,7 @@ def _salvage_model_mapping(
     default_value: dict[str, object] | None = None,
     required_fields: tuple[str, ...] = (),
     missing_is_default: bool = False,
+    missing_field_default_message: Callable[[str], str] | None = None,
     metadata_by_error: dict[str, _SchemaFindingMetadata] | None = None,
 ) -> tuple[dict[str, object] | None, bool]:
     if value is None:
@@ -532,9 +549,17 @@ def _salvage_model_mapping(
     cleaned = _strip_unknown_model_keys(value, path_prefix=path_prefix, model=model, errors=errors)
     missing_required_fields = [field_name for field_name in required_fields if field_name not in cleaned]
     if missing_required_fields:
-        for field_name in missing_required_fields:
-            errors.append(f"{path_prefix}.{field_name} is required")
-        return None, True
+        if missing_is_default and default_value is not None:
+            for field_name in missing_required_fields:
+                if field_name in default_value:
+                    cleaned[field_name] = copy.deepcopy(default_value[field_name])
+                    if missing_field_default_message is not None:
+                        errors.append(missing_field_default_message(field_name))
+            missing_required_fields = [field_name for field_name in required_fields if field_name not in cleaned]
+        if missing_required_fields:
+            for field_name in missing_required_fields:
+                errors.append(f"{path_prefix}.{field_name} is required")
+            return None, True
 
     while True:
         try:
@@ -847,11 +872,20 @@ def salvage_project_contract(
     errors.extend(_collect_blank_list_normalization_findings(working, normalized_contract))
 
     missing_required_section_errors: list[str] = []
-    for field_name in ("schema_version", "scope", "context_intake", "uncertainty_markers"):
+    for field_name in ("schema_version", "scope"):
         if field_name not in normalized_contract and not raw_required_section_presence[field_name]:
             missing_required_section_errors.append(_required_project_contract_section_error(field_name))
+    defaulted_section_warnings: list[str] = []
+    if "context_intake" not in normalized_contract and not raw_required_section_presence["context_intake"]:
+        normalized_contract["context_intake"] = ContractContextIntake().model_dump()
+        defaulted_section_warnings.append(CONTEXT_INTAKE_DEFAULT_WARNING)
+    default_uncertainty_markers = ContractUncertaintyMarkers().model_dump()
+    if "uncertainty_markers" not in normalized_contract and not raw_required_section_presence["uncertainty_markers"]:
+        normalized_contract["uncertainty_markers"] = copy.deepcopy(default_uncertainty_markers)
+        defaulted_section_warnings.append(UNCERTAINTY_MARKERS_DEFAULT_WARNING)
     if missing_required_section_errors:
         return None, [*errors, *missing_required_section_errors], metadata_by_error
+    errors.extend(defaulted_section_warnings)
 
     collection_models: dict[str, type[BaseModel]] = {
         "observables": ContractObservable,
@@ -921,7 +955,10 @@ def salvage_project_contract(
         model=ContractUncertaintyMarkers,
         errors=errors,
         canonical_authoritative_scalar_locations=canonical_authoritative_scalar_locations,
+        default_value=default_uncertainty_markers,
         required_fields=("weakest_anchors", "disconfirming_observations"),
+        missing_is_default=True,
+        missing_field_default_message=lambda field: UNCERTAINTY_MARKERS_FIELD_DEFAULT_WARNING_TEMPLATE.format(field=field),
         metadata_by_error=metadata_by_error,
     )
     if uncertainty_markers_blocked or uncertainty_markers is None:
@@ -1526,7 +1563,15 @@ def validate_project_contract(
     else:
         salvage_result = parse_project_contract_data_salvage(contract_payload)
         parsed = salvage_result.contract
-        schema_errors = dedupe_preserve_order(salvage_result.blocking_errors)
+        schema_errors = dedupe_preserve_order(
+            error
+            for error in salvage_result.blocking_errors
+            if error
+            not in {
+                UNCERTAINTY_MARKERS_FIELD_DEFAULT_WARNING_TEMPLATE.format(field="weakest_anchors"),
+                UNCERTAINTY_MARKERS_FIELD_DEFAULT_WARNING_TEMPLATE.format(field="disconfirming_observations"),
+            }
+        )
     schema_version_error = _project_contract_schema_version_missing_error(contract_payload)
     if schema_version_error is not None:
         schema_errors = dedupe_preserve_order([schema_version_error, *schema_errors])
@@ -1563,6 +1608,12 @@ def validate_project_contract(
     errors: list[str] = []
     warnings: list[str] = list(schema_warnings)
 
+    def _require_or_warn(message: str) -> None:
+        if mode == "approved":
+            errors.append(message)
+        else:
+            warnings.append(message)
+
     if not question:
         errors.append("scope.question is required")
     if not parsed.scope.in_scope:
@@ -1570,9 +1621,9 @@ def validate_project_contract(
     if decisive_target_count == 0:
         errors.append("project contract must include at least one observable, claim, or deliverable")
     if not parsed.uncertainty_markers.weakest_anchors:
-        errors.append("uncertainty_markers.weakest_anchors must identify what is least certain")
+        _require_or_warn("uncertainty_markers.weakest_anchors must identify what is least certain")
     if not parsed.uncertainty_markers.disconfirming_observations:
-        errors.append("uncertainty_markers.disconfirming_observations must identify what would force a rethink")
+        _require_or_warn("uncertainty_markers.disconfirming_observations must identify what would force a rethink")
 
     errors.extend(_light_contract_consistency_errors(parsed))
     errors.extend(collect_proof_bearing_claim_integrity_errors(parsed))
@@ -1616,7 +1667,7 @@ def validate_project_contract(
     if not parsed.forbidden_proxies:
         warnings.append("no forbidden_proxies recorded yet")
     if guidance_signal_count == 0:
-        errors.append("context_intake must not be empty")
+        _require_or_warn("context_intake must not be empty")
 
     return ProjectContractValidationResult(
         valid=not errors,

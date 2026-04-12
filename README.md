@@ -521,6 +521,26 @@ Low-level function and span calls are not recorded automatically. Observability 
 
 </details>
 
+## Testing
+
+Use the fast smoke suite tracked by `tests/ci_sharding.py` before pushing changes. The file defines `CI_SMOKE_TEST_TARGETS` and `ci_smoke_pytest_command()` so reviewers and automation can reproduce the GitHub Actions smoke job, which targets a 3-minute timeout (`CI_SMOKE_JOB_TIMEOUT_MINUTES = 3`).
+
+```bash
+uv run pytest -q \
+  tests/test_release_consistency.py \
+  tests/test_ci_suite_commands.py \
+  tests/test_repo_hygiene.py \
+  tests/test_schema_registry_ownership_note.py \
+  tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files \
+  tests/adapters/test_runtime_catalog.py::test_runtime_catalog_explicit_priority_order \
+  tests/adapters/test_runtime_catalog.py::test_runtime_descriptor_resolves_from_adapter_module \
+  tests/adapters/test_runtime_catalog.py::test_runtime_catalog_loader_validates_schema_json \
+  tests/core/test_contract_validation_fast_regressions.py \
+  tests/core/test_contract_schema_prompt_parity.py::test_plan_contract_schema_surfaces_canonical_research_contract_fields
+```
+
+Update this command whenever `CI_SMOKE_TEST_TARGETS` changes so it stays aligned with the smoke shard configuration.
+
 ## System Requirements
 
 - Node.js with `npm`/`npx` (see the `Need Node.js?` note above if Node.js is missing)

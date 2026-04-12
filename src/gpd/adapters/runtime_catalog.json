@@ -146,6 +146,21 @@
     "managed_install_surface": "external_commands",
     "installer_help_example_scope": "local",
     "validated_command_surface": "public_runtime_dollar_command",
+    "external_skill_relative_dirs": [
+      ".agents/skills"
+    ],
+    "external_skill_env_vars": [
+      "CODEX_SKILLS_DIR"
+    ],
+    "external_skill_subdir_prefixes": [
+      "gpd-"
+    ],
+    "external_skill_markers": [
+      "<!-- Managed by Get Physics Done (GPD). -->"
+    ],
+    "external_skill_config_markers": [
+      "config.toml"
+    ],
     "capabilities": {
       "permissions_surface": "config-file",
       "permission_surface_kind": "config.toml:approval_policy+sandbox_mode",

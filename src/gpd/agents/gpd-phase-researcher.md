@@ -341,103 +341,47 @@ If no direct literature exists, use the nearest solved problem as scaffolding, k
 
 <execution_flow>
 
-## Step 1: Receive Scope and Load Context
+## Step 1: Gather context
 
-Orchestrator provides: phase number/name, description/goal, requirements, constraints, output path.
+- The orchestrator shares the phase number/name, description, goals, constraints, and output path. Before adding new findings, read any existing `$PHASE_DIR/*-RESEARCH.md` and the project-level `GPD/literature/SUMMARY.md`, `METHODS.md`, and `PITFALLS.md` files to avoid repeating work.
+- Load every `CONTEXT.md` or `*-CONTEXT.md` file: they list locked decisions, discretionary guidance, and deferred ideas. Treat the contract-critical anchors they describe as binding and do not research alternatives to those locked decisions. Keep the provided anchors and known good baselines visible while working.
+- Use the active reference context that the orchestrator supplies. Those anchors and benchmarks are mandatory inputs rather than optional background material. Avoid re-reading config or init files from inside this agent; they are out of scope.
 
-**Check for existing research first:** Before starting new research, check if prior research files exist that should inform this phase:
+## Step 2: Identify research targets
 
-```bash
-ls "$PHASE_DIR"/*-RESEARCH.md 2>/dev/null
-for f in GPD/literature/METHODS.md GPD/literature/PITFALLS.md; do
-  if [ -f "$f" ]; then
-    echo "=== $f ==="
-    cat "$f"
-  fi
-done
-```
+- Define the mathematical framework, core equations, required techniques, and conventions that govern this phase.
+- Catalog the established results you can cite, along with the standard primary and fallback approaches, approximation schemes, and their regimes of validity.
+- List the computational tools/packages to investigate, the validation strategies to trust, and the known pitfalls or red flags.
+- Note any open questions, anchors, or missing inputs that should stay visible for the planner.
 
-If prior `METHODS.md` or `PITFALLS.md` exist, read them to avoid duplicating work and to build on established findings.
+## Step 3: Execute the research protocol
 
-Then read any phase context files (`CONTEXT.md` and any `*-CONTEXT.md`) if they exist (they contain locked user decisions that constrain research scope):
+- Use literature reviews, textbooks, and trustworthy web searches to gather references that directly inform the phase question.
+- Evaluate whether existing packages/frameworks suffice, whether a thin wrapper is acceptable, or whether bespoke code is justified.
+- Verify known limits, consistency checks, pitfalls, and validation benchmarks while recording each finding with a confidence tag (HIGH/MEDIUM/LOW) and citation.
 
-```bash
-for f in "$PHASE_DIR"/*-CONTEXT.md; do
-  [ -f "$f" ] && cat "$f"
-done
-```
+## Step 4: Quality check your findings
 
-Use the phase scope and any active reference context supplied by the orchestrator. Do not reread config or init files from inside this agent.
+- Confirm every recommended method lists its regime of validity, sources, and contingency plans if it fails.
+- Document the conventions, approximation schemes, validation strategies, and computational feasibility that keep the phase trustworthy.
+- Highlight pitfalls, red flags, or unvalidated assumptions so the planner can guard against them.
 
-If user input is still required, checkpoint and stop rather than waiting inside this same spawned run.
+## Step 5: Draft `RESEARCH.md`
 
-## Step 2: Identify Research Domains
+- Persist the document with the `file_write` tool to `$PHASE_DIR/$PADDED_PHASE-RESEARCH.md`. The orchestrator tracks writes via that tool, so do not create the file any other way.
+- If `CONTEXT.md` or any `*-CONTEXT.md` files exist, `## User Constraints` must be the first section and summarize locked decisions, discretionary guidance, and deferred ideas.
+- Keep the canonical sections (Summary, Active Anchor References, Conventions, Mathematical Framework, Standard Approaches, Existing Results, Validation Strategies, Common Pitfalls, Caveats and Alternatives, Metadata) in the order shown in the template.
+- Fold your pre-submission self-critique into `## Caveats and Alternatives`.
+- If a missing anchor or user decision forces you to pause, checkpoint immediately: return `gpd_return.status: checkpoint` and stop rather than waiting for the next step.
 
-Based on phase description, identify what needs investigating:
+## Step 6: Confirm the file
 
-- **Mathematical Framework:** What formalism? What are the key equations? What techniques are needed (group theory, complex analysis, differential geometry, probability theory)?
-- **Existing Results:** What is already known? What can be cited rather than derived? What are the seminal papers?
-- **Standard Approaches:** How do experts in this subfield attack this class of problem? What are the textbook methods?
-- **Approximation Schemes:** What approximations are standard? What are their regimes of validity? What is the small parameter?
-- **Computational Tools:** What software exists for this? What are the standard numerical methods? What are the computational costs?
-- **Validation Strategies:** How do you know the answer is correct? What limits, sum rules, symmetry checks, or benchmarks exist?
-- **Pitfalls:** What goes wrong? Where do sign errors creep in? What subtleties do beginners miss? Where do numerical methods fail?
-- **Level of Rigor:** What standard of proof is appropriate? What counts as "done"?
-- **Conventions:** What sign conventions, unit systems, and normalizations should be adopted?
+- Verify the file exists before returning (for example, `ls -la "$PHASE_DIR/$PADDED_PHASE-RESEARCH.md"` or a brief `file_read`). Do not commit; the orchestrator handles commits after the research run.
 
-## Step 3: Execute Research Protocol
+## Step 7: Return structured results
 
-1. Identify the subfield and the closest solved problem.
-2. Search for reviews, textbooks, seminal papers, and exact or near-exact methods.
-3. Check computational tools and whether they fit directly, need a thin wrapper, or should be rejected.
-4. Verify known limits, consistency checks, and common failure modes.
-5. Record confidence honestly as you go.
-
-## Step 4: Quality Check
-
-- [ ] All required domains investigated
-- [ ] Conventions identified and documented
-- [ ] Regime of validity identified for every recommended method
-- [ ] Key equations cited with sources
-- [ ] Alternative approaches documented
-- [ ] Computational feasibility assessed
-- [ ] Package/framework reuse decision documented, or bespoke-code justification recorded
-- [ ] Validation strategies identified
-- [ ] Confidence levels assigned honestly
-- [ ] No-go theorems checked
-
-## Step 5: Write RESEARCH.md
-
-**Persist `RESEARCH.md` via the `file_write` tool.** The orchestrator tracks writes through that tool, so do not create the file by other means.
-
-**CRITICAL: If a phase context file exists, FIRST content section MUST be `## User Constraints`:**
-
-```markdown
-## User Constraints
-
-See the phase context file (`CONTEXT.md` or any `*-CONTEXT.md`) for locked decisions and user constraints that apply to this phase.
-
-Key constraints affecting this research:
-- [Summarize locked decisions relevant to research scope]
-- [Note discretion areas where recommendations are needed]
-- [Note deferred ideas that are OUT OF SCOPE]
-```
-
-Write to: `$PHASE_DIR/$PADDED_PHASE-RESEARCH.md`
-
-## Pre-Submission Self-Critique
-
-Before finalizing `RESEARCH.md`, perform adversarial self-questioning and fold the answers into `## Caveats and Alternatives`.
-
-## Step 6: Verify File Written
-
-**DO NOT commit.** The orchestrator handles commits after research completes. Verify the file was written:
-
-```bash
-ls -la "$PHASE_DIR/$PADDED_PHASE-RESEARCH.md"
-```
-
-## Step 7: Return Structured Result
+- Use the `## RESEARCH COMPLETE` or `## RESEARCH BLOCKED` template. Include the YAML `gpd_return` envelope with `files_written`, `issues`, `next_actions`, and `extensions.confidence`.
+- Report key findings, open questions, and conventions so the planner can proceed and honor the anchors.
 
 </execution_flow>
 

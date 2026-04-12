@@ -7,8 +7,7 @@ import json
 from pathlib import Path
 
 import pytest
-
-from gpd.adapters.codex import _GPD_CODEX_SKILL_MARKER
+from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.hooks.install_context import detect_self_owned_install
 from gpd.hooks.install_metadata import (
     assess_install_target,
@@ -145,7 +144,28 @@ def test_config_dir_has_managed_install_markers_detects_codex_external_skills(tm
     config_dir.mkdir(parents=True, exist_ok=True)
     skill_dir = workspace / ".agents" / "skills" / "gpd-help"
     skill_dir.mkdir(parents=True, exist_ok=True)
-    (skill_dir / "SKILL.md").write_text(f"{_GPD_CODEX_SKILL_MARKER}\n", encoding="utf-8")
+    descriptor = get_runtime_descriptor("codex")
+    assert descriptor.external_skill_markers
+    marker = descriptor.external_skill_markers[0]
+    (skill_dir / "SKILL.md").write_text(f"{marker}\n", encoding="utf-8")
+
+    assert config_dir_has_managed_install_markers(config_dir) is True
+
+
+def test_install_metadata_boundary_is_codex_import_free_and_relies_on_descriptor(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    config_dir = workspace / ".codex"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    skill_dir = workspace / ".agents" / "skills" / "gpd-help"
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    descriptor = get_runtime_descriptor("codex")
+    assert descriptor.external_skill_markers
+    marker = descriptor.external_skill_markers[0]
+    (skill_dir / "SKILL.md").write_text(f"{marker}\n", encoding="utf-8")
+
+    module = inspect.getmodule(config_dir_has_managed_install_markers)
+    assert module is not None
+    assert "gpd.adapters.codex" not in inspect.getsource(module)
 
     assert config_dir_has_managed_install_markers(config_dir) is True
 
