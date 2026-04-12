@@ -1217,7 +1217,7 @@ class GeminiAdapter(RuntimeAdapter):
             mcp_servers.update(managed_mcp_servers)
         if mcp_servers:
             existing_mcp_raw = settings.get("mcpServers", {})
-            existing_mcp = _managed_integrations.prune_gpd_managed_mcp_servers(existing_mcp_raw)
+            existing_mcp = existing_mcp_raw if isinstance(existing_mcp_raw, dict) else {}
             managed_env_keys = {
                 "env": frozenset(
                     key

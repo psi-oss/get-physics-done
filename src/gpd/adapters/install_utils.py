@@ -270,6 +270,9 @@ def should_preserve_public_local_cli_command(command: str) -> bool:
     """
 
     normalized = command.strip()
+    normalized = normalized.removesuffix("`").rstrip(",.;:)")
+    if "`" in normalized:
+        normalized = normalized.split("`", 1)[0].rstrip()
     if not normalized.startswith("gpd "):
         return False
 

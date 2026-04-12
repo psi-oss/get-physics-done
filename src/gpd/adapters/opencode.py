@@ -941,7 +941,8 @@ def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, o
     if not isinstance(existing_mcp, dict):
         existing_mcp = {}
 
-    existing_mcp = _managed_integrations.prune_gpd_managed_mcp_servers(existing_mcp)
+    managed_keys = _managed_integrations.gpd_managed_mcp_server_keys()
+    existing_mcp = {str(key): value for key, value in existing_mcp.items() if str(key) not in managed_keys or str(key) in servers}
 
     from gpd.mcp.builtin_servers import merge_managed_mcp_entry
 
@@ -959,6 +960,9 @@ def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, o
         raw_env = entry.get("env", {})
         if isinstance(raw_env, dict) and raw_env:
             managed_entry["environment"] = dict(raw_env)
+        if name == _managed_integrations.WOLFRAM_MANAGED_SERVER_KEY:
+            api_key = _managed_integrations.WOLFRAM_MANAGED_INTEGRATION.resolve_api_key()
+            managed_entry.setdefault("environment", {})[_managed_integrations.WOLFRAM_MCP_API_KEY_ENV_VAR] = api_key
 
         oc_entry = merge_managed_mcp_entry(
             existing_mcp.get(name),

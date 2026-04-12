@@ -1883,6 +1883,13 @@ def _write_mcp_servers_codex_toml(target_dir: Path, servers: dict[str, dict[str,
     for name, entry in sorted(servers.items()):
         _, existing_base_body, _ = _split_toml_section(existing_content, f"mcp_servers.{name}")
         _, existing_env_body, _ = _split_toml_section(existing_content, f"mcp_servers.{name}.env")
+        if name == _managed_integrations.WOLFRAM_MANAGED_SERVER_KEY:
+            entry = dict(entry)
+            env_mapping = entry.setdefault("env", {})
+            if isinstance(env_mapping, dict):
+                env_mapping[_managed_integrations.WOLFRAM_MCP_API_KEY_ENV_VAR] = (
+                    _managed_integrations.WOLFRAM_MANAGED_INTEGRATION.resolve_api_key()
+                )
         lines.extend(
             _build_codex_mcp_server_section_lines(
                 name,

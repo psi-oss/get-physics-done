@@ -471,7 +471,7 @@ def test_build_mcp_servers_dict_skips_servers_with_unresolved_env(monkeypatch):
     assert "test-unresolved-env" not in servers
 
 
-def test_projected_managed_optional_mcp_servers_includes_wolfram_api_key():
+def test_projected_managed_optional_mcp_servers_hides_wolfram_api_key():
     from gpd.mcp.managed_integrations import (
         WOLFRAM_MANAGED_SERVER_KEY,
         WOLFRAM_MCP_API_KEY_ENV_VAR,
@@ -483,7 +483,8 @@ def test_projected_managed_optional_mcp_servers_includes_wolfram_api_key():
 
     wolfram_entry = servers.get(WOLFRAM_MANAGED_SERVER_KEY)
     assert wolfram_entry is not None
-    assert wolfram_entry.get("env", {}).get(WOLFRAM_MCP_API_KEY_ENV_VAR) == api_key
+    assert api_key not in json.dumps(wolfram_entry)
+    assert WOLFRAM_MCP_API_KEY_ENV_VAR not in wolfram_entry.get("env", {})
 
 
 class TestMcpServerRunner:

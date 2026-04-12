@@ -38,5 +38,6 @@ Phase number: $ARGUMENTS (optional, defaults to the next unplanned phase)
 </context>
 
 <process>
+Read the workflow file defined above.
 Follow the included workflow file exactly.
 </process>

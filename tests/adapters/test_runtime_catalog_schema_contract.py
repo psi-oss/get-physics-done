@@ -125,6 +125,8 @@ def _build_entry_schema(schema_payload: dict[str, object]) -> dict[str, object]:
             return {"type": "string", "pattern": r"^[A-Za-z_][A-Za-z0-9_]*$"}
         if field_name == "priority":
             return {"type": "integer"}
+        if field_name == "mcp_startup_timeout_sec":
+            return {"type": "integer", "minimum": 1}
         if field_name in (
             "runtime_name",
             "display_name",

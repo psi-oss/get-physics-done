@@ -253,7 +253,7 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                 )
 
             existing_mcp_raw = mcp_config.get("mcpServers", {})
-            existing_mcp = _managed_integrations.prune_gpd_managed_mcp_servers(existing_mcp_raw)
+            existing_mcp = existing_mcp_raw if isinstance(existing_mcp_raw, dict) else {}
             mcp_config["mcpServers"] = merge_managed_mcp_servers(
                 existing_mcp,
                 mcp_servers,

@@ -291,6 +291,22 @@ def projected_managed_optional_mcp_servers(
     return managed_servers
 
 
+def projected_managed_optional_mcp_servers_with_secrets(
+    env: Mapping[str, str] | None = None,
+    *,
+    cwd: Path | None = None,
+) -> dict[str, dict[str, object]]:
+    managed_servers = projected_managed_optional_mcp_servers(env, cwd=cwd)
+    for integration in MANAGED_INTEGRATIONS.values():
+        entry = managed_servers.get(integration.managed_server_key)
+        if entry is None:
+            continue
+        env_mapping = entry.setdefault("env", {})
+        if isinstance(env_mapping, dict):
+            env_mapping[integration.api_key_env_var] = integration.resolve_api_key(env)
+    return managed_servers
+
+
 def managed_optional_mcp_server_keys() -> frozenset[str]:
     """Return the registry-backed optional managed MCP server keys."""
 
