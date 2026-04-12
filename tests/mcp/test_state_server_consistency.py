@@ -14,6 +14,7 @@ from gpd.core.errors import GPDError
 from gpd.core.health import CheckStatus, HealthCheck, HealthReport, HealthSummary
 from gpd.core.state import default_state_dict
 from gpd.mcp.servers import resolve_absolute_project_dir
+from gpd.mcp.servers import state_server as state_server_module
 from gpd.mcp.servers.state_server import (
     _apply_return_updates,
     advance_plan,
@@ -179,8 +180,13 @@ def test_load_visible_mcp_state_strips_legacy_session_and_surfaces_contract_gate
         lambda *_args, **_kwargs: (
             {"status": "loaded"},
             {"valid": True},
-            {"authoritative": True},
+            {"authoritative": True, "visible": True},
         ),
+    )
+    sanitized_contract = {"project_contract": {"id": "abc"}}
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server._build_new_project_contract_runtime_context",
+        lambda *_args, **_kwargs: sanitized_contract,
     )
 
     result = load_visible_mcp_state(tmp_path)
@@ -191,15 +197,35 @@ def test_load_visible_mcp_state_strips_legacy_session_and_surfaces_contract_gate
     assert result["project_contract_load_info"]["status"] == "loaded"
     assert result["project_contract_validation"]["valid"] is True
     assert result["project_contract_gate"]["authoritative"] is True
+    assert result["project_contract"] == sanitized_contract["project_contract"]
 
 
 def test_get_state_reports_current_project_state_guidance(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr("gpd.mcp.servers.state_server.load_visible_mcp_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server._state_init_command",
+        lambda *_args, **_kwargs: "claude init new-project",
+    )
 
     result = get_state(str(tmp_path))
 
     assert result == {
-        "error": "No project state found. Run 'gpd init new-project' to initialize a GPD project state.",
+        "error": "No project state found. Run `claude init new-project` to initialize a GPD project state.",
+        "schema_version": 1,
+    }
+
+
+def test_get_state_reports_runtime_fallback_guidance(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("gpd.mcp.servers.state_server.load_visible_mcp_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "gpd.mcp.servers.state_server._state_init_command",
+        lambda *_args, **_kwargs: None,
+    )
+
+    result = get_state(str(tmp_path))
+
+    assert result == {
+        "error": state_server_module._MISSING_STATE_FALLBACK_MESSAGE,
         "schema_version": 1,
     }
 

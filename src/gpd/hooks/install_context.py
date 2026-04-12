@@ -58,11 +58,12 @@ def _prefer_runtime_lookup_cwd(
         return None
 
     project_root = resolve_project_root(resolved_cwd)
+    explicit_project_dir = project_root is not None and project_root != resolved_cwd
     lookup_dir = resolve_runtime_lookup_dir(
         workspace_dir=str(resolved_cwd),
         project_root=str(project_root or resolved_cwd),
-        explicit_project_dir=project_root is not None and project_root != resolved_cwd,
-        project_dir_trusted=True,
+        explicit_project_dir=explicit_project_dir,
+        project_dir_trusted=False,
         active_runtime=runtime_hint,
     )
     return Path(lookup_dir).expanduser().resolve(strict=False)

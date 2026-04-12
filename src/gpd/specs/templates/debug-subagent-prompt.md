@@ -60,23 +60,26 @@ goal: {find_root_cause_only | find_and_fix}
 
 ## Placeholders
 
-| Placeholder | Source | Example |
-| --- | --- | --- |
-| `{issue_id}` | Orchestrator-assigned | `wrong-berry-phase` |
-| `{issue_summary}` | User description | `Berry phase computation gives pi instead of 2pi` |
-| `{expected}` | From symptoms | `Berry phase = 2pi for bilayer graphene` |
-| `{actual}` | From symptoms | `Numerical integration yields pi` |
-| `{discrepancy}` | From symptoms | `Factor of 2 (exact), consistent across parameters` |
-| `{errors}` | From symptoms | `No runtime errors, result is finite and smooth` |
-| `{reproduction}` | From symptoms | `Run berry_phase.py with default parameters` |
-| `{timeline}` | From symptoms | `After switching from rectangular to hexagonal BZ mesh` |
-| `{domain}` | From context | `condensed matter, topological bands` |
-| `{formalism}` | From context | `tight-binding, Berry connection on discretized BZ` |
-| `{key_equations}` | From context | `gamma = oint A(k) . dk, A = -i ⟨u_k∣∇_k∣u_k⟩` |
-| `{conventions}` | From context | `Bloch convention ∣psi_k⟩ = e^{ikr}∣u_k⟩, BZ in 1st zone` |
-| `{approximations}` | From context | `Discretized Berry connection via log of overlap matrix` |
-| `{goal}` | Orchestrator sets | `find_and_fix` |
-| `{slug}` | Generated | `wrong-berry-phase` |
+| Placeholder | Purpose |
+| --- | --- |
+| `{issue_id}` | Issue slug used inside `GPD/debug/{slug}.md` and the `issue` heading above. This usually matches the verification truth label. |
+| `{issue_summary}` | The failed expectation (previously referred to as `truth`) that the subagent investigates and fills the `summary` field above. |
+| `{truth_short}` | A condensed label for short UI strings such as the `description` argument in the runtime `task(...)` block. Runtimes may reuse `{issue_id}` if no shorter text is available. |
+| `{expected}` | Verification target value (the expected/normally correct physics result). |
+| `{actual}` | Observation reported in the gap or issue (what actually happened). |
+| `{discrepancy}` | Short characterisation of the mismatch (wrong sign, missing factor, numerical instability, etc.). |
+| `{errors}` | Errors, tracebacks, or anomalous values reported along with the failure. |
+| `{reproduction}` | Repro instructions such as `Check {check_num}` or a script path. |
+| `{timeline}` | When the issue was noticed, or how it evolved during validation. |
+| `{domain}` | Physics domain (e.g., `condensed matter`, `plasma`). |
+| `{formalism}` | Mathematical/physical formalism (e.g., `effective field theory`, `tight-binding`). |
+| `{key_equations}` | The equations that capture the phenomenon under investigation. |
+| `{conventions}` | Coordinate/momentum/Fourier/metric conventions to respect. |
+| `{approximations}` | Known approximations or truncations that could explain the discrepancy. |
+| `{goal}` | Typically `find_root_cause_only` for verification debug flows. |
+| `{slug}` | Same as `{issue_id}` above; used for file paths and session contracts. |
+
+The runtime also receives `{truth_short}` so the high-level `task(...)` description can stay concise, even if the template itself only references the longer `{issue_summary}`.
 
 ---
 

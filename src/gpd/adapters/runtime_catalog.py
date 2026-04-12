@@ -279,9 +279,10 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
             allow_empty=False,
         )
     )
-    if not capability_required_keys <= capability_keys:
-        unknown_required = ", ".join(sorted(capability_required_keys - capability_keys))
-        raise ValueError(f"runtime catalog schema.capability_required_keys contains unknown key(s): {unknown_required}")
+    if capability_keys != frozenset(_RUNTIME_CAPABILITY_FIELD_NAMES):
+        raise ValueError("runtime catalog schema.capability_keys must match the RuntimeCapabilityPolicy field names")
+    if capability_required_keys != capability_keys:
+        raise ValueError("runtime catalog schema.capability_required_keys must match capability_keys")
 
     capability_enums_raw = _require_schema_mapping(raw_schema.get("capability_enums"), label="runtime catalog schema.capability_enums")
     capability_enums: dict[str, frozenset[str]] = {}
@@ -306,9 +307,10 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
             allow_empty=False,
         )
     )
-    if not hook_payload_required_keys <= hook_payload_keys:
-        unknown_required = ", ".join(sorted(hook_payload_required_keys - hook_payload_keys))
-        raise ValueError(f"runtime catalog schema.hook_payload_required_keys contains unknown key(s): {unknown_required}")
+    if hook_payload_keys != frozenset(_HOOK_PAYLOAD_FIELD_NAMES):
+        raise ValueError("runtime catalog schema.hook_payload_keys must match the HookPayloadPolicy field names")
+    if hook_payload_required_keys != hook_payload_keys:
+        raise ValueError("runtime catalog schema.hook_payload_required_keys must match hook_payload_keys")
     managed_install_surfaces = frozenset(
         _require_string_tuple(
             raw_schema.get("managed_install_surfaces"),
@@ -362,8 +364,8 @@ _RUNTIME_VALIDATED_COMMAND_SURFACE_RE = re.compile(r"^public_runtime_[a-z0-9_]+_
 _RUNTIME_CONFIG_SURFACE_LABEL_RE = re.compile(r"^[A-Za-z0-9._-]+:[A-Za-z0-9+._-]+$")
 _RUNTIME_CAPABILITY_ENUMS = _RUNTIME_CATALOG_SHAPE["capability_enums"]
 _RUNTIME_GLOBAL_CONFIG_KEYS = _RUNTIME_CATALOG_SHAPE["global_config_keys"]
-_RUNTIME_CAPABILITY_KEYS = _RUNTIME_CATALOG_SHAPE["capability_keys"]
-_RUNTIME_HOOK_PAYLOAD_KEYS = _RUNTIME_CATALOG_SHAPE["hook_payload_keys"]
+_RUNTIME_CAPABILITY_KEYS = frozenset(_RUNTIME_CAPABILITY_FIELD_NAMES)
+_RUNTIME_HOOK_PAYLOAD_KEYS = frozenset(_HOOK_PAYLOAD_FIELD_NAMES)
 _RUNTIME_MANAGED_INSTALL_SURFACES = _RUNTIME_CATALOG_SHAPE["managed_install_surfaces"]
 _RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS = _RUNTIME_CATALOG_SHAPE["launch_wrapper_permission_surface_kinds"]
 

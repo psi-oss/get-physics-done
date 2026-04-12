@@ -188,18 +188,23 @@ def test_contract_results_schema_keeps_required_vocab_without_legacy_compatibili
 
 def test_plan_prompt_keeps_canonical_schema_visible_before_contract_output() -> None:
     phase_prompt = (_TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
+    schema_excerpt = (_TEMPLATES_DIR / "plan-contract-schema-excerpt.md").read_text(encoding="utf-8")
 
     schema_ref = "@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md"
+    excerpt_ref = "@{GPD_INSTALL_DIR}/templates/plan-contract-schema-excerpt.md"
     first_contract_block = phase_prompt.index("\ncontract:")
     pre_contract_text = phase_prompt[:first_contract_block]
 
     assert phase_prompt.index(schema_ref) < first_contract_block
     assert pre_contract_text.count(schema_ref) == 1
-    assert pre_contract_text.index(schema_ref) < pre_contract_text.index("schema_version: 1")
+    assert excerpt_ref not in pre_contract_text
+    assert "schema_version: 1" in schema_excerpt
     assert "Project Contract Object Rules" not in pre_contract_text
 
     for token in _phase_prompt_pre_contract_tokens():
-        assert token in pre_contract_text, f"{token!r} is not model-visible before the PLAN contract example"
+        assert token in pre_contract_text or token in schema_excerpt, (
+            f"{token!r} is not model-visible before the PLAN contract example"
+        )
 
 
 def test_plan_prompt_pre_contract_guidance_stays_compact_and_non_forked() -> None:
@@ -209,7 +214,6 @@ def test_plan_prompt_pre_contract_guidance_stays_compact_and_non_forked() -> Non
 
     assert len(pre_contract_text) < 3_500
     assert pre_contract_text.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
-    assert pre_contract_text.count("schema_version: 1") == 1
     assert pre_contract_text.count("acceptance_tests") <= 3
     assert "observables:" not in pre_contract_text
     assert "Project Contract Object Rules" not in pre_contract_text
@@ -217,6 +221,7 @@ def test_plan_prompt_pre_contract_guidance_stays_compact_and_non_forked() -> Non
 
 def test_planner_subagent_excerpt_tracks_plan_contract_schema_vocabulary() -> None:
     canonical_schema = (_TEMPLATES_DIR / "plan-contract-schema.md").read_text(encoding="utf-8")
+    schema_excerpt = (_TEMPLATES_DIR / "plan-contract-schema-excerpt.md").read_text(encoding="utf-8")
     subagent_prompt = (_TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
 
     excerpt_start = subagent_prompt.index("**PLAN contract schema-critical excerpt:**")
@@ -230,22 +235,22 @@ def test_planner_subagent_excerpt_tracks_plan_contract_schema_vocabulary() -> No
 
     for token in _plan_contract_schema_critical_tokens():
         assert token in canonical_schema, f"canonical schema no longer defines {token!r}"
-        assert token in excerpt, f"planner subagent excerpt no longer surfaces {token!r}"
+        assert token in excerpt or token in schema_excerpt, f"planner subagent excerpt no longer surfaces {token!r}"
 
     claim_kind_enum = _extract_backtick_enum(canonical_schema, "claim_kind")
     for token in claim_kind_enum:
-        assert token in excerpt, f"planner subagent excerpt no longer surfaces claim_kind value {token!r}"
+        assert token in excerpt or token in schema_excerpt, (
+            f"planner subagent excerpt no longer surfaces claim_kind value {token!r}"
+        )
 
 
 def test_phase_prompt_pre_contract_surfaces_link_relation_and_action_vocab() -> None:
-    phase_prompt = (_TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
-    first_contract_block = phase_prompt.index("\ncontract:")
-    pre_contract_text = phase_prompt[:first_contract_block]
+    schema_excerpt = (_TEMPLATES_DIR / "plan-contract-schema-excerpt.md").read_text(encoding="utf-8")
 
     link_enum = " | ".join(CONTRACT_LINK_RELATION_VALUES)
     reference_action_enum = " | ".join(CONTRACT_REFERENCE_ACTION_VALUES)
-    assert f"`links[].relation` uses `{link_enum}`" in pre_contract_text
-    assert f"`references[].required_actions` uses `{reference_action_enum}`" in pre_contract_text
+    assert f"Link relations use `{link_enum}`" in schema_excerpt
+    assert f"reference actions use `{reference_action_enum}`" in schema_excerpt
 
 
 def test_phase_prompt_pre_contract_avoids_relisting_full_contract_enums() -> None:
@@ -274,27 +279,19 @@ def test_review_agents_reference_return_envelope_schema() -> None:
 
 
 def test_planner_subagent_excerpt_surfaces_link_relation_and_action_vocab() -> None:
-    subagent_prompt = (_TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
-
-    excerpt_start = subagent_prompt.index("**PLAN contract schema-critical excerpt:**")
-    excerpt_end = subagent_prompt.index("**Project State:**")
-    excerpt = subagent_prompt[excerpt_start:excerpt_end]
+    schema_excerpt = (_TEMPLATES_DIR / "plan-contract-schema-excerpt.md").read_text(encoding="utf-8")
 
     link_enum = " | ".join(CONTRACT_LINK_RELATION_VALUES)
     reference_action_enum = " | ".join(CONTRACT_REFERENCE_ACTION_VALUES)
-    assert f"Link relations use `{link_enum}`" in excerpt
-    assert f"reference actions use `{reference_action_enum}`" in excerpt
+    assert f"Link relations use `{link_enum}`" in schema_excerpt
+    assert f"reference actions use `{reference_action_enum}`" in schema_excerpt
 
 
 def test_planner_subagent_excerpt_highlights_durable_grounding() -> None:
-    subagent_prompt = (_TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
+    schema_excerpt = (_TEMPLATES_DIR / "plan-contract-schema-excerpt.md").read_text(encoding="utf-8")
 
-    excerpt_start = subagent_prompt.index("**PLAN contract schema-critical excerpt:**")
-    excerpt_end = subagent_prompt.index("**Project State:**")
-    excerpt = subagent_prompt[excerpt_start:excerpt_end]
-
-    assert "_has_contract_grounding_context" in excerpt
-    assert "must_surface: true" in excerpt
+    assert "_has_contract_grounding_context" in schema_excerpt
+    assert "must_surface: true" in schema_excerpt
 
 
 def test_plan_contract_schema_describes_grounding_and_uncertainty_gates() -> None:

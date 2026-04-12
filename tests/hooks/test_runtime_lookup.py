@@ -5,10 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from gpd.hooks.install_context import resolve_hook_lookup_context
+from gpd.hooks.payload_roots import PayloadRoots
 from gpd.hooks.runtime_lookup import (
     normalize_runtime_hint,
     resolve_runtime_lookup_active_runtime,
     resolve_runtime_lookup_context,
+    resolve_runtime_lookup_context_from_payload_roots,
     resolve_runtime_lookup_dir,
 )
 from tests.hooks.helpers import mark_complete_install as _mark_complete_install
@@ -343,3 +345,54 @@ def test_resolve_hook_lookup_context_ignores_invalid_preferred_runtime_hint(
     assert resolved.lookup_cwd == workspace
     assert resolved.active_runtime is None
     assert resolved.preferred_runtime == "codex"
+
+
+def test_resolve_hook_lookup_context_prefers_workspace_for_nested_dir_without_trust(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    workspace = project_root / "src" / "analysis"
+    workspace.mkdir(parents=True)
+    (project_root / "GPD").mkdir(parents=True)
+    _mark_complete_install(project_root / ".codex", runtime="codex")
+
+    resolved = resolve_hook_lookup_context(
+        cwd=workspace,
+        home=tmp_path,
+    )
+
+    assert resolved.lookup_cwd == workspace
+
+
+def test_resolve_runtime_lookup_context_from_payload_roots_respects_workspace_alias(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    workspace = project_root / "src" / "analysis"
+    workspace.mkdir(parents=True)
+
+    roots = PayloadRoots(
+        workspace_dir=str(workspace),
+        project_root=str(project_root),
+        project_dir_present=True,
+        project_dir_trusted=False,
+    )
+
+    calls: list[str | None] = []
+
+    def runtime_resolver(cwd: str | None) -> str | None:
+        calls.append(cwd)
+        if cwd == str(workspace):
+            return "codex"
+        if cwd == str(project_root):
+            return "claude-code"
+        return None
+
+    resolved = resolve_runtime_lookup_context_from_payload_roots(
+        roots,
+        runtime_resolver=runtime_resolver,
+    )
+
+    assert resolved.lookup_dir == str(workspace)
+    assert resolved.active_runtime == "codex"
+    assert calls == [str(workspace)]

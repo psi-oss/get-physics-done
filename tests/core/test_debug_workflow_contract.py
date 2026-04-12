@@ -6,10 +6,31 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
+TEMPLATES_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "templates"
 
 
 def _read(name: str) -> str:
     return (WORKFLOWS_DIR / name).read_text(encoding="utf-8")
+
+
+DEBUG_PLACEHOLDERS = (
+    "{issue_id}",
+    "{issue_summary}",
+    "{truth_short}",
+    "{expected}",
+    "{actual}",
+    "{discrepancy}",
+    "{errors}",
+    "{reproduction}",
+    "{timeline}",
+    "{domain}",
+    "{formalism}",
+    "{key_equations}",
+    "{conventions}",
+    "{approximations}",
+    "{goal}",
+    "{slug}",
+)
 
 
 def test_debug_workflow_uses_typed_child_return_and_skips_artifact_inventory() -> None:
@@ -34,3 +55,11 @@ def test_execute_phase_debugger_bypass_uses_explicit_debug_contract() -> None:
     assert "Create: GPD/debug/{FAILED_PLAN}.md" in workflow
     assert "status: completed | checkpoint | blocked | failed" in workflow
     assert "Investigate why gap closure did not resolve this verification failure." not in workflow
+
+
+def test_debug_workflow_and_template_share_placeholder_names() -> None:
+    workflow = _read("debug.md")
+    template = (TEMPLATES_DIR / "debug-subagent-prompt.md").read_text(encoding="utf-8")
+    for placeholder in DEBUG_PLACEHOLDERS:
+        assert placeholder in workflow
+        assert placeholder in template

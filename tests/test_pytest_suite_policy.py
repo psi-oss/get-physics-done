@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -119,7 +120,7 @@ def test_default_collection_matches_all_checked_in_test_files() -> None:
 def test_ci_and_test_readme_document_default_full_suite_and_category_named_runtime_informed_shards() -> None:
     repo_root = _repo_root()
     workflow = _workflow_data()
-    pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
     tests_readme = (repo_root / "tests" / "README.md").read_text(encoding="utf-8")
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
@@ -160,8 +161,11 @@ def test_ci_and_test_readme_document_default_full_suite_and_category_named_runti
 
     assert "Set up Node.js" in pytest_step_names
     assert pytest_step_names.index("Set up Node.js") < pytest_step_names.index("Install dependencies")
-    assert 'addopts = ""' in pyproject
-    assert 'pytest-xdist>=3.8.0' in pyproject
+    pytest_ini_options = pyproject["tool"]["pytest"]["ini_options"]
+    assert pytest_ini_options["addopts"] == ""
+    dependency_groups = pyproject["dependency-groups"]
+    dev_deps = dependency_groups["dev"]
+    assert "pytest-xdist>=3.8.0" in dev_deps
     resolve_targets_command = pytest_run_steps["Resolve pytest shard targets"]
     pytest_shard_command = pytest_run_steps["Run pytest shard"]
     assert "from tests.ci_sharding import write_ci_shard_targets_file" in resolve_targets_command

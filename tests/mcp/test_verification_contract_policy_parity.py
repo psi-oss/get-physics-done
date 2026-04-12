@@ -75,8 +75,8 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     assert "one anchor must set `must_surface=true`" in VERIFICATION_CONTRACT_POLICY_TEXT
     for field_name in VERIFICATION_BINDING_FIELD_NAMES:
         assert f"`{field_name}`" in VERIFICATION_CONTRACT_POLICY_TEXT
-    assert "When concrete grounding is missing elsewhere, at least one reference must set `must_surface: true`" in plan_schema
-    assert "a missing `must_surface` reference is a warning" in plan_schema
+    assert "when those anchors are missing, at least one `references[]` entry must set `must_surface: true`" in plan_schema
+    assert "a missing `must_surface: true` reference is a warning" in plan_schema
     assert "Grounding and scope policy are also owned by `templates/project-contract-schema.md`" in state_schema
     assert "If a project contract has any `references[]`" not in state_schema
     assert (

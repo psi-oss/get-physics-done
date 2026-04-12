@@ -18,10 +18,12 @@ from pydantic import WithJsonSchema
 
 from gpd.core.commands import cmd_apply_return_updates
 from gpd.core.config import load_config
+from gpd.core.context import _build_new_project_contract_runtime_context
 from gpd.core.errors import GPDError
 from gpd.core.health import run_health
 from gpd.core.observability import gpd_span
 from gpd.core.phases import progress_render
+from gpd.core.runtime_command_surfaces import format_active_runtime_command
 from gpd.core.state import (
     peek_state_json,
     state_advance_plan,
@@ -43,6 +45,21 @@ logger = configure_mcp_logging("gpd-state")
 mcp = FastMCP("gpd-state")
 
 AbsoluteProjectDirInput = Annotated[str, WithJsonSchema(ABSOLUTE_PROJECT_DIR_SCHEMA)]
+
+_MISSING_STATE_FALLBACK_MESSAGE = (
+    "No project state found. Initialize a GPD project state by running your runtime's `init new-project` workflow."
+)
+
+
+def _state_init_command(cwd: Path) -> str | None:
+    return format_active_runtime_command("new-project", cwd=cwd, fallback=None)
+
+
+def _format_missing_state_error_message(cwd: Path) -> str:
+    command = _state_init_command(cwd)
+    if command:
+        return f"No project state found. Run `{command}` to initialize a GPD project state."
+    return _MISSING_STATE_FALLBACK_MESSAGE
 
 
 def load_visible_mcp_state(cwd: Path) -> dict[str, object] | None:
@@ -70,6 +87,11 @@ def load_visible_mcp_state(cwd: Path) -> dict[str, object] | None:
     merged_state["project_contract_load_info"] = project_contract_load_info
     merged_state["project_contract_validation"] = project_contract_validation
     merged_state["project_contract_gate"] = project_contract_gate
+    if project_contract_gate.get("visible"):
+        contract_context = _build_new_project_contract_runtime_context(cwd)
+        contract_payload = contract_context.get("project_contract")
+        if contract_payload is not None:
+            merged_state["project_contract"] = contract_payload
     return merged_state
 
 
@@ -116,9 +138,7 @@ def get_state(project_dir: AbsoluteProjectDirInput) -> dict:
         try:
             state_obj = load_visible_mcp_state(cwd)
             if state_obj is None:
-                return stable_mcp_error(
-                    "No project state found. Run 'gpd init new-project' to initialize a GPD project state."
-                )
+                return stable_mcp_error(_format_missing_state_error_message(cwd))
             return stable_mcp_response(state_obj)
         except (GPDError, OSError, ValueError, TimeoutError) as exc:
             return stable_mcp_error(exc)

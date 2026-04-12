@@ -89,8 +89,6 @@ def _iter_runtime_descriptors_from_schema(
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_INSTALL_HELP_EXAMPLE_SCOPES", schema_shape["install_help_example_scopes"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_ENUMS", schema_shape["capability_enums"])
     monkeypatch.setattr(runtime_catalog, "_RUNTIME_GLOBAL_CONFIG_KEYS", schema_shape["global_config_keys"])
-    monkeypatch.setattr(runtime_catalog, "_RUNTIME_CAPABILITY_KEYS", schema_shape["capability_keys"])
-    monkeypatch.setattr(runtime_catalog, "_RUNTIME_HOOK_PAYLOAD_KEYS", schema_shape["hook_payload_keys"])
     monkeypatch.setattr(
         runtime_catalog,
         "_RUNTIME_LAUNCH_WRAPPER_PERMISSION_SURFACE_KINDS",
@@ -302,14 +300,14 @@ def test_runtime_catalog_schema_dataclass_keys_stay_in_sync() -> None:
 
 
 def test_runtime_catalog_hook_payload_parser_fields_align_with_schema_and_dataclass() -> None:
-    assert set(runtime_catalog._HOOK_PAYLOAD_FIELD_NAMES) == set(runtime_catalog._RUNTIME_HOOK_PAYLOAD_KEYS)
+    assert runtime_catalog._RUNTIME_HOOK_PAYLOAD_KEYS == frozenset(runtime_catalog._HOOK_PAYLOAD_FIELD_NAMES)
     assert set(runtime_catalog._HOOK_PAYLOAD_FIELD_NAMES) == {
         field.name for field in fields(runtime_catalog.HookPayloadPolicy)
     }
 
 
 def test_runtime_catalog_capability_parser_fields_align_with_schema_and_dataclass() -> None:
-    assert set(runtime_catalog._RUNTIME_CAPABILITY_FIELD_NAMES) == set(runtime_catalog._RUNTIME_CAPABILITY_KEYS)
+    assert runtime_catalog._RUNTIME_CAPABILITY_KEYS == frozenset(runtime_catalog._RUNTIME_CAPABILITY_FIELD_NAMES)
     assert set(runtime_catalog._RUNTIME_CAPABILITY_FIELD_NAMES) == {
         field.name for field in fields(runtime_catalog.RuntimeCapabilityPolicy)
     }
@@ -641,6 +639,22 @@ def test_runtime_catalog_rejects_schema_drift_against_fixed_schema(
         (
             lambda schema: schema["capability_enums"].__setitem__("", ["none"]),
             r"runtime catalog schema\.capability_enums keys must be non-empty strings",
+        ),
+        (
+            lambda schema: schema["capability_keys"].pop(),
+            r"runtime catalog schema\.capability_keys must match the RuntimeCapabilityPolicy field names",
+        ),
+        (
+            lambda schema: schema["capability_required_keys"].pop(),
+            r"runtime catalog schema\.capability_required_keys must match capability_keys",
+        ),
+        (
+            lambda schema: schema["hook_payload_keys"].pop(),
+            r"runtime catalog schema\.hook_payload_keys must match the HookPayloadPolicy field names",
+        ),
+        (
+            lambda schema: schema["hook_payload_required_keys"].pop(),
+            r"runtime catalog schema\.hook_payload_required_keys must match hook_payload_keys",
         ),
     ],
 )

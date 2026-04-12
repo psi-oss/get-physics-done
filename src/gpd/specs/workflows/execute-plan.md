@@ -599,12 +599,10 @@ If the selected plan artifact is the standalone `PLAN.md`, write the canonical s
 
 **Frontmatter:** phase, plan, depth (minimal/standard/full/complex), subsystem, tags | requires/provides/affects | methods.added/approximations | key-files.created/modified | key-decisions | duration ($DURATION), completed ($PLAN_END_TIME date).
 
-**Contract-backed plans:** if the PLAN frontmatter includes `contract`, SUMMARY frontmatter must also include:
+**Contract-backed plans:** if the PLAN frontmatter includes `contract`, immediately before writing frontmatter re-open `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` and apply it literally so the schema-owned ledgers stay authoritative. SUMMARY frontmatter must also include:
 - `plan_contract_ref`
 - `contract_results` keyed by claim IDs, deliverable IDs, acceptance test IDs, reference IDs, and forbidden proxy IDs
 - `comparison_verdicts` for decisive internal/external comparisons that were required or attempted; if the comparison is still open, emit `verdict: inconclusive` or `verdict: tension` instead of omitting the entry
-
-Immediately before writing frontmatter, re-open `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` and apply it literally. Do not rely on memory or on paraphrased summary rules.
 
 `contract_results` is authoritative. Do not reintroduce ad hoc summary-side success criteria that are absent from the PLAN contract.
 Before treating the summary as complete, run `gpd validate summary-contract ${phase_dir}/${phase}-${plan}-SUMMARY.md` and fix any contract-linkage or verdict-ledger errors.
