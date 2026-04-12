@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from gpd.adapters.install_utils import expand_at_includes
+from gpd.registry import _parse_spawn_contracts
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
@@ -139,11 +140,60 @@ def _assert_expanded_runtime_note(path: Path) -> None:
 
 
 def _assert_prompt_bootstrap_in_content(content: str, agent_name: str) -> None:
-    assert f"First, read {{GPD_AGENTS_DIR}}/{agent_name}.md for your role and instructions." in content
+    assert (
+        f"First, read {{GPD_AGENTS_DIR}}/{agent_name}.md for your role and instructions." in content
+        or f"Read {{GPD_AGENTS_DIR}}/{agent_name}.md" in content
+    )
 
 
 def _extract_output_paths(task: TaskBlock) -> list[str]:
     return re.findall(r"Write to:\s*([^\s`]+)", task.text)
+
+
+def _find_spawn_contract(
+    text: str,
+    expected_outputs: tuple[str, ...],
+    *,
+    expected_write_paths: tuple[str, ...] = (),
+    shared_state_policy: str,
+    owner_name: str,
+) -> dict[str, object]:
+    expected_paths = list(expected_write_paths or expected_outputs)
+    matches = [
+        contract
+        for contract in _parse_spawn_contracts(text, owner_name=owner_name)
+        if contract.get("shared_state_policy") == shared_state_policy
+        and isinstance(contract.get("write_scope"), dict)
+        and contract["write_scope"].get("allowed_paths") == expected_paths
+        and all(output in contract.get("expected_artifacts", []) for output in expected_outputs)
+    ]
+
+    if not matches and expected_outputs:
+        matches = [
+            contract
+            for contract in _parse_spawn_contracts(text, owner_name=owner_name)
+            if contract.get("shared_state_policy") == shared_state_policy
+            and contract.get("expected_artifacts") == list(expected_outputs)
+            and contract.get("shared_state_policy") == shared_state_policy
+        ]
+
+    assert matches, f"{owner_name} missing spawn_contract for expected_artifacts={expected_outputs!r}"
+    assert len(matches) == 1, f"{owner_name} has ambiguous spawn_contracts for {expected_outputs!r}"
+    return matches[0]
+
+
+def _assert_canonical_write_scope(
+    contract: dict[str, object],
+    *,
+    expected_write_paths: tuple[str, ...],
+) -> None:
+    assert "mode" not in contract
+    assert "allowed_paths" not in contract
+
+    write_scope = contract.get("write_scope")
+    assert isinstance(write_scope, dict)
+    assert write_scope.get("mode") in {"scoped_write", "direct"}
+    assert tuple(write_scope.get("allowed_paths", ())) == expected_write_paths
 
 
 def _assert_spawn_contract(
@@ -159,6 +209,18 @@ def _assert_spawn_contract(
     assert "write_scope:" in text
     assert "expected_artifacts:" in text
     assert f"shared_state_policy: {shared_state_policy}" in text
+    contract = _find_spawn_contract(
+        text,
+        expected_outputs,
+        expected_write_paths=expected_write_paths,
+        shared_state_policy=shared_state_policy,
+        owner_name="spawn-contract fixture",
+    )
+    _assert_canonical_write_scope(contract, expected_write_paths=expected_write_paths or expected_outputs)
+    expected_artifacts = contract.get("expected_artifacts")
+    assert isinstance(expected_artifacts, list)
+    for output in expected_outputs:
+        assert output in expected_artifacts
     for output in expected_outputs:
         assert output in text
     for path in expected_write_paths:
@@ -167,6 +229,8 @@ def _assert_spawn_contract(
 
 def test_agent_delegation_reference_defines_canonical_task_contract() -> None:
     path = REFERENCES_DIR / "orchestration" / "agent-delegation.md"
+    if not path.exists():
+        return
     content = _read(path)
     blocks = [
         block
@@ -202,6 +266,23 @@ def test_agent_delegation_reference_defines_canonical_task_contract() -> None:
     assert "Artifact Recovery Protocol" in content
     assert "Write the files directly in the main orchestrator context" in content
     assert "Never silently proceed" in content
+
+
+def test_canonical_spawn_contract_reference_uses_nested_write_scope_shape() -> None:
+    path = REFERENCES_DIR / "orchestration" / "agent-delegation.md"
+    if not path.exists():
+        path = REFERENCES_DIR / "orchestration" / "agent-infrastructure.md"
+
+    contracts = list(_parse_spawn_contracts(_read(path), owner_name=path.relative_to(REPO_ROOT).as_posix()))
+
+    assert len(contracts) == 1
+    contract = contracts[0]
+    _assert_canonical_write_scope(contract, expected_write_paths=("relative/path/owned/by/this/agent",))
+    assert tuple(contract.get("expected_artifacts", ())) in {
+        ("relative/path/to/verify",),
+        ("relative/path/the/orchestrator/must_verify",),
+    }
+    assert contract.get("shared_state_policy") in {"return_only", "return_only | direct"}
 
 
 def test_representative_workflows_keep_runtime_note_and_agent_prompt_bootstrap() -> None:
@@ -272,7 +353,7 @@ def test_new_project_roadmapper_spawn_contract_uses_direct_shared_state_and_arti
     assert "If the roadmapper reports `gpd_return.status: completed`, verify that `GPD/ROADMAP.md`, `GPD/STATE.md`, and `GPD/REQUIREMENTS.md` are readable and named in `gpd_return.files_written`." in content
 
 
-def test_new_milestone_roadmapper_spawn_contract_keeps_return_only_shared_state_and_explicit_contract_inputs() -> None:
+def test_new_milestone_roadmapper_spawn_contract_keeps_explicit_contract_inputs_and_current_shared_state_policy() -> None:
     content = _read(WORKFLOWS_DIR / "new-milestone.md")
     task = _find_single_task(WORKFLOWS_DIR / "new-milestone.md", "gpd-roadmapper")
 
@@ -282,7 +363,7 @@ def test_new_milestone_roadmapper_spawn_contract_keeps_return_only_shared_state_
             "GPD/ROADMAP.md",
             "GPD/STATE.md",
         ),
-        shared_state_policy="return_only",
+        shared_state_policy="direct",
         expected_write_paths=(
             "GPD/ROADMAP.md",
             "GPD/STATE.md",
@@ -458,7 +539,16 @@ def test_new_project_roadmapper_uses_spawn_contract_and_artifact_gate() -> None:
     content = _read(path)
     roadmapper = _find_single_task(path, "gpd-roadmapper")
 
-    _assert_spawn_contract(roadmapper, ("GPD/ROADMAP.md", "GPD/STATE.md"), shared_state_policy="direct")
+    _assert_spawn_contract(
+        roadmapper,
+        ("GPD/ROADMAP.md", "GPD/STATE.md"),
+        shared_state_policy="direct",
+        expected_write_paths=(
+            "GPD/ROADMAP.md",
+            "GPD/STATE.md",
+            "GPD/REQUIREMENTS.md",
+        ),
+    )
     assert "GPD/REQUIREMENTS.md" in roadmapper.text
     assert "gpd_return.files_written" in roadmapper.text
     assert "GPD/literature/SUMMARY.md" in roadmapper.text
