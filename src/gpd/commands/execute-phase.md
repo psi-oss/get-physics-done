@@ -32,7 +32,7 @@ Phase: $ARGUMENTS
 
 - `--gaps-only` -- Execute only gap-closure plans (`gap_closure: true`). Use after `verify-work` creates fix plans.
 
-**Review cadence:** Read `execution.review_cadence` (valid values: `dense`, `adaptive`, `sparse`) to decide required pause/review frequency; do not use the removed verify-between-waves knob.
+**Review cadence:** Read `execution.review_cadence` (valid values: `dense`, `adaptive`, `sparse`) to decide required pause/review frequency.
 
 </context>
 

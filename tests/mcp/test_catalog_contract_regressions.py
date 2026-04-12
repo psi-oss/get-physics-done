@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 from pathlib import Path
 
 import anyio
@@ -111,6 +112,48 @@ def test_catalog_filter_schemas_publish_authoritative_enum_values() -> None:
 
     assert _collect_enum_values(protocol_schema["properties"]["domain"]) == expected_protocol_domains
     assert _collect_enum_values(skill_schema["properties"]["category"]) == expected_skill_categories
+
+
+def test_protocol_domain_manifest_covers_every_protocol_document() -> None:
+    protocols_dir = Path(__file__).resolve().parents[2] / "src" / "gpd" / "specs" / "references" / "protocols"
+    manifest = json.loads((protocols_dir / "protocol-domains.json").read_text(encoding="utf-8"))
+
+    protocol_names = {path.stem for path in protocols_dir.glob("*.md")}
+    manifest_names = set(manifest["protocol_domains"])
+
+    assert protocol_names <= manifest_names
+
+
+def test_aggregate_error_index_matches_split_catalog_ranges() -> None:
+    from gpd.mcp.servers.errors_mcp import ERROR_CATALOG_FILES, REFERENCES_DIR
+
+    range_pattern = re.compile(r"#(\d+)(?:-(\d+))?")
+    id_pattern = re.compile(r"^\|\s*(\d+)(?:\.|\s*\|)")
+
+    def ids_from(path: Path) -> set[int]:
+        return {
+            int(match.group(1))
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if (match := id_pattern.match(line))
+        }
+
+    def indexed_ids() -> set[int]:
+        ids: set[int] = set()
+        index = (REFERENCES_DIR / "verification" / "errors" / "llm-physics-errors.md").read_text(encoding="utf-8")
+        for line in index.splitlines():
+            if "llm-errors-" not in line:
+                continue
+            for start, end in range_pattern.findall(line):
+                first = int(start)
+                last = int(end or start)
+                ids.update(range(first, last + 1))
+        return ids
+
+    split_ids: set[int] = set()
+    for rel_path in ERROR_CATALOG_FILES:
+        split_ids.update(ids_from(REFERENCES_DIR / rel_path))
+
+    assert indexed_ids() == split_ids
 
 
 def test_run_check_schema_publishes_live_identifier_enum() -> None:

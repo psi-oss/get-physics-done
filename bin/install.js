@@ -1642,12 +1642,26 @@ function ensureManagedEnvironment(basePython) {
   const existingManaged = pythonVersionInfo(managedPython);
 
   let shouldCreate = !existingManaged;
+  const managedPythonIsNewer = Boolean(
+    existingManaged
+    && (
+      existingManaged.major > basePython.major
+      || (existingManaged.major === basePython.major && existingManaged.minor > basePython.minor)
+    )
+  );
+  const managedPythonIsOlder = Boolean(
+    existingManaged
+    && (
+      existingManaged.major < basePython.major
+      || (existingManaged.major === basePython.major && existingManaged.minor < basePython.minor)
+    )
+  );
   if (
     existingManaged
     && (
       !isSupportedPython(existingManaged)
-      || existingManaged.major > basePython.major
-      || (existingManaged.major === basePython.major && existingManaged.minor > basePython.minor)
+      || managedPythonIsNewer
+      || managedPythonIsOlder
     )
   ) {
     log(

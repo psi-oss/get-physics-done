@@ -114,3 +114,13 @@ def test_debug_prompt_process_section_is_terminal() -> None:
 def test_execute_phase_prompt_has_no_context_budget_reference_tail() -> None:
     prompt = (COMMANDS_DIR / "execute-phase.md").read_text(encoding="utf-8")
     assert "context-budget reference" not in prompt
+
+
+def test_commands_omit_removed_verify_between_waves_term() -> None:
+    term = "verify-between-waves"
+    offenders: list[str] = []
+    for path in COMMANDS_DIR.glob("*.md"):
+        if term in path.read_text(encoding="utf-8"):
+            offenders.append(path.name)
+
+    assert offenders == []

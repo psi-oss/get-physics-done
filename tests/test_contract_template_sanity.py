@@ -62,10 +62,12 @@ def test_new_project_workflow_loads_canonical_project_contract_schema() -> None:
         Path(__file__).resolve().parent.parent / "src" / "gpd" / "specs" / "workflows" / "new-project.md"
     ).read_text(encoding="utf-8")
 
-    assert "Project contract schema visibility" in workflow
-    assert "ensure `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` is loaded" in workflow
-    assert "do not restate or fork the contract schema here" in workflow
+    assert "load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md`" in workflow
+    assert "do not restate or fork the schema text here" in workflow
     assert "Project contract schema-critical excerpt" not in workflow
+    assert "Reference grounding rules" in workflow
+    assert "Any `references[]` entry that stays visible before approval and sets `must_surface: true` must also declare non-empty `required_actions[]`" in workflow
+    assert "Call out the `project_root guard` whenever a listed reference" in workflow
 
 
 def test_summary_template_surfaces_required_frontmatter_fields() -> None:

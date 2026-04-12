@@ -2286,3 +2286,24 @@ def test_bootstrap_recreates_managed_env_when_selected_minor_changes(tmp_path: P
     assert venv_creations[0]["exe"].endswith("python3.13")
     assert "switching to Python 3.13.2" in result.stdout
     assert (home / "GPD" / "venv" / "bin" / "python").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="bootstrap installer harness uses POSIX-style fake Python shims")
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is required for bootstrap installer tests")
+def test_bootstrap_recreates_managed_env_when_managed_python_is_older_than_selected_base(tmp_path: Path) -> None:
+    result, home, log_path = _run_bootstrap_with_fake_python(
+        tmp_path,
+        precreate_managed_version="Python 3.12.9",
+    )
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    venv_creations = [
+        entry for entry in entries if entry["argv"][:2] == ["-m", "venv"] and entry["argv"] != ["-m", "venv", "--help"]
+    ]
+
+    assert len(venv_creations) == 1
+    assert venv_creations[0]["exe"].endswith("python3.13")
+    assert "switching to Python 3.13.2" in result.stdout
+    assert (home / "GPD" / "venv" / "bin" / "python").exists()

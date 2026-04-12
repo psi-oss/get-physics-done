@@ -241,6 +241,13 @@ Fill in what was extracted. For sections without enough information, use sensibl
   - Carry forward: [planning | execution | verification | writing]
   - Required action: [read | use | compare | cite | avoid]
 
+### Reference grounding rules
+
+Keep these model-visible contract rules in mind while you list the anchors that keep the scoping contract grounded:
+
+- Any `references[]` entry that stays visible before approval and sets `must_surface: true` must also declare non-empty `required_actions[]` (choose from `read`, `use`, `compare`, `cite`, `avoid`), non-empty `applies_to[]` coverage of the relevant claim or deliverable IDs, and a concrete `locator` that can be re-found later (a citation, DOI, arXiv ID, durable external URL, or an already-existing project-local artifact path).
+- Call out the `project_root guard` whenever a listed reference or anchor relies on a project-local path: project-local `locator` values and `applies_to[]` entries only count as approved grounding once the referenced file has already been created under the current project root. While those files are pending, mention the guard explicitly so downstream checks treat the anchor as unresolved rather than grounded.
+
 ### Carry-Forward Inputs
 
 - [Prior output, notebook, figure, baseline, or "None confirmed yet"]

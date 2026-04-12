@@ -673,6 +673,31 @@ def test_block_gpd_commit_hook_unstages_gpd_files(tmp_path: Path) -> None:
     assert "GPD/STATE.md" not in staged_files
 
 
+@pytest.mark.skipif(os.name == "nt", reason="requires sh")
+def test_human_author_hook_blocks_non_human_coauthors(tmp_path: Path) -> None:
+    repo_root = _repo_root()
+    hook_script = repo_root / "scripts" / "check-human-authors.sh"
+    message = tmp_path / "COMMIT_EDITMSG"
+    message.write_text("Improve tests\n\nCo-Authored-By: GPT <noreply@openai.com>\n", encoding="utf-8")
+
+    result = subprocess.run([str(hook_script), str(message)], capture_output=True, text=True, check=False)
+
+    assert result.returncode == 1
+    assert "non-human co-author detected" in result.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="requires sh")
+def test_human_author_hook_allows_human_coauthors(tmp_path: Path) -> None:
+    repo_root = _repo_root()
+    hook_script = repo_root / "scripts" / "check-human-authors.sh"
+    message = tmp_path / "COMMIT_EDITMSG"
+    message.write_text("Improve tests\n\nCo-Authored-By: Ada Lovelace <ada@example.com>\n", encoding="utf-8")
+
+    result = subprocess.run([str(hook_script), str(message)], capture_output=True, text=True, check=False)
+
+    assert result.returncode == 0
+
+
 def test_npm_pack_dry_run_uses_temp_cache_outside_repo(tmp_path: Path) -> None:
     repo_root = _repo_root()
     _npm_or_skip()
