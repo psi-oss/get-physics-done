@@ -16,6 +16,9 @@ The verifier agent owns contract-backed target construction, proof policy, compu
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
 <process>
+visible-but-blocked contract must be repaired before it is used as authoritative verification scope
+same contract-critical floor at all times
+Do NOT skip contract-critical anchors
 
 <step name="check_type_selection">
 ## Check Type Selection
@@ -44,7 +47,14 @@ fi
 
 Parse the init JSON for the wrapper-facing fields only: `planner_model`, `checker_model`, `verifier_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`, `phase_proof_review_status`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `project_contract_gate`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`.
 
+Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth.
 After parsing init, preserve these contract-critical fields as the wrapper's floor for every delegation and repair route: `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `contract_intake`, and `effective_reference_intake`. Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth. Do not skip contract-critical anchors.
+
+**Project Contract Gate:** {project_contract_gate}
+**Project Contract Load Info:** {project_contract_load_info}
+**Project Contract Validation:** {project_contract_validation}
+**Contract Intake:** {contract_intake}
+**Effective Reference Intake:** {effective_reference_intake}
 
 **If `phase_found` is false:**
 
@@ -537,3 +547,17 @@ Keep the current check display, summary, and session overlay in sync with the ve
 - [ ] Final session closeout validates and commits the verification file without recomputing verifier policy
 
 </success_criteria>
+
+First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
+
+Project Contract Gate:
+
+Project Contract Load Info:
+
+Project Contract Validation:
+
+Contract Intake:
+
+Effective Reference Intake:
+
+Return `status: checkpoint` instead of waiting for user input inside this run.

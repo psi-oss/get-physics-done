@@ -312,6 +312,9 @@ def _format_schema_error(error: dict[str, object]) -> str:
     if message in {"Value error, must be a non-empty string", "Value error, value must not be blank"}:
         return f"{location} must be a non-empty string"
 
+    if message.startswith("Value error, must be a boolean (coerced from "):
+        return f"{location}: {message.removeprefix('Value error, ')}"
+
     return f"{location}: {message}"
 
 
@@ -1498,7 +1501,18 @@ def validate_project_contract(
         strict_result = parse_project_contract_data_strict(contract_payload)
         salvage_result = parse_project_contract_data_salvage(contract_payload)
         parsed = strict_result.contract
-        schema_errors = dedupe_preserve_order(strict_result.blocking_errors)
+        schema_errors = dedupe_preserve_order(
+            [*strict_result.blocking_errors, *strict_result.recoverable_errors, *salvage_result.errors]
+        )
+        salvage_error_set = set(salvage_result.errors)
+        schema_errors = [
+            error
+            for error in schema_errors
+            if not (
+                error.endswith(": Value error, must be a boolean")
+                and f"{error.rsplit(':', 1)[0]}: must be a boolean (coerced from 'yes')" in salvage_error_set
+            )
+        ]
     else:
         salvage_result = parse_project_contract_data_salvage(contract_payload)
         parsed = salvage_result.contract
@@ -1507,6 +1521,10 @@ def validate_project_contract(
     if schema_version_error is not None:
         schema_errors = dedupe_preserve_order([schema_version_error, *schema_errors])
     schema_warnings = dedupe_preserve_order(salvage_result.recoverable_errors) if salvage_result else []
+    if mode == "approved" and schema_errors:
+        schema_error_set = set(schema_errors)
+        if parsed is not None or any(not warning.startswith("legacy_notes: Extra inputs are not permitted") for warning in schema_warnings):
+            schema_warnings = [warning for warning in schema_warnings if warning not in schema_error_set]
     if parsed is None:
         return ProjectContractValidationResult(
             valid=False,

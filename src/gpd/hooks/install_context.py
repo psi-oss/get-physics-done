@@ -254,12 +254,18 @@ def ordered_todo_lookup_candidates(
         if self_install is not None:
             self_candidate = self_owned_todo_candidate(self_install)
             self_candidate_key = _todo_candidate_key(self_candidate)
+            matching_self_candidates = [
+                candidate
+                for candidate in todo_candidates
+                if _todo_candidate_key(candidate) == self_candidate_key
+            ]
+            preferred_self_candidate = matching_self_candidates[0] if matching_self_candidates else self_candidate
             todo_candidates = [
                 candidate
                 for candidate in todo_candidates
                 if _todo_candidate_key(candidate) != self_candidate_key
             ]
-            todo_candidates = [self_candidate, *todo_candidates]
+            todo_candidates = [preferred_self_candidate, *todo_candidates]
 
     return [
         candidate

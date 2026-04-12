@@ -31,6 +31,9 @@ Interpretation:
 - If a dataset path: compare theoretical model against that dataset
 - If a phase number: compare all predictions from that phase with available data
 - If empty: prompt for comparison target
+
+Discovery hint: find artifacts/ results/ data/ figures/ simulations/ paper/ -maxdepth 4. Treat `GPD/**` as internal provenance only.
+
 </context>
 
 <execution_context>

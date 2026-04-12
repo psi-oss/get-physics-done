@@ -379,7 +379,7 @@ def test_install_upgrades_existing(gpd_root: Path, tmp_path: Path):
 def test_install_all_continues_on_failure(tmp_path: Path):
     """--all install continues when some runtimes fail and sets exit code 1."""
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         if runtime_name == _PRIMARY_INSTALL_DESCRIPTOR.runtime_name:
             return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path)}
         raise RuntimeError(f"Simulated failure for {runtime_name}")
@@ -401,7 +401,7 @@ def test_install_all_continues_on_failure(tmp_path: Path):
 def test_install_all_success_exits_0(tmp_path: Path):
     """--all install exits 0 when all runtimes succeed."""
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path)}
 
     with (
@@ -420,7 +420,7 @@ def test_install_all_success_exits_0(tmp_path: Path):
 def test_install_banner_uses_display_names(tmp_path: Path):
     """Install banner should show human-friendly runtime names."""
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(_install_target(tmp_path))}
 
     with (
@@ -467,7 +467,7 @@ def test_install_summary_formats_target_relative_to_cwd(tmp_path: Path):
     """Install summary should show a compact target path."""
     target = _install_target(tmp_path)
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(target)}
 
     with (
@@ -487,7 +487,7 @@ def test_install_summary_surfaces_help_then_new_or_existing_entry_points(tmp_pat
     """Single-runtime install summaries should lead with help, then project entry points."""
     target = _install_target(tmp_path)
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(target)}
 
     with (
@@ -507,7 +507,7 @@ def test_install_summary_lists_runtime_specific_help_for_multi_runtime_install(t
     """Multi-runtime installs should print runtime-specific help hints."""
     descriptors = (_PRIMARY_INSTALL_DESCRIPTOR, _SECONDARY_INSTALL_DESCRIPTOR)
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         return {
             "runtime": runtime_name,
             "commands": 5,
@@ -752,7 +752,7 @@ def test_uninstall_raw_continues_after_adapter_lookup_failure(tmp_path: Path) ->
 def test_install_no_args_uses_interactive_defaults(tmp_path: Path):
     """Install with no args enters interactive mode (defaults to choice 1 in CliRunner)."""
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path)}
 
     with (
@@ -794,7 +794,7 @@ def test_install_no_args_uses_interactive_defaults(tmp_path: Path):
 def test_install_raw_outputs_json(tmp_path: Path):
     """--raw flag outputs clean JSON without rich formatting."""
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path)}
 
     with (
@@ -819,7 +819,7 @@ def test_install_raw_includes_failures(tmp_path: Path):
     """--raw output includes both installed and failed runtimes."""
     call_count = 0
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -849,7 +849,7 @@ def test_install_raw_includes_failures(tmp_path: Path):
 def test_install_raw_finalize_failure_not_reported_as_installed(tmp_path: Path):
     """A finalize_install failure must only surface in the failed list."""
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path / runtime_name)}
 
     class FailingFinalizeAdapter:
@@ -1001,7 +1001,7 @@ def test_install_preflight_forwards_scope_and_explicit_target_dir(mock_run_docto
         target=str(target_dir),
     )
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(target_dir)}
 
     with (
@@ -1219,7 +1219,7 @@ def test_install_target_dir_preserves_explicit_global_scope(tmp_path: Path) -> N
     captured_calls: list[dict[str, object]] = []
     target = tmp_path / "custom-runtime-dir"
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         captured_calls.append(
             {
                 "runtime": runtime_name,
@@ -1287,7 +1287,7 @@ def test_install_target_dir_uses_canonical_global_path_when_runtime_env_override
     )
     mock_adapter.finalize_install.return_value = None
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         captured_calls.append(
             {
                 "runtime": runtime_name,
@@ -1351,7 +1351,7 @@ def test_install_target_dir_uses_env_overridden_global_path_as_global_target(
     )
     captured_preflight: list[dict[str, object]] = []
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         captured_calls.append(
             {
                 "runtime": runtime_name,
@@ -1642,7 +1642,7 @@ def test_install_interactive_accepts_unique_fuzzy_runtime_name(tmp_path: Path):
 
     captured_calls: list[dict[str, object]] = []
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         captured_calls.append(
             {
                 "runtime": runtime_name,
@@ -1686,7 +1686,7 @@ def test_install_interactive_accepts_catalog_runtime_flag(tmp_path: Path) -> Non
 
     captured_calls: list[dict[str, object]] = []
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         captured_calls.append(
             {
                 "runtime": runtime_name,
@@ -1728,7 +1728,7 @@ def test_install_interactive_accepts_exact_runtime_display_name_before_fuzzy(tmp
     competing_descriptor = _SECONDARY_INSTALL_DESCRIPTOR
     captured_calls: list[dict[str, object]] = []
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         captured_calls.append(
             {
                 "runtime": runtime_name,
@@ -1772,7 +1772,7 @@ def test_install_interactive_accepts_exact_runtime_selection_alias_before_fuzzy(
     competing_descriptor = _SECONDARY_INSTALL_DESCRIPTOR
     captured_calls: list[dict[str, object]] = []
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         captured_calls.append(
             {
                 "runtime": runtime_name,
@@ -1822,7 +1822,7 @@ def test_install_accepts_runtime_display_name_alias(tmp_path: Path) -> None:
     target_descriptor = _PRIMARY_INSTALL_DESCRIPTOR
     captured_calls: list[dict[str, object]] = []
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         captured_calls.append(
             {
                 "runtime": runtime_name,
@@ -1874,7 +1874,7 @@ def test_uninstall_accepts_runtime_selection_alias(tmp_path: Path) -> None:
 def test_install_interactive_rejects_invalid_location_choice(tmp_path: Path):
     """Interactive location selection should reject invalid choices instead of defaulting to local."""
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(tmp_path / runtime_name)}
 
     with (
@@ -1935,7 +1935,7 @@ def test_install_local_option_never_forwards_global_scope(
     explicit_target = tmp_path / "custom-runtime-dir"
     argv = ["install", *[str(explicit_target) if token == "__TARGET__" else token for token in argv_suffix]]
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         captured_calls.append(
             {
                 "runtime": runtime_name,
@@ -2031,7 +2031,7 @@ def test_install_deduplicates_repeated_runtime_args(tmp_path: Path) -> None:
     """Repeated runtime args should only install once per runtime."""
     install_calls: list[str] = []
 
-    def mock_install_single(runtime_name, *, is_global, target_dir_override=None):
+    def mock_install_single(runtime_name, *, is_global, target_dir_override=None, resolved_target_override=None):
         install_calls.append(runtime_name)
         return {"runtime": runtime_name, "commands": 5, "agents": 3, "target": str(_install_target(tmp_path))}
 

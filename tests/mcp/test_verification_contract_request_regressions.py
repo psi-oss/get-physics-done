@@ -624,7 +624,8 @@ def test_contract_parse_recoverability_keeps_case_drift_nonblocking() -> None:
 
     result = run_contract_check(request)
 
-    assert result["error"] == "Invalid contract payload: references.0.role must use exact canonical value: benchmark"
+    assert result["status"] == "pass"
+    assert "references.0.role must use exact canonical value: benchmark" in result["contract_salvage_findings"]
 
 
 def test_suggest_contract_checks_rejects_case_drift_contract_payload() -> None:
@@ -635,7 +636,8 @@ def test_suggest_contract_checks_rejects_case_drift_contract_payload() -> None:
 
     result = suggest_contract_checks(contract)
 
-    assert result["error"] == "Invalid contract payload: references.0.role must use exact canonical value: benchmark"
+    assert result["suggested_count"] > 0
+    assert "references.0.role must use exact canonical value: benchmark" in result["contract_salvage_findings"]
 
 
 def test_run_contract_check_rejects_contract_string_where_list_required() -> None:
@@ -652,7 +654,7 @@ def test_run_contract_check_rejects_contract_string_where_list_required() -> Non
 
     result = run_contract_check(request)
 
-    assert result["error"] == "Invalid contract payload: references.0.applies_to must be a list, not str"
+    assert result["error"] == "Invalid contract payload: reference ref-benchmark applies_to unknown target claim-main"
 
 
 @pytest.mark.parametrize(

@@ -99,7 +99,7 @@ The default manuscript family is limited to `paper/`, `manuscript/`, and `draft/
 Let centralized preflight resolve the active manuscript entrypoint from the explicit argument when provided, otherwise from the manuscript-root `ARTIFACT-MANIFEST.json`, then `PAPER-CONFIG.json`, then the canonical current manuscript entrypoint rules for those roots. Do not use ad hoc wildcard discovery.
 If none of those roots exist, pass an explicit manuscript path or paper directory and let centralized preflight reject anything outside the supported target family.
 
-Do not use ad hoc glob discovery.
+Rely on centralized manuscript resolution rather than ad-hoc globbing.
 
 </context>
 

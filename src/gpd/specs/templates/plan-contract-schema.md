@@ -337,3 +337,7 @@ Use one of these before approving or committing a plan:
 gpd frontmatter validate GPD/phases/XX-name/XX-YY-PLAN.md --schema plan
 gpd validate plan-contract GPD/phases/XX-name/XX-YY-PLAN.md
 ```
+
+All ID cross-links must resolve to declared IDs.
+
+Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.

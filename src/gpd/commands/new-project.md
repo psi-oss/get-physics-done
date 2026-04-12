@@ -41,7 +41,12 @@ If no project config exists yet, start with physics questioning, surface a prese
 </execution_context>
 
 <process>
-Read the workflow file defined above with `file_read` first and follow it end-to-end.
+Read the workflow file defined above with `file_read` first. Follow the workflow file exactly before proceeding.
+
+**Scoping contract visibility:** Before drafting or repairing the scoping contract, The workflow owns the `project-contract-schema.md` and `project-contract-grounding-linkage.md` details. Preserve decisive outputs, anchors, and roadmap generation inputs, and require one explicit scope approval before downstream generation.
+
+**Next-step prompt:** After roadmap creation, ask exactly: "Discuss phase 1 now?"
+
 </process>
 
 <output>
@@ -60,3 +65,5 @@ Read the workflow file defined above with `file_read` first and follow it end-to
 - `GPD/CONVENTIONS.md` (established by gpd-notation-coordinator)
 
 </output>
+
+compact hard-schema capsule

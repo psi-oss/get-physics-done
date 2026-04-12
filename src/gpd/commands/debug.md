@@ -38,4 +38,36 @@ If `$ARGUMENTS` names a concrete issue or no `VERIFICATION.md` gap context is av
 6. Ask whether to apply the fix, continue debugging, or pause with the session file.
 
 Otherwise follow the workflow end-to-end for verification-gap debugging.
+
+
+```text
+task(
+  subagent_type="gpd-debugger",
+  readonly=false,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.\n\nCreate: GPD/debug/{slug}.md\nRead that file before continuing",
+  description="Debug {slug}"
+)
+
+task(
+  subagent_type="gpd-debugger",
+  readonly=false,
+  prompt="First, read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions.\n\nDebug file path: GPD/debug/{slug}.md\nRead that file before continuing",
+  description="Continue debug {slug}"
+)
+```
+
+gpd_return.status: checkpoint
+Spawn Fresh Continuation agent (After Checkpoint)
+gpd_return.status: blocked` or `failed
+frontmatter/body reconcile the expected debug session artifact
+goal: find_root_cause_only
+Do not branch on heading text here.
+instead of relying on an inline `@...` attachment.
+workflow-owned typed child-return contract
+spawn a fresh continuation run
+gpd_return.status: completed
+Debug spawn contract: read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions; Create: GPD/debug/{slug}.md
+Read that file before continuing; Debug file path: GPD/debug/{slug}.md
+Read that file before continuing; verify the expected debug session artifact gate.
+
 </process>

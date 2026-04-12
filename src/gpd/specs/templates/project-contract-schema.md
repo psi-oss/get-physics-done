@@ -203,7 +203,7 @@ Treat a claim as proof-bearing whenever any of the following is true:
 When that applies, require:
 - `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, and `proof_deliverables` remain visible and non-empty.
 - Do not collapse proof obligations into a generic claim statement.
-- `claims[].claim_kind` must use the closed vocabulary: `theorem | lemma | corollary | proposition | result | claim | other` (use `other` only when the claim is not proof work).
+- `claims[].claim_kind` must use the closed vocabulary: `theorem | lemma | corollary | proposition | result | claim | other`.
 - Closed semantic enum fields use these exact lowercase literals:
   - `claims[].claim_kind: theorem | lemma | corollary | proposition | result | claim | other`
   - `observables[].kind: scalar | curve | map | classification | proof_obligation | other`
@@ -232,3 +232,15 @@ When you append a contract addendum for the `draft`, `approved`, or `proof` stag
 - `approved` addenda should summarize the approved scope, decisive anchors/baselines, and the deliverables or acceptance tests that carry the approval.
 - `proof` addenda should list the proof-specific claim, deliverables, acceptance tests, and metadata that justify the proof stage.
 Limit each addendum to a status label plus one or two short bullets so the schema remains the authoritative source of truth; use this template for the detailed fields.
+
+proof-bearing claims must keep `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, and `proof_deliverables` visible
+
+Project contracts must include at least one observable, claim, or deliverable.
+
+include an acceptance test with `kind: claim_to_proof_alignment`
+
+If `references[]` is present before approval and grounding is not already concrete, at least one reference must set `must_surface: true`.
+
+Every `must_surface: true` reference needs a concrete `locator` and concrete `applies_to[]` coverage
+
+Project-local paths in `locator` or `applies_to[]` evidence must resolve when `project_root` is available.

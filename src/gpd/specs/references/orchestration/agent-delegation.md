@@ -1,6 +1,8 @@
 # Agent Delegation Reference
 
-Canonical delegation contract for spawned GPD agents. Workflows should reference this file instead of restating the rules.
+canonical delegation contract for spawned GPD agents. Workflows should reference this file instead of restating the rules.
+
+## Delegation Contract
 
 ## Delegation Invariants
 
@@ -38,6 +40,18 @@ task(
 > The installer projects agent references onto the correct runtime-specific command/tool surface. Source files use the generic `task()` pattern.
 
 ## Authoring Rules
+
+**Return-envelope parity:** Preserve the shared return envelope across native and fallback runtimes.
+
+**Success-path artifact gate:** Verify expected artifacts before accepting success.
+
+**Blocking completion semantics:** Treat checkpoints and missing artifacts as blocking until resolved.
+
+**Write-scope isolation:** Assign disjoint write scopes to parallel agents.
+
+**Write access:** Always pass `readonly=false` for file-producing agents.
+
+**Model semantics:** If `model` resolves to `null` or an empty string, omit it so the runtime uses its default model.
 
 1. **Always resolve model first:** `gpd resolve-model gpd-{agent}`
 2. **If model is null or empty:** Omit the `model` parameter from task(). The runtime will use its default model.
@@ -102,3 +116,9 @@ Add this concise note before any task() call in a workflow:
 ```
 > **Runtime delegation:** Follow `references/orchestration/agent-delegation.md`; use the fresh one-shot handoff pattern, omit empty `model`, set `readonly=false` for file-producing agents, and verify expected artifacts before accepting success.
 ```
+
+verified on disk
+
+spawn a fresh continuation handoff
+
+must not wait for the user inside the same handoff

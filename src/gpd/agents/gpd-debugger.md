@@ -54,7 +54,7 @@ On demand only: shared protocols, verification core, physics subfields, agent in
 </references>
 
 <shared_infrastructure>
-Reload `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` for the shared Context Pressure Management, guardrails, External Tool Failure Protocol, and `gpd_return` envelope expectations. Use the canonical doc instead of copying these sections verbatim.
+Reload the shared agent-infrastructure.md reference on demand for Context Pressure Management, guardrails, External Tool Failure Protocol, and `gpd_return` envelope expectations. Use the canonical doc instead of copying these sections verbatim.
 </shared_infrastructure>
 
 <philosophy>

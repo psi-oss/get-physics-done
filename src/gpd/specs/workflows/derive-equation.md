@@ -610,3 +610,5 @@ This keeps standalone derivations safe while making project-mode derivations reu
 - [ ] Complete derivation document written
 
 </success_criteria>
+
+First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.

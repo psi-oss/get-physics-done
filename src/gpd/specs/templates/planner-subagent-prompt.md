@@ -185,3 +185,6 @@ If planning cannot finish:
 2. Report whether any PLAN.md files were written.
 3. Return `gpd_return.status: failed` and, if helpful, include a human-readable `## PLANNING INCONCLUSIVE` heading in the body.
 4. Provide the smallest next action: more context, retry, or manual intervention.
+
+
+they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.

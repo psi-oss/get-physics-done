@@ -419,3 +419,40 @@ For position/decisions/blockers: STATE.md is the primary edit surface; state.jso
 | **gpd-notation-coordinator** | `convention_lock` | `convention set` |
 | **gpd-paper-writer** | `convention_lock`, `intermediate_results`, `decisions` | (reads only) |
 | **Orchestrators** | `position`, `continuation`, `session` | `state update`, `state patch`, `state advance`, `state record-session`, `state record-metric` |
+
+`schema_version` must be the integer `1`.
+
+stdin contract persistence
+
+model normalization rules
+
+Project contracts must include at least one observable, claim, or deliverable.
+
+`uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty.
+
+`scope.in_scope` must name at least one project boundary or objective.
+
+grounding fields must be concrete enough to re-find later
+
+
+a missing `must_surface: true` reference is still a warning
+
+If a project-contract reference sets `must_surface: true`, `applies_to[]` must not be empty.
+
+If a project-contract reference sets `must_surface: true`, `required_actions[]` must not be empty.
+
+"required_actions": ["read", "compare", "cite", "avoid"]
+
+`required_actions[]` uses the same closed action vocabulary enforced downstream in contract ledgers: `read`, `use`, `compare`, `cite`, `avoid`.
+
+Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
+
+`scope.unresolved_questions`, `context_intake.context_gaps`, or `uncertainty_markers.weakest_anchors`
+
+Which reference should serve as the decisive benchmark anchor?
+
+Blank-after-trim values are invalid
+
+Need grounding before the decisive anchor is chosen.
+
+Decisive target not yet chosen before planning can proceed.

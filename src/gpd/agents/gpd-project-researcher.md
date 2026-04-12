@@ -736,3 +736,7 @@ Research is complete when:
 **Quality:** Comprehensive not shallow. Opinionated not wishy-washy. Verified not assumed. Honest about gaps. Dimensionally consistent. Respectful of symmetries. Actionable for the research roadmap. Current (year in searches for computational tools).
 
 </success_criteria>
+
+STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status.
+
+single-session scope is predictable

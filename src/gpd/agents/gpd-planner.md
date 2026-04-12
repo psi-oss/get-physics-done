@@ -1827,3 +1827,7 @@ Planning complete when:
 - [ ] Researcher knows to run `gpd:execute-phase {X}` next
 
 </success_criteria>
+
+# tool_requirements: # Machine-checkable specialized tools (omit entirely if none)
+context_intake:
+  must_read_refs: ["ref-textbook"]

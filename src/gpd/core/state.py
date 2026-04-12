@@ -2148,20 +2148,20 @@ def _normalize_project_contract_section(
         # scalar drift is surfaced as an integrity issue instead of silently
         # canonicalized by field validators or bool/int coercion.
         integrity_issues.extend(_integrity_issue_from_contract_error(error) for error in combined_errors)
-        if _has_authoritative_scalar_schema_findings(combined_errors):
-            integrity_issues.append(
-                'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization'
-            )
-            return None
         _schema_warnings, schema_errors = split_project_contract_schema_findings(
             combined_errors,
             allow_case_drift_recovery=allow_project_contract_salvage,
             metadata_by_error=schema_metadata,
         )
         if schema_errors:
-            integrity_issues.append(
-                'schema normalization: dropped "project_contract" because contract schema required normalization'
-            )
+            if _has_authoritative_scalar_schema_findings(schema_errors):
+                integrity_issues.append(
+                    'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization'
+                )
+            else:
+                integrity_issues.append(
+                    'schema normalization: dropped "project_contract" because contract schema required normalization'
+                )
             return None
     draft_validation = validate_project_contract(normalized_contract, mode="draft", project_root=project_root)
     if not draft_validation.valid:
@@ -4054,9 +4054,14 @@ def state_set_project_contract(cwd: Path, contract_data: dict[str, object] | Res
             return _failure("Invalid project contract schema: project contract must be a JSON object")
         strict_result: ProjectContractParseResult = parse_project_contract_data_strict(contract_payload)
         if strict_result.errors:
+            from gpd.core.contract_validation import salvage_project_contract
+
+            _contract, schema_findings, _schema_metadata = salvage_project_contract(contract_payload)
+            salvage_only_findings = [error for error in schema_findings if error not in strict_result.errors]
+            strict_errors = salvage_only_findings or strict_result.errors
             return _failure(
-                "Invalid project contract schema: " + "; ".join(strict_result.errors),
-                schema_reference=_project_contract_schema_reference_for_errors(strict_result.errors),
+                "Invalid project contract schema: " + "; ".join(dict.fromkeys(strict_errors)),
+                schema_reference=_project_contract_schema_reference_for_errors(strict_errors),
             )
         parsed = strict_result.contract
         if parsed is None:

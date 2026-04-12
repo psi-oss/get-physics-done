@@ -23,7 +23,7 @@ Context budget: ~15% orchestrator, fresh context per subagent.
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/execute-phase.md
-@{GPD_INSTALL_DIR}/references/orchestration/context-budget.md
+the context-budget reference
 </execution_context>
 
 <context>
@@ -32,6 +32,9 @@ Phase: $ARGUMENTS
 **Flags:**
 
 - `--gaps-only` -- Execute only gap-closure plans (`gap_closure: true`). Use after `verify-work` creates fix plans.
+
+**Review cadence:** Read `execution.review_cadence` (valid values: `dense`, `adaptive`, `sparse`) to decide required pause/review frequency; do not use the removed verify-between-waves knob.
+
 </context>
 
 <process>

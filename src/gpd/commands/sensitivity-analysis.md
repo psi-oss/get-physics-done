@@ -29,7 +29,6 @@ If the target is empty, ask one concise clarification before proceeding. Otherwi
 </context>
 
 <process>
-Run `gpd --raw validate command-context sensitivity-analysis` before execution.
-
-Execute the workflow end-to-end; keep method details in `@{GPD_INSTALL_DIR}/workflows/sensitivity-analysis.md`.
+Keep this command wrapper thin; the workflow owns detailed method guidance. Do not restate workflow-owned checklists or compatibility policy here.
+Run `gpd --raw validate command-context sensitivity-analysis` before execution, then execute the workflow end-to-end; keep method details in `@{GPD_INSTALL_DIR}/workflows/sensitivity-analysis.md`.
 </process>

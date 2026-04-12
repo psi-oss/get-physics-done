@@ -53,7 +53,8 @@ If `project_contract_load_info.status` starts with `blocked`, STOP and show the 
 
 If `project_contract_validation.valid` is false, STOP and show the explicit `project_contract_validation.errors` before execution. Do not treat a visible-but-blocked contract as an approved execution contract.
 
-Treat `project_contract` as the authoritative machine-readable execution contract only when `project_contract_gate.authoritative` is true.
+Treat `project_contract` as the authoritative machine-readable execution contract only when `Parse JSON for: `project_contract_gate`.
+project_contract_gate.authoritative` is true.
 Later staged refreshes surface `effective_reference_intake`, `active_reference_context`, and `reference_artifacts_content` for anchor-aware routing and wave planning. Stable knowledge docs may appear only through those shared reference surfaces as reviewed background; they do not become a separate authority tier. Do not assume bootstrap already loaded that broader reference context.
 Before launching any plan, require that the selected `PLAN.md` passes `gpd validate plan-preflight <PLAN.md>` when specialized tool requirements are declared.
 
@@ -334,7 +335,7 @@ Load plan inventory with wave grouping in one call:
 PLAN_INDEX=$(gpd phase index "${phase_number}")
 ```
 
-Parse JSON for: `phase`, `plans[]` (each with `id`, `wave`, `interactive`, `objective`, `files_modified`, `task_count`, `has_summary`), `waves` (map of wave number -> plan IDs), `incomplete`, `has_checkpoints`.
+Parse JSON for: `phase`, `plans[]` (each with `id`, `wave`, `interactive`, `objective`, `files_modified`, `task_count`, `has_summary`), `waves` (map of wave number -> plan IDs), `incomplete`, `has_checkpoints`, `project_contract_gate`.
 
 **Filtering:** Skip plans where `has_summary: true`. If `--gaps-only`: also skip non-gap_closure plans. If all filtered: "No matching incomplete plans" -> exit.
 
@@ -1826,3 +1827,5 @@ STATE.md tracks: last completed plan, current wave, pending checkpoints.
 
 **Partial completion detection:** execute-plan's `detect_previous_attempt` step checks git log for task-level commits. Plans with partial commits offer resume-from-task-N. Plans with RECOVERY-{PLAN}.md files surface recovery options.
 </resumption>
+
+If any executed plan is proof-bearing, proof verification still runs.

@@ -331,11 +331,17 @@ def _validate_contract_mapping(
 
     if not isinstance(contract_data, dict):
         return _PlanContractResolution(errors=["expected an object"])
+    schema_version = contract_data.get("schema_version")
+    if type(schema_version) is not int:
+        return _PlanContractResolution(errors=["schema_version must be the integer 1"])
 
     normalized_contract_data = _normalize_frontmatter_contract_mapping(contract_data)
     strict_result: ProjectContractParseResult = parse_project_contract_data_strict(normalized_contract_data)
     if strict_result.errors:
-        return _PlanContractResolution(errors=list(dict.fromkeys(strict_result.errors)))
+        from gpd.core.contract_validation import salvage_project_contract
+
+        _contract, schema_findings, _schema_metadata = salvage_project_contract(normalized_contract_data)
+        return _PlanContractResolution(errors=list(dict.fromkeys([*strict_result.errors, *schema_findings])))
 
     contract = strict_result.contract
     if contract is None:
@@ -535,7 +541,12 @@ def validate_knowledge_frontmatter(
             )
 
     review = meta.get("review")
-    current_content_sha256 = compute_knowledge_reviewed_content_sha256(content)
+    current_content_sha256 = ""
+    if not errors:
+        try:
+            current_content_sha256 = compute_knowledge_reviewed_content_sha256(content)
+        except Exception as exc:
+            errors.append(f"knowledge.reviewed_content_sha256: {exc}")
     if status_value == "draft":
         if review is not None:
             errors.append("knowledge.review is forbidden when status is draft")

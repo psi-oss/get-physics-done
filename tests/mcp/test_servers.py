@@ -2839,8 +2839,8 @@ class TestVerificationServer:
         assert result["check_key"] == "contract.limit_recovery"
         assert result["contract_aware"] is True
         assert result["required_request_fields"] == ["metadata.regime_label", "metadata.expected_behavior"]
-        assert result["request_template"]["metadata"]["regime_label"] == "large-k"
-        assert result["request_template"]["metadata"]["expected_behavior"] == "approaches the contracted limit behavior"
+        assert result["request_template"]["metadata"]["regime_label"] == "<replace-with-regime-label>"
+        assert result["request_template"]["metadata"]["expected_behavior"] == "<replace-with-expected-behavior>"
 
     def test_run_check_contract_benchmark_reproduction_flags_missing_anchor(self):
         from gpd.mcp.servers.verification_server import run_check
@@ -3306,7 +3306,7 @@ class TestVerificationServer:
             ["metadata.source_reference_id"],
             ["contract"],
         ]
-        assert result["request_guidance"]["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
+        assert result["request_guidance"]["request_template"]["metadata"]["source_reference_id"] == "<replace-with-source-reference-id>"
 
     def test_run_contract_check_accepts_null_family_metadata_lists(self):
         from gpd.mcp.servers.verification_server import run_contract_check
@@ -3566,8 +3566,8 @@ class TestVerificationServer:
         assert "evidence_kind" in result["universal_checks"][0]
         contract_check = next(entry for entry in result["universal_checks"] if entry["check_key"] == "contract.limit_recovery")
         assert contract_check["required_request_fields"] == ["metadata.regime_label", "metadata.expected_behavior"]
-        assert contract_check["request_template"]["metadata"]["regime_label"] == "large-k"
-        assert contract_check["request_template"]["metadata"]["expected_behavior"] == "approaches the contracted limit behavior"
+        assert contract_check["request_template"]["metadata"]["regime_label"] == "<replace-with-regime-label>"
+        assert contract_check["request_template"]["metadata"]["expected_behavior"] == "<replace-with-expected-behavior>"
         proof_check = next(
             entry for entry in result["universal_checks"] if entry["check_key"] == "contract.proof_parameter_coverage"
         )

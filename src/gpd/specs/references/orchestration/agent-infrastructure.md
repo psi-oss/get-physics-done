@@ -734,3 +734,5 @@ Example: `GPD/phases/06.1-fix-gauge-fixing-condition/`
 | Numerical instability encountered         | After discretization (phase 04), need to add a stability analysis sub-phase (insert 04.1)                 |
 | Reviewer comment requires new calculation | Between existing phases, insert a limiting-case check requested by a referee (insert 03.1)                |
 | Unexpected result needs cross-check       | An anomalous numerical result needs an independent analytical estimate (insert 07.1)                      |
+
+The four base fields above are required on this envelope.
