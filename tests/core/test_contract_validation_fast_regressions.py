@@ -221,7 +221,7 @@ def test_fast_contract_validation_strict_rejects_top_level_scalar_string_list_fi
     assert result.recoverable_errors == []
 
 
-def test_validate_project_contract_allows_reference_grounding_without_context_intake() -> None:
+def test_validate_project_contract_warns_when_reference_grounding_lacks_explicit_context_intake() -> None:
     contract = _load_contract_fixture()
     contract["context_intake"] = {
         "must_read_refs": [],
@@ -235,7 +235,9 @@ def test_validate_project_contract_allows_reference_grounding_without_context_in
     result = validate_project_contract(contract, mode="draft")
 
     assert result.valid is True
-    assert "context_intake must not be empty" not in result.warnings
+    assert result.guidance_signal_count == 0
+    assert result.errors == []
+    assert "context_intake must not be empty" in result.warnings
 
 
 def test_fast_contract_validation_salvage_preserves_top_level_scalar_string_list_field_as_blocking() -> None:

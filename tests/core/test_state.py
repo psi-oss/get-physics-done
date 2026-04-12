@@ -530,10 +530,25 @@ def test_state_load_recovers_legacy_contract_missing_context_and_uncertainty(tmp
     assert loaded.state["project_contract"] is not None
     assert loaded.state["project_contract"].get("context_intake") is not None
     assert loaded.state["project_contract"].get("uncertainty_markers") is not None
+    assert loaded.state["project_contract"]["context_intake"] == {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
     assert loaded.project_contract_load_info["status"] == "loaded_with_approval_blockers"
     warnings = loaded.project_contract_load_info["warnings"]
     assert any(CONTEXT_INTAKE_DEFAULT_WARNING in warning for warning in warnings)
     assert any(UNCERTAINTY_MARKERS_DEFAULT_WARNING in warning for warning in warnings)
+    assert loaded.project_contract_validation is not None
+    assert loaded.project_contract_validation["valid"] is False
+    assert "context_intake must not be empty" in loaded.project_contract_validation["errors"]
+    assert loaded.project_contract_gate["visible"] is True
+    assert loaded.project_contract_gate["blocked"] is True
+    assert loaded.project_contract_gate["approval_blocked"] is True
+    assert loaded.project_contract_gate["authoritative"] is False
 
 
 def test_load_state_json_preserves_sibling_fields_when_nested_position_field_is_invalid(tmp_path: Path) -> None:

@@ -139,7 +139,7 @@ def test_validate_project_contract_command_non_raw_failure_surfaces_schema_refer
     assert "must be a list" in result.output
 
 
-def test_validate_project_contract_command_warns_when_user_guidance_is_missing(tmp_path: Path) -> None:
+def test_validate_project_contract_command_blocks_when_user_guidance_is_missing(tmp_path: Path) -> None:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["context_intake"] = {
         "must_read_refs": [],
@@ -154,12 +154,12 @@ def test_validate_project_contract_command_warns_when_user_guidance_is_missing(t
 
     result = runner.invoke(app, ["--raw", "validate", "project-contract", str(contract_path)], catch_exceptions=False)
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     payload = json.loads(result.output)
-    assert payload["valid"] is True
+    assert payload["valid"] is False
     assert payload["guidance_signal_count"] == 0
     assert payload["reference_count"] > 0
-    assert payload["errors"] == []
+    assert payload["errors"] == ["context_intake must not be empty"]
 
 
 def test_validate_project_contract_command_blocks_missing_skeptical_fields(tmp_path: Path) -> None:

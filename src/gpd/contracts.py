@@ -2571,11 +2571,6 @@ def contract_has_explicit_context_intake(
 ) -> bool:
     """Return whether ``context_intake`` carries any concrete, model-useful guidance."""
 
-    has_must_surface_reference = _has_concrete_must_surface_reference(
-        contract,
-        project_root=project_root,
-        require_existing_project_artifacts=True,
-    )
     has_reference_guidance = any(
         _is_concrete_reference_locator(
             reference.locator,
@@ -2612,7 +2607,6 @@ def contract_has_explicit_context_intake(
 
     return any(
         (
-            has_must_surface_reference,
             has_reference_guidance,
             has_prior_output_guidance,
             has_anchor_guidance,

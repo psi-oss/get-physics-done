@@ -1812,7 +1812,9 @@ def test_validate_project_contract_approved_mode_warns_for_invalid_must_surface_
     assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
 
 
-def test_validate_project_contract_approved_mode_accepts_concrete_must_surface_reference_anchor() -> None:
+def test_validate_project_contract_approved_mode_rejects_concrete_must_surface_reference_anchor_without_explicit_context_intake() -> (
+    None
+):
     contract = _load_contract_fixture()
     _remove_incidental_grounding(contract)
     contract["references"] = [
@@ -1834,8 +1836,10 @@ def test_validate_project_contract_approved_mode_accepts_concrete_must_surface_r
 
     result = validate_project_contract(contract, mode="approved")
 
-    assert result.valid is True
+    assert result.valid is False
     assert result.mode == "approved"
+    assert result.guidance_signal_count == 0
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_draft_mode_warns_for_invalid_grounding_entries_with_concrete_anchor_present(
@@ -2925,6 +2929,26 @@ def test_validate_project_contract_approved_mode_accepts_real_reference_anchor()
 
     assert result.valid is True
     assert result.mode == "approved"
+
+
+def test_validate_project_contract_approved_mode_rejects_placeholder_only_context_intake_despite_real_reference_anchor() -> (
+    None
+):
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["scope"]["unresolved_questions"] = []
+    contract["context_intake"]["user_asserted_anchors"] = ["TBD"]
+
+    result = validate_project_contract(contract, mode="approved")
+
+    assert result.valid is False
+    assert result.mode == "approved"
+    assert result.guidance_signal_count == 0
+    assert "context_intake must not be empty" in result.errors
+    assert (
+        "context_intake.user_asserted_anchors entry is not concrete enough to preserve as durable guidance: TBD"
+        in result.warnings
+    )
 
 
 def test_validate_project_contract_draft_mode_counts_concrete_must_read_ref_as_guidance() -> None:

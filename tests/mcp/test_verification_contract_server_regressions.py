@@ -148,8 +148,10 @@ def test_suggest_contract_checks_accepts_project_local_contract_when_project_dir
     assert "contract.benchmark_reproduction" in {entry["check_key"] for entry in rooted["suggested_checks"]}
 
 
-def test_suggest_contract_checks_rejects_placeholder_only_context_intake(tmp_path: Path) -> None:
-    from gpd.mcp.servers.verification_server import suggest_contract_checks
+def test_contract_tools_reject_placeholder_only_context_intake_even_with_project_rooted_reference_grounding(
+    tmp_path: Path,
+) -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
 
     contract = _project_local_contract_fixture(tmp_path)
     contract["context_intake"] = {
@@ -161,10 +163,22 @@ def test_suggest_contract_checks_rejects_placeholder_only_context_intake(tmp_pat
         "crucial_inputs": ["placeholder"],
     }
 
-    result = suggest_contract_checks(contract, project_dir=tmp_path.resolve(strict=False).as_posix())
+    project_dir = tmp_path.resolve(strict=False).as_posix()
+    run_result = run_contract_check(
+        {
+            "check_key": "contract.benchmark_reproduction",
+            "contract": contract,
+            "binding": {"claim_ids": ["claim-benchmark"]},
+            "metadata": {"source_reference_id": "ref-benchmark"},
+            "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+        },
+        project_dir=project_dir,
+    )
+    suggest_result = suggest_contract_checks(contract, project_dir=project_dir)
 
-    assert "error" not in result
-    assert "suggested_checks" in result
+    for result in (run_result, suggest_result):
+        assert result["schema_version"] == 1
+        assert result["error"] == "Invalid contract payload: context_intake must not be empty"
 
 
 def test_run_contract_check_accepts_non_must_surface_reference_when_project_dir_supplied(tmp_path: Path) -> None:
@@ -1181,8 +1195,8 @@ def test_contract_tools_reject_empty_context_intake() -> None:
     suggest_result = suggest_contract_checks(contract)
 
     for result in (run_result, suggest_result):
-        assert "error" not in result
         assert result["schema_version"] == 1
+        assert result["error"] == "Invalid contract payload: context_intake must not be empty"
 
 
 def test_contract_tools_reject_missing_uncertainty_marker_subfields() -> None:

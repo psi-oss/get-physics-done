@@ -1664,12 +1664,6 @@ def validate_project_contract(
         warnings.extend(_must_surface_locator_warnings(parsed, project_root=project_root))
 
     has_non_reference_grounding = _has_non_reference_grounding_signal(parsed, project_root=project_root)
-    has_reference_grounding = has_concrete_must_surface_reference(
-        parsed,
-        project_root=project_root,
-        require_existing_project_artifacts=True,
-    )
-
     if parsed.references and not any(reference.must_surface for reference in parsed.references):
         finding = "references must include at least one must_surface=true anchor"
         if mode == "approved" and not has_non_reference_grounding:
@@ -1695,7 +1689,7 @@ def validate_project_contract(
         warnings.append("no references recorded yet")
     if not parsed.forbidden_proxies:
         warnings.append("no forbidden_proxies recorded yet")
-    if guidance_signal_count == 0 and not has_reference_grounding:
+    if guidance_signal_count == 0:
         _require_or_warn("context_intake must not be empty")
 
     return ProjectContractValidationResult(

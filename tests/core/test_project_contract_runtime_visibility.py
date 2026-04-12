@@ -6,7 +6,11 @@ import json
 from pathlib import Path
 
 from gpd.core.context import init_progress
-from gpd.core.contract_validation import validate_project_contract
+from gpd.core.contract_validation import (
+    CONTEXT_INTAKE_DEFAULT_WARNING,
+    UNCERTAINTY_MARKERS_DEFAULT_WARNING,
+    validate_project_contract,
+)
 from gpd.core.state import default_state_dict, save_state_json, state_set_project_contract
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "stage0"
@@ -46,6 +50,14 @@ def _write_draft_project_contract_state(tmp_path: Path) -> dict[str, object]:
     return contract
 
 
+def _write_raw_project_contract_state(tmp_path: Path, contract: dict[str, object]) -> None:
+    save_state_json(tmp_path, default_state_dict())
+    state_path = tmp_path / "GPD" / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["project_contract"] = contract
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+
 def test_runtime_context_surfaces_approval_blocked_project_contract_payload_with_validation_metadata(
     tmp_path: Path,
 ) -> None:
@@ -78,3 +90,39 @@ def test_runtime_context_surfaces_approval_blocked_project_contract_payload_with
         "references must include at least one must_surface=true anchor" in error
         for error in ctx["project_contract_validation"]["errors"]
     )
+
+
+def test_runtime_context_keeps_defaulted_legacy_contract_visible_when_context_intake_is_empty(
+    tmp_path: Path,
+) -> None:
+    _setup_project(tmp_path)
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract.pop("context_intake", None)
+    contract.pop("uncertainty_markers", None)
+    _write_raw_project_contract_state(tmp_path, contract)
+
+    ctx = init_progress(tmp_path)
+
+    assert ctx["project_contract"] is not None
+    assert ctx["project_contract"]["references"][0]["id"] == "ref-benchmark"
+    assert ctx["contract_intake"] == {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+    assert ctx["project_contract_load_info"]["status"] == "loaded_with_approval_blockers"
+    assert any(CONTEXT_INTAKE_DEFAULT_WARNING in warning for warning in ctx["project_contract_load_info"]["warnings"])
+    assert any(
+        UNCERTAINTY_MARKERS_DEFAULT_WARNING in warning for warning in ctx["project_contract_load_info"]["warnings"]
+    )
+    assert ctx["project_contract_validation"]["valid"] is False
+    assert "context_intake must not be empty" in ctx["project_contract_validation"]["errors"]
+    assert ctx["project_contract_gate"]["visible"] is True
+    assert ctx["project_contract_gate"]["blocked"] is True
+    assert ctx["project_contract_gate"]["approval_blocked"] is True
+    assert ctx["project_contract_gate"]["authoritative"] is False
+    assert ctx["active_reference_count"] == 1
+    assert ctx["active_references"][0]["id"] == "ref-benchmark"

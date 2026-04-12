@@ -651,7 +651,7 @@ class TestParseContractBlock:
         with pytest.raises(FrontmatterValidationError, match="context_intake is required"):
             parse_contract_block(content)
 
-    def test_empty_context_intake_is_preserved_for_contract_warnings(self):
+    def test_empty_context_intake_is_rejected_even_with_grounded_references(self):
         content = _valid_plan_contract_frontmatter().replace(
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
@@ -660,16 +660,8 @@ class TestParseContractBlock:
             1,
         ) + "Body.\n"
 
-        contract = parse_contract_block(content)
-
-        assert contract.context_intake.model_dump() == {
-            "must_read_refs": [],
-            "must_include_prior_outputs": [],
-            "user_asserted_anchors": [],
-            "known_good_baselines": [],
-            "context_gaps": [],
-            "crucial_inputs": [],
-        }
+        with pytest.raises(FrontmatterValidationError, match="context_intake must not be empty"):
+            parse_contract_block(content)
 
     @pytest.mark.parametrize(
         ("missing_line", "collection_name", "field_name", "expected_value"),
@@ -954,7 +946,7 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any("context_intake is required" in error for error in result.errors)
 
-    def test_plan_accepts_empty_context_intake_for_contract_warnings(self):
+    def test_plan_rejects_empty_context_intake_even_with_grounded_references(self):
         content = _valid_plan_contract_frontmatter().replace(
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
@@ -965,8 +957,8 @@ class TestValidateFrontmatter:
 
         result = validate_frontmatter(content, "plan")
 
-        assert result.valid is True
-        assert result.errors == []
+        assert result.valid is False
+        assert any("context_intake must not be empty" in error for error in result.errors)
 
     @pytest.mark.parametrize(
         "missing_line",
@@ -1715,7 +1707,7 @@ class TestValidateFrontmatter:
         assert result.valid is False
         assert any("must_surface=true" in error for error in result.errors)
 
-    def test_plan_accepts_placeholder_only_context_intake_for_contract_warnings(self, tmp_path: Path) -> None:
+    def test_plan_rejects_placeholder_only_context_intake_even_with_grounded_references(self, tmp_path: Path) -> None:
         content = _valid_plan_contract_frontmatter().replace(
             "  context_intake:\n"
             "    must_read_refs: [ref-main]\n"
@@ -1737,8 +1729,8 @@ class TestValidateFrontmatter:
 
         result = validate_frontmatter(content, "plan", source_path=plan_path)
 
-        assert result.valid is True
-        assert result.errors == []
+        assert result.valid is False
+        assert any("context_intake must not be empty" in error for error in result.errors)
 
     def test_plan_accepts_rootless_prior_output_as_visible_context_intake(self) -> None:
         content = _valid_plan_contract_frontmatter().replace(
