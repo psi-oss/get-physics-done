@@ -268,6 +268,13 @@ Wave 3: plans that depend on earlier waves
 - **Plan**: the detailed execution breakdown for a phase, created by the runtime-specific `plan-phase N` command.
 - **Wave**: not a separate top-level planning object, but the execution order inside a phase. Plans in the same wave can run in parallel; later waves depend on earlier ones.
 
+### Filesystem roots
+- `GPD/` (repo-local) is the portable project tree: phases, state/STATE.md, observability, knowledge, and every plan or task artifact belongs there.
+- `~/.gpd/` (or what `GPD_DATA_DIR` names) is the machine-local cache/data root for recent-project indexes, learned patterns, telemetry, and other runtime metadata—keep it outside version control.
+- `~/GPD/` (or `$GPD_HOME`) is the managed runtime install/venv created by the bootstrap installer; it lives outside each project and may coexist with the cache root.
+
+If a repo still contains a `.gpd/` directory, treat it as legacy/ignored. Move any useful files into `GPD/` so that the layout helpers and storage policy see them and so `gpd` commands keep using the canonical tree.
+
 Phase numbers continue across the whole project, so a new milestone may start at `Phase 6` rather than resetting to `Phase 1`.
 
 ## Worked Example

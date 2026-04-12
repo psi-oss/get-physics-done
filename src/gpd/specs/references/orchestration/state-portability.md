@@ -48,6 +48,16 @@ The following are **primarily machine-local** across machines and should be rege
 
 `state.json` does store the last session hostname and platform as advisory continuity metadata. Resume uses them only to surface a non-blocking machine-change notice and to remind the user that runtime-local install output may need regeneration. They do not change the portable project state itself.
 
+## Filesystem Roots
+
+Treat the repository tree as three distinct roots with non-overlapping responsibilities:
+
+- `GPD/` is the **portable authoritative project state**; all canonical state files, conventions, phases, contracts, observability mirrors, and knowledge content live there, and `ProjectLayout` only considers `GPD/` when resolving the project.
+- `~/.gpd/` (or `GPD_DATA_DIR` when set) is the **machine-local advisory cache root** for resumes, learned-patterns, usage ledgers, update throttles, and other metadata; it is never committed with the repo and is regenerated or relocated per machine.
+- `~/GPD/` (or `GPD_HOME`) is the **managed install/virtualenv home** produced by `{GPD_BOOTSTRAP_COMMAND}`; it holds the shared runtime, binaries, and platform-specific state, not per-repo data.
+
+The repository-local `.gpd/` directory is legacy and ignored when determining the project layout. Any meaningful artifact in `.gpd/` should be migrated into `GPD/`, since only `GPD/` is portable and restored when cloning or sharing the project.
+
 ## Moving a Project Between Machines
 
 1. **On the source machine**: Commit all work including `GPD/` state. Push to the remote.

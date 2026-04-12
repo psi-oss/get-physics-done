@@ -423,7 +423,7 @@ gpd result show <identifier>
 
 ## gpd CLI Cross-Project Pattern Library
 
-Persistent knowledge base of physics error patterns across projects. Stored at the resolved global pattern-library root: `GPD_PATTERNS_ROOT` -> `GPD_DATA_DIR/learned-patterns` -> `~/GPD/learned-patterns`.
+Persistent knowledge base of physics error patterns across projects. Stored at the resolved global pattern-library root: `GPD_PATTERNS_ROOT` -> `GPD_DATA_DIR/learned-patterns` -> `~/.gpd/learned-patterns`.
 
 ```bash
 # Initialize the pattern library (creates directory structure)
