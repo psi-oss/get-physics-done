@@ -1593,7 +1593,7 @@ def _run_contract_check_description() -> str:
         "contract payload. ``project_dir`` is optional, but when the contract uses project-local anchors "
         "or prior-output paths it should be the absolute project root so those references are validated "
         "against the correct filesystem context. "
-        f"{verification_contract_surface_summary_text()}"
+        f"{verification_contract_surface_summary_text()} {verification_contract_policy_text()}"
     )
 
 
@@ -1604,7 +1604,7 @@ def _suggest_contract_checks_description() -> str:
         "``project_dir`` is optional, but supply the absolute project root whenever the contract uses "
         "project-local anchors or prior-output paths so grounding-sensitive checks see the same root "
         "the model is reasoning about. "
-        f"{verification_contract_surface_summary_text()} "
+        f"{verification_contract_surface_summary_text()} {verification_contract_policy_text()} "
         "Use the canonical plan-contract schema for plan-style payloads; this tool returns the exact "
         "request-shape metadata, including ``required_request_fields``, "
         "``schema_required_request_fields``, ``schema_required_request_anyof_fields``, "

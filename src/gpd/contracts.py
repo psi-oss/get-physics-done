@@ -32,9 +32,6 @@ __all__ = [
     "CONTRACT_REFERENCE_ROLE_VALUES",
     "CONTRACT_REFERENCE_ACTION_VALUES",
     "CONTRACT_LINK_RELATION_VALUES",
-    "CONTRACT_CONTEXT_INTAKE_FIELD_NAMES",
-    "CONTRACT_APPROACH_POLICY_FIELD_NAMES",
-    "CONTRACT_UNCERTAINTY_MARKER_FIELD_NAMES",
     "PROOF_ACCEPTANCE_TEST_KINDS",
     "PROOF_HYPOTHESIS_CATEGORY_VALUES",
     "PROOF_AUDIT_REVIEWER",
@@ -175,28 +172,6 @@ CONTRACT_LINK_RELATION_VALUES: tuple[str, ...] = (
     "uses_hypothesis",
     "depends_on_lemma",
     "other",
-)
-CONTRACT_CONTEXT_INTAKE_FIELD_NAMES: tuple[str, ...] = (
-    "must_read_refs",
-    "must_include_prior_outputs",
-    "user_asserted_anchors",
-    "known_good_baselines",
-    "context_gaps",
-    "crucial_inputs",
-)
-CONTRACT_APPROACH_POLICY_FIELD_NAMES: tuple[str, ...] = (
-    "formulations",
-    "allowed_estimator_families",
-    "forbidden_estimator_families",
-    "allowed_fit_families",
-    "forbidden_fit_families",
-    "stop_and_rethink_conditions",
-)
-CONTRACT_UNCERTAINTY_MARKER_FIELD_NAMES: tuple[str, ...] = (
-    "weakest_anchors",
-    "unvalidated_assumptions",
-    "competing_explanations",
-    "disconfirming_observations",
 )
 PROOF_HYPOTHESIS_CATEGORY_VALUES: tuple[str, ...] = (
     "assumption",

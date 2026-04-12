@@ -97,16 +97,8 @@ not a claim that the old synthesis is still current.
 
 ## Deferred Behaviors
 
-The public authoring command and help coverage are part of the supported surface
-now. The following behaviors are intentionally out of scope for Phase 1 and
-later rollout hardening work, even if they may appear in future work:
-
-- migration/backfill for older or provisional docs
-- alias repair or filename/ID normalization for legacy docs
-- beginner onboarding exposure
-- `knowledge_deps` and `related_artifacts` frontmatter support
-- implicit discovery outside the canonical `knowledge` layout contract
-- automatic promotion of a draft to stable without review
+See `src/gpd/specs/templates/knowledge-guidance.md` for the current list of behaviors that remain
+out of scope for this template.
 
 ## Notes
 

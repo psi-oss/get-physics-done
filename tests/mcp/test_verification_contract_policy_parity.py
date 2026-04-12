@@ -54,8 +54,8 @@ def test_verification_contract_policy_text_stays_aligned_across_public_surfaces(
     assert tools["suggest_contract_checks"].description is not None
     assert verification_contract_surface_summary_text() in verification_descriptor["description"]
     assert verification_descriptor["description"].count(VERIFICATION_CONTRACT_POLICY_TEXT) == 0
-    assert tools["run_contract_check"].description.count(VERIFICATION_CONTRACT_POLICY_TEXT) == 0
-    assert tools["suggest_contract_checks"].description.count(VERIFICATION_CONTRACT_POLICY_TEXT) == 0
+    assert VERIFICATION_CONTRACT_POLICY_TEXT in tools["run_contract_check"].description
+    assert VERIFICATION_CONTRACT_POLICY_TEXT in tools["suggest_contract_checks"].description
     assert verification_contract_surface_summary_text() in tools["run_contract_check"].description
     assert verification_contract_surface_summary_text() in tools["suggest_contract_checks"].description
     assert "``request`` object" in tools["run_contract_check"].description

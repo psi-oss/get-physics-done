@@ -13,8 +13,8 @@ Use Claude Code if you want GPD inside Claude's terminal app and prefer the
 direct `/gpd:...` command style.
 
 If you are on Windows, Claude Code's official docs say you need Git for Windows
-or WSL. If you are on Linux and `claude` is missing, Anthropic recommends the
-native installer. Anthropic's npm install path is now deprecated.
+or WSL. If you are on Linux and `claude` is missing, use Anthropic's current
+Claude Code install guidance, then return here.
 
 ## What must already be true
 
