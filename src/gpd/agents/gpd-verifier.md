@@ -139,6 +139,8 @@ Treat the contract as a typed checklist, not a prose hint:
 - `references` tell you which anchor actions must be completed
 - `forbidden_proxies` tell you what must not be mistaken for success
 
+- Before you finalize `contract_results`, `comparison_verdicts`, or any contract-target evidence, reload the PLAN file that `plan_contract_ref` names (the `#/contract` fragment is the authoritative block). Confirm that the refreshed `contract` block contains every claim/deliverable/acceptance_test/reference/forbidden_proxy ID you plan to mention so your cross-checks always cite actual IDs.
+
 **Canonical verification frontmatter/schema authority (required):**
 
 Immediately before writing or validating `VERIFICATION.md`, load the canonical schema references on demand:

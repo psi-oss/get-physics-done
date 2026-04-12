@@ -165,6 +165,8 @@ Before you show the approval gate, build the raw contract as a literal JSON obje
 
 @{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md
 
+Keep the canonical schema guard from above available through approval and persistence; do not restate the full schema text in the workflow body.
+
 Then present a concise scoping summary and require explicit approval:
 
 - header: "Scope"
@@ -187,8 +189,6 @@ printf '%s\n' "$PROJECT_CONTRACT_JSON" | gpd state set-project-contract -
 If validation fails, show the errors, revise the scoping contract, and do NOT continue to downstream artifact generation.
 
 Do not write `/tmp` intermediates for the approved contract. Prefer piping the exact approved JSON directly to `gpd ... -`. Only write a file if the user explicitly wants a durable saved copy, and if so place it under the project, not an OS temp directory.
-
-**Project contract schema visibility:** Before approval or downstream artifact generation, ensure `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` is loaded in the current context. Keep this workflow to approval sequencing; do not restate or fork the contract schema here.
 
 #### M2. Create PROJECT.md
 

@@ -1,6 +1,6 @@
 # GPD on Windows
 
-GPD adds structured physics-research commands to Claude Code, Codex, Gemini CLI, or OpenCode.
+GPD adds structured physics-research commands to Claude Code, Gemini CLI, Codex, or OpenCode.
 
 In these docs, "runtime" means the AI terminal app you talk to.
 
@@ -10,7 +10,7 @@ Back to the onboarding hub: [GPD Onboarding Hub](./README.md). This page collect
 
 - Windows 10 or 11 with internet access and permission to install software.
 - Node.js 20 or newer plus Python 3.11 or newer with `venv`; rerun the Onboarding Hub preflight commands after any install to confirm the versions match the requirements.
-- A supported runtime that already starts from Terminal: Claude Code, Codex, Gemini CLI, or OpenCode. Use the runtime command checks on the Onboarding Hub before installing GPD.
+- A supported runtime that already starts from Terminal: Claude Code, Gemini CLI, Codex, or OpenCode. Use the runtime command checks on the Onboarding Hub before installing GPD.
 
 Once the shared preflight checks succeed, continue with the Windows-specific sections below.
 

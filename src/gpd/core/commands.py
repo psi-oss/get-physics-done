@@ -7,6 +7,7 @@ Layer 1 code: stdlib + pathlib + re + pydantic only.
 from __future__ import annotations
 
 import re
+import warnings
 from datetime import UTC, datetime
 from functools import cmp_to_key
 from pathlib import Path
@@ -548,7 +549,11 @@ def cmd_history_digest(cwd: Path) -> HistoryDigestResult:
             try:
                 fm, _body = extract_frontmatter(content)
             except FrontmatterParseError as exc:
-                raise ValidationError(f"Malformed frontmatter in {summary_relpath}: {exc}") from exc
+                warnings.warn(
+                    f"Skipping {summary_relpath}: malformed frontmatter ({exc})",
+                    stacklevel=2,
+                )
+                continue
 
             raw_phase = fm.get("phase", dir_name.split("-")[0])
             phase_match = re.match(r"^(\d+(?:\.\d+)*)", str(raw_phase))

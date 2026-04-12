@@ -1,6 +1,6 @@
 # GPD on macOS
 
-GPD adds structured physics-research commands to Claude Code, Codex, Gemini CLI, or OpenCode.
+GPD adds structured physics-research commands to Claude Code, Gemini CLI, Codex, or OpenCode.
 
 In these docs, "runtime" means the AI terminal app you talk to.
 
@@ -10,7 +10,7 @@ Back to the onboarding hub: [GPD Onboarding Hub](./README.md). This page contain
 
 - A Mac with internet access and permission to install software.
 - Node.js 20 or newer plus Python 3.11 or newer with `venv`; rerun the Onboarding Hub preflight commands after any install to confirm the versions match.
-- A supported runtime that already starts from Terminal: Claude Code, Codex, Gemini CLI, or OpenCode. Use the runtime command checks on the Onboarding Hub before installing GPD.
+- A supported runtime that already starts from Terminal: Claude Code, Gemini CLI, Codex, or OpenCode. Use the runtime command checks on the Onboarding Hub before installing GPD.
 
 Once the shared preflight checks pass, continue with the macOS-specific steps below.
 
@@ -39,7 +39,7 @@ After installing, close Terminal, open it again, and rerun the Onboarding Hub pr
 
 - If the runtime command from the Onboarding Hub fails (e.g., `claude --version`), reinstall it or fix the PATH before continuing.
 - Install GPD with the runtime flag you plan to use (`npx -y get-physics-done --<flag> --local`) as described on the Onboarding Hub and in `docs/runtime-catalog-reference.md`.
-- Once the install succeeds, follow the runtime quickstart linked on the Onboarding Hub for Claude Code, Codex, Gemini CLI, or OpenCode.
+- Once the install succeeds, follow the runtime quickstart linked on the Onboarding Hub for Claude Code, Gemini CLI, Codex, or OpenCode.
 
 ## Next steps
 

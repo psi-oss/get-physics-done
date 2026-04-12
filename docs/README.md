@@ -18,7 +18,7 @@ Make sure these are already true:
 <details>
 <summary>What this hub does not do</summary>
 
-- GPD is not a standalone app. It installs commands into Claude Code, Codex, Gemini CLI, or OpenCode.
+- GPD is not a standalone app. It installs commands into Claude Code, Gemini CLI, Codex, or OpenCode.
 - GPD does not install your runtime for you.
 - GPD does not include model access, billing, or API credits.
 - If evidence, references, or artifacts are missing, say so explicitly; GPD should not invent them.
@@ -92,7 +92,7 @@ If you get an error, fix it via the OS guide for your machine before proceeding.
 <details>
 <summary>Common beginner terms</summary>
 
-- **Runtime**: the AI terminal app you talk to, such as Claude Code, Codex, Gemini CLI, or OpenCode.
+- **Runtime**: the AI terminal app you talk to, such as Claude Code, Gemini CLI, Codex, or OpenCode.
 - **API credits**: paid model usage from the provider behind your runtime.
 - **`--local`**: install GPD for just this project or folder.
 - **`gpd resume`**: the terminal-side recovery step.

@@ -53,10 +53,36 @@ const brandLogo = "\x1b[38;2;243;240;232m";
 const brandTitle = "\x1b[38;2;247;244;237m";
 const brandMeta = "\x1b[38;2;158;152;140m";
 const brandAccent = "\x1b[38;2;216;199;163m";
+
+function _normalizePositiveInteger(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (Number.isInteger(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return null;
+}
+
+function resolveBrandCopyrightYear({ releaseYear, envYear, now } = {}) {
+  for (const candidate of [releaseYear, envYear, process.env.GPD_BRAND_YEAR, process.env.GPD_RELEASE_YEAR]) {
+    const normalized = _normalizePositiveInteger(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  const reference = now instanceof Date ? now : new Date(now ?? Date.now());
+  if (Number.isNaN(reference.getTime())) {
+    return new Date().getUTCFullYear();
+  }
+  return reference.getUTCFullYear();
+}
+
 const brandDisplayName = "Get Physics Done";
 const brandOwner = "Physical Superintelligence PBC";
 const brandOwnerShort = "PSI";
-const brandCopyrightYear = 2026;
+const brandCopyrightYear = resolveBrandCopyrightYear();
 const productPositioning = "Open-source agentic AI system for physics research";
 
 let bootstrapProbeOverridesCache = undefined;
@@ -2592,4 +2618,5 @@ module.exports = {
   validateRuntimeCatalog,
   validateSharedPublicSurfaceSchemaShape,
   validateSharedPublicSurfaceContract,
+  resolveBrandCopyrightYear,
 };

@@ -1,6 +1,6 @@
 # GPD on Linux
 
-GPD adds structured physics-research commands to Claude Code, Codex, Gemini CLI, or OpenCode.
+GPD adds structured physics-research commands to Claude Code, Gemini CLI, Codex, or OpenCode.
 
 In these docs, "runtime" means the AI terminal app you talk to.
 
@@ -10,7 +10,7 @@ Back to the onboarding hub: [GPD Onboarding Hub](./README.md). This page covers 
 
 - A Linux machine with internet access and permission to install software.
 - Node.js 20 or newer plus Python 3.11 or newer with `venv`; rerun the Onboarding Hub preflight commands after any install so the versions match the requirements.
-- One supported runtime that already starts from your terminal: Claude Code, Codex, Gemini CLI, or OpenCode. Use the runtime command checks on the Onboarding Hub before installing GPD.
+- One supported runtime that already starts from your terminal: Claude Code, Gemini CLI, Codex, or OpenCode. Use the runtime command checks on the Onboarding Hub before installing GPD.
 
 Once those shared preflight checks are green, continue with the Linux-specific steps below.
 

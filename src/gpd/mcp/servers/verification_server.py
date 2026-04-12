@@ -97,6 +97,10 @@ def _request_template_placeholder(descriptor: str) -> str:
     return f"<replace-with-{normalized}>"
 
 
+def _request_template_number_placeholder() -> float:
+    return 0.0
+
+
 _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
     "contract.limit_recovery": {
         "required_request_fields": [
@@ -141,8 +145,8 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "source_reference_id": _request_template_placeholder("source-reference-id"),
             },
             "observed": {
-                "metric_value": _request_template_placeholder("metric-value"),
-                "threshold_value": _request_template_placeholder("threshold-value"),
+                "metric_value": _request_template_number_placeholder(),
+                "threshold_value": _request_template_number_placeholder(),
             },
         },
     },
@@ -235,7 +239,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "hypothesis_ids": ["<replace-with-hypothesis-id>"],
             },
             "observed": {
-                "covered_hypothesis_ids": [],
+                "covered_hypothesis_ids": ["<replace-with-covered-hypothesis-id>"],
                 "missing_hypothesis_ids": [],
             },
         },
@@ -258,7 +262,7 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
                 "theorem_parameter_symbols": ["<replace-with-theorem-parameter-symbol>"],
             },
             "observed": {
-                "covered_parameter_symbols": [],
+                "covered_parameter_symbols": ["<replace-with-covered-parameter-symbol>"],
                 "missing_parameter_symbols": [],
             },
         },
@@ -329,6 +333,28 @@ _CONTRACT_CHECK_REQUEST_HINTS: dict[str, dict[str, object]] = {
         },
     },
 }
+
+_CONTRACT_AWARE_CHECK_KEYS: frozenset[str] = frozenset(
+    entry["check_key"]
+    for entry in list_verification_checks()
+    if entry.get("contract_aware")
+)
+_MISSING_CONTRACT_HINTS = sorted(_CONTRACT_AWARE_CHECK_KEYS - _CONTRACT_CHECK_REQUEST_HINTS.keys())
+if _MISSING_CONTRACT_HINTS:
+    raise RuntimeError(
+        "Missing contract request hints for contract-aware verification checks: "
+        + ", ".join(_MISSING_CONTRACT_HINTS)
+    )
+_INVALID_CONTRACT_HINTS = sorted(
+    key
+    for key, hint in _CONTRACT_CHECK_REQUEST_HINTS.items()
+    if not isinstance(hint.get("request_template"), dict)
+)
+if _INVALID_CONTRACT_HINTS:
+    raise RuntimeError(
+        "Every contract-aware verification hint must include a request_template dict: "
+        + ", ".join(_INVALID_CONTRACT_HINTS)
+    )
 
 
 def _strip_null_request_template_values(value: object) -> object:
@@ -1398,10 +1424,6 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         # Keep the starter template runnable without pre-asserting a clause audit outcome.
         if metadata.get("conclusion_clause_ids") and observed.get("uncovered_conclusion_clause_ids") is None:
             metadata["conclusion_clause_ids"] = None
-
-    for field_name in enriched_hint["schema_required_request_fields"]:
-        if field_name.startswith("observed."):
-            _drop_request_template_field(request_template, field_name)
 
     if check_key in _PROOF_CHECK_KEYS:
         if "contract" not in enriched_hint["required_request_fields"]:

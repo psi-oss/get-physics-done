@@ -81,6 +81,22 @@ def _schema_error_messages(schema: dict[str, object], payload: dict[str, object]
     return [error.message for error in Draft202012Validator(schema).iter_errors(payload)]
 
 
+def test_contract_aware_checks_publish_request_hints() -> None:
+    from gpd.core.verification_checks import list_verification_checks
+    from gpd.mcp.servers.verification_server import _CONTRACT_CHECK_REQUEST_HINTS
+
+    contract_keys = {
+        entry["check_key"]
+        for entry in list_verification_checks()
+        if entry.get("contract_aware")
+    }
+    missing_hints = sorted(contract_keys - _CONTRACT_CHECK_REQUEST_HINTS.keys())
+    assert missing_hints == []
+    for key in contract_keys:
+        hint = _CONTRACT_CHECK_REQUEST_HINTS[key]
+        assert isinstance(hint.get("request_template"), dict)
+
+
 def test_contract_check_tool_schemas_publish_optional_absolute_project_dir() -> None:
     from gpd.mcp.servers import ABSOLUTE_PROJECT_DIR_SCHEMA
 
@@ -240,6 +256,43 @@ def _derived_template_contract() -> dict[str, object]:
             },
         ]
     )
+    return contract
+
+
+def _full_contract_fixture() -> dict[str, object]:
+    contract = copy.deepcopy(_derived_template_contract())
+    proof = _proof_contract()
+
+    scope = contract.setdefault("scope", {})
+    proof_scope = proof.get("scope", {})
+    for field in ("in_scope", "out_of_scope"):
+        scope.setdefault(field, []).extend(proof_scope.get(field, []))
+    scope.setdefault("unresolved_questions", []).extend(proof_scope.get("unresolved_questions", []))
+
+    context = contract.setdefault("context_intake", {})
+    proof_context = proof.get("context_intake", {})
+    for field in (
+        "must_read_refs",
+        "must_include_prior_outputs",
+        "user_asserted_anchors",
+        "known_good_baselines",
+        "context_gaps",
+        "crucial_inputs",
+    ):
+        context.setdefault(field, []).extend(proof_context.get(field, []))
+
+    contract.setdefault("observables", []).extend(proof.get("observables", []))
+    contract.setdefault("claims", []).extend(proof.get("claims", []))
+    contract.setdefault("deliverables", []).extend(proof.get("deliverables", []))
+    contract.setdefault("acceptance_tests", []).extend(proof.get("acceptance_tests", []))
+    contract.setdefault("references", []).extend(proof.get("references", []))
+    contract.setdefault("forbidden_proxies", []).extend(proof.get("forbidden_proxies", []))
+    contract.setdefault("links", []).extend(proof.get("links", []))
+
+    uncertainty = contract.setdefault("uncertainty_markers", {})
+    for key, values in proof.get("uncertainty_markers", {}).items():
+        uncertainty.setdefault(key, []).extend(values)
+
     return contract
 
 
@@ -2011,6 +2064,27 @@ def test_suggest_contract_checks_proof_request_templates_validate_against_advert
     assert alignment["metadata"]["claim_statement"].startswith("For all r_0 > 0")
     assert "conclusion_clause_ids" not in alignment["metadata"]
     assert "uncovered_conclusion_clause_ids" not in alignment["observed"]
+
+
+def test_suggest_contract_checks_templates_cover_all_contract_aware_checks() -> None:
+    from jsonschema import Draft202012Validator
+
+    from gpd.mcp.servers.verification_server import (
+        _CONTRACT_AWARE_CHECK_KEYS,
+        _RUN_CONTRACT_CHECK_REQUEST_SCHEMA,
+        suggest_contract_checks,
+    )
+
+    contract = _full_contract_fixture()
+    result = suggest_contract_checks(contract)
+    suggested_keys = {entry["check_key"] for entry in result["suggested_checks"]}
+    missing_keys = sorted(_CONTRACT_AWARE_CHECK_KEYS - suggested_keys)
+    assert missing_keys == []
+
+    validator = Draft202012Validator(_RUN_CONTRACT_CHECK_REQUEST_SCHEMA)
+    for entry in result["suggested_checks"]:
+        errors = [error.message for error in validator.iter_errors(entry["request_template"])]
+        assert not errors, f"{entry['check_key']} template invalid: {errors}"
 
 
 def test_run_contract_check_schema_defers_benchmark_source_reference_id_to_runtime_guidance() -> None:

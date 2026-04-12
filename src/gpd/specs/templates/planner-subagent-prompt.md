@@ -21,8 +21,6 @@ Template for spawning `gpd-planner`. Keep wrappers thin: pass phase-specific inp
 **Autonomy:** {autonomy}
 
 Use `@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` as the canonical contract source. The schema-critical PLAN contract excerpt below is model-visible and binding before output, because a path reference alone is not sufficient.
-If `{project_contract}` is empty, stale, or too underspecified to identify the phase contract slice, return `gpd_return.status: checkpoint` rather than guessing.
-
 **PLAN contract schema-critical excerpt:**
 @{GPD_INSTALL_DIR}/templates/plan-contract-schema-excerpt.md
 
@@ -65,7 +63,6 @@ Keep dimensions, limits, and cross-method consistency explicit. For proof-bearin
 <contract_visibility_requirements>
 Planning requires an approved `project_contract`. If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `gpd_return.status: checkpoint` instead of guessing.
 Keep `project_contract` as the grounding ledger. Use `effective_reference_intake` and `active_reference_context` only as readable projections, and treat stable knowledge docs as advisory background only: they do not override `convention_lock`, `project_contract`, the PLAN `contract`, `contract_results`, `comparison_verdicts`, proof-review artifacts, or direct benchmark/result evidence.
-@{GPD_INSTALL_DIR}/templates/reference-guidance.md
 If stable knowledge materially shapes the plan, surface it explicitly in existing plan structures or prose; use `knowledge_deps` only when downstream gating must enforce the reliance.
 Treat `approach_policy` as execution policy only. Keep `scope.in_scope` populated and `contract.context_intake` concrete enough to audit.
 For proof-bearing work, use an explicit non-`other` `claim_kind` with auditable hypotheses, quantified variables, and named parameters.
@@ -128,7 +125,7 @@ Revisions MUST still honor user decisions.
 <instructions>
 Make targeted updates to address checker issues.
 Do NOT replan from scratch unless issues are fundamental.
-If `project_contract_gate.authoritative` is false, `project_contract_load_info.status` starts with `blocked`, or `project_contract_validation.valid` is false, return `gpd_return.status: checkpoint` instead of patching around guessed scope.
+Respect the contract visibility requirements above; if the project contract gate indicates the scope is blocked or invalid, return `gpd_return.status: checkpoint` rather than patching around guesswork.
 If the approved project contract is missing or no longer sufficient to identify the right phase slice, return `gpd_return.status: checkpoint` instead of patching around guessed scope.
 Fix contract-gate blockers first: missing decisive outputs, missing acceptance tests, missing anchor refs, forbidden-proxy misses, and missing disconfirming paths.
 Return what changed.

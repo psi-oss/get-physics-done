@@ -417,6 +417,60 @@ def test_build_mcp_servers_dict_propagates_log_level(monkeypatch):
     assert all(entry.get("env", {}).get("LOG_LEVEL") == "DEBUG" for entry in servers.values())
 
 
+def test_merge_managed_mcp_servers_preserves_user_owned_env_keys():
+    from gpd.mcp import builtin_servers
+
+    existing_servers = {
+        "alpha": {
+            "command": "foo",
+            "args": ["old"],
+            "env": {"GPD_CUSTOM": "user", "MANAGED": "old"},
+        }
+    }
+
+    managed_servers = {
+        "alpha": {
+            "command": "bar",
+            "args": ["new"],
+            "env": {"GPD_CUSTOM": "managed", "MANAGED": "managed", "NEW": "value"},
+        },
+        "beta": {"command": "new-cmd", "args": [], "env": {"KEY": "value"}},
+    }
+
+    merged = builtin_servers.merge_managed_mcp_servers(
+        existing_servers,
+        managed_servers,
+        user_owned_mapping_keys={"env": frozenset({"GPD_CUSTOM"})},
+    )
+
+    alpha = merged["alpha"]
+    assert alpha["command"] == "bar"
+    assert alpha["args"] == ["new"]
+    assert alpha["env"]["GPD_CUSTOM"] == "user"
+    assert alpha["env"]["MANAGED"] == "managed"
+    assert alpha["env"]["NEW"] == "value"
+    assert "beta" in merged and merged["beta"]["command"] == "new-cmd"
+
+
+def test_build_mcp_servers_dict_skips_servers_with_unresolved_env(monkeypatch):
+    from gpd.mcp import builtin_servers
+
+    placeholder_entry = {
+        "command": "/bin/true",
+        "args": [],
+        "env": {"UNRESOLVED": "${MISSING_ENV}"},
+    }
+
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    patched_servers = dict(builtin_servers._BUILTIN_SERVERS)
+    patched_servers["test-unresolved-env"] = placeholder_entry
+    monkeypatch.setattr(builtin_servers, "_BUILTIN_SERVERS", patched_servers)
+
+    servers = builtin_servers.build_mcp_servers_dict()
+
+    assert "test-unresolved-env" not in servers
+
+
 def test_projected_managed_optional_mcp_servers_includes_wolfram_api_key():
     from gpd.mcp.managed_integrations import (
         WOLFRAM_MANAGED_SERVER_KEY,

@@ -313,10 +313,27 @@ class TestHistoryDigest:
         with pytest.raises(ValidationError, match="Invalid affects in GPD/phases/01-setup/01-SUMMARY\\.md"):
             cmd_history_digest(tmp_path)
 
-    def test_history_digest_rejects_malformed_summary_frontmatter(self, tmp_path: Path):
+    def test_history_digest_warns_on_malformed_summary_frontmatter(self, tmp_path: Path):
         phases_dir = tmp_path / "GPD" / "phases" / "01-setup"
         phases_dir.mkdir(parents=True)
         (phases_dir / "01-SUMMARY.md").write_text(
+            "---\n"
+            "name: Setup\n"
+            "phase: 1\n"
+            "dependency-graph:\n"
+            "  provides:\n"
+            "    - base-framework\n"
+            "methods:\n"
+            "  added:\n"
+            "    - spectral-method\n"
+            "patterns-established:\n"
+            "  - test-driven\n"
+            "key-decisions:\n"
+            "  - Use Python 3.11\n"
+            "---\n\n# Setup Summary\n",
+            encoding="utf-8",
+        )
+        (phases_dir / "01-bad-SUMMARY.md").write_text(
             "---\n"
             "phase: 1\n"
             "provides: [unterminated\n"
@@ -324,8 +341,17 @@ class TestHistoryDigest:
             encoding="utf-8",
         )
 
-        with pytest.raises(ValidationError, match="Malformed frontmatter in GPD/phases/01-setup/01-SUMMARY\\.md"):
-            cmd_history_digest(tmp_path)
+        with pytest.warns(
+            UserWarning,
+            match=(
+                "Skipping GPD/phases/01-setup/01-bad-SUMMARY\\.md: malformed frontmatter"
+            ),
+        ):
+            result = cmd_history_digest(tmp_path)
+
+        assert "1" in result.phases
+        assert "base-framework" in result.phases["1"].provides
+        assert "spectral-method" in result.methods
 
 
 # ─── cmd_regression_check ─────────────────────────────────────────────────

@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -53,6 +54,7 @@ _DOLLAR_TEMPLATE_RUNTIMES = tuple(
 _NON_DOLLAR_TEMPLATE_RUNTIMES = tuple(
     descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS if not descriptor.agent_prompt_uses_dollar_templates
 )
+_GENERIC_RUNTIME = _RUNTIME_DESCRIPTORS[0].runtime_name
 
 
 def _bundled_hook_text(name: str) -> str:
@@ -1344,6 +1346,32 @@ class TestCopyWithPathReplacement:
         assert dest.exists()
         assert (dest / "original.txt").exists()
         assert (dest / "original.txt").read_text() == "original"
+
+    def test_cross_device_rename_falls_back_to_copy(self, tmp_path: Path) -> None:
+        """Cross-device rename errors should copy from tmp instead of failing."""
+        src = self._make_src(tmp_path)
+        dest = tmp_path / "dest"
+        dest.mkdir()
+        (dest / "original.txt").write_text("original", encoding="utf-8")
+
+        pid = os.getpid()
+        tmp_dir = tmp_path / f"dest.tmp.{pid}"
+        old_dir = tmp_path / f"dest.old.{pid}"
+        original_rename = Path.rename
+
+        def patched_rename(self_path, target):
+            if self_path == tmp_dir and target == dest:
+                raise OSError(errno.EXDEV, "cross-device rename")
+            return original_rename(self_path, target)
+
+        with patch.object(Path, "rename", patched_rename):
+            copy_with_path_replacement(src, dest, "/custom/", _GENERIC_RUNTIME)
+
+        assert (dest / "readme.md").exists()
+        assert "/custom/" in (dest / "readme.md").read_text(encoding="utf-8")
+        assert not (dest / "original.txt").exists()
+        assert not tmp_dir.exists()
+        assert not old_dir.exists()
 
 
 class TestInstallBackupSafety:

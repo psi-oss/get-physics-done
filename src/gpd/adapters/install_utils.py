@@ -6,17 +6,18 @@ tempfile, os, re).  No external deps allowed.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import logging
 import os
 import re
 import shlex
+import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
-from gpd.adapters.command_tokens import is_gpd_command_start, is_gpd_token_end
 from gpd.adapters.runtime_catalog import (
     get_runtime_descriptor,
     get_shared_install_metadata,
@@ -1355,13 +1356,28 @@ def copy_with_path_replacement(
         # Swap into place
         if dest_dir.exists():
             dest_dir.rename(old_dir)
+
+        fallback_used = False
         try:
             tmp_dir.rename(dest_dir)
-        except OSError:
-            # Rename failed — restore old directory
-            if old_dir.exists():
-                old_dir.rename(dest_dir)
-            raise
+        except OSError as exc:
+            if exc.errno == errno.EXDEV:
+                try:
+                    shutil.copytree(tmp_dir, dest_dir)
+                except Exception:
+                    if dest_dir.exists():
+                        _rmtree(dest_dir)
+                    if old_dir.exists():
+                        old_dir.rename(dest_dir)
+                    raise
+                fallback_used = True
+            else:
+                if old_dir.exists():
+                    old_dir.rename(dest_dir)
+                raise
+
+        if fallback_used and tmp_dir.exists():
+            _rmtree(tmp_dir)
 
         # Swap succeeded — clean up old
         if old_dir.exists():

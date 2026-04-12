@@ -24,7 +24,7 @@ https://github.com/user-attachments/assets/e79f8153-c0bd-484f-b69e-da8f142649e0
 
 ## Start Here
 
-GPD is not a standalone app. It installs physics-research commands into Claude Code, Codex, Gemini CLI, or OpenCode.
+GPD is not a standalone app. It installs physics-research commands into Claude Code, Gemini CLI, Codex, or OpenCode.
 
 To install GPD, run this in your system terminal:
 ```bash
