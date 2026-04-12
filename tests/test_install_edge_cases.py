@@ -133,6 +133,10 @@ class _CommitAttributionProbeAdapter(RuntimeAdapter):
     def runtime_name(self) -> str:
         return _PROBE_RUNTIME
 
+    @property
+    def runtime_descriptor(self):
+        return get_adapter(_PROBE_RUNTIME).runtime_descriptor
+
     def runtime_install_required_relpaths(self) -> tuple[str, ...]:
         return ("custom-config.json",)
 
@@ -142,8 +146,13 @@ class _NoCommitAttributionProbeAdapter(RuntimeAdapter):
     def runtime_name(self) -> str:
         return _PROBE_RUNTIME
 
+    @property
+    def runtime_descriptor(self):
+        return get_adapter(_PROBE_RUNTIME).runtime_descriptor
+
     def runtime_install_required_relpaths(self) -> tuple[str, ...]:
         return ()
+
 
 _FOREIGN_RUNTIME_BY_RUNTIME = {
     descriptor.runtime_name: _ALL_RUNTIMES[(index + 1) % len(_ALL_RUNTIMES)]

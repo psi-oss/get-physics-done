@@ -45,7 +45,10 @@ def test_resolve_local_config_dir_prefers_matching_ancestor(tmp_path: Path) -> N
 
     seed_complete_runtime_install(ancestor, runtime=_PRIMARY_RUNTIME)
 
-    assert _resolve_local_config_dir(f"./{adapter.config_dir_name}", runtime=_PRIMARY_RUNTIME, cli_cwd=nested_cwd) == ancestor.resolve()
+    assert (
+        _resolve_local_config_dir(f"./{adapter.config_dir_name}", runtime=_PRIMARY_RUNTIME, cli_cwd=nested_cwd)
+        == ancestor.resolve()
+    )
 
 
 def test_resolve_local_config_dir_rejects_marker_only_candidate(tmp_path: Path) -> None:
@@ -66,7 +69,9 @@ def test_resolve_local_config_dir_rejects_marker_only_candidate(tmp_path: Path) 
     assert resolved == expected
 
 
-def test_runtime_cli_rejects_manifestless_ancestor_install(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+def test_runtime_cli_rejects_manifestless_ancestor_install(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
     adapter = get_adapter(_PRIMARY_RUNTIME)
     workspace = tmp_path / "workspace"
     ancestor = workspace / adapter.config_dir_name
@@ -188,5 +193,4 @@ def test_repair_command_respects_global_config_environment_override(
         cli_cwd=tmp_path,
     )
 
-    assert command == f"{adapter.update_command} --global"
-    assert "--target-dir" not in command
+    assert command == f"{adapter.update_command} --global --target-dir {shlex.quote(str(override_target))}"
