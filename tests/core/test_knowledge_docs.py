@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -11,7 +11,7 @@ from gpd.core.knowledge_docs import KnowledgeReviewRecord
 
 def _base_review_payload(*, approval_artifact_path: str) -> dict[str, object]:
     return {
-        "reviewed_at": datetime(2026, 4, 7, 12, 0, tzinfo=timezone.utc),
+        "reviewed_at": datetime(2026, 4, 7, 12, 0, tzinfo=UTC),
         "review_round": 1,
         "reviewer_kind": "human",
         "reviewer_id": "gpd-reviewer",

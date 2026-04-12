@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 import subprocess
+from contextlib import asynccontextmanager
 
 import pytest
 
@@ -292,9 +292,8 @@ def test_pyproject_exposes_the_wolfram_console_script() -> None:
 
 
 def test_wolfram_entrypoint_help_runs() -> None:
-    import sys
-
     import os
+    import sys
     from pathlib import Path
 
     project_root = Path(__file__).resolve().parents[2]

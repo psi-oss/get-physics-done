@@ -1,5 +1,10 @@
 from pathlib import Path
 
+from gpd.core.child_return_application import (
+    SUPPORTED_CONTINUATION_UPDATE_FIELDS,
+    SUPPORTED_STATE_UPDATE_FIELDS,
+    ApplyChildReturnResult,
+)
 from gpd.core.knowledge_constants import (
     KNOWLEDGE_REVIEW_DECISION_APPROVED,
     KNOWLEDGE_REVIEW_DECISION_NEEDS_CHANGES,
@@ -18,11 +23,6 @@ from gpd.core.review_contract_schema import (
     REVIEW_CONTRACT_WRAPPER_KEYS,
 )
 from gpd.core.segment_constants import COMPLETED_SEGMENT_STATES, PAUSED_SEGMENT_STATES
-from gpd.core.child_return_application import (
-    SUPPORTED_CONTINUATION_UPDATE_FIELDS,
-    SUPPORTED_STATE_UPDATE_FIELDS,
-    ApplyChildReturnResult,
-)
 
 
 def test_path_labels_normalize_posix_and_preserve_external_paths(tmp_path: Path) -> None:

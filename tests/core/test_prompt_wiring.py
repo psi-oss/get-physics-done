@@ -1261,7 +1261,6 @@ def test_progress_workflow_surfaces_contract_load_and_validation_state() -> None
 def test_planning_prompts_keep_contract_gate_in_light_mode_and_all_modes() -> None:
     planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
     planner_agent = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
-    checker_agent = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
     workflow_text = (WORKFLOWS_DIR / "plan-phase.md").read_text(encoding="utf-8")
 
     assert "@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md" in planner_prompt
@@ -3669,12 +3668,12 @@ def test_pause_resume_and_derivation_templates_preserve_result_id_continuity() -
 
 def test_stage6_surfaces_protocol_bundle_context_across_planning_execution_and_verification() -> None:
     planner_prompt = (TEMPLATES_DIR / "planner-subagent-prompt.md").read_text(encoding="utf-8")
+    checker_agent = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
     execute_phase = (WORKFLOWS_DIR / "execute-phase.md").read_text(encoding="utf-8")
     execute_plan = (WORKFLOWS_DIR / "execute-plan.md").read_text(encoding="utf-8")
     verify_work = (WORKFLOWS_DIR / "verify-work.md").read_text(encoding="utf-8")
     continuation = (TEMPLATES_DIR / "continuation-prompt.md").read_text(encoding="utf-8")
     planner_agent = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
-    checker_agent = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
     executor_agent = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
     verifier_agent = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
     executor_guide = (REFERENCES_DIR / "execution" / "executor-subfield-guide.md").read_text(encoding="utf-8")
@@ -3782,7 +3781,6 @@ def test_stage8_surfaces_decisive_comparisons_paper_quality_artifacts_and_profil
         encoding="utf-8"
     )
     planner = (AGENTS_DIR / "gpd-planner.md").read_text(encoding="utf-8")
-    executor = (AGENTS_DIR / "gpd-executor.md").read_text(encoding="utf-8")
     verifier_agent = (AGENTS_DIR / "gpd-verifier.md").read_text(encoding="utf-8")
 
     assert "emit decisive verdicts" in compare_command

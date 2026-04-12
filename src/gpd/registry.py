@@ -42,6 +42,7 @@ from gpd.core.review_contract_prompt import (
     render_review_contract_prompt,
 )
 from gpd.core.strict_yaml import load_strict_yaml
+from gpd.core.utils import normalize_ascii_slug
 from gpd.core.workflow_staging import (
     WorkflowStageManifest,
     invalidate_workflow_stage_manifest_cache,
@@ -49,7 +50,6 @@ from gpd.core.workflow_staging import (
     load_workflow_stage_manifest_from_path,
     resolve_workflow_stage_manifest_path,
 )
-from gpd.core.utils import normalize_ascii_slug
 from gpd.specs import SPECS_DIR
 
 # ─── Package layout ──────────────────────────────────────────────────────────
