@@ -359,8 +359,14 @@ def installed_update_command(
     cwd: Path | str | None = None,
     home: Path | str | None = None,
 ) -> str | None:
-    """Return the bootstrap update command for the install in *config_dir*."""
+    """Return the bootstrap update command for the install in *config_dir*.
 
+    Legacy recovery for installs missing ``explicit_target`` only applies when
+    the caller supplies authoritative ``cwd`` or ``home`` context proving that
+    the runtime's default local/global resolver still points at *config_dir*.
+    """
+
+    config_dir = config_dir.expanduser().resolve(strict=False)
     manifest_state, manifest, runtime = load_install_manifest_runtime_status(config_dir)
     if manifest_state != "ok" or runtime is None:
         return None
@@ -389,7 +395,7 @@ def installed_update_command(
             if cwd is None:
                 return None
             resolved_cwd = Path(cwd).expanduser().resolve(strict=False)
-            if config_dir != resolved_cwd / adapter.config_dir_name:
+            if config_dir != adapter.resolve_local_config_dir(cwd=resolved_cwd):
                 return None
             explicit_target = False
         else:
