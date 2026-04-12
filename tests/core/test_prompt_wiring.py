@@ -1891,7 +1891,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     assert '#     command: "pdflatex --version"' in phase_prompt
     assert "`required` defaults to true when omitted" in phase_prompt
     assert "fallback does not make a missing required tool non-blocking" in phase_prompt
-    assert "Quick contract rules:" in phase_prompt
+    assert "single source of truth for contract fields" in phase_prompt
     assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in phase_prompt
     assert "# tool_requirements: # Machine-checkable specialized tools (omit entirely if none)" in planner_agent
     assert "tool: command" in planner_agent
@@ -3141,8 +3141,8 @@ def test_planner_and_summary_prompt_surfaces_expand_contract_schema_bodies() -> 
     assert "schema_version: 1" in phase_prompt
     assert "in_scope:" in phase_prompt
     assert "context_intake:" in phase_prompt
-    assert "Quick contract rules:" in phase_prompt
-    assert phase_prompt.count("Quick contract rules:") == 1
+    assert "single source of truth for contract fields" in phase_prompt
+    assert "Quick contract rules:" not in phase_prompt
     for token in (
         "tool_requirements",
         "researcher_setup",
@@ -3359,26 +3359,16 @@ def test_state_json_schema_surfaces_stdin_contract_persistence_and_model_normali
 def test_phase_prompt_surfaces_validation_critical_plan_contract_rules() -> None:
     phase_prompt = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
 
-    assert "Quick contract rules:" in phase_prompt
+    assert "single source of truth for contract fields" in phase_prompt
     assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in phase_prompt
-    assert phase_prompt.count("Quick contract rules:") == 1
+    assert "Quick contract rules:" not in phase_prompt
     for token in (
         "tool_requirements",
         "researcher_setup",
         "type: execute",
         "gap_closure: true",
-        "scope.in_scope",
         "claim_kind",
-        "observables[].kind",
-        "deliverables[].kind",
-        "acceptance_tests[].kind",
-        "references[].kind",
-        "references[].role",
-        "links[].relation",
         "must_surface",
-        "required_actions[]",
-        "applies_to[]",
-        "carry_forward_to[]",
         "uncertainty_markers",
     ):
         assert token in phase_prompt

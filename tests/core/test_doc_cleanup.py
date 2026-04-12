@@ -28,3 +28,9 @@ def test_debug_surfaces_do_not_reference_removed_resolve_model_wrapper() -> None
         "src/gpd/specs/workflows/debug.md",
     ):
         assert "gpd resolve-model" not in _read(relative)
+
+
+def test_settings_workflow_single_preset_catalog_reference() -> None:
+    settings = _read("src/gpd/specs/workflows/settings.md")
+
+    assert settings.count("Current preset catalog:") == 1

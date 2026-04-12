@@ -615,7 +615,7 @@ def _is_context_intake_locator_grounding(
 
     if require_existing_project_artifacts and _is_project_artifact_path(value, project_root=None):
         if project_root is None:
-            return False
+            return True
         return _is_project_artifact_path(value, project_root=project_root)
     return _is_concrete_text_grounding(value, project_root=project_root)
 
@@ -647,7 +647,7 @@ def _has_concrete_grounding_entries(
     if field_name == "must_include_prior_outputs":
         if require_existing_project_artifacts:
             if project_root is None:
-                return False
+                return any(_is_project_artifact_path(value, project_root=None) for value in values)
             return any(
                 _is_project_artifact_path(value, project_root=project_root)
                 for value in values

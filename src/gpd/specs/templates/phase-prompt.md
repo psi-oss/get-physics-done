@@ -6,11 +6,14 @@ template_version: 1
 
 Canonical PLAN.md structure for `gpd-planner`. PLAN.md is the executor prompt, so every field must be specific enough to execute and verify without interpretation.
 
+<hard_schema_visibility_guard>
 Use the canonical schema below before drafting any `contract:` block.
+Do not emit or approve a plan contract unless this schema surface is visible in context.
+</hard_schema_visibility_guard>
 
 @{GPD_INSTALL_DIR}/templates/plan-contract-schema.md
 
-Quick contract rules: keep `contract` as a schema-version-1 YAML object and keep `tool_requirements`, `researcher_setup`, `type: execute`, `gap_closure: true`, `scope.in_scope`, `claim_kind`, `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, `links[].relation`, `must_surface`, `required_actions[]`, `applies_to[]`, `carry_forward_to[]`, and `uncertainty_markers` visible before drafting tasks; treat `context_intake`, `approach_policy`, and `uncertainty_markers` as YAML objects, keep proofs auditable (non-`other` `claim_kind`, hypotheses, parameters, conclusions, and `observables[].kind: proof_obligation` entries), and honor the closed validator tool vocabulary (`wolfram`, `command` with a non-empty `command` field). Details live in the shared guidance below.
+Use the shared schema and planning guidance as the single source of truth for contract fields, enum vocabulary, proof metadata, grounding anchors, tool requirements, and validator rules.
 
 For proof-bearing work, use an explicit non-`other` `claim_kind`, keep hypotheses, parameters, and conclusions auditable, and name `observables[].kind: proof_obligation` items with the theorem or claim plus the hypotheses or parameter regime they cover. If a proof or theorem statement changes after a proof audit, treat that audit as stale before `status: passed` is possible for the affected target. Every claim must declare a stable `id`. Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
 

@@ -64,7 +64,7 @@ If a phase context file (CONTEXT.md or any `*-CONTEXT.md`) exists, add verificat
 @{GPD_INSTALL_DIR}/references/physics-subfields.md
 @{GPD_INSTALL_DIR}/references/verification/core/verification-core.md
 
-Use @{GPD_INSTALL_DIR}/templates/plan-contract-schema.md as the direct read-only schema authority before judging contract completeness.
+Use @{GPD_INSTALL_DIR}/templates/plan-contract-schema.md and @{GPD_INSTALL_DIR}/templates/plan-contract-schema-excerpt.md as direct read-only schema authority before judging contract completeness.
 </references>
 
 <core_principle>

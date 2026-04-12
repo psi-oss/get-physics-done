@@ -259,6 +259,29 @@ def test_pyproject_wheel_targets_real_gpd_package() -> None:
     assert wheel["package-dir"] == {"": "src"}
 
 
+def test_pyproject_wheel_artifacts_match_source_assets() -> None:
+    repo_root = _repo_root()
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    wheel = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]
+    artifacts = wheel["artifacts"]
+
+    assert isinstance(artifacts, list)
+    assert artifacts
+
+    seen: set[str] = set()
+    for pattern in artifacts:
+        assert isinstance(pattern, str)
+        assert pattern.startswith("src/gpd/"), f"Wheel artifact {pattern!r} must live under src/gpd"
+        assert pattern not in seen, f"Wheel artifact list contains duplicate pattern {pattern!r}"
+        seen.add(pattern)
+
+        matches = [path for path in repo_root.glob(pattern) if path.is_file()]
+        assert matches, f"Wheel artifact pattern {pattern!r} matches no files"
+        for matched in matches:
+            relative = matched.relative_to(repo_root)
+            assert str(relative).startswith("src/gpd/"), "Matched file is outside src/gpd"
+
+
 def test_public_bootstrap_package_exposes_npx_installer() -> None:
     repo_root = _repo_root()
     package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))

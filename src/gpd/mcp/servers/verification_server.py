@@ -1170,6 +1170,27 @@ def _contract_check_request_hint(check_key: str, *, contract: ResearchContract |
         "request_template": request_template,
     }
 
+    def _field_requires_contract(field_name: object) -> bool:
+        return isinstance(field_name, str) and (field_name == "contract" or field_name.startswith("contract."))
+
+    def _contract_section_required() -> bool:
+        if any(_field_requires_contract(field) for field in enriched_hint["required_request_fields"]):
+            return True
+        if any(_field_requires_contract(field) for field in enriched_hint["schema_required_request_fields"]):
+            return True
+        for group in enriched_hint["schema_required_request_anyof_fields"]:
+            if any(_field_requires_contract(field) for field in group):
+                return True
+        return False
+
+    contract_section_required = _contract_section_required()
+    if contract is not None:
+        contract_payload, _ = _payload_mapping(contract, field_name="contract")
+        if contract_payload is not None:
+            request_template["contract"] = contract_payload
+    elif contract_section_required:
+        request_template.setdefault("contract", _request_template_placeholder("contract"))
+
     def _demote_required_field(field_name: str) -> None:
         enriched_hint["required_request_fields"] = [
             field for field in enriched_hint["required_request_fields"] if field != field_name
@@ -1847,7 +1868,7 @@ def _request_template_seed_sections(request: dict[str, object]) -> dict[str, obj
     return {
         key: copy.deepcopy(value)
         for key, value in request.items()
-        if key in {"binding", "metadata", "observed", "artifact_content"}
+        if key in {"binding", "metadata", "observed", "artifact_content", "contract"}
     }
 
 

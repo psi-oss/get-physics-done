@@ -116,7 +116,9 @@ def test_run_contract_check_accepts_project_local_contract_when_project_dir_supp
     missing_root = run_contract_check(request)
     rooted = run_contract_check(request, project_dir=tmp_path.resolve(strict=False).as_posix())
 
-    assert "must_surface=true anchor" in missing_root["error"]
+    guidance = missing_root["request_guidance"]
+    assert ["contract"] in guidance["schema_required_request_anyof_fields"]
+    assert "contract" in guidance["request_template"]
     assert rooted["status"] == "pass"
 
 
@@ -128,7 +130,9 @@ def test_suggest_contract_checks_accepts_project_local_contract_when_project_dir
     missing_root = suggest_contract_checks(contract)
     rooted = suggest_contract_checks(contract, project_dir=tmp_path.resolve(strict=False).as_posix())
 
-    assert "must_surface=true anchor" in missing_root["error"]
+    benchmark = next(entry for entry in missing_root["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction")
+    assert ["contract"] in benchmark["schema_required_request_anyof_fields"]
+    assert "contract" in benchmark["request_template"]
     assert "contract.benchmark_reproduction" in {entry["check_key"] for entry in rooted["suggested_checks"]}
 
 
@@ -1384,7 +1388,8 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     hypothesis = checks["contract.proof_hypothesis_coverage"]
     assert hypothesis["binding_targets"] == ["observable", "claim", "deliverable", "acceptance_test"]
     assert hypothesis["required_request_fields"] == ["contract", "observed.covered_hypothesis_ids"]
-    assert "contract" not in hypothesis["request_template"]
+    assert "contract" in hypothesis["request_template"]
+    assert hypothesis["request_template"]["contract"]["schema_version"] == 1
     assert hypothesis["request_template"]["binding"]["claim_ids"] == ["claim-theorem"]
     assert hypothesis["request_template"]["binding"]["deliverable_ids"] == ["deliv-proof"]
     assert hypothesis["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-hyp"]
@@ -1395,7 +1400,8 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
 
     parameter = checks["contract.proof_parameter_coverage"]
     assert parameter["required_request_fields"] == ["contract", "observed.covered_parameter_symbols"]
-    assert "contract" not in parameter["request_template"]
+    assert "contract" in parameter["request_template"]
+    assert parameter["request_template"]["contract"]["schema_version"] == 1
     assert parameter["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-param"]
     assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == ["r_0", "n"]
     assert "covered_parameter_symbols" not in parameter["request_template"]["observed"]
@@ -1406,7 +1412,8 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert "observed.uncovered_quantifiers" in quantifier["optional_request_fields"]
     assert "metadata.quantifiers[]" not in quantifier["optional_request_fields"]
     assert quantifier["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-quant"]
-    assert "contract" not in quantifier["request_template"]
+    assert "contract" in quantifier["request_template"]
+    assert quantifier["request_template"]["contract"]["schema_version"] == 1
     assert quantifier["request_template"]["metadata"]["quantifiers"] == [
         "for all r_0 > 0",
         "for every admissible solution",
@@ -1419,7 +1426,8 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert "metadata.conclusion_clause_ids" in alignment["optional_request_fields"]
     assert "metadata.conclusion_clause_ids[]" not in alignment["optional_request_fields"]
     assert alignment["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-align"]
-    assert "contract" not in alignment["request_template"]
+    assert "contract" in alignment["request_template"]
+    assert alignment["request_template"]["contract"]["schema_version"] == 1
     assert alignment["request_template"]["metadata"]["claim_statement"].startswith("For all r_0 > 0")
     assert "conclusion_clause_ids" not in alignment["request_template"]["metadata"]
     assert "uncovered_conclusion_clause_ids" not in alignment["request_template"]["observed"]
@@ -1427,7 +1435,8 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
 
     counterexample = checks["contract.counterexample_search"]
     assert counterexample["required_request_fields"] == ["contract", "observed.counterexample_status"]
-    assert "contract" not in counterexample["request_template"]
+    assert "contract" in counterexample["request_template"]
+    assert counterexample["request_template"]["contract"]["schema_version"] == 1
     assert counterexample["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-counterexample"]
     assert counterexample["request_template"]["metadata"]["claim_statement"].startswith("For all r_0 > 0")
     assert "counterexample_status" not in counterexample["request_template"]["observed"]
@@ -1465,14 +1474,16 @@ def test_suggest_contract_checks_requires_proof_claim_binding_when_proof_contrac
 
     assert parameter["required_request_fields"][:2] == ["contract", "binding.claim_ids"]
     assert parameter["request_template"]["binding"] == {}
-    assert "contract" not in parameter["request_template"]
+    assert "contract" in parameter["request_template"]
+    assert parameter["request_template"]["contract"]["schema_version"] == 1
     assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == [
         "<replace-with-theorem-parameter-symbol>"
     ]
 
     assert alignment["required_request_fields"][:2] == ["contract", "binding.claim_ids"]
     assert alignment["request_template"]["binding"] == {}
-    assert "contract" not in alignment["request_template"]
+    assert "contract" in alignment["request_template"]
+    assert alignment["request_template"]["contract"]["schema_version"] == 1
     assert alignment["request_template"]["metadata"]["claim_statement"] == "<replace-with-claim-statement>"
 
 
@@ -1983,17 +1994,20 @@ def test_suggest_contract_checks_proof_request_templates_validate_against_advert
     assert checks["contract.proof_parameter_coverage"]["check"] == "contract.proof_parameter_coverage"
     assert checks["contract.claim_to_proof_alignment"]["check"] == "contract.claim_to_proof_alignment"
     assert hypothesis["check_key"] == "contract.proof_hypothesis_coverage"
-    assert "contract" not in hypothesis
+    assert "contract" in hypothesis
+    assert hypothesis["contract"]["schema_version"] == 1
     assert hypothesis["metadata"]["hypothesis_ids"] == ["hyp-positive", "hyp-decay"]
     assert "covered_hypothesis_ids" not in hypothesis["observed"]
 
     assert parameter["check_key"] == "contract.proof_parameter_coverage"
-    assert "contract" not in parameter
+    assert "contract" in parameter
+    assert parameter["contract"]["schema_version"] == 1
     assert parameter["metadata"]["theorem_parameter_symbols"] == ["r_0", "n"]
     assert "covered_parameter_symbols" not in parameter["observed"]
 
     assert alignment["check_key"] == "contract.claim_to_proof_alignment"
-    assert "contract" not in alignment
+    assert "contract" in alignment
+    assert alignment["contract"]["schema_version"] == 1
     assert alignment["metadata"]["claim_statement"].startswith("For all r_0 > 0")
     assert "conclusion_clause_ids" not in alignment["metadata"]
     assert "uncovered_conclusion_clause_ids" not in alignment["observed"]
@@ -3499,3 +3513,33 @@ def test_salvaged_unknown_contract_keys_are_warning_worded_not_authoritative() -
     assert parsed is not None
     assert any("draft/salvage warning" in finding for finding in findings)
     assert any("strict authoritative validation still rejects unknown keys" in finding for finding in findings)
+
+
+def test_proof_hint_always_exposes_contract_template() -> None:
+    from gpd.mcp.servers.verification_server import _contract_check_request_hint
+
+    hint = _contract_check_request_hint("contract.proof_hypothesis_coverage")
+    assert hint["request_template"]["contract"] == "<replace-with-contract>"
+
+    contract = _load_project_contract_fixture()
+    from gpd.contracts import ResearchContract
+
+    contract_model = ResearchContract.model_validate(contract)
+    hint_with_contract = _contract_check_request_hint("contract.proof_hypothesis_coverage", contract=contract_model)
+    assert hint_with_contract["request_template"]["contract"]["schema_version"] == contract["schema_version"]
+
+
+def test_run_contract_check_rejects_contract_placeholders() -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check
+
+    contract = _load_project_contract_fixture()
+    contract["scope"]["question"] = "<replace-with-scope-question>"
+    request = {
+        "check_key": "contract.proof_hypothesis_coverage",
+        "contract": contract,
+        "metadata": {"hypothesis_ids": ["claim-benchmark"]},
+        "observed": {"covered_hypothesis_ids": ["claim-benchmark"], "missing_hypothesis_ids": []},
+    }
+
+    result = run_contract_check(request)
+    assert "request contains unreplaced request_template sentinel values" in result["error"]

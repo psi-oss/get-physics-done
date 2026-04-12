@@ -58,6 +58,7 @@ from tests.hooks.helpers import mark_complete_install as _mark_complete_install
 
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
 _RUNTIME_BY_NAME = {descriptor.runtime_name: descriptor for descriptor in _RUNTIME_DESCRIPTORS}
+_RUNTIME_NAMES = tuple(descriptor.runtime_name for descriptor in _RUNTIME_DESCRIPTORS)
 _SHARED_INSTALL = get_shared_install_metadata()
 RUNTIME_CLAUDE = _RUNTIME_BY_NAME["claude-code"].runtime_name
 RUNTIME_CODEX = _RUNTIME_BY_NAME["codex"].runtime_name
@@ -98,6 +99,14 @@ def _write_install_manifest(config_dir: Path, *, install_scope: str) -> None:
         json.dumps(manifest),
         encoding="utf-8",
     )
+
+
+def _runtime_config_dir(root: Path, runtime: str) -> Path:
+    """Return the workspace-local config dir for *runtime*, creating it if needed."""
+    adapter = get_adapter(runtime)
+    config_dir = root / Path(adapter.local_config_dir_name)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir
 
 # ─── detect_active_runtime ─────────────────────────────────────────────────
 
@@ -489,10 +498,8 @@ class TestDetectActiveRuntimeWithInstall:
     """Tests for the install-aware runtime detection helper used by hooks."""
 
     def test_plain_runtime_dirs_without_gpd_install_do_not_count(self, tmp_path: Path) -> None:
-        (tmp_path / ".claude").mkdir()
-        (tmp_path / ".codex").mkdir()
-        (tmp_path / ".gemini").mkdir()
-        (tmp_path / ".config" / "opencode").mkdir(parents=True)
+        for runtime in _RUNTIME_NAMES:
+            _runtime_config_dir(tmp_path, runtime)
 
         env = _clean_runtime_env()
         with (
@@ -502,8 +509,12 @@ class TestDetectActiveRuntimeWithInstall:
         ):
             assert detect_active_runtime_with_gpd_install() == RUNTIME_UNKNOWN
 
-    def test_installed_runtime_without_activation_signal_stays_unknown(self, tmp_path: Path) -> None:
-        _mark_gpd_install(tmp_path / ".codex")
+    @pytest.mark.parametrize("runtime_name", _RUNTIME_NAMES)
+    def test_installed_runtime_without_activation_signal_detects_runtime(
+        self, tmp_path: Path, runtime_name: str
+    ) -> None:
+        runtime_dir = _runtime_config_dir(tmp_path, runtime_name)
+        _mark_gpd_install(runtime_dir, runtime=runtime_name)
 
         env = _clean_runtime_env()
         with (
@@ -511,10 +522,11 @@ class TestDetectActiveRuntimeWithInstall:
             patch("gpd.hooks.runtime_detect.Path.home", return_value=tmp_path),
             patch("gpd.hooks.runtime_detect.Path.cwd", return_value=tmp_path),
         ):
-            assert detect_active_runtime_with_gpd_install() == RUNTIME_UNKNOWN
+            assert detect_active_runtime_with_gpd_install() == runtime_name
 
     def test_active_runtime_with_install_is_detected(self, tmp_path: Path) -> None:
-        _mark_gpd_install(tmp_path / ".codex")
+        runtime_dir = _runtime_config_dir(tmp_path, RUNTIME_CODEX)
+        _mark_gpd_install(runtime_dir, runtime=RUNTIME_CODEX)
 
         env = _clean_runtime_env()
         env["CODEX_SESSION"] = "1"
@@ -528,7 +540,8 @@ class TestDetectActiveRuntimeWithInstall:
     def test_active_runtime_without_install_returns_unknown_in_install_aware_resolution(
         self, tmp_path: Path
     ) -> None:
-        _mark_gpd_install(tmp_path / ".codex")
+        runtime_dir = _runtime_config_dir(tmp_path, RUNTIME_CODEX)
+        _mark_gpd_install(runtime_dir, runtime=RUNTIME_CODEX)
 
         env = _clean_runtime_env()
         env["CLAUDE_CODE_SESSION"] = "1"

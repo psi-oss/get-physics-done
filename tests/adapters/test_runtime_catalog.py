@@ -6,12 +6,14 @@ import json
 import re
 from copy import deepcopy
 from dataclasses import fields, replace
+from importlib import import_module
 from pathlib import Path
 
 import pytest
 
 import gpd.adapters as adapters
 import gpd.adapters.runtime_catalog as runtime_catalog
+from gpd.adapters.base import RuntimeAdapter
 from gpd.adapters.runtime_catalog import (
     get_hook_payload_policy,
     get_managed_install_surface_policy,
@@ -366,6 +368,22 @@ def test_runtime_catalog_adapter_instances_mirror_descriptor_identity_fields() -
         assert adapter.runtime_name == descriptor.runtime_name
         assert adapter.display_name == descriptor.display_name
         assert adapter.command_prefix == descriptor.command_prefix
+
+
+def test_runtime_catalog_descriptors_import_adapter_modules() -> None:
+    for descriptor in iter_runtime_descriptors():
+        module_path = f"gpd.adapters.{descriptor.adapter_module}"
+        module = import_module(module_path)
+        adapter_classes = [
+            value
+            for value in vars(module).values()
+            if isinstance(value, type) and issubclass(value, RuntimeAdapter) and value is not RuntimeAdapter
+        ]
+        assert adapter_classes, f"{module_path} must expose a RuntimeAdapter subclass"
+        assert any(
+            adapter_class().runtime_name == descriptor.runtime_name
+            for adapter_class in adapter_classes
+        ), "RuntimeAdapter must advertise the matching runtime_name"
 
 
 def test_runtime_public_command_prefixes_are_descriptor_owned_and_deterministic() -> None:

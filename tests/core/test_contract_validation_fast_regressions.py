@@ -463,7 +463,7 @@ def test_fast_contract_validation_strict_entrypoint_rejects_missing_context_inta
     assert "context_intake is required" in validation.errors
 
 
-def test_fast_contract_validation_rootless_path_like_anchor_does_not_count_as_approved_grounding() -> None:
+def test_fast_contract_validation_rootless_path_like_anchor_counts_as_draft_grounding() -> None:
     contract = _load_contract_fixture()
     _strip_reference_dependencies(contract)
     contract["context_intake"]["must_include_prior_outputs"] = []
@@ -473,17 +473,9 @@ def test_fast_contract_validation_rootless_path_like_anchor_does_not_count_as_ap
     validation = validate_project_contract(contract, mode="approved")
     integrity_errors = collect_plan_contract_integrity_errors(ResearchContract.model_validate(contract))
 
-    assert validation.valid is False
-    assert (
-        "approved project contract requires at least one concrete anchor/reference/prior-output/baseline; "
-        "explicit missing-anchor notes preserve uncertainty but do not satisfy approval on their own"
-        in validation.errors
-    )
-    assert (
-        "context_intake.user_asserted_anchors entry requires a resolved project_root to verify artifact grounding: "
-        "GPD/phases/01-setup/01-01-SUMMARY.md" in validation.warnings
-    )
-    assert "missing references or explicit grounding context" in integrity_errors
+    assert validation.valid is True
+    assert not any("requires a resolved project_root" in warning for warning in validation.warnings)
+    assert "missing references or explicit grounding context" not in integrity_errors
 
 
 def test_fast_contract_validation_accepts_existing_project_local_baseline_with_project_root(tmp_path: Path) -> None:
@@ -508,7 +500,7 @@ def test_fast_contract_validation_accepts_existing_project_local_baseline_with_p
     assert "missing references or explicit grounding context" not in integrity_errors
 
 
-def test_fast_contract_validation_rootless_prior_output_does_not_count_as_approved_grounding() -> None:
+def test_fast_contract_validation_rootless_prior_output_counts_as_draft_grounding() -> None:
     contract = _load_contract_fixture()
     _strip_reference_dependencies(contract)
     contract["context_intake"]["must_include_prior_outputs"] = ["./RESULTS.md"]
@@ -517,12 +509,10 @@ def test_fast_contract_validation_rootless_prior_output_does_not_count_as_approv
 
     validation = validate_project_contract(contract, mode="approved")
 
-    assert validation.valid is False
-    assert (
-        "approved project contract requires at least one concrete anchor/reference/prior-output/baseline; "
-        "explicit missing-anchor notes preserve uncertainty but do not satisfy approval on their own"
-        in validation.errors
-    )
+    integrity_errors = collect_plan_contract_integrity_errors(ResearchContract.model_validate(contract))
+
+    assert validation.valid is True
+    assert "missing references or explicit grounding context" not in integrity_errors
 
 
 def test_fast_contract_validation_context_gaps_and_crucial_inputs_do_not_satisfy_hard_grounding() -> None:

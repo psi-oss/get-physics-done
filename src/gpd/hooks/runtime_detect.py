@@ -317,6 +317,19 @@ def resolve_effective_runtime(
             install_scope=install_target.install_scope,
         )
 
+    if active_runtime == RUNTIME_UNKNOWN:
+        for runtime in ordered_runtimes:
+            install_target = _detect_runtime_install_target(runtime, cwd=resolved_cwd, home=resolved_home)
+            if install_target is None:
+                continue
+            fallback_source = SOURCE_LOCAL if install_target.config_dir == _local_runtime_dir(runtime, resolved_cwd) else SOURCE_GLOBAL
+            return EffectiveRuntimeResolution(
+                runtime=runtime,
+                source=_source_for_install_scope(install_target.install_scope, fallback=fallback_source),
+                has_gpd_install=True,
+                install_scope=install_target.install_scope,
+            )
+
     return EffectiveRuntimeResolution()
 
 
