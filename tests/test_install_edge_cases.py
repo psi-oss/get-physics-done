@@ -512,6 +512,25 @@ class TestCrossRuntimeManifestOwnershipRefusal:
         assert f"Refusing to install into `{target}`" in message
         assert "manifest cannot be trusted" in message
 
+    def test_install_refuses_runtime_prefixed_manifest_with_only_agent_residue(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        runtime = runtime_with_manifest_file_prefix("command/")
+        adapter = get_adapter(runtime)
+        target = tmp_path / "runtime-prefixed-only-agents"
+        target.mkdir()
+        agents_dir = target / "agents"
+        agents_dir.mkdir()
+        (agents_dir / "gpd-residue.md").write_text("Residue.\n", encoding="utf-8")
+
+        manifest_data = {"install_scope": "local", "files": {"command/gpd-residue.md": "hash"}}
+        (target / MANIFEST_NAME).write_text(json.dumps(manifest_data), encoding="utf-8")
+
+        monkeypatch.setattr(adapter, "_install_explicit_target", True, raising=False)
+
+        with pytest.raises(RuntimeError, match="manifest cannot be trusted"):
+            adapter._validate_target_runtime(target, action="install into")
+
     @pytest.mark.parametrize("manifest_state", ["missing", "corrupt", "unknown"])
     def test_uninstall_refuses_ambiguous_target_when_manifest_cannot_prove_ownership(
         self, tmp_path: Path, manifest_state: str

@@ -168,6 +168,15 @@ def test_runtime_command_surface_rewrite_skips_urls_and_paths_but_keeps_examples
     assert "foo$gpd-help/bar" in rewritten
 
 
+def test_runtime_command_surface_rewrite_normalizes_at_prefixed_command_examples() -> None:
+    content = "Use @gpd:help as a public command reference, but keep foo@gpd:help as prose."
+
+    rewritten = rewrite_runtime_command_surfaces(content, canonical="skill")
+
+    assert "Use @gpd-help as a public command reference" in rewritten
+    assert "keep foo@gpd:help as prose" in rewritten
+
+
 def test_foreign_bare_slash_command_is_not_canonicalized_into_gpd() -> None:
     assert command_slug_from_label("/help") == "/help"
     assert canonical_command_label("/help") == "gpd:/help"

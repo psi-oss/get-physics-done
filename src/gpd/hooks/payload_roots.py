@@ -188,6 +188,28 @@ def _coerce_root_pair(
     )
 
 
+def _type_error_indicates_signature_mismatch(exc: TypeError) -> bool:
+    message = exc.args[0] if exc.args else ""
+    if not isinstance(message, str):
+        message = str(message)
+    lower = message.lower()
+    if not lower:
+        return False
+    if "unexpected keyword argument" in lower:
+        return True
+    if "multiple values for argument" in lower:
+        return True
+    if "required positional argument" in lower:
+        return True
+    if "positional-only argument" in lower:
+        return True
+    if "keyword-only argument" in lower:
+        return True
+    if "positional arguments but" in lower or "positional argument but" in lower:
+        return True
+    return False
+
+
 def _resolve_with_shared_service(
     data: dict[str, object],
     *,
@@ -211,8 +233,10 @@ def _resolve_with_shared_service(
     for kwargs in attempts:
         try:
             resolved = service(**kwargs)
-        except TypeError:
-            continue
+        except TypeError as exc:
+            if _type_error_indicates_signature_mismatch(exc):
+                continue
+            raise RuntimeError("shared root resolution service failed") from exc
         except Exception as exc:
             raise RuntimeError("shared root resolution service failed") from exc
         return _coerce_root_pair(

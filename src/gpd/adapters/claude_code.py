@@ -108,12 +108,12 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         bridge_command = self.runtime_cli_bridge_command(target_dir)
 
         def _translate(content: str, prefix: str, install_scope: str | None = None) -> str:
-            translated = super(ClaudeCodeAdapter, self).translate_shared_markdown(
+            return self.translate_shared_markdown_with_bridge(
                 content,
                 prefix,
+                bridge_command,
                 install_scope=install_scope,
             )
-            return _rewrite_gpd_cli_invocations(translated, bridge_command)
 
         copy_with_path_replacement(
             commands_src,
@@ -157,12 +157,12 @@ class ClaudeCodeAdapter(RuntimeAdapter):
         bridge_command = self.runtime_cli_bridge_command(target_dir)
 
         def _translate(content: str, prefix: str, install_scope: str | None = None) -> str:
-            translated = super(ClaudeCodeAdapter, self).translate_shared_markdown(
+            return self.translate_shared_markdown_with_bridge(
                 content,
                 prefix,
+                bridge_command,
                 install_scope=install_scope,
             )
-            return _rewrite_gpd_cli_invocations(translated, bridge_command)
 
         from gpd.adapters.install_utils import install_gpd_content
 

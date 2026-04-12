@@ -275,6 +275,44 @@ def test_resolve_with_shared_service_raises_non_signature_errors(tmp_path) -> No
         )
 
 
+def test_resolve_with_shared_service_propagates_unexpected_type_error(tmp_path) -> None:
+    workspace = tmp_path / "workspace"
+    project = tmp_path / "project"
+    workspace.mkdir()
+    project.mkdir()
+
+    def _service(**kwargs):
+        raise TypeError("shared service died")
+
+    with pytest.raises(RuntimeError, match="shared root resolution service failed"):
+        _resolve_with_shared_service(
+            {"workspace": str(workspace)},
+            workspace_dir=str(workspace),
+            project_dir=str(project),
+            hook_payload=_policy(root_resolution_service=_service),
+            cwd=str(tmp_path),
+        )
+
+
+def test_resolve_with_shared_service_does_not_treat_signature_word_as_mismatch(tmp_path) -> None:
+    workspace = tmp_path / "workspace"
+    project = tmp_path / "project"
+    workspace.mkdir()
+    project.mkdir()
+
+    def _service(**kwargs):
+        raise TypeError("signature invalid for workspace payload")
+
+    with pytest.raises(RuntimeError, match="shared root resolution service failed"):
+        _resolve_with_shared_service(
+            {"workspace": str(workspace)},
+            workspace_dir=str(workspace),
+            project_dir=str(project),
+            hook_payload=_policy(root_resolution_service=_service),
+            cwd=str(tmp_path),
+        )
+
+
 def test_project_root_from_payload_prefers_explicit_project_dir_input(tmp_path) -> None:
     workspace = tmp_path / "project" / "src" / "notes"
     project = tmp_path / "project"

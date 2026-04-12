@@ -1586,6 +1586,26 @@ def write_manifest(
     return manifest
 
 
+def manifest_contains_files_with_prefixes(
+    manifest: dict[str, object],
+    prefixes: tuple[str, ...],
+) -> bool:
+    """Return whether *manifest* lists files that start with any *prefixes*."""
+
+    if not prefixes:
+        return False
+    raw_files = manifest.get("files")
+    if not isinstance(raw_files, dict):
+        return False
+    for relpath in raw_files:
+        if not isinstance(relpath, str):
+            continue
+        for prefix in prefixes:
+            if relpath.startswith(prefix):
+                return True
+    return False
+
+
 def _tracked_hook_paths_for_cleanup(
     config_dir: Path,
 ) -> set[str]:

@@ -27,10 +27,12 @@ from gpd.adapters.install_utils import (
     copy_hook_scripts,
     install_gpd_content,
     managed_hook_paths,
+    manifest_contains_files_with_prefixes,
     pre_install_cleanup,
     process_settings_commit_attribution,
     prune_empty_ancestors,
     replace_placeholders,
+    rewrite_gpd_cli_invocations,
     strip_sub_tags,
     translate_frontmatter_tool_names,
     validate_package_integrity,
@@ -281,6 +283,23 @@ class RuntimeAdapter(abc.ABC):  # noqa: B024
             content = strip_sub_tags(content)
         return convert_tool_references_in_body(content, self.tool_reference_translation_map())
 
+    def translate_shared_markdown_with_bridge(
+        self,
+        content: str,
+        path_prefix: str,
+        bridge_command: str,
+        *,
+        install_scope: str | None = None,
+        shell_fence_languages: frozenset[str] | None = None,
+    ) -> str:
+        """Translate shared markdown and rewrite runtime-bridge CLI invocations."""
+        translated = self.translate_shared_markdown(content, path_prefix, install_scope=install_scope)
+        return rewrite_gpd_cli_invocations(
+            translated,
+            bridge_command,
+            shell_fence_languages=shell_fence_languages,
+        )
+
     def project_markdown_surface(
         self,
         content: str,
@@ -459,6 +478,14 @@ class RuntimeAdapter(abc.ABC):  # noqa: B024
             )
 
         if assessment.state == "untrusted_manifest":
+            runtime_prefixes = self.runtime_descriptor.manifest_file_prefixes
+            has_runtime_specific_files = False
+            if runtime_prefixes:
+                manifest_payload = self._read_install_manifest(target_dir)
+                has_runtime_specific_files = manifest_contains_files_with_prefixes(
+                    manifest_payload,
+                    runtime_prefixes,
+                )
             if (
                 action.startswith("uninstall")
                 and assessment.manifest_state == "missing"
@@ -466,7 +493,8 @@ class RuntimeAdapter(abc.ABC):  # noqa: B024
             ):
                 return
             if action.startswith("install") and _has_only_agent_residue(target_dir):
-                return
+                if not has_runtime_specific_files:
+                    return
             if assessment.manifest_state != "missing":
                 raise RuntimeError(
                     f"Refusing to {action} `{target_dir}` because its GPD manifest cannot be trusted.\n"

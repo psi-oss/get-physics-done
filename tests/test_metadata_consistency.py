@@ -13,10 +13,12 @@ from pathlib import Path
 import pytest
 
 from gpd import registry as content_registry
+from gpd.adapters.tool_names import CANONICAL_TOOL_NAMES
 from gpd.contracts import ConventionLock
 from gpd.core.config import MODEL_PROFILES
 from gpd.core.health import _ALL_CHECKS
 from gpd.core.patterns import PatternDomain
+from gpd.mcp.servers.skills_server import _normalize_allowed_tools
 from gpd.registry import VALID_CONTEXT_MODES
 
 
@@ -76,6 +78,13 @@ def test_decorated_mcp_tools_includes_async_function_defs(
     )
 
     assert _decorated_mcp_tools("async_mcp_module.py") == ["async_tool"]
+
+
+def test_registry_skill_allowed_tools_use_canonical_names() -> None:
+    normalized = _normalize_allowed_tools(["Write", "shell", "Grep", "Grep"])
+
+    assert normalized == ["file_write", "shell", "search_files"]
+    assert all(tool in CANONICAL_TOOL_NAMES for tool in normalized)
 
 
 def _descriptor_python_module(descriptor: dict[str, object]) -> str | None:

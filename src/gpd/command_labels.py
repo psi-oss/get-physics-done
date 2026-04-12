@@ -116,6 +116,8 @@ def runtime_command_surface_is_path_like_context(content: str, match: re.Match[s
     start = match.start()
     if start <= 0:
         return False
+    if content[start - 1] == "@":
+        return start > 1 and re.match(r"[A-Za-z0-9_.+-]", content[start - 2]) is not None
     return content[start - 1] in _PATHLIKE_CONTEXT_PREFIXES
 
 

@@ -44,3 +44,16 @@ def test_loading_public_surface_contract_uses_current_files() -> None:
 
     assert contract.local_cli_bridge.commands == schema.local_cli_bridge_commands
     assert contract.local_cli_bridge.named_commands.ordered() == expected_ordered_commands
+
+
+def test_contract_sections_match_schema_keys() -> None:
+    schema = load_public_surface_contract_schema()
+    payload = _load_contract_payload()
+
+    for section_name, expected_keys in schema.section_keys.items():
+        section_payload = payload[section_name]
+        assert isinstance(section_payload, dict)
+        assert tuple(section_payload.keys()) == expected_keys, section_name
+
+    named_commands_payload = payload["local_cli_bridge"]["named_commands"]
+    assert tuple(named_commands_payload.keys()) == schema.local_cli_named_command_keys
