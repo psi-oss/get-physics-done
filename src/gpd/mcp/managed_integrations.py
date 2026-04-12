@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -306,3 +307,17 @@ def gpd_managed_mcp_server_keys() -> frozenset[str]:
     from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
 
     return frozenset(set(GPD_MCP_SERVER_KEYS) | set(managed_optional_mcp_server_keys()))
+
+
+def prune_gpd_managed_mcp_servers(existing_servers: object | None) -> dict[str, dict[str, object]]:
+    """Return a copy of the provided mapping with GPD-managed entries removed."""
+
+    existing_map = existing_servers if isinstance(existing_servers, dict) else {}
+    managed_keys = gpd_managed_mcp_server_keys()
+    pruned: dict[str, dict[str, object]] = {}
+    for name, entry in existing_map.items():
+        normalized = str(name)
+        if normalized in managed_keys:
+            continue
+        pruned[normalized] = deepcopy(entry)
+    return pruned

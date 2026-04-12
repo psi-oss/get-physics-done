@@ -165,6 +165,42 @@ def _run_runtime_cli_with_recording(
     return main(argv), observed
 
 
+@pytest.mark.parametrize("descriptor", (_RUNTIME_DESCRIPTORS[0],), ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_bridge_command_remains_network_isolated(
+    monkeypatch,
+    tmp_path: Path,
+    descriptor,
+) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+
+    def _forbid_network(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Runtime bridge must not access the network")
+
+    monkeypatch.setattr("urllib.request.urlopen", _forbid_network)
+    if "requests.sessions" in sys.modules:
+        monkeypatch.setattr("requests.sessions.Session.request", _forbid_network)
+
+    exit_code, _ = _run_runtime_cli_with_recording(
+        monkeypatch,
+        cwd=tmp_path,
+        argv=[
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            str(config_dir),
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ],
+        runtime=descriptor.runtime_name,
+    )
+
+    assert exit_code == 0
+
+
 def test_runtime_cli_returns_stable_error_for_unknown_runtime(monkeypatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
     monkeypatch.chdir(tmp_path)
@@ -482,6 +518,88 @@ def test_runtime_cli_fails_when_manifest_runtime_field_is_missing(
     assert exit_code == 127
     assert "GPD runtime bridge rejected incomplete install manifest" in captured.err
     assert "The manifest must declare a non-empty `runtime` field." in captured.err
+    assert "Repair or reinstall with:" in captured.err
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_rejects_manifest_missing_install_scope_status_error(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+    descriptor,
+) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    manifest_path = config_dir / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("install_scope", None)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "gpd.cli.entrypoint",
+        lambda: (_ for _ in ()).throw(AssertionError("entrypoint should not run for install-scope errors")),
+    )
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            f"./{adapter.config_dir_name}",
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge rejected incomplete install manifest" in captured.err
+    assert "The manifest must declare a non-empty `install_scope` field." in captured.err
+    assert "Repair or reinstall with:" in captured.err
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_rejects_manifest_malformed_install_scope_status_error(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+    descriptor,
+) -> None:
+    adapter = get_adapter(descriptor.runtime_name)
+    config_dir = tmp_path / adapter.config_dir_name
+    _mark_complete_install(config_dir, runtime=descriptor.runtime_name)
+    manifest_path = config_dir / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["install_scope"] = "workspace"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "gpd.cli.entrypoint",
+        lambda: (_ for _ in ()).throw(AssertionError("entrypoint should not run for install-scope errors")),
+    )
+
+    exit_code = main(
+        [
+            "--runtime",
+            descriptor.runtime_name,
+            "--config-dir",
+            f"./{adapter.config_dir_name}",
+            "--install-scope",
+            "local",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert "GPD runtime bridge rejected incomplete install manifest" in captured.err
+    assert "The manifest `install_scope` field must be exactly `local` or `global`." in captured.err
     assert "Repair or reinstall with:" in captured.err
 
 
@@ -1651,6 +1769,51 @@ def test_runtime_cli_forwarded_cli_cwd_drives_local_repair_guidance(
     assert exit_code == 127
     assert f"--target-dir {shlex.quote(str(config_dir))}" in captured.err
     assert f"{BOOTSTRAP_COMMAND} {adapter.install_flag} --local" in captured.err
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_resolve_config_dir_uses_local_ancestor_for_local_scope(
+    tmp_path: Path,
+    descriptor,
+) -> None:
+    local_config = tmp_path / descriptor.config_dir_name
+    _mark_complete_install(local_config, runtime=descriptor.runtime_name)
+    global_config = tmp_path / "global-home" / descriptor.config_dir_name
+    _mark_complete_install(global_config, runtime=descriptor.runtime_name, install_scope="global")
+    nested_cwd = tmp_path / "workspace" / "research" / "notes"
+    nested_cwd.mkdir(parents=True)
+
+    resolved = runtime_cli._resolve_config_dir(
+        f"./{descriptor.config_dir_name}",
+        runtime=descriptor.runtime_name,
+        install_scope="local",
+        explicit_target=False,
+        cli_cwd=nested_cwd,
+    )
+
+    assert resolved == local_config
+
+
+@pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
+def test_runtime_cli_resolve_config_dir_respects_global_scope_without_ancestor(
+    tmp_path: Path,
+    descriptor,
+) -> None:
+    local_config = tmp_path / descriptor.config_dir_name
+    _mark_complete_install(local_config, runtime=descriptor.runtime_name)
+    cli_cwd = tmp_path / "workspace" / "research" / "notes"
+    cli_cwd.mkdir(parents=True)
+
+    resolved = runtime_cli._resolve_config_dir(
+        f"./{descriptor.config_dir_name}",
+        runtime=descriptor.runtime_name,
+        install_scope="global",
+        explicit_target=False,
+        cli_cwd=cli_cwd,
+    )
+
+    assert resolved == cli_cwd / descriptor.config_dir_name
+    assert resolved != local_config
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

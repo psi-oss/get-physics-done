@@ -1947,11 +1947,10 @@ def _managed_optional_mcp_server_keys() -> frozenset[str]:
 
 def _remove_gpd_mcp_toml_sections(content: str, *, extra_keys: set[str] | None = None) -> str:
     """Remove GPD MCP server sections from TOML content."""
-    from gpd.mcp.builtin_servers import GPD_MCP_SERVER_KEYS
 
     # Remove the header comment and all [mcp_serversGPD-*] sections.
     content = re.sub(r"^# GPD MCP servers\n", "", content, flags=re.MULTILINE)
-    managed_keys = set(GPD_MCP_SERVER_KEYS)
+    managed_keys = set(_managed_integrations.gpd_managed_mcp_server_keys())
     if extra_keys:
         managed_keys.update(extra_keys)
     for key in managed_keys:

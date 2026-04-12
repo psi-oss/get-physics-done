@@ -1858,6 +1858,44 @@ class TestSkillsServer:
         assert "Schema and contract documents." in model_visible["note"]
         assert model_visible["schema_documents"] == [entry["path"] for entry in result["schema_documents"]]
         assert model_visible["contract_documents"] == [entry["path"] for entry in result["contract_documents"]]
+        assert model_visible["transitive_schema_documents"] == [
+            entry["path"] for entry in result["transitive_schema_documents"]
+        ]
+        assert model_visible["transitive_contract_documents"] == [
+            entry["path"] for entry in result["transitive_contract_documents"]
+        ]
+
+    def test_get_skill_model_visible_includes_transitive_documents(self):
+        from gpd.mcp.servers.skills_server import get_skill
+
+        transitive_schema = "@{GPD_INSTALL_DIR}/specs/templates/paper/review-ledger-schema.md"
+        transitive_contract = "@{GPD_INSTALL_DIR}/references/verification/core/proof-redteam-protocol.md"
+
+        transitive_entries = [
+            {"path": transitive_schema, "kind": "spec"},
+            {"path": transitive_contract, "kind": "reference"},
+        ]
+
+        def fake_extract(content: str, *, source_path: Path | None = None) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+            return [], [entry.copy() for entry in transitive_entries]
+
+        with patch(
+            "gpd.mcp.servers.skills_server._extract_referenced_files",
+            side_effect=fake_extract,
+        ):
+            result = get_skill("gpd-check-proof")
+
+        assert "model_visible_documents" in result
+        assert result["schema_documents"] == []
+        assert result["contract_documents"] == []
+        assert [entry["path"] for entry in result["transitive_schema_documents"]] == [transitive_schema]
+        assert [entry["path"] for entry in result["transitive_contract_documents"]] == [transitive_contract]
+
+        model_visible = result["model_visible_documents"]
+        assert model_visible["schema_documents"] == []
+        assert model_visible["contract_documents"] == []
+        assert model_visible["transitive_schema_documents"] == [transitive_schema]
+        assert model_visible["transitive_contract_documents"] == [transitive_contract]
 
     def test_get_skill_resume_work_surfaces_project_reentry_metadata(self):
         from gpd.mcp.servers.skills_server import get_skill

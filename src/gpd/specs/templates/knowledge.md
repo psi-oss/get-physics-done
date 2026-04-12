@@ -15,6 +15,10 @@ enforced schema and should be treated as the only accepted structure for draft
 create/update work in this phase. Promotion to `stable` is handled by
 `gpd:review-knowledge`, not by this draft-authoring workflow.
 
+<hard_schema_visibility_guard>
+Before authoring or updating GPD/knowledge documents, load `@{GPD_INSTALL_DIR}/templates/knowledge-schema.md` and keep its canonical capsule visible; treat that schema as the sole authority for required fields, conditional rules, and lifecycle transitions, and do not restate its rule dump here.
+</hard_schema_visibility_guard>
+
 ## Frontmatter
 
 ```yaml
@@ -44,13 +48,7 @@ coverage_summary:
 
 Rules:
 
-- `knowledge_schema_version` must be `1`.
-- `knowledge_id` must be the filename stem exactly.
-- `status` must be one of `draft`, `in_review`, `stable`, or `superseded`.
-- `sources` must be a list of typed records, not free-form strings.
-- `coverage_summary` must remain structured and machine-readable.
-- `updated_at` should reflect the latest substantive edit to the document.
-- `stable` requires a fresh approved review record and must not be used by the draft authoring workflow.
+- Refer to `@{GPD_INSTALL_DIR}/templates/knowledge-schema.md` for the definitive rules that govern `knowledge_schema_version`, `knowledge_id`, `status`, sources, coverage summary, timestamps, and lifecycle transitions; this template avoids restating that rule dump.
 
 ## Title And Scope
 

@@ -122,6 +122,37 @@ def test_write_mcp_servers_opencode_fails_closed_for_non_dict_mcp_key(tmp_path: 
     assert (config_dir / "opencode.json").read_text(encoding="utf-8") == before
 
 
+def test_write_mcp_servers_opencode_removes_disabled_managed_entries(tmp_path: Path) -> None:
+    from gpd.adapters.opencode import _write_mcp_servers_opencode
+    from gpd.mcp.managed_integrations import WOLFRAM_MANAGED_SERVER_KEY
+
+    config_dir = tmp_path / "opencode"
+    config_dir.mkdir()
+    custom_entry = {"type": "local", "command": ["custom"]}
+    initial = {
+        "mcp": {
+            WOLFRAM_MANAGED_SERVER_KEY: {"type": "local", "command": ["gpd-mcp-wolfram"]},
+            "custom-server": custom_entry,
+        }
+    }
+    (config_dir / "opencode.json").write_text(json.dumps(initial), encoding="utf-8")
+
+    _write_mcp_servers_opencode(
+        config_dir,
+        {
+            "gpd-errors": {
+                "command": "python",
+                "args": ["-m", "gpd.mcp.servers.errors_mcp"],
+            }
+        },
+    )
+
+    parsed = json.loads((config_dir / "opencode.json").read_text(encoding="utf-8"))
+    assert WOLFRAM_MANAGED_SERVER_KEY not in parsed["mcp"]
+    assert parsed["mcp"]["custom-server"] == custom_entry
+    assert parsed["mcp"]["gpd-errors"]["command"] == ["python", "-m", "gpd.mcp.servers.errors_mcp"]
+
+
 def test_managed_mcp_env_values_win_over_stale_existing_env() -> None:
     from gpd.mcp.builtin_servers import merge_managed_mcp_entry
 

@@ -138,14 +138,14 @@ Use this if you are on Linux.
 Open only the runtime guide you actually plan to use.
 Use `--local` while learning so GPD only affects the current folder.
 
-The install flags, command prefixes, and aliases listed below are sourced from [docs/runtime-catalog-reference.md](./runtime-catalog-reference.md). Regenerate that file with `python scripts/render_runtime_catalog_table.py` whenever you adjust `src/gpd/adapters/runtime_catalog.json`.
+The install flags, command prefixes, and aliases live in [docs/runtime-catalog-reference.md](./runtime-catalog-reference.md). Regenerate that file with `python scripts/render_runtime_catalog_table.py` whenever you adjust `src/gpd/adapters/runtime_catalog.json`, keep this the single source of truth, and run `npx -y get-physics-done --<flag> --local` with the `<flag>` shown in the catalog for the runtime you plan to install.
 
 <details>
 <summary>Claude Code</summary>
 
-Use this if you want GPD inside Claude Code. Inside the runtime, GPD commands use `/gpd:...`.
+Use this if you want GPD inside Claude Code. The runtime catalog reference and Claude Code quickstart describe how `/gpd:`-prefixed commands work inside the app.
 
-- Install: `npx -y get-physics-done --claude --local`
+- Install: `npx -y get-physics-done --claude --local` (confirm `--claude` is still the right install flag in [docs/runtime-catalog-reference.md](./runtime-catalog-reference.md) and rerun `python scripts/render_runtime_catalog_table.py` whenever `src/gpd/adapters/runtime_catalog.json` changes).
 - [Claude Code quickstart](./claude-code.md)
 
 </details>
@@ -153,9 +153,9 @@ Use this if you want GPD inside Claude Code. Inside the runtime, GPD commands us
 <details>
 <summary>Codex</summary>
 
-Use this if you want GPD inside Codex. Inside the runtime, GPD commands use `$gpd-...`.
+Use this if you want GPD inside Codex. The runtime catalog reference and Codex quickstart describe how `$gpd-`-prefixed commands work inside the app.
 
-- Install: `npx -y get-physics-done --codex --local`
+- Install: `npx -y get-physics-done --codex --local` (confirm `--codex` is still correct in [docs/runtime-catalog-reference.md](./runtime-catalog-reference.md) and rerun `python scripts/render_runtime_catalog_table.py` whenever `src/gpd/adapters/runtime_catalog.json` changes).
 - [Codex quickstart](./codex.md)
 
 </details>
@@ -163,9 +163,9 @@ Use this if you want GPD inside Codex. Inside the runtime, GPD commands use `$gp
 <details>
 <summary>Gemini CLI</summary>
 
-Use this if you want GPD inside Gemini CLI. Inside the runtime, GPD commands use `/gpd:...`.
+Use this if you want GPD inside Gemini CLI. The runtime catalog reference and Gemini CLI quickstart describe how `/gpd:`-prefixed commands work inside the app.
 
-- Install: `npx -y get-physics-done --gemini --local`
+- Install: `npx -y get-physics-done --gemini --local` (confirm `--gemini` is still correct in [docs/runtime-catalog-reference.md](./runtime-catalog-reference.md) and rerun `python scripts/render_runtime_catalog_table.py` whenever `src/gpd/adapters/runtime_catalog.json` changes).
 - [Gemini CLI quickstart](./gemini-cli.md)
 
 </details>
@@ -173,9 +173,9 @@ Use this if you want GPD inside Gemini CLI. Inside the runtime, GPD commands use
 <details>
 <summary>OpenCode</summary>
 
-Use this if you want GPD inside OpenCode. Inside the runtime, GPD commands use `/gpd-...`.
+Use this if you want GPD inside OpenCode. The runtime catalog reference and OpenCode quickstart describe how `/gpd-`-prefixed commands work inside the app.
 
-- Install: `npx -y get-physics-done --opencode --local`
+- Install: `npx -y get-physics-done --opencode --local` (confirm `--opencode` is still correct in [docs/runtime-catalog-reference.md](./runtime-catalog-reference.md) and rerun `python scripts/render_runtime_catalog_table.py` whenever `src/gpd/adapters/runtime_catalog.json` changes).
 - [OpenCode quickstart](./opencode.md)
 
 </details>

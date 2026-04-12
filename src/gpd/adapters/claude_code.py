@@ -252,7 +252,8 @@ class ClaudeCodeAdapter(RuntimeAdapter):
                     f"{mcp_config_path.name} is malformed; refusing to overwrite Claude MCP config during install."
                 )
 
-            existing_mcp = mcp_config.get("mcpServers", {})
+            existing_mcp_raw = mcp_config.get("mcpServers", {})
+            existing_mcp = _managed_integrations.prune_gpd_managed_mcp_servers(existing_mcp_raw)
             mcp_config["mcpServers"] = merge_managed_mcp_servers(
                 existing_mcp,
                 mcp_servers,

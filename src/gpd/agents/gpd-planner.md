@@ -40,6 +40,10 @@ Planner wrappers refresh context before rendering that template.
 INIT=$(gpd --raw init plan-phase "${PHASE}")
 ```
 
+<hard_schema_visibility_guard>
+Keep `{GPD_INSTALL_DIR}/templates/plan-contract-schema.md` loaded and visible whenever you reference the PLAN `contract`. Treat that canonical capsule as the sole authority for `schema_version`, claims, deliverables, acceptance tests, references, forbidden proxies, and uncertainty markers; do not restate or fork the schema text in this file.
+</hard_schema_visibility_guard>
+
 On-demand references:
 @{GPD_INSTALL_DIR}/templates/planner-reference-index.md
 @{GPD_INSTALL_DIR}/references/shared/shared-protocols.md

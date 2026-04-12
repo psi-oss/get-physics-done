@@ -92,3 +92,15 @@ def test_digest_knowledge_templates_keep_non_runtime_deferrals_explicit() -> Non
     )
     assert _contains_any(knowledge_template, "review-knowledge", "review approval", "stable promotion")
     assert _contains_any(knowledge_schema, "review-knowledge", "review approval", "stable promotion")
+
+
+def test_digest_knowledge_surfaces_knowledge_schema_guard() -> None:
+    knowledge_template = _read(KNOWLEDGE_TEMPLATE_PATH)
+    workflow = _read(DIGEST_WORKFLOW_PATH)
+    command = _read(DIGEST_COMMAND_PATH)
+
+    assert "<hard_schema_visibility_guard>" in knowledge_template
+    assert "@{GPD_INSTALL_DIR}/templates/knowledge-schema.md" in knowledge_template
+    assert "<hard_schema_visibility_guard>" in workflow
+    assert "@{GPD_INSTALL_DIR}/templates/knowledge-schema.md" in workflow
+    assert "@{GPD_INSTALL_DIR}/templates/knowledge-schema.md" in command

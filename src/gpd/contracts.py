@@ -447,7 +447,7 @@ def _is_project_artifact_path(value: str, *, project_root: Path | None = None) -
         return False
 
     if project_root is None:
-        return False
+        return True
 
     root = project_root.expanduser().resolve(strict=False)
     path = Path(candidate).expanduser()
@@ -611,9 +611,32 @@ def _is_context_intake_locator_grounding(
 ) -> bool:
     """Return whether a context-intake anchor/baseline is concrete enough to count."""
 
-    if require_existing_project_artifacts and _is_project_artifact_path(value, project_root=None):
+    if require_existing_project_artifacts and project_root is not None and _looks_like_project_artifact_path(value):
+        return _is_project_artifact_path(value, project_root=project_root)
+    return _is_concrete_text_grounding(value, project_root=project_root)
+
+
+def _is_rootless_user_anchor_grounding(value: str) -> bool:
+    """Return whether a rootless user anchor is concrete enough to preserve."""
+
+    return (
+        _looks_like_project_artifact_path(value)
+        and not value.strip().startswith("./")
+        and not _is_unresolved_project_artifact_path(value)
+    )
+
+
+def _is_user_asserted_anchor_grounding(
+    value: str,
+    *,
+    project_root: Path | None = None,
+    require_existing_project_artifacts: bool = False,
+) -> bool:
+    """Return whether a user-supplied anchor can ground a contract."""
+
+    if require_existing_project_artifacts and _looks_like_project_artifact_path(value):
         if project_root is None:
-            return True
+            return False
         return _is_project_artifact_path(value, project_root=project_root)
     return _is_concrete_text_grounding(value, project_root=project_root)
 
@@ -651,7 +674,16 @@ def _has_concrete_grounding_entries(
                 for value in values
             )
         return any(_is_project_artifact_path(value, project_root=project_root) for value in values)
-    if field_name in {"user_asserted_anchors", "known_good_baselines"}:
+    if field_name == "user_asserted_anchors":
+        return any(
+            _is_user_asserted_anchor_grounding(
+                value,
+                project_root=project_root,
+                require_existing_project_artifacts=require_existing_project_artifacts,
+            )
+            for value in values
+        )
+    if field_name == "known_good_baselines":
         return any(
             _is_context_intake_locator_grounding(
                 value,

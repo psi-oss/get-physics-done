@@ -173,15 +173,23 @@ def _skill_loading_hint(*, source_kind: str, referenced_files: bool, reference_d
 def _model_visible_documents_section(
     schema_documents: list[dict[str, object]],
     contract_documents: list[dict[str, object]],
+    *,
+    transitive_schema_documents: list[dict[str, object]] | None = None,
+    transitive_contract_documents: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
+    transitive_schema_documents = transitive_schema_documents or []
+    transitive_contract_documents = transitive_contract_documents or []
     note = render_model_visible_note(
         "Schema and contract documents.",
-        "`schema_documents` mirrors the schema-backed markdowns; `contract_documents` mirrors contract-backed references.",
+        "`schema_documents` mirrors the schema-backed markdowns; `transitive_schema_documents` mirrors their transitive dependencies.",
+        "`contract_documents` mirrors contract-backed references; `transitive_contract_documents` mirrors the transitive contract references.",
     )
     return {
         "note": note,
         "schema_documents": [entry["path"] for entry in schema_documents],
         "contract_documents": [entry["path"] for entry in contract_documents],
+        "transitive_schema_documents": [entry["path"] for entry in transitive_schema_documents],
+        "transitive_contract_documents": [entry["path"] for entry in transitive_contract_documents],
     }
 
 
@@ -709,12 +717,23 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
                 transitive_referenced_files,
                 predicate=lambda path: _is_contract_reference(path) and not _is_schema_reference(path),
             )
+            has_reference_documents = bool(
+                schema_documents
+                or contract_documents
+                or transitive_schema_documents
+                or transitive_contract_documents
+            )
             loading_hint = _skill_loading_hint(
                 source_kind=skill.source_kind,
                 referenced_files=bool(referenced_files),
-                reference_documents=bool(schema_documents or contract_documents),
+                reference_documents=has_reference_documents,
             )
-            model_visible_documents = _model_visible_documents_section(schema_documents, contract_documents)
+            model_visible_documents = _model_visible_documents_section(
+                schema_documents,
+                contract_documents,
+                transitive_schema_documents=transitive_schema_documents,
+                transitive_contract_documents=transitive_contract_documents,
+            )
             payload = {
                 "name": skill.name,
                 "category": skill.category,
@@ -736,7 +755,7 @@ def get_skill(name: Annotated[str, Field(min_length=1, pattern=r"\S")]) -> dict:
                 "transitive_contract_documents": transitive_contract_documents,
                 "loading_hint": loading_hint,
             }
-            if model_visible_documents["schema_documents"] or model_visible_documents["contract_documents"]:
+            if has_reference_documents:
                 payload["model_visible_documents"] = model_visible_documents
             if skill.source_kind == "command":
                 command = content_registry.get_command(skill.registry_name)

@@ -20,6 +20,10 @@ A knowledge document is only useful if its identity is deterministic, its target
 If the input does not clearly map to a single knowledge-doc target, the workflow must stop and ask. If the target already exists as stable or superseded, the workflow must not silently repurpose it as a draft authoring target. Route that request to `gpd:review-knowledge` instead.
 </core_principle>
 
+<hard_schema_visibility_guard>
+Before authoring or revising knowledge documents, load `@{GPD_INSTALL_DIR}/templates/knowledge-schema.md` and keep its canonical capsule visible. Treat that schema as the only authority for required frontmatter, sources, coverage, reviews, and lifecycle rules; do not restate or fork its rule dump in this workflow body.
+</hard_schema_visibility_guard>
+
 <process>
 
 <step name="load_context" priority="first">

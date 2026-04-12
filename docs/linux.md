@@ -54,10 +54,29 @@ After installing anything, open a new terminal and rerun the version checks.
 - If your distribution packages Python older than 3.11, use a newer distribution release or the official Python downloads page linked below.
 - Claude Code's official docs list Ubuntu 20.04+, Debian 10+, and Alpine Linux 3.19+ as supported. If you use Alpine or another musl-based distro, read Anthropic's Linux install notes before continuing.
 
+## Install GPD
+
+Confirm your chosen runtime command works before installing. Install GPD with `npx -y get-physics-done --<flag> --local`, substituting `<flag>` with the install flag documented in [docs/runtime-catalog-reference.md](./runtime-catalog-reference.md). Replace `<flag>` with the install flag documented in the runtime catalog reference, and rerun `python scripts/render_runtime_catalog_table.py` after editing `src/gpd/adapters/runtime_catalog.json` so the table remains the single source of truth.
+
 ## Next steps
 
-- Confirm the installer worked by running `gpd --help` in your normal terminal, then follow the runtime quickstart and the runtime command table in the Onboarding Hub "After the guides" section (start, tour, resume-work, etc.).
-- Use `gpd resume --recent` when you need to jump to a different recent workspace before reopening the runtime; the runtime command table on the Onboarding Hub shows the matching `resume-work` command.
+- Confirm success by running `gpd --help` in your normal terminal, then follow the runtime quickstart and the runtime command table in the Onboarding Hub "After the guides" section (start, tour, resume-work, etc.). Use `gpd resume --recent` when you need to jump to a different recent workspace before reopening the runtime; the runtime command table on the Onboarding Hub shows the matching `resume-work` command.
+
+The onboarding hub's table lists the same commands below:
+
+- Not sure which path fits this folder? `/gpd:start`, `$gpd-start`, or `/gpd-start`.
+- Want a guided overview? `/gpd:tour`, `$gpd-tour`, or `/gpd-tour`.
+- Start a new project: `/gpd:new-project --minimal`, `$gpd-new-project --minimal`, or `/gpd-new-project --minimal`.
+- Map an existing folder with `/gpd:map-research`, `$gpd-map-research`, or `/gpd-map-research`.
+- Rediscover the workspace in your normal terminal with `gpd resume`, or use `gpd resume --recent` before reopening the runtime.
+- Continue in the reopened runtime with `/gpd:resume-work`, `$gpd-resume-work`, or `/gpd-resume-work`.
+
+## Runtime quickstarts
+
+- [Claude Code quickstart](./claude-code.md)
+- [Codex quickstart](./codex.md)
+- [Gemini CLI quickstart](./gemini-cli.md)
+- [OpenCode quickstart](./opencode.md)
 
 ## Official docs
 

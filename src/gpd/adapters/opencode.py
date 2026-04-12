@@ -941,6 +941,8 @@ def _write_mcp_servers_opencode(config_dir: Path, servers: dict[str, dict[str, o
     if not isinstance(existing_mcp, dict):
         existing_mcp = {}
 
+    existing_mcp = _managed_integrations.prune_gpd_managed_mcp_servers(existing_mcp)
+
     from gpd.mcp.builtin_servers import merge_managed_mcp_entry
 
     for name, entry in servers.items():

@@ -22,7 +22,9 @@ from gpd.contracts import (
     ResearchContract,
     SuggestedContractCheck,
     claim_requires_proof_audit,
+    collect_contract_integrity_errors,
     collect_plan_contract_integrity_errors,
+    collect_proof_bearing_claim_integrity_errors,
     contract_from_data,
     contract_from_data_salvage,
     normalize_contract_results_input,
@@ -2445,6 +2447,70 @@ def test_validate_project_contract_rejects_cross_type_id_collisions() -> None:
     )
 
 
+def test_collect_contract_integrity_errors_reports_duplicate_ids_directly() -> None:
+    contract = ResearchContract.model_validate(_load_contract_fixture())
+    contract.claims.append(copy.deepcopy(contract.claims[0]))
+
+    errors = collect_contract_integrity_errors(contract)
+
+    assert "duplicate claim id claim-benchmark" in errors
+
+
+def test_collect_proof_bearing_claim_integrity_errors_reports_missing_proof_fields_directly() -> None:
+    contract = ResearchContract.model_validate(
+        {
+            "scope": {"question": "Establish the lemma"},
+            "observables": [
+                {
+                    "id": "obs-proof",
+                    "name": "Lemma target",
+                    "definition": "Show the lemma holds",
+                }
+            ],
+            "claims": [
+                {
+                    "id": "claim-proof",
+                    "statement": "Prove the lemma",
+                    "claim_kind": "theorem",
+                    "observables": ["obs-proof"],
+                    "deliverables": ["deliv-proof"],
+                    "acceptance_tests": ["test-proof-align"],
+                    "proof_deliverables": ["deliv-proof"],
+                    "parameters": [],
+                    "hypotheses": [],
+                    "conclusion_clauses": [],
+                }
+            ],
+            "deliverables": [
+                {
+                    "id": "deliv-proof",
+                    "kind": "derivation",
+                    "description": "Proof artifact",
+                }
+            ],
+            "acceptance_tests": [
+                {
+                    "id": "test-proof-align",
+                    "subject": "claim-proof",
+                    "kind": "claim_to_proof_alignment",
+                    "procedure": "Audit the lemma proof",
+                    "pass_condition": "All lemma parameters are covered",
+                }
+            ],
+            "uncertainty_markers": {
+                "weakest_anchors": ["Proof inventory still incomplete."],
+                "disconfirming_observations": ["Dropping hypotheses invalidates the lemma."],
+            },
+        }
+    )
+
+    errors = collect_proof_bearing_claim_integrity_errors(contract)
+
+    assert "claim claim-proof missing parameters for proof-bearing claim" in errors
+    assert "claim claim-proof missing hypotheses for proof-bearing claim" in errors
+    assert "claim claim-proof missing conclusion_clauses for proof-bearing claim" in errors
+
+
 def test_validate_project_contract_rejects_unknown_observables_and_evidence() -> None:
     contract = _load_contract_fixture()
     contract["claims"][0]["observables"] = ["obs-missing"]
@@ -3644,6 +3710,19 @@ def test_collect_plan_contract_integrity_errors_requires_concrete_grounding_not_
         contract[section_name][nested_field_name] = value
     else:
         contract[section_name] = {nested_field_name: value}
+
+    errors = collect_plan_contract_integrity_errors(ResearchContract.model_validate(contract))
+
+    assert "missing references or explicit grounding context" in errors
+
+
+def test_collect_plan_contract_integrity_errors_rejects_project_artifact_anchor_without_project_root() -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["references"] = []
+    contract["context_intake"]["user_asserted_anchors"] = [
+        "GPD/phases/00-baseline/00-01-SUMMARY.md"
+    ]
 
     errors = collect_plan_contract_integrity_errors(ResearchContract.model_validate(contract))
 

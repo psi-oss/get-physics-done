@@ -19,6 +19,7 @@ Create or update a draft knowledge document from a topic, source file, arXiv ID,
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/digest-knowledge.md
+@{GPD_INSTALL_DIR}/templates/knowledge-schema.md
 </execution_context>
 
 <context>

@@ -1216,7 +1216,8 @@ class GeminiAdapter(RuntimeAdapter):
         if managed_mcp_servers:
             mcp_servers.update(managed_mcp_servers)
         if mcp_servers:
-            existing_mcp = settings.get("mcpServers", {})
+            existing_mcp_raw = settings.get("mcpServers", {})
+            existing_mcp = _managed_integrations.prune_gpd_managed_mcp_servers(existing_mcp_raw)
             managed_env_keys = {
                 "env": frozenset(
                     key
@@ -1230,7 +1231,7 @@ class GeminiAdapter(RuntimeAdapter):
                 user_owned_mapping_keys=managed_env_keys,
             )
             for server_name in mcp_servers:
-                existing_entry = existing_mcp.get(server_name) if isinstance(existing_mcp, dict) else None
+                existing_entry = existing_mcp_raw.get(server_name) if isinstance(existing_mcp_raw, dict) else None
                 if not isinstance(existing_entry, dict) or "trust" not in existing_entry:
                     merged_mcp.setdefault(server_name, {})["trust"] = True
             settings["mcpServers"] = merged_mcp

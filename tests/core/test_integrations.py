@@ -303,3 +303,17 @@ def test_get_managed_integration_rejects_malformed_ids() -> None:
     assert get_managed_integration("") is None
     assert get_managed_integration("   ") is None
     assert get_managed_integration(" WOLFRAM ") is not None
+
+
+def test_prune_gpd_managed_mcp_servers_preserves_unmanaged_entries() -> None:
+    raw = {
+        "gpd-errors": {"command": "python"},
+        WOLFRAM_MANAGED_SERVER_KEY: {"command": "gpd-mcp-wolfram"},
+        "custom-server": {"command": "node"},
+    }
+
+    pruned = managed_integrations.prune_gpd_managed_mcp_servers(raw)
+
+    assert "gpd-errors" not in pruned
+    assert WOLFRAM_MANAGED_SERVER_KEY not in pruned
+    assert pruned == {"custom-server": {"command": "node"}}

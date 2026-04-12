@@ -1,12 +1,10 @@
 # Schema and Registry Ownership
 
-This note names the canonical sources of truth for runtime/schema ownership. Keep
-it compact and update these files instead of copying schema details into runtime
-prompts or generated surfaces.
+This note names the canonical sources of truth for runtime and schema ownership. Keep it compact, rely on this generated list, and avoid copying schema details into runtime prompts or other docs.
 
 ## Canonical Sources
 
-The table below lists the canonical schema, runtime catalog, and registry sources. Regenerate this section by running `python scripts/schema_registry_sources.py` so it always reflects the `CANONICAL_SOURCES` list defined in that module.
+The table below lists the canonical schema, runtime catalog, and registry sources. Regenerate this section by running `python scripts/schema_registry_sources.py` so it always mirrors the `CANONICAL_SOURCES` list defined in that module and remains the single reference for these paths.
 
 | Source | Description |
 |--------|-------------|
@@ -21,7 +19,7 @@ The table below lists the canonical schema, runtime catalog, and registry source
 | `src/gpd/core/model_visible_sections.py` | Shared rendering rules that keep schema sections visible to models. |
 | `src/gpd/specs/templates/` | Canonical contract and prompt templates referenced by runtime prompts. |
 
-The remaining paragraphs below (continuation state, proof red-team gates, etc.) describe how the runtime prompts should reference these sources without restating the raw field list.
+Refer back to these sources whenever runtime prompts, generated surfaces, or docs mention schema or registry files instead of restating the raw listings.
 
 ## Maintenance Rule
 

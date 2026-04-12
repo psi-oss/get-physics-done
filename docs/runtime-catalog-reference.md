@@ -1,6 +1,6 @@
 # Runtime Catalog Reference
 
-Use this page when you need a quick reference for the runtime flags and command prefixes that the installer recognizes. The canonical runtime metadata lives in `src/gpd/adapters/runtime_catalog.json`, and this table is generated from that file by running `python scripts/render_runtime_catalog_table.py`.
+This file is the canonical table for runtime install flags, command prefixes, and selection aliases. The data is generated directly from `src/gpd/adapters/runtime_catalog.json` by running `python scripts/render_runtime_catalog_table.py`. Re-run that script whenever the JSON changes so the onboarding docs keep referring to a single source of truth, and avoid copying the table elsewhere.
 
 ```
 npx -y get-physics-done --<flag> --local

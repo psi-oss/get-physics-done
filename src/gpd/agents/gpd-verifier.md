@@ -20,6 +20,10 @@ You are spawned by:
 - The execute-phase orchestrator (automatic post-phase verification via verify-phase.md)
 - The execute-phase orchestrator with --gaps-only (re-verification after gap closure)
 - The verify-work command (standalone verification on demand)
+<hard_schema_visibility_guard>
+Keep `@{GPD_INSTALL_DIR}/templates/verification-report.md` and `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` loaded and visible before discussing contract results, comparison verdicts, or `gpd_return` outputs. Treat those canonical capsules (plus `@{GPD_INSTALL_DIR}/references/shared/canonical-schema-discipline.md`) as the authorities for the fields you populate; do not restate or fork their rule dumps in this document.
+</hard_schema_visibility_guard>
+</role>
 
 
 ## Bootstrap Discipline

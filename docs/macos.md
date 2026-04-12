@@ -41,10 +41,29 @@ After installing, close Terminal, open it again, and rerun the Onboarding Hub pr
 - Install GPD with the runtime flag you plan to use (`npx -y get-physics-done --<flag> --local`) as described on the Onboarding Hub and in `docs/runtime-catalog-reference.md`.
 - Once the install succeeds, follow the runtime quickstart linked on the Onboarding Hub for Claude Code, Gemini CLI, Codex, or OpenCode.
 
+## Install GPD
+
+Confirm your chosen runtime command works before installing. Install GPD with `npx -y get-physics-done --<flag> --local`, substituting `<flag>` with the install flag documented in [docs/runtime-catalog-reference.md](./runtime-catalog-reference.md). Replace `<flag>` with the install flag documented in the runtime catalog reference, and rerun `python scripts/render_runtime_catalog_table.py` after editing `src/gpd/adapters/runtime_catalog.json` so the table remains the single source of truth.
+
 ## Next steps
 
-- Confirm the installer worked by running `gpd --help` in your normal terminal, then run the runtime-specific commands shown in the Onboarding Hub's "After the guides" table (start, tour, resume-work, etc.).
-- Use `gpd resume --recent` only when the terminal lists a different recent workspace; open the runtime next and run the matching `resume-work` command from the table.
+- Confirm success by running `gpd --help` in your normal terminal, then run the runtime-specific commands shown in the Onboarding Hub's "After the guides" table (start, tour, resume-work, etc.). Use `gpd resume --recent` only when the terminal lists a different recent workspace; open the runtime next and run the matching `resume-work` command from the table.
+
+The onboarding hub's table lists the same commands below:
+
+- Not sure which path fits this folder? `/gpd:start`, `$gpd-start`, or `/gpd-start`.
+- Want a guided overview? `/gpd:tour`, `$gpd-tour`, or `/gpd-tour`.
+- Start a new project: `/gpd:new-project --minimal`, `$gpd-new-project --minimal`, or `/gpd-new-project --minimal`.
+- Map an existing folder with `/gpd:map-research`, `$gpd-map-research`, or `/gpd-map-research`.
+- Rediscover the workspace in your normal terminal with `gpd resume`, or use `gpd resume --recent` before reopening the runtime.
+- Continue in the reopened runtime with `/gpd:resume-work`, `$gpd-resume-work`, or `/gpd-resume-work`.
+
+## Runtime quickstarts
+
+- [Claude Code quickstart](./claude-code.md)
+- [Codex quickstart](./codex.md)
+- [Gemini CLI quickstart](./gemini-cli.md)
+- [OpenCode quickstart](./opencode.md)
 
 ## Official docs
 
