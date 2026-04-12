@@ -42,6 +42,7 @@ from gpd.contracts import (
     SuggestedContractCheck,
     VerificationEvidence,
 )
+from gpd.mcp.verification_contract_policy import verification_contract_policy_text
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SPECS_DIR = REPO_ROOT / "src/gpd/specs"
@@ -165,6 +166,7 @@ def test_plan_contract_schema_surfaces_canonical_research_contract_fields() -> N
     assert "do not count as grounding" in plan_schema
     assert "proof-specific acceptance test" in plan_schema
     assert "proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses" in plan_schema
+    assert "Hard-schema fields must be model-visible before validation" in plan_schema
 
 
 def test_plan_contract_schema_include_expands_validation_commands() -> None:
@@ -265,6 +267,15 @@ def test_project_contract_schema_examples_surface_validator_accepted_proof_objec
         assert "Project Contract ID Linkage Rules" in schema_text
         assert "`context_intake.must_read_refs[]` must contain `references[].id` values only." in schema_text
         assert "`links[].verified_by[]` must contain `acceptance_tests[].id` values only." in schema_text
+        if schema_name == "project-contract-schema.md":
+            assert "Hard-schema fields must be model-visible before validation" in schema_text
+
+
+def test_verification_contract_policy_surfaces_hard_schema_model_visibility() -> None:
+    policy_text = verification_contract_policy_text()
+
+    assert "must make `scope.question`, non-empty `scope.in_scope`, `context_intake`, and `uncertainty_markers` model-visible" in policy_text
+    assert "scoping-only contracts may omit claims only when they preserve a target, unresolved question, or grounding input" in policy_text
 
 
 def test_project_and_state_contract_schemas_surface_full_closed_research_vocabularies() -> None:

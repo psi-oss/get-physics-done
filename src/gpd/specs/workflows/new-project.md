@@ -7,7 +7,7 @@ Read all files referenced by the invoking prompt's execution_context before star
 </required_reading>
 
 <hard_schema_visibility_guard>
-Before drafting or repairing any `project_contract`, explicitly read/load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` first; Do not restate the full contract rules here; keep only the approval-critical reminders below.; use that schema as the canonical source of truth for the object rules, then keep its compact hard-schema capsule and compact addendum guidance visible while authoring the contract output. It lists `schema_version`, `scope`, `context_intake`, `uncertainty_markers`, strict JSON bools, list shapes, object arrays, proof-bearing fields, and the new draft/approved/proof reminders; do not add verbose schema prose to prompts.
+Before drafting or repairing any `project_contract`, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep its compact Hard-schema capsule visible; do not restate or fork the schema text here.
 </hard_schema_visibility_guard>
 
 <auto_mode>
@@ -89,18 +89,20 @@ The file should contain at minimum:
 
 It should ideally also name at least one decisive output, anchor, prior output, or explicit "anchor unknown / need grounding / target not yet chosen" note so any repair prompt can stay narrow. Missing-anchor notes preserve uncertainty, but they do not satisfy approval on their own.
 
-Example structure:
+For an input-file outline, prefer the canonical scoping fields from `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md`; include a research question, success signal, anchors, and optional first investigation chunk.
+
+Minimal example:
   # Research Question
-  What is the critical exponent of the 3D Ising model?
+  What measurable quantity or theorem should this project resolve?
 
   # Success Signal
-  Extract the critical exponent and compare it against a trusted benchmark.
+  Name the decisive observable, derivation, figure, or benchmark comparison.
 
   # Anchors
-  Compare against the known 3D Ising result from the literature.
+  List must-use references, trusted baselines, or explicit grounding gaps.
 
   # Optional First Investigation Chunk
-  Set up the Monte Carlo simulation and finite-size scaling workflow.
+  Name the first bounded calculation, proof step, or setup task.
 ```
 
 **If `--minimal` without file** (`gpd:new-project --minimal`):

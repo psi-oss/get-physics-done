@@ -61,11 +61,14 @@ _VERIFICATION_CONTRACT_POLICY_CLAUSES = (
     "Proof-oriented checks need an authoritative contract payload before execution.",
     "Schemas are closed at every level; unknown keys, non-objects, blank strings, or malformed "
     "members trigger hard errors; normalization only tolerates singletons and case drift.",
+    "Project-style contract payloads must make `scope.question`, non-empty `scope.in_scope`, "
+    "`context_intake`, and `uncertainty_markers` model-visible before validation; downstream validators do not infer them.",
     PROJECT_CONTRACT_APPROVAL_CHECKLIST_TEXT,
     "Non-scoping, non-exploratory plans require claims, deliverables, acceptance tests, "
-    "non-empty `forbidden_proxies`, and either grounded references or explicit context anchors.",
+    "non-empty `forbidden_proxies`, and either grounded references or explicit context anchors; "
+    "scoping-only contracts may omit claims only when they preserve a target, unresolved question, or grounding input.",
     "When `references[]` exists without other grounding, one anchor must set `must_surface=true`, "
-    "include `applies_to[]` coverage, concrete `required_actions[]`, and workflow-only scope labels.",
+    "include `applies_to[]` coverage, concrete `required_actions[]`, and workflow-only `carry_forward_to[]` scope labels.",
     "IDs must stay unique and never reuse a target ID across claims, deliverables, acceptance tests, or references when that would blur resolution.",
     "Contract context must match metadata defaults and declared metadata fields such as benchmark anchors, regimes, and families.",
     "Missing concrete grounding, evidence, prior outputs, references, baselines, or proof artifacts are blockers and must not be fabricated.",

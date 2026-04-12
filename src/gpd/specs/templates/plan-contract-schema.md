@@ -27,7 +27,7 @@ The PLAN `contract` value must be a YAML object with these top-level sections:
 | `schema_version` | integer | yes | Must equal `1`. |
 | `scope` | object | yes | Defines the decisive question and scope boundaries. |
 | `context_intake` | object | yes | Captures concrete anchors, prior outputs, and gating context. |
-| `claims[]` | list | yes* | Required for non-scoping plans; keep at least one claim even when scoping. |
+| `claims[]` | list | yes* | Required for non-scoping plans; scoping-only contracts may omit claims only when they preserve a target, unresolved question, or grounding input. |
 | `deliverables[]` | list | yes* | Must list the decisive artifacts; optional for scoping-only contracts. |
 | `acceptance_tests[]` | list | yes* | Each decisive claim or deliverable needs an executable test. |
 | `forbidden_proxies[]` | list | yes* | Needed whenever there are deceptive success patterns to reject. |
@@ -37,13 +37,14 @@ The PLAN `contract` value must be a YAML object with these top-level sections:
 | `observables[]` | list | no | Declare named quantities only when a claim or proof tracks them. |
 | `links[]` | list | no | Use when tracing handoffs or decisive comparisons between IDs. |
 
-`*` Non-scoping plans must keep the full claims/deliverables/acceptance_tests/forbidden_proxies suite. Reduced contracts need at least one decision surface (target, open question, or carry-forward input) and still rely on this shape for the declared anchors above.
+`*` Non-scoping plans must keep the full claims/deliverables/acceptance_tests/forbidden_proxies suite. Scoping-only contracts may omit claims only when they preserve a target, unresolved question, or grounding input, and still rely on this shape for the declared anchors above.
 
 For additional alignment rules and validation command examples, revisit the canonical addendum guidance above.
 
 ## General Rules
 
 - Every list named above must contain objects, not strings.
+- Hard-schema fields must be model-visible before validation: `scope.question`, non-empty `scope.in_scope`, `context_intake`, and `uncertainty_markers` are not inferred from prose.
 - `context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections, not strings or lists.
 - Do not add unknown keys at any level; strict validation rejects them. Salvage/repair flows may drop unknown keys while surfacing recoverable findings.
 - All ID cross-links must resolve to declared IDs.

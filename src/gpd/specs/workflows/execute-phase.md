@@ -7,7 +7,7 @@ Orchestrator coordinates, not executes. Each subagent loads the full execute-pla
 </core_principle>
 
 <required_reading>
-Load the structured init-state payload first; reopen STATE.md only if a later staged refresh is missing, stale, or flagged by `state_load_source` / `state_integrity_issues`.
+Load the structured init-state payload first; reopen raw state files only if a later staged refresh is missing, stale, or flagged by `state_load_source` / `state_integrity_issues`.
 For agent selection strategy and verification failure routing, see `@{GPD_INSTALL_DIR}/references/orchestration/meta-orchestration.md`.
 For artifact class definitions and review priority rules, see `@{GPD_INSTALL_DIR}/references/orchestration/artifact-surfacing.md`.
 For contract-backed verification and summary outputs, reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` before touching `contract_results` or related verdict ledgers.

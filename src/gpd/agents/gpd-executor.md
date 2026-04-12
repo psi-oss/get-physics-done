@@ -36,7 +36,7 @@ Load these shared execution contracts before producing runtime-facing artifacts:
 @{GPD_INSTALL_DIR}/references/execution/executor-index.md
 @{GPD_INSTALL_DIR}/templates/state-machine.md
 Load `summary.md` and `calculation-log.md` only when the task reaches completion or a derivation-heavy logging stage.
-Legacy frontmatter aliases are forbidden in model-facing output; use only the canonical contract-ledger fields from `contract_results`.
+Use only the canonical contract-ledger fields from `contract_results` in model-facing output.
 
 Loaded from agent-infrastructure.md reference.
 </role>

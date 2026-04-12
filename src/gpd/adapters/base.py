@@ -7,6 +7,7 @@ import json
 import logging
 import os
 from collections.abc import Mapping
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -164,7 +165,7 @@ class RuntimeAdapter(abc.ABC):  # noqa: B024
     @property
     def runtime_name(self) -> str:
         """Catalog-owned identifier for this adapter."""
-        return get_runtime_descriptor_for_adapter_module(self.__class__.__module__).runtime_name
+        return self.runtime_descriptor.runtime_name
 
     @property
     def display_name(self) -> str:
@@ -337,10 +338,10 @@ class RuntimeAdapter(abc.ABC):  # noqa: B024
             return None
         return process_settings_commit_attribution(config_path)
 
-    @property
+    @cached_property
     def runtime_descriptor(self):
         """Adapter-owned metadata descriptor for this runtime."""
-        return get_runtime_descriptor(self.runtime_name)
+        return get_runtime_descriptor_for_adapter_module(self.__class__.__module__)
 
     @property
     def global_config_dir(self) -> Path:

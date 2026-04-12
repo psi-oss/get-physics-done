@@ -166,3 +166,27 @@ def test_repair_command_projects_target_dir_only_for_explicit_targets(tmp_path: 
     assert implicit_command == f"{adapter.update_command} --local"
     assert "--target-dir" not in implicit_command
     assert explicit_command == f"{adapter.update_command} --local --target-dir {shlex.quote(str(explicit_target))}"
+
+
+def test_repair_command_respects_global_config_environment_override(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    adapter = get_adapter(_PRIMARY_RUNTIME)
+    env_var = adapter.runtime_descriptor.global_config.env_var
+    if env_var is None:
+        pytest.skip(f"{adapter.display_name} has no global config environment override")
+
+    override_target = tmp_path / "override" / adapter.config_dir_name
+    monkeypatch.setenv(env_var, str(override_target))
+
+    command = _build_repair_command(
+        runtime=_PRIMARY_RUNTIME,
+        config_dir=override_target,
+        install_scope="global",
+        explicit_target=False,
+        cli_cwd=tmp_path,
+    )
+
+    assert command == f"{adapter.update_command} --global"
+    assert "--target-dir" not in command

@@ -8,7 +8,7 @@ from __future__ import annotations
 import copy
 import json
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
@@ -412,6 +412,8 @@ class GPDProjectConfig(BaseModel):
                 "checkpoint_after_n_tasks": self.checkpoint_after_n_tasks,
                 "checkpoint_after_first_load_bearing_result": self.checkpoint_after_first_load_bearing_result,
                 "checkpoint_before_downstream_dependent_tasks": self.checkpoint_before_downstream_dependent_tasks,
+                "project_usd_budget": self.project_usd_budget,
+                "session_usd_budget": self.session_usd_budget,
             },
             "research_mode": self.research_mode.value,
             "commit_docs": self.commit_docs,
@@ -427,6 +429,7 @@ class GPDProjectConfig(BaseModel):
                 "phase_branch_template": self.phase_branch_template,
                 "milestone_branch_template": self.milestone_branch_template,
             },
+            "model_overrides": copy.deepcopy(self.model_overrides),
         }
 
 
@@ -768,6 +771,16 @@ def _unsupported_config_keys(parsed: dict[str, object]) -> list[str]:
     return sorted(unsupported)
 
 
+def _reject_duplicate_config_keys(pairs: Iterable[tuple[str, object]]) -> dict[str, object]:
+    """Reject duplicate object keys while parsing config.json."""
+    parsed: dict[str, object] = {}
+    for key, value in pairs:
+        if key in parsed:
+            raise ConfigError(f"Duplicate config.json key: `{key}`")
+        parsed[key] = value
+    return parsed
+
+
 def _model_from_parsed_config(parsed: dict[str, object]) -> GPDProjectConfig:
     """Build the canonical config model from a parsed config payload."""
     if not isinstance(parsed, dict):
@@ -910,7 +923,9 @@ def load_config(project_dir: Path) -> GPDProjectConfig:
         raise ConfigError(f"Cannot read config file {config_path}: {exc}") from exc
 
     try:
-        parsed = json.loads(raw)
+        parsed = json.loads(raw, object_pairs_hook=_reject_duplicate_config_keys)
+    except ConfigError:
+        raise
     except json.JSONDecodeError as e:
         raise ConfigError(f"Malformed config.json: {e}. Fix or delete {PLANNING_DIR_NAME}/config.json") from e
     return _apply_gitignore_commit_docs(project_dir, _model_from_parsed_config(parsed))

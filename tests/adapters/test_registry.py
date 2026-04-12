@@ -31,6 +31,8 @@ from gpd.adapters.tool_names import (
 def _patch_catalog_descriptors(monkeypatch: pytest.MonkeyPatch, descriptors: tuple[RuntimeDescriptor, ...]) -> None:
     monkeypatch.setattr(adapters_module, "iter_runtime_descriptors", lambda: descriptors)
     monkeypatch.setattr("gpd.adapters.base.iter_runtime_descriptors", lambda: descriptors)
+
+
 def _runtime_tool_maps() -> dict[str, dict[str, str]]:
     return {runtime: get_adapter(runtime).tool_name_map for runtime in list_runtimes()}
 
@@ -69,6 +71,39 @@ class TestRegistry:
 
         assert adapter.runtime_name == descriptor.runtime_name
         assert adapter.__class__.__module__.rsplit(".", 1)[-1] == descriptor.adapter_module
+
+    def test_adapter_runtime_descriptor_is_cached_catalog_source(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        descriptor = RuntimeDescriptor(
+            runtime_name="catalog-runtime",
+            adapter_module="catalog_adapter",
+            display_name="Catalog Runtime",
+            priority=10,
+            config_dir_name=".catalog",
+            install_flag="--catalog",
+            launch_command="catalog",
+            command_prefix="/gpd:",
+            activation_env_vars=(),
+            selection_flags=("--catalog",),
+            selection_aliases=("catalog-runtime",),
+            global_config=GlobalConfigPolicy(strategy="env_or_home", home_subpath=".catalog"),
+            hook_payload=HookPayloadPolicy(),
+        )
+
+        class CatalogAdapter(RuntimeAdapter):
+            pass
+
+        CatalogAdapter.__module__ = "gpd.adapters.catalog_adapter"
+        _patch_catalog_descriptors(monkeypatch, (descriptor,))
+
+        adapter = CatalogAdapter()
+
+        assert adapter.runtime_descriptor is descriptor
+        assert adapter.runtime_name == "catalog-runtime"
+
+        monkeypatch.setattr("gpd.adapters.base.iter_runtime_descriptors", lambda: pytest.fail("descriptor lookup repeated"))
+
+        assert adapter.runtime_descriptor is descriptor
+        assert adapter.runtime_name == "catalog-runtime"
 
     @pytest.mark.parametrize("descriptor", iter_runtime_descriptors(), ids=lambda descriptor: descriptor.runtime_name)
     def test_get_adapter_accepts_catalog_aliases(self, descriptor) -> None:

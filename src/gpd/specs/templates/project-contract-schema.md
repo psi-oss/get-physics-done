@@ -7,7 +7,7 @@ purpose: Contract-critical schema slice for the `project_contract` payload
 
 Canonical schema for the `project_contract` object inside `GPD/state.json`. This is the contract-critical slice used by `gpd:new-project` before a scope approval gate. Keep it narrow: model-facing contract setup should see only the `project_contract` shape and rules, not the unrelated top-level state schema.
 
-Hard-schema capsule: `project_contract` must be one JSON object with `schema_version`, `scope`, `context_intake`, and `uncertainty_markers`; bool fields use literal `true`/`false` only; list fields stay lists; object arrays stay objects; proof-bearing claims must surface `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, `proof_deliverables`, and a `claim_to_proof_alignment` acceptance test before drafting approval text.
+Hard-schema capsule: `project_contract` must be one JSON object with `schema_version`, `scope`, `context_intake`, and `uncertainty_markers`; hard-schema fields must be model-visible before validation because validators do not infer `scope.question`, non-empty `scope.in_scope`, `context_intake`, or `uncertainty_markers` from prose; bool fields use literal `true`/`false` only; list fields stay lists; object arrays stay objects; proof-bearing claims must surface `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, `proof_deliverables`, and a `claim_to_proof_alignment` acceptance test before drafting approval text.
 
 Project-local paths in `locator` or `applies_to[]` evidence require project-root-aware validation; validation cannot prove artifact grounding without that resolved project context.
 
@@ -172,6 +172,7 @@ Approval checklist:
 7. Approved contracts need concrete grounding from an anchor, reference, prior output, or baseline; never fabricate missing evidence.
 
 - `project_contract` must be a JSON object whose `schema_version` is the integer `1`.
+- Hard-schema fields must be model-visible before validation: `scope.question`, non-empty `scope.in_scope`, `context_intake`, and `uncertainty_markers` are not inferred from prose.
 - Include at least one observable, claim, or deliverable.
 - `scope.in_scope` must name at least one boundary or objective; `context_intake` must be a non-empty object whose anchor fields (`must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, `known_good_baselines`, `context_gaps`, `crucial_inputs`) keep concrete handles that can be re-found later. Placeholder-only text such as `TBD` or `unknown` does not satisfy grounding.
 - `context_intake`, `approach_policy`, and `uncertainty_markers` must each remain objects and never collapse to strings or lists.

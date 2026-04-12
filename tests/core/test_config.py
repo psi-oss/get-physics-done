@@ -115,6 +115,23 @@ class TestGPDProjectConfigDefaults:
         assert cfg.branching_strategy == BranchingStrategy.NONE
         assert cfg.model_overrides is None
 
+    def test_to_storage_dict_preserves_budgets_and_model_overrides(self):
+        runtime_name = _RUNTIME_DESCRIPTORS[0].runtime_name
+        cfg = GPDProjectConfig(
+            project_usd_budget=12.5,
+            session_usd_budget=2.25,
+            model_overrides={runtime_name: {"tier-1": "gpt-test"}},
+        )
+
+        storage = cfg.to_storage_dict()
+
+        assert storage["execution"]["project_usd_budget"] == 12.5
+        assert storage["execution"]["session_usd_budget"] == 2.25
+        assert storage["model_overrides"] == {runtime_name: {"tier-1": "gpt-test"}}
+
+        cfg.model_overrides[runtime_name]["tier-1"] = "changed"
+        assert storage["model_overrides"] == {runtime_name: {"tier-1": "gpt-test"}}
+
 
 class TestConfigKeyNormalization:
     def test_cli_keys_accept_case_and_dash_variants(self) -> None:
@@ -232,6 +249,16 @@ class TestLoadConfig:
         (tmp_path / "GPD").mkdir()
         (tmp_path / "GPD" / "config.json").write_text("{bad json", encoding="utf-8")
         with pytest.raises(ConfigError, match="Malformed config.json"):
+            load_config(tmp_path)
+
+    def test_duplicate_json_keys_raise(self, tmp_path: Path):
+        (tmp_path / "GPD").mkdir()
+        (tmp_path / "GPD" / "config.json").write_text(
+            '{"execution": {"review_cadence": "dense", "review_cadence": "sparse"}}',
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ConfigError, match=r"Duplicate config\.json key: `review_cadence`"):
             load_config(tmp_path)
 
     def test_physics_section_is_rejected_by_current_config_schema(self, tmp_path: Path) -> None:

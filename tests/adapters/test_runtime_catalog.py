@@ -162,7 +162,10 @@ def test_runtime_catalog_rejects_duplicate_nested_json_keys(
 
 def test_runtime_catalog_loader_validates_schema_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     schema_path = tmp_path / "runtime_catalog_schema.json"
-    schema_path.write_text(json.dumps({"schema_version": 1, "unexpected": []}), encoding="utf-8")
+    schema_path.write_text(
+        json.dumps({"schema_version": 1, "top_level_keys": ["schema_version", "top_level_keys"], "unexpected": []}),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(runtime_catalog, "_runtime_catalog_schema_path", lambda: schema_path)
     runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
     runtime_catalog._load_catalog.cache_clear()
@@ -173,6 +176,19 @@ def test_runtime_catalog_loader_validates_schema_json(tmp_path: Path, monkeypatc
     finally:
         runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
         runtime_catalog._load_catalog.cache_clear()
+
+
+def test_runtime_catalog_schema_requires_top_level_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    schema_path = tmp_path / "runtime_catalog_schema.json"
+    schema_path.write_text(json.dumps({"schema_version": 1}), encoding="utf-8")
+    monkeypatch.setattr(runtime_catalog, "_runtime_catalog_schema_path", lambda: schema_path)
+    runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
+
+    try:
+        with pytest.raises(ValueError, match="runtime catalog schema.top_level_keys must be a list of strings"):
+            runtime_catalog._load_runtime_catalog_schema_shape()
+    finally:
+        runtime_catalog._load_runtime_catalog_schema_shape.cache_clear()
 
 
 def test_runtime_catalog_rejects_unknown_nested_capability_key(
