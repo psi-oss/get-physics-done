@@ -1102,10 +1102,10 @@ Rollback last GPD operation with safety checkpoint.
 Usage: `gpd:undo`
 
 **`gpd:update`**
-Update GPD to latest version with changelog display.
+Update GPD to latest version and show recent release notes.
 
 - Runs the public bootstrap update command for the active runtime
-- Shows changelog of what changed since your version
+- Shows recent release notes for what changed since your version
 - Preserves local modifications via patch backups (use `gpd:reapply-patches` after if needed)
 
 Usage: `gpd:update`

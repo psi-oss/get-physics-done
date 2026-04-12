@@ -83,6 +83,11 @@ After your first successful start or later, use `/gpd-settings` to review
 autonomy, workflow defaults, and model-cost posture. Use `/gpd-set-tier-models`
 when you only want to pin concrete `tier-1`, `tier-2`, and `tier-3` model ids.
 
+## Keep GPD current
+
+For normal released updates, use `/gpd-update` inside OpenCode.
+Bootstrap `--upgrade` is the dev-only GitHub `main` path, not the normal released update path.
+
 ## 5) What success looks like
 
 - `opencode --help` works.

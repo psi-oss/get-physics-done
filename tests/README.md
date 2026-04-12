@@ -168,13 +168,13 @@ The canonical schema and MCP descriptor ownership story lives in `docs/schema-re
 - `bin/install.js -> GitHub main-branch source family {https://github.com/psi-oss/get-physics-done/archive/refs/heads/main.tar.gz, git+https://github.com/psi-oss/get-physics-done.git@main}`
   `external-service`
 
-- `bin/install.js -> tagged release install candidate chain {tag archive, https tag checkout}`
+- `bin/install.js -> matching release install candidate chain {PyPI package, tag archive, https tag checkout}`
   `ordering-contract`
-  Normal install and `--reinstall` stay pinned to the matching tagged release and fail closed if it cannot be installed.
+  Normal install and `--reinstall` stay pinned to the matching release version, trying PyPI first and then the matching tagged GitHub sources if needed; they fail closed if no matching release source can be installed.
 
 - `bin/install.js -> main-branch upgrade candidate chain {main archive, https main checkout}`
   `ordering-contract`
-  `--upgrade` prefers the latest `main` branch source and fails closed if no main-branch source can be installed.
+  With `GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1`, `--upgrade` force-reinstalls from the latest `main` branch source and fails closed if no main-branch source can be installed; without that env var, the managed-package upgrade path is skipped. Normal released updates use the runtime update command or rerun the matching released install command, not `--upgrade`.
 
 - `bin/install.js -> external binaries {node, python3, python, git}`
   `external-binary`

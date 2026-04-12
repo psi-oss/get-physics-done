@@ -1304,7 +1304,7 @@ function releaseInstallCandidates(version) {
     );
   }
 
-  // Release installs stay pinned to the matching tagged GitHub source.
+  // Release installs stay pinned to the matching release version: PyPI first, then matching tagged GitHub sources.
   if (repoGitUrl) {
     candidates.push(
       {
@@ -2207,8 +2207,8 @@ function printHelp() {
   console.log(` ${cyan}-l, --local${reset}             Use the current project only`);
   console.log(` ${cyan}-g, --global${reset}            Use the global runtime config dir`);
   console.log(` ${cyan}--uninstall${reset}             Uninstall from selected runtime config`);
-  console.log(` ${cyan}--reinstall${reset}             Reinstall the matching tagged GitHub source in ~/GPD/venv`);
-  console.log(` ${cyan}--upgrade${reset}               Dev-only: upgrade ~/GPD/venv from the latest GitHub main source when ${MAIN_BRANCH_UPGRADE_ENV}=1`);
+  console.log(` ${cyan}--reinstall${reset}             Force-reinstall the matching release version in ~/GPD/venv (PyPI first, then matching GitHub tag if needed)`);
+  console.log(` ${cyan}--upgrade${reset}               Dev-only: when ${MAIN_BRANCH_UPGRADE_ENV}=1, force-reinstall from GitHub main in ~/GPD/venv; otherwise skip the managed-package upgrade`);
   for (const runtime of ALL_RUNTIMES) {
     const flags = runtimeSelectionFlagList(runtime).join(", ");
     const padding = " ".repeat(Math.max(0, 24 - flags.length));
@@ -2229,11 +2229,11 @@ function printHelp() {
   console.log(` ${dim}# Install for ${runtimeDisplayName(localHelpRuntime)} locally${reset}`);
   console.log(` ${installCommand} ${helpExampleFlag} --local`);
   console.log("");
-  console.log(` ${dim}# Reinstall the matching managed GitHub source${reset}`);
+  console.log(` ${dim}# Force-reinstall the matching managed release version${reset}`);
   console.log(` ${installCommand} --reinstall ${primaryFlag} --local`);
   console.log("");
-  console.log(` ${dim}# Dev-only upgrade to the latest GitHub main source${reset}`);
-  console.log(` ${dim}# Requires: ${MAIN_BRANCH_UPGRADE_ENV}=1${reset}`);
+  console.log(` ${dim}# Dev-only upgrade from the latest GitHub main source${reset}`);
+  console.log(` ${dim}# Skips the managed-package upgrade unless ${MAIN_BRANCH_UPGRADE_ENV}=1${reset}`);
   console.log(` ${installCommand} --upgrade ${primaryFlag} --local`);
   console.log("");
   console.log(` ${dim}# Install for all runtimes globally${reset}`);
@@ -2262,6 +2262,9 @@ function printHelp() {
   console.log(" Open your runtime, run its help command first, use `start` if you are not sure what fits this folder, and use `tour` if you want a read-only overview of the broader command surface before choosing.");
   console.log(
     " Then use your runtime's `new-project` command for new work or `map-research` for existing work. When you come back later, use `gpd resume` for the current-workspace read-only recovery snapshot or `gpd resume --recent` to find a different workspace first, then continue in the runtime with `resume-work`."
+  );
+  console.log(
+    ` To keep a released install current later, use your runtime update command or rerun the matching released install command. Reserve --upgrade for the developer-only GitHub main path when ${MAIN_BRANCH_UPGRADE_ENV}=1; otherwise the managed-package upgrade is skipped.`
   );
   console.log(` ${SHARED_PUBLIC_SURFACE_TEXT.settingsCommandSentence}`);
   console.log(

@@ -164,7 +164,7 @@ If any of those fail, fix them before troubleshooting GPD itself. These are boot
 - Use `gpd validate unattended-readiness --runtime <runtime> --autonomy balanced` when you want a terminal-side unattended or overnight verdict.
 - If you plan paper/manuscript work later, use `gpd doctor --runtime <runtime> --local` for the project-local target or `gpd doctor --runtime <runtime> --global` for the global target first. For the fuller preset catalog, shared Wolfram integration details, and plan-preflight boundaries, use `gpd presets list`, `gpd integrations status wolfram`, and `gpd validate plan-preflight <PLAN.md>` from your normal terminal.
 - Provider authentication is checked manually in the runtime itself; GPD will point this out, but it does not hard-block installation readiness on it
-- `--upgrade` stays on release-pinned sources by default. Set `GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1` only when you intentionally want the latest unreleased GitHub `main` snapshot.
+- `--upgrade` is a dev-only main-branch path. Set `GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1` only when you intentionally want the latest unreleased GitHub `main` snapshot; without that env var, the managed-package upgrade is skipped. For normal released updates, use your runtime's update command or rerun the matching bootstrap install command.
 
 **Quick verification path**
 
@@ -200,13 +200,13 @@ Typical new-project workflow:
 | `--local`, `-l` | Use the current project only. |
 | `--global`, `-g` | Use the global runtime config dir. |
 | `--uninstall` | Uninstall from the selected runtime config instead of installing. |
-| `--reinstall` | Reinstall the matching tagged GitHub source into `~/GPD/venv`. |
-| `--upgrade` | Upgrade `~/GPD/venv`; unreleased `main` snapshots require `GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1`. |
+| `--reinstall` | Force-reinstall the managed GPD package in `~/GPD/venv` at the matching release version; tries PyPI first, then the matching GitHub tag if needed. |
+| `--upgrade` | Dev-only: when `GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1` is set, force-reinstall from GitHub `main` into `~/GPD/venv`. Without that env var, the managed-package upgrade is skipped. |
 | `--target-dir <path>` | Override the runtime config directory; defaults to local scope unless the path resolves to that runtime's canonical global config dir. |
 | `--force-statusline` | Replace an existing runtime statusline during install. |
 | `--help`, `-h` | Show bootstrap help. |
 
-Ordinary installs stay pinned to the matching tagged release. `--upgrade` uses release-pinned sources unless you explicitly opt into the unreleased `main` source.
+Ordinary released updates use your runtime's update command or rerun the matching bootstrap install command. Do not use `--upgrade` unless you explicitly want the unreleased GitHub `main` snapshot and have set `GPD_BOOTSTRAP_ENABLE_MAIN_BRANCH_UPGRADE=1`.
 
 Install the unreleased GitHub `main` snapshot explicitly:
 

@@ -8,6 +8,8 @@ npx -y get-physics-done --<flag> --local
 
 Replace `<flag>` with the install flag for the runtime you want (for example `--claude` for Claude Code). When you change the runtime catalog, rerun the renderer above and copy the updated table into this page so the onboarding docs keep in sync with the adapters.
 
+This page covers install flags and command prefixes, not the normal self-update path. For released updates, use your runtime update command (`/gpd:update`, `$gpd-update`, or `/gpd-update`) or rerun the same `npx -y get-physics-done --<flag> --local|--global` install command you used originally. Reserve bootstrap `--upgrade` for the developer-only `main`-branch path.
+
 | Runtime | `npx` flag | Launch command | Command prefix | Selection aliases |
 |---------|------------|----------------|----------------|--------------------|
 | Claude Code | `--claude` | `claude` | `/gpd:` | `claude-code`, `claude code`, `claude`, `--claude-code` |
