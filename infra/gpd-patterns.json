@@ -4,9 +4,7 @@
   "transport": "stdio",
   "command": "gpd-mcp-patterns",
   "args": [],
-  "env": {
-    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
-  },
+  "env": {},
   "capabilities": [
     "lookup_pattern",
     "add_pattern",

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd.adapters.codex import _GPD_CODEX_SKILL_MARKER
 from gpd.hooks.install_context import detect_self_owned_install
 from gpd.hooks.install_metadata import (
     assess_install_target,
@@ -136,6 +137,17 @@ def test_config_dir_has_managed_install_markers_ignores_user_agents_and_hooks(tm
     (agents_dir / "my-custom-agent.md").write_text("custom\n", encoding="utf-8")
 
     assert config_dir_has_managed_install_markers(config_dir) is False
+
+
+def test_config_dir_has_managed_install_markers_detects_codex_external_skills(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    config_dir = workspace / ".codex"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    skill_dir = workspace / ".agents" / "skills" / "gpd-help"
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(f"{_GPD_CODEX_SKILL_MARKER}\n", encoding="utf-8")
+
+    assert config_dir_has_managed_install_markers(config_dir) is True
 
 
 def test_assess_install_target_distinguishes_absent_and_clean_targets(tmp_path: Path) -> None:

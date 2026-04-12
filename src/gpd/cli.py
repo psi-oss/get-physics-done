@@ -280,34 +280,16 @@ def _resolve_cli_cwd_from_argv(argv: list[str]) -> Path:
 
 def _maybe_reexec_from_checkout(argv: list[str] | None = None) -> None:
     """Re-exec through the nearest checkout when launched from an installed package."""
-    from gpd.version import checkout_root, current_python_executable, resolve_checkout_python
-
-    if os.environ.get(ENV_GPD_DISABLE_CHECKOUT_REEXEC) == "1":
-        return
+    from gpd.version import reexec_from_checkout_if_needed
 
     effective_argv = list(sys.argv[1:] if argv is None else argv)
-    root = checkout_root(_resolve_cli_cwd_from_argv(effective_argv))
-    if root is None:
-        return
-
-    checkout_gpd = (root / "src" / "gpd").resolve(strict=False)
-    active_gpd = Path(__file__).resolve().parent
-    if active_gpd == checkout_gpd:
-        return
-
-    env = os.environ.copy()
-    checkout_src = str((root / "src").resolve(strict=False))
-    existing_pythonpath = [entry for entry in env.get("PYTHONPATH", "").split(os.pathsep) if entry]
-    if checkout_src not in existing_pythonpath:
-        env["PYTHONPATH"] = (
-            os.pathsep.join([checkout_src, *existing_pythonpath]) if existing_pythonpath else checkout_src
-        )
-    env[ENV_GPD_DISABLE_CHECKOUT_REEXEC] = "1"
-    active_python = current_python_executable()
-    checkout_python = resolve_checkout_python(root, fallback=active_python) or active_python
-    if checkout_python is None:
-        return
-    os.execve(checkout_python, [checkout_python, "-m", "gpd.cli", *effective_argv], env)
+    reexec_from_checkout_if_needed(
+        cwd=_resolve_cli_cwd_from_argv(effective_argv),
+        active_gpd=Path(__file__).resolve().parent,
+        module="gpd.cli",
+        argv=effective_argv,
+        disable_env_name=ENV_GPD_DISABLE_CHECKOUT_REEXEC,
+    )
 
 
 def _format_display_path(target: str | Path | None) -> str:

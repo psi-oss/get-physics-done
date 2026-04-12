@@ -4,9 +4,7 @@
   "transport": "stdio",
   "command": "gpd-mcp-conventions",
   "args": [],
-  "env": {
-    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
-  },
+  "env": {},
   "capabilities": [
     "convention_lock_status",
     "convention_set",

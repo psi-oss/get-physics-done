@@ -4,9 +4,7 @@
   "transport": "stdio",
   "command": "gpd-mcp-skills",
   "args": [],
-  "env": {
-    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
-  },
+  "env": {},
   "capabilities": [
     "list_skills",
     "get_skill",

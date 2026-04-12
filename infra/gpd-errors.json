@@ -4,9 +4,7 @@
   "transport": "stdio",
   "command": "gpd-mcp-errors",
   "args": [],
-  "env": {
-    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
-  },
+  "env": {},
   "capabilities": [
     "get_error_class",
     "check_error_classes",

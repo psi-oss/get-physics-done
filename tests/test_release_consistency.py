@@ -236,6 +236,16 @@ def test_public_release_surfaces_share_agentic_system_positioning() -> None:
     assert expected in pyproject["project"]["description"].lower()
     assert "Open-source agentic AI system for physics research" in installer
 
+
+def test_pyproject_wheel_targets_real_gpd_package() -> None:
+    repo_root = _repo_root()
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    wheel = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]
+
+    assert wheel["packages"] == ["gpd"]
+    assert wheel["package-dir"] == {"": "src"}
+
+
 def test_public_bootstrap_package_exposes_npx_installer() -> None:
     repo_root = _repo_root()
     package_json = json.loads((repo_root / "package.json").read_text(encoding="utf-8"))

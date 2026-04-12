@@ -484,7 +484,7 @@ class TestInstall:
 
         assert adapter.missing_install_artifacts(target) == ("opencode.json",)
 
-    def test_install_completeness_requires_manifest_backed_command_surface(
+    def test_install_completeness_requires_manifest_command_surface_files(
         self,
         adapter: OpenCodeAdapter,
         gpd_root: Path,
@@ -503,7 +503,26 @@ class TestInstall:
         assert "command/gpd-*.md" in missing
         assert any(item.startswith("command/") for item in missing)
 
-    def test_install_completeness_requires_manifest_metadata_for_generated_commands(
+
+    def test_install_completeness_accepts_manifestless_command_dir_with_files(
+        self,
+        adapter: OpenCodeAdapter,
+        tmp_path: Path,
+    ) -> None:
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        (target / "get-physics-done").mkdir(parents=True)
+        command_dir = target / "command"
+        command_dir.mkdir(parents=True)
+        (command_dir / "gpd-test.md").write_text("test\n", encoding="utf-8")
+        (target / "opencode.json").write_text(json.dumps({"permission": {}}), encoding="utf-8")
+
+        missing = adapter.missing_install_artifacts(target)
+
+        assert "command/gpd-*.md" not in missing
+        assert "gpd-file-manifest.json" in missing
+
+    def test_install_completeness_falls_back_to_manifestless_generated_commands(
         self,
         adapter: OpenCodeAdapter,
         gpd_root: Path,
@@ -520,8 +539,8 @@ class TestInstall:
 
         missing = adapter.missing_install_artifacts(target)
 
-        assert adapter.has_complete_install(target) is False
-        assert "command/gpd-*.md" in missing
+        assert adapter.has_complete_install(target) is True
+        assert "command/gpd-*.md" not in missing
         assert all(not item.startswith("command/gpd-") or item == "command/gpd-*.md" for item in missing)
 
     def test_install_fails_closed_for_malformed_opencode_json(
@@ -792,9 +811,10 @@ class TestInstall:
         assert wolfram["type"] == "local"
         assert wolfram["command"] == ["gpd-mcp-wolfram"]
         assert wolfram["enabled"] is True
-        assert wolfram["environment"] == {"GPD_WOLFRAM_MCP_ENDPOINT": "https://example.invalid/api/mcp"}
-        assert "super-secret-token" not in json.dumps(wolfram)
-        assert "GPD_WOLFRAM_MCP_API_KEY" not in json.dumps(wolfram)
+        assert wolfram["environment"] == {
+            "GPD_WOLFRAM_MCP_API_KEY": "super-secret-token",
+            "GPD_WOLFRAM_MCP_ENDPOINT": "https://example.invalid/api/mcp",
+        }
 
     def test_install_preserves_existing_managed_wolfram_overrides(
         self,

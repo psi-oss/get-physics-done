@@ -34,37 +34,30 @@ _BUILTIN_SERVERS: dict[str, _ServerDef] = {
     "gpd-conventions": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.conventions_server"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-errors": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.errors_mcp"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-patterns": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.patterns_server"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-protocols": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.protocols_server"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-skills": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.skills_server"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-state": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.state_server"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-verification": {
         "command": _PYTHON_COMMAND_SENTINEL,
         "args": ["-m", "gpd.mcp.servers.verification_server"],
-        "env": {"LOG_LEVEL": "${LOG_LEVEL:-WARNING}"},
     },
     "gpd-arxiv": {
         "command": _PYTHON_COMMAND_SENTINEL,
@@ -464,6 +457,10 @@ def build_mcp_servers_dict(
                 logger.debug("Skipping server %s: unresolved env vars in env", name)
                 continue
             entry["env"] = resolved_env
+
+        log_level = os.environ.get("LOG_LEVEL")
+        if log_level is not None:
+            entry.setdefault("env", {})["LOG_LEVEL"] = log_level
 
         servers[name] = entry
 

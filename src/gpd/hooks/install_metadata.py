@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
 
+from gpd.adapters.codex import _GPD_CODEX_SKILL_MARKER
 from gpd.adapters.runtime_catalog import (
     get_managed_install_surface_policy,
+    get_runtime_descriptor,
     get_shared_install_metadata,
     list_runtime_names,
 )
@@ -16,6 +19,8 @@ from gpd.adapters.runtime_catalog import (
 _SHARED_INSTALL_METADATA = get_shared_install_metadata()
 GPD_INSTALL_DIR_NAME = _SHARED_INSTALL_METADATA.install_root_dir_name
 MANIFEST_NAME = _SHARED_INSTALL_METADATA.manifest_name
+
+_CODEX_DESCRIPTOR = get_runtime_descriptor("codex")
 
 
 def get_adapter(runtime: str):
@@ -112,7 +117,58 @@ def inspect_managed_install_surface(config_dir: Path) -> ManagedInstallSurface:
 
 def config_dir_has_managed_install_markers(config_dir: Path) -> bool:
     """Return whether *config_dir* carries any managed GPD install markers."""
-    return inspect_managed_install_surface(config_dir).has_managed_markers
+    surface = inspect_managed_install_surface(config_dir)
+    return surface.has_managed_markers or _codex_has_external_skills(config_dir)
+
+
+def _is_codex_config_dir(config_dir: Path) -> bool:
+    descriptor = _CODEX_DESCRIPTOR
+    if config_dir.name == descriptor.config_dir_name:
+        return True
+    return (config_dir / "config.toml").exists()
+
+
+def _codex_skill_dir_candidates(config_dir: Path) -> tuple[Path, ...]:
+    candidates: list[Path] = []
+    base = (config_dir.parent / ".agents" / "skills").expanduser()
+    candidates.append(base)
+    env_path = os.environ.get("CODEX_SKILLS_DIR")
+    if env_path:
+        candidates.append(Path(env_path).expanduser())
+
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        unique.append(candidate)
+    return tuple(unique)
+
+
+def _codex_has_external_skills(config_dir: Path) -> bool:
+    if not _is_codex_config_dir(config_dir):
+        return False
+
+    for skills_dir in _codex_skill_dir_candidates(config_dir):
+        if not skills_dir.is_dir():
+            continue
+        try:
+            entries = sorted(skills_dir.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if not entry.is_dir() or not entry.name.startswith("gpd-"):
+                continue
+            skill_md = entry / "SKILL.md"
+            if not skill_md.is_file():
+                continue
+            try:
+                if _GPD_CODEX_SKILL_MARKER in skill_md.read_text(encoding="utf-8"):
+                    return True
+            except OSError:
+                continue
+    return False
 
 
 def load_install_manifest_state(config_dir: Path) -> tuple[str, dict[str, object]]:

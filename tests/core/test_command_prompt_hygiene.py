@@ -81,3 +81,19 @@ def test_command_sources_do_not_repeat_exact_include_markers() -> None:
             offenders[path.name] = duplicates
 
     assert offenders == {}
+
+
+def test_plan_phase_prompt_documents_inline_discuss_flag() -> None:
+    prompt = (COMMANDS_DIR / "plan-phase.md").read_text(encoding="utf-8")
+    assert "--inline-discuss" in prompt
+    assert "Combine discuss-phase and plan-phase" in prompt
+
+
+def test_debug_prompt_process_section_is_terminal() -> None:
+    prompt = (COMMANDS_DIR / "debug.md").read_text(encoding="utf-8")
+    assert prompt.rstrip().endswith("</process>")
+
+
+def test_execute_phase_prompt_has_no_context_budget_reference_tail() -> None:
+    prompt = (COMMANDS_DIR / "execute-phase.md").read_text(encoding="utf-8")
+    assert "context-budget reference" not in prompt

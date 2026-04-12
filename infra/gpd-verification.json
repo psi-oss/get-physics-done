@@ -23,9 +23,7 @@
   ],
   "command": "gpd-mcp-verification",
   "description": "GPD physics verification checks. Tools for running contract-aware checks, dimensional analysis, domain and bundle-specific checklists, limiting case checks, symmetry verification, and coverage gap analysis. Contract-aware requests follow the `contract` schema. Always run `suggest_contract_checks(...)` to gather the per-check request metadata before calling `run_contract_check(...)`, and never invent grounding or proof artifacts.",
-  "env": {
-    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
-  },
+  "env": {},
   "health_check": {
     "expect": "contains Ward identities",
     "input": {

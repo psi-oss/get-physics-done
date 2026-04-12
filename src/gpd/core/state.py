@@ -2282,6 +2282,19 @@ def ensure_state_schema(raw: dict | None) -> dict:
     return normalized
 
 
+_PROJECT_CONTRACT_DROP_ISSUES: set[str] = {
+    'schema normalization: dropped "project_contract" because authoritative scalar fields required normalization',
+    'schema normalization: dropped "project_contract" because contract schema required normalization',
+    'schema normalization: dropped "project_contract" because contract failed draft scoping validation',
+}
+
+
+def _remove_project_contract_drop_issues(integrity_issues: list[str]) -> None:
+    if not integrity_issues:
+        return
+    integrity_issues[:] = [issue for issue in integrity_issues if issue not in _PROJECT_CONTRACT_DROP_ISSUES]
+
+
 def _normalize_state_for_persistence(raw: dict | None, *, project_root: Path | None = None) -> dict:
     """Normalize state for writes without silently salvaging malformed contracts."""
     normalized, integrity_issues = _normalize_state_schema(
@@ -2291,6 +2304,19 @@ def _normalize_state_for_persistence(raw: dict | None, *, project_root: Path | N
     )
     normalized = copy.deepcopy(normalized)
     normalized["session"] = _session_from_continuation_payload(normalized.get("continuation"))
+
+    candidate_contract = raw.get("project_contract") if isinstance(raw, dict) else None
+    if normalized.get("project_contract") is None and isinstance(candidate_contract, dict):
+        salvaged_contract = _normalize_project_contract_section(
+            candidate_contract,
+            integrity_issues,
+            allow_project_contract_salvage=True,
+            project_root=project_root,
+        )
+        if isinstance(salvaged_contract, dict):
+            normalized["project_contract"] = salvaged_contract
+            _remove_project_contract_drop_issues(integrity_issues)
+
     if any("project_contract" in issue for issue in integrity_issues):
         logger.warning(
             "state.json persistence normalized project_contract with issue(s): %s", "; ".join(integrity_issues)

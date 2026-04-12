@@ -34,6 +34,7 @@ Phase number: $ARGUMENTS (optional; auto-detects the next unplanned phase if omi
 - `--gaps` — Gap-closure mode (`VERIFICATION.md`, no research)
 - `--skip-verify` — Skip the verification loop
 - `--light` — Produce contract-plus-constraints plans only
+- `--inline-discuss` — Combine discuss-phase and plan-phase by capturing the 2-3 most critical decisions inline before planning; use this for straightforward phases instead of running `gpd:discuss-phase` separately
 </context>
 
 <process>

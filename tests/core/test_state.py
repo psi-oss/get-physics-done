@@ -998,6 +998,23 @@ def test_save_state_json_preserves_recoverable_warning_only_project_contract_dri
     assert "notes" not in persisted["project_contract"]["claims"][0]
 
 
+def test_save_state_json_preserves_must_surface_string_drift(tmp_path: Path):
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["references"][0]["must_surface"] = "yes"
+
+    state = default_state_dict()
+    state["position"]["current_phase"] = "2"
+    state["position"]["status"] = "Executing"
+    state["project_contract"] = contract
+
+    save_state_json(tmp_path, state)
+
+    layout = ProjectLayout(tmp_path)
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    assert persisted["project_contract"] is not None
+    assert persisted["project_contract"]["references"][0]["must_surface"] is True
+
+
 def test_save_state_json_reports_duplicate_and_blank_project_contract_list_members(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
@@ -1135,6 +1152,29 @@ def test_save_state_markdown_normalizes_visible_primary_project_contract_with_ex
     assert "notes" not in result["project_contract"]["claims"][0]
     assert saved["project_contract"] is not None
     assert "notes" not in saved["project_contract"]["claims"][0]
+
+
+def test_save_state_markdown_preserves_must_surface_string_drift(tmp_path: Path):
+    valid_contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    state = default_state_dict()
+    state["position"]["status"] = "Executing"
+    state["project_contract"] = valid_contract
+    save_state_json(tmp_path, state)
+
+    layout = ProjectLayout(tmp_path)
+    corrupted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    corrupted["project_contract"]["references"][0]["must_surface"] = "yes"
+    layout.state_json.write_text(json.dumps(corrupted, indent=2) + "\n", encoding="utf-8")
+
+    md_content = layout.state_md.read_text(encoding="utf-8").replace("**Status:** Executing", "**Status:** Paused", 1)
+    result = save_state_markdown(tmp_path, md_content)
+
+    assert result["project_contract"] is not None
+    assert result["project_contract"]["references"][0]["must_surface"] is True
+
+    persisted = json.loads(layout.state_json.read_text(encoding="utf-8"))
+    assert persisted["project_contract"] is not None
+    assert persisted["project_contract"]["references"][0]["must_surface"] is True
 
 
 def test_save_state_markdown_preserves_backup_project_contract_when_primary_json_is_unreadable(

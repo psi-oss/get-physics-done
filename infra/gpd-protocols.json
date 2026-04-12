@@ -4,9 +4,7 @@
   "transport": "stdio",
   "command": "gpd-mcp-protocols",
   "args": [],
-  "env": {
-    "LOG_LEVEL": "${LOG_LEVEL:-WARNING}"
-  },
+  "env": {},
   "capabilities": [
     "get_protocol",
     "list_protocols",

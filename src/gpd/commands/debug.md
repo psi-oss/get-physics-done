@@ -55,19 +55,6 @@ task(
   description="Continue debug {slug}"
 )
 ```
-
-gpd_return.status: checkpoint
-Spawn Fresh Continuation agent (After Checkpoint)
-gpd_return.status: blocked` or `failed
-frontmatter/body reconcile the expected debug session artifact
-goal: find_root_cause_only
-Do not branch on heading text here.
-instead of relying on an inline `@...` attachment.
-workflow-owned typed child-return contract
-spawn a fresh continuation run
-gpd_return.status: completed
-Debug spawn contract: read {GPD_AGENTS_DIR}/gpd-debugger.md for your role and instructions; Create: GPD/debug/{slug}.md
-Read that file before continuing; Debug file path: GPD/debug/{slug}.md
-Read that file before continuing; verify the expected debug session artifact gate.
+Route only on the typed `gpd_return.status` (checkpoint, blocked, failed, completed) when deciding how to spawn continuations, review stored session files, or report completion; treat the workflow-owned typed child-return contract as the guiding authority and avoid branching on heading text or inline attachments.
 
 </process>

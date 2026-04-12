@@ -23,7 +23,6 @@ Context budget: ~15% orchestrator, fresh context per subagent.
 
 <execution_context>
 @{GPD_INSTALL_DIR}/workflows/execute-phase.md
-the context-budget reference
 </execution_context>
 
 <context>

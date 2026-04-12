@@ -58,6 +58,7 @@ jobs:
   smoke:
     name: fast smoke (3.11)
     runs-on: ubuntu-latest
+    # Keep this fast release/package lane within the CI fast-priority timeout (3 minutes).
     timeout-minutes: 3
 
     steps:

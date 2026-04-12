@@ -267,31 +267,15 @@ def _normalized_bridge_raw_argv(raw_argv: list[str], gpd_args: list[str], normal
 
 def _maybe_reexec_from_checkout(raw_argv: list[str], *, cli_cwd: Path) -> None:
     """Re-exec through a checkout when the active package does not match it."""
-    from gpd.version import checkout_root, current_python_executable, resolve_checkout_python
+    from gpd.version import reexec_from_checkout_if_needed
 
-    if os.environ.get(ENV_GPD_DISABLE_CHECKOUT_REEXEC) == "1":
-        return
-
-    root = checkout_root(cli_cwd)
-    if root is None:
-        return
-
-    checkout_gpd = (root / "src" / "gpd").resolve(strict=False)
-    active_gpd = Path(__file__).resolve().parent
-    if active_gpd == checkout_gpd:
-        return
-
-    env = os.environ.copy()
-    checkout_src = str((root / "src").resolve(strict=False))
-    existing_pythonpath = [entry for entry in env.get("PYTHONPATH", "").split(os.pathsep) if entry]
-    if checkout_src not in existing_pythonpath:
-        env["PYTHONPATH"] = os.pathsep.join([checkout_src, *existing_pythonpath]) if existing_pythonpath else checkout_src
-    env[ENV_GPD_DISABLE_CHECKOUT_REEXEC] = "1"
-    active_python = current_python_executable()
-    checkout_python = resolve_checkout_python(root, fallback=active_python) or active_python
-    if checkout_python is None:
-        return
-    os.execve(checkout_python, [checkout_python, "-m", "gpd.runtime_cli", *raw_argv], env)
+    reexec_from_checkout_if_needed(
+        cwd=cli_cwd,
+        active_gpd=Path(__file__).resolve().parent,
+        module="gpd.runtime_cli",
+        argv=raw_argv,
+        disable_env_name=ENV_GPD_DISABLE_CHECKOUT_REEXEC,
+    )
 
 
 def _install_error_message(

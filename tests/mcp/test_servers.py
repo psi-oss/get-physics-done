@@ -397,6 +397,41 @@ class TestBuiltinServerDescriptors:
         builtin_servers._MODULE_AVAILABILITY_CACHE.clear()
 
 
+def test_build_mcp_servers_dict_skips_log_level_when_missing(monkeypatch):
+    from gpd.mcp import builtin_servers
+
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+
+    servers = builtin_servers.build_mcp_servers_dict()
+
+    assert all("LOG_LEVEL" not in (entry.get("env") or {}) for entry in servers.values())
+
+
+def test_build_mcp_servers_dict_propagates_log_level(monkeypatch):
+    from gpd.mcp import builtin_servers
+
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+
+    servers = builtin_servers.build_mcp_servers_dict()
+
+    assert all(entry.get("env", {}).get("LOG_LEVEL") == "DEBUG" for entry in servers.values())
+
+
+def test_projected_managed_optional_mcp_servers_includes_wolfram_api_key():
+    from gpd.mcp.managed_integrations import (
+        WOLFRAM_MANAGED_SERVER_KEY,
+        WOLFRAM_MCP_API_KEY_ENV_VAR,
+        projected_managed_optional_mcp_servers,
+    )
+
+    api_key = "regression-secret"
+    servers = projected_managed_optional_mcp_servers({WOLFRAM_MCP_API_KEY_ENV_VAR: api_key})
+
+    wolfram_entry = servers.get(WOLFRAM_MANAGED_SERVER_KEY)
+    assert wolfram_entry is not None
+    assert wolfram_entry.get("env", {}).get(WOLFRAM_MCP_API_KEY_ENV_VAR) == api_key
+
+
 class TestMcpServerRunner:
     """Tests for shared MCP server CLI transport wiring."""
 

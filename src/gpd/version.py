@@ -137,6 +137,39 @@ def resolve_checkout_python(start: Path | None = None, *, fallback: str | None =
     return fallback
 
 
+def reexec_from_checkout_if_needed(
+    *,
+    cwd: Path,
+    active_gpd: Path,
+    module: str,
+    argv: list[str],
+    disable_env_name: str,
+) -> None:
+    """Re-exec through the nearest checkout when the active package differs."""
+    if os.environ.get(disable_env_name) == "1":
+        return
+
+    root = checkout_root(cwd)
+    if root is None:
+        return
+
+    checkout_gpd = (root / "src" / "gpd").resolve(strict=False)
+    if active_gpd.resolve(strict=False) == checkout_gpd:
+        return
+
+    env = os.environ.copy()
+    checkout_src = str((root / "src").resolve(strict=False))
+    existing_pythonpath = [entry for entry in env.get("PYTHONPATH", "").split(os.pathsep) if entry]
+    if checkout_src not in existing_pythonpath:
+        env["PYTHONPATH"] = os.pathsep.join([checkout_src, *existing_pythonpath]) if existing_pythonpath else checkout_src
+    env[disable_env_name] = "1"
+    active_python = current_python_executable()
+    checkout_python = resolve_checkout_python(root, fallback=active_python) or active_python
+    if checkout_python is None:
+        return
+    os.execve(checkout_python, [checkout_python, "-m", module, *argv], env)
+
+
 def resolve_install_gpd_root(start: Path | None = None) -> Path:
     """Return the GPD source tree to use for installs.
 

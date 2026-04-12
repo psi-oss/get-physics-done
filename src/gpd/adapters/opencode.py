@@ -1032,7 +1032,17 @@ class OpenCodeAdapter(RuntimeAdapter):
         tracked_command_files = _load_manifest_opencode_generated_command_files(target_dir)
 
         if not tracked_command_files:
-            missing.append("command/gpd-*.md")
+            has_commands = False
+            try:
+                if command_dir.is_dir():
+                    for entry in command_dir.iterdir():
+                        if entry.is_file() and entry.name.startswith("gpd-"):
+                            has_commands = True
+                            break
+            except OSError:
+                has_commands = False
+            if not has_commands:
+                missing.append("command/gpd-*.md")
             return tuple(dict.fromkeys(missing))
 
         missing_command_files: list[str] = []
