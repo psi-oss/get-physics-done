@@ -139,3 +139,25 @@ def test_project_layout_ignores_non_project_hidden_gpd_dirs(tmp_path: Path) -> N
     (legacy / "venv" / "bin").mkdir(parents=True)
 
     assert ProjectLayout(tmp_path).gpd == tmp_path / PLANNING_DIR_NAME
+
+
+def test_project_layout_prefers_canonical_tree_over_legacy(tmp_path: Path) -> None:
+    canonical = tmp_path / PLANNING_DIR_NAME
+    canonical.mkdir()
+    (canonical / "state.json").write_text("canonical\n", encoding="utf-8")
+    (canonical / "CONVENTIONS.md").write_text("current conventions\n", encoding="utf-8")
+    phases = canonical / "phases"
+    phases.mkdir()
+
+    legacy = tmp_path / ".gpd"
+    legacy.mkdir()
+    (legacy / "state.json").write_text("legacy\n", encoding="utf-8")
+    (legacy / "CONVENTIONS.md").write_text("legacy conventions\n", encoding="utf-8")
+
+    layout = ProjectLayout(tmp_path)
+
+    assert layout.gpd == canonical
+    assert layout.state_json.read_text(encoding="utf-8") == "canonical\n"
+    assert layout.conventions_md.read_text(encoding="utf-8") == "current conventions\n"
+    assert layout.state_json.parent == canonical
+    assert layout.conventions_md.parent == canonical

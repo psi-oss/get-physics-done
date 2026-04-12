@@ -188,6 +188,29 @@ def test_home_update_cache_path_comes_from_one_helper_for_lookup_and_write_paths
     assert mock_helper.call_count == 2
 
 
+def test_update_cache_helpers_prefer_home_cache_over_repo_dot_gpd(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    repo_cache = workspace / ".gpd" / "cache"
+    repo_cache.mkdir(parents=True)
+    repo_cache_file = repo_cache / "gpd-update-check.json"
+    repo_cache_file.write_text("repo", encoding="utf-8")
+
+    home = tmp_path / "home"
+    home_cache = home / ".gpd" / "cache"
+    home_cache.mkdir(parents=True)
+    home_cache_file = home_cache / "gpd-update-check.json"
+    home_cache_file.write_text("home", encoding="utf-8")
+
+    candidates = runtime_detect_module.get_update_cache_candidates(cwd=workspace, home=home)
+    home_cache_path = runtime_detect_module.home_update_cache_file(home=home)
+
+    assert candidates[-1].path == home_cache_path
+    assert primary_update_cache_file([], home=home) == home_cache_path
+    assert home_cache_path == home_cache_file
+    assert all(candidate.path != repo_cache_file for candidate in candidates)
+
+
 def test_latest_update_cache_uses_shared_cache_constants_for_self_owned_install_and_workspace_precedence(
     tmp_path: Path,
 ) -> None:
