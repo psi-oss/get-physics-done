@@ -6,7 +6,17 @@ import pytest
 
 from gpd.adapters.install_utils import expand_at_includes
 from gpd.core.public_surface_contract import resume_authority_fields
-from tests.doc_surface_contracts import resume_authority_public_vocabulary_intro, resume_compat_alias_fields
+from gpd.core.surface_phrases import (
+    reapply_patches_detection_surface_note,
+    reapply_patches_summary_surface_note,
+    update_summary_surface_note,
+)
+from tests.doc_surface_contracts import (
+    assert_reapply_patches_surface_contract,
+    assert_update_surface_contract,
+    resume_authority_public_vocabulary_intro,
+    resume_compat_alias_fields,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
@@ -93,17 +103,25 @@ def test_peer_review_reliability_reference_matches_peer_review_workflow_invocati
 def test_reapply_patches_keeps_manifest_regeneration_contract_honest() -> None:
     workflow = _workflow_text("reapply-patches.md")
 
-    assert "do not invent a manual manifest-regeneration step" in workflow
-    assert "The managed file manifest is rebuilt by the next `gpd:update`" in workflow
+    assert_reapply_patches_surface_contract(workflow)
     assert "regenerate the file manifest" not in workflow
 
 
 def test_help_update_describes_bootstrap_update_surface_not_repo_pull() -> None:
     workflow = _workflow_text("help.md")
 
-    assert "Runs the public bootstrap update command for the active runtime" in workflow
-    assert "Preserves local modifications via patch backups" in workflow
+    assert_update_surface_contract(workflow)
     assert "Pulls latest GPD files from the repository" not in workflow
+
+
+def test_help_maintenance_index_uses_canonical_update_and_reapply_summaries() -> None:
+    workflow = _workflow_text("help.md")
+
+    assert f"- `gpd:update` - {update_summary_surface_note()}" in workflow
+    assert f"- `gpd:reapply-patches` - {reapply_patches_summary_surface_note()}" in workflow
+    assert reapply_patches_detection_surface_note() in workflow
+    assert "- `gpd:update` - Update GPD to the latest version" not in workflow
+    assert "- `gpd:reapply-patches` - Reapply local modifications after updating" not in workflow
 
 
 def test_new_milestone_roadmapper_prompt_surfaces_contract_gate_inputs() -> None:

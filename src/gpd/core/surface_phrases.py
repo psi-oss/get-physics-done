@@ -58,10 +58,19 @@ __all__ = [
     "recovery_next_actions",
     "recovery_recent_action",
     "recovery_resume_action",
+    "reapply_patches_detection_surface_note",
+    "reapply_patches_manifest_follow_up_note",
+    "reapply_patches_saved_by_update_notice",
+    "reapply_patches_saved_modifications_note",
+    "reapply_patches_summary_surface_note",
     "recovery_primary_reason",
     "tangent_branch_later_action",
     "tangent_branch_later_follow_up_lines",
     "tangent_chooser_action",
+    "update_execution_surface_note",
+    "update_patch_backup_surface_note",
+    "update_release_notes_surface_note",
+    "update_summary_surface_note",
     "workflow_preset_storage_note",
     "workflow_preset_surface_note",
 ]
@@ -270,6 +279,54 @@ def observe_tangent_routing_note(*, tangent_phrase: str, branch_phrase: str) -> 
         "or `branch later` recommendation, "
         f"route it through {tangent_text} first; use {branch_text} only after that explicit choice."
     )
+
+
+def update_summary_surface_note() -> str:
+    return "Update GPD to latest version and show recent release notes"
+
+
+def update_execution_surface_note() -> str:
+    return "Runs the public bootstrap update command for the active runtime"
+
+
+def update_release_notes_surface_note() -> str:
+    return "Shows recent release notes for what changed since your version"
+
+
+def update_patch_backup_surface_note(*, reapply_command: str = "gpd:reapply-patches") -> str:
+    reapply_phrase = _command_phrase(reapply_command)
+    return f"Preserves local modifications via patch backups (use {reapply_phrase} after if needed)"
+
+
+def reapply_patches_summary_surface_note() -> str:
+    return "Reapply local modifications after a GPD update"
+
+
+def reapply_patches_detection_surface_note() -> str:
+    return "Detects and reapplies local modifications you made to managed GPD files"
+
+
+def reapply_patches_saved_by_update_notice(*, update_command: str = "gpd:update") -> str:
+    update_phrase = _command_phrase(update_command)
+    return f"Local patches are automatically saved when you run {update_phrase} after modifying managed GPD files."
+
+
+def reapply_patches_saved_modifications_note(
+    *,
+    patches_dir_name: str = "{GPD_PATCHES_DIR_NAME}",
+    reapply_command: str = "gpd:reapply-patches",
+) -> str:
+    normalized_dir_name = patches_dir_name.rstrip("/")
+    reapply_phrase = _command_phrase(reapply_command)
+    return (
+        "If you've modified managed GPD files directly, they will be backed up "
+        f"to `{normalized_dir_name}/` and can be reapplied with {reapply_phrase} after the update."
+    )
+
+
+def reapply_patches_manifest_follow_up_note(*, update_command: str = "gpd:update") -> str:
+    update_phrase = _command_phrase(update_command)
+    return f"The managed file manifest is rebuilt by the next {update_phrase}"
 
 
 def tangent_chooser_action() -> str:

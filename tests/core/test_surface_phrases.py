@@ -13,6 +13,11 @@ from gpd.core.surface_phrases import (
     observe_tangent_routing_note,
     post_start_settings_note,
     post_start_settings_recommendation,
+    reapply_patches_detection_surface_note,
+    reapply_patches_manifest_follow_up_note,
+    reapply_patches_saved_by_update_notice,
+    reapply_patches_saved_modifications_note,
+    reapply_patches_summary_surface_note,
     recovery_action_lines,
     recovery_continue_action,
     recovery_continue_reason,
@@ -26,6 +31,10 @@ from gpd.core.surface_phrases import (
     tangent_branch_later_action,
     tangent_branch_later_follow_up_lines,
     tangent_chooser_action,
+    update_execution_surface_note,
+    update_patch_backup_surface_note,
+    update_release_notes_surface_note,
+    update_summary_surface_note,
     workflow_preset_storage_note,
     workflow_preset_surface_note,
 )
@@ -223,6 +232,51 @@ def test_observe_surface_phrases_stay_read_only_and_route_follow_ups_explicitly(
     ) == (
         "After the bounded stop, use runtime `tangent` command to keep the chooser explicit for this alternative path; "
         "use runtime `branch-hypothesis` command only if you decide to open a git-backed alternative path."
+    )
+
+
+def test_runtime_maintenance_surface_phrases_stay_canonical_and_command_aware() -> None:
+    assert update_summary_surface_note() == "Update GPD to latest version and show recent release notes"
+    assert update_execution_surface_note() == "Runs the public bootstrap update command for the active runtime"
+    assert update_release_notes_surface_note() == "Shows recent release notes for what changed since your version"
+    assert (
+        update_patch_backup_surface_note()
+        == "Preserves local modifications via patch backups (use `gpd:reapply-patches` after if needed)"
+    )
+    assert (
+        update_patch_backup_surface_note(reapply_command="runtime `reapply-patches`")
+        == "Preserves local modifications via patch backups (use runtime `reapply-patches` after if needed)"
+    )
+    assert reapply_patches_summary_surface_note() == "Reapply local modifications after a GPD update"
+    assert (
+        reapply_patches_detection_surface_note()
+        == "Detects and reapplies local modifications you made to managed GPD files"
+    )
+    assert (
+        reapply_patches_saved_by_update_notice()
+        == "Local patches are automatically saved when you run `gpd:update` after modifying managed GPD files."
+    )
+    assert reapply_patches_saved_by_update_notice(update_command="runtime `update`") == (
+        "Local patches are automatically saved when you run runtime `update` after modifying managed GPD files."
+    )
+    assert (
+        reapply_patches_saved_modifications_note()
+        == "If you've modified managed GPD files directly, they will be backed up "
+        "to `{GPD_PATCHES_DIR_NAME}/` and can be reapplied with `gpd:reapply-patches` after the update."
+    )
+    assert (
+        reapply_patches_saved_modifications_note(
+            patches_dir_name="custom-patches/",
+            reapply_command="runtime `reapply-patches`",
+        )
+        == "If you've modified managed GPD files directly, they will be backed up "
+        "to `custom-patches/` and can be reapplied with runtime `reapply-patches` after the update."
+    )
+    assert reapply_patches_manifest_follow_up_note() == (
+        "The managed file manifest is rebuilt by the next `gpd:update`"
+    )
+    assert reapply_patches_manifest_follow_up_note(update_command="runtime `update`") == (
+        "The managed file manifest is rebuilt by the next runtime `update`"
     )
 
 

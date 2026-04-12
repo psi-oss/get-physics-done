@@ -271,8 +271,8 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:compact-state` - Archive old `STATE.md` entries
 - `gpd:sync-state` - Repair diverged `STATE.md` and `state.json`
 - `gpd:undo` - Roll back the last GPD operation with a safety checkpoint
-- `gpd:update` - Update GPD to the latest version
-- `gpd:reapply-patches` - Reapply local modifications after updating
+- `gpd:update` - Update GPD to latest version and show recent release notes
+- `gpd:reapply-patches` - Reapply local modifications after a GPD update
 
 ## Detailed Command Reference
 
@@ -1113,8 +1113,8 @@ Usage: `gpd:update`
 **`gpd:reapply-patches`**
 Reapply local modifications after a GPD update.
 
-- Detects and replays customizations you made to GPD files
-- Use after `gpd:update` if you have local workflow or template modifications
+- Detects and reapplies local modifications you made to managed GPD files
+- Use after `gpd:update` if you have local modifications to managed GPD files
 
 Usage: `gpd:reapply-patches`
 

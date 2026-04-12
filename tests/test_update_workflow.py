@@ -88,6 +88,21 @@ def test_update_workflow_uses_current_runtime_agnostic_contract() -> None:
     assert "commands/gpd/" not in content
 
 
+def test_update_command_wrapper_uses_release_note_wording_and_delegates_to_workflow() -> None:
+    content = (GPD_ROOT / "commands" / "update.md").read_text(encoding="utf-8")
+
+    assert "description: Update GPD to latest version and show recent release notes" in content
+    assert "@{GPD_INSTALL_DIR}/workflows/update.md" in content
+    assert "Read the workflow referenced in `<execution_context>` with `file_read` first." in content
+    assert "Follow the included workflow file exactly." in content
+    assert (
+        "Keep all update logic (scope detection, target handling, recent release notes, confirmation, install, cache refresh) inside the workflow."
+        in content
+    )
+    assert "changelog" not in content
+    assert "Pulls latest GPD files from the repository" not in content
+
+
 def test_reapply_patches_workflow_uses_runtime_config_placeholders() -> None:
     content = (GPD_ROOT / "specs" / "workflows" / "reapply-patches.md").read_text(encoding="utf-8")
 

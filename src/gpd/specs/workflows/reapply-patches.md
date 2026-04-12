@@ -26,8 +26,7 @@ Read `backup-meta.json` from the patches directory.
 ```
 No local patches found. Nothing to reapply.
 
-Local patches are automatically saved when you run gpd:update
-after modifying any GPD workflow, command, or agent files.
+Local patches are automatically saved when you run `gpd:update` after modifying managed GPD files.
 ```
 
 Exit.
