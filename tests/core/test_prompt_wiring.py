@@ -372,6 +372,12 @@ def test_issue4_leaked_fragments_stay_out_of_model_visible_prompt_surfaces(
         assert fragment not in surface
 
 
+def test_issue11_verify_work_model_visible_surface_keeps_canonical_checkpoint_phrase() -> None:
+    surface = _model_visible_prompt_surface("command", "verify-work")
+
+    assert "If user input is needed, return `status: checkpoint`; do not wait inside the same run." in surface
+
+
 @pytest.mark.parametrize(("surface_kind", "name", "fragments"), ISSUE_4_SINGLE_OCCURRENCE_SURFACE_FRAGMENTS)
 def test_issue4_rehomed_fragments_appear_only_once_in_model_visible_prompt_surfaces(
     surface_kind: Literal["command", "agent"],

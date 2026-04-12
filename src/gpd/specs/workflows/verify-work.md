@@ -126,7 +126,7 @@ task(
 Write to:
 - `${phase_dir}/${phase_number}-PROOF-REDTEAM.md`
 
-Read the phase proof artifacts, the relevant PLAN contract slice, and any current verification artifact before auditing. If user input is needed, return `status: checkpoint`.",
+Read the phase proof artifacts, the relevant PLAN contract slice, and any current verification artifact before auditing. If user input is needed, return `status: checkpoint`; do not wait inside the same run.",
   description="Repair proof audit for phase {phase_number}"
 )
 ```

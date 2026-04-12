@@ -93,7 +93,7 @@ def test_verify_work_proof_check_handoff_uses_structured_freshness_and_fail_clos
 
     assert "Use `phase_proof_review_status` as the structured freshness summary for the phase proof-review manifest if present." in workflow
     assert "> Runtime delegation rule: this is a single-turn handoff. If the spawned agent needs user input, it checkpoints and returns; do not keep the original run waiting inside the same task." in workflow
-    assert "Return `status: checkpoint` instead of waiting for user input inside this run." in workflow
+    assert "If user input is needed, return `status: checkpoint`; do not wait inside the same run." in workflow
     assert "Never trust the return text alone; if the file is missing, stale, malformed, or not passed, keep the verification session fail-closed and start a fresh proof continuation." in workflow
     assert "After the proof critic returns, re-open `${phase_dir}/${phase_number}-PROOF-REDTEAM.md` from disk and confirm the artifact exists and is `passed` before finalizing the gap ledger." in workflow
     assert "If `gpd-check-proof` still cannot produce a passed audit, keep the verification status fail-closed." in workflow
