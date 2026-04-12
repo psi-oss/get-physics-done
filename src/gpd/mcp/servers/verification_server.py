@@ -3972,12 +3972,6 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
             if not check_meta.contract_aware:
                 return _error_result(f"Check {check_id} is not contract-aware")
 
-            if _contains_unreplaced_request_template_sentinel(_request_template_seed_sections(request)):
-                return _contract_check_error_result(
-                    "request contains unreplaced request_template sentinel values; replace every <replace-with-...> value before execution",
-                    check_meta.check_key,
-                )
-
             contract_raw, error = _optional_mapping_field(request, "contract")
             if error is not None:
                 return _contract_check_error_result(error.get("error", "contract must be an object"), check_meta.check_key)
@@ -4016,6 +4010,15 @@ def run_contract_check(request: RunContractCheckPayload, project_dir: OptionalAb
                 return _error_result(metadata_error)
             supplied_metadata = dict(metadata)
             observed = observed_raw or {}
+            if _contains_unreplaced_request_template_sentinel({"observed": observed}):
+                for field_name in list(observed):
+                    if _contains_unreplaced_request_template_sentinel(observed.get(field_name)):
+                        observed[field_name] = None
+            if _contains_unreplaced_request_template_sentinel(_request_template_seed_sections(request)):
+                return _contract_check_error_result(
+                    "request contains unreplaced request_template sentinel values; replace every <replace-with-...> value before execution",
+                    check_meta.check_key,
+                )
             artifact_content_raw = request.get("artifact_content")
             artifact_content, artifact_content_error = _validate_optional_string(
                 artifact_content_raw,

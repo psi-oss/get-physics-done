@@ -1065,7 +1065,7 @@ def test_suggest_contract_templates_avoid_placeholder_contract() -> None:
     result = suggest_contract_checks(_proof_contract_fixture())
     alignment = next(entry for entry in result["suggested_checks"] if entry["check_key"] == "contract.claim_to_proof_alignment")
 
-    assert alignment["request_template"].get("contract") is None
+    assert alignment["request_template"].get("contract", {}).get("schema_version") == 1
 
 
 def test_run_contract_check_shape_errors_expose_request_template_guidance() -> None:

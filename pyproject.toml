@@ -71,6 +71,7 @@ build-backend = "hatchling.build"
 packages = ["gpd"]
 package-dir = { "" = "src" }
 sources = ["src"]
+only-include = ["src/gpd"]
 artifacts = [
     "src/gpd/adapters/*.json",
     "src/gpd/core/*.json",

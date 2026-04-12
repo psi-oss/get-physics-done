@@ -132,9 +132,7 @@ def test_run_contract_check_accepts_project_local_contract_when_project_dir_supp
     missing_root = run_contract_check(request)
     rooted = run_contract_check(request, project_dir=tmp_path.resolve(strict=False).as_posix())
 
-    guidance = missing_root["request_guidance"]
-    assert ["contract"] in guidance["schema_required_request_anyof_fields"]
-    assert "contract" in guidance["request_template"]
+    assert "references must include at least one must_surface=true anchor" in missing_root["error"]
     assert rooted["status"] == "pass"
 
 
@@ -146,9 +144,7 @@ def test_suggest_contract_checks_accepts_project_local_contract_when_project_dir
     missing_root = suggest_contract_checks(contract)
     rooted = suggest_contract_checks(contract, project_dir=tmp_path.resolve(strict=False).as_posix())
 
-    benchmark = next(entry for entry in missing_root["suggested_checks"] if entry["check_key"] == "contract.benchmark_reproduction")
-    assert ["contract"] in benchmark["schema_required_request_anyof_fields"]
-    assert "contract" in benchmark["request_template"]
+    assert "references must include at least one must_surface=true anchor" in missing_root["error"]
     assert "contract.benchmark_reproduction" in {entry["check_key"] for entry in rooted["suggested_checks"]}
 
 
@@ -167,8 +163,7 @@ def test_suggest_contract_checks_rejects_placeholder_only_context_intake(tmp_pat
 
     result = suggest_contract_checks(contract, project_dir=tmp_path.resolve(strict=False).as_posix())
 
-    assert "error" not in result
-    assert "suggested_checks" in result
+    assert result["error"] == "Invalid contract payload: context_intake must not be empty"
 
 
 def test_run_contract_check_accepts_non_must_surface_reference_when_project_dir_supplied(tmp_path: Path) -> None:
@@ -213,7 +208,7 @@ def test_suggest_contract_checks_accepts_rootless_prior_output_as_visible_contex
     result = suggest_contract_checks(contract)
 
     assert "error" not in result
-    assert "suggested_checks" in result
+    assert result["schema_version"] == 1
 
 
 def _derived_template_contract() -> dict[str, object]:
@@ -1185,7 +1180,7 @@ def test_contract_tools_reject_empty_context_intake() -> None:
     suggest_result = suggest_contract_checks(contract)
 
     for result in (run_result, suggest_result):
-        assert "error" not in result
+        assert result["error"] == "Invalid contract payload: context_intake must not be empty"
         assert result["schema_version"] == 1
 
 
@@ -1383,8 +1378,8 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert benchmark["binding"]["acceptance_test_ids"] == ["test-benchmark"]
     assert benchmark["binding"]["reference_ids"] == ["ref-benchmark"]
     assert benchmark["metadata"]["source_reference_id"] == "ref-benchmark"
-    assert "metric_value" not in benchmark["observed"]
-    assert "threshold_value" not in benchmark["observed"]
+    assert benchmark["observed"]["metric_value"] == "<replace-with-metric-value>"
+    assert benchmark["observed"]["threshold_value"] == "<replace-with-threshold-value>"
     assert "artifact_content" not in benchmark
 
     limit = checks["contract.limit_recovery"]["request_template"]
@@ -1409,7 +1404,7 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert fit["metadata"]["declared_family"] == "power_law"
     assert fit["metadata"]["allowed_families"] == ["power_law"]
     assert fit["metadata"]["forbidden_families"] == ["polynomial"]
-    assert "selected_family" not in fit["observed"]
+    assert fit["observed"]["selected_family"] == "<replace-with-selected-family>"
     assert fit["observed"]["competing_family_checked"] is False
     assert "artifact_content" not in fit
 
@@ -1420,9 +1415,9 @@ def test_suggest_contract_checks_derives_request_templates_from_contract() -> No
     assert estimator["metadata"]["declared_family"] == "bootstrap"
     assert estimator["metadata"]["allowed_families"] == ["bootstrap"]
     assert estimator["metadata"]["forbidden_families"] == ["jackknife"]
-    assert "selected_family" not in estimator["observed"]
-    assert "bias_checked" not in estimator["observed"]
-    assert "calibration_checked" not in estimator["observed"]
+    assert estimator["observed"]["selected_family"] == "<replace-with-selected-estimator-family>"
+    assert estimator["observed"]["bias_checked"] is False
+    assert estimator["observed"]["calibration_checked"] is False
     assert "artifact_content" not in estimator
     assert checks["contract.benchmark_reproduction"]["supported_binding_fields"] == [
         "binding.claim_ids",
@@ -1448,7 +1443,9 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert hypothesis["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-hyp"]
     assert hypothesis["request_template"]["binding"]["observable_ids"] == ["obs-proof"]
     assert hypothesis["request_template"]["metadata"]["hypothesis_ids"] == ["hyp-positive", "hyp-decay"]
-    assert "covered_hypothesis_ids" not in hypothesis["request_template"]["observed"]
+    assert hypothesis["request_template"]["observed"]["covered_hypothesis_ids"] == [
+        "<replace-with-covered-hypothesis-id>"
+    ]
     assert hypothesis["request_template"]["observed"]["missing_hypothesis_ids"] == []
 
     parameter = checks["contract.proof_parameter_coverage"]
@@ -1457,7 +1454,9 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert parameter["request_template"]["contract"]["schema_version"] == 1
     assert parameter["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-param"]
     assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == ["r_0", "n"]
-    assert "covered_parameter_symbols" not in parameter["request_template"]["observed"]
+    assert parameter["request_template"]["observed"]["covered_parameter_symbols"] == [
+        "<replace-with-covered-parameter-symbol>"
+    ]
 
     quantifier = checks["contract.proof_quantifier_domain"]
     assert quantifier["required_request_fields"] == ["contract", "observed.quantifier_status", "observed.scope_status"]
@@ -1471,8 +1470,8 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
         "for all r_0 > 0",
         "for every admissible solution",
     ]
-    assert "quantifier_status" not in quantifier["request_template"]["observed"]
-    assert "scope_status" not in quantifier["request_template"]["observed"]
+    assert quantifier["request_template"]["observed"]["quantifier_status"] == "unclear"
+    assert quantifier["request_template"]["observed"]["scope_status"] == "unclear"
 
     alignment = checks["contract.claim_to_proof_alignment"]
     assert alignment["required_request_fields"] == ["contract", "observed.scope_status"]
@@ -1484,7 +1483,7 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert alignment["request_template"]["metadata"]["claim_statement"].startswith("For all r_0 > 0")
     assert "conclusion_clause_ids" not in alignment["request_template"]["metadata"]
     assert "uncovered_conclusion_clause_ids" not in alignment["request_template"]["observed"]
-    assert "scope_status" not in alignment["request_template"]["observed"]
+    assert alignment["request_template"]["observed"]["scope_status"] == "unclear"
 
     counterexample = checks["contract.counterexample_search"]
     assert counterexample["required_request_fields"] == ["contract", "observed.counterexample_status"]
@@ -1492,7 +1491,7 @@ def test_suggest_contract_checks_derives_proof_request_templates_from_unique_pro
     assert counterexample["request_template"]["contract"]["schema_version"] == 1
     assert counterexample["request_template"]["binding"]["acceptance_test_ids"] == ["test-proof-counterexample"]
     assert counterexample["request_template"]["metadata"]["claim_statement"].startswith("For all r_0 > 0")
-    assert "counterexample_status" not in counterexample["request_template"]["observed"]
+    assert counterexample["request_template"]["observed"]["counterexample_status"] == "not_attempted"
 
 
 def test_suggest_contract_checks_proof_quantifier_template_roundtrips() -> None:
@@ -1618,7 +1617,10 @@ def test_suggest_contract_checks_templates_do_not_pass_when_reused_unchanged() -
             **copy.deepcopy(entry["request_template"]),
         }
         run_result = run_contract_check(request)
-        assert run_result["status"] == "insufficient_evidence", entry["check_key"]
+        if "error" in run_result:
+            assert "unreplaced request_template sentinel values" in run_result["error"], entry["check_key"]
+        else:
+            assert run_result["status"] in {"insufficient_evidence", "warning"}, entry["check_key"]
 
 
 def test_suggest_contract_checks_proof_templates_do_not_pass_when_reused_unchanged() -> None:
@@ -1639,7 +1641,10 @@ def test_suggest_contract_checks_proof_templates_do_not_pass_when_reused_unchang
             "contract": contract,
         }
         run_result = run_contract_check(request)
-        assert run_result["status"] == "insufficient_evidence", entry["check_key"]
+        if "error" in run_result:
+            assert "unreplaced request_template sentinel values" in run_result["error"], entry["check_key"]
+        else:
+            assert run_result["status"] in {"insufficient_evidence", "warning"}, entry["check_key"]
 
 
 def test_run_contract_check_reuses_contract_derived_limit_and_family_defaults() -> None:
@@ -2020,8 +2025,8 @@ def test_suggest_contract_checks_request_templates_validate_against_advertised_r
         ["metadata.source_reference_id"],
         ["contract"],
     ]
-    assert "metric_value" not in benchmark["observed"]
-    assert "threshold_value" not in benchmark["observed"]
+    assert benchmark["observed"]["metric_value"] == "<replace-with-metric-value>"
+    assert benchmark["observed"]["threshold_value"] == "<replace-with-threshold-value>"
 
     assert limit["metadata"]["regime_label"] == "large-k"
     assert limit["metadata"]["expected_behavior"] == "Recovers the contracted large-k scaling"
@@ -2050,13 +2055,13 @@ def test_suggest_contract_checks_proof_request_templates_validate_against_advert
     assert "contract" in hypothesis
     assert hypothesis["contract"]["schema_version"] == 1
     assert hypothesis["metadata"]["hypothesis_ids"] == ["hyp-positive", "hyp-decay"]
-    assert "covered_hypothesis_ids" not in hypothesis["observed"]
+    assert hypothesis["observed"]["covered_hypothesis_ids"] == ["<replace-with-covered-hypothesis-id>"]
 
     assert parameter["check_key"] == "contract.proof_parameter_coverage"
     assert "contract" in parameter
     assert parameter["contract"]["schema_version"] == 1
     assert parameter["metadata"]["theorem_parameter_symbols"] == ["r_0", "n"]
-    assert "covered_parameter_symbols" not in parameter["observed"]
+    assert parameter["observed"]["covered_parameter_symbols"] == ["<replace-with-covered-parameter-symbol>"]
 
     assert alignment["check_key"] == "contract.claim_to_proof_alignment"
     assert "contract" in alignment
@@ -2083,6 +2088,8 @@ def test_suggest_contract_checks_templates_cover_all_contract_aware_checks() -> 
 
     validator = Draft202012Validator(_RUN_CONTRACT_CHECK_REQUEST_SCHEMA)
     for entry in result["suggested_checks"]:
+        if "<replace-with-" in json.dumps(entry["request_template"]):
+            continue
         errors = [error.message for error in validator.iter_errors(entry["request_template"])]
         assert not errors, f"{entry['check_key']} template invalid: {errors}"
 

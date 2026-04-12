@@ -3633,8 +3633,8 @@ class TestVerificationServer:
             "observed.threshold_value",
         ]
         assert benchmark["request_template"]["metadata"]["source_reference_id"] == "ref-benchmark"
-        assert "metric_value" not in benchmark["request_template"]["observed"]
-        assert "threshold_value" not in benchmark["request_template"]["observed"]
+        assert benchmark["request_template"]["observed"]["metric_value"] == "<replace-with-metric-value>"
+        assert benchmark["request_template"]["observed"]["threshold_value"] == "<replace-with-threshold-value>"
         assert "artifact_content" not in benchmark["request_template"]
 
     def test_suggest_contract_checks_from_proof_contract(self):
@@ -3651,7 +3651,9 @@ class TestVerificationServer:
         assert parameter["binding_targets"] == ["observable", "claim", "deliverable", "acceptance_test"]
         assert parameter["request_template"]["binding"]["claim_ids"] == ["claim-theorem"]
         assert parameter["request_template"]["metadata"]["theorem_parameter_symbols"] == ["r_0", "n"]
-        assert "covered_parameter_symbols" not in parameter["request_template"]["observed"]
+        assert parameter["request_template"]["observed"]["covered_parameter_symbols"] == [
+            "<replace-with-covered-parameter-symbol>"
+        ]
 
     def test_suggest_contract_checks_returns_deep_copied_request_templates(self):
         import json

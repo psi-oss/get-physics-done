@@ -166,7 +166,7 @@ def test_run_contract_check_published_schema_keeps_schema_required_fields_strict
     assert metadata_schema["properties"]["source_reference_id"]["minLength"] == 1
     assert metadata_schema["properties"]["source_reference_id"]["pattern"] == r"\S"
     assert "null" not in json.dumps(metadata_schema["properties"]["source_reference_id"])
-    assert contract_schema["required"] == ["scope"]
+    assert contract_schema["required"] == ["scope", "context_intake", "uncertainty_markers"]
     assert "schema_version" in contract_schema["properties"]
     assert "context_intake" in contract_schema["properties"]
     assert "uncertainty_markers" in contract_schema["properties"]
