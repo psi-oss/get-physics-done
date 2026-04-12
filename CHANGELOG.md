@@ -4,6 +4,7 @@ All notable changes to Get Physics Done are documented here.
 
 ## vNEXT
 
+- Fix `gpd suggest` ignoring actual project state: use `_project_scoped_cwd()` so root-level PROJECT.md is auto-migrated before `suggest_next()` runs, matching the pattern used by `progress`, `state`, and `status` commands.
 - Fix `phase_add` and `phase_insert` heading consistency: detect heading level, number padding, and separator style (colon vs em-dash) from existing ROADMAP phases instead of hardcoding `### Phase {N}:`. Defaults to `### Phase N: ` (unpadded, colon) for empty ROADMAPs, matching the `new-project` template.
 - Fix LaTeX special character escaping in user-provided metadata fields: `~`, `#`, `%`, and `&` in title, abstract, author fields, and acknowledgments are now escaped before rendering, preventing compilation errors and silent data loss. Agent-generated LaTeX content (section bodies, figure captions, appendix content) is deliberately unaffected.
 - **Breaking (raw output only):** `gpd question resolve` and `gpd calculation complete` now return structured results (resolved/completed text, search text, remaining count) instead of a bare `1`. Raw JSON output changes from `{"result": "1"}` to a model with `resolved`/`completed`, `search_text`, and `remaining` fields. The prior `{"result": "1"}` output was a bug (unhelpful) and is not considered a stable contract.
