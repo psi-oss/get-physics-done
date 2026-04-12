@@ -297,10 +297,91 @@ def _expand_prompt_surface(path: Path) -> str:
     )
 
 
+def _model_visible_prompt_surface(surface_kind: Literal["command", "agent"], name: str) -> str:
+    if surface_kind == "command":
+        return registry.get_command(name).content
+    return registry.get_agent(name).system_prompt
+
+
 def _extract_between(content: str, start_marker: str, end_marker: str) -> str:
     start = content.index(start_marker) + len(start_marker)
     end = content.index(end_marker, start)
     return content[start:end]
+
+
+ISSUE_4_ABSENT_SURFACE_FRAGMENTS = (
+    (
+        "command",
+        "verify-work",
+        (
+            "First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.",
+            (
+                "Project Contract Gate:\n\n"
+                "Project Contract Load Info:\n\n"
+                "Project Contract Validation:\n\n"
+                "Contract Intake:\n\n"
+                "Effective Reference Intake:"
+            ),
+            "Return `status: checkpoint` instead of waiting for user input inside this run.",
+        ),
+    ),
+    (
+        "command",
+        "derive-equation",
+        ("First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.",),
+    ),
+)
+
+
+ISSUE_4_SINGLE_OCCURRENCE_SURFACE_FRAGMENTS = (
+    (
+        "command",
+        "plan-phase",
+        ('gpd --raw init plan-phase "$PHASE" --stage research_routing',),
+    ),
+    (
+        "command",
+        "execute-phase",
+        ("If any executed plan is proof-bearing, proof verification still runs.",),
+    ),
+    (
+        "command",
+        "new-project",
+        ("compact hard-schema capsule",),
+    ),
+    (
+        "agent",
+        "gpd-project-researcher",
+        (
+            "single-session scope is predictable",
+            "STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status.",
+        ),
+    ),
+)
+
+
+@pytest.mark.parametrize(("surface_kind", "name", "fragments"), ISSUE_4_ABSENT_SURFACE_FRAGMENTS)
+def test_issue4_leaked_fragments_stay_out_of_model_visible_prompt_surfaces(
+    surface_kind: Literal["command", "agent"],
+    name: str,
+    fragments: tuple[str, ...],
+) -> None:
+    surface = _model_visible_prompt_surface(surface_kind, name)
+
+    for fragment in fragments:
+        assert fragment not in surface
+
+
+@pytest.mark.parametrize(("surface_kind", "name", "fragments"), ISSUE_4_SINGLE_OCCURRENCE_SURFACE_FRAGMENTS)
+def test_issue4_rehomed_fragments_appear_only_once_in_model_visible_prompt_surfaces(
+    surface_kind: Literal["command", "agent"],
+    name: str,
+    fragments: tuple[str, ...],
+) -> None:
+    surface = _model_visible_prompt_surface(surface_kind, name)
+
+    for fragment in fragments:
+        assert surface.count(fragment) == 1
 
 
 def test_planner_templates_exist():

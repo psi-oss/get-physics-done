@@ -284,7 +284,7 @@ The planner template owns the detailed tangent decision model. The workflow only
 
 ## 4.7 Refresh Research Handoff Context
 
-Load the staged handoff slice (`planner_authoring`) needed to assemble the researcher prompt. Do not use the lighter `research_routing` slice here:
+Load the staged handoff slice (`planner_authoring`) needed to assemble the researcher prompt. The lighter routing preload is `gpd --raw init plan-phase "$PHASE" --stage research_routing`; use that only for the step-5 research/no-research routing decision, not for authoring:
 
 ```bash
 INIT=$(gpd --raw init plan-phase "$PHASE" --stage planner_authoring)
@@ -1002,5 +1002,3 @@ gpd:execute-phase {X}
 - [ ] User sees status between agent spawns
 - [ ] User knows next steps
 </success_criteria>
-
-gpd --raw init plan-phase "$PHASE" --stage research_routing

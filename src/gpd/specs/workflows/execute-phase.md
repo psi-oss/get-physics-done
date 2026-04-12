@@ -281,6 +281,7 @@ For each proof-bearing plan, require a sibling proof audit artifact named `{plan
 
 Never treat a clean `SUMMARY.md`, correct algebra in a subset of cases, or "human will inspect later" as a substitute for this artifact.
 When runtime delegation is available, `gpd-check-proof` is the canonical owner of this sibling artifact. The executor may draft the proof and theorem inventory, but it must not self-certify theorem-proof alignment as its own independent redteam.
+If any executed plan is proof-bearing, proof verification still runs.
 </step>
 
 <step name="refresh_wave_planning_context">
@@ -1832,5 +1833,3 @@ STATE.md tracks: last completed plan, current wave, pending checkpoints.
 
 **Partial completion detection:** execute-plan's `detect_previous_attempt` step checks git log for task-level commits. Plans with partial commits offer resume-from-task-N. Plans with RECOVERY-{PLAN}.md files surface recovery options.
 </resumption>
-
-If any executed plan is proof-bearing, proof verification still runs.

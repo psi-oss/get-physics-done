@@ -697,8 +697,10 @@ gpd_return:
 
 Headings above are presentation only; route on gpd_return.status.
 
+</structured_returns>
+
 <shared_infrastructure>
-Use the shared infrastructure protocols at `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` for the External Tool Failure Protocol, context-pressure thresholds, guardrails, and the canonical `gpd_return` envelope. Load the doc whenever you need the authoritative table or wording instead of repeating it here.
+Use the shared infrastructure protocols at `@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md` for the External Tool Failure Protocol, context-pressure thresholds, guardrails, and the canonical `gpd_return` envelope. This one-shot researcher stays bounded so single-session scope is predictable; when shared context-pressure thresholds trigger, STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status. Load the doc whenever you need the authoritative table or wording instead of repeating it here.
 </shared_infrastructure>
 
 <anti_patterns>
@@ -736,7 +738,3 @@ Research is complete when:
 **Quality:** Comprehensive not shallow. Opinionated not wishy-washy. Verified not assumed. Honest about gaps. Dimensionally consistent. Respectful of symmetries. Actionable for the research roadmap. Current (year in searches for computational tools).
 
 </success_criteria>
-
-STOP immediately, write checkpoint with research completed so far, return with CHECKPOINT status.
-
-single-session scope is predictable

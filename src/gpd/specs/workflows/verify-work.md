@@ -549,17 +549,3 @@ Keep the current check display, summary, and session overlay in sync with the ve
 - [ ] Final session closeout validates and commits the verification file without recomputing verifier policy
 
 </success_criteria>
-
-First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.
-
-Project Contract Gate:
-
-Project Contract Load Info:
-
-Project Contract Validation:
-
-Contract Intake:
-
-Effective Reference Intake:
-
-Return `status: checkpoint` instead of waiting for user input inside this run.

@@ -16,8 +16,11 @@ from gpd.contracts import (
     CONTRACT_REFERENCE_ROLE_VALUES,
     ResearchContract,
 )
+from tests.prompt_metrics_support import expanded_prompt_text
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SOURCE_ROOT = REPO_ROOT / "src" / "gpd"
+PATH_PREFIX = "/runtime/"
 PROJECT_CONTRACT_SCHEMA = REPO_ROOT / "src/gpd/specs/templates/project-contract-schema.md"
 STATE_JSON_SCHEMA = REPO_ROOT / "src/gpd/specs/templates/state-json-schema.md"
 GROUNDING_LINKAGE = REPO_ROOT / "src/gpd/specs/templates/project-contract-grounding-linkage.md"
@@ -103,7 +106,9 @@ def test_project_contract_schema_example_surfaces_research_contract_required_key
 def test_new_project_surfaces_compact_hard_schema_capsule_before_drafting() -> None:
     schema_text = _read(PROJECT_CONTRACT_SCHEMA)
     workflow_text = _read(REPO_ROOT / "src/gpd/specs/workflows/new-project.md")
-    command_text = _read(REPO_ROOT / "src/gpd/commands/new-project.md")
+    command_path = REPO_ROOT / "src/gpd/commands/new-project.md"
+    command_text = _read(command_path)
+    expanded_command = expanded_prompt_text(command_path, src_root=SOURCE_ROOT, path_prefix=PATH_PREFIX)
 
     assert "Hard-schema capsule:" in schema_text
     for required_fragment in (
@@ -116,9 +121,11 @@ def test_new_project_surfaces_compact_hard_schema_capsule_before_drafting() -> N
     ):
         assert required_fragment in schema_text
 
-    for visible_text in (workflow_text, command_text):
-        assert "drafting or repairing" in visible_text
-        assert "compact hard-schema capsule" in visible_text
+    assert "drafting or repairing" in workflow_text
+    assert "compact hard-schema capsule" in workflow_text
+    assert "drafting or repairing" in command_text
+    assert "compact hard-schema capsule" not in command_text
+    assert "compact hard-schema capsule" in expanded_command
 
     workflow_prefix = workflow_text[: workflow_text.index("<auto_mode>")]
     assert "<hard_schema_visibility_guard>" in workflow_prefix

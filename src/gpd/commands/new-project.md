@@ -66,5 +66,3 @@ Read the workflow referenced in `<execution_context>` with `file_read` first.
 - `GPD/CONVENTIONS.md` (established by gpd-notation-coordinator)
 
 </output>
-
-compact hard-schema capsule
