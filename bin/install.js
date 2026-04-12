@@ -332,6 +332,19 @@ function requirePresentKeys(payload, requiredKeys, label) {
   }
 }
 
+function requireMatchingKeySet(actualKeys, expectedKeys, label) {
+  const actualSet = new Set(actualKeys);
+  const expectedSet = new Set(expectedKeys);
+  if (
+    actualSet.size !== expectedSet.size ||
+    [...expectedSet].some((expectedKey) => !actualSet.has(expectedKey))
+  ) {
+    throw new Error(
+      `${label} must contain exactly the contract-defined fields (order does not matter)`
+    );
+  }
+}
+
 function requireExactKeyOrder(actualKeys, expectedKeys, label) {
   if (actualKeys.length !== expectedKeys.length || actualKeys.some((key, index) => key !== expectedKeys[index])) {
     throw new Error(`${label} must exactly match the code-supported public surface fields`);
@@ -347,7 +360,7 @@ function validateSharedPublicSurfaceSchemaShape(schemaPayload = PUBLIC_SURFACE_C
   }
 
   const topLevelKeys = requireStrictStringList(schema.top_level_keys, "public surface contract schema.top_level_keys");
-  requireExactKeyOrder(topLevelKeys, PUBLIC_SURFACE_CONTRACT_KEYS, "public surface contract schema.top_level_keys");
+  requireMatchingKeySet(topLevelKeys, PUBLIC_SURFACE_CONTRACT_KEYS, "public surface contract schema.top_level_keys");
 
   const sections = requireJsonObject(schema.sections, "public surface contract schema.sections");
   const supportedSectionNames = PUBLIC_SURFACE_CONTRACT_KEYS.filter((key) => key !== "schema_version");
@@ -363,7 +376,7 @@ function validateSharedPublicSurfaceSchemaShape(schemaPayload = PUBLIC_SURFACE_C
       section.keys,
       `public surface contract schema.sections.${sectionName}.keys`
     );
-    requireExactKeyOrder(
+    requireMatchingKeySet(
       sectionKeys,
       expectedKeys,
       `public surface contract schema.sections.${sectionName}.keys`

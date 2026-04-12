@@ -89,7 +89,9 @@ jobs:
           npm_config_update_notifier: "false"
         run: |
           mkdir -p tmp/npm-cache
-          npm pack --dry-run --json
+          npm pack --dry-run --json > tmp/npm-pack-dry-run.json
+      - name: Verify npm pack manifest
+        run: python scripts/release_workflow.py verify-npm-pack --input tmp/npm-pack-dry-run.json
 
       - name: Run release/package smoke tests
         run: uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/test_schema_registry_ownership_note.py tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files tests/adapters/test_runtime_catalog.py::test_runtime_catalog_explicit_priority_order tests/adapters/test_runtime_catalog.py::test_runtime_descriptor_resolves_from_adapter_module tests/adapters/test_runtime_catalog.py::test_runtime_catalog_loader_validates_schema_json tests/core/test_contract_validation_fast_regressions.py tests/core/test_contract_schema_prompt_parity.py::test_plan_contract_schema_surfaces_canonical_research_contract_fields

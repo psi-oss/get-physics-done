@@ -25,6 +25,14 @@ class ReleaseError(RuntimeError):
     """Raised when release inputs or tracked release surfaces are invalid."""
 
 
+REQUIRED_NPM_PACK_FILES = frozenset(
+    {
+        "src/gpd/adapters/runtime_catalog.json",
+        "src/gpd/core/public_surface_contract.json",
+    }
+)
+
+
 @dataclass(frozen=True)
 class ReleaseMetadata:
     previous_version: str
@@ -163,6 +171,26 @@ def validate_package_data_rules(pyproject_text: str, package_json_text: str) -> 
             'pyproject.toml wheel "force-include" destinations must be relative paths; '
             f"found: {joined}."
         )
+
+
+def validate_npm_pack_manifest(entries: list[dict[str, object]]) -> None:
+    if not entries:
+        raise ReleaseError("npm pack output did not describe any package entries.")
+
+    file_paths: set[str] = set()
+    for entry in entries:
+        files = entry.get("files")
+        if not isinstance(files, list):
+            raise ReleaseError("npm pack entry is missing a files list.")
+        for candidate in files:
+            path_value = candidate.get("path")
+            if isinstance(path_value, str) and path_value:
+                file_paths.add(path_value)
+
+    missing = REQUIRED_NPM_PACK_FILES - file_paths
+    if missing:
+        joined = ", ".join(sorted(missing))
+        raise ReleaseError(f"npm pack is missing required resources: {joined}.")
 
 
 def preflight_release_sync(repo_root: Path) -> None:
@@ -396,6 +424,18 @@ def _build_parser() -> argparse.ArgumentParser:
     preflight_parser = subparsers.add_parser("preflight-sync", help="Validate release packaging metadata before publishing.")
     preflight_parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
 
+    pack_parser = subparsers.add_parser(
+        "verify-npm-pack",
+        help="Validate npm pack --dry-run --json output.",
+    )
+    pack_parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
+    pack_parser.add_argument(
+        "--input",
+        type=Path,
+        default=Path("tmp/npm-pack-dry-run.json"),
+        help="Path to the JSON output from npm pack --dry-run --json.",
+    )
+
     release_notes_parser = subparsers.add_parser("release-notes", help="Print release notes for a version.")
     release_notes_parser.add_argument("--repo", type=Path, default=Path("."), help="Repository root.")
     release_notes_parser.add_argument("--version", required=True, help="Version heading to extract.")
@@ -432,6 +472,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "preflight-sync":
             preflight_release_sync(repo_root)
             sys.stdout.write("Release packaging metadata is in sync.\n")
+            return 0
+
+        if args.command == "verify-npm-pack":
+            entries = json.loads(_read_text(repo_root / args.input))
+            validate_npm_pack_manifest(entries)
+            sys.stdout.write("npm pack manifest includes required runtime resources.\n")
             return 0
 
         if args.command == "release-notes":
