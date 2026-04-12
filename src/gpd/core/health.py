@@ -27,7 +27,7 @@ from gpd.core.commands import cmd_validate_return
 from gpd.core.config import GPDProjectConfig, load_config
 from gpd.core.constants import (
     DECISION_THRESHOLD,
-    HOME_DATA_DIR_NAME,
+    LEGACY_REPO_DATA_DIR_NAME,
     MIN_PYTHON_MAJOR,
     MIN_PYTHON_MINOR,
     OPTIONAL_PLANNING_FILES,
@@ -163,7 +163,6 @@ _ROOT_MIGRATABLE_FILES = frozenset({ROADMAP_FILENAME, PROJECT_FILENAME})
 _LEGACY_PROJECT_ENTRIES: tuple[str, ...] = (
     REQUIRED_PLANNING_FILES + OPTIONAL_PLANNING_FILES + REQUIRED_PLANNING_DIRS
 )
-_LEGACY_HIDDEN_PROJECT_DIR_NAME = ".gpd"
 
 
 def check_project_structure(cwd: Path) -> HealthCheck:
@@ -214,7 +213,7 @@ def check_legacy_hidden_directory(cwd: Path) -> HealthCheck:
     """Warn when a repo-local .gpd/ contains project artifacts."""
 
     layout = ProjectLayout(cwd)
-    legacy_root = layout.root / HOME_DATA_DIR_NAME
+    legacy_root = layout.root / LEGACY_REPO_DATA_DIR_NAME
     details: dict[str, object] = {"legacy_path": str(legacy_root)}
     if not legacy_root.is_dir():
         return HealthCheck(
@@ -240,7 +239,7 @@ def check_legacy_hidden_directory(cwd: Path) -> HealthCheck:
     detected_sorted = sorted(detected)
     details["detected_entries"] = detected_sorted
     message = (
-        f"{HOME_DATA_DIR_NAME}/{', '.join(detected_sorted)} look like legacy project artifacts. "
+        f"{LEGACY_REPO_DATA_DIR_NAME}/{', '.join(detected_sorted)} look like legacy project artifacts. "
         f"Move them into {PLANNING_DIR_NAME}/ to keep the canonical layout consistent."
     )
     return HealthCheck(

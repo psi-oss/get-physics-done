@@ -36,6 +36,7 @@ __all__ = [
     "EXECUTION_LINEAGE_REDUCER_VERSION",
     "EXECUTION_LINEAGE_SCHEMA_VERSION",
     "HOME_DATA_DIR_NAME",
+    "LEGACY_REPO_DATA_DIR_NAME",
     "LITERATURE_DIR_NAME",
     "KNOWLEDGE_DIR_NAME",
     "REVIEW_DIR_NAME",
@@ -291,6 +292,9 @@ PATTERNS_BY_DOMAIN_DIR = "patterns-by-domain"
 
 HOME_DATA_DIR_NAME = ".gpd"
 """Hidden home-directory data root for cross-project caches and managed runtime state."""
+
+LEGACY_REPO_DATA_DIR_NAME = ".gpd"
+"""Legacy repository-local data cache directory that should not replace `GPD/`."""
 
 
 # ─── Environment Variable Names ──────────────────────────────────────────────

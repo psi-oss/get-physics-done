@@ -226,11 +226,14 @@ def patterns_root(specs_root: Path | None = None) -> Path:
 
     explicit = os.environ.get(ENV_PATTERNS_ROOT, "").strip()
     if explicit:
-        return Path(explicit) if Path(explicit).is_absolute() else Path.cwd() / explicit
+        explicit_path = Path(explicit).expanduser()
+        return explicit_path if explicit_path.is_absolute() else Path.cwd() / explicit_path
 
     data_dir = os.environ.get(ENV_DATA_DIR, "").strip()
     if data_dir:
-        return Path(data_dir) / PATTERNS_DIR_NAME
+        data_dir_path = Path(data_dir).expanduser()
+        data_dir_root = data_dir_path if data_dir_path.is_absolute() else Path.cwd() / data_dir_path
+        return data_dir_root / PATTERNS_DIR_NAME
 
     return Path.home() / HOME_DATA_DIR_NAME / PATTERNS_DIR_NAME
 

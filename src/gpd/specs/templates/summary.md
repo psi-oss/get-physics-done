@@ -5,7 +5,11 @@ type: summary-template
 
 # Summary Template
 
-Contract-backed summaries are user-visible outcome ledgers. When the source PLAN has a `contract:` block, reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing and treat that file as the single detailed rule source.
+Contract-backed summaries are user-visible outcome ledgers. When the source PLAN has a `contract:` block, reload the canonical contract-results schema immediately before writing and treat that file as the single detailed rule source.
+
+reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing.
+
+`@{GPD_INSTALL_DIR}/templates/contract-results-schema.md`
 
 ## Required Frontmatter
 

@@ -1892,6 +1892,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
     assert "`required` defaults to true when omitted" in phase_prompt
     assert "fallback does not make a missing required tool non-blocking" in phase_prompt
     assert "Quick contract rules:" in phase_prompt
+    assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in phase_prompt
     assert "# tool_requirements: # Machine-checkable specialized tools (omit entirely if none)" in planner_agent
     assert "tool: command" in planner_agent
     assert "Use only the closed tool vocabulary the validator accepts" in planner_agent
@@ -1909,6 +1910,7 @@ def test_plan_tool_preflight_surfaces_across_planning_and_execution_prompts() ->
         "`tool_requirements` pass `gpd validate plan-preflight <PLAN.md>` before the plan is treated as execution-ready"
         in planner_prompt_template
     )
+    assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in planner_prompt_template
     plan_phase_manifest = validate_workflow_stage_manifest_payload(
         json.loads((REPO_ROOT / "src/gpd/specs/workflows/plan-phase-stage-manifest.json").read_text(encoding="utf-8")),
         expected_workflow_id="plan-phase",
@@ -3356,6 +3358,7 @@ def test_phase_prompt_surfaces_validation_critical_plan_contract_rules() -> None
     phase_prompt = (TEMPLATES_DIR / "phase-prompt.md").read_text(encoding="utf-8")
 
     assert "Quick contract rules:" in phase_prompt
+    assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in phase_prompt
     assert phase_prompt.count("Quick contract rules:") == 1
     for token in (
         "tool_requirements",

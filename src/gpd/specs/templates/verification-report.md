@@ -5,7 +5,11 @@ type: verification-report-template
 
 # Verification Report Template
 
-Verification reports are the decisive readout of the same contract-backed ledger. Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing. Author canonical YAML; validators may salvage narrow drift, but do not rely on salvage.
+Verification reports are the decisive readout of the same contract-backed ledger. Reload the canonical contract-results schema immediately before writing. Author canonical YAML; validators may salvage narrow drift, but do not rely on salvage.
+
+Reload `@{GPD_INSTALL_DIR}/templates/contract-results-schema.md` immediately before writing.
+
+`@{GPD_INSTALL_DIR}/templates/contract-results-schema.md`
 
 ## Required Frontmatter
 

@@ -198,3 +198,7 @@ Use this if you want GPD inside OpenCode. Inside the runtime, GPD commands use `
 | Continue in the reopened runtime | `/gpd:resume-work` | `$gpd-resume-work` | `/gpd-resume-work` |
 
 Use `gpd resume` in your normal terminal first. Use `gpd resume --recent` when you need to jump to a different recent workspace before reopening the runtime. After the terminal points you to the right workspace, open your runtime there and use its `resume-work` command to continue inside the project.
+
+## Hooks & advanced overrides
+
+Need deeper insight into how the runtime hooks resolve statuslines, notifications, and telemetry? The [Hook wiring & advanced overrides](./hooks.md) guide walks through the runtime detection flow plus the `GPD_ACTIVE_RUNTIME`, `GPD_DISABLE_CHECKOUT_REEXEC`, and `GPD_DEBUG` overrides so you can pin a runtime, skip checkout re-execs, or turn on hook tracing when you debug.

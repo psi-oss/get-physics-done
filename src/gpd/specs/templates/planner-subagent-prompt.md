@@ -43,12 +43,13 @@ If `{project_contract}` is empty, stale, or too underspecified to identify the p
 Reference and knowledge authority:
 @{GPD_INSTALL_DIR}/templates/reference-guidance.md
 
-**Phase Context:**
-IMPORTANT: If context exists below, it contains USER DECISIONS from gpd:discuss-phase.
+Treat stable knowledge docs surfaced through `active_reference_context` and `reference_artifacts_content` as reviewed background syntheses.
+Use explicit `knowledge_deps` when a plan materially depends on a reviewed knowledge doc and downstream gating should be enforced; keep implicit stable background advisory only.
 
-- **Decisions** = LOCKED -- honor exactly, do not revisit
-- **Agent's Discretion** = Freedom -- make methodological choices
-- **Deferred Ideas** = Out of scope -- do NOT include
+**Phase Context:**
+IMPORTANT: If context exists below, it contains USER DECISIONS from gpd:discuss-phase; treat them per the shared guidance.
+Treat `Decisions` as locked, `Agent's Discretion` as freedom, and `Deferred Ideas` as out of scope.
+@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md
 
 {context_content}
 

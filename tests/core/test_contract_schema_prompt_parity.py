@@ -167,6 +167,23 @@ def test_plan_contract_schema_surfaces_canonical_research_contract_fields() -> N
     assert "proof_deliverables`, `parameters`, `hypotheses`, and `conclusion_clauses" in plan_schema
 
 
+def test_plan_contract_schema_include_expands_validation_commands() -> None:
+    expanded_plan_schema = _expanded(TEMPLATES_DIR / "plan-contract-schema.md")
+
+    assert "gpd frontmatter validate GPD/phases/XX-name/XX-YY-PLAN.md --schema plan" in expanded_plan_schema
+    assert "gpd validate plan-contract GPD/phases/XX-name/XX-YY-PLAN.md" in expanded_plan_schema
+
+
+def test_summary_and_verification_templates_expand_contract_results_details() -> None:
+    summary_expanded = _expanded(TEMPLATES_DIR / "summary.md")
+    verification_expanded = _expanded(TEMPLATES_DIR / "verification-report.md")
+
+    assert "gpd frontmatter validate GPD/phases/XX-name/XX-YY-SUMMARY.md --schema summary" in summary_expanded
+    assert "proof_audit" in summary_expanded
+    assert "gpd frontmatter validate GPD/phases/XX-name/XX-VERIFICATION.md --schema verification" in verification_expanded
+    assert "proof_audit" in verification_expanded
+
+
 def test_expanded_phase_prompt_surfaces_the_same_research_contract_fields_before_generation() -> None:
     phase_prompt = _expanded(TEMPLATES_DIR / "phase-prompt.md")
 

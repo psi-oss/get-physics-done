@@ -74,6 +74,24 @@ class TestPatternsRootResolution:
 
         assert patterns_root() == data_dir / "learned-patterns"
 
+    def test_expands_user_in_patterns_root_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        monkeypatch.setenv("GPD_PATTERNS_ROOT", "~/custom-patterns")
+        monkeypatch.delenv("GPD_DATA_DIR", raising=False)
+
+        assert patterns_root() == fake_home / "custom-patterns"
+
+    def test_expands_user_in_data_dir_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setenv("HOME", str(fake_home))
+        monkeypatch.delenv("GPD_PATTERNS_ROOT", raising=False)
+        monkeypatch.setenv("GPD_DATA_DIR", "~/pattern-data")
+
+        assert patterns_root() == fake_home / "pattern-data" / PATTERNS_DIR_NAME
+
     def test_defaults_to_home_gpd_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         fake_home = tmp_path / "home"
         fake_home.mkdir()

@@ -131,15 +131,15 @@ def _global_runtime_dir(runtime: str, *, home: Path | None = None) -> Path:
 def _find_local_runtime_dir(runtime: str, config_dir_name: str, *, cwd: Path) -> Path | None:
     """Walk ancestors for a runtime config dir that validates against its manifest."""
     for ancestor in (cwd, *cwd.parents):
-        if ancestor.name == config_dir_name:
-            runtime_dir = ancestor
-        else:
-            runtime_dir = ancestor / config_dir_name
-        if not runtime_dir.exists() or not runtime_dir.is_dir():
-            continue
-        if _runtime_from_manifest_or_path(runtime_dir) != runtime:
-            continue
-        return runtime_dir
+        for candidate in (
+            ancestor,
+            ancestor / config_dir_name,
+        ):
+            if not candidate.exists() or not candidate.is_dir():
+                continue
+            if _runtime_from_manifest_or_path(candidate) != runtime:
+                continue
+            return candidate
     return None
 
 

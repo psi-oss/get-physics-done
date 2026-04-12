@@ -61,6 +61,11 @@ def test_model_facing_prompts_do_not_use_legacy_backcompat_wording() -> None:
 
 
 def test_standardized_thin_workflow_wrappers_stay_concise() -> None:
+    process_block_re = re.compile(r"<process>(.*?)</process>", re.S)
+    exec_context_re = re.compile(r"<execution_context>(.*?)</execution_context>", re.S)
+    keep_line = "Keep this command wrapper thin; the workflow owns detailed method guidance."
+    rest_line = "Do not restate workflow-owned checklists or compatibility policy here."
+
     for stem in THIN_WORKFLOW_WRAPPERS:
         path = COMMANDS_DIR / f"{stem}.md"
         text = path.read_text(encoding="utf-8")
@@ -73,9 +78,19 @@ def test_standardized_thin_workflow_wrappers_stay_concise() -> None:
         ]
 
         assert len(body_lines) <= 24, f"{path.relative_to(REPO_ROOT)} grew beyond thin-wrapper policy"
-        assert text.count("Keep this command wrapper thin; the workflow owns detailed method guidance.") == 1, path
-        assert text.count("Do not restate workflow-owned checklists or compatibility policy here.") == 1, path
-        assert text.count(f"@{{GPD_INSTALL_DIR}}/workflows/{stem}.md") == 2, path
+
+        exec_match = exec_context_re.search(text)
+        assert exec_match is not None, f"{path.relative_to(REPO_ROOT)} missing execution_context"
+        execution_context_text = exec_match.group(1).strip()
+        workflow_link = f"@{{GPD_INSTALL_DIR}}/workflows/{stem}.md"
+        assert execution_context_text == workflow_link, path
+
+        process_match = process_block_re.search(text)
+        assert process_match is not None, f"{path.relative_to(REPO_ROOT)} missing process block"
+        process_text = process_match.group(1).strip()
+        assert process_text.startswith(keep_line), path
+        assert rest_line in process_text, path
+        assert process_text.count(workflow_link) == 1, path
 
 
 def test_consistency_checker_uses_canonical_gpd_return_fields() -> None:

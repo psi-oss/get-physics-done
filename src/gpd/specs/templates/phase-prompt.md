@@ -10,17 +10,11 @@ Use the canonical schema below before drafting any `contract:` block.
 
 @{GPD_INSTALL_DIR}/templates/plan-contract-schema.md
 
-Quick contract rules:
-- `contract` must be a YAML object with `schema_version: 1`; full rules live in the schema.
-- Put machine-checkable prerequisites in `tool_requirements`; keep human-only setup in `researcher_setup`. `tool_requirements[].id` values must be unique within the list.
-- Gap-closure plans still use `type: execute`; mark verification-repair plans with `gap_closure: true`.
-- Keep `scope.in_scope`, `context_intake`, `claim_kind`, `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, `links[].relation`, `must_surface`, `required_actions[]`, `applies_to[]`, `carry_forward_to[]`, `uncertainty_markers`, `approach_policy`, and `proof_obligation` visible. When `must_surface` is `true`, keep `required_actions[]` and `applies_to[]` non-empty, and treat `carry_forward_to[]` as workflow scope only.
-- `links[].relation` uses `supports | computes | visualizes | benchmarks | depends_on | evaluated_by | proves | uses_hypothesis | depends_on_lemma | other`.
-- `references[].required_actions` uses `read | use | compare | cite | avoid`.
-- `context_intake`, `approach_policy`, and `uncertainty_markers` must stay YAML objects.
-- Validator tool vocabulary is closed: `wolfram` and `command`. For `tool: command`, a non-empty `command` field is mandatory; for other tools, omit `command`.
-- For proof-bearing work, use an explicit non-`other` `claim_kind`, keep hypotheses, parameters, and conclusions auditable, and name `observables[].kind: proof_obligation` items with the theorem or claim plus the hypotheses or parameter regime they cover.
-- If a proof or theorem statement changes after a proof audit, treat that audit as stale before `status: passed` is possible for the affected target.
+Quick contract rules: keep `contract` as a schema-version-1 YAML object and keep `tool_requirements`, `researcher_setup`, `type: execute`, `gap_closure: true`, `scope.in_scope`, `claim_kind`, `observables[].kind`, `deliverables[].kind`, `acceptance_tests[].kind`, `references[].kind`, `references[].role`, `links[].relation`, `must_surface`, `required_actions[]`, `applies_to[]`, `carry_forward_to[]`, and `uncertainty_markers` visible before drafting tasks; treat `context_intake`, `approach_policy`, and `uncertainty_markers` as YAML objects, keep proofs auditable (non-`other` `claim_kind`, hypotheses, parameters, conclusions, and `observables[].kind: proof_obligation` entries), and honor the closed validator tool vocabulary (`wolfram`, `command` with a non-empty `command` field). Details live in the shared guidance below.
+
+For proof-bearing work, use an explicit non-`other` `claim_kind`, keep hypotheses, parameters, and conclusions auditable, and name `observables[].kind: proof_obligation` items with the theorem or claim plus the hypotheses or parameter regime they cover. If a proof or theorem statement changes after a proof audit, treat that audit as stale before `status: passed` is possible for the affected target. Every claim must declare a stable `id`. Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
+
+@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md
 
 ---
 

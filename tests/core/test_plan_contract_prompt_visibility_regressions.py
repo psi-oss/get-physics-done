@@ -152,6 +152,7 @@ def test_phase_prompt_surfaces_default_salvage_and_hard_plan_requirements() -> N
     phase_prompt = _read_template("phase-prompt.md")
 
     assert phase_prompt.count("Quick contract rules:") == 1
+    assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in phase_prompt
     assert phase_prompt.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") == 1
     for token in (
         "tool_requirements",
@@ -195,6 +196,7 @@ def test_planner_and_checker_prompts_share_reference_guidance() -> None:
 
     assert "@{GPD_INSTALL_DIR}/templates/reference-guidance.md" in planner_prompt
     assert "@{GPD_INSTALL_DIR}/templates/reference-guidance.md" in checker_prompt
+    assert "@{GPD_INSTALL_DIR}/references/planning/phase-prompt-guidance.md" in planner_prompt
 
 
 def test_contract_schema_docs_make_lowercase_closed_vocab_rule_model_visible() -> None:

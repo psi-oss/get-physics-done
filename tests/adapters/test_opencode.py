@@ -59,6 +59,14 @@ class TestProperties:
             "Run `/gpd-help` then `/gpd-start`."
         )
 
+    def test_translate_shared_command_references_translates_canonical_labels(
+        self,
+        adapter: OpenCodeAdapter,
+    ) -> None:
+        assert adapter.translate_shared_command_references("Use gpd:plan-phase next.") == (
+            "Use /gpd-plan-phase next."
+        )
+
 
 class TestRuntimeIdentityFromCatalog:
     def test_get_opencode_global_dir_uses_catalog_runtime_identity(self, monkeypatch: pytest.MonkeyPatch) -> None:

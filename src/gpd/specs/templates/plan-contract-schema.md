@@ -12,7 +12,9 @@ Defaultable semantic fields remain explicit: `observables[].kind`, `deliverables
 Canonical source of truth for the `contract:` block embedded in PLAN frontmatter.
 
 Use this file whenever you author, revise, or validate a PLAN contract. Do not invent ad-hoc keys, flatten object lists into strings, or leave cross-referenced IDs unresolved.
-For alignment reminders, addendum notes, and validation command examples, see @{GPD_INSTALL_DIR}/templates/plan-contract-schema-notes.md.
+For alignment reminders, addendum notes, and validation command examples, consult the canonical addendum guidance below.
+
+`@{GPD_INSTALL_DIR}/templates/plan-contract-schema-notes.md`
 
 ---
 
@@ -37,13 +39,16 @@ The PLAN `contract` value must be a YAML object with these top-level sections:
 
 `*` Non-scoping plans must keep the full claims/deliverables/acceptance_tests/forbidden_proxies suite. Reduced contracts need at least one decision surface (target, open question, or carry-forward input) and still rely on this shape for the declared anchors above.
 
-For additional alignment rules and validation command examples, see @{GPD_INSTALL_DIR}/templates/plan-contract-schema-notes.md.
+For additional alignment rules and validation command examples, revisit the canonical addendum guidance above.
 
 ## General Rules
 
 - Every list named above must contain objects, not strings.
 - `context_intake`, `approach_policy`, and `uncertainty_markers` are object-valued sections, not strings or lists.
 - Do not add unknown keys at any level; strict validation rejects them. Salvage/repair flows may drop unknown keys while surfacing recoverable findings.
+- All ID cross-links must resolve to declared IDs.
+- Do not reuse the same ID across `claims[]`, `deliverables[]`, `acceptance_tests[]`, or `references[]`; target resolution becomes ambiguous.
+- All blank-after-trim values are invalid.
 - `approach_policy` constrains execution but does not count as grounding on its own; use `context_intake`, preserved scoping inputs, or `references[]` instead.
 - `context_intake` anchors must be concrete enough to re-find later. Placeholders like `TBD`, `unknown`, or `placeholder` do not count as grounding.
 

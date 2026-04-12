@@ -749,28 +749,45 @@ class TestDetectActiveRuntimeWithInstall:
         with pytest.raises(RuntimeError, match="manifest cannot be trusted"):
             adapter._validate_target_runtime(target_dir, action="install")
 
-    def test_detect_runtime_install_target_walks_ancestor_local_dirs(
-        self, tmp_path: Path
-    ) -> None:
-        workspace = tmp_path / "workspace"
-        workspace.mkdir()
-        nested = workspace / "research" / "notes"
-        nested.mkdir(parents=True)
-        runtime_dir = workspace / ".codex"
-        _mark_gpd_install(runtime_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_LOCAL)
-        home = tmp_path / "home"
+def test_detect_runtime_install_target_walks_ancestor_local_dirs(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    nested = workspace / "research" / "notes"
+    nested.mkdir(parents=True)
+    runtime_dir = workspace / ".codex"
+    _mark_gpd_install(runtime_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_LOCAL)
+    home = tmp_path / "home"
 
-        env = _clean_runtime_env()
-        with (
-            patch.dict(os.environ, env, clear=True),
-            patch("gpd.hooks.runtime_detect.Path.cwd", return_value=nested),
-            patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
-        ):
-            result = detect_runtime_install_target(RUNTIME_CODEX, cwd=nested, home=home)
+    env = _clean_runtime_env()
+    with (
+        patch.dict(os.environ, env, clear=True),
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=nested),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+    ):
+        result = detect_runtime_install_target(RUNTIME_CODEX, cwd=nested, home=home)
 
-        assert result is not None
-        assert result.config_dir == runtime_dir
-        assert result.install_scope == SCOPE_LOCAL
+    assert result is not None
+    assert result.config_dir == runtime_dir
+    assert result.install_scope == SCOPE_LOCAL
+
+
+def test_detect_runtime_install_target_identifies_custom_cwd(tmp_path: Path) -> None:
+    custom_dir = tmp_path / "custom-codex"
+    _mark_gpd_install(custom_dir, runtime=RUNTIME_CODEX, install_scope=SCOPE_LOCAL)
+    home = tmp_path / "home"
+    home.mkdir()
+
+    env = _clean_runtime_env()
+    with (
+        patch.dict(os.environ, env, clear=True),
+        patch("gpd.hooks.runtime_detect.Path.cwd", return_value=custom_dir),
+        patch("gpd.hooks.runtime_detect.Path.home", return_value=home),
+    ):
+        result = detect_runtime_install_target(RUNTIME_CODEX, cwd=custom_dir, home=home)
+
+    assert result is not None
+    assert result.config_dir == custom_dir
+    assert result.install_scope == SCOPE_LOCAL
 
 
 class TestDetectRuntimeForGpdUse:

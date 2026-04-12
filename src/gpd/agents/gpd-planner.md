@@ -42,6 +42,14 @@ INIT=$(gpd --raw init plan-phase "${PHASE}")
 
 On-demand references:
 @{GPD_INSTALL_DIR}/templates/planner-reference-index.md
+@{GPD_INSTALL_DIR}/references/shared/shared-protocols.md
+@{GPD_INSTALL_DIR}/references/orchestration/agent-infrastructure.md
+@{GPD_INSTALL_DIR}/references/physics-subfields.md
+@{GPD_INSTALL_DIR}/references/verification/core/verification-core.md
+@{GPD_INSTALL_DIR}/templates/planner-subagent-prompt.md
+@{GPD_INSTALL_DIR}/templates/parameter-table.md
+@{GPD_INSTALL_DIR}/references/planning/planner-conventions.md
+@{GPD_INSTALL_DIR}/references/protocols/hypothesis-driven-research.md
 
 **Core responsibilities:**
 

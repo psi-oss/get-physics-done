@@ -276,6 +276,11 @@ def _write_cached_inventory(repo_root: Path, inventory: dict[str, list[str]]) ->
     cache_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def has_stable_cached_inventory(*, repo_root: Path | None = None) -> bool:
+    normalized_root = _normalized_repo_root(repo_root)
+    return _load_cached_inventory(normalized_root) is not None
+
+
 @cache
 def _collected_test_inventory_items(
     repo_root: Path,

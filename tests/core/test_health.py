@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 
 import gpd.core.health as health_module
-from gpd.core.constants import HOME_DATA_DIR_NAME, PLANNING_DIR_NAME, ProjectLayout
+from gpd.core.constants import LEGACY_REPO_DATA_DIR_NAME, PLANNING_DIR_NAME, ProjectLayout
 from gpd.core.contract_validation import validate_project_contract
 from gpd.core.errors import ValidationError
 from gpd.core.frontmatter import compute_knowledge_reviewed_content_sha256
@@ -683,7 +683,7 @@ class TestCheckProjectStructure:
 class TestCheckLegacyHiddenDirectory:
     def test_warns_when_hidden_dir_has_project_artifacts(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
-        hidden = cwd / HOME_DATA_DIR_NAME
+        hidden = cwd / LEGACY_REPO_DATA_DIR_NAME
         hidden.mkdir()
         (hidden / "STATE.md").write_text("legacy state", encoding="utf-8")
         (hidden / "phases").mkdir(parents=True, exist_ok=True)
@@ -694,11 +694,11 @@ class TestCheckLegacyHiddenDirectory:
         assert result.details["legacy_path"] == str(hidden)
         assert set(result.details["detected_entries"]) == {"STATE.md", "phases/"}
         assert PLANNING_DIR_NAME in result.warnings[0]
-        assert HOME_DATA_DIR_NAME in result.warnings[0]
+        assert LEGACY_REPO_DATA_DIR_NAME in result.warnings[0]
 
     def test_ok_when_hidden_dir_lacks_project_artifacts(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
-        hidden = cwd / HOME_DATA_DIR_NAME
+        hidden = cwd / LEGACY_REPO_DATA_DIR_NAME
         hidden.mkdir()
         (hidden / "cache").mkdir(parents=True, exist_ok=True)
 
@@ -711,7 +711,7 @@ class TestCheckLegacyHiddenDirectory:
 
 def test_health_warns_about_legacy_dot_gpd_artifacts(tmp_path: Path) -> None:
     cwd = _bootstrap_health_project(tmp_path)
-    dot_gpd = cwd / ".gpd"
+    dot_gpd = cwd / LEGACY_REPO_DATA_DIR_NAME
     dot_gpd.mkdir()
     (dot_gpd / "state.json").write_text("{}", encoding="utf-8")
     (dot_gpd / "CONVENTIONS.md").write_text("legacy", encoding="utf-8")
@@ -725,7 +725,7 @@ def test_health_warns_about_legacy_dot_gpd_artifacts(tmp_path: Path) -> None:
 
     assert warning_texts
     assert any(
-        ".gpd" in text and "GPD/" in text and "legacy" in text.lower()
+        LEGACY_REPO_DATA_DIR_NAME in text and "GPD/" in text and "legacy" in text.lower()
         for text in warning_texts
     )
 
