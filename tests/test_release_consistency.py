@@ -498,6 +498,16 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "workflow_dispatch:" in workflow
     assert "scripts/release_workflow.py show-version" in workflow
     assert "scripts/release_workflow.py stamp-publish-date" in workflow
+    assert re.search(
+        r'^\s*python scripts/release_workflow\.py stamp-publish-date --repo \. --release-date "\$\{\{ needs\.build-release\.outputs\.release_date \}\}" > /tmp/publish-date\.json$',
+        workflow,
+        re.M,
+    )
+    assert not re.search(
+        r'^\s*uv run python scripts/release_workflow\.py stamp-publish-date --repo \. --release-date "\$\{\{ needs\.build-release\.outputs\.release_date \}\}" > /tmp/publish-date\.json$',
+        workflow,
+        re.M,
+    )
     assert "environment:" in workflow
     assert "name: PyPI" in workflow
     assert "id-token: write" in workflow
@@ -512,6 +522,16 @@ def test_publish_release_workflow_uses_trusted_publishing_from_merged_release_co
     assert "post-release/v${VERSION}-publish-date" in workflow
     assert "ref: ${{ needs.build-release.outputs.release_sha }}" in workflow
     assert "scripts/release_workflow.py release-notes" in workflow
+    assert re.search(
+        r'^\s*python scripts/release_workflow\.py release-notes --repo \. --version "\$VERSION" > /tmp/release-notes\.txt$',
+        workflow,
+        re.M,
+    )
+    assert not re.search(
+        r'^\s*uv run python scripts/release_workflow\.py release-notes --repo \. --version "\$VERSION" > /tmp/release-notes\.txt$',
+        workflow,
+        re.M,
+    )
     assert "gh pr create" in workflow
 
 

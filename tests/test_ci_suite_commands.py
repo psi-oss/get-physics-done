@@ -46,8 +46,8 @@ def _direct_test_count(rel_path: str) -> int:
     return (REPO_ROOT / rel_path).read_text(encoding="utf-8").count("\ndef test_")
 
 
-def _workflow_data() -> dict[str, object]:
-    return yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8"))
+def _workflow_data(filename: str = "test.yml") -> dict[str, object]:
+    return yaml.safe_load((REPO_ROOT / ".github" / "workflows" / filename).read_text(encoding="utf-8"))
 
 
 def _job_steps(workflow: dict[str, object], job_name: str) -> list[dict[str, object]]:
@@ -63,6 +63,17 @@ def _job_steps(workflow: dict[str, object], job_name: str) -> list[dict[str, obj
 
 def _run_steps_by_name(steps: list[dict[str, object]]) -> dict[str, str]:
     return {str(step.get("name", "")): str(step.get("run", "")) for step in steps if "run" in step}
+
+
+def _step_runs_uv(step: dict[str, object]) -> bool:
+    run = step.get("run")
+    if not isinstance(run, str):
+        return False
+    return any(
+        line.lstrip().startswith("uv ")
+        for line in run.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    )
 
 
 def _pytest_command_targets(command: str) -> tuple[str, ...]:
@@ -370,16 +381,37 @@ def test_collected_inventory_collect_only_uses_managed_python(monkeypatch, tmp_p
     assert calls[0][:3] == ("uv", "run", "pytest") or calls[0][1:3] == ("-m", "pytest")
 
 
-def test_publish_release_runs_release_workflow_inside_uv_environment() -> None:
-    workflow_text = (REPO_ROOT / ".github" / "workflows" / "publish-release.yml").read_text(encoding="utf-8")
-    invocations = [
-        line.strip()
-        for line in workflow_text.splitlines()
-        if "scripts/release_workflow.py" in line and not line.lstrip().startswith("#")
-    ]
+def test_publish_release_jobs_set_up_uv_before_uv_commands() -> None:
+    workflow = _workflow_data("publish-release.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
 
-    assert invocations
-    assert all("uv run python scripts/release_workflow.py" in invocation for invocation in invocations)
+    for job_name in jobs:
+        steps = _job_steps(workflow, str(job_name))
+        uv_setup_indices = [
+            index for index, step in enumerate(steps) if step.get("uses") == "astral-sh/setup-uv@v7"
+        ]
+        uv_command_indices = [index for index, step in enumerate(steps) if _step_runs_uv(step)]
+
+        if not uv_command_indices:
+            continue
+
+        assert uv_setup_indices, f"Job {job_name} uses uv but never sets it up in that same job"
+        for uv_index in uv_command_indices:
+            assert any(setup_index < uv_index for setup_index in uv_setup_indices), (
+                f"Job {job_name} uses uv before running astral-sh/setup-uv@v7"
+            )
+
+
+def test_publish_release_publish_job_does_not_use_uv_for_release_workflow_helper() -> None:
+    workflow = _workflow_data("publish-release.yml")
+    publish_steps = _job_steps(workflow, "publish-npm-and-github-release")
+    uv_step_names = [str(step.get("name", "")) for step in publish_steps if _step_runs_uv(step)]
+
+    assert not uv_step_names, (
+        "publish-npm-and-github-release should rely on its local Python setup for "
+        f"scripts/release_workflow.py, not uv; found uv usage in steps: {uv_step_names}"
+    )
 
 
 def test_tests_readme_documents_default_full_suite_and_category_named_runtime_informed_ci_shards() -> None:
