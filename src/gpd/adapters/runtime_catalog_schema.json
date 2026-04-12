@@ -1,5 +1,21 @@
 {
   "schema_version": 1,
+  "top_level_keys": [
+    "schema_version",
+    "top_level_keys",
+    "entry_required_keys",
+    "entry_optional_keys",
+    "global_config_keys",
+    "global_config_required_keys",
+    "capability_keys",
+    "capability_required_keys",
+    "capability_enums",
+    "hook_payload_keys",
+    "hook_payload_required_keys",
+    "managed_install_surfaces",
+    "install_help_example_scopes",
+    "launch_wrapper_permission_surface_kinds"
+  ],
   "entry_required_keys": [
     "runtime_name",
     "adapter_module",

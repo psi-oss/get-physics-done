@@ -188,25 +188,20 @@ def _load_runtime_catalog_schema_shape() -> dict[str, object]:
     if not isinstance(raw_schema, dict) or not raw_schema:
         raise ValueError("runtime catalog schema must be a non-empty JSON object")
 
-    allowed_top_level_keys = {
-        "schema_version",
-        "entry_required_keys",
-        "entry_optional_keys",
-        "global_config_keys",
-        "global_config_required_keys",
-        "capability_keys",
-        "capability_required_keys",
-        "capability_enums",
-        "hook_payload_keys",
-        "hook_payload_required_keys",
-        "managed_install_surfaces",
-        "install_help_example_scopes",
-        "launch_wrapper_permission_surface_kinds",
-    }
+    top_level_keys = _require_string_tuple(
+        raw_schema.get("top_level_keys"),
+        label="runtime catalog schema.top_level_keys",
+        allow_empty=False,
+    )
+    allowed_top_level_keys = set(top_level_keys)
     unknown_top_level_keys = sorted(key for key in raw_schema if key not in allowed_top_level_keys)
     if unknown_top_level_keys:
         formatted = ", ".join(unknown_top_level_keys)
         raise ValueError(f"runtime catalog schema contains unknown key(s): {formatted}")
+    missing_top_level_keys = sorted(key for key in allowed_top_level_keys if key not in raw_schema)
+    if missing_top_level_keys:
+        formatted = ", ".join(missing_top_level_keys)
+        raise ValueError(f"runtime catalog schema is missing top-level key(s): {formatted}")
 
     schema_version = raw_schema.get("schema_version")
     if type(schema_version) is not int or schema_version != 1:

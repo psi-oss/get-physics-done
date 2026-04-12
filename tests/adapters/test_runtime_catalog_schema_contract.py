@@ -187,6 +187,12 @@ def test_runtime_catalog_schema_inventory_matches_runtime_dataclasses() -> None:
     assert set(schema["hook_payload_keys"]) == hook_payload_fields
 
 
+def test_runtime_catalog_schema_top_level_keys_match_schema_payload() -> None:
+    schema = _load_schema()
+
+    assert set(schema["top_level_keys"]) == set(schema)
+
+
 def test_runtime_catalog_schema_parser_inventory_matches_internal_runtime_shape() -> None:
     schema = _load_schema()
 
