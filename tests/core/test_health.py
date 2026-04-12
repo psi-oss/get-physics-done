@@ -1270,7 +1270,7 @@ class TestCheckStateValidityProjectContract:
         contract["references"][0]["applies_to"] = ["claim-benchmark"]
         contract["references"][0]["required_actions"] = ["compare"]
         contract["context_intake"] = {
-            "must_read_refs": [],
+            "must_read_refs": ["ref-benchmark"],
             "must_include_prior_outputs": [],
             "user_asserted_anchors": [],
             "known_good_baselines": [],

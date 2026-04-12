@@ -106,7 +106,7 @@ def test_fast_project_contract_proxy_rejects_malformed_optional_approach_policy(
     assert "approach_policy must be an object, not str" in result.reason
 
 
-def test_fast_project_contract_proxy_normalizes_visible_contract_drift_on_markdown_save(tmp_path: Path) -> None:
+def test_fast_project_contract_proxy_drops_visible_contract_drift_on_markdown_save(tmp_path: Path) -> None:
     state = default_state_dict()
     state["position"]["status"] = "Executing"
     save_state_json(tmp_path, state)
@@ -122,8 +122,7 @@ def test_fast_project_contract_proxy_normalizes_visible_contract_drift_on_markdo
 
     saved = load_state_json(tmp_path)
     assert saved is not None
-    assert saved["project_contract"] is not None
-    assert saved["project_contract"]["context_intake"]["must_read_refs"] == ["ref-benchmark"]
+    assert saved["project_contract"] is None
 
 
 def test_project_contract_salvage_reports_duplicate_ids() -> None:

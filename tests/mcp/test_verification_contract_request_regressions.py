@@ -543,8 +543,8 @@ def test_contract_integrity_missing_context_intake_surfaces_diagnostic() -> None
     }
 
     result = run_contract_check(request)
-    assert "error" not in result
-    assert result["status"] == "pass"
+    assert result["schema_version"] == 1
+    assert result["error"] == "Invalid contract payload: context_intake must not be empty"
 
 
 def test_contract_check_request_templates_use_string_artifact_placeholders() -> None:
