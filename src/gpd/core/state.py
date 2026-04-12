@@ -33,7 +33,6 @@ from gpd.contracts import (
     _collect_project_contract_list_member_errors,
     _collect_project_local_grounding_integrity_errors,
     collect_contract_integrity_errors,
-    collect_plan_contract_integrity_errors,
     parse_project_contract_data_salvage,
     parse_project_contract_data_strict,
 )
@@ -899,12 +898,7 @@ def _classify_project_contract_payload(
         normalized_contract,
         project_root=cwd,
     )
-    plan_integrity_errors = set(collect_plan_contract_integrity_errors(normalized_contract, project_root=cwd))
-    if local_grounding_errors and (
-        "missing references or explicit grounding context" in plan_integrity_errors
-        or "references must include at least one must_surface=true anchor" in plan_integrity_errors
-    ):
-        integrity_errors.extend(local_grounding_errors)
+    integrity_errors.extend(local_grounding_errors)
     if integrity_errors:
         logger.warning(
             "Loaded blocked project_contract from %s because semantic integrity checks failed: %s",

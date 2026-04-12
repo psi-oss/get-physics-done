@@ -58,5 +58,5 @@ Target may be an exact `GPD/knowledge/{knowledge_id}.md` path or canonical `K-*`
 </context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/review-knowledge.md` exactly.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 </process>

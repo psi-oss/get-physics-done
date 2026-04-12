@@ -1379,7 +1379,7 @@ class TestDiscovery:
 
         monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
 
-        with pytest.raises(ValueError, match="does not match file stem"):
+        with pytest.raises(ValueError, match="does not match slug"):
             registry._discover_commands()
 
     def test_command_name_without_gpd_prefix_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1410,6 +1410,31 @@ class TestDiscovery:
 
         with pytest.raises(ValueError, match="does not match file stem"):
             registry._discover_agents()
+
+    def test_nested_command_discovered_with_slug(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        nested = commands_dir / "sub"
+        nested.mkdir(parents=True)
+        (nested / "deep.md").write_text(
+            "---\nname: gpd:sub-deep\n---\nDeep body.",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        found = registry._discover_commands()
+        assert "sub-deep" in found
+        assert found["sub-deep"].name == "gpd:sub-deep"
+
+    def test_nested_command_slug_collision_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        commands_dir = tmp_path / "commands"
+        nested = commands_dir / "foo"
+        nested.mkdir(parents=True)
+        (commands_dir / "foo-bar.md").write_text("---\nname: gpd:foo-bar\n---\nTop.", encoding="utf-8")
+        (nested / "bar.md").write_text("---\nname: gpd:foo-bar\n---\nNested.", encoding="utf-8")
+
+        monkeypatch.setattr(registry, "COMMANDS_DIR", commands_dir)
+        with pytest.raises(ValueError, match="Duplicate command slug 'foo-bar'"):
+            registry._discover_commands()
 
     def test_debug_command_and_debugger_agent_remain_registry_discoverable(self) -> None:
         registry.invalidate_cache()

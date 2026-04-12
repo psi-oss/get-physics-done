@@ -25,9 +25,10 @@ Use this when a plan, execution, or verification produced incorrect results and 
 </context>
 
 <process>
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 If `--dry-run` flag is present, show the commit that would be reverted and files affected, without actually reverting.
 
-Execute the undo workflow from @{GPD_INSTALL_DIR}/workflows/undo.md end-to-end.
 Preserve all safety gates and confirmation steps.
 
 ## Step 1: Find Last GPD Commit

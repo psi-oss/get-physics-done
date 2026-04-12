@@ -40,8 +40,9 @@ Arguments: $ARGUMENTS (format: <phase-number> "<reason for revision>")
 </context>
 
 <process>
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 Parse arguments: the phase number is the first token, everything after the first space is the reason for revision.
 
-Execute the revise-phase workflow from @{GPD_INSTALL_DIR}/workflows/revise-phase.md end-to-end.
 Preserve all validation gates (completed phase check, scope analysis, supersession marking, dependency updates) and commit.
 </process>

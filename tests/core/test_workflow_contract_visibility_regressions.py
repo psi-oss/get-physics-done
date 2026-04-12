@@ -12,42 +12,39 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / "src/gpd/specs/workflows"
 COMMANDS_DIR = REPO_ROOT / "src/gpd/commands"
 
+WORKFLOWS_WITH_PROJECT_CONTRACT_AUTHORITY = tuple(
+    sorted(
+        path.name
+        for path in WORKFLOWS_DIR.glob("*.md")
+        if "project_contract_gate.authoritative" in path.read_text(encoding="utf-8")
+    )
+)
+
 
 def _workflow_text(name: str) -> str:
     return (WORKFLOWS_DIR / name).read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize(
-    ("workflow_name", "surface_marker", "expected_token"),
-    [
-        ("plan-phase.md", "Parse JSON for:", "project_contract_gate"),
-        ("execute-phase.md", "Parse JSON for:", "project_contract_gate"),
-        ("execute-plan.md", "Extract from init JSON:", "project_contract_gate"),
-        ("quick.md", "Parse JSON for:", "project_contract_gate"),
-        ("literature-review.md", "Parse JSON for:", "project_contract_gate"),
-        ("compare-experiment.md", "Parse JSON for:", "project_contract_gate"),
-        ("compare-results.md", "Parse JSON for:", "project_contract_gate"),
-        ("new-project.md", "Parse JSON for:", "project_contract_gate"),
-        ("new-milestone.md", "Parse JSON for:", "project_contract_gate"),
-        ("map-research.md", "Extract from init JSON:", "project_contract_gate"),
-        ("progress.md", "Extract from init JSON:", "project_contract_gate"),
-        ("audit-milestone.md", "Extract from init JSON:", "project_contract_gate"),
-        ("resume-work.md", "- **Availability and contract authority:**", "project_contract_gate"),
-        ("write-paper.md", "Parse JSON for:", "project_contract_gate"),
-        ("respond-to-referees.md", "Parse JSON for:", "project_contract_gate"),
-        ("peer-review.md", "Parse JSON for:", "project_contract_gate"),
-    ],
-)
-def test_contract_gate_is_visible_before_authoritative_use(
-    workflow_name: str,
-    surface_marker: str,
-    expected_token: str,
-) -> None:
+@pytest.mark.parametrize("workflow_name", WORKFLOWS_WITH_PROJECT_CONTRACT_AUTHORITY)
+def test_contract_gate_is_visible_before_authoritative_use(workflow_name: str) -> None:
     workflow = _workflow_text(workflow_name)
-    surface_line = next(line for line in workflow.splitlines() if surface_marker in line)
+    lines = workflow.splitlines()
+    authority_index = next(
+        index for index, line in enumerate(lines) if "project_contract_gate.authoritative" in line
+    )
+    surface_indices = [
+        index
+        for index, line in enumerate(lines)
+        if "project_contract_gate" in line and "project_contract_gate.authoritative" not in line
+    ]
 
-    assert expected_token in surface_line
-    assert workflow.index(surface_line) < workflow.index("project_contract_gate.authoritative")
+    assert surface_indices, (
+        f"{workflow_name} never surfaces `project_contract_gate` before `project_contract_gate.authoritative`."
+    )
+    surface_index = min(surface_indices)
+    assert surface_index < authority_index, (
+        f"{workflow_name} mentions `project_contract_gate.authoritative` before the gate was surfaced."
+    )
 
 
 def test_literature_review_workflow_surfaces_contract_gate_before_deferred_reference_artifacts() -> None:

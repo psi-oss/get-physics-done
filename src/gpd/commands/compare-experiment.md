@@ -41,5 +41,5 @@ Discovery hint: find artifacts/ results/ data/ figures/ simulations/ paper/ -max
 </execution_context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/compare-experiment.md` exactly.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 </process>

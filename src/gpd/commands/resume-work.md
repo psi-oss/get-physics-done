@@ -22,5 +22,5 @@ Resume research from the selected project's canonical state.
 </execution_context>
 
 <process>
-Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/resume-work.md`.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 </process>

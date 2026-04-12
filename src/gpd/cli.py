@@ -8975,10 +8975,25 @@ def _target_dir_matches_global(runtime_name: str, target_dir: str, *, action: st
     if not callable(resolve_target_dir):
         return False
     try:
-        canonical_global_target = resolve_target_dir(True, _get_cwd())
+        canonical_global_value = resolve_target_dir(True, _get_cwd())
+        canonical_global_path = Path(canonical_global_value)
     except (AttributeError, TypeError, ValueError):
         return False
-    return resolved_target == canonical_global_target.expanduser().resolve(strict=False)
+    canonical_global_target = canonical_global_path.expanduser().resolve(strict=False)
+
+    if resolved_target == canonical_global_target:
+        return True
+
+    if os.path.normcase(str(resolved_target)) == os.path.normcase(str(canonical_global_target)):
+        return True
+
+    if canonical_global_target.exists() and resolved_target.exists():
+        try:
+            return canonical_global_target.samefile(resolved_target)
+        except OSError:
+            pass
+
+    return False
 
 
 

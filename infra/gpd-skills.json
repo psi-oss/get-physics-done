@@ -1,7 +1,7 @@
 {
   "name": "gpd-skills",
   "description": "GPD skill discovery and routing for workflow prompts; never fabricate missing outputs.",
-  "source_of_truth": "src/gpd/mcp/builtin_servers.py",
+  "source_of_truth": "src/gpd/mcp/servers/skills_server.py",
   "transport": "stdio",
   "command": "gpd-mcp-skills",
   "args": [],

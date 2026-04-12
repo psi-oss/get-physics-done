@@ -26,7 +26,7 @@ User's issue: $ARGUMENTS
 </context>
 
 <process>
-Read the workflow file defined above with `file_read` first. If `$ARGUMENTS` names a concrete issue or no `VERIFICATION.md` gap context is available, take the interactive path described by the workflow; otherwise run the verification-gap path.
+Read the workflow referenced in `<execution_context>` with `file_read` first. If `$ARGUMENTS` names a concrete issue or no `VERIFICATION.md` gap context is available, take the interactive path described by the workflow; otherwise run the verification-gap path.
 
 Create: GPD/debug/{slug}.md
 goal: find_root_cause_only

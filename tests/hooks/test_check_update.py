@@ -12,7 +12,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import (
+    get_runtime_descriptor,
+    get_shared_install_metadata,
+    iter_runtime_descriptors,
+)
 from gpd.hooks.check_update import (
     UPDATE_CHECK_TTL_SECONDS,
     _background_worker_command,
@@ -25,6 +29,19 @@ from gpd.hooks.check_update import (
 )
 from gpd.hooks.runtime_detect import UpdateCacheCandidate
 from tests.hooks.helpers import mark_complete_install as _mark_complete_install
+
+
+def runtime_config_dir(base: Path, runtime: str) -> Path:
+    descriptor = get_runtime_descriptor(runtime)
+    return base / descriptor.config_dir_name
+
+
+def runtime_install_dir(base: Path, runtime: str) -> Path:
+    return runtime_config_dir(base, runtime) / "get-physics-done"
+
+
+def runtime_cache_dir(base: Path, runtime: str) -> Path:
+    return runtime_config_dir(base, runtime) / "cache"
 
 _SHARED_INSTALL = get_shared_install_metadata()
 _RUNTIME_DESCRIPTORS = iter_runtime_descriptors()
@@ -148,13 +165,15 @@ class TestReadInstalledVersion:
     def test_version_file_fallback_prefers_prioritized_runtime_candidate(self, tmp_path: Path) -> None:
         """Fallback VERSION scan checks the prioritized runtime candidate before unrelated runtimes."""
         home = tmp_path / "home"
-        claude_version = tmp_path / ".claude" / "get-physics-done" / "VERSION"
-        codex_version = home / ".codex" / "get-physics-done" / "VERSION"
+        claude_install_dir = runtime_install_dir(tmp_path, "claude-code")
+        codex_install_dir = runtime_install_dir(home, "codex")
+        claude_version = claude_install_dir / "VERSION"
+        codex_version = codex_install_dir / "VERSION"
         claude_version.parent.mkdir(parents=True)
         codex_version.parent.mkdir(parents=True)
         claude_version.write_text("1.0.0\n", encoding="utf-8")
         codex_version.write_text("2.0.0\n", encoding="utf-8")
-        _mark_complete_install(codex_version.parent.parent, runtime="codex")
+        _mark_complete_install(runtime_config_dir(home, "codex"), runtime="codex")
 
         with (
             patch("gpd.version.__version__", "0.0.0-dev"),
@@ -167,14 +186,14 @@ class TestReadInstalledVersion:
     def test_version_file_fallback_should_ignore_uninstalled_higher_priority_runtime(self, tmp_path: Path) -> None:
         """Install-aware expectation: a stale higher-priority runtime must not mask the installed runtime's VERSION."""
         home = tmp_path / "home"
-        stale_claude_version = tmp_path / ".claude" / "get-physics-done" / "VERSION"
-        installed_codex_dir = tmp_path / ".codex"
-        installed_codex_version = installed_codex_dir / "get-physics-done" / "VERSION"
+        stale_claude_version = runtime_install_dir(tmp_path, "claude-code") / "VERSION"
+        installed_codex_install_dir = runtime_install_dir(tmp_path, "codex")
+        installed_codex_version = installed_codex_install_dir / "VERSION"
         stale_claude_version.parent.mkdir(parents=True)
         installed_codex_version.parent.mkdir(parents=True)
         stale_claude_version.write_text("1.0.0\n", encoding="utf-8")
         installed_codex_version.write_text("2.0.0\n", encoding="utf-8")
-        _mark_complete_install(installed_codex_dir, runtime="codex")
+        _mark_complete_install(runtime_config_dir(tmp_path, "codex"), runtime="codex")
 
         with (
             patch("gpd.version.__version__", "0.0.0-dev"),
@@ -187,15 +206,15 @@ class TestReadInstalledVersion:
     def test_version_file_fallback_ignores_manifestless_candidate_when_authoritative_install_exists(
         self, tmp_path: Path
     ) -> None:
-        stale_install_dir = tmp_path / ".codex" / "get-physics-done"
-        trusted_install_dir = tmp_path / ".claude" / "get-physics-done"
+        stale_install_dir = runtime_install_dir(tmp_path, "codex")
+        trusted_install_dir = runtime_install_dir(tmp_path, "claude-code")
         stale_version = stale_install_dir / "VERSION"
         trusted_version = trusted_install_dir / "VERSION"
         stale_version.parent.mkdir(parents=True, exist_ok=True)
         trusted_version.parent.mkdir(parents=True, exist_ok=True)
         stale_version.write_text("9.9.9\n", encoding="utf-8")
         trusted_version.write_text("2.0.0\n", encoding="utf-8")
-        _mark_complete_install(trusted_install_dir.parent, runtime="claude-code")
+        _mark_complete_install(runtime_config_dir(tmp_path, "claude-code"), runtime="claude-code")
 
         with (
             patch("gpd.version.__version__", "0.0.0-dev"),
@@ -219,7 +238,7 @@ class TestReadInstalledVersion:
         _mark_complete_install(explicit_target, runtime="codex")
         (explicit_target / "get-physics-done" / "VERSION").write_text("7.7.7\n", encoding="utf-8")
 
-        stale_workspace_version = workspace / ".claude" / "get-physics-done" / "VERSION"
+        stale_workspace_version = runtime_install_dir(workspace, "claude-code") / "VERSION"
         stale_workspace_version.parent.mkdir(parents=True)
         stale_workspace_version.write_text("1.0.0\n", encoding="utf-8")
 
@@ -486,7 +505,7 @@ class TestMainThrottle:
     def test_fresh_local_runtime_cache_suppresses_spawn(self, tmp_path: Path) -> None:
         """Any fresh runtime cache should satisfy throttle, not just the home GPD cache."""
         home = tmp_path / "home"
-        local_cache = tmp_path / ".codex" / "cache"
+        local_cache = runtime_cache_dir(tmp_path, "codex")
         local_cache.mkdir(parents=True)
         (local_cache / "gpd-update-check.json").write_text(
             json.dumps({"checked": int(time.time()), "update_available": False}),
@@ -513,14 +532,14 @@ class TestMainThrottle:
     def test_fresh_unrelated_runtime_cache_does_not_suppress_preferred_runtime_refresh(self, tmp_path: Path) -> None:
         """A fresher cache for another runtime must not throttle the preferred runtime refresh."""
         home = tmp_path / "home"
-        stale_codex_cache = tmp_path / ".codex" / "cache"
+        stale_codex_cache = runtime_cache_dir(tmp_path, "codex")
         stale_codex_cache.mkdir(parents=True)
         (stale_codex_cache / "gpd-update-check.json").write_text(
             json.dumps({"checked": int(time.time()) - UPDATE_CHECK_TTL_SECONDS - 100, "update_available": False}),
             encoding="utf-8",
         )
 
-        fresh_claude_cache = home / ".claude" / "cache"
+        fresh_claude_cache = runtime_cache_dir(home, "claude-code")
         fresh_claude_cache.mkdir(parents=True)
         (fresh_claude_cache / "gpd-update-check.json").write_text(
             json.dumps({"checked": int(time.time()), "update_available": False}),
@@ -550,14 +569,14 @@ class TestMainThrottle:
     def test_fresh_preferred_runtime_global_cache_still_suppresses_spawn(self, tmp_path: Path) -> None:
         """A fresh cache for the preferred runtime should still satisfy throttle."""
         home = tmp_path / "home"
-        fresh_codex_cache = home / ".codex" / "cache"
+        fresh_codex_cache = runtime_cache_dir(home, "codex")
         fresh_codex_cache.mkdir(parents=True)
         (fresh_codex_cache / "gpd-update-check.json").write_text(
             json.dumps({"checked": int(time.time()), "update_available": False}),
             encoding="utf-8",
         )
 
-        stale_claude_cache = home / ".claude" / "cache"
+        stale_claude_cache = runtime_cache_dir(home, "claude-code")
         stale_claude_cache.mkdir(parents=True)
         (stale_claude_cache / "gpd-update-check.json").write_text(
             json.dumps({"checked": int(time.time()) - UPDATE_CHECK_TTL_SECONDS - 100, "update_available": False}),
@@ -587,7 +606,7 @@ class TestMainThrottle:
     def test_runtime_neutral_fallback_cache_does_not_suppress_preferred_refresh(self, tmp_path: Path) -> None:
         """A runtime-neutral fallback cache must not short-circuit the preferred runtime refresh."""
         home = tmp_path / "home"
-        preferred_cache = tmp_path / ".codex" / "cache" / "gpd-update-check.json"
+        preferred_cache = runtime_cache_dir(tmp_path, "codex") / "gpd-update-check.json"
         preferred_cache.parent.mkdir(parents=True)
         preferred_cache.write_text(
             json.dumps({"checked": int(time.time()) - UPDATE_CHECK_TTL_SECONDS - 100, "update_available": False}),
@@ -629,15 +648,15 @@ class TestMainThrottle:
         workspace.mkdir()
         home = tmp_path / "home"
 
-        local_cache = workspace / ".codex" / "cache"
+        local_cache = runtime_cache_dir(workspace, "codex")
         local_cache.mkdir(parents=True)
         (local_cache / "gpd-update-check.json").write_text(
             json.dumps({"checked": int(time.time()), "update_available": False}),
             encoding="utf-8",
         )
 
-        global_runtime_dir = home / ".codex"
-        global_cache = global_runtime_dir / "cache"
+        global_runtime_dir = runtime_config_dir(home, "codex")
+        global_cache = runtime_cache_dir(home, "codex")
         global_cache.mkdir(parents=True)
         _mark_complete_install(global_runtime_dir, runtime="codex", install_scope="global")
         (global_cache / "gpd-update-check.json").write_text(
@@ -749,7 +768,7 @@ class TestMainThrottle:
             cache_file=explicit_target / "cache" / "gpd-update-check.json",
         )
 
-        fresh_workspace_cache = workspace / ".claude" / "cache"
+        fresh_workspace_cache = runtime_cache_dir(workspace, "claude-code")
         fresh_workspace_cache.mkdir(parents=True)
         (fresh_workspace_cache / "gpd-update-check.json").write_text(
             json.dumps({"checked": int(time.time()), "update_available": False}),
@@ -793,7 +812,7 @@ class TestMainThrottle:
             cache_file=explicit_target / "cache" / "gpd-update-check.json",
         )
 
-        stale_workspace_cache = workspace / ".claude" / "cache"
+        stale_workspace_cache = runtime_cache_dir(workspace, "claude-code")
         stale_workspace_cache.mkdir(parents=True)
         (stale_workspace_cache / "gpd-update-check.json").write_text(
             json.dumps({"checked": int(time.time()) - UPDATE_CHECK_TTL_SECONDS - 100, "update_available": False}),
@@ -835,7 +854,7 @@ class TestMainThrottle:
         hook_path.parent.mkdir(parents=True)
         hook_path.write_text("# hook\n", encoding="utf-8")
 
-        workspace_runtime_dir = workspace / ".codex"
+        workspace_runtime_dir = runtime_config_dir(workspace, "codex")
         workspace_cache = workspace_runtime_dir / "cache" / "gpd-update-check.json"
         workspace_cache.parent.mkdir(parents=True)
         workspace_cache.write_text(

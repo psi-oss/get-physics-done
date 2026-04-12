@@ -1379,7 +1379,7 @@ def _guidance_signal_flags(
             )
             for value in contract.context_intake.known_good_baselines
         ),
-        "context_gaps": _has_meaningful_guidance_text(contract.context_intake.context_gaps),
+        "context_gaps": False,
         "crucial_inputs": _has_meaningful_guidance_text(contract.context_intake.crucial_inputs),
     }
 

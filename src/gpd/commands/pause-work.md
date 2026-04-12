@@ -27,7 +27,7 @@ Routes to the pause-work workflow which handles:
 </execution_context>
 
 <process>
-**Follow the pause-work workflow** from `@{GPD_INSTALL_DIR}/workflows/pause-work.md`.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 The workflow handles all logic including:
 
@@ -41,4 +41,4 @@ The workflow handles all logic including:
 3. Canonical `.continue-here.md` continuation handoff writing with timestamp and session continuity pointer
 4. Git commit
 5. Confirmation with `gpd resume`, `gpd resume --recent`, runtime `gpd:resume-work`, and `gpd:suggest-next`
-   </process>
+</process>

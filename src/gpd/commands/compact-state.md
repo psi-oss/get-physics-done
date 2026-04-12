@@ -35,7 +35,7 @@ Routes to the compact-state workflow which handles:
 </context>
 
 <process>
-**Follow the compact-state workflow** from `@{GPD_INSTALL_DIR}/workflows/compact-state.md`.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 If `--force` flag is present, skip the line-count check and compact regardless of current size.
 

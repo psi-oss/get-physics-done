@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from gpd.adapters.codex import (
+    _CODEX_MCP_STARTUP_TIMEOUT_ENV_VAR,
     _GPD_NOTIFY_WRAPPER_MARKER,
     _MANIFEST_CODEX_GENERATED_SKILL_DIRS_KEY,
     _MANIFEST_CODEX_SKILLS_DIR_KEY,
@@ -700,7 +701,27 @@ class TestInstall:
         adapter.install(gpd_root, target, skills_dir=skills)
 
         parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
-        assert parsed["mcp_servers"]["gpd-state"]["startup_timeout_sec"] == 30
+        expected_timeout = _CODEX_DESCRIPTOR.mcp_startup_timeout_sec
+        assert expected_timeout is not None
+        assert parsed["mcp_servers"]["gpd-state"]["startup_timeout_sec"] == expected_timeout
+
+    def test_install_respects_env_override_for_mcp_startup_timeout(
+        self,
+        adapter: CodexAdapter,
+        gpd_root: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(_CODEX_MCP_STARTUP_TIMEOUT_ENV_VAR, "45")
+        target = codex_config_dir(tmp_path)
+        target.mkdir()
+        skills = tmp_path / "skills"
+        skills.mkdir()
+
+        adapter.install(gpd_root, target, skills_dir=skills)
+
+        parsed = tomllib.loads((target / "config.toml").read_text(encoding="utf-8"))
+        assert parsed["mcp_servers"]["gpd-state"]["startup_timeout_sec"] == 45
 
     def test_install_projects_wolfram_mcp_server_and_preserves_overrides(
         self,
@@ -741,10 +762,10 @@ class TestInstall:
         assert server["cwd"] == "/tmp/custom-wolfram"
         assert server["env"] == {
             "EXTRA_FLAG": "1",
+            WOLFRAM_MCP_API_KEY_ENV_VAR: "codex-test-key",
             WOLFRAM_MCP_ENDPOINT_ENV_VAR: "https://example.invalid/api/mcp",
         }
         assert parsed["mcp_servers"]["custom-server"] == {"command": "node", "args": ["custom.js"]}
-        assert "codex-test-key" not in (target / "config.toml").read_text(encoding="utf-8")
         assert result["mcpServers"] == len(build_mcp_servers_dict(python_path=hook_python_interpreter())) + 1
 
     def test_install_omits_managed_wolfram_when_project_override_disables_it(

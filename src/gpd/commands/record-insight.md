@@ -40,7 +40,7 @@ Typical insights include:
 </context>
 
 <process>
-**Follow the record-insight workflow** from `@{GPD_INSTALL_DIR}/workflows/record-insight.md`.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 The workflow handles all logic including:
 

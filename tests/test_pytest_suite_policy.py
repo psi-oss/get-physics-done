@@ -28,6 +28,8 @@ from tests.ci_sharding import (
     plan_category_ci_shards,
 )
 
+CI_FAST_PRIORITY_TEST_COUNT_LIMIT = 150
+
 
 def _read(relpath: str) -> str:
     return (Path(__file__).resolve().parent / relpath).read_text(encoding="utf-8")
@@ -213,6 +215,23 @@ def test_fast_priority_targets_stay_inside_three_minute_policy() -> None:
     assert CI_FAST_PRIORITY_TEST_TARGETS == CI_SMOKE_TEST_TARGETS
     assert target_files <= all_targets
     assert all(target in CI_FAST_PRIORITY_TEST_TARGETS for target in CI_SMOKE_TEST_TARGETS)
+
+
+def test_fast_priority_suite_total_test_count_stays_bounded() -> None:
+    inventory = collected_test_inventory(repo_root=_repo_root())
+    total_test_count = 0
+    for target in CI_FAST_PRIORITY_TEST_TARGETS:
+        if "::" in target:
+            total_test_count += 1
+            continue
+        rel_path = target[len("tests/") :] if target.startswith("tests/") else target
+        nodeids = inventory.get(rel_path)
+        assert nodeids is not None, f"Fast priority target {target} is missing from collection inventory"
+        total_test_count += len(nodeids)
+
+    assert total_test_count <= CI_FAST_PRIORITY_TEST_COUNT_LIMIT, (
+        f"Fast priority suite includes {total_test_count} collected tests, exceeding the {CI_FAST_PRIORITY_TEST_COUNT_LIMIT}-test limit."
+    )
 
 
 def test_hotspot_split_policy_covers_largest_collected_files() -> None:

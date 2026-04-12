@@ -49,6 +49,7 @@ from gpd.core.workflow_staging import (
     load_workflow_stage_manifest_from_path,
     resolve_workflow_stage_manifest_path,
 )
+from gpd.core.utils import normalize_ascii_slug
 from gpd.specs import SPECS_DIR
 
 # ─── Package layout ──────────────────────────────────────────────────────────
@@ -1113,14 +1114,23 @@ def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, obj
     return contract
 
 
-def _load_command_staged_loading(path: Path, *, allowed_tools: list[str]) -> WorkflowStageManifest | None:
+def _load_command_staged_loading(
+    path: Path,
+    *,
+    workflow_id: str,
+    allowed_tools: list[str],
+) -> WorkflowStageManifest | None:
     """Load staged-loading metadata for a command from its workflow sidecar."""
 
-    manifest_path = resolve_workflow_stage_manifest_path(path.stem)
+    manifest_path = resolve_workflow_stage_manifest_path(workflow_id)
     if not manifest_path.is_file():
         return None
-    canonical_manifest_path = (SPECS_DIR / "workflows" / f"{path.stem}-stage-manifest.json").resolve(strict=False)
-    canonical_command_path = (_PKG_ROOT / "commands" / path.name).resolve(strict=False)
+    canonical_manifest_path = (SPECS_DIR / "workflows" / f"{workflow_id}-stage-manifest.json").resolve(strict=False)
+    try:
+        relative_path = path.relative_to(COMMANDS_DIR)
+    except ValueError:
+        relative_path = Path(path.name)
+    canonical_command_path = (_PKG_ROOT / "commands" / relative_path).resolve(strict=False)
     if (
         path.resolve(strict=False) != canonical_command_path
         and manifest_path.resolve(strict=False) == canonical_manifest_path
@@ -1128,9 +1138,9 @@ def _load_command_staged_loading(path: Path, *, allowed_tools: list[str]) -> Wor
         return None
     return load_workflow_stage_manifest_from_path(
         manifest_path,
-        expected_workflow_id=path.stem,
+        expected_workflow_id=workflow_id,
         allowed_tools=allowed_tools,
-        known_init_fields=known_init_fields_for_workflow(path.stem),
+        known_init_fields=known_init_fields_for_workflow(workflow_id),
     )
 
 
@@ -1218,7 +1228,7 @@ def _parse_agent_file(path: Path, source: str) -> AgentDef:
     )
 
 
-def _parse_command_file(path: Path, source: str) -> CommandDef:
+def _parse_command_file(path: Path, source: str, *, slug: str | None = None) -> CommandDef:
     """Parse a single command .md file into a CommandDef."""
     text = path.read_text(encoding="utf-8")
     raw_frontmatter, _unused_body = _frontmatter_parts(text)
@@ -1227,11 +1237,13 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
     except ValueError as exc:
         raise ValueError(f"Invalid frontmatter in {path}: {exc}") from exc
 
+    command_slug = slug or _command_slug_from_path(path)
+
     command_name = _parse_frontmatter_string_field(
         meta.get("name"),
         field_name="name",
-        owner_name=path.stem,
-        default=path.stem,
+        owner_name=command_slug,
+        default=command_slug,
         required=True,
     )
     _validate_raw_command_frontmatter(raw_frontmatter, command_name=command_name)
@@ -1259,7 +1271,7 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
         meta.get("local_cli_only"),
         command_name=command_name,
     )
-    staged_loading = _load_command_staged_loading(path, allowed_tools=allowed_tools)
+    staged_loading = _load_command_staged_loading(path, workflow_id=command_slug, allowed_tools=allowed_tools)
     content = _command_model_content(
         body,
         review_contract,
@@ -1298,14 +1310,20 @@ def _parse_command_file(path: Path, source: str) -> CommandDef:
     )
 
 
-def _validate_command_name(path: Path, command: CommandDef) -> None:
+def _validate_command_name(path: Path, command: CommandDef, *, slug: str) -> None:
     """Reject command metadata that drifts from its registry filename."""
-    expected_name = f"gpd:{path.stem}"
-    if command.name != expected_name:
-        raise ValueError(
-            f"Command frontmatter name {command.name!r} does not match file stem {path.stem!r}; "
-            f"expected {expected_name!r}"
-        )
+    expected_name = f"gpd:{slug}"
+    if command.name == expected_name:
+        return
+
+    try:
+        relative_path = path.relative_to(COMMANDS_DIR)
+    except ValueError:
+        relative_path = path.name
+    raise ValueError(
+        f"Command frontmatter name {command.name!r} does not match slug {slug!r} derived from {relative_path!s}; "
+        f"expected {expected_name!r}"
+    )
 
 
 def _validate_agent_name(path: Path, agent: AgentDef) -> None:
@@ -1379,11 +1397,21 @@ def _discover_agents() -> dict[str, AgentDef]:
 def _discover_commands() -> dict[str, CommandDef]:
     """Discover all command definitions from the primary commands/ directory."""
     result: dict[str, CommandDef] = {}
+    seen_slugs: dict[str, Path] = {}
     if COMMANDS_DIR.is_dir():
-        for path in sorted(COMMANDS_DIR.glob("*.md")):
-            cmd = _parse_command_file(path, source="commands")
-            _validate_command_name(path, cmd)
-            result[path.stem] = cmd
+        for path in sorted(COMMANDS_DIR.rglob("*.md")):
+            if not path.is_file():
+                continue
+            slug = _command_slug_from_path(path)
+            existing = seen_slugs.get(slug)
+
+            if existing is not None:
+                raise ValueError(f"Duplicate command slug {slug!r} from {path} and {existing}")
+            seen_slugs[slug] = path
+
+            cmd = _parse_command_file(path, source="commands", slug=slug)
+            _validate_command_name(path, cmd, slug=slug)
+            result[slug] = cmd
 
     return result
 
@@ -1526,6 +1554,27 @@ def _discover_skills(commands: dict[str, CommandDef], agents: dict[str, AgentDef
         )
 
     return result
+
+
+def _command_slug_from_path(path: Path) -> str:
+    """Return a sanitized slug derived from the command file path."""
+
+    try:
+        relative = path.relative_to(COMMANDS_DIR)
+    except ValueError:
+        relative = Path(path.stem)
+
+    slug_parts: list[str] = []
+    for part in relative.with_suffix("").parts:
+        normalized = normalize_ascii_slug(part)
+        if not normalized:
+            raise ValueError(f"Command path {path!r} contains invalid slug segment {part!r}")
+        slug_parts.append(normalized)
+
+    slug = "-".join(slug_parts)
+    if not slug:
+        raise ValueError(f"Command path {path!r} yields an empty slug")
+    return slug
 
 
 # ─── Public API ──────────────────────────────────────────────────────────────

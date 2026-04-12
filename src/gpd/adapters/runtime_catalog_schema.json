@@ -44,7 +44,8 @@
     "external_skill_env_vars",
     "external_skill_subdir_prefixes",
     "external_skill_markers",
-    "external_skill_config_markers"
+    "external_skill_config_markers",
+    "mcp_startup_timeout_sec"
   ],
   "global_config_keys": {
     "env_or_home": [

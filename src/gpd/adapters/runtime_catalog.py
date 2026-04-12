@@ -122,6 +122,7 @@ class RuntimeDescriptor:
     capabilities: RuntimeCapabilityPolicy = RuntimeCapabilityPolicy()
     manifest_file_prefixes: tuple[str, ...] = ()
     managed_install_surface: str = "nested_commands"
+    mcp_startup_timeout_sec: int | None = None
     native_include_support: bool = False
     agent_prompt_uses_dollar_templates: bool = False
     installer_help_example_scope: str | None = None
@@ -458,6 +459,13 @@ def _require_int(value: object, *, label: str) -> int:
     return value
 
 
+def _require_positive_int(value: object, *, label: str) -> int:
+    result = _require_int(value, label=label)
+    if result <= 0:
+        raise ValueError(f"{label} must be a positive integer")
+    return result
+
+
 def _parse_global_config(entry: dict[str, object], *, label: str) -> GlobalConfigPolicy:
     payload = _require_mapping(entry, label=label)
     strategy = _require_string(payload.get("strategy"), label=f"{label}.strategy")
@@ -482,6 +490,13 @@ def _parse_global_config(entry: dict[str, object], *, label: str) -> GlobalConfi
         xdg_subdir=_require_string(payload.get("xdg_subdir"), label=f"{label}.xdg_subdir"),
         home_subpath=_require_string(payload.get("home_subpath"), label=f"{label}.home_subpath"),
     )
+
+
+def _parse_mcp_startup_timeout(entry: dict[str, object], *, label: str) -> int | None:
+    value = entry.get("mcp_startup_timeout_sec")
+    if value is None:
+        return None
+    return _require_positive_int(value, label=f"{label}.mcp_startup_timeout_sec")
 
 
 def _parse_capabilities(
@@ -799,6 +814,7 @@ def _load_catalog() -> tuple[RuntimeDescriptor, ...]:
                     label=f"{label}.managed_install_surface",
                     allowed_values=_RUNTIME_MANAGED_INSTALL_SURFACES,
                 ),
+                mcp_startup_timeout_sec=_parse_mcp_startup_timeout(payload, label=label),
                 native_include_support=_require_bool(
                     payload.get("native_include_support", False),
                     label=f"{label}.native_include_support",

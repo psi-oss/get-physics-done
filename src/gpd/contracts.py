@@ -447,9 +447,7 @@ def _is_project_artifact_path(value: str, *, project_root: Path | None = None) -
         return False
 
     if project_root is None:
-        if any(pattern.search(candidate) for pattern in _PLAN_REFERENCE_LOCATOR_CONCRETE_PATTERNS):
-            return False
-        return _looks_like_project_artifact_path(candidate)
+        return False
 
     root = project_root.expanduser().resolve(strict=False)
     path = Path(candidate).expanduser()
@@ -2674,6 +2672,8 @@ def collect_plan_contract_integrity_errors(
         require_existing_project_artifacts=True,
     )
 
+    if not scoping_contract and not (contract.observables or contract.claims or contract.deliverables):
+        issues.append("missing decisive observables/claims/deliverables")
     if not contract.claims and not scoping_contract:
         issues.append("missing claims")
     if not contract.deliverables and not scoping_contract:

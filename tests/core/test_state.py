@@ -391,7 +391,7 @@ def test_restore_visible_project_contract_keeps_rootless_local_prior_output_grou
     ]
 
 
-def test_restore_visible_project_contract_keeps_rootless_local_anchor_grounding_visible() -> None:
+def test_restore_visible_project_contract_keeps_rootless_local_anchor_as_approval_blocker() -> None:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["references"] = []
     contract["claims"][0]["references"] = []
@@ -412,9 +412,7 @@ def test_restore_visible_project_contract_keeps_rootless_local_anchor_grounding_
 
     assert restored["project_contract"] is not None
     assert restored["project_contract"]["context_intake"]["user_asserted_anchors"] == ["./RESULTS.md"]
-    assert findings == [
-        "context_intake.user_asserted_anchors entry requires a resolved project_root to verify artifact grounding: ./RESULTS.md"
-    ]
+    assert findings == []
 
 
 def test_restore_visible_project_contract_accepts_existing_local_prior_output_grounding_with_project_root(
@@ -475,7 +473,7 @@ def test_restore_visible_project_contract_normalizes_blank_nested_proof_lists() 
     assert not any("must be a list, not str" in finding for finding in findings)
 
 
-def test_state_load_keeps_visible_blocked_contract_in_state_for_rootless_local_anchor(tmp_path: Path) -> None:
+def test_state_load_keeps_visible_approval_blocked_contract_for_rootless_local_anchor(tmp_path: Path) -> None:
     state = default_state_dict()
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["references"] = []
@@ -496,8 +494,26 @@ def test_state_load_keeps_visible_blocked_contract_in_state_for_rootless_local_a
 
     assert loaded.state["project_contract"] is not None
     assert loaded.state["project_contract"]["context_intake"]["user_asserted_anchors"] == ["./RESULTS.md"]
-    assert loaded.project_contract_load_info["status"] == "blocked_integrity"
+    assert loaded.project_contract_load_info["status"] == "loaded_with_approval_blockers"
     assert loaded.project_contract_gate["visible"] is True
+    assert loaded.project_contract_gate["authoritative"] is False
+
+
+def test_state_load_blocks_missing_project_local_prior_output_grounding(tmp_path: Path) -> None:
+    state = default_state_dict()
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    state["project_contract"] = contract
+    _write_raw_state_json(tmp_path, state)
+
+    loaded = state_load(tmp_path)
+
+    assert loaded.project_contract_load_info["status"] == "blocked_integrity"
+    assert any(
+        "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact"
+        in error
+        for error in loaded.project_contract_load_info["errors"]
+    )
+    assert loaded.project_contract_gate["blocked"] is True
     assert loaded.project_contract_gate["authoritative"] is False
 
 

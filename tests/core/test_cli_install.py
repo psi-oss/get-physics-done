@@ -1140,6 +1140,29 @@ def test_target_dir_matches_canonical_global_path(tmp_path: Path) -> None:
         assert not _target_dir_matches_global(descriptor.runtime_name, str(local_target), action="install")
 
 
+def test_target_dir_matches_global_via_symlink(tmp_path: Path) -> None:
+    """Global override should match even when target dir is a symlink."""
+    descriptor = _PRIMARY_INSTALL_DESCRIPTOR
+    global_target = tmp_path / "global-target"
+    local_target = tmp_path / "local-target"
+    global_target.mkdir(parents=True, exist_ok=True)
+    local_target.mkdir(parents=True, exist_ok=True)
+
+    symlink_target = tmp_path / "global-link"
+    try:
+        symlink_target.symlink_to(global_target, target_is_directory=True)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"Symlinks unavailable: {exc}")
+
+    mock_adapter = MagicMock()
+    mock_adapter.resolve_target_dir.side_effect = lambda is_global, cwd=None: (
+        global_target if is_global else local_target
+    )
+
+    with patch("gpd.adapters.get_adapter", return_value=mock_adapter):
+        assert _target_dir_matches_global(descriptor.runtime_name, str(symlink_target), action="install")
+
+
 def test_install_single_runtime_prefers_checkout_source_tree(tmp_path: Path):
     """When invoked inside the repo, install should use that checkout's src/gpd tree."""
     from gpd.cli import _install_single_runtime

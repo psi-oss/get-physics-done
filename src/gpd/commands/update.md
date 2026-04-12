@@ -18,7 +18,8 @@ Check for GPD updates, install if available, and display what changed.
 </execution_context>
 
 <process>
-Read `@{GPD_INSTALL_DIR}/workflows/update.md` with `file_read` first.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 Follow the included workflow file exactly.
 Keep all update logic (scope detection, target handling, changelog, confirmation, install, cache refresh) inside the workflow.
-   </process>
+</process>

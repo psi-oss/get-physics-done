@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from gpd.adapters.runtime_catalog import get_runtime_descriptor
 from gpd.hooks.install_context import resolve_hook_lookup_context
 from gpd.hooks.payload_roots import PayloadRoots
 from gpd.hooks.runtime_lookup import (
@@ -16,6 +17,11 @@ from gpd.hooks.runtime_lookup import (
 from tests.hooks.helpers import mark_complete_install as _mark_complete_install
 
 
+def runtime_config_dir(base: Path, runtime: str) -> Path:
+    descriptor = get_runtime_descriptor(runtime)
+    return base / descriptor.config_dir_name
+
+
 def test_resolve_runtime_lookup_dir_prefers_trusted_project_root_over_same_runtime_nested_install(
     tmp_path: Path,
 ) -> None:
@@ -23,8 +29,8 @@ def test_resolve_runtime_lookup_dir_prefers_trusted_project_root_over_same_runti
     workspace = project_root / "src" / "analysis"
     workspace.mkdir(parents=True)
 
-    _mark_complete_install(project_root / ".codex", runtime="codex")
-    _mark_complete_install(workspace / ".codex", runtime="codex")
+    _mark_complete_install(runtime_config_dir(project_root, "codex"), runtime="codex")
+    _mark_complete_install(runtime_config_dir(workspace, "codex"), runtime="codex")
 
     resolved = resolve_runtime_lookup_dir(
         workspace_dir=str(workspace),
@@ -43,8 +49,8 @@ def test_resolve_runtime_lookup_dir_ignores_untrusted_project_dir_hint(
     workspace = project_root / "src" / "analysis"
     workspace.mkdir(parents=True)
 
-    _mark_complete_install(project_root / ".claude", runtime="claude-code")
-    _mark_complete_install(workspace / ".codex", runtime="codex")
+    _mark_complete_install(runtime_config_dir(project_root, "claude-code"), runtime="claude-code")
+    _mark_complete_install(runtime_config_dir(workspace, "codex"), runtime="codex")
 
     resolved = resolve_runtime_lookup_dir(
         workspace_dir=str(workspace),
@@ -64,7 +70,7 @@ def test_resolve_runtime_lookup_dir_keeps_trusted_project_root_when_active_runti
     workspace = project_root / "src" / "analysis"
     workspace.mkdir(parents=True)
 
-    _mark_complete_install(workspace / ".codex", runtime="codex")
+    _mark_complete_install(runtime_config_dir(workspace, "codex"), runtime="codex")
 
     resolved = resolve_runtime_lookup_dir(
         workspace_dir=str(workspace),
@@ -83,8 +89,8 @@ def test_resolve_runtime_lookup_dir_prefers_trusted_project_root_over_nested_for
     workspace = project_root / "src" / "analysis"
     workspace.mkdir(parents=True)
 
-    _mark_complete_install(project_root / ".claude", runtime="claude-code")
-    _mark_complete_install(workspace / ".codex", runtime="codex")
+    _mark_complete_install(runtime_config_dir(project_root, "claude-code"), runtime="claude-code")
+    _mark_complete_install(runtime_config_dir(workspace, "codex"), runtime="codex")
 
     resolved = resolve_runtime_lookup_dir(
         workspace_dir=str(workspace),
@@ -103,7 +109,7 @@ def test_resolve_runtime_lookup_dir_falls_back_to_project_root_for_trusted_proje
     workspace = project_root / "src" / "analysis"
     workspace.mkdir(parents=True)
 
-    _mark_complete_install(project_root / ".codex", runtime="codex")
+    _mark_complete_install(runtime_config_dir(project_root, "codex"), runtime="codex")
 
     resolved = resolve_runtime_lookup_dir(
         workspace_dir=str(workspace),
@@ -122,7 +128,7 @@ def test_resolve_runtime_lookup_dir_keeps_trusted_project_root_when_nested_other
     workspace = project_root / "src" / "analysis"
     workspace.mkdir(parents=True)
 
-    _mark_complete_install(workspace / ".codex", runtime="codex")
+    _mark_complete_install(runtime_config_dir(workspace, "codex"), runtime="codex")
 
     resolved = resolve_runtime_lookup_dir(
         workspace_dir=str(workspace),
@@ -215,7 +221,7 @@ def test_resolve_runtime_lookup_context_keeps_trusted_project_root_when_project_
     workspace = project_root / "src" / "analysis"
     workspace.mkdir(parents=True)
 
-    _mark_complete_install(workspace / ".codex", runtime="codex")
+    _mark_complete_install(runtime_config_dir(workspace, "codex"), runtime="codex")
 
     calls: list[str | None] = []
 
@@ -284,7 +290,7 @@ def test_resolve_hook_lookup_context_normalizes_unknown_and_alias_runtime_hints(
     workspace.mkdir()
     home.mkdir()
 
-    _mark_complete_install(workspace / ".claude", runtime="claude-code")
+    _mark_complete_install(runtime_config_dir(workspace, "claude-code"), runtime="claude-code")
 
     resolved = resolve_hook_lookup_context(
         cwd=workspace,
@@ -354,7 +360,7 @@ def test_resolve_hook_lookup_context_prefers_workspace_for_nested_dir_without_tr
     workspace = project_root / "src" / "analysis"
     workspace.mkdir(parents=True)
     (project_root / "GPD").mkdir(parents=True)
-    _mark_complete_install(project_root / ".codex", runtime="codex")
+    _mark_complete_install(runtime_config_dir(project_root, "codex"), runtime="codex")
 
     resolved = resolve_hook_lookup_context(
         cwd=workspace,

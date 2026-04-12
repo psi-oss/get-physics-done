@@ -141,6 +141,36 @@ def _codex_runtime_descriptor() -> RuntimeDescriptor:
     descriptor = get_runtime_descriptor_for_adapter_module(__name__)
     return get_runtime_descriptor(descriptor.runtime_name)
 
+_CODEX_MCP_STARTUP_TIMEOUT_DEFAULT_SEC = 30
+_CODEX_MCP_STARTUP_TIMEOUT_ENV_VAR = "CODEX_MCP_STARTUP_TIMEOUT_SEC"
+
+
+def _codex_mcp_startup_timeout_sec() -> int:
+    descriptor_timeout = _codex_runtime_descriptor().mcp_startup_timeout_sec
+    fallback = descriptor_timeout if descriptor_timeout is not None else _CODEX_MCP_STARTUP_TIMEOUT_DEFAULT_SEC
+    env_value = os.environ.get(_CODEX_MCP_STARTUP_TIMEOUT_ENV_VAR)
+    if env_value is None:
+        return fallback
+    try:
+        parsed = int(env_value)
+    except ValueError:
+        logger.warning(
+            "Ignoring invalid %s=%r; using %s seconds",
+            _CODEX_MCP_STARTUP_TIMEOUT_ENV_VAR,
+            env_value,
+            fallback,
+        )
+        return fallback
+    if parsed <= 0:
+        logger.warning(
+            "Ignoring %s=%s because it must be a positive integer; using %s seconds",
+            _CODEX_MCP_STARTUP_TIMEOUT_ENV_VAR,
+            parsed,
+            fallback,
+        )
+        return fallback
+    return parsed
+
 
 def _codex_config_dir_name() -> str:
     """Return the descriptor-backed Codex config dir name."""
@@ -152,7 +182,6 @@ _TOOL_REFERENCE_MAP = reference_translation_map(
     alias_map=_TOOL_ALIAS_MAP,
     auto_discovered_tools=_AUTO_DISCOVERED_TOOLS,
 )
-_CODEX_MCP_STARTUP_TIMEOUT_SEC = 30
 _CODEX_COMMAND_RUNTIME_NOTE = (
     "<codex_runtime_notes>\n"
     "Codex shell compatibility:\n"
@@ -1609,7 +1638,7 @@ def _build_codex_mcp_server_section_lines(
 ) -> list[str]:
     base_section_name = f"mcp_servers.{name}"
     managed_entry = dict(entry)
-    managed_entry.setdefault("startup_timeout_sec", _CODEX_MCP_STARTUP_TIMEOUT_SEC)
+    managed_entry.setdefault("startup_timeout_sec", _codex_mcp_startup_timeout_sec())
 
     lines = [f"\n[{base_section_name}]"]
     cmd = str(managed_entry.get("command", ""))

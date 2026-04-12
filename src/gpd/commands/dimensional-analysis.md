@@ -40,6 +40,7 @@ cat GPD/research-map/FORMALISM.md 2>/dev/null | grep -A 20 "Notation and Convent
 </execution_context>
 
 <process>
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 **Pre-flight check:**
 ```bash
@@ -49,8 +50,6 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 ```
-
-Follow the dimensional-analysis workflow: @{GPD_INSTALL_DIR}/workflows/dimensional-analysis.md
 </process>
 
 <success_criteria>

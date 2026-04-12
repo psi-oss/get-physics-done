@@ -876,11 +876,11 @@ _CONTRACT_OBSERVED_INPUT_SCHEMA: dict[str, object] = _object_schema(
 _CONTRACT_SCOPE_INPUT_SCHEMA: dict[str, object] = _object_schema(
     {
         "question": _non_empty_string_schema(),
-        "in_scope": _contract_string_list_schema(),
+        "in_scope": _contract_string_list_schema(min_items=1),
         "out_of_scope": _contract_string_list_schema(),
         "unresolved_questions": _contract_string_list_schema(),
     },
-    required=("question",),
+    required=("question", "in_scope"),
     additional_properties=False,
 )
 _CONTRACT_SCOPE_INPUT_SCHEMA["description"] = (
@@ -895,8 +895,14 @@ def _research_contract_payload_schema() -> dict[str, object]:
     properties = schema.get("properties")
     if isinstance(properties, dict):
         scope_schema = properties.get("scope")
-        if isinstance(scope_schema, dict) and isinstance(_CONTRACT_SCOPE_INPUT_SCHEMA.get("description"), str):
-            scope_schema["description"] = _CONTRACT_SCOPE_INPUT_SCHEMA["description"]
+        if isinstance(scope_schema, dict):
+            scope_properties = scope_schema.get("properties")
+            if isinstance(scope_properties, dict):
+                in_scope_schema = scope_properties.get("in_scope")
+                if isinstance(in_scope_schema, dict):
+                    in_scope_schema["minItems"] = max(in_scope_schema.get("minItems", 0), 1)
+            if isinstance(_CONTRACT_SCOPE_INPUT_SCHEMA.get("description"), str):
+                scope_schema["description"] = _CONTRACT_SCOPE_INPUT_SCHEMA["description"]
         context_schema = properties.get("context_intake")
         if isinstance(context_schema, dict):
             context_schema["description"] = (

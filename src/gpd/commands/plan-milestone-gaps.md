@@ -51,7 +51,8 @@ find_files: GPD/v*-MILESTONE-AUDIT.md (use most recent)
 </context>
 
 <process>
-Execute the plan-milestone-gaps workflow from @{GPD_INSTALL_DIR}/workflows/plan-milestone-gaps.md end-to-end.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 Preserve all workflow gates (audit loading, prioritization, phase grouping, user confirmation, roadmap updates).
 
 Prioritization should consider:
@@ -60,4 +61,4 @@ Prioritization should consider:
 2. **Foundations before extensions** — Missing derivations and unchecked limits come before literature comparisons or error analysis, because if the core result is wrong, everything downstream is wasted effort.
 3. **Publishability gates** — Error analysis and literature comparison are required for publication but can be deferred if the milestone goal is "establish the result" rather than "write the paper."
 4. **Scope control** — Some gaps may be intentionally deferred to the next milestone. The user decides; the system presents options with clear consequences.
-   </process>
+</process>

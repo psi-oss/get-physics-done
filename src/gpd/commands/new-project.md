@@ -41,7 +41,7 @@ If no project config exists yet, start with physics questioning, surface a prese
 </execution_context>
 
 <process>
-Read the workflow file defined above with `file_read` first. Follow the workflow file exactly before proceeding.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 **Scoping contract visibility:** Before drafting or repairing the scoping contract, The workflow owns the `project-contract-schema.md` and `project-contract-grounding-linkage.md` details. Preserve decisive outputs, anchors, and roadmap generation inputs, and require one explicit scope approval before downstream generation.
 

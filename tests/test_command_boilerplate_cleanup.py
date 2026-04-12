@@ -9,6 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 COMMANDS_DIR = REPO_ROOT / "src" / "gpd" / "commands"
 AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
 AGENT_INFRASTRUCTURE = REPO_ROOT / "src" / "gpd" / "specs" / "references" / "orchestration" / "agent-infrastructure.md"
+WORKFLOW_SPECS = REPO_ROOT / "src" / "gpd" / "specs" / "workflows"
 
 LEGACY_COMMENT_FRAGMENTS = (
     "Tool names and @ includes are platform-specific.",
@@ -16,7 +17,7 @@ LEGACY_COMMENT_FRAGMENTS = (
     "Tool names and @ includes are runtime-specific.",
 )
 
-MODEL_FACING_DIRS = (COMMANDS_DIR, AGENTS_DIR)
+MODEL_FACING_DIRS = (COMMANDS_DIR, AGENTS_DIR, WORKFLOW_SPECS)
 
 UNRESOLVED_PLACEHOLDER_RE = re.compile(r"(?:^|\n)\s*(?:<!--\s*)?(?:TODO|FIXME|PLACEHOLDER)(?:\b|:)")
 
@@ -65,6 +66,7 @@ def test_standardized_thin_workflow_wrappers_stay_concise() -> None:
     exec_context_re = re.compile(r"<execution_context>(.*?)</execution_context>", re.S)
     keep_line = "Keep this command wrapper thin; the workflow owns detailed method guidance."
     rest_line = "Do not restate workflow-owned checklists or compatibility policy here."
+    exec_context_reminder = "Read the workflow referenced in `<execution_context>` with `file_read` first."
 
     for stem in THIN_WORKFLOW_WRAPPERS:
         path = COMMANDS_DIR / f"{stem}.md"
@@ -88,9 +90,23 @@ def test_standardized_thin_workflow_wrappers_stay_concise() -> None:
         process_match = process_block_re.search(text)
         assert process_match is not None, f"{path.relative_to(REPO_ROOT)} missing process block"
         process_text = process_match.group(1).strip()
+        if process_text.startswith(exec_context_reminder):
+            process_text = process_text[len(exec_context_reminder) :].lstrip()
         assert process_text.startswith(keep_line), path
         assert rest_line in process_text, path
-        assert process_text.count(workflow_link) == 1, path
+        assert process_text.count(workflow_link) == 0, path
+
+
+def test_process_blocks_do_not_duplicate_workflow_paths() -> None:
+    process_block_re = re.compile(r"<process>(.*?)</process>", re.S)
+    for path in sorted(COMMANDS_DIR.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        match = process_block_re.search(text)
+        assert match is not None, f"{path.relative_to(REPO_ROOT)} missing process block"
+        process_text = match.group(1)
+        assert "@{GPD_INSTALL_DIR}/workflows/" not in process_text, (
+            f"{path.relative_to(REPO_ROOT)} still duplicates workflow path in <process>"
+        )
 
 
 def test_consistency_checker_uses_canonical_gpd_return_fields() -> None:

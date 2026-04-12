@@ -46,7 +46,8 @@ Phase or topic: $ARGUMENTS
 </context>
 
 <process>
-Read `@{GPD_INSTALL_DIR}/workflows/discover.md` with `file_read` first.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 Execute the workflow end-to-end and keep depth behavior and persistence rules unchanged.
 For standalone medium/deep discovery, produce `RESEARCH.md`. Do not commit `RESEARCH.md` separately.
 Do not emit phase-only commit messages or file paths in standalone mode.

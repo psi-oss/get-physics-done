@@ -44,7 +44,7 @@ Typical physics research todos include:
 </execution_context>
 
 <process>
-**Follow the add-todo workflow** from `@{GPD_INSTALL_DIR}/workflows/add-todo.md`.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 The workflow handles all logic including:
 
@@ -56,4 +56,4 @@ The workflow handles all logic including:
 6. File creation with slug generation
 7. STATE.md updates
 8. Git commits
-   </process>
+</process>

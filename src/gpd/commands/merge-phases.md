@@ -39,7 +39,7 @@ Target phase: second argument (e.g., "2")
 </context>
 
 <process>
-Execute the merge-phases workflow from @{GPD_INSTALL_DIR}/workflows/merge-phases.md end-to-end.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 If `--dry-run` flag is present, show the merge plan (which artifacts would move, which results would combine) without executing any changes.
 

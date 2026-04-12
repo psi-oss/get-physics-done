@@ -60,7 +60,7 @@ Phase: $ARGUMENTS (optional)
 </context>
 
 <process>
-Read the workflow file defined above with `file_read` first.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 Follow the included workflow file exactly.
 The workflow file owns the detailed check taxonomy; this wrapper only bootstraps the canonical verification surfaces and delegates the physics checks.
 Call `mcp__gpd_verification__suggest_contract_checks(...)` to gather each per-check request template before invoking `mcp__gpd_verification__run_contract_check(...)`.

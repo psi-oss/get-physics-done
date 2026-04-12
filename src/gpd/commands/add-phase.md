@@ -22,7 +22,7 @@ Delegate numbering, slug creation, directory scaffolding, and roadmap/state upda
 </execution_context>
 
 <process>
-Follow the add-phase workflow in `@{GPD_INSTALL_DIR}/workflows/add-phase.md`, which covers argument validation, the delegated `gpd phase add` call, roadmap insertion, and STATE.md/state.json bookkeeping.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 The workflow also emits the completion summary with the new phase number, directory path, and a reminder to plan the phase before moving on.
 </process>

@@ -236,7 +236,7 @@ _STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS = tuple(
     if path.relative_to(REPO_ROOT).parts[:2] in {("tests", "core"), ("tests", "mcp")}
 )
 _STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS = (*_STRICT_SHARED_CORE_RUNTIME_SURFACE_PATHS, REPO_ROOT / "tests/test_bootstrap_installer.py")
-_TEXT_SURFACE_SUFFIXES = {".json", ".md", ".py"}
+_TEXT_SURFACE_SUFFIXES = {".json", ".md", ".py", ".sh"}
 _SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS = (
     REPO_ROOT / "tests/core/test_health.py",
     REPO_ROOT / "tests/core/test_runtime_hints.py",
@@ -246,6 +246,18 @@ _SHARED_GENERIC_PROVIDER_MODEL_TEST_PATHS = (
     REPO_ROOT / "tests/hooks/test_notify.py",
     REPO_ROOT / "tests/hooks/test_statusline.py",
 )
+_NON_RUNTIME_DOC_SURFACES = (
+    REPO_ROOT / "docs/command-workflow-allowlist.md",
+    REPO_ROOT / "docs/schema-registry-ownership.md",
+)
+_NON_RUNTIME_SCRIPT_SURFACES = (
+    REPO_ROOT / "scripts/block-gpd-commit.sh",
+    REPO_ROOT / "scripts/release_workflow.py",
+    REPO_ROOT / "scripts/repo_graph_contract.py",
+    REPO_ROOT / "scripts/schema_registry_sources.py",
+    REPO_ROOT / "scripts/sync_repo_graph_contract.py",
+)
+_NON_RUNTIME_DOC_AND_SCRIPT_SURFACES = (*_NON_RUNTIME_DOC_SURFACES, *_NON_RUNTIME_SCRIPT_SURFACES)
 def _shared_generic_provider_model_literal_pattern() -> re.Pattern[str]:
     values: set[str] = set()
     for descriptor in _RUNTIME_DESCRIPTORS:
@@ -743,6 +755,18 @@ def test_shared_runtime_docs_do_not_rebuild_install_metadata_literals() -> None:
     )
 
 
+def test_non_runtime_docs_and_scripts_stay_runtime_agnostic() -> None:
+    leaks = _scan_paths_for_pattern(
+        _NON_RUNTIME_DOC_AND_SCRIPT_SURFACES,
+        re.compile(_RUNTIME_PATTERN),
+    )
+
+    assert leaks == [], (
+        "Non-runtime docs and scripts should stay runtime-agnostic:\n"
+        f"{_format_failures(leaks)}"
+    )
+
+
 @pytest.mark.slow
 def test_shared_python_modules_keep_wolfram_integration_tokens_out_of_non_boundary_files() -> None:
     wolfram_pattern = re.compile(
@@ -914,18 +938,22 @@ def test_runtime_catalog_json_is_only_read_at_adapter_and_hook_boundaries() -> N
     catalog_path_literal_pattern = re.compile(r"runtime_catalog(?:_schema)?\.json")
     allowed_files = {
         "bin/install.js",
+        "docs/runtime-catalog-reference.md",
         "docs/schema-registry-ownership.md",
         "package.json",
         "pyproject.toml",
-            "scripts/validate_runtime_catalog_schema.py",
-            "scripts/release_workflow.py",
-            "src/gpd/adapters/runtime_catalog.py",
-            "README.md",
-            "docs/README.md",
-            "docs/linux.md",
-            "docs/macos.md",
-            "docs/windows.md",
+        "scripts/render_runtime_catalog_table.py",
+        "scripts/schema_registry_sources.py",
+        "scripts/validate_runtime_catalog_schema.py",
+        "scripts/release_workflow.py",
+        "src/gpd/adapters/runtime_catalog.py",
+        "README.md",
+        "docs/README.md",
+        "docs/linux.md",
+        "docs/macos.md",
+        "docs/windows.md",
         "tests/README.md",
+        "tests/test_readme_runtime_mentions.py",
         "tests/adapters/test_runtime_catalog.py",
         "tests/adapters/test_runtime_catalog_schema_contract.py",
         "tests/test_runtime_abstraction_boundaries.py",

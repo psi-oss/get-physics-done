@@ -38,7 +38,7 @@ This command only changes `model_profile`. If you want to pin concrete runtime m
 </execution_context>
 
 <process>
-**Follow the set-profile workflow** from `@{GPD_INSTALL_DIR}/workflows/set-profile.md`.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 The workflow handles all logic including:
 
@@ -47,4 +47,4 @@ The workflow handles all logic including:
 3. Config reading and updating
 4. Profile description table generation from RESEARCH_PROFILES
 5. Confirmation display showing active profile and its characteristics
-   </process>
+</process>

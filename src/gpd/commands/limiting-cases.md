@@ -40,6 +40,7 @@ cat GPD/research-map/VALIDATION.md 2>/dev/null | grep -A 30 "Limiting Cases"
 </execution_context>
 
 <process>
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 **Pre-flight check:**
 ```bash
@@ -49,8 +50,6 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 ```
-
-Follow the limiting-cases workflow: @{GPD_INSTALL_DIR}/workflows/limiting-cases.md
 </process>
 
 <success_criteria>

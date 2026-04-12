@@ -42,6 +42,7 @@ ls GPD/explanations/*.md 2>/dev/null | head -10
 </context>
 
 <process>
+Read the workflow referenced in `<execution_context>` with `file_read` first.
 
 ## 0. Validate Context
 
@@ -67,7 +68,6 @@ If a GPD project exists, load project state and current-process context before s
 
 ## 3. Execute the Explain Workflow
 
-Follow the explain workflow from `@{GPD_INSTALL_DIR}/workflows/explain.md` end-to-end.
 
 ## 4. Return Results
 

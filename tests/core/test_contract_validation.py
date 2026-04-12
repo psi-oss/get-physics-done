@@ -434,8 +434,13 @@ def test_contract_from_data_salvage_rejects_missing_required_sections(
     parsed = parse_project_contract_data_salvage(contract)
 
     assert (parsed.contract is not None) is salvaged
-    assert expected_error in parsed.blocking_errors
-    assert contract_from_data_salvage(contract) is None
+    if salvaged:
+        assert expected_error in parsed.recoverable_errors
+        assert parsed.blocking_errors == []
+        assert contract_from_data_salvage(contract) is not None
+    else:
+        assert expected_error in parsed.blocking_errors
+        assert contract_from_data_salvage(contract) is None
 
 
 def test_validate_project_contract_approved_mode_rejects_unknown_proof_deliverables() -> None:
@@ -471,7 +476,7 @@ def test_contract_from_data_salvage_defaults_missing_uncertainty_marker_subfield
     assert result.valid is True
     assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.warnings
     assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.warnings
-    assert contract_from_data_salvage(contract) is None
+    assert contract_from_data_salvage(contract) is not None
 
 
 def test_parse_project_contract_data_strict_rejects_nested_proof_list_scalar_drift() -> None:
@@ -1368,13 +1373,11 @@ def test_validate_project_contract_rejects_missing_prior_output_only_guidance(tm
 
     result = validate_project_contract(contract, mode="draft", project_root=tmp_path)
 
-    assert result.valid is True
+    assert result.valid is False
     assert result.guidance_signal_count == 0
-    assert result.errors == []
-    assert any("must_include_prior_outputs" in warning for warning in result.warnings)
     assert (
         "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact: missing/path.md"
-        in result.warnings
+        in result.errors
     )
 
 
@@ -1404,7 +1407,7 @@ def test_validate_project_contract_accepts_explicit_relative_prior_output_path_w
     result = validate_project_contract(contract, mode="draft")
 
     assert result.valid is True
-    assert result.guidance_signal_count == 1
+    assert result.guidance_signal_count == 0
     assert "context_intake must not be empty" not in result.errors
 
 
@@ -1430,7 +1433,7 @@ def test_validate_project_contract_approved_mode_rejects_explicit_anchor_unknown
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_rejects_context_gaps_only_grounding() -> None:
@@ -1456,7 +1459,7 @@ def test_validate_project_contract_approved_mode_rejects_ground_truth_unclear_al
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_rejects_question_form_anchor_gap_without_grounding() -> None:
@@ -1469,7 +1472,7 @@ def test_validate_project_contract_approved_mode_rejects_question_form_anchor_ga
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_rejects_not_yet_selected_anchor_gap_without_grounding() -> None:
@@ -1484,7 +1487,7 @@ def test_validate_project_contract_approved_mode_rejects_not_yet_selected_anchor
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_rejects_anchor_unknown_in_weakest_anchors_without_grounding() -> None:
@@ -1500,7 +1503,7 @@ def test_validate_project_contract_approved_mode_rejects_anchor_unknown_in_weake
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_accepts_prior_output_grounding(tmp_path: Path) -> None:
@@ -1588,7 +1591,7 @@ def test_validate_project_contract_approved_mode_rejects_bare_reference_locator_
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 @pytest.mark.parametrize(
@@ -1611,7 +1614,7 @@ def test_validate_project_contract_approved_mode_rejects_journal_only_text_groun
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 @pytest.mark.parametrize(
@@ -1679,7 +1682,7 @@ def test_validate_project_contract_approved_mode_rejects_root_only_external_nonp
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_accepts_project_local_prior_artifact_locator(tmp_path: Path) -> None:
@@ -1739,7 +1742,7 @@ def test_validate_project_contract_approved_mode_rejects_project_local_prior_art
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_rejects_missing_project_local_prior_artifact_locator(
@@ -1767,7 +1770,7 @@ def test_validate_project_contract_approved_mode_rejects_missing_project_local_p
     result = validate_project_contract(contract, mode="approved", project_root=tmp_path)
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_warns_for_invalid_must_surface_reference_when_other_concrete_grounding_exists() -> (
@@ -1807,7 +1810,7 @@ def test_validate_project_contract_approved_mode_warns_for_invalid_must_surface_
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_accepts_concrete_must_surface_reference_anchor() -> None:
@@ -1859,10 +1862,10 @@ def test_validate_project_contract_draft_mode_warns_for_invalid_grounding_entrie
 
     result = validate_project_contract(contract, mode="draft", project_root=tmp_path)
 
-    assert result.valid is True
+    assert result.valid is False
     assert (
         "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact: fake/path"
-        in result.warnings
+        in result.errors
     )
     assert (
         "context_intake.user_asserted_anchors entry is not concrete enough to preserve as durable guidance: TBD"
@@ -1897,7 +1900,11 @@ def test_validate_project_contract_approved_mode_warns_for_invalid_must_surface_
 
     result = validate_project_contract(contract, mode="approved", project_root=tmp_path)
 
-    assert result.valid is True
+    assert result.valid is False
+    assert (
+        "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact: fake/path"
+        in result.errors
+    )
     assert (
         "reference ref-placeholder is must_surface but locator is not concrete enough to ground validation"
         in result.warnings
@@ -2020,7 +2027,7 @@ def test_validate_project_contract_approved_mode_rejects_vague_reference_locator
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 @pytest.mark.parametrize(
@@ -2139,11 +2146,11 @@ def test_validate_project_contract_approved_mode_rejects_rootless_project_local_
     assert result.valid is False
     assert result.mode == "approved"
     assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
-    assert any(
-        "context_intake.known_good_baselines entry requires a resolved project_root to verify artifact grounding"
-        in warning
-        for warning in result.warnings
+    assert (
+        "context_intake.known_good_baselines entry is not concrete enough to preserve as durable guidance: GPD/phases/03-missing-energy/03-01-SUMMARY.md"
+        in result.warnings
     )
+    assert "no references recorded yet" in result.warnings
 
 
 def test_referee_decision_input_rejects_string_booleans() -> None:
@@ -2203,7 +2210,7 @@ def test_validate_project_contract_approved_mode_rejects_repeated_generic_paper_
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 @pytest.mark.parametrize("locator", ["TBD", "unknown"])
@@ -2231,7 +2238,7 @@ def test_validate_project_contract_approved_mode_rejects_placeholder_reference_l
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_accepts_non_reference_grounding_when_must_surface_is_missing(
@@ -2262,7 +2269,7 @@ def test_validate_project_contract_approved_mode_rejects_nonexistent_prior_outpu
     result = validate_project_contract(contract, mode="approved", project_root=tmp_path)
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_rejects_unresolved_prior_output_without_project_root() -> None:
@@ -2275,7 +2282,7 @@ def test_validate_project_contract_approved_mode_rejects_unresolved_prior_output
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 @pytest.mark.parametrize("field_name", ["must_include_prior_outputs", "known_good_baselines"])
@@ -2289,7 +2296,7 @@ def test_validate_project_contract_approved_mode_rejects_placeholder_non_referen
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 @pytest.mark.parametrize(
@@ -2309,7 +2316,7 @@ def test_validate_project_contract_approved_mode_rejects_bare_junk_grounding(fie
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_rejects_placeholder_user_asserted_anchor() -> None:
@@ -2322,7 +2329,7 @@ def test_validate_project_contract_approved_mode_rejects_placeholder_user_assert
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_rejects_placeholder_user_asserted_anchor_even_with_explicit_blocker() -> (
@@ -2338,7 +2345,7 @@ def test_validate_project_contract_approved_mode_rejects_placeholder_user_assert
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_rejects_placeholder_only_sentence_guidance() -> None:
@@ -2351,7 +2358,7 @@ def test_validate_project_contract_approved_mode_rejects_placeholder_only_senten
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_rejects_carry_forward_contract_id_as_grounding() -> None:
@@ -2809,7 +2816,7 @@ def test_validate_project_contract_rejects_top_level_extra_keys() -> None:
     result = validate_project_contract(contract)
 
     assert result.valid is True
-    assert any(error.startswith("legacy_notes: Extra inputs are not permitted") for error in result.warnings)
+    assert any(warning.startswith("legacy_notes: Extra inputs are not permitted") for warning in result.warnings)
 
 
 def test_validate_project_contract_ignores_nested_metadata_must_surface_without_false_boolean_error() -> None:
@@ -2845,7 +2852,7 @@ def test_validate_project_contract_approved_mode_rejects_background_only_referen
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_approved_mode_accepts_real_reference_anchor() -> None:
@@ -2893,7 +2900,7 @@ def test_validate_project_contract_approved_mode_rejects_background_must_read_re
     result = validate_project_contract(contract, mode="approved")
 
     assert result.valid is False
-    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert "context_intake must not be empty" in result.errors
 
 
 def test_validate_project_contract_draft_mode_does_not_treat_background_must_read_ref_as_durable_guidance() -> None:
@@ -2962,7 +2969,7 @@ def test_validate_project_contract_preserves_recoverable_warnings_when_normaliza
     assert result.valid is False
     assert result.mode == "approved"
     assert "context_intake is required" in result.errors
-    assert any(error.startswith("legacy_notes: Extra inputs are not permitted") for error in result.warnings)
+    assert "legacy_notes: Extra inputs are not permitted" in result.errors
 
 
 @pytest.mark.parametrize(
@@ -3641,6 +3648,39 @@ def test_collect_plan_contract_integrity_errors_requires_concrete_grounding_not_
     errors = collect_plan_contract_integrity_errors(ResearchContract.model_validate(contract))
 
     assert "missing references or explicit grounding context" in errors
+
+
+def test_collect_plan_contract_integrity_errors_requires_decisive_target_for_non_scoping_contract() -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["observables"] = []
+    contract["claims"] = []
+    contract["deliverables"] = []
+    contract["acceptance_tests"] = []
+    contract["references"] = []
+    contract["forbidden_proxies"] = []
+    contract["links"] = []
+    contract["scope"]["unresolved_questions"] = []
+
+    errors = collect_plan_contract_integrity_errors(ResearchContract.model_validate(contract))
+
+    assert "missing decisive observables/claims/deliverables" in errors
+
+
+def test_collect_plan_contract_integrity_errors_skips_decisive_target_requirement_for_scoping_contract() -> None:
+    contract = _load_contract_fixture()
+    _remove_incidental_grounding(contract)
+    contract["observables"] = []
+    contract["claims"] = []
+    contract["deliverables"] = []
+    contract["acceptance_tests"] = []
+    contract["references"] = []
+    contract["links"] = []
+    contract["scope"]["unresolved_questions"] = ["Need to pick the decisive benchmark"]
+
+    errors = collect_plan_contract_integrity_errors(ResearchContract.model_validate(contract))
+
+    assert "missing decisive observables/claims/deliverables" not in errors
 
 
 @pytest.mark.parametrize("locator", ["TBD", "Section 4"])

@@ -463,7 +463,7 @@ def test_fast_contract_validation_strict_entrypoint_rejects_missing_context_inta
     assert "context_intake is required" in validation.errors
 
 
-def test_fast_contract_validation_rootless_path_like_anchor_counts_as_draft_grounding() -> None:
+def test_fast_contract_validation_rootless_path_like_anchor_needs_project_root() -> None:
     contract = _load_contract_fixture()
     _strip_reference_dependencies(contract)
     contract["context_intake"]["must_include_prior_outputs"] = []
@@ -473,9 +473,9 @@ def test_fast_contract_validation_rootless_path_like_anchor_counts_as_draft_grou
     validation = validate_project_contract(contract, mode="approved")
     integrity_errors = collect_plan_contract_integrity_errors(ResearchContract.model_validate(contract))
 
-    assert validation.valid is True
-    assert not any("requires a resolved project_root" in warning for warning in validation.warnings)
-    assert "missing references or explicit grounding context" not in integrity_errors
+    assert validation.valid is False
+    assert any("approved project contract requires at least one concrete anchor" in error for error in validation.errors)
+    assert "missing references or explicit grounding context" in integrity_errors
 
 
 def test_fast_contract_validation_accepts_existing_project_local_baseline_with_project_root(tmp_path: Path) -> None:
@@ -500,7 +500,7 @@ def test_fast_contract_validation_accepts_existing_project_local_baseline_with_p
     assert "missing references or explicit grounding context" not in integrity_errors
 
 
-def test_fast_contract_validation_rootless_prior_output_counts_as_draft_grounding() -> None:
+def test_fast_contract_validation_rootless_prior_output_needs_project_root() -> None:
     contract = _load_contract_fixture()
     _strip_reference_dependencies(contract)
     contract["context_intake"]["must_include_prior_outputs"] = ["./RESULTS.md"]
@@ -511,8 +511,46 @@ def test_fast_contract_validation_rootless_prior_output_counts_as_draft_groundin
 
     integrity_errors = collect_plan_contract_integrity_errors(ResearchContract.model_validate(contract))
 
-    assert validation.valid is True
-    assert "missing references or explicit grounding context" not in integrity_errors
+    assert validation.valid is False
+    assert any("approved project contract requires at least one concrete anchor" in error for error in validation.errors)
+    assert "missing references or explicit grounding context" in integrity_errors
+
+
+def test_fast_contract_validation_rejects_missing_project_local_prior_output(tmp_path: Path) -> None:
+    contract = _load_contract_fixture()
+    _strip_reference_dependencies(contract)
+    contract["context_intake"]["must_include_prior_outputs"] = ["./RESULTS.md"]
+    contract["context_intake"]["user_asserted_anchors"] = []
+    contract["context_intake"]["known_good_baselines"] = []
+
+    validation = validate_project_contract(contract, mode="approved", project_root=tmp_path)
+
+    assert validation.valid is False
+    assert any(
+        "context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact"
+        in error
+        for error in validation.errors
+    )
+
+
+def test_fast_contract_validation_rejects_non_project_local_prior_output(tmp_path: Path) -> None:
+    contract = _load_contract_fixture()
+    _strip_reference_dependencies(contract)
+    outside_artifact = tmp_path.parent / "outside-results.md"
+    outside_artifact.write_text("outside\n", encoding="utf-8")
+    value = str(outside_artifact)
+    contract["context_intake"]["must_include_prior_outputs"] = [value]
+    contract["context_intake"]["user_asserted_anchors"] = []
+    contract["context_intake"]["known_good_baselines"] = []
+
+    validation = validate_project_contract(contract, mode="approved", project_root=tmp_path)
+
+    assert validation.valid is False
+    assert any(
+        f"context_intake.must_include_prior_outputs entry does not resolve to a project-local artifact: {value}"
+        in error
+        for error in validation.errors
+    )
 
 
 def test_fast_contract_validation_context_gaps_and_crucial_inputs_do_not_satisfy_hard_grounding() -> None:

@@ -77,6 +77,7 @@ Quick mode skips research and verification agents, but the physics must still be
 </inline_guidance>
 
 <process>
-Execute the quick workflow from @{GPD_INSTALL_DIR}/workflows/quick.md end-to-end.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 Preserve all workflow gates (validation, task description, staged planner loading, planning, execution, preflight, state updates, commits).
 </process>

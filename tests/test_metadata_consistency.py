@@ -258,9 +258,15 @@ def test_gpd_skills_infra_health_check_tracks_the_research_vertical() -> None:
 
 def test_infra_mcp_descriptors_mark_source_of_truth() -> None:
     repo_root = _repo_root()
+    allowed_sources = {
+        "src/gpd/mcp/builtin_servers.py",
+        "src/gpd/mcp/servers/skills_server.py",
+    }
     for path in sorted((repo_root / "infra").glob("gpd-*.json")):
         descriptor = json.loads(path.read_text(encoding="utf-8"))
-        assert descriptor.get("source_of_truth") == "src/gpd/mcp/builtin_servers.py"
+        source = descriptor.get("source_of_truth")
+        assert source in allowed_sources
+        assert (repo_root / str(source)).is_file()
 
 
 def test_optional_wolfram_bridge_stays_outside_builtin_public_mcp_surface() -> None:

@@ -29,6 +29,7 @@ If the target is empty, ask one concise clarification before proceeding. Otherwi
 </context>
 
 <process>
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 Keep this command wrapper thin; the workflow owns detailed method guidance. Do not restate workflow-owned checklists or compatibility policy here.
-Execute the workflow end-to-end; keep method details in `@{GPD_INSTALL_DIR}/workflows/parameter-sweep.md`.
 </process>

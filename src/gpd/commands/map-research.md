@@ -30,6 +30,7 @@ Project state is loaded by the workflow if it already exists; this wrapper does 
 </context>
 
 <process>
-Follow the workflow at `@{GPD_INSTALL_DIR}/workflows/map-research.md`.
+Read the workflow referenced in `<execution_context>` with `file_read` first.
+
 Do not duplicate staged init, mapper fanout, or return routing here.
 </process>

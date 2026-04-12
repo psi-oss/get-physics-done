@@ -144,6 +144,7 @@
     "selection_aliases": ["codex"],
     "manifest_file_prefixes": ["skills/"],
     "managed_install_surface": "external_commands",
+    "mcp_startup_timeout_sec": 30,
     "installer_help_example_scope": "local",
     "validated_command_surface": "public_runtime_dollar_command",
     "external_skill_relative_dirs": [
