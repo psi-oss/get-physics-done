@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 import os
 import subprocess
 import warnings
@@ -25,7 +23,6 @@ CI_SMOKE_JOB_TIMEOUT_MINUTES = 3
 CI_FAST_PRIORITY_TIMEOUT_MINUTES = 3
 CI_SMOKE_TEST_TARGETS = (
     "tests/test_release_consistency.py",
-    "tests/test_ci_suite_commands.py",
     "tests/test_repo_hygiene.py",
     "tests/test_schema_registry_ownership_note.py",
     "tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files",
@@ -34,6 +31,13 @@ CI_SMOKE_TEST_TARGETS = (
     "tests/adapters/test_runtime_catalog.py::test_runtime_catalog_loader_validates_schema_json",
     "tests/core/test_contract_validation_fast_regressions.py",
     "tests/core/test_contract_schema_prompt_parity.py::test_plan_contract_schema_surfaces_canonical_research_contract_fields",
+    "tests/core/test_workflow_stage_manifest_inventory.py",
+    "tests/core/test_workflow_staging.py::test_validate_workflow_stage_manifest_payload_loads_research_phase_manifest",
+    "tests/core/test_workflow_staging.py::test_validate_workflow_stage_manifest_payload_loads_write_paper_manifest",
+    "tests/core/test_research_phase_stage_manifest.py::test_research_phase_stage_manifest_defers_runtime_delegation_until_the_handoff_stage",
+    "tests/core/test_research_phase_stage_manifest.py::test_research_phase_command_prompt_budget_keeps_delegation_authorities_out_of_the_wrapper",
+    "tests/core/test_write_paper_prompt_budget.py::test_write_paper_command_stays_thin_and_only_eagerly_loads_the_workflow",
+    "tests/core/test_write_paper_prompt_budget.py::test_write_paper_workflow_defers_stage_authorities_until_the_manifest_stages_need_them",
 )
 CI_TOTAL_SHARD_COUNT_TARGET = 19
 CI_MAX_SHARD_COUNT_TARGET = 20
@@ -82,8 +86,6 @@ _CI_HOT_TEST_FILE_SPLITS_BASE = {
     "core/test_health.py": 2,
     "core/test_state.py": 2,
     "core/test_prompt_wiring.py": 2,
-    "mcp/test_servers.py": 3,
-    "mcp/test_verification_contract_server_regressions.py": 2,
     "core/test_verification_contract_evidence.py": 2,
 }
 
@@ -131,9 +133,9 @@ class _LazyHotTestFileSplits(Mapping[str, int]):
 
 # Observed hotspot profiles from GitHub Actions and the 2026-04-12 local xdist
 # timing sweep showed that these files are the real bottlenecks inside their
-# category. Split them inside the file so the category-local planners can
-# spread the slow work rather than pinning one thematic shard to a single
-# expensive module.
+# category. Categories with more than one shard split these files inside the
+# file so the category-local planners can spread the slow work rather than
+# pinning one thematic shard to a single expensive module.
 CI_HOT_TEST_FILE_SPLITS: Mapping[str, int] = _LazyHotTestFileSplits()
 
 CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS = {
@@ -211,87 +213,11 @@ def _pytest_collect_command(repo_root: Path) -> tuple[str, ...]:
     return (str(venv_python), "-m", "pytest") if venv_python.exists() else ("uv", "run", "pytest")
 
 
-def _inventory_cache_path(repo_root: Path) -> Path:
-    return repo_root / "tmp" / "pytest-collect-inventory.json"
-
-
-def _latest_tests_mtime(repo_root: Path) -> float:
-    tests_root = repo_root / "tests"
-    latest = 0.0
-    for path in tests_root.rglob("*.py"):
-        latest = max(latest, path.stat().st_mtime)
-    pyproject = repo_root / "pyproject.toml"
-    if pyproject.exists():
-        latest = max(latest, pyproject.stat().st_mtime)
-    return latest
-
-
-def _tests_inventory_fingerprint(repo_root: Path) -> str:
-    tests_root = repo_root / "tests"
-    digest = hashlib.sha256()
-    for path in sorted(tests_root.rglob("*.py")):
-        stat = path.stat()
-        digest.update(path.relative_to(repo_root).as_posix().encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(str(stat.st_mtime_ns).encode("ascii"))
-        digest.update(b"\0")
-        digest.update(str(stat.st_size).encode("ascii"))
-        digest.update(b"\0")
-    pyproject = repo_root / "pyproject.toml"
-    if pyproject.exists():
-        stat = pyproject.stat()
-        digest.update(pyproject.relative_to(repo_root).as_posix().encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(str(stat.st_mtime_ns).encode("ascii"))
-        digest.update(b"\0")
-        digest.update(str(stat.st_size).encode("ascii"))
-    return digest.hexdigest()
-
-
-def _load_cached_inventory(repo_root: Path) -> tuple[tuple[str, tuple[str, ...]], ...] | None:
-    cache_path = _inventory_cache_path(repo_root)
-    if not cache_path.exists():
-        return None
-    try:
-        payload = json.loads(cache_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(payload, dict) or payload.get("schema_version") != 1:
-        return None
-    stored_mtime = payload.get("tests_mtime")
-    stored_fingerprint = payload.get("tests_fingerprint")
-    inventory = payload.get("inventory")
-    if not isinstance(stored_mtime, (int, float)) or not isinstance(inventory, dict):
-        return None
-    if not isinstance(stored_fingerprint, str) or stored_fingerprint != _tests_inventory_fingerprint(repo_root):
-        return None
-    if _latest_tests_mtime(repo_root) > float(stored_mtime):
-        return None
-    normalized: list[tuple[str, tuple[str, ...]]] = []
-    for rel_path, nodeids in inventory.items():
-        if not isinstance(rel_path, str) or not isinstance(nodeids, list):
-            return None
-        if not all(isinstance(nodeid, str) for nodeid in nodeids):
-            return None
-        normalized.append((rel_path, tuple(nodeids)))
-    return tuple((rel_path, nodeids) for rel_path, nodeids in sorted(normalized))
-
-
-def _write_cached_inventory(repo_root: Path, inventory: dict[str, list[str]]) -> None:
-    cache_path = _inventory_cache_path(repo_root)
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "schema_version": 1,
-        "tests_mtime": _latest_tests_mtime(repo_root),
-        "tests_fingerprint": _tests_inventory_fingerprint(repo_root),
-        "inventory": inventory,
-    }
-    cache_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-
 def has_stable_cached_inventory(*, repo_root: Path | None = None) -> bool:
-    normalized_root = _normalized_repo_root(repo_root)
-    return _load_cached_inventory(normalized_root) is not None
+    _normalized_repo_root(repo_root)
+    # The repo-local collect cache was intentionally removed once CI planning
+    # moved to a single collect-only pass.
+    return False
 
 
 @cache
@@ -300,9 +226,6 @@ def _collected_test_inventory_items(
     pytest_command: tuple[str, ...] | None = None,
 ) -> tuple[tuple[str, tuple[str, ...]], ...]:
     pytest_command = pytest_command or _pytest_collect_command(repo_root)
-    cached = _load_cached_inventory(repo_root)
-    if cached is not None:
-        return cached
     proc = subprocess.run(
         [
             *pytest_command,
@@ -327,7 +250,6 @@ def _collected_test_inventory_items(
         if path_text.startswith("tests/"):
             path_text = path_text[len("tests/") :]
         inventory.setdefault(path_text, []).append(line)
-    _write_cached_inventory(repo_root, inventory)
     return tuple((rel_path, tuple(nodeids)) for rel_path, nodeids in sorted(inventory.items()))
 
 
@@ -353,6 +275,12 @@ def _file_weight(rel_path: str, *, test_count: int) -> float:
     return test_count * CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS.get(rel_path, 1.0)
 
 
+def _hot_test_file_split_parts(rel_path: str, *, category: str) -> int:
+    if CI_CATEGORY_SHARD_COUNTS.get(category, 1) <= 1:
+        return 1
+    return CI_HOT_TEST_FILE_SPLITS.get(rel_path, 1)
+
+
 def build_ci_work_units(
     inventory: Mapping[str, tuple[str, ...]],
 ) -> tuple[CIWorkUnit, ...]:
@@ -362,7 +290,7 @@ def build_ci_work_units(
         if not nodeids:
             continue
         category = category_for_test_relpath(rel_path)
-        split_parts = CI_HOT_TEST_FILE_SPLITS.get(rel_path, 1)
+        split_parts = _hot_test_file_split_parts(rel_path, category=category)
         split_groups = _split_nodeids_round_robin(nodeids, parts=split_parts)
         total_weight = _file_weight(rel_path, test_count=len(nodeids))
         scale = total_weight / len(nodeids)
@@ -432,6 +360,80 @@ def plan_category_ci_shards(
     return plan_work_units_into_shards(category_work_units, shard_total=CI_CATEGORY_SHARD_COUNTS[category])
 
 
+def _validated_ci_shard_spec(
+    *,
+    category: str,
+    shard_index: int,
+    shard_total: int,
+) -> CIShardSpec:
+    if category not in CI_CATEGORY_SHARD_COUNTS:
+        raise ValueError(f"unknown CI pytest category {category!r}; add it to CI_CATEGORY_SHARD_COUNTS")
+    expected_total = CI_CATEGORY_SHARD_COUNTS[category]
+    if shard_total != expected_total:
+        raise ValueError(f"shard_total for {category!r} must equal {expected_total}")
+    if shard_index < 1 or shard_index > shard_total:
+        raise ValueError("shard_index must be within shard_total")
+    slug = category if shard_total == 1 else f"{category}-{shard_index}"
+    return CIShardSpec(
+        slug=slug,
+        category=category,
+        shard_index=shard_index,
+        shard_total=shard_total,
+    )
+
+
+def ci_shard_target_filename(
+    *,
+    category: str,
+    shard_index: int,
+    shard_total: int,
+) -> str:
+    spec = _validated_ci_shard_spec(
+        category=category,
+        shard_index=shard_index,
+        shard_total=shard_total,
+    )
+    return f"{spec.slug}.txt"
+
+
+def ci_shard_target_path(
+    *,
+    target_dir: Path,
+    category: str,
+    shard_index: int,
+    shard_total: int,
+) -> Path:
+    return target_dir / ci_shard_target_filename(
+        category=category,
+        shard_index=shard_index,
+        shard_total=shard_total,
+    )
+
+
+def plan_all_ci_shard_targets(
+    *,
+    repo_root: Path | None = None,
+    inventory: Mapping[str, tuple[str, ...]] | None = None,
+    work_units: tuple[CIWorkUnit, ...] | None = None,
+) -> dict[str, tuple[str, ...]]:
+    if work_units is None:
+        if inventory is None:
+            inventory = collected_test_inventory(repo_root=repo_root)
+        work_units = build_ci_work_units(inventory)
+
+    planned_targets: dict[str, tuple[str, ...]] = {}
+    for category, shard_total in CI_CATEGORY_SHARD_COUNTS.items():
+        category_shards = plan_category_ci_shards(category=category, work_units=work_units)
+        for shard_index, targets in enumerate(category_shards, start=1):
+            spec = _validated_ci_shard_spec(
+                category=category,
+                shard_index=shard_index,
+                shard_total=shard_total,
+            )
+            planned_targets[spec.slug] = targets
+    return planned_targets
+
+
 def expand_ci_targets_to_nodeids(
     targets: tuple[str, ...],
     *,
@@ -454,16 +456,20 @@ def select_ci_shard_targets(
     shard_total: int,
     repo_root: Path | None = None,
     inventory: Mapping[str, tuple[str, ...]] | None = None,
+    planned_targets: Mapping[str, tuple[str, ...]] | None = None,
 ) -> tuple[str, ...]:
-    if category not in CI_CATEGORY_SHARD_COUNTS:
-        raise ValueError(f"unknown CI pytest category {category!r}; add it to CI_CATEGORY_SHARD_COUNTS")
-    expected_total = CI_CATEGORY_SHARD_COUNTS[category]
-    if shard_total != expected_total:
-        raise ValueError(f"shard_total for {category!r} must equal {expected_total}")
-    if shard_index < 1 or shard_index > shard_total:
-        raise ValueError("shard_index must be within shard_total")
+    spec = _validated_ci_shard_spec(
+        category=category,
+        shard_index=shard_index,
+        shard_total=shard_total,
+    )
+    if planned_targets is not None:
+        try:
+            return tuple(planned_targets[spec.slug])
+        except KeyError as error:
+            raise ValueError(f"planned_targets is missing shard {spec.slug!r}") from error
     planned_shards = plan_category_ci_shards(category=category, repo_root=repo_root, inventory=inventory)
-    return planned_shards[shard_index - 1]
+    return planned_shards[spec.shard_index - 1]
 
 
 def write_ci_shard_targets_file(
@@ -474,6 +480,7 @@ def write_ci_shard_targets_file(
     shard_total: int,
     repo_root: Path | None = None,
     inventory: Mapping[str, tuple[str, ...]] | None = None,
+    planned_targets: Mapping[str, tuple[str, ...]] | None = None,
 ) -> tuple[str, ...]:
     targets = select_ci_shard_targets(
         category=category,
@@ -481,6 +488,45 @@ def write_ci_shard_targets_file(
         shard_total=shard_total,
         repo_root=repo_root,
         inventory=inventory,
+        planned_targets=planned_targets,
     )
     target_file.write_text("\n".join(targets) + "\n", encoding="utf-8")
     return targets
+
+
+def write_ci_shard_plan(
+    *,
+    target_dir: Path,
+    repo_root: Path | None = None,
+    inventory: Mapping[str, tuple[str, ...]] | None = None,
+    work_units: tuple[CIWorkUnit, ...] | None = None,
+    planned_targets: Mapping[str, tuple[str, ...]] | None = None,
+) -> dict[str, Path]:
+    target_dir.mkdir(parents=True, exist_ok=True)
+    planned_targets = dict(
+        planned_targets
+        if planned_targets is not None
+        else plan_all_ci_shard_targets(
+            repo_root=repo_root,
+            inventory=inventory,
+            work_units=work_units,
+        )
+    )
+
+    written_files: dict[str, Path] = {}
+    for spec in ci_shard_specs():
+        target_file = ci_shard_target_path(
+            target_dir=target_dir,
+            category=spec.category,
+            shard_index=spec.shard_index,
+            shard_total=spec.shard_total,
+        )
+        write_ci_shard_targets_file(
+            target_file=target_file,
+            category=spec.category,
+            shard_index=spec.shard_index,
+            shard_total=spec.shard_total,
+            planned_targets=planned_targets,
+        )
+        written_files[spec.slug] = target_file
+    return written_files

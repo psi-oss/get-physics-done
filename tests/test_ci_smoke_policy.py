@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-import ast
+import shlex
 from pathlib import Path
 
 import yaml
 
-from tests.ci_sharding import CI_SHARD_TARGET_RESOLVER_STEP_NAME, CI_SMOKE_PYTEST_STEP_NAME
+from tests.ci_sharding import (
+    CI_SHARD_TARGET_RESOLVER_STEP_NAME,
+    CI_SMOKE_PYTEST_STEP_NAME,
+    CI_SMOKE_TEST_TARGETS,
+    ci_smoke_pytest_command,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CI_SHARDING_PATH = REPO_ROOT / "tests" / "ci_sharding.py"
 FORBIDDEN_SMOKE_SELECTION_TOKENS = (
     "subprocess",
     "all_test_relpaths",
@@ -21,34 +25,15 @@ FORBIDDEN_SMOKE_SELECTION_TOKENS = (
     "write_ci_shard_targets_file",
     "--collect-only",
 )
-
-
-def _ci_sharding_source() -> str:
-    return CI_SHARDING_PATH.read_text(encoding="utf-8")
-
-
-def _ci_sharding_tree() -> ast.Module:
-    return ast.parse(_ci_sharding_source())
-
-
-def _module_assignment_value(name: str) -> ast.AST:
-    for node in _ci_sharding_tree().body:
-        if not isinstance(node, ast.Assign):
-            continue
-        for target in node.targets:
-            if isinstance(target, ast.Name) and target.id == name:
-                return node.value
-    raise AssertionError(f"missing module assignment: {name}")
-
-
-def _function_source(name: str) -> str:
-    source = _ci_sharding_source()
-    for node in _ci_sharding_tree().body:
-        if isinstance(node, ast.FunctionDef) and node.name == name:
-            segment = ast.get_source_segment(source, node)
-            assert segment is not None
-            return segment
-    raise AssertionError(f"missing function definition: {name}")
+REQUIRED_SMOKE_TEST_TARGETS = (
+    "tests/test_release_consistency.py",
+    "tests/core/test_workflow_stage_manifest_inventory.py",
+)
+REQUIRED_SMOKE_TARGET_PREFIXES = (
+    "tests/core/test_workflow_staging.py::",
+    "tests/core/test_research_phase_stage_manifest.py::",
+    "tests/core/test_write_paper_prompt_budget.py::",
+)
 
 
 def _workflow_data() -> dict[str, object]:
@@ -71,20 +56,50 @@ def _run_steps_by_name(steps: list[dict[str, object]]) -> dict[str, str]:
     return {str(step.get("name", "")): str(step.get("run", "")) for step in steps if "run" in step}
 
 
-def test_ci_smoke_targets_are_declared_as_literal_static_paths() -> None:
-    assigned = _module_assignment_value("CI_SMOKE_TEST_TARGETS")
+def _job_needs(workflow: dict[str, object], job_name: str) -> tuple[str, ...]:
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    job = jobs[job_name]
+    assert isinstance(job, dict)
+    needs = job.get("needs")
+    if needs is None:
+        return ()
+    if isinstance(needs, str):
+        return (needs,)
+    assert isinstance(needs, list)
+    return tuple(str(entry) for entry in needs)
 
-    assert isinstance(assigned, ast.Tuple)
-    assert assigned.elts
-    assert all(isinstance(element, ast.Constant) and isinstance(element.value, str) for element in assigned.elts)
+
+def _pytest_command_targets(command: str) -> tuple[str, ...]:
+    tokens = shlex.split(command)
+    assert tokens[:4] == ["uv", "run", "pytest", "-q"]
+    return tuple(tokens[4:])
 
 
-def test_ci_smoke_command_builder_stays_direct_and_static() -> None:
-    command_source = _function_source("ci_smoke_pytest_command")
+def test_ci_smoke_command_builder_uses_only_explicit_fast_targets() -> None:
+    command = ci_smoke_pytest_command()
+    targets = _pytest_command_targets(command)
 
-    assert "CI_SMOKE_TEST_TARGETS" in command_source
-    assert '" ".join((' in command_source
-    assert all(token not in command_source for token in FORBIDDEN_SMOKE_SELECTION_TOKENS)
+    assert targets == CI_SMOKE_TEST_TARGETS
+    assert targets
+    assert all(token not in command for token in FORBIDDEN_SMOKE_SELECTION_TOKENS)
+    assert all(target.startswith("tests/") for target in targets)
+    assert all(target not in {"tests", "tests/"} for target in targets)
+    assert all("*" not in target for target in targets)
+    assert all(("::" in target) or Path(target).suffix == ".py" for target in targets)
+
+
+def test_ci_smoke_targets_cover_release_package_and_staged_loading_guards() -> None:
+    targets = CI_SMOKE_TEST_TARGETS
+    target_set = set(targets)
+
+    assert "tests/test_ci_suite_commands.py" not in target_set
+    assert set(REQUIRED_SMOKE_TEST_TARGETS) <= target_set
+    assert all(any(target.startswith(prefix) for target in targets) for prefix in REQUIRED_SMOKE_TARGET_PREFIXES)
+
+
+def test_ci_smoke_job_gates_pytest_execution() -> None:
+    assert "smoke" in _job_needs(_workflow_data(), "pytest")
 
 
 def test_ci_smoke_workflow_skips_shard_resolution_and_collect_only_helpers() -> None:
@@ -94,4 +109,5 @@ def test_ci_smoke_workflow_skips_shard_resolution_and_collect_only_helpers() -> 
     smoke_command = _run_steps_by_name(smoke_steps)[CI_SMOKE_PYTEST_STEP_NAME]
 
     assert CI_SHARD_TARGET_RESOLVER_STEP_NAME not in smoke_step_names
+    assert smoke_command == ci_smoke_pytest_command()
     assert all(token not in smoke_command for token in FORBIDDEN_SMOKE_SELECTION_TOKENS)

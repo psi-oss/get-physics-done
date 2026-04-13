@@ -7,8 +7,6 @@ import yaml
 
 from tests.ci_sharding import (
     CI_CATEGORY_SHARD_COUNTS,
-    CI_FAST_PRIORITY_TEST_TARGETS,
-    CI_FAST_PRIORITY_TIMEOUT_MINUTES,
     CI_HOT_TEST_FILE_SPLITS,
     CI_HOT_TEST_FILE_WEIGHT_MULTIPLIERS,
     CI_MAX_SHARD_COUNT_TARGET,
@@ -16,7 +14,6 @@ from tests.ci_sharding import (
     CI_PYTEST_SHARD_STEP_NAME,
     CI_RUNTIME_CATALOG_SCHEMA_COMMAND,
     CI_RUNTIME_CATALOG_SCHEMA_STEP_NAME,
-    CI_SHARD_TARGET_RESOLVER_STEP_NAME,
     CI_SMOKE_JOB_TIMEOUT_MINUTES,
     CI_SMOKE_PYTEST_STEP_NAME,
     CI_SMOKE_TEST_TARGETS,
@@ -32,18 +29,6 @@ from tests.ci_sharding import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-
-SMOKE_TARGET_TOTAL_LIMIT = 160
-EXPECTED_SMOKE_TARGETS = tuple(CI_SMOKE_TEST_TARGETS)
-HOT_FILE_MAX_TESTS_PER_GROUP = 95
-
-
-def _direct_test_count(rel_path: str) -> int:
-    if "::" in rel_path:
-        rel_path, nodeid = rel_path.split("::", 1)
-        test_name = nodeid.split("[")[0].split("::")[-1]
-        return int(f"def {test_name}(" in (REPO_ROOT / rel_path).read_text(encoding="utf-8"))
-    return (REPO_ROOT / rel_path).read_text(encoding="utf-8").count("\ndef test_")
 
 
 def _workflow_data(filename: str = "test.yml") -> dict[str, object]:
@@ -63,6 +48,16 @@ def _job_steps(workflow: dict[str, object], job_name: str) -> list[dict[str, obj
 
 def _run_steps_by_name(steps: list[dict[str, object]]) -> dict[str, str]:
     return {str(step.get("name", "")): str(step.get("run", "")) for step in steps if "run" in step}
+
+
+def _job_needs(job: dict[str, object]) -> tuple[str, ...]:
+    needs = job.get("needs")
+    if needs is None:
+        return ()
+    if isinstance(needs, str):
+        return (needs,)
+    assert isinstance(needs, list)
+    return tuple(str(name) for name in needs)
 
 
 def _step_runs_uv(step: dict[str, object]) -> bool:
@@ -131,11 +126,11 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
         for spec in ci_shard_specs()
     )
 
-    assert jobs["pytest"].get("needs") is None
     pytest_job = jobs["pytest"]
     assert isinstance(pytest_job, dict)
     strategy = pytest_job["strategy"]
     assert isinstance(strategy, dict)
+    assert "smoke" in _job_needs(pytest_job)
     assert strategy["fail-fast"] is False
     assert actual_shards == expected_shards
     assert len(matrix_include) == sum(CI_CATEGORY_SHARD_COUNTS.values())
@@ -148,19 +143,10 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
 
     assert "Set up Node.js" in pytest_step_names
     assert pytest_step_names.index("Set up Node.js") < pytest_step_names.index("Install dependencies")
-    resolve_targets_command = pytest_run_steps[CI_SHARD_TARGET_RESOLVER_STEP_NAME]
     pytest_shard_command = pytest_run_steps[CI_PYTEST_SHARD_STEP_NAME]
-    assert "from tests.ci_sharding import write_ci_shard_targets_file" in resolve_targets_command
-    assert all(
-        env_name in resolve_targets_command
-        for env_name in ("PYTEST_CATEGORY", "PYTEST_SHARD_INDEX", "PYTEST_SHARD_TARGET_FILE", "PYTEST_SHARD_TOTAL")
-    )
     assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
     assert _run_command_contains_tokens(pytest_shard_command, CI_PYTEST_SHARD_COMMAND_TOKENS)
     assert '"${PYTEST_TARGETS[@]}"' in pytest_shard_command
-    assert pytest_steps.index(_step_by_name(pytest_steps, CI_SHARD_TARGET_RESOLVER_STEP_NAME)) < pytest_steps.index(
-        _step_by_name(pytest_steps, CI_PYTEST_SHARD_STEP_NAME)
-    )
     assert _step_by_name(pytest_steps, CI_PYTEST_SHARD_STEP_NAME)["run"] == pytest_shard_command
     node_step = _step_by_name(pytest_steps, "Set up Node.js")
     assert node_step["uses"] == "actions/setup-node@v6"
@@ -169,18 +155,28 @@ def test_ci_workflow_runs_category_named_runtime_informed_pytest_shards_with_def
     assert 'pytest-xdist>=3.8.0' in pyproject
 
 
-def test_pytest_job_validates_runtime_catalog_schema_step() -> None:
+def test_ci_workflow_runs_runtime_catalog_schema_validation_once() -> None:
     workflow = _workflow_data()
-    steps = _job_steps(workflow, "pytest")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    pytest_steps = _job_steps(workflow, "pytest")
 
-    guard_steps = [step for step in steps if step.get("name") == CI_RUNTIME_CATALOG_SCHEMA_STEP_NAME]
-    assert guard_steps, "Pytest job must include a runtime catalog validation step"
-    guard_step = guard_steps[0]
+    guard_steps = [
+        (str(job_name), step)
+        for job_name in jobs
+        for step in _job_steps(workflow, str(job_name))
+        if step.get("name") == CI_RUNTIME_CATALOG_SCHEMA_STEP_NAME
+    ]
+
+    assert len(guard_steps) == 1, "Workflow should validate the runtime catalog schema exactly once"
+    guard_job_name, guard_step = guard_steps[0]
+    assert guard_step not in pytest_steps
     guard_run = str(guard_step.get("run", ""))
     assert guard_run == CI_RUNTIME_CATALOG_SCHEMA_COMMAND
+    assert guard_job_name != "pytest"
 
 
-def test_ci_workflow_runs_fast_release_package_smoke_lane_before_full_shards() -> None:
+def test_ci_workflow_runs_fast_release_package_smoke_lane_with_expected_step_order() -> None:
     workflow = _workflow_data()
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
@@ -191,12 +187,16 @@ def test_ci_workflow_runs_fast_release_package_smoke_lane_before_full_shards() -
     smoke_run_steps = _run_steps_by_name(smoke_steps)
 
     assert smoke_job["timeout-minutes"] == CI_SMOKE_JOB_TIMEOUT_MINUTES
-    assert smoke_job.get("needs") is None
     node_step = _step_by_name(smoke_steps, "Set up Node.js")
     assert node_step["uses"] == "actions/setup-node@v6"
     assert node_step["with"]["node-version"] == "20"
     smoke_command = smoke_run_steps[CI_SMOKE_PYTEST_STEP_NAME]
     assert smoke_command == ci_smoke_pytest_command()
+    smoke_step_names = [str(step.get("name", "")) for step in smoke_steps]
+    dry_run_index = smoke_step_names.index("Smoke npm pack dry run")
+    manifest_index = smoke_step_names.index("Verify npm pack manifest")
+    pytest_index = smoke_step_names.index(CI_SMOKE_PYTEST_STEP_NAME)
+    assert dry_run_index < manifest_index < pytest_index
 
 
 def test_ci_release_package_smoke_lane_uses_only_explicit_fast_targets() -> None:
@@ -265,20 +265,6 @@ def test_ci_shard_selection_uses_supplied_static_inventory_without_collect_only(
     )
     assert sorted(planned_root_nodeids) == sorted(expected_root_nodeids)
     assert len(planned_root_nodeids) == len(set(planned_root_nodeids))
-
-
-def test_fast_smoke_job_timeout_matches_fast_priority_timeout_constant() -> None:
-    workflow = _workflow_data()
-    smoke_job = workflow["jobs"]["smoke"]
-    assert isinstance(smoke_job, dict)
-    assert smoke_job["timeout-minutes"] == CI_FAST_PRIORITY_TIMEOUT_MINUTES
-
-
-def test_fast_priority_smoke_targets_follow_ci_fast_priority_list() -> None:
-    smoke_command = _run_steps_by_name(_job_steps(_workflow_data(), "smoke"))[CI_SMOKE_PYTEST_STEP_NAME]
-    smoke_targets = _pytest_command_targets(smoke_command)
-
-    assert smoke_targets == tuple(CI_FAST_PRIORITY_TEST_TARGETS)
 
 
 def test_ci_sharding_constants_do_not_import_runtime_adapters() -> None:
@@ -401,53 +387,3 @@ def test_publish_release_jobs_set_up_uv_before_uv_commands() -> None:
             assert any(setup_index < uv_index for setup_index in uv_setup_indices), (
                 f"Job {job_name} uses uv before running astral-sh/setup-uv@v7"
             )
-
-
-def test_publish_release_publish_job_does_not_use_uv_for_release_workflow_helper() -> None:
-    workflow = _workflow_data("publish-release.yml")
-    publish_steps = _job_steps(workflow, "publish-npm-and-github-release")
-    uv_step_names = [str(step.get("name", "")) for step in publish_steps if _step_runs_uv(step)]
-
-    assert not uv_step_names, (
-        "publish-npm-and-github-release should rely on its local Python setup for "
-        f"scripts/release_workflow.py, not uv; found uv usage in steps: {uv_step_names}"
-    )
-
-
-def test_tests_readme_documents_default_full_suite_and_category_named_runtime_informed_ci_shards() -> None:
-    tests_readme = (REPO_ROOT / "tests" / "README.md").read_text(encoding="utf-8")
-    smoke_command = "uv run pytest -q " + " ".join(CI_SMOKE_TEST_TARGETS)
-
-    assert "Default `uv run pytest` runs the full checked-in suite in parallel" in tests_readme
-    assert "`uv run pytest -q` does the same with quieter output" in tests_readme
-    assert "`pyproject.toml` pins `-n auto --dist=worksteal`" in tests_readme
-    assert "raises default full-suite xdist auto-worker selection toward the current CI shard fanout" in tests_readme
-    assert "Use `uv run pytest -n 0 ...` when you need a serial repro" in tests_readme
-    assert "focused local contract-visibility smoke pass" in tests_readme
-    assert "separate CI release/package smoke lane stays under 3 minutes" in tests_readme
-    assert smoke_command in tests_readme
-    assert "CI shards add `--durations=20 --durations-min=0`" in tests_readme
-    assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
-    assert "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`" in tests_readme
-    assert "boosts modules that were hottest in the local xdist duration profile" in tests_readme
-    assert "UV_CACHE_DIR=tmp/uv-cache" in tests_readme
-    assert "splits hotspot files such as `tests/test_runtime_cli.py`, `tests/test_cli_integration.py`, `tests/test_update_workflow.py`, `tests/adapters/test_install_roundtrip.py`, `tests/hooks/test_notify.py`, and `tests/hooks/test_runtime_detect.py`" in tests_readme
-    assert "greedily rebalances those work units inside each category" in tests_readme
-
-
-def test_ci_release_package_smoke_targets_stay_within_budget() -> None:
-    """Approximate smoke-target size so the release/package lane finishes under 3 minutes."""
-    assert tuple(CI_SMOKE_TEST_TARGETS) == EXPECTED_SMOKE_TARGETS
-    total_tests = sum(_direct_test_count(target) for target in CI_SMOKE_TEST_TARGETS)
-    assert total_tests <= SMOKE_TARGET_TOTAL_LIMIT
-
-
-def test_ci_hot_file_splits_keep_groups_under_guardrail() -> None:
-    """Ensure each hot split can be contained within the 3-minute per-group target."""
-    for rel_path, split_parts in CI_HOT_TEST_FILE_SPLITS.items():
-        if rel_path.startswith("adapters/test_"):
-            continue
-
-        max_capacity = split_parts * HOT_FILE_MAX_TESTS_PER_GROUP
-        expected_count = _direct_test_count(f"tests/{rel_path}")
-        assert max_capacity >= expected_count

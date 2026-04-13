@@ -16,16 +16,18 @@ from tests.ci_sharding import (
     CI_HOT_TEST_FILE_SPLITS,
     CI_HOTSPOT_SPLIT_COVERAGE_MIN_TOP_FILES,
     CI_PYTEST_JOB_TIMEOUT_MINUTES,
+    CI_PYTEST_SHARD_STEP_NAME,
+    CI_SHARD_TARGET_RESOLVER_STEP_NAME,
     CI_SMOKE_JOB_TIMEOUT_MINUTES,
     CI_SMOKE_TEST_TARGETS,
     all_test_relpaths,
     build_ci_work_units,
     category_for_test_relpath,
-    ci_shard_specs,
     collected_test_counts_by_file,
     collected_test_inventory,
     expand_ci_targets_to_nodeids,
     plan_category_ci_shards,
+    select_ci_shard_targets,
 )
 
 CI_FAST_PRIORITY_TEST_COUNT_LIMIT = 150
@@ -43,15 +45,39 @@ def _workflow_data() -> dict[str, object]:
     return yaml.safe_load((_repo_root() / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8"))
 
 
-def _workflow_job_steps(workflow: dict[str, object], job_name: str) -> list[dict[str, object]]:
+def _workflow_job(workflow: dict[str, object], job_name: str) -> dict[str, object]:
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
     job = jobs[job_name]
     assert isinstance(job, dict)
-    steps = job["steps"]
+    return job
+
+
+def _workflow_job_steps(workflow: dict[str, object], job_name: str) -> list[dict[str, object]]:
+    steps = _workflow_job(workflow, job_name)["steps"]
     assert isinstance(steps, list)
     assert all(isinstance(step, dict) for step in steps)
     return steps
+
+
+def _job_needs(job: dict[str, object]) -> tuple[str, ...]:
+    needs = job.get("needs")
+    if needs is None:
+        return ()
+    if isinstance(needs, str):
+        return (needs,)
+    assert isinstance(needs, list)
+    return tuple(str(entry) for entry in needs)
+
+
+def _steps_using_action(steps: list[dict[str, object]], action_prefix: str) -> list[dict[str, object]]:
+    return [step for step in steps if str(step.get("uses", "")).startswith(action_prefix)]
+
+
+def _step_by_name(steps: list[dict[str, object]], name: str) -> dict[str, object]:
+    matches = [step for step in steps if step.get("name") == name]
+    assert len(matches) == 1
+    return matches[0]
 
 
 def _runtime_descriptors_or_skip() -> tuple[RuntimeDescriptor, ...]:
@@ -125,80 +151,72 @@ def test_default_collection_matches_all_checked_in_test_files() -> None:
     assert all(count > 0 for count in collected_counts.values())
 
 
-def test_ci_and_test_readme_document_default_full_suite_and_category_named_runtime_informed_shards() -> None:
+def test_ci_pytest_job_waits_for_smoke_and_one_shot_planning_while_keeping_local_xdist_defaults() -> None:
     repo_root = _repo_root()
     workflow = _workflow_data()
     pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
-    tests_readme = (repo_root / "tests" / "README.md").read_text(encoding="utf-8")
-    jobs = workflow["jobs"]
-    assert isinstance(jobs, dict)
-    pytest_steps = _workflow_job_steps(workflow, "pytest")
-    pytest_step_names = [str(step.get("name", "")) for step in pytest_steps]
-    pytest_run_steps = {
-        str(step.get("name", "")): str(step.get("run", ""))
-        for step in pytest_steps
-        if "run" in step
-    }
-    pytest_job = jobs["pytest"]
-    assert isinstance(pytest_job, dict)
+    pytest_job = _workflow_job(workflow, "pytest")
     strategy = pytest_job["strategy"]
     assert isinstance(strategy, dict)
-    matrix = strategy["matrix"]
-    assert isinstance(matrix, dict)
-    include = matrix["include"]
-    assert isinstance(include, list)
+    needs = _job_needs(pytest_job)
 
-    assert jobs["pytest"].get("needs") is None
-    # trigger-staging-rebuild moved to staging-rebuild.yml (workflow_run trigger)
-    assert "trigger-staging-rebuild" not in jobs
-
+    assert {"smoke", "plan-shards"} <= set(needs)
+    assert "pytest" not in needs
     assert strategy["fail-fast"] is False
-    assert len(include) == sum(CI_CATEGORY_SHARD_COUNTS.values())
-    assert tuple(
-        (
-            str(entry["display_name"]),
-            str(entry["category"]),
-            int(entry["shard_index"]),
-            int(entry["shard_total"]),
-        )
-        for entry in include
-    ) == tuple(
-        (spec.display_name, spec.category, spec.shard_index, spec.shard_total)
-        for spec in ci_shard_specs()
-    )
+    assert pytest_job["timeout-minutes"] == CI_PYTEST_JOB_TIMEOUT_MINUTES
 
-    assert "Set up Node.js" in pytest_step_names
-    assert pytest_step_names.index("Set up Node.js") < pytest_step_names.index("Install dependencies")
     pytest_ini_options = pyproject["tool"]["pytest"]["ini_options"]
     assert pytest_ini_options["addopts"] == "-n auto --dist=worksteal"
     dependency_groups = pyproject["dependency-groups"]
     dev_deps = dependency_groups["dev"]
     assert "pytest-xdist>=3.8.0" in dev_deps
-    resolve_targets_command = pytest_run_steps["Resolve pytest shard targets"]
-    pytest_shard_command = pytest_run_steps["Run pytest shard"]
-    assert "from tests.ci_sharding import write_ci_shard_targets_file" in resolve_targets_command
-    assert "PYTEST_CATEGORY" in resolve_targets_command
-    assert 'mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"' in pytest_shard_command
-    assert '--durations=20' in pytest_shard_command
-    assert '--durations-min=0' in pytest_shard_command
-    assert 'uv run pytest -q --durations=20 --durations-min=0 "${PYTEST_TARGETS[@]}"' in pytest_shard_command
-    assert "Default `uv run pytest` runs the full checked-in suite in parallel" in tests_readme
-    assert "`uv run pytest -q` does the same with quieter output" in tests_readme
-    assert "`pyproject.toml` pins `-n auto --dist=worksteal`" in tests_readme
-    assert "raises default full-suite xdist auto-worker selection toward the current CI shard fanout" in tests_readme
-    assert "Use `uv run pytest -n 0 ...` when you need a serial repro" in tests_readme
-    assert "GitHub Actions workflow runs that same full suite as category-named runtime-informed shards" in tests_readme
-    assert "`root 1/9` through `root 9/9`, `adapters 1/2` through `adapters 2/2`, `hooks 1/2` through `hooks 2/2`, `mcp`, and `core 1/5` through `core 5/5`" in tests_readme
-    assert "boosts modules that were hottest in the local xdist duration profile" in tests_readme
-    assert "splits hotspot files such as `tests/test_runtime_cli.py`, `tests/test_cli_integration.py`, `tests/test_update_workflow.py`, `tests/adapters/test_install_roundtrip.py`, `tests/hooks/test_notify.py`, and `tests/hooks/test_runtime_detect.py`" in tests_readme
-    assert "greedily rebalances those work units inside each category" in tests_readme
+
+
+def test_ci_pytest_job_downloads_preplanned_shard_targets_instead_of_resolving_them_per_shard() -> None:
+    workflow = _workflow_data()
+    plan_job = _workflow_job(workflow, "plan-shards")
+    plan_steps = _workflow_job_steps(workflow, "plan-shards")
+    pytest_steps = _workflow_job_steps(workflow, "pytest")
+    pytest_step_names = [str(step.get("name", "")) for step in pytest_steps]
+    pytest_shard_command = str(_step_by_name(pytest_steps, CI_PYTEST_SHARD_STEP_NAME).get("run", ""))
+
+    plan_strategy = plan_job.get("strategy")
+    if isinstance(plan_strategy, dict):
+        assert "matrix" not in plan_strategy
+    assert _steps_using_action(plan_steps, "actions/upload-artifact@")
+    assert _steps_using_action(pytest_steps, "actions/download-artifact@")
+    assert CI_SHARD_TARGET_RESOLVER_STEP_NAME not in pytest_step_names
+    assert "PYTEST_SHARD_TARGET_FILE" in pytest_shard_command
+    assert "write_ci_shard_targets_file" not in pytest_shard_command
+    assert "select_ci_shard_targets" not in pytest_shard_command
+    assert "plan_category_ci_shards" not in pytest_shard_command
+    assert "--collect-only" not in pytest_shard_command
 
 
 def test_hotspot_split_targets_exist_and_request_multiple_parts() -> None:
     all_relpaths = set(all_test_relpaths(tests_root=_repo_root() / "tests"))
+    split_categories = {category_for_test_relpath(rel_path) for rel_path in CI_HOT_TEST_FILE_SPLITS}
 
     assert set(CI_HOT_TEST_FILE_SPLITS) <= all_relpaths
     assert all(split_count > 1 for split_count in CI_HOT_TEST_FILE_SPLITS.values())
+    assert all(CI_CATEGORY_SHARD_COUNTS[category] > 1 for category in split_categories)
+
+
+def test_single_shard_categories_keep_whole_file_targets() -> None:
+    for category, shard_total in CI_CATEGORY_SHARD_COUNTS.items():
+        if shard_total != 1:
+            continue
+        rel_path = f"{category}/test_policy_guard.py" if category != "root" else "test_policy_guard.py"
+        inventory = {
+            rel_path: tuple(f"tests/{rel_path}::test_{index}" for index in range(6)),
+        }
+
+        assert select_ci_shard_targets(
+            category=category,
+            shard_index=1,
+            shard_total=shard_total,
+            inventory=inventory,
+        ) == (f"tests/{rel_path}",)
 
 
 def test_ci_categories_represent_actual_test_domains() -> None:
@@ -248,14 +266,18 @@ def test_fast_priority_suite_total_test_count_stays_bounded() -> None:
     )
 
 
-def test_hotspot_split_policy_covers_largest_collected_files() -> None:
+def test_hotspot_split_policy_covers_largest_collected_files_in_split_categories() -> None:
     counts_by_file = collected_test_counts_by_file(repo_root=_repo_root())
+    split_eligible_counts = (
+        (path, count)
+        for path, count in counts_by_file.items()
+        if CI_CATEGORY_SHARD_COUNTS[category_for_test_relpath(path)] > 1
+    )
     largest_files = {
         rel_path
-        for rel_path, _count in sorted(
-            counts_by_file.items(),
-            key=lambda item: (-item[1], item[0]),
-        )[:CI_HOTSPOT_SPLIT_COVERAGE_MIN_TOP_FILES]
+        for rel_path, _count in sorted(split_eligible_counts, key=lambda item: (-item[1], item[0]))[
+            :CI_HOTSPOT_SPLIT_COVERAGE_MIN_TOP_FILES
+        ]
     }
 
     assert largest_files <= set(CI_HOT_TEST_FILE_SPLITS)

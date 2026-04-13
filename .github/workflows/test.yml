@@ -94,11 +94,64 @@ jobs:
         run: python scripts/release_workflow.py verify-npm-pack --input tmp/npm-pack-dry-run.json
 
       - name: Run release/package smoke tests
-        run: uv run pytest -q tests/test_release_consistency.py tests/test_ci_suite_commands.py tests/test_repo_hygiene.py tests/test_schema_registry_ownership_note.py tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files tests/adapters/test_runtime_catalog.py::test_runtime_catalog_explicit_priority_order tests/adapters/test_runtime_catalog.py::test_runtime_descriptor_resolves_from_adapter_module tests/adapters/test_runtime_catalog.py::test_runtime_catalog_loader_validates_schema_json tests/core/test_contract_validation_fast_regressions.py tests/core/test_contract_schema_prompt_parity.py::test_plan_contract_schema_surfaces_canonical_research_contract_fields
+        run: uv run pytest -q tests/test_release_consistency.py tests/test_repo_hygiene.py tests/test_schema_registry_ownership_note.py tests/test_runtime_abstraction_boundaries.py::test_runtime_specific_terms_are_confined_to_explicit_boundary_files tests/adapters/test_runtime_catalog.py::test_runtime_catalog_explicit_priority_order tests/adapters/test_runtime_catalog.py::test_runtime_descriptor_resolves_from_adapter_module tests/adapters/test_runtime_catalog.py::test_runtime_catalog_loader_validates_schema_json tests/core/test_contract_validation_fast_regressions.py tests/core/test_contract_schema_prompt_parity.py::test_plan_contract_schema_surfaces_canonical_research_contract_fields tests/core/test_workflow_stage_manifest_inventory.py tests/core/test_workflow_staging.py::test_validate_workflow_stage_manifest_payload_loads_research_phase_manifest tests/core/test_workflow_staging.py::test_validate_workflow_stage_manifest_payload_loads_write_paper_manifest tests/core/test_research_phase_stage_manifest.py::test_research_phase_stage_manifest_defers_runtime_delegation_until_the_handoff_stage tests/core/test_research_phase_stage_manifest.py::test_research_phase_command_prompt_budget_keeps_delegation_authorities_out_of_the_wrapper tests/core/test_write_paper_prompt_budget.py::test_write_paper_command_stays_thin_and_only_eagerly_loads_the_workflow tests/core/test_write_paper_prompt_budget.py::test_write_paper_workflow_defers_stage_authorities_until_the_manifest_stages_need_them
+
+  plan-shards:
+    name: plan pytest shards + preflight (3.11)
+    runs-on: ubuntu-latest
+    needs: smoke
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Validate runtime catalog schema
+        run: uv run python scripts/validate_runtime_catalog_schema.py
+
+      - name: Plan pytest shards
+        env:
+          PYTEST_SHARD_PLAN_DIR: ${{ runner.temp }}/pytest-shards
+        run: |
+          uv run python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from tests.ci_sharding import write_ci_shard_plan
+
+          output_dir = Path(os.environ["PYTEST_SHARD_PLAN_DIR"])
+          written_files = write_ci_shard_plan(target_dir=output_dir)
+          total_targets = 0
+          for slug, target_file in written_files.items():
+              targets = [line for line in target_file.read_text(encoding="utf-8").splitlines() if line]
+              total_targets += len(targets)
+              print(f"Wrote {len(targets)} pytest targets for {slug} to {target_file.name}")
+          print(f"Planned {len(written_files)} shards with {total_targets} total pytest targets")
+          PY
+
+      - name: Upload pytest shard plan
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-shard-plan
+          path: ${{ runner.temp }}/pytest-shards
+          retention-days: 1
 
   pytest:
     name: pytest ${{ matrix.display_name }} (3.11)
     runs-on: ubuntu-latest
+    needs:
+      - smoke
+      - plan-shards
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -201,37 +254,15 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Validate runtime catalog schema
-        run: uv run python scripts/validate_runtime_catalog_schema.py
-
-      - name: Resolve pytest shard targets
-        env:
-          PYTEST_CATEGORY: ${{ matrix.category }}
-          PYTEST_SHARD_INDEX: ${{ matrix.shard_index }}
-          PYTEST_SHARD_TARGET_FILE: ${{ runner.temp }}/pytest-targets.txt
-          PYTEST_SHARD_TOTAL: ${{ matrix.shard_total }}
-        run: |
-          uv run python - <<'PY'
-          import os
-          from pathlib import Path
-
-          from tests.ci_sharding import write_ci_shard_targets_file
-
-          targets = write_ci_shard_targets_file(
-              target_file=Path(os.environ["PYTEST_SHARD_TARGET_FILE"]),
-              category=os.environ["PYTEST_CATEGORY"],
-              shard_index=int(os.environ["PYTEST_SHARD_INDEX"]),
-              shard_total=int(os.environ["PYTEST_SHARD_TOTAL"]),
-          )
-          print(
-              f"Resolved {len(targets)} pytest targets for {os.environ['PYTEST_CATEGORY']} "
-              f"shard {os.environ['PYTEST_SHARD_INDEX']}/{os.environ['PYTEST_SHARD_TOTAL']}"
-          )
-          PY
+      - name: Download pytest shard plan
+        uses: actions/download-artifact@v8
+        with:
+          name: pytest-shard-plan
+          path: ${{ runner.temp }}/pytest-shards
 
       - name: Run pytest shard
         env:
-          PYTEST_SHARD_TARGET_FILE: ${{ runner.temp }}/pytest-targets.txt
+          PYTEST_SHARD_TARGET_FILE: ${{ runner.temp }}/pytest-shards/${{ matrix.category }}-${{ matrix.shard_index }}.txt
         run: |
           mapfile -t PYTEST_TARGETS < "$PYTEST_SHARD_TARGET_FILE"
           uv run pytest -q --durations=20 --durations-min=0 "${PYTEST_TARGETS[@]}"

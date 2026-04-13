@@ -446,10 +446,14 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert "astral-sh/setup-uv@v7" in workflow
     assert "uv sync --dev" in workflow
     assert 'addopts = "-n auto --dist=worksteal"' in pyproject
-    assert "Resolve pytest shard targets" in workflow
+    assert "plan-shards:" in workflow
+    assert "Plan pytest shards" in workflow
+    assert "Upload pytest shard plan" in workflow
+    assert "Download pytest shard plan" in workflow
     assert "Run pytest shard" in workflow
-    assert "from tests.ci_sharding import write_ci_shard_targets_file" in workflow
-    assert "PYTEST_CATEGORY" in workflow
+    assert "from tests.ci_sharding import write_ci_shard_plan" in workflow
+    assert "PYTEST_SHARD_PLAN_DIR" in workflow
+    assert "pytest-shard-plan" in workflow
     assert 'uv run pytest -q --durations=20 --durations-min=0 "${PYTEST_TARGETS[@]}"' in workflow
 
     # Staging rebuild trigger lives in a separate workflow (staging-rebuild.yml)

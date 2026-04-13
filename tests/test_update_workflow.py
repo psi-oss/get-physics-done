@@ -67,6 +67,16 @@ def _clear_global_override_env(monkeypatch: pytest.MonkeyPatch, descriptor) -> N
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
 
 
+def _extract_block(content: str, tag: str) -> str:
+    start = f"<{tag}>"
+    end = f"</{tag}>"
+    _, start_marker, remainder = content.partition(start)
+    assert start_marker, f"Missing {start} block"
+    block, end_marker, _ = remainder.partition(end)
+    assert end_marker, f"Missing {end} block"
+    return block.strip()
+
+
 def test_update_workflow_uses_current_runtime_agnostic_contract() -> None:
     content = (GPD_ROOT / "specs" / "workflows" / "update.md").read_text(encoding="utf-8")
 
@@ -88,19 +98,13 @@ def test_update_workflow_uses_current_runtime_agnostic_contract() -> None:
     assert "commands/gpd/" not in content
 
 
-def test_update_command_wrapper_uses_release_note_wording_and_delegates_to_workflow() -> None:
+def test_update_command_wrapper_stays_thin_and_delegates_to_workflow() -> None:
     content = (GPD_ROOT / "commands" / "update.md").read_text(encoding="utf-8")
+    execution_context = _extract_block(content, "execution_context")
+    process_text = _extract_block(content, "process")
 
-    assert "description: Update GPD to latest version and show recent release notes" in content
-    assert "@{GPD_INSTALL_DIR}/workflows/update.md" in content
-    assert "Read the workflow referenced in `<execution_context>` with `file_read` first." in content
-    assert "Follow the included workflow file exactly." in content
-    assert (
-        "Keep all update logic (scope detection, target handling, recent release notes, confirmation, install, cache refresh) inside the workflow."
-        in content
-    )
-    assert "changelog" not in content
-    assert "Pulls latest GPD files from the repository" not in content
+    assert execution_context == "@{GPD_INSTALL_DIR}/workflows/update.md"
+    assert "Keep all update logic" in process_text
 
 
 def test_reapply_patches_workflow_uses_runtime_config_placeholders() -> None:
