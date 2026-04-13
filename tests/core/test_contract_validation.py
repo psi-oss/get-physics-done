@@ -3186,7 +3186,20 @@ def test_collect_plan_contract_integrity_errors_requires_concrete_grounding_not_
     assert "missing references or explicit grounding context" in errors
 
 
-@pytest.mark.parametrize("locator", ["TBD", "Section 4"])
+@pytest.mark.parametrize("locator", [
+    "TBD",
+    "Section 4",
+    "12345",
+    "data/1304.4926",
+    "1334.4926",
+    "1300.4926",
+    "hep-th/0600123",
+    "hep-th/0613123",
+    "data/2401001",
+    "results/0612001",
+    "output/0301001",
+    "logs/0501001",
+])
 def test_collect_plan_contract_integrity_errors_rejects_placeholder_must_surface_reference_locators(
     locator: str,
 ) -> None:
@@ -3219,6 +3232,22 @@ def test_collect_plan_contract_integrity_errors_rejects_placeholder_must_surface
         ("paper", "Author et al., Journal, 2024"),
         ("other", "Einstein, Annalen der Physik, 1905"),
         ("spec", "https://example.org/missing-data-benchmark.csv"),
+        ("paper", "1304.4926"),
+        ("paper", "1905.08255v2"),
+        ("paper", "hep-th/0603001"),
+        ("paper", "gr-qc/9711053v1"),
+        ("paper", "math.DG/0211159"),
+        ("paper", "cs.SE/0303020"),
+        ("paper", "q-bio.PE/0501001"),
+        ("paper", "hep-th/0601001"),
+        ("paper", "hep-th/0612001"),
+        ("paper", "math/0301234"),
+        ("paper", "physics/0601001"),
+        ("paper", "cs/0303020"),
+        ("paper", "nlin/0101001"),
+        ("paper", "stat/0501001"),
+        ("paper", "10.1103/PhysRevD.100.026003"),
+        ("paper", "10.1007/JHEP12(2020)155"),
     ],
 )
 def test_collect_plan_contract_integrity_errors_accepts_concrete_must_surface_reference_locator(
@@ -3340,6 +3369,9 @@ def test_collect_plan_contract_integrity_errors_accepts_non_reference_grounding_
     [
         ("paper", "Author et al., Journal, 2024"),
         ("other", "Einstein, Annalen der Physik, 1905"),
+        ("paper", "hep-th/0603001"),
+        ("paper", "10.1103/PhysRevD.100.026003"),
+        ("paper", "math/0301234"),
     ],
 )
 def test_validate_project_contract_approved_mode_accepts_concrete_must_surface_reference_locator(

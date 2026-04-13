@@ -385,6 +385,13 @@ _PLAN_REFERENCE_LOCATOR_PLACEHOLDER_PATTERNS: tuple[re.Pattern[str], ...] = (
 _PLAN_CITATION_LOCATOR_YEAR_PATTERN = re.compile(r"\b(?:18|19|20)\d{2}\b")
 _PLAN_REFERENCE_LOCATOR_CONCRETE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(?:doi\s*[:/]|https?://(?:doi\.org/|arxiv\.org/abs/)|arxiv\s*:)\S+"),
+    re.compile(r"^\d{2}(?:0[1-9]|1[0-2])\.\d{4,5}(?:v\d+)?$"),
+    # Old-style arXiv ID: archive/YYMMNNN. Bare archives (math, physics, cs,
+    # nlin, stat) are whitelisted explicitly; all other archives require a
+    # separator (hep-th, cond-mat, math.DG, etc.). econ and eess are included
+    # defensively (created post-2007, never had old-style IDs).
+    re.compile(r"^(?:(?:math|physics|cs|nlin|stat|econ|eess)|[a-z][a-z0-9]*(?:[-.][a-z][a-z0-9]*)+)/\d{2}(?:0[1-9]|1[0-2])\d{3}(?:v\d+)?$"),
+    re.compile(r"^10\.\d{4,9}/\S+$"),
 )
 _PLAN_GROUNDING_TEXT_DIRECT_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^\s*(?:need(?:s)? grounding|grounding needed)\s*$"),
@@ -467,7 +474,7 @@ def _is_project_artifact_path(value: str, *, project_root: Path | None = None) -
         return False
 
     if project_root is None:
-        if any(pattern.search(candidate) for pattern in _PLAN_REFERENCE_LOCATOR_CONCRETE_PATTERNS):
+        if any(pattern.search(candidate.casefold()) for pattern in _PLAN_REFERENCE_LOCATOR_CONCRETE_PATTERNS):
             return False
         return _looks_like_project_artifact_path(candidate)
 
