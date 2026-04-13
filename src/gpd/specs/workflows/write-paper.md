@@ -1,5 +1,4 @@
 
-INIT=$(gpd --raw init phase-op --include config)
 <purpose>
 Structure and write a physics paper from completed research results. Handles the full pipeline from outline through polished draft: section planning, equation presentation, figure integration, narrative flow, and internal consistency verification.
 

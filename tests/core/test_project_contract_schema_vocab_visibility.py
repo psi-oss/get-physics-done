@@ -26,6 +26,7 @@ STATE_JSON_SCHEMA = REPO_ROOT / "src/gpd/specs/templates/state-json-schema.md"
 GROUNDING_LINKAGE = REPO_ROOT / "src/gpd/specs/templates/project-contract-grounding-linkage.md"
 EXECUTE_PLAN_WORKFLOW = REPO_ROOT / "src/gpd/specs/workflows/execute-plan.md"
 EXECUTE_PHASE_WORKFLOW = REPO_ROOT / "src/gpd/specs/workflows/execute-phase.md"
+VERIFY_WORK_WORKFLOW = REPO_ROOT / "src/gpd/specs/workflows/verify-work.md"
 
 
 def _read(path: Path) -> str:
@@ -167,3 +168,12 @@ def test_execute_phase_workflow_surfaces_hard_schema_before_process() -> None:
     assert text.index("<hard_schema_visibility_guard>") < text.index("<process>")
     assert "contract-results-schema.md" in text
     assert "delegating to a subagent" in text
+
+
+def test_verify_work_workflow_surfaces_hard_schema_before_process() -> None:
+    text = _read(VERIFY_WORK_WORKFLOW)
+
+    assert "<hard_schema_visibility_guard>" in text
+    assert "<process>" in text
+    assert text.index("<hard_schema_visibility_guard>") < text.index("<process>")
+    assert "project-contract-schema.md" in text

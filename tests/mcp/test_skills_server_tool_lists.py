@@ -251,7 +251,7 @@ def test_get_skill_command_surfaces_spawn_contract_sidecar_without_content_injec
         {
             "agent": "gpd-notation-coordinator",
             "shared_state_policy": "return_only",
-            "write_scope": {"mode": "scoped_write", "paths": ["GPD/CONVENTIONS.md"]},
+            "write_scope": {"mode": "scoped_write", "allowed_paths": ["GPD/CONVENTIONS.md"]},
             "expected_artifacts": ["GPD/CONVENTIONS.md"],
         },
     )
@@ -375,7 +375,7 @@ def test_get_skill_index_surfaces_spawn_contract_presence_sidecar() -> None:
             {
                 "agent": "gpd-notation-coordinator",
                 "shared_state_policy": "return_only",
-                "write_scope": {"mode": "scoped_write", "paths": ["GPD/CONVENTIONS.md"]},
+                "write_scope": {"mode": "scoped_write", "allowed_paths": ["GPD/CONVENTIONS.md"]},
                 "expected_artifacts": ["GPD/CONVENTIONS.md"],
             },
         ),

@@ -27,7 +27,7 @@ Unlike `gpd-project-researcher`, which surveys the full domain, you research the
 | Output | Domain `SUMMARY.md` | Phase `RESEARCH.md` |
 | Consumer | `gpd-roadmapper` | `gpd-planner` |
 
-**CRITICAL: Read project-level literature first.** Before phase-specific research, read `GPD/literature/SUMMARY.md` and any project-level `METHODS.md` / `PITFALLS.md`. Build on existing findings. Do not re-derive what the project researcher already established.
+**CRITICAL: Read project-level literature first.** Before phase-specific research, read `GPD/literature/SUMMARY.md`, `GPD/literature/METHODS.md`, and `GPD/literature/PITFALLS.md`. Build on existing findings. Do not re-derive what the project researcher already established.
 
 Spawned by the plan-phase orchestrator or the standalone `research-phase` command.
 
@@ -35,7 +35,7 @@ Research mode is workflow-owned. Do not query config or reread `init.json` from 
 
 **Core responsibilities:**
 
-- Read project-level research files first (`SUMMARY.md`, `METHODS.md`, `PITFALLS.md`).
+- Read project-level literature files first (`GPD/literature/SUMMARY.md`, `GPD/literature/METHODS.md`, `GPD/literature/PITFALLS.md`).
 - Investigate the phase's physics domain: mathematical techniques, established results, computational methods.
 - Identify standard approaches, key equations, approximation schemes, and known difficulties.
 - Survey literature just enough to support planning: review articles, textbooks, seminal papers, known solutions.
@@ -343,7 +343,7 @@ If no direct literature exists, use the nearest solved problem as scaffolding, k
 
 ## Step 1: Gather context
 
-- The orchestrator shares the phase number/name, description, goals, constraints, and output path. Before adding new findings, read any existing `$PHASE_DIR/*-RESEARCH.md` and the project-level `GPD/literature/SUMMARY.md`, `METHODS.md`, and `PITFALLS.md` files to avoid repeating work.
+- The orchestrator shares the phase number/name, description, goals, constraints, and output path. Before adding new findings, read any existing `$PHASE_DIR/*-RESEARCH.md` and the project-level `GPD/literature/SUMMARY.md`, `GPD/literature/METHODS.md`, and `GPD/literature/PITFALLS.md` files to avoid repeating work.
 - Load every `CONTEXT.md` or `*-CONTEXT.md` file: they list locked decisions, discretionary guidance, and deferred ideas. Treat the contract-critical anchors they describe as binding and do not research alternatives to those locked decisions. Keep the provided anchors and known good baselines visible while working.
 - Use the active reference context that the orchestrator supplies. Those anchors and benchmarks are mandatory inputs rather than optional background material. Avoid re-reading config or init files from inside this agent; they are out of scope.
 

@@ -171,7 +171,8 @@ def test_write_paper_init_uses_paper_bootstrap_stage() -> None:
     )
 
     assert any(stage["id"] == "paper_bootstrap" for stage in manifest["stages"])
-    assert "gpd --raw init write-paper --stage paper_bootstrap --include config" in workflow
+    assert workflow.count("gpd --raw init write-paper --stage paper_bootstrap --include config") == 1
+    assert "INIT=$(gpd --raw init phase-op --include config)" not in workflow
 
 
 def test_plan_phase_authoring_stage_declines_legacy_routing() -> None:

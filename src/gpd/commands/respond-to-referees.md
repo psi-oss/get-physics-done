@@ -56,8 +56,7 @@ The workflow resolves the manuscript root, staged review artifacts, and revision
 </context>
 
 <process>
-Follow `@{GPD_INSTALL_DIR}/workflows/respond-to-referees.md` exactly.
-Read the workflow referenced in `<execution_context>` with `file_read` first.
+Read the workflow referenced in `<execution_context>` with `file_read` first, then follow it exactly.
 </process>
 
 <success_criteria>

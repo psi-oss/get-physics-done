@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from gpd.adapters.install_utils import expand_at_includes
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_DIR = REPO_ROOT / "src" / "gpd" / "agents"
 TEMPLATES_DIR = REPO_ROOT / "src" / "gpd" / "specs" / "templates"
@@ -17,10 +19,20 @@ ISSUE_04_TERMINAL_SECTION_CASES = [
     ("src/gpd/specs/workflows/execute-phase.md", "</resumption>"),
     ("src/gpd/commands/new-project.md", "</output>"),
 ]
+ISSUE_04_PREFIX_HYGIENE_CASES = [
+    ("src/gpd/specs/workflows/write-paper.md", "<purpose>"),
+    ("src/gpd/specs/workflows/plan-phase.md", "<purpose>"),
+    ("src/gpd/specs/workflows/execute-phase.md", "<purpose>"),
+    ("src/gpd/specs/workflows/verify-work.md", "<purpose>"),
+]
 
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def _expand(path: Path) -> str:
+    return expand_at_includes(_read(path), REPO_ROOT / "src/gpd/specs", "/runtime/")
 
 
 def _tail_after_terminal_marker(content: str, marker: str) -> str:
@@ -61,11 +73,32 @@ def test_issue_04_prompt_sources_end_at_terminal_sections(
     terminal_marker: str,
 ) -> None:
     content = _read(REPO_ROOT / relative_path)
+    assert content.count(terminal_marker) == 1, f"{relative_path} must contain {terminal_marker!r} exactly once"
     live_tail = _tail_after_terminal_marker(content, terminal_marker).strip()
     assert not live_tail, (
         f"{relative_path} leaks model-visible trailing content after "
         f"{terminal_marker!r}: {live_tail[:120]!r}"
     )
+
+
+@pytest.mark.parametrize(("relative_path", "expected_prefix"), ISSUE_04_PREFIX_HYGIENE_CASES)
+def test_issue_04_prompt_sources_start_at_first_top_level_block_after_optional_blank_lines(
+    relative_path: str,
+    expected_prefix: str,
+) -> None:
+    content = _read(REPO_ROOT / relative_path)
+    assert content.lstrip().startswith(expected_prefix), (
+        f"{relative_path} should begin with {expected_prefix!r} after optional blank lines, "
+        f"found {content.lstrip()[:120]!r}"
+    )
+
+
+def test_verify_work_expanded_workflow_ends_at_terminal_success_criteria() -> None:
+    content = _expand(REPO_ROOT / "src/gpd/specs/workflows/verify-work.md")
+    terminal_marker = "</success_criteria>"
+
+    assert content.count(terminal_marker) == 1
+    assert not _tail_after_terminal_marker(content, terminal_marker).strip()
 
 
 def test_project_researcher_shared_infrastructure_stays_outside_structured_returns() -> None:

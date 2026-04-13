@@ -56,7 +56,7 @@ On-demand references:
 
 **Core responsibilities:**
 
-- **FIRST: Parse and honor user decisions from CONTEXT.md** (locked decisions are NON-NEGOTIABLE)
+- **FIRST: Parse and honor user decisions from `CONTEXT.md` or any `*-CONTEXT.md` file** (locked decisions are NON-NEGOTIABLE)
 - Decompose phases into small, parallel-optimized plans with explicit verification steps.
 - Keep decisive outputs, anchors, forbidden proxies, and uncertainty markers explicit in every plan.
 - Use selected protocol bundle context for specialized guidance without hardcoding topic names into plan logic.

@@ -23,6 +23,7 @@ from gpd.registry import (
     _parse_agent_file,
     _parse_command_file,
     _parse_frontmatter,
+    _parse_spawn_contract_block,
     _parse_tools,
     _RegistryCache,
     load_agents_from_dir,
@@ -49,6 +50,22 @@ def _write_review_contract_command(tmp_path: Path, file_name: str, review_contra
         "  schema_version: 1\n"
         f"{review_contract_body}"
         "---\n"
+        "Body.",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_spawn_contract_command(tmp_path: Path, file_name: str, spawn_contract_body: str) -> Path:
+    """Write a minimal command file with a configurable spawn-contract body."""
+    path = tmp_path / file_name
+    path.write_text(
+        "---\n"
+        "name: gpd:test-spawn-contract\n"
+        "---\n"
+        "<spawn_contract>\n"
+        f"{spawn_contract_body}"
+        "</spawn_contract>\n"
         "Body.",
         encoding="utf-8",
     )
@@ -1330,6 +1347,124 @@ class TestEncodingEdgeCases:
         with pytest.raises(UnicodeDecodeError):
             _parse_command_file(f, source="commands")
 
+
+class TestSpawnContractParsing:
+    """Tests for spawn-contract parsing and validation."""
+
+    def test_parse_spawn_contract_block_rejects_invalid_write_scope_mode(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: shared_write\n"
+            "  allowed_paths:\n"
+            "    - GPD/CONVENTIONS.md\n"
+            "expected_artifacts:\n"
+            "  - GPD/CONVENTIONS.md\n"
+            "shared_state_policy: return_only\n"
+        )
+
+        with pytest.raises(ValueError, match=r"write_scope\.mode.*shared_write"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_parse_spawn_contract_block_rejects_invalid_shared_state_policy(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: scoped_write\n"
+            "  allowed_paths:\n"
+            "    - GPD/CONVENTIONS.md\n"
+            "expected_artifacts:\n"
+            "  - GPD/CONVENTIONS.md\n"
+            "shared_state_policy: shared\n"
+        )
+
+        with pytest.raises(ValueError, match=r"shared_state_policy.*shared"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_parse_spawn_contract_block_rejects_empty_allowed_paths(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: scoped_write\n"
+            "  allowed_paths:\n"
+            "expected_artifacts:\n"
+            "  - GPD/CONVENTIONS.md\n"
+            "shared_state_policy: return_only\n"
+        )
+
+        with pytest.raises(ValueError, match=r"write_scope\.allowed_paths must be a non-empty list"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_parse_spawn_contract_block_rejects_blank_allowed_path_members(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: scoped_write\n"
+            "  allowed_paths:\n"
+            "    -   \n"
+            "expected_artifacts:\n"
+            "  - GPD/CONVENTIONS.md\n"
+            "shared_state_policy: return_only\n"
+        )
+
+        with pytest.raises(ValueError, match=r"write_scope\.allowed_paths must contain non-empty strings"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_parse_spawn_contract_block_rejects_empty_expected_artifacts(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: scoped_write\n"
+            "  allowed_paths:\n"
+            "    - GPD/CONVENTIONS.md\n"
+            "expected_artifacts:\n"
+            "shared_state_policy: return_only\n"
+        )
+
+        with pytest.raises(ValueError, match=r"expected_artifacts must be a non-empty list"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_parse_spawn_contract_block_rejects_blank_expected_artifact_members(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: scoped_write\n"
+            "  allowed_paths:\n"
+            "    - GPD/CONVENTIONS.md\n"
+            "expected_artifacts:\n"
+            "  -   \n"
+            "shared_state_policy: return_only\n"
+        )
+
+        with pytest.raises(ValueError, match=r"expected_artifacts must contain non-empty strings"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_parse_spawn_contract_block_rejects_return_only_with_direct_write_scope(self) -> None:
+        block = (
+            "write_scope:\n"
+            "  mode: direct\n"
+            "  allowed_paths:\n"
+            "    - GPD/STATE.md\n"
+            "expected_artifacts:\n"
+            "  - GPD/STATE.md\n"
+            "shared_state_policy: return_only\n"
+        )
+
+        with pytest.raises(ValueError, match=r"shared_state_policy 'return_only' requires write_scope\.mode 'scoped_write'"):
+            _parse_spawn_contract_block(block, owner_name="test-owner")
+
+    def test_command_file_invalid_spawn_contract_reports_file_context(self, tmp_path: Path) -> None:
+        f = _write_spawn_contract_command(
+            tmp_path,
+            "bad-spawn-contract.md",
+            "write_scope:\n"
+            "  mode: scoped_write\n"
+            "  allowed_paths:\n"
+            "expected_artifacts:\n"
+            "  - GPD/CONVENTIONS.md\n"
+            "shared_state_policy: return_only\n",
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid spawn-contract in .*bad-spawn-contract\.md.*write_scope\.allowed_paths must be a non-empty list",
+        ):
+            _parse_command_file(f, source="commands")
+
     def test_agent_file_utf8_with_bom(self, tmp_path: Path) -> None:
         f = tmp_path / "bom-agent.md"
         f.write_bytes(b"\xef\xbb\xbf---\nname: bom-test\n---\nBody.")
@@ -2137,6 +2272,8 @@ class TestPublicAPI:
             "direct",
         }
         assert {contract["write_scope"]["mode"] for contract in command.spawn_contracts} == {"scoped_write"}
+        assert all(contract["write_scope"]["allowed_paths"] for contract in command.spawn_contracts)
+        assert all("paths" not in contract["write_scope"] for contract in command.spawn_contracts)
 
     def test_get_command_new_milestone_surfaces_roadmapper_handoff(self) -> None:
         registry.invalidate_cache()

@@ -11,6 +11,30 @@ def _read_template(name: str) -> str:
     return (TEMPLATES_DIR / name).read_text(encoding="utf-8")
 
 
+def _gpd_return_block(source: str) -> str:
+    return source.split("gpd_return:\n", 1)[1].split("```", 1)[0]
+
+
+def _top_level_keys(block: str) -> list[str]:
+    return [
+        line.strip().split(":", 1)[0]
+        for line in block.splitlines()
+        if line.startswith("  ") and not line.startswith("    ") and ":" in line and not line.lstrip().startswith("#")
+    ]
+
+
+def _extension_keys(block: str) -> list[str]:
+    extension_keys: list[str] = []
+    in_extensions = False
+    for line in block.splitlines():
+        if line.startswith("  ") and not line.startswith("    "):
+            in_extensions = line.strip() == "extensions:"
+            continue
+        if in_extensions and line.startswith("    ") and ":" in line and not line.lstrip().startswith("#"):
+            extension_keys.append(line.strip().split(":", 1)[0])
+    return extension_keys
+
+
 def test_plan_contract_schema_surfaces_defaultable_semantic_fields_and_hard_constraints() -> None:
     plan_schema = _read_template("plan-contract-schema.md")
 
@@ -132,6 +156,9 @@ def test_planner_and_checker_examples_surface_concrete_contract_anchors() -> Non
 
 def test_plan_checker_prompt_surfaces_direct_schema_visibility_and_read_only_authority() -> None:
     checker_prompt = (AGENTS_DIR / "gpd-plan-checker.md").read_text(encoding="utf-8")
+    envelope = _gpd_return_block(checker_prompt)
+    top_level_keys = _top_level_keys(envelope)
+    extension_keys = _extension_keys(envelope)
 
     assert checker_prompt.count("@{GPD_INSTALL_DIR}/templates/plan-contract-schema.md") >= 2
     assert "{GPD_INSTALL_DIR}/references/shared/shared-protocols.md" in checker_prompt
@@ -145,6 +172,10 @@ def test_plan_checker_prompt_surfaces_direct_schema_visibility_and_read_only_aut
     assert "GPD/phases/00-baseline/00-01-SUMMARY.md#gauge-unit-and-notation-conventions" in checker_prompt
     assert "GPD/phases/00-baseline/00-01-SUMMARY.md#gauge-and-tensor-convention" in checker_prompt
     assert "GPD/phases/01-vacuum-polarization/01-01-SUMMARY.md" in checker_prompt
+    assert top_level_keys[:4] == ["status", "files_written", "issues", "next_actions"]
+    assert {"approved_plans", "blocked_plans"}.issubset(set(top_level_keys) | set(extension_keys))
+    assert ("approved_plans" in top_level_keys) == ("blocked_plans" in top_level_keys)
+    assert ("approved_plans" in extension_keys) == ("blocked_plans" in extension_keys)
 
 
 def test_phase_prompt_surfaces_default_salvage_and_hard_plan_requirements() -> None:

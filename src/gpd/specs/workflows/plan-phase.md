@@ -1,4 +1,3 @@
-Parse JSON for: `project_contract_gate`.
 <purpose>
 Create executable phase prompts (PLAN.md files) for a research phase with integrated literature review and verification. Default flow: Research (if needed) -> Plan -> Verify -> Done. Orchestrates gpd-phase-researcher, gpd-planner, and gpd-plan-checker agents with a revision loop (max 3 iterations).
 </purpose>

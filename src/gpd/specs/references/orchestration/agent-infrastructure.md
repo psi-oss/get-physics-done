@@ -226,17 +226,17 @@ Keep these axes separate:
 - `write_scope`: which paths the subagent may write for this handoff
 - `shared_state_policy`: whether canonical shared state is written directly or returned for orchestrator application
 
-Canonical prompt fields for spawned tasks:
+Canonical prompt fields for spawned tasks use concrete values. For the full field semantics and validation rules, follow `references/orchestration/agent-delegation.md`.
 
 ```markdown
 <spawn_contract>
 write_scope:
-  mode: scoped_write | direct
+  mode: scoped_write
   allowed_paths:
     - relative/path/owned/by/this/agent
 expected_artifacts:
   - relative/path/to/verify
-shared_state_policy: return_only | direct
+shared_state_policy: return_only
 </spawn_contract>
 ```
 

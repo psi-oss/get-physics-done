@@ -1083,8 +1083,8 @@ def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, obj
                 if nested == "allowed_paths:":
                     index += 1
                     allowed_paths: list[str] = []
-                    while index < len(lines) and lines[index].startswith("    - "):
-                        allowed_paths.append(lines[index].split("- ", 1)[1].strip())
+                    while index < len(lines) and re.match(r"^ {4}-(?: |$)", lines[index]):
+                        allowed_paths.append(lines[index].split("-", 1)[1].strip())
                         index += 1
                     write_scope["allowed_paths"] = allowed_paths
                     continue
@@ -1094,8 +1094,8 @@ def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, obj
         if line == "expected_artifacts:":
             index += 1
             expected_artifacts: list[str] = []
-            while index < len(lines) and lines[index].startswith("  - "):
-                expected_artifacts.append(lines[index].split("- ", 1)[1].strip())
+            while index < len(lines) and re.match(r"^ {2}-(?: |$)", lines[index]):
+                expected_artifacts.append(lines[index].split("-", 1)[1].strip())
                 index += 1
             contract["expected_artifacts"] = expected_artifacts
             continue
@@ -1111,6 +1111,41 @@ def _parse_spawn_contract_block(block: str, *, owner_name: str) -> dict[str, obj
         raise ValueError(f"spawn-contract for {owner_name}: missing expected_artifacts")
     if "shared_state_policy" not in contract:
         raise ValueError(f"spawn-contract for {owner_name}: missing shared_state_policy")
+
+    write_scope = contract["write_scope"]
+    mode = write_scope.get("mode")
+    if mode not in {"scoped_write", "direct"}:
+        raise ValueError(
+            f"spawn-contract for {owner_name}: write_scope.mode must be one of "
+            f"'scoped_write' or 'direct'; got {mode!r}"
+        )
+
+    allowed_paths = write_scope.get("allowed_paths")
+    if not isinstance(allowed_paths, list) or not allowed_paths:
+        raise ValueError(f"spawn-contract for {owner_name}: write_scope.allowed_paths must be a non-empty list")
+    if any(not isinstance(path, str) or not path.strip() for path in allowed_paths):
+        raise ValueError(
+            f"spawn-contract for {owner_name}: write_scope.allowed_paths must contain non-empty strings"
+        )
+
+    expected_artifacts = contract["expected_artifacts"]
+    if not isinstance(expected_artifacts, list) or not expected_artifacts:
+        raise ValueError(f"spawn-contract for {owner_name}: expected_artifacts must be a non-empty list")
+    if any(not isinstance(path, str) or not path.strip() for path in expected_artifacts):
+        raise ValueError(f"spawn-contract for {owner_name}: expected_artifacts must contain non-empty strings")
+
+    shared_state_policy = contract["shared_state_policy"]
+    if shared_state_policy not in {"return_only", "direct"}:
+        raise ValueError(
+            f"spawn-contract for {owner_name}: shared_state_policy must be one of "
+            f"'return_only' or 'direct'; got {shared_state_policy!r}"
+        )
+    if shared_state_policy == "return_only" and mode != "scoped_write":
+        raise ValueError(
+            f"spawn-contract for {owner_name}: shared_state_policy 'return_only' requires "
+            f"write_scope.mode 'scoped_write'; got {mode!r}"
+        )
+
     return contract
 
 
@@ -1281,7 +1316,10 @@ def _parse_command_file(path: Path, source: str, *, slug: str | None = None) -> 
         allowed_tools=allowed_tools,
         requires=requires,
     )
-    spawn_contracts = _parse_spawn_contracts(content, owner_name=command_name)
+    try:
+        spawn_contracts = _parse_spawn_contracts(content, owner_name=command_name)
+    except ValueError as exc:
+        raise ValueError(f"Invalid spawn-contract in {path}: {exc}") from exc
 
     return CommandDef(
         name=command_name,

@@ -341,6 +341,20 @@ ISSUE_4_ABSENT_SURFACE_FRAGMENTS = (
     ),
     (
         "command",
+        "plan-phase",
+        (
+            "Parse JSON for: `project_contract_gate`.",
+        ),
+    ),
+    (
+        "command",
+        "new-project",
+        (
+            "Before drafting or repairing the scoping contract, The workflow owns",
+        ),
+    ),
+    (
+        "command",
         "derive-equation",
         ("First, read {GPD_AGENTS_DIR}/gpd-check-proof.md for your role and instructions.",),
     ),
@@ -2202,6 +2216,11 @@ def test_execute_phase_workflow_surfaces_project_contract_validation_gate() -> N
     assert "project_contract_validation" in execute_workflow
     assert "project_contract_load_info" in execute_workflow
     assert "visible-but-blocked contract as an approved execution contract" in execute_workflow
+    assert (
+        "Treat `project_contract` as the authoritative machine-readable execution contract only when "
+        "`project_contract_gate.authoritative` is true."
+    ) in execute_workflow
+    assert "Treat `project_contract` as the authoritative machine-readable execution contract only when `Parse JSON for:" not in execute_workflow
 
 
 def test_execute_phase_and_execute_plan_use_staged_execution_bootstrap_instead_of_monolithic_init() -> None:

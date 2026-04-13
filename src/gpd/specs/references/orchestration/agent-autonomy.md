@@ -18,9 +18,11 @@ Autonomy (`GPD/config.json.autonomy`) changes decision boundaries, not correctne
 
 | Mode | When to Use | Decision Behavior | Checkpoint Handling |
 |---|---|---|---|
-| **supervised** | New projects or high-stakes work | User approves every decision; agent waits at every checkpoint | Checkpoints after every task or physics choice |
-| **balanced** | Standard research | Agent can make routine decisions but pausing for blockers | Standard physics checkpoints with automatic progress |
-| **yolo** | Rapid exploratory or toy workloads | Agent can act autonomously but must still honor correctness gates | Checkpoints only for physics failures or blockers |
+| **supervised** | New projects or high-stakes work | User approves scope-changing decisions and explicit review-stop outcomes; correctness gates still run exactly as usual | Stop at required review gates and user-visible decisions |
+| **balanced** | Standard research | Agent can make routine decisions and auto-continue on clean passes, but must pause for blockers, unresolved review stops, or scope-changing choices | Standard physics checkpoints remain active; clean gates may continue automatically |
+| **yolo** | Rapid exploratory or toy workloads | Agent may auto-continue on clean passes, but it must never skip correctness, first-result, skeptical, or pre-fanout gates | Stop only on blockers, failed required gates, or unresolved review stops; a gate may auto-continue only after it is explicitly cleared |
+
+Autonomy never changes delegation semantics. Spawned agents remain one-shot handoffs: if a child run needs user input, it returns a checkpoint and the wrapper starts a fresh continuation instead of keeping the same child alive.
 
 ## Autonomy-Aware Plan Checking
 
@@ -32,13 +34,13 @@ Plan checking runs with the same contract, anchor, and verification rigor regard
 
 ## Tangent Control Model
 
-When a tangent arises (a legitimate alternative path), never silently branch. Resolve it with one of four outcomes:
-1. `checkpoint:human-verify` when the tangent needs human input.
-2. `checkpoint:decision` when a choice must be made about the tangent.
-3. `checkpoint:defer` when the tangent is postponed but still relevant.
-4. `checkpoint:complete` when tangents are resolved within the same handoff.
+When a tangent arises (a legitimate alternative path), do not silently pursue it. Treat it as a proposal and classify it with exactly one of these four decisions:
+1. `ignore` — not a real tangent; continue the approved mainline plan.
+2. `defer` — record it briefly for later follow-up, then continue the mainline plan.
+3. `branch_later` — recommend `gpd:tangent ...` or `gpd:branch-hypothesis ...` as explicit follow-up, but do not create new side work during the current pass.
+4. `pursue_now` — only when the user explicitly requested tangent exploration or the approved contract already includes that alternative path.
 
-Report the chosen outcome before moving forward.
+This is proposal-first, not a new execution state machine. Tangent proposals ride on existing bounded review stops such as first-result, skeptical, or pre-fanout review.
 
 ## Research Modes
 
@@ -46,10 +48,10 @@ Research mode (`GPD/config.json.research_mode`) governs how tangents are handled
 
 | Mode | Execution Style |
 |---|---|
-| **explore** | Surface alternatives as proposals; use the 4-way tangent model before branching.
-| **balanced** | Stick to the plan unless a tangent reaches proposal status; document deviations.
-| **exploit** | Suppress optional tangents unless explicitly requested; keep focus on contract progress.
-| **adaptive** | Start in explore mode, then switch to exploit-style suppression once a decisive path is validated, and document the shift.
+| **explore** | Surface alternatives as tangent proposals and classify each one as `ignore | defer | branch_later | pursue_now` before branching. |
+| **balanced** | Stick to the plan unless a tangent survives proposal review; document deviations instead of silently widening scope. |
+| **exploit** | Suppress optional tangents by default; prefer `ignore` or `defer` unless the user or approved contract explicitly asks for tangent exploration. |
+| **adaptive** | Start in explore mode, then switch to exploit-style suppression once a decisive path is validated, and document when the shift happens. |
 
 ## Operator Reference
 

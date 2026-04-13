@@ -17,6 +17,8 @@ For contract-backed verification and summary outputs, reload `@{GPD_INSTALL_DIR}
 Keep project-contract and plan-contract hard-schema fields model-visible before execution decisions, including before delegating to a subagent.
 </hard_schema_visibility_guard>
 
+The shared runtime-delegation note loaded above applies to every real `task(...)` handoff in this workflow unless a later step adds stricter artifact gates or narrower child-specific requirements.
+
 <process>
 
 <step name="initialize" priority="first">
@@ -48,7 +50,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-Parse the bootstrap JSON fields used below: execution config, phase metadata, plan lists/counts, state/roadmap flags, project-contract gate/validation/load info, and platform.
+Parse the bootstrap JSON fields used below: execution config, phase metadata, plan lists/counts, state/roadmap flags, `project_contract_gate`, `project_contract_validation`, `project_contract_load_info`, and platform.
 
 **If `phase_found` is false:** Error -- phase directory not found.
 **If `plan_count` is 0:** Error -- no plans found in phase.
@@ -58,8 +60,7 @@ If `project_contract_load_info.status` starts with `blocked`, STOP and show the 
 
 If `project_contract_validation.valid` is false, STOP and show the explicit `project_contract_validation.errors` before execution. Do not treat a visible-but-blocked contract as an approved execution contract.
 
-Treat `project_contract` as the authoritative machine-readable execution contract only when `Parse JSON for: `project_contract_gate`.
-project_contract_gate.authoritative` is true.
+Treat `project_contract` as the authoritative machine-readable execution contract only when `project_contract_gate.authoritative` is true.
 Later staged refreshes surface `effective_reference_intake`, `active_reference_context`, and `reference_artifacts_content` for anchor-aware routing and wave planning. Stable knowledge docs may appear only through those shared reference surfaces as reviewed background; they do not become a separate authority tier. Do not assume bootstrap already loaded that broader reference context.
 Before launching any plan, require that the selected `PLAN.md` passes `gpd validate plan-preflight <PLAN.md>` when specialized tool requirements are declared.
 

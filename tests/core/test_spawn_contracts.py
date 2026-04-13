@@ -168,15 +168,6 @@ def _find_spawn_contract(
         and all(output in contract.get("expected_artifacts", []) for output in expected_outputs)
     ]
 
-    if not matches and expected_outputs:
-        matches = [
-            contract
-            for contract in _parse_spawn_contracts(text, owner_name=owner_name)
-            if contract.get("shared_state_policy") == shared_state_policy
-            and contract.get("expected_artifacts") == list(expected_outputs)
-            and contract.get("shared_state_policy") == shared_state_policy
-        ]
-
     assert matches, f"{owner_name} missing spawn_contract for expected_artifacts={expected_outputs!r}"
     assert len(matches) == 1, f"{owner_name} has ambiguous spawn_contracts for {expected_outputs!r}"
     return matches[0]
@@ -270,8 +261,6 @@ def test_agent_delegation_reference_defines_canonical_task_contract() -> None:
 
 def test_canonical_spawn_contract_reference_uses_nested_write_scope_shape() -> None:
     path = REFERENCES_DIR / "orchestration" / "agent-delegation.md"
-    if not path.exists():
-        path = REFERENCES_DIR / "orchestration" / "agent-infrastructure.md"
 
     contracts = list(_parse_spawn_contracts(_read(path), owner_name=path.relative_to(REPO_ROOT).as_posix()))
 
@@ -282,7 +271,7 @@ def test_canonical_spawn_contract_reference_uses_nested_write_scope_shape() -> N
         ("relative/path/to/verify",),
         ("relative/path/the/orchestrator/must_verify",),
     }
-    assert contract.get("shared_state_policy") in {"return_only", "return_only | direct"}
+    assert contract.get("shared_state_policy") == "return_only"
 
 
 def test_representative_workflows_keep_runtime_note_and_agent_prompt_bootstrap() -> None:

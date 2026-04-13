@@ -36,6 +36,13 @@ THIN_WORKFLOW_WRAPPERS = (
 )
 
 
+def _process_block(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    match = re.search(r"<process>(.*?)</process>", text, re.S)
+    assert match is not None, f"{path.relative_to(REPO_ROOT)} missing process block"
+    return match.group(1).strip()
+
+
 def test_model_facing_sources_do_not_keep_runtime_boilerplate_html_comments() -> None:
     for directory in MODEL_FACING_DIRS:
         for path in sorted(directory.glob("*.md")):
@@ -101,16 +108,20 @@ def test_standardized_thin_workflow_wrappers_stay_concise() -> None:
 
 
 def test_process_blocks_do_not_duplicate_workflow_paths() -> None:
-    process_block_re = re.compile(r"<process>(.*?)</process>", re.S)
     for path in sorted(COMMANDS_DIR.glob("*.md")):
-        text = path.read_text(encoding="utf-8")
-        match = process_block_re.search(text)
-        assert match is not None, f"{path.relative_to(REPO_ROOT)} missing process block"
-        process_text = match.group(1)
+        process_text = _process_block(path)
         if path.stem in THIN_WORKFLOW_WRAPPERS:
             assert "@{GPD_INSTALL_DIR}/workflows/" not in process_text, (
                 f"{path.relative_to(REPO_ROOT)} still duplicates workflow path in <process>"
             )
+
+
+def test_respond_to_referees_process_block_combines_read_then_follow_instruction() -> None:
+    process_text = _process_block(COMMANDS_DIR / "respond-to-referees.md")
+
+    assert process_text.startswith("Read the workflow referenced in `<execution_context>` with `file_read` first")
+    assert process_text.endswith("then follow it exactly.")
+    assert "Follow `@{GPD_INSTALL_DIR}/workflows/respond-to-referees.md` exactly." not in process_text
 
 
 def test_consistency_checker_uses_canonical_gpd_return_fields() -> None:

@@ -173,11 +173,14 @@ Approval checklist:
 
 - `project_contract` must be a JSON object whose `schema_version` is the integer `1`.
 - Hard-schema fields must be model-visible before validation: `scope.question`, non-empty `scope.in_scope`, `context_intake`, and `uncertainty_markers` are not inferred from prose.
-- Include at least one observable, claim, or deliverable.
+- Project contracts must include at least one observable, claim, or deliverable.
 - `scope.in_scope` must name at least one boundary or objective; `context_intake` must be a non-empty object whose anchor fields (`must_read_refs`, `must_include_prior_outputs`, `user_asserted_anchors`, `known_good_baselines`, `context_gaps`, `crucial_inputs`) keep concrete handles that can be re-found later. Placeholder-only text such as `TBD` or `unknown` does not satisfy grounding.
 - `context_intake`, `approach_policy`, and `uncertainty_markers` must each remain objects and never collapse to strings or lists.
 - `uncertainty_markers.weakest_anchors` and `uncertainty_markers.disconfirming_observations` must both be non-empty arrays.
-- When references appear before approval and grounding is still pending, at least one anchor must set `must_surface: true`. Each such reference needs a concrete `locator`, `applies_to[]` coverage, non-empty `required_actions[]`, and any project-local paths must resolve once `project_root` is available.
+- If `references[]` is present before approval and grounding is not already concrete, at least one reference must set `must_surface: true`.
+- Every `must_surface: true` reference needs a concrete `locator` and concrete `applies_to[]` coverage.
+- Project-local paths in `locator` or `applies_to[]` evidence must resolve when `project_root` is available.
+- References surfaced for approval still need non-empty `required_actions[]`.
 - Canonical IDs and other required string fields are trimmed before validation; trimmed blanks and whitespace-only duplicates are invalid.
 
 ### Closed Schema And List Shape
@@ -202,7 +205,8 @@ Treat a claim as proof-bearing whenever any of the following is true:
 - `observables[]` references a `proof_obligation`.
 
 When that applies, require:
-- `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, and `proof_deliverables` remain visible and non-empty.
+- proof-bearing claims must keep `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, and `proof_deliverables` visible.
+- Those proof fields must remain non-empty.
 - Do not collapse proof obligations into a generic claim statement.
 - `claims[].claim_kind` must use the closed vocabulary: `theorem | lemma | corollary | proposition | result | claim | other`.
 - Closed semantic enum fields use these exact lowercase literals:
@@ -219,6 +223,7 @@ When that applies, require:
 - `claims[].proof_deliverables[]` must be non-empty and reference declared deliverables.
 - `claims[].parameters[]`, `claims[].hypotheses[]`, and `claims[].conclusion_clauses[]` must each be non-empty.
 - `claims[].acceptance_tests[]` must include at least one proof-specific kind (`proof_hypothesis_coverage`, `proof_parameter_coverage`, `proof_quantifier_domain`, `claim_to_proof_alignment`, `lemma_dependency_closure`, or `counterexample_search`).
+- include an acceptance test with `kind: claim_to_proof_alignment`.
 - Include `kind: claim_to_proof_alignment` when the proof artifact must map the theorem-like claim to the named hypotheses, parameters, and conclusion clauses.
 - `claims[].quantifiers[]` is optional but, when present, must remain a list.
 
@@ -233,15 +238,3 @@ When you append a contract addendum for the `draft`, `approved`, or `proof` stag
 - `approved` addenda should summarize the approved scope, decisive anchors/baselines, and the deliverables or acceptance tests that carry the approval.
 - `proof` addenda should list the proof-specific claim, deliverables, acceptance tests, and metadata that justify the proof stage.
 Limit each addendum to a status label plus one or two short bullets so the schema remains the authoritative source of truth; use this template for the detailed fields.
-
-proof-bearing claims must keep `parameters`, `hypotheses`, `quantifiers`, `conclusion_clauses`, and `proof_deliverables` visible
-
-Project contracts must include at least one observable, claim, or deliverable.
-
-include an acceptance test with `kind: claim_to_proof_alignment`
-
-If `references[]` is present before approval and grounding is not already concrete, at least one reference must set `must_surface: true`.
-
-Every `must_surface: true` reference needs a concrete `locator` and concrete `applies_to[]` coverage
-
-Project-local paths in `locator` or `applies_to[]` evidence must resolve when `project_root` is available.

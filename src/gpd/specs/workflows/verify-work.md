@@ -15,13 +15,11 @@ The verifier agent owns contract-backed target construction, proof policy, compu
 
 @{GPD_INSTALL_DIR}/references/orchestration/runtime-delegation-note.md
 
-<process>
-
 <hard_schema_visibility_guard>
 Before repairing or re-emitting any `project_contract`, load `@{GPD_INSTALL_DIR}/templates/project-contract-schema.md` and keep its compact Hard-schema capsule visible; do not restate or fork the schema text here.
 </hard_schema_visibility_guard>
 
-Guardrails: visible-but-blocked contract must be repaired before it is used as authoritative verification scope; repair visible-but-blocked contracts before treating them as authoritative, preserve the same contract-critical floor at all times, and Do NOT skip contract-critical anchors.
+<process>
 
 <step name="check_type_selection">
 ## Check Type Selection
@@ -50,7 +48,7 @@ fi
 
 Parse the init JSON for the wrapper-facing fields only: `planner_model`, `checker_model`, `verifier_model`, `commit_docs`, `autonomy`, `research_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `has_validation`, `phase_proof_review_status`, `project_contract`, `project_contract_validation`, `project_contract_load_info`, `project_contract_gate`, `contract_intake`, `effective_reference_intake`, `active_reference_context`, `selected_protocol_bundle_ids`, `protocol_bundle_context`, `protocol_bundle_verifier_extensions`.
 
-After parsing init, preserve these contract-critical fields as the wrapper's floor for every delegation and repair route: `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `contract_intake`, and `effective_reference_intake`. Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth. Do not skip contract-critical anchors.
+After parsing init, preserve these contract-critical fields as the wrapper's floor for every delegation and repair route: `project_contract_gate`, `project_contract_load_info`, `project_contract_validation`, `contract_intake`, and `effective_reference_intake`. Preserve the same contract-critical floor at all times. A visible-but-blocked contract must be repaired before it is used as authoritative verification scope. Treat `project_contract` as authoritative only when `project_contract_gate.authoritative` is true. Treat `effective_reference_intake` as the structured source of carry-forward anchors; `active_reference_context` is the readable projection, not the source of truth. Do NOT skip contract-critical anchors.
 
 **Project Contract Gate:** {project_contract_gate}
 **Project Contract Load Info:** {project_contract_load_info}

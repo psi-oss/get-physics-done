@@ -44,7 +44,7 @@ If no project config exists yet, start with physics questioning, surface a prese
 Follow the workflow file exactly before proceeding.
 Read the workflow referenced in `<execution_context>` with `file_read` first.
 
-**Scoping contract visibility:** Before drafting or repairing the scoping contract, The workflow owns the `project-contract-schema.md` and `project-contract-grounding-linkage.md` details. Preserve decisive outputs, anchors, and roadmap generation inputs, and require one explicit scope approval before downstream generation.
+**Scoping contract visibility:** Before drafting or repairing the scoping contract, let the workflow own the `project-contract-schema.md` and `project-contract-grounding-linkage.md` details. Preserve decisive outputs, anchors, and roadmap generation inputs, and require one explicit scope approval before downstream generation.
 
 **Next-step prompt:** After roadmap creation, ask exactly: "Discuss phase 1 now?"
 

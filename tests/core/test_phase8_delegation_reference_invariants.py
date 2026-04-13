@@ -67,7 +67,10 @@ def test_agent_delegation_spawn_contract_example_uses_nested_write_scope() -> No
     assert len(contracts) == 1
     write_scope = contracts[0]["write_scope"]
     assert isinstance(write_scope, dict)
-    assert write_scope["allowed_paths"]
+    assert write_scope["mode"] == "scoped_write"
+    assert write_scope["allowed_paths"] == ["relative/path/owned/by/this/agent"]
+    assert contracts[0]["expected_artifacts"] == ["relative/path/to/verify"]
+    assert contracts[0]["shared_state_policy"] == "return_only"
 
 
 def test_runtime_delegation_note_reuses_the_same_one_shot_and_artifact_language() -> None:
