@@ -544,6 +544,7 @@ class StatePatchResult(BaseModel):
 
     updated: list[str] = Field(default_factory=list)
     failed: list[str] = Field(default_factory=list)
+    failure_reasons: dict[str, str] = Field(default_factory=dict)
 
 
 class AdvancePlanResult(BaseModel):
@@ -3897,7 +3898,7 @@ def state_update(cwd: Path, field: str, value: str) -> StateUpdateResult:
         content = _load_or_rebuild_state_markdown_locked(cwd)
         if content is None:
             return StateUpdateResult(updated=False, reason="STATE.md not found")
-        field_norm = field.replace("_", " ")
+        field_norm = field.replace("_", " ")  # TODO(FULL-017): Apply dot-notation stripping here too
 
         # Validate state transitions
         if field_norm.lower() == "status":
@@ -3932,13 +3933,66 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
             )
         updated: list[str] = []
         failed: list[str] = []
+        failure_reasons: dict[str, str] = {}
+
+        # Session Continuity fields are non-authoritative mirrors in STATE.md —
+        # save_state_markdown_locked() regenerates this section from state.json,
+        # so patching these fields via markdown replacement is silently a no-op.
+        # Keep in sync with generate_state_markdown() L2716-2724.
+        _session_mirror = frozenset({
+            "last session", "stopped at", "resume file",
+            "last result id", "hostname", "platform",
+        })
 
         for field, value in patches.items():
-            # Normalize snake_case → Title Case (e.g. "current_plan" → "Current Plan")
-            field_norm = field.replace("_", " ")
+            # --- Three-phase field resolution ---
+            # Phase 1: try the raw input exactly as given
+            field_norm = field
+            found = state_has_field(content, field_norm)
+            also_tried: list[str] = []
+
+            # Phase 2: try underscore → space normalization
+            if not found:
+                underscore_form = field.replace("_", " ")
+                if underscore_form != field:
+                    also_tried.append(underscore_form)
+                    found = state_has_field(content, underscore_form)
+                    if found:
+                        field_norm = underscore_form
+
+            # Phase 3: dot-prefix stripping (on the best candidate so far)
+            if not found and "." in field:
+                # Strip from the raw field first (preserves underscores)
+                stripped_raw = field.rsplit(".", 1)[-1]
+                also_tried.append(stripped_raw)
+                found = state_has_field(content, stripped_raw)
+                if found:
+                    field_norm = stripped_raw
+                else:
+                    # Also try underscore-replaced + stripped
+                    stripped_norm = field.replace("_", " ").rsplit(".", 1)[-1]
+                    if stripped_norm != stripped_raw:
+                        also_tried.append(stripped_norm)
+                        found = state_has_field(content, stripped_norm)
+                        if found:
+                            field_norm = stripped_norm
+
+            # Guard: reject Session Continuity mirror fields — they are
+            # regenerated from state.json on save, so markdown patches are no-ops.
+            if found and field_norm.lower() in _session_mirror:
+                failed.append(field)
+                failure_reasons[field] = (
+                    f'Field "{field_norm}" is a Session Continuity mirror field '
+                    f"that is regenerated from state.json on save. "
+                    f"Use the continuation API to update session state."
+                )
+                continue
 
             if field_norm.lower() == "status" and not is_valid_status(value):
                 failed.append(field)
+                failure_reasons[field] = (
+                    f'Invalid status: "{value}". Valid: {", ".join(VALID_STATUSES)}'
+                )
                 continue
 
             if field_norm.lower() == "status":
@@ -3947,18 +4001,27 @@ def state_patch(cwd: Path, patches: dict[str, str]) -> StatePatchResult:
                     err = validate_state_transition(current_status, value)
                     if err:
                         failed.append(field)
+                        failure_reasons[field] = err
                         continue
 
-            if state_has_field(content, field_norm):
+            if found:
                 content = state_replace_field(content, field_norm, value)
                 updated.append(field)
             else:
                 failed.append(field)
+                if also_tried:
+                    tried_str = ", ".join(f'"{t}"' for t in also_tried)
+                    failure_reasons[field] = (
+                        f'Field "{field}" not found in STATE.md'
+                        f" (also tried {tried_str})"
+                    )
+                else:
+                    failure_reasons[field] = f'Field "{field}" not found in STATE.md'
 
         if updated:
             _write_state_markdown_locked(cwd, content)
 
-    return StatePatchResult(updated=updated, failed=failed)
+    return StatePatchResult(updated=updated, failed=failed, failure_reasons=failure_reasons)
 
 
 @instrument_gpd_function("state.set_project_contract")

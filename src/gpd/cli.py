@@ -204,8 +204,15 @@ def _pretty_print(d: dict) -> None:
     table.add_column("Key")
     table.add_column("Value")
     for k, v in d.items():
-        val = json.dumps(v, default=str) if isinstance(v, (dict, list)) else str(v)
-        table.add_row(str(k), val)
+        if k == "failure_reasons" and isinstance(v, dict):
+            # Render each failure reason as its own row for readability
+            for fk, fv in v.items():
+                table.add_row(f"  reason: {fk}", str(fv))
+        elif isinstance(v, (dict, list)):
+            val = json.dumps(v, default=str)
+            table.add_row(str(k), val)
+        else:
+            table.add_row(str(k), str(v))
     console.print(table)
 
 
@@ -3432,14 +3439,16 @@ def suggest(
     limit: int | None = typer.Option(None, "--limit", help="Max suggestions to return"),
 ) -> None:
     """Suggest what to do next based on project state."""
-    from gpd.core.root_resolution import resolve_project_root
     from gpd.core.suggest import suggest_next
 
     kwargs: dict[str, int] = {}
     if limit is not None:
         kwargs["limit"] = limit
-    workspace_cwd = _get_cwd().expanduser().resolve(strict=False)
-    suggest_cwd = resolve_project_root(workspace_cwd, require_layout=True) or workspace_cwd
+    # NOTE: _project_scoped_cwd() runs migration before resolution. If run
+    # from a subfolder that has its own PROJECT.md, migration may create a
+    # spurious GPD/ there and resolve to the wrong project root. This is a
+    # known limitation shared with progress/state/status commands.
+    suggest_cwd = _project_scoped_cwd()
     _output(suggest_next(suggest_cwd, **kwargs))
 
 
