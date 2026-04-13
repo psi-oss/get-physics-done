@@ -806,6 +806,10 @@ def test_ingest_reference_artifacts_reads_legacy_research_review_sidecars_when_l
     )
 
     assert result.citation_source_files == ["GPD/research/LEGACY-REVIEW-CITATION-SOURCES.json"]
+    assert result.citation_source_warnings == []
     assert [source.reference_id for source in result.citation_sources] == ["ref-legacy"]
+    assert [source.source_artifacts for source in result.citation_sources] == [
+        ["GPD/research/LEGACY-REVIEW-CITATION-SOURCES.json"]
+    ]
     assert [ref.id for ref in result.references] == ["ref-legacy"]
     assert result.references[0].source_artifacts == ["GPD/research/LEGACY-REVIEW.md"]

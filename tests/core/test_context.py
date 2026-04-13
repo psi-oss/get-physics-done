@@ -1694,7 +1694,7 @@ class TestInitPlanPhase:
         assert "Legacy details." not in ctx["reference_artifacts_content"]
         assert "GPD/research/legacy-REVIEW.md" not in ctx["reference_artifact_files"]
 
-    def test_ignores_legacy_research_review_files_when_literature_is_missing(
+    def test_falls_back_to_legacy_research_review_files_when_literature_is_missing(
         self,
         tmp_path: Path,
     ) -> None:
@@ -1725,10 +1725,10 @@ class TestInitPlanPhase:
 
         ctx = init_plan_phase(tmp_path, "2")
 
-        assert ctx["literature_review_files"] == []
-        assert ctx["citation_source_files"] == []
-        assert ctx["reference_artifact_files"] == []
-        assert ctx["reference_artifacts_content"] is None
+        assert ctx["literature_review_files"] == ["GPD/research/legacy-REVIEW.md"]
+        assert ctx["citation_source_files"] == ["GPD/research/legacy-CITATION-SOURCES.json"]
+        assert ctx["reference_artifact_files"] == ["GPD/research/legacy-REVIEW.md"]
+        assert "Legacy details." in ctx["reference_artifacts_content"]
 
     def test_does_not_bootstrap_manuscript_proof_review_manifest(self, tmp_path: Path) -> None:
         _setup_project(tmp_path)
@@ -3637,6 +3637,35 @@ class TestInitMapResearch:
             "GPD/phases/01-test-phase/01-SUMMARY.md" in ctx["effective_reference_intake"]["must_include_prior_outputs"]
         )
 
+    def test_surfaces_legacy_research_review_context_when_literature_is_missing(self, tmp_path: Path) -> None:
+        _setup_project(tmp_path)
+        research_dir = tmp_path / "GPD" / "research"
+        research_dir.mkdir(parents=True, exist_ok=True)
+        (research_dir / "legacy-REVIEW.md").write_text(
+            "# Legacy Review\n\nLegacy mapping details.\n",
+            encoding="utf-8",
+        )
+        (research_dir / "legacy-CITATION-SOURCES.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "reference_id": "ref-legacy",
+                        "source_type": "paper",
+                        "title": "Legacy Reference",
+                        "authors": ["A. Author"],
+                        "year": "2024",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        ctx = init_map_research(tmp_path)
+
+        assert ctx["literature_review_files"] == ["GPD/research/legacy-REVIEW.md"]
+        assert ctx["citation_source_files"] == ["GPD/research/legacy-CITATION-SOURCES.json"]
+        assert "Legacy mapping details." in ctx["reference_artifacts_content"]
+
     def test_stage_bootstrap_returns_only_manifest_required_fields(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -4462,11 +4491,35 @@ class TestInitPhaseOp:
             },
         )
 
-        with pytest.raises(
-            ValueError,
-            match=(
-                r"research-phase stage 'research_handoff' requires unavailable init field\(s\): "
-                r"config_content, state_content, roadmap_content"
-            ),
-        ):
-            init_research_phase(tmp_path, phase="1", stage="research_handoff")
+        ctx = init_research_phase(tmp_path, phase="1", stage="research_handoff")
+
+        assert set(ctx) == {
+            "commit_docs",
+            "autonomy",
+            "review_cadence",
+            "research_mode",
+            "phase_found",
+            "phase_dir",
+            "phase_number",
+            "phase_name",
+            "phase_slug",
+            "padded_phase",
+            "contract_intake",
+            "effective_reference_intake",
+            "active_reference_context",
+            "reference_artifact_files",
+            "reference_artifacts_content",
+            "selected_protocol_bundle_ids",
+            "protocol_bundle_context",
+            "protocol_bundle_verifier_extensions",
+            "current_execution",
+            "config_content",
+            "state_content",
+            "roadmap_content",
+            "staged_loading",
+        }
+        assert ctx["config_content"] is None
+        assert ctx["state_content"] is None
+        assert ctx["roadmap_content"] is None
+        assert ctx["staged_loading"]["workflow_id"] == "research-phase"
+        assert ctx["staged_loading"]["stage_id"] == "research_handoff"

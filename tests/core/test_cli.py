@@ -5740,6 +5740,81 @@ def test_init_new_project_rejects_invalid_stage(mock_init):
     assert "Unknown new-project stage 'bogus'." in result.output
 
 
+@pytest.mark.parametrize(
+    ("command", "patch_target", "stage"),
+    [
+        ("new-milestone", "gpd.core.context.init_new_milestone", "milestone_bootstrap"),
+        ("write-paper", "gpd.core.context.init_write_paper", "paper_bootstrap"),
+        ("peer-review", "gpd.core.context.init_peer_review", "preflight"),
+        ("map-research", "gpd.core.context.init_map_research", "mapper_authoring"),
+    ],
+)
+def test_stage_only_init_commands_forward_stage_option(
+    command: str,
+    patch_target: str,
+    stage: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[Path, str | None]] = []
+
+    def fake_init(cwd: Path, stage: str | None = None):
+        calls.append((cwd, stage))
+        mock_result = MagicMock()
+        mock_result.model_dump.return_value = {"context": "..."}
+        return mock_result
+
+    monkeypatch.setattr(patch_target, fake_init)
+    result = runner.invoke(app, ["init", command, "--stage", stage])
+
+    assert result.exit_code == 0
+    assert calls == [(cli_module._get_cwd(), stage)]
+
+
+@pytest.mark.parametrize(
+    ("command", "patch_target", "argv", "keyword", "expected_text", "stage"),
+    [
+        (
+            "quick",
+            "gpd.core.context.init_quick",
+            ["quick", "spot-check"],
+            "description",
+            "quick spot-check",
+            "task_authoring",
+        ),
+        (
+            "literature-review",
+            "gpd.core.context.init_literature_review",
+            ["loop", "corrections"],
+            "topic",
+            "loop corrections",
+            "scope_locked",
+        ),
+    ],
+)
+def test_text_init_commands_forward_stage_option(
+    command: str,
+    patch_target: str,
+    argv: list[str],
+    keyword: str,
+    expected_text: str,
+    stage: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[Path, dict[str, object]]] = []
+
+    def fake_init(cwd: Path, **kwargs):
+        calls.append((cwd, kwargs))
+        mock_result = MagicMock()
+        mock_result.model_dump.return_value = {"context": "..."}
+        return mock_result
+
+    monkeypatch.setattr(patch_target, fake_init)
+    result = runner.invoke(app, ["init", command, *argv, "--stage", stage])
+
+    assert result.exit_code == 0
+    assert calls == [(cli_module._get_cwd(), {keyword: expected_text, "stage": stage})]
+
+
 def test_init_verify_work_preserves_plain_call_shape(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[Path, str | None, str | None]] = []
 
@@ -5865,6 +5940,38 @@ def test_init_plan_phase_rejects_invalid_stage(monkeypatch: pytest.MonkeyPatch) 
 
     assert result.exit_code == 1
     assert "Unknown plan-phase stage 'bogus'" in result.output
+
+
+@pytest.mark.parametrize(
+    ("command", "patch_target"),
+    [
+        ("phase-op", "gpd.core.context.init_phase_op"),
+        ("research-phase", "gpd.core.context.init_research_phase"),
+    ],
+)
+def test_phase_init_commands_forward_stage_option(
+    command: str,
+    patch_target: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[Path, str | None, set[str] | None, str | None]] = []
+
+    def fake_init(
+        cwd: Path,
+        phase: str | None,
+        includes: set[str] | None = None,
+        stage: str | None = None,
+    ):
+        calls.append((cwd, phase, includes, stage))
+        mock_result = MagicMock()
+        mock_result.model_dump.return_value = {"context": "..."}
+        return mock_result
+
+    monkeypatch.setattr(patch_target, fake_init)
+    result = runner.invoke(app, ["init", command, "02", "--stage", "research_handoff"])
+
+    assert result.exit_code == 0
+    assert calls == [(cli_module._get_cwd(), "02", set(), "research_handoff")]
 
 
 def test_init_resume_help_surfaces_recovery_snapshot_entrypoint() -> None:

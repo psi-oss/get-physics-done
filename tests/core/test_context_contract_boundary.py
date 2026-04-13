@@ -68,3 +68,56 @@ def test_load_project_contract_blocks_raw_payload_missing_required_schema_fields
     assert load_info["raw_project_contract_classified"] is True
     assert load_info["source_path"].endswith("GPD/state.json")
     assert "schema_version is required" in load_info["errors"]
+
+
+def test_canonicalize_project_contract_does_not_fold_effective_runtime_intake_back_into_contract() -> None:
+    contract = _load_contract_fixture()
+    contract = contract.model_copy(
+        update={
+            "context_intake": contract.context_intake.model_copy(
+                update={
+                    "must_read_refs": ["benchmark-anchor"],
+                }
+            )
+        }
+    )
+
+    active_references = [
+        contract.references[0].model_copy(update={"aliases": ["benchmark-anchor"]}).model_dump(mode="json"),
+        {
+            "id": "ref-artifact-review",
+            "kind": "paper",
+            "locator": "GPD/literature/benchmark-REVIEW.md",
+            "role": "background",
+            "why_it_matters": "Artifact-derived anchor for continuity only",
+            "required_actions": ["read"],
+            "applies_to": [],
+            "carry_forward_to": [],
+            "source_artifacts": ["GPD/literature/benchmark-REVIEW.md"],
+            "aliases": ["artifact-review-anchor"],
+            "must_surface": False,
+        },
+    ]
+    effective_reference_intake = contract.context_intake.model_dump(mode="json")
+    effective_reference_intake["must_read_refs"] = ["benchmark-anchor", "artifact-review-anchor"]
+    effective_reference_intake["must_include_prior_outputs"] = [
+        *effective_reference_intake["must_include_prior_outputs"],
+        "GPD/phases/02-analysis/02-01-SUMMARY.md",
+    ]
+    effective_reference_intake["context_gaps"] = [
+        *effective_reference_intake["context_gaps"],
+        "Artifact-only gap",
+    ]
+
+    canonical, warnings = context_module._canonicalize_project_contract(
+        contract,
+        active_references=active_references,
+        effective_reference_intake=effective_reference_intake,
+    )
+
+    assert canonical is not None
+    assert warnings == []
+    assert contract.context_intake.must_read_refs == ["benchmark-anchor"]
+    assert canonical.context_intake.must_read_refs == ["ref-benchmark"]
+    assert canonical.context_intake.must_include_prior_outputs == contract.context_intake.must_include_prior_outputs
+    assert canonical.context_intake.context_gaps == contract.context_intake.context_gaps

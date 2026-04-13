@@ -62,11 +62,25 @@ PUBLICATION_ROUND_ARTIFACTS_INCLUDE = (
 )
 PUBLICATION_ROUND_ARTIFACTS_PATH = "{GPD_INSTALL_DIR}/references/publication/publication-review-round-artifacts.md"
 PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "@{GPD_INSTALL_DIR}/references/publication/peer-review-reliability.md"
+LEGACY_RESEARCH_COMPAT_NOTE_RE = re.compile(
+    r"Legacy `GPD/research/`\s+review artifacts are compatibility inputs only and must not be used as new write targets\."
+)
 
 
 def _assert_contains_fragments(text: str, *fragments: str) -> None:
     missing = [fragment for fragment in fragments if fragment not in text]
     assert not missing, "Missing expected prompt fragments:\n" + "\n".join(missing)
+
+
+def _assert_legacy_research_paths_are_read_only_compat(
+    text: str,
+    *,
+    require_compat_note: bool = False,
+) -> None:
+    sanitized, compat_note_count = LEGACY_RESEARCH_COMPAT_NOTE_RE.subn("", text)
+    if require_compat_note:
+        assert compat_note_count >= 1
+    assert "GPD/research/" not in sanitized
 
 
 COMMAND_SPAWN_TOKENS = {
@@ -1495,12 +1509,26 @@ def test_research_prompt_surfaces_use_canonical_literature_outputs() -> None:
     roadmapper_agent = (AGENTS_DIR / "gpd-roadmapper.md").read_text(encoding="utf-8")
 
     for content in (project_researcher, research_synthesizer, phase_researcher, roadmapper_agent):
-        assert "GPD/research/" not in content
+        _assert_legacy_research_paths_are_read_only_compat(content)
 
     assert "GPD/literature/" in project_researcher
     assert "GPD/literature/SUMMARY.md" in research_synthesizer
     assert "GPD/literature/SUMMARY.md" in phase_researcher
     assert "literature/SUMMARY.md" in roadmapper_agent
+
+
+def test_expanded_research_and_planning_prompts_keep_legacy_research_paths_read_only() -> None:
+    for agent_name in (
+        "gpd-project-researcher",
+        "gpd-research-synthesizer",
+        "gpd-phase-researcher",
+        "gpd-roadmapper",
+        "gpd-planner",
+    ):
+        surface = _model_visible_prompt_surface("agent", agent_name)
+
+        assert "GPD/literature/" in surface
+        _assert_legacy_research_paths_are_read_only_compat(surface, require_compat_note=True)
 
 
 def test_new_project_minimal_mode_and_planning_wiring_allow_coarse_scoped_decomposition() -> None:

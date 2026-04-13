@@ -7,7 +7,7 @@ template_version: 1
 
 # Prior Work Research Template
 
-Template for `GPD/research/PRIOR-WORK.md` -- survey of known results and prior work in the research domain.
+Template for `GPD/literature/PRIOR-WORK.md` -- survey of known results and prior work in the research domain.
 
 ---
 

@@ -1192,9 +1192,18 @@ def _sorted_markdown_files(directory: Path) -> list[Path]:
 
 
 def _preferred_review_dir(layout: ProjectLayout) -> Path | None:
-    """Return the canonical literature review directory (no legacy fallbacks)."""
+    """Return the preferred literature-review discovery directory."""
     literature_dir = layout.literature_dir
-    return literature_dir if literature_dir.is_dir() else None
+    if literature_dir.is_dir():
+        return literature_dir
+    legacy_research_dir = layout.gpd / "research"
+    if not legacy_research_dir.is_dir():
+        return None
+    try:
+        has_legacy_review = any(path.is_file() for path in legacy_research_dir.glob("*-REVIEW.md"))
+    except OSError:
+        return None
+    return legacy_research_dir if has_legacy_review else None
 
 
 def _serialize_active_references(contract: ResearchContract | None) -> list[dict[str, object]]:
@@ -1225,6 +1234,12 @@ def _append_unique_strings(target: list[str], values: list[object] | tuple[objec
         text = str(value).strip()
         if text and text not in target:
             target.append(text)
+
+
+def _merge_context_missing_keys(target: dict[str, object], source: Mapping[str, object]) -> None:
+    """Fill missing context keys without overwriting richer values."""
+    for key, value in source.items():
+        target.setdefault(key, value)
 
 
 def _should_skip_research_scan_entry(cwd: Path, entry: Path) -> bool:
@@ -1922,11 +1937,6 @@ def _build_peer_review_runtime_context(
 
     result = dict(
         _build_reference_runtime_context(
-            cwd, persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest
-        )
-    )
-    result.update(
-        _build_publication_bootstrap_runtime_context(
             cwd, persist_manuscript_proof_review_manifest=persist_manuscript_proof_review_manifest
         )
     )
@@ -3021,11 +3031,7 @@ def init_plan_phase(
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "plan-phase",
-        allowed_tools=_PLAN_PHASE_STAGE_ALLOWED_TOOLS,
-        known_init_fields=_PLAN_PHASE_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("plan-phase", known_init_fields=_PLAN_PHASE_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3040,7 +3046,7 @@ def init_plan_phase(
 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(cwd))
-    if needs_contract_gate_context:
+    elif needs_contract_gate_context:
         staged_source.update(_build_new_project_contract_runtime_context(cwd))
 
     if required_fields & _PLAN_PHASE_STATE_MEMORY_FIELDS:
@@ -3141,11 +3147,7 @@ def init_new_project(cwd: Path, stage: str | None = None) -> dict:
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "new-project",
-        allowed_tools={"ask_user", "file_read", "file_write", "shell", "task"},
-        known_init_fields=_NEW_PROJECT_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("new-project", known_init_fields=_NEW_PROJECT_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3199,11 +3201,7 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "new-milestone",
-        allowed_tools=_NEW_MILESTONE_STAGE_ALLOWED_TOOLS,
-        known_init_fields=_NEW_MILESTONE_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("new-milestone", known_init_fields=_NEW_MILESTONE_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3224,7 +3222,7 @@ def init_new_milestone(cwd: Path, stage: str | None = None) -> dict:
 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(cwd))
-    if needs_contract_gate_context:
+    elif needs_contract_gate_context:
         staged_source.update(_build_new_project_contract_runtime_context(cwd))
 
     if required_fields & _NEW_MILESTONE_STATE_MEMORY_FIELDS:
@@ -3311,11 +3309,7 @@ def init_quick(cwd: Path, description: str | None = None, stage: str | None = No
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "quick",
-        allowed_tools=_QUICK_STAGE_ALLOWED_TOOLS,
-        known_init_fields=_QUICK_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("quick", known_init_fields=_QUICK_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3477,10 +3471,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "resume-work",
-        allowed_tools={"ask_user", "file_read", "file_write", "shell"},
-    )
+    manifest = load_workflow_stage_manifest("resume-work")
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3495,7 +3486,7 @@ def init_resume(cwd: Path, *, data_root: Path | None = None, stage: str | None =
 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(effective_cwd))
-    if needs_contract_gate_context:
+    elif needs_contract_gate_context:
         staged_source.update(_build_new_project_contract_runtime_context(effective_cwd))
 
     if required_fields & _RESUME_STRUCTURED_STATE_FIELDS:
@@ -3557,10 +3548,7 @@ def init_sync_state(cwd: Path, *, prefer_mode: str | None = None, stage: str | N
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "sync-state",
-        allowed_tools={"ask_user", "file_read", "file_write", "shell", "find_files", "search_files"},
-    )
+    manifest = load_workflow_stage_manifest("sync-state")
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3641,11 +3629,7 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "verify-work",
-        allowed_tools=_VERIFY_WORK_STAGE_ALLOWED_TOOLS,
-        known_init_fields=_VERIFY_WORK_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("verify-work", known_init_fields=_VERIFY_WORK_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3660,7 +3644,7 @@ def init_verify_work(cwd: Path, phase: str | None, stage: str | None = None) -> 
 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(cwd))
-    if needs_contract_gate_context:
+    elif needs_contract_gate_context:
         staged_source.update(_build_new_project_contract_runtime_context(cwd))
 
     if required_fields & _VERIFY_WORK_STRUCTURED_STATE_FIELDS:
@@ -3697,11 +3681,7 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "write-paper",
-        allowed_tools=_WRITE_PAPER_STAGE_ALLOWED_TOOLS,
-        known_init_fields=_WRITE_PAPER_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("write-paper", known_init_fields=_WRITE_PAPER_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3717,7 +3697,7 @@ def init_write_paper(cwd: Path, stage: str | None = None) -> dict:
 
     if needs_full_reference_context:
         staged_source.update(_build_reference_runtime_context(cwd))
-    if needs_bootstrap_reference_context or needs_contract_gate_context:
+    elif needs_bootstrap_reference_context or needs_contract_gate_context:
         staged_source.update(_build_publication_bootstrap_runtime_context(cwd))
 
     if required_fields & _WRITE_PAPER_STATE_MEMORY_FIELDS:
@@ -3755,18 +3735,12 @@ def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
     }
     if stage is None:
         result = dict(base_result)
-        result.update(_build_reference_runtime_context(cwd))
-        result.update(_build_publication_bootstrap_runtime_context(cwd))
-        result.update(_build_publication_runtime_snapshot_context(cwd))
+        result.update(_build_peer_review_runtime_context(cwd))
         return result
 
     from gpd.core.workflow_staging import load_workflow_stage_manifest
 
-    manifest = load_workflow_stage_manifest(
-        "peer-review",
-        allowed_tools=_PEER_REVIEW_STAGE_ALLOWED_TOOLS,
-        known_init_fields=PEER_REVIEW_INIT_FIELDS,
-    )
+    manifest = load_workflow_stage_manifest("peer-review", known_init_fields=PEER_REVIEW_INIT_FIELDS)
     try:
         stage_def = manifest.stage_by_id(stage)
     except KeyError as exc:
@@ -3776,7 +3750,10 @@ def init_peer_review(cwd: Path, stage: str | None = None) -> dict:
 
     required_fields = set(stage_def.required_init_fields)
     staged_source = dict(base_result)
-    if required_fields & (_PEER_REVIEW_REFERENCE_RUNTIME_FIELDS | _PEER_REVIEW_PUBLICATION_RUNTIME_FIELDS):
+    peer_review_runtime_fields = (
+        _PEER_REVIEW_REFERENCE_RUNTIME_FIELDS | _PEER_REVIEW_PUBLICATION_RUNTIME_FIELDS
+    )
+    if required_fields & peer_review_runtime_fields:
         staged_source.update(_build_peer_review_runtime_context(cwd))
 
     missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
@@ -3910,13 +3887,39 @@ def init_phase_op(
             f"Unknown research-phase stage {stage!r}. Allowed values: {', '.join(manifest.stage_ids())}."
         ) from exc
 
-    missing_fields = [field for field in stage_def.required_init_fields if field not in result]
+    required_fields = set(stage_def.required_init_fields)
+    staged_source = dict(result)
+
+    if required_fields & {
+        "state_load_source",
+        "state_integrity_issues",
+        "convention_lock",
+        "convention_lock_count",
+        "intermediate_results",
+        "intermediate_result_count",
+        "approximations",
+        "approximation_count",
+        "propagated_uncertainties",
+        "propagated_uncertainty_count",
+    }:
+        staged_source.update(_build_structured_state_runtime_context(cwd))
+
+    if required_fields & {"state_content", "config_content", "roadmap_content"}:
+        planning = cwd / PLANNING_DIR_NAME
+        if "state_content" in required_fields:
+            staged_source["state_content"] = _safe_read_file_truncated(planning / STATE_MD_FILENAME)
+        if "config_content" in required_fields:
+            staged_source["config_content"] = _safe_read_file_truncated(planning / CONFIG_FILENAME)
+        if "roadmap_content" in required_fields:
+            staged_source["roadmap_content"] = _safe_read_file_truncated(planning / ROADMAP_FILENAME)
+
+    missing_fields = [field for field in stage_def.required_init_fields if field not in staged_source]
     if missing_fields:
         raise ValueError(
             f"research-phase stage {stage!r} requires unavailable init field(s): {', '.join(missing_fields)}"
         )
 
-    staged_payload = {field: result[field] for field in stage_def.required_init_fields}
+    staged_payload = {field: staged_source[field] for field in stage_def.required_init_fields}
     staged_payload["staged_loading"] = manifest.staged_loading_payload(stage_def.id)
     return staged_payload
 

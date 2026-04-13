@@ -48,10 +48,17 @@ def test_registry_staged_loading_inventory_matches_manifest_inventory() -> None:
 
 
 def test_stage_manifest_inventory_loads_with_known_init_fields() -> None:
+    registry.invalidate_cache()
     for workflow_id in sorted(_manifest_workflow_ids()):
         known_init_fields = known_init_fields_for_workflow(workflow_id)
-        manifest = load_workflow_stage_manifest(workflow_id)
+        command = registry.get_command(workflow_id)
+        manifest = load_workflow_stage_manifest(
+            workflow_id,
+            allowed_tools=command.allowed_tools,
+            known_init_fields=known_init_fields,
+        )
 
         assert known_init_fields is not None
+        assert command.staged_loading == manifest
         assert manifest.workflow_id == workflow_id
         assert manifest.stage_ids()

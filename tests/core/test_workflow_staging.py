@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from gpd import registry
 from gpd.core.context import init_write_paper
 from gpd.core.workflow_staging import (
     ARXIV_SUBMISSION_BOOTSTRAP_FIELDS,
@@ -35,6 +36,29 @@ WORKFLOWS_DIR = NEW_PROJECT_STAGE_MANIFEST_PATH.parent
 def _workflow_payload(workflow_id: str) -> dict[str, object]:
     manifest_path = resolve_workflow_stage_manifest_path(workflow_id)
     return json.loads(manifest_path.read_text(encoding="utf-8"))
+
+
+def _workflow_stage_index(payload: dict[str, object], stage_id: str) -> int:
+    stages = payload["stages"]
+    assert isinstance(stages, list)
+    return next(index for index, stage in enumerate(stages) if stage["id"] == stage_id)
+
+
+def _load_manifest_with_command_policy(
+    tmp_path: Path,
+    workflow_id: str,
+    payload: dict[str, object],
+):
+    registry.invalidate_cache()
+    command = registry.get_command(workflow_id)
+    manifest_path = tmp_path / f"{workflow_id}-stage-manifest.json"
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    return load_workflow_stage_manifest_from_path(
+        manifest_path,
+        expected_workflow_id=workflow_id,
+        allowed_tools=command.allowed_tools,
+        known_init_fields=known_init_fields_for_workflow(workflow_id),
+    )
 
 
 @pytest.mark.parametrize(
@@ -924,6 +948,45 @@ def test_validate_workflow_stage_manifest_payload_rejects_bad_entries(
 
     with pytest.raises(ValueError, match=message):
         validate_workflow_stage_manifest_payload(payload)
+
+
+@pytest.mark.parametrize(
+    ("workflow_id", "stage_id", "tool_name"),
+    [
+        ("quick", "task_authoring", "file_edit"),
+        ("verify-work", "interactive_validation", "mcp__gpd_verification__suggest_contract_checks"),
+    ],
+)
+def test_load_workflow_stage_manifest_from_path_accepts_tools_allowed_by_owning_command(
+    workflow_id: str,
+    stage_id: str,
+    tool_name: str,
+    tmp_path: Path,
+) -> None:
+    payload = _workflow_payload(workflow_id)
+    stage_index = _workflow_stage_index(payload, stage_id)
+    payload["stages"][stage_index]["allowed_tools"] = [
+        *payload["stages"][stage_index]["allowed_tools"],
+        tool_name,
+    ]
+
+    manifest = _load_manifest_with_command_policy(tmp_path, workflow_id, payload)
+
+    assert tool_name in manifest.stage(stage_id).allowed_tools
+
+
+def test_load_workflow_stage_manifest_from_path_rejects_tool_disallowed_by_owning_command(
+    tmp_path: Path,
+) -> None:
+    payload = _workflow_payload("plan-phase")
+    stage_index = _workflow_stage_index(payload, "phase_bootstrap")
+    payload["stages"][stage_index]["allowed_tools"] = [
+        *payload["stages"][stage_index]["allowed_tools"],
+        "file_edit",
+    ]
+
+    with pytest.raises(ValueError, match="file_edit"):
+        _load_manifest_with_command_policy(tmp_path, "plan-phase", payload)
 
 
 @pytest.mark.parametrize("workflow_id", ["new-project"])

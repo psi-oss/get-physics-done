@@ -9,11 +9,14 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path, PurePosixPath
 
+import yaml
+
 from gpd.adapters.tool_names import CANONICAL_TOOL_NAMES, canonical
 from gpd.specs import SPECS_DIR
 
 WORKFLOW_STAGE_MANIFEST_DIR = SPECS_DIR / "workflows"
 WORKFLOW_STAGE_MANIFEST_SUFFIX = "-stage-manifest.json"
+COMMANDS_DIR = SPECS_DIR.parent / "commands"
 NEW_PROJECT_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"new-project{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
 NEW_MILESTONE_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"new-milestone{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
 EXECUTE_PHASE_STAGE_MANIFEST_PATH = WORKFLOW_STAGE_MANIFEST_DIR / f"execute-phase{WORKFLOW_STAGE_MANIFEST_SUFFIX}"
@@ -1330,7 +1333,7 @@ def validate_workflow_stage_manifest_payload(
     if not isinstance(stages_raw, list) or not stages_raw:
         raise ValueError("stages must be a non-empty list")
 
-    normalized_allowed_tools = _normalize_tool_set(allowed_tools)
+    normalized_allowed_tools = _normalize_tool_set(_resolved_allowed_tools(allowed_tools, workflow_id=workflow_id))
     normalized_known_init_fields = _normalize_init_field_set(known_init_fields, workflow_id=workflow_id)
     stages = tuple(
         _validate_stage(
@@ -1375,8 +1378,61 @@ def validate_workflow_stage_manifest_payload(
     return WorkflowStageManifest(schema_version=schema_version, workflow_id=workflow_id, stages=stages)
 
 
-def _cache_key_tools(values: Iterable[str] | None) -> tuple[str, ...]:
+def _cache_key_tools(values: Iterable[str] | None) -> tuple[str, ...] | None:
+    if values is None:
+        return None
     return tuple(sorted(_normalize_tool_set(values)))
+
+
+def _extract_frontmatter(text: str) -> str | None:
+    """Return the raw frontmatter block from a markdown document."""
+
+    match = re.match(r"\A---\r?\n(.*?)\r?\n---(?:\r?\n|$)", text, re.DOTALL)
+    if match is None:
+        return None
+    return match.group(1)
+
+
+@cache
+def _command_allowed_tools_for_workflow(workflow_id: str | None) -> tuple[str, ...] | None:
+    """Return canonical allowed-tools for the owning command, when available."""
+
+    if workflow_id is None:
+        return None
+    command_path = COMMANDS_DIR / f"{_normalize_workflow_id(workflow_id)}.md"
+    if not command_path.is_file():
+        return None
+    try:
+        text = command_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ValueError(f"Failed to read command frontmatter {command_path}: {exc}") from exc
+    frontmatter = _extract_frontmatter(text)
+    if frontmatter is None:
+        return None
+    try:
+        payload = yaml.safe_load(frontmatter) or {}
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Malformed command frontmatter in {command_path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"Command frontmatter in {command_path} must be a mapping")
+    raw_allowed_tools = payload.get("allowed-tools")
+    if raw_allowed_tools is None:
+        return None
+    return _cache_key_tools(raw_allowed_tools)
+
+
+def _resolved_allowed_tools(
+    allowed_tools: Iterable[str] | None,
+    *,
+    workflow_id: str | None,
+) -> tuple[str, ...] | None:
+    explicit_allowed_tools = _cache_key_tools(allowed_tools) if allowed_tools is not None else None
+    if explicit_allowed_tools is not None:
+        return explicit_allowed_tools
+    command_allowed_tools = _command_allowed_tools_for_workflow(workflow_id)
+    if command_allowed_tools is not None:
+        return command_allowed_tools
+    return None
 
 
 def _cache_key_init_fields(values: Iterable[str] | None, *, workflow_id: str | None) -> tuple[str, ...] | None:
@@ -1388,7 +1444,7 @@ def _cache_key_init_fields(values: Iterable[str] | None, *, workflow_id: str | N
 def _load_workflow_stage_manifest_cached(
     manifest_path: str,
     expected_workflow_id: str | None,
-    allowed_tools_key: tuple[str, ...],
+    allowed_tools_key: tuple[str, ...] | None,
     known_init_fields_key: tuple[str, ...] | None,
     require_complete_next_stages: bool,
 ) -> WorkflowStageManifest:
@@ -1417,7 +1473,7 @@ def load_workflow_stage_manifest(
     return _load_workflow_stage_manifest_cached(
         manifest_path.as_posix(),
         workflow_id,
-        _cache_key_tools(allowed_tools),
+        _resolved_allowed_tools(allowed_tools, workflow_id=workflow_id),
         _cache_key_init_fields(known_init_fields, workflow_id=workflow_id),
         True,
     )
@@ -1438,7 +1494,7 @@ def load_workflow_stage_manifest_from_path(
     return _load_workflow_stage_manifest_cached(
         manifest_path.as_posix(),
         workflow_id,
-        _cache_key_tools(allowed_tools),
+        _resolved_allowed_tools(allowed_tools, workflow_id=workflow_id),
         normalized_init_fields,
         False,
     )
@@ -1446,6 +1502,7 @@ def load_workflow_stage_manifest_from_path(
 
 def invalidate_workflow_stage_manifest_cache() -> None:
     _load_workflow_stage_manifest_cached.cache_clear()
+    _command_allowed_tools_for_workflow.cache_clear()
 
 
 NewProjectConditionalAuthority = WorkflowStageConditionalAuthority

@@ -121,7 +121,7 @@ _GEMINI_APPROVED_CONTRACT_PATH = "GPD/.approved-project-contract.json"
 _GEMINI_STATIC_POLICY_COMMAND_PREFIXES: tuple[str, ...] = (
     "git init",
     "mkdir -p GPD",
-    "mkdir -p GPD/research",
+    "mkdir -p GPD/literature",
     "printf '%s\\n' \"$PROJECT_CONTRACT_JSON\"",
 )
 _GEMINI_COMMAND_RUNTIME_NOTE = (
