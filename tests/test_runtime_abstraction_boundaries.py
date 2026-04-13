@@ -22,7 +22,12 @@ from types import SimpleNamespace
 import pytest
 
 from gpd.adapters import iter_adapters
-from gpd.adapters.runtime_catalog import get_shared_install_metadata, iter_runtime_descriptors
+from gpd.adapters.runtime_catalog import (
+    get_runtime_descriptor_for_adapter_module,
+    get_shared_install_metadata,
+    iter_runtime_descriptors,
+    normalize_runtime_name,
+)
 from gpd.command_labels import runtime_public_command_prefixes
 from scripts.repo_graph_contract import (
     BASE_EXCLUDED_GRAPH_DIRS,
@@ -508,6 +513,22 @@ def test_runtime_public_command_prefixes_use_descriptor_public_surface(monkeypat
     assert set(prefixes) == {"/public:", "$public-"}
     assert "/adapter-only:" not in prefixes
     assert "$adapter-only-" not in prefixes
+
+
+def test_public_runtime_selector_surface_excludes_internal_adapter_module_tokens() -> None:
+    private_runtime_tokens = [
+        descriptor.adapter_module
+        for descriptor in _RUNTIME_DESCRIPTORS
+        if descriptor.adapter_module != descriptor.runtime_name
+    ]
+
+    for descriptor in _RUNTIME_DESCRIPTORS:
+        dotted_module_path = f"gpd.adapters.{descriptor.adapter_module}"
+        assert normalize_runtime_name(dotted_module_path) is None
+        assert get_runtime_descriptor_for_adapter_module(dotted_module_path) == descriptor
+
+    for private_token in private_runtime_tokens:
+        assert normalize_runtime_name(private_token) is None
 
 
 def _readme_optional_terminal_reference() -> str:

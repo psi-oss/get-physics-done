@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from gpd.adapters.install_utils import expand_at_includes
+from gpd.core.include_expansion import expand_at_includes
 from gpd.registry import get_command, list_commands
 from tests.doc_surface_contracts import assert_tour_command_surface_contract
 

@@ -963,8 +963,20 @@ def _selection_flag_variants(flag: str) -> set[str]:
     return variants
 
 
-def _adapter_module_variants(adapter_module: str) -> tuple[str, ...]:
-    return (adapter_module, f"gpd.adapters.{adapter_module}")
+def _public_alias_variants(value: str | None) -> set[str]:
+    if not isinstance(value, str):
+        return set()
+    normalized = value.strip().casefold()
+    if not normalized:
+        return set()
+    return {normalized}
+
+
+def _public_selection_flag_variants(flag: str) -> set[str]:
+    variants = _public_alias_variants(flag)
+    if flag.startswith("--"):
+        variants.update(_public_alias_variants(flag.removeprefix("--")))
+    return variants
 
 
 def _validate_runtime_descriptor_selection_tokens(
@@ -993,7 +1005,7 @@ def _validate_runtime_descriptor_selection_tokens(
 
 
 def normalize_runtime_name(value: str | None) -> str | None:
-    """Resolve a runtime id, display name, alias, or install flag to a canonical runtime name."""
+    """Resolve a public runtime selector to a canonical runtime name."""
     if not isinstance(value, str):
         return None
 
@@ -1006,12 +1018,11 @@ def normalize_runtime_name(value: str | None) -> str | None:
             descriptor.runtime_name,
             descriptor.display_name,
             *descriptor.selection_aliases,
-            *_adapter_module_variants(descriptor.adapter_module),
         ):
-            if normalized in _alias_variants(alias):
+            if normalized in _public_alias_variants(alias):
                 return descriptor.runtime_name
         for flag in (descriptor.install_flag, *descriptor.selection_flags):
-            if normalized in _selection_flag_variants(flag):
+            if normalized in _public_selection_flag_variants(flag):
                 return descriptor.runtime_name
     return None
 

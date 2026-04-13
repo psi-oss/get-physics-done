@@ -562,14 +562,25 @@ def test_normalize_runtime_name_accepts_install_flags_outside_selection_flags(
         runtime_catalog._load_catalog.cache_clear()
 
 
-def test_normalize_runtime_name_accepts_adapter_module_and_hyphen_variants() -> None:
+def test_normalize_runtime_name_rejects_internal_adapter_module_variants() -> None:
     descriptor = get_runtime_descriptor("claude-code")
 
-    assert normalize_runtime_name(descriptor.adapter_module) == "claude-code"
-    assert normalize_runtime_name("claude_code") == "claude-code"
-    assert normalize_runtime_name("gpd.adapters.claude_code") == "claude-code"
-    assert normalize_runtime_name("gpd.adapters.claude-code") == "claude-code"
-    assert normalize_runtime_name("--gemini_cli") == "gemini"
+    assert normalize_runtime_name(descriptor.adapter_module) is None
+    assert normalize_runtime_name("claude_code") is None
+    assert normalize_runtime_name("gpd.adapters.claude_code") is None
+    assert normalize_runtime_name("gpd.adapters.claude-code") is None
+    assert normalize_runtime_name("--gemini_cli") is None
+
+
+def test_get_runtime_descriptor_rejects_internal_adapter_module_selectors() -> None:
+    descriptor = get_runtime_descriptor("claude-code")
+
+    with pytest.raises(KeyError, match=r"Unknown runtime 'claude_code'"):
+        get_runtime_descriptor(descriptor.adapter_module)
+    with pytest.raises(KeyError, match=r"Unknown runtime 'gpd\.adapters\.claude_code'"):
+        get_runtime_descriptor(f"gpd.adapters.{descriptor.adapter_module}")
+    with pytest.raises(KeyError, match=r"Unknown runtime 'gpd\.adapters\.codex'"):
+        get_runtime_descriptor("gpd.adapters.codex")
 
 
 def test_runtime_catalog_selector_variants_have_single_owner() -> None:

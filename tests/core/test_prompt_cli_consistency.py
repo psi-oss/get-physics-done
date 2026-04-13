@@ -226,6 +226,8 @@ def test_help_prompt_default_quick_start_extracts_workflow_owned_sections() -> N
     assert "## Detailed Command Reference" in help_workflow
     assert "gpd:new-project -> gpd:discuss-phase -> gpd:plan-phase -> gpd:execute-phase -> gpd:verify-work -> repeat" in help_workflow
     assert "gpd init new-project" not in help_workflow
+    assert "gpd --raw init phase-op" not in help_workflow
+    assert "**`gpd:show-phase <number>`**" in help_workflow
     for token in ("gpd:discuss-phase", "gpd:write-paper", "gpd:tangent", "gpd:set-tier-models", "gpd:settings"):
         assert token in command_index
 

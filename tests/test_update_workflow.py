@@ -533,7 +533,7 @@ def test_global_install_materializes_authoritative_paths_for_custom_home(
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)
-def test_env_resolved_global_install_without_explicit_target_returns_trusted_update_command(
+def test_env_resolved_global_install_without_explicit_target_returns_no_trusted_update_command(
     tmp_path: Path,
     descriptor,
     monkeypatch: pytest.MonkeyPatch,
@@ -585,7 +585,8 @@ def test_env_resolved_global_install_without_explicit_target_returns_trusted_upd
         else:
             pytest.fail(f"Unsupported global config strategy: {descriptor.global_config.strategy}")
         ctx.setattr("gpd.hooks.install_metadata.Path.home", lambda: home_dir)
-        assert installed_update_command(override_target) == f"{BOOTSTRAP_COMMAND} {descriptor.install_flag} --global"
+        assert installed_update_command(override_target) is None
+        assert installed_update_command(override_target, home=home_dir) is None
 
 
 @pytest.mark.parametrize("descriptor", _RUNTIME_DESCRIPTORS, ids=lambda descriptor: descriptor.runtime_name)

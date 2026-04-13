@@ -1721,6 +1721,9 @@ class TestRegistryPromptIncludeInlining:
             assert lightweight in skill.content
             assert eager not in skill.content
 
+    def _assert_no_synthetic_include_placeholders(self, command: CommandDef) -> None:
+        assert "__gpd_registry_include__" not in command.content
+
     def test_registry_projection_strips_generic_html_comments(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         commands_dir = tmp_path / "commands"
         commands_dir.mkdir()
@@ -1845,6 +1848,29 @@ class TestRegistryPromptIncludeInlining:
         assert "templates/paper/referee-decision-schema.md" in command.staged_loading.stage(
             "publication_review"
         ).loaded_authorities
+
+    def test_reapply_patches_registry_surface_preserves_public_patch_placeholders(self) -> None:
+        command = registry.get_command("gpd:reapply-patches")
+
+        self._assert_no_synthetic_include_placeholders(command)
+        assert 'PATCHES_DIR="{GPD_PATCHES_DIR}"' in command.content
+        assert 'GLOBAL_PATCHES_DIR="{GPD_GLOBAL_PATCHES_DIR}"' in command.content
+
+    def test_update_registry_surface_preserves_public_config_placeholders(self) -> None:
+        command = registry.get_command("gpd:update")
+
+        self._assert_no_synthetic_include_placeholders(command)
+        assert 'GPD_CONFIG_DIR="{GPD_CONFIG_DIR}"' in command.content
+        assert 'GPD_GLOBAL_CONFIG_DIR="{GPD_GLOBAL_CONFIG_DIR}"' in command.content
+        assert '"{GPD_CONFIG_DIR}/cache/gpd-update-check.json"' in command.content
+        assert '"{GPD_GLOBAL_CONFIG_DIR}/cache/gpd-update-check.json"' in command.content
+
+    @pytest.mark.parametrize("command_name", ["gpd:respond-to-referees", "gpd:write-paper"])
+    def test_publication_registry_surfaces_preserve_public_reference_placeholders(self, command_name: str) -> None:
+        command = registry.get_command(command_name)
+
+        self._assert_no_synthetic_include_placeholders(command)
+        assert "@{GPD_INSTALL_DIR}/references/publication/publication-response-artifacts.md" in command.content
 
     def test_publication_review_skills_keep_the_needed_contract_references_visible(self) -> None:
         from gpd.mcp.servers.skills_server import get_skill

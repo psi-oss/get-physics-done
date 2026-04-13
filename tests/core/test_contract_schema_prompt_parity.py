@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal, get_args, get_origin
 
-from gpd.adapters.install_utils import expand_at_includes
 from gpd.contracts import (
     CONTRACT_ACCEPTANCE_AUTOMATION_VALUES,
     CONTRACT_ACCEPTANCE_TEST_KIND_VALUES,
@@ -42,6 +41,7 @@ from gpd.contracts import (
     SuggestedContractCheck,
     VerificationEvidence,
 )
+from gpd.core.include_expansion import expand_at_includes
 from gpd.mcp.verification_contract_policy import verification_contract_policy_text
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

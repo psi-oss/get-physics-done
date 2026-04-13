@@ -10,10 +10,10 @@ from typing import Literal
 import pytest
 
 from gpd import registry
-from gpd.adapters.install_utils import expand_at_includes
 from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 from gpd.contracts import ResearchContract, VerificationEvidence
 from gpd.core.frontmatter import validate_frontmatter
+from gpd.core.include_expansion import expand_at_includes
 from gpd.core.workflow_staging import validate_workflow_stage_manifest_payload
 from gpd.registry import _parse_frontmatter, _parse_tools
 from tests.core.test_spawn_contracts import _find_single_task
@@ -65,6 +65,14 @@ PUBLICATION_REVIEW_RELIABILITY_INCLUDE = "@{GPD_INSTALL_DIR}/references/publicat
 LEGACY_RESEARCH_COMPAT_NOTE_RE = re.compile(
     r"Legacy `GPD/research/`\s+review artifacts are compatibility inputs only and must not be used as new write targets\."
 )
+EXPAND_AT_INCLUDES_TOKEN_RE = re.compile(r"\bexpand_at_includes\(")
+ALLOWED_PRODUCTION_EXPAND_AT_INCLUDES_FILES = frozenset(
+    {
+        "src/gpd/adapters/install_utils.py",
+        "src/gpd/core/include_expansion.py",
+        "src/gpd/registry.py",
+    }
+)
 
 
 def _assert_contains_fragments(text: str, *fragments: str) -> None:
@@ -81,6 +89,16 @@ def _assert_legacy_research_paths_are_read_only_compat(
     if require_compat_note:
         assert compat_note_count >= 1
     assert "GPD/research/" not in sanitized
+
+
+def test_expand_at_includes_production_usage_stays_bounded_to_core_registry_and_install_wrapper() -> None:
+    actual = {
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in (REPO_ROOT / "src" / "gpd").rglob("*.py")
+        if EXPAND_AT_INCLUDES_TOKEN_RE.search(path.read_text(encoding="utf-8"))
+    }
+
+    assert actual == ALLOWED_PRODUCTION_EXPAND_AT_INCLUDES_FILES
 
 
 COMMAND_SPAWN_TOKENS = {

@@ -224,6 +224,35 @@ def test_runtime_cli_returns_stable_error_for_unknown_runtime(monkeypatch, tmp_p
     assert "Supported:" in captured.err
 
 
+@pytest.mark.parametrize("runtime", ["claude_code", "gpd.adapters.claude_code", "gpd.adapters.codex"])
+def test_runtime_cli_rejects_internal_runtime_selector_forms(
+    monkeypatch,
+    tmp_path: Path,
+    capsys,
+    runtime: str,
+) -> None:
+    monkeypatch.setattr("gpd.runtime_cli._maybe_reexec_from_checkout", lambda *_args, **_kwargs: None)
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = main(
+        [
+            "--runtime",
+            runtime,
+            "--config-dir",
+            str(tmp_path / "GPD"),
+            "--install-scope",
+            "global",
+            "state",
+            "load",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 127
+    assert f"Unknown runtime '{runtime}'" in captured.err
+    assert "Supported:" in captured.err
+
+
 def test_runtime_cli_accepts_cwd_after_command_normalization(monkeypatch, tmp_path: Path) -> None:
     descriptor = _RUNTIME_DESCRIPTORS[0]
     adapter = get_adapter(descriptor.runtime_name)

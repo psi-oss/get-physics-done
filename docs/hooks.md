@@ -16,7 +16,7 @@ Together these scripts share helper modules such as `payload_policy.py`, `payloa
 
 ### `GPD_ACTIVE_RUNTIME`
 
-Set this to a canonical runtime name (for example `codex`, `claude-code`, `gemini`, or `opencode`) to bypass the auto-detection heuristics in `runtime_detect.py`. GPD normalizes the value before choosing a runtime, so case-insensitive aliases like `Codex` work too. This is handy when you run `uv run gpd` from a shell that needs to stay attached to one runtime, when tests want to force a specific adapter, or when you build tooling that must talk to the same runtime regardless of the current working directory.
+Set this to a documented public runtime selector—prefer the canonical runtime names `codex`, `claude-code`, `gemini`, or `opencode`—to bypass the auto-detection heuristics in `runtime_detect.py`. GPD normalizes the value before choosing a runtime, so case-insensitive public aliases like `Codex` work too. Internal adapter module names or dotted module paths are not part of this public surface. This is handy when you run `uv run gpd` from a shell that needs to stay attached to one runtime, when tests want to force a specific adapter, or when you build tooling that must talk to the same runtime regardless of the current working directory.
 
 ### `GPD_DISABLE_CHECKOUT_REEXEC`
 

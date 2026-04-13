@@ -103,6 +103,18 @@ _AGENT_FRONTMATTER_KEYS = frozenset(
 )
 
 
+def _preserve_model_visible_placeholders(
+    content: str,
+    path_prefix: str,
+    runtime: str | None,
+    install_scope: str | None = None,
+) -> str:
+    """Keep canonical public placeholders intact in registry-rendered content."""
+
+    del path_prefix, runtime, install_scope
+    return content
+
+
 def _runtime_config_dir_names() -> frozenset[str]:
     from gpd.adapters.runtime_catalog import iter_runtime_descriptors
 
@@ -133,6 +145,7 @@ def _inline_model_visible_includes(content: str) -> str:
         _PKG_ROOT,
         _MODEL_VISIBLE_INCLUDE_PATH_PREFIX,
         runtime_config_dir_names=_runtime_config_dir_names(),
+        placeholder_replacer=_preserve_model_visible_placeholders,
     )
     cleaned_lines: list[str] = []
     in_included_block = False

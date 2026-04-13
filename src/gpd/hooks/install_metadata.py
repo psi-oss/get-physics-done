@@ -383,12 +383,10 @@ def installed_update_command(
     explicit_target = manifest.get("explicit_target")
     if not isinstance(explicit_target, bool):
         if scope == "global":
-            resolved_home = (
-                Path(home).expanduser().resolve(strict=False)
-                if home is not None
-                else Path.home().expanduser().resolve(strict=False)
-            )
-            if config_dir != adapter.resolve_global_config_dir(home=resolved_home):
+            if home is None:
+                return None
+            resolved_home = Path(home).expanduser().resolve(strict=False)
+            if config_dir != adapter.resolve_global_config_dir(home=resolved_home, environ={}):
                 return None
             explicit_target = False
         elif scope == "local":

@@ -91,7 +91,6 @@ def _adapter_aliases(descriptor: RuntimeDescriptor) -> tuple[str, ...]:
         descriptor.runtime_name,
         descriptor.display_name,
         descriptor.install_flag,
-        descriptor.adapter_module,
         *descriptor.selection_flags,
         *descriptor.selection_aliases,
     )

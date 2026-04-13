@@ -44,7 +44,7 @@ Phase {N}: {name}
 ```
 Ready to execute:
   gpd:execute-phase {N}   — Execute phase {N} plans
-  gpd --raw init phase-op {N}      — Review phase details first
+  gpd:show-phase {N}      — Review phase details first
 ```
 
 **Phase complete:**
@@ -201,7 +201,6 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:list-phase-assumptions <number>` - Preview the planned phase approach
 - `gpd:discover [phase or topic]` - Survey methods, literature, and tools before planning
 - `gpd:show-phase <number>` - Inspect one phase's artifacts and status
-- `gpd --raw init phase-op <number>` - Inspect one phase's artifacts and status
 - `gpd:plan-phase <number>` - Build a detailed execution plan for a phase
 - `gpd:execute-phase <phase-number>` - Run all plans in a phase
 - `gpd:derive-equation` - Run a rigorous derivation workflow
@@ -386,14 +385,14 @@ Usage: `gpd:discover 3`
 Usage: `gpd:discover "finite-temperature RG flow" --depth deep`
 Usage: `gpd:discover 3 --depth deep`
 
-**`gpd --raw init phase-op <number>`**
+**`gpd:show-phase <number>`**
 Inspect a single phase's artifacts, status, and results.
 
 - Shows phase goal, plans, summaries, and verification status
 - Displays frontmatter metadata (wave, dependencies, status)
 - Quick way to review what a phase produced
 
-Usage: `gpd --raw init phase-op 3`
+Usage: `gpd:show-phase 3`
 
 **`gpd:plan-phase <number>`**
 Create detailed execution plan for a specific phase.
