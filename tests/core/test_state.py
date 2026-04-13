@@ -391,7 +391,8 @@ def test_restore_visible_project_contract_keeps_rootless_local_prior_output_grou
     ]
 
 
-def test_restore_visible_project_contract_keeps_rootless_local_anchor_as_approval_blocker() -> None:
+def test_restore_visible_project_contract_keeps_rootless_local_anchor_visible_and_surfaces_project_root_requirement(
+) -> None:
     contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
     contract["references"] = []
     contract["claims"][0]["references"] = []
@@ -412,7 +413,36 @@ def test_restore_visible_project_contract_keeps_rootless_local_anchor_as_approva
 
     assert restored["project_contract"] is not None
     assert restored["project_contract"]["context_intake"]["user_asserted_anchors"] == ["./RESULTS.md"]
-    assert findings == []
+    assert findings == [
+        "context_intake.user_asserted_anchors entry requires a resolved project_root to verify artifact grounding: ./RESULTS.md"
+    ]
+
+
+def test_restore_visible_project_contract_keeps_rootless_local_baseline_visible_and_surfaces_project_root_requirement(
+) -> None:
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["references"] = []
+    contract["claims"][0]["references"] = []
+    contract["acceptance_tests"][0]["evidence_required"] = ["deliv-figure"]
+    contract["context_intake"] = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": ["./RESULTS.md"],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+
+    restored, findings = state_module._restore_visible_project_contract(
+        default_state_dict(),
+        contract,
+    )
+
+    assert restored["project_contract"] is not None
+    assert restored["project_contract"]["context_intake"]["known_good_baselines"] == ["./RESULTS.md"]
+    assert findings == [
+        "context_intake.known_good_baselines entry requires a resolved project_root to verify artifact grounding: ./RESULTS.md"
+    ]
 
 
 def test_restore_visible_project_contract_accepts_existing_local_prior_output_grounding_with_project_root(
@@ -495,8 +525,48 @@ def test_state_load_keeps_visible_approval_blocked_contract_for_rootless_local_a
     assert loaded.state["project_contract"] is not None
     assert loaded.state["project_contract"]["context_intake"]["user_asserted_anchors"] == ["./RESULTS.md"]
     assert loaded.project_contract_load_info["status"] == "blocked_integrity"
+    assert loaded.project_contract_load_info["errors"] == [
+        "context_intake.user_asserted_anchors entry does not resolve to a project-local artifact: ./RESULTS.md",
+        "context_intake must not be empty",
+    ]
     assert loaded.project_contract_gate["visible"] is True
+    assert loaded.project_contract_gate["load_blocked"] is True
+    assert loaded.project_contract_gate["approval_blocked"] is True
     assert loaded.project_contract_gate["authoritative"] is False
+    assert loaded.project_contract_gate["repair_required"] is True
+
+
+def test_state_load_keeps_visible_blocked_contract_for_rootless_local_baseline(tmp_path: Path) -> None:
+    state = default_state_dict()
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["references"] = []
+    contract["claims"][0]["references"] = []
+    contract["acceptance_tests"][0]["evidence_required"] = ["deliv-figure"]
+    contract["context_intake"] = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": ["./RESULTS.md"],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+    state["project_contract"] = contract
+    _write_raw_state_json(tmp_path, state)
+
+    loaded = state_load(tmp_path)
+
+    assert loaded.state["project_contract"] is not None
+    assert loaded.state["project_contract"]["context_intake"]["known_good_baselines"] == ["./RESULTS.md"]
+    assert loaded.project_contract_load_info["status"] == "blocked_integrity"
+    assert loaded.project_contract_load_info["errors"] == [
+        "context_intake.known_good_baselines entry does not resolve to a project-local artifact: ./RESULTS.md",
+        "context_intake must not be empty",
+    ]
+    assert loaded.project_contract_gate["visible"] is True
+    assert loaded.project_contract_gate["load_blocked"] is True
+    assert loaded.project_contract_gate["approval_blocked"] is True
+    assert loaded.project_contract_gate["authoritative"] is False
+    assert loaded.project_contract_gate["repair_required"] is True
 
 
 def test_state_load_blocks_missing_project_local_prior_output_grounding(tmp_path: Path) -> None:
@@ -538,17 +608,27 @@ def test_state_load_recovers_legacy_contract_missing_context_and_uncertainty(tmp
         "context_gaps": [],
         "crucial_inputs": [],
     }
-    assert loaded.project_contract_load_info["status"] == "loaded_with_approval_blockers"
+    assert loaded.project_contract_load_info["status"] == "blocked_integrity"
     warnings = loaded.project_contract_load_info["warnings"]
     assert any(CONTEXT_INTAKE_DEFAULT_WARNING in warning for warning in warnings)
     assert any(UNCERTAINTY_MARKERS_DEFAULT_WARNING in warning for warning in warnings)
     assert loaded.project_contract_validation is not None
     assert loaded.project_contract_validation["valid"] is False
     assert "context_intake must not be empty" in loaded.project_contract_validation["errors"]
+    assert (
+        "uncertainty_markers.weakest_anchors must identify what is least certain"
+        in loaded.project_contract_validation["errors"]
+    )
+    assert (
+        "uncertainty_markers.disconfirming_observations must identify what would force a rethink"
+        in loaded.project_contract_validation["errors"]
+    )
     assert loaded.project_contract_gate["visible"] is True
     assert loaded.project_contract_gate["blocked"] is True
+    assert loaded.project_contract_gate["load_blocked"] is True
     assert loaded.project_contract_gate["approval_blocked"] is True
     assert loaded.project_contract_gate["authoritative"] is False
+    assert loaded.project_contract_gate["repair_required"] is True
 
 
 def test_load_state_json_preserves_sibling_fields_when_nested_position_field_is_invalid(tmp_path: Path) -> None:
@@ -816,13 +896,57 @@ def test_state_set_project_contract_rejects_contract_missing_skeptical_fields(tm
 
     result = state_set_project_contract(tmp_path, contract)
 
-    assert result.updated is True
-    assert result.reason is None
-    assert any("weakest_anchors" in warning for warning in result.warnings)
-    assert any("disconfirming_observations" in warning for warning in result.warnings)
+    assert result.updated is False
+    assert result.reason is not None
+    assert result.reason.startswith("Project contract failed scoping validation:")
+    assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.reason
+    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.reason
+    assert result.warnings == []
+    assert result.schema_reference == "templates/project-contract-schema.md"
     saved = load_state_json(tmp_path)
     assert saved is not None
-    assert saved["project_contract"] is not None
+    assert saved["project_contract"] is None
+
+
+def test_state_set_project_contract_rejects_contract_with_empty_context_intake(tmp_path: Path):
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract["context_intake"] = {
+        "must_read_refs": [],
+        "must_include_prior_outputs": [],
+        "user_asserted_anchors": [],
+        "known_good_baselines": [],
+        "context_gaps": [],
+        "crucial_inputs": [],
+    }
+    _write_fixture_prior_output(tmp_path)
+    save_state_json(tmp_path, default_state_dict())
+
+    result = state_set_project_contract(tmp_path, contract)
+
+    assert result.updated is False
+    assert result.reason == "Project contract failed scoping validation: context_intake must not be empty"
+    assert result.warnings == []
+    assert result.schema_reference == "templates/project-contract-schema.md"
+    saved = load_state_json(tmp_path)
+    assert saved is not None
+    assert saved["project_contract"] is None
+
+
+def test_state_set_project_contract_rejects_contract_missing_uncertainty_markers(tmp_path: Path):
+    contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+    contract.pop("uncertainty_markers", None)
+    _write_fixture_prior_output(tmp_path)
+    save_state_json(tmp_path, default_state_dict())
+
+    result = state_set_project_contract(tmp_path, contract)
+
+    assert result.updated is False
+    assert result.reason == "Invalid project contract schema: uncertainty_markers is required"
+    assert result.warnings == []
+    assert result.schema_reference == "templates/project-contract-schema.md"
+    saved = load_state_json(tmp_path)
+    assert saved is not None
+    assert saved["project_contract"] is None
 
 
 def test_state_set_project_contract_rejects_singleton_list_drift(tmp_path: Path):
@@ -872,7 +996,7 @@ def test_state_set_project_contract_persists_schema_valid_draft_with_approval_bl
         "user_asserted_anchors": [],
         "known_good_baselines": [],
         "context_gaps": ["Need a concrete must-surface anchor before approval."],
-        "crucial_inputs": [],
+        "crucial_inputs": ["Need the user-selected benchmark anchor."],
     }
     contract["references"][0]["role"] = "background"
     contract["references"][0]["must_surface"] = False
@@ -890,6 +1014,19 @@ def test_state_set_project_contract_persists_schema_valid_draft_with_approval_bl
     assert saved is not None
     assert saved["project_contract"] is not None
     assert saved["project_contract"]["references"][0]["must_surface"] is False
+
+    loaded = state_load(tmp_path)
+    assert loaded.project_contract_load_info["status"] == "loaded_with_approval_blockers"
+    assert loaded.project_contract_gate["visible"] is True
+    assert loaded.project_contract_gate["load_blocked"] is False
+    assert loaded.project_contract_gate["approval_blocked"] is True
+    assert loaded.project_contract_gate["authoritative"] is False
+    assert loaded.project_contract_gate["repair_required"] is True
+    assert loaded.project_contract_validation is not None
+    assert any(
+        "references must include at least one must_surface=true anchor" in error
+        for error in loaded.project_contract_validation["errors"]
+    )
 
 
 def test_save_state_markdown_preserves_canonical_continuation_recorded_at_when_session_date_is_missing(
@@ -2286,7 +2423,7 @@ def test_state_validate_standard_warns_for_project_contract_approval_blockers(tm
         "user_asserted_anchors": [],
         "known_good_baselines": [],
         "context_gaps": ["Need a concrete must-surface anchor before approval."],
-        "crucial_inputs": [],
+        "crucial_inputs": ["Need the user-selected benchmark anchor."],
     }
     contract["references"][0]["must_surface"] = False
     state["project_contract"] = contract
@@ -2317,7 +2454,7 @@ def test_state_validate_review_blocks_project_contract_without_non_reference_gro
         "user_asserted_anchors": [],
         "known_good_baselines": [],
         "context_gaps": ["Need a concrete must-surface anchor before approval."],
-        "crucial_inputs": [],
+        "crucial_inputs": ["Need the user-selected benchmark anchor."],
     }
     contract["references"][0]["must_surface"] = False
     state["project_contract"] = contract
@@ -2436,6 +2573,7 @@ def test_state_load_recovers_backup_project_contract_when_primary_contract_is_bl
     save_state_json(tmp_path, baseline)
     save_state_markdown(tmp_path, generate_state_markdown(baseline))
     layout = ProjectLayout(tmp_path)
+    _write_fixture_prior_output(tmp_path)
 
     broken_state = default_state_dict()
     broken_state["position"]["status"] = "Executing"
@@ -2454,10 +2592,11 @@ def test_state_load_recovers_backup_project_contract_when_primary_contract_is_bl
     assert loaded.state["project_contract"] is not None
     assert loaded.state["project_contract"]["references"][0]["must_surface"] is True
     assert loaded.state_source == "state.json"
-    assert not any(
-        'dropped "project_contract" because authoritative scalar fields required normalization' in issue
-        for issue in loaded.integrity_issues
-    )
+    assert loaded.project_contract_load_info["status"] == "loaded"
+    assert any("references.0.must_surface" in warning for warning in loaded.project_contract_load_info["warnings"])
+    assert loaded.project_contract_gate["visible"] is True
+    assert loaded.project_contract_gate["authoritative"] is True
+    assert loaded.project_contract_gate["repair_required"] is False
     assert not any("state.json root was recovered from state.json.bak" in issue for issue in loaded.integrity_issues)
 
 

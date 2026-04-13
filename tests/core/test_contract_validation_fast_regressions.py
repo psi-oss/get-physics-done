@@ -234,10 +234,10 @@ def test_validate_project_contract_warns_when_reference_grounding_lacks_explicit
 
     result = validate_project_contract(contract, mode="draft")
 
-    assert result.valid is True
+    assert result.valid is False
     assert result.guidance_signal_count == 0
-    assert result.errors == []
-    assert "context_intake must not be empty" in result.warnings
+    assert "context_intake must not be empty" in result.errors
+    assert "context_intake must not be empty" not in result.warnings
 
 
 def test_fast_contract_validation_salvage_preserves_top_level_scalar_string_list_field_as_blocking() -> None:
@@ -285,6 +285,17 @@ def test_fast_contract_validation_strict_rejects_missing_context_intake_before_m
 
     assert result.contract is None
     assert "context_intake is required" in result.blocking_errors
+    assert result.recoverable_errors == []
+
+
+def test_fast_contract_validation_strict_rejects_missing_uncertainty_markers_before_model_defaults() -> None:
+    contract = _load_contract_fixture()
+    del contract["uncertainty_markers"]
+
+    result = parse_project_contract_data_strict(contract)
+
+    assert result.contract is None
+    assert "uncertainty_markers is required" in result.blocking_errors
     assert result.recoverable_errors == []
 
 
@@ -463,6 +474,16 @@ def test_fast_contract_validation_strict_entrypoint_rejects_missing_context_inta
 
     assert validation.valid is False
     assert "context_intake is required" in validation.errors
+
+
+def test_fast_contract_validation_strict_entrypoint_rejects_missing_uncertainty_markers() -> None:
+    contract = _load_contract_fixture()
+    del contract["uncertainty_markers"]
+
+    validation = validate_project_contract(contract, mode="approved")
+
+    assert validation.valid is False
+    assert "uncertainty_markers is required" in validation.errors
 
 
 def test_fast_contract_validation_rootless_path_like_anchor_needs_project_root() -> None:

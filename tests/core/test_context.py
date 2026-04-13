@@ -2632,7 +2632,7 @@ class TestInitNewMilestone:
             "user_asserted_anchors": [],
             "known_good_baselines": [],
             "context_gaps": [],
-            "crucial_inputs": [],
+            "crucial_inputs": ["Need the user-selected benchmark anchor."],
         }
         contract["references"][0]["role"] = "background"
         contract["references"][0]["must_surface"] = False

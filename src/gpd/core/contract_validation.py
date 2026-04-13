@@ -1631,12 +1631,6 @@ def validate_project_contract(
     errors: list[str] = []
     warnings: list[str] = list(schema_warnings)
 
-    def _require_or_warn(message: str) -> None:
-        if mode == "approved":
-            errors.append(message)
-        else:
-            warnings.append(message)
-
     if not question:
         errors.append("scope.question is required")
     if not parsed.scope.in_scope:
@@ -1644,9 +1638,9 @@ def validate_project_contract(
     if decisive_target_count == 0:
         errors.append("project contract must include at least one observable, claim, or deliverable")
     if not parsed.uncertainty_markers.weakest_anchors:
-        _require_or_warn("uncertainty_markers.weakest_anchors must identify what is least certain")
+        errors.append("uncertainty_markers.weakest_anchors must identify what is least certain")
     if not parsed.uncertainty_markers.disconfirming_observations:
-        _require_or_warn("uncertainty_markers.disconfirming_observations must identify what would force a rethink")
+        errors.append("uncertainty_markers.disconfirming_observations must identify what would force a rethink")
 
     errors.extend(_light_contract_consistency_errors(parsed))
     errors.extend(collect_proof_bearing_claim_integrity_errors(parsed))
@@ -1690,7 +1684,7 @@ def validate_project_contract(
     if not parsed.forbidden_proxies:
         warnings.append("no forbidden_proxies recorded yet")
     if guidance_signal_count == 0:
-        _require_or_warn("context_intake must not be empty")
+        errors.append("context_intake must not be empty")
 
     return ProjectContractValidationResult(
         valid=not errors,

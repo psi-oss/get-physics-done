@@ -101,24 +101,15 @@ def test_validate_project_contract_smoke_rejects_rootless_project_local_must_sur
     assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
 
 
-@pytest.mark.parametrize(
-    ("field_name", "expected_error"),
-    [
-        ("context_intake", "context_intake was missing and was defaulted to an empty context intake section"),
-        ("uncertainty_markers", "uncertainty_markers was missing and was defaulted to empty uncertainty markers"),
-    ],
-)
-def test_validate_project_contract_smoke_rejects_missing_required_sections(
-    field_name: str,
-    expected_error: str,
-) -> None:
+@pytest.mark.parametrize("field_name", ["context_intake", "uncertainty_markers"])
+def test_validate_project_contract_smoke_rejects_missing_required_sections(field_name: str) -> None:
     contract = _load_contract_fixture()
     contract.pop(field_name)
 
     result = validate_project_contract(contract)
 
-    assert result.valid is True
-    assert expected_error in result.warnings
+    assert result.valid is False
+    assert any(error.startswith(field_name) for error in result.errors)
 
 
 @pytest.mark.parametrize(

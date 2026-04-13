@@ -207,7 +207,9 @@ def test_run_contract_check_accepts_non_must_surface_reference_when_project_dir_
     assert rooted["status"] == "pass"
 
 
-def test_suggest_contract_checks_accepts_rootless_prior_output_as_visible_context_intake() -> None:
+def test_suggest_contract_checks_accepts_project_local_prior_output_when_project_dir_supplied(
+    tmp_path: Path,
+) -> None:
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 
     contract = _load_project_contract_fixture()
@@ -219,8 +221,9 @@ def test_suggest_contract_checks_accepts_rootless_prior_output_as_visible_contex
         "context_gaps": [],
         "crucial_inputs": [],
     }
+    (tmp_path / "RESULTS.md").write_text("results\n", encoding="utf-8")
 
-    result = suggest_contract_checks(contract)
+    result = suggest_contract_checks(contract, project_dir=tmp_path.resolve(strict=False).as_posix())
 
     assert "error" not in result
     assert result["schema_version"] == 1

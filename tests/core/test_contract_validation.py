@@ -474,10 +474,6 @@ def test_contract_from_data_salvage_defaults_missing_uncertainty_marker_subfield
     assert parsed.contract is not None
     assert parsed.contract.uncertainty_markers.weakest_anchors == []
     assert parsed.contract.uncertainty_markers.disconfirming_observations == []
-    result = validate_project_contract(contract, mode="draft")
-    assert result.valid is True
-    assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.warnings
-    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.warnings
     assert contract_from_data_salvage(contract) is not None
 
 
@@ -1237,10 +1233,10 @@ def test_validate_project_contract_rejects_missing_decisive_targets_and_skeptici
 
     assert result.valid is False
     assert "project contract must include at least one observable, claim, or deliverable" in result.errors
-    assert "uncertainty_markers.weakest_anchors must identify what is least certain" not in result.errors
-    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" not in result.errors
-    assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.warnings
-    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.warnings
+    assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.errors
+    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.errors
+    assert "uncertainty_markers.weakest_anchors must identify what is least certain" not in result.warnings
+    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" not in result.warnings
 
 
 def test_validate_project_contract_rejects_scalar_list_drift_without_silent_salvage() -> None:
@@ -1267,18 +1263,18 @@ def test_validate_project_contract_draft_warns_on_salvageable_scalar_list_drift(
     assert "context_intake.must_read_refs must be a list, not str" in result.warnings
 
 
-def test_validate_project_contract_draft_warns_on_empty_uncertainty_markers() -> None:
+def test_validate_project_contract_draft_rejects_empty_uncertainty_markers() -> None:
     contract = _load_contract_fixture()
     contract["uncertainty_markers"]["weakest_anchors"] = []
     contract["uncertainty_markers"]["disconfirming_observations"] = []
 
     result = validate_project_contract(contract, mode="draft")
 
-    assert result.valid is True
-    assert "uncertainty_markers.weakest_anchors must identify what is least certain" not in result.errors
-    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" not in result.errors
-    assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.warnings
-    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.warnings
+    assert result.valid is False
+    assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.errors
+    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.errors
+    assert "uncertainty_markers.weakest_anchors must identify what is least certain" not in result.warnings
+    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" not in result.warnings
 
 
 def test_validate_project_contract_rejects_extra_fields_without_silent_salvage() -> None:
@@ -1294,7 +1290,7 @@ def test_validate_project_contract_rejects_extra_fields_without_silent_salvage()
     assert any(error.startswith("scope.legacy_notes: Extra inputs are not permitted") for error in salvage_result.recoverable_errors)
 
 
-def test_validate_project_contract_warns_when_user_guidance_signals_are_missing() -> None:
+def test_validate_project_contract_rejects_when_user_guidance_signals_are_missing() -> None:
     contract = _load_contract_fixture()
     contract["context_intake"] = {
         "must_read_refs": [],
@@ -1307,9 +1303,10 @@ def test_validate_project_contract_warns_when_user_guidance_signals_are_missing(
 
     result = validate_project_contract(contract, mode="draft")
 
-    assert result.valid is True
+    assert result.valid is False
     assert result.guidance_signal_count == 0
-    assert result.errors == []
+    assert "context_intake must not be empty" in result.errors
+    assert "context_intake must not be empty" not in result.warnings
 
 
 def test_validate_project_contract_rejects_placeholder_only_anchor_guidance() -> None:
@@ -1325,9 +1322,9 @@ def test_validate_project_contract_rejects_placeholder_only_anchor_guidance() ->
 
     result = validate_project_contract(contract, mode="draft")
 
-    assert result.valid is True
+    assert result.valid is False
     assert result.guidance_signal_count == 0
-    assert result.errors == []
+    assert "context_intake must not be empty" in result.errors
     assert any("context_intake.user_asserted_anchors" in warning for warning in result.warnings)
     assert (
         "context_intake.user_asserted_anchors entry is not concrete enough to preserve as durable guidance: TBD"
@@ -1342,7 +1339,7 @@ def test_validate_project_contract_rejects_placeholder_only_anchor_guidance() ->
         ("known_good_baselines", "Baseline notebook A"),
     ],
 )
-def test_validate_project_contract_warns_for_non_concrete_anchor_guidance(
+def test_validate_project_contract_rejects_non_concrete_anchor_guidance(
     field_name: str,
     value: str,
 ) -> None:
@@ -1353,9 +1350,9 @@ def test_validate_project_contract_warns_for_non_concrete_anchor_guidance(
 
     result = validate_project_contract(contract, mode="draft")
 
-    assert result.valid is True
+    assert result.valid is False
     assert result.guidance_signal_count == 0
-    assert result.errors == []
+    assert "context_intake must not be empty" in result.errors
     assert (
         f"context_intake.{field_name} entry is not concrete enough to preserve as durable guidance: {value}"
         in result.warnings
@@ -1391,10 +1388,10 @@ def test_validate_project_contract_rejects_bare_filename_prior_output_without_ex
 
     result = validate_project_contract(contract, mode="draft")
 
-    assert result.valid is True
-    assert result.guidance_signal_count == 1
-    assert result.errors == []
-    assert result.warnings == ["no references recorded yet"]
+    assert result.valid is False
+    assert result.guidance_signal_count == 0
+    assert "context_intake must not be empty" in result.errors
+    assert "context_intake.must_include_prior_outputs entry is not an explicit project artifact path: RESULTS.md" in result.warnings
 
 
 def test_validate_project_contract_accepts_explicit_relative_prior_output_path_without_project_root() -> None:
@@ -2146,11 +2143,15 @@ def test_validate_project_contract_approved_mode_rejects_rootless_project_local_
 
     result = validate_project_contract(contract, mode="approved")
 
-    assert result.valid is True
+    assert result.valid is False
     assert result.mode == "approved"
-    assert result.errors == []
-    assert result.guidance_signal_count == 1
-    assert "no references recorded yet" in result.warnings
+    assert result.guidance_signal_count == 0
+    assert any("approved project contract requires at least one concrete anchor" in error for error in result.errors)
+    assert (
+        "context_intake.known_good_baselines entry requires a resolved project_root to verify artifact grounding: "
+        "GPD/phases/03-missing-energy/03-01-SUMMARY.md"
+        in result.warnings
+    )
 
 
 def test_referee_decision_input_rejects_string_booleans() -> None:
@@ -3006,10 +3007,10 @@ def test_validate_project_contract_draft_mode_does_not_treat_background_must_rea
 
     result = validate_project_contract(contract, mode="draft")
 
-    assert result.valid is True
+    assert result.valid is False
     assert result.guidance_signal_count == 0
-    assert result.errors == []
-    assert "context_intake must not be empty" in result.warnings
+    assert "context_intake must not be empty" in result.errors
+    assert "context_intake must not be empty" not in result.warnings
 
 
 def test_validate_project_contract_preserves_requested_mode_for_schema_errors() -> None:
@@ -3127,10 +3128,9 @@ def test_validate_project_contract_rejects_missing_uncertainty_marker_subfields(
 
     result = validate_project_contract(contract)
 
-    assert result.valid is True
-    assert result.errors == []
-    assert any("uncertainty_markers.weakest_anchors" in warning for warning in result.warnings)
-    assert any("uncertainty_markers.disconfirming_observations" in warning for warning in result.warnings)
+    assert result.valid is False
+    assert "uncertainty_markers.weakest_anchors must identify what is least certain" in result.errors
+    assert "uncertainty_markers.disconfirming_observations must identify what would force a rethink" in result.errors
 
 
 def test_contract_results_strict_mode_requires_explicit_uncertainty_markers() -> None:

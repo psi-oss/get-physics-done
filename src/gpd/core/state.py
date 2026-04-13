@@ -3569,18 +3569,10 @@ def _restore_visible_project_contract(
     if parsed.contract is None:
         return state_obj, []
 
-    local_grounding_errors = [
-        error
-        for error in _collect_project_local_grounding_integrity_errors(
-            parsed.contract,
-            project_root=project_root,
-        )
-        if not (
-            project_root is None
-            and "requires a resolved project_root" in error
-            and "must_include_prior_outputs" not in error
-        )
-    ]
+    local_grounding_errors = _collect_project_local_grounding_integrity_errors(
+        parsed.contract,
+        project_root=project_root,
+    )
 
     integrity_errors = set(collect_contract_integrity_errors(parsed.contract))
     schema_blockers = [error for error in parsed.blocking_errors if error not in integrity_errors]

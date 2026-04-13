@@ -702,6 +702,33 @@ class TestStateCommands:
         payload = json.loads(result.output)
         assert payload["valid"] is False
         assert any("weakest_anchors" in error for error in payload["errors"])
+        assert any("disconfirming_observations" in error for error in payload["errors"])
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
+        assert state["project_contract"] is None
+
+    def test_set_project_contract_rejects_contract_missing_uncertainty_markers_at_schema_boundary(
+        self,
+        gpd_project: Path,
+    ) -> None:
+        contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
+        contract.pop("uncertainty_markers", None)
+        contract_path = gpd_project / "invalid-contract.json"
+        contract_path.write_text(json.dumps(contract), encoding="utf-8")
+
+        result = runner.invoke(
+            app,
+            ["--raw", "state", "set-project-contract", str(contract_path)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        assert payload["updated"] is False
+        assert payload["reason"] == "Invalid project contract schema: uncertainty_markers is required"
+        assert payload["warnings"] == []
+        assert payload["schema_reference"] == "templates/project-contract-schema.md"
+        state = json.loads((gpd_project / "GPD" / "state.json").read_text(encoding="utf-8"))
+        assert state["project_contract"] is None
 
     def test_set_project_contract_rejects_singleton_list_drift_at_write_boundary(self, gpd_project: Path) -> None:
         contract = json.loads((FIXTURES_DIR / "project_contract.json").read_text(encoding="utf-8"))
@@ -829,7 +856,7 @@ class TestStateCommands:
             "user_asserted_anchors": [],
             "known_good_baselines": [],
             "context_gaps": ["Need a concrete must-surface anchor before approval."],
-            "crucial_inputs": [],
+            "crucial_inputs": ["Need the user-selected benchmark anchor."],
         }
         contract["references"][0]["role"] = "background"
         contract["references"][0]["must_surface"] = False
@@ -1085,7 +1112,7 @@ review_summary:
             "user_asserted_anchors": [],
             "known_good_baselines": [],
             "context_gaps": ["Need a concrete must-surface anchor before approval."],
-            "crucial_inputs": [],
+            "crucial_inputs": ["Need the user-selected benchmark anchor."],
         }
         contract["references"][0]["role"] = "background"
         contract["references"][0]["must_surface"] = False
@@ -1101,6 +1128,10 @@ review_summary:
         assert payload["contract_intake"]["context_gaps"] == ["Need a concrete must-surface anchor before approval."]
         assert payload["project_contract_load_info"]["status"] == "loaded_with_approval_blockers"
         assert payload["project_contract_validation"]["valid"] is False
+        assert payload["project_contract_gate"]["visible"] is True
+        assert payload["project_contract_gate"]["load_blocked"] is False
+        assert payload["project_contract_gate"]["approval_blocked"] is True
+        assert payload["project_contract_gate"]["authoritative"] is False
         assert "project_contract_load_info" in payload
         assert "project_contract_validation" in payload
 
@@ -1181,7 +1212,7 @@ review_summary:
             "user_asserted_anchors": [],
             "known_good_baselines": [],
             "context_gaps": ["Need a concrete must-surface anchor before approval."],
-            "crucial_inputs": [],
+            "crucial_inputs": ["Need the user-selected benchmark anchor."],
         }
         contract["references"][0]["role"] = "background"
         contract["references"][0]["must_surface"] = False
@@ -1197,6 +1228,10 @@ review_summary:
         assert payload["contract_intake"]["context_gaps"] == ["Need a concrete must-surface anchor before approval."]
         assert payload["project_contract_load_info"]["status"] == "loaded_with_approval_blockers"
         assert payload["project_contract_validation"]["valid"] is False
+        assert payload["project_contract_gate"]["visible"] is True
+        assert payload["project_contract_gate"]["load_blocked"] is False
+        assert payload["project_contract_gate"]["approval_blocked"] is True
+        assert payload["project_contract_gate"]["authoritative"] is False
         assert "project_contract_load_info" in payload
         assert "project_contract_validation" in payload
 

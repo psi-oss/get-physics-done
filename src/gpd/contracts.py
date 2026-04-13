@@ -421,30 +421,35 @@ _PLACEHOLDER_ONLY_GUIDANCE_PATTERNS: tuple[re.Pattern[str], ...] = (
 _PROJECT_ARTIFACT_PATH_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"[\\/]+"),
     re.compile(r"^(?:\.{1,2}|~)(?:[\\/]|$)"),
-    re.compile(r"\.[A-Za-z0-9]{1,8}$"),
 )
+
+
+def _project_artifact_path_text(value: str) -> str:
+    """Return the path portion of a candidate project-artifact locator."""
+
+    candidate = value.strip()
+    if not candidate:
+        return ""
+    parsed = urlparse(candidate)
+    if "://" in candidate or parsed.scheme:
+        return ""
+    return parsed.path.strip()
 
 
 def _looks_like_project_artifact_path(value: str) -> bool:
     """Return whether *value* looks like a concrete project-local artifact path."""
 
-    candidate = value.strip()
+    candidate = _project_artifact_path_text(value)
     if not candidate:
         return False
-    return bool(
-        re.search(r"[\\/]+", candidate)
-        or re.search(r"^(?:\.{1,2}|~)(?:[\\/]|$)", candidate)
-    )
+    return any(pattern.search(candidate) for pattern in _PROJECT_ARTIFACT_PATH_PATTERNS)
 
 
 def _is_project_artifact_path(value: str, *, project_root: Path | None = None) -> bool:
     """Return whether *value* names a concrete project-local artifact path."""
 
-    candidate = value.strip()
-    parsed = urlparse(candidate)
-    if not candidate or "://" in candidate or parsed.scheme:
-        return False
-    if not any(pattern.search(candidate) for pattern in _PROJECT_ARTIFACT_PATH_PATTERNS):
+    candidate = _project_artifact_path_text(value)
+    if not candidate or not _looks_like_project_artifact_path(candidate):
         return False
 
     if project_root is None:
@@ -469,7 +474,10 @@ def is_project_artifact_path(value: str, *, project_root: Path | None = None) ->
 def _is_unresolved_project_artifact_path(value: str) -> bool:
     """Return whether *value* names an artifact path that needs a project root."""
 
-    candidate_path = Path(value.strip()).expanduser()
+    candidate = _project_artifact_path_text(value)
+    if not candidate or not _looks_like_project_artifact_path(candidate):
+        return False
+    candidate_path = Path(candidate).expanduser()
     return candidate_path.is_absolute() or ".." in candidate_path.parts
 
 
@@ -612,7 +620,9 @@ def _is_context_intake_locator_grounding(
 ) -> bool:
     """Return whether a context-intake anchor/baseline is concrete enough to count."""
 
-    if require_existing_project_artifacts and project_root is not None and _looks_like_project_artifact_path(value):
+    if require_existing_project_artifacts and _looks_like_project_artifact_path(value):
+        if project_root is None:
+            return False
         return _is_project_artifact_path(value, project_root=project_root)
     return _is_concrete_text_grounding(value, project_root=project_root)
 
@@ -654,6 +664,20 @@ def is_context_intake_locator_grounding(
         value,
         project_root=project_root,
         require_existing_project_artifacts=require_existing_project_artifacts,
+    )
+
+
+def _has_explicit_context_intake_locator_guidance(
+    value: str,
+    *,
+    project_root: Path | None = None,
+) -> bool:
+    """Return whether an anchor/baseline explicitly preserves user guidance."""
+
+    return _looks_like_project_artifact_path(value) or _is_context_intake_locator_grounding(
+        value,
+        project_root=project_root,
+        require_existing_project_artifacts=True,
     )
 
 
@@ -2585,18 +2609,16 @@ def contract_has_explicit_context_intake(
         for value in contract.context_intake.must_include_prior_outputs
     )
     has_anchor_guidance = any(
-        _is_context_intake_locator_grounding(
+        _has_explicit_context_intake_locator_guidance(
             value,
             project_root=project_root,
-            require_existing_project_artifacts=True,
         )
         for value in contract.context_intake.user_asserted_anchors
     )
     has_baseline_guidance = any(
-        _is_context_intake_locator_grounding(
+        _has_explicit_context_intake_locator_guidance(
             value,
             project_root=project_root,
-            require_existing_project_artifacts=True,
         )
         for value in contract.context_intake.known_good_baselines
     )
@@ -2874,6 +2896,8 @@ def _parse_project_contract_data(
             blocking_errors = [schema_version_error, *blocking_errors]
         if "context_intake" not in data:
             blocking_errors.append("context_intake is required")
+        if "uncertainty_markers" not in data:
+            blocking_errors.append("uncertainty_markers is required")
         try:
             contract = ResearchContract.model_validate(data)
         except PydanticValidationError as exc:

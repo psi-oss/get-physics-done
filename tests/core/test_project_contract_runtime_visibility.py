@@ -38,7 +38,7 @@ def _write_draft_project_contract_state(tmp_path: Path) -> dict[str, object]:
         "user_asserted_anchors": [],
         "known_good_baselines": [],
         "context_gaps": ["Need a concrete must-surface anchor before approval."],
-        "crucial_inputs": [],
+        "crucial_inputs": ["Need the user-selected benchmark anchor."],
     }
     save_state_json(tmp_path, default_state_dict())
     result = state_set_project_contract(tmp_path, contract)
@@ -78,8 +78,10 @@ def test_runtime_context_surfaces_approval_blocked_project_contract_payload_with
     assert ctx["project_contract_validation"]["mode"] == "approved"
     assert ctx["project_contract_gate"]["visible"] is True
     assert ctx["project_contract_gate"]["blocked"] is True
+    assert ctx["project_contract_gate"]["load_blocked"] is False
     assert ctx["project_contract_gate"]["approval_blocked"] is True
     assert ctx["project_contract_gate"]["authoritative"] is False
+    assert ctx["project_contract_gate"]["repair_required"] is True
     assert ctx["effective_reference_intake"]["context_gaps"] == ["Need a concrete must-surface anchor before approval."]
     assert ctx["active_reference_count"] == 1
     assert ctx["active_references"][0]["id"] == "ref-benchmark"
@@ -113,16 +115,26 @@ def test_runtime_context_keeps_defaulted_legacy_contract_visible_when_context_in
         "context_gaps": [],
         "crucial_inputs": [],
     }
-    assert ctx["project_contract_load_info"]["status"] == "loaded_with_approval_blockers"
+    assert ctx["project_contract_load_info"]["status"] == "blocked_integrity"
     assert any(CONTEXT_INTAKE_DEFAULT_WARNING in warning for warning in ctx["project_contract_load_info"]["warnings"])
     assert any(
         UNCERTAINTY_MARKERS_DEFAULT_WARNING in warning for warning in ctx["project_contract_load_info"]["warnings"]
     )
     assert ctx["project_contract_validation"]["valid"] is False
     assert "context_intake must not be empty" in ctx["project_contract_validation"]["errors"]
+    assert (
+        "uncertainty_markers.weakest_anchors must identify what is least certain"
+        in ctx["project_contract_validation"]["errors"]
+    )
+    assert (
+        "uncertainty_markers.disconfirming_observations must identify what would force a rethink"
+        in ctx["project_contract_validation"]["errors"]
+    )
     assert ctx["project_contract_gate"]["visible"] is True
     assert ctx["project_contract_gate"]["blocked"] is True
+    assert ctx["project_contract_gate"]["load_blocked"] is True
     assert ctx["project_contract_gate"]["approval_blocked"] is True
     assert ctx["project_contract_gate"]["authoritative"] is False
+    assert ctx["project_contract_gate"]["repair_required"] is True
     assert ctx["active_reference_count"] == 1
     assert ctx["active_references"][0]["id"] == "ref-benchmark"
