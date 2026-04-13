@@ -4,6 +4,7 @@ All notable changes to Get Physics Done are documented here.
 
 ## vNEXT
 
+- Fix `state patch` silent failures: failed fields now include `failure_reasons` with specific messages (invalid status, invalid transition, field not found). Dot-notation prefixes (e.g., `position.status` -> `Status`) are stripped only when the original name is not found. Session Continuity mirror fields (e.g., `resume_file`) are rejected with an explicit error directing users to the continuation API. CLI pretty-prints each failure reason as a separate row.
 - Recognize bare arXiv IDs (`1304.4926`, `hep-th/0603001`) and bare DOIs (`10.1103/PhysRevD.100.026003`) as concrete reference locators for `must_surface` anchor validation. Fix casefold mismatch in `_is_project_artifact_path` that misclassified mixed-case archive names (e.g., `math.DG/0211159`) as project artifact paths.
 - Fix `gpd suggest` ignoring actual project state: use `_project_scoped_cwd()` so root-level PROJECT.md is auto-migrated before `suggest_next()` runs, matching the pattern used by `progress`, `state`, and `status` commands.
 - Fix `phase_add` and `phase_insert` heading consistency: detect heading level, number padding, and separator style (colon vs em-dash) from existing ROADMAP phases instead of hardcoding `### Phase {N}:`. Defaults to `### Phase N: ` (unpadded, colon) for empty ROADMAPs, matching the `new-project` template.

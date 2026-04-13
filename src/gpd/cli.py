@@ -204,8 +204,15 @@ def _pretty_print(d: dict) -> None:
     table.add_column("Key")
     table.add_column("Value")
     for k, v in d.items():
-        val = json.dumps(v, default=str) if isinstance(v, (dict, list)) else str(v)
-        table.add_row(str(k), val)
+        if k == "failure_reasons" and isinstance(v, dict):
+            # Render each failure reason as its own row for readability
+            for fk, fv in v.items():
+                table.add_row(f"  reason: {fk}", str(fv))
+        elif isinstance(v, (dict, list)):
+            val = json.dumps(v, default=str)
+            table.add_row(str(k), val)
+        else:
+            table.add_row(str(k), str(v))
     console.print(table)
 
 
