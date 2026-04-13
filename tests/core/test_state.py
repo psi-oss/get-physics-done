@@ -3518,3 +3518,233 @@ def test_find_list_parent_loc_returns_none_for_missing_key():
     payload = {"approximations": [{"name": "ok"}]}
     result = _find_list_parent_loc(payload, ("missing_key", 0, "name"))
     assert result is None
+
+
+# ─── state_patch error reporting and dot-notation ─────────────────────────────
+
+
+def test_state_patch_dot_notation_strips_prefix(tmp_path: Path) -> None:
+    """Dot-prefix like 'position.status' should resolve to 'Status' field."""
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path)
+
+    # "Executing" -> "Paused" is a valid transition per VALID_TRANSITIONS
+    result = state_patch(cwd, {"position.status": "Paused"})
+
+    assert "position.status" in result.updated
+    assert result.failed == []
+    assert result.failure_reasons == {}
+
+
+def test_state_patch_multi_dot_strips_to_last_segment(tmp_path: Path) -> None:
+    """Multi-dot input 'a.b.status' should strip to 'status' (last segment)."""
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path)
+
+    result = state_patch(cwd, {"a.b.status": "Paused"})
+
+    assert "a.b.status" in result.updated
+    assert result.failed == []
+    assert result.failure_reasons == {}
+
+
+def test_state_patch_invalid_status_reports_reason(tmp_path: Path) -> None:
+    """Invalid status value should populate failure_reasons with valid options."""
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path)
+
+    result = state_patch(cwd, {"status": "banana"})
+
+    assert "status" in result.failed
+    assert "status" in result.failure_reasons
+    assert "banana" in result.failure_reasons["status"]
+    assert "Not started" in result.failure_reasons["status"]
+
+
+def test_state_patch_unknown_field_reports_reason(tmp_path: Path) -> None:
+    """Unknown field name should produce a clear failure reason."""
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path)
+
+    result = state_patch(cwd, {"nonexistent_field": "value"})
+
+    assert "nonexistent_field" in result.failed
+    assert "nonexistent_field" in result.failure_reasons
+    assert "not found in STATE.md" in result.failure_reasons["nonexistent_field"]
+
+
+def test_state_patch_unknown_dotted_field_reports_also_tried(tmp_path: Path) -> None:
+    """Unknown dotted field should report what was tried after stripping."""
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path)
+
+    result = state_patch(cwd, {"position.nonexistent": "value"})
+
+    assert "position.nonexistent" in result.failed
+    assert "position.nonexistent" in result.failure_reasons
+    assert "not found in STATE.md" in result.failure_reasons["position.nonexistent"]
+    assert 'also tried "nonexistent"' in result.failure_reasons["position.nonexistent"]
+
+
+def test_state_patch_real_dotted_field_not_stripped(tmp_path: Path) -> None:
+    """If a field literally named 'foo.bar' exists, dot-stripping must not happen."""
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path)
+    # Inject a synthetic dotted field into STATE.md
+    state_md = cwd / "GPD" / "STATE.md"
+    content = state_md.read_text(encoding="utf-8")
+    content += "\n**custom.field:** old_value\n"
+    state_md.write_text(content, encoding="utf-8")
+
+    result = state_patch(cwd, {"custom.field": "new_value"})
+
+    # The literal dotted field was found as-is, so no dot-stripping occurred
+    assert "custom.field" in result.updated
+    assert result.failed == []
+    assert result.failure_reasons == {}
+
+
+def test_state_patch_invalid_transition_reports_reason(tmp_path: Path) -> None:
+    """Invalid state transition should report valid targets in failure_reasons."""
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path, status="Complete")
+
+    result = state_patch(cwd, {"status": "Executing"})
+
+    assert "status" in result.failed
+    assert "status" in result.failure_reasons
+    assert "Invalid transition" in result.failure_reasons["status"]
+
+
+def test_state_patch_mixed_success_and_failure(tmp_path: Path) -> None:
+    """Batch with some valid and some invalid fields reports correctly."""
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path)
+
+    result = state_patch(cwd, {
+        "current_plan": "2",
+        "nonexistent": "value",
+    })
+
+    assert "current_plan" in result.updated
+    assert "nonexistent" in result.failed
+    assert "nonexistent" in result.failure_reasons
+    assert "not found in STATE.md" in result.failure_reasons["nonexistent"]
+
+
+def test_state_patch_rejects_session_continuity_mirror_fields(tmp_path: Path) -> None:
+    """Patching Session Continuity mirror fields must fail with explicit error.
+
+    These fields are regenerated from state.json by save_state_markdown_locked(),
+    so a markdown-level patch is silently a no-op. state_patch must reject them
+    rather than reporting false success.
+    """
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path)
+
+    # Direct mirror field access
+    result = state_patch(cwd, {"resume_file": "/some/path"})
+
+    assert "resume_file" in result.failed
+    assert result.updated == []
+    assert "resume_file" in result.failure_reasons
+    assert "mirror field" in result.failure_reasons["resume_file"].lower()
+    assert "continuation" in result.failure_reasons["resume_file"].lower()
+
+
+def test_state_patch_rejects_dotted_continuation_path(tmp_path: Path) -> None:
+    """Dot-notation paths that resolve to mirror fields must also be rejected.
+
+    continuation.handoff.resume_file -> dot-strip -> resume file -> mirror field -> reject
+    """
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path)
+
+    result = state_patch(cwd, {"continuation.handoff.resume_file": "/some/path"})
+
+    assert "continuation.handoff.resume_file" in result.failed
+    assert result.updated == []
+    assert "continuation.handoff.resume_file" in result.failure_reasons
+    assert "mirror field" in result.failure_reasons["continuation.handoff.resume_file"].lower()
+
+
+def test_state_patch_rejects_all_session_mirror_fields(tmp_path: Path) -> None:
+    """All six Session Continuity fields must be rejected."""
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path)
+
+    mirror_fields = [
+        "last_session", "stopped_at", "resume_file",
+        "last_result_id", "hostname", "platform",
+    ]
+    result = state_patch(cwd, dict.fromkeys(mirror_fields, "test_value"))
+
+    assert result.updated == []
+    assert len(result.failed) == len(mirror_fields)
+    for f in mirror_fields:
+        assert f in result.failed
+        assert f in result.failure_reasons
+        assert "mirror field" in result.failure_reasons[f].lower()
+
+
+def test_state_patch_underscore_field_with_dots_not_clobbered(tmp_path: Path) -> None:
+    """A literal **custom_field.status:** field must be found by its exact name.
+
+    Regression test for P3: underscore replacement must NOT run before the raw
+    field name is tried, otherwise custom_field.status -> custom field.status
+    (miss) -> dot-strip -> status (wrong field updated).
+    """
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path)
+    # Inject a synthetic field with underscores AND dots BEFORE Session Continuity
+    # (appending at EOF would be eaten by the Session Continuity canonicalizer)
+    state_md = cwd / "GPD" / "STATE.md"
+    content = state_md.read_text(encoding="utf-8")
+    import re as _re
+
+    content = _re.sub(
+        r"(## Session Continuity)",
+        "**custom_field.status:** old_value\n\n\\1",
+        content,
+        count=1,
+        flags=_re.IGNORECASE,
+    )
+    state_md.write_text(content, encoding="utf-8")
+
+    result = state_patch(cwd, {"custom_field.status": "new_value"})
+
+    assert "custom_field.status" in result.updated
+    assert result.failed == []
+    assert result.failure_reasons == {}
+    # Verify the correct field was updated, NOT **Status:**
+    updated_content = state_md.read_text(encoding="utf-8")
+    assert "**custom_field.status:** new_value" in updated_content
+    # Verify **Status:** was NOT changed (should still be Executing)
+    assert "**Status:** Executing" in updated_content
+
+
+def test_state_patch_unknown_underscore_field_reports_also_tried(tmp_path: Path) -> None:
+    """Unknown underscore field should report the space-normalized form was tried."""
+    from gpd.core.state import state_patch
+
+    cwd = _bootstrap_project_with_state(tmp_path)
+
+    result = state_patch(cwd, {"nonexistent_field": "value"})
+
+    assert "nonexistent_field" in result.failed
+    reason = result.failure_reasons["nonexistent_field"]
+    assert "not found in STATE.md" in reason
+    assert "also tried" in reason
+    assert '"nonexistent field"' in reason

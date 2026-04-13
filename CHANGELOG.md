@@ -4,6 +4,7 @@ All notable changes to Get Physics Done are documented here.
 
 ## vNEXT
 
+- Fix `state patch` silent failures: failed fields now include `failure_reasons` with specific messages (invalid status, invalid transition, field not found). Dot-notation prefixes (e.g., `position.status` -> `Status`) are stripped only when the original name is not found. Session Continuity mirror fields (e.g., `resume_file`) are rejected with an explicit error directing users to the continuation API. CLI pretty-prints each failure reason as a separate row.
 - Fix `gpd suggest` ignoring actual project state: use `_project_scoped_cwd()` so root-level PROJECT.md is auto-migrated before `suggest_next()` runs, matching the pattern used by `progress`, `state`, and `status` commands.
 - Fix `phase_add` and `phase_insert` heading consistency: detect heading level, number padding, and separator style (colon vs em-dash) from existing ROADMAP phases instead of hardcoding `### Phase {N}:`. Defaults to `### Phase N: ` (unpadded, colon) for empty ROADMAPs, matching the `new-project` template.
 - Fix LaTeX special character escaping in user-provided metadata fields: `~`, `#`, `%`, and `&` in title, abstract, author fields, and acknowledgments are now escaped before rendering, preventing compilation errors and silent data loss. Agent-generated LaTeX content (section bodies, figure captions, appendix content) is deliberately unaffected.
