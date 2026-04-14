@@ -378,6 +378,10 @@ class TestQuery:
             phase_num = int(m.phase.split(".")[0])
             assert 1 <= phase_num <= 2
 
+    def test_query_invalid_scope_raises(self, project_dir: Path) -> None:
+        with pytest.raises(QueryError, match="invalid scope"):
+            query(project_dir, text="scattering", scope="invalid")
+
     def test_query_text_handles_yaml_dates_in_frontmatter(self, project_dir: Path) -> None:
         phase_dir = project_dir / "GPD" / "phases" / "04-dated-frontmatter"
         phase_dir.mkdir(parents=True)
@@ -476,6 +480,54 @@ class TestQuery:
 
         assert any(m.field == "provides" and m.phase in ("1", "01") for m in result.matches)
         assert any(m.field == "equation" and m.phase == "" for m in result.matches)
+
+    def test_query_text_phase_scope_excludes_markdown_outside_phase_directories(self, tmp_path: Path) -> None:
+        phase_dir = tmp_path / "GPD" / "phases" / "01-scope"
+        phase_dir.mkdir(parents=True)
+        (phase_dir / "01-01-SUMMARY.md").write_text("# Phase 01 Summary\n", encoding="utf-8")
+        (phase_dir / "notes.md").write_text(
+            dedent("""\
+            # Phase Notes
+
+            phase-scope-marker appears only in non-summary phase markdown.
+        """),
+            encoding="utf-8",
+        )
+        notes_dir = tmp_path / "GPD" / "notes"
+        notes_dir.mkdir(parents=True)
+        (notes_dir / "global.md").write_text(
+            dedent("""\
+            # Global Notes
+
+            global-scope-marker appears outside the phase directories.
+        """),
+            encoding="utf-8",
+        )
+
+        phase_result = query(tmp_path, text="phase-scope-marker", scope="phase")
+        global_result = query(tmp_path, text="global-scope-marker", scope="phase")
+
+        assert any(
+            m.field == "text" and m.phase in ("1", "01") and m.plan == "notes"
+            for m in phase_result.matches
+        )
+        assert global_result.total == 0
+
+    def test_query_text_all_scope_includes_markdown_outside_phase_directories(self, tmp_path: Path) -> None:
+        notes_dir = tmp_path / "GPD" / "notes"
+        notes_dir.mkdir(parents=True)
+        (notes_dir / "global.md").write_text(
+            dedent("""\
+            # Global Notes
+
+            global-scope-marker appears outside the phase directories.
+        """),
+            encoding="utf-8",
+        )
+
+        result = query(tmp_path, text="global-scope-marker", scope="all")
+
+        assert any(m.field == "text" and m.phase == "" and m.plan == "global" for m in result.matches)
 
     def test_query_phase_range_excludes_unphased_registry_results(self, tmp_path: Path) -> None:
         planning_dir = tmp_path / "GPD"

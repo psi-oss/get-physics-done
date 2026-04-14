@@ -1,6 +1,6 @@
 """Cross-phase result query commands for GPD.
 
-Searches across all phase summary artifacts (`SUMMARY.md` and `*-SUMMARY.md`)
+Searches SUMMARY artifacts plus scoped markdown content across the GPD project
 to find results by provides, requires, affects, equation, text, and assumption
 references.
 """
@@ -626,7 +626,9 @@ def query(
     Scans markdown files according to ``scope``: ``summary`` (default,
     SUMMARY files only), ``phase`` (all .md in phase dirs), or ``all``
     (entire GPD directory).  Frontmatter filters (provides/requires/affects)
-    always use SUMMARY files regardless of scope.
+    always use SUMMARY files regardless of scope. Mixed queries are additive:
+    SUMMARY frontmatter filters and scoped content filters each contribute
+    matches from their own search surface.
     """
     if scope not in VALID_SCOPES:
         raise QueryError(f"invalid scope {scope!r}; expected one of: {', '.join(sorted(VALID_SCOPES))}")

@@ -1499,6 +1499,10 @@ class TestReadOnlyCommandRouting:
                 "search",
                 "--provides",
                 "alpha",
+                "--requires",
+                "beta",
+                "--affects",
+                "gamma",
                 "--equation",
                 "E = mc^2",
                 "--text",
@@ -1517,12 +1521,59 @@ class TestReadOnlyCommandRouting:
         assert seen["cwd"] == project_root
         assert seen["kwargs"] == {
             "provides": "alpha",
-            "requires": None,
-            "affects": None,
+            "requires": "beta",
+            "affects": "gamma",
             "equation": "E = mc^2",
             "text": "mass gap",
             "phase_range": "1-2",
             "scope": "phase",
+        }
+
+    def test_query_search_forwards_invalid_scope_to_core_query(self, gpd_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        nested = gpd_project / "workspace" / "notes"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+        project_root = gpd_project.resolve()
+        seen: dict[str, object] = {}
+
+        monkeypatch.setattr("gpd.cli._project_scoped_cwd", lambda cwd=None: project_root)
+
+        def _fake_query(cwd: Path, **kwargs: object):
+            seen["cwd"] = cwd
+            seen["kwargs"] = kwargs
+            return {"cwd": str(cwd), **kwargs}
+
+        monkeypatch.setattr("gpd.core.query.query", _fake_query)
+
+        result = runner.invoke(
+            app,
+            [
+                "--raw",
+                "--cwd",
+                str(nested),
+                "query",
+                "search",
+                "--text",
+                "alpha",
+                "--scope",
+                "nonsense",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["cwd"] == str(project_root)
+        assert payload["scope"] == "nonsense"
+        assert seen["cwd"] == project_root
+        assert seen["kwargs"] == {
+            "provides": None,
+            "requires": None,
+            "affects": None,
+            "equation": None,
+            "text": "alpha",
+            "phase_range": None,
+            "scope": "nonsense",
         }
 
 
