@@ -200,7 +200,8 @@ def check_project_structure(cwd: Path) -> HealthCheck:
             details[name] = "present (at project root)"
             warnings.append(
                 f"{name} found at project root but not in {PLANNING_DIR_NAME}/. "
-                f"Run any GPD command from the project root to auto-migrate, "
+                f"Run `gpd health --fix` from the project root to copy it into "
+                f"{PLANNING_DIR_NAME}/{name}, "
                 f"or copy it manually to {PLANNING_DIR_NAME}/{name}."
             )
         else:
@@ -1006,7 +1007,21 @@ def _apply_fixes(
     fixes: list[str] = []
     refreshed_labels: set[str] = set()
 
-    # Fix 1: Restore state.json through the state loader if missing.
+    # Fix 1: Migrate legacy root planning files into GPD/.
+    structure_check = next((c for c in checks if c.label == "Project Structure"), None)
+    if (
+        structure_check
+        and layout.gpd.is_dir()
+        and any(structure_check.details.get(name) == "present (at project root)" for name in _ROOT_MIGRATABLE_FILES)
+    ):
+        from gpd.core.project_files import migrate_root_planning_files
+
+        migrated = sorted(migrate_root_planning_files(cwd))
+        if migrated:
+            fixes.append(f"Copied root planning files into {PLANNING_DIR_NAME}/: {', '.join(migrated)}")
+            refreshed_labels.update({"Project Structure", "Roadmap Consistency"})
+
+    # Fix 2: Restore state.json through the state loader if missing.
     # The loader prefers a valid state.json.bak before falling back to STATE.md.
     state_check = next((c for c in checks if c.label == "State Validity"), None)
     if state_check and state_check.status != CheckStatus.OK:
@@ -1026,7 +1041,7 @@ def _apply_fixes(
             except OSError as e:
                 fixes.append(f"Failed to restore state.json: {e}")
 
-    # Fix 2: Create config.json if missing or malformed
+    # Fix 3: Create config.json if missing or malformed
     config_check = next((c for c in checks if c.label == "Config"), None)
     if config_check and (
         any("not found" in w for w in config_check.warnings)
@@ -1068,7 +1083,7 @@ def _apply_fixes(
         except OSError as e:
             fixes.append(f"Failed to create config.json: {e}")
 
-    # Fix 3: Remove stale checkpoint tags.
+    # Fix 4: Remove stale checkpoint tags.
     checkpoint_check = next((c for c in checks if c.label == "Checkpoint Tags"), None)
     stale_tags = checkpoint_check.details.get("stale_tags") if checkpoint_check else []
     if checkpoint_check and isinstance(stale_tags, list) and stale_tags:

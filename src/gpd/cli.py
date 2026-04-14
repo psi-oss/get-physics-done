@@ -229,8 +229,13 @@ def _get_cwd() -> Path:
     return _cwd.resolve()
 
 
+def _workspace_cwd(cwd: Path | None = None) -> Path:
+    """Normalize one caller-supplied or process cwd without mutating the workspace."""
+    return (cwd or _get_cwd()).expanduser().resolve(strict=False)
+
+
 def _migrate_planning_files(cwd: Path) -> None:
-    """Auto-migrate ROADMAP.md / PROJECT.md from root into GPD/ if needed."""
+    """Prepare an intentional write/repair surface by migrating root planning files."""
     from gpd.core.project_files import migrate_root_planning_files
 
     migrate_root_planning_files(cwd)
@@ -238,9 +243,7 @@ def _migrate_planning_files(cwd: Path) -> None:
 
 def _status_command_reentry(cwd: Path | None = None) -> ProjectReentryResolution:
     """Resolve the shared re-entry contract for recovery/status commands."""
-    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
-    _migrate_planning_files(workspace_cwd)
-    return resolve_project_reentry(workspace_cwd)
+    return resolve_project_reentry(_workspace_cwd(cwd))
 
 
 def _status_command_cwd(cwd: Path | None = None) -> Path:
@@ -248,24 +251,37 @@ def _status_command_cwd(cwd: Path | None = None) -> Path:
     resolution = _status_command_reentry(cwd)
     if resolution.resolved_project_root is not None:
         return resolution.resolved_project_root
-    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
-    return workspace_cwd
+    return _workspace_cwd(cwd)
 
 
 def _state_command_cwd(cwd: Path | None = None) -> Path:
-    """Resolve the effective cwd for state and project-contract commands."""
-    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
-    _migrate_planning_files(workspace_cwd)
+    """Resolve the effective cwd for read-only state and contract commands."""
+    workspace_cwd = _workspace_cwd(cwd)
     resolved = resolve_project_root(workspace_cwd, require_layout=True)
     if resolved is not None:
         return resolved
     return workspace_cwd
 
 
+def _state_mutation_cwd(cwd: Path | None = None) -> Path:
+    """Resolve the effective cwd for state mutations, repairing legacy planning docs if needed."""
+    workspace_cwd = _workspace_cwd(cwd)
+    _migrate_planning_files(resolve_project_root(workspace_cwd, require_layout=True) or workspace_cwd)
+    resolved = resolve_project_root(workspace_cwd, require_layout=True)
+    return resolved if resolved is not None else workspace_cwd
+
+
 def _project_scoped_cwd(cwd: Path | None = None) -> Path:
-    """Resolve the nearest verified project root for project-scoped preflights."""
-    workspace_cwd = (cwd or _get_cwd()).expanduser().resolve(strict=False)
-    _migrate_planning_files(workspace_cwd)
+    """Resolve the nearest verified project root for read-only project-scoped commands."""
+    workspace_cwd = _workspace_cwd(cwd)
+    resolved = resolve_project_root(workspace_cwd, require_layout=True)
+    return resolved if resolved is not None else workspace_cwd
+
+
+def _project_mutation_cwd(cwd: Path | None = None) -> Path:
+    """Resolve the nearest verified project root for write/repair commands."""
+    workspace_cwd = _workspace_cwd(cwd)
+    _migrate_planning_files(resolve_project_root(workspace_cwd, require_layout=True) or workspace_cwd)
     resolved = resolve_project_root(workspace_cwd, require_layout=True)
     return resolved if resolved is not None else workspace_cwd
 
@@ -867,7 +883,7 @@ def state_patch(
         if not key:
             _error(f"Invalid empty key after stripping dashes: {patches[i]!r}")
         patch_dict[key] = patches[i + 1]
-    _output(state_patch(_state_command_cwd(), patch_dict))
+    _output(state_patch(_state_mutation_cwd(), patch_dict))
 
 
 @state_app.command("set-project-contract")
@@ -880,7 +896,7 @@ def state_set_project_contract_cmd(
     from gpd.core.state import StateUpdateResult, state_set_project_contract
 
     contract_data = _load_json_document(source)
-    project_root = _state_command_cwd()
+    project_root = _state_mutation_cwd()
     strict_result = parse_project_contract_data_strict(contract_data)
     if strict_result.contract is None or strict_result.errors:
         result = StateUpdateResult(
@@ -920,7 +936,7 @@ def state_update(
     """Update a single state field."""
     from gpd.core.state import state_update
 
-    _output(state_update(_state_command_cwd(), field, value))
+    _output(state_update(_state_mutation_cwd(), field, value))
 
 
 @state_app.command("advance")
@@ -928,7 +944,7 @@ def state_advance() -> None:
     """Advance to the next plan in current phase."""
     from gpd.core.state import state_advance_plan
 
-    _output(state_advance_plan(_state_command_cwd()))
+    _output(state_advance_plan(_state_mutation_cwd()))
 
 
 @state_app.command("compact")
@@ -936,7 +952,7 @@ def state_compact() -> None:
     """Archive old state entries to keep STATE.md concise."""
     from gpd.core.state import state_compact
 
-    _output(state_compact(_state_command_cwd()))
+    _output(state_compact(_state_mutation_cwd()))
 
 
 @state_app.command("snapshot")
@@ -1013,7 +1029,14 @@ def state_record_metric(
     from gpd.core.state import state_record_metric
 
     _output(
-        state_record_metric(_state_command_cwd(), phase=phase, plan=plan, duration=duration, tasks=tasks, files=files)
+        state_record_metric(
+            _state_mutation_cwd(),
+            phase=phase,
+            plan=plan,
+            duration=duration,
+            tasks=tasks,
+            files=files,
+        )
     )
 
 
@@ -1022,7 +1045,7 @@ def state_update_progress() -> None:
     """Recalculate progress percentage from phase completion."""
     from gpd.core.state import state_update_progress
 
-    _output(state_update_progress(_state_command_cwd()))
+    _output(state_update_progress(_state_mutation_cwd()))
 
 
 @state_app.command("add-decision")
@@ -1034,7 +1057,7 @@ def state_add_decision(
     """Record a research decision."""
     from gpd.core.state import state_add_decision
 
-    _output(state_add_decision(_state_command_cwd(), phase=phase, summary=summary, rationale=rationale))
+    _output(state_add_decision(_state_mutation_cwd(), phase=phase, summary=summary, rationale=rationale))
 
 
 @state_app.command("add-blocker")
@@ -1044,7 +1067,7 @@ def state_add_blocker(
     """Record a blocker."""
     from gpd.core.state import state_add_blocker
 
-    _output(state_add_blocker(_state_command_cwd(), text))
+    _output(state_add_blocker(_state_mutation_cwd(), text))
 
 
 @state_app.command("resolve-blocker")
@@ -1054,7 +1077,7 @@ def state_resolve_blocker(
     """Mark a blocker as resolved."""
     from gpd.core.state import state_resolve_blocker
 
-    _output(state_resolve_blocker(_state_command_cwd(), text))
+    _output(state_resolve_blocker(_state_mutation_cwd(), text))
 
 
 @state_app.command("record-session")
@@ -1069,7 +1092,7 @@ def state_record_session(
     from gpd.core.state import state_record_session
 
     result = state_record_session(
-        _state_command_cwd(),
+        _state_mutation_cwd(),
         stopped_at=stopped_at,
         resume_file=resume_file,
         last_result_id=last_result_id,
@@ -3444,10 +3467,6 @@ def suggest(
     kwargs: dict[str, int] = {}
     if limit is not None:
         kwargs["limit"] = limit
-    # NOTE: _project_scoped_cwd() runs migration before resolution. If run
-    # from a subfolder that has its own PROJECT.md, migration may create a
-    # spurious GPD/ there and resolve to the wrong project root. This is a
-    # known limitation shared with progress/state/status commands.
     suggest_cwd = _project_scoped_cwd()
     _output(suggest_next(suggest_cwd, **kwargs))
 
@@ -8237,7 +8256,7 @@ def paper_build(
     from gpd.mcp.paper.models import derive_output_filename
 
     cwd = _get_cwd()
-    project_root = _project_scoped_cwd(cwd)
+    project_root = _project_mutation_cwd(cwd)
     config_file = (
         _resolve_existing_input_path(config_path, candidates=(), label="paper config")
         if config_path

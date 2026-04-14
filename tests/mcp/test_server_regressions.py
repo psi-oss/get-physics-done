@@ -14,6 +14,18 @@ import anyio
 import pytest
 
 
+def _seed_root_planning_docs_without_gpd_copies(project_root: Path) -> Path:
+    from gpd.core.state import default_state_dict
+
+    planning = project_root / "GPD"
+    planning.mkdir()
+    (planning / "state.json").write_text(json.dumps(default_state_dict(), indent=2), encoding="utf-8")
+    (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (project_root / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (project_root / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    return planning
+
+
 def test_parse_table_rows_handles_escaped_pipes() -> None:
     from gpd.mcp.servers.errors_mcp import _parse_table_rows
 
@@ -546,6 +558,18 @@ def test_absolute_project_dir_schema_matches_current_host_path_semantics() -> No
     else:
         assert ABSOLUTE_PROJECT_DIR_SCHEMA["pattern"] == r"^/"
         assert resolve_absolute_project_dir(r"C:\repo") is None
+
+
+def test_resolve_absolute_project_dir_does_not_migrate_root_planning_files(tmp_path: Path) -> None:
+    from gpd.mcp.servers import resolve_absolute_project_dir
+
+    planning = _seed_root_planning_docs_without_gpd_copies(tmp_path)
+
+    resolved = resolve_absolute_project_dir(str(tmp_path))
+
+    assert resolved == tmp_path
+    assert not (planning / "PROJECT.md").exists()
+    assert not (planning / "ROADMAP.md").exists()
 
 
 def test_protocol_store_rejects_invalid_tier_frontmatter(

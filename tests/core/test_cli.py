@@ -3211,6 +3211,29 @@ def test_progress_uses_workspace_cwd_when_no_project_root_is_verified(
     mock_progress.assert_called_once_with(workspace_cwd.resolve(), "bar")
 
 
+def test_project_scoped_cwd_resolves_verified_ancestor_without_migrating_root_planning_files(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    planning = project_root / "GPD"
+    planning.mkdir(parents=True)
+
+    state = default_state_dict()
+    (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+    (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
+    (project_root / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (project_root / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+
+    resolved = cli_module._project_scoped_cwd(project_root)
+    layout = ProjectLayout(project_root)
+
+    assert resolved == project_root.resolve()
+    assert not layout.project_md.exists()
+    assert not layout.roadmap.exists()
+    assert (project_root / "PROJECT.md").exists()
+    assert (project_root / "ROADMAP.md").exists()
+
+
 def test_validate_command_context_accepts_tokenized_standalone_arguments(tmp_path: Path) -> None:
     empty_dir = tmp_path / "empty-context"
     empty_dir.mkdir()

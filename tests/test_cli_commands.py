@@ -279,6 +279,16 @@ def _make_minimal_project_root(project: Path) -> None:
     (planning / "phases").mkdir(exist_ok=True)
 
 
+def _make_minimal_legacy_root_project(project: Path) -> None:
+    planning = project / "GPD"
+    planning.mkdir(parents=True, exist_ok=True)
+    state = default_state_dict()
+    (planning / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+    (planning / "STATE.md").write_text(generate_state_markdown(state), encoding="utf-8")
+    (project / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (project / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+
+
 @pytest.fixture(autouse=True)
 def _chdir(gpd_project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """All tests run from the project directory."""
@@ -1822,6 +1832,35 @@ class TestReviewValidationCommands:
         assert payload["project_exists"] is True
         assert checks["project_exists"]["passed"] is True
         assert "GPD/PROJECT.md" in checks["project_exists"]["detail"]
+
+    def test_command_context_progress_does_not_migrate_root_planning_files_during_reentry_preflight(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        project_root = tmp_path / "legacy-project"
+        _make_minimal_legacy_root_project(project_root)
+        monkeypatch.chdir(project_root)
+
+        result = runner.invoke(
+            app,
+            ["--raw", "--cwd", str(project_root), "validate", "command-context", "progress"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 1, result.output
+        payload = json.loads(result.output)
+        checks = {check["name"]: check for check in payload["checks"]}
+        assert payload["command"] == "gpd:progress"
+        assert payload["context_mode"] == "project-required"
+        assert payload["passed"] is False
+        assert checks["state_exists"]["passed"] is True
+        assert checks["project_exists"]["passed"] is False
+        assert checks["required_files"]["passed"] is False
+        assert not (project_root / "GPD" / "PROJECT.md").exists()
+        assert not (project_root / "GPD" / "ROADMAP.md").exists()
+        assert (project_root / "PROJECT.md").exists()
+        assert (project_root / "ROADMAP.md").exists()
 
     def test_command_context_resume_work_resolves_ancestor_project_root_for_nested_workspace(
         self,

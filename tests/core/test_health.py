@@ -1402,6 +1402,35 @@ class TestRunHealth:
         assert state_check.details["state_source"] == "state.json"
         assert report.fixes_applied == ["Regenerated state.json from STATE.md"]
 
+    def test_project_structure_warning_points_to_health_fix_for_root_planning_files(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        layout = ProjectLayout(cwd)
+        layout.project_md.unlink()
+        layout.roadmap.unlink()
+        (cwd / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        (cwd / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+
+        result = check_project_structure(cwd)
+
+        assert any("`gpd health --fix`" in warning for warning in result.warnings)
+
+    def test_fix_mode_migrates_root_planning_files_and_reports_fix(self, tmp_path: Path) -> None:
+        cwd = _bootstrap_health_project(tmp_path)
+        layout = ProjectLayout(cwd)
+        layout.project_md.unlink()
+        layout.roadmap.unlink()
+        (cwd / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+        (cwd / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+
+        report = run_health(cwd, fix=True)
+        structure_check = next(check for check in report.checks if check.label == "Project Structure")
+
+        assert layout.project_md.read_text(encoding="utf-8") == "# Project\n"
+        assert layout.roadmap.read_text(encoding="utf-8") == "# Roadmap\n"
+        assert any(fix.startswith("Copied root planning files into GPD/:") for fix in report.fixes_applied)
+        assert structure_check.details["PROJECT.md"] == "present"
+        assert structure_check.details["ROADMAP.md"] == "present"
+
     def test_state_validity_phase_format_warning_uses_recovered_backup_state(self, tmp_path: Path) -> None:
         cwd = _bootstrap_health_project(tmp_path)
         layout = ProjectLayout(cwd)

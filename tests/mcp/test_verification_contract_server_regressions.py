@@ -132,6 +132,39 @@ def test_suggest_contract_checks_accepts_project_local_contract_when_project_dir
     assert "contract.benchmark_reproduction" in {entry["check_key"] for entry in rooted["suggested_checks"]}
 
 
+def test_contract_check_tools_do_not_migrate_root_planning_files_when_validating_project_dir(tmp_path: Path) -> None:
+    from gpd.mcp.servers.verification_server import run_contract_check, suggest_contract_checks
+
+    contract = _project_local_contract_fixture(tmp_path)
+    (tmp_path / "PROJECT.md").write_text("# Legacy project\n", encoding="utf-8")
+    (tmp_path / "ROADMAP.md").write_text("# Legacy roadmap\n", encoding="utf-8")
+
+    request = {
+        "check_key": "contract.benchmark_reproduction",
+        "contract": contract,
+        "binding": {"claim_ids": ["claim-benchmark"], "reference_ids": ["ref-benchmark"]},
+        "metadata": {"source_reference_id": "ref-benchmark"},
+        "observed": {"metric_value": 0.01, "threshold_value": 0.02},
+    }
+    project_dir = tmp_path.resolve(strict=False).as_posix()
+    migrated_project = tmp_path / "GPD" / "PROJECT.md"
+    migrated_roadmap = tmp_path / "GPD" / "ROADMAP.md"
+    assert not migrated_project.exists()
+    assert not migrated_roadmap.exists()
+
+    run_result = run_contract_check(request, project_dir=project_dir)
+
+    assert run_result["status"] == "pass"
+    assert not migrated_project.exists()
+    assert not migrated_roadmap.exists()
+
+    suggest_result = suggest_contract_checks(contract, project_dir=project_dir)
+
+    assert "contract.benchmark_reproduction" in {entry["check_key"] for entry in suggest_result["suggested_checks"]}
+    assert not migrated_project.exists()
+    assert not migrated_roadmap.exists()
+
+
 def test_suggest_contract_checks_rejects_placeholder_only_context_intake(tmp_path: Path) -> None:
     from gpd.mcp.servers.verification_server import suggest_contract_checks
 

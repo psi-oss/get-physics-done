@@ -559,6 +559,27 @@ class TestConventionsServer:
         assert result["set_count"] >= 2
         assert "metric_signature" in result["set_fields"]
 
+    def test_convention_lock_status_does_not_migrate_root_planning_files_on_read(self, tmp_path):
+        from gpd.mcp.servers.conventions_server import convention_lock_status
+
+        planning = tmp_path / "GPD"
+        planning.mkdir()
+        (tmp_path / "PROJECT.md").write_text("# Legacy project\n", encoding="utf-8")
+        (tmp_path / "ROADMAP.md").write_text("# Legacy roadmap\n", encoding="utf-8")
+        state = {"convention_lock": {"metric_signature": "(+,-,-,-)"}}
+        (planning / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        migrated_project = planning / "PROJECT.md"
+        migrated_roadmap = planning / "ROADMAP.md"
+        assert not migrated_project.exists()
+        assert not migrated_roadmap.exists()
+
+        result = convention_lock_status(tmp_path.resolve(strict=False).as_posix())
+
+        assert "metric_signature" in result["set_fields"]
+        assert not migrated_project.exists()
+        assert not migrated_roadmap.exists()
+
     def test_convention_lock_status_empty_project(self, tmp_path):
         from gpd.mcp.servers.conventions_server import convention_lock_status
 

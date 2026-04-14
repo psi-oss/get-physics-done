@@ -27,6 +27,16 @@ from gpd.mcp.servers.state_server import (
 from tests.mcp.conftest import FAKE_PROJECT_DIR
 
 
+def _seed_root_planning_docs_without_gpd_copies(project_root: Path) -> Path:
+    planning = project_root / "GPD"
+    planning.mkdir()
+    (planning / "state.json").write_text(json.dumps(default_state_dict(), indent=2), encoding="utf-8")
+    (planning / "STATE.md").write_text("# State\n", encoding="utf-8")
+    (project_root / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (project_root / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    return planning
+
+
 async def _tool_names() -> list[str]:
     tools = await mcp.list_tools()
     return [tool.name for tool in tools]
@@ -325,6 +335,24 @@ def test_get_progress_does_not_mutate_checkpoint_shelf_artifacts(tmp_path: Path)
     assert stale_checkpoint.read_text(encoding="utf-8") == "stale checkpoint\n"
     assert stale_checkpoint.exists()
     assert checkpoints_index.read_text(encoding="utf-8") == "stale index\n"
+
+
+def test_get_progress_does_not_migrate_root_planning_files(tmp_path: Path) -> None:
+    cwd = tmp_path
+    planning = _seed_root_planning_docs_without_gpd_copies(cwd)
+    phases_dir = planning / "phases"
+    phases_dir.mkdir()
+    phase_dir = phases_dir / "01-foundations"
+    phase_dir.mkdir()
+    (phase_dir / "PLAN.md").write_text("# plan\n", encoding="utf-8")
+
+    result = get_progress(str(cwd))
+
+    assert result["schema_version"] == 1
+    assert result["total_plans"] == 1
+    assert result["total_summaries"] == 0
+    assert not (planning / "PROJECT.md").exists()
+    assert not (planning / "ROADMAP.md").exists()
 
 
 def test_get_phase_info_counts_only_matching_summary_identities(tmp_path: Path) -> None:
