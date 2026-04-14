@@ -1,6 +1,6 @@
 <purpose>
 
-Drive all remaining milestone phases autonomously. For each incomplete phase: discuss → plan → execute → verify using Skill() flat invocations. Pauses only for explicit user decisions (gray area acceptance, blockers, verification routing). Re-reads ROADMAP.md after each phase to catch dynamically inserted phases.
+Drive all remaining milestone phases autonomously. For each incomplete phase: discuss → plan → execute → verify by invoking each phase command directly. Pauses only for explicit user decisions (gray area acceptance, blockers, verification routing). Re-reads ROADMAP.md after each phase to catch dynamically inserted phases.
 
 </purpose>
 

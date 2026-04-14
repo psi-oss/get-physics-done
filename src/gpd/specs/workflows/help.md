@@ -94,7 +94,7 @@ Project ─── the overall research goal
 3. `gpd:plan-phase N` — Create detailed plans for phase N
 4. `gpd:execute-phase N` — Run all plans (derivations, simulations, analysis)
 5. `gpd:verify-work` — Verify physics correctness
-6. Repeat 2-5 for each phase
+6. Repeat 2-5 for each phase (or `gpd:autonomous` to run all phases hands-off)
 7. `gpd:write-paper` — Generate publication from results
 8. `gpd:peer-review` — Run manuscript review before submission inside the current project
 9. `gpd:respond-to-referees` — Address reviewer comments if needed
@@ -203,6 +203,7 @@ This is the compact grouped list of runtime commands. For normal-terminal instal
 - `gpd:show-phase <number>` - Inspect one phase's artifacts and status
 - `gpd:plan-phase <number>` - Build a detailed execution plan for a phase
 - `gpd:execute-phase <phase-number>` - Run all plans in a phase
+- `gpd:autonomous [--from N]` - Run all remaining phases autonomously (discuss→plan→execute→verify each)
 - `gpd:derive-equation` - Run a rigorous derivation workflow
 
 ### Roadmap and milestones
@@ -417,6 +418,18 @@ Usage: `gpd:plan-phase 5 --light --skip-verify`
 Result: Creates `GPD/phases/01-framework-setup/01-01-PLAN.md`
 
 ### Execution
+
+**`gpd:autonomous [--from N]`**
+Run all remaining phases autonomously — discuss → plan → execute → verify for each phase.
+
+- Chains all phase commands automatically, pausing only for user decisions
+- Smart discuss proposes gray area answers in batch tables for fast acceptance
+- Convention propagation check between phases (if CONVENTIONS.md exists)
+- Gap closure with 1-retry limit; blocker handling (fix/skip/stop)
+- After all phases: milestone audit → complete
+- Re-reads ROADMAP.md after each phase to catch inserted phases
+
+Usage: `gpd:autonomous` or `gpd:autonomous --from 3`
 
 **`gpd:execute-phase <phase-number>`**
 Execute all plans in a phase.
