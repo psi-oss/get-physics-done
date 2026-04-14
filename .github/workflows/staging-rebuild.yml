@@ -18,7 +18,11 @@ permissions:
 jobs:
   trigger-staging-rebuild:
     name: trigger GPD Web staging rebuild
-    if: github.event.workflow_run.conclusion == 'success'
+    # `branches: [main]` still matches manual workflow_dispatch runs on main.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch rebuild to gpd-web

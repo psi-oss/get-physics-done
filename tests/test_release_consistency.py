@@ -332,11 +332,35 @@ def test_merge_gate_workflow_uses_main_branch_pytest_on_python_311() -> None:
     assert "PYTEST_CATEGORY" in workflow
     assert 'uv run pytest -q "${PYTEST_TARGETS[@]}"' in workflow
 
-    # Staging rebuild trigger lives in a separate workflow (staging-rebuild.yml)
-    # to avoid showing as a skipped check on PRs. It gates on tests via workflow_run.
-    rebuild_workflow = (repo_root / ".github" / "workflows" / "staging-rebuild.yml").read_text(encoding="utf-8")
+
+def test_staging_rebuild_workflow_stays_separate_and_dispatches_the_tested_main_push_sha() -> None:
+    repo_root = _repo_root()
+    tests_workflow = (repo_root / ".github" / "workflows" / "test.yml").read_text(encoding="utf-8")
+    rebuild_workflow = (repo_root / ".github" / "workflows" / "staging-rebuild.yml").read_text(
+        encoding="utf-8"
+    )
+    normalized_rebuild_workflow = rebuild_workflow.replace('\\"', '"')
+
+    assert "trigger-staging-rebuild" not in tests_workflow
+    assert "gpd-web/dispatches" not in tests_workflow
+
+    assert "name: staging rebuild" in rebuild_workflow
+    assert "workflow_run:" in rebuild_workflow
     assert 'workflows: ["tests"]' in rebuild_workflow
-    assert "conclusion == 'success'" in rebuild_workflow
+    assert "types: [completed]" in rebuild_workflow
+    assert "branches: [main]" in rebuild_workflow
+    assert "workflow_run.conclusion == 'success'" in rebuild_workflow
+    assert "workflow_run.event == 'push'" in rebuild_workflow
+
+    assert "repos/physicalsuperintelligence/gpd-web/dispatches" in rebuild_workflow
+    assert '"event_type":"rebuild-gpd"' in normalized_rebuild_workflow
+    assert '"source":"github"' in normalized_rebuild_workflow
+    assert '"repo":"psi-oss/get-physics-done"' in normalized_rebuild_workflow
+    assert '"version":"${{ github.event.workflow_run.head_sha }}"' in normalized_rebuild_workflow
+    assert '"version":"${{ github.sha }}"' not in normalized_rebuild_workflow
+    assert '"version":"main"' not in normalized_rebuild_workflow
+    assert '"image_tag":"staging"' in normalized_rebuild_workflow
+    assert "GPD_WEB_DISPATCH_TOKEN not configured" in rebuild_workflow
 
 
 def test_prepare_release_workflow_creates_release_pr_without_publishing() -> None:
