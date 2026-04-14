@@ -53,7 +53,7 @@ commit_docs=$(echo "$INIT" | gpd json get .commit_docs --default true)
 Read the model profile for physics-aware smart discuss depth:
 
 ```bash
-MODEL_PROFILE=$(gpd config-get model_profile 2>/dev/null || echo "review")
+MODEL_PROFILE=$(gpd config get model_profile 2>/dev/null || echo "review")
 ```
 
 Display startup banner:
@@ -128,6 +128,12 @@ Extract `phase_name`, `goal`, `success_criteria` from each. Store for use in exe
 
 ## 3. Execute Phase
 
+Re-read model profile in case the user changed it between phases:
+
+```bash
+MODEL_PROFILE=$(gpd config get model_profile 2>/dev/null || echo "review")
+```
+
 For the current phase, display the progress banner:
 
 ```
@@ -146,11 +152,16 @@ Before starting the normal discuss→plan→execute flow, check if this phase is
 PHASE_GOAL=$(gpd --raw roadmap get-phase ${PHASE_NUM} | gpd json get .goal --default "")
 ```
 
-Check if the phase goal matches paper-writing indicators:
+Check if the phase goal matches paper-writing indicators. Require BOTH paper keywords AND absence of derivation/computation keywords to avoid false positives on phases like "Derive equations for paper":
 
 ```bash
-echo "$PHASE_GOAL" | grep -qiE "paper|manuscript|write.up|publication|draft.paper|write the|prepare.paper|LaTeX.document"
+echo "$PHASE_GOAL" | grep -qiE "write.*(paper|manuscript)|draft.*(paper|manuscript)|prepare.*(paper|manuscript|submission)|paper.writing|manuscript.preparation"
 IS_PAPER_PHASE=$?
+# Guard: if goal also mentions derivation/computation, it's NOT a pure paper phase
+if [ "$IS_PAPER_PHASE" = "0" ]; then
+  echo "$PHASE_GOAL" | grep -qiE "derive|compute|simulate|calculate|implement|analyze.data"
+  if [ $? -eq 0 ]; then IS_PAPER_PHASE=1; fi
+fi
 ```
 
 **If `IS_PAPER_PHASE` is 0 (paper-writing indicators found):**
@@ -168,7 +179,7 @@ Ask user via ask_user:
 On **"Use gpd:write-paper":**
 
 ```
-Skill(skill="gpd:write-paper", args="--from-phases all")
+Skill(skill="gpd:write-paper")
 ```
 
 After write-paper completes, proceed to iterate step (skip normal discuss/plan/execute/verify).
@@ -198,7 +209,7 @@ Proceed to 3c.
 **If has_context is false:** Check if discuss is disabled via settings:
 
 ```bash
-SKIP_DISCUSS=$(gpd config-get workflow.skip_discuss 2>/dev/null || echo "false")
+SKIP_DISCUSS=$(gpd config get workflow.skip_discuss 2>/dev/null || echo "false")
 ```
 
 **If SKIP_DISCUSS is `true`:** Skip discuss entirely — the ROADMAP phase description is the spec. Display:
@@ -229,6 +240,22 @@ Extract `goal` and `requirements` from JSON. Write `${phase_dir}/${padded_phase}
 
 </domain>
 
+<contract_coverage>
+## Contract Coverage
+
+- Deliverable: {success_criteria from ROADMAP phase details}
+- Acceptance signal: Verification via gpd:verify-work
+- False progress to reject: Incomplete derivations or unchecked limits
+
+</contract_coverage>
+
+<user_guidance>
+## User Guidance To Preserve
+
+No explicit user guidance — discuss phase was skipped. Refer to PROJECT.md and prior phase decisions.
+
+</user_guidance>
+
 <decisions>
 ## Methodological Decisions
 
@@ -250,6 +277,22 @@ To be determined during planning and execution. Refer to ROADMAP phase descripti
 To be identified during planning. Check prior phases for established limits.
 
 </limiting_cases>
+
+<anchor_registry>
+## Active Anchor Registry
+
+No anchors specified — discuss phase skipped. Prior phase outputs carry forward by default.
+
+</anchor_registry>
+
+<skeptical_review>
+## Skeptical Review
+
+- **Weakest anchor:** Not yet assessed — discuss skipped
+- **Unvalidated assumptions:** All assumptions are implicit from ROADMAP description
+- **Disconfirming check:** To be determined during verification
+
+</skeptical_review>
 
 <deferred>
 ## Deferred Ideas
@@ -288,7 +331,7 @@ Verify plan produced output — re-run `init phase-op` and check `has_plans`. If
 **3d. Execute**
 
 ```
-Skill(skill="gpd:execute-phase", args="${PHASE_NUM} --no-transition")
+Skill(skill="gpd:execute-phase", args="${PHASE_NUM}")
 ```
 
 **3e. Post-Execution Verification Routing**
@@ -331,6 +374,23 @@ Phase ${PHASE_NUM} -- {PHASE_NAME} — Verification passed
 
 Proceed to convention_check step.
 
+**If `human_needed`:**
+
+Read the human_verification section from VERIFICATION.md to get items requiring manual review.
+
+Display the items, then ask user via ask_user:
+- **question:** "Phase ${PHASE_NUM} has items needing manual verification. Validate now or continue?"
+- **options:** "Validate now" / "Continue without validation"
+
+On **"Validate now"**: Present the specific items. After user reviews, ask:
+- **question:** "Validation result?"
+- **options:** "All good — continue" / "Found issues"
+
+On "All good": Display `Phase ${PHASE_NUM} -- Human validation passed` and proceed to convention_check step.
+On "Found issues": Go to handle_blocker with the user's reported issues.
+
+On **"Continue without validation"**: Display `Phase ${PHASE_NUM} -- Human validation deferred` and proceed to convention_check step.
+
 **If `gaps_found`:**
 
 Read gap summary from VERIFICATION.md (score and missing items). Display:
@@ -353,7 +413,7 @@ Verify gap plans were created — re-run `init phase-op ${PHASE_NUM}` and check 
 
 Re-execute:
 ```
-Skill(skill="gpd:execute-phase", args="${PHASE_NUM} --no-transition")
+Skill(skill="gpd:execute-phase", args="${PHASE_NUM}")
 ```
 
 Re-read verification status:
@@ -382,7 +442,7 @@ On **"Stop autonomous mode"**: Go to handle_blocker with "User stopped — gaps 
 
 ## Smart Discuss
 
-Run smart discuss for the current phase. Proposes gray area answers in batch tables — the user accepts or overrides per area. Produces identical CONTEXT.md output to regular discuss-phase.
+Run smart discuss for the current phase. Proposes gray area answers in batch tables — the user accepts or overrides per area. Produces CONTEXT.md following the same template as regular discuss-phase (all 9 sections from templates/context.md).
 
 > **Note:** Smart discuss is an autonomous-optimized variant of the `gpd:discuss-phase` skill. It produces identical CONTEXT.md output but uses batch table proposals instead of sequential questioning. The original `discuss-phase` skill remains unchanged. Future milestones may extract this to a separate skill file.
 
@@ -592,7 +652,7 @@ After all areas are resolved (or infrastructure skip), write the CONTEXT.md file
 
 **File path:** `${phase_dir}/${padded_phase}-CONTEXT.md`
 
-Use **exactly** this structure (identical to discuss-phase output):
+Use **exactly** this structure (all 9 sections from templates/context.md):
 
 ```markdown
 # Phase {PHASE_NUM}: {Phase Name} - Context
@@ -605,6 +665,8 @@ Use **exactly** this structure (identical to discuss-phase output):
 
 {Domain boundary statement from analysis — what research question this phase answers}
 
+Requirements: [{REQ-IDs from ROADMAP.md phase details}]
+
 </domain>
 
 <contract_coverage>
@@ -615,6 +677,16 @@ Use **exactly** this structure (identical to discuss-phase output):
 - [False progress to reject]: [Proxy that must not count]
 
 </contract_coverage>
+
+<user_guidance>
+## User Guidance To Preserve
+
+- **User-stated observables:** {From discussion answers or prior context — specific quantities/figures}
+- **User-stated deliverables:** {Specific table, plot, derivation, dataset, or code output}
+- **Must-have references / prior outputs:** {Papers, notebooks, baselines that must stay visible}
+- **Stop / rethink conditions:** {When to pause or re-scope}
+
+</user_guidance>
 
 <decisions>
 ## Methodological Decisions
@@ -650,6 +722,26 @@ Use **exactly** this structure (identical to discuss-phase output):
 - [Limit 2]: When [parameter] -> [value], result should -> [expected behavior]
 
 </limiting_cases>
+
+<anchor_registry>
+## Active Anchor Registry
+
+{References, baselines, prior outputs that must remain visible during planning and execution.}
+
+- [Anchor]: [Why it matters] | Carry forward: [planning | execution | verification] | Action: [read | compare | cite]
+
+</anchor_registry>
+
+<skeptical_review>
+## Skeptical Review
+
+- **Weakest anchor:** {Least-certain assumption or prior result}
+- **Unvalidated assumptions:** {What is assumed rather than checked}
+- **Competing explanation:** {Alternative physical picture that could also fit}
+- **Disconfirming check:** {Earliest observation that would force a re-think}
+- **False progress to reject:** {What looks promising but should not count}
+
+</skeptical_review>
 
 <deferred>
 ## Deferred Ideas
@@ -881,7 +973,7 @@ When any phase operation fails or a blocker is detected, present 3 options via a
 2. **"Skip this phase"** — Mark phase as skipped, continue to the next incomplete phase
 3. **"Stop autonomous mode"** — Display summary of progress so far and exit cleanly
 
-**On "Fix and retry":** Loop back to the failed step within execute_phase. If the same step fails again after retry, re-present these options.
+**On "Fix and retry":** Loop back to the failed step within execute_phase. Track retry count per phase. If the same step fails again after retry, re-present these options. **Hard limit: 3 retries per phase.** After 3 retries on the same phase, remove "Fix and retry" from options — only "Skip" or "Stop" remain.
 
 **On "Skip this phase":** Log `Phase {N} -- {Name} — Skipped by user` and proceed to iterate.
 

@@ -8,6 +8,7 @@ requires:
 allowed-tools:
   - file_read
   - file_write
+  - file_edit
   - shell
   - find_files
   - search_files
