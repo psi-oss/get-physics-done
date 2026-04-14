@@ -329,6 +329,17 @@ def _proof_verification_content(
     )
 
 
+def _unsafe_plan_contract_ref_value(*, plan_path: Path, ref_kind: str) -> str:
+    return {
+        "absolute": f"{plan_path.resolve().as_posix()}#/contract",
+        "windows_absolute_forward": "C:/tmp/01-01-PLAN.md#/contract",
+        "windows_absolute_backward": r"C:\tmp\01-01-PLAN.md#/contract",
+        "external": "https://example.com/01-01-PLAN.md#/contract",
+        "relative": "01-01-PLAN.md#/contract",
+        "traversal": "../01-01-PLAN.md#/contract",
+    }[ref_kind]
+
+
 def test_validate_frontmatter_summary_accepts_contract_results() -> None:
     content = (FIXTURES_STAGE4 / "summary_with_contract_results.md").read_text(encoding="utf-8")
 
@@ -784,6 +795,8 @@ def test_validate_frontmatter_summary_with_source_path_accepts_canonical_plan_co
     ("ref_kind", "expected_error"),
     [
         ("absolute", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
+        ("windows_absolute_forward", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
+        ("windows_absolute_backward", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("external", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("relative", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
         ("traversal", "plan_contract_ref: must not traverse parent directories"),
@@ -805,12 +818,7 @@ def test_validate_frontmatter_summary_rejects_unsafe_plan_contract_refs(
     summary_dir.mkdir()
     summary_path = summary_dir / "01-SUMMARY.md"
 
-    ref_value = {
-        "absolute": f"{plan_path.resolve().as_posix()}#/contract",
-        "external": "https://example.com/01-01-PLAN.md#/contract",
-        "relative": "01-01-PLAN.md#/contract",
-        "traversal": "../01-01-PLAN.md#/contract",
-    }[ref_kind]
+    ref_value = _unsafe_plan_contract_ref_value(plan_path=plan_path, ref_kind=ref_kind)
     summary_path.write_text(
         (FIXTURES_STAGE4 / "summary_with_contract_results.md")
         .read_text(encoding="utf-8")
@@ -1199,6 +1207,52 @@ def test_validate_frontmatter_verification_with_source_path_accepts_canonical_pl
 
     assert result.valid is True
     assert result.errors == []
+
+
+@pytest.mark.parametrize(
+    ("ref_kind", "expected_error"),
+    [
+        ("absolute", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
+        ("windows_absolute_forward", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
+        ("windows_absolute_backward", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
+        ("external", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
+        ("relative", "plan_contract_ref: must reference a canonical project-root-relative GPD PLAN path"),
+        ("traversal", "plan_contract_ref: must not traverse parent directories"),
+    ],
+)
+def test_validate_frontmatter_verification_rejects_unsafe_plan_contract_refs(
+    tmp_path: Path,
+    ref_kind: str,
+    expected_error: str,
+) -> None:
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir(parents=True)
+    plan_path = artifact_dir / "01-01-PLAN.md"
+    plan_path.write_text(
+        (FIXTURES_STAGE0 / "plan_with_contract.md").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    verification_path = artifact_dir / "01-VERIFICATION.md"
+    verification_path.write_text(
+        _verification_with_contract_results().replace(
+            "plan_contract_ref: GPD/phases/01-benchmark/01-01-PLAN.md#/contract",
+            f"plan_contract_ref: {_unsafe_plan_contract_ref_value(plan_path=plan_path, ref_kind=ref_kind)}",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    schema_only_result = validate_frontmatter(verification_path.read_text(encoding="utf-8"), "verification")
+    validation_result = validate_frontmatter(
+        verification_path.read_text(encoding="utf-8"),
+        "verification",
+        source_path=verification_path,
+    )
+
+    assert validation_result.valid is False
+    assert schema_only_result.valid is False
+    assert any(expected_error in error for error in schema_only_result.errors)
+    assert any(expected_error in error for error in validation_result.errors)
 
 
 def test_validate_frontmatter_verification_with_source_path_accepts_structured_suggested_contract_checks(

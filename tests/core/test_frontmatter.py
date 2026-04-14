@@ -12,6 +12,7 @@ from gpd.core.frontmatter import (
     FrontmatterParseError,
     FrontmatterValidation,
     FrontmatterValidationError,
+    _resolve_contract_artifact_path,
     deep_merge_frontmatter,
     extract_frontmatter,
     parse_contract_block,
@@ -2044,6 +2045,74 @@ class TestValidateFrontmatter:
             "claim claim-proof proof_audit audit_artifact_path must be a project-relative path" in error
             for error in result.errors
         )
+
+    @pytest.mark.parametrize(
+        ("field_name", "path_text", "expected_error"),
+        [
+            (
+                "proof_artifact_path",
+                "C:/outside-proof.tex",
+                "claim claim-proof proof_audit proof_artifact_path must be a project-relative path",
+            ),
+            (
+                "proof_artifact_path",
+                r"C:\outside-proof.tex",
+                "claim claim-proof proof_audit proof_artifact_path must be a project-relative path",
+            ),
+            (
+                "audit_artifact_path",
+                "C:/outside-proof.tex",
+                "claim claim-proof proof_audit audit_artifact_path must be a project-relative path",
+            ),
+            (
+                "audit_artifact_path",
+                r"C:\outside-proof.tex",
+                "claim claim-proof proof_audit audit_artifact_path must be a project-relative path",
+            ),
+        ],
+    )
+    def test_verification_rejects_windows_absolute_proof_audit_artifact_paths(
+        self,
+        tmp_path: Path,
+        field_name: str,
+        path_text: str,
+        expected_error: str,
+    ) -> None:
+        phase_dir, _ = _write_proof_contract_phase(tmp_path)
+        verification_kwargs = {"phase_dir": phase_dir, field_name: path_text}
+        verification_path = phase_dir / "01-VERIFICATION.md"
+        verification_path.write_text(
+            _proof_verification_content(**verification_kwargs),
+            encoding="utf-8",
+        )
+
+        result = validate_frontmatter(
+            verification_path.read_text(encoding="utf-8"),
+            "verification",
+            source_path=verification_path,
+        )
+
+        assert result.valid is False
+        assert any(expected_error in error for error in result.errors)
+
+    @pytest.mark.parametrize("path_text", ["C:/outside-proof.tex", r"C:\outside-proof.tex"])
+    def test_resolve_contract_artifact_path_rejects_windows_absolute_paths(
+        self,
+        tmp_path: Path,
+        path_text: str,
+    ) -> None:
+        project_root = tmp_path / "project"
+        artifact_dir = project_root / "GPD" / "phases" / "01-proof"
+        artifact_dir.mkdir(parents=True)
+
+        resolved_artifact, artifact_error = _resolve_contract_artifact_path(
+            project_root=project_root,
+            artifact_dir=artifact_dir,
+            path_text=path_text,
+        )
+
+        assert resolved_artifact is None
+        assert artifact_error == "must be a project-relative path"
 
     def test_verification_rejects_parent_traversal_proof_artifact_path_escape(
         self,

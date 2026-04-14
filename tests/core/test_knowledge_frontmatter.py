@@ -78,6 +78,41 @@ def _review_block(
     return "\n".join(lines)
 
 
+def _legacy_review_block(
+    *,
+    audit_artifact_path: str | None = "GPD/knowledge/reviews/K-renormalization-group-fixed-points-R1-REVIEW.md",
+    decision: str = "approved",
+    reviewer: str = "gpd-legacy-reviewer",
+    summary: str = "Legacy review accepted for backward compatibility",
+    reviewed_at: str = "2026-04-07T12:00:00Z",
+    evidence_path: str | None = None,
+    evidence_sha256: str | None = None,
+    commit_sha: str | None = None,
+    trace_id: str | None = None,
+    stale: bool | None = None,
+) -> str:
+    lines = [
+        "review:",
+        f"  reviewed_at: {reviewed_at}",
+        f"  reviewer: {reviewer}",
+        f"  decision: {decision}",
+        f"  summary: {summary}",
+    ]
+    if evidence_path is not None:
+        lines.append(f"  evidence_path: {evidence_path}")
+    if evidence_sha256 is not None:
+        lines.append(f"  evidence_sha256: {evidence_sha256}")
+    if audit_artifact_path is not None:
+        lines.append(f"  audit_artifact_path: {audit_artifact_path}")
+    if commit_sha is not None:
+        lines.append(f"  commit_sha: {commit_sha}")
+    if trace_id is not None:
+        lines.append(f"  trace_id: {trace_id}")
+    if stale is not None:
+        lines.append(f"  stale: {'true' if stale else 'false'}")
+    return "\n".join(lines)
+
+
 def _knowledge_markdown(
     *,
     knowledge_id: str = "K-renormalization-group-fixed-points",
@@ -409,13 +444,33 @@ def test_validate_frontmatter_rejects_stable_with_invalid_review_sha256_fields(
     assert any(expected_error in error for error in result.errors)
 
 
-def test_validate_frontmatter_rejects_stable_review_with_absolute_artifact_path(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "approval_artifact_path",
+    [
+        pytest.param(
+            "/tmp/K-renormalization-group-fixed-points-R1-REVIEW.md",
+            id="posix",
+        ),
+        pytest.param(
+            "C:/tmp/K-renormalization-group-fixed-points-R1-REVIEW.md",
+            id="windows-forward-slash",
+        ),
+        pytest.param(
+            r"C:\tmp\K-renormalization-group-fixed-points-R1-REVIEW.md",
+            id="windows-backslash",
+        ),
+    ],
+)
+def test_validate_frontmatter_rejects_stable_review_with_absolute_artifact_path(
+    approval_artifact_path: str,
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "K-renormalization-group-fixed-points.md"
     content = _knowledge_markdown(
         status="stable",
         review=_review_block(
             reviewed_content_sha256=_stable_reviewed_content_sha256(),
-            approval_artifact_path="/tmp/K-renormalization-group-fixed-points-R1-REVIEW.md",
+            approval_artifact_path=approval_artifact_path,
         ),
     )
     path.write_text(content, encoding="utf-8")
@@ -424,6 +479,74 @@ def test_validate_frontmatter_rejects_stable_review_with_absolute_artifact_path(
 
     assert result.valid is False
     assert any("approval_artifact_path" in error for error in result.errors)
+
+
+@pytest.mark.parametrize(
+    "audit_artifact_path",
+    [
+        pytest.param(
+            "C:/tmp/K-renormalization-group-fixed-points-R1-REVIEW.md",
+            id="windows-forward-slash",
+        ),
+        pytest.param(
+            r"C:\tmp\K-renormalization-group-fixed-points-R1-REVIEW.md",
+            id="windows-backslash",
+        ),
+    ],
+)
+def test_validate_frontmatter_rejects_legacy_stable_review_with_absolute_audit_artifact_path(
+    audit_artifact_path: str,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "K-renormalization-group-fixed-points.md"
+    content = _knowledge_markdown(
+        status="stable",
+        review=_legacy_review_block(audit_artifact_path=audit_artifact_path),
+    )
+    path.write_text(content, encoding="utf-8")
+
+    result = validate_frontmatter(content, "knowledge", source_path=path)
+
+    assert result.valid is False
+    assert any("knowledge.review.audit_artifact_path" in error for error in result.errors)
+
+
+@pytest.mark.parametrize(
+    "source_artifact_path",
+    [
+        pytest.param(
+            "C:/tmp/source-evidence.md",
+            id="windows-forward-slash",
+        ),
+        pytest.param(
+            r"C:\tmp\source-evidence.md",
+            id="windows-backslash",
+        ),
+    ],
+)
+def test_validate_frontmatter_rejects_source_artifacts_with_absolute_windows_paths(
+    source_artifact_path: str,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "K-renormalization-group-fixed-points.md"
+    content = _knowledge_markdown(
+        sources=f"""
+sources:
+  - source_id: source-main
+    kind: paper
+    locator: Doe et al., 2024
+    title: Renormalization Group Fixed Points
+    why_it_matters: Reviewed source that anchors the topic
+    source_artifacts:
+      - {source_artifact_path}
+""".strip(),
+    )
+    path.write_text(content, encoding="utf-8")
+
+    result = validate_frontmatter(content, "knowledge", source_path=path)
+
+    assert result.valid is False
+    assert any("knowledge.sources[0].source_artifacts[0]" in error for error in result.errors)
 
 
 def test_validate_frontmatter_rejects_approved_in_review_with_stale_false(tmp_path: Path) -> None:

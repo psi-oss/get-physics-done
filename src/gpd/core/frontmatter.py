@@ -15,7 +15,7 @@ import subprocess
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -631,15 +631,20 @@ def _sha256_text(value: str) -> str:
 def _is_absolute_path(path_text: str) -> bool:
     """Cross-platform absolute-path check for string paths.
 
-    ``Path(x).is_absolute()`` uses the *native* platform flavour, so on Linux
-    it will **not** recognise ``C:\\foo`` as absolute (and vice-versa for
-    ``/foo`` on Windows).  This helper covers both families:
+    ``Path(x).is_absolute()`` uses the *native* platform flavour, so on POSIX
+    hosts it will not recognise Windows absolute paths such as ``C:\\foo`` or
+    ``C:/foo``. This helper checks Unix-rooted paths directly, then applies
+    Windows path semantics explicitly before falling back to the native
+    platform flavour.
 
     * ``/foo``  -> True on every OS  (Unix absolute)
-    * ``C:\\foo`` or ``C:/foo`` -> True on Windows via ``Path``
+    * ``C:\\foo`` or ``C:/foo`` -> True on every OS
+    * ``\\\\server\\share\\dir`` -> True on every OS
     * ``relative/path`` -> False everywhere
     """
     if path_text.startswith("/"):
+        return True
+    if PureWindowsPath(path_text).is_absolute():
         return True
     return Path(path_text).is_absolute()
 
