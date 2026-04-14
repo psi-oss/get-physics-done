@@ -56,7 +56,7 @@ from gpd.core.continuation import (
     normalize_continuation_reference,
     resolve_continuation,
 )
-from gpd.core.conventions import is_bogus_value
+from gpd.core.conventions import has_material_convention_value
 from gpd.core.errors import ValidationError
 from gpd.core.extras import approximation_list
 from gpd.core.knowledge_runtime import discover_knowledge_docs
@@ -857,10 +857,7 @@ def _has_structured_state_value(value: object) -> bool:
     if value is None:
         return False
     if isinstance(value, str):
-        stripped = value.strip()
-        if not stripped or stripped == "\u2014" or stripped.casefold() == "[not set]":
-            return False
-        return not is_bogus_value(stripped)
+        return has_material_convention_value(value)
     if isinstance(value, Mapping):
         return bool(value)
     if isinstance(value, (list, tuple, set)):

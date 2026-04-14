@@ -27,6 +27,7 @@ from gpd.core.conventions import (
     convention_list,
     convention_lock_data_from_state_payload,
     convention_lock_from_state_payload,
+    is_bogus_value,
     normalize_key,
     normalize_value,
 )
@@ -84,7 +85,8 @@ CONVENTION_OPTIONS: dict[str, list[str]] = {
 
 _CUSTOM_CONVENTION_KEY_BODY = r"[A-Za-z0-9][A-Za-z0-9_-]*"
 _CUSTOM_CONVENTION_KEY_PATTERN = rf"^{_CUSTOM_CONVENTION_KEY_BODY}$"
-_CONVENTION_VALUE_PATTERN = r"^(?!\s*(?:null|none|undefined)\s*$)\S(?:.*\S)?$"
+_MCP_ONLY_PLACEHOLDER_VALUES = frozenset({"[not set]", "—"})
+_CONVENTION_VALUE_PATTERN = r"^(?!\s*(?:null|none|undefined|not set|\[not set\]|—)\s*$)\S(?:.*\S)?$"
 
 ConventionKeyInput = Annotated[
     str,
@@ -288,6 +290,47 @@ def _update_lock_in_project(
     return lock, result
 
 
+def _is_effectively_unset_convention_value(value: object) -> bool:
+    """Return True for values the MCP convention surfaces should treat as unset."""
+    if is_bogus_value(value):
+        return True
+    if value is None:
+        return True
+    return str(value).strip().lower() in _MCP_ONLY_PLACEHOLDER_VALUES
+
+
+def _presence_normalized_lock(lock: ConventionLock) -> ConventionLock:
+    """Return a lock copy with placeholder-only values cleared for completeness checks."""
+    normalized = lock.model_copy(deep=True)
+    for key in KNOWN_CONVENTIONS:
+        if _is_effectively_unset_convention_value(getattr(normalized, key, None)):
+            setattr(normalized, key, None)
+    normalized.custom_conventions = {
+        key: value
+        for key, value in normalized.custom_conventions.items()
+        if not _is_effectively_unset_convention_value(value)
+    }
+    return normalized
+
+
+def _clear_effectively_unset_value_in_place(lock: ConventionLock, key: str) -> None:
+    """Clear placeholder-only values so convention_set can treat them as unset."""
+    canonical_key = normalize_key(key)
+    if canonical_key in KNOWN_CONVENTIONS:
+        if _is_effectively_unset_convention_value(getattr(lock, canonical_key, None)):
+            setattr(lock, canonical_key, None)
+        return
+    if _is_effectively_unset_convention_value(lock.custom_conventions.get(canonical_key)):
+        lock.custom_conventions.pop(canonical_key, None)
+
+
+def _validate_effective_convention_value(value: str) -> None:
+    """Fail closed on placeholder strings the MCP schema also rejects."""
+    cleaned = re.sub(r"[\r\n]+", " ", value).strip()
+    if _is_effectively_unset_convention_value(cleaned):
+        raise ConventionError(f"Convention value cannot be empty or bogus ({cleaned!r}).")
+
+
 # ─── MCP Tools ────────────────────────────────────────────────────────────────
 
 
@@ -304,7 +347,8 @@ def convention_lock_status(project_dir: AbsoluteProjectDirInput) -> dict:
     with gpd_span("mcp.conventions.lock_status"):
         try:
             lock = _load_lock_from_project(str(cwd))
-            result = convention_list(lock)
+            presence_lock = _presence_normalized_lock(lock)
+            result = convention_list(presence_lock)
 
             set_fields = [k for k, e in result.conventions.items() if e.is_set and e.canonical]
             unset_fields = [k for k in KNOWN_CONVENTIONS if k not in set_fields]
@@ -359,11 +403,14 @@ def convention_set(
                     raise ConventionError(
                         "Custom convention keys must be non-empty slugs using letters, numbers, underscores, or hyphens"
                     )
+            _validate_effective_convention_value(value)
 
             def _mutate(lock: ConventionLock) -> ConventionSetResult:
+                inner_key = key[len("custom:") :] if key.startswith("custom:") else key
+                _clear_effectively_unset_value_in_place(lock, inner_key)
                 if key.startswith("custom:"):
-                    return _convention_set(lock, key[len("custom:") :], value, force=force)
-                return _convention_set(lock, key, value, force=force)
+                    return _convention_set(lock, inner_key, value, force=force)
+                return _convention_set(lock, inner_key, value, force=force)
 
             # Atomic read-modify-write under file lock to prevent TOCTOU races.
             _lock, result = _update_lock_in_project(str(cwd), _mutate)
@@ -415,7 +462,8 @@ def convention_check(lock: dict) -> dict:
     with gpd_span("mcp.conventions.check"):
         try:
             parsed = ConventionLock(**lock)
-            result = _convention_check(parsed)
+            presence_lock = _presence_normalized_lock(parsed)
+            result = _convention_check(presence_lock)
 
             # Critical fields that should almost always be set
             critical = {"metric_signature", "fourier_convention", "natural_units"}
@@ -423,9 +471,9 @@ def convention_check(lock: dict) -> dict:
 
             # Consistency checks beyond what conventions.py provides
             issues: list[str] = []
-            metric = parsed.metric_signature
-            fourier = parsed.fourier_convention
-            units = parsed.natural_units
+            metric = presence_lock.metric_signature
+            fourier = presence_lock.fourier_convention
+            units = presence_lock.natural_units
 
             if metric and fourier:
                 if "euclidean" in (metric or "").lower() and fourier == "QFT":
@@ -438,7 +486,7 @@ def convention_check(lock: dict) -> dict:
                     "SI units with mostly-plus signature: ensure c factors are explicit in all relativistic expressions."
                 )
 
-            if parsed.renormalization_scheme and not parsed.regularization_scheme:
+            if presence_lock.renormalization_scheme and not presence_lock.regularization_scheme:
                 issues.append(
                     "Renormalization scheme set without regularization scheme. These are typically specified together."
                 )

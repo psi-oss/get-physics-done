@@ -765,6 +765,26 @@ def test_build_paper_quality_input_surfaces_convention_lock_and_derivation_asser
     assert result.conventions.assert_convention_coverage.total == 2
 
 
+def test_build_paper_quality_input_treats_placeholder_conventions_as_incomplete(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "paper" / "curvature_flow_bounds.tex",
+        "\\documentclass{article}\\begin{document}\\section{Introduction}Intro.\\section{Conclusion}Done.\\end{document}\n",
+    )
+    lock = _full_convention_lock()
+    lock["fourier_convention"] = "not set"
+    lock["natural_units"] = "[not set]"
+    lock["gauge_choice"] = "—"
+    _write(
+        tmp_path / "GPD" / "state.json",
+        json.dumps({"convention_lock": lock}, indent=2),
+    )
+
+    result = build_paper_quality_input(tmp_path)
+
+    assert result.conventions.convention_lock_complete.passed is False
+    assert result.conventions.assert_convention_coverage.not_applicable is True
+
+
 def test_build_paper_quality_input_counts_only_matching_derivation_assertions(
     tmp_path: Path,
 ) -> None:

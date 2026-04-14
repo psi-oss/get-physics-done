@@ -42,7 +42,13 @@ from gpd.core.constants import (
     ProjectLayout,
 )
 from gpd.core.contract_validation import validate_project_contract
-from gpd.core.conventions import KNOWN_CONVENTIONS, is_bogus_value
+from gpd.core.conventions import (
+    KNOWN_CONVENTIONS,
+    ConventionError,
+    convention_check,
+    convention_lock_from_state_payload,
+    is_bogus_value,
+)
 from gpd.core.errors import GPDError, ValidationError
 from gpd.core.frontmatter import FrontmatterParseError, extract_frontmatter, validate_frontmatter
 from gpd.core.knowledge_migration import discover_knowledge_migration
@@ -570,15 +576,21 @@ def check_convention_lock(cwd: Path) -> HealthCheck:
             details={},
         )
 
-    set_count = 0
-    total_count = 0
-    for key in KNOWN_CONVENTIONS:
-        total_count += 1
-        val = cl.get(key)
-        if not is_bogus_value(val):
-            set_count += 1
+    try:
+        lock_check = convention_check(convention_lock_from_state_payload(state_obj, source_label="state.json"))
+        set_count = lock_check.set_count
+        total_count = lock_check.total
+        unset = lock_check.missing_count
+    except ConventionError:
+        set_count = 0
+        total_count = 0
+        for key in KNOWN_CONVENTIONS:
+            total_count += 1
+            val = cl.get(key)
+            if not is_bogus_value(val):
+                set_count += 1
+        unset = total_count - set_count
 
-    unset = total_count - set_count
     if unset > 0:
         warnings.append(f"{unset}/{total_count} core conventions unset")
 

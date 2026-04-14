@@ -435,6 +435,31 @@ def test_paused_work_defers_missing_convention_suggestions_until_after_resume(tm
     assert result.context.missing_conventions == ()
 
 
+def test_paused_work_defers_placeholder_convention_suggestions_until_after_resume(tmp_path: Path) -> None:
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _create_state(
+        root,
+        {
+            "position": {"status": "Paused", "paused_at": "2026-01-15T10:00:00Z"},
+            "convention_lock": {
+                "metric_signature": "(-,+,+,+)",
+                "fourier_convention": "not set",
+                "natural_units": "[not set]",
+                "gauge_choice": "—",
+                "coordinate_system": "Cartesian",
+            },
+        },
+    )
+
+    result = suggest_next(root)
+    actions = [s.action for s in result.suggestions]
+
+    assert "resume" in actions
+    assert "set-conventions" not in actions
+    assert result.context.missing_conventions == ()
+
+
 # ─── Blockers ──────────────────────────────────────────────────────────────────
 
 
@@ -693,6 +718,35 @@ def test_missing_conventions_suggest_set(tmp_path: Path) -> None:
     assert "17 convention fields missing" in set_conventions.reason
 
 
+def test_placeholder_conventions_suggest_set(tmp_path: Path) -> None:
+    """Placeholder-valued conventions should count as missing."""
+    root = _setup_project(tmp_path)
+    _create_roadmap(root)
+    _create_state(
+        root,
+        {
+            "convention_lock": {
+                "metric_signature": "(-,+,+,+)",
+                "fourier_convention": "not set",
+                "natural_units": "[not set]",
+                "gauge_choice": "—",
+                "coordinate_system": "Cartesian",
+            }
+        },
+    )
+    result = suggest_next(root)
+    actions = [s.action for s in result.suggestions]
+    set_conventions = next((s for s in result.suggestions if s.action == "set-conventions"), None)
+    expected_missing = tuple(
+        key for key in KNOWN_CONVENTIONS if key not in {"metric_signature", "coordinate_system"}
+    )
+
+    assert "set-conventions" in actions
+    assert result.context.missing_conventions == expected_missing
+    assert set_conventions is not None
+    assert "16 convention fields missing" in set_conventions.reason
+
+
 # ─── Paper Pipeline ────────────────────────────────────────────────────────────
 
 
@@ -943,6 +997,34 @@ def test_missing_conventions_block_arxiv_submission_suggestion(tmp_path: Path) -
     result = suggest_next(root)
     actions = [s.action for s in result.suggestions]
     expected_missing = tuple(key for key in KNOWN_CONVENTIONS if key != "metric_signature")
+
+    assert "arxiv-submission" not in actions
+    assert "set-conventions" in actions
+    assert result.context.missing_conventions == expected_missing
+
+
+def test_placeholder_conventions_block_arxiv_submission_suggestion(tmp_path: Path) -> None:
+    root = _setup_project(tmp_path)
+    write_proof_review_package(root, theorem_bearing=False, review_report=True)
+    _create_roadmap(root)
+    _create_state(
+        root,
+        {
+            "convention_lock": {
+                "metric_signature": "(-,+,+,+)",
+                "fourier_convention": "not set",
+                "natural_units": "[not set]",
+                "gauge_choice": "—",
+                "coordinate_system": "Cartesian",
+            }
+        },
+    )
+
+    result = suggest_next(root)
+    actions = [s.action for s in result.suggestions]
+    expected_missing = tuple(
+        key for key in KNOWN_CONVENTIONS if key not in {"metric_signature", "coordinate_system"}
+    )
 
     assert "arxiv-submission" not in actions
     assert "set-conventions" in actions

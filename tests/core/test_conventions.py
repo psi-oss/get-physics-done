@@ -70,6 +70,8 @@ def test_bogus_values():
     assert is_bogus_value("undefined") is True
     assert is_bogus_value("none") is True
     assert is_bogus_value("not set") is True
+    assert is_bogus_value("[not set]") is True
+    assert is_bogus_value("—") is True
     assert is_bogus_value("  None  ") is True
 
 
@@ -142,11 +144,12 @@ def test_convention_set_force_overwrite():
     assert lock.metric_signature == "mostly-minus"
 
 
-def test_convention_set_overwrites_placeholder_without_force():
-    lock = ConventionLock(metric_signature="not set")
+@pytest.mark.parametrize("placeholder", ["not set", "[not set]", "—"])
+def test_convention_set_overwrites_placeholder_without_force(placeholder: str):
+    lock = ConventionLock(metric_signature=placeholder)
     result = convention_set(lock, "metric_signature", "mostly-plus")
     assert result.updated is True
-    assert result.previous == "not set"
+    assert result.previous == placeholder
     assert lock.metric_signature == "mostly-plus"
 
 
@@ -180,14 +183,15 @@ def test_convention_list_with_values():
     assert entry.value == "mostly-plus"
 
 
-def test_convention_list_treats_placeholder_as_unset():
-    lock = ConventionLock(metric_signature="not set")
+@pytest.mark.parametrize("placeholder", ["not set", "[not set]", "—"])
+def test_convention_list_treats_placeholder_as_unset(placeholder: str):
+    lock = ConventionLock(metric_signature=placeholder)
     result = convention_list(lock)
     entry = result.conventions["metric_signature"]
     assert result.set_count == 0
     assert result.unset_count == len(KNOWN_CONVENTIONS)
     assert entry.is_set is False
-    assert entry.value == "not set"
+    assert entry.value == placeholder
 
 
 # ─── convention_diff ─────────────────────────────────────────────────────────
@@ -248,8 +252,9 @@ def test_convention_check_with_custom():
     assert result.custom_count == 1
 
 
-def test_convention_check_treats_placeholder_as_missing():
-    lock = ConventionLock(metric_signature="not set")
+@pytest.mark.parametrize("placeholder", ["not set", "[not set]", "—"])
+def test_convention_check_treats_placeholder_as_missing(placeholder: str):
+    lock = ConventionLock(metric_signature=placeholder)
     result = convention_check(lock)
     assert result.complete is False
     assert result.set_count == 0

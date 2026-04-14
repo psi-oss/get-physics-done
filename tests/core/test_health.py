@@ -1035,6 +1035,24 @@ class TestCheckConventionLock:
         assert "total" in result.details
         assert result.details["set"] == 0
 
+    def test_placeholder_values_count_as_unset(self, tmp_path: Path) -> None:
+        fake_state = {
+            "convention_lock": {
+                "metric_signature": "mostly-plus",
+                "fourier_convention": "not set",
+                "natural_units": "[not set]",
+                "gauge_choice": "—",
+                "coordinate_system": "Cartesian",
+            }
+        }
+        with patch("gpd.core.health._peek_normalized_state_for_health", return_value=(fake_state, "state.json")):
+            result = check_convention_lock(tmp_path)
+
+        assert result.status == CheckStatus.WARN
+        assert result.details["set"] == 2
+        assert result.details["total"] == 18
+        assert result.warnings == ["16/18 core conventions unset"]
+
 
 class TestCheckConfig:
     def test_missing_config(self, tmp_path: Path):

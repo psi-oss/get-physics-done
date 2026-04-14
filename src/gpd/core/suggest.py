@@ -16,7 +16,6 @@ from pathlib import Path
 from pydantic import ValidationError as PydanticValidationError
 
 from gpd.command_labels import canonical_command_label
-from gpd.contracts import ConventionLock
 from gpd.core.constants import (
     LITERATURE_DIR_NAME,
     PHASES_DIR_NAME,
@@ -553,28 +552,35 @@ def _publication_review_package_allows_submission(cwd: Path, manuscript_entrypoi
 
 def _conventions_are_ready(cwd: Path) -> bool:
     state = _load_state_json_safe(cwd) or {}
+    lock_check = _convention_check_from_state_payload(state)
+    if lock_check is None:
+        return False
+
+    missing_keys = {entry.key for entry in lock_check.missing}
+    return not any(key in missing_keys for key in CORE_CONVENTIONS)
+
+
+def _convention_check_from_state_payload(state: dict[str, object]):
+    """Return convention completeness for a valid raw ``state.json`` payload."""
     convention_lock = state.get("convention_lock")
     if not isinstance(convention_lock, dict):
-        return False
-    from gpd.core.conventions import is_bogus_value
+        return None
 
-    return all(convention_lock.get(key) and not is_bogus_value(convention_lock.get(key)) for key in CORE_CONVENTIONS)
+    from gpd.core.conventions import ConventionError, convention_check, convention_lock_from_state_payload
+
+    try:
+        lock = convention_lock_from_state_payload(state, source_label="state.json")
+    except ConventionError:
+        return None
+    return convention_check(lock)
 
 
 def _missing_conventions_from_state(state: dict[str, object]) -> tuple[str, ...]:
     """Return canonical missing convention keys from a loaded state payload."""
-    convention_lock = state.get("convention_lock")
-    if not isinstance(convention_lock, dict):
+    lock_check = _convention_check_from_state_payload(state)
+    if lock_check is None:
         return ()
-
-    try:
-        lock = ConventionLock.model_validate(convention_lock)
-    except PydanticValidationError:
-        return ()
-
-    from gpd.core.conventions import convention_check
-
-    return tuple(entry.key for entry in convention_check(lock).missing)
+    return tuple(entry.key for entry in lock_check.missing)
 
 
 def _format_missing_conventions_reason(missing: tuple[str, ...]) -> str:

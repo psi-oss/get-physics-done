@@ -424,6 +424,24 @@ class TestConventionsServer:
         assert result["valid"] is True
         assert result["missing_critical"] == []
 
+    def test_convention_check_treats_placeholder_values_as_missing(self):
+        from gpd.mcp.servers.conventions_server import convention_check
+
+        lock = {
+            "metric_signature": "mostly-plus",
+            "fourier_convention": "not set",
+            "natural_units": "[not set]",
+            "coordinate_system": "Cartesian",
+        }
+
+        result = convention_check(lock)
+
+        assert result["valid"] is False
+        assert result["set_fields"] == ["metric_signature", "coordinate_system"]
+        assert result["completeness_percent"] == 11.1
+        assert "fourier_convention" in result["missing_critical"]
+        assert "natural_units" in result["missing_critical"]
+
     def test_convention_check_consistency_issues(self):
         from gpd.mcp.servers.conventions_server import convention_check
 
@@ -642,7 +660,7 @@ class TestConventionsServer:
         )
         assert "alias" in key_schema["description"]
         assert value_schema["minLength"] == 1
-        assert value_schema["pattern"] == r"^(?!\s*(?:null|none|undefined)\s*$)\S(?:.*\S)?$"
+        assert value_schema["pattern"] == r"^(?!\s*(?:null|none|undefined|not set|\[not set\]|—)\s*$)\S(?:.*\S)?$"
         assert "placeholder strings" in value_schema["description"]
         assert "Use None to clear a convention." not in value_schema["description"]
 

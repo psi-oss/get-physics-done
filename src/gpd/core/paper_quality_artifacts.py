@@ -18,8 +18,12 @@ from gpd.contracts import (
     parse_contract_results_data_artifact,
 )
 from gpd.core.constants import STANDALONE_VALIDATION, VALIDATION_SUFFIX, ProjectLayout
-from gpd.core.conventions import check_assertions, convention_check
-from gpd.core.errors import GPDError
+from gpd.core.conventions import (
+    check_assertions,
+    convention_check,
+    convention_lock_from_state_payload,
+)
+from gpd.core.errors import ConventionError, GPDError
 from gpd.core.frontmatter import (
     FrontmatterParseError,
     _find_matching_plan_contract,
@@ -171,8 +175,8 @@ def _load_convention_lock(project_root: Path) -> ConventionLock | None:
     if not isinstance(lock_data, dict):
         return None
     try:
-        return ConventionLock.model_validate(lock_data)
-    except PydanticValidationError:
+        return convention_lock_from_state_payload(payload, source_label="state.json")
+    except ConventionError:
         return None
 
 

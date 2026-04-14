@@ -43,6 +43,7 @@ __all__ = [
     "normalize_key",
     "normalize_value",
     "is_bogus_value",
+    "has_material_convention_value",
     "sanitize_value",
     "convention_set",
     "convention_list",
@@ -123,7 +124,7 @@ VALUE_ALIASES: dict[str, dict[str, str]] = {
 }
 
 # Values that should be treated as "unset" (prevent string-vs-null confusion)
-_BOGUS_VALUES = frozenset({"", "null", "undefined", "none", "not set"})
+_BOGUS_VALUES = frozenset({"", "null", "undefined", "none", "not set", "[not set]", "—"})
 
 # Regex for ASSERT_CONVENTION lines:
 #   <!-- ASSERT_CONVENTION: key=value, key=value -->  (Markdown)
@@ -301,11 +302,24 @@ def normalize_value(canonical_key: str, value: str) -> str:
     return aliases.get(value, value)
 
 
+def _normalized_convention_text(value: object) -> str | None:
+    """Return a stripped string representation for convention presence checks."""
+    if value is None:
+        return None
+    return str(value).strip()
+
+
 def is_bogus_value(value: object) -> bool:
     """Return True if the value should be treated as unset."""
-    if value is None:
+    text = _normalized_convention_text(value)
+    if text is None:
         return True
-    return str(value).strip().lower() in _BOGUS_VALUES
+    return text.casefold() in _BOGUS_VALUES
+
+
+def has_material_convention_value(value: object) -> bool:
+    """Return whether a convention value is materially set."""
+    return not is_bogus_value(value)
 
 
 def sanitize_value(value: str) -> str:
@@ -314,7 +328,7 @@ def sanitize_value(value: str) -> str:
     Raises ConventionError for empty or bogus values.
     """
     cleaned = re.sub(r"[\r\n]+", " ", value).strip()
-    if cleaned.lower() in _BOGUS_VALUES:
+    if is_bogus_value(cleaned):
         raise ConventionError(f"Convention value cannot be empty or bogus ({cleaned!r}).")
     return cleaned
 
@@ -344,7 +358,7 @@ def convention_set(lock: ConventionLock, key: str, value: str, *, force: bool = 
         previous = getattr(lock, canonical_key, None)
 
     # Immutability gate: require force to overwrite existing non-null convention
-    if previous is not None and not is_bogus_value(previous) and previous != cleaned and not force:
+    if previous is not None and has_material_convention_value(previous) and previous != cleaned and not force:
         return ConventionSetResult(
             updated=False,
             key=canonical_key,
@@ -381,7 +395,7 @@ def convention_list(lock: ConventionLock) -> ConventionListResult:
             key=key,
             label=CONVENTION_LABELS.get(key, key.replace("_", " ").title()),
             value=val,
-            is_set=not is_bogus_value(val),
+            is_set=has_material_convention_value(val),
             canonical=True,
         )
 
@@ -392,7 +406,7 @@ def convention_list(lock: ConventionLock) -> ConventionListResult:
             key=key,
             label=label,
             value=val,
-            is_set=not is_bogus_value(val),
+            is_set=has_material_convention_value(val),
             canonical=False,
         )
 
@@ -594,13 +608,13 @@ def convention_check(lock: ConventionLock) -> ConventionCheckResult:
     for key in KNOWN_CONVENTIONS:
         val = getattr(lock, key, None)
         label = CONVENTION_LABELS.get(key, key.replace("_", " ").title())
-        if is_bogus_value(val):
+        if not has_material_convention_value(val):
             missing.append(ConventionEntry(key=key, label=label, is_set=False, canonical=True))
         else:
             set_conventions.append(ConventionEntry(key=key, label=label, value=val, is_set=True, canonical=True))
 
     for key, val in lock.custom_conventions.items():
-        if val is not None and not is_bogus_value(val):
+        if has_material_convention_value(val):
             custom.append(ConventionEntry(key=key, value=val, is_set=True, canonical=False))
 
     return ConventionCheckResult(
@@ -649,7 +663,7 @@ def required_assertion_keys(lock: ConventionLock) -> list[str]:
     """Return the active critical convention keys every derivation artifact should assert."""
     required: list[str] = []
     for key in _CRITICAL_ASSERTION_KEYS:
-        if not is_bogus_value(getattr(lock, key, None)):
+        if has_material_convention_value(getattr(lock, key, None)):
             required.append(key)
     return required
 
@@ -658,9 +672,12 @@ def _lookup_lock_value(lock: ConventionLock, key: str) -> str | None:
     """Return the active value for a canonical or custom convention key."""
     if key in KNOWN_CONVENTIONS:
         value = getattr(lock, key, None)
-        if value is not None:
+        if has_material_convention_value(value):
             return str(value)
-    return lock.custom_conventions.get(key)
+    value = lock.custom_conventions.get(key)
+    if has_material_convention_value(value):
+        return value
+    return None
 
 
 @instrument_gpd_function("conventions.validate_assertions")
@@ -749,7 +766,7 @@ def check_assertions(
     missing_required_keys = [
         key
         for key in normalized_required_keys
-        if key not in asserted_keys and not is_bogus_value(_lookup_lock_value(lock, key))
+        if key not in asserted_keys and has_material_convention_value(_lookup_lock_value(lock, key))
     ]
     mismatches = _collect_assertion_mismatches(assertions, lock, filename=filename)
     warnings: list[str] = []
